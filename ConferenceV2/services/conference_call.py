@@ -13,6 +13,7 @@ from services.communication_api import CommunicationAPI
 from services.storage_manager import StorageManager 
 from services.smartphone_connection_manager import SmartphoneConnectionManager
 from services.vanilla_websocket_service import VanillaWebSocketService
+from services.websocket_service import WebsocketService
 
 
 class ConferenceCall:
@@ -28,11 +29,12 @@ class ConferenceCall:
         self.storage_manager = storage_manager
         self.connection_manager = connection_manager
         self.state = ConferenceCallState()
-        self.websocket_service = VanillaWebSocketService(
-                on_disconnect_callback=self.__on_websocket_disconnect_callback,
-                audio_content_state=self.state.audio_content_state,
-                on_state_update=self.update_state
-            )
+        # self.websocket_service = VanillaWebSocketService(
+        #         on_disconnect_callback=self.__on_websocket_disconnect_callback,
+        #         audio_content_state=self.state.audio_content_state,
+        #         on_state_update=self.update_state
+        #     )
+        self.websocket_service = WebsocketService()
         
         self.event_queue = asyncio.Queue()
         self.event_queue_processing_task: asyncio.Task = None
@@ -69,8 +71,8 @@ class ConferenceCall:
             )
             self.state.participants[phone] = student
     
-    def set_websocket(self, websocket: WebSocket):
-        self.websocket_service.set_websocket(websocket)
+    # def set_websocket(self, websocket: WebSocket):
+    #     self.websocket_service.set_websocket(websocket)
 
     async def start_conference(self):
         # Start the call via communication API
@@ -114,7 +116,8 @@ class ConferenceCall:
                                                              message=self.state.model_dump(by_alias=True))
     
     async def __on_websocket_disconnect_callback(self):
-        await self.communication_api.connect_websocket()
+        # await self.communication_api.connect_websocket()
+        pass
     
     # Dequeue function: runs continuously to process tasks
     async def __process_conf_events_queue(self):

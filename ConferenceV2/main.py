@@ -39,6 +39,6 @@ app.add_middleware(
 
 app.include_router(conference.router, prefix="/conference", tags=["Conference"])
 app.include_router(webhooks.router, prefix="/webhooks",  tags=["Webhooks"])
-app.include_router(websocket.router, prefix="/websocket", tags=["Websocket for Comm API"])
+# app.include_router(websocket.router, prefix="/websocket", tags=["Websocket for Comm API"])
 
 # SAVE LOGS TO TXT FILE: uvicorn main:app 2>&1 | tee logs.txt
