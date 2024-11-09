@@ -3,6 +3,19 @@
 const websocketService = require('./websocketService');
 
 /**
+ * Enum for Message Types
+ */
+const MessageType = {
+  PLAY_AUDIO: 'play',
+  PAUSE_AUDIO: 'pause',
+  RESUME_AUDIO: 'resume',
+  STOP_AUDIO: 'stop',
+  DISCONNECT: 'disconnect',
+  RECONNECT: 'reconnect',
+  PLAYBACK_STATE_UPDATES: 'playback-state-update'
+};
+
+/**
  * Handles the control WebSocket connection from the Python application.
  * @param {WebSocket} ws - The control WebSocket connection.
  */
@@ -11,7 +24,8 @@ function handleControlConnection(ws) {
 
   ws.on('message', (message) => {
     try {
-      const parsedMessage = JSON.parse(message);
+      // Parse the JSON string
+      const parsedMessage = JSON.parse(JSON.parse(message));
       handleControlMessage(parsedMessage);
     } catch (error) {
       console.error('Error parsing control message:', error);
@@ -29,29 +43,31 @@ function handleControlConnection(ws) {
 
 /**
  * Handles incoming control messages.
- * @param {Object} message - The control message object.
+ * @param {Object} controlMessage - The control message object.
  */
-function handleControlMessage(message) {
-  const { websocket_id, type, message: content } = message;
-
+function handleControlMessage(controlMessage) {
+  const websocketId = controlMessage.websocket_id;
+  const type = controlMessage.type;
+  const content = controlMessage.message;
+  console.log(`websocket id: ${websocketId}; type: ${type}; message: ${content}`)
   switch (type) {
-    case 'play':
+    case MessageType.PLAY_AUDIO:
       // Implement play functionality
       // 'message' field contains the blobUrl
-      websocketService.play(websocket_id, content)
-        .catch((error) => console.error(`Error playing audio for ID ${websocket_id}:`, error));
+      websocketService.play(websocketId, content)
+        .catch((error) => console.error(`Error playing audio for ID ${websocketId}:`, error));
       break;
-    case 'pause':
-      websocketService.pause(websocket_id);
+    case MessageType.PAUSE_AUDIO:
+      websocketService.pause(websocketId);
       break;
-    case 'resume':
-      websocketService.resume(websocket_id);
+    case MessageType.RESUME_AUDIO:
+      websocketService.resume(websocketId);
       break;
-    case 'stop':
-      websocketService.stop(websocket_id);
+    case MessageType.STOP_AUDIO:
+      websocketService.stop(websocketId);
       break;
-    case 'disconnect':
-      websocketService.closeConnection(websocket_id);
+    case MessageType.DISCONNECT:
+      websocketService.closeConnection(websocketId);
       break;
     default:
       console.warn(`Unknown control message type: ${type}`);

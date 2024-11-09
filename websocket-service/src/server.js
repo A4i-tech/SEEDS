@@ -3,11 +3,17 @@
 const http = require('http');
 const WebSocket = require('ws');
 const url = require('url');
+const appInsights = require('applicationinsights');
 const websocketService = require('./services/websocketService');
 const controlService = require('./services/controlService');
 const connectionManager = require('./services/connectionManager');
 
 const port = process.env.PORT || 3000;
+
+appInsights.setup(process.env.APPLICATIONINSIGHTS_CONNECTION_STRING)
+    .setAutoCollectConsole(true, true) // Capture console logs
+    .setDistributedTracingMode(appInsights.DistributedTracingModes.AI)
+    .start();
 
 // Create HTTP server without Express
 const server = http.createServer((req, res) => {
