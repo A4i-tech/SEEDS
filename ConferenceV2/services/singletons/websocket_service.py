@@ -2,9 +2,12 @@ import asyncio
 import json
 import os
 import websockets
+from models.websocket_message import MessageType, WebsocketMessage
+from services.singletons.conference_call_manager import conference_manager
 
 class WebsocketService:
     _instance = None  # Singleton instance
+    connection_id = "confv2server"
 
     def __new__(cls):
         if cls._instance is None:
@@ -14,11 +17,12 @@ class WebsocketService:
         return cls._instance
 
     async def _initialize(self):
-        self.connection_url = os.environ.get("WS_SERVER_EP", "") + f"?id=confv2server"
+        self.connection_url = os.environ.get("WS_SERVER_EP", "") + f"?id={self.connection_id}"
         self.is_connected = False
         self.reconnect_attempts = 0
         self.max_reconnect_attempts = 3
         self._initialized = True
+        self.conference_manager = conference_manager
         await self._connect()
         asyncio.create_task(self._listen_messages())
 
@@ -61,13 +65,13 @@ class WebsocketService:
         await asyncio.sleep(2)  # Wait before reconnecting
         await self._connect()
 
-    async def send_message(self, message: dict):
+    async def send_message(self, message: WebsocketMessage):
         if not self.is_connected:
             raise ConnectionError("WebSocket is not connected")
         try:
-            message = json.dumps(message)
-            await self._ws.send(message)
-            print(f"Message sent: {message}")
+            message_str = json.dumps(message.model_dump_json())
+            await self._ws.send(message_str)
+            print(f"Message sent to websocket service: {message_str}")
         except Exception as e:
             print(f"Failed to send message: {e}")
             self.is_connected = False

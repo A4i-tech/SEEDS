@@ -10,9 +10,9 @@ from services.storage_manager import StorageManager
 from services.smartphone_connection_manager import SmartphoneConnectionManagerType, SmartphoneConnectionManagerFactory
 from services.conference_call import ConferenceCall
 from conf_logger import logger_instance
+from services.storage_manager.in_memory_storage import InMemoryStorageManager
 
 load_dotenv()
-
 
 class ConferenceCallManager:
     def __init__(
@@ -65,3 +65,10 @@ class ConferenceCallManager:
             if phone_number in participant_phone_numbers:
                 return conf
         return None
+
+# UNIVERSAL ConferenceCallManager instance
+conference_manager = ConferenceCallManager(
+    communication_api_type=CommunicationAPIType.VONAGE,
+    smartphone_connection_manager_type=SmartphoneConnectionManagerType.SSE,
+    storage_manager=InMemoryStorageManager(),
+)

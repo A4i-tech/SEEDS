@@ -25,6 +25,7 @@ class VonageAPI(CommunicationAPI):
     def __init__(self, application_id: str, private_key_path: str, vonage_number: str, conf_id: str, ws_server_url: str = ""):
         self.ws_server_url = ws_server_url
         self.events_webhook_url = os.environ.get("EVENTS_WEBHOOK_EP", "")
+        print('EVENTS WEBHOOK URL', self.events_webhook_url)
         self.application_id = application_id
         self.private_key_path = private_key_path
         self.vonage_number = vonage_number

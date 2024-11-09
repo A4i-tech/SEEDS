@@ -1,7 +1,10 @@
+import asyncio
 from datetime import datetime
 from models.action_history import ActionHistory, ActionType
 from models.audio_content_state import ContentStatus
+from models.websocket_message import MessageType, WebsocketMessage
 from services.conference_call import ConferenceCall
+from services.singletons.websocket_service import WebsocketService
 
 class PlayContentEvent:
     def __init__(self, conf_call: ConferenceCall, url: str):
@@ -13,8 +16,13 @@ class PlayContentEvent:
         self.conf_call.state.audio_content_state.current_url = self.url
         self.conf_call.state.audio_content_state.status = ContentStatus.STARTING
 
-        # Play the audio via websocket service
-        await self.conf_call.websocket_service.play(self.url)
+        # Send Play Message to NodeJS websocket service
+        ws = WebsocketService()
+        await ws.send_message(WebsocketMessage(
+                                websocket_id=self.conf_call.conf_id,
+                                type=MessageType.PLAY_AUDIO,
+                                message=self.url
+                            ))
         
         # Log the action in the action history
         self.conf_call.state.action_history.append(

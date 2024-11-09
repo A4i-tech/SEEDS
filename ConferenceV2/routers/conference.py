@@ -4,7 +4,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket
 from typing import List
 from services.conference_call import ConferenceCall
-from services.conference_call_manager import ConferenceCallManager
+from services.singletons.conference_call_manager import conference_manager
 from services.communication_api import CommunicationAPIType
 from services.confevents.add_participant_event import AddParticipantEvent
 from services.confevents.end_conf_event import EndConferenceEvent
@@ -14,12 +14,15 @@ from services.confevents.play_content_event import PlayContentEvent
 from services.confevents.remove_participant_event import RemoveParticipantEvent
 from services.confevents.sink_conf_event import SinkConferenceEvent
 from services.confevents.unmute_participant_event import UnmuteParticipantEvent
+from services.singletons.websocket_service import WebsocketService
 from services.storage_manager import InMemoryStorageManager
 from services.smartphone_connection_manager import SmartphoneConnectionManagerType
 from schemas.conference_schemas import CreateConferenceRequest
 from pydantic_settings import BaseSettings
 
 router = APIRouter()
+
+ws_service = WebsocketService()
 # settings = get_settings()
 
 # Initialize services
@@ -29,13 +32,6 @@ router = APIRouter()
 #     database_name=settings.COSMOS_DATABASE,
 #     container_name=settings.COSMOS_CONTAINER,
 # )
-
-# Create an instance of ConferenceCallManager
-conference_manager = ConferenceCallManager(
-    communication_api_type=CommunicationAPIType.VONAGE,
-    smartphone_connection_manager_type=SmartphoneConnectionManagerType.SSE,
-    storage_manager=InMemoryStorageManager(),
-)
 
 @router.post("/test-createstart")
 async def create_start_conference(request: CreateConferenceRequest):

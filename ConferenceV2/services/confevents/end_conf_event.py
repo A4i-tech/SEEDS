@@ -1,6 +1,8 @@
 from datetime import datetime
 from models.action_history import ActionHistory, ActionType
+from models.websocket_message import MessageType, WebsocketMessage
 from services.conference_call import ConferenceCall
+from services.singletons.websocket_service import WebsocketService
 
 class EndConferenceEvent:
     def __init__(self, conf_call: ConferenceCall):
@@ -18,7 +20,13 @@ class EndConferenceEvent:
                                                  )
                                     )
         # self.event_queue_processing_task.cancel() # Not ending processing tasks because call disconnect status events will be received from vonage
-        await self.conf_call.websocket_service.close_websocket()     
+        # await self.conf_call.websocket_service.close_websocket()
+        
+        ws = WebsocketService()
+        await ws.send_message(WebsocketMessage(
+                                websocket_id=self.conf_call.conf_id,
+                                type=MessageType.DISCONNECT,
+                            ))     
         # Log the action in the action history
         self.conf_call.state.action_history.append(
             ActionHistory(

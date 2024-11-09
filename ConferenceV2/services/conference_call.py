@@ -12,8 +12,7 @@ from models.action_history import ActionHistory, ActionType
 from services.communication_api import CommunicationAPI
 from services.storage_manager import StorageManager 
 from services.smartphone_connection_manager import SmartphoneConnectionManager
-from services.vanilla_websocket_service import VanillaWebSocketService
-from services.websocket_service import WebsocketService
+# from services.vanilla_websocket_service import VanillaWebSocketService
 
 
 class ConferenceCall:
@@ -34,7 +33,6 @@ class ConferenceCall:
         #         audio_content_state=self.state.audio_content_state,
         #         on_state_update=self.update_state
         #     )
-        self.websocket_service = WebsocketService()
         
         self.event_queue = asyncio.Queue()
         self.event_queue_processing_task: asyncio.Task = None

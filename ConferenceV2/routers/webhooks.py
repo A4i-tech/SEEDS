@@ -7,7 +7,7 @@ from models.participant import CallStatus
 from services.confevents.mute_participant_event import MuteParticipantEvent
 from services.confevents.vonage.vonage_call_status_change_event import VonageCallStatusChangeEvent
 from services.confevents.vonage.vonage_dtmf_input_event import VonageDTMFInputEvent, VonageRTCEventType
-from services.conference_call_manager import ConferenceCallManager
+from services.singletons.conference_call_manager import ConferenceCallManager
 from typing import Dict
 from conf_logger import logger_instance
 
@@ -15,7 +15,7 @@ from conf_logger import logger_instance
 router = APIRouter()
 
 # Import the conference_manager instance
-from routers.conference import conference_manager
+from services.singletons.conference_call_manager import conference_manager
 
 from fastapi import APIRouter, Request, Response
 
