@@ -11,10 +11,28 @@ const port = process.env.PORT || 3000;
 
 // Create HTTP server without Express
 const server = http.createServer((req, res) => {
-  res.writeHead(200, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify({
-    data: 'Hello! I am SEEDS conference websocket server',
-  }));
+  // Parse the request URL
+  const parsedUrl = url.parse(req.url, true);
+
+  // Check if the request is a GET request to the root path '/'
+  if (req.method === 'GET' && parsedUrl.pathname === '/') {
+    // Get the list of IDs of existing WebSocket connections
+    const connections = connectionManager.getAllConnections();
+    const ids = Array.from(connections.keys());
+
+    // Respond with the list of IDs in JSON format
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      message: 'Hello! I am SEEDS conference websocket server v1',
+      connections: ids,
+    }));
+  } else {
+    // For other paths, respond with 404 Not Found
+    res.writeHead(404, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      error: 'Not Found',
+    }));
+  }
 });
 
 // Create WebSocket server
@@ -30,18 +48,32 @@ wss.on('connection', (ws, req) => {
     return;
   }
 
+  // Client WebSocket connection
+  connectionManager.addConnection(id, { ws, state: { id, playing: false, position: 0 } });
+  console.log(`Client WebSocket connection opened for ID: ${id}`);
+
   if (id === 'confv2server') {
     // Control WebSocket connection
     console.log(`Control WebSocket connection established with id: ${id}`);
     controlService.handleControlConnection(ws);
   } else {
-    // Client WebSocket connection
-    connectionManager.addConnection(id, { ws, state: { id, playing: false, position: 0 } });
-    console.log(`Client WebSocket connection opened for ID: ${id}`);
+    // Start a timer to close the connection after 1 hour
+    const maxConnectionTime = 3600000; // 1 hour in milliseconds
+    const connectionTimeout = setTimeout(() => {
+      console.log(`Closing WebSocket connection for ID: ${id} after 1 hour`);
+      ws.close();
+      websocketService.handleDisconnection(id);
+    }, maxConnectionTime);
 
+    // Clear the timer when the connection is closed
     ws.on('close', () => {
       console.log(`WebSocket connection closed for ID: ${id}`);
+      clearTimeout(connectionTimeout);
       websocketService.handleDisconnection(id);
+    });
+
+    ws.on('error', (error) => {
+      console.error(`WebSocket error for ID: ${id}`, error);
     });
   }
 });
