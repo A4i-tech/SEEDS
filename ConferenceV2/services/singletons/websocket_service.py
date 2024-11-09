@@ -2,7 +2,10 @@ import asyncio
 import json
 import os
 import websockets
+from models.audio_content_state import ContentStatus
 from models.websocket_message import MessageType, WebsocketMessage
+from services.confevents.playback_state_update_event import PlaybackStateUpdateEvent
+from services.confevents.reconnect_comm_api_websocket_event import ReconnectCommApiWebsocketEvent
 from services.singletons.conference_call_manager import conference_manager
 
 class WebsocketService:
@@ -45,7 +48,18 @@ class WebsocketService:
             if self.is_connected and self._ws:
                 try:
                     async for message in self._ws:
-                        print(f"Received message: {message}")
+                        # print(f"Received message: {message}")
+                        websocket_message = WebsocketMessage(**json.loads(message))
+                        if websocket_message.type == MessageType.PLAYBACK_STATE_UPDATES:
+                            conf_call = conference_manager.get_conference(websocket_message.websocket_id)
+                            if conf_call:
+                                await conf_call.queue_event(PlaybackStateUpdateEvent(conf_call=conf_call, 
+                                                                               content_state=ContentStatus(websocket_message.message)))
+                        elif websocket_message.type == MessageType.RECONNECT:
+                            conf_call = conference_manager.get_conference(websocket_message.websocket_id)
+                            if conf_call:
+                                await conf_call.queue_event(ReconnectCommApiWebsocketEvent(conf_call=conf_call))
+                        
                         # Process the message as needed
                 except websockets.exceptions.ConnectionClosed:
                     print("Connection closed. Attempting to reconnect...")
