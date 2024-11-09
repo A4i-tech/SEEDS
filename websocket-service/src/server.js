@@ -10,7 +10,12 @@ const connectionManager = require('./services/connectionManager');
 const port = process.env.PORT || 3000;
 
 // Create HTTP server without Express
-const server = http.createServer();
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({
+    data: 'Hello! I am SEEDS conference websocket server',
+  }));
+});
 
 // Create WebSocket server
 const wss = new WebSocket.Server({ server });
