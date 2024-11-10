@@ -2,6 +2,7 @@
  * Enum for Message Types
  */
 const MessageType = {
+    HEARTBEAT: "ping",
     PLAY_AUDIO: 'play',
     PAUSE_AUDIO: 'pause',
     RESUME_AUDIO: 'resume',

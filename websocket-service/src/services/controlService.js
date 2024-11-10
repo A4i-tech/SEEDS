@@ -59,6 +59,9 @@ function handleControlMessage(controlMessage) {
     case MessageType.DISCONNECT:
       websocketService.closeConnection(websocketId);
       break;
+    case MessageType.HEARTBEAT:
+      console.warn("Heartbeat message received from conf server");
+      break;
     default:
       console.warn(`Unknown control message type: ${type}`);
   }
