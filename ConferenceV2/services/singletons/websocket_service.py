@@ -1,12 +1,15 @@
 import asyncio
 import json
 import os
+from dotenv import load_dotenv
 import websockets
 from models.audio_content_state import ContentStatus
 from models.websocket_message import MessageType, WebsocketMessage
 from services.confevents.playback_state_update_event import PlaybackStateUpdateEvent
 from services.confevents.reconnect_comm_api_websocket_event import ReconnectCommApiWebsocketEvent
 from services.singletons.conference_call_manager import conference_manager
+
+load_dotenv()
 
 class WebsocketService:
     _instance = None  # Singleton instance
@@ -45,6 +48,7 @@ class WebsocketService:
 
     async def _listen_messages(self):
         while True:
+            await asyncio.sleep(0.5) # Wait before reconnecting in case of disconnection
             if self.is_connected and self._ws:
                 try:
                     async for message in self._ws:
@@ -59,8 +63,8 @@ class WebsocketService:
                             conf_call = conference_manager.get_conference(websocket_message.websocket_id)
                             if conf_call:
                                 await conf_call.queue_event(ReconnectCommApiWebsocketEvent(conf_call=conf_call))
+                        await asyncio.sleep(0.5) # Wait before processing next message
                         
-                        # Process the message as needed
                 except websockets.exceptions.ConnectionClosed:
                     print("Connection closed. Attempting to reconnect...")
                     self.is_connected = False
@@ -69,8 +73,6 @@ class WebsocketService:
                     print(f"Error while listening: {e}")
                     self.is_connected = False
                     await self._attempt_reconnect()
-            else:
-                await asyncio.sleep(1)  # Wait before checking connection again
 
     async def _attempt_reconnect(self):
         self.reconnect_attempts += 1
