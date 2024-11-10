@@ -1,19 +1,8 @@
 // src/services/controlService.js
 
 const websocketService = require('./websocketService');
-
-/**
- * Enum for Message Types
- */
-const MessageType = {
-  PLAY_AUDIO: 'play',
-  PAUSE_AUDIO: 'pause',
-  RESUME_AUDIO: 'resume',
-  STOP_AUDIO: 'stop',
-  DISCONNECT: 'disconnect',
-  RECONNECT: 'reconnect',
-  PLAYBACK_STATE_UPDATES: 'playback-state-update'
-};
+const connectionManager = require('./connectionManager');
+const { MessageType } = require('../constants')
 
 /**
  * Handles the control WebSocket connection from the Python application.
@@ -34,6 +23,7 @@ function handleControlConnection(ws) {
 
   ws.on('close', () => {
     console.log('Control WebSocket connection closed.');
+    connectionManager.removeConnection('confv2server')
   });
 
   ws.on('error', (error) => {
@@ -75,5 +65,5 @@ function handleControlMessage(controlMessage) {
 }
 
 module.exports = {
-  handleControlConnection,
+  handleControlConnection
 };

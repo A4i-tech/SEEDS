@@ -2,6 +2,7 @@
 
 const azureBlobService = require('./azureBlobService');
 const connectionManager = require('./connectionManager');
+const { PlaybackStatus } = require('../constants')
 
 /**
  * Handles play action for a WebSocket connection.
@@ -25,7 +26,8 @@ async function play(id, blobUrl) {
     const blobData = await azureBlobService.getBlobData(containerName, blobName);
 
     // Start sending audio chunks
-    sendAudioChunks(ws, blobData, state);
+    sendPlaybackStatus(id, PlaybackStatus.PLAYING)
+    sendAudioChunks(ws, id, blobData, state);
   } else {
     throw new Error('WebSocket is not open');
   }
@@ -37,7 +39,7 @@ async function play(id, blobUrl) {
  * @param {Buffer} blobData - Buffer containing the entire blob data.
  * @param {Object} state - State object containing playback information.
  */
-function sendAudioChunks(ws, blobData, state) {
+function sendAudioChunks(ws, confId, blobData, state) {
   let position = state.position || 0; // Start from last known position
   const totalLength = blobData.length;
 
@@ -58,10 +60,11 @@ function sendAudioChunks(ws, blobData, state) {
     const chunk = blobData.slice(position, end);
     position = end;
     state.position = position; // Update position in state
-
+    
     ws.send(chunk, { binary: true }, (error) => {
       if (error) {
         console.error(`Error sending data over WebSocket for ID: ${state.id}`, error);
+        sendPlaybackStatus(confId, PlaybackStatus.STOPPED)
         ws.close();
         return;
       }
@@ -86,6 +89,7 @@ function pause(id) {
 
   const { state } = connection;
   state.playing = false;
+  sendPlaybackStatus(id, PlaybackStatus.PAUSED)
 }
 
 /**
@@ -101,6 +105,7 @@ function resume(id) {
   state.playing = true;
 
   // Restart sending chunks from the current position
+  sendPlaybackStatus(id, PlaybackStatus.PLAYING)
   sendAudioChunks(ws, state.blobData, state);
 }
 
@@ -116,6 +121,7 @@ function stop(id) {
   const { state } = connection;
   state.playing = false;
   state.position = 0;
+  sendPlaybackStatus(id, PlaybackStatus.STOPPED)
 }
 
 /**
@@ -127,21 +133,19 @@ function closeConnection(id) {
 
   if (!connection) throw new Error('WebSocket connection not found');
 
-  const { ws } = connection;
+  const { ws, state } = connection;
+  state.isClosed = true
   ws.close();
-  connectionManager.removeConnection(id);
+  sendPlaybackStatus(id, PlaybackStatus.STOPPED)
 }
 
 /**
  * Handles WebSocket disconnection.
  * @param {string} id - Unique identifier for the connection.
  */
-function handleDisconnection(id) {
-  console.log(`WebSocket disconnected for ID: ${id}`);
-  connectionManager.removeConnection(id);
-
-  // Implement logic to notify the client to reconnect
-  // For example, make a POST request to a client endpoint
+function handleAccidentalDisconnection(id) {
+  console.log(`Sending reconnection message for websocket ${id}`);
+  sendReconnectionMessage(id)
 }
 
 /**
@@ -157,11 +161,40 @@ function parseBlobUrl(blobUrl) {
   return { containerName, blobName };
 }
 
+function sendPlaybackStatus(confId, status) {
+  const { ws } = connectionManager.getConnection('confv2server')
+  ws.send(JSON.stringify({
+      "websocket_id": confId,
+      "type": "playback-state-update",
+      "message": status
+    }), (error) => {
+      if (error) {
+        console.error(`Error sending data over WebSocket for ID: ${state.id}`, error);
+        ws.close();
+        return;
+      }
+    })
+}
+
+function sendReconnectionMessage(id){
+  const { ws } = connectionManager.getConnection('confv2server')
+  ws.send(JSON.stringify({
+      "websocket_id": id,
+      "type": MessageType.RECONNECT,
+    }), (error) => {
+      if (error) {
+        console.error(`Error sending data over WebSocket for ID: ${state.id}`, error);
+        ws.close();
+        return;
+      }
+    })
+}
+
 module.exports = {
   play,
   pause,
   resume,
   stop,
   closeConnection,
-  handleDisconnection,
+  handleAccidentalDisconnection,
 };

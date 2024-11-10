@@ -55,7 +55,7 @@ wss.on('connection', (ws, req) => {
   }
 
   // Client WebSocket connection
-  connectionManager.addConnection(id, { ws, state: { id, playing: false, position: 0 } });
+  connectionManager.addConnection(id, { ws, state: { id, playing: false, position: 0, isClosed: false } });
   console.log(`Client WebSocket connection opened for ID: ${id}`);
 
   if (id === 'confv2server') {
@@ -68,14 +68,17 @@ wss.on('connection', (ws, req) => {
     const connectionTimeout = setTimeout(() => {
       console.log(`Closing WebSocket connection for ID: ${id} after 1 hour`);
       ws.close();
-      websocketService.handleDisconnection(id);
     }, maxConnectionTime);
 
     // Clear the timer when the connection is closed
     ws.on('close', () => {
       console.log(`WebSocket connection closed for ID: ${id}`);
       clearTimeout(connectionTimeout);
-      websocketService.handleDisconnection(id);
+      const { state } = connectionManager.getConnection(id);
+      connectionManager.removeConnection(id);
+      if(!state.isClosed){
+        websocketService.handleAccidentalDisconnection(id);
+      }
     });
 
     ws.on('error', (error) => {
