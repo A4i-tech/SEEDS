@@ -14,6 +14,7 @@ load_dotenv()
 class WebsocketService:
     _instance = None  # Singleton instance
     connection_id = "confv2server"
+    heartbeat_interval = 30
 
     def __new__(cls):
         if cls._instance is None:
@@ -31,6 +32,7 @@ class WebsocketService:
         self.conference_manager = conference_manager
         await self._connect()
         asyncio.create_task(self._listen_messages())
+        asyncio.create_task(self._send_heartbeat())
 
     async def _connect(self):
         while not self.is_connected and self.reconnect_attempts < self.max_reconnect_attempts:
@@ -73,6 +75,22 @@ class WebsocketService:
                     print(f"Error while listening: {e}")
                     self.is_connected = False
                     await self._attempt_reconnect()
+    
+    async def _send_heartbeat(self):
+        """Send heartbeat messages to keep the WebSocket connection alive."""
+        while True:
+            if self.is_connected and self._ws:
+                try:
+                    heartbeat_message = WebsocketMessage(
+                        websocket_id=self.connection_id,
+                        type=MessageType.HEARTBEAT
+                    )
+                    await self.send_message(heartbeat_message)
+                except Exception as e:
+                    print(f"Failed to send heartbeat message: {e}")
+                    self.is_connected = False
+                    await self._attempt_reconnect()
+            await asyncio.sleep(self.heartbeat_interval)  # Wait for the next heartbeat interval
 
     async def _attempt_reconnect(self):
         self.reconnect_attempts += 1

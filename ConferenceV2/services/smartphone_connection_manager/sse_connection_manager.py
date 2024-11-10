@@ -21,18 +21,21 @@ class SSEConnectionManager(SmartphoneConnectionManager):
             logger_instance.info(f"SSE Client {client.phone_number} connected")
 
         async def event_stream():
-            """Generator to send messages to the client."""
             while True:
-                # Break the loop if the client is marked as disconnected
                 if self.active_connections[client.phone_number]["disconnected"]:
                     logger_instance.info(f"Stopping event stream for {client.phone_number}")
                     break
-
                 try:
-                    # Fetch messages from the queue and yield them as SSE format
-                    message = await self.active_connections[client.phone_number]["queue"].get()
+                    # Wait for a message with a timeout
+                    message = await asyncio.wait_for(
+                        self.active_connections[client.phone_number]["queue"].get(),
+                        timeout=30.0  # Timeout after 30 seconds
+                    )
                     logger_instance.info('Sending SSE event', message)
                     yield f"data: {json.dumps(message)}\n\n"
+                except asyncio.TimeoutError:
+                    # Send a heartbeat message
+                    yield ": heartbeat\n\n"
                 except asyncio.CancelledError:
                     logger_instance.info(f"Event stream task canceled for {client.phone_number}")
                     break

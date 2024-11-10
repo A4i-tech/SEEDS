@@ -5,6 +5,7 @@ from models.audio_content_state import ContentStatus
 
 
 class MessageType(str, Enum):
+    HEARTBEAT = "ping"
     PLAY_AUDIO = "play"
     PAUSE_AUDIO = "pause"
     RESUME_AUDIO = "resume"
