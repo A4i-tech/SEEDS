@@ -10,7 +10,7 @@ from routers import conference, webhooks, websocket
 from fastapi.middleware.cors import CORSMiddleware
 from conf_logger import logger_instance
 
-from services.singletons.azure_service_bus_service import AzureServiceBusService
+from services.singletons.websocket_service import WebsocketService
 
 load_dotenv()
 
@@ -27,10 +27,11 @@ logger_instance.info(os.environ.get("EVENTS_WEBHOOK_EP", "<NO EVENTS_WEBHOOK_EP 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Start background task to listen for messages from Node.js
-    azure_service_bus_service = AzureServiceBusService()
-    task = asyncio.create_task(azure_service_bus_service.receive_messages())
+    ws = WebsocketService()
+    await ws.initialize()
     yield
-    task.cancel()
+    # End background task to listen for messages from Node.js
+    ws.cancel_bg_processes()
 
 app = FastAPI(title=f"SEEDS Conference Call System", lifespan=lifespan)
 

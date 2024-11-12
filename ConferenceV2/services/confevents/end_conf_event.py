@@ -2,7 +2,6 @@ from datetime import datetime
 from models.action_history import ActionHistory, ActionType
 from models.ws_service_message import MessageType, WebsocketServiceMessage
 from services.conference_call import ConferenceCall
-from services.singletons.azure_service_bus_service import AzureServiceBusService
 from services.singletons.websocket_service import WebsocketService
 
 class EndConferenceEvent:
@@ -23,9 +22,8 @@ class EndConferenceEvent:
         # self.event_queue_processing_task.cancel() # Not ending processing tasks because call disconnect status events will be received from vonage
         # await self.conf_call.websocket_service.close_websocket()
         
-        # ws = WebsocketService()
-        azure_service_bus_service = AzureServiceBusService()
-        await azure_service_bus_service.send_message(WebsocketServiceMessage(
+        ws = WebsocketService()
+        await ws.send_message(WebsocketServiceMessage(
                                 websocket_id=self.conf_call.conf_id,
                                 type=MessageType.DISCONNECT,
                             ))     

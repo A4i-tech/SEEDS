@@ -121,7 +121,6 @@ class ConferenceCall:
         while True:
             event: ConferenceEvent = await self.event_queue.get()
             await event.execute_event()
-            await asyncio.sleep(0.2)
     
 
         

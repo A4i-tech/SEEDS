@@ -4,7 +4,6 @@ from models.action_history import ActionHistory, ActionType
 from models.audio_content_state import ContentStatus
 from models.ws_service_message import MessageType, WebsocketServiceMessage
 from services.conference_call import ConferenceCall
-from services.singletons.azure_service_bus_service import AzureServiceBusService
 from services.singletons.websocket_service import WebsocketService
 from conf_logger import logger_instance
 
@@ -19,9 +18,8 @@ class PlayContentEvent:
         self.conf_call.state.audio_content_state.status = ContentStatus.STARTING
 
         # Send Play Message to NodeJS websocket service
-        # ws = WebsocketService()
-        azure_service_bus_service = AzureServiceBusService()
-        await azure_service_bus_service.send_message(WebsocketServiceMessage(
+        ws = WebsocketService()
+        await ws.send_message(WebsocketServiceMessage(
                                 websocket_id=self.conf_call.conf_id,
                                 type=MessageType.PLAY_AUDIO,
                                 message=self.url

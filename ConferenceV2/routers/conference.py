@@ -1,12 +1,8 @@
 # routers/conference.py
 
-import uuid
-from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket
-from typing import List
+from fastapi import APIRouter
 from services.conference_call import ConferenceCall
-from services.singletons.azure_service_bus_service import AzureServiceBusService
 from services.singletons.conference_call_manager import conference_manager
-from services.communication_api import CommunicationAPIType
 from services.confevents.add_participant_event import AddParticipantEvent
 from services.confevents.end_conf_event import EndConferenceEvent
 from services.confevents.mute_participant_event import MuteParticipantEvent
@@ -15,11 +11,7 @@ from services.confevents.play_content_event import PlayContentEvent
 from services.confevents.remove_participant_event import RemoveParticipantEvent
 from services.confevents.sink_conf_event import SinkConferenceEvent
 from services.confevents.unmute_participant_event import UnmuteParticipantEvent
-from services.singletons.websocket_service import WebsocketService
-from services.storage_manager import InMemoryStorageManager
-from services.smartphone_connection_manager import SmartphoneConnectionManagerType
 from schemas.conference_schemas import CreateConferenceRequest
-from pydantic_settings import BaseSettings
 
 router = APIRouter()
 

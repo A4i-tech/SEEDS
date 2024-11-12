@@ -97,10 +97,11 @@ class VonageAPI(CommunicationAPI):
                 logger_instance.info("CALL ALREADY ENDED FOR PARTICIPANT", participant.phone_number)
     
     async def connect_websocket(self):
-        connected_ws = False
-        while not connected_ws:
+        is_connected = False
+        while not is_connected:
             # IF ANY PARTICIPANT PICKED UP THE CALL: CONNECT THE WEBSOCKET AND PUT BOTH OF THEM BACK INTO THE CONVERSATION. 
-            # THIS IS BECAUSE ATLEAST ONE answered CALL LEG IS REQUIRED TO EXECUTE THE transfer ACTION. 
+            # THIS IS BECAUSE ATLEAST ONE answered CALL LEG IS REQUIRED TO EXECUTE THE transfer ACTION.
+            await asyncio.sleep(2) 
             for participant_ph_number in self.participant_info_map:
                 participant = self.participant_info_map[participant_ph_number]
                 call = self.client.voice.get_call(uuid=participant.call_leg_id)
@@ -135,7 +136,7 @@ class VonageAPI(CommunicationAPI):
                                                             ]
                                                         }
                                                     })
-                    connected_ws = True
+                    is_connected = True
                     break     
 
     # client.create_call()

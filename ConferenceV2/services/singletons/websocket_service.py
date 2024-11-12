@@ -20,20 +20,31 @@ class WebsocketService:
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._instance._initialized = False
-            asyncio.create_task(cls._instance._initialize())
         return cls._instance
 
-    async def _initialize(self):
+    async def initialize(self):
         self.connection_url = os.environ.get("WS_SERVER_EP", "") + f"?id={self.connection_id}"
         self.is_connected = False
         self.reconnect_attempts = 0
         self.max_reconnect_attempts = 3
-        self._initialized = True
         self.conference_manager = conference_manager
+        self.bg_tasks = []
         await self._connect()
-        asyncio.create_task(self._listen_messages())
-        asyncio.create_task(self._send_heartbeat())
+        self._start_bg_processes()
+    
+    def _start_bg_processes(self):
+        if len(self.bg_tasks) > 0:
+            for task in self.bg_tasks:
+                task.cancel()
+                
+        self.bg_tasks = [
+            asyncio.create_task(self._listen_messages()), 
+            asyncio.create_task(self._send_heartbeat())
+        ]
+    
+    def cancel_bg_processes(self):
+        for task in self.bg_tasks:
+            task.cancel()
 
     async def _connect(self):
         while not self.is_connected and self.reconnect_attempts < self.max_reconnect_attempts:
@@ -54,6 +65,7 @@ class WebsocketService:
             await asyncio.sleep(0.5) # Wait before reconnecting in case of disconnection
             if self.is_connected and self._ws:
                 try:
+                    logger_instance.info("LISTENING MESSAGES FROM WS SERVICE...")
                     async for message in self._ws:
                         # logger_instance.info(f"Received message: {message}")
                         websocket_message = WebsocketServiceMessage(**json.loads(message))
@@ -66,8 +78,6 @@ class WebsocketService:
                             conf_call = conference_manager.get_conference(websocket_message.websocket_id)
                             if conf_call:
                                 await conf_call.queue_event(ReconnectCommApiWebsocketEvent(conf_call=conf_call))
-                        await asyncio.sleep(0.5) # Wait before processing next message
-                        
                 except websockets.exceptions.ConnectionClosed:
                     logger_instance.info("Connection closed. Attempting to reconnect...")
                     self.is_connected = False
@@ -79,6 +89,7 @@ class WebsocketService:
     
     async def _send_heartbeat(self):
         """Send heartbeat messages to keep the WebSocket connection alive."""
+        logger_instance.info("STARTING TO SEND HEARTBEATS TO WS SERVICE...")
         while True:
             if self.is_connected and self._ws:
                 try:
