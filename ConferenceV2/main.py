@@ -1,9 +1,18 @@
 # main.py
 
+import asyncio
+from contextlib import asynccontextmanager
+import os
 from pathlib import Path
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from routers import conference, webhooks, websocket
 from fastapi.middleware.cors import CORSMiddleware
+from conf_logger import logger_instance
+
+from services.singletons.azure_service_bus_service import AzureServiceBusService
+
+load_dotenv()
 
 # Read the version from version.txt
 version_file = Path("version.txt")
@@ -11,8 +20,19 @@ if version_file.exists():
     app_version = version_file.read_text().strip()
 else:
     app_version = "Unknown"
+    
+logger_instance.info(os.environ.get("WS_SERVER_EP", "<NO WS_SERVER_EP FOUND>"))
+logger_instance.info(os.environ.get("EVENTS_WEBHOOK_EP", "<NO EVENTS_WEBHOOK_EP FOUND>"))
 
-app = FastAPI(title=f"SEEDS Conference Call System")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Start background task to listen for messages from Node.js
+    azure_service_bus_service = AzureServiceBusService()
+    task = asyncio.create_task(azure_service_bus_service.receive_messages())
+    yield
+    task.cancel()
+
+app = FastAPI(title=f"SEEDS Conference Call System", lifespan=lifespan)
 
 # Store the original OpenAPI function
 original_openapi = app.openapi
@@ -42,3 +62,4 @@ app.include_router(webhooks.router, prefix="/webhooks",  tags=["Webhooks"])
 # app.include_router(websocket.router, prefix="/websocket", tags=["Websocket for Comm API"])
 
 # SAVE LOGS TO TXT FILE: uvicorn main:app 2>&1 | tee logs.txt
+

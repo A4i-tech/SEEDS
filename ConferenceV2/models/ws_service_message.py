@@ -14,7 +14,7 @@ class MessageType(str, Enum):
     DISCONNECT = "disconnect"
     RECONNECT = "reconnect"
     
-class WebsocketMessage(BaseModel):
+class WebsocketServiceMessage(BaseModel):
     websocket_id: str
     type: MessageType
     message: str = ""

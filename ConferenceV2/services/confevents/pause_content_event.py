@@ -1,8 +1,9 @@
 from datetime import datetime
 from models.action_history import ActionHistory, ActionType
 from models.audio_content_state import ContentStatus
-from models.websocket_message import MessageType, WebsocketMessage
+from models.ws_service_message import MessageType, WebsocketServiceMessage
 from services.conference_call import ConferenceCall
+from services.singletons.azure_service_bus_service import AzureServiceBusService
 from services.singletons.websocket_service import WebsocketService
 
 
@@ -18,8 +19,9 @@ class PauseContentEvent:
         # audio_state.paused_at = datetime.now().isoformat()
         
         # Send Pause Message to NodeJS websocket service
-        ws = WebsocketService() 
-        await ws.send_message(WebsocketMessage(
+        # ws = WebsocketService() 
+        azure_service_bus_service = AzureServiceBusService()
+        await azure_service_bus_service.send_message(WebsocketServiceMessage(
             websocket_id=self.conf_call.conf_id,
             type=MessageType.PAUSE_AUDIO,
         ))

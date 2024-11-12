@@ -28,7 +28,6 @@ class ConferenceCallManager:
         self.smartphone_connection_manager_factory = SmartphoneConnectionManagerFactory()
         self.conferences: Dict[str, ConferenceCall] = {}
         self.ws_base_url = os.environ.get("WS_SERVER_EP", "")
-        logger_instance.info(f'WEBSOCKET BASE URL: {self.ws_base_url}')
 
     def create_conference(self, teacher_phone: str, student_phones: List[str]) -> ConferenceCall:
         conf_id = str(uuid.uuid4())

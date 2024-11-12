@@ -4,6 +4,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket
 from typing import List
 from services.conference_call import ConferenceCall
+from services.singletons.azure_service_bus_service import AzureServiceBusService
 from services.singletons.conference_call_manager import conference_manager
 from services.communication_api import CommunicationAPIType
 from services.confevents.add_participant_event import AddParticipantEvent
@@ -22,7 +23,7 @@ from pydantic_settings import BaseSettings
 
 router = APIRouter()
 
-ws_service = WebsocketService()
+# ws_service = WebsocketService()
 # settings = get_settings()
 
 # Initialize services
