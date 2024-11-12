@@ -1,5 +1,6 @@
 # services/conference_call.py
 
+import traceback
 from typing import List
 from datetime import datetime
 import asyncio
@@ -12,6 +13,7 @@ from models.action_history import ActionHistory, ActionType
 from services.communication_api import CommunicationAPI
 from services.storage_manager import StorageManager 
 from services.smartphone_connection_manager import SmartphoneConnectionManager
+from conf_logger import logger_instance
 # from services.vanilla_websocket_service import VanillaWebSocketService
 
 
@@ -117,10 +119,22 @@ class ConferenceCall:
         await self.communication_api.connect_websocket()
     
     # Dequeue function: runs continuously to process tasks
-    async def __process_conf_events_queue(self):
+    async def __process_conf_events_queue(self, timeout: float = 3.0):
         while True:
             event: ConferenceEvent = await self.event_queue.get()
-            await event.execute_event()
+            try:
+                # Attempt to execute the event with a timeout
+                await asyncio.wait_for(event.execute_event(), timeout=timeout)
+            except asyncio.TimeoutError:
+                # Handle the timeout (e.g., log a warning, skip, etc.)
+                logger_instance.info(f"Event {event} execution timed out and was skipped.")
+            except Exception as e:
+                logger_instance.error(f"Error executing event {event} : ", e)
+                traceback_str = ''.join(traceback.format_tb(e.__traceback__))
+                logger_instance.error("Traceback:\n%s", traceback_str)
+            finally:
+                # Mark the task as done to release the queue item
+                self.event_queue.task_done()
     
 
         
