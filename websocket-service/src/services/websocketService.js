@@ -19,6 +19,7 @@ async function play(id, blobUrl) {
   if (ws.readyState === ws.OPEN) {
     state.playing = true;
     state.blobUrl = blobUrl; // Store blobUrl for resuming if needed
+    state.position = 0; // Reset chunk position
 
     const { containerName, blobName } = parseBlobUrl(blobUrl);
 

@@ -29,7 +29,7 @@ const server = http.createServer((req, res) => {
     // Respond with the list of IDs in JSON format
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
-      message: 'Hello! I am SEEDS conference websocket server v1',
+      message: 'Hello! I am SEEDS conference websocket server v1.1',
       connections: ids,
     }));
   } else {
