@@ -116,7 +116,7 @@ class ConferenceCall:
                                                              message=self.state.model_dump(by_alias=True))
     
     async def on_websocket_disconnect_callback(self):
-        await self.communication_api.connect_websocket()
+        await self.communication_api.reconnect_websocket()
     
     # Dequeue function: runs continuously to process tasks
     async def __process_conf_events_queue(self, timeout: float = 3.0):

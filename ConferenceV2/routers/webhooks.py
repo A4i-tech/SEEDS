@@ -3,8 +3,10 @@
 import json
 from fastapi import APIRouter, Request, BackgroundTasks, HTTPException, Response
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 from models.participant import CallStatus
 from services.confevents.mute_participant_event import MuteParticipantEvent
+from services.confevents.vonage.vonage_call_leg_transfer_event import VonageCallTransferEvent
 from services.confevents.vonage.vonage_call_status_change_event import VonageCallStatusChangeEvent
 from services.confevents.vonage.vonage_dtmf_input_event import VonageDTMFInputEvent, VonageRTCEventType
 from services.singletons.conference_call_manager import ConferenceCallManager
@@ -36,9 +38,9 @@ async def conversation_events_webhook(request: Request, background_tasks: Backgr
     return {"status": "ok"}
 
 async def process_event(event_data: Dict, conference_id: str):
-    try: 
-        conf = conference_manager.get_conference(conference_id)
-        if conf:
+    conf = conference_manager.get_conference(conference_id)
+    if conf:
+        try: 
             vonage_call_status_change_event = VonageCallStatusChangeEvent(**event_data)
             call_status_change_event = vonage_call_status_change_event.get_conf_call_status_change_event(conf)
             await conf.queue_event(call_status_change_event)
@@ -47,8 +49,17 @@ async def process_event(event_data: Dict, conference_id: str):
             student_phone_numbers = [student.phone_number for student in conf.state.get_students()]
             if call_status_change_event.status == CallStatus.CONNECTED and call_status_change_event.phone_number in student_phone_numbers: 
                 await conf.queue_event(MuteParticipantEvent(phone_number=call_status_change_event.phone_number, conf_call=conf))
-    except:
-        logger_instance.info("NOT a call_status_change_event")
+        except ValidationError as e:
+            try:
+                vonage_call_transfer_event = VonageCallTransferEvent(conf_call=conf, **event_data)
+                logger_instance.info('QUEUING VONAGE CALL TRANSFER EVENT', vonage_call_transfer_event)
+                await conf.queue_event(vonage_call_transfer_event)
+            except ValidationError as e2:
+                logger_instance.info("Event data does not match any known event types.", json.dumps(event_data, indent=2))
+            except Exception as e:
+                logger_instance.error("Error ", e)
+        except Exception as e:
+            logger_instance.error("Error ", e)
         
 async def process_conversation_event(event_data: Dict):
     try:

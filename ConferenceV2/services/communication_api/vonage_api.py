@@ -4,6 +4,7 @@ import os
 import time
 import uuid
 from models.webhook_event import WebHookEvent
+from models.ws_service_message import SystemAudioMessages
 from services.communication_api import CommunicationAPI
 from typing import Any, Dict, List, Optional
 import json
@@ -12,16 +13,17 @@ import vonage
 from typing import Dict
 from pydantic import BaseModel
 from conf_logger import logger_instance
+from services.singletons.sas_gen import sas_gen
 
 class VonageParticipantInfo(BaseModel):
     phone_number: str
     call_leg_id: str
-    conv_id: str
+    initial_conv_id: str
+    conference_conv_id: str = None
 
 load_dotenv()
 
 class VonageAPI(CommunicationAPI):
-# class VonageAPI:
     def __init__(self, application_id: str, private_key_path: str, vonage_number: str, conf_id: str, ws_server_url: str = ""):
         self.ws_server_url = ws_server_url
         self.events_webhook_url = os.environ.get("EVENTS_WEBHOOK_EP", "")
@@ -32,83 +34,20 @@ class VonageAPI(CommunicationAPI):
         self.client = vonage.Client(application_id=self.application_id, private_key=self.private_key_path)
         self.participant_info_map: Dict[str, VonageParticipantInfo] = {}
         self.teacher_phone_number = None
+        self.is_websocket_connected = False
     
-    # TODO: Connect a websocket to the call
-    async def start_conf(self, teacher_phone: str, student_phones: List[str]):
+    async def _try_connecting_websocket_with_participant(self, participant: VonageParticipantInfo):
         """
-        Starts a conference call between a teacher and students using Vonage API.
-        """
-        call_payload = {"type": "phone", "number": teacher_phone}
-        call_data = {
-            "to": [call_payload],
-            "from": {
-                "type": "phone", 
-                "number": self.vonage_number
-            },
-            "event_url": [
-                self.events_webhook_url + f"/{self.conf_id}"
-            ],
-            "ncco": [
-                {
-                    "action": "conversation", 
-                    "name": self.conf_id
-                }
-            ]
-        }
-        vonage_resp = self.client.voice.create_call(call_data)
-        logger_instance.info("VONAGE TEACHER RESPONSE", json.dumps(vonage_resp, indent=2))
-        self.teacher_phone_number = teacher_phone
-        self.participant_info_map[teacher_phone] = VonageParticipantInfo(
-                                                        phone_number=teacher_phone,
-                                                        call_leg_id=vonage_resp['uuid'],
-                                                        conv_id=vonage_resp['conversation_uuid'])
+        Connecting websocket to this conference call, requires an active call leg. 
+        The user with active call leg is transferred into a new NCCO which first connects a websocket to the user's call leg
+        and then transfers both - user's call leg and the websocket, back into the conference
         
-        logger_instance.info("CONNECTING CALL TO WEBSOCKET IN BACKGROUND")
-        asyncio.create_task(self.connect_websocket())
-
-        for student_phone in student_phones:
-            call_payload = {"type": "phone", "number": student_phone}
-            call_data = {
-                "to": [call_payload],
-                "from": {"type": "phone", "number": self.vonage_number},
-                "event_url": [
-                    self.events_webhook_url + f"/{self.conf_id}"
-                ],
-                "ncco": [{"action": "conversation", "name": self.conf_id}]
-            }
-            vonage_resp = self.client.voice.create_call(call_data)
-            logger_instance.info("VONAGE STUDENT RESPONSE", json.dumps(vonage_resp, indent=2))
-            self.participant_info_map[student_phone] = VonageParticipantInfo(
-                                                            phone_number=student_phone,
-                                                            call_leg_id=vonage_resp['uuid'],
-                                                            conv_id=vonage_resp['conversation_uuid'])
-
-    # client.update_call()
-    async def end_conf(self):
+        Returns True if the above process happened for the given participant
         """
-        Ends a call by its conference ID using the Vonage API.
-        """
-        for participant in self.participant_info_map.values():
-            call_details = self.client.voice.get_call(uuid=participant.call_leg_id)
-            if call_details['status'] == 'answered':
-                logger_instance.info("ENDING CALL FOR PARTICIPANT", participant.phone_number)
-                self.client.voice.update_call(uuid=participant.call_leg_id, action="hangup")
-            else:
-                logger_instance.info("CALL ALREADY ENDED FOR PARTICIPANT", participant.phone_number)
-    
-    async def connect_websocket(self):
-        is_connected = False
-        while not is_connected:
-            # IF ANY PARTICIPANT PICKED UP THE CALL: CONNECT THE WEBSOCKET AND PUT BOTH OF THEM BACK INTO THE CONVERSATION. 
-            # THIS IS BECAUSE ATLEAST ONE answered CALL LEG IS REQUIRED TO EXECUTE THE transfer ACTION.
-            await asyncio.sleep(2) 
-            for participant_ph_number in self.participant_info_map:
-                participant = self.participant_info_map[participant_ph_number]
-                call = self.client.voice.get_call(uuid=participant.call_leg_id)
-                
-                if call['status'] == 'answered':
-                    logger_instance.info(f"{participant_ph_number} HAS ANSWERED THE CALL, CONNECTING WEBSOCKET NOW... URL:", self.ws_server_url)
-                    self.client.voice.update_call(uuid=participant.call_leg_id, 
+        call = self.client.voice.get_call(uuid=participant.call_leg_id)
+        if call['status'] == 'answered':
+            logger_instance.info('CONNECTING WEBSOCKET TO THE CONFERENCE ', self.conf_id, 'USING NUMBER', participant.phone_number, 'URL:', self.ws_server_url)
+            self.client.voice.update_call(uuid=participant.call_leg_id, 
                                                     params={
                                                         "action": "transfer",
                                                         "destination": {
@@ -136,8 +75,120 @@ class VonageAPI(CommunicationAPI):
                                                             ]
                                                         }
                                                     })
-                    is_connected = True
-                    break     
+            # Say it takes 2 seconds for vonage to connect the websocket to the conference. 
+            # TODO: Figure out a way around this assumption
+            await asyncio.sleep(2)
+            return True
+        return False
+    
+    async def handle_call_transfer_event(self, uuid: str, conversation_uuid_to: str):
+        """
+        Find the participant which was just put into the conference.
+        If websocket is not connected, use this participant to connect the websocket to conference.
+        
+        Return participant phone number or None
+        """
+        participant = next(
+            (p for p in self.participant_info_map.values() if p.call_leg_id == uuid),
+            None
+        )
+        
+        if participant:
+            participant.conference_conv_id = conversation_uuid_to
+            if not self.is_websocket_connected:
+                self.is_websocket_connected = await self._try_connecting_websocket_with_participant(participant)
+            return participant.phone_number
+    
+        return None
+            
+    # TODO: Connect a websocket to the call
+    async def start_conf(self, teacher_phone: str, student_phones: List[str]):
+        """
+        Starts a conference call between a teacher and students using Vonage API.
+        """
+        call_payload = {"type": "phone", "number": teacher_phone}
+        call_data = {
+            "to": [call_payload],
+            "from": {
+                "type": "phone", 
+                "number": self.vonage_number
+            },
+            "event_url": [
+                self.events_webhook_url + f"/{self.conf_id}"
+            ],
+            "ncco": [
+                {
+                    "action": "stream",
+                    "streamUrl": [sas_gen.get_url_with_sas(SystemAudioMessages.WELCOME_TEACHER.value)]
+                },
+                {
+                    "action": "conversation", 
+                    "name": self.conf_id
+                }
+            ]
+        }
+        vonage_resp = self.client.voice.create_call(call_data)
+        logger_instance.info("VONAGE TEACHER RESPONSE", json.dumps(vonage_resp, indent=2))
+        self.teacher_phone_number = teacher_phone
+        self.participant_info_map[teacher_phone] = VonageParticipantInfo(
+                                                        phone_number=teacher_phone,
+                                                        call_leg_id=vonage_resp['uuid'],
+                                                        initial_conv_id=vonage_resp['conversation_uuid'])
+        
+        for student_phone in student_phones:
+            call_payload = {"type": "phone", "number": student_phone}
+            call_data = {
+                "to": [call_payload],
+                "from": {"type": "phone", "number": self.vonage_number},
+                "event_url": [
+                    self.events_webhook_url + f"/{self.conf_id}"
+                ],
+                "ncco": [
+                    {
+                        "action": "stream",
+                        "streamUrl": [sas_gen.get_url_with_sas(SystemAudioMessages.WELCOME_STUDENT.value)]
+                    },
+                    {
+                        "action": "conversation", 
+                        "name": self.conf_id
+                    }
+                ]
+            }
+            vonage_resp = self.client.voice.create_call(call_data)
+            logger_instance.info("VONAGE STUDENT RESPONSE", json.dumps(vonage_resp, indent=2))
+            self.participant_info_map[student_phone] = VonageParticipantInfo(
+                                                            phone_number=student_phone,
+                                                            call_leg_id=vonage_resp['uuid'],
+                                                            initial_conv_id=vonage_resp['conversation_uuid'])
+
+    # client.update_call()
+    async def end_conf(self):
+        """
+        Ends a call by its conference ID using the Vonage API.
+        """
+        for participant in self.participant_info_map.values():
+            call_details = self.client.voice.get_call(uuid=participant.call_leg_id)
+            if call_details['status'] == 'answered':
+                logger_instance.info("ENDING CALL FOR PARTICIPANT", participant.phone_number)
+                self.client.voice.update_call(uuid=participant.call_leg_id, action="hangup")
+            else:
+                logger_instance.info("CALL ALREADY ENDED FOR PARTICIPANT", participant.phone_number)
+    
+    async def reconnect_websocket(self):
+        """
+        Go through latest call statuses for all participants and on finding the first "answered" call leg,
+        try connecting the websocket 
+        """
+        self.is_websocket_connected = False
+        while not self.is_websocket_connected: 
+            for participant_ph_number in self.participant_info_map:
+                participant = self.participant_info_map[participant_ph_number]
+                if participant.conference_conv_id: # The participant is already in the conference
+                        self.is_websocket_connected = await self._try_connecting_websocket_with_participant(participant)
+                        if self.is_websocket_connected:
+                            break
+                # VERY IMPORTANT : Stuck event loop otherwise
+                await asyncio.sleep(2)
 
     # client.create_call()
     async def add_participant(self, phone_number: str):

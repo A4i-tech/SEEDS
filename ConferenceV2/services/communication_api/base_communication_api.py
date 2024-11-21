@@ -17,7 +17,7 @@ class CommunicationAPI(ABC):
         pass
 
     @abstractmethod
-    def connect_websocket(self):
+    def reconnect_websocket(self):
         pass
 
     # ADD PARTICIPANT TO THE CONF
