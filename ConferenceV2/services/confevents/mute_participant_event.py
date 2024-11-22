@@ -3,6 +3,7 @@ from models.action_history import ActionHistory, ActionType
 from models.system_audio_messages import SystemAudioMessages
 from services.conference_call import ConferenceCall
 from services.confevents.base_event import ConferenceEvent
+from conf_logger import logger_instance
 
 
 class MuteParticipantEvent(ConferenceEvent):
@@ -12,16 +13,16 @@ class MuteParticipantEvent(ConferenceEvent):
         self.stream_system_message = stream_system_message
 
     async def execute_event(self):
-        # TODO: Speak out announcement messages in conversation through comm API, check if the participant is already muted
         if self.phone_number in self.conf_call.state.participants:
+            logger_instance.info("EXECUTING MUTE PARTICIPANT EVENT", self.phone_number)
             # Mute the participant using communication API
             await self.conf_call.communication_api.mute_participant(self.phone_number)
             
             # Update the participant's muted status
             self.conf_call.state.participants[self.phone_number].is_muted = True
             
-            if self.stream_system_message:
-                await self.conf_call.system_message_streaming.stream_message(SystemAudioMessages.STUDENT_IS_MUTED)
+            if self.stream_system_message and self.phone_number != self.conf_call.state.get_teacher().phone_number:
+                await self.conf_call.stream_system_message(SystemAudioMessages.STUDENT_IS_MUTED)
             
             # Log the action in the action history
             self.conf_call.state.action_history.append(

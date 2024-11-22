@@ -27,10 +27,40 @@ class VonageAPI(CommunicationAPI):
         self.private_key_path = private_key_path
         self.vonage_number = vonage_number
         self.conf_id = conf_id
+        self.vonage_conv_id = None
         self.client = vonage.Client(application_id=self.application_id, private_key=self.private_key_path)
         self.participant_info_map: Dict[str, VonageParticipantInfo] = {}
         self.teacher_phone_number = None
         self.is_websocket_connected = False
+    
+    def _add_participant_to_call_with_system_message(self, phone_number: str, welcome_message: SystemAudioMessages):
+        call_payload = {"type": "phone", "number": phone_number}
+        call_data = {
+            "to": [call_payload],
+            "from": {
+                "type": "phone", 
+                "number": self.vonage_number
+            },
+            "event_url": [
+                self.events_webhook_url + f"/{self.conf_id}"
+            ],
+            "ncco": [
+                {
+                    "action": "stream",
+                    "streamUrl": [sas_gen.get_url_with_sas(welcome_message.value)]
+                },
+                {
+                    "action": "conversation", 
+                    "name": self.conf_id
+                }
+            ]
+        }
+        vonage_resp = self.client.voice.create_call(call_data)
+        logger_instance.info("VONAGE ADD PARTICIPANT RESPONSE", json.dumps(vonage_resp, indent=2))
+        self.participant_info_map[phone_number] = VonageParticipantInfo(
+                                                        phone_number=phone_number,
+                                                        call_leg_id=vonage_resp['uuid'],
+                                                        initial_conv_id=vonage_resp['conversation_uuid'])
     
     async def _try_connecting_websocket_with_participant(self, participant: VonageParticipantInfo):
         """
@@ -76,6 +106,9 @@ class VonageAPI(CommunicationAPI):
             await asyncio.sleep(2)
             return True
         return False
+
+    def get_is_websocket_connected(self) -> bool:
+        return self.is_websocket_connected
     
     async def handle_call_transfer_event(self, uuid: str, conversation_uuid_to: str):
         """
@@ -90,72 +123,25 @@ class VonageAPI(CommunicationAPI):
         )
         
         if participant:
+            if not self.vonage_conv_id:
+                self.vonage_conv_id = conversation_uuid_to
+                
             participant.conference_conv_id = conversation_uuid_to
             if not self.is_websocket_connected:
                 self.is_websocket_connected = await self._try_connecting_websocket_with_participant(participant)
             return participant.phone_number
     
         return None
-            
-    # TODO: Connect a websocket to the call
+    
     async def start_conf(self, teacher_phone: str, student_phones: List[str]):
         """
         Starts a conference call between a teacher and students using Vonage API.
         """
-        call_payload = {"type": "phone", "number": teacher_phone}
-        call_data = {
-            "to": [call_payload],
-            "from": {
-                "type": "phone", 
-                "number": self.vonage_number
-            },
-            "event_url": [
-                self.events_webhook_url + f"/{self.conf_id}"
-            ],
-            "ncco": [
-                {
-                    "action": "stream",
-                    "streamUrl": [sas_gen.get_url_with_sas(SystemAudioMessages.WELCOME_TEACHER.value)]
-                },
-                {
-                    "action": "conversation", 
-                    "name": self.conf_id
-                }
-            ]
-        }
-        vonage_resp = self.client.voice.create_call(call_data)
-        logger_instance.info("VONAGE TEACHER RESPONSE", json.dumps(vonage_resp, indent=2))
         self.teacher_phone_number = teacher_phone
-        self.participant_info_map[teacher_phone] = VonageParticipantInfo(
-                                                        phone_number=teacher_phone,
-                                                        call_leg_id=vonage_resp['uuid'],
-                                                        initial_conv_id=vonage_resp['conversation_uuid'])
+        self._add_participant_to_call_with_system_message(teacher_phone, SystemAudioMessages.WELCOME_TEACHER)
         
         for student_phone in student_phones:
-            call_payload = {"type": "phone", "number": student_phone}
-            call_data = {
-                "to": [call_payload],
-                "from": {"type": "phone", "number": self.vonage_number},
-                "event_url": [
-                    self.events_webhook_url + f"/{self.conf_id}"
-                ],
-                "ncco": [
-                    {
-                        "action": "stream",
-                        "streamUrl": [sas_gen.get_url_with_sas(SystemAudioMessages.WELCOME_STUDENT.value)]
-                    },
-                    {
-                        "action": "conversation", 
-                        "name": self.conf_id
-                    }
-                ]
-            }
-            vonage_resp = self.client.voice.create_call(call_data)
-            logger_instance.info("VONAGE STUDENT RESPONSE", json.dumps(vonage_resp, indent=2))
-            self.participant_info_map[student_phone] = VonageParticipantInfo(
-                                                            phone_number=student_phone,
-                                                            call_leg_id=vonage_resp['uuid'],
-                                                            initial_conv_id=vonage_resp['conversation_uuid'])
+            self._add_participant_to_call_with_system_message(student_phone, SystemAudioMessages.WELCOME_STUDENT)
 
     # client.update_call()
     async def end_conf(self):
@@ -180,7 +166,7 @@ class VonageAPI(CommunicationAPI):
         while not self.is_websocket_connected: 
             for participant_ph_number in self.participant_info_map:
                 participant = self.participant_info_map[participant_ph_number]
-                if participant.conference_conv_id: # The participant is already in the conference
+                if participant.conference_conv_id == self.vonage_conv_id: # The participant is already in the conference
                         self.is_websocket_connected = await self._try_connecting_websocket_with_participant(participant)
                         if self.is_websocket_connected:
                             break
@@ -192,21 +178,11 @@ class VonageAPI(CommunicationAPI):
         """
         Adds a participant to an ongoing call.
         """
-        call_payload = {"type": "phone", "number": phone_number}
-        call_data = {
-            "to": [call_payload],
-            "from": {"type": "phone", "number": self.vonage_number},
-            "event_url": [
-                self.events_webhook_url + f"/{self.conf_id}"
-            ],
-            "ncco": [{"action": "conversation", "name": self.conf_id}]
-        }
-        vonage_resp = self.client.voice.create_call(call_data)
-        logger_instance.info("VONAGE ADD PARTICIPANT RESPONSE", json.dumps(vonage_resp, indent=2))
-        self.participant_info_map[phone_number] = VonageParticipantInfo(
-                                                        phone_number=phone_number,
-                                                        call_leg_id=vonage_resp['uuid'],
-                                                        conv_id=vonage_resp['conversation_uuid'])
+        welcome_message = SystemAudioMessages.WELCOME_STUDENT
+        if self.teacher_phone_number == phone_number:
+            welcome_message = SystemAudioMessages.WELCOME_TEACHER
+        
+        self._add_participant_to_call_with_system_message(phone_number, welcome_message)
 
     # client.update_call()
     async def remove_participant(self, phone_number: str):

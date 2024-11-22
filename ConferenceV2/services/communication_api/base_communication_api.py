@@ -20,6 +20,10 @@ class CommunicationAPI(ABC):
     def reconnect_websocket(self):
         pass
 
+    @abstractmethod
+    def get_is_websocket_connected(self) -> bool:
+        pass
+
     # ADD PARTICIPANT TO THE CONF
     @abstractmethod
     async def add_participant(self, phone_number: str):

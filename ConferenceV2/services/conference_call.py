@@ -7,6 +7,7 @@ import asyncio
 
 from fastapi import WebSocket
 from models.conference_call_state import ConferenceCallState
+from models.system_audio_messages import SystemAudioMessages
 from services.confevents.base_event import ConferenceEvent
 from models.participant import Participant, Role, CallStatus
 from models.action_history import ActionHistory, ActionType
@@ -31,7 +32,7 @@ class ConferenceCall:
         self.storage_manager = storage_manager
         self.connection_manager = connection_manager
         self.state = ConferenceCallState()
-        self.system_message_streaming = StreamSystemMessages(conf_id=conf_id)
+        self._system_message_streaming_service = StreamSystemMessages(conf_id=conf_id)
         # self.websocket_service = VanillaWebSocketService(
         #         on_disconnect_callback=self.__on_websocket_disconnect_callback,
         #         audio_content_state=self.state.audio_content_state,
@@ -40,6 +41,10 @@ class ConferenceCall:
         
         self.event_queue = asyncio.Queue()
         self.event_queue_processing_task: asyncio.Task = None
+    
+    async def stream_system_message(self, message: SystemAudioMessages):
+        if self.state.is_running and self.communication_api.get_is_websocket_connected():
+            await self._system_message_streaming_service.stream_message(message)
     
     async def queue_event(self, event: ConferenceEvent):
         await self.event_queue.put(event)

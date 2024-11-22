@@ -25,7 +25,7 @@ class DTMFInputEvent(ConferenceEvent):
                 participant.is_raised = True
                 participant.raised_at = int(datetime.now().timestamp())
                 
-                await self.conf_call.system_message_streaming.stream_message(SystemAudioMessages.STUDENT_HAS_RAISED_HAND)
+                await self.conf_call.stream_system_message(SystemAudioMessages.STUDENT_HAS_RAISED_HAND)
                 
                 # Append action history for the raised hand event
                 self.conf_call.state.action_history.append(ActionHistory(

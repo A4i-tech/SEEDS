@@ -1,4 +1,6 @@
+import asyncio
 from models.participant import CallStatus, Participant
+from models.system_audio_messages import SystemAudioMessages
 from services.conference_call import ConferenceCall
 from services.confevents.base_event import ConferenceEvent
 from conf_logger import logger_instance
@@ -16,4 +18,13 @@ class CallStatusChangeEvent(ConferenceEvent):
             if participant.call_status != self.status:
                 logger_instance.info("EXECUTING CALL STATUS CHANGE EVENT FOR NUMBER", self.phone_number, "STATUS:", self.status.value)
                 participant.call_status = self.status
+                
+                # Stream participant disconnected message
+                if self.status == CallStatus.DISCONNECTED:
+                    is_teacher = self.conf_call.state.get_teacher().phone_number == participant.phone_number
+                    if is_teacher:
+                        await self.conf_call.stream_system_message(SystemAudioMessages.TEACHER_HAS_DROPPED)
+                    else:
+                        await self.conf_call.stream_system_message(SystemAudioMessages.STUDENT_HAS_DROPPED) 
+                    
                 await self.conf_call.update_state()

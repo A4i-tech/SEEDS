@@ -26,7 +26,8 @@ class UnmuteParticipantEvent(ConferenceEvent):
             participant.is_raised = False
             participant.raised_at = -1
             
-            await self.conf_call.system_message_streaming.stream_message(SystemAudioMessages.STUDENT_IS_UNMUTED)
+            if self.phone_number != self.conf_call.state.get_teacher().phone_number:
+                await self.conf_call.stream_system_message(SystemAudioMessages.STUDENT_IS_UNMUTED)
             
             # Log the unmute action in the action history
             self.conf_call.state.action_history.append(

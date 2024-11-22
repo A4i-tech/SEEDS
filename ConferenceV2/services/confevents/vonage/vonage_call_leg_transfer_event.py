@@ -1,6 +1,9 @@
+from models.participant import Participant
+from models.system_audio_messages import SystemAudioMessages
 from services.communication_api.vonage_api import VonageAPI
 from services.conference_call import ConferenceCall
 from services.confevents.base_event import ConferenceEvent
+from conf_logger import logger_instance
 
 class VonageCallTransferEvent(ConferenceEvent):
     """
@@ -15,23 +18,21 @@ class VonageCallTransferEvent(ConferenceEvent):
         self.timestamp = timestamp
     
     async def execute_event(self):
-        if isinstance(self.conf_call.communication_api, VonageAPI):
-            ph_number = await self.conf_call.communication_api.handle_call_transfer_event(self.uuid, self.conversation_uuid_to)
+        comm_api = self.conf_call.communication_api
+        if isinstance(comm_api, VonageAPI):
+            is_websocket_connected_before = comm_api.get_is_websocket_connected()
+            ph_number = await comm_api.handle_call_transfer_event(self.uuid, self.conversation_uuid_to)
             # Stream appropriate system message to conference call
-            # if ph_number:
-            #     participant: Participant = self.conf_call.state.participants[ph_number]
-            #     is_teacher = self.conf_call.state.get_teacher() == participant.phone_number
-            #     if is_teacher:
-            #         message_url = SystemAudioMessages.TEACHER_HAS_JOINED.value
-            #     else:
-            #         message_url = SystemAudioMessages.STUDENT_HAS_JOINED.value
-            #     logger_instance.info("Streaming System Audio: ", message_url)
-            #     ws = WebsocketService()
-            #     await ws.send_message(WebsocketServiceMessage(
-            #                                 websocket_id=self.conf_call.conf_id,
-            #                                 type=MessageType.PLAY_AUDIO,
-            #                                 message = message_url
-            #                             )) 
+            if ph_number:
+                participant: Participant = self.conf_call.state.participants[ph_number]
+                is_teacher = self.conf_call.state.get_teacher().phone_number == participant.phone_number
+                if is_teacher:
+                    message = SystemAudioMessages.TEACHER_HAS_JOINED
+                else:
+                    message = SystemAudioMessages.STUDENT_HAS_JOINED
+                
+                if is_websocket_connected_before and self.conversation_uuid_to == comm_api.vonage_conv_id:
+                    await self.conf_call.stream_system_message(message)
     
     def __str__(self) -> str:
         return f"conversation_uuid_from: {self.conversation_uuid_from} uuid: {self.uuid} conversation_uuid_to: {self.conversation_uuid_to}"

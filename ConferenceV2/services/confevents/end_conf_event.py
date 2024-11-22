@@ -10,8 +10,8 @@ class EndConferenceEvent(ConferenceEvent):
         self.conf_call = conf_call
 
     async def execute_event(self):
-        await self.conf_call.communication_api.end_conf()
         self.conf_call.state.is_running = False
+        await self.conf_call.communication_api.end_conf()
         self.conf_call.state.action_history.append(ActionHistory(
                                                     timestamp= datetime.now().isoformat(), 
                                                     action_type=ActionType.CONFERENCE_END, 
