@@ -78,6 +78,15 @@ export const pauseAudio = async (confId) => {
   });
 };
 
+export const resumeAudio = async (confId) => {
+  return fetch(`${api_base}/resumeaudio/${confId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+};
+
 export const addParticipant = async (confId, phone_number) => {
   return fetch(`${api_base}/addparticipant/${confId}?phone_number=${phone_number}`, {
     method: 'PUT',

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useConference } from './context/ConferenceContext';
-import { startConferenceCall, endConferenceCall, sinkConferenceCall, muteParticipant, unmuteParticipant, playAudio, pauseAudio, addParticipant } from './services/apiService';
+import { startConferenceCall, endConferenceCall, sinkConferenceCall, muteParticipant, unmuteParticipant, playAudio, pauseAudio, addParticipant, resumeAudio } from './services/apiService';
 import { AddParticipantModal } from './components/AddParticipantModal';
 import { students as allStudents } from './state';
 import App from './App';
@@ -75,11 +75,13 @@ export function DetailsPage() {
     }
   }
 
-  const handlePlayMusic = async () => {
+  const handleMusicControl = async () => {
     setIsLoadingMusic(true);
     if (audioContentState.status === "Playing") {
       await pauseAudio(confId)
-    } else {
+    } else if (audioContentState.status === "Paused"){
+      await resumeAudio(confId)
+    }else {
       await playAudio(confId)
     }
     setIsLoadingMusic(false);
@@ -109,6 +111,7 @@ export function DetailsPage() {
 
   const isLoading = (phone_number) => loadingIds.includes(phone_number);
   const isPlayingAudio = audioContentState.status === "Playing"
+  const isPausedAudio = audioContentState.status === "Paused"
   const isStartingAudio = audioContentState.status === "Starting"
 
   const canReconnect = (user) => user.call_status === "disconnected" && isConfCallRunning
@@ -241,10 +244,10 @@ export function DetailsPage() {
         </button>
         <button
           className="action-button"
-          onClick={handlePlayMusic}
+          onClick={handleMusicControl}
           disabled={isLoadingMusic || !isConfCallRunning || isStartingAudio}
         >
-          {isLoadingMusic ? 'Loading...' : isStartingAudio? "Starting..." :  isPlayingAudio ? 'Pause Music' : 'Play Music'}
+          {isLoadingMusic ? 'Loading...' : isStartingAudio? "Starting..." :  isPlayingAudio ? 'Pause Music' : isPausedAudio? 'Resume Music' : 'Play Music'}
         </button>
       </div>
       <AddParticipantModal
