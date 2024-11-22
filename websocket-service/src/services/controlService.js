@@ -14,7 +14,7 @@ function handleControlConnection(ws) {
   ws.on('message', (message) => {
     try {
       // Parse the JSON string
-      const parsedMessage = JSON.parse(JSON.parse(message));
+      const parsedMessage = JSON.parse(message);
       handleControlMessage(parsedMessage);
     } catch (error) {
       console.error('Error parsing control message:', error);
