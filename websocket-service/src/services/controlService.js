@@ -41,20 +41,22 @@ function handleControlMessage(controlMessage) {
   const content = controlMessage.message;
   console.log(`websocket id: ${websocketId}; type: ${type}; message: ${content}`)
   switch (type) {
+    case MessageType.PLAY_SYSTEM_MESSAGE:
+      websocketService.playSystemAudioContent(websocketId, content)
+        .catch((error) => console.error(`Error playing audio for ID ${websocketId}:`, error));
+      break;
     case MessageType.PLAY_AUDIO:
-      // Implement play functionality
-      // 'message' field contains the blobUrl
-      websocketService.play(websocketId, content)
+      websocketService.playAudioContent(websocketId, content)
         .catch((error) => console.error(`Error playing audio for ID ${websocketId}:`, error));
       break;
     case MessageType.PAUSE_AUDIO:
-      websocketService.pause(websocketId);
+      websocketService.pauseAudioContent(websocketId);
       break;
     case MessageType.RESUME_AUDIO:
-      websocketService.resume(websocketId);
+      websocketService.resumeAudioContent(websocketId);
       break;
     case MessageType.STOP_AUDIO:
-      websocketService.stop(websocketId);
+      websocketService.stopAudioContent(websocketId);
       break;
     case MessageType.DISCONNECT:
       websocketService.closeConnection(websocketId);

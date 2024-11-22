@@ -4,6 +4,7 @@
 const MessageType = {
     HEARTBEAT: "ping",
     PLAY_AUDIO: 'play',
+    PLAY_SYSTEM_MESSAGE: 'play-system-message',
     PAUSE_AUDIO: 'pause',
     RESUME_AUDIO: 'resume',
     STOP_AUDIO: 'stop',
