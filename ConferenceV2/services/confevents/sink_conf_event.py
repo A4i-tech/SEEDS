@@ -2,8 +2,9 @@ from datetime import datetime
 from typing import Callable
 from models.action_history import ActionHistory, ActionType
 from services.conference_call import ConferenceCall
+from services.confevents.base_event import ConferenceEvent
 
-class SinkConferenceEvent:
+class SinkConferenceEvent(ConferenceEvent):
     def __init__(self, conf_call: ConferenceCall, on_sink_callback: Callable[[], None]):
         self.conf_call = conf_call
         self.on_sink_callback = on_sink_callback

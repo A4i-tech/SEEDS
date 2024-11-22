@@ -1,9 +1,13 @@
 from datetime import datetime
 from models.action_history import ActionHistory, ActionType
+from models.system_audio_messages import SystemAudioMessages
+from models.ws_service_message import MessageType, WebsocketServiceMessage
 from services.conference_call import ConferenceCall
+from services.confevents.base_event import ConferenceEvent
+from services.singletons.websocket_service import WebsocketService
 
 
-class UnmuteParticipantEvent:
+class UnmuteParticipantEvent(ConferenceEvent):
     def __init__(self, phone_number: str, conf_call: ConferenceCall):
         self.phone_number = phone_number
         self.conf_call = conf_call
@@ -21,6 +25,8 @@ class UnmuteParticipantEvent:
             # Set raised hand to false
             participant.is_raised = False
             participant.raised_at = -1
+            
+            await self.conf_call.system_message_streaming.stream_message(SystemAudioMessages.STUDENT_IS_UNMUTED)
             
             # Log the unmute action in the action history
             self.conf_call.state.action_history.append(

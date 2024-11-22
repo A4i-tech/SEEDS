@@ -1,10 +1,6 @@
-from models.participant import CallStatus, Participant
-from models.ws_service_message import MessageType, SystemAudioMessages, WebsocketServiceMessage
 from services.communication_api.vonage_api import VonageAPI
 from services.conference_call import ConferenceCall
 from services.confevents.base_event import ConferenceEvent
-from services.singletons.websocket_service import WebsocketService
-from conf_logger import logger_instance
 
 class VonageCallTransferEvent(ConferenceEvent):
     """

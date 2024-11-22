@@ -48,7 +48,7 @@ async def process_event(event_data: Dict, conference_id: str):
             # If a student just connected, mute the student
             student_phone_numbers = [student.phone_number for student in conf.state.get_students()]
             if call_status_change_event.status == CallStatus.CONNECTED and call_status_change_event.phone_number in student_phone_numbers: 
-                await conf.queue_event(MuteParticipantEvent(phone_number=call_status_change_event.phone_number, conf_call=conf))
+                await conf.queue_event(MuteParticipantEvent(phone_number=call_status_change_event.phone_number, conf_call=conf, stream_system_message=False))
         except ValidationError as e:
             try:
                 vonage_call_transfer_event = VonageCallTransferEvent(conf_call=conf, **event_data)

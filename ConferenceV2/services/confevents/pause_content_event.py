@@ -1,9 +1,10 @@
 from models.ws_service_message import MessageType, WebsocketServiceMessage
 from services.conference_call import ConferenceCall
+from services.confevents.base_event import ConferenceEvent
 from services.singletons.websocket_service import WebsocketService
 
 
-class PauseContentEvent:
+class PauseContentEvent(ConferenceEvent):
     def __init__(self, conf_call: ConferenceCall):
         self.conf_call = conf_call
 

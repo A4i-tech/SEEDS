@@ -1,7 +1,8 @@
 # routers/conference.py
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from services.conference_call import ConferenceCall
+from services.confevents.resume_content_event import ResumeContentEvent
 from services.singletons.conference_call_manager import conference_manager
 from services.confevents.add_participant_event import AddParticipantEvent
 from services.confevents.end_conf_event import EndConferenceEvent
@@ -124,4 +125,12 @@ async def play_audio(conference_id: str):
     if not conference:
         raise HTTPException(status_code=404, detail="Conference not found")
     await conference.queue_event(PauseContentEvent(conf_call=conference))
+    return {"message": "Event Queued for execution"}
+
+@router.put("/resumeaudio/{conference_id}")
+async def play_audio(conference_id: str):
+    conference = conference_manager.get_conference(conference_id)
+    if not conference:
+        raise HTTPException(status_code=404, detail="Conference not found")
+    await conference.queue_event(ResumeContentEvent(conf_call=conference))
     return {"message": "Event Queued for execution"}

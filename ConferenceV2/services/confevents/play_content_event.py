@@ -4,10 +4,11 @@ from models.action_history import ActionHistory, ActionType
 from models.audio_content_state import ContentStatus
 from models.ws_service_message import MessageType, WebsocketServiceMessage
 from services.conference_call import ConferenceCall
+from services.confevents.base_event import ConferenceEvent
 from services.singletons.websocket_service import WebsocketService
 from conf_logger import logger_instance
 
-class PlayContentEvent:
+class PlayContentEvent(ConferenceEvent):
     def __init__(self, conf_call: ConferenceCall, url: str):
         self.url = url
         self.conf_call = conf_call

@@ -14,6 +14,7 @@ from services.communication_api import CommunicationAPI
 from services.storage_manager import StorageManager 
 from services.smartphone_connection_manager import SmartphoneConnectionManager
 from conf_logger import logger_instance
+from services.stream_system_messages import StreamSystemMessages
 # from services.vanilla_websocket_service import VanillaWebSocketService
 
 
@@ -30,6 +31,7 @@ class ConferenceCall:
         self.storage_manager = storage_manager
         self.connection_manager = connection_manager
         self.state = ConferenceCallState()
+        self.system_message_streaming = StreamSystemMessages(conf_id=conf_id)
         # self.websocket_service = VanillaWebSocketService(
         #         on_disconnect_callback=self.__on_websocket_disconnect_callback,
         #         audio_content_state=self.state.audio_content_state,

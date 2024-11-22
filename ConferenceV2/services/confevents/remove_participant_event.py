@@ -1,9 +1,10 @@
 from datetime import datetime
 from models.action_history import ActionHistory, ActionType
 from services.conference_call import ConferenceCall
+from services.confevents.base_event import ConferenceEvent
 
 
-class RemoveParticipantEvent:
+class RemoveParticipantEvent(ConferenceEvent):
     def __init__(self, phone_number: str, conf_call: ConferenceCall):
         self.phone_number = phone_number
         self.conf_call = conf_call

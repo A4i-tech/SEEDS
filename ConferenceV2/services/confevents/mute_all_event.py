@@ -7,6 +7,6 @@ from models.participant import Role
 from services.conference_call import ConferenceCall
 
 
-class MuteAllEvent(ConferenceEvent, BaseModel):
+class MuteAllEvent(ConferenceEvent):
     pass
 

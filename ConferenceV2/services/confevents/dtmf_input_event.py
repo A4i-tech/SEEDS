@@ -1,9 +1,12 @@
 from datetime import datetime
 from models.action_history import ActionHistory, ActionType
+from models.system_audio_messages import SystemAudioMessages
+from models.ws_service_message import MessageType, WebsocketServiceMessage
 from services.confevents.base_event import ConferenceEvent
 from models.participant import Role, Participant
 from services.conference_call import ConferenceCall
 from conf_logger import logger_instance
+from services.singletons.websocket_service import WebsocketService
 
 
 class DTMFInputEvent(ConferenceEvent):
@@ -21,6 +24,8 @@ class DTMFInputEvent(ConferenceEvent):
                 logger_instance.info("HANDLING DTMF INPUT EVENT", self)
                 participant.is_raised = True
                 participant.raised_at = int(datetime.now().timestamp())
+                
+                await self.conf_call.system_message_streaming.stream_message(SystemAudioMessages.STUDENT_HAS_RAISED_HAND)
                 
                 # Append action history for the raised hand event
                 self.conf_call.state.action_history.append(ActionHistory(

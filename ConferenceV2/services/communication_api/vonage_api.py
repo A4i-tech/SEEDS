@@ -1,10 +1,6 @@
 import asyncio
-from enum import Enum
 import os
-import time
-import uuid
-from models.webhook_event import WebHookEvent
-from models.ws_service_message import SystemAudioMessages
+from models.system_audio_messages import SystemAudioMessages
 from services.communication_api import CommunicationAPI
 from typing import Any, Dict, List, Optional
 import json
@@ -166,6 +162,7 @@ class VonageAPI(CommunicationAPI):
         """
         Ends a call by its conference ID using the Vonage API.
         """
+        self.is_websocket_connected = False
         for participant in self.participant_info_map.values():
             call_details = self.client.voice.get_call(uuid=participant.call_leg_id)
             if call_details['status'] == 'answered':
