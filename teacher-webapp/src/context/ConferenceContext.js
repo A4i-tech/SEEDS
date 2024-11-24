@@ -35,15 +35,13 @@ export const ConferenceProvider = ({ children }) => {
   };
 
   const handleSSEEvent = (event) => {
-    // Updating participants (teacher or students) from the SSE event data
     setIsConfCallRunning(event.is_running);
     setAudioContentState(new AudioContentState(event.audio_content_state));
-
+  
     for (let phone_number in event.participants) {
       const participant = new Participant({ ...event.participants[phone_number] });
-
+  
       if (selectedTeacher?.phone_number === phone_number) {
-        // Update the teacher if the phone_number matches the selected teacher
         const newTeacher = new Participant({
           ...selectedTeacher,
           raised_at: participant.raised_at,
@@ -53,35 +51,33 @@ export const ConferenceProvider = ({ children }) => {
         });
         setSelectedTeacher(newTeacher);
       } else {
-        // Check if the phone_number matches any of the existing students
-        const studentExists = selectedStudents.some(
-          (student) => student.phone_number === phone_number
-        );
-
-        if (studentExists) {
-          // Update the existing student if found
-          const newStudents = selectedStudents.map((student) =>
-            student.phone_number === phone_number
-              ? new Participant({
-                ...student,
-                raised_at: participant.raised_at,
-                is_raised: participant.is_raised,
-                is_muted: participant.is_muted,
-                call_status: participant.call_status,
-              })
-              : student
+        setSelectedStudents((prevStudents) => {
+          const studentExists = prevStudents.some(
+            (student) => student.phone_number === phone_number
           );
-          setSelectedStudents(newStudents);
-        } else {
-          // If the phone_number is not found in the selected students, add it as a new student
-          setSelectedStudents((prevStudents) => [
-            ...prevStudents,
-            participant,
-          ]);
-        }
+  
+          if (studentExists) {
+            // Update the existing student
+            return prevStudents.map((student) =>
+              student.phone_number === phone_number
+                ? new Participant({
+                    ...student,
+                    raised_at: participant.raised_at,
+                    is_raised: participant.is_raised,
+                    is_muted: participant.is_muted,
+                    call_status: participant.call_status,
+                  })
+                : student
+            );
+          } else {
+            // Add the new student
+            return [...prevStudents, participant];
+          }
+        });
       }
     }
   };
+  
 
 
   return (
