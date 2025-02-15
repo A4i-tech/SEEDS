@@ -1,5 +1,6 @@
 "use strict";
 const mongoose = require('mongoose');
+const { TextContentSchema } = require('./ContentV3');
 const { Schema } = mongoose;
 
 
@@ -31,15 +32,10 @@ const quizSchema = new Schema({
     creation_time: { type: Number, default: -1 },
     isPullModel: {type: Boolean, default:false },
     isTeacherApp: {type: Boolean, default:false },
-    isProcessed: {type: Boolean, default:false },
     isDeleted: {type: Boolean, default:false },
     language: { type: String, required: true },
-    theme: { type: String, required: true },
-    localTheme: { type: String, required: true },
-    themeAudio: { type: String, required: false, default: "<NOT CREATED>" },
-    title: { type: String, required: true },
-    localTitle: { type: String, required: true },
-    titleAudio: { type: String, required: false, default: "<NOT CREATED>"  },
+    title: { type: TextContentSchema, required: true },
+    theme: { type: TextContentSchema, required: true },
     positiveMarks: { type: Number, required: true },
     negativeMarks: { type: Number, required: true },
     questions: [questionSchema]
@@ -47,17 +43,17 @@ const quizSchema = new Schema({
     collection: 'quizData'
 });
 
-var QuizData = (module.exports = mongoose.model('QuizData', quizSchema));
+const QuizData = mongoose.model('QuizData', quizSchema);
 
-module.exports.getAllQuizData = () => {
+const getAllQuizData = () => {
     return QuizData.find().sort({creation_time: -1}).exec()
 }
 
-module.exports.getQuizById = id => {
+const getQuizById = id => {
   return QuizData.findOne({ id }).exec()
 }
 
-module.exports.fromQuizCreateRequest = (quizRequest) => {
+const fromQuizCreateRequest = (quizRequest) => {
     // Create a new QuizData object
     const quizData = new QuizData({
         _id: quizRequest.id,
@@ -88,4 +84,11 @@ module.exports.fromQuizCreateRequest = (quizRequest) => {
     });
 
     return quizData;
+}
+
+module.exports = {
+    QuizData,
+    getAllQuizData,
+    getQuizById,
+    fromQuizCreateRequest
 }
