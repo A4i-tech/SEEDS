@@ -60,12 +60,16 @@ const fromQuizCreateRequest = (quizRequest) => {
         language: quizRequest.language,
         isPullModel: quizRequest.isPullModel,
         isTeacherApp: quizRequest.isTeacherApp,
-        theme: quizRequest.theme,
-        localTheme: quizRequest.localTheme,
-        themeAudio: quizRequest.quizAudioData ? quizRequest.quizAudioData.themeAudio : "<NOT CREATED>",
-        title: quizRequest.title,
-        localTitle: quizRequest.localTitle,
-        titleAudio: quizRequest.quizAudioData ? quizRequest.quizAudioData.titleAudio : "<NOT CREATED>",
+        theme: {
+            english: quizRequest.theme,
+            local: quizRequest.localTheme,
+            audioUrl: quizRequest.themeAudio
+        },
+        title: {
+            english: quizRequest.title,
+            local: quizRequest.localTitle,
+            audioUrl: quizRequest.titleAudio
+        },
         positiveMarks: quizRequest.positiveMark,
         negativeMarks: quizRequest.negativeMark,
         questions: quizRequest.questions.map((questionText, index) => ({

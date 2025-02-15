@@ -5,6 +5,7 @@ const Agenda = require("agenda");
 const Content = require("../models/Content.js");
 const { ContentV3 } = require('../models/ContentV3.js')
 const processNewContent = require("../jobs/processAudioContent.js")
+const processQuizContent = require('../jobs/processQuizContent.js')
 const QuizCreateRequest = require("../models/QuizCreateRequest.js")
 const { QuizData, fromQuizCreateRequest } = require("../models/QuizData.js")
 const BlobService = require('../models/BlobService.js');
@@ -20,6 +21,11 @@ agenda.define("processNewContent", async (job) => {
     await processNewContent(job)
 });
 
+agenda.define("processQuizContent", async (job) => {
+    await processQuizContent(job)
+});
+
+
 // Start Agenda.
 (async function () {
     await agenda.start();
@@ -33,15 +39,11 @@ router.post("/quiz", tryCatchWrapper(async (req, res)=>{
     const quizData = fromQuizCreateRequest(quizCreateRequest)
     quizData.creation_time = Math.floor(Date.now() / 1000);
     const quizDataDoc = quizData.toObject()
-    const job = await agenda.now('processNewContent', { content: quizDataDoc });
+    const job = await agenda.now('processQuizContent', { content: quizDataDoc });
     res.json({
         message: "Processing New Content job scheduled!",
         jobId: job.attrs._id
     });
-    
-    // TRIGGER CREATION OF QUIZ AUDIO FILES
-    
-    return res.send(quizData)
 }))
 
 router.patch("/quiz", tryCatchWrapper(async (req, res)=>{
