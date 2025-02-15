@@ -1,20 +1,26 @@
 "use strict";
+// Built-in modules
 const express = require("express");
 const path = require("path");
+
+// Third-party modules
 const Agenda = require("agenda");
+const fetch = (...args) =>
+  import("node-fetch").then(({ default: fetch }) => fetch(...args));
+
+// Project modules
 const Content = require("../models/Content.js");
-const { ContentV3 } = require('../models/ContentV3.js')
-const processNewContent = require("../jobs/processAudioContent.js")
-const processQuizContent = require('../jobs/processQuizContent.js')
-const QuizCreateRequest = require("../models/QuizCreateRequest.js")
-const { QuizData, fromQuizCreateRequest } = require("../models/QuizData.js")
-const BlobService = require('../models/BlobService.js');
-const { tryCatchWrapper } = require(path.join("..", "util.js"))
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+const { ContentV3 } = require("../models/ContentV3.js");
+const QuizCreateRequest = require("../models/QuizCreateRequest.js");
+const { QuizData, fromQuizCreateRequest } = require("../models/QuizData.js");
+const BlobService = require("../models/BlobService.js");
+const processNewContent = require("../jobs/processAudioContent.js");
+const processQuizContent = require("../jobs/processQuizContent.js");
+const { tryCatchWrapper } = require(path.join("..", "util.js"));
+
+// Initialize instances
 const blobService = new BlobService();
 const router = express.Router();
-
-// Connect to MongoDB via Agenda.
 const agenda = new Agenda({ db: { address: process.env.DB_CONNECTION } });
 
 agenda.define("processNewContent", async (job) => {
