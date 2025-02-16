@@ -37,6 +37,49 @@ agenda.define("processQuizContent", async (job) => {
     await agenda.start();
 })();
 
+// API to list all jobs (Running + Failed)
+router.get('/jobs', async (req, res) => {
+    try {
+        // Fetch jobs that are either "In Progress" or "Failed"
+        const jobs = await agenda.jobs({
+            $or: [
+                { failedAt: { $exists: true } }, // Failed jobs (any time)
+                { lastRunAt: { $exists: true }, completedAt: { $exists: false } } // Running jobs
+            ]
+        });
+
+        // Transform job data with document existence check
+        const jobList = (await Promise.all(jobs.map(async job => {
+            const mongooseModel = job.attrs.name === "processQuizContent" ? QuizData : ContentV3
+            const contentId = job.attrs.data?.content?._id || null;
+            let documentExists = false;
+
+            // Check if document exists in MongoDB
+            if (contentId) {
+                documentExists = await mongooseModel.exists({ _id: contentId });
+                if (documentExists) return null; // Skip this job
+            }
+
+            return {
+                jobId: job.attrs._id,
+                startedAt: job.attrs.data.startedAt,
+                status: job.attrs.failedAt ? "ERROR" : "IN PROGRESS",
+                metadata: {
+                    title: job.attrs.data.content.title.english,
+                    localTitle: job.attrs.data.content.title.local,
+                    language: job.attrs.data.content.language
+                }
+            };
+        }))).filter(job => job !== null);
+        jobList.sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
+        res.json({ jobs: jobList });
+    } catch (error) {
+        console.error("Error fetching jobs:", error);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+
 router.post("/quiz", tryCatchWrapper(async (req, res)=>{
     const quizCreateRequest = new QuizCreateRequest(req.body)
     if (quizCreateRequest.id === 'default-id') {
@@ -52,21 +95,21 @@ router.post("/quiz", tryCatchWrapper(async (req, res)=>{
     });
 }))
 
-router.patch("/quiz", tryCatchWrapper(async (req, res)=>{
-    const quizCreateRequest = new QuizCreateRequest(req.body)
-    const quizData = QuizData.fromQuizCreateRequest(quizCreateRequest)
-    quizData.isProcessed = true
-    return res.json(await QuizData.findOneAndUpdate(
-        { id: quizData._id },                   
-        { $set: {
-            themeAudio: quizData.themeAudio,
-            titleAudio: quizData.titleAudio,
-            questions: quizData.questions,
-            isProcessed: quizData.isProcessed
-        } },
-        { new: true }
-    ).exec())
-}))
+// router.patch("/quiz", tryCatchWrapper(async (req, res)=>{
+//     const quizCreateRequest = new QuizCreateRequest(req.body)
+//     const quizData = QuizData.fromQuizCreateRequest(quizCreateRequest)
+//     quizData.isProcessed = true
+//     return res.json(await QuizData.findOneAndUpdate(
+//         { id: quizData._id },                   
+//         { $set: {
+//             themeAudio: quizData.themeAudio,
+//             titleAudio: quizData.titleAudio,
+//             questions: quizData.questions,
+//             isProcessed: quizData.isProcessed
+//         } },
+//         { new: true }
+//     ).exec())
+// }))
 
 router.get("/sasUrl", tryCatchWrapper(async (req, res)=>{
     const url = req.query.url;  // URL is now obtained from query string
