@@ -11,7 +11,7 @@ const fetch = (...args) =>
 
 // Project modules
 const Content = require("../models/Content.js");
-const { ContentV3 } = require("../models/ContentV3.js");
+const { ContentV3, getContent } = require("../models/ContentV3.js");
 const QuizCreateRequest = require("../models/QuizCreateRequest.js");
 const { QuizData, fromQuizCreateRequest } = require("../models/QuizData.js");
 const BlobService = require("../models/BlobService.js");
@@ -155,22 +155,40 @@ router.get("/themes",tryCatchWrapper(async (req, res) => {
 }))
 
 router.get("/", tryCatchWrapper(async (req, res) => {
-    if(req.query.language && req.query.theme && req.query.expName){
-        const language = req.query.language
-        const theme = decodeURIComponent(req.query.theme).toString()
-        const type = req.query.expName
-        return res.json(await ContentV3.find({isProcessed:true,isPullModel:true,language:language,theme:theme,type:type}).sort({_id:-1}))
-    }
-    if (req.query.ids) {
-        return res.json(await Content.getContentsByIds(req.query.ids))
-    } 
-    
-    if (req.query.onlyTeacherApp) {
-        return res.json(await Content.find({ isTeacherApp: true }).sort({_id: -1}).exec())
+    // Fetch by language, theme (English name), and expName (type)
+    if (req.query.language && req.query.theme && req.query.expName) {
+        const language = req.query.language;
+        const theme = decodeURIComponent(req.query.theme).toString(); // English name of the theme
+        const type = req.query.expName;
+        
+        const contents = await ContentV3.find({
+            isPullModel: true,
+            language: language,
+            "theme.english": theme,
+            type: type.toLowerCase()
+        }).sort({ _id: -1 }).exec();
+
+        return res.json(contents);
     }
 
-    return res.json(await Content.getContent());
-}))
+    // Fetch by multiple IDs
+    if (req.query.ids) {
+        const idsArray = Array.isArray(req.query.ids) ? req.query.ids : req.query.ids.split(",");
+
+        const contents = await ContentV3.find({ _id: { $in: idsArray } }).exec();
+        return res.json(contents);
+    } 
+
+    // Fetch only teacher-app content
+    if (req.query.onlyTeacherApp) {
+        const contents = await ContentV3.find({ isTeacherApp: true }).sort({ _id: -1 }).exec();
+        return res.json(contents);
+    }
+
+    // Default: Fetch all contents
+    return res.json(await getContent());
+}));
+
 
 // async function regenerateAllTitleAudios(){
 //     const contents = await Content.find({isProcessed: true, isPullModel: true})
