@@ -5,6 +5,7 @@ const path = require("path");
 
 // Third-party modules
 const Agenda = require("agenda");
+const { ObjectId } = require('mongoose').Types;
 const fetch = (...args) =>
   import("node-fetch").then(({ default: fetch }) => fetch(...args));
 
@@ -36,6 +37,18 @@ agenda.define("processQuizContent", async (job) => {
 (async function () {
     await agenda.start();
 })();
+
+router.get('/job/:jobId', async (req, res) => {
+    const job = await agenda.jobs({ _id: new ObjectId(req.params.jobId) });
+
+    if (!job.length) {
+        return res.status(404).json({ error: "Job not found" });
+    }
+
+    const jobData = job[0].attrs;
+
+    res.json(jobData);
+});
 
 // API to list all jobs (Running + Failed)
 router.get('/jobs', async (req, res) => {
