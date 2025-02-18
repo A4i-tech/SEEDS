@@ -4,10 +4,10 @@
  * generating TTS for titles and themes, and uploading results to Azure Blob Storage.
  */
 
-const BlobService = require("../models/BlobService.js");
+const BlobService = require("../services/BlobService.js");
 const fs = require("fs");
 const { ContentV3 } = require("../models/ContentV3.js");
-const { textToSpeech } = require("../models/ttsService.js");
+const { textToSpeech } = require("../services/ttsService.js");
 const {
   writeBufferToFile,
   processAudioWithFfmpeg,

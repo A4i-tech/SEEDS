@@ -4,9 +4,9 @@
  * titles, themes, and uploading results to Azure Blob Storage.
  */
 
-const BlobService = require("../models/BlobService.js");
+const BlobService = require("../services/BlobService.js");
 const { QuizData } = require("../models/QuizData.js");
-const { textToSpeech } = require("../models/ttsService.js");
+const { textToSpeech } = require("../services/ttsService.js");
 const { addForInOptionAudio } = require("./jobsUtils.js");
 
 // Maximum job runtime: 5 minutes.
