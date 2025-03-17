@@ -30,7 +30,7 @@ class StreamPlaybackInfo(BaseModel):
         return json.loads(json_string)
     
 class IVRCallStateMongoDoc(BaseModel):
-    id: str
+    id: str = Field(..., alias="_id")
     phone_number: str
     fsm_id: str
     current_state_id: str
@@ -48,7 +48,7 @@ class IVRCallStateMongoDoc(BaseModel):
         return json.loads(json_string)
 
 class IVRfsmDoc(BaseModel):
-    id: str
+    id: str = Field(..., alias="_id")
     created_at: int
     states: List[Dict]
     transitions: List[Dict]

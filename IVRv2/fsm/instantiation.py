@@ -118,10 +118,10 @@ repeat_current_categories_key = "8"
 previous_category_level_key = "9"
 
 content_attributes = [
-    # {'category': 'language', 'level': 0, 'id': 'LA'},
-    # {'category': 'theme', 'level': 1, 'id': 'TH'},
-    {'category': 'type', 'level': 0, 'id': 'EX'},
-    {'category': 'title', 'level': 1, 'id': 'TI'}
+    {'category': 'language', 'level': 0, 'id': 'LA'},
+    {'category': 'theme', 'level': 1, 'id': 'TH'},
+    {'category': 'type', 'level': 2, 'id': 'EX'},
+    {'category': 'title', 'level': 3, 'id': 'TI'}
 ]
 
 
@@ -350,35 +350,6 @@ quiz_new = {
   ]
 }
 
-# questions = [
-#     {
-#         'question': {
-#             'text': 'What is the capital of France?',
-#             'url': 'https://example.com/question1'
-#         },
-#         'options': [
-#             {'id': 'opt1', 'text': 'Paris', 'url': 'https://example.com/paris'},
-#             {'id': 'opt2', 'text': 'Rome', 'url': 'https://example.com/rome'},
-#             {'id': 'opt3', 'text': 'Berlin', 'url': 'https://example.com/berlin'},
-#             {'id': 'opt4', 'text': 'Madrid', 'url': 'https://example.com/madrid'}
-#         ],
-#         'correct_option': 'opt1'
-#     },
-#     {
-#         'question': {
-#             'text': 'What is the capital of India?',
-#             'url': 'https://example.com/question2'
-#         },
-#         'options': [
-#             {'id': 'opt5', 'text': 'Bangalore', 'url': 'https://example.com/paris'},
-#             {'id': 'opt6', 'text': 'Delhi', 'url': 'https://example.com/rome'},
-#             {'id': 'opt7', 'text': 'Mumbai', 'url': 'https://example.com/berlin'},
-#             {'id': 'opt8', 'text': 'Ahmedabad', 'url': 'https://example.com/madrid'}
-#         ],
-#         'correct_option': 'opt6'
-#     }
-# ]
-
 # sas_test = 'https://seedsblob.blob.core.windows.net/output-container/1dfe33fd-7fb7-4adb-9d60-2d9ae3c44910/1.0.wav'
 # sas_gen_obj = SASGen(os.getenv("BLOB_STORE_CONN_STR"))
 # sas_url = sas_gen_obj.get_url_with_sas(sas_test)
@@ -456,49 +427,6 @@ def getStreamActions(items_list, values_to_urls, level, state, parent_selections
         key = str(index + 1)
         key_to_value_mapping[int(key)] = current_value
         actions.append(StreamAction(getKeyPressUrl(key, language, speechRate)))
-    
-    # if category == 'language':
-    #     for key, language in enumerate(items_list[state*number_of_categories_listed_in_one_state: min((state+1)*number_of_categories_listed_in_one_state, len(items_list))]):
-    #         language = language.lower()
-    #         actions.append(StreamAction(pullMenuMainUrl + languageDialogUrls[language].replace('{speechRate}', str(speechRate))))
-    #         replaced_url = pressKeyMessageUrl.replace('{language}', language).replace('{speechRate}', str(speechRate))
-    #         replaced_url = re.sub(r'\{key\}', str(key+1), replaced_url)  # Using regex for global replacement
-    #         actions.append(StreamAction(pullMenuMainUrl + replaced_url))
-    
-    # if category == "theme":
-    #     language = parent_selections['language']
-    #     if state == 0: 
-    #         actions.append(StreamAction(pullMenuMainUrl + readingContentTitlesDialogUrl["theme"].replace('{language}',language).replace('{speechRate}',speechRate)))
-    #     for key, theme_url in enumerate(items_list[state*number_of_categories_listed_in_one_state: min((state+1)*number_of_categories_listed_in_one_state, len(items_list))]):
-    #         actions.append(StreamAction(theme_url))
-    #         replaced_url = pressKeyMessageUrl.replace('{language}', language).replace('{speechRate}', str(speechRate))
-    #         replaced_url = re.sub(r'\{key\}', str(key+1), replaced_url)  # Using regex for global replacement
-    #         actions.append(StreamAction(pullMenuMainUrl + replaced_url))
-    
-    # if category == "type":
-    #     for key, experience_url in enumerate(items_list[state*number_of_categories_listed_in_one_state: min((state+1)*number_of_categories_listed_in_one_state, len(items_list))]):
-    #         language = parent_selections['language']
-    #         experience_url = experience_url.replace('{language}',language).replace('{speechRate}',speechRate)
-    #         # print("DOES EXPERIENCE URL NEEDS FIXING", experience_url)
-    #         actions.append(StreamAction(experience_url))
-    #         replaced_url = pressKeyMessageUrl.replace('{language}', language).replace('{speechRate}', str(speechRate))
-    #         replaced_url = re.sub(r'\{key\}', str(key+1), replaced_url)  # Using regex for global replacement
-    #         actions.append(StreamAction(pullMenuMainUrl + replaced_url))
-    
-    # if category == "title":
-    #     if state == 0:
-    #         language = parent_selections['language']
-    #         experience = parent_selections['type'].lower()
-    #         actions.append(StreamAction(pullMenuMainUrl + readingContentTitlesDialogUrl[experience].replace('{language}',language).replace('{speechRate}',speechRate)))
-            
-    #     for key, titleUrl in enumerate(items_list[state*number_of_categories_listed_in_one_state: min((state+1)*number_of_categories_listed_in_one_state, len(items_list))]):
-    #         # title = content.title
-    #         # audioUrl = content.titleAudio + + '/{speechRate}.mp3'
-    #         language = parent_selections['language']
-    #         actions.append(StreamAction(titleUrl))
-    #         replaced_url = pressKeyMessageUrl.replace('{language}', language).replace('{speechRate}', str(speechRate))
-    #         replaced_url = re.sub(r'\{key\}', str(key+1), replaced_url)  # Using regex for global replacement
-    #         actions.append(StreamAction(pullMenuMainUrl + replaced_url))
       
     number_of_states_in_same_level = len(items_list) // number_of_categories_listed_in_one_state
     if len(items_list) % number_of_categories_listed_in_one_state != 0:
@@ -512,27 +440,17 @@ def getStreamActions(items_list, values_to_urls, level, state, parent_selections
         actions.append(StreamAction(pullMenuMainUrl + next4MessageUrl))
         actions.append(StreamAction(getKeyPressUrl(next_n_categories_key, language, speechRate)))
         key_to_value_mapping[int(next_n_categories_key)] = 'next ' + str(number_of_categories_listed_in_one_state) + ' items'
-        # replaced_url = pressKeyMessageUrl.replace('{language}', language).replace('{speechRate}', str(speechRate))
-        # replaced_url = re.sub(r'\{key\}', '5', replaced_url)  # Using regex for global replacement
-        # actions.append(StreamAction(pullMenuMainUrl + replaced_url))
     
     elif state != 0 and number_of_states_in_same_level > 1:
         prev4MessageUrl = prev4MessageUrls[category].replace('{language}',language).replace('{speechRate}',speechRate)
         actions.append(StreamAction(pullMenuMainUrl + prev4MessageUrl))
         actions.append(StreamAction(getKeyPressUrl(previous_n_categories_key, language, speechRate)))  
         key_to_value_mapping[int(previous_n_categories_key)] = 'previous ' + str(number_of_categories_listed_in_one_state) + ' items'
-
-        # replaced_url = pressKeyMessageUrl.replace('{language}', language).replace('{speechRate}', str(speechRate))
-        # replaced_url = re.sub(r'\{key\}', '7', replaced_url)  # Using regex for global replacement
-        # actions.append(StreamAction(pullMenuMainUrl + replaced_url))
         
     repeatMenuUrl = repeatCurrentMenuUrl.replace('{language}',language).replace('{speechRate}',speechRate)
     actions.append(StreamAction(pullMenuMainUrl + repeatMenuUrl))
     actions.append(StreamAction(getKeyPressUrl(repeat_current_categories_key, language, speechRate)))
     key_to_value_mapping[int(repeat_current_categories_key)] = 'repeatCurrentMenu'
-    # replaced_url = pressKeyMessageUrl.replace('{language}', language).replace('{speechRate}', str(speechRate))
-    # replaced_url = re.sub(r'\{key\}', '8', replaced_url)  # Using regex for global replacement
-    # actions.append(StreamAction(pullMenuMainUrl + replaced_url))
     
     
     if level != 0 and len(content_attributes) > 1:
@@ -540,17 +458,10 @@ def getStreamActions(items_list, values_to_urls, level, state, parent_selections
         actions.append(StreamAction(pullMenuMainUrl + previousMenuMessageUrl))
         actions.append(StreamAction(getKeyPressUrl(previous_category_level_key, language, speechRate)))
         key_to_value_mapping[int(previous_category_level_key)] = 'previous category level'
-        
-    # print("KEY TO VALUE", key_to_value_mapping)
-    # print("DESCRIPTION", description)
-    # print("LEVEL", level)
+
     options = [Option(key=key, value=value) for key, value in key_to_value_mapping.items()]
     description = description if description else "Default Menu Description"
     menu = Menu(description=description, options=options if options else None, level=level)
-    
-    # Return both the actions and the menu
-    # print("MENU", menu)
-    # return menu, actions
     
     print("ACTIONS", actions)
     
@@ -602,20 +513,6 @@ def generate_states(fsm, content_list, content_attributes, level, parent_state_i
         state_id = parent_state_id
         actions = []
         language = parent_selections['language']
-        
-        # replacedRepeatContentUrl = repeatContentUrl.replace('{language}', language).replace('{speechRate}', speechRate)
-        # repeatContentPressKey = pressKeyMessageUrl.replace('{language}', language).replace('{speechRate}', str(speechRate))
-        # repeatContentPressKey = re.sub(r'\{key\}', str(8), repeatContentPressKey)
-        
-        # actions.append(StreamAction(pullMenuMainUrl + replacedRepeatContentUrl))
-        # actions.append(StreamAction(pullMenuMainUrl + repeatContentPressKey))
-        
-        # replacedExitContentUrl = exitContentUrl.replace('{language}', language).replace('{speechRate}', speechRate)
-        # exitContentPressKey = pressKeyMessageUrl.replace('{language}', language).replace('{speechRate}', str(speechRate))
-        # exitContentPressKey = re.sub(r'\{key\}', str(9), exitContentPressKey)
-        
-        # actions.append(StreamAction(pullMenuMainUrl + replacedExitContentUrl))
-        # actions.append(StreamAction(pullMenuMainUrl + exitContentPressKey))
         
         audioGoingTobePlayedUrl = audioGoingTobePlayedDialogUrl.replace('{language}', language).replace('{speechRate}', speechRate)
         # actions.append(TalkAction(text = "To exit the content. Press 9"))
@@ -684,7 +581,17 @@ def generate_states(fsm, content_list, content_attributes, level, parent_state_i
     themes = []
     experiences_list = []
     titles = []
-    
+
+
+    """
+    {"language": "kannada", ...}{"language": "kannada", ...}{"language": "kannada", ...}
+    {"language": "hindi", ...}{"language": "hindi", ...}{"language": "telugu", ...}
+    unique_languages = {"kannada", "hindi", "telugu"}
+    count_languages = {"kannada": 3, "hindi": 2, "telugu": 1}
+    sorted_count_languages = [("kannada", 3), ("hindi", 2), ("telugu", 1)]
+    sorted_categories = ["kannada", "hindi", "telugu"]
+    values_to_urls = {"kannada": "kannada", "hindi": "hindi", "telugu": "telugu"}
+    """
     if category == "language":
         unique_languages = set([item[category] for item in filtered_content])
         count_languages = dict()
@@ -731,16 +638,16 @@ def generate_states(fsm, content_list, content_attributes, level, parent_state_i
         number_of_states_in_same_level += 1
     
     # print("NUMBER OF CATEGORIES FOR", category, ":", len(sorted_categories), "NUMBER OF STATES", number_of_states_in_same_level)
-    for state in range(number_of_states_in_same_level):
-        state_id = f"{parent_state_id}{category_id_prefix}{state}"
+    for state_index in range(number_of_states_in_same_level):
+        state_id = f"{parent_state_id}{category_id_prefix}{state_index}"
         print("STATE ID", state_id)
         actions = []
-        if level == 0 and state == 0:
+        if level == 0 and state_index == 0:
             print("INITIAL STATE", state_id)
             fsm.init_state_id = state_id
             # actions.append(StreamAction(url = 'https://seedsblob.blob.core.windows.net/pull-model-menus/welcomeDialog/kannada/welcome%20to%20SEEDS/1.0.mp3'))
           
-        result_dictionary = getStreamActions(sorted_categories, values_to_urls, level, state, parent_selections)
+        result_dictionary = getStreamActions(sorted_categories, values_to_urls, level, state_index, parent_selections)
         # print("RESULT DICTIONARY", result_dictionary)
         stream_actions = result_dictionary['actions']
         menu = result_dictionary['menu']
@@ -751,13 +658,13 @@ def generate_states(fsm, content_list, content_attributes, level, parent_state_i
     
 
         
-        # actions += getStreamActions(sorted_categories, level, state, parent_selections)
+        # actions += getStreamActions(sorted_categories, level, state_index, parent_selections)
 
         if level < len(content_attributes):
             actions.append(input_action)
          
         fsm.add_state(State(state_id=state_id, actions=actions, menu=menu))
-        if level > 0 and state == 0: # Add transition to the parent state
+        if level > 0 and state_index == 0: # Add transition to the parent state_index
             indexOfLastOp = parent_state_id.rfind('Op')
             parent_block_state_id = parent_state_id[:(indexOfLastOp-1)]
             option_chosen = parent_state_id[indexOfLastOp+2:][:-1]
@@ -766,12 +673,12 @@ def generate_states(fsm, content_list, content_attributes, level, parent_state_i
             fsm.add_transition(Transition(source_state_id=parent_block_state_id, dest_state_id=state_id, input=str(key_for_option_chosen), actions=[]))
         
     
-    for state in range(number_of_states_in_same_level):
-        state_id = f"{parent_state_id}{category_id_prefix}{state}"
-        if state != 0 and number_of_states_in_same_level > 1:
-            fsm.add_transition(Transition(source_state_id=state_id, dest_state_id=f"{parent_state_id}{category_id_prefix}{state-1}", input=previous_n_categories_key, actions=[]))
-        if state != number_of_states_in_same_level-1 and number_of_states_in_same_level > 1:
-            fsm.add_transition(Transition(source_state_id=state_id, dest_state_id=f"{parent_state_id}{category_id_prefix}{state+1}", input=next_n_categories_key, actions=[]))
+    for state_index in range(number_of_states_in_same_level):
+        state_id = f"{parent_state_id}{category_id_prefix}{state_index}"
+        if state_index != 0 and number_of_states_in_same_level > 1:
+            fsm.add_transition(Transition(source_state_id=state_id, dest_state_id=f"{parent_state_id}{category_id_prefix}{state_index-1}", input=previous_n_categories_key, actions=[]))
+        if state_index != number_of_states_in_same_level-1 and number_of_states_in_same_level > 1:
+            fsm.add_transition(Transition(source_state_id=state_id, dest_state_id=f"{parent_state_id}{category_id_prefix}{state_index+1}", input=next_n_categories_key, actions=[]))
         fsm.add_transition(Transition(source_state_id=state_id, dest_state_id=state_id, input=repeat_current_categories_key, actions=[]))
         if level != 0 and len(content_attributes) > 1:
             indexOfLastOp = parent_state_id.rfind('Op')
@@ -779,11 +686,11 @@ def generate_states(fsm, content_list, content_attributes, level, parent_state_i
             fsm.add_transition(Transition(source_state_id=state_id, dest_state_id=parent_block_state_id, input=previous_category_level_key, actions=[]))
 
         
-        indexes_possible = min((state+1)*number_of_categories_listed_in_one_state, len(sorted_categories)) - state*number_of_categories_listed_in_one_state
+        indexes_possible = min((state_index+1)*number_of_categories_listed_in_one_state, len(sorted_categories)) - state_index*number_of_categories_listed_in_one_state
         
         for index_of_category in range(indexes_possible):
             new_state_id = f"{state_id}-Op{index_of_category}"
-            index_of_item = state*number_of_categories_listed_in_one_state + index_of_category
+            index_of_item = state_index*number_of_categories_listed_in_one_state + index_of_category
             new_selections = parent_selections.copy()
             if category == "language":
                 new_selections[content_attributes[level]['category']] = sorted_categories[index_of_item]
@@ -886,7 +793,7 @@ async def instantiate_from_latest_content(content_ids: Optional[List[str]] = Non
         
     fsm = FSM(fsm_id=str(uuid.uuid4()))
     fsm.set_end_state(State(state_id="END", actions=[TalkAction(text="You didn't choose a valid option. Bye bye.", bargeIn=False)]))
-    parent_selections = {'language': 'kannada'}
+    parent_selections = {}
     generate_states(fsm, content, content_attributes, 0, parent_selections=parent_selections)
    
     print("NUMBER OF CONTENT", len(content))

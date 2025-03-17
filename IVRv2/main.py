@@ -1,9 +1,7 @@
 import json
-import uuid
 from fastapi import FastAPI, Request, Response, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, ValidationError
-import traceback
+from pydantic import ValidationError
 from datetime import datetime
 import time
 from utils.enums import CallStatus, ConversationRTCEventType
@@ -17,15 +15,15 @@ import asyncio
 from actions.base_actions.talk_action import TalkAction
 
 from actions.vonage_actions.vonage_action_factory import VonageActionFactory
-from fsm.instantiation import instantiate_from_latest_content, instantitate_from_doc
+from fsm.insti import instantiate_from_latest_content, instantitate_from_doc
 from fsm.radio_instantiation import instantiate_from_content_ids
 from utils.mongodb import MongoDB
 from fastapi.responses import HTMLResponse
 from fsm.visualiseIVR import get_latest_content, process_content
 from utils.model_classes import ConversationRTCWebhookRequest, DTMFInput, EventWebhookRequest, IVRCallStateMongoDoc, IVRfsmDoc, \
-    MongoCreds, StartIVRFormData, StreamPlaybackInfo, UserAction, VonageCallStartResponse, BulkCallRequest, FSMRequest
+    StartIVRFormData, StreamPlaybackInfo, UserAction, VonageCallStartResponse, BulkCallRequest
 import copy
-from comprehension_model_classes import fsm as comprehension_fsm
+# from comprehension_model_classes import fsm as comprehension_fsm
 
 load_dotenv()
 
@@ -34,7 +32,7 @@ application_id = os.getenv("VONAGE_APPLICATION_ID")
 fsm = dict()
 latest_fsm_id = None
 
-app = FastAPI()
+app = FastAPI(version="1.0.0", description="UPDATED IVRv2: Fixed Vonage version")
 
 # Add CORS middleware configuration
 app.add_middleware(
@@ -45,21 +43,13 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
-ongoing_fsm_mongo = MongoDB( 
-                            db_name="ivr", 
-                            container_name="ongoingIVRState")
+ongoing_fsm_mongo = MongoDB(db_name="ivr", collection_name="ongoingIVRState")
 
-ivrv2_logs_mongo = MongoDB( 
-                            db_name="ivr", 
-                            container_name="ivrV2Logs")
+ivrv2_logs_mongo = MongoDB(db_name="ivr", collection_name="ivrV2Logs")
 
-fsm_json_mongo = MongoDB( 
-                         db_name="ivr",
-                         container_name="fsm")
+fsm_json_mongo = MongoDB(db_name="ivr", collection_name="fsm")
 
-radio_fsm_mongo = MongoDB( 
-                          db_name="ivr", 
-                          container_name="radio")
+radio_fsm_mongo = MongoDB(db_name="ivr", collection_name="radio")
 
 action_factory = VonageActionFactory()
 
@@ -110,11 +100,27 @@ async def startup_event():
     global fsm
     global latest_fsm_id
 
-    fsm[comprehension_fsm.fsm_id] = comprehension_fsm
-    latest_fsm_id = comprehension_fsm.fsm_id
+    # fsm[comprehension_fsm.fsm_id] = comprehension_fsm
+    # latest_fsm_id = comprehension_fsm.fsm_id
+    updated_fsm = await instantiate_from_latest_content()
+    fsm[updated_fsm.fsm_id] = updated_fsm
+    latest_fsm_id = updated_fsm.fsm_id
+    """
+    latest_doc = await fsm_json_mongo.find_top_one("created_at")
+    if latest_doc != None: 
+        latest_fsm = instantitate_from_doc(IVRfsmDoc(**latest_doc))
+        fsm[latest_fsm.fsm_id] = latest_fsm
+        latest_fsm_id = latest_fsm.fsm_id
+        # fsm = instantitate_from_doc(IVRfsmDoc(**latest_doc))
+        print("Instantiated FSM with id: ", latest_fsm.fsm_id)
+    else:
+        print("No FSM found in MongoDB, please call `updateivr` API to create a new FSM object from latest content before calling any APIs")
+    """
+    # fsm[comprehension_fsm.fsm_id] = comprehension_fsm
+    # latest_fsm_id = comprehension_fsm.fsm_id
     
     # latest_doc = await fsm_json_mongo.find_top_one("created_at")
-    # if latest_doc != None: 
+    # if latest_doc != None:
     #     latest_fsm = instantitate_from_doc(IVRfsmDoc(**latest_doc))
     #     fsm[latest_fsm.fsm_id] = latest_fsm
     #     latest_fsm_id = latest_fsm.fsm_id
@@ -201,6 +207,7 @@ async def start_ivr(response: Response, sender: str = Form(...)):
             
             # OTHERWISE DON'T ALLOW THE CALL TO BE STARTED
             else:
+                print("doc found", doc)
                 response.status_code = 403
                 return {"message": "IVR already running for phone number: " + phone_number}
             
@@ -220,7 +227,7 @@ async def start_ivr(response: Response, sender: str = Form(...)):
         vonage_resp = VonageCallStartResponse(**vonage_resp)
         print("VONAGE RESPONSE", vonage_resp)
         
-        ivr_call_state = IVRCallStateMongoDoc(id = vonage_resp.conversation_uuid, 
+        ivr_call_state = IVRCallStateMongoDoc(_id = vonage_resp.conversation_uuid, 
                                               phone_number = phone_number,
                                               fsm_id=latest_fsm.fsm_id,
                                               current_state_id = latest_fsm.init_state_id,
@@ -292,7 +299,7 @@ async def start_bulk_calls(request: BulkCallRequest):
             })
             vonage_resp = VonageCallStartResponse(**vonage_resp)
             
-            ivr_call_state = IVRCallStateMongoDoc(id = vonage_resp.conversation_uuid, 
+            ivr_call_state = IVRCallStateMongoDoc(_id = vonage_resp.conversation_uuid, 
                                               phone_number = phone_number,
                                               fsm_id=radio_fsm.fsm_id,
                                               current_state_id = radio_fsm.init_state_id,
@@ -336,7 +343,7 @@ def get_answer():
 async def get_event(req: Request, response: Response):
     try:
         req_data = await req.json()
-        # print("Raw REQUEST Data:", req_data)
+        print("Raw REQUEST Data:", req_data)
         
         event_request = EventWebhookRequest(**req_data)
         print("EVENT RECEIVED: ", json.dumps(event_request.dict(by_alias=True), cls=CustomJSONEncoder, indent=2))

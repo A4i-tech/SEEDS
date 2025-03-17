@@ -16,7 +16,7 @@ class FSM:
         Initializes a new instance of the FSM class.
 
         Args:
-        fsm_id (str): A unique identifier for the FSM instance.
+        fsm_id (str): A unique identifier for the FSM instance. 
 
         Attributes:
         states (dict[str, State]): A dictionary mapping state IDs to State objects.
