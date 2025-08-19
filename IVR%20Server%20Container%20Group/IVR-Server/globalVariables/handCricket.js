@@ -1,2 +1,0 @@
-global.phoneNumberToHandCricketGameId = {}
-global.handCricketInfo = {}
