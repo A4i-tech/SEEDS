@@ -2,28 +2,37 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const path = require("path");
-const cors = require('cors') 
+const cors = require('cors');
 const bodyParser = require("body-parser");
 const rateLimit = require('express-rate-limit');
 
-const morgan = require(path.join(__dirname,"morganConfig.js"))
+const morgan = require(path.join(__dirname, "morganConfig.js"));
 const dotenv = require("dotenv/config");
-const verifyToken = require("./auth/verifyToken.js")
-const callRouter = require("./routes/callRouter.js")
-const teacherRouter = require("./routes/teacherRouter.js")
-const contentRouter = require("./routes/contentRouter")
+const verifyToken = require("./auth/verifyToken.js");
+const callRouter = require("./routes/callRouter.js");
+const teacherRouter = require("./routes/teacherRouter.js");
+const contentRouter = require("./routes/contentRouter");
 const classRoomRouter = require("./routes/classRouter.js");
-const userRouter = require("./routes/userRouter.js")
-const logRouter = require("./routes/logRouter.js")
+const userRouter = require("./routes/userRouter.js");
+const logRouter = require("./routes/logRouter.js");
 const { constants } = require("zlib");
+const setupSwagger = require("./swagger");
 
 
 const app = express();
+
+// Initialize Swagger
+setupSwagger(app);
 
 // Define the rate limiter options
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes - The time window for which requests are counted.
   max: 5000, // 5000 requests - The maximum number of requests per IP within the time window.
+});
+
+// Root route - redirect to API docs
+app.get('/', (req, res) => {
+  res.redirect('/api-docs');
 });
 
 app.use(bodyParser.json());

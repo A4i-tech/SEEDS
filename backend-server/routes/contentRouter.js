@@ -3,6 +3,13 @@
 const express = require("express");
 const path = require("path");
 
+/**
+ * @swagger
+ * tags:
+ *   name: Content
+ *   description: Content management endpoints
+ */
+
 // Third-party modules
 const Agenda = require("agenda");
 const { ObjectId } = require('mongoose').Types;
@@ -38,6 +45,31 @@ agenda.define("processQuizContent", async (job) => {
     await agenda.start();
 })();
 
+/**
+ * @swagger
+ * /content/job/{jobId}:
+ *   get:
+ *     summary: Get job status by ID
+ *     tags: [Content]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: jobId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The job ID
+ *     responses:
+ *       200:
+ *         description: Job details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Job'
+ *       404:
+ *         description: Job not found
+ */
 router.get('/job/:jobId', async (req, res) => {
     const job = await agenda.jobs({ _id: new ObjectId(req.params.jobId) });
 
@@ -51,6 +83,27 @@ router.get('/job/:jobId', async (req, res) => {
 });
 
 // API to list all jobs (Running + Failed)
+/**
+ * @swagger
+ * /content/jobs:
+ *   get:
+ *     summary: Get list of all jobs (Running + Failed)
+ *     tags: [Content]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of jobs
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 jobs:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Job'
+ */
 router.get('/jobs', async (req, res) => {
     try {
         // Fetch jobs that are either "In Progress" or "Failed"
@@ -93,6 +146,37 @@ router.get('/jobs', async (req, res) => {
 });
 
 
+/**
+ * @swagger
+ * /content/quiz:
+ *   post:
+ *     summary: Create a new quiz
+ *     tags: [Content]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/QuizCreateRequest'
+ *     responses:
+ *       200:
+ *         description: Quiz processing job scheduled successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Processing New Content job scheduled!"
+ *                 jobId:
+ *                   type: string
+ *                   example: "507f1f77bcf86cd799439011"
+ *       400:
+ *         description: Invalid quiz format
+ */
 router.post("/quiz", tryCatchWrapper(async (req, res)=>{
     const quizCreateRequest = new QuizCreateRequest(req.body)
     if (quizCreateRequest.id === 'default-id') {
@@ -124,6 +208,35 @@ router.post("/quiz", tryCatchWrapper(async (req, res)=>{
 //     ).exec())
 // }))
 
+/**
+ * @swagger
+ * /content/sasUrl:
+ *   get:
+ *     summary: Get a SAS URL for a blob
+ *     tags: [Content]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: url
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The blob URL to generate a SAS token for
+ *     responses:
+ *       200:
+ *         description: SAS URL generated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 url:
+ *                   type: string
+ *                   description: The URL with SAS token
+ *       400:
+ *         description: URL parameter is required
+ */
 router.get("/sasUrl", tryCatchWrapper(async (req, res)=>{
     const url = req.query.url;  // URL is now obtained from query string
     if (!url) {
@@ -134,6 +247,38 @@ router.get("/sasUrl", tryCatchWrapper(async (req, res)=>{
     return res.json({ url: urlWithSAS });
 }))
 
+/**
+ * @swagger
+ * /content/themes:
+ *   get:
+ *     summary: Get all themes for a specific language
+ *     tags: [Content]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: language
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Language code (e.g., 'en', 'hi')
+ *     responses:
+ *       200:
+ *         description: List of themes with audio URLs
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   name:
+ *                     type: string
+ *                     description: Theme name in English
+ *                   audioUrl:
+ *                     type: string
+ *                     description: URL to the theme's audio file
+ */
 router.get("/themes",tryCatchWrapper(async (req, res) => {
     const language = req.query.language
     const content = await ContentV3.find({language:language, isPullModel: true}).sort({_id:-1})
@@ -154,6 +299,50 @@ router.get("/themes",tryCatchWrapper(async (req, res) => {
     return res.send(themes)
 }))
 
+/**
+ * @swagger
+ * /content:
+ *   get:
+ *     summary: Get content based on query parameters
+ *     tags: [Content]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: language
+ *         schema:
+ *           type: string
+ *         description: Language code (required with theme and expName)
+ *       - in: query
+ *         name: theme
+ *         schema:
+ *           type: string
+ *         description: Theme name in English (URL encoded, required with language and expName)
+ *       - in: query
+ *         name: expName
+ *         schema:
+ *           type: string
+ *         description: Content type (required with language and theme)
+ *       - in: query
+ *         name: ids
+ *         schema:
+ *           type: string
+ *         description: Comma-separated list of content IDs to fetch
+ *       - in: query
+ *         name: onlyTeacherApp
+ *         schema:
+ *           type: boolean
+ *         description: If true, returns only teacher app content
+ *     responses:
+ *       200:
+ *         description: List of content items matching the criteria
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/ContentV3'
+ */
 router.get("/", tryCatchWrapper(async (req, res) => {
     // Fetch by language, theme (English name), and expName (type)
     if (req.query.language && req.query.theme && req.query.expName) {
