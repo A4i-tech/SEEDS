@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { BlockBlobClient } from "@azure/storage-blob";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
 import { SEEDS_URL } from "../Constants";
 
@@ -81,16 +81,17 @@ const AddStory = ({ content, contentType }) => {
     }
   };
 
-  const fetchTitlesUnderTheme = (language, theme) => {
+  const fetchTitlesUnderTheme = useCallback((language, theme) => {
     const filteredContent = allContent.filter(item =>
-      item.language.toLowerCase() === language && item.theme.toLowerCase() === theme
+      item.language.toLowerCase() === language.toLowerCase() && 
+      item.theme.toLowerCase() === theme.toLowerCase()
     );
     const titleMap = {};
     filteredContent.forEach(item => {
       titleMap[item.title.toLowerCase()] = item.localTitle;
     });
     setTitlesUnderTheme(titleMap);
-  };
+  }, [allContent]);
 
   const handleLanguageChange = (event) => {
     const newLanguage = event.target.value;
@@ -135,7 +136,7 @@ const AddStory = ({ content, contentType }) => {
       };
       console.log("quizMetadata", quizMetadata);
       setMetadata(quizMetadata);
-      if (contentType != "Riddle") {
+      if (contentType !== "Riddle") {
         setAudioSrc(
           `https://seedsblob.blob.core.windows.net/output-original/${content.id}.mp3`
         );
@@ -149,11 +150,12 @@ const AddStory = ({ content, contentType }) => {
       }
       fetchTitlesUnderTheme(quizMetadata.language, quizMetadata.theme);
     }
-  }, [content]);
+  }, [content, contentType, fetchTitlesUnderTheme]);
 
   const [file, setFile] = useState();
   const [answerFile, setAnswerFile] = useState();
   const navigate = useNavigate();
+  
 
   const isValid = () => {
     var valid = true;
@@ -191,7 +193,7 @@ const AddStory = ({ content, contentType }) => {
     }
 
     //Check that localTitle is not empty if language is not english
-    else if (metadata.language != "english" && !metadata.localTitle) {
+    else if (metadata.language !== "english" && !metadata.localTitle) {
       alert("Local Title cannot be empty");
       valid = false;
     }
@@ -203,7 +205,7 @@ const AddStory = ({ content, contentType }) => {
     }
 
     // Check if answer audio file is provided when it is supposed to be uploaded
-    else if (contentType == "Riddle" && !answerAudioSrc && !metadata.answerAudioFile) {
+    else if (contentType === "Riddle" && !answerAudioSrc && !metadata.answerAudioFile) {
       alert("Answer audio file cannot be empty");
       valid = false;
     }
@@ -262,7 +264,7 @@ const AddStory = ({ content, contentType }) => {
     if (metadata.audioFile) {
       const extname = metadata.audioFile.split(".").pop();
       var filename = `${id}.${extname}`;
-      if (contentType == "Riddle") {
+      if (contentType === "Riddle") {
         filename = `${id}_question.${extname}`;
       }
       const res = await fetch(
@@ -293,7 +295,7 @@ const AddStory = ({ content, contentType }) => {
         metadataProperties["isfinalaudio"] = "false";
       }
 
-      if (contentType == "Riddle") {
+      if (contentType === "Riddle") {
         metadataProperties["Question"] = "true";
       }
 
@@ -420,7 +422,7 @@ const AddStory = ({ content, contentType }) => {
             <option value="new-theme" selected={metadata.theme === "new-theme"}>Choose New Theme</option>
           </select>
         </div>
-        {metadata.language != "english" && (
+        {metadata.language !== "english" && (
           <div>
             <label>{metadata.language} Theme</label>
             <select name="localTheme" value={metadata.localTheme} onChange={handleThemeChange} className="mintgreen">
@@ -459,7 +461,7 @@ const AddStory = ({ content, contentType }) => {
             <label>Add New English Theme</label>
             <input type="text" onChange={(event) => setMetadata({ ...metadata, theme: event.target.value })} className="mintgreen" placeholder="Enter new theme" />
           </div>
-          {metadata.language != "english" && (
+          {metadata.language !== "english" && (
             <div>
               <label>Add New {metadata.language} Theme</label>
               <input type="text" onChange={(event) => setMetadata({ ...metadata, localTheme: event.target.value })} className="mintgreen" placeholder={`Enter new theme in ${metadata.language}`} />
@@ -482,7 +484,7 @@ const AddStory = ({ content, contentType }) => {
         />
       </div>
 
-      {metadata.language != "english" && (
+      {metadata.language !== "english" && (
         <div>
           <label>{metadata.language} Title </label>
           <br />
@@ -523,14 +525,14 @@ const AddStory = ({ content, contentType }) => {
 
       {metadata.isProcessed && audioSrc && (
         <label>
-          Current {contentType == "Riddle" && `Question `} Audio File: <br />{" "}
+          Current {contentType === "Riddle" && `Question `} Audio File: <br />{" "}
           <audio controls src={audioSrc} />
         </label>
       )}
       <br />
       {metadata.isProcessed && answerAudioSrc && (
         <label>
-          Current {contentType == "Riddle" && `Answer `} Audio File: <br />{" "}
+          Current {contentType === "Riddle" && `Answer `} Audio File: <br />{" "}
           <audio controls src={answerAudioSrc} />
         </label>
       )}
@@ -539,13 +541,13 @@ const AddStory = ({ content, contentType }) => {
       <div>
         {audioSrc && (
           <label>
-            Change {contentType} {contentType == "Riddle" && `Question `}Audio
+            Change {contentType} {contentType === "Riddle" && `Question `}Audio
             File{" "}
           </label>
         )}
         {!audioSrc && (
           <label>
-            {contentType} {contentType == "Riddle" && `Question `}Audio File{" "}
+            {contentType} {contentType === "Riddle" && `Question `}Audio File{" "}
           </label>
         )}
         <br />
@@ -559,7 +561,7 @@ const AddStory = ({ content, contentType }) => {
         />
       </div>
 
-      {contentType == "Riddle" && (
+      {contentType === "Riddle" && (
         <div>
           {answerAudioSrc && (
             <label>Change {contentType} Answer Audio File </label>
@@ -611,7 +613,7 @@ const AddStory = ({ content, contentType }) => {
         value="Save"
       />
       <img
-        style={{ opacity: isSaveButtonDisabled == false ? 0 : 1 }}
+        style={{ opacity: isSaveButtonDisabled === false ? 0 : 1 }}
         src="https://cdn.dribbble.com/users/255512/screenshots/2215917/animation.gif"
         alt="Circular Progress Bar"
         width={150}

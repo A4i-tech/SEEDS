@@ -1,9 +1,6 @@
 
-import AddQuiz from './components/AddQuiz';
 import AllContent from './components/AllContent';
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
-import { useNavigate } from 'react-router-dom';
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import ContentDetails from "./components/ContentDetails";
 import ContentEdit from "./components/ContentEdit";
 import AddContent from './components/AddContent';
@@ -12,34 +9,8 @@ import IVR from './components/IVR';
 import ViewIVR from './components/ViewIVR';
 import './App.css'
 import Login from './components/Login';
-import { useState, useEffect } from 'react';
+import ApiDocumentation from './components/ApiDocumentation';
 
-const ProtectedRoute = ({ path, ...props }) => {
-  const auth = getAuth();
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [auth]);
-
-  if (loading) {
-    return <div>Loading...</div>; // Or show a loading spinner
-  }
-
-  if (!user) {
-    navigate('/login');
-    return null;
-  }
-
-  return <Route path={path} {...props} />;
-};
 
 function App() {
   
@@ -55,6 +26,7 @@ function App() {
           <Route path ='/ivr' element={<IVR />}/>
           <Route path = '/viewivr' element={<ViewIVR />}/>
           <Route path = '/bulkcall' element={<BulkCallInitiator />}/>
+          <Route path = '/api-docs' element={<ApiDocumentation />}/>
 
         </Routes>
       </BrowserRouter>

@@ -37,8 +37,8 @@ const AddContent = () => {
             </select>
           </label>
         </form>
-        {experience == "quiz" && <AddQuiz />}
-        {(experience != "quiz") && <AddStory contentType={experience} />}
+        {experience === "quiz" && <AddQuiz />}
+        {(experience !== "quiz") && <AddStory contentType={experience} />}
       </div>
     </>
   );

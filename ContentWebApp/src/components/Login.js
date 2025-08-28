@@ -1,8 +1,5 @@
 import React from 'react';
-import firebase from 'firebase/app';
 import 'firebase/auth';
-import { initializeApp } from "firebase/app";
-import firebaseConfig from '../firebase';
 import { getAuth, signInWithPopup, GoogleAuthProvider } from "firebase/auth";
 import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
@@ -11,7 +8,7 @@ import { useState } from 'react';
 const Login = () => {
     const auth = getAuth();
     const navigate = useNavigate();
-    const [showError, setShowError] = useState(false);
+    const [showError] = useState(false);
     // console.log()
 
     const handleGoogleSignIn = () => {
@@ -21,7 +18,6 @@ const Login = () => {
         .then((result) => {
           // This gives you a Google Access Token. You can use it to access the Google API.
           const credential = GoogleAuthProvider.credentialFromResult(result);
-          const token = credential.accessToken;
           // The signed-in user info.
           const user = result.user;
           console.log(user.displayName)

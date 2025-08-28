@@ -1,5 +1,3 @@
-import { FaTimes } from 'react-icons/fa'
-
 const Content = ({content, onDelete, onView, onEdit}) => {
   return (
     <div>
@@ -13,4 +11,3 @@ const Content = ({content, onDelete, onView, onEdit}) => {
 }
 
 export default Content
-       

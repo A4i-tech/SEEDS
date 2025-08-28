@@ -1,4 +1,3 @@
-import { Link, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
 
@@ -42,8 +41,6 @@ const AddQuiz = ({ quiz }) => {
     }
   }, [quiz]);
 
-  const navigate = useNavigate();
-
   const handleFormChange = (index, event) => {
     let data = [...inputFields];
     data[index][event.target.name] = event.target.value;
@@ -68,31 +65,30 @@ const AddQuiz = ({ quiz }) => {
     } else {
       metadata["id"] = uuidv4();
     }
-    //console.log("yo", metadata);
   };
 
   const isValid = () => {
     var valid = true;
-    if (metadata.title.length == 0) {
+    if (metadata.title.length === 0) {
       valid = false;
       alert("Title cannot be empty");
-    } else if (metadata.language.length == 0) {
+    } else if (metadata.language.length === 0) {
       valid = false;
       alert("Language cannot be empty");
-    } else if (metadata.positiveMark.length == 0) {
+    } else if (metadata.positiveMark.length === 0) {
       valid = false;
       alert("Positive marks cannot be empty");
-    } else if (metadata.negativeMark.length == 0) {
+    } else if (metadata.negativeMark.length === 0) {
       valid = false;
       alert("Negative marks cannot be empty");
     } else {
-      inputFields.map((mcq, index) => {
+      inputFields.forEach((mcq, index) => {
         if (
-          mcq.question.length == 0 ||
-          mcq.optionA.length == 0 ||
-          mcq.optionB.length == 0 ||
-          mcq.optionC.length == 0 ||
-          mcq.optionD.length == 0
+          mcq.question.length === 0 ||
+          mcq.optionA.length === 0 ||
+          mcq.optionB.length === 0 ||
+          mcq.optionC.length === 0 ||
+          mcq.optionD.length === 0
         ) {
           valid = false;
           alert(`Question ${index + 1} is incomplete`);

@@ -1,55 +1,56 @@
-import React from "react";
-import { useState, useEffect } from "react";
-import { Link, useParams } from "react-router-dom";
+import React, { useState, useEffect, useCallback } from "react";
+import { useParams } from "react-router-dom";
 import QuizDetails from "./QuizDetails";
 import StoryDetails from "./StoryDetails";
 import { SEEDS_URL } from "../Constants";
 
 const ContentDetails = () => {
   const { type, id } = useParams();
-  // console.log(type, id);
   const [content, setContent] = useState(null);
 
-  useEffect(() => {
-    console.log("useEffect");
-    const getContentById = async () => {
-      const contentFromServer = await contentById();
-      setContent(contentFromServer);
-      console.log("hello", contentFromServer);
-    };
-    getContentById();
-  }, []);
-
-  const contentById = async () => {
+  const contentById = useCallback(async () => {
     console.log("CONTENTBYID", type);
     // console.log(type)
     // const res = await fetch("http://localhost:5001/content");
 
-    if (type == "quiz") {
-      const placeRes = await fetch(
-        "https://place-seeds.azurewebsites.net/rawDataById?" +
-          new URLSearchParams({
-            id: id,
-          })
-      );
-      const data = await placeRes.json();
-      console.log("ContentDetailsData", data);
+    try {
+      let data;
+      if (type === "quiz") {
+        const placeRes = await fetch(
+          "https://place-seeds.azurewebsites.net/rawDataById?" +
+            new URLSearchParams({
+              id: id,
+            })
+        );
+        data = await placeRes.json();
+        console.log("ContentDetailsData", data);
+      } else {
+        const seedsRes = await fetch(
+          `${SEEDS_URL}/content/${id}`,
+          {
+            method: "GET",
+            headers: {
+              authToken: "postman",
+            },
+          }
+        );
+        data = await seedsRes.json();
+        console.log("ContentDetailsData1", data);
+      }
+      setContent(data);
       return data;
-    } else {
-      const seedsRes = await fetch(
-        `${SEEDS_URL}/content/${id}`,
-        {
-          method: "GET",
-          headers: {
-            authToken: "postman",
-          },
-        }
-      );
-      const seedsData = await seedsRes.json();
-      console.log("ContentDetailsData1", seedsData);
-      return seedsData;
+    } catch (error) {
+      console.error("Error fetching content:", error);
+      return null;
     }
-  };
+  }, [type, id]);
+
+  useEffect(() => {
+    const fetchContent = async () => {
+      await contentById();
+    };
+    fetchContent();
+  }, [contentById]);
 
   if (content && !content.isProcessed) {
     return (
@@ -63,12 +64,12 @@ const ContentDetails = () => {
   } else {
     return (
       <div style={{ margin: "20px" }}>
-        {content && content.isProcessed && content.type == "quiz" && (
+        {content && content.isProcessed && content.type === "quiz" && (
           <QuizDetails quiz={content} />
         )}
         {content &&
           content.isProcessed &&
-          (content.type != "quiz") && <StoryDetails type={content.type} story={content} />}
+          (content.type !== "quiz") && <StoryDetails type={content.type} story={content} />}
       </div>
     );
   }

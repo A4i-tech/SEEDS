@@ -1,10 +1,8 @@
 import { useState } from "react";
 import AddQuiz from "./AddQuiz";
 import AddStory from "./AddStory";
-import { useLocation } from "react-router-dom";
 import { useEffect } from "react";
-import { Link, useParams } from "react-router-dom";
-import { useNavigate } from "react-router-dom";
+import { useParams, useLocation } from "react-router-dom";
 import { SEEDS_URL } from "../Constants";
 
 const ContentEdit = () => {
@@ -12,7 +10,6 @@ const ContentEdit = () => {
   // console.log(type, id);
   const [content, setContent] = useState({});
   const [experience, setExperience] = useState("quiz");
-  const navigate = useNavigate();
 
   useEffect(() => {
     const getContentById = async () => {
@@ -27,7 +24,7 @@ const ContentEdit = () => {
   const contentById = async () => {
     // const res = await fetch("http://localhost:5001/content");
 
-    if (type == "quiz") {
+    if (type === "quiz") {
       const placeRes = await fetch(
         "https://place-seeds.azurewebsites.net/rawDataById?" +
           new URLSearchParams({
@@ -75,9 +72,9 @@ const ContentEdit = () => {
         <div style={{ margin: "20px" }}>
           <h3>Edit Content</h3>
           {content &&
-            (experience == "Story" ||
-              experience == "Poem" ||
-              experience == "Song") && (
+            (experience === "Story" ||
+              experience === "Poem" ||
+              experience === "Song") && (
               <form>
                 <label>
                   Experience:
@@ -94,9 +91,9 @@ const ContentEdit = () => {
                 </label>
               </form>
             )}
-          {content && experience == "quiz" && content.isProcessed && <AddQuiz quiz={content} />}
+          {content && experience === "quiz" && content.isProcessed && <AddQuiz quiz={content} />}
           {content &&
-            (experience != "quiz") &&
+            (experience !== "quiz") &&
             content.isProcessed && (
               <AddStory content={content} contentType={experience} />
             )}

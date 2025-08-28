@@ -1,10 +1,8 @@
 import React from "react";
-import Content from "./Content";
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Multiselect from "multiselect-react-dropdown";
 import { SEEDS_URL } from "../Constants";
-import { useLocation } from 'react-router-dom';
 import LogoutButton from "./LogoutButton";
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 
@@ -147,7 +145,7 @@ const AllContent = () => {
   const onDelete = async (type, id) => {
     console.log(id);
     if (window.confirm("Are you sure?")) {
-      if (type == "quiz") {
+      if (type === "quiz") {
         await fetch(
           "https://place-seeds.azurewebsites.net/byId?" +
           new URLSearchParams({
@@ -169,7 +167,7 @@ const AllContent = () => {
           }
         );
       }
-      setContent(sortContentByCreationTime(content.filter((content) => content.id != id)));
+      setContent(sortContentByCreationTime(content.filter((content) => content.id !== id)));
     }
   };
 
@@ -272,7 +270,7 @@ const AllContent = () => {
       <br>
       </br>
 
-      {content.length == 0 && <h3>No content found :( </h3>}
+      {content.length === 0 && <h3>No content found :( </h3>}
       <div className="row">
         {content.length > 0 && <table className="table table-striped table-bordered">
           <thead>
@@ -290,7 +288,7 @@ const AllContent = () => {
               <tr key={content.id}>
                 <td> {content.title} <br /> {content.localTitle} </td>
                 <td> {content.theme} <br /> {content.localTheme} </td>
-                <td>{content.isTeacherApp && 'TA'}{content.isPullModel && ', IVR'} {content.type == 'quiz' && 'IVR'}</td>
+                <td>{content.isTeacherApp && 'TA'}{content.isPullModel && ', IVR'} {content.type === 'quiz' && 'IVR'}</td>
                 <td> {content.language}</td>
                 <td> {content.type}</td>
                 <td>

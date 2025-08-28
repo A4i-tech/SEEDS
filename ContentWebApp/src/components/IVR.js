@@ -14,13 +14,12 @@ const IVR = () => {
   const [studentData, setStudentData] = useState([]);
 
   function msToTime(s) {
-    var ms = s % 1000;
+    const ms = s % 1000;
     s = (s - ms) / 1000;
-    var secs = s % 60;
+    const secs = s % 60;
     s = (s - secs) / 60;
-    var mins = s % 60;
-    var hrs = (s - mins) / 60;
-    if (mins == 0) return secs + " s";
+    const mins = s % 60;
+    if (mins === 0) return secs + " s";
     return mins + " mins " + secs + " s";
   }
 

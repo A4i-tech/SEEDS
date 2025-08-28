@@ -76,7 +76,7 @@ const StoryDetails = ({ type, story }) => {
           Audio: <br /> <audio controls src={audioSrc} />
         </div>
       )}
-      {story.isProcessed && type == "Riddle" && (
+      {story.isProcessed && type === "Riddle" && (
         <div style={{ paddingBottom: "30px" }}>
           Answer Audio: <br /> <audio controls src={answerAudioSrc} />
         </div>
