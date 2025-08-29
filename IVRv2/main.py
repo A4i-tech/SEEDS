@@ -1,5 +1,5 @@
 import json
-from fastapi import FastAPI, Request, Response, HTTPException, Form
+from fastapi import FastAPI, Request, Response, HTTPException, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 from datetime import datetime
@@ -32,7 +32,23 @@ application_id = os.getenv("VONAGE_APPLICATION_ID")
 fsm = dict()
 latest_fsm_id = None
 
-app = FastAPI(version="1.0.0", description="UPDATED IVRv2: Fixed Vonage version")
+app = FastAPI(
+    title="IVR v2 API",
+    description="""
+    IVR v2 API - Interactive Voice Response System
+    
+    This API handles voice call interactions, call management, and IVR state management.
+    It integrates with Vonage for voice call functionality and MongoDB for data persistence.
+    """,
+    version="2.0.0",
+    contact={
+        "name": "SEEDS Support",
+        "email": "support@seeds.org"
+    },
+    license_info={
+        "name": "MIT License"
+    }
+)
 
 # Add CORS middleware configuration
 app.add_middleware(
@@ -56,7 +72,21 @@ action_factory = VonageActionFactory()
 accumulator = action_factory.get_action_accumulator_implmentation()
 
 
-@app.get("/ivr_structure", response_class=HTMLResponse, description="This API returns the IVR structure in a visual format")
+@app.get(
+    "/ivr_structure", 
+    response_class=HTMLResponse,
+    summary="Get IVR structure visualization",
+    description="""
+    Returns an HTML visualization of the IVR call flow structure.
+    
+    This endpoint generates a visual representation of the IVR states and transitions
+    to help with debugging and understanding the call flow.
+    """,
+    responses={
+        200: {"description": "HTML page with IVR structure visualization"},
+        500: {"description": "Error generating visualization"}
+    }
+)
 async def get_ivr_structure():
     content = await get_latest_content()
     structured_content = process_content(content)
@@ -66,8 +96,29 @@ async def get_ivr_structure():
 
 
 
-@app.get("/getFSM")
-async def get_fsm(fsm_id: str):
+@app.get(
+    "/getFSM",
+    summary="Retrieve FSM by ID",
+    description="""
+    Retrieves a Finite State Machine (FSM) configuration by its unique identifier.
+    
+    This endpoint returns the complete FSM configuration including states, transitions,
+    and menu definitions. The FSM defines the call flow and behavior of the IVR system.
+    
+    The response includes:
+    - FSM ID and metadata
+    - List of states with their configurations
+    - Transition maps between states
+    - Menu definitions for each state (if applicable)
+    """,
+    response_model=IVRfsmDoc,
+    responses={
+        200: {"description": "FSM retrieved successfully"},
+        404: {"description": "FSM not found"},
+        500: {"description": "Internal server error"}
+    }
+)
+async def get_fsm(fsm_id: str = Query(..., description="The unique identifier of the FSM to retrieve")):
     # global fsm
     fsm_by_id = None
     doc = await fsm_json_mongo.find_by_id(fsm_id)
@@ -97,6 +148,17 @@ async def get_fsm(fsm_id: str):
 
 @app.on_event("startup")
 async def startup_event():
+    """
+    Initialize the application on startup.
+    
+    This function is called automatically when the FastAPI application starts up.
+    It performs the following tasks:
+    - Initializes the global FSM (Finite State Machine) dictionary
+    - Loads the latest FSM from the database
+    - Sets up the initial FSM state
+    
+    Note: This is an internal function and not directly exposed as an API endpoint.
+    """
     global fsm
     global latest_fsm_id
 
@@ -129,7 +191,23 @@ async def startup_event():
     # else:
     #     print("No FSM found in MongoDB, please call `updateivr` API to create a new FSM object from latest content before calling any APIs")
 
-@app.post("/updateivr")
+@app.post(
+    "/updateivr",
+    summary="Update IVR configuration",
+    description="""
+    Updates the IVR configuration with the latest content.
+    
+    This endpoint will:
+    - Check for any active calls
+    - Create a new FSM from the latest content
+    - Update the FSM in the database if changes are detected
+    """,
+    responses={
+        200: {"description": "IVR updated successfully"},
+        409: {"description": "Cannot update IVR while users are active"},
+        500: {"description": "Failed to update IVR configuration"}
+    }
+)
 async def update_ivr(request: Request, response: Response):
     global fsm
     global latest_fsm_id
@@ -174,8 +252,25 @@ async def update_ivr(request: Request, response: Response):
     return {"message": response_message, 
             "status_code": response.status_code}
     
-@app.post("/startivr")
-async def start_ivr(response: Response, sender: str = Form(...)):
+@app.post(
+    "/start_ivr",
+    summary="Initialize a new IVR call",
+    description=""" 
+    Initiates a new IVR call to the specified phone number.
+    
+    This endpoint will:
+    - Create a new call using Vonage API
+    - Initialize the call state in the database
+    - Return the call details including conversation UUID
+    """,
+    response_model=VonageCallStartResponse,
+    responses={
+        200: {"description": "Call initiated successfully"},
+        400: {"description": "Invalid phone number or request"},
+        500: {"description": "Failed to initiate call"}
+    }
+)
+async def start_ivr(response: Response, sender: str = Form(..., description="Phone number to call in E.164 format (e.g., +1234567890)")):
     global fsm
     try:
         client = vonage.Client(application_id=application_id, private_key=os.getenv("VONAGE_PRIVATE_KEY_PATH"))
@@ -245,7 +340,24 @@ async def start_ivr(response: Response, sender: str = Form(...)):
 
 
 
-@app.post("/start_bulk_calls")
+@app.post(
+    "/start_bulk_calls",
+    summary="Initiate multiple IVR calls",
+    description="""
+    Initiates IVR calls to multiple phone numbers with specified content.
+    
+    This endpoint will:
+    - Create a new FSM for the specified content IDs
+    - Store the FSM in the database
+    - Initiate calls to all provided phone numbers with a rate limit of 1 call per second
+    """,
+    response_model=dict,
+    responses={
+        200: {"description": "Bulk calls initiated successfully"},
+        400: {"description": "Invalid request parameters"},
+        500: {"description": "Failed to initiate bulk calls"}
+    }
+)
 async def start_bulk_calls(request: BulkCallRequest):
     global fsm
     try:
@@ -320,9 +432,19 @@ async def start_bulk_calls(request: BulkCallRequest):
         print(error_traceback)  # Log the traceback for debugging purposes
         raise HTTPException(status_code=500, detail={"error": "An error occurred while processing the request.", "details": error_traceback})
     
-@app.get("/")
+@app.get("/", 
+    summary="Root endpoint", 
+    description="Health check endpoint to verify the API is running",
+    responses={
+        200: {"description": "API is running"},
+        500: {"description": "Internal server error"}
+    })
 def read_root():
-    return {"Hello": "World"}
+    """
+    Health check endpoint.
+    Returns a simple message to verify the API is running.
+    """
+    return {"status": "IVR v2 API is running"}
 
 @app.get("/answer")
 def get_answer():
@@ -339,7 +461,20 @@ def get_answer():
     ]
     return ncco
 
-@app.post("/event")
+@app.post(
+    "/event",
+    summary="Handle call events",
+    description="""
+    Processes call events from Vonage.
+    Handles various call status updates and forwards them to the appropriate FSM handler.
+    """,
+    response_model=dict,
+    responses={
+        200: {"description": "Event processed successfully"},
+        400: {"description": "Invalid request"},
+        500: {"description": "Internal server error"}
+    }
+)
 async def get_event(req: Request, response: Response):
     try:
         req_data = await req.json()
@@ -389,7 +524,25 @@ async def get_event(req: Request, response: Response):
         response.status_code = 500
         return {"error": "An error occurred while processing the request.", "details": error_traceback}
 
-@app.post("/conversation_events")
+@app.post(
+    "/conversation_events",
+    summary="Handle conversation events",
+    description="""
+    Handles incoming RTC webhook requests related to conversation events, specifically audio play events.
+    It updates IVR state documents in MongoDB based on the type of audio event received.
+    
+    - For 'audio:play' events: Checks if the current state has a stream action configured
+      with record playback set to true and a matching stream URL.
+    - For 'audio:play:stop' and 'audio:play:done' events: Updates the corresponding timestamps
+      for the playback information.
+    """,
+    response_model=dict,
+    responses={
+        200: {"description": "Event processed successfully"},
+        400: {"description": "Invalid request"},
+        500: {"description": "Internal server error"}
+    }
+)
 async def get_conv_event(req: ConversationRTCWebhookRequest):
     """
     Handles incoming RTC webhook requests related to conversation events, specifically audio play events.
@@ -459,7 +612,29 @@ async def get_conv_event(req: ConversationRTCWebhookRequest):
     return {"message": "recorded"}
 
 
-@app.post("/input")
+@app.post(
+    "/input",
+    summary="Process DTMF input",
+    description="""
+    Processes DTMF (Dual-Tone Multi-Frequency) input from a call.
+    
+    This endpoint handles the user's keypad input during an active call
+    and routes to the appropriate IVR state based on the input.
+    
+    The endpoint expects a JSON payload with the following structure:
+    - dtmf: Object containing the digits pressed
+    - conversation_uuid: Unique identifier for the call
+    
+    Returns an NCCO (Nexmo Call Control Object) response to control the call flow.
+    """,
+    response_model=dict,
+    responses={
+        200: {"description": "DTMF processed successfully and NCCO response generated"},
+        400: {"description": "Invalid input format"},
+        404: {"description": "Call session not found"},
+        500: {"description": "Error processing DTMF input"}
+    }
+)
 async def dtmf(input: Request):
     global fsm
     
@@ -505,6 +680,24 @@ async def dtmf(input: Request):
     print("NCCO RETURNED FROM INPUT API: ", json.dumps(ncco, indent=2))
     return JSONResponse(ncco)
     
-@app.post("/fallback")
+@app.post(
+    "/fallback",
+    summary="Fallback endpoint",
+    description="""
+    Fallback endpoint for handling undefined routes or invalid requests.
+    
+    This endpoint catches any POST requests that don't match other routes.
+    It's primarily used as a safety net for malformed requests.
+    """,
+    responses={
+        200: {"description": "Default response for unmatched routes"}
+    }
+)
 def get_answer():
+    """
+    Returns a simple response for unmatched routes.
+    
+    This is a catch-all endpoint that returns a basic response when no other
+    route matches the incoming request.
+    """
     return {"hello": "world"}

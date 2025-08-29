@@ -4,7 +4,7 @@ import os
 import json
 
 async def get_latest_content():
-    api_url = os.environ.get("SEEDS_SERVER_BASE_URL", "") + "content"
+    api_url = os.environ.get("SEEDS_SERVER_BASE_URL", "") + "/content"
     headers = {
         'authToken': 'postman'
     }
