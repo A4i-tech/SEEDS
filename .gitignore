@@ -301,9 +301,7 @@ node_modules/
 *.dsw
 *.dsp
 
-# Visual Studio 6 technical files
-*.ncb
-*.aps
+
 
 # Visual Studio LightSwitch build output
 **/*.HTMLClient/GeneratedArtifacts
@@ -400,3 +398,4 @@ FodyWeavers.xsd
 package-lock.json
 
 IVRv2/venv/
+/.idea/
