@@ -19,13 +19,13 @@ describe('Tenant Auth API', () => {
     beforeAll(async () => {
         // Connect to a test database
         await mongoose.connect(DB_CONNECTION, {useNewUrlParser: true, useUnifiedTopology: true});
-    }, 20000); // Increased timeout to 10 seconds
+    }, 20000); // Increased timeout to 20 seconds
 
     afterAll(async () => {
         // Clean up database and close connection
         await Tenant.deleteMany({});
         await mongoose.connection.close();
-    }, 20000); // Increased timeout to 10 seconds
+    }, 20000); // Increased timeout to 20 seconds
 
     test('Register a new tenant', async () => {
         const res = await request(app)
