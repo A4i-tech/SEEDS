@@ -8,7 +8,7 @@ const rateLimit = require('express-rate-limit');
 
 const morgan = require(path.join(__dirname, "morganConfig.js"));
 const dotenv = require("dotenv/config");
-const authenticateToken = require('./auth/authenticateToken');
+const authProviderMiddleware = require('./auth/authProviderMiddleware');
 const callRouter = require("./routes/callRouter.js");
 const teacherRouter = require("./routes/teacherRouter.js");
 const contentRouter = require("./routes/contentRouter");
@@ -41,20 +41,21 @@ app.use(bodyParser.json());
 // Existing code remains unchanged
 app.use(morgan('dev'));
 app.use(cors());
-app.use("/call", authenticateToken, callRouter);
-app.use("/teacher", authenticateToken, teacherRouter);
-app.use("/content", authenticateToken, contentRouter);
-app.use("/class", authenticateToken, classRoomRouter);
-app.use("/log", authenticateToken, logRouter);
-app.use("/user", authenticateToken, userRouter);
+app.use("/call", authProviderMiddleware, callRouter);
+app.use("/teacher", authProviderMiddleware, teacherRouter);
+app.use("/content", authProviderMiddleware, contentRouter);
+app.use("/class", authProviderMiddleware, classRoomRouter);
+app.use("/log", authProviderMiddleware, logRouter);
+app.use("/user", authProviderMiddleware, userRouter);
 app.use("/tenant", tenantRouter);
 
-mongoose.connect(process.env.DB_CONNECTION, () => {
+if (require.main === module) {
+    mongoose.connect(process.env.DB_CONNECTION, () => {
         console.log("Connected to DB")
         const PORT = process.env.PORT || 4000
         app.listen(PORT, () => {
             console.log(`server running on port ${PORT}`)
         });
-    }
-);
+    });
+}
 module.exports = app;
