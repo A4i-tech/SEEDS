@@ -34,7 +34,8 @@
     "path": "^0.12.7",
     "supertest": "^7.1.4",
     "swagger-jsdoc": "^6.2.8",
-    "swagger-ui-express": "^5.0.0"
+    "swagger-ui-express": "^5.0.0",
+    "validator": "^13.9.0"
   },
   "description": "",
   "devDependencies": {

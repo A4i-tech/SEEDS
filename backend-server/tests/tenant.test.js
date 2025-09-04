@@ -10,7 +10,7 @@ const STATUS_UNAUTHORIZED = 401;
 const STATUS_CONFLICT = 409;
 
 const TEST_EMAIL = 'testtenant@example.com';
-const TEST_PASSWORD = 'TestPassword123';
+const TEST_PASSWORD = 'TestPassword123!';
 const TEST_NAME = 'Test Tenant';
 
 const DB_CONNECTION = process.env.DB_CONNECTION;
@@ -19,13 +19,13 @@ describe('Tenant Auth API', () => {
     beforeAll(async () => {
         // Connect to a test database
         await mongoose.connect(DB_CONNECTION, {useNewUrlParser: true, useUnifiedTopology: true});
-    });
+    }, 20000); // Increased timeout to 10 seconds
 
     afterAll(async () => {
         // Clean up database and close connection
         await Tenant.deleteMany({});
         await mongoose.connection.close();
-    });
+    }, 20000); // Increased timeout to 10 seconds
 
     test('Register a new tenant', async () => {
         const res = await request(app)
@@ -66,7 +66,7 @@ describe('Tenant Auth API', () => {
             .post('/tenant/register')
             .send({
                 email: TEST_EMAIL,
-                password: 'AnotherPassword',
+                password: 'AnotherPassword1!',
                 name: 'Another Tenant'
             });
         expect(res.statusCode).toBe(STATUS_CONFLICT);
