@@ -48,8 +48,7 @@ module.exports = {
             //     res.sendStatus(STATUS_UNAUTHORIZED);
             // }
             // res.sendStatus(STATUS_UNAUTHORIZED);
-        } catch (error) {
-            res.sendStatus(STATUS_UNAUTHORIZED);
+            return res.sendStatus(STATUS_UNAUTHORIZED);
         }
     },
     supportsRegistration() {
