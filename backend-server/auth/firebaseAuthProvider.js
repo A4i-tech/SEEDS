@@ -29,12 +29,12 @@ module.exports = {
             console.log(`authtoken: ${authToken}`);
             if (authToken === "postman" || authToken === "postman1") {
                 req.userId = "postman@gmail.com";
-                return res.sendStatus(STATUS_OK);
+                return next();
             }
             // regex for a phone number
             else if (authToken && authToken.startsWith("+91") && authToken.length === 13) {
                 req.userId = authToken;
-                return res.sendStatus(STATUS_OK);
+                return next();
             }
             // Uncomment below to enable Firebase token verification
             // try {
