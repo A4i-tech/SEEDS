@@ -8,7 +8,7 @@ const rateLimit = require('express-rate-limit');
 
 const morgan = require(path.join(__dirname, "morganConfig.js"));
 const dotenv = require("dotenv/config");
-const authProviderMiddleware = require('./auth/authProviderMiddleware');
+const authenticateToken = require('./auth/authenticateToken');
 const callRouter = require("./routes/callRouter.js");
 const teacherRouter = require("./routes/teacherRouter.js");
 const contentRouter = require("./routes/contentRouter");
@@ -41,12 +41,12 @@ app.use(bodyParser.json());
 // Existing code remains unchanged
 app.use(morgan('dev'));
 app.use(cors());
-app.use("/call", authProviderMiddleware, callRouter);
-app.use("/teacher", authProviderMiddleware, teacherRouter);
-app.use("/content", authProviderMiddleware, contentRouter);
-app.use("/class", authProviderMiddleware, classRoomRouter);
-app.use("/log", authProviderMiddleware, logRouter);
-app.use("/user", authProviderMiddleware, userRouter);
+app.use("/call", authenticateToken, callRouter);
+app.use("/teacher", authenticateToken, teacherRouter);
+app.use("/content", authenticateToken, contentRouter);
+app.use("/class", authenticateToken, classRoomRouter);
+app.use("/log", authenticateToken, logRouter);
+app.use("/user", authenticateToken, userRouter);
 app.use("/tenant", tenantRouter);
 
 if (require.main === module) {
