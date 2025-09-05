@@ -74,7 +74,7 @@ describe('authenticateToken middleware', () => {
     });
 
     test('should return 403 if token is expired', () => {
-        const token = jwt.sign({email: TEST_EMAIL, id: TEST_ID}, SECRET_KEY, {expiresIn: '-1s'});
+        const token = jwt.sign({ email: TEST_EMAIL, id: TEST_ID }, SECRET_KEY, {expiresIn: '-1s'});
         const req = getMockReq(token);
         const res = getMockRes();
         let nextCalled = false;
