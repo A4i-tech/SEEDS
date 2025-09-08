@@ -152,5 +152,30 @@ describe('Tenant Auth API', () => {
         expect(res.statusCode).toBe(STATUS_BAD_REQUEST);
         process.env.AUTH_TYPE = originalAuthType;
     });
-});
 
+    test('Get login type - native', async () => {
+        const originalGetLoginType = authProvider.getLoginType;
+        authProvider.getLoginType = () => 'native';
+
+        const res = await request(app)
+            .get('/tenant/loginType');
+
+        expect(res.statusCode).toBe(STATUS_OK);
+        expect(res.body).toEqual({ loginType: 'native' });
+
+        authProvider.getLoginType = originalGetLoginType;
+    });
+
+    test('Get login type - firebase', async () => {
+        const originalGetLoginType = authProvider.getLoginType;
+        authProvider.getLoginType = () => 'firebase';
+
+        const res = await request(app)
+            .get('/tenant/loginType');
+
+        expect(res.statusCode).toBe(STATUS_OK);
+        expect(res.body).toEqual({ loginType: 'firebase' });
+
+        authProvider.getLoginType = originalGetLoginType;
+    });
+});

@@ -18,7 +18,6 @@ const logRouter = require("./routes/logRouter.js");
 const {constants} = require("zlib");
 const setupSwagger = require("./swagger");
 const tenantRouter = require('./routes/tenantRouter.js');
-const loginService = require("./models/loginService");
 
 const app = express();
 
@@ -48,7 +47,6 @@ app.use("/class", authenticateToken, classRoomRouter);
 app.use("/log", authenticateToken, logRouter);
 app.use("/user", authenticateToken, userRouter);
 app.use("/tenant", tenantRouter);
-app.use("/loginService", (req, res) => loginService.loginService(req, res));
 if (require.main === module) {
     mongoose.connect(process.env.DB_CONNECTION, () => {
         console.log("Connected to DB")

@@ -85,4 +85,8 @@ router.post('/register', [
     authProvider.register
 ]);
 
+router.get('/loginType', (req, res) => {
+    res.json({loginType: authProvider.getLoginType()});
+});
+
 module.exports = router;
