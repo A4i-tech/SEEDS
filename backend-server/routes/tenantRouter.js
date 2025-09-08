@@ -2,6 +2,7 @@ const express = require('express');
 const authProvider = require('../auth/authProviderMiddleware');
 
 const STATUS_BAD_REQUEST = 400;
+const STATUS_OK = 200;
 
 const router = express.Router();
 
@@ -37,7 +38,14 @@ const router = express.Router();
  *                   required:
  */
 router.post('/login',
-    authProvider.login
+    authProvider.login,
+    (req, res) => {
+        // Send a success response with the extracted userId
+        res.status(STATUS_OK).json({
+            message: 'Login successful',
+            userId: req.userId
+        });
+    }
 );
 
 /**
