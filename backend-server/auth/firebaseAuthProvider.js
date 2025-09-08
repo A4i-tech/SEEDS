@@ -17,6 +17,7 @@ if (!admin.apps.length) {
 const STATUS_UNAUTHORIZED = 401;
 const STATUS_BAD_REQUEST = 400;
 const STATUS_OK = 200;
+
 module.exports = {
     async login(req, res, next) {
         try {
@@ -27,33 +28,46 @@ module.exports = {
 
             const authToken = req.headers['authtoken'];
             console.log(`authtoken: ${authToken}`);
+
             if (authToken === "postman" || authToken === "postman1") {
                 req.userId = "postman@gmail.com";
+                console.log("Test token detected. userId set to postman@gmail.com");
                 return next();
-            }
-            // regex for a phone number
-            else if (authToken && authToken.startsWith("+91") && authToken.length === 13) {
+            } else if (authToken && authToken.startsWith("+91") && authToken.length === 13) {
                 req.userId = authToken;
+                console.log(`Phone number token detected. userId set to ${authToken}`);
                 return next();
             }
-            // Uncomment below to enable Firebase token verification
-            // try {
-            //     const token = await admin.auth().verifyIdToken(authToken);
-            //     console.log(JSON.stringify(token));
-            //     req.userId = token.phone_number;
-            //     console.log(`userId: ${req.userId}`);
-            //     return token;
-            // } catch (error) {
-            //     console.log(JSON.stringify(error, ["message", "arguments", "type", "name"]));
-            //     res.sendStatus(STATUS_UNAUTHORIZED);
-            // }
-            // res.sendStatus(STATUS_UNAUTHORIZED);
-            return res.sendStatus(STATUS_UNAUTHORIZED);
+
+            // Verify Firebase token
+            if (authToken) {
+                try {
+                    const token = await admin.auth().verifyIdToken(authToken);
+                    console.log("Firebase token verified successfully:", JSON.stringify(token));
+                    req.userId = token.phone_number || token.uid;
+                    console.log(`userId extracted: ${req.userId}`);
+                    return next();
+                } catch (error) {
+                    console.error("Error verifying Firebase token:", error);
+                    return res.status(STATUS_UNAUTHORIZED).send({ error: "Invalid token" });
+                }
+            }
+
+            // If no valid authToken is provided
+            console.log("No valid authToken provided.");
+            return res.status(STATUS_UNAUTHORIZED).send({ error: "Unauthorized" });
+        } catch (error) {
+            console.error('Login error:', error);
+            if (!res.headersSent) {
+                return res.status(STATUS_UNAUTHORIZED).send({ error: "Internal server error" });
+            }
         }
     },
+
     supportsRegistration() {
         return false;
     },
+
     async register(req, res, next) {
         return { error: 'Registration is managed by Firebase. Please use Firebase client SDK.', status: STATUS_BAD_REQUEST };
     }
