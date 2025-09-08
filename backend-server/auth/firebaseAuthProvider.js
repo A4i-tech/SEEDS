@@ -37,17 +37,19 @@ module.exports = {
                 return next();
             }
             // Uncomment below to enable Firebase token verification
-            // try {
-            //     const token = await admin.auth().verifyIdToken(authToken);
-            //     console.log(JSON.stringify(token));
-            //     req.userId = token.phone_number;
-            //     console.log(`userId: ${req.userId}`);
-            //     return token;
-            // } catch (error) {
-            //     console.log(JSON.stringify(error, ["message", "arguments", "type", "name"]));
-            //     res.sendStatus(STATUS_UNAUTHORIZED);
-            // }
-            // res.sendStatus(STATUS_UNAUTHORIZED);
+            try {
+                const token = await admin.auth().verifyIdToken(authToken);
+                console.log(JSON.stringify(token));
+                req.userId = token.phone_number;
+                console.log(`userId: ${req.userId}`);
+                return token;
+            } catch (error) {
+                console.log(JSON.stringify(error, ["message", "arguments", "type", "name"]));
+                res.sendStatus(STATUS_UNAUTHORIZED);
+            }
+            return res.sendStatus(STATUS_UNAUTHORIZED);
+        } catch (error) {
+            console.error('Login error:', error);
             return res.sendStatus(STATUS_UNAUTHORIZED);
         }
     },

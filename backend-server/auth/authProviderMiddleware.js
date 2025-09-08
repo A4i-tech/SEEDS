@@ -3,6 +3,10 @@ const nativeAuthProvider = require('./nativeAuthProvider');
 
 const AUTH_TYPE = process.env.AUTH_TYPE || 'native';
 
+function getLoginType() {
+    return AUTH_TYPE;
+}
+
 let provider;
 if (AUTH_TYPE === 'native') {
     provider = nativeAuthProvider;
@@ -10,4 +14,7 @@ if (AUTH_TYPE === 'native') {
     provider = firebaseAuthProvider;
 }
 
-module.exports = provider;
+module.exports = {
+    ...provider,
+    getLoginType
+};

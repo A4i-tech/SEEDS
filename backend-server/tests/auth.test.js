@@ -126,6 +126,14 @@ describe('nativeAuthProvider edge cases', () => {
         process.env.SECRET_KEY = originalSecretKey;
     });
 
+    beforeEach(() => {
+        jest.spyOn(console, 'error').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+        jest.restoreAllMocks();
+    });
+
     test('register returns 400 if fields are missing', async () => {
         const req = { body: { email: '', password: '', name: '' } };
         const res = {
