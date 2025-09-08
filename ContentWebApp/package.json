@@ -32,6 +32,7 @@
     "xlsx": "^0.18.5"
   },
   "scripts": {
+    "dev": "npm start",
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
