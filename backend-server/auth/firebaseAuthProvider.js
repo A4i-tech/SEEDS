@@ -49,6 +49,9 @@ module.exports = {
             // }
             // res.sendStatus(STATUS_UNAUTHORIZED);
             return res.sendStatus(STATUS_UNAUTHORIZED);
+        } catch (error) {
+            console.error('Login error:', error);
+            return res.sendStatus(STATUS_UNAUTHORIZED);
         }
     },
     supportsRegistration() {
