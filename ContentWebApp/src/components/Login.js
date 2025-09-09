@@ -96,6 +96,24 @@ const Login = () => {
         navigate('/register'); // Navigate to the registration page
     };
 
+    const inputStyle = {
+        marginBottom: '10px',
+        padding: '8px',
+        width: '100%',
+        boxSizing: 'border-box',
+        borderRadius: '4px',
+        border: '1px solid #ccc',
+        fontSize: '16px',
+    };
+
+    const formContainerStyle = {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        width: '300px',
+        gap: '15px',
+    };
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
             <h1>Welcome to SEEDS</h1>
@@ -104,23 +122,23 @@ const Login = () => {
                 <button className="btn" style={{ backgroundColor: "#28574F", color: "white" }} onClick={handleGoogleSignIn}>Sign in with Google</button>
             )}
             {loginType === 'native' && (
-                <div>
+                <div style={formContainerStyle}>
                     <input
                         type="email"
                         placeholder="Email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        style={{ marginBottom: '10px', padding: '8px', width: '200px' }}
+                        style={inputStyle}
                     />
                     <input
                         type="password"
                         placeholder="Password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        style={{ marginBottom: '10px', padding: '8px', width: '200px' }}
+                        style={inputStyle}
                     />
-                    <button className="btn" style={{ backgroundColor: "#28574F", color: "white", marginRight: '10px' }} onClick={handleNativeLogin}>Login</button>
-                    <button className="btn" style={{ backgroundColor: "#28574F", color: "white" }} onClick={handleRegister}>Register</button>
+                    <button className="btn" style={{ backgroundColor: "#28574F", color: "white" }} onClick={handleNativeLogin}>Login</button>
+                    <span style={{ color: "#28574F", cursor: "pointer", textDecoration: "underline" }} onClick={handleRegister}>Signup</span>
                 </div>
             )}
             {showError && <p style={{ color: 'red' }}>Error Occurred</p>}

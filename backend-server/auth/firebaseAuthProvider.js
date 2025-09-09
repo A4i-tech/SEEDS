@@ -1,17 +1,26 @@
 const admin = require('firebase-admin');
 const path = require('path');
+const fs = require('fs');
 
 // Firebase initialization (env or file)
 let serviceAccount;
-if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-} else {
-    serviceAccount = path.join(__dirname, 'serviceAccountKey.json');
-}
-if (!admin.apps.length) {
-    admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-    });
+if(process.env.AUTH_TYPE === 'firebase'){
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+        serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    } else {
+        const keyPath = path.join(__dirname, 'serviceAccountKey.json');
+        try {
+            serviceAccount = JSON.parse(fs.readFileSync(keyPath, 'utf8'));
+        } catch (err) {
+            console.error("Failed to read serviceAccountKey.json");
+            throw err;
+        }
+    }
+    if (!admin.apps.length) {
+        admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount)
+        });
+    }
 }
 
 const STATUS_UNAUTHORIZED = 401;
