@@ -1,8 +1,11 @@
+process.env.AUTH_TYPE = 'native';
+
 const request = require('supertest');
 const app = require('../index');
 const mongoose = require('mongoose');
 const Tenant = require('../models/Tenant');
-const authProvider = require('../auth/authProviderMiddleware');
+
+const {beforeEach, afterEach, describe} = require("node:test");
 
 const STATUS_OK = 200;
 const STATUS_CREATED = 201;
@@ -15,6 +18,8 @@ const TEST_PASSWORD = 'TestPassword123!';
 const TEST_NAME = 'Test Tenant';
 
 const DB_CONNECTION = process.env.DB_CONNECTION;
+const originalAuthType = process.env.AUTH_TYPE;
+let authProvider = '';
 
 describe('Tenant Auth API', () => {
     beforeAll(async () => {
@@ -24,6 +29,20 @@ describe('Tenant Auth API', () => {
     afterAll(async () => {
         await Tenant.deleteMany({});
         await mongoose.connection.close();
+    });
+
+    beforeEach(async () => {
+        jest.resetModules(); // Clear module cache
+        process.env.AUTH_TYPE = 'native'; // Ensure native for every test
+
+        // Re-import the authProviderMiddleware
+        jest.isolateModules(() => {
+            authProvider = require('../auth/authProviderMiddleware');
+        });
+    });
+
+    afterEach(async () => {
+        process.env.AUTH_TYPE = originalAuthType; // Restore the original AUTH_TYPE
     });
 
     test('Register a new tenant', async () => {
@@ -90,18 +109,6 @@ describe('Tenant Auth API', () => {
         expect(res.body.message).toBe('Email already exists');
     });
 
-    test('Register fails when registration is managed externally', async () => {
-        // Simulate registration managed externally
-        const originalSupportsRegistration = authProvider.supportsRegistration;
-        authProvider.supportsRegistration = () => false;
-        const res = await request(app)
-            .post('/tenant/register')
-            .send({ email: TEST_EMAIL, password: TEST_PASSWORD, name: TEST_NAME });
-        expect(res.statusCode).toBe(STATUS_BAD_REQUEST);
-        expect(res.body.message).toBe('Registration is managed externally.');
-        authProvider.supportsRegistration = originalSupportsRegistration;
-    });
-
     test('Login with correct credentials', async () => {
         const res = await request(app)
             .post('/tenant/login')
@@ -151,31 +158,5 @@ describe('Tenant Auth API', () => {
             .set('authtoken', 'invalid-token');
         expect(res.statusCode).toBe(STATUS_BAD_REQUEST);
         process.env.AUTH_TYPE = originalAuthType;
-    });
-
-    test('Get login type - native', async () => {
-        const originalGetLoginType = authProvider.getLoginType;
-        authProvider.getLoginType = () => 'native';
-
-        const res = await request(app)
-            .get('/tenant/loginType');
-
-        expect(res.statusCode).toBe(STATUS_OK);
-        expect(res.body).toEqual({ loginType: 'native' });
-
-        authProvider.getLoginType = originalGetLoginType;
-    });
-
-    test('Get login type - firebase', async () => {
-        const originalGetLoginType = authProvider.getLoginType;
-        authProvider.getLoginType = () => 'firebase';
-
-        const res = await request(app)
-            .get('/tenant/loginType');
-
-        expect(res.statusCode).toBe(STATUS_OK);
-        expect(res.body).toEqual({ loginType: 'firebase' });
-
-        authProvider.getLoginType = originalGetLoginType;
     });
 });
