@@ -63,7 +63,7 @@ module.exports = {
             }
 
             // If no valid authToken is provided
-            console.log("No valid authToken provided.");
+            console.error("No valid authToken provided.");
             return res.status(STATUS_UNAUTHORIZED).send({ error: "Unauthorized" });
         } catch (error) {
             console.error('Login error:', error);
