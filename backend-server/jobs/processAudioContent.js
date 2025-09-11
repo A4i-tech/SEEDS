@@ -79,7 +79,7 @@ async function processNewContent(job) {
     if (!content || !content._id) {
       throw new Error("Invalid content data received.");
     }
-    const contentDoc = new ContentV3(content);
+    const contentDoc = await ContentV3.findById(content._id);
     console.log("Processing audio content:", contentDoc);
 
     // Fail job if it runs longer than allowed.

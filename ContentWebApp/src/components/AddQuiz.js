@@ -1,7 +1,10 @@
 import { useState, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
+import {useNavigate}  from "react-router-dom";
+
 
 const AddQuiz = ({ quiz }) => {
+  const navigate = useNavigate();
   const [inputFields, setInputFields] = useState([
     { question: "", optionA: "", optionB: "", optionC: "", optionD: "" },
   ]);
@@ -106,18 +109,20 @@ const AddQuiz = ({ quiz }) => {
 
     if (isValid()) {
       console.log(JSON.stringify(metadata))
-      // fetch("https://place-seeds.azurewebsites.net/create", {
-      //   method: "POST",
-      //   headers: { "content-type": "application/json" },
-      //   body: JSON.stringify(metadata),
-      // })
-      //   .then((res) => {
-      //     alert("Saved successfully.");
-      //     navigate("/content");
-      //   })
-      //   .catch((err) => {
-      //     console.log(err.message);
-      //   });
+      fetch(`${process.env.REACT_APP_SEEDS_URL}/content/quiz`, {
+        method: "POST",
+        headers: { "content-type": "application/json" ,
+          authToken: "postman", // or your actual token
+        },
+        body: JSON.stringify(metadata),
+      })
+        .then((res) => {
+          alert("Saved successfully.");
+          navigate("/content");
+        })
+        .catch((err) => {
+          console.log(err.message);
+        });
     }
   };
 

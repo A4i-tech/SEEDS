@@ -4,3 +4,4 @@ __pycache__/
 private.key
 states/
 .pytest_cache/
+.idea/
