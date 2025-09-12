@@ -25,10 +25,16 @@ class AzureServiceBusService:
         """Initialize the Azure Service Bus client."""
         self.queue_to_wsservice = "queue-to-wsservice"
         self.queue_from_wsservice = "queue-to-confserver"
-        self.credential = DefaultAzureCredential()  # Store credential for reuse
+        servicebus_conn_string = os.environ.get('SERVICE_BUS_CONNECTION_STRING', '')
+        print("SERVICE_BUS_CONNECTION_STRING:", servicebus_conn_string)  # Debug line
         servicebus_namespace = os.environ.get('SERVICE_BUS_NS_NAME', '')
-        self.servicebus_client = ServiceBusClient(fully_qualified_namespace=servicebus_namespace, credential=self.credential, logging_enable=True)
-
+        if servicebus_conn_string:
+            # Use connection string if available
+            self.servicebus_client = ServiceBusClient.from_connection_string(conn_str=servicebus_conn_string, logging_enable=True)
+        else:
+            # Otherwise, use DefaultAzureCredential
+            self.credential = DefaultAzureCredential()  # Store credential for reuse
+            self.servicebus_client = ServiceBusClient(fully_qualified_namespace=servicebus_namespace, credential=self.credential, logging_enable=True)
     async def send_message(self, message: WebsocketServiceMessage):
         try:
             async with self.servicebus_client:
