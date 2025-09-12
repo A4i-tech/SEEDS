@@ -7,7 +7,7 @@ azure-cosmos
 azure-servicebus
 azure-identity
 azure-storage-blob
-vonage
+vonage<3.0.0
 pytest
 pytest-asyncio
 aiohttp 
