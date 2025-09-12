@@ -7,3 +7,4 @@ antenv/
 private_dev.key
 ivr_test_private_key.key
 private_old.key
+.idea/
