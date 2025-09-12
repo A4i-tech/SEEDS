@@ -3,7 +3,6 @@ import { BlockBlobClient } from "@azure/storage-blob";
 import { useNavigate } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
 import { SEEDS_URL } from "../Constants";
-import { type } from "@testing-library/user-event/dist/cjs/utility/type.js";
 
 const AddStory = ({ content, contentType }) => {
   const [metadata, setMetadata] = useState({
