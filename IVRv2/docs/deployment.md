@@ -1,4 +1,4 @@
-s# IVR v2 Staging Deployment Guide
+# IVR v2 Staging Deployment Guide
 
 This guide describes how to deploy the IVR v2 application to a free staging environment using Docker and MongoDB Atlas.
 
