@@ -398,6 +398,5 @@ FodyWeavers.xsd
 package-lock.json
 
 IVRv2/venv/
-/.idea/
 .idea/
 fsm-visual-refactored.txt
