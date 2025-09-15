@@ -1,10 +1,9 @@
-# SEEDS Backend Server Dockerfile for Staging/Production
 FROM node:18
 
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install --production
+RUN npm ci --only=production
 
 COPY . .
 
