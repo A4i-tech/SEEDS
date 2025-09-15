@@ -26,9 +26,9 @@ class AzureServiceBusService:
         self.queue_to_wsservice = "queue-to-wsservice"
         self.queue_from_wsservice = "queue-to-confserver"
         servicebus_namespace = os.environ.get('SERVICE_BUS_NS_NAME', '')
-        azure_storage_connection_string = os.environ.get('AZURE_STORAGE_CONNECTION_STRING', '')
-        if azure_storage_connection_string:
-            self.servicebus_client = ServiceBusClient.from_connection_string(conn_str=azure_storage_connection_string, logging_enable=True)
+        servicebus_connection_string = os.environ.get('SERVICE_BUS_CONNECTION_STRING', '')
+        if servicebus_connection_string:
+            self.servicebus_client = ServiceBusClient.from_connection_string(conn_str=servicebus_connection_string, logging_enable=True)
         else:
             self.credential = DefaultAzureCredential()  # Store credential for reuse
             self.servicebus_client = ServiceBusClient(fully_qualified_namespace=servicebus_namespace, credential=self.credential, logging_enable=True)
