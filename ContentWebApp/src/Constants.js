@@ -1,1 +1,1 @@
-export const SEEDS_URL = "https://seeds-teacherapp.azurewebsites.net"
+export const SEEDS_URL = process.env.SEEDS_URL || "http://localhost:4000";
