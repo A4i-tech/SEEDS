@@ -13,6 +13,7 @@ FROM python:3.13-slim-bookworm
 
 WORKDIR /app
 
+# Copy installed packages from builder
 COPY --from=builder /root/.local /root/.local
 COPY --from=builder /app /app
 
