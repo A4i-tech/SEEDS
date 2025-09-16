@@ -1,6 +1,8 @@
 services:
   - type: web
     name: contentwebapp
+    rootDir: ContentWebApp
+    runtime: docker
     envVars:
       - key: REACT_APP_API_BASE_URL
         sync: false
