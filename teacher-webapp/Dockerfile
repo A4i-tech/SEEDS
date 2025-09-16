@@ -9,14 +9,6 @@ RUN npm ci --omit=dev
 
 COPY . .
 
-RUN npm run build
+EXPOSE 3000
 
-# ---- Serve stage ----
-FROM nginx:alpine
-
-# Copy build output to nginx html directory
-COPY --from=builder /app/build /usr/share/nginx/html
-
-EXPOSE 80
-
-CMD ["nginx", "-g", "daemon off;"]
+CMD [ "npm", "start" ]
