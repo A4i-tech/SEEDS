@@ -9,6 +9,12 @@ RUN npm ci --omit=dev
 
 COPY . .
 
+# ---- Set build-time environment variables ----
+# These env vars will be baked into the React static build
+ARG REACT_APP_CONF_SERVER_BASE_URI
+
+ENV REACT_APP_CONF_SERVER_BASE_URI=$REACT_APP_CONF_SERVER_BASE_URI
+
 RUN npm run build
 
 # ---- Serve stage ----
