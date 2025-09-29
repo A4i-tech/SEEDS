@@ -18,9 +18,9 @@ client = vonage.Client(application_id=application_id, private_key=os.getenv("VON
 # talk = Ncco.Talk(text='Hello from Vonage!', bargeIn=True, loop=5, premium=True)
 # ncco = Ncco.build_ncco(record, connect, talk)
     
-
+# why is to number hard coded
 response = client.voice.create_call({
-  'to': [{'type': 'phone', 'number': '919606612444'}],
+  'to': [{'type': 'phone', 'number': os.getenv("TO_PHONE_NUMBER")}],
   'from': {'type': 'phone', 'number': os.getenv("VONAGE_NUMBER")},
   'ncco': [
          {
@@ -36,7 +36,7 @@ response = client.voice.create_call({
         },
         {
             'action': 'input',
-            'eventUrl': [os.getenv("NGROK_URL")+ '/input'],
+            'eventUrl': [os.getenv("BASE_URL")+ '/input'],
             'type': ['dtmf'],
             'dtmf': {
                 'maxDigits': 6,
