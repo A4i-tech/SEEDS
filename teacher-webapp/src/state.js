@@ -34,11 +34,13 @@ export class AudioContentState {
 // Sample data for teachers and students
 export const teachers = [
   new Participant({ name: 'Kavyansh Chourasia', phone_number: '917999435373', role: 'Teacher' }),
-  new Participant({ name: 'Prajjwal Jha', phone_number: '918962884701', role: 'Teacher' })
+  new Participant({ name: 'Prajjwal Jha', phone_number: '918962884701', role: 'Teacher' }),
+  new Participant({ name: 'Farman Ahmed', phone_number: '919717503152', role: 'Teacher' })
 ];
 
 export const students = [
   new Participant({ name: 'Smart Phone Motorola', phone_number: '918904954836', role: 'Student' }),
   new Participant({ name: 'Ashwani', phone_number: '917999710236', role: 'Student' }),
-  new Participant({ name: 'Feature Phone', phone_number: '918904954955', role: 'Student' })
+  new Participant({ name: 'Feature Phone', phone_number: '918904954955', role: 'Student' }),
+  new Participant({ name: 'Soumabha', phone_number: '919971206885', role: 'Student' }),
 ];

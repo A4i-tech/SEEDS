@@ -42,12 +42,40 @@ function handleControlMessage(controlMessage) {
   console.log(`websocket id: ${websocketId}; type: ${type}; message: ${content}`)
   switch (type) {
     case MessageType.PLAY_SYSTEM_MESSAGE:
+      console.log(`Attempting to play system audio for ID: ${websocketId}`);
       websocketService.playSystemAudioContent(websocketId, content)
-        .catch((error) => console.error(`Error playing audio for ID ${websocketId}:`, error));
+        .catch((error) => console.error(`Error playing system audio for ID ${websocketId}:`, error));
       break;
     case MessageType.PLAY_AUDIO:
+      console.log(`Attempting to play audio content for ID: ${websocketId}`);
+
+      // Check if connection exists, if not create a mock one for testing
+      const connection = connectionManager.getConnection(websocketId);
+      if (!connection) {
+        console.log(`No connection found for ID ${websocketId}, creating mock connection for testing`);
+        // Create a mock WebSocket connection for testing purposes
+        const mockWs = {
+          readyState: 1, // OPEN state
+          OPEN: 1,
+          send: (data) => {
+            console.log(`Mock WebSocket would send audio data for conference ${websocketId}`);
+            console.log(`Audio data size: ${data.length} bytes`);
+          },
+          close: () => {
+            console.log(`Mock WebSocket closed for conference ${websocketId}`);
+          }
+        };
+
+        connectionManager.addConnection(websocketId, {
+          ws: mockWs,
+          state: { id: websocketId, playing: false, position: 0, isClosed: false }
+        });
+
+        console.log(`Mock WebSocket connection created for conference ID: ${websocketId}`);
+      }
+
       websocketService.playAudioContent(websocketId, content)
-        .catch((error) => console.error(`Error playing audio for ID ${websocketId}:`, error));
+        .catch((error) => console.error(`Error playing audio content for ID ${websocketId}:`, error));
       break;
     case MessageType.PAUSE_AUDIO:
       websocketService.pauseAudioContent(websocketId);

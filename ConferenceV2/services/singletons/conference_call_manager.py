@@ -29,8 +29,9 @@ class ConferenceCallManager:
         self.conferences: Dict[str, ConferenceCall] = {}
         self.ws_base_url = os.environ.get("WS_SERVER_EP", "")
 
-    def create_conference(self, teacher_phone: str, student_phones: List[str]) -> ConferenceCall:
+    def create_conference(self, teacher_phone: str, student_phones: List[str]) -> str:
         conf_id = str(uuid.uuid4())
+        logger_instance.info(f"Creating conference with ID: {conf_id}")
         conference_call = ConferenceCall(
             conf_id=conf_id,
             communication_api=self.communication_api_factory.create(self.communication_api_type, 
@@ -42,15 +43,18 @@ class ConferenceCallManager:
         )
         conference_call.set_participant_state(teacher_phone, student_phones)
         self.conferences[conf_id] = conference_call
+        logger_instance.info(f"Conference created and stored. Current conferences: {list(self.conferences.keys())}")
         return conf_id
    
-    async def start_conference_call(self, conf_id: str) -> ConferenceCall:
-        conf: ConferenceCall = self.get_conference(conf_id)
+    async def start_conference_call(self, conf_id: str) -> None:
+        logger_instance.info(f"Starting conference with ID: {conf_id}")
+        conf = self.get_conference(conf_id)
         if not conf:
+            logger_instance.error(f"No such conference has been created; ID: {conf_id}")
             raise ValueError(f"No such conference has been created; ID: {conf_id}")
-        
         conf.start_processing_conf_events_from_queue()
         await conf.start_conference()
+        logger_instance.info(f"Conference with ID: {conf_id} has started successfully.")
         
     def get_conference(self, conference_id: str) -> ConferenceCall | None:
         return self.conferences.get(conference_id, None)
