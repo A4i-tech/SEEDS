@@ -398,5 +398,6 @@ FodyWeavers.xsd
 *.sln.iml
 
 
-IVRv2/venv/
-*/.venv/
+.idea/
+fsm-visual-refactored.txt
+.venv/

@@ -3,24 +3,17 @@
 const azureBlobService = require('./azureBlobService');
 const connectionManager = require('./connectionManager');
 const { PlaybackStatus } = require('../constants');
-const https = require('https');
-const http = require('http');
 
 /**
  * Handles play action for audio content (teacher's choice).
  * @param {string} id - Unique identifier for the connection.
- * @param {string} blobUrl - Audio URL (Azure Blob Storage or external URL).
+ * @param {string} blobUrl - Azure Blob Storage URL of the audio content.
  */
 async function playAudioContent(id, blobUrl) {
-  console.log(`playAudioContent called for ID: ${id}, checking connection...`);
   const connection = connectionManager.getConnection(id);
 
-  if (!connection) {
-    console.error(`WebSocket connection not found for ID: ${id}`);
-    throw new Error('WebSocket connection not found');
-  }
+  if (!connection) throw new Error('WebSocket connection not found');
 
-  console.log(`WebSocket connection found for ID: ${id}`);
   const { ws, state } = connection;
 
   if (ws.readyState === ws.OPEN) {
@@ -45,22 +38,13 @@ async function playAudioContent(id, blobUrl) {
     // Discard old audio content blobData
     state.audioContentState.blobData = null;
 
-    console.log(`playAudioContent called for ID: ${id}, Audio URL: ${blobUrl}`);
+    console.log(`playAudioContent called for ID: ${id}, Blob URL: ${blobUrl}`);
 
     // If no system audio content is playing, start playing audio content
     if (!state.currentAudioType || state.currentAudioType === 'audioContent') {
       state.currentAudioType = 'audioContent';
-
-      let blobData;
-      if (isAzureBlobUrl(blobUrl)) {
-        // Handle Azure Blob Storage URLs
-        const { containerName, blobName } = parseBlobUrl(blobUrl);
-        blobData = await azureBlobService.getBlobData(containerName, blobName);
-      } else {
-        // Handle external URLs (Google Cloud Storage, etc.)
-        blobData = await fetchExternalAudioData(blobUrl);
-      }
-
+      const { containerName, blobName } = parseBlobUrl(blobUrl);
+      const blobData = await azureBlobService.getBlobData(containerName, blobName);
       state.audioContentState.blobData = blobData;
 
       sendPlaybackStatus(id, PlaybackStatus.PLAYING);
@@ -79,7 +63,7 @@ async function playAudioContent(id, blobUrl) {
 /**
  * Handles play action for system audio content (system-generated messages).
  * @param {string} id - Unique identifier for the connection.
- * @param {string} blobUrl - Audio URL (Azure Blob Storage or external URL).
+ * @param {string} blobUrl - Azure Blob Storage URL of the system audio content.
  */
 async function playSystemAudioContent(id, blobUrl) {
   const connection = connectionManager.getConnection(id);
@@ -95,7 +79,7 @@ async function playSystemAudioContent(id, blobUrl) {
 
     // Enqueue system audio content
     state.systemAudioContentQueue.push({ blobUrl });
-    console.log(`System audio content queued for ID: ${id}, Audio URL: ${blobUrl}`);
+    console.log(`System audio content queued for ID: ${id}, Blob URL: ${blobUrl}`);
 
     if (state.currentAudioType === 'systemAudioContent') {
       // Do nothing; it will play after the current system audio content
@@ -133,17 +117,10 @@ async function playNextSystemAudioContent(ws, id, state) {
 
   const nextSystemAudioContent = state.systemAudioContentQueue.shift();
   const { blobUrl } = nextSystemAudioContent;
-  console.log(`Starting system audio content playback for ID: ${id}, Audio URL: ${blobUrl}`);
+  console.log(`Starting system audio content playback for ID: ${id}, Blob URL: ${blobUrl}`);
 
-  let blobData;
-  if (isAzureBlobUrl(blobUrl)) {
-    // Handle Azure Blob Storage URLs
-    const { containerName, blobName } = parseBlobUrl(blobUrl);
-    blobData = await azureBlobService.getBlobData(containerName, blobName);
-  } else {
-    // Handle external URLs (Google Cloud Storage, etc.)
-    blobData = await fetchExternalAudioData(blobUrl);
-  }
+  const { containerName, blobName } = parseBlobUrl(blobUrl);
+  const blobData = await azureBlobService.getBlobData(containerName, blobName);
 
   // Start playing system audio content
   // Note: We do NOT send playback status updates for system audio content
@@ -398,52 +375,6 @@ function sendReconnectionMessage(id) {
       }
     }
   );
-}
-
-/**
- * Checks if the URL is an Azure Blob Storage URL.
- * @param {string} url - The URL to check.
- * @returns {boolean} - True if it's an Azure Blob Storage URL.
- */
-function isAzureBlobUrl(url) {
-  return url.includes('.blob.core.windows.net');
-}
-
-/**
- * Fetches audio data from an external URL.
- * @param {string} url - The external URL.
- * @returns {Promise<Buffer>} - Buffer containing the audio data.
- */
-function fetchExternalAudioData(url) {
-  return new Promise((resolve, reject) => {
-    const client = url.startsWith('https:') ? https : http;
-
-    console.log(`Fetching external audio data from: ${url}`);
-
-    client.get(url, (response) => {
-      if (response.statusCode !== 200) {
-        reject(new Error(`Failed to fetch audio data: ${response.statusCode} ${response.statusMessage}`));
-        return;
-      }
-
-      const chunks = [];
-      response.on('data', (chunk) => {
-        chunks.push(chunk);
-      });
-
-      response.on('end', () => {
-        const audioData = Buffer.concat(chunks);
-        console.log(`Successfully fetched ${audioData.length} bytes of audio data`);
-        resolve(audioData);
-      });
-
-      response.on('error', (error) => {
-        reject(error);
-      });
-    }).on('error', (error) => {
-      reject(error);
-    });
-  });
 }
 
 module.exports = {

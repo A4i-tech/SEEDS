@@ -10,15 +10,15 @@ application_id = os.getenv("VONAGE_APPLICATION_ID")
 api_secret = os.getenv("VONAGE_API_SECRET")
 api_key = os.getenv("VONAGE_API_KEY")
 
-sas_gen = SASGen(os.getenv("BLOB_STORE_CONN_STR"))
-audio_url = sas_gen.get_url_with_sas("https://seedsblob.blob.core.windows.net/output-original/04573140-93e9-4edc-9efc-e9b21d3052f8.mp3")
+sas_gen = SASGen()
+audio_url = sas_gen.get_url_with_sas("https://seedsblobstaging.blob.core.windows.net/output-original/04573140-93e9-4edc-9efc-e9b21d3052f8.mp3")
 
 client = vonage.Client(application_id=application_id, private_key=os.getenv("VONAGE_PRIVATE_KEY_PATH"))
 
 # talk = Ncco.Talk(text='Hello from Vonage!', bargeIn=True, loop=5, premium=True)
 # ncco = Ncco.build_ncco(record, connect, talk)
     
-# why is to number hard coded
+
 response = client.voice.create_call({
   'to': [{'type': 'phone', 'number': os.getenv("TO_PHONE_NUMBER")}],
   'from': {'type': 'phone', 'number': os.getenv("VONAGE_NUMBER")},

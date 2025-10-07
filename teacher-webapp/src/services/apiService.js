@@ -60,12 +60,8 @@ export const unmuteParticipant = async (confId, phone_number) => {
 };
 
 export const playAudio = async (confId) => {
-  // Use fallback URL if storage account name is not configured
-  const storageAccountName = process.env.REACT_APP_STORAGE_ACCOUNT_NAME;
-  const url = storageAccountName && storageAccountName !== 'undefined'
-    ? `https://${storageAccountName}.blob.core.windows.net/output-container/25/1.0.wav`
-    : `http://commondatastorage.googleapis.com/codeskulptor-demos/DDR_assets/Kangaroo_MusiQue_-_The_Neverwritten_Role_Playing_Game.mp3`; // Fallback for local development
-  return fetch(`${api_base}/playaudio/${confId}?url=${encodeURIComponent(url)}`, {
+  const url =  `https://${process.env.REACT_APP_STORAGE_ACCOUNT_NAME}.blob.core.windows.net/output-container/25/1.0.wav`
+  return fetch(`${api_base}/playaudio/${confId}?url=${url}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
