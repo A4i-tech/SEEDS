@@ -1,10 +1,9 @@
 import React from "react";
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import Multiselect from "multiselect-react-dropdown";
 import { SEEDS_URL } from "../Constants";
 import LogoutButton from "./LogoutButton";
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
 
 
 const AllContent = () => {
@@ -13,17 +12,19 @@ const AllContent = () => {
   const [options, setOptions] = useState([]);
   const [updateIVRStatus, setUpdateIVRStatus] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [currentUser, setCurrentUser] = useState("");
 
   useEffect(() => {
-    const auth = getAuth();
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user.displayName);
-    });
-
-    return () => unsubscribe(); // Clean up the listener when the component unmounts
-  }, []);
+    // Get user name from navigation state (passed from login)
+    if (location.state?.name) {
+      setCurrentUser(location.state.name);
+    } else {
+      // If no user data, redirect to login
+      navigate('/');
+    }
+  }, [location.state, navigate]);
 
   const onUpdateIVR = async () => {
     try {
@@ -210,7 +211,7 @@ const AllContent = () => {
           </button>
         </Link>
       </div>
-      
+
       <br>
       </br>
       <div className="align-items-end">
@@ -224,7 +225,7 @@ const AllContent = () => {
           </button>
         </Link>
       </div>
-      
+
 
 
       <Multiselect
@@ -275,12 +276,12 @@ const AllContent = () => {
         {content.length > 0 && <table className="table table-striped table-bordered">
           <thead>
             <tr className="tableHeading">
-              <th style={{ color: "white", backgroundColor:"#28574f" }}> TITLE </th>
-              <th style={{ color: "white", backgroundColor:"#28574f" }}> THEME </th>
-              <th style={{ color: "white", backgroundColor:"#28574f" }}> UPLOADED </th>
-              <th style={{ color: "white", backgroundColor:"#28574f" }}> LANGUAGE </th>
-              <th style={{ color: "white", backgroundColor:"#28574f" }}> TYPE </th>
-              <th style={{ color: "white", backgroundColor:"#28574f" }}> ACTIONS </th>
+              <th style={{ color: "white", backgroundColor: "#28574f" }}> TITLE </th>
+              <th style={{ color: "white", backgroundColor: "#28574f" }}> THEME </th>
+              <th style={{ color: "white", backgroundColor: "#28574f" }}> UPLOADED </th>
+              <th style={{ color: "white", backgroundColor: "#28574f" }}> LANGUAGE </th>
+              <th style={{ color: "white", backgroundColor: "#28574f" }}> TYPE </th>
+              <th style={{ color: "white", backgroundColor: "#28574f" }}> ACTIONS </th>
             </tr>
           </thead>
           <tbody>
