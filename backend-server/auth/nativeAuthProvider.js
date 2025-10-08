@@ -18,15 +18,6 @@ if (!SECRET_KEY || typeof SECRET_KEY !== 'string' || SECRET_KEY.trim() === '') {
     throw new Error('SECRET_KEY environment variable must be defined and non-empty');
 }
 
-// Simple password strength checker
-function isStrongPassword(password) {
-    return typeof password === 'string' &&
-        password.length >= 8 &&
-        /[A-Z]/.test(password) &&
-        /[a-z]/.test(password) &&
-        /[0-9]/.test(password) &&
-        /[^A-Za-z0-9]/.test(password);
-}
 
 module.exports = {
     // Native login function as Express middleware
@@ -67,7 +58,13 @@ module.exports = {
         if (!validator.isEmail(email)) {
             return res.status(STATUS_BAD_REQUEST).json({message: 'Invalid email format'});
         }
-        if (!isStrongPassword(password)) {
+        if (!validator.isStrongPassword(password, {
+            minLength: 8,
+            minLowercase: 1,
+            minUppercase: 1,
+            minNumbers: 1,
+            minSymbols: 1})
+        ) {
             return res.status(STATUS_BAD_REQUEST).json({message: 'Password must be at least 8 characters, and include uppercase, lowercase, number, and special character'});
         }
         try {
