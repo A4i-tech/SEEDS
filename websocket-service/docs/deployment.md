@@ -1,5 +1,3 @@
-curl -X GET https://your-staging-url.onrender.com/health
-
 # websocket-service Staging Deployment Guide
 
 ## 1. Platform Choice

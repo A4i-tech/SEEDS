@@ -19,12 +19,13 @@ VONAGE_API_KEY=<your-vonage-api-key>
 VONAGE_API_SECRET=<your-vonage-api-secret>
 VONAGE_APPLICATION_ID=<your-vonage-application-id>
 VONAGE_PRIVATE_KEY=<your-vonage-private-key>
+BASE_URL=<your-base-url>
 AZURE_COSMOS_ENDPOINT=<your-azure-cosmos-endpoint>
 AZURE_COSMOS_KEY=<your-azure-cosmos-key>
 AZURE_STORAGE_CONNECTION_STRING=<your-azure-storage-connection-string>
 MONGODB_URI=<your-mongodb-atlas-connection-string>
 PYTHON_ENV=staging
-AZURE_BLOB_STORAGE=<your-azure-blob-storage>
+BLOB_STORE_CONN_STR=<your-azure-blob-storage>
 ```
 
 > **Note:** Only include variables relevant to your service. Do not commit secrets to version control.

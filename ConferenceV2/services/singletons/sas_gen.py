@@ -11,6 +11,7 @@ class SASGen:
     def __init__(self):
         self.account_name = os.getenv('AZURE_STORAGE_ACCOUNT_NAME')
         self.account_key = os.getenv('AZURE_STORAGE_ACCOUNT_KEY')
+        self.sas_expiry_hours = int(os.getenv('SAS_EXPIRY_HOURS', '1'))
         if self.account_name and self.account_key:
             self.use_account_key = True
             logger.info("Using Account Key for Azure Blob Storage authentication.")
@@ -60,12 +61,12 @@ class SASGen:
             blob_service_client = self.get_blob_service_client(url)
             blob_client = blob_service_client.get_blob_client(container_name, blob_path)
             
-            expiry_time = datetime.datetime.utcnow() + datetime.timedelta(hours=1)
+            expiry_time = datetime.datetime.utcnow() + datetime.timedelta(hours=self.sas_expiry_hours)
 
             if self.use_account_key:
                 # Generate SAS token using the account key
                 sas_token = generate_blob_sas(
-                    account_name=blob_service_client.account_name or "",
+                    account_name=blob_service_client.account_name,
                     container_name=container_name,
                     blob_name=blob_path,
                     account_key=self.account_key,
@@ -76,7 +77,7 @@ class SASGen:
                 user_delegation_key = self.get_user_delegation_key(blob_service_client)
                 # Generate SAS token using the user delegation key
                 sas_token = generate_blob_sas(
-                    account_name=blob_service_client.account_name or "",
+                    account_name=blob_service_client.account_name,
                     container_name=container_name,
                     blob_name=blob_path,
                     permission=BlobSasPermissions(read=True),
