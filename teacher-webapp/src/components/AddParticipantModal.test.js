@@ -6,7 +6,7 @@ import { AddParticipantModal } from './AddParticipantModal';
 // Optimized mock data with factory function
 const createMockStudent = (index) => ({
     name: `Available Student ${index}`,
-    phone_number: `${index}${index}${index}${index}${index}${index}${index}${index}${index}${index}`,
+    phone_number: String(index).repeat(10),
     role: 'Student'
 });
 

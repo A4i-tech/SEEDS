@@ -44,7 +44,11 @@ function setupAutoAdvancingTimer(interval = 20, times = 10) {
     const originalSetTimeout = global.setTimeout;
     jest.spyOn(global, 'setTimeout').mockImplementation((callback, delay) => {
         count++;
-        return count <= times ? originalSetTimeout(() => { callback(); jest.advanceTimersByTime(interval); }, 0) : originalSetTimeout(callback, delay);
+        if (count <= times) {
+            return originalSetTimeout(() => { callback(); jest.advanceTimersByTime(interval); }, 0);
+        } else {
+            return originalSetTimeout(callback, delay);
+        }
     });
 }
 
