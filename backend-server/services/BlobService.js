@@ -9,7 +9,7 @@ class BlobService {
     constructor() {
         const credential = new DefaultAzureCredential();
         this.blobServiceClient = new BlobServiceClient(
-            `https://seedsblob.blob.core.windows.net`, 
+            `https://seedsblobstaging.blob.core.windows.net`, 
             credential
         );
     }

@@ -1,4 +1,4 @@
-pullMenuMainUrl = "https://seedsblob.blob.core.windows.net/pull-model-menus/"
+pullMenuMainUrl = "https://seedsblobstaging.blob.core.windows.net/pull-model-menus/"
 seeds_content_url = 'https://seeds-teacherapp.azurewebsites.net/content'
 seeds_content_headers = {
     'authToken': 'postman'

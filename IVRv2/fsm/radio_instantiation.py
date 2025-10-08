@@ -27,8 +27,8 @@ from utils.quiz_model_classes import URLTextEntity
 load_dotenv()
 
 # pullMenuMainUrl = ""
-pullMenuMainUrl = "https://seedsblob.blob.core.windows.net/pull-model-menus/"
-content_url = "https://seedsblob.blob.core.windows.net/output-container/"
+pullMenuMainUrl = "https://seedsblobstaging.blob.core.windows.net/pull-model-menus/"
+content_url = "https://seedsblobstaging.blob.core.windows.net/output-container/"
 url = 'https://seeds-teacherapp.azurewebsites.net/content'
 headers = {
     'authToken': 'postman'
@@ -48,9 +48,9 @@ quiz_new = {
   "id": "e3d1db09-f5fd-44b2-8244-86ea61619175",
   "language": "kannada",
   "theme": "water",
-  "themeAudio": "https://seedsblob.blob.core.windows.net/theme-titles/Water/kannada",
+  "themeAudio": "https://seedsblobstaging.blob.core.windows.net/theme-titles/Water/kannada",
   "title": "Punyakoti",
-  "titleAudio": "https://seedsblob.blob.core.windows.net/experience-titles/quiz/12f77743-4255-48a8-855b-2f4d7b635c95/1.0.mp3",
+  "titleAudio": "https://seedsblobstaging.blob.core.windows.net/experience-titles/quiz/12f77743-4255-48a8-855b-2f4d7b635c95/1.0.mp3",
   "localTitle": "ಮೊಲದ ಮರಿ",
   "positiveMarks": 1,
   "negativeMarks": 0,
@@ -59,28 +59,28 @@ quiz_new = {
     {
       "question": {
         "id": "f8210aca-d2e0-445e-bb92-9e673bb92158",
-        "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/question_1/1.0.mp3",
+        "url": "https://seedsblobstaging.blob.core.windows.net/output-container/Quiz/Punyakoti/question_1/1.0.mp3",
         "text": "ಪುಣ್ಯಕೋಟಿಗೂ ತನ್ನ ಕರುವಿಗೂ ಏನು ಸಂಬಂಧ? "
       },
       "options": [
         {
           "id": "3ef0ae75-9f9e-4d9a-8bfa-ac67297d15b0",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_1/1/1.0.mp3",
+          "url": "https://seedsblobstaging.blob.core.windows.net/output-container/Quiz/Punyakoti/option_1/1/1.0.mp3",
           "text": " ತಾಯಿ"
         },
         {
           "id": "614c161e-a0b0-426f-913c-fc8adba39f8b",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_1/2/1.0.mp3",
+          "url": "https://seedsblobstaging.blob.core.windows.net/output-container/Quiz/Punyakoti/option_1/2/1.0.mp3",
           "text": " ಒಡಹುಟ್ಟಿದವರು"
         },
         {
           "id": "f34e920d-78a5-4230-9bd0-d603acc941d5",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_1/3/1.0.mp3",
+          "url": "https://seedsblobstaging.blob.core.windows.net/output-container/Quiz/Punyakoti/option_1/3/1.0.mp3",
           "text": " ಸ್ನೇಹಿತ"
         },
         {
           "id": "e8ba0f72-bf17-47b2-ba4b-6bd53615604a",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_1/4/1.0.mp3",
+          "url": "https://seedsblobstaging.blob.core.windows.net/output-container/Quiz/Punyakoti/option_1/4/1.0.mp3",
           "text": " ಚಿಕ್ಕಮ್ಮ "
         }
       ],
@@ -89,28 +89,28 @@ quiz_new = {
     {
       "question": {
         "id": "973d0720-ada8-4193-9708-6c0191c47971",
-        "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/question_2/1.0.mp3",
+        "url": "https://seedsblobstaging.blob.core.windows.net/output-container/Quiz/Punyakoti/question_2/1.0.mp3",
         "text": "ಪುಣ್ಯಕೋಟಿ ತನ್ನ ಸ್ನೇಹಿತರೊಂದಿಗೆ ಹುಲ್ಲು ತಿನ್ನುತ್ತಿರುವಾಗ ಯಾವ ಪ್ರಾಣಿ ತಡೆಯುತ್ತದೆ? "
       },
       "options": [
         {
           "id": "a66288f0-f09d-4510-b747-26660b6dac8d",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_2/1/1.0.mp3",
+          "url": "https://seedsblobstaging.blob.core.windows.net/output-container/Quiz/Punyakoti/option_2/1/1.0.mp3",
           "text": " ಹುಲಿ "
         },
         {
           "id": "d79f2970-e8a6-4b19-95a4-15c49db89886",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_2/2/1.0.mp3",
+          "url": "https://seedsblobstaging.blob.core.windows.net/output-container/Quiz/Punyakoti/option_2/2/1.0.mp3",
           "text": " ಸಿಂಹ"
         },
         {
           "id": "1e4756b0-684b-48d0-9168-b544b3ad2396",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_2/3/1.0.mp3",
+          "url": "https://seedsblobstaging.blob.core.windows.net/output-container/Quiz/Punyakoti/option_2/3/1.0.mp3",
           "text": " ಬೇಟೆಗಾರ"
         },
         {
           "id": "2f1a696e-7857-43fe-973f-50b599224946",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_2/4/1.0.mp3",
+          "url": "https://seedsblobstaging.blob.core.windows.net/output-container/Quiz/Punyakoti/option_2/4/1.0.mp3",
           "text": " ತೋಳ"
         }
       ],
@@ -165,7 +165,7 @@ async def instantiate_from_content_ids(content_ids: List[str]):
         
         init_state_id = "START"
         actions = []
-        actions.append(StreamAction('https://seedsblob.blob.core.windows.net/pull-model-menus/welcomeDialog/kannada/welcome%20to%20SEEDS/1.0.mp3'))
+        actions.append(StreamAction('https://seedsblobstaging.blob.core.windows.net/pull-model-menus/welcomeDialog/kannada/welcome%20to%20SEEDS/1.0.mp3'))
         key_to_value_mapping = dict()
         
         for i in range(len(content)):

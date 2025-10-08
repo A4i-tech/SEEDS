@@ -7,8 +7,8 @@ from actions.base_actions.talk_action import TalkAction
 from utils.model_classes import IVRCallStateMongoDoc, IVRfsmDoc
 
 class FSM:
-    NO_OPTION_CHOSEN_AUDIO_URL = "https://seedsblob.blob.core.windows.net/pull-model-menus/chosenNoOptionDialog/kannada/Sorry,%20you%20have%20not%20chosen%20any%20option/1.0.mp3"
-    WRONG_INPUT_AUDIO_URL = "https://seedsblob.blob.core.windows.net/pull-model-menus/chosenWrongOptionDialog/kannada/Sorry,%20you%20have%20chosen%20the%20wrong%20option/1.0.mp3"
+    NO_OPTION_CHOSEN_AUDIO_URL = "https://seedsblobstaging.blob.core.windows.net/pull-model-menus/chosenNoOptionDialog/kannada/Sorry,%20you%20have%20not%20chosen%20any%20option/1.0.mp3"
+    WRONG_INPUT_AUDIO_URL = "https://seedsblobstaging.blob.core.windows.net/pull-model-menus/chosenWrongOptionDialog/kannada/Sorry,%20you%20have%20chosen%20the%20wrong%20option/1.0.mp3"
     
     def __init__(self, fsm_id: str):
         from fsm.state import State

@@ -133,7 +133,7 @@ class Comprehension:
 
 sub_comprehension_evaporation = SubComprehension(
     passage=URLTextEntity(
-        url= 'https://seedsblob.blob.core.windows.net/output-container/comprehension/Evaporation%20-%20intro%20123%20optionsFINAL.mp3',
+        url= 'https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Evaporation%20-%20intro%20123%20optionsFINAL.mp3',
         text="Imagine it’s a hot day, and the sun is shining. Water can evaporate from different places. Where do you want to start evaporating from?"
     ),
     options=[
@@ -143,7 +143,7 @@ sub_comprehension_evaporation = SubComprehension(
                 text="Start from a lake."
             ),
             exploreValue=URLTextEntity(
-                url='https://seedsblob.blob.core.windows.net/output-container/comprehension/Evaporation%20choice%201%20-%20lake.mp3',
+                url='https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Evaporation%20choice%201%20-%20lake.mp3',
                 text="You chose to start evaporating from a lake! As the sun shines, the water from the lake turns into vapor and rises up into the air. Did you know that large water bodies like lakes and rivers lose a lot of water this way? Let's see what happens next. Press any key to continue!"
             )
         ),
@@ -153,7 +153,7 @@ sub_comprehension_evaporation = SubComprehension(
                 text="Start from a puddle on the road."
             ),
             exploreValue=URLTextEntity(
-                url= 'https://seedsblob.blob.core.windows.net/output-container/comprehension/Evaporation%20choice%202%20-%20puddle.mp3',
+                url= 'https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Evaporation%20choice%202%20-%20puddle.mp3',
                 text="You chose to start evaporating from a puddle! After a rainy day, water on the road can evaporate quickly when the sun comes out. But do you know? Rainwater from the road can be collected and used for things like watering plants! Press any key to continue!"
             )
         ),
@@ -162,7 +162,7 @@ sub_comprehension_evaporation = SubComprehension(
 
 sub_comprehension_condensation = SubComprehension(
     passage=URLTextEntity(
-        url= 'https://seedsblob.blob.core.windows.net/output-container/comprehension/Condesation%20-%20intro%20123%20options.mp3',
+        url= 'https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Condesation%20-%20intro%20123%20options.mp3',
         text="Now you’re high up in the sky, and it’s getting cooler. The water vapor turns into tiny droplets and forms clouds. This process is called condensation. Let’s continue your journey as a droplet in a cloud. But where do you want to go next?"
     ),
     options=[
@@ -172,7 +172,7 @@ sub_comprehension_condensation = SubComprehension(
                 text="Join a big dark cloud over a field of crops."
             ),
             exploreValue=URLTextEntity(
-                url= 'https://seedsblob.blob.core.windows.net/output-container/comprehension/Condensation%20-%20Choice%201%20-%20field%20of%20crops.mp3',
+                url= 'https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Condensation%20-%20Choice%201%20-%20field%20of%20crops.mp3',
                 text="You joined a big dark cloud over a field of crops. Farmers depend on rain from clouds like this to water their crops. But in some places, people use too much water for farming, and it runs out quickly. That’s why conserving water is so important! Press any key to continue."
             )
         ),
@@ -182,7 +182,7 @@ sub_comprehension_condensation = SubComprehension(
                 text="Join a small white cloud over a city."
             ),
             exploreValue=URLTextEntity(
-                url= 'https://seedsblob.blob.core.windows.net/output-container/comprehension/Condensation%20-%20Choice%202%20-%20City.mp3',
+                url= 'https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Condensation%20-%20Choice%202%20-%20City.mp3',
                 text="You joined a small white cloud over a city. In cities, people often use a lot of water in homes, schools, and offices. Collecting rainwater in the city can help save water. Let’s move on to see what happens next. Press any key to continue."
             )
         ),
@@ -192,7 +192,7 @@ sub_comprehension_condensation = SubComprehension(
                 text="Join a fluffy cloud over a park."
             ),
             exploreValue=URLTextEntity(
-                url='https://seedsblob.blob.core.windows.net/output-container/comprehension/Condensation%20-%20Choice%203%20-%20Park.mp3',
+                url='https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Condensation%20-%20Choice%203%20-%20Park.mp3',
                 text="You joined a fluffy cloud over a park. Parks need water to keep their grass and plants green. But using sprinklers all day wastes a lot of water. It's better to water plants early in the morning or late at night. Press any key to continue."
             )
         )
@@ -201,7 +201,7 @@ sub_comprehension_condensation = SubComprehension(
 
 sub_comprehension_precipitation = SubComprehension(
     passage=URLTextEntity(
-        url= 'https://seedsblob.blob.core.windows.net/output-container/comprehension/Precipitation%20-%20intro%20123%20options.mp3',
+        url= 'https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Precipitation%20-%20intro%20123%20options.mp3',
         text="Now you’re high up in the sky, and it’s getting cooler. The water vapor turns into tiny droplets and forms clouds. This process is called condensation. Let’s continue your journey as a droplet in a cloud. But where do you want to go next?"
     ),
     options=[
@@ -211,7 +211,7 @@ sub_comprehension_precipitation = SubComprehension(
                 text="Join a big dark cloud over a field of crops."
             ),
             exploreValue=URLTextEntity(
-                url= 'https://seedsblob.blob.core.windows.net/output-container/comprehension/Precipitation%20-%20Choice%201%20-%20rain%20over%20garden.mp3',
+                url= 'https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Precipitation%20-%20Choice%201%20-%20rain%20over%20garden.mp3',
                 text="You joined a big dark cloud over a field of crops. Farmers depend on rain from clouds like this to water their crops. But in some places, people use too much water for farming, and it runs out quickly. That’s why conserving water is so important! Press any key to continue."
             )
         ),
@@ -221,7 +221,7 @@ sub_comprehension_precipitation = SubComprehension(
                 text="Join a small white cloud over a city."
             ),
             exploreValue=URLTextEntity(
-                url=  'https://seedsblob.blob.core.windows.net/output-container/comprehension/Precipitation%20-%20Choice%202%20-%20Snow%20in%20mountains.mp3',
+                url=  'https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Precipitation%20-%20Choice%202%20-%20Snow%20in%20mountains.mp3',
                 text="You joined a small white cloud over a city. In cities, people often use a lot of water in homes, schools, and offices. Collecting rainwater in the city can help save water. Let’s move on to see what happens next. Press any key to continue."
             )
         ),
@@ -231,7 +231,7 @@ sub_comprehension_precipitation = SubComprehension(
                 text="Join a fluffy cloud over a park."
             ),
             exploreValue=URLTextEntity(
-                url= 'https://seedsblob.blob.core.windows.net/output-container/comprehension/Precipitation%20-%20choice%203%20-%20rain%20over%20playground.mp3',
+                url= 'https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Precipitation%20-%20choice%203%20-%20rain%20over%20playground.mp3',
                 text="You joined a fluffy cloud over a park. Parks need water to keep their grass and plants green. But using sprinklers all day wastes a lot of water. It's better to water plants early in the morning or late at night. Press any key to continue."
             )
         )
@@ -240,7 +240,7 @@ sub_comprehension_precipitation = SubComprehension(
 
 sub_comprehension_collection = SubComprehension(
     passage=URLTextEntity(
-        url=  'https://seedsblob.blob.core.windows.net/output-container/comprehension/Collection%20-%20intro%20123%20options.mp3',
+        url=  'https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Collection%20-%20intro%20123%20options.mp3',
         text="Now you’re high up in the sky, and it’s getting cooler. The water vapor turns into tiny droplets and forms clouds. This process is called condensation. Let’s continue your journey as a droplet in a cloud. But where do you want to go next?"
     ),
     options=[
@@ -250,7 +250,7 @@ sub_comprehension_collection = SubComprehension(
                 text="Join a big dark cloud over a field of crops."
             ),
             exploreValue=URLTextEntity(
-                url='https://seedsblob.blob.core.windows.net/output-container/comprehension/Collection%20-%20choice%201%20-%20cleaning%20the%20house.mp3',
+                url='https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Collection%20-%20choice%201%20-%20cleaning%20the%20house.mp3',
                 text="You joined a big dark cloud over a field of crops. Farmers depend on rain from clouds like this to water their crops. But in some places, people use too much water for farming, and it runs out quickly. That’s why conserving water is so important! Press any key to continue."
             )
         ),
@@ -260,7 +260,7 @@ sub_comprehension_collection = SubComprehension(
                 text="Join a small white cloud over a city."
             ),
             exploreValue=URLTextEntity(
-                url= 'https://seedsblob.blob.core.windows.net/output-container/comprehension/Collection%20-%20choice%202%20-%20storing%20the%20water.mp3',
+                url= 'https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Collection%20-%20choice%202%20-%20storing%20the%20water.mp3',
                 text="You joined a small white cloud over a city. In cities, people often use a lot of water in homes, schools, and offices. Collecting rainwater in the city can help save water. Let’s move on to see what happens next. Press any key to continue."
             )
         ),
@@ -270,7 +270,7 @@ sub_comprehension_collection = SubComprehension(
                 text="Join a fluffy cloud over a park."
             ),
             exploreValue=URLTextEntity(
-                url=  'https://seedsblob.blob.core.windows.net/output-container/comprehension/Collection%20-%20choice%203%20-%20wasting%20the%20water.mp3',
+                url=  'https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Collection%20-%20choice%203%20-%20wasting%20the%20water.mp3',
                 text="You joined a fluffy cloud over a park. Parks need water to keep their grass and plants green. But using sprinklers all day wastes a lot of water. It's better to water plants early in the morning or late at night. Press any key to continue."
             )
         )
@@ -279,11 +279,11 @@ sub_comprehension_collection = SubComprehension(
 
 WaterCycleComprehension = ComprehensionData(
     intro=URLTextEntity(
-        url="https://seedsblob.blob.core.windows.net/output-container/comprehension/Intro%20to%20adventure.mp3",
+        url="https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Intro%20to%20adventure.mp3",
         text="Welcome to the Water Cycle Adventure! You are a drop of water on a journey through nature. Along the way, you’ll make choices to learn how water moves through nature and how we can conserve it. Press 1 to get started."
     ),
     conclusion=URLTextEntity(
-        url='https://seedsblob.blob.core.windows.net/output-container/comprehension/Conclusion.mp3',
+        url='https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Conclusion.mp3',
         text="Congratulations! You have completed the Water Cycle Adventure. You have learned how water moves through nature and how we can conserve it. Bye Bye."),
     data=[sub_comprehension_evaporation, sub_comprehension_condensation, sub_comprehension_precipitation, sub_comprehension_collection]
 )
@@ -431,7 +431,7 @@ class Comprehension:
 
 sub_comprehension_evaporation = SubComprehension(
     passage=URLTextEntity(
-        url= 'https://seedsblob.blob.core.windows.net/output-container/comprehension/Evaporation%20-%20intro%20123%20optionsFINAL.mp3',
+        url= 'https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Evaporation%20-%20intro%20123%20optionsFINAL.mp3',
         text="Imagine it’s a hot day, and the sun is shining. Water can evaporate from different places. Where do you want to start evaporating from?"
     ),
     options=[
@@ -441,7 +441,7 @@ sub_comprehension_evaporation = SubComprehension(
                 text="Start from a lake."
             ),
             exploreValue=URLTextEntity(
-                url='https://seedsblob.blob.core.windows.net/output-container/comprehension/Evaporation%20choice%201%20-%20lake.mp3',
+                url='https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Evaporation%20choice%201%20-%20lake.mp3',
                 text="You chose to start evaporating from a lake! As the sun shines, the water from the lake turns into vapor and rises up into the air. Did you know that large water bodies like lakes and rivers lose a lot of water this way? Let's see what happens next. Press any key to continue!"
             )
         ),
@@ -451,7 +451,7 @@ sub_comprehension_evaporation = SubComprehension(
                 text="Start from a puddle on the road."
             ),
             exploreValue=URLTextEntity(
-                url= 'https://seedsblob.blob.core.windows.net/output-container/comprehension/Evaporation%20choice%202%20-%20puddle.mp3',
+                url= 'https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Evaporation%20choice%202%20-%20puddle.mp3',
                 text="You chose to start evaporating from a puddle! After a rainy day, water on the road can evaporate quickly when the sun comes out. But do you know? Rainwater from the road can be collected and used for things like watering plants! Press any key to continue!"
             )
         ),
@@ -460,7 +460,7 @@ sub_comprehension_evaporation = SubComprehension(
 
 sub_comprehension_condensation = SubComprehension(
     passage=URLTextEntity(
-        url= 'https://seedsblob.blob.core.windows.net/output-container/comprehension/Condesation%20-%20intro%20123%20options.mp3',
+        url= 'https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Condesation%20-%20intro%20123%20options.mp3',
         text="Now you’re high up in the sky, and it’s getting cooler. The water vapor turns into tiny droplets and forms clouds. This process is called condensation. Let’s continue your journey as a droplet in a cloud. But where do you want to go next?"
     ),
     options=[
@@ -470,7 +470,7 @@ sub_comprehension_condensation = SubComprehension(
                 text="Join a big dark cloud over a field of crops."
             ),
             exploreValue=URLTextEntity(
-                url= 'https://seedsblob.blob.core.windows.net/output-container/comprehension/Condensation%20-%20Choice%201%20-%20field%20of%20crops.mp3',
+                url= 'https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Condensation%20-%20Choice%201%20-%20field%20of%20crops.mp3',
                 text="You joined a big dark cloud over a field of crops. Farmers depend on rain from clouds like this to water their crops. But in some places, people use too much water for farming, and it runs out quickly. That’s why conserving water is so important! Press any key to continue."
             )
         ),
@@ -480,7 +480,7 @@ sub_comprehension_condensation = SubComprehension(
                 text="Join a small white cloud over a city."
             ),
             exploreValue=URLTextEntity(
-                url= 'https://seedsblob.blob.core.windows.net/output-container/comprehension/Condensation%20-%20Choice%202%20-%20City.mp3',
+                url= 'https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Condensation%20-%20Choice%202%20-%20City.mp3',
                 text="You joined a small white cloud over a city. In cities, people often use a lot of water in homes, schools, and offices. Collecting rainwater in the city can help save water. Let’s move on to see what happens next. Press any key to continue."
             )
         ),
@@ -490,7 +490,7 @@ sub_comprehension_condensation = SubComprehension(
                 text="Join a fluffy cloud over a park."
             ),
             exploreValue=URLTextEntity(
-                url='https://seedsblob.blob.core.windows.net/output-container/comprehension/Condensation%20-%20Choice%203%20-%20Park.mp3',
+                url='https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Condensation%20-%20Choice%203%20-%20Park.mp3',
                 text="You joined a fluffy cloud over a park. Parks need water to keep their grass and plants green. But using sprinklers all day wastes a lot of water. It's better to water plants early in the morning or late at night. Press any key to continue."
             )
         )
@@ -499,7 +499,7 @@ sub_comprehension_condensation = SubComprehension(
 
 sub_comprehension_precipitation = SubComprehension(
     passage=URLTextEntity(
-        url= 'https://seedsblob.blob.core.windows.net/output-container/comprehension/Precipitation%20-%20intro%20123%20options.mp3',
+        url= 'https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Precipitation%20-%20intro%20123%20options.mp3',
         text="Now you’re high up in the sky, and it’s getting cooler. The water vapor turns into tiny droplets and forms clouds. This process is called condensation. Let’s continue your journey as a droplet in a cloud. But where do you want to go next?"
     ),
     options=[
@@ -509,7 +509,7 @@ sub_comprehension_precipitation = SubComprehension(
                 text="Join a big dark cloud over a field of crops."
             ),
             exploreValue=URLTextEntity(
-                url= 'https://seedsblob.blob.core.windows.net/output-container/comprehension/Precipitation%20-%20Choice%201%20-%20rain%20over%20garden.mp3',
+                url= 'https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Precipitation%20-%20Choice%201%20-%20rain%20over%20garden.mp3',
                 text="You joined a big dark cloud over a field of crops. Farmers depend on rain from clouds like this to water their crops. But in some places, people use too much water for farming, and it runs out quickly. That’s why conserving water is so important! Press any key to continue."
             )
         ),
@@ -519,7 +519,7 @@ sub_comprehension_precipitation = SubComprehension(
                 text="Join a small white cloud over a city."
             ),
             exploreValue=URLTextEntity(
-                url=  'https://seedsblob.blob.core.windows.net/output-container/comprehension/Precipitation%20-%20Choice%202%20-%20Snow%20in%20mountains.mp3',
+                url=  'https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Precipitation%20-%20Choice%202%20-%20Snow%20in%20mountains.mp3',
                 text="You joined a small white cloud over a city. In cities, people often use a lot of water in homes, schools, and offices. Collecting rainwater in the city can help save water. Let’s move on to see what happens next. Press any key to continue."
             )
         ),
@@ -529,7 +529,7 @@ sub_comprehension_precipitation = SubComprehension(
                 text="Join a fluffy cloud over a park."
             ),
             exploreValue=URLTextEntity(
-                url= 'https://seedsblob.blob.core.windows.net/output-container/comprehension/Precipitation%20-%20choice%203%20-%20rain%20over%20playground.mp3',
+                url= 'https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Precipitation%20-%20choice%203%20-%20rain%20over%20playground.mp3',
                 text="You joined a fluffy cloud over a park. Parks need water to keep their grass and plants green. But using sprinklers all day wastes a lot of water. It's better to water plants early in the morning or late at night. Press any key to continue."
             )
         )
@@ -538,7 +538,7 @@ sub_comprehension_precipitation = SubComprehension(
 
 sub_comprehension_collection = SubComprehension(
     passage=URLTextEntity(
-        url=  'https://seedsblob.blob.core.windows.net/output-container/comprehension/Collection%20-%20intro%20123%20options.mp3',
+        url=  'https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Collection%20-%20intro%20123%20options.mp3',
         text="Now you’re high up in the sky, and it’s getting cooler. The water vapor turns into tiny droplets and forms clouds. This process is called condensation. Let’s continue your journey as a droplet in a cloud. But where do you want to go next?"
     ),
     options=[
@@ -548,7 +548,7 @@ sub_comprehension_collection = SubComprehension(
                 text="Join a big dark cloud over a field of crops."
             ),
             exploreValue=URLTextEntity(
-                url='https://seedsblob.blob.core.windows.net/output-container/comprehension/Collection%20-%20choice%201%20-%20cleaning%20the%20house.mp3',
+                url='https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Collection%20-%20choice%201%20-%20cleaning%20the%20house.mp3',
                 text="You joined a big dark cloud over a field of crops. Farmers depend on rain from clouds like this to water their crops. But in some places, people use too much water for farming, and it runs out quickly. That’s why conserving water is so important! Press any key to continue."
             )
         ),
@@ -558,7 +558,7 @@ sub_comprehension_collection = SubComprehension(
                 text="Join a small white cloud over a city."
             ),
             exploreValue=URLTextEntity(
-                url= 'https://seedsblob.blob.core.windows.net/output-container/comprehension/Collection%20-%20choice%202%20-%20storing%20the%20water.mp3',
+                url= 'https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Collection%20-%20choice%202%20-%20storing%20the%20water.mp3',
                 text="You joined a small white cloud over a city. In cities, people often use a lot of water in homes, schools, and offices. Collecting rainwater in the city can help save water. Let’s move on to see what happens next. Press any key to continue."
             )
         ),
@@ -568,7 +568,7 @@ sub_comprehension_collection = SubComprehension(
                 text="Join a fluffy cloud over a park."
             ),
             exploreValue=URLTextEntity(
-                url=  'https://seedsblob.blob.core.windows.net/output-container/comprehension/Collection%20-%20choice%203%20-%20wasting%20the%20water.mp3',
+                url=  'https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Collection%20-%20choice%203%20-%20wasting%20the%20water.mp3',
                 text="You joined a fluffy cloud over a park. Parks need water to keep their grass and plants green. But using sprinklers all day wastes a lot of water. It's better to water plants early in the morning or late at night. Press any key to continue."
             )
         )
@@ -577,11 +577,11 @@ sub_comprehension_collection = SubComprehension(
 
 WaterCycleComprehension = ComprehensionData(
     intro=URLTextEntity(
-        url="https://seedsblob.blob.core.windows.net/output-container/comprehension/Intro%20to%20adventure.mp3",
+        url="https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Intro%20to%20adventure.mp3",
         text="Welcome to the Water Cycle Adventure! You are a drop of water on a journey through nature. Along the way, you’ll make choices to learn how water moves through nature and how we can conserve it. Press 1 to get started."
     ),
     conclusion=URLTextEntity(
-        url='https://seedsblob.blob.core.windows.net/output-container/comprehension/Conclusion.mp3',
+        url='https://seedsblobstaging.blob.core.windows.net/output-container/comprehension/Conclusion.mp3',
         text="Congratulations! You have completed the Water Cycle Adventure. You have learned how water moves through nature and how we can conserve it. Bye Bye."),
     data=[sub_comprehension_evaporation, sub_comprehension_condensation, sub_comprehension_precipitation, sub_comprehension_collection]
 )
