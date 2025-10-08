@@ -1,5 +1,3 @@
-curl https://your-app.onrender.com/docs
-
 # IVRv2 Staging Deployment Guide
 
 ## 1. Platform Choice
