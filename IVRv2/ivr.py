@@ -1,19 +1,25 @@
+from settings import settings
 import vonage
 from dotenv import load_dotenv
 import os
 from utils.sas_gen import SASGen
 # from vonage.voice import Ncco
 
-load_dotenv()
+storage_account_name = settings.storage_account_name
+if not storage_account_name:
+    raise ValueError("STORAGE_ACCOUNT_NAME environment variable is not set.")
+storage_account_base_url = f"https://{storage_account_name}.blob.core.windows.net/output-original/"
 
-application_id = os.getenv("VONAGE_APPLICATION_ID")
-api_secret = os.getenv("VONAGE_API_SECRET")
-api_key = os.getenv("VONAGE_API_KEY")
+application_id = settings.vonage_application_id
+api_secret = settings.vonage_api_secret
+api_key = settings.vonage_api_key
+vonage_private_key_path = settings.vonage_private_key
+base_url = settings.base_url
 
 sas_gen = SASGen()
-audio_url = sas_gen.get_url_with_sas("https://seedsblobstaging.blob.core.windows.net/output-original/04573140-93e9-4edc-9efc-e9b21d3052f8.mp3")
+audio_url = sas_gen.get_url_with_sas(storage_account_base_url + "04573140-93e9-4edc-9efc-e9b21d3052f8.mp3")
 
-client = vonage.Client(application_id=application_id, private_key=os.getenv("VONAGE_PRIVATE_KEY_PATH"))
+client = vonage.Client(application_id=application_id, private_key=vonage_private_key_path)
 
 # talk = Ncco.Talk(text='Hello from Vonage!', bargeIn=True, loop=5, premium=True)
 # ncco = Ncco.build_ncco(record, connect, talk)

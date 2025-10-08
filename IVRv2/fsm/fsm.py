@@ -1,3 +1,4 @@
+from settings import settings
 from datetime import datetime
 from typing import List, Tuple
 from actions.base_actions.stream_action import StreamAction
@@ -6,10 +7,15 @@ from base_classes.action import Action
 from actions.base_actions.talk_action import TalkAction
 from utils.model_classes import IVRCallStateMongoDoc, IVRfsmDoc
 
+storage_account_name = settings.storage_account_name
+if not storage_account_name:
+    raise ValueError("STORAGE_ACCOUNT_NAME environment variable is not set.")
+
 class FSM:
-    NO_OPTION_CHOSEN_AUDIO_URL = "https://seedsblobstaging.blob.core.windows.net/pull-model-menus/chosenNoOptionDialog/kannada/Sorry,%20you%20have%20not%20chosen%20any%20option/1.0.mp3"
-    WRONG_INPUT_AUDIO_URL = "https://seedsblobstaging.blob.core.windows.net/pull-model-menus/chosenWrongOptionDialog/kannada/Sorry,%20you%20have%20chosen%20the%20wrong%20option/1.0.mp3"
-    
+    STORAGE_ACCOUNT_BASE_URL = f"https://{storage_account_name}.blob.core.windows.net/pull-model-menus/"
+    NO_OPTION_CHOSEN_AUDIO_URL = f"{STORAGE_ACCOUNT_BASE_URL}chosenNoOptionDialog/kannada/Sorry,%20you%20have%20not%20chosen%20any%20option/1.0.mp3"
+    WRONG_INPUT_AUDIO_URL = f"{STORAGE_ACCOUNT_BASE_URL}chosenWrongOptionDialog/kannada/Sorry,%20you%20have%20chosen%20the%20wrong%20option/1.0.mp3"
+
     def __init__(self, fsm_id: str):
         from fsm.state import State
         """

@@ -12,3 +12,4 @@ motor
 requests
 aiohttp
 python-multipart
+pydantic-settings
