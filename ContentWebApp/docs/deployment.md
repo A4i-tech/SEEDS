@@ -14,13 +14,6 @@
 Set these in the platform dashboard (do NOT commit secrets):
 ```
 REACT_APP_API_BASE_URL=<your-backend-api-url>
-REACT_APP_FIREBASEAPIKEY=<your-firebase-api-key>
-REACT_APP_FIREBASEAUTHDOMAIN=<your-firebase-auth-domain>
-REACT_APP_FIREBASEPROJECTID=<your-firebase-project-id>
-REACT_APP_FIREBASESTORAGEBUCKET=<your-firebase-storage-bucket>
-REACT_APP_FIREBASEMESSAGINGSENDERID=<your-firebase-messaging-sender-id>
-REACT_APP_FIREBASEAPPID=<your-firebase-app-id>
-REACT_APP_FIREBASEMEASUREMENTID=<your-firebase-measurement-id>
 ```
 
 
