@@ -32,7 +32,7 @@ async def event_webhook(request: Request, conference_id: str, background_tasks: 
 
 @router.post("/conversationevents")
 async def conversation_events_webhook(request: Request, background_tasks: BackgroundTasks):
-    # logger_instance.info("CONV EVENT RECEIVED")
+    logger_instance.info("CONV EVENT RECEIVED")
     event_data = await request.json()
     background_tasks.add_task(process_conversation_event, event_data)
     return {"status": "ok"}

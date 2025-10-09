@@ -1,5 +1,4 @@
 process.env.AUTH_TYPE = 'native';
-
 const request = require('supertest');
 const app = require('../index');
 const mongoose = require('mongoose');

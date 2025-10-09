@@ -397,7 +397,9 @@ FodyWeavers.xsd
 # JetBrains Rider
 *.sln.iml
 
-package-lock.json
 
 IVRv2/venv/
 */.venv/
+.idea/
+fsm-visual-refactored.txt
+.venv/

@@ -1,23 +1,21 @@
 import React from 'react';
-import { getAuth, signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 
 const LogoutButton = () => {
-  const auth = getAuth();
   const navigate = useNavigate();
 
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      navigate('/'); // Redirect to the login page after successful logout
-    } catch (error) {
-      console.log('Logout error:', error);
-    }
+  const handleLogout = () => {
+    // Clear any local storage or session data if needed
+    localStorage.clear();
+    sessionStorage.clear();
+
+    // Navigate to login page
+    navigate('/');
   };
 
   return (
     <button className="btn"
-    style={{ backgroundColor: "#28574F", color: "white",  float: 'right' }} onClick={handleLogout}>
+      style={{ backgroundColor: "#28574F", color: "white", float: 'right' }} onClick={handleLogout}>
       Logout
     </button>
   );

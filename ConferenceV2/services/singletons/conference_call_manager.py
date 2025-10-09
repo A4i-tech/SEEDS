@@ -42,7 +42,7 @@ class ConferenceCallManager:
         )
         conference_call.set_participant_state(teacher_phone, student_phones)
         self.conferences[conf_id] = conference_call
-        return conf_id
+        return conference_call
    
     async def start_conference_call(self, conf_id: str) -> ConferenceCall:
         conf: ConferenceCall = self.get_conference(conf_id)

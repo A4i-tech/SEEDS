@@ -1,3 +1,4 @@
+from settings import settings
 import uuid
 from actions.base_actions.talk_action import TalkAction
 from actions.base_actions.stream_action import StreamAction
@@ -25,12 +26,15 @@ from utils.quiz_model_classes import QuizQuestion
 from utils.quiz_model_classes import URLTextEntity
 
 
-load_dotenv()
+storage_account_name = settings.storage_account_name
+if not storage_account_name:
+    raise ValueError("STORAGE_ACCOUNT_NAME environment variable is not set.")
+storage_account_base_url = f"https://{storage_account_name}.blob.core.windows.net/pull-model-menus/"
 
 # pullMenuMainUrl = ""
-pullMenuMainUrl = "https://seedsblob.blob.core.windows.net/pull-model-menus/"
-content_url = "https://seedsblob.blob.core.windows.net/output-container/"
-url = 'https://seeds-teacherapp.azurewebsites.net/content'
+pullMenuMainUrl = storage_account_base_url
+content_url = f"https://{storage_account_name}.blob.core.windows.net/output-container/"
+url = f'https://{storage_account_name}.azurewebsites.net/content'
 headers = {
     'authToken': 'postman'
 }
@@ -129,9 +133,9 @@ quiz_new = {
   "id": "e3d1db09-f5fd-44b2-8244-86ea61619175",
   "language": "kannada",
   "theme": "water",
-  "themeAudio": "https://seedsblob.blob.core.windows.net/theme-titles/Water/kannada",
+  "themeAudio": f"{storage_account_base_url}theme-titles/Water/kannada",
   "title": "Punyakoti",
-  "titleAudio": "https://seedsblob.blob.core.windows.net/experience-titles/quiz/12f77743-4255-48a8-855b-2f4d7b635c95/1.0.mp3",
+  "titleAudio": f"{storage_account_base_url}experience-titles/quiz/12f77743-4255-48a8-855b-2f4d7b635c95/1.0.mp3",
   "localTitle": "ಮೊಲದ ಮರಿ",
   "positiveMarks": 1,
   "negativeMarks": 0,
@@ -140,28 +144,28 @@ quiz_new = {
     {
       "question": {
         "id": "f8210aca-d2e0-445e-bb92-9e673bb92158",
-        "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/question_1/1.0.mp3",
+        "url": f"{content_url}Quiz/Punyakoti/question_1/1.0.mp3",
         "text": "ಪುಣ್ಯಕೋಟಿಗೂ ತನ್ನ ಕರುವಿಗೂ ಏನು ಸಂಬಂಧ? "
       },
       "options": [
         {
           "id": "3ef0ae75-9f9e-4d9a-8bfa-ac67297d15b0",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_1/1/1.0.mp3",
+          "url": f"{content_url}Quiz/Punyakoti/option_1/1/1.0.mp3",
           "text": " ತಾಯಿ"
         },
         {
           "id": "614c161e-a0b0-426f-913c-fc8adba39f8b",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_1/2/1.0.mp3",
+          "url": f"{content_url}Quiz/Punyakoti/option_1/2/1.0.mp3",
           "text": " ಒಡಹುಟ್ಟಿದವರು"
         },
         {
           "id": "f34e920d-78a5-4230-9bd0-d603acc941d5",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_1/3/1.0.mp3",
+          "url": f"{content_url}Quiz/Punyakoti/option_1/3/1.0.mp3",
           "text": " ಸ್ನೇಹಿತ"
         },
         {
           "id": "e8ba0f72-bf17-47b2-ba4b-6bd53615604a",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_1/4/1.0.mp3",
+          "url": f"{content_url}Quiz/Punyakoti/option_1/4/1.0.mp3",
           "text": " ಚಿಕ್ಕಮ್ಮ "
         }
       ],
@@ -170,28 +174,28 @@ quiz_new = {
     {
       "question": {
         "id": "973d0720-ada8-4193-9708-6c0191c47971",
-        "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/question_2/1.0.mp3",
+        "url": f"{content_url}Quiz/Punyakoti/question_2/1.0.mp3",
         "text": "ಪುಣ್ಯಕೋಟಿ ತನ್ನ ಸ್ನೇಹಿತರೊಂದಿಗೆ ಹುಲ್ಲು ತಿನ್ನುತ್ತಿರುವಾಗ ಯಾವ ಪ್ರಾಣಿ ತಡೆಯುತ್ತದೆ? "
       },
       "options": [
         {
           "id": "a66288f0-f09d-4510-b747-26660b6dac8d",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_2/1/1.0.mp3",
+          "url": f"{content_url}Quiz/Punyakoti/option_2/1/1.0.mp3",
           "text": " ಹುಲಿ "
         },
         {
           "id": "d79f2970-e8a6-4b19-95a4-15c49db89886",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_2/2/1.0.mp3",
+          "url": f"{content_url}Quiz/Punyakoti/option_2/2/1.0.mp3",
           "text": " ಸಿಂಹ"
         },
         {
           "id": "1e4756b0-684b-48d0-9168-b544b3ad2396",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_2/3/1.0.mp3",
+          "url": f"{content_url}Quiz/Punyakoti/option_2/3/1.0.mp3",
           "text": " ಬೇಟೆಗಾರ"
         },
         {
           "id": "2f1a696e-7857-43fe-973f-50b599224946",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_2/4/1.0.mp3",
+          "url": f"{content_url}Quiz/Punyakoti/option_2/4/1.0.mp3",
           "text": " ತೋಳ"
         }
       ],
@@ -200,28 +204,28 @@ quiz_new = {
     {
       "question": {
         "id": "fee0d467-7360-4b67-b022-2f5f2a857527",
-        "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/question_3/1.0.mp3",
+        "url": f"{content_url}Quiz/Punyakoti/question_3/1.0.mp3",
         "text": "ಪುಣ್ಯಕೋಟಿಯು ಹುಲಿಯನ್ನು ಭೇಟಿಯಾದಾಗ ಏನು ಮಾಡಬೇಕೆಂದು ಕೇಳಿದಳು? "
       },
       "options": [
         {
           "id": "f2762f67-8ae1-4829-a802-94dc05ede9c7",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_3/1/1.0.mp3",
+          "url": f"{content_url}Quiz/Punyakoti/option_3/1/1.0.mp3",
           "text": " ಅವಳು ಮನೆಗೆ ಹೋಗಲಿ"
         },
         {
           "id": "8e14b74e-856e-4f1c-b420-ab2cb6a64414",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_3/2/1.0.mp3",
+          "url": f"{content_url}Quiz/Punyakoti/option_3/2/1.0.mp3",
           "text": " ಅವಳ ಜೀವವನ್ನು ಉಳಿಸಿ"
         },
         {
           "id": "35ab28b3-6af7-41ac-945b-1c0c2976b001",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_3/3/1.0.mp3",
+          "url": f"{content_url}Quiz/Punyakoti/option_3/3/1.0.mp3",
           "text": " ಅವಳನ್ನು ಬೇಗನೆ ತಿನ್ನಿರಿ"
         },
         {
           "id": "e7a8047e-22ce-4593-be4e-acd698a59854",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_3/4/1.0.mp3",
+          "url": f"{content_url}Quiz/Punyakoti/option_3/4/1.0.mp3",
           "text": " ಅವಳನ್ನು ಬಿಟ್ಟುಬಿಡಿ "
         }
       ],
@@ -230,28 +234,28 @@ quiz_new = {
     {
       "question": {
         "id": "c791fe18-fb7b-4818-a067-bbd7fb176b08",
-        "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/question_4/1.0.mp3",
+        "url": f"{content_url}Quiz/Punyakoti/question_4/1.0.mp3",
         "text": "ಪುಣ್ಯಕೋಟಿ ತನ್ನ ಕರುವನ್ನು ಏನು ಮಾಡಬೇಕೆಂದು ತನ್ನ ಸ್ನೇಹಿತರನ್ನು ಕೇಳಿದಳು? "
       },
       "options": [
         {
           "id": "642c6e83-116f-45a4-b4b4-872d623bb7e4",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_4/1/1.0.mp3",
+          "url": f"{content_url}Quiz/Punyakoti/option_4/1/1.0.mp3",
           "text": " ಅವಳನ್ನು ನೋಡಿಕೊಳ್ಳಿ"
         },
         {
           "id": "42fee7a7-c05d-43cb-bb87-9d63fb0a7bef",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_4/2/1.0.mp3",
+          "url": f"{content_url}Quiz/Punyakoti/option_4/2/1.0.mp3",
           "text": " ಅವಳೊಂದಿಗೆ ಆಟವಾಡಿ"
         },
         {
           "id": "90c089e9-79cd-43cd-92c5-207adcf414fc",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_4/3/1.0.mp3",
+          "url": f"{content_url}Quiz/Punyakoti/option_4/3/1.0.mp3",
           "text": " ಅವಳಿಗೆ ಆಹಾರ ನೀಡಿ"
         },
         {
           "id": "6db0e624-0eb7-4750-99d3-5839a1b7a496",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_4/4/1.0.mp3",
+          "url": f"{content_url}Quiz/Punyakoti/option_4/4/1.0.mp3",
           "text": " ಅವಳನ್ನು ನಿರ್ಲಕ್ಷಿಸಿ "
         }
       ],
@@ -260,28 +264,28 @@ quiz_new = {
     {
       "question": {
         "id": "a6311ab0-0f8f-400f-bf5d-b015ba0a401c",
-        "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/question_5/1.0.mp3",
+        "url": f"{content_url}Quiz/Punyakoti/question_5/1.0.mp3",
         "text": "ಸತ್ಯದ ಬಗ್ಗೆ ಪುಣ್ಯಕೋಟಿ ಹೇಳಿದ್ದೇನು? "
       },
       "options": [
         {
           "id": "5a72b87a-f7fe-4e19-9099-dabe763e6fc8",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_5/1/1.0.mp3",
+          "url": f"{content_url}Quiz/Punyakoti/option_5/1/1.0.mp3",
           "text": " ಇದು ನಮ್ಮ ತಾಯಿ ಮತ್ತು ತಂದೆ"
         },
         {
           "id": "79df7b0e-6ec2-4882-913f-33f1cac8f9d9",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_5/2/1.0.mp3",
+          "url": f"{content_url}Quiz/Punyakoti/option_5/2/1.0.mp3",
           "text": " ಇದು ಮುಖ್ಯವಲ್ಲ"
         },
         {
           "id": "0600e6e2-1055-4702-8396-8a331db133f3",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_5/3/1.0.mp3",
+          "url": f"{content_url}Quiz/Punyakoti/option_5/3/1.0.mp3",
           "text": " ಇದು ಮೂರ್ಖರಿಗೆ"
         },
         {
           "id": "3b27625b-9b25-442a-9adf-1727dd77165d",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_5/4/1.0.mp3",
+          "url": f"{content_url}Quiz/Punyakoti/option_5/4/1.0.mp3",
           "text": " ಇದು ಶ್ರೀಮಂತರಿಗೆ "
         }
       ],
@@ -290,28 +294,28 @@ quiz_new = {
     {
       "question": {
         "id": "92e20030-83c9-43ad-9b4a-ba8561104e14",
-        "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/question_6/1.0.mp3",
+        "url": f"{content_url}Quiz/Punyakoti/question_6/1.0.mp3",
         "text": "ಹುಲಿಯು ಪುಣ್ಯಕೋಟಿಯನ್ನು ತಿನ್ನುವ ಆಲೋಚನೆಯನ್ನು ಏಕೆ ಬದಲಾಯಿಸಿತು? "
       },
       "options": [
         {
           "id": "56c874b1-ae12-4aac-8ad5-f73db7920145",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_6/1/1.0.mp3",
+          "url": f"{content_url}Quiz/Punyakoti/option_6/1/1.0.mp3",
           "text": " ಅವನು ಅವಳ ಪ್ರಾಮಾಣಿಕತೆಯಿಂದ ಪ್ರಭಾವಿತನಾದನು"
         },
         {
           "id": "3dd7cf7c-4968-4c9a-8d97-598be6e10e76",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_6/2/1.0.mp3",
+          "url": f"{content_url}Quiz/Punyakoti/option_6/2/1.0.mp3",
           "text": " ಅವನು ಅವಳಿಗೆ ಹೆದರುತ್ತಿದ್ದನು"
         },
         {
           "id": "e7ca0e4e-c4f8-4276-84df-0ddea5dd6e98",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_6/3/1.0.mp3",
+          "url": f"{content_url}Quiz/Punyakoti/option_6/3/1.0.mp3",
           "text": " ಅವನು ಇತರ ಆಹಾರವನ್ನು ಕಂಡುಕೊಂಡನು"
         },
         {
           "id": "1b775566-ffdc-4d52-8e80-6bc534985a6c",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_6/4/1.0.mp3",
+          "url": f"{content_url}Quiz/Punyakoti/option_6/4/1.0.mp3",
           "text": " ಅವನ ಹೊಟ್ಟೆ ತುಂಬಿತ್ತು "
         }
       ],
@@ -320,28 +324,28 @@ quiz_new = {
     {
       "question": {
         "id": "fba9ecc2-23e2-42e0-ab84-b05bd6c03fa4",
-        "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/question_7/1.0.mp3",
+        "url": f"{content_url}Quiz/Punyakoti/question_7/1.0.mp3",
         "text": "ಪುಣ್ಯಕೋಟಿ ಮನೆಗೆ ಹಿಂದಿರುಗಿದಾಗ ಏನಾಯಿತು? "
       },
       "options": [
         {
           "id": "d94ce54d-09b5-432e-842d-e3a84ad62caa",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_7/1/1.0.mp3",
+          "url": f"{content_url}Quiz/Punyakoti/option_7/1/1.0.mp3",
           "text": " ಅವಳು ತನ್ನ ಕರುವನ್ನು ತಬ್ಬಿಕೊಂಡಳು"
         },
         {
           "id": "aa0993af-ef17-4024-ba50-3eee8eaa0c79",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_7/2/1.0.mp3",
+          "url": f"{content_url}Quiz/Punyakoti/option_7/2/1.0.mp3",
           "text": " ಹುಲಿ ಅವಳನ್ನು ತಿನ್ನಿತು"
         },
         {
           "id": "59a485ab-5d91-4a17-93c9-0a62a32acaab",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_7/3/1.0.mp3",
+          "url": f"{content_url}Quiz/Punyakoti/option_7/3/1.0.mp3",
           "text": " ಅವಳು ಓಡಿಹೋದಳು"
         },
         {
           "id": "0dd73d31-9cd2-4c08-b33b-1134c0c86860",
-          "url": "https://seedsblob.blob.core.windows.net/output-container/Quiz/Punyakoti/option_7/4/1.0.mp3",
+          "url": f"{content_url}Quiz/Punyakoti/option_7/4/1.0.mp3",
           "text": " ಅವಳು ಆಕಾಶದಲ್ಲಿ ನಕ್ಷತ್ರವಾದಳು "
         }
       ],
@@ -350,7 +354,7 @@ quiz_new = {
   ]
 }
 
-# sas_test = 'https://seedsblob.blob.core.windows.net/output-container/1dfe33fd-7fb7-4adb-9d60-2d9ae3c44910/1.0.wav'
+# sas_test = 'https://seedsblobstaging.blob.core.windows.net/output-container/1dfe33fd-7fb7-4adb-9d60-2d9ae3c44910/1.0.wav'
 # sas_gen_obj = SASGen(os.getenv("BLOB_STORE_CONN_STR"))
 # sas_url = sas_gen_obj.get_url_with_sas(sas_test)
 # print("SAS", sas_url)
@@ -374,7 +378,7 @@ def getStreamActions(items_list, values_to_urls, level, state, parent_selections
     actions = []
     
     if level == 0 and state == 0:
-        actions.append(StreamAction('https://seedsblob.blob.core.windows.net/pull-model-menus/welcomeDialog/kannada/welcome%20to%20SEEDS/1.0.mp3'))
+        actions.append(StreamAction('https://seedsblobstaging.blob.core.windows.net/pull-model-menus/welcomeDialog/kannada/welcome%20to%20SEEDS/1.0.mp3'))
         
     complete_url = ''
     language = ''
@@ -517,7 +521,7 @@ def generate_states(fsm, content_list, content_attributes, level, parent_state_i
         audioGoingTobePlayedUrl = audioGoingTobePlayedDialogUrl.replace('{language}', language).replace('{speechRate}', speechRate)
         # actions.append(TalkAction(text = "To exit the content. Press 9"))
         actions.append(StreamAction(pullMenuMainUrl + audioGoingTobePlayedUrl))
-        # https://seedsblob.blob.core.windows.net/output-container/23_1/1.0.wav
+        # https://seedsblobstaging.blob.core.windows.net/output-container/23_1/1.0.wav
         # if (parent_selections['type'] != 'quiz'):
         music_url = content_url + filtered_content[0]['id'] + '/1.0.wav'
         actions.append(StreamAction(music_url, record_playback_time=True))
@@ -645,7 +649,7 @@ def generate_states(fsm, content_list, content_attributes, level, parent_state_i
         if level == 0 and state_index == 0:
             print("INITIAL STATE", state_id)
             fsm.init_state_id = state_id
-            # actions.append(StreamAction(url = 'https://seedsblob.blob.core.windows.net/pull-model-menus/welcomeDialog/kannada/welcome%20to%20SEEDS/1.0.mp3'))
+            # actions.append(StreamAction(url = 'https://seedsblobstaging.blob.core.windows.net/pull-model-menus/welcomeDialog/kannada/welcome%20to%20SEEDS/1.0.mp3'))
           
         result_dictionary = getStreamActions(sorted_categories, values_to_urls, level, state_index, parent_selections)
         # print("RESULT DICTIONARY", result_dictionary)
