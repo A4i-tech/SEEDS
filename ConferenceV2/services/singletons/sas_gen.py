@@ -42,7 +42,7 @@ class SASGen:
             return None  # No user delegation key needed when using account key
         current_time = datetime.datetime.utcnow()
         if not self.user_delegation_key or (self.key_expiry_time and current_time >= self.key_expiry_time):
-            self.key_expiry_time = current_time + self.sas_expiry_hours
+            self.key_expiry_time = current_time + datetime.timedelta(hours=self.sas_expiry_hours)
             self.user_delegation_key = blob_service_client.get_user_delegation_key(current_time, self.key_expiry_time)
         return self.user_delegation_key
 
@@ -81,7 +81,7 @@ class SASGen:
                     container_name=container_name,
                     blob_name=blob_path,
                     permission=BlobSasPermissions(read=True),
-                    expiry=self.key_expiry_time or datetime.datetime.utcnow() + self.sas_expiry_hours,
+                    expiry=self.key_expiry_time or datetime.datetime.utcnow() + datetime.timedelta(hours=self.sas_expiry_hours),
                     user_delegation_key=user_delegation_key,
                 )
             return blob_client.url + "?" + sas_token
