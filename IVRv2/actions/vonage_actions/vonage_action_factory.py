@@ -27,7 +27,7 @@ class VonageActionFactory(ActionFactory):
             
         elif isinstance(action, InputAction):
             return VonageInputAction(type_=action.type,
-                                    eventUrl=os.getenv("NGROK_URL") + action.eventApi,
+                                    eventUrl=os.getenv("BASE_URL") + action.eventApi,
                                     maxDigits=action.extra_args.get("maxDigits", 1),
                                     timeOut=action.extra_args.get("timeOut", 10),
                                     submitOnHash=action.extra_args.get("submitOnHash", False))

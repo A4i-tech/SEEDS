@@ -4,12 +4,12 @@ const { URL } = require('url');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-
+STORAGE_ACCOUNT_NAME = process.env.STORAGE_ACCOUNT_NAME;
 class BlobService {
     constructor() {
         const credential = new DefaultAzureCredential();
         this.blobServiceClient = new BlobServiceClient(
-            `https://seedsblob.blob.core.windows.net`, 
+            `https://${STORAGE_ACCOUNT_NAME}.blob.core.windows.net`, 
             credential
         );
     }

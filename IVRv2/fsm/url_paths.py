@@ -1,4 +1,9 @@
-pullMenuMainUrl = "https://seedsblob.blob.core.windows.net/pull-model-menus/"
+from settings import settings
+storage_account_name = settings.storage_account_name
+if not storage_account_name:
+    raise ValueError("STORAGE_ACCOUNT_NAME environment variable is not set.")
+storage_account_base_url = f"https://{storage_account_name}.blob.core.windows.net/"
+pullMenuMainUrl = f"{storage_account_base_url}pull-model-menus/"
 seeds_content_url = 'https://seeds-teacherapp.azurewebsites.net/content'
 seeds_content_headers = {
     'authToken': 'postman'
