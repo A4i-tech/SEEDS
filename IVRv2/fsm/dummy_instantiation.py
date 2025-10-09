@@ -11,7 +11,7 @@ load_dotenv()
 
 
 fsm = FSM(fsm_id="dummy_fsm")
-input_action = InputAction(type_=["dtmf"], eventUrl=os.getenv('NGROK_URL') + '/input')
+input_action = InputAction(type_=["dtmf"], eventUrl=os.getenv('BASE_URL') + '/input')
 state1 = State(state_id="1", actions = [StreamAction(url = 'https://contentmenu.blob.core.windows.net/menu/WelcomeToSeedsNinad.mp3'),
                                         TalkAction(text="Press 1 to start and press 3 to exit"),
                                         input_action])
