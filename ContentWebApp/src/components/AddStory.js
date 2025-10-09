@@ -234,11 +234,11 @@ const AddStory = ({ content, contentType }) => {
   };
 
   const sendStory = async () => {
-    const id = content ? content.id : uuidv4();
+    const _id = content ? content.id : uuidv4();
     // Always send title and theme as objects
     var newMetadata = {
       ...metadata,
-      id,
+      _id,
       type: contentType,
       title: {
         english: metadata.title.english || "",
@@ -285,9 +285,9 @@ const AddStory = ({ content, contentType }) => {
     }
     if (metadata.audioFile) {
       const extname = metadata.audioFile.split(".").pop();
-      var filename = `${id}.${extname}`;
+      var filename = `${_id}.${extname}`;
       if (contentType === "Riddle") {
-        filename = `${id}_question.${extname}`;
+        filename = `${_id}_question.${extname}`;
       }
       const res = await fetch(
         `${SEEDS_URL}/content/sasToken?` +
@@ -320,7 +320,7 @@ const AddStory = ({ content, contentType }) => {
     }
     if (metadata.answerAudioFile) {
       const answerExtname = metadata.answerAudioFile.split(".").pop();
-      var answerFilename = `${id}_answer.${answerExtname}`;
+      var answerFilename = `${_id}_answer.${answerExtname}`;
       const resAnswer = await fetch(
         `${SEEDS_URL}/content/sasToken?` +
         new URLSearchParams({
