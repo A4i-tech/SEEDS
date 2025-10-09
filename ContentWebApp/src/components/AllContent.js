@@ -273,56 +273,74 @@ const AllContent = () => {
 
       {content.length === 0 && <h3>No content found :( </h3>}
       <div className="row">
-        {content.length > 0 && <table className="table table-striped table-bordered">
-          <thead>
-            <tr className="tableHeading">
-              <th style={{ color: "white", backgroundColor: "#28574f" }}> TITLE </th>
-              <th style={{ color: "white", backgroundColor: "#28574f" }}> THEME </th>
-              <th style={{ color: "white", backgroundColor: "#28574f" }}> UPLOADED </th>
-              <th style={{ color: "white", backgroundColor: "#28574f" }}> LANGUAGE </th>
-              <th style={{ color: "white", backgroundColor: "#28574f" }}> TYPE </th>
-              <th style={{ color: "white", backgroundColor: "#28574f" }}> ACTIONS </th>
-            </tr>
-          </thead>
-          <tbody>
-            {content.map((content) => (
-              <tr key={content.id}>
-                <td> {content.title} <br /> {content.localTitle} </td>
-                <td> {content.theme} <br /> {content.localTheme} </td>
-                <td>{content.isTeacherApp && 'TA'}{content.isPullModel && ', IVR'} {content.type === 'quiz' && 'IVR'}</td>
-                <td> {content.language}</td>
-                <td> {content.type}</td>
-                <td>
-                  <button
-                    onClick={() => onEdit(content.type, content.id)}
-                    className="btn rounded"
-                    style={{ backgroundColor: "#E5A83B", color: "white" }}
-                  >
-                    Edit{" "}
-                  </button>
-                  <button
-                    style={{
-                      marginLeft: "10px",
-                      backgroundColor: "#039DCE",
-                      color: "white",
-                    }}
-                    onClick={() => onView(content.type, content.id)}
-                    className="btn"
-                  >
-                    View{" "}
-                  </button>
-                  <button
-                    style={{ marginLeft: "10px" }}
-                    onClick={() => onDelete(content.type, content.id)}
-                    className="btn btn-danger"
-                  >
-                    Delete{" "}
-                  </button>
-                </td>
+        {content.length > 0 && (
+          <table className="table table-striped table-bordered">
+            <thead>
+              <tr className="tableHeading">
+                <th style={{ color: "white", backgroundColor:"#28574f" }}> TITLE </th>
+                <th style={{ color: "white", backgroundColor:"#28574f" }}> THEME </th>
+                <th style={{ color: "white", backgroundColor:"#28574f" }}> UPLOADED </th>
+                <th style={{ color: "white", backgroundColor:"#28574f" }}> LANGUAGE </th>
+                <th style={{ color: "white", backgroundColor:"#28574f" }}> TYPE </th>
+                <th style={{ color: "white", backgroundColor:"#28574f" }}> ACTIONS </th>
               </tr>
-            ))}
-          </tbody>
-        </table>}
+            </thead>
+            <tbody>
+              {content.map((content) => (
+                <tr key={content.id}>
+                  <td>
+                    {content.title && typeof content.title === 'object'
+                      ? content.title.english
+                      : content.title}
+                    <br />
+                    {content.title && typeof content.title === 'object'
+                      ? content.title.local
+                      : content.localTitle}
+                  </td>
+                  <td>
+                    {content.theme && typeof content.theme === 'object'
+                      ? content.theme.english
+                      : content.theme}
+                    <br />
+                    {content.theme && typeof content.theme === 'object'
+                      ? content.theme.local
+                      : content.localTheme}
+                  </td>
+                  <td>{content.isTeacherApp && 'TA'}{content.isPullModel && ', IVR'} {content.type === 'quiz' && 'IVR'}</td>
+                  <td> {content.language}</td>
+                  <td> {content.type}</td>
+                  <td>
+                    <button
+                      onClick={() => onEdit(content.type, content.id)}
+                      className="btn rounded"
+                      style={{ backgroundColor: "#E5A83B", color: "white" }}
+                    >
+                      Edit{" "}
+                    </button>
+                    <button
+                      style={{
+                        marginLeft: "10px",
+                        backgroundColor: "#039DCE",
+                        color: "white",
+                      }}
+                      onClick={() => onView(content.type, content.id)}
+                      className="btn"
+                    >
+                      View{" "}
+                    </button>
+                    <button
+                      style={{ marginLeft: "10px" }}
+                      onClick={() => onDelete(content.type, content.id)}
+                      className="btn btn-danger"
+                    >
+                      Delete{" "}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

@@ -483,8 +483,10 @@ router.delete("/:contentId", tryCatchWrapper(async (req, res) => {
 router.post("/", tryCatchWrapper(async (req, res) => {
     let content = new ContentV3(req.body);
     content.creation_time = Math.floor(Date.now() / 1000);
-    const contentData = content.toObject()
-    const job = await agenda.now('processNewContent', { content: contentData });
+
+    const savedContent = await content.save();
+
+    const job = await agenda.now('processNewContent', { content: savedContent.toObject() });
     res.json({
         message: "Processing New Content job scheduled!",
         jobId: job.attrs._id
