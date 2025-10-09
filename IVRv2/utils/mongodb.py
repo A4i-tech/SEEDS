@@ -6,8 +6,8 @@ load_dotenv()
 
 class MongoDB:
     def __init__(self, collection_name, db_name="ivr"):
-        connection_string = os.environ.get("MONGO_DB_CONNECTION_STRING", "NONE")
-        if not connection_string:
+        connection_string = os.environ.get("MONGO_DB_CONNECTION_STRING")
+        if not connection_string or connection_string == "NONE":
             raise ValueError("MONGO_DB_CONNECTION_STRING environment variable not set")
         
         client = MongoClient(connection_string)

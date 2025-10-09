@@ -30,8 +30,6 @@ class FSM:
         self.init_state_id = "LA0"
         self.invalid_input_error_actions = [StreamAction(self.WRONG_INPUT_AUDIO_URL)]
         self.empty_input_error_actions = [StreamAction(self.NO_OPTION_CHOSEN_AUDIO_URL)]
-        # self.end_state = State(state_id="END", actions=[TalkAction("Bye bye")])
-        # self.add_state(self.end_state)
     
     def serialize(self) -> IVRfsmDoc:
         states = [state.serialize() for state in self.states.values()]
@@ -41,7 +39,7 @@ class FSM:
             transitions.extend(state.serialize_transitions())
         
         return IVRfsmDoc(
-            id=self.fsm_id,
+            _id=self.fsm_id,
             init_state_id=self.init_state_id,
             states=states,
             transitions=transitions,

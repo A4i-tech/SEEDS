@@ -83,7 +83,7 @@ const AddStory = ({ content, contentType }) => {
 
   const fetchTitlesUnderTheme = useCallback((language, theme) => {
     const filteredContent = allContent.filter(item =>
-      item.language.toLowerCase() === language.toLowerCase() && 
+      item.language.toLowerCase() === language.toLowerCase() &&
       item.theme.toLowerCase() === theme.toLowerCase()
     );
     const titleMap = {};
@@ -155,7 +155,7 @@ const AddStory = ({ content, contentType }) => {
   const [file, setFile] = useState();
   const [answerFile, setAnswerFile] = useState();
   const navigate = useNavigate();
-  
+
 
   const isValid = () => {
     var valid = true;
@@ -183,7 +183,7 @@ const AddStory = ({ content, contentType }) => {
     }
 
     // Check for title duplication under the same theme and language, case insensitively
-    else if (Object.keys(titlesUnderTheme).includes(inputTitleLower)){
+    else if (Object.keys(titlesUnderTheme).includes(inputTitleLower)) {
       alert("Title already exists under this theme and language");
       valid = false;
 
@@ -419,7 +419,7 @@ const AddStory = ({ content, contentType }) => {
             {themes[metadata.language] && Object.keys(themes[metadata.language]).map(theme => (
               <option key={theme} value={theme}>{theme}</option>
             ))}
-            <option value="new-theme" selected={metadata.theme === "new-theme"}>Choose New Theme</option>
+            <option value="new-theme">Choose New Theme</option>
           </select>
         </div>
         {metadata.language !== "english" && (
@@ -430,7 +430,7 @@ const AddStory = ({ content, contentType }) => {
               {themes[metadata.language] && Object.values(themes[metadata.language]).map(localTheme => (
                 <option key={localTheme} value={localTheme}>{localTheme}</option>
               ))}
-              <option value="new-theme" selected={metadata.localTheme === "new-theme"}>Choose New Theme</option>
+              <option value="new-theme">Choose New Theme</option>
             </select>
           </div>
         )}
