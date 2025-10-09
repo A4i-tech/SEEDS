@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { BlockBlobClient } from "@azure/storage-blob";
 import { useNavigate } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
-import { SEEDS_URL } from "../Constants";
+import { SEEDS_URL, AUDIO_BASE_URL } from "../Constants";
 
 const AddStory = ({ content, contentType }) => {
   const [metadata, setMetadata] = useState({
@@ -157,14 +157,14 @@ const AddStory = ({ content, contentType }) => {
       setMetadata(quizMetadata);
       if (contentType !== "Riddle") {
         setAudioSrc(
-          `https://seedsblob.blob.core.windows.net/output-original/${content.id}.mp3`
+          `${AUDIO_BASE_URL}/${content.id}.mp3`
         );
       } else {
         setAudioSrc(
-          `https://seedsblob.blob.core.windows.net/output-original/${content.id}/question.mp3`
+          `${AUDIO_BASE_URL}/${content.id}/question.mp3`
         );
         setAnswerAudioSrc(
-          `https://seedsblob.blob.core.windows.net/output-original/${content.id}/answer.mp3`
+          `${AUDIO_BASE_URL}/${content.id}/answer.mp3`
         );
       }
       fetchTitlesUnderTheme(quizMetadata.language, quizMetadata.theme.english);

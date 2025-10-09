@@ -399,4 +399,4 @@ FodyWeavers.xsd
 
 package-lock.json
 
-IVRv2/venv/
+.venv/
