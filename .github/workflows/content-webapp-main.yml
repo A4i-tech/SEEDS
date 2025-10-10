@@ -9,6 +9,11 @@ on:
     branches: [a4i/main, testing-pipeline-seeds]
     paths:
       - "ContentWebApp/**"
+  workflow_call:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/contentweb-app
 
 jobs:
   test:
@@ -26,28 +31,72 @@ jobs:
 
   deploy-to-docker:
     needs: test
-    if: github.ref == 'refs/heads/a4i/main'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
       - name: Build and push Docker image
-        run: |
-          echo "Building Docker image for ContentWebApp"
+        uses: docker/build-push-action@v5
+        with:
+          context: ./ContentWebApp
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
 
   deploy-to-render:
     needs: deploy-to-docker
-    if: github.ref == 'refs/heads/a4i/main'  && (vars.DEPLOYMENT_TARGET == 'render' || vars.DEPLOYMENT_TARGET == 'both' || vars.DEPLOYMENT_TARGET == '' || vars.DEPLOYMENT_TARGET == null)
+    if: (vars.DEPLOYMENT_TARGET == 'render' || vars.DEPLOYMENT_TARGET == 'both' || vars.DEPLOYMENT_TARGET == '' || vars.DEPLOYMENT_TARGET == null)
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to Render
         run: |
-          echo "Deploying ContentWebApp to Render"
+          echo "Triggering deployment for backend-server..."
+          http_code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.BACKEND_SERVER_RENDER_DEPLOY_HOOK_URL }}")
+          echo "HTTP Status Code: $http_code"
+          if [[ $http_code == "200" ]]; then
+            echo "Deployment triggered successfully"
+          else
+            echo "Failed to trigger deployment (HTTP $http_code)"
+            exit 1
+          fi
+
 
   deploy-to-azure:
     needs: deploy-to-docker
-    if: github.ref == 'refs/heads/a4i/main'  && (vars.DEPLOYMENT_TARGET == 'azure' || vars.DEPLOYMENT_TARGET == 'both')
+    if: (vars.DEPLOYMENT_TARGET == 'azure' || vars.DEPLOYMENT_TARGET == 'both')
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy to Azure
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ vars.BACKEND_SERVER_AZURE_WEBAPP_NAME}}
+          resource-group-name: ${{ vars.BACKEND_SERVER_AZURE_RESOURCE_GROUP }}
+          images: ghcr.io/${{ github.repository }}/backend-server:latest
+
+      - name: Azure deployment confirmation
         run: |
-          echo "Deploying ContentWebApp to Azure"
+          echo "Azure deployment completed for backend-server"

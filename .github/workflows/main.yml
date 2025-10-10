@@ -9,3 +9,18 @@ jobs:
     run-backend-workflow:
         uses: ./.github/workflows/backend-server-main.yml
         secrets: inherit
+    run-conferencev2-workflow:
+        uses: ./.github/workflows/conference-v2-main.yml
+        secrets: inherit
+    run-contentwebapp-workflow:
+        uses: ./.github/workflows/content-webapp-main.yml
+        secrets: inherit
+    run-websocket-service-workflow:
+        uses: ./.github/workflows/websocket-service-main.yml
+        secrets: inherit
+    run-ivrv2-workflow:
+        uses: ./.github/workflows/ivr-v2-main.yml
+        secrets: inherit
+    run-teacher-webapp-workflow:
+        uses: ./.github/workflows/teacher-webapp-main.yml
+        secrets: inherit
