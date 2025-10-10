@@ -3,24 +3,22 @@ name: Backend Server Main
 on:
   push:
     paths:
-      - 'backend-server/**'
+      - "backend-server/**"
   pull_request:
     paths:
-      - 'backend-server/**'
+      - "backend-server/**"
 
 jobs:
   test:
     uses: ./.github/workflows/backend-server/test.yml
-  
+
   deploy-to-docker:
     needs: test
-    if: github.ref == 'refs/heads/a4i/main' 
     uses: ./.github/workflows/backend-server/deploy-docker.yml
     secrets: inherit
 
   deploy-to-render:
     needs: deploy-to-docker
-    if: github.ref == 'refs/heads/a4i/main'  && (vars.DEPLOYMENT_TARGET == 'render' || vars.DEPLOYMENT_TARGET == 'both' || vars.DEPLOYMENT_TARGET == '' || vars.DEPLOYMENT_TARGET == null)
     uses: ./.github/workflows/backend-server/deploy-render.yml
     secrets: inherit
     with:
@@ -28,7 +26,6 @@ jobs:
 
   deploy-to-azure:
     needs: deploy-to-docker
-    if: github.ref == 'refs/heads/a4i/main'  && (vars.DEPLOYMENT_TARGET == 'azure' || vars.DEPLOYMENT_TARGET == 'both')
     uses: ./.github/workflows/backend-server/deploy-azure.yml
     secrets: inherit
     with:
