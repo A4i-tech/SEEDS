@@ -2,22 +2,27 @@ import { useState, useEffect, useCallback } from "react";
 import { BlockBlobClient } from "@azure/storage-blob";
 import { useNavigate } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
-import { SEEDS_URL } from "../Constants";
+import { SEEDS_URL, AUDIO_BASE_URL } from "../Constants";
 
 const AddStory = ({ content, contentType }) => {
   const [metadata, setMetadata] = useState({
-    title: "",
-    localTitle: "",
-    theme: "",
-    localTheme: "",
+    id: "",
+    type: "Story",
     description: "",
     language: "kannada",
-    audioFile: "",
-    answerAudioFile: "",
+    title: { english: "", local: "", audioUrl: "" },
+    theme: { english: "", local: "", audioUrl: "" },
+    audioContent: [],
+    createdBy: "",
     isPullModel: false,
     isTeacherApp: true,
     isProcessed: false,
+    isDeleted: false,
+    audioFile: "",       // for upload only (not sent to backend)
+    answerAudioFile: ""  // for upload only (not sent to backend)
   });
+
+
 
   const [titlesUnderTheme, setTitlesUnderTheme] = useState([]);
   const [audioSrc, setAudioSrc] = useState();
@@ -55,27 +60,32 @@ const AddStory = ({ content, contentType }) => {
   };
 
   const handleThemeChange = (event) => {
-    const { value } = event.target;
+    const { value, name } = event.target;
     if (value === "new-theme") {
       setNewTheme(true);
       setTitlesUnderTheme([]);
       setMetadata(prev => ({
         ...prev,
-        theme: "new-theme",
-        localTheme: "new-theme",
-        title: "", // Reset title
-        localTitle: "" // Reset local title
+        theme: { english: name === "theme" ? "" : prev.theme.english, local: name === "localTheme" ? "" : prev.theme.local, audioUrl: "" },
+        // Reset title as object
+        title: { english: "", local: "", audioUrl: "" },
       }));
     } else {
       setNewTheme(false);
-      const englishTheme = Object.keys(themes[metadata.language]).find(key => themes[metadata.language][key] === value || key === value);
-      const localTheme = themes[metadata.language][englishTheme];
+      let englishTheme = "";
+      let localTheme = "";
+      if (name === "theme") {
+        englishTheme = value;
+        localTheme = themes[metadata.language][value];
+      } else {
+        localTheme = value;
+        englishTheme = Object.keys(themes[metadata.language]).find(key => themes[metadata.language][key] === value);
+      }
       setMetadata(prev => ({
         ...prev,
-        theme: englishTheme,
-        localTheme: localTheme,
-        title: "", // Reset title
-        localTitle: "" // Reset local title
+        theme: { english: englishTheme || "", local: localTheme || "", audioUrl: "" },
+        // Reset title as object
+        title: { english: "", local: "", audioUrl: "" },
       }));
       fetchTitlesUnderTheme(metadata.language, englishTheme);
     }
@@ -98,10 +108,8 @@ const AddStory = ({ content, contentType }) => {
     setMetadata(prev => ({
       ...prev,
       language: newLanguage,
-      theme: "", // Reset theme on language change
-      localTheme: "", // Also reset the local theme,
-      title: "", // Reset title
-      localTitle: "" // Reset local title
+      theme: { english: "", local: "", audioUrl: "" },
+      title: { english: "", local: "", audioUrl: "" },
     }));
     setNewTheme(false);
     setTitlesUnderTheme([]); // Clear titles under theme when language changes
@@ -121,36 +129,49 @@ const AddStory = ({ content, contentType }) => {
   }, []);
 
   useEffect(() => {
-
     if (content) {
       const quizMetadata = {
-        title: content.title,
-        localTitle: content.localTitle,
-        theme: content.theme,
-        localTheme: content.localTheme,
-        description: content.description,
-        language: content.language,
-        isPullModel: content.isPullModel,
-        isTeacherApp: content.isTeacherApp,
-        isProcessed: content.isProcessed,
+        id: content.id,
+        type: content.type || "Story",
+        description: content.description || "",
+        language: content.language || "kannada",
+        title: {
+          english: content.title?.english || "",
+          local: content.title?.local || "",
+          audioUrl: content.title?.audioUrl || ""
+        },
+        theme: {
+          english: content.theme?.english || "",
+          local: content.theme?.local || "",
+          audioUrl: content.theme?.audioUrl || ""
+        },
+        audioContent: content.audioContent || [],
+        createdBy: content.createdBy || "",
+        isPullModel: content.isPullModel ?? false,
+        isTeacherApp: content.isTeacherApp ?? true,
+        isProcessed: content.isProcessed ?? false,
+        isDeleted: content.isDeleted ?? false,
+        audioFile: "",
+        answerAudioFile: ""
       };
-      console.log("quizMetadata", quizMetadata);
       setMetadata(quizMetadata);
       if (contentType !== "Riddle") {
         setAudioSrc(
-          `https://seedsblob.blob.core.windows.net/output-original/${content.id}.mp3`
+          `${AUDIO_BASE_URL}/${content.id}.mp3`
         );
       } else {
         setAudioSrc(
-          `https://seedsblob.blob.core.windows.net/output-original/${content.id}/question.mp3`
+          `${AUDIO_BASE_URL}/${content.id}/question.mp3`
         );
         setAnswerAudioSrc(
-          `https://seedsblob.blob.core.windows.net/output-original/${content.id}/answer.mp3`
+          `${AUDIO_BASE_URL}/${content.id}/answer.mp3`
         );
       }
-      fetchTitlesUnderTheme(quizMetadata.language, quizMetadata.theme);
+      fetchTitlesUnderTheme(quizMetadata.language, quizMetadata.theme.english);
     }
   }, [content, contentType, fetchTitlesUnderTheme]);
+
+
 
   const [file, setFile] = useState();
   const [answerFile, setAnswerFile] = useState();
@@ -159,57 +180,46 @@ const AddStory = ({ content, contentType }) => {
 
   const isValid = () => {
     var valid = true;
-
-    // Convert user input title to lowercase for case-insensitive comparison
-    const inputTitleLower = metadata.title.toLowerCase();
-    const inputLocalTitleLower = metadata.localTitle.toLowerCase();
-
+    const inputTitleLower = (metadata.title.english || "").toLowerCase();
+    const inputLocalTitleLower = (metadata.title.local || "").toLowerCase();
     // Check if title is empty
-    if (!metadata.title) {
+    if (!metadata.title.english) {
       alert("Title cannot be empty");
       valid = false;
     }
-
     // Check if language is empty
     else if (!metadata.language) {
       alert("Language cannot be empty");
       valid = false;
     }
-
     // Check if theme or localTheme is empty or if new theme is being created
-    else if (!metadata.theme || metadata.theme === "new-theme" || !metadata.localTheme || metadata.localTheme === "new-theme") {
+    else if (!metadata.theme.english || metadata.theme.english === "new-theme" || !metadata.theme.local || metadata.theme.local === "new-theme") {
       alert("Theme and local theme cannot be empty");
       valid = false;
     }
-
     // Check for title duplication under the same theme and language, case insensitively
     else if (Object.keys(titlesUnderTheme).includes(inputTitleLower)) {
       alert("Title already exists under this theme and language");
       valid = false;
-
     } else if (Object.values(titlesUnderTheme).includes(inputLocalTitleLower)) {
       alert("Local title already exists under this theme and language");
       valid = false;
     }
-
     //Check that localTitle is not empty if language is not english
-    else if (metadata.language !== "english" && !metadata.localTitle) {
+    else if (metadata.language !== "english" && !metadata.title.local) {
       alert("Local Title cannot be empty");
       valid = false;
     }
-
     // Check if audio file is provided when it is supposed to be uploaded
     else if (!audioSrc && !metadata.audioFile) {
       alert("Audio file cannot be empty");
       valid = false;
     }
-
     // Check if answer audio file is provided when it is supposed to be uploaded
     else if (contentType === "Riddle" && !answerAudioSrc && !metadata.answerAudioFile) {
       alert("Answer audio file cannot be empty");
       valid = false;
     }
-
     return valid;
   };
 
@@ -224,9 +234,23 @@ const AddStory = ({ content, contentType }) => {
   };
 
   const sendStory = async () => {
-    const id = content ? content.id : uuidv4();
-    var newMetadata = { ...metadata, id };
-    newMetadata["type"] = contentType;
+    const _id = content ? content.id : uuidv4();
+    // Always send title and theme as objects
+    var newMetadata = {
+      ...metadata,
+      _id,
+      type: contentType,
+      title: {
+        english: metadata.title.english || "",
+        local: metadata.title.local || "",
+        audioUrl: metadata.title.audioUrl || ""
+      },
+      theme: {
+        english: metadata.theme.english || "",
+        local: metadata.theme.local || "",
+        audioUrl: metadata.theme.audioUrl || ""
+      }
+    };
     var isAudioUploaded = "true";
     if (!metadata.audioFile && !metadata.answerAudioFile) {
       newMetadata["isProcessed"] = metadata.isProcessed;
@@ -234,7 +258,6 @@ const AddStory = ({ content, contentType }) => {
     }
     delete newMetadata["audioFile"];
     delete newMetadata["answerAudioFile"];
-
     if (content) {
       newMetadata = { ...newMetadata, _id: content._id };
       const seedsRes = await fetch(
@@ -260,12 +283,11 @@ const AddStory = ({ content, contentType }) => {
       });
       await seedsRes.json();
     }
-
     if (metadata.audioFile) {
       const extname = metadata.audioFile.split(".").pop();
-      var filename = `${id}.${extname}`;
+      var filename = `${_id}.${extname}`;
       if (contentType === "Riddle") {
-        filename = `${id}_question.${extname}`;
+        filename = `${_id}_question.${extname}`;
       }
       const res = await fetch(
         `${SEEDS_URL}/content/sasToken?` +
@@ -279,13 +301,8 @@ const AddStory = ({ content, contentType }) => {
           },
         }
       );
-
-      // console.log("SATOKEN", await res.json())
       const sasUrl = (await res.json()).sasToken;
-      console.log(sasUrl);
       const client = new BlockBlobClient(sasUrl);
-      console.log("type", typeof file);
-
       const metadataProperties = {
         experience: contentType,
       };
@@ -294,21 +311,16 @@ const AddStory = ({ content, contentType }) => {
       } else {
         metadataProperties["isfinalaudio"] = "false";
       }
-
       if (contentType === "Riddle") {
         metadataProperties["Question"] = "true";
       }
-
       await client.uploadBrowserData(file, {
         metadata: metadataProperties,
       });
-
-      console.log("Question File Uploaded", metadataProperties);
     }
     if (metadata.answerAudioFile) {
       const answerExtname = metadata.answerAudioFile.split(".").pop();
-      var answerFilename = `${id}_answer.${answerExtname}`;
-
+      var answerFilename = `${_id}_answer.${answerExtname}`;
       const resAnswer = await fetch(
         `${SEEDS_URL}/content/sasToken?` +
         new URLSearchParams({
@@ -321,12 +333,8 @@ const AddStory = ({ content, contentType }) => {
           },
         }
       );
-
-      // console.log("SATOKEN", await res.json())
       const sasUrlAnswer = (await resAnswer.json()).sasToken;
-      console.log(sasUrlAnswer);
       const clientAnswer = new BlockBlobClient(sasUrlAnswer);
-
       await clientAnswer.uploadBrowserData(answerFile, {
         metadata: {
           experience: contentType,
@@ -334,10 +342,7 @@ const AddStory = ({ content, contentType }) => {
           isfinalaudio: "true",
         },
       });
-      console.log("Answer File Uploaded");
     }
-
-    console.log(newMetadata);
     navigate("/content");
   };
 
@@ -414,23 +419,23 @@ const AddStory = ({ content, contentType }) => {
         </div> */}
         <div>
           <label>English Theme</label>
-          <select name="theme" value={metadata.theme} onChange={handleThemeChange} className="mintgreen">
-            <option value="">Choose Theme</option> {/* Default option added */}
+          <select name="theme" value={metadata.theme.english} onChange={handleThemeChange} className="mintgreen">
+            <option value="">Choose Theme</option>
             {themes[metadata.language] && Object.keys(themes[metadata.language]).map(theme => (
               <option key={theme} value={theme}>{theme}</option>
             ))}
-            <option value="new-theme">Choose New Theme</option>
+            <option value="new-theme" selected={metadata.theme.local === "new-theme"}>Choose New Theme</option>
           </select>
         </div>
         {metadata.language !== "english" && (
           <div>
             <label>{metadata.language} Theme</label>
-            <select name="localTheme" value={metadata.localTheme} onChange={handleThemeChange} className="mintgreen">
-              <option value="">Choose Theme</option> {/* Default option added */}
+            <select name="localTheme" value={metadata.theme.local} onChange={handleThemeChange} className="mintgreen">
+              <option value="">Choose Theme</option>
               {themes[metadata.language] && Object.values(themes[metadata.language]).map(localTheme => (
                 <option key={localTheme} value={localTheme}>{localTheme}</option>
               ))}
-              <option value="new-theme">Choose New Theme</option>
+              <option value="new-theme" selected={metadata.theme.local === "new-theme"}>Choose New Theme</option>
             </select>
           </div>
         )}
@@ -459,12 +464,12 @@ const AddStory = ({ content, contentType }) => {
         <>
           <div>
             <label>Add New English Theme</label>
-            <input type="text" onChange={(event) => setMetadata({ ...metadata, theme: event.target.value })} className="mintgreen" placeholder="Enter new theme" />
+            <input type="text" value={metadata.theme.english} onChange={(event) => setMetadata({ ...metadata, theme: { ...metadata.theme, english: event.target.value } })} className="mintgreen" placeholder="Enter new theme" />
           </div>
           {metadata.language !== "english" && (
             <div>
               <label>Add New {metadata.language} Theme</label>
-              <input type="text" onChange={(event) => setMetadata({ ...metadata, localTheme: event.target.value })} className="mintgreen" placeholder={`Enter new theme in ${metadata.language}`} />
+              <input type="text" value={metadata.theme.local} onChange={(event) => setMetadata({ ...metadata, theme: { ...metadata.theme, local: event.target.value } })} className="mintgreen" placeholder={`Enter new theme in ${metadata.language}`} />
             </div>)}
         </>
       )}
@@ -474,12 +479,12 @@ const AddStory = ({ content, contentType }) => {
         <br />
         <input
           type="text"
-          name="title"
+          name="titleEnglish"
           className="mintgreen"
           placeholder="Add Title"
-          value={metadata.title || ""}
+          value={metadata.title.english || ""}
           onChange={(event) =>
-            setMetadata({ ...metadata, title: event.target.value })
+            setMetadata({ ...metadata, title: { ...metadata.title, english: event.target.value } })
           }
         />
       </div>
@@ -490,12 +495,12 @@ const AddStory = ({ content, contentType }) => {
           <br />
           <input
             type="text"
-            name="localTitle"
+            name="titleLocal"
             className="mintgreen"
             placeholder="Add Title"
-            value={metadata.localTitle || ""}
+            value={metadata.title.local || ""}
             onChange={(event) =>
-              setMetadata({ ...metadata, localTitle: event.target.value })
+              setMetadata({ ...metadata, title: { ...metadata.title, local: event.target.value } })
             }
           />
         </div>
@@ -503,7 +508,7 @@ const AddStory = ({ content, contentType }) => {
 
       {Object.keys(titlesUnderTheme).length > 0 && !newTheme && (
         <div>
-          <label>Existing Titles under "{metadata.theme}" in {metadata.language}:</label>
+          <label>Existing Titles under "{metadata.theme.english}" in {metadata.language}:</label>
           <ul>
             {Object.entries(titlesUnderTheme).map(([englishTitle, localTitle], index) => (
               <li key={index}>{`${englishTitle} - ${localTitle}`}</li>
