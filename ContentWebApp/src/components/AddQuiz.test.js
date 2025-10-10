@@ -4,7 +4,9 @@ import { MemoryRouter } from "react-router-dom";
 
 describe("AddQuiz", () => {
     it("renders metadata fields and one question by default", () => {
-        render(<AddQuiz />);
+        render( <MemoryRouter>
+                <AddQuiz />
+              </MemoryRouter>);
         expect(screen.getByPlaceholderText(/Add Title/i)).toBeInTheDocument();
         expect(screen.getByRole("combobox")).toBeInTheDocument();
         expect(screen.getByPlaceholderText(/Add Positive Marks/i)).toBeInTheDocument();
@@ -20,7 +22,9 @@ describe("AddQuiz", () => {
     });
 
     it("adds a new question field when '+ Question' is clicked", () => {
-        render(<AddQuiz />);
+        render( <MemoryRouter>
+                <AddQuiz />
+              </MemoryRouter>);
         const addButton = screen.getByRole("button", { name: /\+ Question/i });
         fireEvent.click(addButton);
         // There should be two question textboxes now
