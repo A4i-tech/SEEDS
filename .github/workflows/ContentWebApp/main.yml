@@ -17,10 +17,19 @@ jobs:
     if: github.ref == 'refs/heads/a4i/main' && github.event_name == 'push'
     uses: ./.github/workflows/ContentWebApp/deploy-docker.yml
     secrets: inherit
+
   deploy-to-render:
     needs: deploy-to-docker
-    if: github.ref == 'refs/heads/a4i/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/a4i/main' && github.event_name == 'push' && (vars.DEPLOYMENT_TARGET == 'render' || vars.DEPLOYMENT_TARGET == 'both' || vars.DEPLOYMENT_TARGET == '' || vars.DEPLOYMENT_TARGET == null)
     uses: ./.github/workflows/ContentWebApp/deploy-render.yml
+    secrets: inherit
+    with:
+      service_name: content-webapp
+
+  deploy-to-azure:
+    needs: deploy-to-docker
+    if: github.ref == 'refs/heads/a4i/main' && github.event_name == 'push' && (vars.DEPLOYMENT_TARGET == 'azure' || vars.DEPLOYMENT_TARGET == 'both')
+    uses: ./.github/workflows/ContentWebApp/deploy-azure.yml
     secrets: inherit
     with:
       service_name: content-webapp

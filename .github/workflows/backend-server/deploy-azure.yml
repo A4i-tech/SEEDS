@@ -1,0 +1,31 @@
+name: Deploy to Azure
+
+on:
+  workflow_call:
+    inputs:
+      service_name:
+        description: 'backend server being deployed'
+        required: false
+        type: string
+        default: 'backend-server'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Deploy to Azure Web App
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: ${{ vars.BACKEND_SERVER_AZURE_WEBAPP_NAME}}
+        resource-group-name: ${{ vars.BACKEND_SERVER_AZURE_RESOURCE_GROUP }}
+        images: ghcr.io/${{ github.repository }}/${{ inputs.service_name }}:latest
+
+    - name: Azure deployment confirmation
+      run: |
+        echo "Azure deployment completed for ${{ inputs.service_name }}"
