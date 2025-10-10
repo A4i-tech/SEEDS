@@ -3,12 +3,8 @@ name: WebSocket Service Main
 on:
   push:
     branches: [ a4i/main , testing-pipeline-seeds]
-    paths:
-      - 'websocket-service/**'
   pull_request:
     branches: [ a4i/main , testing-pipeline-seeds]
-    paths:
-      - 'websocket-service/**'
 
 jobs:
   test:
