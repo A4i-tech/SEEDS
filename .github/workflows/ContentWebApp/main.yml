@@ -2,9 +2,11 @@ name: Content Web App Main
 
 on:
   push:
+    branches: [ a4i/main ]
     paths:
       - 'ContentWebApp/**'
   pull_request:
+    branches: [ a4i/main ]
     paths:
       - 'ContentWebApp/**'
 

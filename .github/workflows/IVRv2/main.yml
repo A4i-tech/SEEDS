@@ -2,9 +2,11 @@ name: IVR v2 Main
 
 on:
   push:
+    branches: [ a4i/main ]
     paths:
       - 'IVRv2/**'
   pull_request:
+    branches: [ a4i/main ]
     paths:
       - 'IVRv2/**'
 

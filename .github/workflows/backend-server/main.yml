@@ -2,9 +2,11 @@ name: Backend Server Main
 
 on:
   push:
+    branches: [ a4i/main ]
     paths:
       - 'backend-server/**'
   pull_request:
+    branches: [ a4i/main ]
     paths:
       - 'backend-server/**'
 
