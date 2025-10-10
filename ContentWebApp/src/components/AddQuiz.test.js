@@ -54,7 +54,7 @@ describe("AddQuiz", () => {
         };
         render(<MemoryRouter>
                 <AddQuiz quiz={quiz} />
-               <MemoryRouter>);
+            </MemoryRouter>);
         expect(screen.getByDisplayValue("Sample Quiz")).toBeInTheDocument();
         // Check that the correct language option is selected by checking the selected option's text
         const select = screen.getByRole("combobox");
