@@ -1,0 +1,53 @@
+name: IVR v2 Main
+
+on:
+  push:
+    branches: [a4i/main, testing-pipeline-seeds]
+    paths:
+      - "IVRv2/**"
+  pull_request:
+    branches: [a4i/main, testing-pipeline-seeds]
+    paths:
+      - "IVRv2/**"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+      - name: Install dependencies
+        run: cd IVRv2 && pip install -r requirements.txt
+      - name: Run tests
+        run: cd IVRv2 && python -m pytest
+
+  deploy-to-docker:
+    needs: test
+    if: github.ref == 'refs/heads/a4i/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and push Docker image
+        run: |
+          echo "Building Docker image for IVRv2"
+
+  deploy-to-render:
+    needs: deploy-to-docker
+    if: github.ref == 'refs/heads/a4i/main'  && (vars.DEPLOYMENT_TARGET == 'render' || vars.DEPLOYMENT_TARGET == 'both' || vars.DEPLOYMENT_TARGET == '' || vars.DEPLOYMENT_TARGET == null)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Render
+        run: |
+          echo "Deploying IVRv2 to Render"
+
+  deploy-to-azure:
+    needs: deploy-to-docker
+    if: github.ref == 'refs/heads/a4i/main'  && (vars.DEPLOYMENT_TARGET == 'azure' || vars.DEPLOYMENT_TARGET == 'both')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Azure
+        run: |
+          echo "Deploying IVRv2 to Azure"

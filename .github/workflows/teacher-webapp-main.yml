@@ -1,0 +1,53 @@
+name: Teacher Web App Main
+
+on:
+  push:
+    branches: [a4i/main, testing-pipeline-seeds]
+    paths:
+      - "teacher-webapp/**"
+  pull_request:
+    branches: [a4i/main, testing-pipeline-seeds]
+    paths:
+      - "teacher-webapp/**"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        run: cd teacher-webapp && npm ci
+      - name: Run tests
+        run: cd teacher-webapp && npm test
+
+  deploy-to-docker:
+    needs: test
+    if: github.ref == 'refs/heads/a4i/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and push Docker image
+        run: |
+          echo "Building Docker image for teacher-webapp"
+
+  deploy-to-render:
+    needs: deploy-to-docker
+    if: github.ref == 'refs/heads/a4i/main'  && (vars.DEPLOYMENT_TARGET == 'render' || vars.DEPLOYMENT_TARGET == 'both' || vars.DEPLOYMENT_TARGET == '' || vars.DEPLOYMENT_TARGET == null)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Render
+        run: |
+          echo "Deploying teacher-webapp to Render"
+
+  deploy-to-azure:
+    needs: deploy-to-docker
+    if: github.ref == 'refs/heads/a4i/main'  && (vars.DEPLOYMENT_TARGET == 'azure' || vars.DEPLOYMENT_TARGET == 'both')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Azure
+        run: |
+          echo "Deploying teacher-webapp to Azure"
