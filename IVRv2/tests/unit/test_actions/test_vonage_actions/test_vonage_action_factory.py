@@ -195,7 +195,7 @@ class TestVonageActionFactory:
         with pytest.raises(NotImplementedError):
             factory.get_action_implmentation(unsupported_action)
 
-    @patch.dict(os.environ, {'NGROK_URL': 'https://custom.ngrok.io'})
+    @patch.dict(os.environ, {'BASE_URL': 'https://custom.ngrok.io'})
     def test_input_action_with_custom_ngrok_url(self):
         """Test InputAction with custom NGROK URL from environment."""
         base_action = self.create_input_action("custom_url")

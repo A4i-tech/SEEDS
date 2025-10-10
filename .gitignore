@@ -403,3 +403,5 @@ IVRv2/venv/
 .idea/
 fsm-visual-refactored.txt
 .venv/
+.gradle/
+build/

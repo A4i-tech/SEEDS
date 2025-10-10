@@ -19,7 +19,7 @@ load_dotenv()
 # Instantiate with dummy values
 action1 = TalkAction(text="Hello Roshni", bargeIn=True, loop=2, language="en-US")
 action2 = StreamAction(url="https://example.com/stream", volume=0.5, bargeIn=False, loop=1)
-action3 = InputAction(eventUrl="https://example.com/stream", type_=["dtmf"], maxDigits=5, timeOut=10, submitOnHash=True)
+action3 = InputAction(eventApi="/stream", type_=["dtmf"], maxDigits=5, timeOut=10, submitOnHash=True)
 
 # print(action1.get())
 # print(action2.get())
@@ -33,7 +33,7 @@ va3 = VonageActionFactory().get_action_implmentation(action3)
 # print(VonageActionFactory().get_action_accumulator_implmentation().combine([va1, va2, va3]))
 
 fsm = FSM(fsm_id="fsm1")
-input_action = InputAction(type_=["dtmf"], eventUrl=os.getenv('BASE_URL') + '/input')
+input_action = InputAction(type_=["dtmf"], eventApi='/input')
 state1 = State(state_id="1", actions = [StreamAction(url = 'https://contentmenu.blob.core.windows.net/menu/WelcomeToSeedsNinad.mp3'),
                                         TalkAction(text="Press 1 to start and press 3 to exit"),
                                         input_action])

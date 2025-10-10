@@ -1,0 +1,34 @@
+name: Conference V2 Main
+
+on:
+  push:
+    paths:
+      - 'ConferenceV2/**'
+  pull_request:
+    paths:
+      - 'ConferenceV2/**'
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Force deployment (for testing)'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  test:
+    uses: ./.github/workflows/ConferenceV2/test.yml
+  
+  deploy-to-docker:
+    needs: test
+    if: github.ref == 'refs/heads/a4i/main' && github.event_name == 'push'
+    uses: ./.github/workflows/ConferenceV2/deploy-docker.yml
+    secrets: inherit
+
+  deploy-to-render:
+    needs: deploy-to-docker
+    if: github.ref == 'refs/heads/a4i/main' && github.event_name == 'push'
+    uses: ./.github/workflows/ConferenceV2/deploy-render.yml
+    secrets: inherit
+    with:
+      service_name: conference-v2

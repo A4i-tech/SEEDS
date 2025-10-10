@@ -4,6 +4,11 @@ from unittest.mock import AsyncMock, Mock, patch
 import sys
 import os
 
+# Set environment variables before any imports that might need them
+os.environ['STORAGE_ACCOUNT_NAME'] = 'test'
+os.environ['ENVIRONMENT'] = 'development'  # Force development mode to avoid Azure App Insights
+os.environ['APPLICATIONINSIGHTS_CONNECTION_STRING'] = 'InstrumentationKey=test-key;IngestionEndpoint=https://test.com/'
+
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 
 from services.conference_call import ConferenceCall

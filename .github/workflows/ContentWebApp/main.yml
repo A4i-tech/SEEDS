@@ -1,0 +1,26 @@
+name: Content Web App Main
+
+on:
+  push:
+    paths:
+      - 'ContentWebApp/**'
+  pull_request:
+    paths:
+      - 'ContentWebApp/**'
+
+jobs:
+  test:
+    uses: ./.github/workflows/ContentWebApp/test.yml
+  
+  deploy-to-docker:
+    needs: test
+    if: github.ref == 'refs/heads/a4i/main' && github.event_name == 'push'
+    uses: ./.github/workflows/ContentWebApp/deploy-docker.yml
+    secrets: inherit
+  deploy-to-render:
+    needs: deploy-to-docker
+    if: github.ref == 'refs/heads/a4i/main' && github.event_name == 'push'
+    uses: ./.github/workflows/ContentWebApp/deploy-render.yml
+    secrets: inherit
+    with:
+      service_name: content-webapp

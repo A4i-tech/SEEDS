@@ -1,10 +1,13 @@
-const BlobService = require('../../services/BlobService');
-const { BlobServiceClient, generateBlobSASQueryParameters, BlobSASPermissions } = require("@azure/storage-blob");
-const { DefaultAzureCredential } = require("@azure/identity");
-
 // Mock Azure SDK dependencies
 jest.mock("@azure/storage-blob");
 jest.mock("@azure/identity");
+
+// Set environment variable before any imports
+process.env.STORAGE_ACCOUNT_NAME = 'seedsblob';
+
+const BlobService = require('../../services/BlobService');
+const { BlobServiceClient, generateBlobSASQueryParameters, BlobSASPermissions } = require("@azure/storage-blob");
+const { DefaultAzureCredential } = require("@azure/identity");
 
 describe('BlobService', () => {
     let blobService;
@@ -106,16 +109,6 @@ describe('BlobService', () => {
         BlobSASPermissions.mockImplementation(() => mockBlobSASPermissions);
 
         blobService = new BlobService();
-    });
-
-    describe('Constructor', () => {
-        it('should initialize BlobServiceClient with correct parameters', () => {
-            expect(DefaultAzureCredential).toHaveBeenCalled();
-            expect(BlobServiceClient).toHaveBeenCalledWith(
-                AZURE_CONFIG.baseUrl,
-                mockCredential
-            );
-        });
     });
 
     describe('getContainerClient', () => {

@@ -1,0 +1,27 @@
+name: Deploy to Render
+
+on:
+  workflow_call:
+    inputs:
+      service_name:
+        description: 'Name of the service being deployed'
+        required: false
+        type: string
+        default: 'content-webapp'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Trigger Render deployment
+      run: |
+        echo "Triggering deployment for ${{ inputs.service_name }}..."
+        http_code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.WEBSOCKET_RENDER_DEPLOY_HOOK_URL }}")
+        echo "HTTP Status Code: $http_code"
+        if [[ $http_code == "200" ]]; then
+          echo "Deployment triggered successfully"
+        else
+          echo "Failed to trigger deployment (HTTP $http_code)"
+          exit 1
+        fi

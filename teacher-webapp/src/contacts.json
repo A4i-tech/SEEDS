@@ -1,0 +1,51 @@
+{
+    "teachers": [
+        {
+            "name": "Kavyansh Chourasia",
+            "phone_number": "917999435373",
+            "role": "Teacher",
+            "raised_at": -1,
+            "is_raised": false,
+            "is_muted": false,
+            "call_status": "disconnected"
+        },
+        {
+            "name": "Prajjwal Jha",
+            "phone_number": "918962884701",
+            "role": "Teacher",
+            "raised_at": -1,
+            "is_raised": false,
+            "is_muted": false,
+            "call_status": "disconnected"
+        }
+    ],
+    "students": [
+        {
+            "name": "Smart Phone Motorola",
+            "phone_number": "918904954836",
+            "role": "Student",
+            "raised_at": -1,
+            "is_raised": false,
+            "is_muted": true,
+            "call_status": "disconnected"
+        },
+        {
+            "name": "Ashwani",
+            "phone_number": "917999710236",
+            "role": "Student",
+            "raised_at": -1,
+            "is_raised": false,
+            "is_muted": true,
+            "call_status": "disconnected"
+        },
+        {
+            "name": "Feature Phone",
+            "phone_number": "918000000000",
+            "role": "Student",
+            "raised_at": -1,
+            "is_raised": false,
+            "is_muted": true,
+            "call_status": "disconnected"
+        }
+    ]
+}

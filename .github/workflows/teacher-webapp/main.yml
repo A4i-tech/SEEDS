@@ -1,0 +1,27 @@
+name: Teacher Web App Main
+
+on:
+  push:
+    paths:
+      - 'teacher-webapp/**'
+  pull_request:
+    paths:
+      - 'teacher-webapp/**'
+
+jobs:
+  test:
+    uses: ./.github/workflows/teacher-webapp/test.yml
+  
+  deploy-to-docker:
+    needs: test
+    if: github.ref == 'refs/heads/a4i/main' && github.event_name == 'push'
+    uses: ./.github/workflows/teacher-webapp/deploy-docker.yml
+    secrets: inherit
+
+  deploy-to-render:
+    needs: deploy-to-docker
+    if: github.ref == 'refs/heads/a4i/main' && github.event_name == 'push'
+    uses: ./.github/workflows/teacher-webapp/deploy-render.yml
+    secrets: inherit
+    with:
+      service_name: teacher-webapp

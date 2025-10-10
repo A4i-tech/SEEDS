@@ -190,10 +190,13 @@ class TestMainApplication:
         assert "Cannot Update IVR" in data["message"]
         assert "2 users" in data["message"]
 
-    @patch('main.fsm')
-    def test_get_fsm_endpoint_not_found(self, mock_fsm_dict):
+    @patch('main.fsm_json_mongo')
+    @patch('main.radio_fsm_mongo')
+    def test_get_fsm_endpoint_not_found(self, mock_radio_fsm_mongo, mock_fsm_json_mongo):
         """Test FSM retrieval when FSM doesn't exist."""
-        mock_fsm_dict.__getitem__.side_effect = KeyError(self.NON_EXISTENT_FSM)
+        # Mock both MongoDB instances to return None (FSM not found)
+        mock_fsm_json_mongo.find_by_id = AsyncMock(return_value=None)
+        mock_radio_fsm_mongo.find_by_id = AsyncMock(return_value=None)
         
         response = self.client.get(f"/getFSM?fsm_id={self.NON_EXISTENT_FSM}")
         data = self._assert_successful_response(response, 404)

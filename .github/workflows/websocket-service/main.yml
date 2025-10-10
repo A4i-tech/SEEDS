@@ -1,0 +1,27 @@
+name: WebSocket Service Main
+
+on:
+  push:
+    paths:
+      - 'websocket-service/**'
+  pull_request:
+    paths:
+      - 'websocket-service/**'
+
+jobs:
+  test:
+    uses: ./.github/workflows/websocket-service/test.yml
+  
+  deploy-to-docker:
+    needs: test
+    if: github.ref == 'refs/heads/a4i/main' && github.event_name == 'push'
+    uses: ./.github/workflows/websocket-service/deploy-docker.yml
+    secrets: inherit
+
+  deploy-to-render:
+    needs: deploy-to-docker
+    if: github.ref == 'refs/heads/a4i/main' && github.event_name == 'push'
+    uses: ./.github/workflows/websocket-service/deploy-render.yml
+    secrets: inherit
+    with:
+      service_name: websocket-service
