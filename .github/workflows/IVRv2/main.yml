@@ -2,11 +2,11 @@ name: IVR v2 Main
 
 on:
   push:
-    branches: [ a4i/main ]
+    branches: [ a4i/main , testing-pipeline-seeds]
     paths:
       - 'IVRv2/**'
   pull_request:
-    branches: [ a4i/main ]
+    branches: [ a4i/main , testing-pipeline-seeds]
     paths:
       - 'IVRv2/**'
 

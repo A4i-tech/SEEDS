@@ -2,11 +2,11 @@ name: Backend Server Main
 
 on:
   push:
-    branches: [ a4i/main ]
+    branches: [ a4i/main , testing-pipeline-seeds]
     paths:
       - 'backend-server/**'
   pull_request:
-    branches: [ a4i/main ]
+    branches: [ a4i/main , testing-pipeline-seeds]
     paths:
       - 'backend-server/**'
 
