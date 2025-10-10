@@ -1,5 +1,6 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import AddQuiz from "./AddQuiz";
+import { MemoryRouter } from "react-router-dom";
 
 describe("AddQuiz", () => {
     it("renders metadata fields and one question by default", () => {
@@ -27,7 +28,9 @@ describe("AddQuiz", () => {
     });
 
     it("removes a question field when 'Remove' is clicked", () => {
-        render(<AddQuiz />);
+        render(<MemoryRouter>
+                <AddQuiz />
+            </MemoryRouter>);
         const addButton = screen.getByRole("button", { name: /\+ Question/i });
         fireEvent.click(addButton);
         let removeButtons = screen.getAllByRole("button", { name: /Remove/i });
@@ -49,7 +52,9 @@ describe("AddQuiz", () => {
             ],
             id: "quiz-1"
         };
-        render(<AddQuiz quiz={quiz} />);
+        render(<MemoryRouter>
+                <AddQuiz quiz={quiz} />
+               <MemoryRouter>);
         expect(screen.getByDisplayValue("Sample Quiz")).toBeInTheDocument();
         // Check that the correct language option is selected by checking the selected option's text
         const select = screen.getByRole("combobox");
