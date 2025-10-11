@@ -71,8 +71,8 @@ jobs:
     steps:
       - name: Deploy to Render
         run: |
-          echo "Triggering deployment for backend-server..."
-          http_code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.BACKEND_SERVER_RENDER_DEPLOY_HOOK_URL }}")
+          echo "Triggering deployment for teacher-webapp..."
+          http_code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.TEACHER_WEBAPP_RENDER_DEPLOY_HOOK_URL }}")
           echo "HTTP Status Code: $http_code"
           if [[ $http_code == "200" || $http_code == "202" ]]; then
             echo "Deployment triggered successfully"
@@ -94,11 +94,11 @@ jobs:
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v2
         with:
-          app-name: ${{ vars.BACKEND_SERVER_AZURE_WEBAPP_NAME}}
-          resource-group-name: ${{ vars.BACKEND_SERVER_AZURE_RESOURCE_GROUP }}
-          images: ghcr.io/${{ github.repository }}/backend-server:latest
+          app-name: ${{ vars.TEACHER_WEBAPP_AZURE_WEBAPP_NAME}}
+          resource-group-name: ${{ vars.TEACHER_WEBAPP_AZURE_RESOURCE_GROUP }}
+          images: ghcr.io/${{ github.repository }}/teacher-webapp:latest
 
       - name: Azure deployment confirmation
         run: |
-          echo "Azure deployment completed for backend-server"
+          echo "Azure deployment completed for teacher-webapp"
 

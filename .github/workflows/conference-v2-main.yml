@@ -96,10 +96,10 @@ jobs:
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v2
         with:
-          app-name: ${{ vars.BACKEND_SERVER_AZURE_WEBAPP_NAME}}
-          resource-group-name: ${{ vars.BACKEND_SERVER_AZURE_RESOURCE_GROUP }}
-          images: ghcr.io/${{ github.repository }}/backend-server:latest
+          app-name: ${{ vars.CONFERENCE_V2_AZURE_WEBAPP_NAME}}
+          resource-group-name: ${{ vars.CONFERENCE_V2_AZURE_RESOURCE_GROUP }}
+          images: ghcr.io/${{ github.repository }}/conference-v2:latest
 
       - name: Azure deployment confirmation
         run: |
-          echo "Azure deployment completed for backend-server"
+          echo "Azure deployment completed for conference-v2"

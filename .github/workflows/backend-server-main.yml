@@ -64,9 +64,6 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-      - name : Verify Docker image
-        run: |
-          docker pull ghcr.io/${{ github.repository }}/backend-server:latest
 
   deploy-to-render:
     needs: deploy-to-docker
@@ -76,13 +73,16 @@ jobs:
       contents: write
     steps:
       - name: Deploy to Render
-        uses: JorgeLNJunior/render-deploy@v1.4.5
-        with:
-          service_id: ${{ vars.BACKEND_SERVER_RENDER_SERVICE_ID }}
-          api_key: ${{ secrets.RENDER_API_KEY_FOR_GITHUB_ACTIONS }}
-          github_deployment: true
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          wait_deploy: true
+        run: |
+          echo "Triggering deployment for backend-server..."
+          http_code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.BACKEND_SERVER_RENDER_DEPLOY_HOOK_URL }}")
+          echo "HTTP Status Code: $http_code"
+          if [[ $http_code == "200" || $http_code == "202" ]]; then
+            echo "Deployment triggered successfully"
+          else
+            echo "Failed to trigger deployment (HTTP $http_code)"
+            exit 1
+          fi
 
   deploy-to-azure:
     needs: deploy-to-docker
