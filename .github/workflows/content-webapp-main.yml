@@ -27,7 +27,9 @@ jobs:
       - name: Install dependencies
         run: cd ContentWebApp && npm ci
       - name: Run tests
-        run: cd ContentWebApp && npm test
+        run: cd ContentWebApp && npm test -- --coverage --watchAll=false --passWithNoTests
+        env:
+          CI: true
 
   deploy-to-docker:
     needs: test
@@ -78,7 +80,6 @@ jobs:
             echo "Failed to trigger deployment (HTTP $http_code)"
             exit 1
           fi
-
 
   deploy-to-azure:
     needs: deploy-to-docker
