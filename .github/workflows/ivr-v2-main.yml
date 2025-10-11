@@ -74,7 +74,7 @@ jobs:
           echo "Triggering deployment for backend-server..."
           http_code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.BACKEND_SERVER_RENDER_DEPLOY_HOOK_URL }}")
           echo "HTTP Status Code: $http_code"
-          if [[ $http_code == "200" ]]; then
+          if [[ $http_code == "200" || $http_code == "202" ]]; then
             echo "Deployment triggered successfully"
           else
             echo "Failed to trigger deployment (HTTP $http_code)"

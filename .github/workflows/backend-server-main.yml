@@ -69,18 +69,17 @@ jobs:
     needs: deploy-to-docker
     if: (vars.DEPLOYMENT_TARGET == 'render' || vars.DEPLOYMENT_TARGET == 'both' || vars.DEPLOYMENT_TARGET == '' || vars.DEPLOYMENT_TARGET == null)
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Deploy to Render
-        run: |
-          echo "Triggering deployment for backend-server..."
-          http_code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.BACKEND_SERVER_RENDER_DEPLOY_HOOK_URL }}")
-          echo "HTTP Status Code: $http_code"
-          if [[ $http_code == "200" ]]; then
-            echo "Deployment triggered successfully"
-          else
-            echo "Failed to trigger deployment (HTTP $http_code)"
-            exit 1
-          fi
+        uses: JorgeLNJunior/render-deploy@v1.4.5
+        with:
+          service_id: ${{ vars.BACKEND_SERVER_RENDER_SERVICE_ID }}
+          api_key: ${{ secrets.RENDER_API_KEY }}
+          wait_deploy: true
+          github_deployment: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
   deploy-to-azure:
     needs: deploy-to-docker
