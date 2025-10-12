@@ -35,7 +35,7 @@ jest.mock('swagger-ui-react', () => {
 });
 
 // Now import App after all mocks are set up
-import App from './App';
+import App from '../App';
 
 describe('App', () => {
   it('renders without crashing', () => {

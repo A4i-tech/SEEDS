@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from "@testing-library/react";
-import AddQuiz from "./AddQuiz";
+import AddQuiz from "../../components/AddQuiz";
 import { MemoryRouter } from "react-router-dom";
 
 describe("AddQuiz", () => {
