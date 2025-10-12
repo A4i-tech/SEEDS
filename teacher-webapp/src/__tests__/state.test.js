@@ -1,4 +1,4 @@
- import { Participant, AudioContentState, teachers, students } from './state';
+ import { Participant, AudioContentState, teachers, students } from '../state';
 
 describe('State Classes', () => {
     const defaultParticipant = {

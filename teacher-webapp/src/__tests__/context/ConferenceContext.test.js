@@ -1,11 +1,11 @@
 import React from 'react';
 import { renderHook, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { ConferenceProvider, useConference } from './ConferenceContext';
-import { Participant, AudioContentState } from '../state';
+import { ConferenceProvider, useConference } from '../../context/ConferenceContext';
+import { Participant, AudioContentState } from '../../state';
 
 // Mock the state classes
-jest.mock('../state', () => ({
+jest.mock('../../state', () => ({
     AudioContentState: jest.fn().mockImplementation(function (state = {}) {
         this.current_url = state.current_url || "";
         this.status = state.status || "Paused";

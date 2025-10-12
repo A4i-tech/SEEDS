@@ -1,8 +1,8 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { TeacherList } from './TeacherList';
-import { teachers } from '../state';
+import { TeacherList } from '../../components/TeacherList';
+import { teachers } from '../../state';
 
 describe('TeacherList Component', () => {
     const defaultProps = {

@@ -1,11 +1,11 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import App from './App';
-import { ConferenceProvider } from './context/ConferenceContext';
-import * as apiService from './services/apiService';
+import App from '../App';
+import { ConferenceProvider } from '../context/ConferenceContext';
+import * as apiService from '../services/apiService';
 
 // Mock the API service
-jest.mock('./services/apiService');
+jest.mock('../services/apiService');
 const mockedCreateConference = apiService.createConference;
 
 // Mock EventSource

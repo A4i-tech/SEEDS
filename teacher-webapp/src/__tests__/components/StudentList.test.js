@@ -1,8 +1,8 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { StudentList } from './StudentList';
-import { students } from '../state';
+import { StudentList } from '../../components/StudentList';
+import { students } from '../../state';
 
 // Common props for consistent testing
 const defaultProps = {

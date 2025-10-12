@@ -1,4 +1,4 @@
-import * as apiService from './apiService';
+import * as apiService from '../../services/apiService';
 
 // Mock fetch globally
 global.fetch = jest.fn();

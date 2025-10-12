@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { AddParticipantModal } from './AddParticipantModal';
+import { AddParticipantModal } from '../../components/AddParticipantModal';
 
 // Optimized mock data with factory function
 const createMockStudent = (index) => ({
