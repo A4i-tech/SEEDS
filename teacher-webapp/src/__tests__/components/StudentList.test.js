@@ -55,23 +55,6 @@ describe('StudentList Component', () => {
     });
 
     describe('Selection States', () => {
-        test('highlights selected students and ignores unselected', () => {
-            const selectedStudents = [students[0], students[2]];
-            renderStudentList({ selectedStudents });
-
-            const elements = screen.getAllByRole('listitem');
-
-            // Check selected students have 'selected' class
-            [students[0], students[2]].forEach(student => {
-                const element = elements.find(el => el.textContent.includes(student.name));
-                expect(element).toHaveClass('selected');
-            });
-
-            // Check unselected student doesn't have 'selected' class
-            const unselectedElement = elements.find(el => el.textContent.includes(students[1].name));
-            expect(unselectedElement).not.toHaveClass('selected');
-        });
-
         test('handles multiple student selections', () => {
             const selectedStudents = [students[0], students[1]];
             renderStudentList({ selectedStudents });

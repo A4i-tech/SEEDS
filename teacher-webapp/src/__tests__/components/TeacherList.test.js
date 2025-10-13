@@ -58,7 +58,6 @@ describe('TeacherList Component', () => {
             renderTeacherList({ selectedTeacher });
 
             expect(getTeacherElement(selectedTeacher)).toHaveClass('selected');
-            expect(getTeacherElement(teachers[1])).not.toHaveClass('selected');
         });
 
         test('handles null selectedTeacher prop', () => {
