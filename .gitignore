@@ -405,3 +405,4 @@ fsm-visual-refactored.txt
 .venv/
 .gradle/
 build/
+coverage/

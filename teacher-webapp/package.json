@@ -21,6 +21,14 @@
     "@testing-library/user-event": "^13.5.0",
     "web-vitals": "^2.1.4"
   },
+  "jest": {
+    "coverageReporters": [
+      "json-summary",
+      "lcov",
+      "html",
+      "text"
+    ]
+  },
   "eslintConfig": {
     "extends": [
       "react-app",
