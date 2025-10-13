@@ -42,5 +42,23 @@
     "nodemon": "^2.0.19",
     "prettier": "3.5.1",
     "supertest": "^7.1.4"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "collectCoverageFrom": [
+      "**/*.js",
+      "!node_modules/**",
+      "!coverage/**",
+      "!**/*.test.js",
+      "!**/*.spec.js"
+    ],
+    "coverageDirectory": "coverage",
+    "coverageReporters": [
+      "json-summary",
+      "json",
+      "lcov",
+      "text",
+      "html"
+    ]
   }
 }

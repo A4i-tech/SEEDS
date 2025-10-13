@@ -27,7 +27,7 @@ jobs:
       - name: Install dependencies
         run: cd backend-server && npm ci
       - name: Run tests with coverage
-        run: cd backend-server && npm test -- --coverage --coverageReporters=json --coverageReporters=lcov --coverageReporters=text --coverageReporters=html
+        run: cd backend-server && npm test
       - name: Upload coverage to artifacts
         uses: actions/upload-artifact@v4
         if: always()

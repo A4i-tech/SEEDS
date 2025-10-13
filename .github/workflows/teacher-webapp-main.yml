@@ -27,7 +27,9 @@ jobs:
       - name: Install dependencies
         run: cd teacher-webapp && npm ci
       - name: Run tests with coverage
-        run: cd teacher-webapp && npm test -- --coverage --coverageReporters=json --coverageReporters=lcov --coverageReporters=text --coverageReporters=html --watchAll=false
+        run: cd teacher-webapp && npm test -- --coverage --watchAll=false
+        env:
+          CI: true
       - name: Upload coverage to artifacts
         uses: actions/upload-artifact@v4
         if: always()
