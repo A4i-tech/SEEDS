@@ -1,0 +1,38 @@
+[tool.poetry]
+package-mode = false
+
+[project]
+name = "Conferencev2"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Your Name",email = "you@example.com"}
+]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "python-dotenv",
+    "pydantic",
+    "pydantic-settings",
+    "azure-cosmos",
+    "azure-servicebus",
+    "azure-identity",
+    "azure-storage-blob",
+    "vonage<3",
+    "aiohttp",
+    "websockets",
+    "opencensus-ext-azure",
+    "pytz",
+    "httpx"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.group.test.dependencies]
+pytest = "*"
+pytest-asyncio = "*"
