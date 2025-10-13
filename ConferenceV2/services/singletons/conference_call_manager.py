@@ -29,7 +29,7 @@ class ConferenceCallManager:
         self.conferences: Dict[str, ConferenceCall] = {}
         self.ws_base_url = os.environ.get("WS_SERVER_EP", "")
 
-    def create_conference(self, teacher_phone: str, student_phones: List[str]) -> str:
+    def create_conference(self, teacher_phone: str, student_phones: List[str]) -> ConferenceCall:
         conf_id = str(uuid.uuid4())
         conference_call = ConferenceCall(
             conf_id=conf_id,
@@ -42,7 +42,7 @@ class ConferenceCallManager:
         )
         conference_call.set_participant_state(teacher_phone, student_phones)
         self.conferences[conf_id] = conference_call
-        return conf_id
+        return conference_call
    
     async def start_conference_call(self, conf_id: str) -> None:
         conf: ConferenceCall = self.get_conference(conf_id)
