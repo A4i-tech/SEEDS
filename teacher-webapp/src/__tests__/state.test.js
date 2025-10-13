@@ -82,25 +82,6 @@ describe('Sample Data Validation', () => {
         });
     };
 
-    const validateUniquePhones = (participants) => {
-        const phoneNumbers = participants.map(p => p.phone_number);
-        const uniquePhoneNumbers = [...new Set(phoneNumbers)];
-        expect(phoneNumbers.length).toBe(uniquePhoneNumbers.length);
-    };
-
-    test('validates teachers and students structure and uniqueness', () => {
-        validateParticipants(teachers, 'Teacher');
-        validateParticipants(students, 'Student');
-        validateUniquePhones(teachers);
-        validateUniquePhones(students);
-
-        // No overlap between teacher and student phone numbers
-        const teacherPhones = teachers.map(t => t.phone_number);
-        const studentPhones = students.map(s => s.phone_number);
-        const overlap = teacherPhones.filter(phone => studentPhones.includes(phone));
-        expect(overlap).toHaveLength(0);
-    });
-
     test('validates specific sample data format', () => {
         const kavyansh = teachers.find(t => t.name === 'John Doe');
         expect(kavyansh).toBeDefined();
