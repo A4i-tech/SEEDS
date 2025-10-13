@@ -1,18 +1,25 @@
 name: Coverage Summary
 
 on:
-  pull_request:
-    branches: [a4i/main, testing-pipeline-seeds]
   workflow_call:
+  workflow_dispatch:
   workflow_run:
-    workflows: ["Execute backend-server-main"]
+    workflows:
+      [
+        "Backend Server Main",
+        "Conference V2 Main",
+        "Content Web App Main",
+        "Teacher Web App Main",
+        "WebSocket Service Main",
+        "IVR v2 Main",
+      ]
     types:
       - completed
 
 jobs:
   aggregate-coverage:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || (github.event.workflow_run.conclusion == 'success')
+    if: github.event.workflow_run.conclusion == 'success'
     permissions:
       pull-requests: write
       actions: read
