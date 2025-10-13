@@ -3,8 +3,16 @@ FROM python:3.13-slim-bookworm AS builder
 
 WORKDIR /app
 
-COPY requirements.txt ./
-RUN pip install --user --no-cache-dir -r requirements.txt
+RUN pip install poetry
+
+ENV POETRY_VENV_IN_PROJECT=false
+ENV POETRY_CACHE_DIR=/tmp/poetry_cache
+
+COPY pyproject.toml poetry.lock* ./
+
+RUN poetry config virtualenvs.create false \
+    && poetry install --only=main --no-dev --no-root \
+    && rm -rf $POETRY_CACHE_DIR
 
 COPY . .
 
@@ -13,11 +21,9 @@ FROM python:3.13-slim-bookworm
 
 WORKDIR /app
 
-# Copy installed packages from builder
-COPY --from=builder /root/.local /root/.local
+COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --from=builder /app /app
-
-ENV PATH=/root/.local/bin:$PATH
 
 EXPOSE 8210
 
