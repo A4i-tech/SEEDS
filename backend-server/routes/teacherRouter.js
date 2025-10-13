@@ -31,12 +31,16 @@ const router = express.Router();
  *         description: Unauthorized - invalid or missing token
  */
 router.get("/register", tryCatchWrapper(async (req, res) => {
-    var teacher = await Teacher.getTeacherById(req.userId);
-    if(!teacher) {
-        teacher = new Teacher( {email: req.userId, students: [] } )
-        await teacher.save()
+
+    var teacher = await Teacher.findOne({ email: req.user?.email || req.userId });
+    if (!teacher) {
+        teacher = new Teacher({
+            email: req.user?.email || req.userId,
+            students: []
+        });
+        await teacher.save();
     }
-    return res.json(teacher)
+    return res.json(teacher);
 }))
 
 /**

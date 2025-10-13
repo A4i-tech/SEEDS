@@ -32,12 +32,14 @@ function authenticateToken(req, res, next) {
         jwt.verify(token, SECRET_KEY, (err, user) => {
             if (err) return res.sendStatus(STATUS_FORBIDDEN);
             req.user = user;
+            req.userId = user.id || user.email;
             next();
         });
     } else if (AUTH_TYPE === 'firebase') {
         admin.auth().verifyIdToken(token)
             .then((decodedToken) => {
                 req.user = decodedToken;
+                req.userId = decodedToken.uid || decodedToken.email;
                 next();
             })
             .catch(() => res.sendStatus(STATUS_FORBIDDEN));
