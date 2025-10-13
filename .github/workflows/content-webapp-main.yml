@@ -26,10 +26,47 @@ jobs:
           node-version: "20"
       - name: Install dependencies
         run: cd ContentWebApp && npm ci
-      - name: Run tests
-        run: cd ContentWebApp && npm test -- --coverage --watchAll=false --passWithNoTests
+      - name: Run tests with coverage
+        run: cd ContentWebApp && npm test -- --coverage --coverageReporters=json --coverageReporters=lcov --coverageReporters=text --coverageReporters=html --watchAll=false --passWithNoTests
         env:
           CI: true
+      - name: Upload coverage to artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: content-webapp-coverage
+          path: |
+            ContentWebApp/coverage/
+          retention-days: 30
+      - name: Extract coverage percentage
+        id: coverage
+        run: |
+          cd ContentWebApp
+          COVERAGE=$(node -e "
+          try {
+            const fs = require('fs');
+            if (fs.existsSync('coverage/coverage-summary.json')) {
+              const coverage = JSON.parse(fs.readFileSync('coverage/coverage-summary.json', 'utf8'));
+              const pct = coverage.total.lines.pct;
+              console.log(pct);
+            } else {
+              console.log('0');
+            }
+          } catch (e) {
+            console.log('0');
+          }
+          ")
+          echo "percentage=$COVERAGE" >> $GITHUB_OUTPUT
+          echo "Coverage: $COVERAGE%"
+      - name: Create coverage badge
+        uses: schneegans/dynamic-badges-action@v1.7.0
+        with:
+          auth: ${{ secrets.GITHUB_TOKEN }}
+          gistID: ${{ vars.COVERAGE_GIST_ID }}
+          filename: content-webapp-coverage.json
+          label: Content WebApp Coverage
+          message: ${{ steps.coverage.outputs.percentage }}%
+          color: ${{ steps.coverage.outputs.percentage > 80 && 'brightgreen' || steps.coverage.outputs.percentage > 60 && 'yellow' || 'red' }}
 
   deploy-to-docker:
     needs: test

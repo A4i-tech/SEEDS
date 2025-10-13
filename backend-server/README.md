@@ -1,5 +1,7 @@
 # SEEDS Backend Server
 
+[![Backend Server Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/A4i-tech/6445017d0933b3d2f8e57cc8f8a09167/raw/backend-server-coverage.json)](https://github.com/A4i-tech/SEEDS/actions/workflows/backend-server-main.yml)
+
 Backend server for the SEEDS (Student Engagement and Educational Development System) platform, providing RESTful APIs for content management, user authentication, class management, and call handling.
 
 ## Features
@@ -22,12 +24,14 @@ Backend server for the SEEDS (Student Engagement and Educational Development Sys
 ## Installation
 
 1. Clone the repository:
+
    ```bash
    git clone <repository-url>
    cd backend-server
    ```
 
 2. Install dependencies:
+
    ```bash
    npm install
    # or
@@ -122,6 +126,7 @@ yarn test
 ## Production Deployment
 
 1. Build the application:
+
    ```bash
    npm run build
    # or
@@ -151,20 +156,20 @@ pm2 delete seeds-backend   # Remove from PM2
 
 ## Environment Variables
 
-| Variable | Description | Required | Default |
-|----------|-------------|----------|---------|
-| PORT | Server port | No | 4000 |
-| NODE_ENV | Environment (development/production) | No | development |
-| MONGODB_URI | MongoDB connection string | Yes | - |
-| AZURE_STORAGE_CONNECTION_STRING | Azure Storage connection string | Yes | - |
-| AZURE_STORAGE_CONTAINER | Azure Storage container name | Yes | - |
-| FIREBASE_PROJECT_ID | Firebase project ID | Yes | - |
-| FIREBASE_PRIVATE_KEY | Firebase private key | Yes | - |
-| FIREBASE_CLIENT_EMAIL | Firebase client email | Yes | - |
-| JWT_SECRET | Secret for JWT signing | Yes | - |
-| JWT_EXPIRES_IN | JWT expiration time | No | 30d |
-| PHONE_NUMBER_ENCRYPTION_KEY | Key for encrypting phone numbers | Yes | - |
-| IVR_SERVER_URL | URL of the IVR server | Yes | - |
+| Variable                        | Description                          | Required | Default     |
+| ------------------------------- | ------------------------------------ | -------- | ----------- |
+| PORT                            | Server port                          | No       | 4000        |
+| NODE_ENV                        | Environment (development/production) | No       | development |
+| MONGODB_URI                     | MongoDB connection string            | Yes      | -           |
+| AZURE_STORAGE_CONNECTION_STRING | Azure Storage connection string      | Yes      | -           |
+| AZURE_STORAGE_CONTAINER         | Azure Storage container name         | Yes      | -           |
+| FIREBASE_PROJECT_ID             | Firebase project ID                  | Yes      | -           |
+| FIREBASE_PRIVATE_KEY            | Firebase private key                 | Yes      | -           |
+| FIREBASE_CLIENT_EMAIL           | Firebase client email                | Yes      | -           |
+| JWT_SECRET                      | Secret for JWT signing               | Yes      | -           |
+| JWT_EXPIRES_IN                  | JWT expiration time                  | No       | 30d         |
+| PHONE_NUMBER_ENCRYPTION_KEY     | Key for encrypting phone numbers     | Yes      | -           |
+| IVR_SERVER_URL                  | URL of the IVR server                | Yes      | -           |
 
 ## Contributing
 

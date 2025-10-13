@@ -26,8 +26,41 @@ jobs:
           node-version: "20"
       - name: Install dependencies
         run: cd teacher-webapp && npm ci
-      - name: Run tests
-        run: cd teacher-webapp && npm test
+      - name: Run tests with coverage
+        run: cd teacher-webapp && npm test -- --coverage --coverageReporters=json --coverageReporters=lcov --coverageReporters=text --coverageReporters=html --watchAll=false
+      - name: Upload coverage to artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: teacher-webapp-coverage
+          path: |
+            teacher-webapp/coverage/
+          retention-days: 30
+      - name: Extract coverage percentage
+        id: coverage
+        run: |
+          cd teacher-webapp
+          COVERAGE=$(node -e "
+          try {
+            const fs = require('fs');
+            const coverage = JSON.parse(fs.readFileSync('coverage/coverage-summary.json', 'utf8'));
+            const pct = coverage.total.lines.pct;
+            console.log(pct);
+          } catch (e) {
+            console.log('0');
+          }
+          ")
+          echo "percentage=$COVERAGE" >> $GITHUB_OUTPUT
+          echo "Coverage: $COVERAGE%"
+      - name: Create coverage badge
+        uses: schneegans/dynamic-badges-action@v1.7.0
+        with:
+          auth: ${{ secrets.GITHUB_TOKEN }}
+          gistID: ${{ vars.COVERAGE_GIST_ID }}
+          filename: teacher-webapp-coverage.json
+          label: Teacher WebApp Coverage
+          message: ${{ steps.coverage.outputs.percentage }}%
+          color: ${{ steps.coverage.outputs.percentage > 80 && 'brightgreen' || steps.coverage.outputs.percentage > 60 && 'yellow' || 'red' }}
 
   deploy-to-docker:
     needs: test
@@ -101,4 +134,3 @@ jobs:
       - name: Azure deployment confirmation
         run: |
           echo "Azure deployment completed for teacher-webapp"
-

@@ -24,10 +24,52 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: "3.12"
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: true
+          virtualenvs-in-project: true
       - name: Install dependencies
-        run: cd IVRv2 && pip install -r requirements.txt && pip install -r requirements-test.txt
-      - name: Run tests
-        run: cd IVRv2 && python -m pytest
+        run: cd IVRv2 && poetry install --with test
+      - name: Run tests with coverage
+        run: cd IVRv2 && poetry run pytest --cov=. --cov-report=html --cov-report=xml --cov-report=json --cov-report=term
+      - name: Upload coverage to artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ivr-v2-coverage
+          path: |
+            IVRv2/htmlcov/
+            IVRv2/coverage.xml
+            IVRv2/coverage.json
+            IVRv2/.coverage
+          retention-days: 30
+      - name: Extract coverage percentage
+        id: coverage
+        run: |
+          cd IVRv2
+          COVERAGE=$(poetry run python -c "
+          try:
+              import json
+              with open('coverage.json', 'r') as f:
+                  data = json.load(f)
+              coverage = round(data['totals']['percent_covered'], 1)
+              print(coverage)
+          except Exception as e:
+              print('0')
+          ")
+          echo "percentage=$COVERAGE" >> $GITHUB_OUTPUT
+          echo "Coverage: $COVERAGE%"
+      - name: Create coverage badge
+        uses: schneegans/dynamic-badges-action@v1.7.0
+        with:
+          auth: ${{ secrets.GITHUB_TOKEN }}
+          gistID: ${{ vars.COVERAGE_GIST_ID }}
+          filename: ivr-v2-coverage.json
+          label: IVR v2 Coverage
+          message: ${{ steps.coverage.outputs.percentage }}%
+          color: ${{ steps.coverage.outputs.percentage > 80 && 'brightgreen' || steps.coverage.outputs.percentage > 60 && 'yellow' || 'red' }}
 
   deploy-to-docker:
     needs: test
