@@ -22,10 +22,10 @@ process.env.REACT_APP_CONF_SERVER_BASE_URI = 'http://localhost:3001';
 describe('App Component', () => {
     const renderApp = () => render(<ConferenceProvider><App /></ConferenceProvider>);
 
-    const teacherName = 'Kavyansh Chourasia';
+    const teacherName = 'John Doe';
     const studentName = 'Smart Phone Motorola';
-    const teacherPhone = '917999435373';
-    const studentPhone = '918904954836';
+    const teacherPhone = '911234567890';
+    const studentPhone = '911234567890';
 
     const selectTeacherAndStudent = () => {
         fireEvent.click(screen.getByText(new RegExp(teacherName)));
@@ -46,11 +46,11 @@ describe('App Component', () => {
 
             // Teachers
             expect(screen.getByText(new RegExp(teacherName))).toBeInTheDocument();
-            expect(screen.getByText(/Prajjwal Jha/)).toBeInTheDocument();
+            expect(screen.getByText(/Jane Smith/)).toBeInTheDocument();
 
             // Students
             expect(screen.getByText(new RegExp(studentName))).toBeInTheDocument();
-            expect(screen.getByText(/Ashwani/)).toBeInTheDocument();
+            expect(screen.getByText(/Jack Brown/)).toBeInTheDocument();
             expect(screen.getByText(/Feature Phone/)).toBeInTheDocument();
         });
     });

@@ -102,12 +102,12 @@ describe('Sample Data Validation', () => {
     });
 
     test('validates specific sample data format', () => {
-        const kavyansh = teachers.find(t => t.name === 'Kavyansh Chourasia');
+        const kavyansh = teachers.find(t => t.name === 'John Doe');
         expect(kavyansh).toBeDefined();
-        expect(kavyansh.phone_number).toBe('917999435373');
+        expect(kavyansh.phone_number).toBe('911234567890');
 
         const motorola = students.find(s => s.name === 'Smart Phone Motorola');
         expect(motorola).toBeDefined();
-        expect(motorola.phone_number).toBe('918904954836');
+        expect(motorola.phone_number).toBe('911234567890');
     });
 });

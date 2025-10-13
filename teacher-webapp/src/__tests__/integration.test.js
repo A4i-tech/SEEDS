@@ -21,10 +21,10 @@ process.env.REACT_APP_CONF_SERVER_BASE_URI = 'http://localhost:3001';
 describe('Integration Tests - Full App Flow', () => {
     const renderApp = () => render(<ConferenceProvider><App /></ConferenceProvider>);
 
-    const teacherText = 'Kavyansh Chourasia - 917999435373';
-    const teacher2Text = 'Prajjwal Jha - 918962884701';
-    const student1Text = 'Smart Phone Motorola - 918904954836';
-    const student2Text = 'Ashwani - 917999710236';
+    const teacherText = 'John Doe - 911234567890';
+    const teacher2Text = 'Jane Smith - 911234567890';
+    const student1Text = 'Smart Phone Motorola - 911234567890';
+    const student2Text = 'Jack Brown - 911234567890';
 
     const getElement = (text) => screen.getByText(new RegExp(text));
     const getSubmitButton = () => screen.getByRole('button', { name: /submit/i });
