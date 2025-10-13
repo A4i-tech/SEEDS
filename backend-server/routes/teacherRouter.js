@@ -32,10 +32,11 @@ const router = express.Router();
  */
 router.get("/register", tryCatchWrapper(async (req, res) => {
 
-    var teacher = await Teacher.findOne({ email: req.user?.email || req.userId });
+    var userindex = req.user?.email || req.userId;
+    var teacher = await Teacher.getTeacherById(userindex);
     if (!teacher) {
         teacher = new Teacher({
-            email: req.user?.email || req.userId,
+            email: userindex,
             students: []
         });
         await teacher.save();
