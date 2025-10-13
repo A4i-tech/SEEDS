@@ -207,7 +207,7 @@ jobs:
       - name: Update overall coverage badge
         uses: schneegans/dynamic-badges-action@v1.7.0
         with:
-          auth: ${{ secrets.GITHUB_TOKEN }}
+          auth: ${{ secrets.COVERAGE_GIST_TOKEN }}
           gistID: ${{ vars.COVERAGE_GIST_ID }}
           filename: overall-coverage.json
           label: Overall Coverage
