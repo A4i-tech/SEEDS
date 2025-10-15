@@ -1,10 +1,23 @@
+import os
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient, generate_blob_sas, BlobSasPermissions
 from urllib.parse import urlparse, unquote
 import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 class SASGen:
     def __init__(self):
+        self.account_name = os.getenv('AZURE_STORAGE_ACCOUNT_NAME')
+        self.account_key = os.getenv('AZURE_STORAGE_ACCOUNT_KEY')
+        self.sas_expiry_hours = int(os.getenv('SAS_EXPIRY_HOURS', '1'))
+        if self.account_name and self.account_key:
+            self.use_account_key = True
+            logger.info("Using Account Key for Azure Blob Storage authentication.")
+        else:
+            self.use_account_key = False
+            logger.info("Using DefaultAzureCredential for Azure Blob Storage authentication.")
         self.credential = DefaultAzureCredential()
         self.blob_service_client = None
         self.user_delegation_key = None
@@ -13,15 +26,20 @@ class SASGen:
     def get_blob_service_client(self, url):
         if not self.blob_service_client:
             parsed_url = urlparse(url)
-            self.blob_service_client = BlobServiceClient(
-                account_url=f"{parsed_url.scheme}://{parsed_url.netloc}",
-                credential=self.credential)
+            if self.use_account_key:
+                self.blob_service_client = BlobServiceClient(
+                    account_url=f"{parsed_url.scheme}://{parsed_url.netloc}",
+                    credential=self.account_key)
+            else:
+                self.blob_service_client = BlobServiceClient(
+                    account_url=f"{parsed_url.scheme}://{parsed_url.netloc}",
+                    credential=self.credential)
         return self.blob_service_client
 
     def get_user_delegation_key(self, blob_service_client):
         current_time = datetime.datetime.utcnow()
         if not self.user_delegation_key or current_time >= self.key_expiry_time:
-            self.key_expiry_time = current_time + datetime.timedelta(hours=1)
+            self.key_expiry_time = current_time + datetime.timedelta(hours=self.sas_expiry_hours)
             self.user_delegation_key = blob_service_client.get_user_delegation_key(current_time, self.key_expiry_time)
         return self.user_delegation_key
 

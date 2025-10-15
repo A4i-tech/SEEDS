@@ -1,5 +1,9 @@
 package com.example.seeds.utils
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.telephony.TelephonyManager
+import androidx.core.app.ActivityCompat
 import android.content.Context
 import android.database.Cursor
 import android.provider.ContactsContract
@@ -86,4 +90,17 @@ class ContactUtils constructor(private val context: Context) {
     fun getNameFromString(studentString: String): String {
         return contactsMap[studentString]?.name ?: studentString
     }
+
+
+    fun getDevicePhoneNumber(): String? {
+        val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_NUMBERS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            // Permission not granted
+            return null
+        }
+        return tm.line1Number
+    }
+    
 }

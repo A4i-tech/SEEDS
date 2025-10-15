@@ -15,8 +15,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.example.seeds.MainActivity
 import com.example.seeds.R
-import com.google.firebase.auth.ktx.auth
-import com.google.firebase.ktx.Firebase
+//import com.google.firebase.auth.ktx.auth
+//import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -100,28 +100,21 @@ class SplashScreenActivity : AppCompatActivity() {
 
     private fun checkAndNavigate() {
         lifecycleScope.launch {
-//            delay(2000) // Optional: Add delay for splash screen display
+            // Optional splash delay
+            delay(1500)
 
-            // Retrieve login state from SharedPreferences
             val sharedPref = getSharedPreferences("sharedPref", MODE_PRIVATE)
-            Log.d("code", sharedPref.getString("code", null).toString())
-
-            val isLoggedIn = sharedPref.getString("code", null) == "1110"
-            Log.d("CODE", isLoggedIn.toString())
-
-            val intent: Intent
-            if (isLoggedIn) {
-                intent = Intent(activityContext, MainActivity::class.java)
+            val isLoggedIn = sharedPref.getBoolean("is_logged_in", false)
+            val intent = if (isLoggedIn) {
+                Intent(this@SplashScreenActivity, MainActivity::class.java)
             } else {
-                intent = Intent(activityContext, LoginCodeActivity::class.java)
-                intent.flags = intent.flags or Intent.FLAG_ACTIVITY_NO_HISTORY
-                Log.d("REACHED HERE", "")
-
+                Intent(this@SplashScreenActivity, LoginActivity::class.java)
             }
             startActivity(intent)
-//            finish() // Close the SplashScreenActivity
+            finish()
         }
     }
+
 
 
     private fun showPermissionExplanationDialog() {

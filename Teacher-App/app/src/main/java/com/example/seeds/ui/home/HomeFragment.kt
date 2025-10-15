@@ -44,7 +44,7 @@ class HomeFragment : BaseFragment() {
 
         binding.contentList.adapter = ContentListAdapter(ContentListAdapter.OnClickListener {
             if(args.classroom == null) {
-                logMessage("Content clicked: ${it.title} - ${it.id}")
+                logMessage("Content clicked: ${it.titleText} - ${it.id}")
                 findNavController().navigate(
                     HomeFragmentDirections.actionHomeFragmentToContentDetailsFragment2(it)
                 )
@@ -61,7 +61,7 @@ class HomeFragment : BaseFragment() {
                 if(text.isNotEmpty()){
                      logMessage("Content search text: $text")
                     (binding.contentList.adapter as ContentListAdapter).submitList(viewModel.filteredContent.value?.toMutableList()?.filter {
-                        it.title.lowercase().contains(text)
+                        it.titleText.lowercase().contains(text)
                     })
                 } else {
                     (binding.contentList.adapter as ContentListAdapter).submitList(viewModel.filteredContent.value)
@@ -74,7 +74,7 @@ class HomeFragment : BaseFragment() {
                 val classroom = args.classroom
                 classroom!!.contentIds = (binding.contentList.adapter as ContentListAdapter).usersInGroup.toList()
                 val contentChosen = viewModel.allContent.value?.filter { classroom.contentIds.contains(it.id) }
-                logMessage("Navigating back to call settings with content: ${classroom.contentIds} ${contentChosen?.map { it.title }}")
+                logMessage("Navigating back to call settings with content: ${classroom.contentIds} ${contentChosen?.map { it.titleText }}")
                 findNavController().navigate(
                     HomeFragmentDirections.actionHomeFragmentToCallSettingsFragment(classroom).setSelectedStudents(args.selectedStudents)
                 )

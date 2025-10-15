@@ -59,7 +59,7 @@
             android:layout_marginTop="12dp"
             android:ellipsize="end"
             android:singleLine="true"
-            android:text="@{content.title}"
+            android:text="@{content.titleText}"
             android:textAlignment="center"
             android:textSize="23sp"
             app:layout_constraintEnd_toEndOf="parent"

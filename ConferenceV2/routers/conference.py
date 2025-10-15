@@ -33,7 +33,7 @@ async def create_start_conference(request: CreateConferenceRequest):
     await conference_manager.start_conference_call(conference_call_id)
     return {
                 "status": "STARTED", 
-                "id": conference_call_id
+                "id": conference_call_id.conf_id
             }
 
 @router.post("/create")
@@ -41,7 +41,7 @@ async def create_conference(request: CreateConferenceRequest):
     conference_call_id = conference_manager.create_conference(request.teacher_phone, request.student_phones)
     return {
                 "status": "CREATED", 
-                "id": conference_call_id
+                "id": conference_call_id.conf_id
             }
 
 @router.post("/start/{conference_id}")

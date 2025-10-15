@@ -83,7 +83,7 @@ class ContentListAdapter(private val onContentClickListener: OnClickListener? = 
     override fun submitList(usersList: List<Content>?) {
         val newUsersList = usersList?.toMutableList()
         newUsersList?.sortBy {
-            it.title
+            it.titleText
         }
         super.submitList(newUsersList)
     }

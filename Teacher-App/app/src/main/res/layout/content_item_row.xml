@@ -34,7 +34,7 @@
                 android:ellipsize="end"
                 android:singleLine="true"
                 android:layout_marginEnd="@dimen/activity_horizontal_margin"
-                android:text="@{content.title}"
+                android:text="@{content.titleText}"
                 app:layout_constraintBottom_toTopOf="@+id/contact_name2"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toEndOf="@+id/imageView"

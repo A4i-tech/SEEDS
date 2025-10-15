@@ -31,6 +31,7 @@ class CallViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val network: SeedsService,
     private val context: Context,
+
 //    @ApplicationContext private val context: Context,
     private val teacherRepository: TeacherRepository,
     private val contentRepository: ContentRepository,
@@ -197,15 +198,29 @@ class CallViewModel @Inject constructor(
     fun doneNavigating() {
         _navigateBack.value = false
     }
-
     private fun getAccessToken() {
-        viewModelScope.launch { // gave some Fatal Exception: java.lang.IndexOutOfBoundsException Index 0 out of bounds for length 0 error
-            token = network.getAccessToken()
-            allStudents = args.classroom.students //teacherRepository.getMyStudents()
+        viewModelScope.launch {
+            val payload = ConferenceCreateRequest(
+                teacher_phone = teacherPhoneNumber,
+                student_phones = phoneNumbers
+            )
+
+            token = network.getAccessToken(body = payload)
+            allStudents = args.classroom.students
             _callToken.postValue(token)
             connectWebSocket()
         }
     }
+
+
+    // private fun getAccessToken() {
+    //     viewModelScope.launch { // gave some Fatal Exception: java.lang.IndexOutOfBoundsException Index 0 out of bounds for length 0 error
+    //         token = network.getAccessToken()
+    //         allStudents = args.classroom.students //teacherRepository.getMyStudents()
+    //         _callToken.postValue(token)
+    //         connectWebSocket()
+    //     }
+    // }
 
     fun setSelectedContent(content: Content){
         _selectedContent.value = content
@@ -220,16 +235,39 @@ class CallViewModel @Inject constructor(
         _allContent.value = content
     }
 
+
     private fun startCall() {
         viewModelScope.launch {
-            val names = mutableListOf<String>()
-            names.add("Teacher")
-            for(num in args.phoneNumbers.copyOfRange(1, args.phoneNumbers.size))
-                names.add(args.classroom.students.filter { it.phoneNumber == num }[0].name) // this gave index OutOfBound erroor
-            if(!callStarted) {
-                Log.d("CALL STARTED PARAMETERS", phoneNumbers.toString() + " " + names.toString() + " " + _callToken.value!!.confId)
-                network.startCall(CallDetails(_callToken.value!!.confId, phoneNumbers, names))
-                callStarted = true
+            try {
+                val names = mutableListOf<String>()
+                names.add("Teacher")
+                for (num in args.phoneNumbers.drop(1)) {
+                    val student = args.classroom.students.find { it.phoneNumber == num }
+                    if (student != null) names.add(student.name)
+                }
+
+                if (!callStarted) {
+                    val confId = _callToken.value?.confId ?: return@launch
+                    val fullUrl = "http://127.0.0.1:9210/call/start/$confId"
+
+                    Log.d("CALL START", "ConfId: $confId, phones: $phoneNumbers, names: $names")
+
+                    val response = network.startCall(
+                        fullUrl,
+                        CallDetails(confId, phoneNumbers, names)
+                    )
+
+                    if (response.isSuccessful) {
+                        Log.d("CALL START", "Call started successfully")
+                    } else {
+                        Log.e("CALL START", " Failed with code: ${response.code()}")
+                    }
+
+                    callStarted = true
+                }
+
+            } catch (e: Exception) {
+                Log.e("CALL START ERROR", e.toString())
             }
         }
     }

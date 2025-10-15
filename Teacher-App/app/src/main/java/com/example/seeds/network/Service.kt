@@ -10,6 +10,7 @@ import com.squareup.moshi.Moshi
 import dagger.hilt.android.qualifiers.ApplicationContext
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
+import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
 import retrofit2.http.*
@@ -17,11 +18,17 @@ import java.util.*
 import java.util.concurrent.TimeUnit
 
 interface SeedsService {
-    @GET("call/accessToken")
-    suspend fun getAccessToken(): AccessToken
+    @POST
+    suspend fun getAccessToken(
+        @Url fullUrl: String = "http://127.0.0.1:9210/conference/create",
+        @Body body: ConferenceCreateRequest
+    ): AccessToken
 
-    @POST("call/start")
-    suspend fun startCall(@Body callDetails: CallDetails)
+    @POST
+    suspend fun startCall(
+        @Url fullUrl: String,
+        @Body callDetails: CallDetails
+    ): Response<Unit> 
 
     @GET("call/{confId}/status")
     suspend fun getCallStatus(@Path("confId") confId: String): CallStatusDto
@@ -70,27 +77,40 @@ fun provideService(@ApplicationContext context: Context):  SeedsService {
     val httpClientBuilder = OkHttpClient.Builder().apply {
         addInterceptor(
             Interceptor { chain ->
-                var token: String
-                try {
-                    // get shared preferences
+                val sharedPreferences = context.getSharedPreferences("sharedPref", Context.MODE_PRIVATE)
+                val token = sharedPreferences.getString("auth_token", "postman") // default fallback
 
-                    val sharedPreferences = context.getSharedPreferences("sharedPref", Context.MODE_PRIVATE)
-                    var phoneNumber = sharedPreferences.getString("phone", null) // Default value as an example
-                    if (phoneNumber != null) phoneNumber = "+91$phoneNumber"
-                    Log.d("PHONEAUTH", "Phone number is $phoneNumber")
-                    token = phoneNumber ?: "postman"
-
-                    //token = FirebaseToken.getIdToken()
-                } catch (e: NullPointerException) {
-                    token = "postman"
-                    //token = "+919606612444"
-                }
                 val builder = chain.request().newBuilder()
-                builder.header("authtoken", token)
+                builder.header("Authorization", "Bearer $token")
+                // builder.header("authtoken", token)
                 builder.header("signootReqId", UUID.randomUUID().toString())
-                return@Interceptor chain.proceed(builder.build())
+                chain.proceed(builder.build())
             }
         )
+        
+        // addInterceptor(
+        //     Interceptor { chain ->
+        //         var token: String
+        //         try {
+        //             // get shared preferences
+
+        //             val sharedPreferences = context.getSharedPreferences("sharedPref", Context.MODE_PRIVATE)
+        //             var phoneNumber = sharedPreferences.getString("phone", null) // Default value as an example
+        //             if (phoneNumber != null) phoneNumber = "+91$phoneNumber"
+        //             Log.d("PHONEAUTH", "Phone number is $phoneNumber")
+        //             token = phoneNumber ?: "postman"
+
+        //             //token = FirebaseToken.getIdToken()
+        //         } catch (e: NullPointerException) {
+        //             token = "postman"
+        //             //token = "+919606612444"
+        //         }
+        //         val builder = chain.request().newBuilder()
+        //         builder.header("authtoken", token)
+        //         builder.header("signootReqId", UUID.randomUUID().toString())
+        //         return@Interceptor chain.proceed(builder.build())
+        //     }
+        // )
 //        authenticator(authenticator)
         readTimeout(60, TimeUnit.SECONDS)
         connectTimeout(60, TimeUnit.SECONDS)
