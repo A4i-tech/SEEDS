@@ -26,6 +26,7 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
+
     private lateinit var binding: ActivityMainBinding
 
     @Inject
@@ -44,28 +45,31 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
         setSupportActionBar(binding.mainToolbar)
 
+        // Retrieve phone number from SharedPreferences
         val sharedPreferences = getSharedPreferences("sharedPref", Context.MODE_PRIVATE)
         var teacherPhoneNumber = sharedPreferences.getString("phone", null) ?: ""
         teacherPhoneNumber = "+91$teacherPhoneNumber"
         Log.d("MainActivity", "teacherPhoneNumber: $teacherPhoneNumber")
-        if (teacherPhoneNumber.length == 13) TimberInitializer.plantTimberTree(database, teacherPhoneNumber)
-        else TimberInitializer.plantTimberTree(database, "Unknown")
+
+        // Initialize Timber with correct identifier
+        if (teacherPhoneNumber.length == 13)
+            TimberInitializer.plantTimberTree(database, teacherPhoneNumber)
+        else
+            TimberInitializer.plantTimberTree(database, "Unknown")
 
         val navView: BottomNavigationView = binding.navView
         val navController = findNavController(R.id.nav_host_fragment_activity_main)
 
         logMessage("PhoneModel ${Build.MANUFACTURER} ${Build.MODEL} ${Build.PRODUCT}")
 
-        WorkManager.getInstance(applicationContext).getWorkInfosForUniqueWorkLiveData(
-            UploadLogsWorker.WORK_NAME).observe(this, androidx.lifecycle.Observer {
-            it?.let {
-                if (it.isNotEmpty()) {
-                    it.forEach { workInfo ->
-                        WorkManager.getInstance(applicationContext).cancelWorkById(workInfo.id)
-                    }
+        // Cancel any pending UploadLogsWorker jobs
+        WorkManager.getInstance(applicationContext)
+            .getWorkInfosForUniqueWorkLiveData(UploadLogsWorker.WORK_NAME)
+            .observe(this) { list ->
+                list?.forEach { workInfo ->
+                    WorkManager.getInstance(applicationContext).cancelWorkById(workInfo.id)
                 }
             }
-        })
 
         val appBarConfiguration = AppBarConfiguration(
             setOf(
@@ -75,7 +79,7 @@ class MainActivity : AppCompatActivity() {
                 R.id.addStudentsFragment,
                 R.id.addContentToCallFragment2,
                 R.id.callFragment,
-                R.id.classroomFragment,
+                R.id.classroomFragment
             )
         )
         setupActionBarWithNavController(navController, appBarConfiguration)
@@ -101,15 +105,25 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onSupportNavigateUp(): Boolean {
-        onBackPressedDispatcher.onBackPressed()
-        return super.onSupportNavigateUp()
+        val navController = findNavController(R.id.nav_host_fragment_activity_main)
+        return navController.navigateUp() || super.onSupportNavigateUp()
+    }
+
+    override fun onBackPressed() {
+        val navController = findNavController(R.id.nav_host_fragment_activity_main)
+        if (navController.currentDestination?.id == R.id.classroomFragment) {
+            // Go back to home fragment instead of doing nothing
+            navController.navigate(R.id.homeFragment)
+        } else {
+            super.onBackPressed()
+        }
     }
 
     private fun startLogUploadLoop() {
         mainActivityScope.cancel()
         mainActivityScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         mainActivityScope.launch {
-            while (isActive) { // safe cancellation
+            while (isActive) {
                 uploadLogs()
                 delay(30_000)
             }
@@ -123,8 +137,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
-        mainActivityScope.cancel() // stop loop safely
-        lifecycleScope.launch(Dispatchers.IO) { uploadLogs() } // final log upload in background
+        mainActivityScope.cancel()
+        lifecycleScope.launch(Dispatchers.IO) { uploadLogs() } // final upload before stopping
     }
 
     override fun onRestart() {
@@ -133,6 +147,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun logMessage(msg: String) {
-        Timber.tag(this.javaClass.simpleName).d("Appv${Constants.APP_VERSION} $mainActivitySessionId $msg")
+        Timber.tag(this.javaClass.simpleName)
+            .d("Appv${Constants.APP_VERSION} $mainActivitySessionId $msg")
     }
 }

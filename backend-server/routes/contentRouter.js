@@ -25,7 +25,8 @@ const BlobService = require("../services/BlobService.js");
 const processNewContent = require("../jobs/processAudioContent.js");
 const processQuizContent = require("../jobs/processQuizContent.js");
 const { tryCatchWrapper } = require(path.join("..", "util.js"));
-
+const { Binary } = require('mongodb');
+const { parse: uuidParse } = require('uuid');
 // Initialize instances
 const blobService = new BlobService();
 const router = express.Router();
@@ -303,7 +304,7 @@ router.get("/themes",tryCatchWrapper(async (req, res) => {
  * @swagger
  * /content:
  *   get:
- *     summary: Get content based on query parameters
+ *     summary: Get content based on query parameters (supports cursor-based pagination)
  *     tags: [Content]
  *     security:
  *       - bearerAuth: []
@@ -327,57 +328,208 @@ router.get("/themes",tryCatchWrapper(async (req, res) => {
  *         name: ids
  *         schema:
  *           type: string
- *         description: Comma-separated list of content IDs to fetch
+ *         description: Comma-separated list of content IDs to fetch (bypasses pagination)
  *       - in: query
  *         name: onlyTeacherApp
  *         schema:
  *           type: boolean
  *         description: If true, returns only teacher app content
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Number of items to return per page
+ *       - in: query
+ *         name: cursor
+ *         schema:
+ *           type: string
+ *         description: Cursor ID (the _id of the last item from previous page) for pagination
  *     responses:
  *       200:
- *         description: List of content items matching the criteria
+ *         description: Paginated list of content items
  *         content:
  *           application/json:
  *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/ContentV3'
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   description: List of content items
+ *                   items:
+ *                     $ref: '#/components/schemas/ContentV3'
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     nextCursor:
+ *                       type: string
+ *                       nullable: true
+ *                       description: Cursor for fetching the next page (null if no more results)
+ *                     hasMore:
+ *                       type: boolean
+ *                       description: Indicates if there are more results available
+ *                     limit:
+ *                       type: integer
+ *                       description: Number of items returned per page
  */
+
+// router.get("/", tryCatchWrapper(async (req, res) => {
+//     // Fetch by language, theme (English name), and expName (type)
+//     if (req.query.language && req.query.theme && req.query.expName) {
+//         const language = req.query.language;
+//         const theme = decodeURIComponent(req.query.theme).toString(); // English name of the theme
+//         const type = req.query.expName;
+        
+//         const contents = await ContentV3.find({
+//             isPullModel: true,
+//             language: language,
+//             "theme.english": theme,
+//             type: type.toLowerCase()
+//         }).sort({ _id: -1 }).exec();
+
+//         return res.json(contents);
+//     }
+
+//     // Fetch by multiple IDs
+//     if (req.query.ids) {
+//         const idsArray = Array.isArray(req.query.ids) ? req.query.ids : req.query.ids.split(",");
+//         const uuidArray = idsArray.map(id => new Binary(Buffer.from(uuidParse(id)), 4));
+//         const contents = await ContentV3.collection.find({ _id: { $in: uuidArray } }).toArray();
+//         return res.json(contents);
+//     }
+//     // Fetch only teacher-app content
+//     if (req.query.onlyTeacherApp) {
+//         const contents = await ContentV3.find({ isTeacherApp: true }).sort({ _id: -1 }).exec();
+//         return res.json(contents);
+//     }
+
+//     // Default: Fetch all contents
+//     return res.json(await getContent());
+// }));
 router.get("/", tryCatchWrapper(async (req, res) => {
+    // Parse pagination parameters
+    const limit = parseInt(req.query.limit) || 10;
+    const cursor = req.query.cursor;
+
     // Fetch by language, theme (English name), and expName (type)
     if (req.query.language && req.query.theme && req.query.expName) {
         const language = req.query.language;
         const theme = decodeURIComponent(req.query.theme).toString(); // English name of the theme
         const type = req.query.expName;
         
-        const contents = await ContentV3.find({
+        // OLD CODE (without pagination):
+        // const contents = await ContentV3.find({
+        //     isPullModel: true,
+        //     language: language,
+        //     "theme.english": theme,
+        //     type: type.toLowerCase()
+        // }).sort({ _id: -1 }).exec();
+        // return res.json(contents);
+
+        // NEW CODE (with cursor-based pagination):
+        const query = {
             isPullModel: true,
             language: language,
             "theme.english": theme,
             type: type.toLowerCase()
-        }).sort({ _id: -1 }).exec();
+        };
 
-        return res.json(contents);
+        // Add cursor condition if provided
+        if (cursor) {
+            query._id = { $lt: new ObjectId(cursor) };
+        }
+
+        const contents = await ContentV3.find(query)
+            .sort({ _id: -1 })
+            .limit(limit + 1) // Fetch one extra to check if there's more
+            .exec();
+
+        // Check if there are more items
+        const hasMore = contents.length > limit;
+        const data = hasMore ? contents.slice(0, limit) : contents;
+        const nextCursor = hasMore ? data[data.length - 1]._id.toString() : null;
+
+        return res.json({
+            data,
+            pagination: {
+                nextCursor,
+                hasMore,
+                limit
+            }
+        });
     }
 
     // Fetch by multiple IDs
     if (req.query.ids) {
         const idsArray = Array.isArray(req.query.ids) ? req.query.ids : req.query.ids.split(",");
-
-        const contents = await ContentV3.find({ _id: { $in: idsArray } }).exec();
-        return res.json(contents);
-    } 
-
-    // Fetch only teacher-app content
-    if (req.query.onlyTeacherApp) {
-        const contents = await ContentV3.find({ isTeacherApp: true }).sort({ _id: -1 }).exec();
+        const uuidArray = idsArray.map(id => new Binary(Buffer.from(uuidParse(id)), 4));
+        const contents = await ContentV3.collection.find({ _id: { $in: uuidArray } }).toArray();
+        
+        // OLD CODE (kept unchanged for IDs query - no pagination needed):
         return res.json(contents);
     }
 
-    // Default: Fetch all contents
-    return res.json(await getContent());
-}));
+    // Fetch only teacher-app content
+    if (req.query.onlyTeacherApp) {
+        // OLD CODE (without pagination):
+        // const contents = await ContentV3.find({ isTeacherApp: true }).sort({ _id: -1 }).exec();
+        // return res.json(contents);
 
+        // NEW CODE (with cursor-based pagination):
+        const query = { isTeacherApp: true };
+        
+        if (cursor) {
+            query._id = { $lt: new ObjectId(cursor) };
+        }
+
+        const contents = await ContentV3.find(query)
+            .sort({ _id: -1 })
+            .limit(limit + 1)
+            .exec();
+
+        const hasMore = contents.length > limit;
+        const data = hasMore ? contents.slice(0, limit) : contents;
+        const nextCursor = hasMore ? data[data.length - 1]._id.toString() : null;
+
+        return res.json({
+            data,
+            pagination: {
+                nextCursor,
+                hasMore,
+                limit
+            }
+        });
+    }
+
+    // Default: Fetch all contents
+    // OLD CODE (without pagination):
+    // return res.json(await getContent());
+
+    // NEW CODE (with cursor-based pagination):
+    const query = {};
+    
+    if (cursor) {
+        query._id = { $lt: new ObjectId(cursor) };
+    }
+
+    const contents = await ContentV3.find(query)
+        .sort({ _id: -1 })
+        .limit(limit + 1)
+        .exec();
+
+    const hasMore = contents.length > limit;
+    const data = hasMore ? contents.slice(0, limit) : contents;
+    const nextCursor = hasMore ? data[data.length - 1]._id.toString() : null;
+
+    return res.json({
+        data,
+        pagination: {
+            nextCursor,
+            hasMore,
+            limit
+        }
+    });
+}));
 
 // async function regenerateAllTitleAudios(){
 //     const contents = await Content.find({isProcessed: true, isPullModel: true})

@@ -5,6 +5,7 @@ import com.example.seeds.model.Content
 import com.example.seeds.model.SasUrlResponse
 import com.example.seeds.model.Student
 import com.example.seeds.model.StudentListContainer
+import com.example.seeds.model.PaginatedResponse
 import com.example.seeds.network.SeedsService
 import com.example.seeds.utils.ContactUtils
 import kotlinx.coroutines.Dispatchers
@@ -15,12 +16,17 @@ import javax.inject.Inject
 class ContentRepository @Inject constructor(
     private val network: SeedsService
 ) {
-    suspend fun getAllContent(): List<Content> {
+    suspend fun getAllContent(
+        limit: Int = 10,
+        cursor: String? = null
+    ): List<Content> {
         return withContext(Dispatchers.IO) {
-            network.getAllContent()
+            // Fetch paginated response
+            val response: PaginatedResponse<Content> = network.getAllContent(limit, cursor)
+            // Unwrap data array
+            response.data
         }
     }
-
     suspend fun getContentsById(contentIds: List<String>): List<Content> {
         return withContext(Dispatchers.IO) {
             network.getContentsById(contentIds)

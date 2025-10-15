@@ -22,7 +22,7 @@ interface SeedsService {
     suspend fun getAccessToken(
         @Url fullUrl: String = "http://127.0.0.1:9210/conference/create",
         @Body body: ConferenceCreateRequest
-    ): AccessToken
+    ): ConferenceCreateResponse
 
     @POST
     suspend fun startCall(
@@ -46,7 +46,10 @@ interface SeedsService {
     suspend fun registerTeacher()
 
     @GET("content")
-    suspend fun getAllContent(): List<Content>
+    suspend fun getAllContent(
+        @Query("limit") limit: Int = 10,
+        @Query("cursor") cursor: String? = null
+    ): PaginatedResponse<Content>
 
     @GET("content")
     suspend fun getContentsById(@Query("ids[]") ids: List<String>): List<Content>

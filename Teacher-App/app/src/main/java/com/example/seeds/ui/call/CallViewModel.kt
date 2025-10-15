@@ -198,20 +198,31 @@ class CallViewModel @Inject constructor(
     fun doneNavigating() {
         _navigateBack.value = false
     }
+
     private fun getAccessToken() {
         viewModelScope.launch {
-            val payload = ConferenceCreateRequest(
-                teacher_phone = teacherPhoneNumber,
-                student_phones = phoneNumbers
-            )
+            try {
+                val payload = ConferenceCreateRequest(
+                    teacher_phone = teacherPhoneNumber,
+                    student_phones = phoneNumbers
+                )
 
-            token = network.getAccessToken(body = payload)
-            allStudents = args.classroom.students
-            _callToken.postValue(token)
-            connectWebSocket()
+                // Directly get the parsed object
+                val response = network.getAccessToken(
+                    "http://127.0.0.1:9210/conference/create",
+                    payload
+                )
+
+                val confId = response.id
+                Log.d("CONF_ID", "Created conference ID: $confId")
+
+                startCall(confId)
+
+            } catch (e: Exception) {
+                Log.e("GET_ACCESS_TOKEN", "Error creating conference: ${e.message}", e)
+            }
         }
     }
-
 
     // private fun getAccessToken() {
     //     viewModelScope.launch { // gave some Fatal Exception: java.lang.IndexOutOfBoundsException Index 0 out of bounds for length 0 error
@@ -236,7 +247,7 @@ class CallViewModel @Inject constructor(
     }
 
 
-    private fun startCall() {
+    private fun startCall(confId: String) {
         viewModelScope.launch {
             try {
                 val names = mutableListOf<String>()
@@ -246,31 +257,20 @@ class CallViewModel @Inject constructor(
                     if (student != null) names.add(student.name)
                 }
 
-                if (!callStarted) {
-                    val confId = _callToken.value?.confId ?: return@launch
-                    val fullUrl = "http://127.0.0.1:9210/call/start/$confId"
+                val fullUrl = "http://127.0.0.1:9210/conference/start/$confId"
+                val response = network.startCall(fullUrl, CallDetails(confId, phoneNumbers, names))
 
-                    Log.d("CALL START", "ConfId: $confId, phones: $phoneNumbers, names: $names")
-
-                    val response = network.startCall(
-                        fullUrl,
-                        CallDetails(confId, phoneNumbers, names)
-                    )
-
-                    if (response.isSuccessful) {
-                        Log.d("CALL START", "Call started successfully")
-                    } else {
-                        Log.e("CALL START", " Failed with code: ${response.code()}")
-                    }
-
-                    callStarted = true
+                if (response.isSuccessful) {
+                    Log.d("CALL_START", "Conference started successfully!")
+                } else {
+                    Log.e("CALL_START", "Failed to start conference: ${response.code()} - ${response.message()}")
                 }
-
             } catch (e: Exception) {
-                Log.e("CALL START ERROR", e.toString())
+                Log.e("CALL_START_ERROR", "Error starting conference: ${e.message}", e)
             }
         }
     }
+
 
     fun refreshCallState() {
         viewModelScope.launch {
@@ -471,7 +471,7 @@ class CallViewModel @Inject constructor(
             super.onOpen(webSocket, response)
             Log.d("socket", "Socket Created!!")
             //need to start the call here
-            startCall()
+            // startCall(confId)
             cancelCallOnFailure?.cancel()
         }
 
@@ -500,7 +500,7 @@ class CallViewModel @Inject constructor(
             //reference: https://stackoverflow.com/questions/54088030/reconnect-okhttp-websocket-when-internet-disconnects
             socket.close(1000, null)
             Thread.sleep(4000)
-            connectWebSocket()
+            // connectWebSocket()
             cancelCallOnFailure = viewModelScope.launch {
                 delay(180000L) // 3 minutes
                 _navigateBack.postValue(true)
@@ -522,13 +522,13 @@ class CallViewModel @Inject constructor(
         connectivityManager.registerNetworkCallback(networkRequest, networkCallback)
     }
 
-    fun connectWebSocket(){
-        val request = Request.Builder()
-            .url(token.accessToken)
-            .build()
-        socket = client.newWebSocket(request, SeedsWebSocketListener())
-        client.dispatcher().executorService()
-    }
+    // fun connectWebSocket() {
+    //     val request = Request.Builder()
+    //         .url(token.accessToken)
+    //         .build()
+    //     socket = client.newWebSocket(request, SeedsWebSocketListener())
+    // }
+
 }
 
 

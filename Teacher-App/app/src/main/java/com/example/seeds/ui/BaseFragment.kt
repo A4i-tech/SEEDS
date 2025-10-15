@@ -20,6 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.util.*
+import android.widget.Toast
 
 
 abstract class BaseFragment : Fragment(), LifecycleObserver {
@@ -172,4 +173,10 @@ abstract class BaseFragment : Fragment(), LifecycleObserver {
             Timber.tag(this.javaClass.simpleName).d("Appv$APP_VERSION $sessionId $msg")
         }
     }
+    fun showToast(message: String) {
+        if (isAdded) {
+            Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
+        }
+    }
+
 }

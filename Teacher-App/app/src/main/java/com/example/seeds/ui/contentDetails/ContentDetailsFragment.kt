@@ -2,82 +2,108 @@ package com.example.seeds.ui.contentDetails
 
 import android.net.Uri
 import android.os.Bundle
-import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.navArgs
-import com.example.seeds.R
-import com.example.seeds.databinding.FragmentContactsBinding
 import com.example.seeds.databinding.FragmentContentDetailsBinding
 import com.example.seeds.ui.BaseFragment
 import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.MediaItem
-import com.google.android.exoplayer2.PlaybackException
-import com.google.android.exoplayer2.Player
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class ContentDetailsFragment : BaseFragment() {
-    private lateinit var binding: FragmentContentDetailsBinding
+    private var _binding: FragmentContentDetailsBinding? = null
+    private val binding get() = _binding!!
+
     private val args: ContentDetailsFragmentArgs by navArgs()
     private val viewModel: ContentDetailsViewModel by viewModels()
+
+    // Keep a separate player reference so we can safely release it
+    private var player: ExoPlayer? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {
+    ): View {
         // Inflate the layout for this fragment
-        binding = FragmentContentDetailsBinding.inflate(inflater)
+        _binding = FragmentContentDetailsBinding.inflate(inflater, container, false)
+
+        // Bind ViewModel & lifecycle owner
         binding.viewModel = viewModel
         binding.lifecycleOwner = viewLifecycleOwner
-        binding.contentAudio.player = ExoPlayer.Builder(requireContext()).build()
+
+        // Set initial content from nav args (keeps behaviour identical to original)
         binding.content = args.content
 
-        viewModel.contentUrl.observe(viewLifecycleOwner) {
+        // Create player and attach to the PlayerView (contentAudio) as before
+        player = ExoPlayer.Builder(requireContext()).build()
+        binding.contentAudio.player = player
 
-            if (it != null) {
-                logMessage("ContentSASURL: $it")
-                val sasAudioUri = Uri.parse(it)
-                val mediaItem: MediaItem = MediaItem.fromUri(sasAudioUri)
-                binding.contentAudio.player?.setMediaItem(mediaItem)
-                binding.contentAudio.player?.prepare()
-            }
-        }
+        observeViewModel()
+        setupUiListeners()
 
-//
-//        binding.contentAudio.player = ExoPlayer.Builder(requireContext()).build()
-//        var src = "https://seedscontent.blob.core.windows.net/output-original/${args.content.id}.mp3"
-//        val answerSrc = "https://seedscontent.blob.core.windows.net/output-original/${args.content.id}/answer.mp3"
-//        if (args.content.type == "Riddle") {
-//            src = "https://seedscontent.blob.core.windows.net/output-original/${args.content.id}/question.mp3";
-//            binding.contentAudioAnswer.player = ExoPlayer.Builder(requireContext()).build()
-//            val answerVideoUri = Uri.parse(answerSrc)
-//            val answerMediaItem: MediaItem = MediaItem.fromUri(answerVideoUri)
-//            binding.contentAudioAnswer.player?.setMediaItem(answerMediaItem)
-//            binding.contentAudioAnswer.player?.prepare()
-//        }
-//        val videoUri = Uri.parse(src)
-//        val mediaItem: MediaItem = MediaItem.fromUri(videoUri)
-//        binding.contentAudio.player?.setMediaItem(mediaItem)
-//        binding.contentAudio.player?.prepare()
         return binding.root
     }
 
-    override fun onDestroyView() {
-        logMessage("Music player released ${args.content.id} ${args.content.title} ${binding.contentAudio.player?.contentPosition} ${binding.contentAudio.player?.contentDuration}")
-        binding.contentAudio.player?.stop()
-        binding.contentAudio.player?.release()
-//        binding.contentAudioAnswer.player?.stop()
-//        binding.contentAudioAnswer.player?.release()
-        super.onDestroyView()
+    private fun observeViewModel() {
+        // Observe SAS URL for playback
+        viewModel.contentUrl.observe(viewLifecycleOwner) { url ->
+            if (url != null) {
+                logMessage("ContentSASURL: $url")
+                val mediaItem = MediaItem.fromUri(Uri.parse(url))
+                player?.apply {
+                    try {
+                        // Stop any current playback before setting new media
+                        stop()
+                    } catch (ignored: Exception) { }
+                    setMediaItem(mediaItem)
+                    prepare()
+                }
+            }
+        }
+
+        // Update UI when the current content changes
+        viewModel.currentContent.observe(viewLifecycleOwner) { content ->
+            // Update binding so UI reflects the new content (title, description etc.)
+            binding.content = content
+        }
     }
 
+    private fun setupUiListeners() {
+        binding.btnNextPage?.setOnClickListener {
+            val moved = viewModel.loadNextContent()
+            if (!moved) {
+                showToast("No more pages")
+            } else {
+                showToast("Loading next...")
+            }
+        }
+    }
     override fun onStart() {
         logMessage("onStart")
         super.onStart()
+        // Keep same behaviour: refresh the content URL when fragment becomes visible
         viewModel.refreshContentUrl()
+    }
+
+    override fun onDestroyView() {
+        // Log and release player safely (use viewModel.currentContent for IDs/titles to avoid binding after null)
+        val current = viewModel.currentContent.value
+        logMessage("Music player released ${current?.id} ${current?.title} ${player?.contentPosition} ${player?.contentDuration}")
+
+        try {
+            player?.stop()
+        } catch (ignored: Exception) { }
+        player?.release()
+        player = null
+
+        // Clear binding reference
+        _binding = null
+
+        super.onDestroyView()
     }
 
     override fun onStop() {
