@@ -10,7 +10,7 @@ class SinkConferenceEvent(ConferenceEvent):
         self.on_sink_callback = on_sink_callback
 
     async def execute_event(self):
-        self.conf_call.state.is_running = False   
+        self.conf_call.state.is_running = False
              
         # Log the action in the action history
         self.conf_call.state.action_history.append(

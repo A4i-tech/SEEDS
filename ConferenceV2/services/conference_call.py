@@ -76,7 +76,7 @@ class ConferenceCall:
                 role=Role.STUDENT,
                 call_status=CallStatus.DISCONNECTED,
             )
-            self.state.participants[phone] = student
+        self.state.participants[phone] = student
     
     # def set_websocket(self, websocket: WebSocket):
     #     self.websocket_service.set_websocket(websocket)
