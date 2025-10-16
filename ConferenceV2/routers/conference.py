@@ -29,19 +29,19 @@ router = APIRouter()
 
 @router.post("/test-createstart")
 async def create_start_conference(request: CreateConferenceRequest):
-    conference_call_id = conference_manager.create_conference(request.teacher_phone, request.student_phones)
-    await conference_manager.start_conference_call(conference_call_id)
+    conference_call = conference_manager.create_conference(request.teacher_phone, request.student_phones)
+    await conference_manager.start_conference_call(conference_call.conf_id)
     return {
                 "status": "STARTED", 
-                "id": conference_call_id
+                "id": conference_call.conf_id
             }
 
 @router.post("/create")
 async def create_conference(request: CreateConferenceRequest):
-    conference_call_id = conference_manager.create_conference(request.teacher_phone, request.student_phones)
+    conference_call = conference_manager.create_conference(request.teacher_phone, request.student_phones)
     return {
                 "status": "CREATED", 
-                "id": conference_call_id
+                "id": conference_call.conf_id
             }
 
 @router.post("/start/{conference_id}")
