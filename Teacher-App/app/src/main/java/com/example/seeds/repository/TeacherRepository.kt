@@ -17,7 +17,6 @@ class TeacherRepository @Inject constructor(
 ) {
     fun getTeacherPhoneNumber(): String {
         return sharedPreferences.getString("phone", "") ?: ""
-            .replace("+", "")
     }
 
     suspend fun register() {

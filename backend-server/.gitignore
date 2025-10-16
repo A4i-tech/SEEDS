@@ -46,3 +46,6 @@ bower_components
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+cert.pem
+key.pem

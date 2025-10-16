@@ -25,6 +25,7 @@ import kotlinx.coroutines.launch
 import okhttp3.*
 import okio.ByteString
 import javax.inject.Inject
+import android.content.SharedPreferences
 
 @HiltViewModel
 class CallViewModel @Inject constructor(
@@ -33,6 +34,7 @@ class CallViewModel @Inject constructor(
     private val context: Context,
 
 //    @ApplicationContext private val context: Context,
+    private val sharedPreferences: SharedPreferences,
     private val teacherRepository: TeacherRepository,
     private val contentRepository: ContentRepository,
     private val classroomRepository: ClassroomRepository,
@@ -51,6 +53,7 @@ class CallViewModel @Inject constructor(
     private var cancelCallOnFailure: Job? = null
 
     val teacherPhoneNumber = "91${teacherRepository.getTeacherPhoneNumber()}"
+    // Log.d("PAYLOAD_DEBUG","Teacher: $teacherPhoneNumber")
     var startedAudio = false
 
     var content: Content? = if (args.classroom.contents!!.isNotEmpty()) args.classroom.contents!![0] else null
@@ -199,23 +202,55 @@ class CallViewModel @Inject constructor(
         _navigateBack.value = false
     }
 
+    // private fun getAccessToken() {
+    //     viewModelScope.launch {
+    //         try {
+    //             val payload = ConferenceCreateRequest(
+    //                 teacher_phone = teacherPhoneNumber,
+    //                 student_phones = phoneNumbers
+    //             )
+
+    //             // Directly get the parsed object
+    //             val response = network.getAccessToken(
+    //                 "https://samella-cemeterial-unfortunately.ngrok-free.app/conference/create",
+    //                 payload
+    //             )
+
+    //             val confId = response.id
+    //             Log.d("CONF_ID", "Created conference ID: $confId")
+
+    //             startCall(confId)
+
+    //         } catch (e: Exception) {
+    //             Log.e("GET_ACCESS_TOKEN", "Error creating conference: ${e.message}", e)
+    //         }
+    //     }
+    // }
     private fun getAccessToken() {
         viewModelScope.launch {
             try {
+                val teacherPhoneWithPrefix = "$teacherPhoneNumber"
+                
+                val studentPhonesWithPrefix = phoneNumbers.map { "$it" }
+                // Log.d("PAYLOAD_DEBUG", "$sharedPreferences")
+                sharedPreferences.all.forEach { (key, value) ->
+                    Log.d("map values", "$key: $value")
+                }
+                Log.d("PAYLOAD_DEBUG", "Teacher: $teacherPhoneWithPrefix")
+                Log.d("PAYLOAD_DEBUG", "Students: $studentPhonesWithPrefix")
+                
                 val payload = ConferenceCreateRequest(
-                    teacher_phone = teacherPhoneNumber,
-                    student_phones = phoneNumbers
+                    teacher_phone = teacherPhoneWithPrefix,
+                    student_phones = studentPhonesWithPrefix
                 )
 
-                // Directly get the parsed object
                 val response = network.getAccessToken(
-                    "http://127.0.0.1:9210/conference/create",
+                    "http://localhost:9210/conference/create",
                     payload
                 )
 
                 val confId = response.id
                 Log.d("CONF_ID", "Created conference ID: $confId")
-
                 startCall(confId)
 
             } catch (e: Exception) {
@@ -223,7 +258,6 @@ class CallViewModel @Inject constructor(
             }
         }
     }
-
     // private fun getAccessToken() {
     //     viewModelScope.launch { // gave some Fatal Exception: java.lang.IndexOutOfBoundsException Index 0 out of bounds for length 0 error
     //         token = network.getAccessToken()
@@ -257,7 +291,7 @@ class CallViewModel @Inject constructor(
                     if (student != null) names.add(student.name)
                 }
 
-                val fullUrl = "http://127.0.0.1:9210/conference/start/$confId"
+                val fullUrl = "http://localhost:9210/conference/start/$confId"
                 val response = network.startCall(fullUrl, CallDetails(confId, phoneNumbers, names))
 
                 if (response.isSuccessful) {

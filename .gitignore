@@ -401,3 +401,4 @@ FodyWeavers.xsd
 .idea/
 fsm-visual-refactored.txt
 .venv/
+.gradle/*
