@@ -42,7 +42,7 @@ class VonageAPI(CommunicationAPI):
                 "number": self.vonage_number
             },
             "event_url": [
-                self.events_webhook_url + f"/{self.conf_id}"
+                self.events_webhook_url + f"/webhooks/event/{self.conf_id}"
             ],
             "ncco": [
                 {
@@ -71,8 +71,9 @@ class VonageAPI(CommunicationAPI):
         Returns True if the above process happened for the given participant
         """
         call = self.client.voice.get_call(uuid=participant.call_leg_id)
+        logger_instance.info(f'Checking participant {participant.phone_number} call status: {call["status"]}')
         if call['status'] == 'answered':
-            logger_instance.info('CONNECTING WEBSOCKET TO THE CONFERENCE ', self.conf_id, 'USING NUMBER', participant.phone_number, 'URL:', self.ws_server_url)
+            logger_instance.info(f'CONNECTING WEBSOCKET TO THE CONFERENCE {self.conf_id} USING NUMBER {participant.phone_number} URL: {self.ws_server_url}')
             self.client.voice.update_call(uuid=participant.call_leg_id, 
                                                     params={
                                                         "action": "transfer",
@@ -104,7 +105,10 @@ class VonageAPI(CommunicationAPI):
             # Say it takes 2 seconds for vonage to connect the websocket to the conference. 
             # TODO: Figure out a way around this assumption
             await asyncio.sleep(2)
+            logger_instance.info(f'WebSocket connection established for conference {self.conf_id}')
             return True
+        else:
+            logger_instance.info(f'Cannot connect WebSocket - participant {participant.phone_number} call status is {call["status"]} (need "answered")')
         return False
 
     def get_is_websocket_connected(self) -> bool:
@@ -117,18 +121,25 @@ class VonageAPI(CommunicationAPI):
         
         Return participant phone number or None
         """
+        logger_instance.info(f"Handling call transfer event - UUID: {uuid}, conversation_uuid_to: {conversation_uuid_to}")
         participant = next(
             (p for p in self.participant_info_map.values() if p.call_leg_id == uuid),
             None
         )
+        logger_instance.info(f"Found participant for UUID {uuid}: {participant.phone_number if participant else 'None'}")
         
         if participant:
             if not self.vonage_conv_id:
                 self.vonage_conv_id = conversation_uuid_to
                 
             participant.conference_conv_id = conversation_uuid_to
+            logger_instance.info(f"WebSocket connected status: {self.is_websocket_connected}")
             if not self.is_websocket_connected:
+                logger_instance.info(f"Attempting to connect WebSocket for participant {participant.phone_number}")
                 self.is_websocket_connected = await self._try_connecting_websocket_with_participant(participant)
+                logger_instance.info(f"WebSocket connection result: {self.is_websocket_connected}")
+            else:
+                logger_instance.info("WebSocket already connected, skipping connection attempt")
             return participant.phone_number
     
         return None

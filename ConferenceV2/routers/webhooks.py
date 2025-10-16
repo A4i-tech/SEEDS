@@ -25,15 +25,39 @@ router = APIRouter()
 
 @router.post("/event/{conference_id}")
 async def event_webhook(request: Request, conference_id: str, background_tasks: BackgroundTasks):
-    # logger_instance.info("RECEIVED EVENT for ", conference_id)
     event_data = await request.json()
+    logger_instance.info(f"RECEIVED EVENT for {conference_id}: {json.dumps(event_data, indent=2)}")
     background_tasks.add_task(process_event, event_data, conference_id)
+    return {"status": "ok"}
+
+@router.get("/event")
+async def websocket_event_webhook(request: Request, background_tasks: BackgroundTasks):
+    # This handles WebSocket connection events from Vonage connect action
+    query_params = dict(request.query_params)
+    logger_instance.info(f"RECEIVED WEBSOCKET EVENT: {query_params}")
+    
+    # Extract conference ID from the 'to' parameter
+    to_url = query_params.get('to', '')
+    if 'id=' in to_url:
+        # Extract conference ID from URL like: wss://...?id=conf-id
+        import re
+        match = re.search(r'id=([^&?]+)', to_url)
+        if match:
+            conference_id = match.group(1)
+            logger_instance.info(f"Extracted conference ID from WebSocket event: {conference_id}")
+            
+            # Trigger WebSocket connection for this conference
+            conf = conference_manager.get_conference(conference_id)
+            if conf and query_params.get('status') == 'answered':
+                logger_instance.info(f"WebSocket connected for conference {conference_id}, triggering connection logic")
+                # We can trigger WebSocket connection logic here if needed
+            
     return {"status": "ok"}
 
 @router.post("/conversationevents")
 async def conversation_events_webhook(request: Request, background_tasks: BackgroundTasks):
-    logger_instance.info("CONV EVENT RECEIVED")
     event_data = await request.json()
+    logger_instance.info(f"CONV EVENT RECEIVED: {json.dumps(event_data, indent=2)}")
     background_tasks.add_task(process_conversation_event, event_data)
     return {"status": "ok"}
 
@@ -43,6 +67,7 @@ async def process_event(event_data: Dict, conference_id: str):
         try: 
             vonage_call_status_change_event = VonageCallStatusChangeEvent(**event_data)
             call_status_change_event = vonage_call_status_change_event.get_conf_call_status_change_event(conf)
+            logger_instance.info(f"Processing call status change event for {call_status_change_event.phone_number}: {call_status_change_event.status}")
             await conf.queue_event(call_status_change_event)
 
             # If a student just connected, mute the student
@@ -52,7 +77,7 @@ async def process_event(event_data: Dict, conference_id: str):
         except ValidationError as e:
             try:
                 vonage_call_transfer_event = VonageCallTransferEvent(conf_call=conf, **event_data)
-                logger_instance.info('QUEUING VONAGE CALL TRANSFER EVENT', vonage_call_transfer_event)
+                logger_instance.info(f'QUEUING VONAGE CALL TRANSFER EVENT: {vonage_call_transfer_event}')
                 await conf.queue_event(vonage_call_transfer_event)
             except ValidationError as e2:
                 logger_instance.info("Event data does not match any known event types.", json.dumps(event_data, indent=2))

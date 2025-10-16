@@ -1,5 +1,5 @@
 // src/services/connectionManager.js
-
+// add persistent storage for WebSocket connections
 const connections = new Map();
 
 /**
