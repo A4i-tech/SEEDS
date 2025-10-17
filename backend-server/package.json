@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "jest test --watchAll --coverage",
+    "test": "jest test --coverage",
     "start": "node src/index.js",
     "dev": "nodemon index.js"
   },

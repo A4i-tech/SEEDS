@@ -27,7 +27,7 @@ jobs:
       - name: Install dependencies
         run: cd teacher-webapp && npm ci
       - name: Run tests with coverage
-        run: cd teacher-webapp && npm test -- --coverage --watchAll=false
+        run: cd teacher-webapp && npm test
         env:
           CI: true
       - name: Upload coverage to artifacts

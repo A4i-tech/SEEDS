@@ -27,7 +27,7 @@ jobs:
       - name: Install dependencies
         run: cd ContentWebApp && npm ci
       - name: Run tests with coverage
-        run: cd ContentWebApp && npm test -- --watchAll=false --passWithNoTests
+        run: cd ContentWebApp && npm test 
         env:
           CI: true
       - name: Upload coverage to artifacts

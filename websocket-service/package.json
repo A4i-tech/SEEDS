@@ -3,9 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "jest",
+    "test": "jest test --coverage",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
     "start": "node src/server.js"
   },
   "keywords": [],
