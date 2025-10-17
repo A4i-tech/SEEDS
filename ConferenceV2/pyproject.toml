@@ -37,3 +37,6 @@ build-backend = "poetry.core.masonry.api"
 pytest = "*"
 pytest-asyncio = "*"
 pytest-cov = "*"
+[tool.poetry.group.dev.dependencies]
+pytest-cov = "^7.0.0"
+

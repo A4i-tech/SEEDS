@@ -1,7 +1,7 @@
-jest.mock('../models/LogEntry');
+jest.mock('../src/models/LogEntry');
 
-const util = require('../util');
-const LogEntry = require('../models/LogEntry');
+const util = require('../src/util');
+const LogEntry = require('../src/models/LogEntry');
 
 describe('Util Functions', () => {
     let mocks;

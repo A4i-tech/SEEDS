@@ -5,10 +5,10 @@ from unittest.mock import patch
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from comprehension_model_classes import *
-from fsm.fsm import FSM
-from actions.base_actions.stream_action import StreamAction
-from actions.base_actions.input_action import InputAction
+from app.comprehension_model_classes import *
+from app.fsm.fsm import FSM
+from app.actions.base_actions.stream_action import StreamAction
+from app.actions.base_actions.input_action import InputAction
 
 
 class TestDataFactory:
@@ -133,7 +133,7 @@ class TestComprehension:
         assert {"question", "options"} <= state_ids.keys()
         assert len(state_ids["options"]) == 2
 
-    @patch('comprehension_model_classes.print')  # Suppress print statements during testing
+    @patch('app.comprehension_model_classes.print')  # Suppress print statements during testing
     def test_integration(self, mock_print, factory):
         """Test full integration with realistic data."""
         comp_data = factory.comprehension_data(2)  # 2 stages

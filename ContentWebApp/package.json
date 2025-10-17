@@ -5,7 +5,7 @@
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
-    "test": "react-scripts test --watchAll --coverage",
+    "test": "jest test --watchAll --coverage --config=./jest.config.js",
     "eject": "react-scripts eject",
     "server": "json-server --watch db.json --port 5001"
   },
@@ -37,17 +37,12 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@babel/preset-react": "^7.27.1",
     "@testing-library/jest-dom": "^6.0.0",
     "@testing-library/react": "^14.0.0",
-    "@testing-library/user-event": "^14.0.0"
-  },
-  "jest": {
-    "coverageReporters": [
-      "json-summary",
-      "lcov",
-      "html",
-      "text"
-    ]
+    "@testing-library/user-event": "^14.0.0",
+    "jest": "^27.5.1",
+    "jest-environment-jsdom": "^27.5.1"
   },
   "eslintConfig": {
     "extends": [

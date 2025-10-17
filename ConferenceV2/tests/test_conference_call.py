@@ -11,12 +11,12 @@ os.environ['APPLICATIONINSIGHTS_CONNECTION_STRING'] = 'InstrumentationKey=test-k
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 
-from services.conference_call import ConferenceCall
-from models.conference_call_state import ConferenceCallState
-from models.participant import Role, CallStatus
-from models.system_audio_messages import SystemAudioMessages
-from models.action_history import ActionType
-from services.confevents.base_event import ConferenceEvent
+from app.services.conference_call import ConferenceCall
+from app.models.conference_call_state import ConferenceCallState
+from app.models.participant import Role, CallStatus
+from app.models.system_audio_messages import SystemAudioMessages
+from app.models.action_history import ActionType
+from app.services.confevents.base_event import ConferenceEvent
 
 
 class MockEvent(ConferenceEvent):
@@ -237,7 +237,7 @@ class TestConferenceCall:
         event = MockEvent(**event_kwargs[event_type])
         await conf_call.event_queue.put(event)
         
-        with patch('services.conference_call.logger_instance') as mock_logger:
+        with patch('app.services.conference_call.logger_instance') as mock_logger:
             conf_call.start_processing_conf_events_from_queue()
             
             # Wait appropriate time based on event type

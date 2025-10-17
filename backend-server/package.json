@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "jest --coverage",
-    "start": "node index.js",
+    "test": "jest test --watchAll --coverage",
+    "start": "node src/index.js",
     "dev": "nodemon index.js"
   },
   "keywords": [],

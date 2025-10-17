@@ -1,10 +1,10 @@
-jest.mock('../../services/BlobService');
-jest.mock('../../models/ContentV3');
-jest.mock('../../services/ttsService');
-jest.mock('../../jobs/jobsUtils');
+jest.mock('../../src/services/BlobService');
+jest.mock('../../src/models/ContentV3');
+jest.mock('../../src/services/ttsService');
+jest.mock('../../src/jobs/jobsUtils');
 jest.mock('fs');
 
-const processNewContent = require('../../jobs/processAudioContent');
+const processNewContent = require('../../src/jobs/processAudioContent');
 
 describe('processAudioContent', () => {
     let mockJob;

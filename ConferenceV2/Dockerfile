@@ -27,4 +27,4 @@ COPY --from=builder /app /app
 
 EXPOSE 9210
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "9210"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "9210"]

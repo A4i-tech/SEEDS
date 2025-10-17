@@ -1,9 +1,9 @@
 process.env.AUTH_TYPE = 'native';
 process.env.SECRET_KEY = 'test-secret-key-for-testing-purposes-123';
 const request = require('supertest');
-const app = require('../index');
+const app = require('../src/index');
 const mongoose = require('mongoose');
-const Tenant = require('../models/Tenant');
+const Tenant = require('../src/models/Tenant');
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const { beforeEach, afterEach, describe } = require("node:test");
 

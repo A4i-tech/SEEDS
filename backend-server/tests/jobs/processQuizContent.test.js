@@ -1,9 +1,9 @@
-jest.mock('../../services/BlobService');
-jest.mock('../../models/QuizData');
-jest.mock('../../services/ttsService');
-jest.mock('../../jobs/jobsUtils');
+jest.mock('../../src/services/BlobService');
+jest.mock('../../src/models/QuizData');
+jest.mock('../../src/services/ttsService');
+jest.mock('../../src/jobs/jobsUtils');
 
-const processQuizData = require('../../jobs/processQuizContent');
+const processQuizData = require('../../src/jobs/processQuizContent');
 
 describe('processQuizContent', () => {
     let mockJob, mockQuizData, mocks;
@@ -23,10 +23,10 @@ describe('processQuizContent', () => {
 
     // Factory Functions
     const setupMocks = () => {
-        const { QuizData } = require('../../models/QuizData');
-        const BlobService = require('../../services/BlobService');
-        const { textToSpeech } = require('../../services/ttsService');
-        const { addForInOptionAudio } = require('../../jobs/jobsUtils');
+        const { QuizData } = require('../../src/models/QuizData');
+        const BlobService = require('../../src/services/BlobService');
+        const { textToSpeech } = require('../../src/services/ttsService');
+        const { addForInOptionAudio } = require('../../src/jobs/jobsUtils');
 
         mockQuizData = {
             id: 'quiz-123',

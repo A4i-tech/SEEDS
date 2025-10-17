@@ -17,8 +17,8 @@ os.environ.setdefault('NGROK_URL', 'http://test.ngrok.io')
 # Add the parent directory to the path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from main import app
-from utils.model_classes import StartIVRFormData, BulkCallRequest
+from app.main import app
+from app.utils.model_classes import StartIVRFormData, BulkCallRequest
 
 
 class TestMainApplication:
@@ -41,7 +41,7 @@ class TestMainApplication:
     @pytest.fixture
     def mock_fsm(self):
         """Create a mock FSM object with common methods."""
-        from utils.model_classes import IVRfsmDoc
+        from app.utils.model_classes import IVRfsmDoc
         
         fsm = MagicMock()
         fsm.fsm_id = self.TEST_FSM_ID
@@ -137,9 +137,9 @@ class TestMainApplication:
         assert len(ncco) > 0
         assert ncco[0]["action"] == "talk"
 
-    @patch('main.get_latest_content')
-    @patch('main.process_content')
-    @patch('main.format_data_html')
+    @patch('app.main.get_latest_content')
+    @patch('app.main.process_content')
+    @patch('app.main.format_data_html')
     def test_ivr_structure_endpoint(self, mock_format_html, mock_process, mock_get_content):
         """Test the /ivr_structure endpoint."""
         # Mock the async function and its dependencies
@@ -155,7 +155,7 @@ class TestMainApplication:
         assert "text/html" in response.headers.get("content-type", "")
         assert "<html>" in response.text
 
-    @patch('main.ongoing_fsm_mongo')
+    @patch('app.main.ongoing_fsm_mongo')
     def test_update_ivr_endpoint_success(self, mock_ongoing_mongo, mock_fsm):
         """Test successful IVR update when no users are active."""
         # Make find_all return a coroutine
@@ -165,19 +165,19 @@ class TestMainApplication:
             return None
         async def mock_insert(data):
             return True
-            
+
         mock_ongoing_mongo.find_all = mock_find_all
-        
-        with patch('main.fsm_json_mongo') as mock_fsm_json_mongo:
+
+        with patch('app.main.fsm_json_mongo') as mock_fsm_json_mongo:
             mock_fsm_json_mongo.find_top_one = mock_find_top_one
             mock_fsm_json_mongo.insert = mock_insert
-            
-            with patch('main.instantiate_from_latest_content', return_value=mock_fsm):
+
+            with patch('app.main.instantiate_from_latest_content', return_value=mock_fsm):
                 response = self.client.post("/updateivr")
                 data = self._assert_successful_response(response)
                 assert "successfully" in data["message"].lower()
 
-    @patch('main.ongoing_fsm_mongo')
+    @patch('app.main.ongoing_fsm_mongo')
     def test_update_ivr_endpoint_conflict(self, mock_ongoing_mongo):
         """Test IVR update fails when users are active."""
         # Make find_all return a coroutine with active calls
@@ -190,8 +190,8 @@ class TestMainApplication:
         assert "Cannot Update IVR" in data["message"]
         assert "2 users" in data["message"]
 
-    @patch('main.fsm_json_mongo')
-    @patch('main.radio_fsm_mongo')
+    @patch('app.main.fsm_json_mongo')
+    @patch('app.main.radio_fsm_mongo')
     def test_get_fsm_endpoint_not_found(self, mock_radio_fsm_mongo, mock_fsm_json_mongo):
         """Test FSM retrieval when FSM doesn't exist."""
         # Mock both MongoDB instances to return None (FSM not found)

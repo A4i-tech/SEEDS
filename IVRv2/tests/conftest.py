@@ -28,14 +28,14 @@ os.environ.setdefault('TO_PHONE_NUMBER', '+1234567890')
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from fsm.fsm import FSM
-from fsm.state import State
-from fsm.transition import Transition
-from actions.base_actions.talk_action import TalkAction
-from actions.base_actions.stream_action import StreamAction
-from actions.base_actions.input_action import InputAction
-from actions.vonage_actions.vonage_action_factory import VonageActionFactory
-from utils.model_classes import IVRCallStateMongoDoc, IVRfsmDoc
+from app.fsm.fsm import FSM
+from app.fsm.state import State
+from app.fsm.transition import Transition
+from app.actions.base_actions.talk_action import TalkAction
+from app.actions.base_actions.stream_action import StreamAction
+from app.actions.base_actions.input_action import InputAction
+from app.actions.vonage_actions.vonage_action_factory import VonageActionFactory
+from app.utils.model_classes import IVRCallStateMongoDoc, IVRfsmDoc
 
 
 @pytest.fixture(scope="session")

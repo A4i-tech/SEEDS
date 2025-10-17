@@ -5,7 +5,7 @@ jest.mock("@azure/identity");
 // Set environment variable before any imports
 process.env.STORAGE_ACCOUNT_NAME = 'seedsblob';
 
-const BlobService = require('../../services/BlobService');
+const BlobService = require('../../src/services/BlobService');
 const { BlobServiceClient, generateBlobSASQueryParameters, BlobSASPermissions } = require("@azure/storage-blob");
 const { DefaultAzureCredential } = require("@azure/identity");
 

@@ -14,7 +14,7 @@ const {
     cleanupTempFiles,
     generateTempPaths,
     addForInOptionAudio,
-} = require('../../jobs/jobsUtils');
+} = require('../../src/jobs/jobsUtils');
 
 describe('jobsUtils', () => {
     // Test data constants
