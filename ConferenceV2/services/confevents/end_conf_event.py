@@ -12,6 +12,7 @@ class EndConferenceEvent(ConferenceEvent):
     async def execute_event(self):
         self.conf_call.state.is_running = False
         await self.conf_call.communication_api.end_conf()
+        
         self.conf_call.state.action_history.append(ActionHistory(
                                                     timestamp= datetime.now().isoformat(), 
                                                     action_type=ActionType.CONFERENCE_END, 
@@ -27,7 +28,7 @@ class EndConferenceEvent(ConferenceEvent):
         await ws.send_message(WebsocketServiceMessage(
                                 websocket_id=self.conf_call.conf_id,
                                 type=MessageType.DISCONNECT,
-                            ))     
+                            ))
         # Log the action in the action history
         self.conf_call.state.action_history.append(
             ActionHistory(
