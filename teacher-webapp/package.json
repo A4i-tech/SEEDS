@@ -5,7 +5,7 @@
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
-    "test": "jest test --coverage --config=./jest.config.js",
+    "test": "jest test --coverage --config=./jest.config.js --no-watch --no-progress",
     "eject": "react-scripts eject"
   },
   "dependencies": {
