@@ -32,6 +32,7 @@ function authenticateToken(req, res, next) {
         jwt.verify(token, SECRET_KEY, (err, user) => {
             if (err) return res.sendStatus(STATUS_FORBIDDEN);
             req.user = user;
+            req.userId = user.id ;
             next();
         });
     } else if (AUTH_TYPE === 'firebase') {

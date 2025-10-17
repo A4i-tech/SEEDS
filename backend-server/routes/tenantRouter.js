@@ -8,34 +8,40 @@ const router = express.Router();
 
 /**
  * @swagger
- *  /tenant/login:
- *     post:
- *       summary: Authenticate tenant and return JWT token (native) or verify Firebase token
- *       tags:
- *         - Tenant
- *       requestBody:
- *         required: true
+ * /tenant/login:
+ *   post:
+ *     summary: Tenant login
+ *     tags: [Tenant]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *               name:
+ *                 type: string
+ *             required:
+ *               - email
+ *               - password
+ *     responses:
+ *       200:
+ *         description: Successful login, returns JWT token
  *         content:
  *           application/json:
  *             schema:
- *               oneOf:
- *                 - type: object
- *                   properties:
- *                     email:
- *                       type: string
- *                       description: Tenant's email address (native login)
- *                     password:
- *                       type: string
- *                       description: Tenant's password (native login)
- *                   required:
- *                     - email
- *                     - password
- *                 - type: object
- *                   properties:
- *                     authtoken:
- *                       type: string
- *                       description: Firebase ID token or test token (firebase login)
- *                   required:
+ *               type: object
+ *               properties:
+ *                 token:
+ *                   type: string
+ *       400:
+ *         description: Missing fields
+ *       401:
+ *         description: Invalid credentials
  */
 router.post('/login',
     authProvider.login,
