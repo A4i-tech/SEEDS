@@ -1,4 +1,4 @@
-FROM node:18-alpine AS deps
+FROM node:20-alpine AS deps
 
 WORKDIR /app
 
@@ -6,7 +6,7 @@ COPY package*.json ./
 
 RUN npm ci --omit=dev
 
-FROM gcr.io/distroless/nodejs18
+FROM node:20-alpine AS runtime
 
 WORKDIR /app
 
@@ -15,4 +15,4 @@ COPY . .
 
 EXPOSE 4000
 
-CMD ["index.js"]
+CMD ["node", "src/index.js"]
