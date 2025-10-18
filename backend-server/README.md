@@ -1,6 +1,6 @@
 # SEEDS Backend Server
 
-[![Backend Server Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/A4i-tech/a6d54a11428bf4a2e7abfbb8300d02c6/raw/backend-server-coverage.json)](https://github.com/A4i-tech/SEEDS/actions/workflows/backend-server-main.yml)
+[![Backend Server Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/farmanahmed888/a6d54a11428bf4a2e7abfbb8300d02c6/raw/backend-server-coverage.json)](https://github.com/A4i-tech/SEEDS/actions/workflows/backend-server-main.yml)
 
 Backend server for the SEEDS (Student Engagement and Educational Development System) platform, providing RESTful APIs for content management, user authentication, class management, and call handling.
 
