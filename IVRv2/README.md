@@ -1,6 +1,6 @@
 # IVR v2 System
 
-[![IVR v2 Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/A4i-tech/b86131dd388118ca01eea258231d6071/raw/ivr-v2-coverage.json)](https://github.com/A4i-tech/SEEDS/actions/workflows/ivr-v2-main.yml)
+[![IVR v2 Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/farmanahmed888/a6d54a11428bf4a2e7abfbb8300d02c6/raw/ivr-v2-coverage.json)](https://github.com/A4i-tech/SEEDS/actions/workflows/ivr-v2-main.yml)
 
 A modern Interactive Voice Response (IVR) system built with FastAPI and Vonage, designed to handle voice calls and provide interactive voice responses.
 

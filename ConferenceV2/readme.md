@@ -1,6 +1,6 @@
 # Conference Call System
 
-[![ConferenceV2 Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/A4i-tech/b86131dd388118ca01eea258231d6071/raw/conference-v2-coverage.json)](https://github.com/A4i-tech/SEEDS/actions/workflows/conference-v2-main.yml)
+[![ConferenceV2 Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/farmanahmed888/a6d54a11428bf4a2e7abfbb8300d02c6/raw/conference-v2-coverage.json)](https://github.com/A4i-tech/SEEDS/actions/workflows/conference-v2-main.yml)
 
 This is the **Conference Call System** for SEEDS. Below is the high-level architecture of the system:
 
