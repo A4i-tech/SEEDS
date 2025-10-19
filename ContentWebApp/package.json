@@ -5,7 +5,7 @@
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
-    "test": "react-scripts test",
+    "test": "jest test --coverage --config=./jest.config.js --no-watch --no-progress",
     "eject": "react-scripts eject",
     "server": "json-server --watch db.json --port 5001"
   },
@@ -34,14 +34,15 @@
     "swagger-ui-react": "^5.6.2",
     "uuid": "^9.0.0",
     "web-vitals": "^3.0.0",
-    "xlsx": "^0.18.5",
-    "json-server": "^0.17.1",
-    "buffer": "^6.0.3"
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@babel/preset-react": "^7.27.1",
     "@testing-library/jest-dom": "^6.0.0",
     "@testing-library/react": "^14.0.0",
-    "@testing-library/user-event": "^14.0.0"
+    "@testing-library/user-event": "^14.0.0",
+    "jest": "^27.5.1",
+    "jest-environment-jsdom": "^27.5.1"
   },
   "eslintConfig": {
     "extends": [

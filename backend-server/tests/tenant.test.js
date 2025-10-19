@@ -1,10 +1,11 @@
 process.env.AUTH_TYPE = 'native';
+process.env.SECRET_KEY = 'test-secret-key-for-testing-purposes-123';
 const request = require('supertest');
-const app = require('../index');
+const app = require('../src/index');
 const mongoose = require('mongoose');
-const Tenant = require('../models/Tenant');
-
-const {beforeEach, afterEach, describe} = require("node:test");
+const Tenant = require('../src/models/Tenant');
+const { MongoMemoryServer } = require('mongodb-memory-server');
+const { beforeEach, afterEach, describe } = require("node:test");
 
 const STATUS_OK = 200;
 const STATUS_CREATED = 201;
@@ -16,18 +17,21 @@ const TEST_EMAIL = 'testtenant@example.com';
 const TEST_PASSWORD = 'TestPassword123!';
 const TEST_NAME = 'Test Tenant';
 
-const DB_CONNECTION = process.env.DB_CONNECTION;
 const originalAuthType = process.env.AUTH_TYPE;
 let authProvider = '';
+let monod;
 
 describe('Tenant Auth API', () => {
     beforeAll(async () => {
-        await mongoose.connect(DB_CONNECTION, {useNewUrlParser: true, useUnifiedTopology: true});
+        monod = await MongoMemoryServer.create();
+        await mongoose.connect(monod.getUri(), { useNewUrlParser: true, useUnifiedTopology: true });
     });
 
     afterAll(async () => {
         await Tenant.deleteMany({});
+        await mongoose.connection.dropDatabase();
         await mongoose.connection.close();
+        await monod.stop();
     });
 
     beforeEach(async () => {
@@ -41,6 +45,10 @@ describe('Tenant Auth API', () => {
     });
 
     afterEach(async () => {
+        const collections = await mongoose.connection.db.collections();
+        for (let collection of collections) {
+            await collection.deleteMany({});
+        }
         process.env.AUTH_TYPE = originalAuthType; // Restore the original AUTH_TYPE
     });
 

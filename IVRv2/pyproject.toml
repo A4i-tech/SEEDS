@@ -1,0 +1,46 @@
+[tool.poetry]
+package-mode = false
+
+[project]
+name = "ivrv2"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Your Name",email = "you@example.com"}
+]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "vonage==3.17.1",
+    "vonage-jwt==1.1.1",
+    "vonage-utils==1.1.2",
+    "python-dotenv",
+    "azure-cosmos",
+    "azure-storage-blob",
+    "azure-identity",
+    "pymongo",
+    "motor",
+    "requests",
+    "aiohttp",
+    "python-multipart",
+    "pydantic-settings"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.group.test.dependencies]
+pytest = "7.4.0"
+pytest-asyncio = "0.21.1"
+pytest-cov = "4.1.0"
+pytest-mock = "3.11.1"
+httpx = "0.24.1"
+mongomock = "4.1.2"
+responses = "0.23.1"
+faker = "19.6.2"
+factory-boy = "3.3.0"
+freezegun = "1.2.2"

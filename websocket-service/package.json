@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "jest test --coverage --no-watch --no-progress",
+    "test:watch": "jest --watch",
     "start": "node src/server.js"
   },
   "keywords": [],
@@ -17,5 +18,27 @@
     "dotenv": "^16.4.5",
     "express": "^4.21.1",
     "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "setupFilesAfterEnv": [
+      "<rootDir>/tests/setup.js"
+    ],
+    "collectCoverageFrom": [
+      "src/**/*.js",
+      "!src/server.js",
+      "!src/config/azureConfig.js"
+    ],
+    "coverageDirectory": "coverage",
+    "coverageReporters": [
+      "json-summary",
+      "text",
+      "lcov",
+      "html"
+    ],
+    "testTimeout": 10000
   }
 }

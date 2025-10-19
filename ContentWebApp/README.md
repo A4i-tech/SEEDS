@@ -1,4 +1,10 @@
-# Getting Started with Create React App
+# SEEDS Content WebApp
+
+[![Content WebApp Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/farmanahmed888/a6d54a11428bf4a2e7abfbb8300d02c6/raw/content-webapp-coverage.json)](https://github.com/A4i-tech/SEEDS/actions/workflows/content-webapp-main.yml)
+
+Content management web application for the SEEDS (Student Engagement and Educational Development System) platform, providing an interface to upload, manage, and organize educational content.
+
+## Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 

@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
-import {useNavigate}  from "react-router-dom";
-
+import { useNavigate } from "react-router-dom";
 
 const AddQuiz = ({ quiz }) => {
   const navigate = useNavigate();
@@ -16,9 +15,7 @@ const AddQuiz = ({ quiz }) => {
     negativeMark: 0,
   });
 
-  console.log("ADDQUIZ QUIZ", quiz);
   useEffect(() => {
-    console.log("QUIZ PASSED VALUE", quiz);
     if (quiz && Object.keys(quiz).length > 0) {
       const quizMetadata = {
         title: quiz.title,
@@ -26,7 +23,6 @@ const AddQuiz = ({ quiz }) => {
         positiveMark: quiz.positiveMark,
         negativeMark: quiz.negativeMark,
       };
-      console.log("quizMetadata", quizMetadata);
       setMetadata(quizMetadata);
       // var a = []
       const a = quiz.options.map((option, index) => ({
@@ -36,11 +32,8 @@ const AddQuiz = ({ quiz }) => {
         optionC: option[2],
         optionD: option[3],
       }));
-      console.log("inputFields", a);
-      console.log("QUIZ WAS PASSED", quiz);
       setInputFields(a);
     } else {
-      console.log("QUIZ WAS NOT PASSED", quiz);
     }
   }, [quiz]);
 
@@ -108,10 +101,11 @@ const AddQuiz = ({ quiz }) => {
     createQuizJson();
 
     if (isValid()) {
-      console.log(JSON.stringify(metadata))
+      console.log(JSON.stringify(metadata));
       fetch(`${process.env.REACT_APP_SEEDS_URL}/content/quiz`, {
         method: "POST",
-        headers: { "content-type": "application/json" ,
+        headers: {
+          "content-type": "application/json",
           authToken: "postman", // or your actual token
         },
         body: JSON.stringify(metadata),

@@ -1,5 +1,7 @@
 # IVR v2 System
 
+[![IVR v2 Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/farmanahmed888/a6d54a11428bf4a2e7abfbb8300d02c6/raw/ivr-v2-coverage.json)](https://github.com/A4i-tech/SEEDS/actions/workflows/ivr-v2-main.yml)
+
 A modern Interactive Voice Response (IVR) system built with FastAPI and Vonage, designed to handle voice calls and provide interactive voice responses.
 
 ## Features
@@ -21,12 +23,14 @@ A modern Interactive Voice Response (IVR) system built with FastAPI and Vonage, 
 ## Installation
 
 1. Clone the repository:
+
    ```bash
    git clone <repository-url>
    cd SEEDS/IVRv2
    ```
 
 2. Create and activate a virtual environment:
+
    ```bash
    python -m venv ivr-env
    # On Windows:
@@ -36,6 +40,7 @@ A modern Interactive Voice Response (IVR) system built with FastAPI and Vonage, 
    ```
 
 3. Install the required dependencies:
+
    ```bash
    pip install -r requirements.txt
    ```
@@ -65,6 +70,7 @@ MONGODB_URI=mongodb://localhost:27017/ivr
 ## Running the Application
 
 1. Start the development server:
+
    ```bash
    uvicorn main:app --reload
    ```
@@ -88,6 +94,7 @@ MONGODB_URI=mongodb://localhost:27017/ivr
 ## Development
 
 - Format code with Black:
+
   ```bash
   black .
   ```

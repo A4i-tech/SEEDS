@@ -12,8 +12,10 @@ COPY . .
 # ---- Set build-time environment variables ----
 # These env vars will be baked into the React static build
 ARG REACT_APP_CONF_SERVER_BASE_URI
+ARG REACT_APP_STORAGE_ACCOUNT_NAME
 
 ENV REACT_APP_CONF_SERVER_BASE_URI=$REACT_APP_CONF_SERVER_BASE_URI
+ENV REACT_APP_STORAGE_ACCOUNT_NAME=$REACT_APP_STORAGE_ACCOUNT_NAME
 
 RUN npm run build
 

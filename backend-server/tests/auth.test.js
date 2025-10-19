@@ -1,6 +1,6 @@
 process.env.SECRET_KEY = 'test_secret';
 
-const authenticateToken = require('../auth/authenticateToken');
+const authenticateToken = require('../src/auth/authenticateToken');
 const jwt = require('jsonwebtoken');
 
 const STATUS_UNAUTHORIZED = 401;
@@ -101,7 +101,7 @@ describe('authenticateToken middleware', () => {
         delete process.env.SECRET_KEY;
         jest.resetModules();
         expect(() => {
-            require('../auth/authenticateToken');
+            require('../src/auth/authenticateToken');
         }).toThrow('SECRET_KEY environment variable must be defined and non-empty');
         process.env.SECRET_KEY = originalSecret;
         jest.resetModules();
@@ -114,8 +114,8 @@ describe('nativeAuthProvider edge cases', () => {
     let Tenant;
 
     beforeAll(() => {
-        nativeAuthProvider = require('../auth/nativeAuthProvider');
-        Tenant = require('../models/Tenant');
+        nativeAuthProvider = require('../src/auth/nativeAuthProvider');
+        Tenant = require('../src/models/Tenant');
 
         originalSecretKey = process.env.SECRET_KEY;
         process.env.SECRET_KEY = 'test_secret_key';
@@ -151,7 +151,7 @@ describe('nativeAuthProvider edge cases', () => {
         delete process.env.SECRET_KEY;
         jest.resetModules();
         expect(() => {
-            require('../auth/nativeAuthProvider')
+            require('../src/auth/nativeAuthProvider')
         }).toThrow('SECRET_KEY environment variable must be defined and non-empty');
     });
 
