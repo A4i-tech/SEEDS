@@ -2,6 +2,7 @@ package com.example.seeds.network
 
 import android.content.Context
 import android.util.Log
+import com.example.seeds.network.AuthInterceptor
 import com.example.seeds.ApplicationJsonAdapterFactory
 import com.example.seeds.database.LogEntity
 import com.example.seeds.model.*
@@ -85,10 +86,14 @@ interface SeedsService {
 
 }
 
-fun provideService(@ApplicationContext context: Context):  SeedsService {
+fun provideService(@ApplicationContext context: Context): SeedsService {
     //reference: https://proandroiddev.com/headers-in-retrofit-a8d71ede2f3e
 
     val httpClientBuilder = OkHttpClient.Builder().apply {
+
+        // This interceptor will watch for 403 errors on the response.
+        addInterceptor(AuthInterceptor(context))
+        // This interceptor adds headers to each request.
         addInterceptor(
             Interceptor { chain ->
                 val sharedPreferences = context.getSharedPreferences("sharedPref", Context.MODE_PRIVATE)
@@ -96,45 +101,18 @@ fun provideService(@ApplicationContext context: Context):  SeedsService {
 
                 val builder = chain.request().newBuilder()
                 builder.header("Authorization", "Bearer $token")
-                // builder.header("authtoken", token)
                 builder.header("signootReqId", UUID.randomUUID().toString())
                 chain.proceed(builder.build())
             }
         )
-        
-        // addInterceptor(
-        //     Interceptor { chain ->
-        //         var token: String
-        //         try {
-        //             // get shared preferences
 
-        //             val sharedPreferences = context.getSharedPreferences("sharedPref", Context.MODE_PRIVATE)
-        //             var phoneNumber = sharedPreferences.getString("phone", null) // Default value as an example
-        //             if (phoneNumber != null) phoneNumber = "+91$phoneNumber"
-        //             Log.d("PHONEAUTH", "Phone number is $phoneNumber")
-        //             token = phoneNumber ?: "postman"
-
-        //             //token = FirebaseToken.getIdToken()
-        //         } catch (e: NullPointerException) {
-        //             token = "postman"
-        //             //token = "+919606612444"
-        //         }
-        //         val builder = chain.request().newBuilder()
-        //         builder.header("authtoken", token)
-        //         builder.header("signootReqId", UUID.randomUUID().toString())
-        //         return@Interceptor chain.proceed(builder.build())
-        //     }
-        // )
-//        authenticator(authenticator)
         readTimeout(60, TimeUnit.SECONDS)
         connectTimeout(60, TimeUnit.SECONDS)
         writeTimeout(60, TimeUnit.SECONDS)
     }
 
     val moshi = Moshi.Builder()
-        //.add(KotlinJsonAdapterFactory())
         .add(ApplicationJsonAdapterFactory)
-        //.add(QuestionListConverter())
         .build()
 
     val retrofit = Retrofit.Builder()

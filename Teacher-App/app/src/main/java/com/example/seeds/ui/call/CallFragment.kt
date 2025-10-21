@@ -282,23 +282,23 @@ class CallFragment : BaseFragment() {
             }
         }
 
-        binding.forwardButton.setOnClickListener {
-            if (viewModel.audioPlaying.value!!) {
-                viewModel._forwardStreamDone.postValue(false)
-                logMessage("Audio forward clicked ${viewModel.selectedContent.value!!.id} ${viewModel.selectedContent.value!!.title}}")
-                viewModel.forwardAudio()
-                showFeedback(binding.forwardFeedback, "+10s")
-            }
-        }
+        // binding.forwardButton.setOnClickListener {
+        //     if (viewModel.audioPlaying.value!!) {
+        //         viewModel._forwardStreamDone.postValue(false)
+        //         logMessage("Audio forward clicked ${viewModel.selectedContent.value!!.id} ${viewModel.selectedContent.value!!.title}}")
+        //         viewModel.forwardAudio()
+        //         showFeedback(binding.forwardFeedback, "+10s")
+        //     }
+        // }
 
-        binding.backwardButton.setOnClickListener {
-            if (viewModel.audioPlaying.value!!) {
-                viewModel._backwardStreamDone.postValue(false)
-                logMessage("Audio backward clicked ${viewModel.selectedContent.value!!.id} ${viewModel.selectedContent.value!!.title}}")
-                viewModel.backwardAudio()
-                showFeedback(binding.backwardFeedback, "-10s")
-            }
-        }
+        // binding.backwardButton.setOnClickListener {
+        //     if (viewModel.audioPlaying.value!!) {
+        //         viewModel._backwardStreamDone.postValue(false)
+        //         logMessage("Audio backward clicked ${viewModel.selectedContent.value!!.id} ${viewModel.selectedContent.value!!.title}}")
+        //         viewModel.backwardAudio()
+        //         showFeedback(binding.backwardFeedback, "-10s")
+        //     }
+        // }
         return binding.root
     }
 

@@ -83,13 +83,13 @@ class CallViewModel @Inject constructor(
     val isErrorFromIVR: LiveData<String>
         get() = _isErrorFromIVR
 
-    val _forwardStreamDone = MutableLiveData<Boolean>(true)
-    val forwardStreamDone: LiveData<Boolean>
-        get() = _forwardStreamDone
+    // val _forwardStreamDone = MutableLiveData<Boolean>(true)
+    // val forwardStreamDone: LiveData<Boolean>
+    //     get() = _forwardStreamDone
 
-    val _backwardStreamDone = MutableLiveData<Boolean>(true)
-    val backwardStreamDone: LiveData<Boolean>
-        get() = _backwardStreamDone
+    // val _backwardStreamDone = MutableLiveData<Boolean>(true)
+    // val backwardStreamDone: LiveData<Boolean>
+    //     get() = _backwardStreamDone
 
     val _isMuteOrUnmuteAllDone = MutableLiveData<Boolean>(true)
     val isMuteOrUnmuteAllDone: LiveData<Boolean>
@@ -419,10 +419,10 @@ class CallViewModel @Inject constructor(
 
         if (message.contains("refresh")) {
             refreshCallState()
-        } else if (message.contains("forwardStreamDone")){
-            _forwardStreamDone.postValue(true)
-        } else if(message.contains("backwardStreamDone")){
-            _backwardStreamDone.postValue(true)
+        // } else if (message.contains("forwardStreamDone")){
+        //     _forwardStreamDone.postValue(true)
+        // } else if(message.contains("backwardStreamDone")){
+        //     _backwardStreamDone.postValue(true)
         } else if(message.contains("muteAllDone") || message.contains("unMuteAllDone")) {
              refreshCallState()
              _isMuteOrUnmuteAllDone.postValue(true)
