@@ -11,7 +11,7 @@ class CommunicationAPIType(Enum):
 class CommunicationAPIFactory:
     @staticmethod
     def create(type: CommunicationAPIType, conf_id: str, ws_url: str) -> CommunicationAPI:
-        from services.communication_api import VonageAPI
+        from app.services.communication_api import VonageAPI
         
         if type == CommunicationAPIType.VONAGE:
             return VonageAPI(application_id=os.environ.get("VONAGE_APPLICATION_ID"),
