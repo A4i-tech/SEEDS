@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit
 interface SeedsService {
     @POST
     suspend fun getAccessToken(
-        @Url fullUrl: String = "http://127.0.0.1:9210/conference/create",
+        @Url fullUrl: String ,
         @Body body: ConferenceCreateRequest
     ): ConferenceCreateResponse
 
@@ -29,6 +29,17 @@ interface SeedsService {
         @Url fullUrl: String,
         @Body callDetails: CallDetails
     ): Response<Unit> 
+    @PUT
+    suspend fun endCall(@Url url: String): Response<String>
+
+    @PUT
+    suspend fun playAudio(
+        @Url url: String,
+        @Query("url") audioUrl: String
+    ): Response<Any>
+
+    @PUT
+    suspend fun audioCommand(@Url url: String): Response<Any>
 
     @GET("call/{confId}/status")
     suspend fun getCallStatus(@Path("confId") confId: String): CallStatusDto

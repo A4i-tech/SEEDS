@@ -41,16 +41,25 @@ class ContentDetailsViewModel @Inject constructor(
 
     fun refreshContentUrl() {
         val content = currentContent.value ?: return
-        val src = "https://seedscontent.blob.core.windows.net/output-original/${content.id}.mp3"
+
+        // Prefer the first audioContent entry if available
+        val src = when {
+            content.audioContent.isNotEmpty() -> content.audioContent.first().audioUrl
+            content.title?.audioUrl != null -> content.title.audioUrl
+            content.theme?.audioUrl != null -> content.theme.audioUrl
+            else -> null
+        } ?: return  // No URL found
+
         viewModelScope.launch {
             try {
+                // Optionally fetch SAS token if needed, else use src directly
                 _contentUrl.value = contentRepository.getContentSas(src)
             } catch (ex: Exception) {
-                // You may want to handle errors more gracefully (expose an error LiveData, etc.)
                 _contentUrl.value = null
             }
         }
     }
+
 
     /**
      * Move to next content from the provided contentsList. Returns true if moved.

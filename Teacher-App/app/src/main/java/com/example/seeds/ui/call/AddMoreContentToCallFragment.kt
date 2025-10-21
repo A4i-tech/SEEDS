@@ -68,8 +68,10 @@ class AddMoreContentToCallFragment : BaseFragment() {
                 contentChosen.contains(it.id)
             }
             logMessage("Additonal content chosen during call: $additionalContentChosen - ${additionalContentChosen?.map{it.titleText}}")
-            val totalContent = viewModel.selectedContentList.value!!.toMutableList()
-            totalContent.addAll(additionalContentChosen!!)
+            val totalContent = (viewModel.selectedContentList.value?.toMutableList() ?: mutableListOf()).apply {
+                    additionalContentChosen?.let { addAll(it) }
+                }
+                        totalContent.addAll(additionalContentChosen!!)
             Log.d("ContentChosen", contentChosen.toString())
             Log.d("AdditionalContentChosen", additionalContentChosen.toString())
             Log.d("totalContent", totalContent.toString())

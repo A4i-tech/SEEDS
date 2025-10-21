@@ -104,9 +104,10 @@ class CallFragment : BaseFragment() {
                         lifecycleScope.launch {
                             val classroom = args.classroom
                             //check if no content was selected
-                            classroom.contentIds = viewModel.selectedContentList.value!!.map {
+                            classroom.contentIds = viewModel.selectedContentList.value?.map {
                                 it.id
-                            }
+                            }?: emptyList()
+                            viewModel.endCall()
                             logMessage("Call Ended on Back with final contents - id: ${classroom._id} - name: ${classroom.name} - contentIds: ${classroom.contentIds}")
                             logMessage("Call ended with Final Call Status: ${viewModel.callState.value}")
                             viewModel.updateClassroomContent(classroom)
@@ -192,10 +193,12 @@ class CallFragment : BaseFragment() {
 
         binding.endCallBtn.setOnClickListener {
             val classroom = args.classroom
-            classroom.contentIds = viewModel.selectedContentList.value!!.map{
+            classroom.contentIds = viewModel.selectedContentList.value?.map {
                 it.id
-            }
-            logMessage("Call Ended on end call button with final contents - id: ${classroom._id} - name: ${classroom.name} - contentIds: ${classroom.contentIds}")
+            } ?: emptyList()
+            logMessage("Call Ended on end call button with final contents - id: ${classroom._id}")
+            
+            viewModel.endCall()  
             viewModel.updateClassroomContent(classroom)
         }
 
@@ -267,10 +270,15 @@ class CallFragment : BaseFragment() {
                 logMessage("Audio paused ${viewModel.selectedContent.value!!.id} ${viewModel.selectedContent.value!!.title}}")
                 Log.d("AUDIOCONTROLPAUSEINI", viewModel.selectedContent.value!!.id)
             }
-            else {
-                viewModel.resumeAudio(viewModel.selectedContent.value!!.id)
-                logMessage("Audio resumed ${viewModel.selectedContent.value!!.id} ${viewModel.selectedContent.value!!.title}}")
-                Log.d("AUDIOCONTROLPLAYINI", viewModel.selectedContent.value!!.id)
+           else {
+                // Check if this is the FIRST play (not resumed)
+                if (!viewModel.startedAudio && viewModel.selectedContent.value != null) {
+                    viewModel.playAudio(viewModel.selectedContent.value!!.id)
+                    logMessage("Audio playing ${viewModel.selectedContent.value!!.title}")
+                } else {
+                    viewModel.resumeAudio(viewModel.selectedContent.value!!.id)
+                    logMessage("Audio resumed ${viewModel.selectedContent.value!!.title}")
+                }
             }
         }
 

@@ -2,6 +2,7 @@ package com.example.seeds.ui.contentDetails
 
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -21,26 +22,26 @@ class ContentDetailsFragment : BaseFragment() {
     private val args: ContentDetailsFragmentArgs by navArgs()
     private val viewModel: ContentDetailsViewModel by viewModels()
 
-    // Keep a separate player reference so we can safely release it
-    private var player: ExoPlayer? = null
+    // Two ExoPlayers: one for main content, one for "answer" (if Riddle)
+    private var mainPlayer: ExoPlayer? = null
+    private var answerPlayer: ExoPlayer? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        // Inflate the layout for this fragment
         _binding = FragmentContentDetailsBinding.inflate(inflater, container, false)
-
-        // Bind ViewModel & lifecycle owner
         binding.viewModel = viewModel
         binding.lifecycleOwner = viewLifecycleOwner
-
-        // Set initial content from nav args (keeps behaviour identical to original)
         binding.content = args.content
 
-        // Create player and attach to the PlayerView (contentAudio) as before
-        player = ExoPlayer.Builder(requireContext()).build()
-        binding.contentAudio.player = player
+        // Initialize players
+        mainPlayer = ExoPlayer.Builder(requireContext()).build()
+        answerPlayer = ExoPlayer.Builder(requireContext()).build()
+
+        // Attach to PlayerViews
+        binding.contentAudio.player = mainPlayer
+        binding.contentAudioAnswer.player = answerPlayer
 
         observeViewModel()
         setupUiListeners()
@@ -49,25 +50,24 @@ class ContentDetailsFragment : BaseFragment() {
     }
 
     private fun observeViewModel() {
-        // Observe SAS URL for playback
+        // Observe main content SAS URL
         viewModel.contentUrl.observe(viewLifecycleOwner) { url ->
-            if (url != null) {
-                logMessage("ContentSASURL: $url")
-                val mediaItem = MediaItem.fromUri(Uri.parse(url))
-                player?.apply {
-                    try {
-                        // Stop any current playback before setting new media
-                        stop()
-                    } catch (ignored: Exception) { }
-                    setMediaItem(mediaItem)
-                    prepare()
-                }
+            url?.let {
+                logMessage("MainContentSASURL: $it")
+                Log.d("SAS_URL", "Playing main content from URL: $it")
+                playMedia(mainPlayer, it)
             }
         }
+         // Observe answer (for riddles)
+        // viewModel.answerUrl.observe(viewLifecycleOwner) { url ->
+        //     url?.let {
+        //         logMessage("AnswerSASURL: $it")
+        //         playMedia(answerPlayer, it, autoPlay = false)
+        //     }
+        // }
 
-        // Update UI when the current content changes
+        // Update content info
         viewModel.currentContent.observe(viewLifecycleOwner) { content ->
-            // Update binding so UI reflects the new content (title, description etc.)
             binding.content = content
         }
     }
@@ -75,39 +75,49 @@ class ContentDetailsFragment : BaseFragment() {
     private fun setupUiListeners() {
         binding.btnNextPage?.setOnClickListener {
             val moved = viewModel.loadNextContent()
-            if (!moved) {
-                showToast("No more pages")
-            } else {
-                showToast("Loading next...")
-            }
+            if (!moved) showToast("No more pages")
+            else showToast("Loading next...")
         }
     }
-    override fun onStart() {
-        logMessage("onStart")
-        super.onStart()
-        // Keep same behaviour: refresh the content URL when fragment becomes visible
-        viewModel.refreshContentUrl()
+
+    private fun playMedia(player: ExoPlayer?, url: String, autoPlay: Boolean = true) {
+        val mediaItem = MediaItem.fromUri(Uri.parse(url))
+        Log.d("SAS_URL", "Preparing media item: $mediaItem")
+        player?.apply {
+            try {
+                stop()
+            } catch (_: Exception) {}
+            setMediaItem(mediaItem)
+            prepare()
+            playWhenReady = autoPlay
+        }
     }
 
-    override fun onDestroyView() {
-        // Log and release player safely (use viewModel.currentContent for IDs/titles to avoid binding after null)
-        val current = viewModel.currentContent.value
-        logMessage("Music player released ${current?.id} ${current?.title} ${player?.contentPosition} ${player?.contentDuration}")
-
-        try {
-            player?.stop()
-        } catch (ignored: Exception) { }
-        player?.release()
-        player = null
-
-        // Clear binding reference
-        _binding = null
-
-        super.onDestroyView()
+    override fun onStart() {
+        super.onStart()
+        logMessage("onStart")
+        viewModel.refreshContentUrl()
     }
 
     override fun onStop() {
         logMessage("onStop")
         super.onStop()
+        mainPlayer?.pause()
+        answerPlayer?.pause()
+    }
+
+    override fun onDestroyView() {
+        logMessage("Releasing ExoPlayers")
+
+        try { mainPlayer?.stop() } catch (_: Exception) {}
+        try { answerPlayer?.stop() } catch (_: Exception) {}
+
+        mainPlayer?.release()
+        answerPlayer?.release()
+        mainPlayer = null
+        answerPlayer = null
+
+        _binding = null
+        super.onDestroyView()
     }
 }

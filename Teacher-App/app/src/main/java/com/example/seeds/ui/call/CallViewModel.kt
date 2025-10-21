@@ -26,6 +26,7 @@ import okhttp3.*
 import okio.ByteString
 import javax.inject.Inject
 import android.content.SharedPreferences
+import com.example.seeds.utils.Constants
 
 @HiltViewModel
 class CallViewModel @Inject constructor(
@@ -42,6 +43,7 @@ class CallViewModel @Inject constructor(
     ) : ViewModel(){
 
     private val contactUtils = ContactUtils(context)
+    private val conferenceUrl = Constants.CONTENT_URL
     val args = CallFragmentArgs.fromSavedStateHandle(savedStateHandle)
 
     val leader = args.leader.toString()
@@ -245,7 +247,7 @@ class CallViewModel @Inject constructor(
                 )
 
                 val response = network.getAccessToken(
-                    "http://localhost:9210/conference/create",
+                    "$conferenceUrl/conference/create",
                     payload
                 )
 
@@ -291,11 +293,12 @@ class CallViewModel @Inject constructor(
                     if (student != null) names.add(student.name)
                 }
 
-                val fullUrl = "http://localhost:9210/conference/start/$confId"
+                val fullUrl = "$conferenceUrl/conference/start/$confId"
                 val response = network.startCall(fullUrl, CallDetails(confId, phoneNumbers, names))
 
                 if (response.isSuccessful) {
                     Log.d("CALL_START", "Conference started successfully!")
+                    _callToken.postValue(AccessToken(confId = confId, accessToken = ""))
                 } else {
                     Log.e("CALL_START", "Failed to start conference: ${response.code()} - ${response.message()}")
                 }
@@ -305,6 +308,64 @@ class CallViewModel @Inject constructor(
         }
     }
 
+    fun endCall() {
+        Log.d("CALL_END", "endCall() called")
+        
+        val confId = _callToken.value?.confId
+        Log.d("CALL_END", "Conference ID: $confId")
+        
+        if (confId == null) {
+            Log.e("CALL_END", "Conference ID is null, cannot end call")
+            closeSocket()
+            return
+        }
+
+        closeSocket()
+        
+        viewModelScope.launch {
+            try {
+                val fullUrl = "$conferenceUrl/conference/end/$confId"
+                Log.d("CALL_END", "Full URL: $fullUrl")
+                Log.d("CALL_END", "About to call network.endCall()...")
+                
+                val response = network.endCall(fullUrl)
+                Log.d("CALL_END", "Got response from network.endCall()")
+                Log.d("CALL_END", "Response code: ${response.code()}")
+                Log.d("CALL_END", "Response message: ${response.message()}")
+                
+                if (response.isSuccessful) {
+                    Log.d("CALL_END", "Conference ended successfully!")
+                } else {
+                    Log.e("CALL_END", "Failed to end conference: ${response.code()} - ${response.message()}")
+                    try {
+                        Log.e("CALL_END", "Error body: ${response.errorBody()?.string()}")
+                    } catch (e: Exception) {
+                        Log.e("CALL_END", "Could not read error body: ${e.message}")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("CALL_END_ERROR", "Exception in endCall: ${e.message}", e)
+                Log.e("CALL_END_ERROR", "Exception type: ${e::class.simpleName}")
+                e.printStackTrace()
+            }
+        }
+    }
+
+    private fun closeSocket() {
+        try {
+            if (this::socket.isInitialized) {
+                Log.d("CALL_END", "Closing socket")
+                socket.close(1000, "close")
+            }
+        } catch (e: Exception) {
+            Log.e("CALL_END", "Error closing socket: ${e.message}")
+        }
+    }
+
+    override fun onCleared() {
+        Log.d("CALL_END", "onCleared() called")
+        closeSocket()
+    }
 
     fun refreshCallState() {
         viewModelScope.launch {
@@ -438,26 +499,152 @@ class CallViewModel @Inject constructor(
         socket.send("remove:$phoneNumber")
     }
 
-    fun playAudio(audioId: String) {
-        socket.send("play:$audioId")
-        _audioPlaying.postValue(true)
-    }
+    fun sendAudioCommand(action: String, shouldPlay: Boolean) {
+        Log.d("AUDIO_COMMAND", "$action() called")
 
-    fun resumeAudio(audioId: String) {
-        if(startedAudio) {
-            socket.send("resume:$audioId")
-        } else {
-            playAudio(audioId)
-            startedAudio = true
+        val confId = _callToken.value?.confId
+        Log.d("AUDIO_COMMAND", "Conference ID: $confId")
+
+        if (confId == null) {
+            Log.e("AUDIO_COMMAND", "Conference ID is null")
+            _isErrorFromIVR.postValue("Conference not initialized")
+            _isAudioControlDone.postValue(true) // Re-enable button on early exit
             return
         }
-        _audioPlaying.postValue(true)
+
+        viewModelScope.launch {
+            try {
+                val fullUrl = "$conferenceUrl/conference/${action.lowercase()}audio/$confId"
+                Log.d("AUDIO_COMMAND", "Action: $action | Full URL: $fullUrl")
+                Log.d("AUDIO_COMMAND", "Sending $action request...")
+
+                val response = network.audioCommand(fullUrl) // This will now call the suspend function
+                Log.d("AUDIO_COMMAND", "Response received - Code: ${response.code()}")
+
+                if (response.isSuccessful) {
+                    Log.d("AUDIO_COMMAND", "Audio $action request sent successfully")
+                    _audioPlaying.postValue(shouldPlay)
+                } else {
+                    Log.e("AUDIO_COMMAND", "Failed to $action audio: ${response.code()} - ${response.message()}")
+                    try {
+                        Log.e("AUDIO_COMMAND", "Error body: ${response.errorBody()?.string()}")
+                    } catch (e: Exception) {
+                        Log.e("AUDIO_COMMAND", "Could not read error body")
+                    }
+                    _isErrorFromIVR.postValue("Failed to $action audio: ${response.code()}")
+                }
+            } catch (e: Exception) {
+                Log.e("AUDIO_COMMAND_ERROR", "Exception in $action: ${e.message}", e)
+                e.printStackTrace()
+                _isErrorFromIVR.postValue("Error: ${e.message}")
+            } finally {
+                // This is crucial: always re-enable the button
+                _isAudioControlDone.postValue(true)
+            }
+        }
     }
 
-    fun pauseAudio() {
-        socket.send("pause")
-        _audioPlaying.postValue(false)
+    fun playAudio(audioId: String) {
+        Log.d("PLAY_AUDIO", "playAudio() called with audioId: $audioId")
+        
+        val selectedContentObj = selectedContent.value
+        Log.d("PLAY_AUDIO", "Selected content: $selectedContentObj")
+        
+        if (selectedContentObj == null) {
+            Log.e("PLAY_AUDIO", "No content selected")
+            _isErrorFromIVR.postValue("No content selected")
+            _isAudioControlDone.postValue(true) // Re-enable button on immediate failure
+            return
+        }
+        
+        viewModelScope.launch {
+            try {
+                val confId = _callToken.value?.confId
+                Log.d("PLAY_AUDIO", "Conference ID: $confId")
+                
+                if (confId == null) {
+                    Log.e("PLAY_AUDIO", "Conference ID is null")
+                    _isErrorFromIVR.postValue("Conference not initialized")
+                    _isAudioControlDone.postValue(true) // Re-enable button
+                    return@launch
+                }
+                
+                val audioUrl = when {
+                    selectedContentObj.audioContent.isNotEmpty() -> {
+                        Log.d("PLAY_AUDIO", "Using audioContent URL")
+                        selectedContentObj.audioContent.first().audioUrl
+                    }
+                    selectedContentObj.title?.audioUrl != null -> {
+                        Log.d("PLAY_AUDIO", "Using title URL")
+                        selectedContentObj.title.audioUrl
+                    }
+                    selectedContentObj.theme?.audioUrl != null -> {
+                        Log.d("PLAY_AUDIO", "Using theme URL")
+                        selectedContentObj.theme.audioUrl
+                    }
+                    else -> {
+                        Log.e("PLAY_AUDIO", "No audio source found in any content field")
+                        null
+                    }
+                }
+                
+                if (audioUrl.isNullOrEmpty()) {
+                    Log.e("PLAY_AUDIO", "No audio URL found in content")
+                    _isErrorFromIVR.postValue("No audio available for this content")
+                    _isAudioControlDone.postValue(true) // Re-enable button
+                    return@launch
+                }
+                
+                Log.d("PLAY_AUDIO", "Got audio URL: $audioUrl")
+                
+                val fullUrl = "$conferenceUrl/conference/playaudio/$confId"
+                Log.d("PLAY_AUDIO", "Full URL: $fullUrl")
+                Log.d("PLAY_AUDIO", "Audio URL param: $audioUrl")
+                Log.d("PLAY_AUDIO", "Sending play request...")
+                
+                val response = network.playAudio(fullUrl, audioUrl)
+                Log.d("PLAY_AUDIO", "Response received - Code: ${response.code()}")
+                
+                if (response.isSuccessful) {
+                    Log.d("PLAY_AUDIO", "Audio play request sent successfully")
+                    _audioPlaying.postValue(true)
+                } else {
+                    Log.e("PLAY_AUDIO", "Failed to play audio: ${response.code()} - ${response.message()}")
+                    try {
+                        Log.e("PLAY_AUDIO", "Error body: ${response.errorBody()?.string()}")
+                    } catch (e: Exception) {
+                        Log.e("PLAY_AUDIO", "Could not read error body")
+                    }
+                    _isErrorFromIVR.postValue("Failed to play audio: ${response.code()}")
+                }
+            } catch (e: Exception) {
+                Log.e("PLAY_AUDIO_ERROR", "Exception in playAudio: ${e.message}", e)
+                e.printStackTrace()
+                _isErrorFromIVR.postValue("Error: ${e.message}")
+            } finally {
+                _isAudioControlDone.postValue(true) // This will always run
+            }
+        }
     }
+
+    fun pauseAudio(audioId: String? = null) = sendAudioCommand("Pause", false)
+
+    fun resumeAudio(audioId: String? = null) = sendAudioCommand("Resume", true)
+    // fun resumeAudio(audioId: String) {
+    //     if(startedAudio) {
+    //         socket.send("resume:$audioId")
+    //     } else {
+    //         playAudio(audioId)
+    //         startedAudio = true
+    //         return
+    //     }
+    //     _audioPlaying.postValue(true)
+    // }
+
+    // fun pauseAudio() {
+    //     socket.send("pause")
+    //     _audioPlaying.postValue(false)
+    // }
 
     fun forwardAudio() {
         socket.send("forwardStream")
@@ -467,13 +654,13 @@ class CallViewModel @Inject constructor(
         socket.send("backwardStream")
     }
 
-    fun endCall() {
-        //how to check if socket is initialized
-        if (this::socket.isInitialized) {
-            socket.send("end")
-        }
-         // Null Error here
-    }
+    // fun endCall() {
+    //     //how to check if socket is initialized
+    //     if (this::socket.isInitialized) {
+    //         socket.send("end")
+    //     }
+    //      // Null Error here
+    // }
 
     /*
 
@@ -542,13 +729,13 @@ class CallViewModel @Inject constructor(
         }
     }
 
-    override fun onCleared() {
-        endCall()
-        if (this::socket.isInitialized) {
-            socket.close(1000, "close")
-        }
-        //socket.close(1000, "close")
-    }
+    // override fun onCleared() {
+    //     endCall()
+    //     if (this::socket.isInitialized) {
+    //         socket.close(1000, "close")
+    //     }
+    //     //socket.close(1000, "close")
+    // }
 
     fun startNetworkCallback() {
         val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
