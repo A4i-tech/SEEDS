@@ -2,11 +2,11 @@ name: IVR v2 Main
 
 on:
   push:
-    branches: [a4i/main, testing-pipeline-seeds]
+    branches: [a4i/main]
     paths:
       - "IVRv2/**"
   pull_request:
-    branches: [a4i/main, testing-pipeline-seeds]
+    branches: [a4i/main]
     paths:
       - "IVRv2/**"
   workflow_call:
@@ -81,6 +81,7 @@ jobs:
 
   deploy-to-docker:
     needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/a4i/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -116,7 +117,7 @@ jobs:
 
   deploy-to-render:
     needs: deploy-to-docker
-    if: (vars.DEPLOYMENT_TARGET == 'render' || vars.DEPLOYMENT_TARGET == 'both' || vars.DEPLOYMENT_TARGET == '' || vars.DEPLOYMENT_TARGET == null)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/a4i/main' && (vars.DEPLOYMENT_TARGET == 'render' || vars.DEPLOYMENT_TARGET == 'both' || vars.DEPLOYMENT_TARGET == '' || vars.DEPLOYMENT_TARGET == null)
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to Render
@@ -133,7 +134,7 @@ jobs:
 
   deploy-to-azure:
     needs: deploy-to-docker
-    if: (vars.DEPLOYMENT_TARGET == 'azure' || vars.DEPLOYMENT_TARGET == 'both')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/a4i/main' && (vars.DEPLOYMENT_TARGET == 'azure' || vars.DEPLOYMENT_TARGET == 'both')
     runs-on: ubuntu-latest
     steps:
       - name: Azure Login

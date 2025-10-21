@@ -11,7 +11,7 @@ const swaggerDocument = {
   },
   servers: [
     {
-      url: 'http://localhost:5001',
+      url: process.env.REACT_APP_API_BASE_URL,
       description: 'Development server',
     },
   ],
