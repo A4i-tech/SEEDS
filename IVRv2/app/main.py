@@ -318,7 +318,7 @@ async def start_ivr(request: Request, response: Response):
             # - DELETE THE DOC
             # - HANG UP THE CALL IN CASE ITS STILL UP : TODO
             if (datetime.now() - ivr_state.created_at).total_seconds() / 60 > \
-                int(os.environ.get("STALE_WAIT_IN_SECONDS", 60)):
+                int(os.environ.get("STALE_WAIT_IN_MINUTES", 60)):
                 await ongoing_fsm_mongo.delete(phone_number)
             
             # OTHERWISE DON'T ALLOW THE CALL TO BE STARTED
