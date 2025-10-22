@@ -67,6 +67,8 @@ fsm_json_mongo = MongoDB(db_name="ivr", collection_name="fsm")
 
 radio_fsm_mongo = MongoDB(db_name="ivr", collection_name="radio")
 
+incoming_missed_calls_log_mongo = MongoDB(db_name="ivr", collection_name="incomingMissedCallsLog")
+
 action_factory = VonageActionFactory()
 
 accumulator = action_factory.get_action_accumulator_implmentation()
@@ -270,17 +272,26 @@ async def update_ivr(request: Request, response: Response):
         500: {"description": "Failed to initiate call"}
     }
 )
-async def start_ivr(response: Response, sender: str = Form(..., description="Phone number to call in E.164 format (e.g., +1234567890)")):
+async def start_ivr(request: Request, response: Response):
     global fsm
     try:
+        print('Webhook recived a request to start IVR')
+        call_data = await request.json()
+
+        call_status = call_data.get('_su') # 2 = missed call
+        phone_number = call_data.get('_cl') # with country code
+
+        print("CALL STATUS", call_status)
+        print("CALLER NUMBER", phone_number)
+        if call_status != 2:
+            response.status_code = 400
+            return {"detail": "Invalid call data received"}
+
         client = vonage.Client(application_id=application_id, private_key=os.getenv("VONAGE_PRIVATE_KEY_PATH"))
 
         # form_data = await request.form()
         # data = dict(form_data)
         # phone_number = data.get('sender', None)
-
-        sender_data = StartIVRFormData(sender=sender)
-        phone_number = sender_data.sender
         
         # Extract the 'sender' value from the form data
         # if phone_number is None:
@@ -288,6 +299,16 @@ async def start_ivr(response: Response, sender: str = Form(..., description="Pho
         #     return {"detail": "Sender value is required"}
         
         print("RECIEVED START IVR CALL FOR PHONE NUMBER", phone_number)
+
+        # return _id for the insert
+        print(f"DEBUG: About to insert into missed calls log")
+        insert_result = await incoming_missed_calls_log_mongo.insert({
+            "phone_number": phone_number,
+            "timestamp": datetime.now()
+        })
+        print(f"DEBUG: Inserted into missed calls log with ID: {insert_result}")
+        
+        
         
         doc = await ongoing_fsm_mongo.find_one_by_query({'phone_number': phone_number})
         if doc != None:
@@ -312,7 +333,7 @@ async def start_ivr(response: Response, sender: str = Form(..., description="Pho
 
         # ncco_actions = accumulator.combine([action_factory.get_action_implmentation(x) for x in fsm.get_start_fsm_actions()])
         print("NCCO:", json.dumps(ncco_actions, indent=2))
-        
+
         vonage_resp = client.voice.create_call({
             'to': [{'type': 'phone', 'number': phone_number}],
             'from': {'type': 'phone', 'number': os.getenv("VONAGE_NUMBER")},
