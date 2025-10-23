@@ -54,7 +54,7 @@ class AddMoreContentToCallFragment : BaseFragment() {
                 if(text.isNotEmpty()){
                     logMessage("Content search text: $text")
                     (binding.contentList.adapter as ContentListAdapter).submitList(viewModel.filteredContent.value?.toMutableList()?.filter {
-                        it.title.lowercase().contains(text)
+                        it.titleText.lowercase().contains(text)
                     })
                 } else {
                     (binding.contentList.adapter as ContentListAdapter).submitList(viewModel.filteredContent.value)
@@ -67,9 +67,11 @@ class AddMoreContentToCallFragment : BaseFragment() {
             val additionalContentChosen = viewModel.allContent.value?.filter{
                 contentChosen.contains(it.id)
             }
-            logMessage("Additonal content chosen during call: $additionalContentChosen - ${additionalContentChosen?.map{it.title}}")
-            val totalContent = viewModel.selectedContentList.value!!.toMutableList()
-            totalContent.addAll(additionalContentChosen!!)
+            logMessage("Additonal content chosen during call: $additionalContentChosen - ${additionalContentChosen?.map{it.titleText}}")
+            val totalContent = (viewModel.selectedContentList.value?.toMutableList() ?: mutableListOf()).apply {
+                    additionalContentChosen?.let { addAll(it) }
+                }
+                        totalContent.addAll(additionalContentChosen!!)
             Log.d("ContentChosen", contentChosen.toString())
             Log.d("AdditionalContentChosen", additionalContentChosen.toString())
             Log.d("totalContent", totalContent.toString())

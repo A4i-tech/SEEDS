@@ -16,7 +16,6 @@ import com.example.seeds.databinding.ActivityMainBinding
 import com.example.seeds.network.SeedsService
 import com.example.seeds.utils.Constants
 import com.example.seeds.utils.TimberInitializer
-import com.example.seeds.utils.TimberRemoteTree
 import com.example.seeds.workers.UploadLogsWorker
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import dagger.hilt.android.AndroidEntryPoint
@@ -27,6 +26,7 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
+
     private lateinit var binding: ActivityMainBinding
 
     @Inject
@@ -45,32 +45,31 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
         setSupportActionBar(binding.mainToolbar)
 
+        // Retrieve phone number from SharedPreferences
         val sharedPreferences = getSharedPreferences("sharedPref", Context.MODE_PRIVATE)
         var teacherPhoneNumber = sharedPreferences.getString("phone", null) ?: ""
         teacherPhoneNumber = "+91$teacherPhoneNumber"
         Log.d("MainActivity", "teacherPhoneNumber: $teacherPhoneNumber")
-        if (teacherPhoneNumber.length == 13) TimberInitializer.plantTimberTree(database, teacherPhoneNumber)
-        else TimberInitializer.plantTimberTree(database, "Unknown")
-//        }
-//        val remoteTree = TimberRemoteTree(logDatabase, teacherPhoneNumber)
-//        Timber.plant(remoteTree)
+
+        // Initialize Timber with correct identifier
+        if (teacherPhoneNumber.length == 13)
+            TimberInitializer.plantTimberTree(database, teacherPhoneNumber)
+        else
+            TimberInitializer.plantTimberTree(database, "Unknown")
 
         val navView: BottomNavigationView = binding.navView
-
         val navController = findNavController(R.id.nav_host_fragment_activity_main)
 
         logMessage("PhoneModel ${Build.MANUFACTURER} ${Build.MODEL} ${Build.PRODUCT}")
 
-        WorkManager.getInstance(applicationContext).getWorkInfosForUniqueWorkLiveData(
-            UploadLogsWorker.WORK_NAME).observe(this, androidx.lifecycle.Observer {
-            it?.let{
-                //Toast.makeText(applicationContext, "Number of workers: ${it.size}!", Toast.LENGTH_LONG).show()
-                if(it.size > 0) {
-                    for(i in 0 until it.size)
-                        WorkManager.getInstance(applicationContext).cancelWorkById(it[i].id)
+        // Cancel any pending UploadLogsWorker jobs
+        WorkManager.getInstance(applicationContext)
+            .getWorkInfosForUniqueWorkLiveData(UploadLogsWorker.WORK_NAME)
+            .observe(this) { list ->
+                list?.forEach { workInfo ->
+                    WorkManager.getInstance(applicationContext).cancelWorkById(workInfo.id)
                 }
             }
-        })
 
         val appBarConfiguration = AppBarConfiguration(
             setOf(
@@ -80,55 +79,66 @@ class MainActivity : AppCompatActivity() {
                 R.id.addStudentsFragment,
                 R.id.addContentToCallFragment2,
                 R.id.callFragment,
-                R.id.classroomFragment,
+                R.id.classroomFragment
             )
         )
         setupActionBarWithNavController(navController, appBarConfiguration)
-
         navView.setupWithNavController(navController)
-        // Passing each menu ID as a set of Ids because each
-        // menu should be considered as top level destinations.
     }
 
     private suspend fun uploadLogs() {
         withContext(Dispatchers.IO) {
             val logs = database.getAll()
-            if(logs.isNotEmpty()) {
-                withContext(Dispatchers.IO) {
+            if (logs.isNotEmpty()) {
+                try {
                     network.uploadLogs(logs)
+                    database.delete(logs.map { it.id })
+                } catch (e: Exception) {
+                    Timber.e(e, "Failed to upload logs")
                 }
-                database.delete(logs.map { it.id })
             }
         }
     }
 
-    fun setBottomNavigationVisibility(visibility: Int){
+    fun setBottomNavigationVisibility(visibility: Int) {
         binding.navView.visibility = visibility
     }
+
     override fun onSupportNavigateUp(): Boolean {
-        onBackPressedDispatcher.onBackPressed()
-        return super.onSupportNavigateUp()
+        val navController = findNavController(R.id.nav_host_fragment_activity_main)
+        return navController.navigateUp() || super.onSupportNavigateUp()
+    }
+
+    override fun onBackPressed() {
+        val navController = findNavController(R.id.nav_host_fragment_activity_main)
+        if (navController.currentDestination?.id == R.id.classroomFragment) {
+            // Go back to home fragment instead of doing nothing
+            navController.navigate(R.id.homeFragment)
+        } else {
+            super.onBackPressed()
+        }
+    }
+
+    private fun startLogUploadLoop() {
+        mainActivityScope.cancel()
+        mainActivityScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        mainActivityScope.launch {
+            while (isActive) {
+                uploadLogs()
+                delay(30_000)
+            }
+        }
     }
 
     override fun onStart() {
         super.onStart()
-        //Upload the logs every 30 seconds.
-        mainActivityScope.cancel()
-        mainActivityScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-        mainActivityScope.launch {
-            while (true) {
-                uploadLogs()
-                delay(30000)
-            }
-        }
+        startLogUploadLoop()
     }
 
     override fun onStop() {
         super.onStop()
-        lifecycleScope.launch {
-            mainActivityScope.cancel()
-            uploadLogs()
-        }
+        mainActivityScope.cancel()
+        lifecycleScope.launch(Dispatchers.IO) { uploadLogs() } // final upload before stopping
     }
 
     override fun onRestart() {
@@ -137,7 +147,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun logMessage(msg: String) {
-        Timber.tag(this.javaClass.simpleName).d("Appv${Constants.APP_VERSION} $mainActivitySessionId $msg")
+        Timber.tag(this.javaClass.simpleName)
+            .d("Appv${Constants.APP_VERSION} $mainActivitySessionId $msg")
     }
-
 }

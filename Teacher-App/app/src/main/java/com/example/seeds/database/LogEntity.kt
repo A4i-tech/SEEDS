@@ -1,5 +1,4 @@
 package com.example.seeds.database
-
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
