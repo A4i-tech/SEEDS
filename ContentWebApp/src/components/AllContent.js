@@ -13,8 +13,10 @@ const AllContent = () => {
   const [updateIVRStatus, setUpdateIVRStatus] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
-
+  
   const [currentUser, setCurrentUser] = useState("");
+
+  const ivrURL = process.env.REACT_APP_API_IVRV2_URL;
 
   const getAuthHeaders = () => {
       // Get the auth token
@@ -43,7 +45,7 @@ const AllContent = () => {
 
   const onUpdateIVR = async () => {
     try {
-      const response = await fetch(`https://ivrv2.onrender.com/updateivr`, {
+      const response = await fetch(`${ivrURL}/updateivr`, {
         method: "POST",
         headers: getAuthHeaders(),
       });
