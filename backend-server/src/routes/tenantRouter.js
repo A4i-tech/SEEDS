@@ -6,6 +6,7 @@ const STATUS_OK = 200;
 
 const router = express.Router();
 
+const authenticateToken = require('../auth/authenticateToken');
 /**
  * @swagger
  * /tenant/login:
@@ -53,6 +54,38 @@ router.post('/login',
         });
     }
 );
+
+/**
+ * @swagger
+ * /tenant/logout:
+ *   post:
+ *     summary: Tenant logout
+ *     tags: [Tenant]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Successfully logged out
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Logout successful
+ *       401:
+ *         description: Unauthorized, token is missing or invalid
+ */
+router.post('/logout',
+    authenticateToken,
+    (req, res) => {
+        // Acknowledge logout
+        res.status(STATUS_OK).json({ message: 'Logout successful' });
+    }
+);
+
+module.exports = router;
 
 /**
  * @swagger

@@ -11,19 +11,21 @@ const Login = () => {
     const [showError, setShowError] = useState(false);
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [name, setName] = useState("");
 
     const handleLogin = async () => {
-        if (!email || !password) {
+        if (!email || !password || !name) {
             setShowError(true);
             return;
         }
 
         try {
-            const response = await axios.post(`${baseURL}/tenant/login`, { email, password });
+            const response = await axios.post(`${baseURL}/tenant/login`, { email, password, name });
             console.log(response);
             if (response.status === 200) {
                 const { name } = response.data;
-                navigate('/content', { state: { name } });
+                localStorage.setItem('authToken', response.data.token);
+                navigate('/content', { state: { name : name} });
             } else {
                 setShowError(true);
             }
@@ -72,6 +74,13 @@ const Login = () => {
                     placeholder="Password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    style={inputStyle}
+                />
+                <input
+                    type="name"
+                    placeholder="Organization Name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
                     style={inputStyle}
                 />
                 <button className="btn" style={{ backgroundColor: "#28574F", color: "white" }} onClick={handleLogin}>Login</button>
