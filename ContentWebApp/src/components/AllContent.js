@@ -13,26 +13,41 @@ const AllContent = () => {
   const [updateIVRStatus, setUpdateIVRStatus] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
-
+  
   const [currentUser, setCurrentUser] = useState("");
 
+  const ivrURL = process.env.REACT_APP_API_IVRV2_URL;
+
+  const getAuthHeaders = () => {
+      // Get the auth token
+      const token = localStorage.getItem('authToken');
+
+      return {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+      };
+  };
+
   useEffect(() => {
-    // Get user name from navigation state (passed from login)
-    if (location.state?.name) {
-      setCurrentUser(location.state.name);
-    } else {
-      // If no user data, redirect to login
-      navigate('/');
-    }
+      const token = localStorage.getItem('authToken');
+      // No token, redirect to login
+      if (!token) {
+          navigate('/'); 
+          return;
+      }
+
+      if (location.state?.name) {
+        setCurrentUser(location.state.name);
+      } else {
+        setCurrentUser("User"); 
+      }
   }, [location.state, navigate]);
 
   const onUpdateIVR = async () => {
     try {
-      const response = await fetch(`https://ivrv2.azurewebsites.net/updateivr`, {
+      const response = await fetch(`${ivrURL}/updateivr`, {
         method: "POST",
-        headers: {
-          authToken: "postman",
-        },
+        headers: getAuthHeaders(),
       });
       const data = await response.json();
       setUpdateIVRStatus(data.message);
@@ -112,7 +127,7 @@ const AllContent = () => {
     const getContent = async () => {
       const contentFromServer = await getAllContent();
       // filter by isDeleted is False
-      const contentFromServerNotDeleted = contentFromServer.filter((content) => !content.isDeleted);
+      const contentFromServerNotDeleted = contentFromServer.data.filter((content) => !content.isDeleted); 
       setAllContent(sortContentByCreationTime(contentFromServerNotDeleted));
       setContent(sortContentByCreationTime(contentFromServerNotDeleted));
       setOptions(generateOptions(sortContentByCreationTime(contentFromServerNotDeleted)));
@@ -126,9 +141,7 @@ const AllContent = () => {
       `${SEEDS_URL}/content`,
       {
         method: "GET",
-        headers: {
-          authToken: "postman",
-        },
+        headers: getAuthHeaders(), // Use the correct, dynamic headers
       }
     );
     const seedsData = await seedsRes.json();
@@ -162,9 +175,7 @@ const AllContent = () => {
           `${SEEDS_URL}/content/${id}`,
           {
             method: "DELETE",
-            headers: {
-              authToken: "postman",
-            },
+            headers: getAuthHeaders(),
           }
         );
       }
