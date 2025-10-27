@@ -13,11 +13,11 @@ os.environ.setdefault('VONAGE_NUMBER', '+1234567890')
 os.environ.setdefault('NGROK_URL', 'https://test.ngrok.io')
 os.environ.setdefault('CALL_DURATION_LIMIT', '1800')
 os.environ.setdefault('STALE_WAIT_IN_SECONDS', '60')
-os.environ.setdefault('BLOB_STORE_CONN_STR', 'test_blob_connection')
+os.environ.setdefault('AZURE_STORAGE_CONNECTION_STRING', 'test_blob_connection')
 os.environ.setdefault('AZURE_COSMOS_ENDPOINT', 'test_cosmos_endpoint')
 os.environ.setdefault('AZURE_COSMOS_KEY', 'test_cosmos_key')
 os.environ.setdefault('AZURE_STORAGE_CONNECTION_STRING', 'test_storage_connection')
-os.environ.setdefault('MONGODB_URI', 'test_mongodb_uri')
+os.environ.setdefault('MONGO_DB_CONNECTION_STRING', 'test_mongodb_uri')
 os.environ.setdefault('VONAGE_API_KEY', 'test_vonage_key')
 os.environ.setdefault('VONAGE_API_SECRET', 'test_vonage_secret')
 os.environ.setdefault('VONAGE_PRIVATE_KEY', 'test_vonage_private_key')
@@ -132,7 +132,7 @@ def test_environment_vars():
         'NGROK_URL': 'http://test.ngrok.io',
         'CALL_DURATION_LIMIT': '1800',
         'STALE_WAIT_IN_SECONDS': '60',
-        'BLOB_STORE_CONN_STR': 'test_blob_connection'
+        'AZURE_STORAGE_CONNECTION_STRING': 'test_blob_connection'
     }
     
     with patch.dict(os.environ, test_vars):

@@ -203,6 +203,18 @@ typing_extensions = {version = ">=4.5", markers = "python_version < \"3.13\""}
 trio = ["trio (>=0.31.0)"]
 
 [[package]]
+name = "async-timeout"
+version = "5.0.1"
+description = "Timeout context manager for asyncio programs"
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "async_timeout-5.0.1-py3-none-any.whl", hash = "sha256:39e3809566ff85354557ec2398b55e096c8364bacac9405a7a1fa429e77fe76c"},
+    {file = "async_timeout-5.0.1.tar.gz", hash = "sha256:d9321a7a3d5a6a5e187e824d2fa0793ce379a202935782d555d6e9d2735677d3"},
+]
+
+[[package]]
 name = "attrs"
 version = "25.4.0"
 description = "Classes Without Boilerplate"
@@ -771,6 +783,24 @@ doq = ["aioquic (>=1.2.0)"]
 idna = ["idna (>=3.10)"]
 trio = ["trio (>=0.30)"]
 wmi = ["wmi (>=1.5.1) ; platform_system == \"Windows\""]
+
+[[package]]
+name = "exceptiongroup"
+version = "1.3.0"
+description = "Backport of PEP 654 (exception groups)"
+optional = false
+python-versions = ">=3.7"
+groups = ["main"]
+files = [
+    {file = "exceptiongroup-1.3.0-py3-none-any.whl", hash = "sha256:4d111e6e0c13d0644cad6ddaa7ed0261a0b36971f6d23e7ec9b4b9097da78a10"},
+    {file = "exceptiongroup-1.3.0.tar.gz", hash = "sha256:b241f5885f560bc56a59ee63ca4c6a8bfa46ae4ad651af316d4e81817bb9fd88"},
+]
+
+[package.dependencies]
+typing-extensions = {version = ">=4.6.0", markers = "python_version < \"3.13\""}
+
+[package.extras]
+test = ["pytest (>=6)"]
 
 [[package]]
 name = "factory-boy"
@@ -2787,4 +2817,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12"
-content-hash = "9ec9ef8c7129f8b72ca2d630e4776ab82662c1d4162ba77d697dd34af183d707"
+content-hash = "6186cc609165f8cb6f545047d02ec22af95438e20f155de0113ba6eae8e670cb"

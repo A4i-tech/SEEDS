@@ -57,14 +57,19 @@ Create a `.env` file in the root directory with the following variables:
 VONAGE_API_KEY=your_vonage_api_key
 VONAGE_API_SECRET=your_vonage_api_secret
 VONAGE_APPLICATION_ID=your_vonage_app_id
-VONAGE_PRIVATE_KEY=your_private_key_path
+VONAGE_PRIVATE_KEY_PATH=your_private_key_path
+VONAGE_NUMBER=your_vonage_number
 
 AZURE_COSMOS_ENDPOINT=your_cosmos_endpoint
 AZURE_COSMOS_KEY=your_cosmos_key
 AZURE_STORAGE_CONNECTION_STRING=your_storage_connection_string
+STORAGE_ACCOUNT_NAME=your_storage_account_name
+AZURE_STORAGE_ENABLED=true/false
+AZURE_STORAGE_ACCOUNT_KEY=your_azure_account_key
 
-# Optional: For local development
-MONGODB_URI=mongodb://localhost:27017/ivr
+
+MONGO_DB_CONNECTION_STRING=your_mongo_db_connection_string
+BASE_URL=your_base_url
 ```
 
 ## Running the Application

@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 class SASGen:
     def __init__(self):
-        self.account_name = os.getenv('AZURE_STORAGE_ACCOUNT_NAME')
+        self.account_name = os.getenv('STORAGE_ACCOUNT_NAME')
         self.account_key = os.getenv('AZURE_STORAGE_ACCOUNT_KEY')
         self.sas_expiry_hours = int(os.getenv('SAS_EXPIRY_HOURS', '1'))
         if self.account_name and self.account_key:
