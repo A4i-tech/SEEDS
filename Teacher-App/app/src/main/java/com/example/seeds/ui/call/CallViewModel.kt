@@ -171,6 +171,11 @@ class CallViewModel @Inject constructor(
         }
     }
 
+    private val CONFERENCE_CREATE_URL = "$conferenceUrl/conference/create"
+    private val CONFERENCE_START_URL = "$conferenceUrl/conference/start"
+    private val CONFERENCE_END_URL = "$conferenceUrl/conference/end"
+    private val CONFERENCE_ACTION_URL = "$conferenceUrl/conference/"
+    private val CONFERENCE_PLAY_AUDIO_URL = "$conferenceUrl/conference/playaudio"
 
     init {
         getAccessToken()
@@ -235,7 +240,7 @@ class CallViewModel @Inject constructor(
                 )
 
                 val response = network.getAccessToken(
-                    "$conferenceUrl/conference/create",
+                    CONFERENCE_CREATE_URL,
                     payload
                 )
 
@@ -273,7 +278,7 @@ class CallViewModel @Inject constructor(
                     if (student != null) names.add(student.name)
                 }
 
-                val fullUrl = "$conferenceUrl/conference/start/$confId"
+                val fullUrl = "$CONFERENCE_START_URL/$confId"
                 val response = network.startCall(fullUrl, CallDetails(confId, phoneNumbers, names))
 
                 if (response.isSuccessful) {
@@ -304,7 +309,7 @@ class CallViewModel @Inject constructor(
         
         viewModelScope.launch {
             try {
-                val fullUrl = "$conferenceUrl/conference/end/$confId"
+                val fullUrl = "CONFERENCE_END_URL/$confId"
                 Log.d("CALL_END", "Full URL: $fullUrl")
                 Log.d("CALL_END", "About to call network.endCall()...")
                 
@@ -399,10 +404,6 @@ class CallViewModel @Inject constructor(
 
         if (message.contains("refresh")) {
             refreshCallState()
-        // } else if (message.contains("forwardStreamDone")){
-        //     _forwardStreamDone.postValue(true)
-        // } else if(message.contains("backwardStreamDone")){
-        //     _backwardStreamDone.postValue(true)
         } else if(message.contains("muteAllDone") || message.contains("unMuteAllDone")) {
              refreshCallState()
              _isMuteOrUnmuteAllDone.postValue(true)
@@ -410,7 +411,6 @@ class CallViewModel @Inject constructor(
             Log.d("AUDIOCONTROLMESSAGE", message)
             _isAudioControlDone.postValue(true)
             refreshCallState()
-//            Log.d("AUDIOCONTROL CURRENT", audioPlaying.value!!.toString())
         } else if(message.contains("muteDone:") || message.contains("unmuteDone")){
             val phoneNumber = message.split(":")[1]
             Log.d("MUTEUNMUTEDONE", phoneNumber)
@@ -494,7 +494,7 @@ class CallViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                val fullUrl = "$conferenceUrl/conference/${action.lowercase()}audio/$confId"
+                val fullUrl = "$CONFERENCE_ACTION_URL/${action.lowercase()}audio/$confId"
                 Log.d("AUDIO_COMMAND", "Action: $action | Full URL: $fullUrl")
                 Log.d("AUDIO_COMMAND", "Sending $action request...")
 
@@ -577,7 +577,7 @@ class CallViewModel @Inject constructor(
                 
                 Log.d("PLAY_AUDIO", "Got audio URL: $audioUrl")
                 
-                val fullUrl = "$conferenceUrl/conference/playaudio/$confId"
+                val fullUrl = "$CONFERENCE_PLAY_AUDIO_URL/$confId"
                 Log.d("PLAY_AUDIO", "Full URL: $fullUrl")
                 Log.d("PLAY_AUDIO", "Audio URL param: $audioUrl")
                 Log.d("PLAY_AUDIO", "Sending play request...")
@@ -649,8 +649,6 @@ class CallViewModel @Inject constructor(
         override fun onOpen(webSocket: WebSocket, response: Response) {
             super.onOpen(webSocket, response)
             Log.d("socket", "Socket Created!!")
-            //need to start the call here
-            // startCall(confId)
             cancelCallOnFailure?.cancel()
         }
 

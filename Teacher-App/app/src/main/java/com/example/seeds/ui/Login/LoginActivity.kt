@@ -25,6 +25,9 @@ import java.io.IOException
 import javax.inject.Inject
 
 const val LOGIN_URL = Constants.BASE_URL + "/tenant/login"
+const val REGISTER_URL = Constants.BASE_URL + "/tenant/register"
+const val ORGANIZATIONS_URL = Constants.BASE_URL + "/tenant/list"
+const val TEACHER_INFO_URL = Constants.BASE_URL + "/teacher/register"
 
 class LoginActivity : AppCompatActivity() {
 
@@ -94,7 +97,7 @@ class LoginActivity : AppCompatActivity() {
     private fun fetchOrganizations(onResult: (List<String>) -> Unit) {
         val client = OkHttpClient()
         val request = Request.Builder()
-            .url(Constants.BASE_URL + "/tenant/list")
+            .url(ORGANIZATIONS_URL)
             .get()
             .build()
 
@@ -141,7 +144,7 @@ class LoginActivity : AppCompatActivity() {
         )
 
         val registerRequest = Request.Builder()
-            .url(Constants.BASE_URL + "/tenant/register")
+            .url(REGISTER_URL)
             .post(body)
             .build()
 
@@ -174,7 +177,7 @@ class LoginActivity : AppCompatActivity() {
         )
 
         val loginRequest = Request.Builder()
-            .url(Constants.BASE_URL + "/tenant/login") 
+            .url(LOGIN_URL)  
             .post(body)
             .build()
 
@@ -217,7 +220,7 @@ class LoginActivity : AppCompatActivity() {
     private fun fetchTeacherId(token: String) {
         val client = OkHttpClient()
         val teacherRequest = Request.Builder()
-            .url(Constants.BASE_URL + "/teacher/register")
+            .url(TEACHER_INFO_URL)
             .get()
             .addHeader("Authorization", "Bearer $token")
             .build()

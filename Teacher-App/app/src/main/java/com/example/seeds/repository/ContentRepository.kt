@@ -13,11 +13,13 @@ import kotlinx.coroutines.DisposableHandle
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
+const val PAGE_SIZE = 100   
+
 class ContentRepository @Inject constructor(
     private val network: SeedsService
 ) {
     suspend fun getAllContent(
-        limit: Int = 100,
+        limit: Int = PAGE_SIZE,
         cursor: String? = null
     ): List<Content> {
         return withContext(Dispatchers.IO) {
