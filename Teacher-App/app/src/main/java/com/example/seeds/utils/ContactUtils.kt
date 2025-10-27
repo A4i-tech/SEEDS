@@ -10,7 +10,7 @@ import android.provider.ContactsContract
 import android.telephony.PhoneNumberUtils
 import androidx.annotation.NonNull
 import com.example.seeds.model.Student
-import java.util.*
+import java.util.Locale
 import kotlin.collections.HashMap
 
 class ContactUtils constructor(private val context: Context) {

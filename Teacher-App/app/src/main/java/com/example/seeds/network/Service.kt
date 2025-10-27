@@ -2,10 +2,16 @@ package com.example.seeds.network
 
 import android.content.Context
 import android.util.Log
-import com.example.seeds.network.AuthInterceptor
 import com.example.seeds.ApplicationJsonAdapterFactory
 import com.example.seeds.database.LogEntity
-import com.example.seeds.model.*
+import com.example.seeds.model.CallDetails
+import com.example.seeds.model.ConferenceCreateRequest
+import com.example.seeds.model.ConferenceCreateResponse
+import com.example.seeds.model.Content
+import com.example.seeds.model.PaginatedResponse
+import com.example.seeds.model.SasUrlResponse
+import com.example.seeds.model.Student
+import com.example.seeds.model.StudentListContainer
 import com.example.seeds.utils.Constants
 import com.squareup.moshi.Moshi
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -14,8 +20,15 @@ import okhttp3.OkHttpClient
 import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
-import retrofit2.http.*
-import java.util.*
+import retrofit2.http.Body
+import retrofit2.http.DELETE
+import retrofit2.http.GET
+import retrofit2.http.POST
+import retrofit2.http.PUT
+import retrofit2.http.Path
+import retrofit2.http.Query
+import retrofit2.http.Url
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 interface SeedsService {

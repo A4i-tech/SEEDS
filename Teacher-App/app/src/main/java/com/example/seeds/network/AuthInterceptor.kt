@@ -10,13 +10,14 @@ import okhttp3.Response
 class AuthInterceptor(private val context: Context) : Interceptor {
 
     private val sessionManager = SessionManager(context)
+    private val FORBIDDEN = 403
 
     override fun intercept(chain: Interceptor.Chain): Response {
         // Proceed with the original request
         val response = chain.proceed(chain.request())
 
         // Check the response code
-         if (response.code() == 403) {
+         if (response.code() == FORBIDDEN) {
             // If we receive a 403 Forbidden response, clear the session...
             sessionManager.clearSession()
 

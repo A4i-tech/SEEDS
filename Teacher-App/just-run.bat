@@ -1,17 +1,24 @@
 @echo off
 setlocal enabledelayedexpansion
 
-:: ==========================================================
 :: Configuration variables
-:: ==========================================================
 set "APK_PATH=app\build\outputs\apk\debug\app-debug.apk"
 set "PACKAGE_NAME=com.example.seeds"
 set "MAIN_ACTIVITY=com.example.seeds.ui.Login.SplashScreenActivity"
 set "BUILD_DIR=app\build"
 
-:: ==========================================================
+:: Default to not reversing TCP ports
+set "REVERSE_TCP=false"
+
+:: Check for command-line argument to enable TCP reverse
+if /i "%~1"=="reverse" (
+    set "REVERSE_TCP=true"
+    echo TCP reverse explicitly enabled via command-line argument.
+) else if not "%~1"=="" (
+    echo Unknown argument: %1. Continuing without TCP reverse.
+)
+
 :: Script logic
-:: ==========================================================
 
 @REM echo Starting the clean build and run process for %PACKAGE_NAME%...
 
@@ -69,15 +76,20 @@ if %errorlevel% neq 0 (
 )
 echo Device found.
 
-:: Step 3.5: Reverse TCP port for local server
-echo 3.5. Setting up adb reverse for local server port 9210...
-adb reverse tcp:9210 tcp:9210
-adb reverse tcp:4000 tcp:4000
-if %errorlevel% neq 0 (
-    echo Warning: Failed to set up adb reverse. Your app may not reach the local server.
+:: Step 3.5: Conditionally Reverse TCP port for local server
+if "%REVERSE_TCP%"=="true" (
+    echo 3.5. Setting up adb reverse for local server port 9210 and 4000...
+    adb reverse tcp:9210 tcp:9210
+    adb reverse tcp:4000 tcp:4000
+    if %errorlevel% neq 0 (
+        echo Warning: Failed to set up adb reverse. Your app may not reach the local server.
+    ) else (
+        echo adb reverse set successfully.
+    )
 ) else (
-    echo adb reverse set successfully.
+    echo 3.5. Skipping adb reverse as it was not requested.
 )
+
 
 :: Step 4: Install the APK
 echo 4. Installing %APK_PATH% on the device...

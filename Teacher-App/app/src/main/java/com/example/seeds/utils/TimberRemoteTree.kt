@@ -11,7 +11,8 @@ import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.lang.Exception
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Date 
+import java.util.Locale 
 
 class TimberRemoteTree(val database: LogDao,
                        private val teacherPhoneNumber: String): Timber.DebugTree() {

@@ -2,9 +2,9 @@ package com.example.seeds
 
 import android.content.Context
 import android.os.Build
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
+import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.findNavController
 import androidx.navigation.ui.AppBarConfiguration
@@ -19,14 +19,23 @@ import com.example.seeds.utils.TimberInitializer
 import com.example.seeds.workers.UploadLogsWorker
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import timber.log.Timber
-import java.util.*
+import java.util.UUID
 import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
 
+    private val PHONE_NUMBER_LENGTH = 13    
+    private val LOG_UPLOAD_INTERVAL_MS = 30_000L
     private lateinit var binding: ActivityMainBinding
 
     @Inject
@@ -52,7 +61,7 @@ class MainActivity : AppCompatActivity() {
         Log.d("MainActivity", "teacherPhoneNumber: $teacherPhoneNumber")
 
         // Initialize Timber with correct identifier
-        if (teacherPhoneNumber.length == 13)
+        if (teacherPhoneNumber.length == PHONE_NUMBER_LENGTH)
             TimberInitializer.plantTimberTree(database, teacherPhoneNumber)
         else
             TimberInitializer.plantTimberTree(database, "Unknown")
@@ -125,7 +134,7 @@ class MainActivity : AppCompatActivity() {
         mainActivityScope.launch {
             while (isActive) {
                 uploadLogs()
-                delay(30_000)
+                delay(LOG_UPLOAD_INTERVAL_MS)
             }
         }
     }

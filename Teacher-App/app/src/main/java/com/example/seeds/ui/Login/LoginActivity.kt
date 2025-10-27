@@ -12,12 +12,19 @@ import com.example.seeds.databinding.ActivityLoginBinding
 import com.example.seeds.repository.TeacherRepository
 import com.example.seeds.ui.call.CallViewModel
 import com.example.seeds.utils.Constants
-import kotlinx.coroutines.*
-import okhttp3.*
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.MediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody
+import okhttp3.Response
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import javax.inject.Inject
+
+const val LOGIN_URL = Constants.BASE_URL + "/tenant/login"
 
 class LoginActivity : AppCompatActivity() {
 
@@ -34,8 +41,6 @@ class LoginActivity : AppCompatActivity() {
         binding = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        val emailField = binding.editTextEmail
-        val passwordField = binding.editTextPassword
         val orgDropdown = binding.organizationDropdown
         val loginBtn = binding.emailLoginBtn
         val registerBtn = binding.emailRegisterBtn
@@ -51,32 +56,38 @@ class LoginActivity : AppCompatActivity() {
 
         // Login click
         loginBtn.setOnClickListener {
-            val email = emailField.text.toString().trim()
-            val password = passwordField.text.toString().trim()
-            var organization = orgDropdown.text.toString().trim()
-            if (organization.isEmpty()) organization = "none"
-
-            if (email.isEmpty() || password.isEmpty()) {
-                Toast.makeText(this, "Please fill all fields", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
+            handleAuthAction { email, password, organization ->
+                loginWithEmail(email, password, organization)
             }
-
-            loginWithEmail(email, password, organization)
         }
 
         // Register click
         registerBtn.setOnClickListener {
-            val email = emailField.text.toString().trim()
-            val password = passwordField.text.toString().trim()
-            var organization = orgDropdown.text.toString().trim()
-            if (organization.isEmpty()) organization = "none"
-
-            if (email.isEmpty() || password.isEmpty()) {
-                Toast.makeText(this, "Please fill all fields", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
+            handleAuthAction { email, password, organization ->
+                registerTenant(email, password, organization)
             }
+        }
+    }
 
-            registerTenant(email, password, organization)
+    private fun handleAuthAction(action: (email: String, password: String, organization: String) -> Unit) {
+        val email = binding.editTextEmail.text.toString().trim()
+        val password = binding.editTextPassword.text.toString().trim()
+        var organization = binding.organizationDropdown.text.toString().trim()
+        if (organization.isEmpty()) organization = "none"
+
+        if (email.isEmpty() || password.isEmpty()) {
+            Toast.makeText(this, "Please fill all fields", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        action(email, password, organization)
+    }
+
+    private fun createAuthJson(email: String, password: String, organization: String): JSONObject {
+        return JSONObject().apply {
+            put("email", email)
+            put("password", password)
+            put("name", organization)
         }
     }
 
@@ -122,11 +133,7 @@ class LoginActivity : AppCompatActivity() {
 
     private fun registerTenant(email: String, password: String, organization: String) {
         val client = OkHttpClient()
-        val json = JSONObject().apply {
-            put("email", email)
-            put("password", password)
-            put("name", organization)
-        }
+        val json = createAuthJson(email, password, organization)
 
         val body = RequestBody.create(
             MediaType.get("application/json; charset=utf-8"),
@@ -159,11 +166,7 @@ class LoginActivity : AppCompatActivity() {
 
     private fun loginWithEmail(email: String, password: String, organization: String) {
         val client = OkHttpClient()
-        val json = JSONObject().apply {
-            put("email", email)
-            put("password", password)
-            put("name", organization)
-        }
+        val json = createAuthJson(email, password, organization)
 
         val body = RequestBody.create(
             MediaType.get("application/json; charset=utf-8"),
@@ -171,7 +174,7 @@ class LoginActivity : AppCompatActivity() {
         )
 
         val loginRequest = Request.Builder()
-            .url(Constants.BASE_URL + "/tenant/login") // ✅ login endpoint unchanged
+            .url(Constants.BASE_URL + "/tenant/login") 
             .post(body)
             .build()
 
@@ -191,8 +194,8 @@ class LoginActivity : AppCompatActivity() {
                 }
 
                 val responseBody = response.body()?.string() ?: "{}"
-                val json = JSONObject(responseBody)
-                val token = json.optString("token", "")
+                val jsonResponse = JSONObject(responseBody)
+                val token = jsonResponse.optString("token", "")
 
                 if (token.isEmpty()) {
                     runOnUiThread {

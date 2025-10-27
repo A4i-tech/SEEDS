@@ -17,7 +17,7 @@ class ContentRepository @Inject constructor(
     private val network: SeedsService
 ) {
     suspend fun getAllContent(
-        limit: Int = 10,
+        limit: Int = 100,
         cursor: String? = null
     ): List<Content> {
         return withContext(Dispatchers.IO) {

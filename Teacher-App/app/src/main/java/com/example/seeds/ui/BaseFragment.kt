@@ -7,6 +7,7 @@ import android.net.NetworkRequest
 import android.os.Bundle
 import android.util.Log
 import android.view.View
+import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleObserver
@@ -19,8 +20,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import timber.log.Timber
-import java.util.*
-import android.widget.Toast
+import java.util.UUID
 
 
 abstract class BaseFragment : Fragment(), LifecycleObserver {

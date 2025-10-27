@@ -77,14 +77,6 @@ class CallFragment : BaseFragment() {
             }
         })
 
-//        viewModel.networkConnectivityLiveData.observe(viewLifecycleOwner, Observer { isConnected ->
-//            if(isConnected) {
-//                Log.d("CallFragment", "Network is connected")
-//            } else {
-//                Log.d("CallFragment", "Network is not connected")
-//            }
-//        })
-
         requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner) {
             if(viewModel.navigateBack.value == true) {
                 if (!findNavController().navigateUp()) {
@@ -120,54 +112,11 @@ class CallFragment : BaseFragment() {
             }
         }
 
-//        requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner) {
-////            AlertDialog.Builder(requireContext())
-////                .setMessage("Do you wish to exit the game?")
-////                .setCancelable(false)
-////                .setPositiveButton("Yes") { _, _ ->
-////                    lifecycleScope.launch {
-////                        val increment = viewModel.incrementCoins()
-////                        (requireActivity() as MainActivity).displayCoins(increment)
-////                        if (viewModel.groupId != null) {
-////                            logMessage("ExitToGroupDetails")
-////                            binding.root.findNavController()
-////                                .popBackStack(R.id.groupDetailsFragment, false)
-////                        } else if (viewModel.goHome) {
-////                            logMessage("ExitToPlayQuizdetails")
-////                            binding.root.findNavController()
-////                                .popBackStack(R.id.playQuizDetailsFragment, false)
-////                        } else
-////                            throw NotImplementedError("Quiz Details removed!")
-////                    }
-////                }
-////                .setNegativeButton("No", null)
-////                .show()
-//        }
-//        viewModel.teacherCallStatus.observe(viewLifecycleOwner, Observer {
-//            if(it != null){
-//                if(it.callerState == CallerState.COMPLETED || it.callerState == CallerState.UNANSWERED || it.callerState == CallerState.REJECTED || it.callerState == CallerState.BUSY || it.callerState == CallerState.REJECTED || it.callerState == CallerState.CANCELLED || it.callerState == CallerState.FAILED || it.callerState == CallerState.TIMEOUT){
-//                    logMessage("Call ended because teacher disconnected - Reason: ${it.callerState}")
-//                    Log.d("CALLCUT", it.callerState.toString())
-//                    binding.endCallBtn.performClick()
-//                }
-//            }
-//        })
-
         viewModel.navigateBack.observe(viewLifecycleOwner, Observer {
             if(it){
                 requireActivity().onBackPressed()
             }
         })
-
-//        viewModel.networkConnected.observe(viewLifecycleOwner) { isConnected ->
-//            if (isConnected) {
-//                // Handle reconnection logic, possibly re-establish WebSocket connection
-//                // and refresh UI state to reflect current call state
-//            } else {
-//                // Navigate to "No Internet" screen
-//                findNavController().navigate(CallFragmentDirections.actionCallFragmentToCallNoInternetFragment())
-//            }
-//        }
 
         binding.retryTeacher.setOnClickListener {
             viewModel.connectParticipant("Teacher", viewModel.teacherPhoneNumber)
@@ -247,14 +196,6 @@ class CallFragment : BaseFragment() {
             }
         }
 
-//        viewModel.selectedContentList.observe(viewLifecycleOwner) {
-//            if (it != null && it.isNotEmpty()) {
-//
-//            }
-//        }
-
-        //Here for add content we'll move to Home Fragment instead of AddContentToCallFragment
-
         binding.addContentButton.setOnClickListener {
             findNavController().navigate(CallFragmentDirections.actionCallFragmentToAddMoreContentToCallFragment())
         }
@@ -281,24 +222,6 @@ class CallFragment : BaseFragment() {
                 }
             }
         }
-
-        // binding.forwardButton.setOnClickListener {
-        //     if (viewModel.audioPlaying.value!!) {
-        //         viewModel._forwardStreamDone.postValue(false)
-        //         logMessage("Audio forward clicked ${viewModel.selectedContent.value!!.id} ${viewModel.selectedContent.value!!.title}}")
-        //         viewModel.forwardAudio()
-        //         showFeedback(binding.forwardFeedback, "+10s")
-        //     }
-        // }
-
-        // binding.backwardButton.setOnClickListener {
-        //     if (viewModel.audioPlaying.value!!) {
-        //         viewModel._backwardStreamDone.postValue(false)
-        //         logMessage("Audio backward clicked ${viewModel.selectedContent.value!!.id} ${viewModel.selectedContent.value!!.title}}")
-        //         viewModel.backwardAudio()
-        //         showFeedback(binding.backwardFeedback, "-10s")
-        //     }
-        // }
         return binding.root
     }
 
