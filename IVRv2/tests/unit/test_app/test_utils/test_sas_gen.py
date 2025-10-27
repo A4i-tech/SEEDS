@@ -23,7 +23,7 @@ class TestSASGen:
     def test_sas_gen_initialization(self):
         """Test SAS generator initialization."""
         sas_gen = SASGen()
-        assert sas_gen.credential is not None
+        
         assert sas_gen.blob_service_client is None
         assert sas_gen.user_delegation_key is None
 
@@ -44,6 +44,7 @@ class TestSASGen:
         mock_now = datetime(2023, 1, 1, 12, 0, 0)
         mock_datetime.datetime.utcnow.return_value = mock_now
         
+        self.sas_gen.use_account_key = False
         mock_blob_service_client = MagicMock()
         mock_key = MagicMock()
         mock_blob_service_client.get_user_delegation_key.return_value = mock_key
