@@ -235,6 +235,9 @@ class CallSettingsFragment : BaseFragment() {
         dialogBinding.viewModel = viewModel
         dialogBinding.callMyPotentialLeadersList.adapter = CheckboxNameListAdapter(maximumSelections = 2)
 
+        val phoneNumbersForCall =
+            (binding.myStudentsList.adapter as CheckboxNameListAdapter).usersInGroup
+
         val dialogBuilder: AlertDialog.Builder = AlertDialog.Builder(requireContext())
         dialogBuilder.setOnDismissListener { }
         dialogBuilder.setView(dialogBinding.root)
@@ -253,7 +256,7 @@ class CallSettingsFragment : BaseFragment() {
             alertDialog.dismiss()
             findNavController().navigate(
                 CallSettingsFragmentDirections.actionCallSettingsFragmentToCallNav(
-                    teachList.toTypedArray(),
+                    phoneNumbersForCall.toTypedArray(), 
                     viewModel.classroom.value!!
                 ).setLeader(leaderForCall)
             )
@@ -263,7 +266,7 @@ class CallSettingsFragment : BaseFragment() {
             alertDialog.dismiss()
             findNavController().navigate(
                 CallSettingsFragmentDirections.actionCallSettingsFragmentToCallNav(
-                    teachList.toTypedArray(),
+                    phoneNumbersForCall.toTypedArray(), 
                     viewModel.classroom.value!!
                 ).setLeader(leaderForCall)
             )

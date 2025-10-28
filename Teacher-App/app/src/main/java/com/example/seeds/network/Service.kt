@@ -30,6 +30,8 @@ import retrofit2.http.Query
 import retrofit2.http.Url
 import java.util.UUID
 import java.util.concurrent.TimeUnit
+import com.example.seeds.BuildConfig
+import okhttp3.logging.HttpLoggingInterceptor
 
 const val TIMEOUT = 60L
 interface SeedsService {
@@ -44,8 +46,11 @@ interface SeedsService {
         @Url fullUrl: String,
         @Body callDetails: CallDetails
     ): Response<Unit> 
+
     @PUT
-    suspend fun endCall(@Url url: String): Response<String>
+    suspend fun endCall(
+        @Url url: String
+        ): Response<Unit>
 
     @PUT
     suspend fun playAudio(
@@ -54,7 +59,33 @@ interface SeedsService {
     ): Response<Any>
 
     @PUT
-    suspend fun audioCommand(@Url url: String): Response<Any>
+    suspend fun audioCommand(
+        @Url url: String
+        ): Response<Any>
+
+    @PUT
+    suspend fun muteParticipant(
+        @Url url: String, 
+        @Query("phone_number") phoneNumber: String
+    ): Response<Any>
+
+    @PUT
+    suspend fun unmuteParticipant(
+        @Url url: String, 
+        @Query("phone_number") phoneNumber: String
+    ): Response<Any>
+
+    @PUT
+    suspend fun connectParticipant(
+        @Url url: String, 
+        @Query("phone_number") phoneNumber: String
+    ): Response<Any>
+
+    @PUT
+    suspend fun disconnectParticipant(
+        @Url url: String, 
+        @Query("phone_number") phoneNumber: String
+    ): Response<Any>
 
     @GET("call/{confId}/status")
     suspend fun getCallStatus(@Path("confId") confId: String): CallStatusDto
@@ -105,6 +136,12 @@ fun provideService(@ApplicationContext context: Context): SeedsService {
 
     val httpClientBuilder = OkHttpClient.Builder().apply {
 
+        if (BuildConfig.DEBUG) {
+            val loggingInterceptor = HttpLoggingInterceptor()
+            loggingInterceptor.setLevel(HttpLoggingInterceptor.Level.BODY)
+            addInterceptor(loggingInterceptor) // Add the logger
+        }
+        
         // This interceptor will watch for 403 errors on the response.
         addInterceptor(AuthInterceptor(context))
         // This interceptor adds headers to each request.

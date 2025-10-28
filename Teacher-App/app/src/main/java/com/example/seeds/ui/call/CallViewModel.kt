@@ -165,6 +165,19 @@ class CallViewModel @Inject constructor(
     private val CONFERENCE_PLAY_AUDIO_URL = "$conferenceUrl/conference/playaudio"
 
     init {
+        
+        val initialCallStatuses = args.classroom.students.map { student ->
+            StudentCallStatus(
+                name = student.name,
+                phoneNumber = student.phoneNumber,
+                callerState = CallerState.ANSWERED, 
+                isMuted = false,                 
+                onHold = false,                    
+                raiseHand = false                 
+            )
+        }
+        _callState.postValue(initialCallStatuses)
+
         getAccessToken()
         viewModelScope.launch {
             val selectedContentListIds = args.classroom.contentIds
@@ -192,14 +205,6 @@ class CallViewModel @Inject constructor(
         Log.d("CONTENTCALL", args.classroom.contents!!.map{
             content -> content.title
         }.toString())
-    }
-
-
-    fun updateClassroomContent(classroom: Classroom) {
-        viewModelScope.launch {
-            classroomRepository.saveClassroom(classroom)
-            _navigateBack.value = true
-        }
     }
 
     fun doneNavigating() {
@@ -236,6 +241,16 @@ class CallViewModel @Inject constructor(
                 // Fixed MaxLineLength
                 Log.e("GET_ACCESS_TOKEN", 
                     "Error creating conference: ${e.message}", e)
+            }
+        }
+    }
+
+    fun updateClassroomContent(classroom: Classroom) {
+        viewModelScope.launch {
+            try {
+                classroomRepository.updateClassroom(classroom)
+            } catch (e: Exception) {
+                Log.e("CallViewModel", "Failed to update classroom", e)
             }
         }
     }
@@ -281,31 +296,36 @@ class CallViewModel @Inject constructor(
 
     fun endCall() {
         Log.d("CALL_END", "endCall() called")
-        
+
         val confId = _callToken.value?.confId
         Log.d("CALL_END", "Conference ID: $confId")
-        
+
         if (confId == null) {
             Log.e("CALL_END", "Conference ID is null, cannot end call")
             closeSocket()
+            _navigateBack.postValue(true)
             return
         }
 
         closeSocket()
-        
+
         viewModelScope.launch {
             try {
                 val fullUrl = "$CONFERENCE_END_URL/$confId"
                 Log.d("CALL_END", "Full URL: $fullUrl")
                 Log.d("CALL_END", "About to call network.endCall()...")
-                
+
                 val response = network.endCall(fullUrl)
+
                 Log.d("CALL_END", "Got response from network.endCall()")
                 Log.d("CALL_END", "Response code: ${response.code()}")
                 Log.d("CALL_END", "Response message: ${response.message()}")
-                
+
                 if (response.isSuccessful) {
                     Log.d("CALL_END", "Conference ended successfully!")
+
+                    _navigateBack.postValue(true)
+
                 } else {
                     Log.e("CALL_END", "Failed to end conference: ${response.code()} - ${response.message()}")
                     try {
@@ -313,11 +333,11 @@ class CallViewModel @Inject constructor(
                     } catch (e: Exception) {
                         Log.e("CALL_END", "Could not read error body: ${e.message}")
                     }
+                    _navigateBack.postValue(true)
                 }
             } catch (e: Exception) {
                 Log.e("CALL_END_ERROR", "Exception in endCall: ${e.message}", e)
-                Log.e("CALL_END_ERROR", "Exception type: ${e::class.simpleName}")
-                e.printStackTrace()
+                _navigateBack.postValue(true)
             }
         }
     }
@@ -422,7 +442,7 @@ class CallViewModel @Inject constructor(
             Log.d("Message", message)
             //TODO: Put leader code here.
             if(!args.leader.isNullOrEmpty()){
-                socket.send("lead:${args.leader}")
+                // socket.send("lead:${args.leader}")
             }
             _connectionLost.postValue(false)
         } else if (message.contains("error")){
@@ -430,28 +450,127 @@ class CallViewModel @Inject constructor(
         }
     }
 
-    fun muteParticipant(phoneNumber: String) {
-        val tempCallState = callState.value!!.toMutableList()
-        val index = tempCallState?.indexOfFirst { it.phoneNumber == phoneNumber }
-        index?.let {
-            tempCallState[it].isMuteUnmuteDone = false
+    fun onMuteToggle(student: StudentCallStatus) {
+        if (student.isMuted) {
+            unmuteParticipant(student.phoneNumber)
+        } else {
+            muteParticipant(student.phoneNumber)
         }
-        Log.d("MUTEPARTICIPANT", "MUTE TRIGGERED $phoneNumber")
-        _callState.postValue(tempCallState)
-        socket.send("mute:$phoneNumber")
+    }
+
+    fun muteParticipant(phoneNumber: String) {
+        val confId = _callToken.value?.confId ?: return
+
+        val currentList = _callState.value?.toMutableList() ?: return
+        val studentIndex = currentList.indexOfFirst { it.phoneNumber == phoneNumber }
+        if (studentIndex != -1) {
+            currentList[studentIndex] = currentList[studentIndex].copy(isMuted = true)
+            _callState.postValue(currentList) 
+        }
+
+        viewModelScope.launch {
+            try {
+                val fullUrl = "$conferenceUrl/conference/muteparticipant/$confId"
+                val response = network.muteParticipant(fullUrl, phoneNumber)
+
+                if (!response.isSuccessful) {
+                    Log.e("API_ACTION", "Server failed to mute $phoneNumber. Reverting UI.")
+                    refreshCallState()
+                }
+            } catch (e: Exception) {
+                Log.e("API_ACTION_ERROR", "Exception muting. Reverting UI.", e)
+                refreshCallState() 
+            }
+        }
     }
 
     fun unmuteParticipant(phoneNumber: String) {
-        val tempCallState = callState.value!!.toMutableList()
-        val index = tempCallState?.indexOfFirst { it.phoneNumber == phoneNumber }
-        index?.let {
-            tempCallState[it].isMuteUnmuteDone = false
+        val confId = _callToken.value?.confId ?: return
+
+        val currentList = _callState.value?.toMutableList() ?: return
+        val studentIndex = currentList.indexOfFirst { it.phoneNumber == phoneNumber }
+        if (studentIndex != -1) {
+            currentList[studentIndex] = currentList[studentIndex].copy(isMuted = false)
+            _callState.postValue(currentList) // Update the UI immediately
         }
-        _callState.postValue(tempCallState)
-        Log.d("UNMUTEPARTICIPANT", "UNMUTE TRIGGERED")
-        socket.send("unmute:$phoneNumber")
+
+        viewModelScope.launch {
+            try {
+                val fullUrl = "$conferenceUrl/conference/unmuteparticipant/$confId"
+                val response = network.unmuteParticipant(fullUrl, phoneNumber)
+
+                if (!response.isSuccessful) {
+                    Log.e("API_ACTION", "Server failed to unmute $phoneNumber. Reverting UI.")
+                    refreshCallState()
+                }
+            } catch (e: Exception) {
+                Log.e("API_ACTION_ERROR", "Exception unmuting. Reverting UI.", e)
+                refreshCallState()
+            }
+        }
     }
 
+    fun connectParticipant(name: String, phoneNumber: String) {
+        val confId = _callToken.value?.confId ?: return
+
+        val currentList = _callState.value?.toMutableList() ?: return
+        val studentIndex = currentList.indexOfFirst { it.phoneNumber == phoneNumber }
+        if (studentIndex != -1) {
+            currentList[studentIndex] = currentList[studentIndex].copy(callerState = CallerState.ANSWERED)
+            // currentList[studentIndex] = currentList[studentIndex].copy(callerState = CallerState.RINGING)
+            _callState.postValue(currentList) 
+        }
+
+        viewModelScope.launch {
+            try {
+                val fullUrl = "$conferenceUrl/conference/addparticipant/$confId"
+                val response = network.connectParticipant(fullUrl, phoneNumber)
+
+                if (!response.isSuccessful) {
+                    Log.e("API_ACTION", "Server failed to connect $phoneNumber. Reverting UI.")
+                    refreshCallState()
+                }
+            } catch (e: Exception) {
+                Log.e("API_ACTION_ERROR", "Exception connecting participant. Reverting UI.", e)
+                refreshCallState() 
+            }
+        }
+    }
+
+
+fun disconnectParticipant(phoneNumber: String) {
+    val confId = _callToken.value?.confId ?: return
+    // Immediately update the UI to show DISCONNECTED state for the participant
+    val currentList = _callState.value?.toMutableList() ?: return
+    val updatedList = currentList.map { participant ->
+        if (participant.phoneNumber == phoneNumber) {
+            // Create a new CallerStatus object with DISCONNECTED state
+            participant.copy(callerState = CallerState.TIMEOUT)
+        } else {
+            participant
+        }
+    }.toMutableList()
+    _callState.postValue(updatedList)
+
+    viewModelScope.launch {
+        try {
+            val fullUrl = "$conferenceUrl/conference/removeparticipant/$confId"
+            val response = network.disconnectParticipant(fullUrl, phoneNumber)
+
+            if (response.isSuccessful) {
+                Log.d("API_ACTION", "$phoneNumber disconnected successfully from server.")
+                // For now, it will remain in the list as DISCONNECTED
+            } else {
+                Log.e("API_ACTION", "Server failed to disconnect $phoneNumber. Reverting UI.")
+                refreshCallState() 
+            }
+        } catch (e: Exception) {
+            Log.e("API_ACTION_ERROR", "Exception disconnecting participant. Reverting UI.", e)
+            refreshCallState()
+        }
+    }
+}
+    
     fun unmuteAll() {
         socket.send("unMuteAll")
     }
@@ -459,15 +578,6 @@ class CallViewModel @Inject constructor(
     fun muteAll() {
         socket.send("muteAll")
     }
-
-    fun connectParticipant(name: String, phoneNumber: String) {
-        socket.send("add:$phoneNumber:$name") // put name  // add:{phoneNumber}:{name}
-    }
-
-    fun disconnectParticipant(phoneNumber: String) {
-        socket.send("remove:$phoneNumber")
-    }
-
     fun sendAudioCommand(action: String, shouldPlay: Boolean) {
         Log.d("AUDIO_COMMAND", "$action() called")
 

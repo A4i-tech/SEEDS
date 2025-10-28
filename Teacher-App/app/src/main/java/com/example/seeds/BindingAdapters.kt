@@ -84,19 +84,25 @@ fun bindFilterContentRecyclerView(recyclerView: RecyclerView, data: List<String>
 //    }
 //}
 
-@BindingAdapter("studentCallStatusData", "teacherPhoneNumber")
-fun bindStudentCallStatusRecyclerView(recyclerView: RecyclerView, 
-                                     data: List<StudentCallStatus>?, teacherPhoneNumber: String) {
+@BindingAdapter("studentCallStatusData", "teacherPhoneNumber", requireAll = false)
+fun bindStudentCallStatusRecyclerView(
+    recyclerView: RecyclerView,
+    data: List<StudentCallStatus>?,
+    teacherPhoneNumber: String?
+) {
     val adapter = recyclerView.adapter as StudentCallStatusAdapter
-//    val teacherPhoneNumber = Firebase.auth.currentUser!!.phoneNumber.toString().replace("+", "")
-    Log.d("studentCallStatusData", data.toString())
-    data?.let {
-        adapter.submitList(it.toMutableList().filter { state ->
-            state.callerState != CallerState.COMPLETED
-        }.filter { state ->
-            state.phoneNumber != teacherPhoneNumber
-        })
+    if (data.isNullOrEmpty()) {
+        Log.d("studentCallStatusData", "No students to display")
+        adapter.submitList(emptyList())
+        return
     }
+
+    val filtered = if (teacherPhoneNumber != null) {
+        data.filter { it.phoneNumber != teacherPhoneNumber }
+    } else data
+
+    Log.d("studentCallStatusData", "Submitting ${filtered.size} students")
+    adapter.submitList(filtered)
 }
 
 @BindingAdapter("imageDrawable")

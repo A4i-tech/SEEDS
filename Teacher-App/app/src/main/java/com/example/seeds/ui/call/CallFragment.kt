@@ -38,7 +38,13 @@ class CallFragment : BaseFragment() {
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        binding = FragmentCallBinding.inflate(inflater)
+        binding = FragmentCallBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
         binding.viewModel = viewModel
         binding.lifecycleOwner = viewLifecycleOwner
         networkConnectivityLiveData = NetworkConnectivityLiveData(requireActivity().applicationContext)
@@ -52,21 +58,22 @@ class CallFragment : BaseFragment() {
             }
         })
 
-        binding.myStudentsList.adapter = StudentCallStatusAdapter(
-            StudentCallStatusAdapter.OnClickListener{
-                logMessage("Muted: ${it.name} - ${it.phoneNumber}")
-                viewModel.muteParticipant(it.phoneNumber)
-            }, StudentCallStatusAdapter.OnClickListener{
-                logMessage("Unmuted: ${it.name} - ${it.phoneNumber}")
-                viewModel.unmuteParticipant(it.phoneNumber)
-            }, StudentCallStatusAdapter.OnClickListener{
-                removeUser(it.phoneNumber)
-            }, StudentCallStatusAdapter.OnClickListener{
-                logMessage("Retry calling: ${it.name} - ${it.phoneNumber}")
-                viewModel.connectParticipant(it.name, it.phoneNumber)
-            }, 
-            leader = viewModel.leader
+        val adapter = StudentCallStatusAdapter(
+            viewModel, 
+            StudentCallStatusAdapter.OnClickListener { student ->
+                removeUser(student.phoneNumber)
+            }
         )
+
+        binding.myStudentsList.adapter = adapter
+        binding.myStudentsList.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(requireContext())
+
+        viewModel.callState.observe(viewLifecycleOwner) { studentList ->
+    
+            studentList?.let {
+                adapter.submitList(it)
+            }
+        }
 
         viewModel.callToken.observe(viewLifecycleOwner, Observer {
             if(it != null) {
@@ -90,11 +97,11 @@ class CallFragment : BaseFragment() {
                     .setMessage("Do you wish to end the call?")
                     .setCancelable(false)
                     .setPositiveButton("Yes") { _, _ ->
-//                        else {
                         lifecycleScope.launch {
                             val classroom = args.classroom
-                            classroom.contentIds = viewModel.selectedContentList.value?.map { it.id } 
-                                ?: emptyList() 
+                            classroom.contentIds = viewModel.selectedContentList.value?.map {
+                                it.id
+                            }?: emptyList()
                             viewModel.endCall()
                             logMessage("""Call Ended on Back with final contents - 
                             id: ${classroom._id} - name: ${classroom.name} - 
@@ -102,9 +109,7 @@ class CallFragment : BaseFragment() {
                             logMessage("""Call ended with Final Call Status: 
                             ${viewModel.callState.value}""")
                             viewModel.updateClassroomContent(classroom)
-
-//                        }
-                    }
+                        }
                     }
                     .setNegativeButton("No", null)
                     .show()
@@ -122,9 +127,7 @@ class CallFragment : BaseFragment() {
             lifecycleScope.launch {
                 delay(TEACHER_RETRY_DELAY_MS) // Using const val
 
-                // Check if the teacher's status is still not ANSWERED
                 if (viewModel.teacherCallStatus.value?.callerState != CallerState.ANSWERED) {
-                    // Implement logic to end the conference
                     val classroom = args.classroom
                     classroom.contentIds = viewModel.selectedContentList.value!!.map{
                         it.id
@@ -145,8 +148,8 @@ class CallFragment : BaseFragment() {
             classroom.contentIds = viewModel.selectedContentList.value?.map { it.id } 
                 ?: emptyList() 
             logMessage("Call Ended on end call button with final contents - id: ${classroom._id}")
-            
-            viewModel.endCall()  
+
+            viewModel.endCall()
             viewModel.updateClassroomContent(classroom)
         }
 
@@ -217,8 +220,7 @@ class CallFragment : BaseFragment() {
                  ${viewModel.selectedContent.value!!.title}}""")
                 Log.d("AUDIOCONTROLPAUSEINI", viewModel.selectedContent.value!!.id)
             }
-           else {
-                // Check if this is the FIRST play (not resumed)
+            else {
                 if (!viewModel.startedAudio && viewModel.selectedContent.value != null) {
                     viewModel.playAudio(viewModel.selectedContent.value!!.id)
                     logMessage("Audio playing ${viewModel.selectedContent.value!!.title}")
@@ -229,7 +231,6 @@ class CallFragment : BaseFragment() {
                 }
             }
         }
-        return binding.root
     }
 
     // private fun showFeedback(textView: TextView, message: String) {
