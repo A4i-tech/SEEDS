@@ -1,7 +1,9 @@
-const api_base = process.env.REACT_APP_CONF_SERVER_BASE_URI + '/conference';
+import {API_ENDPOINTS} from "../constants/apiEndpoints";
+import {APP_CONFIG} from "../config/appConfig";
+
 
 export const createConference = async (teacherPhone, studentPhones) => {
-  const response = await fetch(`${api_base}/create`, {
+  const response = await fetch(API_ENDPOINTS.CONFERENCE.CREATE, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -15,7 +17,7 @@ export const createConference = async (teacherPhone, studentPhones) => {
 };
 
 export const startConferenceCall = async (confId) => {
-  return fetch(`${api_base}/start/${confId}`, {
+  return fetch(API_ENDPOINTS.CONFERENCE.START(confId), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -24,7 +26,7 @@ export const startConferenceCall = async (confId) => {
 };
 
 export const endConferenceCall = async (confId) => {
-  return fetch(`${api_base}/end/${confId}`, {
+  return fetch(API_ENDPOINTS.CONFERENCE.END(confId), {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -33,7 +35,7 @@ export const endConferenceCall = async (confId) => {
 };
 
 export const sinkConferenceCall = async (confId) => {
-  return fetch(`${api_base}/sink/${confId}`, {
+  return fetch(API_ENDPOINTS.CONFERENCE.SINK(confId), {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -42,7 +44,7 @@ export const sinkConferenceCall = async (confId) => {
 };
 
 export const muteParticipant = async (confId, phone_number) => {
-  return fetch(`${api_base}/muteparticipant/${confId}?phone_number=${phone_number}`, {
+  return fetch(API_ENDPOINTS.CONFERENCE.MUTE(confId, phone_number), {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -51,7 +53,7 @@ export const muteParticipant = async (confId, phone_number) => {
 };
 
 export const unmuteParticipant = async (confId, phone_number) => {
-  return fetch(`${api_base}/unmuteparticipant/${confId}?phone_number=${phone_number}`, {
+  return fetch(API_ENDPOINTS.CONFERENCE.UNMUTE(confId, phone_number), {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -60,8 +62,8 @@ export const unmuteParticipant = async (confId, phone_number) => {
 };
 
 export const playAudio = async (confId) => {
-  const url =  `https://${process.env.REACT_APP_STORAGE_ACCOUNT_NAME}.blob.core.windows.net/output-container/25/1.0.wav`
-  return fetch(`${api_base}/playaudio/${confId}?url=${url}`, {
+  const url =  `https://${APP_CONFIG.STORAGE_ACCOUNT_NAME}.blob.core.windows.net/output-container/25/1.0.wav`
+  return fetch(API_ENDPOINTS.CONFERENCE.PLAY_AUDIO(confId, url), {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -70,7 +72,7 @@ export const playAudio = async (confId) => {
 };
 
 export const pauseAudio = async (confId) => {
-  return fetch(`${api_base}/pauseaudio/${confId}`, {
+  return fetch(API_ENDPOINTS.CONFERENCE.PAUSE_AUDIO(confId), {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -79,7 +81,7 @@ export const pauseAudio = async (confId) => {
 };
 
 export const resumeAudio = async (confId) => {
-  return fetch(`${api_base}/resumeaudio/${confId}`, {
+  return fetch(API_ENDPOINTS.CONFERENCE.RESUME_AUDIO(confId), {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -88,7 +90,7 @@ export const resumeAudio = async (confId) => {
 };
 
 export const addParticipant = async (confId, phone_number) => {
-  return fetch(`${api_base}/addparticipant/${confId}?phone_number=${phone_number}`, {
+  return fetch(API_ENDPOINTS.CONFERENCE.ADD_PARTICIPANT(confId, phone_number), {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
