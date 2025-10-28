@@ -5,104 +5,95 @@
     <data>
         <import type="android.view.View"/>
         <import type="com.example.seeds.model.CallerState"/>
+        
         <variable
-            name="showCrown"
-            type="Boolean" />
+            name="viewModel"
+            type="com.example.seeds.ui.call.CallViewModel" />
+        <variable
+            name="removeClickListener"
+            type="com.example.seeds.adapters.StudentCallStatusAdapter.OnClickListener" />
         <variable
             name="studentCallStatus"
             type="com.example.seeds.model.StudentCallStatus" />
     </data>
 
     <androidx.cardview.widget.CardView
-        android:id="@+id/select_students_call_settings_cardview"
         android:layout_width="match_parent"
         android:layout_height="50dp"
-        android:layout_marginBottom="@dimen/activity_horizontal_margin"
-        android:background="@{studentCallStatus.raiseHand ?  @drawable/contact_border_raised  :  @drawable/contact_border}"
+        android:layout_marginBottom="8dp"
         app:cardCornerRadius="12dp"
-        app:cardElevation="0dp"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/pause_play_button">
+        app:cardElevation="0dp">
 
         <androidx.constraintlayout.widget.ConstraintLayout
-            android:id="@+id/container"
             android:layout_width="match_parent"
-            android:layout_height="match_parent">
+            android:layout_height="match_parent"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp">
 
             <TextView
                 android:id="@+id/contact_name"
                 style="@style/RecyclerViewItemTitle"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginLeft="12dp"
-                android:text="@{showCrown? studentCallStatus.name + ` is a leader`: studentCallStatus.name}"
+                android:text="@{studentCallStatus.name}"
                 android:textSize="18sp"
                 app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintLeft_toLeftOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toStartOf="@+id/status_text"
                 app:layout_constraintTop_toTopOf="parent"
-                tools:text="Person name" />
+                android:layout_marginEnd="8dp"
+                tools:text="Very Long Student Name Here" />
+
+            <TextView
+                android:id="@+id/status_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Ringing"
+                android:visibility="@{studentCallStatus.callerState == CallerState.RINGING ? View.VISIBLE : View.GONE}"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
 
             <ImageButton
                 android:id="@+id/mic"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="8dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@{studentCallStatus.isMuted ? `unmute`: `mute`}"
-                android:paddingHorizontal="8dp"
-                android:background="@null"
-                android:clickable="@{studentCallStatus.isMuteUnmuteDone ? true : false}"
+                android:onClick="@{() -> viewModel.onMuteToggle(studentCallStatus)}"
+                android:padding="8dp"
                 android:src="@{!studentCallStatus.isMuted ? @drawable/ic_mic : @drawable/ic_mic_off, default=@drawable/ic_mic}"
-                android:visibility='@{studentCallStatus.callerState == CallerState.ANSWERED ? View.VISIBLE: View.GONE, default="gone"}'
+                android:visibility="@{studentCallStatus.callerState == CallerState.ANSWERED ? View.VISIBLE: View.GONE, default=gone}"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toStartOf="@+id/remove_user_btn"
                 app:layout_constraintTop_toTopOf="parent" />
 
-            <ImageView
+            <ImageButton
                 android:id="@+id/remove_user_btn"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="18dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Remove student"
-                android:paddingHorizontal="8dp"
+                android:onClick="@{() -> removeClickListener.onClick(studentCallStatus)}"
+                android:padding="8dp"
                 android:src="@drawable/ic_remove_student"
-                android:visibility='@{studentCallStatus.callerState == CallerState.ANSWERED ? View.VISIBLE: View.GONE}'
+                android:visibility="@{studentCallStatus.callerState == CallerState.ANSWERED || studentCallStatus.callerState == CallerState.RINGING ? View.VISIBLE: View.GONE}"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintTop_toTopOf="parent" />
 
-            <ImageView
+            <ImageButton
                 android:id="@+id/retry_student"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="18dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Retry call"
-                android:paddingHorizontal="8dp"
+                android:onClick="@{() -> viewModel.connectParticipant(studentCallStatus.name, studentCallStatus.phoneNumber)}"
+                android:padding="8dp"
                 android:src="@drawable/ic_retry"
-                android:visibility='@{studentCallStatus.callerState == CallerState.UNANSWERED || studentCallStatus.callerState == CallerState.BUSY || studentCallStatus.callerState == CallerState.TIMEOUT || studentCallStatus.callerState == CallerState.UNDEFINED  || studentCallStatus.callerState == CallerState.COMPLETED ? View.VISIBLE: View.GONE}'
+                android:visibility="@{studentCallStatus.callerState == CallerState.UNANSWERED || studentCallStatus.callerState == CallerState.BUSY || studentCallStatus.callerState == CallerState.TIMEOUT || studentCallStatus.callerState == CallerState.COMPLETED ? View.VISIBLE: View.GONE}"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintTop_toTopOf="parent" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="18dp"
-                android:text="Ringing"
-                android:visibility='@{(studentCallStatus.callerState == CallerState.RINGING || studentCallStatus.callerState == CallerState.STARTED)? View.VISIBLE: View.GONE }'
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintTop_toTopOf="parent" />
-
-            <ImageView
-                android:id="@+id/crown_image"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="100dp"
-                android:src="@drawable/ic_crown"
-                android:visibility="@{showCrown ? View.VISIBLE: View.GONE}"
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toEndOf="@+id/contact_name"
                 app:layout_constraintTop_toTopOf="parent" />
 
         </androidx.constraintlayout.widget.ConstraintLayout>

@@ -4,7 +4,7 @@ import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import com.example.seeds.databinding.ActivityErrorBinding
-// import com.example.seeds.databinding.ActivityLoginCodeBinding
+import com.example.seeds.databinding.ActivityLoginCodeBinding
 import dagger.hilt.android.AndroidEntryPoint
 import timber.log.Timber
 

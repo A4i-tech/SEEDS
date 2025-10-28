@@ -44,4 +44,7 @@ class ClassroomRepository @Inject constructor(
             network.deleteClassroom(classroom._id!!)
         }
     }
+    suspend fun updateClassroom(classroom: Classroom): Classroom {
+        return saveClassroom(classroom)
+    }
 }

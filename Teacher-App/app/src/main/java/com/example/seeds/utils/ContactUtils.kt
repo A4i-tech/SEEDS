@@ -8,14 +8,12 @@ import android.content.Context
 import android.database.Cursor
 import android.provider.ContactsContract
 import android.telephony.PhoneNumberUtils
+import androidx.annotation.NonNull
 import com.example.seeds.model.Student
-import java.util.Locale
+import java.util.*
 import kotlin.collections.HashMap
 
-const val PHONE_NUMBER_LENGTH = 10
-
 class ContactUtils constructor(private val context: Context) {
-
 
     var contacts: List<Student>
     var contactsMap: HashMap<String, Student>
@@ -76,7 +74,7 @@ class ContactUtils constructor(private val context: Context) {
             }.toSet()
             finalPhoneNumbers.forEach {
                 var phno = it
-                if(it.length == PHONE_NUMBER_LENGTH)phno = "91$phno"
+                if(it.length == 10)phno = "91$phno"
                 contactsUsers[phno] = Student(name=name, phoneNumber = phno)
             }
         }

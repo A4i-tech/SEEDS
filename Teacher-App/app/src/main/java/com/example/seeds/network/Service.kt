@@ -1,17 +1,11 @@
 package com.example.seeds.network
 
 import android.content.Context
-// import android.util.Log
+import android.util.Log
+import com.example.seeds.network.AuthInterceptor
 import com.example.seeds.ApplicationJsonAdapterFactory
 import com.example.seeds.database.LogEntity
-import com.example.seeds.model.CallDetails
-import com.example.seeds.model.ConferenceCreateRequest
-import com.example.seeds.model.ConferenceCreateResponse
-import com.example.seeds.model.Content
-import com.example.seeds.model.PaginatedResponse
-import com.example.seeds.model.SasUrlResponse
-import com.example.seeds.model.Student
-import com.example.seeds.model.StudentListContainer
+import com.example.seeds.model.*
 import com.example.seeds.utils.Constants
 import com.squareup.moshi.Moshi
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -20,19 +14,17 @@ import okhttp3.OkHttpClient
 import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
-import retrofit2.http.Body
-import retrofit2.http.DELETE
-import retrofit2.http.GET
-import retrofit2.http.POST
-import retrofit2.http.PUT
-import retrofit2.http.Path
-import retrofit2.http.Query
-import retrofit2.http.Url
-import java.util.UUID
+import retrofit2.http.*
+import java.util.*
 import java.util.concurrent.TimeUnit
+import com.example.seeds.BuildConfig
+import okhttp3.logging.HttpLoggingInterceptor
 
-const val TIMEOUT = 60L
 interface SeedsService {
+
+    @POST("tenant/logout") 
+    suspend fun logout(@Header("Authorization") token: String): Response<Unit>
+
     @POST
     suspend fun getAccessToken(
         @Url fullUrl: String ,
@@ -44,8 +36,11 @@ interface SeedsService {
         @Url fullUrl: String,
         @Body callDetails: CallDetails
     ): Response<Unit> 
+
     @PUT
-    suspend fun endCall(@Url url: String): Response<String>
+    suspend fun endCall(
+        @Url url: String
+        ): Response<Unit>
 
     @PUT
     suspend fun playAudio(
@@ -54,7 +49,33 @@ interface SeedsService {
     ): Response<Any>
 
     @PUT
-    suspend fun audioCommand(@Url url: String): Response<Any>
+    suspend fun audioCommand(
+        @Url url: String
+        ): Response<Any>
+
+    @PUT
+    suspend fun muteParticipant(
+        @Url url: String, 
+        @Query("phone_number") phoneNumber: String
+    ): Response<Any>
+
+    @PUT
+    suspend fun unmuteParticipant(
+        @Url url: String, 
+        @Query("phone_number") phoneNumber: String
+    ): Response<Any>
+
+    @PUT
+    suspend fun connectParticipant(
+        @Url url: String, 
+        @Query("phone_number") phoneNumber: String
+    ): Response<Any>
+
+    @PUT
+    suspend fun disconnectParticipant(
+        @Url url: String, 
+        @Query("phone_number") phoneNumber: String
+    ): Response<Any>
 
     @GET("call/{confId}/status")
     suspend fun getCallStatus(@Path("confId") confId: String): CallStatusDto
@@ -105,6 +126,12 @@ fun provideService(@ApplicationContext context: Context): SeedsService {
 
     val httpClientBuilder = OkHttpClient.Builder().apply {
 
+        if (BuildConfig.DEBUG) {
+            val loggingInterceptor = HttpLoggingInterceptor()
+            loggingInterceptor.setLevel(HttpLoggingInterceptor.Level.BODY)
+            addInterceptor(loggingInterceptor) // Add the logger
+        }
+        
         // This interceptor will watch for 403 errors on the response.
         addInterceptor(AuthInterceptor(context))
         // This interceptor adds headers to each request.
@@ -120,9 +147,9 @@ fun provideService(@ApplicationContext context: Context): SeedsService {
             }
         )
 
-        readTimeout(TIMEOUT, TimeUnit.SECONDS)
-        connectTimeout(TIMEOUT, TimeUnit.SECONDS)
-        writeTimeout(TIMEOUT, TimeUnit.SECONDS)
+        readTimeout(60, TimeUnit.SECONDS)
+        connectTimeout(60, TimeUnit.SECONDS)
+        writeTimeout(60, TimeUnit.SECONDS)
     }
 
     val moshi = Moshi.Builder()

@@ -1,10 +1,6 @@
 package com.example.seeds.ui.home
 
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.SavedStateHandle
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.*
 import com.example.seeds.model.Classroom
 import com.example.seeds.model.Content
 import com.example.seeds.model.Student
@@ -16,10 +12,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
-class HomeViewModel @Inject constructor(
-    savedStateHandle: SavedStateHandle, private val teacherRepository: TeacherRepository, 
-    private val contentRepository: ContentRepository, 
-    private val classroomRepository: ClassroomRepository): ViewModel() {
+class HomeViewModel @Inject constructor(savedStateHandle: SavedStateHandle, private val teacherRepository: TeacherRepository, private val contentRepository: ContentRepository, private val classroomRepository: ClassroomRepository): ViewModel() {
 
     val args = HomeFragmentArgs.fromSavedStateHandle(savedStateHandle)
     val showConfirmButton = args.classroom
@@ -82,10 +75,8 @@ class HomeViewModel @Inject constructor(
 
     fun applyFilters(filters: FilterCriteria) {
         _filteredContent.value = _allContent.value?.filter { content ->
-            val matchesLanguage = filters.languages.isEmpty() || 
-            filters.languages.map { it.lowercase() }.contains(content.language.lowercase())
-            val matchesExperience = filters.experiences.isEmpty() || 
-            filters.experiences.map { it.lowercase() }.contains(content.type.lowercase())
+            val matchesLanguage = filters.languages.isEmpty() || filters.languages.map { it.lowercase() }.contains(content.language.lowercase())
+            val matchesExperience = filters.experiences.isEmpty() || filters.experiences.map { it.lowercase() }.contains(content.type.lowercase())
 
             matchesLanguage && matchesExperience
         }

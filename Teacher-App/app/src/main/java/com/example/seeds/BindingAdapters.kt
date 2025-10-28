@@ -5,21 +5,12 @@ import android.util.Log
 import android.widget.ImageView
 import androidx.databinding.BindingAdapter
 import androidx.recyclerview.widget.RecyclerView
-import com.example.seeds.adapters.ContentListAdapter
-import com.example.seeds.adapters.ClassroomListAdapter
-import com.example.seeds.adapters.RemoveStudentListAdapter
-import com.example.seeds.adapters.CheckboxNameListAdapter
-import com.example.seeds.adapters.FilterContentAdapter
-import com.example.seeds.adapters.StudentCallStatusAdapter
-import com.example.seeds.model.Content
-import com.example.seeds.model.Classroom
-import com.example.seeds.model.Student
-import com.example.seeds.model.StudentCallStatus
-import com.example.seeds.model.CallerState
-// import com.google.android.material.chip.Chip
-// import com.google.android.material.chip.ChipGroup
-// import com.google.firebase.auth.ktx.auth
-// import com.google.firebase.ktx.Firebase
+import com.example.seeds.adapters.*
+import com.example.seeds.model.*
+import com.google.android.material.chip.Chip
+import com.google.android.material.chip.ChipGroup
+import com.google.firebase.auth.ktx.auth
+import com.google.firebase.ktx.Firebase
 
 @BindingAdapter("contentData")
 fun bindContentRecyclerView(recyclerView: RecyclerView, data: List<Content>?) {
@@ -84,19 +75,25 @@ fun bindFilterContentRecyclerView(recyclerView: RecyclerView, data: List<String>
 //    }
 //}
 
-@BindingAdapter("studentCallStatusData", "teacherPhoneNumber")
-fun bindStudentCallStatusRecyclerView(recyclerView: RecyclerView, 
-                                     data: List<StudentCallStatus>?, teacherPhoneNumber: String) {
+@BindingAdapter("studentCallStatusData", "teacherPhoneNumber", requireAll = false)
+fun bindStudentCallStatusRecyclerView(
+    recyclerView: RecyclerView,
+    data: List<StudentCallStatus>?,
+    teacherPhoneNumber: String?
+) {
     val adapter = recyclerView.adapter as StudentCallStatusAdapter
-//    val teacherPhoneNumber = Firebase.auth.currentUser!!.phoneNumber.toString().replace("+", "")
-    Log.d("studentCallStatusData", data.toString())
-    data?.let {
-        adapter.submitList(it.toMutableList().filter { state ->
-            state.callerState != CallerState.COMPLETED
-        }.filter { state ->
-            state.phoneNumber != teacherPhoneNumber
-        })
+    if (data.isNullOrEmpty()) {
+        Log.d("studentCallStatusData", "No students to display")
+        adapter.submitList(emptyList())
+        return
     }
+
+    val filtered = if (teacherPhoneNumber != null) {
+        data.filter { it.phoneNumber != teacherPhoneNumber }
+    } else data
+
+    Log.d("studentCallStatusData", "Submitting ${filtered.size} students")
+    adapter.submitList(filtered)
 }
 
 @BindingAdapter("imageDrawable")

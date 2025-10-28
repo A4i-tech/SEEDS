@@ -4,28 +4,20 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.ArrayAdapter
 import android.widget.Toast
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import com.example.seeds.MainActivity
 import com.example.seeds.R
 import com.example.seeds.databinding.ActivityLoginBinding
 import com.example.seeds.repository.TeacherRepository
+import com.example.seeds.ui.call.CallViewModel
 import com.example.seeds.utils.Constants
-import okhttp3.Call
-import okhttp3.Callback
-import okhttp3.MediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody
-import okhttp3.Response
+import kotlinx.coroutines.*
+import okhttp3.*
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import javax.inject.Inject
-
-const val LOGIN_URL = Constants.BASE_URL + "/tenant/login"
-const val REGISTER_URL = Constants.BASE_URL + "/tenant/register"
-const val ORGANIZATIONS_URL = Constants.BASE_URL + "/tenant/list"
-const val TEACHER_INFO_URL = Constants.BASE_URL + "/teacher/register"
 
 class LoginActivity : AppCompatActivity() {
 
@@ -35,11 +27,15 @@ class LoginActivity : AppCompatActivity() {
     @Inject
     lateinit var teacherRepository: TeacherRepository
 
+    private val viewModel: CallViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        val emailField = binding.editTextEmail
+        val passwordField = binding.editTextPassword
         val orgDropdown = binding.organizationDropdown
         val loginBtn = binding.emailLoginBtn
         val registerBtn = binding.emailRegisterBtn
@@ -55,45 +51,39 @@ class LoginActivity : AppCompatActivity() {
 
         // Login click
         loginBtn.setOnClickListener {
-            handleAuthAction { email, password, organization ->
-                loginWithEmail(email, password, organization)
+            val email = emailField.text.toString().trim()
+            val password = passwordField.text.toString().trim()
+            var organization = orgDropdown.text.toString().trim()
+            if (organization.isEmpty()) organization = "none"
+
+            if (email.isEmpty() || password.isEmpty()) {
+                Toast.makeText(this, "Please fill all fields", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
             }
+
+            loginWithEmail(email, password, organization)
         }
 
         // Register click
         registerBtn.setOnClickListener {
-            handleAuthAction { email, password, organization ->
-                registerTenant(email, password, organization)
+            val email = emailField.text.toString().trim()
+            val password = passwordField.text.toString().trim()
+            var organization = orgDropdown.text.toString().trim()
+            if (organization.isEmpty()) organization = "none"
+
+            if (email.isEmpty() || password.isEmpty()) {
+                Toast.makeText(this, "Please fill all fields", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
             }
-        }
-    }
 
-    private fun handleAuthAction(action: (email: String, password: String, organization: String) -> Unit) {
-        val email = binding.editTextEmail.text.toString().trim()
-        val password = binding.editTextPassword.text.toString().trim()
-        var organization = binding.organizationDropdown.text.toString().trim()
-        if (organization.isEmpty()) organization = "none"
-
-        if (email.isEmpty() || password.isEmpty()) {
-            Toast.makeText(this, "Please fill all fields", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        action(email, password, organization)
-    }
-
-    private fun createAuthJson(email: String, password: String, organization: String): JSONObject {
-        return JSONObject().apply {
-            put("email", email)
-            put("password", password)
-            put("name", organization)
+            registerTenant(email, password, organization)
         }
     }
 
     private fun fetchOrganizations(onResult: (List<String>) -> Unit) {
         val client = OkHttpClient()
         val request = Request.Builder()
-            .url(ORGANIZATIONS_URL)
+            .url(Constants.BASE_URL + "/tenant/list")
             .get()
             .build()
 
@@ -132,7 +122,11 @@ class LoginActivity : AppCompatActivity() {
 
     private fun registerTenant(email: String, password: String, organization: String) {
         val client = OkHttpClient()
-        val json = createAuthJson(email, password, organization)
+        val json = JSONObject().apply {
+            put("email", email)
+            put("password", password)
+            put("name", organization)
+        }
 
         val body = RequestBody.create(
             MediaType.get("application/json; charset=utf-8"),
@@ -140,7 +134,7 @@ class LoginActivity : AppCompatActivity() {
         )
 
         val registerRequest = Request.Builder()
-            .url(REGISTER_URL)
+            .url(Constants.BASE_URL + "/tenant/register")
             .post(body)
             .build()
 
@@ -154,12 +148,9 @@ class LoginActivity : AppCompatActivity() {
             override fun onResponse(call: Call, response: Response) {
                 runOnUiThread {
                     if (response.isSuccessful) {
-                        Toast.makeText(
-                            this@LoginActivity, "Registration successful! Please login.", 
-                            Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@LoginActivity, "Registration successful! Please login.", Toast.LENGTH_SHORT).show()
                     } else {
-                        Toast.makeText(this@LoginActivity, "Registration failed", Toast.LENGTH_SHORT)
-                        .show()
+                        Toast.makeText(this@LoginActivity, "Registration failed", Toast.LENGTH_SHORT).show()
                     }
                 }
             }
@@ -168,7 +159,11 @@ class LoginActivity : AppCompatActivity() {
 
     private fun loginWithEmail(email: String, password: String, organization: String) {
         val client = OkHttpClient()
-        val json = createAuthJson(email, password, organization)
+        val json = JSONObject().apply {
+            put("email", email)
+            put("password", password)
+            put("name", organization)
+        }
 
         val body = RequestBody.create(
             MediaType.get("application/json; charset=utf-8"),
@@ -176,7 +171,7 @@ class LoginActivity : AppCompatActivity() {
         )
 
         val loginRequest = Request.Builder()
-            .url(LOGIN_URL)  
+            .url(Constants.BASE_URL + "/tenant/login") // ✅ login endpoint unchanged
             .post(body)
             .build()
 
@@ -196,8 +191,8 @@ class LoginActivity : AppCompatActivity() {
                 }
 
                 val responseBody = response.body()?.string() ?: "{}"
-                val jsonResponse = JSONObject(responseBody)
-                val token = jsonResponse.optString("token", "")
+                val json = JSONObject(responseBody)
+                val token = json.optString("token", "")
 
                 if (token.isEmpty()) {
                     runOnUiThread {
@@ -219,7 +214,7 @@ class LoginActivity : AppCompatActivity() {
     private fun fetchTeacherId(token: String) {
         val client = OkHttpClient()
         val teacherRequest = Request.Builder()
-            .url(TEACHER_INFO_URL)
+            .url(Constants.BASE_URL + "/teacher/register")
             .get()
             .addHeader("Authorization", "Bearer $token")
             .build()

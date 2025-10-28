@@ -9,14 +9,11 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.seeds.R
 import com.example.seeds.databinding.ContentItemRowBinding
 import com.example.seeds.model.Content
-// import com.example.seeds.model.Student
+import com.example.seeds.model.Student
 
 
-class ContentListAdapter(private val onContentClickListener: OnClickListener? = null, 
-                         val showCheckbox: Boolean = false, val showRemoveContent: Boolean = false, 
-                         var usersInGroup: MutableSet<String> = mutableSetOf(),
-                         val maximumSelections: Int = 5000) : androidx.recyclerview.widget
-                         .ListAdapter<Content, ContentListAdapter.ContentViewHolder>(DiffCallBack){
+class ContentListAdapter(private val onContentClickListener: OnClickListener? = null, val showCheckbox: Boolean = false, val showRemoveContent: Boolean = false, var usersInGroup: MutableSet<String> = mutableSetOf(),
+                         val maximumSelections: Int = 5000) : androidx.recyclerview.widget.ListAdapter<Content, ContentListAdapter.ContentViewHolder>(DiffCallBack){
 
     class OnClickListener(val clickListener: (content: Content) -> Unit) {
         fun onClick(content: Content) = clickListener(content)
@@ -29,9 +26,7 @@ class ContentListAdapter(private val onContentClickListener: OnClickListener? = 
             contentCheckbox.setOnClickListener {
                 if (!usersInGroup.contains(binding.content!!.id)) {
                     if(usersInGroup.size == maximumSelections) {
-                        Toast.makeText(binding.root.context, """Maximum $maximumSelections 
-                        user${if(maximumSelections != 1) 's' else ' '} allowed!""", 
-                        Toast.LENGTH_SHORT).show()
+                        Toast.makeText(binding.root.context, "Maximum $maximumSelections user${if(maximumSelections != 1) 's' else ' '} allowed!", Toast.LENGTH_SHORT).show()
                         contentCheckbox.isChecked = false
                     } else {
                         contentCheckbox.isChecked = true

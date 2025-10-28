@@ -1,16 +1,20 @@
 package com.example.seeds.adapters
 
+import android.util.Log
+import android.util.SparseBooleanArray
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.Toast
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
+import com.example.seeds.R
 import com.example.seeds.databinding.CheckboxNameItemRowBinding
 
 import com.example.seeds.model.Student
 
-class CheckboxNameListAdapter(
-    // private val onClickListener: OnClickListener? = null,
+class CheckboxNameListAdapter(private val onClickListener: OnClickListener? = null,
                               var leaders: MutableSet<String> = mutableSetOf(),
                               val showCrown: Boolean = false,
                               val showPhoneNumber: Boolean = false,
@@ -18,22 +22,18 @@ class CheckboxNameListAdapter(
                               val maximumSelections: Int = 5000
 ) : androidx.recyclerview.widget.ListAdapter<Student, RecyclerView.ViewHolder>(DiffCallBack){
 
-    // class OnClickListener(val clickListener: (student: Student) -> Unit) {
-    //     fun onClick(student: Student) = clickListener(student)
-    // }
+    class OnClickListener(val clickListener: (student: Student) -> Unit) {
+        fun onClick(student: Student) = clickListener(student)
+    }
 
-    inner class ContactViewHolder(private var binding: CheckboxNameItemRowBinding): 
-        RecyclerView.ViewHolder(binding.root) {
-            
+    inner class ContactViewHolder(private var binding: CheckboxNameItemRowBinding): RecyclerView.ViewHolder(binding.root) {
         var userCheckbox = binding.userGroupCheckbox
 
         init {
             userCheckbox.setOnClickListener {
                 if (!usersInGroup.contains(binding.student!!.phoneNumber)) {
                     if(usersInGroup.size == maximumSelections) {
-                        val pluralSuffix = if (maximumSelections != 1) "s" else ""
-                        val toastMessage = "Maximum $maximumSelections leader$pluralSuffix allowed!"
-                        Toast.makeText(binding.root.context, toastMessage, Toast.LENGTH_SHORT).show()
+                        Toast.makeText(binding.root.context, "Maximum $maximumSelections leader${if(maximumSelections != 1) 's' else ' '} allowed!", Toast.LENGTH_SHORT).show()
                         userCheckbox.isChecked = false
                     } else {
                         userCheckbox.isChecked = true
