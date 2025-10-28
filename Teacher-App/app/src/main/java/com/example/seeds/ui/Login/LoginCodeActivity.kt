@@ -3,31 +3,11 @@ package com.example.seeds.ui.Login
 import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
-import android.os.CountDownTimer
-import android.text.Editable
-import android.text.TextWatcher
-import android.view.View
 import android.widget.Toast
-import androidx.lifecycle.lifecycleScope
 import com.example.seeds.MainActivity
-import com.example.seeds.R
 import com.example.seeds.dao.LogDao
-import com.example.seeds.databinding.ActivityLoginBinding
 import com.example.seeds.databinding.ActivityLoginCodeBinding
-import com.example.seeds.utils.TimberInitializer
-import com.google.firebase.FirebaseException
-import com.google.firebase.FirebaseTooManyRequestsException
-import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
-import com.google.firebase.auth.PhoneAuthCredential
-import com.google.firebase.auth.PhoneAuthOptions
-import com.google.firebase.auth.PhoneAuthProvider
-import com.google.firebase.auth.ktx.auth
-import com.google.firebase.ktx.Firebase
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
 import javax.inject.Inject
 
@@ -75,7 +55,9 @@ class LoginCodeActivity : AppCompatActivity() {
 
     private fun validName(): Boolean{
         val namePattern = "^[a-zA-Z]+(([',. -][a-zA-Z ])?[a-zA-Z]*)*\$"
-        return Pattern.matches(namePattern, binding.editTextName.text.toString()) && binding.editTextName.text.toString().length > 2
+        // FIXED MaxLineLength by breaking the boolean logic
+        return Pattern.matches(namePattern, binding.editTextName.text.toString()) && 
+                binding.editTextName.text.toString().length > 2
     }
 
     private fun validPhone(): Boolean{

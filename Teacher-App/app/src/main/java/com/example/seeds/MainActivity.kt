@@ -31,11 +31,13 @@ import timber.log.Timber
 import java.util.UUID
 import javax.inject.Inject
 
+const val PHONE_NUMBER_LENGTH = 13    
+const val LOG_UPLOAD_INTERVAL_MS = 30_000L
+
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
 
-    private val PHONE_NUMBER_LENGTH = 13    
-    private val LOG_UPLOAD_INTERVAL_MS = 30_000L
+
     private lateinit var binding: ActivityMainBinding
 
     @Inject

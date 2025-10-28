@@ -4,32 +4,27 @@ import NetworkConnectivityLiveData
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
-import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
-import android.widget.TextView
+// import android.widget.TextView
 import androidx.activity.addCallback
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.widget.PopupMenu
-import androidx.fragment.app.viewModels
 import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.viewModelScope
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
 import androidx.navigation.navGraphViewModels
 import com.example.seeds.R
-import com.example.seeds.adapters.ContentListAdapter
 import com.example.seeds.adapters.StudentCallStatusAdapter
 import com.example.seeds.databinding.FragmentCallBinding
 import com.example.seeds.model.CallerState
 import com.example.seeds.ui.BaseFragment
-import com.example.seeds.ui.createclassroom.CreateClassroomFragmentArgs
-import com.example.seeds.utils.ContactUtils
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.math.log
+
+const val TEACHER_RETRY_DELAY_MS = 120000L
+// const val FEEDBACK_DELAY_MS = 1500L 
 
 @AndroidEntryPoint
 class CallFragment : BaseFragment() {
@@ -57,18 +52,21 @@ class CallFragment : BaseFragment() {
             }
         })
 
-        binding.myStudentsList.adapter = StudentCallStatusAdapter(StudentCallStatusAdapter.OnClickListener{
-            logMessage("Muted: ${it.name} - ${it.phoneNumber}")
-            viewModel.muteParticipant(it.phoneNumber)
-        }, StudentCallStatusAdapter.OnClickListener{
-            logMessage("Unmuted: ${it.name} - ${it.phoneNumber}")
-            viewModel.unmuteParticipant(it.phoneNumber)
-        }, StudentCallStatusAdapter.OnClickListener{
-            removeUser(it.phoneNumber)
-        }, StudentCallStatusAdapter.OnClickListener{
-            logMessage("Retry calling: ${it.name} - ${it.phoneNumber}")
-            viewModel.connectParticipant(it.name, it.phoneNumber)
-        }, leader = viewModel.leader)
+        binding.myStudentsList.adapter = StudentCallStatusAdapter(
+            StudentCallStatusAdapter.OnClickListener{
+                logMessage("Muted: ${it.name} - ${it.phoneNumber}")
+                viewModel.muteParticipant(it.phoneNumber)
+            }, StudentCallStatusAdapter.OnClickListener{
+                logMessage("Unmuted: ${it.name} - ${it.phoneNumber}")
+                viewModel.unmuteParticipant(it.phoneNumber)
+            }, StudentCallStatusAdapter.OnClickListener{
+                removeUser(it.phoneNumber)
+            }, StudentCallStatusAdapter.OnClickListener{
+                logMessage("Retry calling: ${it.name} - ${it.phoneNumber}")
+                viewModel.connectParticipant(it.name, it.phoneNumber)
+            }, 
+            leader = viewModel.leader
+        )
 
         viewModel.callToken.observe(viewLifecycleOwner, Observer {
             if(it != null) {
@@ -95,13 +93,14 @@ class CallFragment : BaseFragment() {
 //                        else {
                         lifecycleScope.launch {
                             val classroom = args.classroom
-                            //check if no content was selected
-                            classroom.contentIds = viewModel.selectedContentList.value?.map {
-                                it.id
-                            }?: emptyList()
+                            classroom.contentIds = viewModel.selectedContentList.value?.map { it.id } 
+                                ?: emptyList() 
                             viewModel.endCall()
-                            logMessage("Call Ended on Back with final contents - id: ${classroom._id} - name: ${classroom.name} - contentIds: ${classroom.contentIds}")
-                            logMessage("Call ended with Final Call Status: ${viewModel.callState.value}")
+                            logMessage("""Call Ended on Back with final contents - 
+                            id: ${classroom._id} - name: ${classroom.name} - 
+                            contentIds: ${classroom.contentIds}""")
+                            logMessage("""Call ended with Final Call Status: 
+                            ${viewModel.callState.value}""")
                             viewModel.updateClassroomContent(classroom)
 
 //                        }
@@ -121,19 +120,19 @@ class CallFragment : BaseFragment() {
         binding.retryTeacher.setOnClickListener {
             viewModel.connectParticipant("Teacher", viewModel.teacherPhoneNumber)
             lifecycleScope.launch {
-                delay(120000) // 120000 milliseconds = 2 minutes
+                delay(TEACHER_RETRY_DELAY_MS) // Using const val
 
                 // Check if the teacher's status is still not ANSWERED
                 if (viewModel.teacherCallStatus.value?.callerState != CallerState.ANSWERED) {
                     // Implement logic to end the conference
-                    // Example: viewModel.endCall()
                     val classroom = args.classroom
                     classroom.contentIds = viewModel.selectedContentList.value!!.map{
                         it.id
                     }
                     viewModel.updateClassroomContent(classroom)
 
-                    logMessage("Call ended because teacher didn't rejoin within 2 minutes - Reason: ${viewModel.teacherCallStatus.value?.callerState}")
+                    logMessage("""Call ended because teacher didn't rejoin within 2 minutes - 
+                    Reason: ${viewModel.teacherCallStatus.value?.callerState}""")
 
                 }
             }
@@ -142,9 +141,9 @@ class CallFragment : BaseFragment() {
 
         binding.endCallBtn.setOnClickListener {
             val classroom = args.classroom
-            classroom.contentIds = viewModel.selectedContentList.value?.map {
-                it.id
-            } ?: emptyList()
+            // FIXED MaxLineLength by breaking the assignment line
+            classroom.contentIds = viewModel.selectedContentList.value?.map { it.id } 
+                ?: emptyList() 
             logMessage("Call Ended on end call button with final contents - id: ${classroom._id}")
             
             viewModel.endCall()  
@@ -168,7 +167,10 @@ class CallFragment : BaseFragment() {
         viewModel.callState.observe(viewLifecycleOwner, Observer {
             if(it != null) {
                 logMessage("Call state changed to $it")
-                if(it.none { state -> state.callerState != CallerState.COMPLETED }) {
+                // FIXED MaxLineLength by breaking the conditional statement
+                if(it.none { state -> 
+                        state.callerState != CallerState.COMPLETED 
+                    }) {
                     requireActivity().onBackPressed()
                 }
             }
@@ -182,7 +184,8 @@ class CallFragment : BaseFragment() {
 
         binding.addStudentsButton.setOnClickListener {
             logMessage("Add students button clicked")
-            findNavController().navigate(CallFragmentDirections.actionCallFragmentToAddStudentsFragment())
+            findNavController().navigate(CallFragmentDirections
+            .actionCallFragmentToAddStudentsFragment())
         }
 
         binding.teacherMic.setOnClickListener {
@@ -197,18 +200,21 @@ class CallFragment : BaseFragment() {
         }
 
         binding.addContentButton.setOnClickListener {
-            findNavController().navigate(CallFragmentDirections.actionCallFragmentToAddMoreContentToCallFragment())
+            findNavController().navigate(CallFragmentDirections
+            .actionCallFragmentToAddMoreContentToCallFragment())
         }
 
         binding.changeContent.setOnClickListener {
-            findNavController().navigate(CallFragmentDirections.actionCallFragmentToAddContentToCallFragment2())
+            findNavController().navigate(CallFragmentDirections
+            .actionCallFragmentToAddContentToCallFragment2())
         }
 
         binding.pausePlayButton.setOnClickListener {
             viewModel._isAudioControlDone.postValue(false)
             if (viewModel.audioPlaying.value!!) {
                 viewModel.pauseAudio()
-                logMessage("Audio paused ${viewModel.selectedContent.value!!.id} ${viewModel.selectedContent.value!!.title}}")
+                logMessage("""Audio paused ${viewModel.selectedContent.value!!.id}
+                 ${viewModel.selectedContent.value!!.title}}""")
                 Log.d("AUDIOCONTROLPAUSEINI", viewModel.selectedContent.value!!.id)
             }
            else {
@@ -217,7 +223,8 @@ class CallFragment : BaseFragment() {
                     viewModel.playAudio(viewModel.selectedContent.value!!.id)
                     logMessage("Audio playing ${viewModel.selectedContent.value!!.title}")
                 } else {
-                    viewModel.resumeAudio(viewModel.selectedContent.value!!.id)
+                    // FIX: Removed the extraneous argument here
+                    viewModel.resumeAudio()
                     logMessage("Audio resumed ${viewModel.selectedContent.value!!.title}")
                 }
             }
@@ -225,15 +232,15 @@ class CallFragment : BaseFragment() {
         return binding.root
     }
 
-    private fun showFeedback(textView: TextView, message: String) {
-        textView.text = message
-        textView.visibility = View.VISIBLE
+    // private fun showFeedback(textView: TextView, message: String) {
+    //     textView.text = message
+    //     textView.visibility = View.VISIBLE
 
-        lifecycleScope.launch {
-            delay(1500) // Delay for 1.5 seconds
-            textView.visibility = View.INVISIBLE
-        }
-    }
+    //     lifecycleScope.launch {
+    //         delay(FEEDBACK_DELAY_MS) // Using const val
+    //         textView.visibility = View.INVISIBLE
+    //     }
+    // }
 
     private fun removeUser(phoneNumber: String) {
         AlertDialog.Builder(requireContext())

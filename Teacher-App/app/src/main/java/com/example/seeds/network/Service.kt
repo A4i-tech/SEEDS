@@ -1,7 +1,7 @@
 package com.example.seeds.network
 
 import android.content.Context
-import android.util.Log
+// import android.util.Log
 import com.example.seeds.ApplicationJsonAdapterFactory
 import com.example.seeds.database.LogEntity
 import com.example.seeds.model.CallDetails
@@ -31,6 +31,7 @@ import retrofit2.http.Url
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
+const val TIMEOUT = 60L
 interface SeedsService {
     @POST
     suspend fun getAccessToken(
@@ -119,9 +120,9 @@ fun provideService(@ApplicationContext context: Context): SeedsService {
             }
         )
 
-        readTimeout(60, TimeUnit.SECONDS)
-        connectTimeout(60, TimeUnit.SECONDS)
-        writeTimeout(60, TimeUnit.SECONDS)
+        readTimeout(TIMEOUT, TimeUnit.SECONDS)
+        connectTimeout(TIMEOUT, TimeUnit.SECONDS)
+        writeTimeout(TIMEOUT, TimeUnit.SECONDS)
     }
 
     val moshi = Moshi.Builder()

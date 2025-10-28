@@ -40,14 +40,21 @@ class MyStudentsFragment : BaseFragment() {
         })
 
         binding.addStudentsBtn.setOnClickListener {
-            //findNavController().navigate(MyStudentsFragmentDirections.actionMyStudentsFragmentToContactsFragment(studentPhoneNumbers.toTypedArray()))
+            /*findNavController().navigate(
+            MyStudentsFragmentDirections.actionMyStudentsFragmentToContactsFragment(
+            studentPhoneNumbers.toTypedArray()))
+            */
         }
 
         binding.editBtn.setOnClickListener {
-            //findNavController().navigate(MyStudentsFragmentDirections.actionMyStudentsFragmentToContactsFragment(studentPhoneNumbers.toTypedArray()))
+            /*findNavController().navigate(
+            MyStudentsFragmentDirections.actionMyStudentsFragmentToContactsFragment(
+            studentPhoneNumbers.toTypedArray()))
+            */
         }
 
-        binding.myStudentsList.adapter = RemoveStudentListAdapter(RemoveStudentListAdapter.OnClickListener{
+        binding.myStudentsList.adapter = RemoveStudentListAdapter(
+            RemoveStudentListAdapter.OnClickListener{
             removeUser(it)
         })
 

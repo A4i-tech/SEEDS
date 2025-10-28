@@ -1,16 +1,13 @@
 package com.example.seeds.ui.students
 
-import android.util.Log
-import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import com.example.seeds.model.Student
 import com.example.seeds.repository.TeacherRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+@Suppress("UnusedPrivateMember") // Suppresses warning for teacherRepository
 @HiltViewModel
 class MyStudentsViewModel @Inject constructor(private val teacherRepository: TeacherRepository): ViewModel() {
 
@@ -19,14 +16,15 @@ class MyStudentsViewModel @Inject constructor(private val teacherRepository: Tea
         get() = _students
 
     fun refreshStudents() {
-        viewModelScope.launch {
+//        viewModelScope.launch {
 //            _students.value = teacherRepository.getMyStudents()
-        }
+//        }
     }
 
+    @Suppress("UnusedPrivateMember") // Suppresses warning for 'students' parameter
     fun setMyStudents(students: List<String>){
-        viewModelScope.launch {
+//        viewModelScope.launch {
 //            teacherRepository.setMyStudents(students)
-        }
+//        }
     }
 }

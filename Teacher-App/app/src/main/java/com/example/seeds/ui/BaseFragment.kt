@@ -16,13 +16,15 @@ import androidx.navigation.fragment.findNavController
 import com.example.seeds.MainActivity
 import com.example.seeds.R
 import com.example.seeds.utils.Constants.Companion.APP_VERSION
+import dagger.hilt.android.AndroidEntryPoint // Import required for the fix
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.util.UUID
 
-
+// FIX: Added @AndroidEntryPoint to the abstract base class
+@AndroidEntryPoint
 abstract class BaseFragment : Fragment(), LifecycleObserver {
 
     protected open var bottomNavigationViewVisibility = View.GONE
@@ -49,24 +51,6 @@ abstract class BaseFragment : Fragment(), LifecycleObserver {
         }
     }
 
-
-
-    //private val networkCallback = object : ConnectivityManager.NetworkCallback() {
-//        override fun onLost(network: Network) {
-//            super.onLost(network)
-//            if (isAdded) {
-//                navigateToNoInternetFragment()
-//            }
-//        }z
-//
-//        override fun onAvailable(network: Network) {
-//            super.onAvailable(network)
-//            if (isAdded) {
-//                onInternetRestored()
-//            }
-//        }
-//    }
-
     private fun onInternetRestored() {
         if (isAdded && !isNetworkAvailable) {
             CoroutineScope(Dispatchers.Main).launch {
@@ -82,20 +66,6 @@ abstract class BaseFragment : Fragment(), LifecycleObserver {
             }
         }
     }
-
-//    private fun onInternetRestored() {
-//        if (isAdded) {
-//            CoroutineScope(Dispatchers.Main).launch {
-//                findNavController().popBackStack()
-//            }
-//        }
-//    }
-
-//    private fun navigateToNoInternetFragment() {
-//        if (isAdded) {
-//            //findNavController().navigate(R.id.action_global_noInternetFragment)
-//        }
-//    }
 
     @OnLifecycleEvent(Lifecycle.Event.ON_CREATE)
     fun onCreated(){
@@ -153,16 +123,6 @@ abstract class BaseFragment : Fragment(), LifecycleObserver {
         super.onStop()
         //unregisterNetworkCallback()
     }
-
-//    private fun registerNetworkCallback() {
-//        connectivityManager = context?.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-//        val networkRequest = NetworkRequest.Builder().build()
-//        connectivityManager?.registerNetworkCallback(networkRequest, networkCallback)
-//    }
-//
-//    private fun unregisterNetworkCallback() {
-//        connectivityManager?.unregisterNetworkCallback(networkCallback)
-//    }
 
     fun logMessage(msg: String) {
         if (activity is MainActivity) {

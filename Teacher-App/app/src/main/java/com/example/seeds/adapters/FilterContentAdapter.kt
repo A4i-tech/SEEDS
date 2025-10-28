@@ -1,21 +1,25 @@
 package com.example.seeds.adapters
 
 import com.example.seeds.databinding.FilterItemRowBinding
-import android.util.Log
-import android.util.SparseBooleanArray
+// import android.util.Log
+// import android.util.SparseBooleanArray
 import android.view.LayoutInflater
 import android.view.ViewGroup
-import android.widget.ImageButton
-import android.widget.ImageView
-import android.widget.Toast
+// import android.widget.ImageButton
+// import android.widget.ImageView
+// import android.widget.Toast
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
-import com.example.seeds.R
-import com.example.seeds.databinding.CheckboxNameItemRowBinding
+// import com.example.seeds.R
+// import com.example.seeds.databinding.CheckboxNameItemRowBinding
 
-class FilterContentAdapter(var usersInGroup: MutableSet<String> = mutableSetOf(), val maximumSelections: Int = 5000) : androidx.recyclerview.widget.ListAdapter<String, RecyclerView.ViewHolder>(DiffCallBack){
+class FilterContentAdapter( 
+    var usersInGroup: MutableSet<String> = mutableSetOf(), 
+    val maximumSelections: Int = 5000) : androidx.recyclerview.widget
+    .ListAdapter<String, RecyclerView.ViewHolder>(DiffCallBack){
 
-    inner class ContactViewHolder(private var binding: FilterItemRowBinding): RecyclerView.ViewHolder(binding.root) {
+    inner class ContactViewHolder(
+        private var binding: FilterItemRowBinding): RecyclerView.ViewHolder(binding.root) {
         var userCheckbox = binding.userGroupCheckbox
 
         init {

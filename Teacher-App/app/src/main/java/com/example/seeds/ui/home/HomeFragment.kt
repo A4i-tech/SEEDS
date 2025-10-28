@@ -40,7 +40,8 @@ class HomeFragment : BaseFragment() {
         binding.viewModel = viewModel
         binding.lifecycleOwner = viewLifecycleOwner
         bottomNavigationViewVisibility = if(args.classroom != null) View.GONE else View.VISIBLE
-        val selectedContentIds = if(args.selectedContent != null) args.selectedContent!!.toMutableSet() else mutableSetOf<String>()
+        val selectedContentIds = if(args.selectedContent != null) args.selectedContent!!
+        .toMutableSet() else mutableSetOf<String>()
 
         binding.contentList.adapter = ContentListAdapter(ContentListAdapter.OnClickListener {
             if(args.classroom == null) {
@@ -60,7 +61,8 @@ class HomeFragment : BaseFragment() {
                 val text = binding.contentSearchTextBox.text.toString().lowercase()
                 if(text.isNotEmpty()){
                      logMessage("Content search text: $text")
-                    (binding.contentList.adapter as ContentListAdapter).submitList(viewModel.filteredContent.value?.toMutableList()?.filter {
+                    (binding.contentList.adapter as ContentListAdapter)
+                    .submitList(viewModel.filteredContent.value?.toMutableList()?.filter {
                         it.titleText.lowercase().contains(text)
                     })
                 } else {
@@ -72,11 +74,15 @@ class HomeFragment : BaseFragment() {
         viewModel.navigateBack.observe(viewLifecycleOwner, Observer {
             if(it){
                 val classroom = args.classroom
-                classroom!!.contentIds = (binding.contentList.adapter as ContentListAdapter).usersInGroup.toList()
+                classroom!!.contentIds = (binding.contentList.adapter as ContentListAdapter)
+                .usersInGroup.toList()
                 val contentChosen = viewModel.allContent.value?.filter { classroom.contentIds.contains(it.id) }
-                logMessage("Navigating back to call settings with content: ${classroom.contentIds} ${contentChosen?.map { it.titleText }}")
+                logMessage("""Navigating back to call settings with content: 
+                ${classroom.contentIds} ${contentChosen?.map { it.titleText }}""")
                 findNavController().navigate(
-                    HomeFragmentDirections.actionHomeFragmentToCallSettingsFragment(classroom).setSelectedStudents(args.selectedStudents)
+                    HomeFragmentDirections
+                    .actionHomeFragmentToCallSettingsFragment(classroom)
+                    .setSelectedStudents(args.selectedStudents)
                 )
                 viewModel.doneNavigating()
             }
@@ -106,8 +112,10 @@ class HomeFragment : BaseFragment() {
             dialogBinding.lifecycleOwner = viewLifecycleOwner
 
             val currentFilters = viewModel.filtersChosen.value ?: FilterCriteria()
-            dialogBinding.languagesList.adapter = FilterContentAdapter(usersInGroup = currentFilters.languages.toMutableSet())
-            dialogBinding.experiencesList.adapter = FilterContentAdapter(usersInGroup = currentFilters.experiences.toMutableSet())
+            dialogBinding.languagesList.adapter = FilterContentAdapter(
+                usersInGroup = currentFilters.languages.toMutableSet())
+            dialogBinding.experiencesList.adapter = FilterContentAdapter(
+                usersInGroup = currentFilters.experiences.toMutableSet())
 
             val dialogBuilder: AlertDialog.Builder = AlertDialog.Builder(requireContext())
             dialogBuilder.setOnDismissListener { }

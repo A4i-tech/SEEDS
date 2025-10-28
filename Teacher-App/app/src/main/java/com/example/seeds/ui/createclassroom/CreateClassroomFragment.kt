@@ -1,7 +1,6 @@
 package com.example.seeds.ui.createclassroom
 
 import android.os.Bundle
-import android.util.Log
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
@@ -16,12 +15,12 @@ import com.example.seeds.R
 import com.example.seeds.adapters.CheckboxNameListAdapter
 import com.example.seeds.adapters.RemoveStudentListAdapter
 import com.example.seeds.databinding.AddLeadersBinding
-import com.example.seeds.databinding.AssignLeaderBinding
-import com.example.seeds.databinding.FragmentCreateClassroomBinding
 import com.example.seeds.model.Student
 import com.example.seeds.ui.BaseFragment
-import com.example.seeds.ui.call.CallSettingsFragmentDirections
 import dagger.hilt.android.AndroidEntryPoint
+// Make sure this import is correct (it is usually auto-generated)
+// If you named your layout 'fragment_create_classroom.xml', this is the right name.
+import com.example.seeds.databinding.FragmentCreateClassroomBinding 
 
 @AndroidEntryPoint
 class CreateClassroomFragment : BaseFragment() {
@@ -29,11 +28,16 @@ class CreateClassroomFragment : BaseFragment() {
     private val viewModel: CreateClassroomViewModel by viewModels()
     private val args : CreateClassroomFragmentArgs by navArgs()
     private lateinit var alertDialog: android.app.AlertDialog
+    
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        binding = FragmentCreateClassroomBinding.inflate(layoutInflater)
+        // FIX: Ensure you are inflating the correct binding type
+        binding = FragmentCreateClassroomBinding.inflate(inflater, container, false)
+        // Original used layoutInflater only, which is fine, but using inflater and container is best practice:
+        // binding = FragmentCreateClassroomBinding.inflate(layoutInflater)
+        
         binding.viewModel = viewModel
         binding.lifecycleOwner = viewLifecycleOwner
 
@@ -49,9 +53,13 @@ class CreateClassroomFragment : BaseFragment() {
             logMessage("Add students button clicked - ${viewModel.classroom}")
             val classroom = viewModel.classroom
             classroom.name = binding.classroomNameEdit.text.toString()
-            findNavController().navigate(CreateClassroomFragmentDirections.actionCreateClassroomFragmentToContactsFragment(classroom))
+            
+            // MaxLineLength fix by breaking long navigation chain
+            findNavController()
+                .navigate(CreateClassroomFragmentDirections
+                .actionCreateClassroomFragmentToContactsFragment(classroom))
         }
-        // Inflate the layout for this fragment
+        
         binding.saveClassroomBtn.setOnClickListener {
             val classroom = viewModel.classroom
             classroom.name = binding.classroomNameEdit.text.toString()
@@ -99,14 +107,8 @@ class CreateClassroomFragment : BaseFragment() {
                     it.phoneNumber != student.phoneNumber
                 }
 
-//                (binding.classroomMyPotentialLeadersList.adapter as RemoveStudentListAdapter).usersInGroup = newLeaders.map{
-//                    it.phoneNumber
-//                }.toMutableSet()
-
                 viewModel.updateClassroomStudents(viewModel.classroomStudents.value!!.toMutableList().toList())
                 viewModel.updateClassroomLeaders(newLeaders)
-//                viewModel.classroom.students = newStudents
-//                (binding.classroomMyStudentsList.adapter as ContactsListAdapter).submitList(newStudents)
                 viewModel.updateClassroomStudents(newStudents)
                 logMessage("Remove student from classroom ${student.phoneNumber} ${student.name}")
             }
@@ -122,10 +124,6 @@ class CreateClassroomFragment : BaseFragment() {
                 val newLeaders = viewModel.classroomLeaders.value!!.filter {
                     it.phoneNumber != student.phoneNumber
                 }
-
-//                (binding.classroomMyPotentialLeadersList.adapter as RemoveStudentListAdapter).usersInGroup = newLeaders.map{
-//                    it.phoneNumber
-//                }.toMutableSet()
 
                 viewModel.updateClassroomStudents(viewModel.classroomStudents.value!!.toMutableList().toList())
                 viewModel.updateClassroomLeaders(newLeaders)
@@ -146,10 +144,11 @@ class CreateClassroomFragment : BaseFragment() {
         )
         dialogBinding.viewModel = viewModel
 
-        //        binding.classroomMyPotentialLeadersList.adapter = RemoveStudentListAdapter(showCheckBox = true, )
-        dialogBinding.classroomMyPotentialLeadersList.adapter = CheckboxNameListAdapter(usersInGroup = viewModel.classroom.leaders.map{
-           it.phoneNumber
-        }.toMutableSet(), maximumSelections = 2)
+        // MaxLineLength fixed by breaking the long chain
+        dialogBinding.classroomMyPotentialLeadersList.adapter = CheckboxNameListAdapter(
+            usersInGroup = viewModel.classroom.leaders.map { it.phoneNumber }.toMutableSet(), 
+            maximumSelections = 2
+        )
 
         val dialogBuilder: android.app.AlertDialog.Builder = android.app.AlertDialog.Builder(requireContext())
         dialogBuilder.setOnDismissListener { }
@@ -160,11 +159,16 @@ class CreateClassroomFragment : BaseFragment() {
         window?.setGravity(Gravity.CENTER)
 
         dialogBinding.addLeadersBtn.setOnClickListener {
-            val leadersPhoneNumbers = (dialogBinding.classroomMyPotentialLeadersList.adapter as CheckboxNameListAdapter).usersInGroup.toList()
+            val adapter = dialogBinding.classroomMyPotentialLeadersList.adapter as CheckboxNameListAdapter
+            val leadersPhoneNumbers = adapter.usersInGroup.toList()
+
             val leaders = args.classroom.students.filter {
                 leadersPhoneNumbers.contains(it.phoneNumber)
             }
-            logMessage("Assign leaders: $leaders - ${leaders.map{it.name}} - ${leaders.map{it.phoneNumber}}}")
+            // MaxLineLength fixed by breaking the long log message
+            logMessage("Assign leaders: $leaders - " +
+                    "${leaders.map{it.name}} - " +
+                    "${leaders.map{it.phoneNumber}}}")
             viewModel.updateClassroomLeaders(leaders)
             alertDialog.dismiss()
         }
@@ -186,5 +190,3 @@ class CreateClassroomFragment : BaseFragment() {
         super.onStop()
     }
 }
-
-

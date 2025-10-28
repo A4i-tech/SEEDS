@@ -1,8 +1,5 @@
 package com.example.seeds.ui.createclassroom
 
-import android.util.Log
-import androidx.databinding.BaseObservable
-import androidx.databinding.Bindable
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.SavedStateHandle
@@ -11,7 +8,6 @@ import androidx.lifecycle.viewModelScope
 import com.example.seeds.model.Classroom
 import com.example.seeds.model.Student
 import com.example.seeds.repository.ClassroomRepository
-import com.example.seeds.utils.ContactUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject

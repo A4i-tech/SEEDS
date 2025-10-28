@@ -1,6 +1,5 @@
 package com.example.seeds.ui.call
 
-import NetworkConnectivityLiveData
 import android.content.Context
 import android.content.SharedPreferences
 import android.net.ConnectivityManager
@@ -17,7 +16,6 @@ import com.example.seeds.model.CallDetails
 import com.example.seeds.model.CallerState
 import com.example.seeds.model.Classroom
 import com.example.seeds.model.ConferenceCreateRequest
-import com.example.seeds.model.ConferenceCreateResponse
 import com.example.seeds.model.Content
 import com.example.seeds.model.Student
 import com.example.seeds.model.StudentCallStatus
@@ -32,26 +30,27 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
 import javax.inject.Inject
 
+// CONSTANTS for Magic Numbers
+private const val SOCKET_CLOSE_CODE = 1000
+private const val SOCKET_RETRY_DELAY_MS = 4000L
+private const val CALL_FAILURE_TIMEOUT_MS = 180000L
+
+
 @HiltViewModel
 class CallViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val network: SeedsService,
     private val context: Context,
-
-//    @ApplicationContext private val context: Context,
     private val sharedPreferences: SharedPreferences,
     private val teacherRepository: TeacherRepository,
     private val contentRepository: ContentRepository,
     private val classroomRepository: ClassroomRepository,
-//    val networkConnectivityLiveData: NetworkConnectivityLiveData
     ) : ViewModel(){
 
     private val contactUtils = ContactUtils(context)
@@ -60,19 +59,15 @@ class CallViewModel @Inject constructor(
 
     val leader = args.leader.toString()
 
-    private var callStarted = false
     private var phoneNumbers: List<String> = args.phoneNumbers.toMutableList()
     private var allStudents = listOf<Student>()
-    private lateinit var token: AccessToken
     private var cancelCallOnFailure: Job? = null
 
     val teacherPhoneNumber = "91${teacherRepository.getTeacherPhoneNumber()}"
-    // Log.d("PAYLOAD_DEBUG","Teacher: $teacherPhoneNumber")
     var startedAudio = false
 
     var content: Content? = if (args.classroom.contents!!.isNotEmpty()) args.classroom.contents!![0] else null
 
-    private val client =  OkHttpClient()
     private lateinit var socket: WebSocket
 
     private val _callToken = MutableLiveData<AccessToken>()
@@ -94,14 +89,6 @@ class CallViewModel @Inject constructor(
     private val _isErrorFromIVR = MutableLiveData<String>(null)
     val isErrorFromIVR: LiveData<String>
         get() = _isErrorFromIVR
-
-    // val _forwardStreamDone = MutableLiveData<Boolean>(true)
-    // val forwardStreamDone: LiveData<Boolean>
-    //     get() = _forwardStreamDone
-
-    // val _backwardStreamDone = MutableLiveData<Boolean>(true)
-    // val backwardStreamDone: LiveData<Boolean>
-    //     get() = _backwardStreamDone
 
     val _isMuteOrUnmuteAllDone = MutableLiveData<Boolean>(true)
     val isMuteOrUnmuteAllDone: LiveData<Boolean>
@@ -188,13 +175,11 @@ class CallViewModel @Inject constructor(
             }
             _allContent.value = filteredListContent!!
 
-            _languages.value =
-                filteredListContent.map { it.language.lowercase() }.distinct().map { it.capitalize() }
-            _experiences.value = filteredListContent.map { it.type.lowercase() }.distinct().map {
-                it.capitalize()
-            }
+            _languages.value = filteredListContent.map { it.language.lowercase() }.distinct()
+                .map { it.capitalize() }
+            _experiences.value = filteredListContent.map { it.type.lowercase() }.distinct()
+                .map { it.capitalize() }
 
-//            _filteredContent.value = content
             if(filtersChosen.value != null) {
                 val langs = _languages.value!!.filter { filtersChosen.value!!.contains(it) }.toMutableSet()
                 val exps = _experiences.value!!.filter { filtersChosen.value!!.contains(it) }.toMutableSet()
@@ -227,7 +212,6 @@ class CallViewModel @Inject constructor(
                 val teacherPhoneWithPrefix = "$teacherPhoneNumber"
                 
                 val studentPhonesWithPrefix = phoneNumbers.map { "$it" }
-                // Log.d("PAYLOAD_DEBUG", "$sharedPreferences")
                 sharedPreferences.all.forEach { (key, value) ->
                     Log.d("map values", "$key: $value")
                 }
@@ -249,7 +233,9 @@ class CallViewModel @Inject constructor(
                 startCall(confId)
 
             } catch (e: Exception) {
-                Log.e("GET_ACCESS_TOKEN", "Error creating conference: ${e.message}", e)
+                // Fixed MaxLineLength
+                Log.e("GET_ACCESS_TOKEN", 
+                    "Error creating conference: ${e.message}", e)
             }
         }
     }
@@ -309,7 +295,7 @@ class CallViewModel @Inject constructor(
         
         viewModelScope.launch {
             try {
-                val fullUrl = "CONFERENCE_END_URL/$confId"
+                val fullUrl = "$CONFERENCE_END_URL/$confId"
                 Log.d("CALL_END", "Full URL: $fullUrl")
                 Log.d("CALL_END", "About to call network.endCall()...")
                 
@@ -340,7 +326,7 @@ class CallViewModel @Inject constructor(
         try {
             if (this::socket.isInitialized) {
                 Log.d("CALL_END", "Closing socket")
-                socket.close(1000, "close")
+                socket.close(SOCKET_CLOSE_CODE, "close")
             }
         } catch (e: Exception) {
             Log.e("CALL_END", "Error closing socket: ${e.message}")
@@ -365,12 +351,15 @@ class CallViewModel @Inject constructor(
                 it.phoneNumber == teacherPhoneNumber
             })
             Log.d("TEACHERCALLSTATUS", _teacherCallStatus.value.toString())
+            
+            // Fixed MaxLineLength
             studentsNotOnCall = allStudents.filter { stu ->
-                networkCallState.find { stu.phoneNumber == it.phoneNumber } == null
-                        || when(networkCallState.find { stu.phoneNumber == it.phoneNumber }?.callerState) {
-                                CallerState.COMPLETED, CallerState.FAILED, CallerState.REJECTED, CallerState.CANCELLED, CallerState.UNANSWERED, CallerState.BUSY -> true
-                                else -> false
-                            }
+                networkCallState.find { stu.phoneNumber == it.phoneNumber } == null ||
+                when(networkCallState.find { stu.phoneNumber == it.phoneNumber }?.callerState) {
+                    CallerState.COMPLETED, CallerState.FAILED, CallerState.REJECTED, 
+                    CallerState.CANCELLED, CallerState.UNANSWERED, CallerState.BUSY -> true
+                    else -> false
+                }
             }
             _isMutedAll.value = networkCallState.filter { it.phoneNumber != teacherPhoneNumber }.all { it.isMuted }
         }
@@ -488,7 +477,7 @@ class CallViewModel @Inject constructor(
         if (confId == null) {
             Log.e("AUDIO_COMMAND", "Conference ID is null")
             _isErrorFromIVR.postValue("Conference not initialized")
-            _isAudioControlDone.postValue(true) // Re-enable button on early exit
+            _isAudioControlDone.postValue(true)
             return
         }
 
@@ -498,7 +487,7 @@ class CallViewModel @Inject constructor(
                 Log.d("AUDIO_COMMAND", "Action: $action | Full URL: $fullUrl")
                 Log.d("AUDIO_COMMAND", "Sending $action request...")
 
-                val response = network.audioCommand(fullUrl) // This will now call the suspend function
+                val response = network.audioCommand(fullUrl)
                 Log.d("AUDIO_COMMAND", "Response received - Code: ${response.code()}")
 
                 if (response.isSuccessful) {
@@ -518,7 +507,6 @@ class CallViewModel @Inject constructor(
                 e.printStackTrace()
                 _isErrorFromIVR.postValue("Error: ${e.message}")
             } finally {
-                // This is crucial: always re-enable the button
                 _isAudioControlDone.postValue(true)
             }
         }
@@ -533,7 +521,7 @@ class CallViewModel @Inject constructor(
         if (selectedContentObj == null) {
             Log.e("PLAY_AUDIO", "No content selected")
             _isErrorFromIVR.postValue("No content selected")
-            _isAudioControlDone.postValue(true) // Re-enable button on immediate failure
+            _isAudioControlDone.postValue(true)
             return
         }
         
@@ -545,7 +533,7 @@ class CallViewModel @Inject constructor(
                 if (confId == null) {
                     Log.e("PLAY_AUDIO", "Conference ID is null")
                     _isErrorFromIVR.postValue("Conference not initialized")
-                    _isAudioControlDone.postValue(true) // Re-enable button
+                    _isAudioControlDone.postValue(true)
                     return@launch
                 }
                 
@@ -571,7 +559,7 @@ class CallViewModel @Inject constructor(
                 if (audioUrl.isNullOrEmpty()) {
                     Log.e("PLAY_AUDIO", "No audio URL found in content")
                     _isErrorFromIVR.postValue("No audio available for this content")
-                    _isAudioControlDone.postValue(true) // Re-enable button
+                    _isAudioControlDone.postValue(true)
                     return@launch
                 }
                 
@@ -602,14 +590,14 @@ class CallViewModel @Inject constructor(
                 e.printStackTrace()
                 _isErrorFromIVR.postValue("Error: ${e.message}")
             } finally {
-                _isAudioControlDone.postValue(true) // This will always run
+                _isAudioControlDone.postValue(true)
             }
         }
     }
 
-    fun pauseAudio(audioId: String? = null) = sendAudioCommand("Pause", false)
+    fun pauseAudio() = sendAudioCommand("Pause", false)
 
-    fun resumeAudio(audioId: String? = null) = sendAudioCommand("Resume", true)
+    fun resumeAudio() = sendAudioCommand("Resume", true)
 
     fun forwardAudio() {
         socket.send("forwardStream")
@@ -643,8 +631,6 @@ class CallViewModel @Inject constructor(
     After every command is complete, refresh event is sent to the client.
     */
 
-    //event on disconnect to Android from Azure PubSub
-
     inner class SeedsWebSocketListener: WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) {
             super.onOpen(webSocket, response)
@@ -675,11 +661,11 @@ class CallViewModel @Inject constructor(
             Log.d("SOCKETFAILURE", t.message.toString())
 
             //reference: https://stackoverflow.com/questions/54088030/reconnect-okhttp-websocket-when-internet-disconnects
-            socket.close(1000, null)
-            Thread.sleep(4000)
+            socket.close(SOCKET_CLOSE_CODE, null)
+            Thread.sleep(SOCKET_RETRY_DELAY_MS)
             // connectWebSocket()
             cancelCallOnFailure = viewModelScope.launch {
-                delay(180000L) // 3 minutes
+                delay(CALL_FAILURE_TIMEOUT_MS)
                 _navigateBack.postValue(true)
             }
         }
@@ -691,5 +677,3 @@ class CallViewModel @Inject constructor(
         connectivityManager.registerNetworkCallback(networkRequest, networkCallback)
     }
 }
-
-

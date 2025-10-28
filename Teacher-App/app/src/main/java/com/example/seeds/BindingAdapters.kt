@@ -16,10 +16,10 @@ import com.example.seeds.model.Classroom
 import com.example.seeds.model.Student
 import com.example.seeds.model.StudentCallStatus
 import com.example.seeds.model.CallerState
-import com.google.android.material.chip.Chip
-import com.google.android.material.chip.ChipGroup
-import com.google.firebase.auth.ktx.auth
-import com.google.firebase.ktx.Firebase
+// import com.google.android.material.chip.Chip
+// import com.google.android.material.chip.ChipGroup
+// import com.google.firebase.auth.ktx.auth
+// import com.google.firebase.ktx.Firebase
 
 @BindingAdapter("contentData")
 fun bindContentRecyclerView(recyclerView: RecyclerView, data: List<Content>?) {
@@ -85,7 +85,8 @@ fun bindFilterContentRecyclerView(recyclerView: RecyclerView, data: List<String>
 //}
 
 @BindingAdapter("studentCallStatusData", "teacherPhoneNumber")
-fun bindStudentCallStatusRecyclerView(recyclerView: RecyclerView, data: List<StudentCallStatus>?, teacherPhoneNumber: String) {
+fun bindStudentCallStatusRecyclerView(recyclerView: RecyclerView, 
+                                     data: List<StudentCallStatus>?, teacherPhoneNumber: String) {
     val adapter = recyclerView.adapter as StudentCallStatusAdapter
 //    val teacherPhoneNumber = Firebase.auth.currentUser!!.phoneNumber.toString().replace("+", "")
     Log.d("studentCallStatusData", data.toString())

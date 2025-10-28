@@ -1,24 +1,34 @@
 package com.example.seeds.adapters
 
-import android.media.Image
+// import android.media.Image
 import com.example.seeds.model.StudentCallStatus
 import android.view.LayoutInflater
 import android.view.ViewGroup
-import android.widget.ImageButton
+// import android.widget.ImageButton
 import android.widget.ImageView
-import android.widget.TextView
+// import android.widget.TextView
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
 import com.example.seeds.R
 import com.example.seeds.databinding.StudentCallItemRowBinding
 
-class StudentCallStatusAdapter(private val onClickListenerMute: OnClickListener, private val onClickListenerUnmute: OnClickListener, private val onClickListenerRemove: OnClickListener, private val onClickListenerRetry: OnClickListener, private val showCrown: Boolean = false, private val leader: String?=null) : androidx.recyclerview.widget.ListAdapter<StudentCallStatus, StudentCallStatusAdapter.StudentCallStatusViewHolder>(DiffCallBack){
-
+class StudentCallStatusAdapter(
+    private val onClickListenerMute: OnClickListener,
+    private val onClickListenerUnmute: OnClickListener,
+    private val onClickListenerRemove: OnClickListener,
+    private val onClickListenerRetry: OnClickListener,
+    private val showCrown: Boolean = false,
+    private val leader: String? = null
+) : androidx.recyclerview.widget.ListAdapter<
+        StudentCallStatus,
+        StudentCallStatusAdapter.StudentCallStatusViewHolder
+        >(DiffCallBack) {
     class OnClickListener(val clickListener: (student: StudentCallStatus) -> Unit) {
         fun onClick(student: StudentCallStatus) = clickListener(student)
     }
 
-    inner class StudentCallStatusViewHolder(private var binding: StudentCallItemRowBinding): RecyclerView.ViewHolder(binding.root) {
+    inner class StudentCallStatusViewHolder(private var binding: StudentCallItemRowBinding
+                                            ): RecyclerView.ViewHolder(binding.root) {
         fun bind (studentCallStatus: StudentCallStatus) {
             binding.studentCallStatus = studentCallStatus
             binding.showCrown = studentCallStatus.phoneNumber == leader
@@ -28,7 +38,8 @@ class StudentCallStatusAdapter(private val onClickListenerMute: OnClickListener,
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): StudentCallStatusViewHolder {
         //reference: https://stackoverflow.com/questions/48363704/constraintlayout-as-recyclerview-items
-        return StudentCallStatusViewHolder(StudentCallItemRowBinding.inflate(LayoutInflater.from(parent.context), parent, false))
+        return StudentCallStatusViewHolder(StudentCallItemRowBinding
+        .inflate(LayoutInflater.from(parent.context), parent, false))
     }
 
     override fun onBindViewHolder(holder: StudentCallStatusViewHolder, position: Int) {

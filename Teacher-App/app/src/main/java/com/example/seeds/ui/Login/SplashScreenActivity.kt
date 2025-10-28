@@ -5,7 +5,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
-import android.util.Log
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
@@ -15,14 +14,14 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.example.seeds.MainActivity
 import com.example.seeds.R
-//import com.google.firebase.auth.ktx.auth
-//import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+const val DELAY = 1500L
+
 class SplashScreenActivity : AppCompatActivity() {
+
     private lateinit var requestPermissionLauncher: ActivityResultLauncher<String>
-    private var activityContext = this
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -62,7 +61,8 @@ class SplashScreenActivity : AppCompatActivity() {
 
         // Check for permission or request it
         when {
-            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED -> {
+            ContextCompat.checkSelfPermission(
+                this, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED -> {
                 checkAndNavigate()
             }
             else -> {
@@ -70,38 +70,13 @@ class SplashScreenActivity : AppCompatActivity() {
             }
         }
 
-//        when {
-//            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED -> {
-//                checkAndNavigate()
-//            }
-//            shouldShowRequestPermissionRationale(Manifest.permission.READ_CONTACTS) -> {
-//                showPermissionExplanationDialog()
-//            }
-//            else -> {
-//                requestPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
-//            }
-//        }
-    }
 
-// This has been commented out to allow the app to run without a login
-//    private fun checkAndNavigate() {
-//        lifecycleScope.launch {
-//            val user = Firebase.auth.currentUser
-//            var intent: Intent
-//            if (user == null) {
-//                intent = Intent(activityContext, LoginActivity::class.java)
-//                intent.flags = intent.flags or Intent.FLAG_ACTIVITY_NO_HISTORY
-//            } else {
-//                intent = Intent(activityContext, MainActivity::class.java)
-//            }
-//            startActivity(intent)
-//        }
-//    }
+    }
 
     private fun checkAndNavigate() {
         lifecycleScope.launch {
             // Optional splash delay
-            delay(1500)
+            delay(DELAY)
 
             val sharedPref = getSharedPreferences("sharedPref", MODE_PRIVATE)
             val isLoggedIn = sharedPref.getBoolean("is_logged_in", false)
@@ -120,7 +95,8 @@ class SplashScreenActivity : AppCompatActivity() {
     private fun showPermissionExplanationDialog() {
         AlertDialog.Builder(this)
             .setTitle("Permission Required")
-            .setMessage("This app needs to read your contacts to function properly. Without this permission, the app cannot operate.")
+            .setMessage("""This app needs to read your contacts to function properly. 
+            Without this permission, the app cannot operate.""")
             .setPositiveButton("Try Again") { dialog, which ->
                 requestPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
             }
@@ -136,7 +112,8 @@ class SplashScreenActivity : AppCompatActivity() {
     private fun showPermissionDeniedDialog() {
         AlertDialog.Builder(this)
             .setTitle("Permission Required")
-            .setMessage("This app needs to read your contacts to function properly. Without this permission, the app cannot operate. Enable it from settings")
+            .setMessage("""This app needs to read your contacts to function properly. 
+            Without this permission, the app cannot operate. Enable it from settings""")
             .setPositiveButton("OKAY") { dialog, which ->
                 dialog.dismiss()
                 finishAndRemoveTask() // This will close the current activity

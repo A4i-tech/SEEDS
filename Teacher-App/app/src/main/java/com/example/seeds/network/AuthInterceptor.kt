@@ -7,10 +7,12 @@ import com.example.seeds.utils.SessionManager
 import okhttp3.Interceptor
 import okhttp3.Response
 
+const val FORBIDDEN = 403
+
 class AuthInterceptor(private val context: Context) : Interceptor {
 
     private val sessionManager = SessionManager(context)
-    private val FORBIDDEN = 403
+    
 
     override fun intercept(chain: Interceptor.Chain): Response {
         // Proceed with the original request

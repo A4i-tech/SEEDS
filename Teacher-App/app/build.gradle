@@ -5,6 +5,8 @@ plugins {
     id 'kotlin-kapt'
     id 'kotlin-parcelize'
     id 'dagger.hilt.android.plugin'
+    // CORRECTED LINE: Added the version number for the detekt plugin
+    id 'io.gitlab.arturbosch.detekt' version '1.21.0'
 }
 // kapt {
 //     correctErrorTypes = true
@@ -61,6 +63,28 @@ android {
     }
 }
 
+// THIS CONFIGURATION REMAINS CORRECT
+detekt {
+    // Use the default detekt configuration as a baseline.
+    buildUponDefaultConfig = true
+    // Don't activate all rules, only those specified in the config file.
+    allRules = false
+    // Point to your custom configuration file.
+    config = files("$rootDir/config/detekt/detekt.yml")
+    // You can use a baseline to record and ignore existing issues.
+    // baseline = file("$rootDir/config/detekt/baseline.xml")
+}
+
+// THIS CONFIGURATION REMAINS CORRECT
+tasks.withType(io.gitlab.arturbosch.detekt.Detekt).configureEach {
+    reports {
+        html.required = true // Generate a human-readable HTML report
+        xml.required = true // Useful for CI/CD integrations
+        txt.required = true // A simple text report
+    }
+}
+
+
 // Force consistent Kotlin versions
 configurations.all {
     resolutionStrategy {
@@ -72,6 +96,7 @@ configurations.all {
 }
 
 dependencies {
+    // ... all your dependencies remain the same
     
     implementation 'com.google.code.gson:gson:2.10.1'
     implementation 'com.google.android.gms:play-services-auth:20.0.0'

@@ -4,13 +4,11 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.ArrayAdapter
 import android.widget.Toast
-import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import com.example.seeds.MainActivity
 import com.example.seeds.R
 import com.example.seeds.databinding.ActivityLoginBinding
 import com.example.seeds.repository.TeacherRepository
-import com.example.seeds.ui.call.CallViewModel
 import com.example.seeds.utils.Constants
 import okhttp3.Call
 import okhttp3.Callback
@@ -36,8 +34,6 @@ class LoginActivity : AppCompatActivity() {
 
     @Inject
     lateinit var teacherRepository: TeacherRepository
-
-    private val viewModel: CallViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -158,9 +154,12 @@ class LoginActivity : AppCompatActivity() {
             override fun onResponse(call: Call, response: Response) {
                 runOnUiThread {
                     if (response.isSuccessful) {
-                        Toast.makeText(this@LoginActivity, "Registration successful! Please login.", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(
+                            this@LoginActivity, "Registration successful! Please login.", 
+                            Toast.LENGTH_SHORT).show()
                     } else {
-                        Toast.makeText(this@LoginActivity, "Registration failed", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@LoginActivity, "Registration failed", Toast.LENGTH_SHORT)
+                        .show()
                     }
                 }
             }

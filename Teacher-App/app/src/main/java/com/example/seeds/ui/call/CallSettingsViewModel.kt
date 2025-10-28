@@ -7,21 +7,20 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.seeds.model.Classroom
-import com.example.seeds.model.Content
 import com.example.seeds.model.Student
 import com.example.seeds.repository.ClassroomRepository
 import com.example.seeds.repository.ContentRepository
-import com.example.seeds.repository.StudentRepository
-import com.example.seeds.repository.TeacherRepository
+// import com.example.seeds.repository.StudentRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
 class CallSettingsViewModel @Inject constructor(savedStateHandle: SavedStateHandle,
-                                                private val studentRepository: StudentRepository,
+                                                // private val studentRepository: StudentRepository,
                                                 private val classroomRepository: ClassroomRepository,
-                                                private val contentRepository: ContentRepository): ViewModel(){
+                                                private val contentRepository: ContentRepository):
+                                                ViewModel(){
 
     val args = CallSettingsFragmentArgs.fromSavedStateHandle(savedStateHandle)
 

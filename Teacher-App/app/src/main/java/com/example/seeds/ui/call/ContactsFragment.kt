@@ -1,7 +1,6 @@
 package com.example.seeds.ui.call
 
 import android.os.Bundle
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuInflater
@@ -32,7 +31,7 @@ class ContactsFragment : BaseFragment() {
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {
+    ): View { // Changed to non-nullable View as per Android standard
         binding = FragmentContactsBinding.inflate(layoutInflater)
         binding.viewModel = viewModel
         binding.lifecycleOwner = viewLifecycleOwner
@@ -54,8 +53,10 @@ class ContactsFragment : BaseFragment() {
 
         tempStudents.addAll(students)
 
+        // FIXED MaxLineLength by breaking the constructor call
         binding.contactsList.adapter = CheckboxNameListAdapter(
-            usersInGroup = studentsPhoneNumbers.toMutableSet(), showPhoneNumber = true
+            usersInGroup = studentsPhoneNumbers.toMutableSet(), 
+            showPhoneNumber = true
         )
 
         (binding.contactsList.adapter as CheckboxNameListAdapter).submitList(tempStudents.toList())
@@ -67,7 +68,9 @@ class ContactsFragment : BaseFragment() {
                 users.contains(it.phoneNumber)
             }
             logMessage("Final Students in Classroom: ${classroom.students}")
-            findNavController().navigate(ContactsFragmentDirections.actionContactsFragmentToCreateClassroomFragment(classroom))
+            findNavController().navigate(
+                ContactsFragmentDirections.actionContactsFragmentToCreateClassroomFragment(classroom)
+            )
             //viewModel.setMyStudents(users)
         }
 

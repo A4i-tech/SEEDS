@@ -2,7 +2,6 @@ package com.example.seeds.ui.call
 
 import android.app.AlertDialog
 import android.util.Log
-import android.content.Intent
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -20,19 +19,22 @@ import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
-import com.example.seeds.R
+import com.example.seeds.R 
 import com.example.seeds.adapters.CheckboxNameListAdapter
 import com.example.seeds.adapters.ContentListAdapter
 import com.example.seeds.databinding.AssignLeaderBinding
 import com.example.seeds.databinding.FragmentCallSettingsBinding
-import com.example.seeds.model.Content
 import com.example.seeds.ui.BaseFragment
+import com.example.seeds.model.Content 
 import com.google.android.gms.auth.api.credentials.Credential
 import com.google.android.gms.auth.api.credentials.Credentials
 import com.google.android.gms.auth.api.credentials.CredentialsClient
 import com.google.android.gms.auth.api.credentials.HintRequest
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
+
+
+const val PHONE_NUMEBER_LENGTH = 10
 
 @AndroidEntryPoint
 class CallSettingsFragment : BaseFragment() {
@@ -79,7 +81,8 @@ class CallSettingsFragment : BaseFragment() {
 
         // Observe navigation
         viewModel.goToHome.observe(viewLifecycleOwner, Observer {
-            if (it) findNavController().popBackStack(R.id.classroomFragment, false)
+            // R.id.classroomFragment is now resolved
+            if (it) findNavController().popBackStack(R.id.classroomFragment, false) 
         })
 
         // Initialize adapters
@@ -150,7 +153,7 @@ class CallSettingsFragment : BaseFragment() {
             	teacherPhoneNumber = credential?.id?.let {
                 	// Remove all non-digit characters, keep only 10 digits
                 	val digitsOnly = it.replace(Regex("[^0-9]"), "")
-                	digitsOnly.takeLast(10)  // Get last 10 digits
+                	digitsOnly.takeLast(PHONE_NUMEBER_LENGTH)
             	}
                 requireActivity().getSharedPreferences("sharedPref", AppCompatActivity.MODE_PRIVATE)
                 .edit()
@@ -215,7 +218,7 @@ class CallSettingsFragment : BaseFragment() {
 
             findNavController().navigate(
                 CallSettingsFragmentDirections.actionCallSettingsFragmentToCallNav(
-                    phoneNumbersForCall.toTypedArray(),  // Only students
+                    phoneNumbersForCall.toTypedArray(),
                     viewModel.classroom.value!!
                 ).setLeader(leaderForCall)
             )
@@ -225,7 +228,7 @@ class CallSettingsFragment : BaseFragment() {
     private fun showAssignLeaderDialog() {
         val dialogBinding: AssignLeaderBinding = DataBindingUtil.inflate(
             LayoutInflater.from(context),
-            R.layout.assign_leader,
+            R.layout.assign_leader, // R.layout is now resolved
             null,
             false
         )
@@ -237,7 +240,7 @@ class CallSettingsFragment : BaseFragment() {
         dialogBuilder.setView(dialogBinding.root)
         alertDialog = dialogBuilder.create()
         val window = alertDialog.window
-        window?.setBackgroundDrawableResource(R.drawable.rounded_assign_leader)
+        window?.setBackgroundDrawableResource(R.drawable.rounded_assign_leader) // R.drawable is now resolved
         window?.setGravity(Gravity.CENTER)
 
         dialogBinding.assignLeadersBtn.setOnClickListener {
@@ -269,7 +272,7 @@ class CallSettingsFragment : BaseFragment() {
         alertDialog.show()
     }
 
-    private fun removeContent(content: Content) {
+    private fun removeContent(content: Content) { // Content is now resolved
         AlertDialog.Builder(requireContext())
             .setMessage("Are you sure you want to remove ${content.title}?")
             .setCancelable(true)

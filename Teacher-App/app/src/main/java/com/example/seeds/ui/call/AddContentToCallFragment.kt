@@ -1,8 +1,8 @@
 package com.example.seeds.ui.call
 
 import android.os.Bundle
-import android.text.Editable
-import android.text.TextWatcher
+// import android.text.Editable
+// import android.text.TextWatcher
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
@@ -59,7 +59,8 @@ class AddContentToCallFragment : BaseFragment() {
         }
 
         binding.addMoreContentBtn.setOnClickListener {
-            findNavController().navigate(AddContentToCallFragmentDirections.actionAddContentToCallFragment2ToAddMoreContentToCallFragment())
+            findNavController().navigate(AddContentToCallFragmentDirections
+            .actionAddContentToCallFragment2ToAddMoreContentToCallFragment())
         }
 
 //        binding.contentSearchTextBox.addTextChangedListener(object: TextWatcher {
