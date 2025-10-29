@@ -5,15 +5,15 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-STORAGE_ACCOUNT_NAME = process.env.AZURE_STORAGE_ACCOUNT_NAME;
-STORAGE_ACCOUNT_KEY = process.env.AZURE_STORAGE_ACCOUNT_KEY; 
+AZURE_STORAGE_ACCOUNT_NAME = process.env.AZURE_STORAGE_ACCOUNT_NAME;
+AZURE_STORAGE_ACCOUNT_KEY = process.env.AZURE_STORAGE_ACCOUNT_KEY; 
 
 class BlobService {
     constructor() {
         // Changed to use StorageSharedKeyCredential
-        const credential = new StorageSharedKeyCredential(STORAGE_ACCOUNT_NAME, STORAGE_ACCOUNT_KEY);
+        const credential = new StorageSharedKeyCredential(AZURE_STORAGE_ACCOUNT_NAME, AZURE_STORAGE_ACCOUNT_KEY);
         this.blobServiceClient = new BlobServiceClient(
-            `https://${STORAGE_ACCOUNT_NAME}.blob.core.windows.net`, 
+            `https://${AZURE_STORAGE_ACCOUNT_NAME}.blob.core.windows.net`, 
             credential
         );
     }
