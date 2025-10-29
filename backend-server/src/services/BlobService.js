@@ -1,15 +1,29 @@
-const { BlobServiceClient, generateBlobSASQueryParameters, BlobSASPermissions } = require("@azure/storage-blob");
+const { BlobServiceClient, generateBlobSASQueryParameters, BlobSASPermissions, StorageSharedKeyCredential } = require("@azure/storage-blob");
 const { DefaultAzureCredential } = require("@azure/identity");
 const { URL } = require('url');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-STORAGE_ACCOUNT_NAME = process.env.STORAGE_ACCOUNT_NAME;
+
+const AZURE_STORAGE_ACCOUNT_NAME = process.env.AZURE_STORAGE_ACCOUNT_NAME;
+const AZURE_STORAGE_ACCOUNT_KEY = process.env.AZURE_STORAGE_ACCOUNT_KEY;
+
 class BlobService {
     constructor() {
-        const credential = new DefaultAzureCredential();
+        let credential;
+        
+        // Check if the Shared Key is available
+        if (AZURE_STORAGE_ACCOUNT_KEY) {
+            credential = new StorageSharedKeyCredential(AZURE_STORAGE_ACCOUNT_NAME, AZURE_STORAGE_ACCOUNT_KEY);
+            this.useSharedKey = true;
+        } else {
+            // Fallback to Default Azure Credential (User Delegation SAS)
+            credential = new DefaultAzureCredential();
+            this.useSharedKey = false;
+        }
+
         this.blobServiceClient = new BlobServiceClient(
-            `https://${STORAGE_ACCOUNT_NAME}.blob.core.windows.net`, 
+            `https://${AZURE_STORAGE_ACCOUNT_NAME}.blob.core.windows.net`, 
             credential
         );
     }
@@ -28,13 +42,26 @@ class BlobService {
             containerName: containerName,
             blobName: blobname,
             startsOn: new Date(),
-            expiresOn: expiresOn, //change this time duration later
+            expiresOn: expiresOn,
             permissions: BlobSASPermissions.parse("rw"),
         };
         
-        const userDelegationKey = await this.blobServiceClient.getUserDelegationKey(new Date(), expiresOn);
-        const sasToken = generateBlobSASQueryParameters(sasOptions, userDelegationKey, this.blobServiceClient.accountName).toString();
-        return sasToken
+        let sasToken;
+        
+        if (this.useSharedKey) {
+            // 1. Shared Key SAS (Service SAS)
+            sasToken = generateBlobSASQueryParameters(
+                sasOptions, 
+                this.blobServiceClient.credential, 
+                this.blobServiceClient.accountName
+            ).toString();
+        } else {
+            // 2. Azure AD SAS (User Delegation SAS)
+            const userDelegationKey = await this.blobServiceClient.getUserDelegationKey(new Date(), expiresOn);
+            sasToken = generateBlobSASQueryParameters(sasOptions, userDelegationKey, this.blobServiceClient.accountName).toString();
+        }
+        
+        return sasToken;
     }
 
     async getURLWithSAS(url) {
@@ -53,19 +80,35 @@ class BlobService {
 
         const expiresOn = new Date(new Date().valueOf() + 3600 * 1000); // 1 hour from now
 
-        // Fetch a user delegation key
-        const userDelegationKey = await this.blobServiceClient.getUserDelegationKey(new Date(), expiresOn);
-
         const sasOptions = {
             containerName,
             blobName: blobPath,
             permissions: sasPermissions.toString(),
             expiresOn: expiresOn,
             startsOn: new Date(new Date().valueOf() - 300 * 1000), // Optional: start time is 5 minutes before now
-            userDelegationKey
         };
+        
+        let sasToken;
+        
+        if (this.useSharedKey) {
+            // 1. Shared Key SAS (Service SAS)
+            sasToken = generateBlobSASQueryParameters(
+                sasOptions, 
+                this.blobServiceClient.credential, 
+                this.blobServiceClient.accountName
+            ).toString();
+        } else {
+            // 2. Azure AD SAS (User Delegation SAS)
+            const userDelegationKey = await this.blobServiceClient.getUserDelegationKey(new Date(), expiresOn);
+            sasOptions.userDelegationKey = userDelegationKey; // Add key to options for User Delegation SAS
+            
+            sasToken = generateBlobSASQueryParameters(
+                sasOptions, 
+                userDelegationKey, 
+                this.blobServiceClient.accountName
+            ).toString();
+        }
 
-        const sasToken = generateBlobSASQueryParameters(sasOptions, userDelegationKey, this.blobServiceClient.accountName).toString();
         return `${blobClient.url}?${sasToken}`;
     }
 
@@ -106,17 +149,14 @@ class BlobService {
             // Parse the URL
             const parsedUrl = new URL(blobUrl);
 
-            // Extract the path components (removing the leading '/')
             const pathSegments = parsedUrl.pathname.split('/').filter(part => part.length > 0);
 
             if (pathSegments.length < 2) {
                 throw new Error("Invalid blob URL format");
             }
 
-            // Remove the container name (first segment)
             let blobPath = pathSegments.slice(1).join('/');
 
-            // Remove the file extension (if present)
             return blobPath.replace(/\.[^/.]+$/, ""); // Removes the last dot and extension
         } catch (error) {
             throw new Error(`Error extracting blob path: ${error.message}`);
