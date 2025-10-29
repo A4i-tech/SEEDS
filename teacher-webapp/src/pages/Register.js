@@ -1,11 +1,8 @@
 import React, {useState} from 'react';
 import {useNavigate} from 'react-router-dom';
 import axios from 'axios';
-
-const BASE_URL = process.env.REACT_APP_API_BASE_URL;
-const REGISTER_URL = `${BASE_URL}/tenant/register`;
-
-const STATUS_CREATED = 201;
+import {API_ENDPOINTS} from "../constants/apiEndpoints";
+import {STATUS_CODES} from "../constants/statusCodes";
 
 const Register = () => {
   const navigate = useNavigate();
@@ -22,8 +19,8 @@ const Register = () => {
     }
 
     try {
-      const response = await axios.post(`${REGISTER_URL}`, {email, password, name});
-      if (response.status === STATUS_CREATED) {
+      const response = await axios.post(`${API_ENDPOINTS.REGISTER}`, {email, password, name});
+      if (response.status === STATUS_CODES.CREATED) {
         console.log("Successfully registered!");
         navigate('/'); // Navigate to the login page after successful registration
       }
