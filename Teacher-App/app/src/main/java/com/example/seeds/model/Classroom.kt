@@ -25,13 +25,7 @@ data class Classroom(
                         students: List<Student> = listOf(),
                         leaders: List<Student> = listOf(),
                         contentIds: List<String> = listOf()): Classroom {
-            return Classroom(_id = _id, 
-                             name=name , 
-                             teacher = teacher, 
-                             students = students, 
-                             leaders = leaders, 
-                             contentIds = contentIds
-                            )
+            return Classroom(_id = _id, name=name ,teacher = teacher, students = students, leaders = leaders, contentIds = contentIds)
         }
     }
 }

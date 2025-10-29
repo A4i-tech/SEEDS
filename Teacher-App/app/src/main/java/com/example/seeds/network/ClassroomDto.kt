@@ -30,7 +30,7 @@ fun ClassroomDto.asDomainModel(context: Context, contactUtils: ContactUtils): Cl
     val normalizedLeaders = leaders.map { normalizePhoneNumber(it) }
 
     return Classroom(
-        _id,
+        _id ?: "",
         name,
         teacherId,
         contactUtils.getStudentsFromString(normalizedStudents),

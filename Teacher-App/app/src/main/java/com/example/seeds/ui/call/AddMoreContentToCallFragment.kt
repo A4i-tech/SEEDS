@@ -6,18 +6,23 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
 import android.view.Gravity
+import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.databinding.DataBindingUtil
 import androidx.lifecycle.lifecycleScope
+import androidx.navigation.fragment.findNavController
 import androidx.navigation.navGraphViewModels
 import com.example.seeds.R
 import com.example.seeds.adapters.ContentListAdapter
 import com.example.seeds.adapters.FilterContentAdapter
+import com.example.seeds.databinding.FilterContentBinding
 import com.example.seeds.databinding.FilterContentOnCallBinding
+import com.example.seeds.databinding.FragmentAddContentToCallBinding
 import com.example.seeds.databinding.FragmentAddMoreContentToCallBinding
 import com.example.seeds.ui.BaseFragment
+import com.example.seeds.ui.home.HomeFragmentDirections
 import com.google.android.material.chip.Chip
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
@@ -48,15 +53,11 @@ class AddMoreContentToCallFragment : BaseFragment() {
                 val text = binding.contentSearchTextBox.text.toString().lowercase()
                 if(text.isNotEmpty()){
                     logMessage("Content search text: $text")
-                    // MaxLineLength fixed by indentation
-                    (binding.contentList.adapter as ContentListAdapter)
-                        .submitList(viewModel.filteredContent.value?.toMutableList()?.filter {
-                            it.titleText.lowercase().contains(text)
-                        })
+                    (binding.contentList.adapter as ContentListAdapter).submitList(viewModel.filteredContent.value?.toMutableList()?.filter {
+                        it.titleText.lowercase().contains(text)
+                    })
                 } else {
-                    // MaxLineLength fixed by indentation
-                    (binding.contentList.adapter as ContentListAdapter)
-                        .submitList(viewModel.filteredContent.value)
+                    (binding.contentList.adapter as ContentListAdapter).submitList(viewModel.filteredContent.value)
                 }
             }
         })
@@ -66,17 +67,11 @@ class AddMoreContentToCallFragment : BaseFragment() {
             val additionalContentChosen = viewModel.allContent.value?.filter{
                 contentChosen.contains(it.id)
             }
-
-            logMessage("""Additonal content chosen during call: $additionalContentChosen - 
-            ${additionalContentChosen?.map{it.titleText}}""")
-            
-            // FIX START: Refactored logic to correctly handle totalContent
-            val totalContent = (viewModel.selectedContentList.value
-                ?.toMutableList() ?: mutableListOf())
-            
-            additionalContentChosen?.let { totalContent.addAll(it) }
-            // FIX END
-
+            logMessage("Additonal content chosen during call: $additionalContentChosen - ${additionalContentChosen?.map{it.titleText}}")
+            val totalContent = (viewModel.selectedContentList.value?.toMutableList() ?: mutableListOf()).apply {
+                    additionalContentChosen?.let { addAll(it) }
+                }
+                        totalContent.addAll(additionalContentChosen!!)
             Log.d("ContentChosen", contentChosen.toString())
             Log.d("AdditionalContentChosen", additionalContentChosen.toString())
             Log.d("totalContent", totalContent.toString())
@@ -98,14 +93,8 @@ class AddMoreContentToCallFragment : BaseFragment() {
             dialogBinding.lifecycleOwner = viewLifecycleOwner
 
             if(viewModel.filtersChosen.value != null){
-                // MaxLineLength fixed by line breaks
-                dialogBinding.languagesList.adapter = FilterContentAdapter(
-                    usersInGroup = viewModel.languages.value!!.filter { 
-                        viewModel.filtersChosen.value!!.contains(it) }.toMutableSet())
-                // MaxLineLength fixed by line breaks
-                dialogBinding.experiencesList.adapter = FilterContentAdapter(
-                    usersInGroup = viewModel.experiences.value!!.filter { 
-                        viewModel.filtersChosen.value!!.contains(it) }.toMutableSet())
+                dialogBinding.languagesList.adapter = FilterContentAdapter(usersInGroup = viewModel.languages.value!!.filter { viewModel.filtersChosen.value!!.contains(it) }.toMutableSet())
+                dialogBinding.experiencesList.adapter = FilterContentAdapter(usersInGroup = viewModel.experiences.value!!.filter { viewModel.filtersChosen.value!!.contains(it) }.toMutableSet())
             } else {
                 dialogBinding.languagesList.adapter = FilterContentAdapter()
                 dialogBinding.experiencesList.adapter = FilterContentAdapter()
@@ -156,11 +145,7 @@ class AddMoreContentToCallFragment : BaseFragment() {
                 val filtersChosen = viewModel.filtersChosen.value!!.toMutableList()
                 filtersChosen.remove(filter)
                 viewModel.setFiltersChosen(filtersChosen)
-                
-                val langs = viewModel.languages.value!!.filter { filtersChosen.contains(it) }.toMutableSet()
-                val exps = viewModel.experiences.value!!.filter { filtersChosen.contains(it) }.toMutableSet()
-                viewModel.filterContent(langs, exps)
-                
+                viewModel.filterContent(viewModel.languages.value!!.filter { filtersChosen.contains(it) }.toMutableSet(), viewModel.experiences.value!!.filter { filtersChosen.contains(it) }.toMutableSet())
                 binding.filterChips.removeView(chip)
             }
             binding.filterChips.addView(chip)
@@ -172,10 +157,8 @@ class AddMoreContentToCallFragment : BaseFragment() {
             logMessage("onStart")
             binding.contentSearchTextBox.setText("")
             if(viewModel.filtersChosen.value != null) {
-                val filters = viewModel.filtersChosen.value!!
-                val langs = viewModel.languages.value!!.filter { filters.contains(it) }.toMutableSet()
-                val exps = viewModel.experiences.value!!.filter { filters.contains(it) }.toMutableSet()
-                
+                val langs = viewModel.languages.value!!.filter { viewModel.filtersChosen.value!!.contains(it) }.toMutableSet()
+                val exps = viewModel.experiences.value!!.filter { viewModel.filtersChosen.value!!.contains(it) }.toMutableSet()
                 viewModel.filterContent(langs, exps)
                 setChips(viewModel.filtersChosen.value!!)
             } else{

@@ -5,7 +5,9 @@ import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import com.example.seeds.R
 import com.example.seeds.databinding.FragmentCallNoInternetBinding
+import com.example.seeds.databinding.FragmentNoInternetBinding
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint

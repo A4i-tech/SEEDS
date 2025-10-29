@@ -3,7 +3,7 @@ package com.example.seeds.utils
 import com.google.android.gms.tasks.Tasks
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GetTokenResult
-import java.util.Objects
+import java.util.*
 
 class FirebaseToken {
     companion object {

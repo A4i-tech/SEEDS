@@ -34,18 +34,10 @@ class CustomExceptionHandler(private val application: Application) : Thread.Unca
         }
 
         // Create an intent to start the ErrorActivity
-    val errorMessage = """
-        Thread: ${thread.name}
-        Exception: ${ex.javaClass.name}
-        Message: $message
-        Cause: ${ex.cause}
-        Details: ${stackTrace.takeIf { it.isNotEmpty() } ?: "No stack trace available."}
-    """.trimIndent()
-
-    val intent = Intent(application, ErrorActivity::class.java).apply {
-        putExtra("error", errorMessage)
-        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-    }
+        val intent = Intent(application, ErrorActivity::class.java).apply {
+            putExtra("error", "Thread: ${thread.name}\nException: ${ex.javaClass.name}\nMessage: $message Cause ${ex.cause} \nDetails: ${stackTrace.takeIf { it.isNotEmpty() } ?: "No stack trace available."}")
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
         application.startActivity(intent)
 
     }

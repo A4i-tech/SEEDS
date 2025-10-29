@@ -341,17 +341,16 @@
                 android:layout_height="match_parent"
                 android:layout_margin="16dp">
 
+
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/my_students_list"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:scrollbars="vertical"
                     app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintHeight_max="248dp"
-                    app:layout_constraintHorizontal_bias="0.0"
+                    app:layout_constraintTop_toBottomOf="@+id/pause_play_button"
                     app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toTopOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"
                     app:studentCallStatusData="@{viewModel.callState}"
                     app:teacherPhoneNumber="@{viewModel.teacherPhoneNumber}"
                     tools:itemCount="5"
