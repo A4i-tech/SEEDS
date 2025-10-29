@@ -1,13 +1,17 @@
-const { BlobServiceClient, generateBlobSASQueryParameters, BlobSASPermissions } = require("@azure/storage-blob");
-const { DefaultAzureCredential } = require("@azure/identity");
+const { BlobServiceClient, generateBlobSASQueryParameters, BlobSASPermissions, StorageSharedKeyCredential } = require("@azure/storage-blob");
+
 const { URL } = require('url');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-STORAGE_ACCOUNT_NAME = process.env.STORAGE_ACCOUNT_NAME;
+
+STORAGE_ACCOUNT_NAME = process.env.AZURE_STORAGE_ACCOUNT_NAME;
+STORAGE_ACCOUNT_KEY = process.env.AZURE_STORAGE_ACCOUNT_KEY; 
+
 class BlobService {
     constructor() {
-        const credential = new DefaultAzureCredential();
+        // Changed to use StorageSharedKeyCredential
+        const credential = new StorageSharedKeyCredential(STORAGE_ACCOUNT_NAME, STORAGE_ACCOUNT_KEY);
         this.blobServiceClient = new BlobServiceClient(
             `https://${STORAGE_ACCOUNT_NAME}.blob.core.windows.net`, 
             credential
@@ -32,8 +36,12 @@ class BlobService {
             permissions: BlobSASPermissions.parse("rw"),
         };
         
-        const userDelegationKey = await this.blobServiceClient.getUserDelegationKey(new Date(), expiresOn);
-        const sasToken = generateBlobSASQueryParameters(sasOptions, userDelegationKey, this.blobServiceClient.accountName).toString();
+        // Removed userDelegationKey logic, using StorageSharedKeyCredential to sign
+        const sasToken = generateBlobSASQueryParameters(
+            sasOptions, 
+            this.blobServiceClient.credential, 
+            this.blobServiceClient.accountName
+        ).toString();
         return sasToken
     }
 
@@ -53,8 +61,7 @@ class BlobService {
 
         const expiresOn = new Date(new Date().valueOf() + 3600 * 1000); // 1 hour from now
 
-        // Fetch a user delegation key
-        const userDelegationKey = await this.blobServiceClient.getUserDelegationKey(new Date(), expiresOn);
+        // Removed userDelegationKey logic
 
         const sasOptions = {
             containerName,
@@ -62,10 +69,15 @@ class BlobService {
             permissions: sasPermissions.toString(),
             expiresOn: expiresOn,
             startsOn: new Date(new Date().valueOf() - 300 * 1000), // Optional: start time is 5 minutes before now
-            userDelegationKey
+            // userDelegationKey is removed for Shared Key SAS
         };
 
-        const sasToken = generateBlobSASQueryParameters(sasOptions, userDelegationKey, this.blobServiceClient.accountName).toString();
+        // Removed userDelegationKey logic, using StorageSharedKeyCredential to sign
+        const sasToken = generateBlobSASQueryParameters(
+            sasOptions, 
+            this.blobServiceClient.credential, 
+            this.blobServiceClient.accountName
+        ).toString();
         return `${blobClient.url}?${sasToken}`;
     }
 
