@@ -283,6 +283,16 @@ class CallViewModel @Inject constructor(
         }
     }
 
+    fun updateClassroomContent(classroom: Classroom) {
+        viewModelScope.launch {
+            try {
+                classroomRepository.updateClassroom(classroom)
+            } catch (e: Exception) {
+                Log.e("CallViewModel", "Failed to update classroom", e)
+            }
+        }
+    }
+
     fun setSelectedContent(content: Content){
         _selectedContent.value = content
     }
