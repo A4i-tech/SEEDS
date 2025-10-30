@@ -1,88 +1,44 @@
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const admin = require('firebase-admin');
 const validator = require('validator');
-const {authType, firebaseServiceAccount} = require('../config/env');
-const {STATUS} = require('../config/constants');
+const {firebaseServiceAccount} = require('../config/env');
+const {STATUS, PASSWORD_POLICY} = require('../config/constants');
+const {secretKey, jwtExpiresIn, passwordSaltRounds} = require('../config/env');
 // Firebase initialization (env or file)
-let serviceAccount;
-if (authType === 'firebase') {
-  if (firebaseServiceAccount) {
-    serviceAccount = JSON.parse(firebaseServiceAccount);
-  } else {
-    console.error("Failed to read serviceAccountKey.json");
-    return false;
-  }
-  if (!admin.apps.length) {
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount)
-    });
-  }
-}
+let serviceAccount = JSON.parse(firebaseServiceAccount);
 
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+  });
+}
+const db = admin.firestore();
 module.exports = {
   async login(req, res) {
+    const {email, password} = req.body;
+    if (!email || !password) {
+      return res.status(STATUS.BAD_REQUEST).json({message: 'Email and password are required'});
+    }
     try {
-      console.log(`\nRequest:\n` +
-        `body: ${JSON.stringify(req.body)}\n` +
-        `query: ${JSON.stringify(req.query)}\n` +
-        `params: ${JSON.stringify(req.params)}`);
-
-      const authToken = req.headers['authtoken'];
-      const {email, password} = req.body;
-
-      if (email && password) {
-        try {
-          console.log("Attempting native login for email:", email);
-          const response = {
-            data: {
-              displayName: "ap",
-              email: email,
-              localId: "native-user",
-
-            }
-          };
-          console.log("Native login successful:", response.data);
-
-          // Return user data in the same format as native auth
-          return res.status(STATUS.OK).json({
-            name: response.data.displayName || email.split('@')[0], // Use displayName or email prefix as name
-            email: response.data.email || email,
-            id: response.data.localId
-          });
-        } catch (error) {
-          console.error("Error during native login:", error);
-          return res.status(STATUS.UNAUTHORIZED).send({error: "Invalid email or password"});
-        }
+      const tenant = await db.collection('tenants').where('email', '==', email).get();
+      if (tenant.empty) {
+        return res.status(STATUS.UNAUTHORIZED).json({message: 'Invalid credentials'});
       }
-
-      if (authToken === "postman" || authToken === "postman1") {
-        req.userId = "postman@gmail.com";
-        console.log("Test token detected. userId set to postman@gmail.com");
-      } else if (authToken && authToken.startsWith("+91") && authToken.length === 13) {
-        req.userId = authToken;
-        console.log(`Phone number token detected. userId set to ${authToken}`);
+      const tenantData = tenant.docs[0].data();
+      const passwordMatch = await bcrypt.compare(password, tenantData.passwordHash);
+      if (!passwordMatch) {
+        return res.status(STATUS.UNAUTHORIZED).json({message: 'Invalid credentials'});
       }
-
-      // Verify Firebase token
-      if (authToken) {
-        try {
-          const token = await admin.auth().verifyIdToken(authToken);
-          console.log("Firebase token verified successfully:", JSON.stringify(token));
-          req.userId = token.phone_number || token.uid;
-          console.log(`userId extracted: ${req.userId}`);
-        } catch (error) {
-          console.error("Error verifying Firebase token:", error);
-          return res.status(STATUS.UNAUTHORIZED).send({error: "Invalid token"});
-        }
-      }
-
-      // If no valid authToken is provided
-      console.error("No valid authToken provided.");
-      return res.status(STATUS.UNAUTHORIZED).send({error: "Unauthorized"});
+      const token = jwt.sign(
+        {id: tenant.docs[0].id, email: tenantData.email, name: tenantData.tenantName},
+        secretKey,
+        {expiresIn: jwtExpiresIn, issuer: 'tenant', algorithm: 'RS256'}
+      );
+      return res.status(STATUS.OK).json({token});
     } catch (error) {
       console.error('Login error:', error);
-      if (!res.headersSent) {
-        return res.status(STATUS.UNAUTHORIZED).send({error: "Internal server error"});
-      }
+      return res.status(STATUS.INTERNAL_ERROR).json({message: 'Internal server error'});
     }
   },
 
@@ -91,41 +47,31 @@ module.exports = {
   },
 
   async register(req, res) {
-    const {email, password, name} = req.body;
-    if (!email || !password || !name) {
-      return res.status(STATUS.BAD_REQUEST).json({message: 'Email, password, and name are required'});
+    const {email, password, tenantName} = req.body;
+    if (!email || !password || !tenantName) {
+      return res.status(STATUS.BAD_REQUEST).json({message: 'Email, password, and tenantName are required'});
     }
     if (!validator.isEmail(email)) {
       return res.status(STATUS.BAD_REQUEST).json({message: 'Invalid email format'});
     }
-    if (!validator.isStrongPassword(password, {
-      minLength: 8,
-      minLowercase: 1,
-      minUppercase: 1,
-      minNumbers: 1,
-      minSymbols: 1
-    })) {
+    if (!validator.isStrongPassword(password, PASSWORD_POLICY)) {
       return res.status(STATUS.BAD_REQUEST).json({message: 'Password must be at least 8 characters, and include uppercase, lowercase, number, and special character'});
     }
     try {
-      const userRecord = await admin.auth().createUser({
+      const existingTenant = await db.collection('tenants').where('email', '==', email).get();
+      if (!existingTenant.empty) {
+        return res.status(STATUS.CONFLICT).json({message: 'Email already exists'});
+      }
+      const hashedPassword = await bcrypt.hash(password, passwordSaltRounds);
+      await db.collection('tenants').add({
         email,
-        password,
-        displayName: name
+        passwordHash: hashedPassword,
+        tenantName
       });
-      await admin.firestore().collection('tenants').doc(userRecord.uid).set({
-        email,
-        name,
-        createdAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-      console.log("Firebase user created:", userRecord.uid);
-      res.status(STATUS.CREATED).send({message: "User registered successfully", uid: userRecord.uid});
+      return res.status(STATUS.CREATED).json({message: 'Tenant registered successfully'});
     } catch (error) {
       console.error("Error creating Firebase user:", error);
-      return {
-        error: 'Registration is managed by Firebase. Please use Firebase client SDK.',
-        status: STATUS.BAD_REQUEST
-      };
+      return res.status(STATUS.INTERNAL_ERROR).json({message: 'Internal server error'});
     }
   }
 };
