@@ -7,7 +7,7 @@ const bodyParser = require("body-parser");
 const rateLimit = require('express-rate-limit');
 
 const morgan = require(path.join(__dirname, "morganConfig.js"));
-const dotenv = require("dotenv/config");
+const {dbConnection, port} = require("./config/env");
 const authenticateToken = require('./auth/authenticateToken');
 const callRouter = require("./routes/callRouter.js");
 const teacherRouter = require("./routes/teacherRouter.js");
@@ -26,13 +26,13 @@ setupSwagger(app);
 
 // Define the rate limiter options
 const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes - The time window for which requests are counted.
-    max: 5000, // 5000 requests - The maximum number of requests per IP within the time window.
+  windowMs: 15 * 60 * 1000, // 15 minutes - The time window for which requests are counted.
+  max: 5000, // 5000 requests - The maximum number of requests per IP within the time window.
 });
 
 // Root route - redirect to API docs
 app.get('/', (req, res) => {
-    res.redirect('/api-docs');
+  res.redirect('/api-docs');
 });
 
 app.use(bodyParser.json());
@@ -48,12 +48,11 @@ app.use("/log", authenticateToken, logRouter);
 app.use("/user", authenticateToken, userRouter);
 app.use("/tenant", tenantRouter);
 if (require.main === module) {
-    mongoose.connect(process.env.DB_CONNECTION, () => {
-        console.log("Connected to DB")
-        const PORT = process.env.PORT || 4000
-        app.listen(PORT, () => {
-            console.log(`server running on port ${PORT}`)
-        });
+  mongoose.connect(dbConnection, () => {
+    console.log("Connected to DB")
+    app.listen(port, () => {
+      console.log(`server running on port ${port}`)
     });
+  });
 }
 module.exports = app;

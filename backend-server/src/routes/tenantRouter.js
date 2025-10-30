@@ -1,12 +1,9 @@
-const express = require('express');
 const authProvider = require('../auth/authProviderMiddleware');
-
-const STATUS_BAD_REQUEST = 400;
-const STATUS_OK = 200;
-
+const {STATUS} = require("../config/constants");
+const express = require('express');
 const router = express.Router();
-
 const authenticateToken = require('../auth/authenticateToken');
+
 /**
  * @swagger
  * /tenant/login:
@@ -48,7 +45,7 @@ router.post('/login',
     authProvider.login,
     (req, res) => {
         // Send a success response with the extracted userId
-        res.status(STATUS_OK).json({
+        res.status(STATUS.OK).json({
             message: 'Login successful',
             userId: req.userId
         });
@@ -81,7 +78,7 @@ router.post('/logout',
     authenticateToken,
     (req, res) => {
         // Acknowledge logout
-        res.status(STATUS_OK).json({ message: 'Logout successful' });
+        res.status(STATUS.OK).json({ message: 'Logout successful' });
     }
 );
 
@@ -125,7 +122,7 @@ module.exports = router;
 router.post('/register', [
     (req, res, next) => {
         if (!authProvider.supportsRegistration()) {
-            return res.status(STATUS_BAD_REQUEST).json({message: 'Registration is managed externally.'});
+            return res.status(STATUS.BAD_REQUEST).json({message: 'Registration is managed externally.'});
         }
         next();
     },
