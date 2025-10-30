@@ -121,6 +121,8 @@ interface SeedsService {
 
 }
 
+const val TIMEOUT = 60L
+
 fun provideService(@ApplicationContext context: Context): SeedsService {
     //reference: https://proandroiddev.com/headers-in-retrofit-a8d71ede2f3e
 
@@ -147,9 +149,9 @@ fun provideService(@ApplicationContext context: Context): SeedsService {
             }
         )
 
-        readTimeout(60, TimeUnit.SECONDS)
-        connectTimeout(60, TimeUnit.SECONDS)
-        writeTimeout(60, TimeUnit.SECONDS)
+        readTimeout(TIMEOUT, TimeUnit.SECONDS)
+        connectTimeout(TIMEOUT, TimeUnit.SECONDS)
+        writeTimeout(TIMEOUT, TimeUnit.SECONDS)
     }
 
     val moshi = Moshi.Builder()

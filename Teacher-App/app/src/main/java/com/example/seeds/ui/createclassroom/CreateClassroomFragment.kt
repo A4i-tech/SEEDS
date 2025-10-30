@@ -49,7 +49,9 @@ class CreateClassroomFragment : BaseFragment() {
             logMessage("Add students button clicked - ${viewModel.classroom}")
             val classroom = viewModel.classroom
             classroom.name = binding.classroomNameEdit.text.toString()
-            findNavController().navigate(CreateClassroomFragmentDirections.actionCreateClassroomFragmentToContactsFragment(classroom))
+            findNavController()
+            .navigate(CreateClassroomFragmentDirections
+            .actionCreateClassroomFragmentToContactsFragment(classroom))
         }
         // Inflate the layout for this fragment
         binding.saveClassroomBtn.setOnClickListener {
@@ -147,7 +149,8 @@ class CreateClassroomFragment : BaseFragment() {
         dialogBinding.viewModel = viewModel
 
         //        binding.classroomMyPotentialLeadersList.adapter = RemoveStudentListAdapter(showCheckBox = true, )
-        dialogBinding.classroomMyPotentialLeadersList.adapter = CheckboxNameListAdapter(usersInGroup = viewModel.classroom.leaders.map{
+        dialogBinding.classroomMyPotentialLeadersList.adapter =
+            CheckboxNameListAdapter(usersInGroup = viewModel.classroom.leaders.map{
            it.phoneNumber
         }.toMutableSet(), maximumSelections = 2)
 
@@ -160,7 +163,9 @@ class CreateClassroomFragment : BaseFragment() {
         window?.setGravity(Gravity.CENTER)
 
         dialogBinding.addLeadersBtn.setOnClickListener {
-            val leadersPhoneNumbers = (dialogBinding.classroomMyPotentialLeadersList.adapter as CheckboxNameListAdapter).usersInGroup.toList()
+            val leadersPhoneNumbers = 
+            (dialogBinding.classroomMyPotentialLeadersList.adapter as CheckboxNameListAdapter)
+            .usersInGroup.toList()
             val leaders = args.classroom.students.filter {
                 leadersPhoneNumbers.contains(it.phoneNumber)
             }

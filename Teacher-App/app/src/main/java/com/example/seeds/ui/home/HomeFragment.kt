@@ -26,58 +26,75 @@ import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class HomeFragment : BaseFragment() {
-    private lateinit var binding : FragmentHomeBinding
+    private lateinit var binding: FragmentHomeBinding
     private val viewModel: HomeViewModel by viewModels()
     private val args: HomeFragmentArgs by navArgs()
     override var bottomNavigationViewVisibility = View.VISIBLE
     private lateinit var alertDialog: AlertDialog
 
     override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?,
+        inflater: LayoutInflater,
+        container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {
+    ): View {
         binding = FragmentHomeBinding.inflate(layoutInflater)
         binding.viewModel = viewModel
         binding.lifecycleOwner = viewLifecycleOwner
-        bottomNavigationViewVisibility = if(args.classroom != null) View.GONE else View.VISIBLE
-        val selectedContentIds = if(args.selectedContent != null) args.selectedContent!!.toMutableSet() else mutableSetOf<String>()
+        bottomNavigationViewVisibility = if (args.classroom != null) View.GONE else View.VISIBLE
+        val selectedContentIds =
+            if (args.selectedContent != null) args.selectedContent!!.toMutableSet()
+            else mutableSetOf()
 
-        binding.contentList.adapter = ContentListAdapter(ContentListAdapter.OnClickListener {
-            if(args.classroom == null) {
-                logMessage("Content clicked: ${it.titleText} - ${it.id}")
-                findNavController().navigate(
-                    HomeFragmentDirections.actionHomeFragmentToContentDetailsFragment2(it)
-                )
-            }
-        }, showCheckbox = args.classroom != null, usersInGroup = selectedContentIds)
+        binding.contentList.adapter = ContentListAdapter(
+            ContentListAdapter.OnClickListener {
+                if (args.classroom == null) {
+                    logMessage("Content clicked: ${it.titleText} - ${it.id}")
+                    findNavController().navigate(
+                        HomeFragmentDirections.actionHomeFragmentToContentDetailsFragment2(it)
+                    )
+                }
+            },
+            showCheckbox = args.classroom != null,
+            usersInGroup = selectedContentIds
+        )
 
-
-
-        binding.contentSearchTextBox.addTextChangedListener(object: TextWatcher {
+        binding.contentSearchTextBox.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(p0: CharSequence?, p1: Int, p2: Int, p3: Int) {}
             override fun onTextChanged(p0: CharSequence?, p1: Int, p2: Int, p3: Int) {}
             override fun afterTextChanged(p0: Editable?) {
                 val text = binding.contentSearchTextBox.text.toString().lowercase()
-                if(text.isNotEmpty()){
-                     logMessage("Content search text: $text")
-                    (binding.contentList.adapter as ContentListAdapter).submitList(viewModel.filteredContent.value?.toMutableList()?.filter {
-                        it.titleText.lowercase().contains(text)
-                    })
+                if (text.isNotEmpty()) {
+                    logMessage("Content search text: $text")
+                    (binding.contentList.adapter as ContentListAdapter)
+                        .submitList(viewModel.filteredContent.value?.toMutableList()?.filter {
+                            it.titleText.lowercase().contains(text)
+                        })
                 } else {
-                    (binding.contentList.adapter as ContentListAdapter).submitList(viewModel.filteredContent.value)
+                    (binding.contentList.adapter as ContentListAdapter)
+                        .submitList(viewModel.filteredContent.value)
                 }
             }
         })
 
         viewModel.navigateBack.observe(viewLifecycleOwner, Observer {
-            if(it){
+            if (it) {
                 val classroom = args.classroom
-                classroom!!.contentIds = (binding.contentList.adapter as ContentListAdapter).usersInGroup.toList()
-                val contentChosen = viewModel.allContent.value?.filter { classroom.contentIds.contains(it.id) }
-                logMessage("Navigating back to call settings with content: ${classroom.contentIds} ${contentChosen?.map { it.titleText }}")
-                findNavController().navigate(
-                    HomeFragmentDirections.actionHomeFragmentToCallSettingsFragment(classroom).setSelectedStudents(args.selectedStudents)
+                classroom!!.contentIds =
+                    (binding.contentList.adapter as ContentListAdapter).usersInGroup.toList()
+                val contentChosen = viewModel.allContent.value
+                    ?.filter { classroom.contentIds.contains(it.id) }
+
+                val chosenContentTitles = contentChosen?.map { it.titleText }
+
+                logMessage(
+                    "Navigating back to call settings with content: " +
+                            "${classroom.contentIds} $chosenContentTitles"
                 )
+
+                val action = HomeFragmentDirections.actionHomeFragmentToCallSettingsFragment(
+                    classroom
+                ).setSelectedStudents(args.selectedStudents)
+                findNavController().navigate(action)
                 viewModel.doneNavigating()
             }
         })
@@ -96,47 +113,55 @@ class HomeFragment : BaseFragment() {
         })
 
         binding.filterContentBtn.setOnClickListener {
-            val dialogBinding: FilterContentBinding = DataBindingUtil.inflate(
-                layoutInflater,
-                R.layout.filter_content,
-                null,
-                false
-            )
-            dialogBinding.viewModel = viewModel
-            dialogBinding.lifecycleOwner = viewLifecycleOwner
-
-            val currentFilters = viewModel.filtersChosen.value ?: FilterCriteria()
-            dialogBinding.languagesList.adapter = FilterContentAdapter(usersInGroup = currentFilters.languages.toMutableSet())
-            dialogBinding.experiencesList.adapter = FilterContentAdapter(usersInGroup = currentFilters.experiences.toMutableSet())
-
-            val dialogBuilder: AlertDialog.Builder = AlertDialog.Builder(requireContext())
-            dialogBuilder.setOnDismissListener { }
-            dialogBuilder.setView(dialogBinding.root)
-            alertDialog = dialogBuilder.create()
-            val window = alertDialog.window
-            window?.setBackgroundDrawableResource(R.drawable.rounded_assign_leader)
-            window?.setGravity(Gravity.CENTER)
-
-            dialogBinding.applyFiltersBtn.setOnClickListener {
-                val languages = (dialogBinding.languagesList.adapter as FilterContentAdapter).usersInGroup
-                val experiences = (dialogBinding.experiencesList.adapter as FilterContentAdapter).usersInGroup
-                viewModel.setFiltersChosen(FilterCriteria(languages, experiences))
-                logMessage("Applied filters: $languages - $experiences")
-                alertDialog.dismiss()
-            }
-
-            dialogBinding.clearFiltersBtn.setOnClickListener {
-                logMessage("Cleared filters")
-                viewModel.clearFilters()
-                alertDialog.dismiss()
-            }
-            alertDialog.show()
+            showFilterDialog()
         }
 
         return binding.root
     }
 
-    fun setChips(filterCriteria: FilterCriteria) {
+    private fun showFilterDialog() {
+        val dialogBinding: FilterContentBinding = DataBindingUtil.inflate(
+            layoutInflater,
+            R.layout.filter_content,
+            null,
+            false
+        )
+        dialogBinding.viewModel = viewModel
+        dialogBinding.lifecycleOwner = viewLifecycleOwner
+
+        val currentFilters = viewModel.filtersChosen.value ?: FilterCriteria()
+        dialogBinding.languagesList.adapter =
+            FilterContentAdapter(usersInGroup = currentFilters.languages.toMutableSet())
+        dialogBinding.experiencesList.adapter =
+            FilterContentAdapter(usersInGroup = currentFilters.experiences.toMutableSet())
+
+        val dialogBuilder: AlertDialog.Builder = AlertDialog.Builder(requireContext())
+        dialogBuilder.setOnDismissListener { }
+        dialogBuilder.setView(dialogBinding.root)
+        alertDialog = dialogBuilder.create()
+        val window = alertDialog.window
+        window?.setBackgroundDrawableResource(R.drawable.rounded_assign_leader)
+        window?.setGravity(Gravity.CENTER)
+
+        dialogBinding.applyFiltersBtn.setOnClickListener {
+            val languages =
+                (dialogBinding.languagesList.adapter as FilterContentAdapter).usersInGroup
+            val experiences =
+                (dialogBinding.experiencesList.adapter as FilterContentAdapter).usersInGroup
+            viewModel.setFiltersChosen(FilterCriteria(languages, experiences))
+            logMessage("Applied filters: $languages - $experiences")
+            alertDialog.dismiss()
+        }
+
+        dialogBinding.clearFiltersBtn.setOnClickListener {
+            logMessage("Cleared filters")
+            viewModel.clearFilters()
+            alertDialog.dismiss()
+        }
+        alertDialog.show()
+    }
+
+    private fun setChips(filterCriteria: FilterCriteria) {
         binding.filterChips.removeAllViews()
         filterCriteria.languages.forEach { language ->
             addChip(language)
@@ -164,6 +189,7 @@ class HomeFragment : BaseFragment() {
     }
 
     override fun onStart() {
+        super.onStart()
         lifecycleScope.launch {
             logMessage("onStart")
             viewModel.registerUser()
@@ -174,7 +200,6 @@ class HomeFragment : BaseFragment() {
                 viewModel.applyFilters(filterCriteria)
             } ?: viewModel.applyFilters(FilterCriteria())
         }
-        super.onStart()
     }
 
     override fun onStop() {
@@ -182,52 +207,3 @@ class HomeFragment : BaseFragment() {
         super.onStop()
     }
 }
-
-
-//    fun setChips(filters: List<String>) {
-//        binding.filterChips.removeAllViews()
-//        for (filter in filters) {
-//            val chip = Chip(binding.filterChips.context)
-//            chip.text = filter
-//            chip.isClickable = false
-//            chip.isCloseIconVisible = true
-//            chip.closeIconContentDescription = "Remove $filter filter"
-//            chip.setChipBackgroundColorResource(R.color.seeds_yellow)
-//            chip.setTextColor(binding.filterChips.context.getColor(R.color.white))
-//            chip.setTextAppearance(R.style.filterChips)
-//            chip.setOnCloseIconClickListener {
-//                val filtersChosen = viewModel.filtersChosen.value!!.toMutableList()
-//                filtersChosen.remove(filter)
-//                viewModel.setFiltersChosen(filtersChosen)
-//                viewModel.applyFilters(viewModel.languages.value!!.filter { filtersChosen.contains(it) }.toMutableSet(), viewModel.experiences.value!!.filter { filtersChosen.contains(it) }.toMutableSet())
-//                binding.filterChips.removeView(chip)
-//            }
-//            binding.filterChips.addView(chip)
-//        }
-//    }
-
-//
-//            if(viewModel.filtersChosen.value != null) {
-//                val langs = viewModel.languages.value!!.filter { viewModel.filtersChosen.value!!.contains(it) }.toMutableSet()
-//                val exps = viewModel.experiences.value!!.filter { viewModel.filtersChosen.value!!.contains(it) }.toMutableSet()
-//                viewModel.applyFilters(langs, exps)
-//                setChips(viewModel.filtersChosen.value!!)
-//            } else{
-//                viewModel.clearFilters()
-//            }
-
-//            viewModel.filtersChosen.value?.let { filtersChosen ->
-//                if (filtersChosen.isNotEmpty()) {
-//                    viewModel.languages.value?.let { languages ->
-//                        val filteredLanguages = languages.filter { filtersChosen.contains(it) }
-//                        dialogBinding.languagesList.adapter = FilterContentAdapter(usersInGroup = filteredLanguages.toMutableSet())
-//                    }
-//                    viewModel.experiences.value?.let { experiences ->
-//                        val filteredExperiences = experiences.filter { filtersChosen.contains(it) }
-//                        dialogBinding.experiencesList.adapter = FilterContentAdapter(usersInGroup = filteredExperiences.toMutableSet())
-//                    }
-//                } else {
-//                    dialogBinding.languagesList.adapter = FilterContentAdapter()
-//                    dialogBinding.experiencesList.adapter = FilterContentAdapter()
-//                }
-//            }

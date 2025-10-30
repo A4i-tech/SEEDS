@@ -33,6 +33,12 @@ import kotlin.math.log
 
 @AndroidEntryPoint
 class CallFragment : BaseFragment() {
+
+    companion object{
+        private const val DELAY_FOR_SCOPE = 1500L
+        private const val DELAY_FOR_LAUNCH = 120000L
+    }
+
     private lateinit var binding: FragmentCallBinding
     private val viewModel: CallViewModel by navGraphViewModels(R.id.call_nav) { defaultViewModelProviderFactory }
     private val args : CallFragmentArgs by navArgs()
@@ -108,8 +114,11 @@ class CallFragment : BaseFragment() {
                                 it.id
                             }?: emptyList()
                             viewModel.endCall()
-                            logMessage("Call Ended on Back with final contents - id: ${classroom._id} - name: ${classroom.name} - contentIds: ${classroom.contentIds}")
-                            logMessage("Call ended with Final Call Status: ${viewModel.callState.value}")
+                            logMessage("""Call Ended on Back with final contents - 
+                            id: ${classroom._id} - name: ${classroom.name} - 
+                            contentIds: ${classroom.contentIds}""")
+                            logMessage("""Call ended with Final Call Status: 
+                            ${viewModel.callState.value}""")
                             viewModel.updateClassroomContent(classroom)
                         }
                     }
@@ -127,16 +136,18 @@ class CallFragment : BaseFragment() {
         binding.retryTeacher.setOnClickListener {
             viewModel.connectParticipant("Teacher", viewModel.teacherPhoneNumber)
             lifecycleScope.launch {
-                delay(120000) // 120000 milliseconds = 2 minutes
+                delay(DELAY_FOR_LAUNCH) // 120000 milliseconds = 2 minutes
 
                 if (viewModel.teacherCallStatus.value?.callerState != CallerState.ANSWERED) {
                     val classroom = args.classroom
                     classroom.contentIds = viewModel.selectedContentList.value!!.map{
                         it.id
                     }
+                    val logmessage = """Call ended because teacher didn't rejoin within 2 minutes - 
+                                        Reason: ${viewModel.teacherCallStatus.value?.callerState}"""
                     viewModel.updateClassroomContent(classroom)
 
-                    logMessage("Call ended because teacher didn't rejoin within 2 minutes - Reason: ${viewModel.teacherCallStatus.value?.callerState}")
+                    logMessage(logmessage)
 
                 }
             }
@@ -211,7 +222,9 @@ class CallFragment : BaseFragment() {
             viewModel._isAudioControlDone.postValue(false)
             if (viewModel.audioPlaying.value!!) {
                 viewModel.pauseAudio()
-                logMessage("Audio paused ${viewModel.selectedContent.value!!.id} ${viewModel.selectedContent.value!!.title}}")
+                val logmessage = """Audio paused ${viewModel.selectedContent.value!!.id} 
+                                    ${viewModel.selectedContent.value!!.title}}"""
+                logMessage(logmessage)
                 Log.d("AUDIOCONTROLPAUSEINI", viewModel.selectedContent.value!!.id)
             }
             else {
@@ -231,7 +244,7 @@ class CallFragment : BaseFragment() {
         textView.visibility = View.VISIBLE
 
         lifecycleScope.launch {
-            delay(1500) // Delay for 1.5 seconds
+            delay(DELAY_FOR_SCOPE) // Delay for 1.5 seconds
             textView.visibility = View.INVISIBLE
         }
     }

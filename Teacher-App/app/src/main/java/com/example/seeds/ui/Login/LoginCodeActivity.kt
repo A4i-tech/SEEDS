@@ -75,7 +75,8 @@ class LoginCodeActivity : AppCompatActivity() {
 
     private fun validName(): Boolean{
         val namePattern = "^[a-zA-Z]+(([',. -][a-zA-Z ])?[a-zA-Z]*)*\$"
-        return Pattern.matches(namePattern, binding.editTextName.text.toString()) && binding.editTextName.text.toString().length > 2
+        return Pattern.matches(namePattern, binding.editTextName.text.toString()) 
+            && binding.editTextName.text.toString().length > 2
     }
 
     private fun validPhone(): Boolean{

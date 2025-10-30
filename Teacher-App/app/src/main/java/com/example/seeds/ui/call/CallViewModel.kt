@@ -28,6 +28,10 @@ import javax.inject.Inject
 import android.content.SharedPreferences
 import com.example.seeds.utils.Constants
 
+const val SOCKET_CLOSE = 1000   
+const val THREAD_SLEEP_TIME = 5000L
+const val DELAY_FOR_VIEW_MODEL = 180000L
+
 @HiltViewModel
 class CallViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
@@ -374,7 +378,7 @@ class CallViewModel @Inject constructor(
         try {
             if (this::socket.isInitialized) {
                 Log.d("CALL_END", "Closing socket")
-                socket.close(1000, "close")
+                socket.close(SOCKET_CLOSE, "close")
             }
         } catch (e: Exception) {
             Log.e("CALL_END", "Error closing socket: ${e.message}")
@@ -402,7 +406,12 @@ class CallViewModel @Inject constructor(
             studentsNotOnCall = allStudents.filter { stu ->
                 networkCallState.find { stu.phoneNumber == it.phoneNumber } == null
                         || when(networkCallState.find { stu.phoneNumber == it.phoneNumber }?.callerState) {
-                                CallerState.COMPLETED, CallerState.FAILED, CallerState.REJECTED, CallerState.CANCELLED, CallerState.UNANSWERED, CallerState.BUSY -> true
+                                CallerState.COMPLETED, 
+                                CallerState.FAILED, 
+                                CallerState.REJECTED, 
+                                CallerState.CANCELLED, 
+                                CallerState.UNANSWERED, 
+                                CallerState.BUSY -> true
                                 else -> false
                             }
             }
@@ -828,11 +837,11 @@ fun disconnectParticipant(phoneNumber: String) {
             Log.d("SOCKETFAILURE", t.message.toString())
 
             //reference: https://stackoverflow.com/questions/54088030/reconnect-okhttp-websocket-when-internet-disconnects
-            socket.close(1000, null)
-            Thread.sleep(4000)
+            socket.close(SOCKET_CLOSE, null)
+            Thread.sleep(THREAD_SLEEP_TIME)
             // connectWebSocket()
             cancelCallOnFailure = viewModelScope.launch {
-                delay(180000L) // 3 minutes
+                delay(DELAY_FOR_VIEW_MODEL) // 3 minutes
                 _navigateBack.postValue(true)
             }
         }

@@ -12,17 +12,35 @@ import com.example.seeds.databinding.ActivityLoginBinding
 import com.example.seeds.repository.TeacherRepository
 import com.example.seeds.ui.call.CallViewModel
 import com.example.seeds.utils.Constants
-import kotlinx.coroutines.*
-import okhttp3.*
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import com.google.android.gms.auth.api.credentials.Credential
+import com.google.android.gms.auth.api.credentials.Credentials
+import com.google.android.gms.auth.api.credentials.HintRequest
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.MediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody
+import okhttp3.Response
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import javax.inject.Inject
+import android.util.Log
+
 
 class LoginActivity : AppCompatActivity() {
 
+    companion object {
+        private const val PHONE_NUMBER_LENGTH = 10
+    }
     private lateinit var binding: ActivityLoginBinding
     private var organizations = mutableListOf<String>()
+
+    private lateinit var phoneHintLauncher: ActivityResultLauncher<IntentSenderRequest>
 
     @Inject
     lateinit var teacherRepository: TeacherRepository
@@ -34,16 +52,46 @@ class LoginActivity : AppCompatActivity() {
         binding = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        val emailField = binding.editTextEmail
+        val phoneField = binding.editTextPhone
         val passwordField = binding.editTextPassword
         val orgDropdown = binding.organizationDropdown
         val loginBtn = binding.emailLoginBtn
         val registerBtn = binding.emailRegisterBtn
 
+        // Hint launcher
+        phoneHintLauncher =
+            registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+                if (result.resultCode == RESULT_OK) {
+                    val credential = result.data?.getParcelableExtra<Credential>(Credential.EXTRA_KEY)
+                    val phoneNumber = credential?.id?.let {
+                        // Normalize the phone number to get the last 10 digits
+                        val digitsOnly = it.replace(Regex("[^0-9]"), "")
+                        digitsOnly.takeLast(PHONE_NUMBER_LENGTH)
+                    }
+                    // Set the retrieved and cleaned phone number in the EditText
+                    phoneField.setText(phoneNumber)
+                } else {
+                    // This block runs if the user closes the hint picker without choosing a number.
+                    Log.d("LoginActivity", "Phone number hint was not selected.")
+                }
+            }
+
+        phoneField.setOnClickListener {
+            requestPhoneNumberHint()
+        }
+
+        phoneField.setOnFocusChangeListener { _, hasFocus ->
+            if (hasFocus) {
+                requestPhoneNumberHint()
+            }
+        }
+
+
         // Fetch organizations safely
         fetchOrganizations { orgList ->
             organizations = orgList.toMutableList()
-            val adapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, organizations)
+            val adapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line,
+             organizations)
             runOnUiThread {
                 orgDropdown.setAdapter(adapter)
             }
@@ -51,32 +99,32 @@ class LoginActivity : AppCompatActivity() {
 
         // Login click
         loginBtn.setOnClickListener {
-            val email = emailField.text.toString().trim()
+            val phone = phoneField.text.toString().trim()
             val password = passwordField.text.toString().trim()
             var organization = orgDropdown.text.toString().trim()
             if (organization.isEmpty()) organization = "none"
 
-            if (email.isEmpty() || password.isEmpty()) {
+            if (phone.isEmpty() || password.isEmpty()) {
                 Toast.makeText(this, "Please fill all fields", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
-            loginWithEmail(email, password, organization)
+            loginWithEmail(phone, password, organization)
         }
 
         // Register click
         registerBtn.setOnClickListener {
-            val email = emailField.text.toString().trim()
+            val phone = phoneField.text.toString().trim()
             val password = passwordField.text.toString().trim()
             var organization = orgDropdown.text.toString().trim()
             if (organization.isEmpty()) organization = "none"
 
-            if (email.isEmpty() || password.isEmpty()) {
+            if (phone.isEmpty() || password.isEmpty()) {
                 Toast.makeText(this, "Please fill all fields", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
-            registerTenant(email, password, organization)
+            registerTenant(phone, password, organization)
         }
     }
 
@@ -90,7 +138,8 @@ class LoginActivity : AppCompatActivity() {
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 runOnUiThread {
-                    Toast.makeText(this@LoginActivity, "Failed to load organizations", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@LoginActivity,
+                     "Failed to load organizations", Toast.LENGTH_SHORT).show()
                 }
                 onResult(emptyList())
             }
@@ -120,10 +169,27 @@ class LoginActivity : AppCompatActivity() {
         })
     }
 
-    private fun registerTenant(email: String, password: String, organization: String) {
+    private fun requestPhoneNumberHint() {
+        val hintRequest = HintRequest.Builder()
+            .setPhoneNumberIdentifierSupported(true)
+            .build()
+        
+        val credentialsClient = Credentials.getClient(this)
+        val intent = credentialsClient.getHintPickerIntent(hintRequest)
+
+        try {
+            val intentSenderRequest = IntentSenderRequest.Builder(intent.intentSender).build()
+            phoneHintLauncher.launch(intentSenderRequest)
+        } catch (e: Exception) {
+            Log.e("LoginActivity", "Could not start hint picker", e)
+        }
+    }
+
+    
+    private fun registerTenant(phone: String, password: String, organization: String) {
         val client = OkHttpClient()
         val json = JSONObject().apply {
-            put("email", email)
+            put("email", "$phone@test.com")
             put("password", password)
             put("name", organization)
         }
@@ -141,26 +207,29 @@ class LoginActivity : AppCompatActivity() {
         client.newCall(registerRequest).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 runOnUiThread {
-                    Toast.makeText(this@LoginActivity, "Network error during registration", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@LoginActivity,
+                     "Network error during registration", Toast.LENGTH_SHORT).show()
                 }
             }
 
             override fun onResponse(call: Call, response: Response) {
                 runOnUiThread {
                     if (response.isSuccessful) {
-                        Toast.makeText(this@LoginActivity, "Registration successful! Please login.", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@LoginActivity,
+                         "Registration successful! Please login.", Toast.LENGTH_SHORT).show()
                     } else {
-                        Toast.makeText(this@LoginActivity, "Registration failed", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@LoginActivity,
+                         "Registration failed", Toast.LENGTH_SHORT).show()
                     }
                 }
             }
         })
     }
 
-    private fun loginWithEmail(email: String, password: String, organization: String) {
+    private fun loginWithEmail(phone: String, password: String, organization: String) {
         val client = OkHttpClient()
         val json = JSONObject().apply {
-            put("email", email)
+            put("email", "$phone@test.com")
             put("password", password)
             put("name", organization)
         }
@@ -171,21 +240,23 @@ class LoginActivity : AppCompatActivity() {
         )
 
         val loginRequest = Request.Builder()
-            .url(Constants.BASE_URL + "/tenant/login") // ✅ login endpoint unchanged
+            .url(Constants.BASE_URL + "/tenant/login") 
             .post(body)
             .build()
 
         client.newCall(loginRequest).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 runOnUiThread {
-                    Toast.makeText(this@LoginActivity, "Network error", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@LoginActivity, "Network error",
+                     Toast.LENGTH_SHORT).show()
                 }
             }
 
             override fun onResponse(call: Call, response: Response) {
                 if (!response.isSuccessful) {
                     runOnUiThread {
-                        Toast.makeText(this@LoginActivity, "Invalid credentials", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@LoginActivity, "Invalid credentials",
+                         Toast.LENGTH_SHORT).show()
                     }
                     return
                 }
@@ -196,15 +267,19 @@ class LoginActivity : AppCompatActivity() {
 
                 if (token.isEmpty()) {
                     runOnUiThread {
-                        Toast.makeText(this@LoginActivity, "Failed to retrieve token", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@LoginActivity, "Failed to retrieve token",
+                         Toast.LENGTH_SHORT).show()
                     }
                     return
                 }
-
+                
+                Log.d("LoginActivity", "teacher phone number: $phone")
                 val prefs = getSharedPreferences("sharedPref", MODE_PRIVATE).edit()
                 prefs.putString("auth_token", token)
+                prefs.putString("teacher_phone",phone)
                 prefs.putBoolean("is_logged_in", true)
                 prefs.apply()
+
 
                 fetchTeacherId(token)
             }
@@ -222,14 +297,16 @@ class LoginActivity : AppCompatActivity() {
         client.newCall(teacherRequest).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 runOnUiThread {
-                    Toast.makeText(this@LoginActivity, "Failed to fetch teacher ID", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@LoginActivity, "Failed to fetch teacher ID",
+                     Toast.LENGTH_SHORT).show()
                 }
             }
 
             override fun onResponse(call: Call, response: Response) {
                 if (!response.isSuccessful) {
                     runOnUiThread {
-                        Toast.makeText(this@LoginActivity, "Failed to get teacher info", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@LoginActivity, "Failed to get teacher info",
+                         Toast.LENGTH_SHORT).show()
                     }
                     return
                 }

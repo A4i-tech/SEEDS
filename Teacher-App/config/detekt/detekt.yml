@@ -438,11 +438,11 @@ style:
   UntilInsteadOfRangeTo:
     active: false
   UnusedImports:
-    active: true
+    active: false
   UnusedPrivateClass:
-    active: true
+    active: false
   UnusedPrivateMember:
-    active: true
+    active: false
     allowedNames: '(_|ignored|expected|serialVersionUID)'
   UseAnyOrNoneInsteadOfFind:
     active: false

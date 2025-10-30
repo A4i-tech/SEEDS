@@ -176,7 +176,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onSupportNavigateUp(): Boolean {
         val navController = findNavController(R.id.nav_host_fragment_activity_main)
-        return navController.navigateUp() || drawerLayout.isDrawerOpen(binding.navViewDrawer) || super.onSupportNavigateUp()
+        return navController.navigateUp() || 
+        drawerLayout.isDrawerOpen(binding.navViewDrawer) || 
+        super.onSupportNavigateUp()
     }
 
     override fun onBackPressed() {

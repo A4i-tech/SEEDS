@@ -12,7 +12,11 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
-class HomeViewModel @Inject constructor(savedStateHandle: SavedStateHandle, private val teacherRepository: TeacherRepository, private val contentRepository: ContentRepository, private val classroomRepository: ClassroomRepository): ViewModel() {
+class HomeViewModel @Inject constructor(
+    savedStateHandle: SavedStateHandle, 
+    private val teacherRepository: TeacherRepository, 
+    private val contentRepository: ContentRepository, 
+    private val classroomRepository: ClassroomRepository): ViewModel() {
 
     val args = HomeFragmentArgs.fromSavedStateHandle(savedStateHandle)
     val showConfirmButton = args.classroom
@@ -75,8 +79,12 @@ class HomeViewModel @Inject constructor(savedStateHandle: SavedStateHandle, priv
 
     fun applyFilters(filters: FilterCriteria) {
         _filteredContent.value = _allContent.value?.filter { content ->
-            val matchesLanguage = filters.languages.isEmpty() || filters.languages.map { it.lowercase() }.contains(content.language.lowercase())
-            val matchesExperience = filters.experiences.isEmpty() || filters.experiences.map { it.lowercase() }.contains(content.type.lowercase())
+            val matchesLanguage = 
+                filters.languages.isEmpty() || filters.languages.map {
+                     it.lowercase() }.contains(content.language.lowercase())
+            val matchesExperience = 
+                filters.experiences.isEmpty() || filters.experiences.map {
+                     it.lowercase() }.contains(content.type.lowercase())
 
             matchesLanguage && matchesExperience
         }

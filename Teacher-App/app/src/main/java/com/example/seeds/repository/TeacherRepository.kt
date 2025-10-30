@@ -16,7 +16,7 @@ class TeacherRepository @Inject constructor(
     private val sharedPreferences: SharedPreferences
 ) {
     fun getTeacherPhoneNumber(): String {
-        return sharedPreferences.getString("phone", "") ?: ""
+        return sharedPreferences.getString("teacher_phone", "") ?: ""
     }
 
     suspend fun register() {

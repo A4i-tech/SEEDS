@@ -21,6 +21,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class SplashScreenActivity : AppCompatActivity() {
+
+    companion object{
+        private const val SPLASH_SCREEN_DURATION_MS = 1500L
+    }
     private lateinit var requestPermissionLauncher: ActivityResultLauncher<String>
     private var activityContext = this
 
@@ -62,7 +66,8 @@ class SplashScreenActivity : AppCompatActivity() {
 
         // Check for permission or request it
         when {
-            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED -> {
+            ContextCompat.checkSelfPermission(
+                this, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED -> {
                 checkAndNavigate()
             }
             else -> {
@@ -101,7 +106,7 @@ class SplashScreenActivity : AppCompatActivity() {
     private fun checkAndNavigate() {
         lifecycleScope.launch {
             // Optional splash delay
-            delay(1500)
+            delay(SPLASH_SCREEN_DURATION_MS)
 
             val sharedPref = getSharedPreferences("sharedPref", MODE_PRIVATE)
             val isLoggedIn = sharedPref.getBoolean("is_logged_in", false)
@@ -118,9 +123,11 @@ class SplashScreenActivity : AppCompatActivity() {
 
 
     private fun showPermissionExplanationDialog() {
+        val logmessage = """This app needs to read your contacts to function properly. 
+                                    Without this permission, the app cannot operate."""
         AlertDialog.Builder(this)
             .setTitle("Permission Required")
-            .setMessage("This app needs to read your contacts to function properly. Without this permission, the app cannot operate.")
+            .setMessage(logmessage)
             .setPositiveButton("Try Again") { dialog, which ->
                 requestPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
             }
@@ -136,7 +143,8 @@ class SplashScreenActivity : AppCompatActivity() {
     private fun showPermissionDeniedDialog() {
         AlertDialog.Builder(this)
             .setTitle("Permission Required")
-            .setMessage("This app needs to read your contacts to function properly. Without this permission, the app cannot operate. Enable it from settings")
+            .setMessage("""This app needs to read your contacts to function properly. 
+            Without this permission, the app cannot operate. Enable it from settings""")
             .setPositiveButton("OKAY") { dialog, which ->
                 dialog.dismiss()
                 finishAndRemoveTask() // This will close the current activity
