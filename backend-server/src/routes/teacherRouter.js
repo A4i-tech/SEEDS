@@ -26,8 +26,13 @@ const router = express.Router();
  *             schema:
  *               type: array
  *               items:
- *                 type: string
- *                 description: Student ID
+ *                 type: object
+ *                 properties:
+ *                   name:
+ *                     type: string
+ *                   phone_number:
+ *                     type: string
+ *                 description: Student object
  *       404:
  *         description: Teacher not found
  *       401:
@@ -59,8 +64,13 @@ router.get("/students", async (req, res) => {
  *               students:
  *                 type: array
  *                 items:
- *                   type: string
- *                 description: Array of student IDs
+ *                   type: object
+ *                   properties:
+ *                     name:
+ *                       type: string
+ *                     phone_number:
+ *                       type: string
+ *                 description: Array of student objects
  *     responses:
  *       200:
  *         description: Updated list of students
@@ -69,8 +79,13 @@ router.get("/students", async (req, res) => {
  *             schema:
  *               type: array
  *               items:
- *                 type: string
- *                 description: Student ID
+ *                 type: object
+ *                 properties:
+ *                   name:
+ *                     type: string
+ *                   phone_number:
+ *                     type: string
+ *                 description: Student object
  *       400:
  *         description: Invalid request body
  *       401:

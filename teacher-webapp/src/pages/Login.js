@@ -8,22 +8,22 @@ import {useNavigation} from "../hooks/useNavigation";
 function Login() {
   const navigate = useNavigation();
   const [showError, setShowError] = useState(false);
-  const [email, setEmail] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
+  const [schoolName, setSchoolName] = useState("");
 
   const handleLogin = async () => {
-    if (!email || !password || !name) {
+    if (!phoneNumber || !password || !schoolName) {
       setShowError(true);
       return;
     }
 
     try {
-      const response = await axios.post(`${API_ENDPOINTS.LOGIN}`, {email, password, name});
+      const response = await axios.post(`${API_ENDPOINTS.LOGIN}`, {phoneNumber, password, tenantName: schoolName});
       console.log(response);
       if (response.status === STATUS_CODES.SUCCESS) {
         localStorage.setItem('authToken', response.data.token);
-        navigate.goToHome();
+        navigate.goToHome(response.data.phoneNumber);
       } else {
         setShowError(true);
       }
@@ -67,10 +67,10 @@ function Login() {
       <br/>
       <div style={formContainerStyle}>
         <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          type="tel"
+          placeholder="Phone Number"
+          value={phoneNumber}
+          onChange={(e) => setPhoneNumber(e.target.value)}
           style={inputStyle}
         />
         <input
@@ -82,9 +82,9 @@ function Login() {
         />
         <input
           type="text"
-          placeholder="Organisation Name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
+          placeholder="School Name"
+          value={schoolName}
+          onChange={(e) => setSchoolName(e.target.value)}
           style={inputStyle}
         />
         <button className="btn" onClick={handleLogin} style={{padding: '10px 20px', fontSize: '16px'}}>Login

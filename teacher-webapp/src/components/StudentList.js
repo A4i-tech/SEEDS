@@ -1,6 +1,6 @@
 import React from 'react';
 
-export const StudentList = ({ students, selectedStudents, handleStudentToggle }) => (
+export const StudentList = ({ students, selectedStudents, onStudentToggle }) => (
   <div className="list-box">
     <h2 className="list-title">Students</h2>
     <ul className="list">
@@ -8,7 +8,7 @@ export const StudentList = ({ students, selectedStudents, handleStudentToggle })
         <li
           key={student.phone_number}
           className={`list-item ${selectedStudents.some((s) => s.phone_number === student.phone_number) ? 'selected' : ''}`}
-          onClick={() => handleStudentToggle(student)}
+          onClick={() => onStudentToggle(student)}
         >
           <div className="list-item-content">
             <span>{student.name} - {student.phone_number}</span>

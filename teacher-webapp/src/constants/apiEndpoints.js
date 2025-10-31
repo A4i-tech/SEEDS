@@ -3,8 +3,9 @@ import {APP_CONFIG} from "../config/appConfig";
 const BASE_URL = APP_CONFIG.BASE_URL;
 const CONF_BASE = `${APP_CONFIG.CONF_SERVER_BASE_URI}/conference`;
 export const API_ENDPOINTS = {
-  LOGIN: `${BASE_URL}/tenant/login`,
-  REGISTER: `${BASE_URL}/tenant/register`,
+  LOGIN: `${BASE_URL}/tenant/teacher/login`,
+  REGISTER: `${BASE_URL}/tenant/teacher/register`,
+  TEACHER_STUDENTS: `${BASE_URL}/teacher/students`,
   CONFERENCE: {
     CREATE: `${CONF_BASE}/create`,
     START: (confId) => `${CONF_BASE}/start/${confId}`,
