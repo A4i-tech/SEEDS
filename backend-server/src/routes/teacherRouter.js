@@ -1,8 +1,7 @@
 "use strict";
+const {STATUS} = require("../config/constants");
 const express = require("express");
-const path = require("path");
-const Teacher = require("../models/Teacher.js");
-const { tryCatchWrapper } = require(path.join("..", "util.js"));
+const {getTeacherById,setStudentsByTeacherId} = require("../models/Teacher.js");
 
 /**
  * @swagger
@@ -11,34 +10,6 @@ const { tryCatchWrapper } = require(path.join("..", "util.js"));
  *   description: Teacher management endpoints
  */
 const router = express.Router();
-
-/**
- * @swagger
- * /teacher/register:
- *   get:
- *     summary: Register or retrieve teacher information
- *     tags: [Teachers]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Teacher information retrieved or created
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Teacher'
- *       401:
- *         description: Unauthorized - invalid or missing token
- */
-router.get("/register", tryCatchWrapper(async (req, res) => {
-    var teacher = await Teacher.getTeacherById(req.userId);
-    if(!teacher) {
-        teacher = new Teacher( {email: req.userId, students: [] } )
-        await teacher.save()
-    }
-    return res.json(teacher)
-}))
-
 /**
  * @swagger
  * /teacher/students:
@@ -62,11 +33,11 @@ router.get("/register", tryCatchWrapper(async (req, res) => {
  *       401:
  *         description: Unauthorized - invalid or missing token
  */
-router.get("/students", tryCatchWrapper (async (req, res) => {
-    var teacher = await Teacher.getTeacherById(req.userId);
-    if(!teacher)  return res.sendStatus(404);
-    return res.json(teacher.students)
-}))
+router.get("/students", async (req, res) => {
+  const teacher = await getTeacherById(req.userId);
+  if (!teacher) return res.sendStatus(STATUS.NOT_FOUND);
+  return res.json(teacher.students);
+})
 
 /**
  * @swagger
@@ -105,9 +76,9 @@ router.get("/students", tryCatchWrapper (async (req, res) => {
  *       401:
  *         description: Unauthorized - invalid or missing token
  */
-router.post("/students", tryCatchWrapper(async (req, res) => {
-    var teacher = await Teacher.setStudentsByTeacherId(req.userId, req.body.students);
-    return res.json(teacher.students);
-}))
+router.post("/students", async (req, res) => {
+  const teacher = await setStudentsByTeacherId(req.userId, req.body.students);
+  return res.json(teacher.students);
+})
 
 module.exports = router

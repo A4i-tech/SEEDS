@@ -8,18 +8,15 @@ const TeacherSchema = new mongoose.Schema({
   students: [String]
 });
 
-var Teacher = (module.exports = mongoose.model("Teacher", TeacherSchema));
-
-module.exports.getTeacherById = phoneNumber => {
-  return Teacher.findOne(
-    {phoneNumber}
-  ).exec()
+const Teacher = mongoose.model("Teacher", TeacherSchema);
+function getTeacherById(id) {
+  return Teacher.findById(id);
 }
-
-module.exports.setStudentsByTeacherId = (phoneNumber, students) => {
-  return Teacher.findOneAndUpdate(
-    {phoneNumber},
-    {$set: {students}},
+function setStudentsByTeacherId(teacherId, students) {
+  return Teacher.findByIdAndUpdate(
+    teacherId,
+    {students: students},
     {new: true}
-  ).exec()
+  );
 }
+module.exports = {Teacher, getTeacherById, setStudentsByTeacherId};
