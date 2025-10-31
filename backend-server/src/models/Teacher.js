@@ -9,14 +9,14 @@ const TeacherSchema = new mongoose.Schema({
 });
 
 const Teacher = mongoose.model("Teacher", TeacherSchema);
-function getTeacherById(id) {
-  return Teacher.findById(id);
+function getTeacherByPhoneNumber(phoneNumber) {
+  return Teacher.findOne({ phoneNumber: phoneNumber });
 }
-function setStudentsByTeacherId(teacherId, students) {
-  return Teacher.findByIdAndUpdate(
-    teacherId,
-    {students: students},
-    {new: true}
+function setStudentsByPhoneNumber(phoneNumber, students) {
+  return Teacher.findOneAndUpdate(
+    { phoneNumber: phoneNumber },
+    { students: students },
+    { new: true, runValidators: true }
   );
 }
-module.exports = {Teacher, getTeacherById, setStudentsByTeacherId};
+module.exports = {Teacher, getTeacherByPhoneNumber, setStudentsByPhoneNumber};

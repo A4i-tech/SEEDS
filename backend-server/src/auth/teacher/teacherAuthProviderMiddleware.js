@@ -35,7 +35,7 @@ module.exports = {
       const token = generateToken(
         {id: teacher._id || teacher.id, phoneNumber: teacher.phoneNumber, name: teacher.name}
       );
-      return res.status(STATUS.OK).json({token});
+      return res.status(STATUS.OK).json({token, phoneNumber});
     } catch (error) {
       console.error('Login error:', error);
       return res.status(STATUS.INTERNAL_ERROR).json({message: 'Internal server error'});

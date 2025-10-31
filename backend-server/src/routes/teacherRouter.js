@@ -1,7 +1,7 @@
 "use strict";
 const {STATUS} = require("../config/constants");
 const express = require("express");
-const {getTeacherById,setStudentsByTeacherId} = require("../models/Teacher.js");
+const {getTeacherByPhoneNumber,setStudentsByPhoneNumber} = require("../models/Teacher.js");
 
 /**
  * @swagger
@@ -34,7 +34,7 @@ const router = express.Router();
  *         description: Unauthorized - invalid or missing token
  */
 router.get("/students", async (req, res) => {
-  const teacher = await getTeacherById(req.userId);
+  const teacher = await getTeacherByPhoneNumber(req.body.phoneNumber);
   if (!teacher) return res.sendStatus(STATUS.NOT_FOUND);
   return res.json(teacher.students);
 })
@@ -77,7 +77,7 @@ router.get("/students", async (req, res) => {
  *         description: Unauthorized - invalid or missing token
  */
 router.post("/students", async (req, res) => {
-  const teacher = await setStudentsByTeacherId(req.userId, req.body.students);
+  const teacher = await setStudentsByPhoneNumber(req.body.phoneNumber, req.body.students);
   return res.json(teacher.students);
 })
 
