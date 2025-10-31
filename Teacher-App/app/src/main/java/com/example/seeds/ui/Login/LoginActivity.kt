@@ -77,7 +77,7 @@ class LoginActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            loginWithEmail(email, password, organization)
+            loginWithPhoneNumber(email, password, organization)
         }
 
         // Register click
@@ -139,9 +139,9 @@ class LoginActivity : AppCompatActivity() {
     private fun registerTenant(email: String, password: String, organization: String) {
         val client = OkHttpClient()
         val json = JSONObject().apply {
-            put("email", email)
+            put("phoneNumber", email)
             put("password", password)
-            put("name", organization)
+            put("tenantName", organization)
         }
 
         val body = RequestBody.create(
@@ -150,7 +150,7 @@ class LoginActivity : AppCompatActivity() {
         )
 
         val registerRequest = Request.Builder()
-            .url(REGISTER_URL)
+            .url(Constants.BASE_URL + "/tenant/teacher/register")
             .post(body)
             .build()
 
@@ -173,12 +173,12 @@ class LoginActivity : AppCompatActivity() {
         })
     }
 
-    private fun loginWithEmail(email: String, password: String, organization: String) {
+    private fun loginWithPhoneNumber(email: String, password: String, organization: String) {
         val client = OkHttpClient()
         val json = JSONObject().apply {
-            put("email", email)
+            put("phoneNumber", email)
             put("password", password)
-            put("name", organization)
+            put("tenantName", organization)
         }
 
         val body = RequestBody.create(
@@ -187,7 +187,7 @@ class LoginActivity : AppCompatActivity() {
         )
 
         val loginRequest = Request.Builder()
-            .url(LOGIN_URL) 
+            .url(Constants.BASE_URL + "/tenant/teacher/login") // ✅ login endpoint unchanged
             .post(body)
             .build()
 
