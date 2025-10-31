@@ -39,7 +39,7 @@ app.use(bodyParser.json());
 
 // Existing code remains unchanged
 app.use(morgan('dev'));
-app.use('*', cors());
+app.use(cors());
 app.use("/call", authenticateToken, callRouter);
 app.use("/teacher", authenticateToken, teacherRouter);
 app.use("/content", authenticateToken, contentRouter);

@@ -6,20 +6,20 @@ import {STATUS_CODES} from "../constants/statusCodes";
 
 const Register = () => {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [schoolName, setSchoolName] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
 
   const handleRegister = async () => {
 
-    if (!email || !password || !name) {
+    if (!phoneNumber || !password || !schoolName) {
       setError("All fields are required.");
       return;
     }
 
     try {
-      const response = await axios.post(`${API_ENDPOINTS.REGISTER}`, {email, password, name});
+      const response = await axios.post(`${API_ENDPOINTS.REGISTER}`, {phoneNumber, password, tenantName: schoolName});
       if (response.status === STATUS_CODES.CREATED) {
         console.log("Successfully registered!");
         navigate('/'); // Navigate to the login page after successful registration
@@ -59,17 +59,17 @@ const Register = () => {
       <h1>Register</h1>
       <div style={formContainerStyle}>
         <input
-          type="text"
-          placeholder="Name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
+          type="tel"
+          placeholder="Phone Number"
+          value={phoneNumber}
+          onChange={(e) => setPhoneNumber(e.target.value)}
           style={inputStyle}
         />
         <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          type="text"
+          placeholder="School Name"
+          value={schoolName}
+          onChange={(e) => setSchoolName(e.target.value)}
           style={inputStyle}
         />
         <input

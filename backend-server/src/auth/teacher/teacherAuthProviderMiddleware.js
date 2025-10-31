@@ -62,11 +62,8 @@ module.exports = {
         return res.status(STATUS.CONFLICT).json({message: 'Phone number already in use'});
       }
       const hashedPassword = await bcrypt.hash(password, parseInt(passwordSaltRounds));
-      const newTeacher = await dbAdapter.insertTeacher({phoneNumber, password: hashedPassword, tenantName});
-      const token = generateToken(
-        {id: newTeacher._id || newTeacher.id, phoneNumber: newTeacher.phoneNumber, name: newTeacher.name}
-      );
-      return res.status(STATUS.CREATED).json({token});
+      await dbAdapter.insertTeacher({phoneNumber, password: hashedPassword, tenantName});
+      return res.status(STATUS.CREATED).json({message: 'Teacher registered successfully'});
     } catch (error) {
       console.error('Registration error:', error);
       return res.status(STATUS.INTERNAL_ERROR).json({message: 'Internal server error'});
