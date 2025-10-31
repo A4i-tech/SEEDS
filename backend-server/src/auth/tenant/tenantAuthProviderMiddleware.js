@@ -46,7 +46,7 @@ module.exports = {
   async register(req, res) {
     const {email, password, tenantName} = req.body;
     if (!email || !password || !tenantName) {
-      return res.status(STATUS.BAD_REQUEST).json({message: 'Email, password, and tenantName are required'});
+      return res.status(STATUS.BAD_REQUEST).json({message: 'All three fields required'});
     }
     if (!validator.isEmail(email)) {
       return res.status(STATUS.BAD_REQUEST).json({message: 'Invalid email format'});
@@ -57,14 +57,11 @@ module.exports = {
     try {
       const existingTenant = await dbAdapter.getTenantByEmail(email);
       if (existingTenant) {
-        return res.status(STATUS.CONFLICT).json({message: 'Email already in use'});
+        return res.status(STATUS.CONFLICT).json({message: 'Email already exists'});
       }
       const passwordHash = await bcrypt.hash(password, parseInt(passwordSaltRounds));
-      const newTenant = await dbAdapter.insertTenant({ email, passwordHash, tenantName });
-      const token = generateToken(
-        {id: newTenant._id || newTenant.id, email: newTenant.email, name: newTenant.tenantName}
-      );
-      return res.status(STATUS.CREATED).json({token});
+      await dbAdapter.insertTenant({ email, passwordHash, tenantName });
+      return res.status(STATUS.CREATED).json({message: 'Tenant registered successfully'});
     } catch (error) {
       console.error('Registration error:', error);
       return res.status(STATUS.INTERNAL_ERROR).json({message: 'Internal server error'});

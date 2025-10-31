@@ -4,9 +4,10 @@ const {secretKey, authType, firebaseServiceAccount} = require('../config/env');
 const {STATUS} = require('../config/constants');
 
 
+
 // Ensure secretKey is defined for native auth
 if (authType === 'native' && (!secretKey || typeof secretKey !== 'string' || secretKey.trim() === '')) {
-  throw new Error('secretKey environment variable must be defined and non-empty for native authentication');
+  throw new Error('SECRET_KEY environment variable must be defined and non-empty');
 }
 
 // Ensure Firebase is initialized for Firebase auth
