@@ -18,6 +18,22 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import javax.inject.Inject
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.MediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody
+import okhttp3.Response
+import com.example.seeds.utils.NativeEncryptor
+import com.example.seeds.utils.KeyManager
+import android.util.Base64
+import java.security.SecureRandom
+
+const val LOGIN_URL = Constants.BASE_URL + "/tenant/login"
+const val REGISTER_URL = Constants.BASE_URL + "/tenant/register"
+const val ORGANIZATIONS_URL = Constants.BASE_URL + "/tenant/list"
+const val TEACHER_INFO_URL = Constants.BASE_URL + "/teacher/register"
 
 class LoginActivity : AppCompatActivity() {
 
@@ -83,7 +99,7 @@ class LoginActivity : AppCompatActivity() {
     private fun fetchOrganizations(onResult: (List<String>) -> Unit) {
         val client = OkHttpClient()
         val request = Request.Builder()
-            .url(Constants.BASE_URL + "/tenant/list")
+            .url(ORGANIZATIONS_URL)
             .get()
             .build()
 
@@ -200,12 +216,27 @@ class LoginActivity : AppCompatActivity() {
                     }
                     return
                 }
+                try {
+                    val secretKey = KeyManager.getOrCreateSecretKey()
 
-                val prefs = getSharedPreferences("sharedPref", MODE_PRIVATE).edit()
-                prefs.putString("auth_token", token)
-                prefs.putBoolean("is_logged_in", true)
-                prefs.apply()
+                    val iv = ByteArray(16) 
+                    SecureRandom().nextBytes(iv)
+                    val encryptedTokenBytes = NativeEncryptor.encrypt(token, secretKey.encoded, iv)
+                    val encryptedTokenBase64 = Base64.encodeToString(encryptedTokenBytes, Base64.DEFAULT)
+                    val ivBase64 = Base64.encodeToString(iv, Base64.DEFAULT)
+                    val prefs = getSharedPreferences("sharedPref", MODE_PRIVATE).edit()
+                    prefs.putString("encrypted_auth_token", encryptedTokenBase64)
+                    prefs.putString("encryption_iv", ivBase64) 
+                    prefs.putBoolean("is_logged_in", true)
+                    prefs.apply()
 
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    runOnUiThread {
+                        Toast.makeText(this@LoginActivity, "Could not encrypt token", Toast.LENGTH_SHORT).show()
+                    }
+                    return
+                }
                 fetchTeacherId(token)
             }
         })
@@ -214,7 +245,7 @@ class LoginActivity : AppCompatActivity() {
     private fun fetchTeacherId(token: String) {
         val client = OkHttpClient()
         val teacherRequest = Request.Builder()
-            .url(Constants.BASE_URL + "/teacher/register")
+            .url(TEACHER_INFO_URL)
             .get()
             .addHeader("Authorization", "Bearer $token")
             .build()

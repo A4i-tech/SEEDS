@@ -31,6 +31,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.log
 
+const val TEACHER_RETRY_DELAY_MS = 120000L
+// const val FEEDBACK_DELAY_MS = 1500L 
+
 @AndroidEntryPoint
 class CallFragment : BaseFragment() {
     private lateinit var binding: FragmentCallBinding
@@ -127,7 +130,7 @@ class CallFragment : BaseFragment() {
         binding.retryTeacher.setOnClickListener {
             viewModel.connectParticipant("Teacher", viewModel.teacherPhoneNumber)
             lifecycleScope.launch {
-                delay(120000) // 120000 milliseconds = 2 minutes
+                delay(TEACHER_RETRY_DELAY_MS) // 120000 milliseconds = 2 minutes
 
                 if (viewModel.teacherCallStatus.value?.callerState != CallerState.ANSWERED) {
                     val classroom = args.classroom
@@ -226,15 +229,15 @@ class CallFragment : BaseFragment() {
         }
     }
 
-    private fun showFeedback(textView: TextView, message: String) {
-        textView.text = message
-        textView.visibility = View.VISIBLE
+    // private fun showFeedback(textView: TextView, message: String) {
+    //     textView.text = message
+    //     textView.visibility = View.VISIBLE
 
-        lifecycleScope.launch {
-            delay(1500) // Delay for 1.5 seconds
-            textView.visibility = View.INVISIBLE
-        }
-    }
+    //     lifecycleScope.launch {
+    //         delay(FEEDBACK_DELAY_MS) // Delay for 1.5 seconds
+    //         textView.visibility = View.INVISIBLE
+    //     }
+    // }
 
     private fun removeUser(phoneNumber: String) {
         AlertDialog.Builder(requireContext())
