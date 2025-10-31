@@ -187,7 +187,7 @@ class LoginActivity : AppCompatActivity() {
         )
 
         val loginRequest = Request.Builder()
-            .url(Constants.BASE_URL + "/tenant/teacher/login") // ✅ login endpoint unchanged
+            .url(Constants.BASE_URL + "/tenant/teacher/login") 
             .post(body)
             .build()
 
@@ -237,8 +237,10 @@ class LoginActivity : AppCompatActivity() {
                     }
                     return
                 }
-                fetchTeacherId(token)
+                startActivity(Intent(this@LoginActivity, MainActivity::class.java))
+                finish()                
             }
         })
+
     }
 }

@@ -13,7 +13,10 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.seeds.R
 import com.example.seeds.databinding.CheckboxNameItemRowBinding
 
-class FilterContentAdapter(var usersInGroup: MutableSet<String> = mutableSetOf(), val maximumSelections: Int = 5000) : androidx.recyclerview.widget.ListAdapter<String, RecyclerView.ViewHolder>(DiffCallBack){
+class FilterContentAdapter(
+    var usersInGroup: MutableSet<String> = mutableSetOf(), 
+    val maximumSelections: Int = 5000) : 
+    androidx.recyclerview.widget.ListAdapter<String, RecyclerView.ViewHolder>(DiffCallBack){
 
     inner class ContactViewHolder(private var binding: FilterItemRowBinding): RecyclerView.ViewHolder(binding.root) {
         var userCheckbox = binding.userGroupCheckbox

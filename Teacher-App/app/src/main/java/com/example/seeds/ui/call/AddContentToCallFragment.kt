@@ -59,7 +59,9 @@ class AddContentToCallFragment : BaseFragment() {
         }
 
         binding.addMoreContentBtn.setOnClickListener {
-            findNavController().navigate(AddContentToCallFragmentDirections.actionAddContentToCallFragment2ToAddMoreContentToCallFragment())
+            findNavController().navigate(
+                AddContentToCallFragmentDirections
+                .actionAddContentToCallFragment2ToAddMoreContentToCallFragment())
         }
 
 //        binding.contentSearchTextBox.addTextChangedListener(object: TextWatcher {

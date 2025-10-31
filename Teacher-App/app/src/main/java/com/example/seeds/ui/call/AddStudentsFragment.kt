@@ -17,6 +17,10 @@ import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class AddStudentsFragment : BaseFragment() {
+
+    companion object{
+        private const val DELAY_FOR_UI = 300L
+    }
     private lateinit var binding: FragmentAddStudentsBinding
     private val viewModel: CallViewModel by navGraphViewModels(R.id.call_nav) { defaultViewModelProviderFactory }
 
@@ -32,7 +36,8 @@ class AddStudentsFragment : BaseFragment() {
         binding.viewModel = viewModel
 
         binding.addStudentsBtn.setOnClickListener {
-            logMessage("Students added to call: ${(binding.myStudentsList.adapter as CheckboxNameListAdapter).usersInGroup}")
+            logMessage("""Students added to call: 
+            ${(binding.myStudentsList.adapter as CheckboxNameListAdapter).usersInGroup}""")
 
             (binding.myStudentsList.adapter as CheckboxNameListAdapter).usersInGroup.map { phoneNumber ->
                 val name = viewModel.args.classroom.students.filter {
@@ -45,7 +50,7 @@ class AddStudentsFragment : BaseFragment() {
         }
 
         lifecycleScope.launch {
-            delay(300)
+            delay(DELAY_FOR_UI)
             viewModel.refreshCallState()
         }
         return binding.root

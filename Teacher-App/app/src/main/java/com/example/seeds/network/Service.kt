@@ -5,38 +5,26 @@ import android.util.Log
 import com.example.seeds.network.AuthInterceptor
 import com.example.seeds.ApplicationJsonAdapterFactory
 import com.example.seeds.database.LogEntity
-import com.example.seeds.model.CallDetails
-import com.example.seeds.model.ConferenceCreateRequest
-import com.example.seeds.model.ConferenceCreateResponse
-import com.example.seeds.model.Content
-import com.example.seeds.model.PaginatedResponse
-import com.example.seeds.model.SasUrlResponse
-import com.example.seeds.model.Student
-import com.example.seeds.model.StudentListContainer
+import com.example.seeds.model.*
 import com.example.seeds.utils.Constants
 import com.squareup.moshi.Moshi
 import dagger.hilt.android.qualifiers.ApplicationContext
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
-import retrofit2.http.Body
-import retrofit2.http.DELETE
-import retrofit2.http.GET
-import retrofit2.http.POST
-import retrofit2.http.PUT
-import retrofit2.http.Path
-import retrofit2.http.Query
-import retrofit2.http.Url
-import java.util.UUID
+import retrofit2.http.*
+import java.util.*
 import java.util.concurrent.TimeUnit
 import com.example.seeds.BuildConfig
-import okhttp3.Interceptor
 import okhttp3.logging.HttpLoggingInterceptor
 
-const val TIMEOUT = 60L
-
 interface SeedsService {
+
+    @POST("tenant/logout") 
+    suspend fun logout(@Header("Authorization") token: String): Response<Unit>
+
     @POST
     suspend fun getAccessToken(
         @Url fullUrl: String ,
@@ -132,6 +120,8 @@ interface SeedsService {
     suspend fun uploadLogs(@Body logs: List<LogEntity>)
 
 }
+
+const val TIMEOUT = 60L
 
 fun provideService(@ApplicationContext context: Context): SeedsService {
     //reference: https://proandroiddev.com/headers-in-retrofit-a8d71ede2f3e

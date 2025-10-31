@@ -1,26 +1,14 @@
 package com.example.seeds.ui.call
 
 import NetworkConnectivityLiveData
-import okhttp3.OkHttpClient
 import android.app.Application
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkRequest
 import android.util.Log
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.SavedStateHandle
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.example.seeds.model.AccessToken
-import com.example.seeds.model.CallDetails
-import com.example.seeds.model.CallerState
-import com.example.seeds.model.Classroom
-import com.example.seeds.model.ConferenceCreateRequest
-import com.example.seeds.model.Content
-import com.example.seeds.model.Student
-import com.example.seeds.model.StudentCallStatus
+import androidx.lifecycle.*
+import com.example.seeds.model.*
 import com.example.seeds.network.SeedsService
 import com.example.seeds.network.asDomainModel
 import com.example.seeds.repository.ClassroomRepository
@@ -34,17 +22,15 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import okhttp3.Response
-import okhttp3.WebSocket
-import okhttp3.WebSocketListener
+import okhttp3.*
 import okio.ByteString
 import javax.inject.Inject
 import android.content.SharedPreferences
 import com.example.seeds.utils.Constants
 
-private const val SOCKET_CLOSE_CODE = 1000
-private const val SOCKET_RETRY_DELAY_MS = 4000L
-private const val CALL_FAILURE_TIMEOUT_MS = 180000L
+const val SOCKET_CLOSE = 1000   
+const val THREAD_SLEEP_TIME = 5000L
+const val DELAY_FOR_VIEW_MODEL = 180000L
 
 @HiltViewModel
 class CallViewModel @Inject constructor(
@@ -62,16 +48,6 @@ class CallViewModel @Inject constructor(
 
     private val contactUtils = ContactUtils(context)
     private val conferenceUrl = Constants.CONTENT_URL
-    private val CONFERENCE_CREATE_URL = "$conferenceUrl/conference/create"
-    private val CONFERENCE_START_URL = "$conferenceUrl/conference/start"
-    private val CONFERENCE_END_URL = "$conferenceUrl/conference/end"
-    private val CONFERENCE_ACTION_URL = "$conferenceUrl/conference/"
-    private val CONFERENCE_PLAY_AUDIO_URL = "$conferenceUrl/conference/playaudio"
-    private val CONFERENCE_MUTE_PARICIPANT = "$conferenceUrl/conference/muteparticipant"
-    private val CONFERENCE_UNMUTE_URL = "$conferenceUrl/conference/unmuteparticipant"
-    private val CONFERENCE_ADD_PARTICIPANT = "$conferenceUrl/conference/addparticipant"
-    private val CONFERENCE_REMOVE_PARTICIPANT = "$conferenceUrl/conference/removeparticipant"
-
     val args = CallFragmentArgs.fromSavedStateHandle(savedStateHandle)
 
     val leader = args.leader.toString()
@@ -279,7 +255,7 @@ class CallViewModel @Inject constructor(
                 )
 
                 val response = network.getAccessToken(
-                    "$CONFERENCE_CREATE_URL",
+                    "$conferenceUrl/conference/create",
                     payload
                 )
 
@@ -335,7 +311,7 @@ class CallViewModel @Inject constructor(
                     if (student != null) names.add(student.name)
                 }
 
-                val fullUrl = "$CONFERENCE_START_URL/$confId"
+                val fullUrl = "$conferenceUrl/conference/start/$confId"
                 val response = network.startCall(fullUrl, CallDetails(confId, phoneNumbers, names))
 
                 if (response.isSuccessful) {
@@ -367,7 +343,7 @@ class CallViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                val fullUrl = "$CONFERENCE_END_URL/$confId"
+                val fullUrl = "$conferenceUrl/conference/end/$confId"
                 Log.d("CALL_END", "Full URL: $fullUrl")
                 Log.d("CALL_END", "About to call network.endCall()...")
 
@@ -402,7 +378,7 @@ class CallViewModel @Inject constructor(
         try {
             if (this::socket.isInitialized) {
                 Log.d("CALL_END", "Closing socket")
-                socket.close(SOCKET_CLOSE_CODE, "close")
+                socket.close(SOCKET_CLOSE, "close")
             }
         } catch (e: Exception) {
             Log.e("CALL_END", "Error closing socket: ${e.message}")
@@ -430,7 +406,12 @@ class CallViewModel @Inject constructor(
             studentsNotOnCall = allStudents.filter { stu ->
                 networkCallState.find { stu.phoneNumber == it.phoneNumber } == null
                         || when(networkCallState.find { stu.phoneNumber == it.phoneNumber }?.callerState) {
-                                CallerState.COMPLETED, CallerState.FAILED, CallerState.REJECTED, CallerState.CANCELLED, CallerState.UNANSWERED, CallerState.BUSY -> true
+                                CallerState.COMPLETED, 
+                                CallerState.FAILED, 
+                                CallerState.REJECTED, 
+                                CallerState.CANCELLED, 
+                                CallerState.UNANSWERED, 
+                                CallerState.BUSY -> true
                                 else -> false
                             }
             }
@@ -528,7 +509,7 @@ class CallViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                val fullUrl = "$CONFERENCE_MUTE_PARICIPANT/$confId"
+                val fullUrl = "$conferenceUrl/conference/muteparticipant/$confId"
                 val response = network.muteParticipant(fullUrl, phoneNumber)
 
                 if (!response.isSuccessful) {
@@ -554,7 +535,7 @@ class CallViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                val fullUrl = "$CONFERENCE_UNMUTE_URL/$confId"
+                val fullUrl = "$conferenceUrl/conference/unmuteparticipant/$confId"
                 val response = network.unmuteParticipant(fullUrl, phoneNumber)
 
                 if (!response.isSuccessful) {
@@ -581,7 +562,7 @@ class CallViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                val fullUrl = "$CONFERENCE_ADD_PARTICIPANT/$confId"
+                val fullUrl = "$conferenceUrl/conference/addparticipant/$confId"
                 val response = network.connectParticipant(fullUrl, phoneNumber)
 
                 if (!response.isSuccessful) {
@@ -651,7 +632,7 @@ fun disconnectParticipant(phoneNumber: String) {
 
         viewModelScope.launch {
             try {
-                val fullUrl = "$CONFERENCE_ACTION_URL${action.lowercase()}audio/$confId"
+                val fullUrl = "$conferenceUrl/conference/${action.lowercase()}audio/$confId"
                 Log.d("AUDIO_COMMAND", "Action: $action | Full URL: $fullUrl")
                 Log.d("AUDIO_COMMAND", "Sending $action request...")
 
@@ -734,7 +715,7 @@ fun disconnectParticipant(phoneNumber: String) {
                 
                 Log.d("PLAY_AUDIO", "Got audio URL: $audioUrl")
                 
-                val fullUrl = "$CONFERENCE_PLAY_AUDIO_URL/$confId"
+                val fullUrl = "$conferenceUrl/conference/playaudio/$confId"
                 Log.d("PLAY_AUDIO", "Full URL: $fullUrl")
                 Log.d("PLAY_AUDIO", "Audio URL param: $audioUrl")
                 Log.d("PLAY_AUDIO", "Sending play request...")
@@ -856,11 +837,11 @@ fun disconnectParticipant(phoneNumber: String) {
             Log.d("SOCKETFAILURE", t.message.toString())
 
             //reference: https://stackoverflow.com/questions/54088030/reconnect-okhttp-websocket-when-internet-disconnects
-            socket.close(SOCKET_CLOSE_CODE, null)
-            Thread.sleep(SOCKET_RETRY_DELAY_MS)
+            socket.close(SOCKET_CLOSE, null)
+            Thread.sleep(THREAD_SLEEP_TIME)
             // connectWebSocket()
             cancelCallOnFailure = viewModelScope.launch {
-                delay(CALL_FAILURE_TIMEOUT_MS) // 3 minutes
+                delay(DELAY_FOR_VIEW_MODEL) // 3 minutes
                 _navigateBack.postValue(true)
             }
         }
@@ -869,9 +850,9 @@ fun disconnectParticipant(phoneNumber: String) {
     // override fun onCleared() {
     //     endCall()
     //     if (this::socket.isInitialized) {
-    //         socket.close(SOCKET_CLOSE_CODE, "close")
+    //         socket.close(1000, "close")
     //     }
-    //     //socket.close(SOCKET_CLOSE_CODE, "close")
+    //     //socket.close(1000, "close")
     // }
 
     fun startNetworkCallback() {

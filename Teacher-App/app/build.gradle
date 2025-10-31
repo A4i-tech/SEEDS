@@ -60,13 +60,6 @@ android {
     lintOptions {
         abortOnError false
     }
-
-    externalNativeBuild {
-        cmake {
-            path "src/main/cpp/CMakeLists.txt"
-            version "3.22.1"
-        }
-    }
 }
 
 // Force consistent Kotlin versions
@@ -172,4 +165,3 @@ detekt {
     buildUponDefaultConfig = true
     source = files("src/main/java", "src/main/kotlin")
 }
-

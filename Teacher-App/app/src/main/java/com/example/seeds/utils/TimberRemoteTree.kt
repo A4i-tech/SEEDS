@@ -11,8 +11,7 @@ import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.lang.Exception
 import java.text.SimpleDateFormat
-import java.util.Date 
-import java.util.Locale 
+import java.util.*
 
 class TimberRemoteTree(val database: LogDao,
                        private val teacherPhoneNumber: String): Timber.DebugTree() {
@@ -25,7 +24,8 @@ class TimberRemoteTree(val database: LogDao,
         val timestamp = System.currentTimeMillis()
         val time = timeFormat.format(Date(timestamp))
         try {
-            val remoteLog = LogEntity(logText = "$tag $message", time = time, user = teacherPhoneNumber, priority = priority)
+            val remoteLog = LogEntity(logText = "$tag $message", time = time,
+             user = teacherPhoneNumber, priority = priority)
             coroutineScope.launch {
                 database.insert(remoteLog)
             }

@@ -63,7 +63,9 @@ class ClassroomFragment : BaseFragment() {
         binding.createClassroomBtn.setOnClickListener {
             logMessage("Create classroom button clicked")
             val emptyClassroom = Classroom.getNewClassroom()
-            findNavController().navigate(ClassroomFragmentDirections.actionClassroomFragmentToCreateClassroomFragment(emptyClassroom))
+            findNavController()
+            .navigate(ClassroomFragmentDirections
+            .actionClassroomFragmentToCreateClassroomFragment(emptyClassroom))
         }
 
         return binding.root
