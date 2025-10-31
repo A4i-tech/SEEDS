@@ -189,9 +189,9 @@ class LoginActivity : AppCompatActivity() {
     private fun registerTenant(phone: String, password: String, organization: String) {
         val client = OkHttpClient()
         val json = JSONObject().apply {
-            put("email", "$phone@test.com")
+            put("phoneNumber", "$phone")
             put("password", password)
-            put("name", organization)
+            put("tenantName", organization)
         }
 
         val body = RequestBody.create(
@@ -229,9 +229,9 @@ class LoginActivity : AppCompatActivity() {
     private fun loginWithEmail(phone: String, password: String, organization: String) {
         val client = OkHttpClient()
         val json = JSONObject().apply {
-            put("email", "$phone@test.com")
+            put("phoneNumber", "$phone")
             put("password", password)
-            put("name", organization)
+            put("tenantName", organization)
         }
 
         val body = RequestBody.create(
