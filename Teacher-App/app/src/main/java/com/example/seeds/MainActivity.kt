@@ -1,14 +1,10 @@
 package com.example.seeds
 
 import android.content.Context
-import android.content.Intent
 import android.os.Build
+import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
-import android.view.MenuItem
-import androidx.appcompat.app.ActionBarDrawerToggle
-import androidx.appcompat.app.AppCompatActivity
-import androidx.drawerlayout.widget.DrawerLayout
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.findNavController
 import androidx.navigation.ui.AppBarConfiguration
@@ -18,28 +14,20 @@ import androidx.work.WorkManager
 import com.example.seeds.dao.LogDao
 import com.example.seeds.databinding.ActivityMainBinding
 import com.example.seeds.network.SeedsService
-import com.example.seeds.ui.Login.LoginActivity
 import com.example.seeds.utils.Constants
-import com.example.seeds.utils.SessionManager
 import com.example.seeds.utils.TimberInitializer
 import com.example.seeds.workers.UploadLogsWorker
 import com.google.android.material.bottomnavigation.BottomNavigationView
-import com.google.android.material.navigation.NavigationView
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
 import timber.log.Timber
 import java.util.*
 import javax.inject.Inject
 
-const val PHONE_NUMBER_LENGTH = 13
-const val LOG_UPLOAD_INTERVAL_MS = 30_000L
-
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
-    private lateinit var drawerLayout: DrawerLayout
-    private lateinit var sessionManager: SessionManager
 
     @Inject
     lateinit var database: LogDao
@@ -57,29 +45,14 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
         setSupportActionBar(binding.mainToolbar)
 
-        sessionManager = SessionManager(applicationContext)
-        drawerLayout = binding.drawerLayout
-        val navViewDrawer: NavigationView = binding.navViewDrawer
-
-        val toggle = ActionBarDrawerToggle(
-            this, drawerLayout, binding.mainToolbar,
-            R.string.navigation_drawer_open,
-            R.string.navigation_drawer_close
-        )
-        drawerLayout.addDrawerListener(toggle)
-        toggle.syncState()
-
-        navViewDrawer.setNavigationItemSelectedListener { menuItem ->
-            handleDrawerItemClick(menuItem)
-            true
-        }
-
+        // Retrieve phone number from SharedPreferences
         val sharedPreferences = getSharedPreferences("sharedPref", Context.MODE_PRIVATE)
         var teacherPhoneNumber = sharedPreferences.getString("phone", null) ?: ""
         teacherPhoneNumber = "+91$teacherPhoneNumber"
         Log.d("MainActivity", "teacherPhoneNumber: $teacherPhoneNumber")
 
-        if (teacherPhoneNumber.length == PHONE_NUMBER_LENGTH)
+        // Initialize Timber with correct identifier
+        if (teacherPhoneNumber.length == 13)
             TimberInitializer.plantTimberTree(database, teacherPhoneNumber)
         else
             TimberInitializer.plantTimberTree(database, "Unknown")
@@ -89,6 +62,7 @@ class MainActivity : AppCompatActivity() {
 
         logMessage("PhoneModel ${Build.MANUFACTURER} ${Build.MODEL} ${Build.PRODUCT}")
 
+        // Cancel any pending UploadLogsWorker jobs
         WorkManager.getInstance(applicationContext)
             .getWorkInfosForUniqueWorkLiveData(UploadLogsWorker.WORK_NAME)
             .observe(this) { list ->
@@ -106,54 +80,10 @@ class MainActivity : AppCompatActivity() {
                 R.id.addContentToCallFragment2,
                 R.id.callFragment,
                 R.id.classroomFragment
-            ),
-            drawerLayout
+            )
         )
         setupActionBarWithNavController(navController, appBarConfiguration)
         navView.setupWithNavController(navController)
-    }
-
-    private fun handleDrawerItemClick(item: MenuItem) {
-        when (item.itemId) {
-            R.id.nav_logout -> {
-                performLogout()
-            }
-        }
-        drawerLayout.closeDrawers()
-    }
-
-    private fun performLogout() {
-        lifecycleScope.launch {
-            try {
-                val token = sessionManager.getAuthToken()
-                if (!token.isNullOrEmpty()) {
-                    val bearerToken = "Bearer $token"
-                    val response = network.logout(bearerToken)
-                    if (response.isSuccessful) {
-                        Timber.d("Successfully notified backend of logout (Status Code: 200).")
-                    } else {
-                        Timber.w("Backend logout notification failed with code: ${response.code()}")
-                    }
-                } else {
-                    Timber.w("No auth token found, cannot notify backend of logout.")
-                }
-            } catch (e: Exception) {
-                Timber.e(e, "Network error during logout notification.")
-            } finally {
-                withContext(Dispatchers.Main) {
-                    sessionManager.clearSession()
-
-                    mainActivityScope.cancel()
-                    WorkManager.getInstance(applicationContext).cancelAllWork()
-
-                    val intent = Intent(this@MainActivity, LoginActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                    }
-                    startActivity(intent)
-                    finish()
-                }
-            }
-        }
     }
 
     private suspend fun uploadLogs() {
@@ -176,19 +106,16 @@ class MainActivity : AppCompatActivity() {
 
     override fun onSupportNavigateUp(): Boolean {
         val navController = findNavController(R.id.nav_host_fragment_activity_main)
-        return navController.navigateUp() || drawerLayout.isDrawerOpen(binding.navViewDrawer) || super.onSupportNavigateUp()
+        return navController.navigateUp() || super.onSupportNavigateUp()
     }
 
     override fun onBackPressed() {
-        if (drawerLayout.isDrawerOpen(binding.navViewDrawer)) {
-            drawerLayout.closeDrawers()
+        val navController = findNavController(R.id.nav_host_fragment_activity_main)
+        if (navController.currentDestination?.id == R.id.classroomFragment) {
+            // Go back to home fragment instead of doing nothing
+            navController.navigate(R.id.homeFragment)
         } else {
-            val navController = findNavController(R.id.nav_host_fragment_activity_main)
-            if (navController.currentDestination?.id == R.id.classroomFragment) {
-                navController.navigate(R.id.homeFragment)
-            } else {
-                super.onBackPressed()
-            }
+            super.onBackPressed()
         }
     }
 
@@ -198,7 +125,7 @@ class MainActivity : AppCompatActivity() {
         mainActivityScope.launch {
             while (isActive) {
                 uploadLogs()
-                delay(LOG_UPLOAD_INTERVAL_MS)
+                delay(30_000)
             }
         }
     }
@@ -211,7 +138,7 @@ class MainActivity : AppCompatActivity() {
     override fun onStop() {
         super.onStop()
         mainActivityScope.cancel()
-        lifecycleScope.launch(Dispatchers.IO) { uploadLogs() }
+        lifecycleScope.launch(Dispatchers.IO) { uploadLogs() } // final upload before stopping
     }
 
     override fun onRestart() {
