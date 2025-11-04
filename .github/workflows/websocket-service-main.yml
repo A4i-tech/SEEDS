@@ -2,11 +2,11 @@ name: WebSocket Service Main
 
 on:
   push:
-    branches: [a4i/main, a4i/staging]
+    branches: [a4i/main]
     paths:
       - "websocket-service/**"
   pull_request:
-    branches: [a4i/main, a4i/staging]
+    branches: [a4i/main]
     paths:
       - "websocket-service/**"
   workflow_call:
