@@ -9,6 +9,7 @@ on:
     branches: [a4i/main]
     paths:
       - "websocket-service/**"
+      - ".github/workflows/**"
   workflow_call:
 env:
   REGISTRY: ghcr.io
