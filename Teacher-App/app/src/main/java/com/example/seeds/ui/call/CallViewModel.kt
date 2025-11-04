@@ -243,9 +243,9 @@ class CallViewModel @Inject constructor(
                 
                 val studentPhonesWithPrefix = phoneNumbers.map { "$it" }
                 // Log.d("PAYLOAD_DEBUG", "$sharedPreferences")
-                sharedPreferences.all.forEach { (key, value) ->
-                    Log.d("map values", "$key: $value")
-                }
+                // sharedPreferences.all.forEach { (key, value) ->
+                //     Log.d("map values", "$key: $value")
+                // }
                 Log.d("PAYLOAD_DEBUG", "Teacher: $teacherPhoneWithPrefix")
                 Log.d("PAYLOAD_DEBUG", "Students: $studentPhonesWithPrefix")
                 
