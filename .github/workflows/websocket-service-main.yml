@@ -1,6 +1,7 @@
 name: WebSocket Service Main
 
 on:
+  workflow_dispatch:
   push:
     branches: [a4i/main]
     paths:
@@ -99,15 +100,15 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-  deploy-to-render:
+  deploy-to-azure:
     needs: deploy-to-docker
-    if: github.event_name == 'push' && github.ref == 'refs/heads/a4i/main'  && (vars.DEPLOYMENT_TARGET == 'render' || vars.DEPLOYMENT_TARGET == 'both' || vars.DEPLOYMENT_TARGET == '' || vars.DEPLOYMENT_TARGET == null)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/a4i/main'
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy to Render
+      - name: Trigger Azure Webhook deployment
         run: |
-          echo "Triggering deployment for websocket-service..."
-          http_code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.WEBSOCKET_RENDER_DEPLOY_HOOK_URL }}")
+          echo "Triggering deployment for websocket-service via Azure webhook..."
+          http_code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.WEBSOCKET_AZURE_DEPLOY_HOOK_URL }}")
           echo "HTTP Status Code: $http_code"
           if [[ $http_code == "200" || $http_code == "202" ]]; then
             echo "Deployment triggered successfully"
@@ -115,24 +116,3 @@ jobs:
             echo "Failed to trigger deployment (HTTP $http_code)"
             exit 1
           fi
-
-  deploy-to-azure:
-    needs: deploy-to-docker
-    if: github.event_name == 'push' && github.ref == 'refs/heads/a4i/main'  && (vars.DEPLOYMENT_TARGET == 'azure' || vars.DEPLOYMENT_TARGET == 'both')
-    runs-on: ubuntu-latest
-    steps:
-      - name: Azure Login
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Deploy to Azure Web App
-        uses: azure/webapps-deploy@v2
-        with:
-          app-name: ${{ vars.WEBSOCKET_SERVICE_AZURE_WEBAPP_NAME}}
-          resource-group-name: ${{ vars.WEBSOCKET_SERVICE_AZURE_RESOURCE_GROUP }}
-          images: ghcr.io/${{ github.repository }}/websocket-service:latest
-
-      - name: Azure deployment confirmation
-        run: |
-          echo "Azure deployment completed for websocket-service"
