@@ -13,8 +13,6 @@ import com.example.seeds.databinding.ActivityLoginBinding
 import com.example.seeds.repository.TeacherRepository
 import com.example.seeds.ui.call.CallViewModel
 import com.example.seeds.utils.Constants
-import kotlinx.coroutines.*
-import okhttp3.*
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
@@ -31,10 +29,6 @@ import com.example.seeds.utils.KeyManager
 import android.util.Base64
 import java.security.SecureRandom
 
-const val LOGIN_URL = Constants.BASE_URL + "/tenant/login"
-const val REGISTER_URL = Constants.BASE_URL + "/tenant/register"
-const val ORGANIZATIONS_URL = Constants.BASE_URL + "/tenant/list"
-const val TEACHER_INFO_URL = Constants.BASE_URL + "/teacher/register"
 
 class LoginActivity : AppCompatActivity() {
 
@@ -45,6 +39,10 @@ class LoginActivity : AppCompatActivity() {
     lateinit var teacherRepository: TeacherRepository
 
     private val viewModel: CallViewModel by viewModels()
+
+    private val LOGIN_URL = Constants.BASE_URL + "/tenant/teacher/login"
+    private val REGISTER_URL = Constants.BASE_URL + "/tenant/teacher/register"
+    private val ORGANIZATIONS_URL = Constants.BASE_URL + "/tenant/list"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -151,7 +149,7 @@ class LoginActivity : AppCompatActivity() {
         )
 
         val registerRequest = Request.Builder()
-            .url(Constants.BASE_URL + "/tenant/teacher/register")
+            .url(REGISTER_URL)
             .post(body)
             .build()
 
@@ -188,7 +186,7 @@ class LoginActivity : AppCompatActivity() {
         )
 
         val loginRequest = Request.Builder()
-            .url(Constants.BASE_URL + "/tenant/teacher/login") 
+            .url(LOGIN_URL) 
             .post(body)
             .build()
 

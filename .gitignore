@@ -407,3 +407,5 @@ fsm-visual-refactored.txt
 build/
 coverage/
 htmlcov*/
+
+Teacher-App/fastlane/.env
