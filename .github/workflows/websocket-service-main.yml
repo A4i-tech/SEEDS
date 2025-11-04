@@ -68,7 +68,6 @@ jobs:
 
   deploy-to-docker:
     needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/a4i/main'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -102,7 +101,6 @@ jobs:
 
   deploy-to-azure:
     needs: deploy-to-docker
-    if: github.event_name == 'push' && github.ref == 'refs/heads/a4i/main'
     runs-on: ubuntu-latest
     steps:
       - name: Trigger Azure Webhook deployment
