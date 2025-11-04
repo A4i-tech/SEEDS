@@ -1,16 +1,16 @@
 name: WebSocket Service Main
 
 on:
-  workflow_dispatch:
   push:
-    branches: [a4i/main]
+    branches: [a4i/main, a4i/staging]
     paths:
       - "websocket-service/**"
   pull_request:
-    branches: [a4i/main]
+    branches: [a4i/main, a4i/staging]
     paths:
       - "websocket-service/**"
   workflow_call:
+  workflow_dispatch:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}/websocket-service
