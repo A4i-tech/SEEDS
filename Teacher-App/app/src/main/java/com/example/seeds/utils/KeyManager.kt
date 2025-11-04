@@ -1,4 +1,4 @@
-package com.example.seeds.utils // Or your preferred package
+package com.example.seeds.utils 
 
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties

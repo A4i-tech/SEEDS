@@ -20,6 +20,8 @@ import java.util.concurrent.TimeUnit
 import com.example.seeds.BuildConfig
 import okhttp3.logging.HttpLoggingInterceptor
 
+const val CONTENT_LIMIT = 100
+
 interface SeedsService {
 
     @POST("tenant/logout") 
@@ -94,7 +96,7 @@ interface SeedsService {
 
     @GET("content")
     suspend fun getAllContent(
-        @Query("limit") limit: Int = 10,
+        @Query("limit") limit: Int = CONTENT_LIMIT,
         @Query("cursor") cursor: String? = null
     ): PaginatedResponse<Content>
 

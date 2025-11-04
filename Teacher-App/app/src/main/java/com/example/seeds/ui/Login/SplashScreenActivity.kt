@@ -15,8 +15,6 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.example.seeds.MainActivity
 import com.example.seeds.R
-//import com.google.firebase.auth.ktx.auth
-//import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 

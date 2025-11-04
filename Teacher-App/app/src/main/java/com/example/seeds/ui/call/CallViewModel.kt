@@ -577,38 +577,38 @@ class CallViewModel @Inject constructor(
     }
 
 
-fun disconnectParticipant(phoneNumber: String) {
-    val confId = _callToken.value?.confId ?: return
-    // Immediately update the UI to show DISCONNECTED state for the participant
-    val currentList = _callState.value?.toMutableList() ?: return
-    val updatedList = currentList.map { participant ->
-        if (participant.phoneNumber == phoneNumber) {
-            // Create a new CallerStatus object with DISCONNECTED state
-            participant.copy(callerState = CallerState.TIMEOUT)
-        } else {
-            participant
-        }
-    }.toMutableList()
-    _callState.postValue(updatedList)
-
-    viewModelScope.launch {
-        try {
-            val fullUrl = "$conferenceUrl/conference/removeparticipant/$confId"
-            val response = network.disconnectParticipant(fullUrl, phoneNumber)
-
-            if (response.isSuccessful) {
-                Log.d("API_ACTION", "$phoneNumber disconnected successfully from server.")
-                // For now, it will remain in the list as DISCONNECTED
+    fun disconnectParticipant(phoneNumber: String) {
+        val confId = _callToken.value?.confId ?: return
+        // Immediately update the UI to show DISCONNECTED state for the participant
+        val currentList = _callState.value?.toMutableList() ?: return
+        val updatedList = currentList.map { participant ->
+            if (participant.phoneNumber == phoneNumber) {
+                // Create a new CallerStatus object with DISCONNECTED state
+                participant.copy(callerState = CallerState.TIMEOUT)
             } else {
-                Log.e("API_ACTION", "Server failed to disconnect $phoneNumber. Reverting UI.")
-                refreshCallState() 
+                participant
             }
-        } catch (e: Exception) {
-            Log.e("API_ACTION_ERROR", "Exception disconnecting participant. Reverting UI.", e)
-            refreshCallState()
+        }.toMutableList()
+        _callState.postValue(updatedList)
+
+        viewModelScope.launch {
+            try {
+                val fullUrl = "$conferenceUrl/conference/removeparticipant/$confId"
+                val response = network.disconnectParticipant(fullUrl, phoneNumber)
+
+                if (response.isSuccessful) {
+                    Log.d("API_ACTION", "$phoneNumber disconnected successfully from server.")
+                    // For now, it will remain in the list as DISCONNECTED
+                } else {
+                    Log.e("API_ACTION", "Server failed to disconnect $phoneNumber. Reverting UI.")
+                    refreshCallState() 
+                }
+            } catch (e: Exception) {
+                Log.e("API_ACTION_ERROR", "Exception disconnecting participant. Reverting UI.", e)
+                refreshCallState()
+            }
         }
     }
-}
     
     fun unmuteAll() {
         socket.send("unMuteAll")

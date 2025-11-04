@@ -6,6 +6,7 @@ import android.widget.ImageView
 import android.widget.Toast
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.ListAdapter
 import com.example.seeds.R
 import com.example.seeds.databinding.ContentItemRowBinding
 import com.example.seeds.model.Content
@@ -17,7 +18,7 @@ class ContentListAdapter(
     val showCheckbox: Boolean = false, val showRemoveContent: Boolean = false, 
     var usersInGroup: MutableSet<String> = mutableSetOf(),
     val maximumSelections: Int = 5000) : 
-    androidx.recyclerview.widget.ListAdapter<Content, ContentListAdapter.ContentViewHolder>
+    ListAdapter<Content, ContentListAdapter.ContentViewHolder>
     (DiffCallBack){
 
     class OnClickListener(val clickListener: (content: Content) -> Unit) {

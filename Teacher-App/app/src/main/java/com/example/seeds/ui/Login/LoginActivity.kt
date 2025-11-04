@@ -8,6 +8,7 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import com.example.seeds.MainActivity
 import com.example.seeds.R
+import android.R.layout.simple_dropdown_item_1line
 import com.example.seeds.databinding.ActivityLoginBinding
 import com.example.seeds.repository.TeacherRepository
 import com.example.seeds.ui.call.CallViewModel
@@ -59,7 +60,7 @@ class LoginActivity : AppCompatActivity() {
         // Fetch organizations safely
         fetchOrganizations { orgList ->
             organizations = orgList.toMutableList()
-            val adapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, organizations)
+            val adapter = ArrayAdapter(this, simple_dropdown_item_1line, organizations)
             runOnUiThread {
                 orgDropdown.setAdapter(adapter)
             }
@@ -216,18 +217,19 @@ class LoginActivity : AppCompatActivity() {
                     }
                     return
                 }
-                try {
-                    val secretKey = KeyManager.getOrCreateSecretKey()
 
-                    val iv = ByteArray(16) 
-                    SecureRandom().nextBytes(iv)
-                    val encryptedTokenBytes = NativeEncryptor.encrypt(token, secretKey.encoded, iv)
-                    val encryptedTokenBase64 = Base64.encodeToString(encryptedTokenBytes, Base64.DEFAULT)
-                    val ivBase64 = Base64.encodeToString(iv, Base64.DEFAULT)
+                 try {
+                    // val secretKey = KeyManager.getOrCreateSecretKey()
+
+                    // val iv = ByteArray(16) 
+                    // SecureRandom().nextBytes(iv)
+                    // val encryptedTokenBytes = NativeEncryptor.encrypt(token, secretKey.encoded, iv)
+                    // val encryptedTokenBase64 = Base64.encodeToString(encryptedTokenBytes, Base64.DEFAULT)
+                    // val ivBase64 = Base64.encodeToString(iv, Base64.DEFAULT)
                     val prefs = getSharedPreferences("sharedPref", MODE_PRIVATE).edit()
-                    prefs.putString("encrypted_auth_token", encryptedTokenBase64)
-                    prefs.putString("encryption_iv", ivBase64) 
-                    prefs.putBoolean("is_logged_in", true)
+                    prefs.putString("auth_token", token)
+                    // prefs.putString("encryption_iv", ivBase64) 
+                    // prefs.putBoolean("is_logged_in", true)
                     prefs.apply()
 
                 } catch (e: Exception) {

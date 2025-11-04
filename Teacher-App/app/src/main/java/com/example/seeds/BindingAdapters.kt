@@ -5,7 +5,12 @@ import android.util.Log
 import android.widget.ImageView
 import androidx.databinding.BindingAdapter
 import androidx.recyclerview.widget.RecyclerView
-import com.example.seeds.adapters.*
+import com.example.seeds.adapters.ContentListAdapter
+import com.example.seeds.adapters.ClassroomListAdapter
+import com.example.seeds.adapters.RemoveStudentListAdapter
+import com.example.seeds.adapters.CheckboxNameListAdapter
+import com.example.seeds.adapters.FilterContentAdapter
+import com.example.seeds.adapters.StudentCallStatusAdapter
 import com.example.seeds.model.*
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup

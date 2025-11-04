@@ -9,7 +9,8 @@ import android.telephony.PhoneNumberUtils
 import android.telephony.TelephonyManager
 import androidx.core.app.ActivityCompat
 import com.example.seeds.model.Student
-import java.util.*
+import java.util.ArrayList
+import java.util.Locale
 import kotlin.collections.HashMap
 
 class ContactUtils constructor(private val context: Context) {
