@@ -63,7 +63,9 @@ class ContactsFragment : BaseFragment() {
                 users.contains(it.phoneNumber)
             }
             logMessage("Final Students in Classroom: ${classroom.students}")
-            findNavController().navigate(ContactsFragmentDirections.actionContactsFragmentToCreateClassroomFragment(classroom))
+            findNavController()
+            .navigate(ContactsFragmentDirections
+            .actionContactsFragmentToCreateClassroomFragment(classroom))
             //viewModel.setMyStudents(users)
         }
 

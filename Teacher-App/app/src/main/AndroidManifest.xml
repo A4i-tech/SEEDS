@@ -5,6 +5,10 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.READ_PHONE_NUMBERS"/>
+    <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
+
+    
 
     <application
         android:name=".SeedsApplication"
@@ -32,7 +36,7 @@
         <!-- android:name=".ui.Login.LoginActivity" -->
         <!-- android:exported="false" /> -->
         <activity
-            android:name=".ui.Login.LoginCodeActivity"
+            android:name=".ui.Login.LoginActivity"
             android:exported="false" />
         <activity
             android:name=".MainActivity"

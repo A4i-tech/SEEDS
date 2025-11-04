@@ -2,86 +2,122 @@ package com.example.seeds.ui.contentDetails
 
 import android.net.Uri
 import android.os.Bundle
-import androidx.fragment.app.Fragment
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.navArgs
-import com.example.seeds.R
-import com.example.seeds.databinding.FragmentContactsBinding
 import com.example.seeds.databinding.FragmentContentDetailsBinding
 import com.example.seeds.ui.BaseFragment
 import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.MediaItem
-import com.google.android.exoplayer2.PlaybackException
-import com.google.android.exoplayer2.Player
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class ContentDetailsFragment : BaseFragment() {
-    private lateinit var binding: FragmentContentDetailsBinding
+    private var _binding: FragmentContentDetailsBinding? = null
+    private val binding get() = _binding!!
+
     private val args: ContentDetailsFragmentArgs by navArgs()
     private val viewModel: ContentDetailsViewModel by viewModels()
+
+    // Two ExoPlayers: one for main content, one for "answer" (if Riddle)
+    private var mainPlayer: ExoPlayer? = null
+    private var answerPlayer: ExoPlayer? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {
-        // Inflate the layout for this fragment
-        binding = FragmentContentDetailsBinding.inflate(inflater)
+    ): View {
+        _binding = FragmentContentDetailsBinding.inflate(inflater, container, false)
         binding.viewModel = viewModel
         binding.lifecycleOwner = viewLifecycleOwner
-        binding.contentAudio.player = ExoPlayer.Builder(requireContext()).build()
         binding.content = args.content
 
-        viewModel.contentUrl.observe(viewLifecycleOwner) {
+        // Initialize players
+        mainPlayer = ExoPlayer.Builder(requireContext()).build()
+        answerPlayer = ExoPlayer.Builder(requireContext()).build()
 
-            if (it != null) {
-                logMessage("ContentSASURL: $it")
-                val sasAudioUri = Uri.parse(it)
-                val mediaItem: MediaItem = MediaItem.fromUri(sasAudioUri)
-                binding.contentAudio.player?.setMediaItem(mediaItem)
-                binding.contentAudio.player?.prepare()
-            }
-        }
+        // Attach to PlayerViews
+        binding.contentAudio.player = mainPlayer
+        binding.contentAudioAnswer.player = answerPlayer
 
-//
-//        binding.contentAudio.player = ExoPlayer.Builder(requireContext()).build()
-//        var src = "https://seedscontent.blob.core.windows.net/output-original/${args.content.id}.mp3"
-//        val answerSrc = "https://seedscontent.blob.core.windows.net/output-original/${args.content.id}/answer.mp3"
-//        if (args.content.type == "Riddle") {
-//            src = "https://seedscontent.blob.core.windows.net/output-original/${args.content.id}/question.mp3";
-//            binding.contentAudioAnswer.player = ExoPlayer.Builder(requireContext()).build()
-//            val answerVideoUri = Uri.parse(answerSrc)
-//            val answerMediaItem: MediaItem = MediaItem.fromUri(answerVideoUri)
-//            binding.contentAudioAnswer.player?.setMediaItem(answerMediaItem)
-//            binding.contentAudioAnswer.player?.prepare()
-//        }
-//        val videoUri = Uri.parse(src)
-//        val mediaItem: MediaItem = MediaItem.fromUri(videoUri)
-//        binding.contentAudio.player?.setMediaItem(mediaItem)
-//        binding.contentAudio.player?.prepare()
+        observeViewModel()
+        setupUiListeners()
+
         return binding.root
     }
 
-    override fun onDestroyView() {
-        logMessage("Music player released ${args.content.id} ${args.content.title} ${binding.contentAudio.player?.contentPosition} ${binding.contentAudio.player?.contentDuration}")
-        binding.contentAudio.player?.stop()
-        binding.contentAudio.player?.release()
-//        binding.contentAudioAnswer.player?.stop()
-//        binding.contentAudioAnswer.player?.release()
-        super.onDestroyView()
+    private fun observeViewModel() {
+        // Observe main content SAS URL
+        viewModel.contentUrl.observe(viewLifecycleOwner) { url ->
+            url?.let {
+                logMessage("MainContentSASURL: $it")
+                Log.d("SAS_URL", "Playing main content from URL: $it")
+                playMedia(mainPlayer, it)
+            }
+        }
+         // Observe answer (for riddles)
+        // viewModel.answerUrl.observe(viewLifecycleOwner) { url ->
+        //     url?.let {
+        //         logMessage("AnswerSASURL: $it")
+        //         playMedia(answerPlayer, it, autoPlay = false)
+        //     }
+        // }
+
+        // Update content info
+        viewModel.currentContent.observe(viewLifecycleOwner) { content ->
+            binding.content = content
+        }
+    }
+
+    private fun setupUiListeners() {
+        binding.btnNextPage?.setOnClickListener {
+            val moved = viewModel.loadNextContent()
+            if (!moved) showToast("No more pages")
+            else showToast("Loading next...")
+        }
+    }
+
+    private fun playMedia(player: ExoPlayer?, url: String, autoPlay: Boolean = true) {
+        val mediaItem = MediaItem.fromUri(Uri.parse(url))
+        Log.d("SAS_URL", "Preparing media item: $mediaItem")
+        player?.apply {
+            try {
+                stop()
+            } catch (_: Exception) {}
+            setMediaItem(mediaItem)
+            prepare()
+            playWhenReady = autoPlay
+        }
     }
 
     override fun onStart() {
-        logMessage("onStart")
         super.onStart()
+        logMessage("onStart")
         viewModel.refreshContentUrl()
     }
 
     override fun onStop() {
         logMessage("onStop")
         super.onStop()
+        mainPlayer?.pause()
+        answerPlayer?.pause()
+    }
+
+    override fun onDestroyView() {
+        logMessage("Releasing ExoPlayers")
+
+        try { mainPlayer?.stop() } catch (_: Exception) {}
+        try { answerPlayer?.stop() } catch (_: Exception) {}
+
+        mainPlayer?.release()
+        answerPlayer?.release()
+        mainPlayer = null
+        answerPlayer = null
+
+        _binding = null
+        super.onDestroyView()
     }
 }
