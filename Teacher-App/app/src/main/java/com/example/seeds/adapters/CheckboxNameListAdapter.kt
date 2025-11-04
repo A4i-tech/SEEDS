@@ -34,11 +34,11 @@ class CheckboxNameListAdapter(private val onClickListener: OnClickListener? = nu
             userCheckbox.setOnClickListener {
                 if (!usersInGroup.contains(binding.student!!.phoneNumber)) {
                     if(usersInGroup.size == maximumSelections) {
-                        val toastMeassage = """Maximum $maximumSelections 
+                        val toastMessage = """Maximum $maximumSelections 
                                               leader${if(maximumSelections != 1)
                                                's' else ' '} allowed!"""
 
-                        Toast.makeText(binding.root.context,toastMeassage,Toast.LENGTH_SHORT).show()
+                        Toast.makeText(binding.root.context,toastMessage,Toast.LENGTH_SHORT).show()
                         userCheckbox.isChecked = false
                     } else {
                         userCheckbox.isChecked = true
