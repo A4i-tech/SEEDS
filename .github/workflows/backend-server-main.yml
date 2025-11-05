@@ -5,10 +5,12 @@ on:
     branches: [a4i/main]
     paths:
       - "backend-server/**"
+      - ".github/workflows/**"
   pull_request:
     branches: [a4i/main]
     paths:
       - "backend-server/**"
+      - ".github/workflows/**"
   workflow_call:
 
 env:

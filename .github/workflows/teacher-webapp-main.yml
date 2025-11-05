@@ -5,10 +5,12 @@ on:
     branches: [a4i/main]
     paths:
       - "teacher-webapp/**"
+      - ".github/workflows/**"
   pull_request:
     branches: [a4i/main]
     paths:
       - "teacher-webapp/**"
+      - ".github/workflows/**"
   workflow_call:
 
 env:
