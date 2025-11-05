@@ -20,9 +20,9 @@ class TeacherRepository @Inject constructor(
     }
 
     suspend fun register() {
-        withContext(Dispatchers.IO) {
-            network.registerTeacher()
-        }
+        // withContext(Dispatchers.IO) {
+        //     network.registerTeacher()
+        // }
     }
 }
 

@@ -12,6 +12,8 @@ import com.example.seeds.databinding.FragmentContentDetailsBinding
 import com.example.seeds.ui.BaseFragment
 import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.MediaItem
+import com.google.android.exoplayer2.Player.Listener
+import com.google.android.exoplayer2.PlaybackException
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -36,7 +38,15 @@ class ContentDetailsFragment : BaseFragment() {
         binding.content = args.content
 
         // Initialize players
-        mainPlayer = ExoPlayer.Builder(requireContext()).build()
+        mainPlayer = ExoPlayer.Builder(requireContext()).build().apply {
+            addListener(object : Listener {
+                override fun onPlayerError(error: PlaybackException) {
+                    Log.e("EXO_PLAYER_ERROR", "Player error: ", error)
+                    showToast("Error playing media. Check network connection.")
+                }
+            })
+        }
+
         answerPlayer = ExoPlayer.Builder(requireContext()).build()
 
         // Attach to PlayerViews
@@ -93,31 +103,38 @@ class ContentDetailsFragment : BaseFragment() {
         }
     }
 
-    override fun onStart() {
-        super.onStart()
-        logMessage("onStart")
+    override fun onResume() {
+        super.onResume()
+        logMessage("onResume")
+        // Re-initialize and start playback if needed
+        if (mainPlayer == null) {
+            mainPlayer = ExoPlayer.Builder(requireContext()).build()
+            binding.contentAudio.player = mainPlayer
+        }
+        
+        // This will fetch the URL and start playing
         viewModel.refreshContentUrl()
     }
 
-    override fun onStop() {
-        logMessage("onStop")
-        super.onStop()
+    override fun onPause() {
+        super.onPause()
+        logMessage("onPause")
+        // Pause the players but don't release them yet
         mainPlayer?.pause()
         answerPlayer?.pause()
     }
 
-    override fun onDestroyView() {
+    override fun onStop() {
+        super.onStop()
         logMessage("Releasing ExoPlayers")
-
-        try { mainPlayer?.stop() } catch (_: Exception) {}
-        try { answerPlayer?.stop() } catch (_: Exception) {}
-
         mainPlayer?.release()
         answerPlayer?.release()
         mainPlayer = null
         answerPlayer = null
+    }
 
-        _binding = null
+    override fun onDestroyView() {
         super.onDestroyView()
+        _binding = null
     }
 }
