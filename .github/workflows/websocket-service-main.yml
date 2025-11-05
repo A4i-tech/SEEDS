@@ -103,7 +103,7 @@ jobs:
 
   deploy-to-azure:
     needs: deploy-to-docker
-    if: github.event_name == 'push' && github.ref == 'refs/heads/a4i/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/a4i/staging'
     runs-on: ubuntu-latest
     steps:
       - name: 'Deploy to Azure Web App'
