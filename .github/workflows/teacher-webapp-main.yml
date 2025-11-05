@@ -2,12 +2,12 @@ name: Teacher Web App Main
 
 on:
   push:
-    branches: [a4i/main]
+    branches: [a4i/main, a4i/staging]
     paths:
       - "teacher-webapp/**"
       - ".github/workflows/**"
   pull_request:
-    branches: [a4i/main]
+    branches: [a4i/main, a4i/staging]
     paths:
       - "teacher-webapp/**"
       - ".github/workflows/**"
