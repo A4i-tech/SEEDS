@@ -1,15 +1,15 @@
 package com.example.seeds.ui.call
 
 import android.app.AlertDialog
-import android.util.Log
-import android.content.Intent
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
+import android.util.Log
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -27,10 +27,6 @@ import com.example.seeds.databinding.AssignLeaderBinding
 import com.example.seeds.databinding.FragmentCallSettingsBinding
 import com.example.seeds.model.Content
 import com.example.seeds.ui.BaseFragment
-import com.google.android.gms.auth.api.credentials.Credential
-import com.google.android.gms.auth.api.credentials.Credentials
-import com.google.android.gms.auth.api.credentials.CredentialsClient
-import com.google.android.gms.auth.api.credentials.HintRequest
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 
@@ -141,34 +137,11 @@ class CallSettingsFragment : BaseFragment() {
             }
         })
 
-        // Phone hint launcher
-	phoneHintLauncher =
-    	registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
-        	if (result.resultCode == AppCompatActivity.RESULT_OK) {
-            	val credential =
-                	result.data?.getParcelableExtra<Credential>(Credential.EXTRA_KEY)
-            	teacherPhoneNumber = credential?.id?.let {
-                	// Remove all non-digit characters, keep only 10 digits
-                	val digitsOnly = it.replace(Regex("[^0-9]"), "")
-                	digitsOnly.takeLast(10)  // Get last 10 digits
-            	}
-                requireActivity().getSharedPreferences("sharedPref", AppCompatActivity.MODE_PRIVATE)
-                .edit()
-                .putString("phone", teacherPhoneNumber)
-                .apply()
-            	Log.d("PAYLOAD_DEBUG","Teacher phone number normalized: $teacherPhoneNumber")
-                
-           	startCallAfterPhoneHint()
-        	} else {
-            	logMessage("Phone number hint not selected")
-            	startCallAfterPhoneHint()
-        	}
-    	}
-
-        // Start Call
+        // Start call
         binding.startCallBtn.setOnClickListener {
             val phoneNumbersForCall =
                 (binding.myStudentsList.adapter as CheckboxNameListAdapter).usersInGroup
+
             if (phoneNumbersForCall.isEmpty()) {
                 AlertDialog.Builder(requireContext())
                     .setMessage("Please select at least one student")
@@ -176,26 +149,24 @@ class CallSettingsFragment : BaseFragment() {
                     .setPositiveButton("OK", null)
                     .show()
                 logMessage("Call Settings - no students selected for call")
-            } else {
-                val credentialsClient: CredentialsClient = Credentials.getClient(requireActivity())
-
-                val hintRequest = HintRequest.Builder()
-                    .setPhoneNumberIdentifierSupported(true)
-                    .build()
-
-                try {
-                    val intent = credentialsClient.getHintPickerIntent(hintRequest)
-                    val intentSenderRequest = IntentSenderRequest.Builder(intent).build()
-                    phoneHintLauncher.launch(intentSenderRequest)
-                } catch (e: Exception) {
-                    logMessage("Failed to get phone number hint: ${e.message}")
-                    teacherPhoneNumber = requireActivity()
-                        .getSharedPreferences("sharedPref", AppCompatActivity.MODE_PRIVATE)
-                        .getString("phone", null)
-                        ?.let { if (it.startsWith("+")) it else "+91$it" }
-                    startCallAfterPhoneHint()
-                }
+                return@setOnClickListener
             }
+
+            val prefs = requireActivity().getSharedPreferences("sharedPref", AppCompatActivity.MODE_PRIVATE)
+            val teacherPhoneNumber = prefs.getString("teacher_phone", null)
+
+            Log.d("CallSettingsDebug", "Read 'teacher_phone' from prefs. Value: [$teacherPhoneNumber]")
+
+            if (teacherPhoneNumber.isNullOrEmpty()) {
+                Toast.makeText(requireContext(), "Your phone number is not configured.", Toast.LENGTH_LONG).show()
+                logMessage("Call failed: Teacher phone number not found in SharedPreferences. Value was null or empty.")
+                return@setOnClickListener
+            }
+
+            logMessage("Call Settings - students selected for call: $phoneNumbersForCall")
+            logMessage("Teacher phone number retrieved and normalized: $teacherPhoneNumber")
+
+            startCallAfterPhoneHint()
         }
 
         return binding.root
@@ -204,7 +175,7 @@ class CallSettingsFragment : BaseFragment() {
     private fun startCallAfterPhoneHint() {
         val phoneNumbersForCall =
             (binding.myStudentsList.adapter as CheckboxNameListAdapter).usersInGroup
-        
+
         leaderForCall = getLeader()
         if (leaderForCall.isNullOrEmpty()) {
             showAssignLeaderDialog()
@@ -253,7 +224,7 @@ class CallSettingsFragment : BaseFragment() {
             alertDialog.dismiss()
             findNavController().navigate(
                 CallSettingsFragmentDirections.actionCallSettingsFragmentToCallNav(
-                    phoneNumbersForCall.toTypedArray(), 
+                    phoneNumbersForCall.toTypedArray(),
                     viewModel.classroom.value!!
                 ).setLeader(leaderForCall)
             )
@@ -263,7 +234,7 @@ class CallSettingsFragment : BaseFragment() {
             alertDialog.dismiss()
             findNavController().navigate(
                 CallSettingsFragmentDirections.actionCallSettingsFragmentToCallNav(
-                    phoneNumbersForCall.toTypedArray(), 
+                    phoneNumbersForCall.toTypedArray(),
                     viewModel.classroom.value!!
                 ).setLeader(leaderForCall)
             )

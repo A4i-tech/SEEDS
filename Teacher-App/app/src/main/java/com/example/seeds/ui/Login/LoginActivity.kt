@@ -28,11 +28,22 @@ import com.example.seeds.utils.NativeEncryptor
 import com.example.seeds.utils.KeyManager
 import android.util.Base64
 import java.security.SecureRandom
-
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import com.google.android.gms.auth.api.credentials.Credential
+import com.google.android.gms.auth.api.credentials.Credentials
+import com.google.android.gms.auth.api.credentials.HintRequest
+import android.util.Log
 
 class LoginActivity : AppCompatActivity() {
 
+    companion object {
+        private const val PHONE_NUMBER_LENGTH = 10
+    }
+
     private lateinit var binding: ActivityLoginBinding
+    private lateinit var phoneHintLauncher: ActivityResultLauncher<IntentSenderRequest>
     private var organizations = mutableListOf<String>()
 
     @Inject
@@ -49,11 +60,39 @@ class LoginActivity : AppCompatActivity() {
         binding = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        val emailField = binding.editTextEmail
+        val phoneNumberField = binding.editTextPhoneNumber
         val passwordField = binding.editTextPassword
         val orgDropdown = binding.organizationDropdown
-        val loginBtn = binding.emailLoginBtn
-        val registerBtn = binding.emailRegisterBtn
+        val loginBtn = binding.phoneNumberLoginBtn
+        val registerBtn = binding.phoneNumberRegisterBtn
+
+        // Hint launcher initialization
+        phoneHintLauncher =
+            registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+                if (result.resultCode == RESULT_OK) {
+                    val credential = result.data?.getParcelableExtra<Credential>(Credential.EXTRA_KEY)
+                    val phoneNumber = credential?.id?.let {
+                        // Normalize the phone number to get the last 10 digits
+                        val digitsOnly = it.replace(Regex("[^0-9]"), "")
+                        digitsOnly.takeLast(PHONE_NUMBER_LENGTH)
+                    }
+                    // Set the retrieved and cleaned phone number in the EditText
+                    phoneNumberField.setText(phoneNumber)
+                } else {
+                    Log.d("LoginActivity", "Phone number hint was not selected.")
+                }
+            }
+
+        // BLOCK for listeners
+        phoneNumberField.setOnClickListener {
+            requestPhoneNumberHint()
+        }
+
+        phoneNumberField.setOnFocusChangeListener { _, hasFocus ->
+            if (hasFocus) {
+                requestPhoneNumberHint()
+            }
+        }
 
         // Fetch organizations safely
         fetchOrganizations { orgList ->
@@ -66,32 +105,48 @@ class LoginActivity : AppCompatActivity() {
 
         // Login click
         loginBtn.setOnClickListener {
-            val email = emailField.text.toString().trim()
+            val phoneNumber = phoneNumberField.text.toString().trim()
             val password = passwordField.text.toString().trim()
             var organization = orgDropdown.text.toString().trim()
             if (organization.isEmpty()) organization = "none"
 
-            if (email.isEmpty() || password.isEmpty()) {
+            if (phoneNumber.isEmpty() || password.isEmpty()) {
                 Toast.makeText(this, "Please fill all fields", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
-            loginWithPhoneNumber(email, password, organization)
+            loginWithPhoneNumber(phoneNumber, password, organization)
         }
 
         // Register click
         registerBtn.setOnClickListener {
-            val email = emailField.text.toString().trim()
+            val phoneNumber = phoneNumberField.text.toString().trim()
             val password = passwordField.text.toString().trim()
             var organization = orgDropdown.text.toString().trim()
             if (organization.isEmpty()) organization = "none"
 
-            if (email.isEmpty() || password.isEmpty()) {
+            if (phoneNumber.isEmpty() || password.isEmpty()) {
                 Toast.makeText(this, "Please fill all fields", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
-            registerTenant(email, password, organization)
+            registerTenant(phoneNumber, password, organization)
+        }
+    }
+
+    private fun requestPhoneNumberHint() {
+        val hintRequest = HintRequest.Builder()
+            .setPhoneNumberIdentifierSupported(true)
+            .build()
+        
+        val credentialsClient = Credentials.getClient(this)
+        val intent = credentialsClient.getHintPickerIntent(hintRequest)
+
+        try {
+            val intentSenderRequest = IntentSenderRequest.Builder(intent.intentSender).build()
+            phoneHintLauncher.launch(intentSenderRequest)
+        } catch (e: Exception) {
+            Log.e("LoginActivity", "Could not start hint picker", e)
         }
     }
 
@@ -135,10 +190,10 @@ class LoginActivity : AppCompatActivity() {
         })
     }
 
-    private fun registerTenant(email: String, password: String, organization: String) {
+    private fun registerTenant(phoneNumber: String, password: String, organization: String) {
         val client = OkHttpClient()
         val json = JSONObject().apply {
-            put("phoneNumber", email)
+            put("phoneNumber",phoneNumber )
             put("password", password)
             put("tenantName", organization)
         }
@@ -172,10 +227,10 @@ class LoginActivity : AppCompatActivity() {
         })
     }
 
-    private fun loginWithPhoneNumber(email: String, password: String, organization: String) {
+    private fun loginWithPhoneNumber(phoneNumber: String, password: String, organization: String) {
         val client = OkHttpClient()
         val json = JSONObject().apply {
-            put("phoneNumber", email)
+            put("phoneNumber", phoneNumber)
             put("password", password)
             put("tenantName", organization)
         }
@@ -226,8 +281,9 @@ class LoginActivity : AppCompatActivity() {
                     // val ivBase64 = Base64.encodeToString(iv, Base64.DEFAULT)
                     val prefs = getSharedPreferences("sharedPref", MODE_PRIVATE).edit()
                     prefs.putString("auth_token", token)
+                    prefs.putString("teacher_phone",phoneNumber)
                     // prefs.putString("encryption_iv", ivBase64) 
-                    // prefs.putBoolean("is_logged_in", true)
+                    prefs.putBoolean("is_logged_in", true)
                     prefs.apply()
 
                 } catch (e: Exception) {
