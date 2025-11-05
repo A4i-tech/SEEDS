@@ -13,8 +13,6 @@ import com.example.seeds.databinding.ActivityLoginBinding
 import com.example.seeds.repository.TeacherRepository
 import com.example.seeds.ui.call.CallViewModel
 import com.example.seeds.utils.Constants
-import kotlinx.coroutines.*
-import okhttp3.*
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
@@ -38,11 +36,6 @@ import com.google.android.gms.auth.api.credentials.Credentials
 import com.google.android.gms.auth.api.credentials.HintRequest
 import android.util.Log
 
-const val LOGIN_URL = Constants.BASE_URL + "/tenant/login"
-const val REGISTER_URL = Constants.BASE_URL + "/tenant/register"
-const val ORGANIZATIONS_URL = Constants.BASE_URL + "/tenant/list"
-const val TEACHER_INFO_URL = Constants.BASE_URL + "/teacher/register"
-
 class LoginActivity : AppCompatActivity() {
 
     companion object {
@@ -57,6 +50,10 @@ class LoginActivity : AppCompatActivity() {
     lateinit var teacherRepository: TeacherRepository
 
     private val viewModel: CallViewModel by viewModels()
+
+    private val LOGIN_URL = Constants.BASE_URL + "/tenant/teacher/login"
+    private val REGISTER_URL = Constants.BASE_URL + "/tenant/teacher/register"
+    private val ORGANIZATIONS_URL = Constants.BASE_URL + "/tenant/list"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -100,7 +97,7 @@ class LoginActivity : AppCompatActivity() {
         // Fetch organizations safely
         fetchOrganizations { orgList ->
             organizations = orgList.toMutableList()
-            val adapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, organizations)
+            val adapter = ArrayAdapter(this, simple_dropdown_item_1line, organizations)
             runOnUiThread {
                 orgDropdown.setAdapter(adapter)
             }
@@ -286,7 +283,7 @@ class LoginActivity : AppCompatActivity() {
                     prefs.putString("auth_token", token)
                     prefs.putString("teacher_phone",phoneNumber)
                     // prefs.putString("encryption_iv", ivBase64) 
-                    // prefs.putBoolean("is_logged_in", true)
+                    prefs.putBoolean("is_logged_in", true)
                     prefs.apply()
 
                 } catch (e: Exception) {
