@@ -204,7 +204,7 @@ class LoginActivity : AppCompatActivity() {
         )
 
         val registerRequest = Request.Builder()
-            .url(Constants.BASE_URL + "/tenant/teacher/register")
+            .url(REGISTER_URL)
             .post(body)
             .build()
 
@@ -241,7 +241,7 @@ class LoginActivity : AppCompatActivity() {
         )
 
         val loginRequest = Request.Builder()
-            .url(Constants.BASE_URL + "/tenant/teacher/login") 
+            .url(LOGIN_URL) 
             .post(body)
             .build()
 

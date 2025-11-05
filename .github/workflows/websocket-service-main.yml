@@ -2,13 +2,15 @@ name: WebSocket Service Main
 
 on:
   push:
-    branches: [a4i/main]
+    branches: [a4i/main, a4i/staging]
     paths:
       - "websocket-service/**"
+      - ".github/workflows/**"
   pull_request:
-    branches: [a4i/main]
+    branches: [a4i/main, a4i/staging]
     paths:
       - "websocket-service/**"
+      - ".github/workflows/**"
   workflow_call:
 env:
   REGISTRY: ghcr.io
@@ -67,7 +69,7 @@ jobs:
 
   deploy-to-docker:
     needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/a4i/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/a4i/staging'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -99,39 +101,17 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-  deploy-to-render:
-    needs: deploy-to-docker
-    if: github.event_name == 'push' && github.ref == 'refs/heads/a4i/main'  && (vars.DEPLOYMENT_TARGET == 'render' || vars.DEPLOYMENT_TARGET == 'both' || vars.DEPLOYMENT_TARGET == '' || vars.DEPLOYMENT_TARGET == null)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deploy to Render
-        run: |
-          echo "Triggering deployment for websocket-service..."
-          http_code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.WEBSOCKET_RENDER_DEPLOY_HOOK_URL }}")
-          echo "HTTP Status Code: $http_code"
-          if [[ $http_code == "200" || $http_code == "202" ]]; then
-            echo "Deployment triggered successfully"
-          else
-            echo "Failed to trigger deployment (HTTP $http_code)"
-            exit 1
-          fi
-
   deploy-to-azure:
     needs: deploy-to-docker
-    if: github.event_name == 'push' && github.ref == 'refs/heads/a4i/main'  && (vars.DEPLOYMENT_TARGET == 'azure' || vars.DEPLOYMENT_TARGET == 'both')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/a4i/staging'
     runs-on: ubuntu-latest
     steps:
-      - name: Azure Login
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Deploy to Azure Web App
+      - name: 'Deploy to Azure Web App'
         uses: azure/webapps-deploy@v2
         with:
-          app-name: ${{ vars.WEBSOCKET_SERVICE_AZURE_WEBAPP_NAME}}
-          resource-group-name: ${{ vars.WEBSOCKET_SERVICE_AZURE_RESOURCE_GROUP }}
-          images: ghcr.io/${{ github.repository }}/websocket-service:latest
+          app-name: 'web-socket-service'
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          images: ghcr.io/a4i-tech/seeds/websocket-service:latest
 
       - name: Azure deployment confirmation
         run: |

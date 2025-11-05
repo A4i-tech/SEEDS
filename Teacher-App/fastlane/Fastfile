@@ -1,0 +1,31 @@
+default_platform(:android)
+
+platform :android do
+  desc "Build and deploy a staging version to Firebase App Distribution"
+  lane :deploy_staging do
+    Dotenv.load('fastlane/.env')
+
+    gradle(
+      task: 'assembleDebug',
+      properties: {
+        "BASE_URL" => "\"#{ENV['BASE_URL']}\"",
+        "CONTENT_URL" => "\"#{ENV['CONTENT_URL']}\""
+      }
+    )
+
+    firebase_app_distribution(
+      app: ENV['FIREBASE_APP_ID'],
+
+      apk_path: "app/build/outputs/apk/debug/app-debug.apk",
+
+      testers: ENV['FIREBASE_TESTER_GROUPS'],
+
+      firebase_cli_token: ENV['FIREBASE_CLI_TOKEN'],
+
+      release_notes: "New staging build uploaded by fastlane."
+    )
+
+    # Let the console know that the process is complete.
+    UI.success("Successfully built and deployed to Firebase App Distribution!")
+  end
+end
