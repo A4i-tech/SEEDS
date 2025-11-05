@@ -408,4 +408,4 @@ build/
 coverage/
 htmlcov*/
 
-Teacher-App/fastlane/.env
+**/.env
