@@ -47,8 +47,6 @@ router.get("/names",
  *                 type: string
  *               password:
  *                 type: string
- *               name:
- *                 type: string
  *             required:
  *               - email
  *               - password
@@ -128,7 +126,7 @@ router.post('/logout',
  *               password:
  *                 type: string
  *                 description: Tenant's password
- *               name:
+ *               tenantName:
  *                 type: string
  *                 description: Tenant's name
  *             required:

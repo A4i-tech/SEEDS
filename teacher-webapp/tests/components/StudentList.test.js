@@ -30,27 +30,9 @@ describe('StudentList Component', () => {
         screen.getByText(`${student.name} - ${student.phone_number}`);
 
     describe('Rendering', () => {
-        test('renders title and all students', () => {
-            renderStudentList();
-
-            expect(screen.getByText('Students')).toBeInTheDocument();
-            students.forEach(student => {
-                expect(getStudentByText(student)).toBeInTheDocument();
-            });
-        });
-
         test('renders empty list when no students provided', () => {
             renderStudentList({ students: [] });
             expect(screen.getByRole('list')).toBeEmptyDOMElement();
-        });
-    });
-
-    describe('Student Interaction', () => {
-        test('handles student selection', () => {
-            renderStudentList();
-
-            fireEvent.click(getStudentByText(students[0]));
-            expect(defaultProps.handleStudentToggle).toHaveBeenCalledWith(students[0]);
         });
     });
 

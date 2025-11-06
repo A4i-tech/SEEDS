@@ -108,7 +108,7 @@ const Register = () => {
         />
         <button
           className="btn"
-          style={{backgroundColor: "#28574F", color: "white", width: '100%'}}
+          style={{backgroundColor: "#28574F", color: "white", padding: '10px 20px', fontSize: '16px'}}
           onClick={handleRegister}
         >
           Register

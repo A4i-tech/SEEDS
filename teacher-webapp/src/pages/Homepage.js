@@ -24,7 +24,6 @@ function Homepage() {
     ? (recvdPhoneNumber.phoneNumber || '')
     : (recvdPhoneNumber || '');
   const {
-    selectedTeacher,
     selectedStudents,
     setConfId,
     loading,
