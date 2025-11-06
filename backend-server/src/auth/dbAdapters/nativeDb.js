@@ -1,29 +1,27 @@
-const mongo = require('../../config/mongo')
-
+const Tenant = require('../../models/Tenant')
+const Teacher = require('../../models/Teacher')
 module.exports = {
-  async getTenantByName(tenantName) {
-    const db = await mongo();
-    const tenantsCollection = db.collection('tenants');
-    return tenantsCollection.findOne({tenantName});
+  async getAllTenants() {
+    const docs = await Tenant.find({}).lean().exec();
+    return docs.map(d => ({id: d._id, tenantName: d.tenantName}));
+  },
+  async getTenantById(tenantId) {
+    return Tenant.findById(tenantId);
   },
   async getTenantByEmail(email) {
-    const db = await mongo();
-    return db.collection('tenants').findOne({email});
+    return Tenant.findOne({ email: email });
   },
-  async insertTenant({email, passwordHash, tenantName}) {
-    const db = await mongo();
-    return db.collection('tenants').insertOne({email, passwordHash, tenantName});
+  async insertTenant({email, password, tenantId}) {
+    return Tenant.create({email, password, tenantId});
   },
-  async getTeacherByTenantNameAndPhoneNumber(tenantName, phoneNumber) {
-    const db = await mongo();
-    const tenant = await this.getTenantByName(tenantName);
+  async getTeacherByTenantIdAndPhoneNumber(tenantId, phoneNumber) {
+    const tenant = await this.getTenantById(tenantId);
     if (!tenant) {
       return null;
     }
-    return db.collection('teachers').findOne({tenantName, phoneNumber});
+    return Teacher.findOne({tenantId, phoneNumber});
   },
-  async insertTeacher({phoneNumber, password, tenantName}) {
-    const db = await mongo();
-    return db.collection('teachers').insertOne({phoneNumber, password, tenantName});
+  async insertTeacher({phoneNumber, password, tenantId}) {
+    return Teacher.create({phoneNumber, password, tenantId});
   }
 }

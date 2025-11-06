@@ -59,12 +59,16 @@ module.exports = {
       if (existingTenant) {
         return res.status(STATUS.CONFLICT).json({message: 'Email already exists'});
       }
-      const passwordHash = await bcrypt.hash(password, parseInt(passwordSaltRounds));
-      await dbAdapter.insertTenant({ email, passwordHash, tenantName });
+      const hashedPassword = await bcrypt.hash(password, parseInt(passwordSaltRounds));
+      await dbAdapter.insertTenant({ email, password: hashedPassword, tenantName });
       return res.status(STATUS.CREATED).json({message: 'Tenant registered successfully'});
     } catch (error) {
       console.error('Registration error:', error);
       return res.status(STATUS.INTERNAL_ERROR).json({message: 'Internal server error'});
     }
+  },
+  async getAllTenants(req, res) {
+    const tenants = await dbAdapter.getAllTenants();
+    return res.status(STATUS.OK).json(tenants);
   }
 };

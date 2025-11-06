@@ -3,9 +3,11 @@ import {APP_CONFIG} from "../config/appConfig";
 const BASE_URL = APP_CONFIG.BASE_URL;
 const CONF_BASE = `${APP_CONFIG.CONF_SERVER_BASE_URI}/conference`;
 export const API_ENDPOINTS = {
-  LOGIN: `${BASE_URL}/tenant/teacher/login`,
-  REGISTER: `${BASE_URL}/tenant/teacher/register`,
-  TEACHER_STUDENTS: `${BASE_URL}/teacher/students`,
+  LOGIN: `${BASE_URL}/teacher/login`,
+  REGISTER: `${BASE_URL}/teacher/register`,
+  GET_TEACHER_STUDENTS: `${BASE_URL}/teacher/get-students`,
+  ADD_TEACHER_STUDENTS: `${BASE_URL}/teacher/add-students`,
+  GET_SCHOOLS: `${BASE_URL}/tenant/names`,
   CONFERENCE: {
     CREATE: `${CONF_BASE}/create`,
     START: (confId) => `${CONF_BASE}/start/${confId}`,

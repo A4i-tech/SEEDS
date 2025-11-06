@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useEffect} from 'react';
 import {useState} from 'react';
 import axios from 'axios';
 import {API_ENDPOINTS} from "../constants/apiEndpoints";
@@ -11,6 +11,28 @@ function Login() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
   const [schoolName, setSchoolName] = useState("");
+  const [loadingSchools, setLoadingSchools] = useState(false);
+  const [schools, setSchools] = useState([]);
+
+  useEffect(() => {
+    const fetchSchools = async () => {
+      setLoadingSchools(true);
+      try {
+        const response = await axios.get(`${API_ENDPOINTS.GET_SCHOOLS}`);
+        if (response.status === STATUS_CODES.SUCCESS) {
+          setSchools(response.data);
+        } else {
+          console.error("Failed to fetch schools");
+        }
+      } catch (error) {
+        console.error("Error fetching schools:", error);
+      } finally {
+        setLoadingSchools(false);
+      }
+    };
+
+    fetchSchools();
+  }, []);
 
   const handleLogin = async () => {
     if (!phoneNumber || !password || !schoolName) {
@@ -19,7 +41,7 @@ function Login() {
     }
 
     try {
-      const response = await axios.post(`${API_ENDPOINTS.LOGIN}`, {phoneNumber, password, tenantName: schoolName});
+      const response = await axios.post(`${API_ENDPOINTS.LOGIN}`, {phoneNumber, password, tenantId: schoolName});
       console.log(response);
       if (response.status === STATUS_CODES.SUCCESS) {
         localStorage.setItem('authToken', response.data.token);
@@ -28,7 +50,7 @@ function Login() {
         setShowError(true);
       }
     } catch (error) {
-      console.error("Login error:", error);
+      console.error("Username or password or tenant name incorrect", error);
       setShowError(true);
     }
   };
@@ -80,13 +102,18 @@ function Login() {
           onChange={(e) => setPassword(e.target.value)}
           style={inputStyle}
         />
-        <input
-          type="text"
-          placeholder="School Name"
+        <select
           value={schoolName}
           onChange={(e) => setSchoolName(e.target.value)}
           style={inputStyle}
-        />
+        >
+          <option value="">{loadingSchools?"Loading Schools...":"Select School"}</option>
+          {schools.map((sch, idx) => {
+            const value = sch.id;
+            const label = sch.tenantName;
+            return(<option key={idx} value={value}>{label}</option>);
+          })}
+        </select>
         <button className="btn" onClick={handleLogin} style={{padding: '10px 20px', fontSize: '16px'}}>Login
         </button>
         <span style={{color: "#28574F", cursor: "pointer", textDecoration: "underline"}}

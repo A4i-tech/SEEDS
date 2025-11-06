@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useEffect, useState} from 'react';
 import {useNavigate} from 'react-router-dom';
 import axios from 'axios';
 import {API_ENDPOINTS} from "../constants/apiEndpoints";
@@ -10,6 +10,28 @@ const Register = () => {
   const [schoolName, setSchoolName] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
+  const [loadingSchools, setLoadingSchools] = useState(false);
+  const [school, setSchool] = useState([]);
+
+  useEffect(() => {
+    const fetchSchools = async () => {
+      setLoadingSchools(true);
+      try {
+        const response = await axios.get(`${API_ENDPOINTS.GET_SCHOOLS}`);
+        if (response.status === STATUS_CODES.SUCCESS) {
+          setSchool(response.data);
+        } else {
+          console.error("Failed to fetch schools");
+        }
+      } catch (error) {
+        console.error("Error fetching schools:", error);
+      } finally {
+        setLoadingSchools(false);
+      }
+    };
+
+    fetchSchools();
+  }, []);
 
   const handleRegister = async () => {
 
@@ -19,7 +41,7 @@ const Register = () => {
     }
 
     try {
-      const response = await axios.post(`${API_ENDPOINTS.REGISTER}`, {phoneNumber, password, tenantName: schoolName});
+      const response = await axios.post(`${API_ENDPOINTS.REGISTER}`, {phoneNumber, password, tenantId: schoolName});
       if (response.status === STATUS_CODES.CREATED) {
         console.log("Successfully registered!");
         navigate('/'); // Navigate to the login page after successful registration
@@ -65,13 +87,18 @@ const Register = () => {
           onChange={(e) => setPhoneNumber(e.target.value)}
           style={inputStyle}
         />
-        <input
-          type="text"
-          placeholder="School Name"
+        <select
           value={schoolName}
           onChange={(e) => setSchoolName(e.target.value)}
           style={inputStyle}
-        />
+        >
+          <option value="">{loadingSchools?"Loading Schools":"Select School"}</option>
+          {school.map((sch, idx) => {
+            const value = sch.id;
+            const label = sch.tenantName;
+            return(<option key={idx} value={value}>{label}</option>);
+          })}
+        </select>
         <input
           type="password"
           placeholder="Password"

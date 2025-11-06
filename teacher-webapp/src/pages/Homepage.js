@@ -12,7 +12,7 @@ import axios from 'axios';
 
 function Homepage() {
   // State for new student form
-  const [newStudent, setNewStudent] = React.useState({ name: '', phone_number: '' });
+  const [newStudent, setNewStudent] = React.useState({ name: '', phoneNumber: '' });
   // State for students to add
   const [addedStudents, setAddedStudents] = React.useState([]);
   // State for save status
@@ -21,7 +21,7 @@ function Homepage() {
   const recvdPhoneNumber = location.state;
   // derive a displayable phone number: support either an object {phoneNumber: '...'} or a raw string
   const displayedPhone = recvdPhoneNumber && (typeof recvdPhoneNumber === 'object')
-    ? (recvdPhoneNumber.phoneNumber || recvdPhoneNumber.phone_number || '')
+    ? (recvdPhoneNumber.phoneNumber || '')
     : (recvdPhoneNumber || '');
   const {
     selectedTeacher,
@@ -42,7 +42,7 @@ function Homepage() {
     const token = localStorage.getItem('authToken');
     (async () => {
       try {
-        const res = await axios.post(API_ENDPOINTS.TEACHER_STUDENTS,
+        const res = await axios.post(API_ENDPOINTS.GET_TEACHER_STUDENTS,
           { phoneNumber: displayedPhone },
           {
             headers: {
@@ -71,9 +71,9 @@ function Homepage() {
   // Handler to add student to array
   const handleAddStudent = (e) => {
     e.preventDefault();
-    if (!newStudent.name.trim() || !newStudent.phone_number.trim()) return;
+    if (!newStudent.name.trim() || !newStudent.phoneNumber.trim()) return;
     setAddedStudents((prev) => [...prev, newStudent]);
-    setNewStudent({ name: '', phone_number: '' });
+    setNewStudent({ name: '', phoneNumber: '' });
   };
 
   // Handler to send students to backend (fetch, append, then post)
@@ -84,7 +84,7 @@ function Homepage() {
       const token = localStorage.getItem('authToken');
       // 1. Fetch current students
       const fetchRes = await axios.post(
-        API_ENDPOINTS.TEACHER_STUDENTS,
+        API_ENDPOINTS.GET_TEACHER_STUDENTS,
         { phoneNumber: displayedPhone },
         {
           headers: {
@@ -94,16 +94,16 @@ function Homepage() {
         }
       );
       const currentStudents = Array.isArray(fetchRes.data) ? fetchRes.data : [];
-      // 2. Append new students (avoid duplicates by phone_number)
+      // 2. Append new students (avoid duplicates by phoneNumber)
       const allStudents = [
-        ...currentStudents,
         ...addedStudents.filter(
-          ns => !currentStudents.some(cs => cs.phone_number === ns.phone_number)
+          ns => !currentStudents.some(cs => cs.phoneNumber === ns.phoneNumber)
         )
       ];
       // 3. Post combined list
+      console.log('Posting students:', allStudents);
       await axios.post(
-        API_ENDPOINTS.TEACHER_STUDENTS,
+        API_ENDPOINTS.ADD_TEACHER_STUDENTS,
         {
           phoneNumber: displayedPhone,
           students: allStudents,
@@ -129,7 +129,7 @@ function Homepage() {
     try {
       const data = await createConference(
         recvdPhoneNumber,
-        selectedStudents.map((item) => item.phone_number)
+        selectedStudents.map((item) => item.phoneNumber)
       );
       const conferenceId = data.id;
       setConfId(conferenceId);
@@ -174,9 +174,9 @@ function Homepage() {
         />
         <input
           type="text"
-          name="phone_number"
+          name="phoneNumber"
           placeholder="Phone Number"
-          value={newStudent.phone_number}
+          value={newStudent.phoneNumber}
           onChange={handleInputChange}
           required
           style={{ marginRight: 8 }}
@@ -189,7 +189,7 @@ function Homepage() {
           <strong>Students to Add:</strong>
           <ul>
             {addedStudents.map((s, idx) => (
-              <li key={idx}>{s.name} - {s.phone_number}</li>
+              <li key={idx}>{s.name} - {s.phoneNumber}</li>
             ))}
           </ul>
         </div>

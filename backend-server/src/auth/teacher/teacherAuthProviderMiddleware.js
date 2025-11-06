@@ -19,12 +19,12 @@ function generateToken(payload){
 
 module.exports = {
   async login(req, res) {
-    const {phoneNumber, password, tenantName} = req.body;
-    if (!phoneNumber || !password || !tenantName) {
-      return res.status(STATUS.BAD_REQUEST).json({message: 'Phone number, password, and tenantName are required'});
+    const {phoneNumber, password, tenantId} = req.body;
+    if (!phoneNumber || !password || !tenantId) {
+      return res.status(STATUS.BAD_REQUEST).json({message: 'Phone number, password, and tenantId are required'});
     }
     try {
-      const teacher = await dbAdapter.getTeacherByTenantNameAndPhoneNumber(tenantName, phoneNumber);
+      const teacher = await dbAdapter.getTeacherByTenantIdAndPhoneNumber(tenantId, phoneNumber);
       if (!teacher) {
         return res.status(STATUS.UNAUTHORIZED).json({message: 'Invalid credentials'});
       }
@@ -42,8 +42,8 @@ module.exports = {
     }
   },
   async register(req, res) {
-    const {phoneNumber, password, tenantName} = req.body;
-    if (!phoneNumber || !password || !tenantName) {
+    const {phoneNumber, password, tenantId} = req.body;
+    if (!phoneNumber || !password || !tenantId) {
       return res.status(STATUS.BAD_REQUEST).json({message: 'Phone number, password, and tenantName are required'});
     }
     if(!validator.isMobilePhone(phoneNumber)){
@@ -53,16 +53,16 @@ module.exports = {
       return res.status(STATUS.BAD_REQUEST).json({message: 'Password must be at least 8 characters, and include uppercase, lowercase, number, and special character'});
     }
     try {
-      const existingTenant = await dbAdapter.getTenantByName(tenantName);
+      const existingTenant = await dbAdapter.getTenantById(tenantId);
       if (!existingTenant) {
         return res.status(STATUS.BAD_REQUEST).json({message: 'Tenant does not exist'});
       }
-      const existingTeacher = await dbAdapter.getTeacherByTenantNameAndPhoneNumber(tenantName, phoneNumber);
+      const existingTeacher = await dbAdapter.getTeacherByTenantIdAndPhoneNumber(tenantId, phoneNumber);
       if (existingTeacher) {
         return res.status(STATUS.CONFLICT).json({message: 'Phone number already in use'});
       }
       const hashedPassword = await bcrypt.hash(password, parseInt(passwordSaltRounds));
-      await dbAdapter.insertTeacher({phoneNumber, password: hashedPassword, tenantName});
+      await dbAdapter.insertTeacher({phoneNumber, password: hashedPassword, tenantId});
       return res.status(STATUS.CREATED).json({message: 'Teacher registered successfully'});
     } catch (error) {
       console.error('Registration error:', error);
