@@ -1,12 +1,35 @@
 const express = require('express');
-const authProvider = require('../auth/authProviderMiddleware');
-
-const STATUS_BAD_REQUEST = 400;
-const STATUS_OK = 200;
-
+const tenantAuthProvider = require('../auth/tenant/tenantAuthProviderMiddleware');
+const {STATUS} = require("../config/constants");
+const authenticateToken = require('../auth/authenticateToken');
+/**
+ *  @swagger
+ * tags:
+ *   name: Tenant
+ *   description: Tenant authentication and registration endpoints
+ */
 const router = express.Router();
 
-const authenticateToken = require('../auth/authenticateToken');
+/**
+ * @swagger
+ * /tenant/names:
+ *   get:
+ *     summary: Get all tenant names
+ *     tags: [Tenant]
+ *     responses:
+ *       200:
+ *         description: List of tenant names
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: string
+ */
+router.get("/names",
+  tenantAuthProvider.getAllTenants
+);
+
 /**
  * @swagger
  * /tenant/login:
@@ -23,8 +46,6 @@ const authenticateToken = require('../auth/authenticateToken');
  *               email:
  *                 type: string
  *               password:
- *                 type: string
- *               name:
  *                 type: string
  *             required:
  *               - email
@@ -45,14 +66,14 @@ const authenticateToken = require('../auth/authenticateToken');
  *         description: Invalid credentials
  */
 router.post('/login',
-    authProvider.login,
-    (req, res) => {
-        // Send a success response with the extracted userId
-        res.status(STATUS_OK).json({
-            message: 'Login successful',
-            userId: req.userId
-        });
-    }
+  tenantAuthProvider.login,
+  (req, res) => {
+    // Send a success response with the extracted userId
+    res.status(STATUS.OK).json({
+      message: 'Login successful',
+      userId: req.userId
+    });
+  }
 );
 
 /**
@@ -78,14 +99,12 @@ router.post('/login',
  *         description: Unauthorized, token is missing or invalid
  */
 router.post('/logout',
-    authenticateToken,
-    (req, res) => {
-        // Acknowledge logout
-        res.status(STATUS_OK).json({ message: 'Logout successful' });
-    }
+  authenticateToken,
+  (req, res) => {
+    // Acknowledge logout
+    res.status(STATUS.OK).json({message: 'Logout successful'});
+  }
 );
-
-module.exports = router;
 
 /**
  * @swagger
@@ -107,7 +126,7 @@ module.exports = router;
  *               password:
  *                 type: string
  *                 description: Tenant's password
- *               name:
+ *               tenantName:
  *                 type: string
  *                 description: Tenant's name
  *             required:
@@ -122,14 +141,8 @@ module.exports = router;
  *       409:
  *         description: Conflict, email already exists
  */
-router.post('/register', [
-    (req, res, next) => {
-        if (!authProvider.supportsRegistration()) {
-            return res.status(STATUS_BAD_REQUEST).json({message: 'Registration is managed externally.'});
-        }
-        next();
-    },
-    authProvider.register
-]);
+router.post('/register',
+  tenantAuthProvider.register
+);
 
 module.exports = router;
