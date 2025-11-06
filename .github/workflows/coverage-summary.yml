@@ -5,14 +5,7 @@ on:
   workflow_dispatch:
   workflow_run:
     workflows:
-      [
-        "Backend Server Main",
-        "Conference V2 Main",
-        "Content Web App Main",
-        "Teacher Web App Main",
-        "WebSocket Service Main",
-        "IVR v2 Main",
-      ]
+      - Deploy Services
     types:
       - completed
 

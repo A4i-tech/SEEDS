@@ -1,0 +1,12 @@
+name: Run Node.js Tests
+description: Run tests for a Node.js project
+inputs:
+  directory:
+    description: "Directory of the Node.js project"
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Run tests with coverage
+      run: cd ${{ inputs.directory }} && npm test
+      shell: bash
