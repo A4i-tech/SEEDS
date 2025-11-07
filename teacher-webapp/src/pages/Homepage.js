@@ -1,28 +1,32 @@
-import {useConference} from '../context/ConferenceContext';
-import {DetailsPage} from '../callPage';
-import {createConference} from '../services/apiService';
-import React from 'react';
-import '../App.css';
+import { useConference } from "../context/ConferenceContext";
+import { DetailsPage } from "../callPage";
+import { createConference } from "../services/apiService";
+import React from "react";
+import "../App.css";
 import getCurrentTime from "../utils/CurrentTime";
-import {SSE_ENDPOINTS} from "../constants/sseEndpoints";
-import {API_ENDPOINTS} from "../constants/apiEndpoints";
-import {useLocation} from "react-router-dom";
-import {StudentList} from "../components/StudentList";
-import axios from 'axios';
+import { SSE_ENDPOINTS } from "../constants/sseEndpoints";
+import { API_ENDPOINTS } from "../constants/apiEndpoints";
+import { useLocation } from "react-router-dom";
+import { StudentList } from "../components/StudentList";
+import axios from "axios";
 
 function Homepage() {
   // State for new student form
-  const [newStudent, setNewStudent] = React.useState({ name: '', phoneNumber: '' });
+  const [newStudent, setNewStudent] = React.useState({
+    name: "",
+    phoneNumber: "",
+  });
   // State for students to add
   const [addedStudents, setAddedStudents] = React.useState([]);
   // State for save status
-  const [saveStatus, setSaveStatus] = React.useState('');
+  const [saveStatus, setSaveStatus] = React.useState("");
   const location = useLocation();
   const recvdPhoneNumber = location.state;
   // derive a displayable phone number: support either an object {phoneNumber: '...'} or a raw string
-  const displayedPhone = recvdPhoneNumber && (typeof recvdPhoneNumber === 'object')
-    ? (recvdPhoneNumber.phoneNumber || '')
-    : (recvdPhoneNumber || '');
+  const displayedPhone =
+    recvdPhoneNumber && typeof recvdPhoneNumber === "object"
+      ? recvdPhoneNumber.phoneNumber || ""
+      : recvdPhoneNumber || "";
   const {
     selectedStudents,
     setConfId,
@@ -38,16 +42,17 @@ function Homepage() {
   React.useEffect(() => {
     if (!displayedPhone) return;
     let mounted = true;
-    const token = localStorage.getItem('authToken');
+    const token = localStorage.getItem("authToken");
     (async () => {
       try {
-        const res = await axios.post(API_ENDPOINTS.GET_TEACHER_STUDENTS,
+        const res = await axios.post(
+          API_ENDPOINTS.GET_TEACHER_STUDENTS,
           { phoneNumber: displayedPhone },
           {
             headers: {
-              'Content-Type': 'application/json',
-              ...(token ? { Authorization: `Bearer ${token}` } : {})
-            }
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
           }
         );
         if (!mounted) return;
@@ -55,16 +60,24 @@ function Homepage() {
         console.log(data);
         setStudentsList(Array.isArray(data) ? data : []);
       } catch (err) {
-        if (mounted) console.error('Error fetching students', err.response ? err.response.status : err.message);
+        if (mounted)
+          console.error(
+            "Error fetching students",
+            err.response ? err.response.status : err.message
+          );
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [displayedPhone]);
 
   // Handler for input changes
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setNewStudent((prev) => ({ ...prev, [name]: value }));
+    const digitsOnly =
+      name === "phoneNumber" ? value.replace(/\D/g, "") : value;
+    setNewStudent((prev) => ({ ...prev, [name]: digitsOnly }));
   };
 
   // Handler to add student to array
@@ -72,35 +85,36 @@ function Homepage() {
     e.preventDefault();
     if (!newStudent.name.trim() || !newStudent.phoneNumber.trim()) return;
     setAddedStudents((prev) => [...prev, newStudent]);
-    setNewStudent({ name: '', phoneNumber: '' });
+    setNewStudent({ name: "", phoneNumber: "" });
   };
 
   // Handler to send students to backend (fetch, append, then post)
   const handleSaveStudents = async () => {
     if (!displayedPhone || addedStudents.length === 0) return;
-    setSaveStatus('saving');
+    setSaveStatus("saving");
     try {
-      const token = localStorage.getItem('authToken');
+      const token = localStorage.getItem("authToken");
       // 1. Fetch current students
       const fetchRes = await axios.post(
         API_ENDPOINTS.GET_TEACHER_STUDENTS,
         { phoneNumber: displayedPhone },
         {
           headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-          }
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
         }
       );
       const currentStudents = Array.isArray(fetchRes.data) ? fetchRes.data : [];
       // 2. Append new students (avoid duplicates by phoneNumber)
       const allStudents = [
         ...addedStudents.filter(
-          ns => !currentStudents.some(cs => cs.phoneNumber === ns.phoneNumber)
-        )
+          (ns) =>
+            !currentStudents.some((cs) => cs.phoneNumber === ns.phoneNumber)
+        ),
       ];
       // 3. Post combined list
-      console.log('Posting students:', allStudents);
+      console.log("Posting students:", allStudents);
       await axios.post(
         API_ENDPOINTS.ADD_TEACHER_STUDENTS,
         {
@@ -109,16 +123,16 @@ function Homepage() {
         },
         {
           headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-          }
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
         }
       );
-      setSaveStatus('success');
+      setSaveStatus("success");
       setAddedStudents([]);
       setStudentsList(allStudents); // update UI
     } catch (err) {
-      setSaveStatus('error');
+      setSaveStatus("error");
     }
   };
 
@@ -132,7 +146,7 @@ function Homepage() {
       );
       const conferenceId = data.id;
       setConfId(conferenceId);
-      console.log('Conf ID:', conferenceId);
+      console.log("Conf ID:", conferenceId);
       const sseEp = SSE_ENDPOINTS.CONFERENCE.TEACHER_CONNECT(conferenceId);
       const eventSource = new EventSource(sseEp);
       eventSource.onmessage = (event) => {
@@ -146,22 +160,28 @@ function Homepage() {
       };
       setIsSubmitted(true); // Navigate to DetailsPage
     } catch (error) {
-      console.error('Error in API call:', error);
+      console.error("Error in API call:", error);
     } finally {
       setLoading(false); // Stop loading
     }
   };
   if (isSubmitted) {
-    return <DetailsPage/>;
+    return <DetailsPage />;
   }
   return (
     <div className="app-container">
       <h1 className="welcome-title">Welcome</h1>
       {/* show the received phone number when available */}
-      {displayedPhone ? <p className="received-phone">Phone: {displayedPhone}</p> : null}
+      {displayedPhone ? (
+        <p className="received-phone">Phone: {displayedPhone}</p>
+      ) : null}
 
       {/* Add Student Form */}
-      <form className="add-student-form" onSubmit={handleAddStudent} style={{ marginBottom: 16 }}>
+      <form
+        className="add-student-form"
+        onSubmit={handleAddStudent}
+        style={{ marginBottom: 16 }}
+      >
         <input
           type="text"
           name="name"
@@ -177,10 +197,13 @@ function Homepage() {
           placeholder="Phone Number"
           value={newStudent.phoneNumber}
           onChange={handleInputChange}
+          maxLength="10"
           required
           style={{ marginRight: 8 }}
         />
-        <button type="submit" style={{ marginRight: 8 }}>+</button>
+        <button type="submit" style={{ marginRight: 8 }}>
+          +
+        </button>
       </form>
       {/* List of students to add */}
       {addedStudents.length > 0 && (
@@ -188,7 +211,9 @@ function Homepage() {
           <strong>Students to Add:</strong>
           <ul>
             {addedStudents.map((s, idx) => (
-              <li key={idx}>{s.name} - {s.phoneNumber}</li>
+              <li key={idx}>
+                {s.name} - {s.phoneNumber}
+              </li>
             ))}
           </ul>
         </div>
@@ -196,13 +221,23 @@ function Homepage() {
       {/* Save Students Button */}
       <button
         onClick={handleSaveStudents}
-        disabled={!displayedPhone || addedStudents.length === 0 || saveStatus === 'saving'}
+        disabled={
+          !displayedPhone ||
+          addedStudents.length === 0 ||
+          saveStatus === "saving"
+        }
         style={{ marginBottom: 16 }}
       >
-        {saveStatus === 'saving' ? 'Saving...' : 'Save Students'}
+        {saveStatus === "saving" ? "Saving..." : "Save Students"}
       </button>
-      {saveStatus === 'success' && <span style={{ color: 'green', marginLeft: 8 }}>Saved!</span>}
-      {saveStatus === 'error' && <span style={{ color: 'red', marginLeft: 8 }}>Error saving students</span>}
+      {saveStatus === "success" && (
+        <span style={{ color: "green", marginLeft: 8 }}>Saved!</span>
+      )}
+      {saveStatus === "error" && (
+        <span style={{ color: "red", marginLeft: 8 }}>
+          Error saving students
+        </span>
+      )}
       <div className="list-container">
         <StudentList
           students={studentsList}
@@ -213,11 +248,9 @@ function Homepage() {
       <button
         className="start-conference-button"
         onClick={handleFormSubmit}
-        disabled={
-          selectedStudents.length === 0 || loading
-        }
+        disabled={selectedStudents.length === 0 || loading}
       >
-        {loading ? 'Starting Conference...' : 'Start Conference'}
+        {loading ? "Starting Conference..." : "Start Conference"}
       </button>
     </div>
   );
