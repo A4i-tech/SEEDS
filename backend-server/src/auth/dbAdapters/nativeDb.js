@@ -11,8 +11,8 @@ module.exports = {
   async getTenantByEmail(email) {
     return Tenant.findOne({ email: email });
   },
-  async insertTenant({email, password, tenantId}) {
-    return Tenant.create({email, password, tenantId});
+  async insertTenant({email, password, tenantName}) {
+    return Tenant.create({email, password, tenantName});
   },
   async getTeacherByTenantIdAndPhoneNumber(tenantId, phoneNumber) {
     const tenant = await this.getTenantById(tenantId);
