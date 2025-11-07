@@ -83,7 +83,7 @@ function Homepage() {
   // Handler to add student to array
   const handleAddStudent = (e) => {
     e.preventDefault();
-    if (!newStudent.name.trim() || !newStudent.phoneNumber.trim()) return;
+    if (!newStudent.name.trim() || !newStudent.phoneNumber.trim() || newStudent.phoneNumber.length !== 10) return;
     setAddedStudents((prev) => [...prev, newStudent]);
     setNewStudent({ name: "", phoneNumber: "" });
   };
@@ -197,7 +197,9 @@ function Homepage() {
           placeholder="Phone Number"
           value={newStudent.phoneNumber}
           onChange={handleInputChange}
+          minLength="10"
           maxLength="10"
+          pattern="\d{10}"
           required
           style={{ marginRight: 8 }}
         />

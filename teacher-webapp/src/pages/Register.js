@@ -93,7 +93,9 @@ const Register = () => {
             const digitsOnly = e.target.value.replace(/\D/g, "");
             setPhoneNumber(digitsOnly);
           }}
+          minLength="10"
           maxLength="10"
+          pattern="\d{10}"
           style={inputStyle}
         />
         <select
