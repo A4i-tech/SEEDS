@@ -1,8 +1,8 @@
-import React, {useEffect, useState} from 'react';
-import {useNavigate} from 'react-router-dom';
-import axios from 'axios';
-import {API_ENDPOINTS} from "../constants/apiEndpoints";
-import {STATUS_CODES} from "../constants/statusCodes";
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import axios from "axios";
+import { API_ENDPOINTS } from "../constants/apiEndpoints";
+import { STATUS_CODES } from "../constants/statusCodes";
 
 const Register = () => {
   const navigate = useNavigate();
@@ -34,57 +34,66 @@ const Register = () => {
   }, []);
 
   const handleRegister = async () => {
-
     if (!phoneNumber || !password || !schoolName) {
       setError("All fields are required.");
       return;
     }
 
     try {
-      const response = await axios.post(`${API_ENDPOINTS.REGISTER}`, {phoneNumber, password, tenantId: schoolName});
+      const response = await axios.post(`${API_ENDPOINTS.REGISTER}`, {
+        phoneNumber,
+        password,
+        tenantId: schoolName,
+      });
       if (response.status === STATUS_CODES.CREATED) {
         console.log("Successfully registered!");
-        navigate('/'); // Navigate to the login page after successful registration
+        navigate("/"); // Navigate to the login page after successful registration
       }
     } catch (err) {
       console.error("Registration error:", err);
-      setError("Failed to register. Please try again.");
+      setError(err.response.data.message);
     }
   };
 
   const inputStyle = {
-    marginBottom: '10px',
-    padding: '8px',
-    width: '100%',
-    boxSizing: 'border-box',
-    borderRadius: '4px',
-    border: '1px solid #ccc',
-    fontSize: '16px',
+    marginBottom: "10px",
+    padding: "8px",
+    width: "100%",
+    boxSizing: "border-box",
+    borderRadius: "4px",
+    border: "1px solid #ccc",
+    fontSize: "16px",
   };
 
   const formContainerStyle = {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    width: '300px',
-    gap: '15px',
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    width: "300px",
+    gap: "15px",
   };
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'center',
-      alignItems: 'center',
-      height: '100vh'
-    }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+        alignItems: "center",
+        height: "100vh",
+      }}
+    >
       <h1>Register</h1>
       <div style={formContainerStyle}>
         <input
           type="tel"
           placeholder="Phone Number"
           value={phoneNumber}
-          onChange={(e) => setPhoneNumber(e.target.value)}
+          onChange={(e) => {
+            const digitsOnly = e.target.value.replace(/\D/g, "");
+            setPhoneNumber(digitsOnly);
+          }}
+          maxLength="10"
           style={inputStyle}
         />
         <select
@@ -92,11 +101,17 @@ const Register = () => {
           onChange={(e) => setSchoolName(e.target.value)}
           style={inputStyle}
         >
-          <option value="">{loadingSchools?"Loading Schools":"Select School"}</option>
+          <option value="">
+            {loadingSchools ? "Loading Schools" : "Select School"}
+          </option>
           {school.map((sch, idx) => {
             const value = sch.id;
             const label = sch.tenantName;
-            return(<option key={idx} value={value}>{label}</option>);
+            return (
+              <option key={idx} value={value}>
+                {label}
+              </option>
+            );
           })}
         </select>
         <input
@@ -108,13 +123,18 @@ const Register = () => {
         />
         <button
           className="btn"
-          style={{backgroundColor: "#28574F", color: "white", padding: '10px 20px', fontSize: '16px'}}
+          style={{
+            backgroundColor: "#28574F",
+            color: "white",
+            padding: "10px 20px",
+            fontSize: "16px",
+          }}
           onClick={handleRegister}
         >
           Register
         </button>
       </div>
-      {error && <p style={{color: 'red'}}>{error}</p>}
+      {error && <p style={{ color: "red" }}>{error}</p>}
     </div>
   );
 };
