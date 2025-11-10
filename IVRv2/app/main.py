@@ -13,6 +13,8 @@ from dotenv import load_dotenv
 import os
 import asyncio
 from app.actions.base_actions.talk_action import TalkAction
+from app.services.service_bus_manager import service_bus_manager
+from app.workers.call_processor import call_processor, CallProcessor
 
 from app.actions.vonage_actions.vonage_action_factory import VonageActionFactory
 from app.fsm.insti import instantiate_from_latest_content, instantitate_from_doc
@@ -78,7 +80,7 @@ fsm_json_mongo = MongoDB(db_name="ivr", collection_name="fsm")
 
 radio_fsm_mongo = MongoDB(db_name="ivr", collection_name="radio")
 
-calls_log_mongo = MongoDB(db_name="ivr", collection_name="callsLogs")
+calls_log_mongo = MongoDB(db_name="test", collection_name="callsLogs")
 
 action_factory = VonageActionFactory()
 
@@ -180,12 +182,23 @@ async def startup_event():
     """
     global fsm
     global latest_fsm_id
+    global call_processor
 
+    # Initialize FSM
     # fsm[comprehension_fsm.fsm_id] = comprehension_fsm
     # latest_fsm_id = comprehension_fsm.fsm_id
     updated_fsm = await instantiate_from_latest_content()
     fsm[updated_fsm.fsm_id] = updated_fsm
     latest_fsm_id = updated_fsm.fsm_id
+
+    # Initialize Service Bus Manager
+    await service_bus_manager.initialize()
+
+    # Start background call processor
+    call_processor = CallProcessor(fsm)
+    call_processor.latest_fsm_id = latest_fsm_id
+    asyncio.create_task(call_processor.start())
+    logging.info("Application startup complete.")
     """
     latest_doc = await fsm_json_mongo.find_top_one("created_at")
     if latest_doc != None: 
@@ -209,6 +222,23 @@ async def startup_event():
     #     print("Instantiated FSM with id: ", latest_fsm.fsm_id)
     # else:
     #     print("No FSM found in MongoDB, please call `updateivr` API to create a new FSM object from latest content before calling any APIs")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """
+    Clean up resources on application shutdown.
+
+    This function is called automatically when the FastAPI application is shutting down.
+    It performs the following tasks:
+    - Cleans up the Service Bus Manager resources
+
+    Note: This is an internal function and not directly exposed as an API endpoint.
+    """
+    if call_processor:
+        await call_processor.stop()
+    await service_bus_manager.close()
+    logging.info("Application shutdown complete.")
 
 
 @app.post(
@@ -298,29 +328,49 @@ async def update_ivr(request: Request, response: Response):
     },
 )
 async def call_webhook(request: Request, response: Response):
-    logging.info("Webhook received a request to start IVR")
+    logging.info("[WEBHOOK] ========================================")
+    logging.info("[WEBHOOK] Webhook received a request to start IVR")
     call_data = await request.json()
+    logging.info(f"[WEBHOOK] CALL DATA RECEIVED: {call_data}")
     call_status = call_data.get("_su")  # 2 = missed call
     phone_number = call_data.get("_cl")  # with country code
-    logging.info("CALL STATUS", call_status)
-    logging.info("CALLER NUMBER", phone_number)
+    logging.info(f"[WEBHOOK] CALL STATUS: {call_status}")
+    logging.info(f"[WEBHOOK] CALLER NUMBER: {phone_number}")
     if call_status != 2:
-        logging.error("Call status is not missed call")
+        logging.error(
+            f"[WEBHOOK] Call status is not missed call (status={call_status})"
+        )
         response.status_code = STATUS_BAD_REQUEST
         return {"detail": "Invalid call data received"}
     # log missed call in DB with state: pending
     insert_result = await calls_log_mongo.insert(
         {"phone_number": phone_number, "timestamp": datetime.now(), "status": "pending"}
     )
-    logging.info(f"Logged missed call with ID: {insert_result}")
-    start_ivr_response = await start_ivr(response, sender=phone_number)
-    # log missed call in DB with state: called
-    if start_ivr_response.get("status_code") == STATUS_OK:
-        await calls_log_mongo.update_document(
-            insert_result, {"status": "called", "called_at": datetime.now()}
-        )
-        logging.info(f"Updated missed call log ID {insert_result} to status 'called'")
-    return start_ivr_response
+    logging.info(f"[WEBHOOK] ✓ Logged missed call with ID: {insert_result}")
+
+    # send message to service bus to process the call asynchronously
+    logging.info(
+        f"[WEBHOOK] Sending message to queue for phone: {phone_number}, log_id: {insert_result}"
+    )
+    result = await service_bus_manager.start_call_webhook_message(
+        phone_number=phone_number, call_log_id=str(insert_result)
+    )
+    logging.info(f"[WEBHOOK] ✓ Message sent to queue: {result}")
+    logging.info("[WEBHOOK] ========================================")
+    response.status_code = STATUS_OK
+    return {
+        "status_code": response.status_code,
+        "message": "Call processing initiated for phone number: " + phone_number,
+    }
+
+    # start_ivr_response = await start_ivr(response, sender=phone_number)
+    # # log missed call in DB with state: called
+    # if start_ivr_response.get("status_code") == STATUS_OK:
+    #     await calls_log_mongo.update_document(
+    #         insert_result, {"status": "called", "called_at": datetime.now()}
+    #     )
+    #     logging.info(f"Updated missed call log ID {insert_result} to status 'called'")
+    # return start_ivr_response
 
 
 @app.post(
@@ -494,7 +544,7 @@ async def start_bulk_calls(request: BulkCallRequest):
                 # IF THIS IS THE CASE IT IS ASSUMED THAT THE DOC FOUND IS STALE
                 # - DELETE THE DOC
                 # - HANG UP THE CALL IN CASE ITS STILL UP : TODO
-                if (datetime.now() - ivr_state.created_at).total_seconds() / 60 > int(
+                if (datetime.now() - ivr_state.created_at).total_seconds() > int(
                     os.environ.get("STALE_WAIT_IN_SECONDS", 60)
                 ):
                     await ongoing_fsm_mongo.delete(phone_number)
@@ -809,71 +859,78 @@ async def dtmf(input: Request):
     input_data = await input.json()
     print("INPUT DATA RAW", input_data)
     input = DTMFInput(**input_data)
-    # print(f"Received request body: {input}")
-    digits = input.dtmf.digits
-    conv_id = input.conversation_uuid
-    doc = await ongoing_fsm_mongo.find_by_id(conv_id)
-    if doc == None:
-        print("ERROR: NO ONGOING IVR STATE FOUND FOR CONV ID: ", conv_id)
-        # Talk Action of server error bye bye
-        # internal_server_action = ask Kavyansh if it's fine to import TalkAction here
-        ncco = accumulator.combine(
-            [
-                action_factory.get_action_implmentation(x)
-                for x in [
-                    TalkAction(text="Server error. Please try again later. Bye bye.")
-                ]
-            ]
-        )
-        return JSONResponse(ncco)
 
-    ivr_state = IVRCallStateMongoDoc(**doc)
-
-    fsm_in_progress = fsm[ivr_state.fsm_id]
-    print("iS FSM IN PROGRESS NONE", fsm_in_progress == None)
-    # PROCESS MULTIPLE USER INPUTS
-    input_time = datetime.now()
-    print("CURRENT STATE ID", ivr_state.current_state_id)
-    print("INPUT DIGITS", digits)
-    next_actions, next_state_id = None, None
-    for digit in digits:
-        pre_state_id = ivr_state.current_state_id
-        next_actions, next_state_id = await fsm_in_progress.get_next_actions(
-            digit, ivr_state
-        )
-        ivr_state.current_state_id = next_state_id
-        ivr_state.user_actions.append(
-            UserAction(
-                key_pressed=digit,
-                timestamp=input_time,
-                pre_state_id=pre_state_id,
-                post_state_id=next_state_id,
-            )
-        )
-
-    if digits == "":
-        pre_state_id = ivr_state.current_state_id
-        next_actions, next_state_id = await fsm_in_progress.get_next_actions(
-            "", ivr_state
-        )
-        ivr_state.current_state_id = next_state_id
-        ivr_state.user_actions.append(
-            UserAction(
-                key_pressed="empty",
-                timestamp=input_time,
-                pre_state_id=pre_state_id,
-                post_state_id=next_state_id,
-            )
-        )
-
-    await ongoing_fsm_mongo.update_document(ivr_state.id, ivr_state.dict(by_alias=True))
-    start = time.time()
-    ncco = accumulator.combine(
-        [action_factory.get_action_implmentation(x) for x in next_actions]
+    # Send to Service Bus for processing
+    await service_bus_manager.send_dtmf_input_message(
+        conversation_uuid=dtmf.conversation_uuid,
+        digits=dtmf.dtmf.digits,
+        input_data=input,
     )
-    print("TIME TAKEN TO CREATE NCCO ", time.time() - start)
-    print("NCCO RETURNED FROM INPUT API: ", json.dumps(ncco, indent=2))
-    return JSONResponse(ncco)
+    # print(f"Received request body: {input}")
+    # digits = input.dtmf.digits
+    # conv_id = input.conversation_uuid
+    # doc = await ongoing_fsm_mongo.find_by_id(conv_id)
+    # if doc == None:
+    #     print("ERROR: NO ONGOING IVR STATE FOUND FOR CONV ID: ", conv_id)
+    #     # Talk Action of server error bye bye
+    #     # internal_server_action = ask Kavyansh if it's fine to import TalkAction here
+    #     ncco = accumulator.combine(
+    #         [
+    #             action_factory.get_action_implmentation(x)
+    #             for x in [
+    #                 TalkAction(text="Server error. Please try again later. Bye bye.")
+    #             ]
+    #         ]
+    #     )
+    #     return JSONResponse(ncco)
+    #
+    # ivr_state = IVRCallStateMongoDoc(**doc)
+    #
+    # fsm_in_progress = fsm[ivr_state.fsm_id]
+    # print("iS FSM IN PROGRESS NONE", fsm_in_progress == None)
+    # # PROCESS MULTIPLE USER INPUTS
+    # input_time = datetime.now()
+    # print("CURRENT STATE ID", ivr_state.current_state_id)
+    # print("INPUT DIGITS", digits)
+    # next_actions, next_state_id = None, None
+    # for digit in digits:
+    #     pre_state_id = ivr_state.current_state_id
+    #     next_actions, next_state_id = await fsm_in_progress.get_next_actions(
+    #         digit, ivr_state
+    #     )
+    #     ivr_state.current_state_id = next_state_id
+    #     ivr_state.user_actions.append(
+    #         UserAction(
+    #             key_pressed=digit,
+    #             timestamp=input_time,
+    #             pre_state_id=pre_state_id,
+    #             post_state_id=next_state_id,
+    #         )
+    #     )
+    #
+    # if digits == "":
+    #     pre_state_id = ivr_state.current_state_id
+    #     next_actions, next_state_id = await fsm_in_progress.get_next_actions(
+    #         "", ivr_state
+    #     )
+    #     ivr_state.current_state_id = next_state_id
+    #     ivr_state.user_actions.append(
+    #         UserAction(
+    #             key_pressed="empty",
+    #             timestamp=input_time,
+    #             pre_state_id=pre_state_id,
+    #             post_state_id=next_state_id,
+    #         )
+    #     )
+    #
+    # await ongoing_fsm_mongo.update_document(ivr_state.id, ivr_state.dict(by_alias=True))
+    # start = time.time()
+    # ncco = accumulator.combine(
+    #     [action_factory.get_action_implmentation(x) for x in next_actions]
+    # )
+    # print("TIME TAKEN TO CREATE NCCO ", time.time() - start)
+    # print("NCCO RETURNED FROM INPUT API: ", json.dumps(ncco, indent=2))
+    # return JSONResponse(ncco)
 
 
 @app.post(

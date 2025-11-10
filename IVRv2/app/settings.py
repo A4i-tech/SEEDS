@@ -16,6 +16,12 @@ class Settings(BaseSettings):
     blob_store_conn_str: str = ""
     azure_storage_enabled: str = ""
     azure_storage_account_key: str = ""
+    service_bus_connection_string: str = ""
+    service_bus_queue_name: str = ""
+    azure_service_bus_connection_string: str = ""
+    azure_service_bus_queue_name: str = ""
+    call_duration_limit: int = 0
+    provider_type: str = ""
 
     class Config:
         env_file = ".env"
