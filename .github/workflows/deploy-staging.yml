@@ -1,10 +1,10 @@
-name: Deploy Services
+name: Deploy Staging Services
 
 on:
   push:
-    branches: [a4i/main, a4i/staging]
+    branches: a4i/staging
   pull_request:
-    branches: [a4i/main, a4i/staging]
+    branches: a4i/staging
   workflow_call:
   workflow_dispatch:
 
@@ -22,42 +22,30 @@ jobs:
             image: backend-server
             lang: node
             render_deploy_hook_url: BACKEND_SERVER_RENDER_DEPLOY_HOOK_URL
-            azure_publish_profile: BACKEND_SERVER_AZURE_PUBLISH_PROFILE
 
           - name: content-webapp
             context: ContentWebApp
             image: content-webapp
             lang: node
             render_deploy_hook_url: CONTENT_WEBAPP_RENDER_DEPLOY_HOOK_URL
-            azure_publish_profile: CONTENT_WEBAPP_AZURE_PUBLISH_PROFILE
 
           - name: teacher-webapp
             context: teacher-webapp
             image: teacher-webapp
             lang: node
             render_deploy_hook_url: TEACHER_WEBAPP_RENDER_DEPLOY_HOOK_URL
-            azure_publish_profile: TEACHER_WEBAPP_AZURE_PUBLISH_PROFILE
-
-          - name: websocket-service
-            context: websocket-service
-            image: websocket-service
-            lang: node
-            render_deploy_hook_url: WEBSOCKET_RENDER_DEPLOY_HOOK_URL
-            azure_publish_profile: WEBSOCKET_SERVICE_AZURE_PUBLISH_PROFILE
 
           - name: conference-v2
             context: ConferenceV2
             image: conference-v2
             lang: python
             render_deploy_hook_url: CONFERENCE_V2_RENDER_DEPLOY_HOOK_URL
-            azure_publish_profile: CONFERENCE_V2_AZURE_PUBLISH_PROFILE
 
           - name: IvrV2
             context: IVRv2
             image: ivrv2
             lang: python
             render_deploy_hook_url: IVRV2_RENDER_DEPLOY_HOOK_URL
-            azure_publish_profile: IVRV2_AZURE_PUBLISH_PROFILE
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -127,15 +115,7 @@ jobs:
           environment_tag: ${{ steps.env-tag.outputs.tag }}
 
       - name: Deploy to Render
-        if: github.event_name == 'push' && github.ref == 'refs/heads/a4i/staging'
+        if: github.event_name == 'push'
         uses: ./.github/actions/deploy-render
         with:
           deploy_hook_url: ${{ secrets[ matrix.service.render_deploy_hook_url ] }}
-
-      - name: Deploy to Azure
-        if: github.event_name == 'push' && github.ref == 'refs/heads/a4i/main'
-        uses: ./.github/actions/deploy-azure
-        with:
-          app_name: ${{ matrix.service.name }}
-          publish_profile: ${{ secrets[matrix.service.azure_publish_profile] }}
-          image: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service.image }}:${{ steps.env-tag.outputs.tag }}
