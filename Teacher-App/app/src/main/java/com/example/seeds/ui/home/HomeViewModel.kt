@@ -44,7 +44,6 @@ class HomeViewModel @Inject constructor(
     private var nextCursor: String? = null
     private var hasMore: Boolean = true
     private var isRequestInProgress: Boolean = false
-.
     private val _filteredContent = MediatorLiveData<List<Content>>()
     val filteredContent: LiveData<List<Content>> get() = _filteredContent
 
