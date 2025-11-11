@@ -44,9 +44,31 @@ jobs:
             coverage_gist_token: ${{ secrets.COVERAGE_GIST_TOKEN }}
             coverage_gist_id: ${{ vars.COVERAGE_GIST_ID }}
 
+      - name: Determine environment tag
+        id: env-tag
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/a4i/main" ]]; then
+            echo "tag=prod" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/a4i/staging" ]]; then
+            echo "tag=staging" >> $GITHUB_OUTPUT
+          else
+            echo "tag=latest" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build & push image
+        uses: ./.github/actions/deploy-docker
+        with:
+          context: ${{ matrix.service.context }}
+          image: ${{ matrix.service.image }}
+          registry: ${{ env.REGISTRY }}
+          repository: ${{ github.repository }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ github.actor }}
+          environment_tag: ${{ steps.env-tag.outputs.tag }}
+
       - name: Publish to Azure
         uses: ./.github/actions/deploy-azure
         with:
           app_name: ${{ matrix.service.name }}
           publish_profile: ${{ secrets[matrix.service.azure_publish_profile] }}
-          image: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service.image }}:main
+          image: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service.image }}:${{ steps.env-tag.outputs.tag }}
