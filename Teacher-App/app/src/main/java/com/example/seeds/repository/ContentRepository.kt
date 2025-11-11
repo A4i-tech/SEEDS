@@ -18,7 +18,7 @@ class ContentRepository @Inject constructor(
 ) {
 
     companion object{
-        const val CONTENT_LIMIT = 10
+        const val CONTENT_LIMIT = 15
     }
 
     suspend fun getAllContent(
