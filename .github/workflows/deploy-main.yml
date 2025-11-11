@@ -110,6 +110,7 @@ jobs:
           fi
 
       - name: Build & push image
+        if: github.event_name == 'push'
         uses: ./.github/actions/deploy-docker
         with:
           context: ${{ matrix.service.context }}

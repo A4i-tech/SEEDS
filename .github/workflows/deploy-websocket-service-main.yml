@@ -56,6 +56,7 @@ jobs:
           fi
 
       - name: Build & push image
+        if: github.event_name == 'push'
         uses: ./.github/actions/deploy-docker
         with:
           context: ${{ matrix.service.context }}
@@ -67,6 +68,7 @@ jobs:
           environment_tag: ${{ steps.env-tag.outputs.tag }}
 
       - name: Publish to Azure
+        if: github.event_name == 'push'
         uses: ./.github/actions/deploy-azure
         with:
           app_name: ${{ matrix.service.name }}
