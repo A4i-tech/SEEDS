@@ -1,0 +1,66 @@
+name: Extract Coverage
+description: Extract coverage percentage from coverage report
+inputs:
+  directory:
+    description: "Directory of the Python project"
+    required: true
+  coverage_gist_token:
+    description: "Gist token for updating coverage badge"
+    required: true
+  coverage_gist_id:
+    description: "Gist ID for updating coverage badge"
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Upload coverage artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.directory }}-coverage
+        path: |
+          ${{ inputs.directory }}/htmlcov
+          ${{ inputs.directory }}/coverage.xml
+          ${{ inputs.directory }}/coverage.json
+          ${{ inputs.directory }}/.coverage
+        retention-days: 30
+
+    - name: Extract coverage percentage
+      id: coverage
+      shell: bash
+      run: |
+        cd ${{ inputs.directory }}
+        COVERAGE=$(python -c "
+        try:
+            import json
+            with open('coverage.json', 'r') as f:
+                data = json.load(f)
+            coverage = round(data['totals']['percent_covered'], 1)
+            print(coverage)
+        except Exception as e:
+            print('0')
+        ")
+        echo "percentage=$COVERAGE" >> $GITHUB_OUTPUT
+        echo "Coverage: $COVERAGE%"
+
+    - name: Determine badge color
+      id: badge-color
+      shell: bash
+      run: |
+        COVERAGE=${{ steps.coverage.outputs.percentage }}
+        if (( $(echo "$COVERAGE > 80" | bc -l) )); then
+          echo "color=brightgreen" >> $GITHUB_OUTPUT
+        elif (( $(echo "$COVERAGE > 60" | bc -l) )); then
+          echo "color=yellow" >> $GITHUB_OUTPUT
+        else
+          echo "color=red" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Create coverage badge
+      uses: schneegans/dynamic-badges-action@v1.7.0
+      with:
+        auth: ${{ inputs.coverage_gist_token }}
+        gistID: ${{ inputs.coverage_gist_id }}
+        filename: ${{ inputs.directory }}-coverage.json
+        label: ${{ inputs.directory }} Coverage
+        message: ${{ steps.coverage.outputs.percentage }}%
+        color: ${{ steps.badge-color.outputs.color }}

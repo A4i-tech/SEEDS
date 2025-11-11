@@ -1,0 +1,76 @@
+name: Deploy Websocket Service Staging
+on:
+  push:
+    branches: a4i/staging
+  pull_request:
+    branches: a4i/staging
+  workflow_call:
+  workflow_dispatch:
+env:
+  REGISTRY: ghcr.io
+jobs:
+  service:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - name: web-socket-service
+            context: websocket-service
+            image: websocket-service
+            lang: node
+            azure_publish_profile: WEBSOCKET_SERVICE_AZURE_PUBLISH_PROFILE_STAGING
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up language (Node.js)
+        if: matrix.service.lang == 'node'
+        uses: ./.github/actions/setup-node
+        with:
+          node-version: '20'
+          directory: ${{ matrix.service.context }}
+
+      - name: Run tests (Node.js)
+        if: matrix.service.lang == 'node'
+        uses: ./.github/actions/run-node-tests
+        with:
+          directory: ${{ matrix.service.context }}
+
+      - name: Extract coverage (Node.js)
+        if: matrix.service.lang == 'node'
+        uses: ./.github/actions/extract-coverage-node
+        with:
+            directory: ${{ matrix.service.context }}
+            coverage_gist_token: ${{ secrets.COVERAGE_GIST_TOKEN }}
+            coverage_gist_id: ${{ vars.COVERAGE_GIST_ID }}
+
+      - name: Determine environment tag
+        id: env-tag
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/a4i/main" ]]; then
+            echo "tag=prod" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/a4i/staging" ]]; then
+            echo "tag=staging" >> $GITHUB_OUTPUT
+          else
+            echo "tag=latest" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build & push image
+        if: github.event_name == 'push'
+        uses: ./.github/actions/deploy-docker
+        with:
+          context: ${{ matrix.service.context }}
+          image: ${{ matrix.service.image }}
+          registry: ${{ env.REGISTRY }}
+          repository: ${{ github.repository }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ github.actor }}
+          environment_tag: ${{ steps.env-tag.outputs.tag }}
+
+      - name: Publish to Azure
+        if: github.event_name == 'push'
+        uses: ./.github/actions/deploy-azure
+        with:
+          app_name: ${{ matrix.service.name }}
+          publish_profile: ${{ secrets[matrix.service.azure_publish_profile] }}
+          image: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service.image }}:${{ steps.env-tag.outputs.tag }}
