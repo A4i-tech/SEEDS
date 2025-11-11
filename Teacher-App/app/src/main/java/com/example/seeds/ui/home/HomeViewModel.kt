@@ -22,7 +22,7 @@ class HomeViewModel @Inject constructor(
     val showConfirmButton = args.classroom
 
     private val _allContent = MutableLiveData<List<Content>>(emptyList())
-        val allContent: LiveData<List<Content>> get() = _allContent 
+    val allContent: LiveData<List<Content>> get() = _allContent
     private val _filtersChosen = MutableLiveData(FilterCriteria())
     private val _searchQuery = MutableLiveData("") 
 
