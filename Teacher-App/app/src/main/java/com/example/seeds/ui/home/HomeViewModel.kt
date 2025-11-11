@@ -1,6 +1,13 @@
 package com.example.seeds.ui.home
 
 import android.util.Log
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MediatorLiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.Transformations
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.example.seeds.model.Classroom
 import com.example.seeds.model.Content
 import com.example.seeds.repository.ClassroomRepository
@@ -22,9 +29,9 @@ class HomeViewModel @Inject constructor(
     val showConfirmButton = args.classroom
 
     private val _allContent = MutableLiveData<List<Content>>(emptyList())
-    val allContent: LiveData<List<Content>> get() = _allContent
+        val allContent: LiveData<List<Content>> get() = _allContent
     private val _filtersChosen = MutableLiveData(FilterCriteria())
-    private val _searchQuery = MutableLiveData("") 
+    private val _searchQuery = MutableLiveData("")
 
     // --- UI-VISIBLE LIVE DATA ---
     val languages: LiveData<List<String>> = Transformations.map(_allContent) { list ->
@@ -85,7 +92,7 @@ class HomeViewModel @Inject constructor(
             _isLoading.postValue(true)
             try {
                 val response = contentRepository.getAllContent(cursor = null)
-                _allContent.postValue(response.data) 
+                _allContent.postValue(response.data)
                 nextCursor = response.pagination.nextCursor
                 hasMore = response.pagination.hasMore
             } catch (e: Exception) {
@@ -106,7 +113,7 @@ class HomeViewModel @Inject constructor(
             try {
                 val response = contentRepository.getAllContent(cursor = nextCursor)
                 val currentList = _allContent.value ?: emptyList()
-                _allContent.postValue(currentList + response.data) 
+                _allContent.postValue(currentList + response.data)
                 nextCursor = response.pagination.nextCursor
                 hasMore = response.pagination.hasMore
             } catch (e: Exception) {
@@ -121,13 +128,13 @@ class HomeViewModel @Inject constructor(
     // --- ACTIONS FROM THE FRAGMENT ---
 
     fun onSearchQueryChanged(query: String) {
-        _searchQuery.value = query 
+        _searchQuery.value = query
     }
 
     fun setFiltersChosen(newFilter: FilterCriteria) {
         _filtersChosen.value = newFilter
     }
-    
+
     // Deleting applyFilters as the Mediator handles it automatically.
 
     fun removeFilter(filter: String) {
