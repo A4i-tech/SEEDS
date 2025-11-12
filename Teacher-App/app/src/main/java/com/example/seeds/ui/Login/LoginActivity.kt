@@ -7,6 +7,8 @@ import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import com.example.seeds.MainActivity
+import com.example.seeds.R
+import android.R.layout.simple_dropdown_item_1line
 import com.example.seeds.databinding.ActivityLoginBinding
 import com.example.seeds.repository.TeacherRepository
 import com.example.seeds.ui.call.CallViewModel
@@ -91,7 +93,7 @@ class LoginActivity : AppCompatActivity() {
         // Fetch organizations and populate the dropdown
         fetchOrganizations { orgList ->
             organizations = orgList.toMutableList()
-            val adapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, organizations)
+            val adapter = ArrayAdapter(this, simple_dropdown_item_1line, organizations)
             runOnUiThread {
                 orgDropdown.setAdapter(adapter)
             }
