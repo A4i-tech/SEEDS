@@ -5,6 +5,11 @@ platform :android do
   lane :deploy_staging do
     Dotenv.load('fastlane/.env')
 
+    UI.message("Running unit tests...")
+    gradle(
+      task: 'testDebugUnitTest'
+    )
+    
     gradle(
       task: 'assembleDebug',
       properties: {
@@ -25,7 +30,6 @@ platform :android do
       release_notes: "New staging build uploaded by fastlane."
     )
 
-    # Let the console know that the process is complete.
     UI.success("Successfully built and deployed to Firebase App Distribution!")
   end
 end
