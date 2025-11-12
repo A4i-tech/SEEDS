@@ -67,10 +67,15 @@ jobs:
           username: ${{ github.actor }}
           environment_tag: ${{ steps.env-tag.outputs.tag }}
 
+      - name: Normalize repo name to lowercase
+        id: repo
+        run: |
+          echo "repository_lowercase=${GITHUB_REPOSITORY,,}" >> $GITHUB_OUTPUT
+
       - name: Publish to Azure
         if: github.event_name == 'push'
         uses: ./.github/actions/deploy-azure
         with:
           app_name: ${{ matrix.service.name }}
           publish_profile: ${{ secrets[matrix.service.azure_publish_profile] }}
-          image: ${{ env.REGISTRY }}/${{ github.repository,, }}/${{ matrix.service.image }}:${{ steps.env-tag.outputs.tag }}
+          image: ${{ env.REGISTRY }}/${{ steps.repo.outputs.repository_lowercase }}/${{ matrix.service.image }}:${{ steps.env-tag.outputs.tag }}
