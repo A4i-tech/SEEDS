@@ -38,22 +38,27 @@ import android.util.Log
 
 class LoginActivity : AppCompatActivity() {
 
+    // Data class to hold both the ID and the name of an organization
+    data class Organization(val id: String, val name: String) {
+        override fun toString(): String = name
+    }
+
     companion object {
         private const val PHONE_NUMBER_LENGTH = 10
     }
 
     private lateinit var binding: ActivityLoginBinding
     private lateinit var phoneHintLauncher: ActivityResultLauncher<IntentSenderRequest>
-    private var organizations = mutableListOf<String>()
+    private var organizations = mutableListOf<Organization>()
 
     @Inject
     lateinit var teacherRepository: TeacherRepository
 
     private val viewModel: CallViewModel by viewModels()
 
-    private val LOGIN_URL = Constants.BASE_URL + "/tenant/teacher/login"
-    private val REGISTER_URL = Constants.BASE_URL + "/tenant/teacher/register"
-    private val ORGANIZATIONS_URL = Constants.BASE_URL + "/tenant/list"
+    private val LOGIN_URL = Constants.BASE_URL + "/teacher/login"
+    private val REGISTER_URL = Constants.BASE_URL + "/teacher/register"
+    private val ORGANIZATIONS_URL = Constants.BASE_URL + "/tenant/names"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -71,30 +76,21 @@ class LoginActivity : AppCompatActivity() {
             registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
                 if (result.resultCode == RESULT_OK) {
                     val credential = result.data?.getParcelableExtra<Credential>(Credential.EXTRA_KEY)
-                    val phoneNumber = credential?.id?.let {
-                        // Normalize the phone number to get the last 10 digits
+                    credential?.id?.let {
                         val digitsOnly = it.replace(Regex("[^0-9]"), "")
-                        digitsOnly.takeLast(PHONE_NUMBER_LENGTH)
+                        val phoneNumber = digitsOnly.takeLast(PHONE_NUMBER_LENGTH)
+                        phoneNumberField.setText(phoneNumber)
                     }
-                    // Set the retrieved and cleaned phone number in the EditText
-                    phoneNumberField.setText(phoneNumber)
                 } else {
                     Log.d("LoginActivity", "Phone number hint was not selected.")
                 }
             }
 
-        // BLOCK for listeners
-        phoneNumberField.setOnClickListener {
-            requestPhoneNumberHint()
-        }
+        // Listeners
+        phoneNumberField.setOnClickListener { requestPhoneNumberHint() }
+        phoneNumberField.setOnFocusChangeListener { _, hasFocus -> if (hasFocus) requestPhoneNumberHint() }
 
-        phoneNumberField.setOnFocusChangeListener { _, hasFocus ->
-            if (hasFocus) {
-                requestPhoneNumberHint()
-            }
-        }
-
-        // Fetch organizations safely
+        // Fetch organizations and populate the dropdown
         fetchOrganizations { orgList ->
             organizations = orgList.toMutableList()
             val adapter = ArrayAdapter(this, simple_dropdown_item_1line, organizations)
@@ -103,34 +99,48 @@ class LoginActivity : AppCompatActivity() {
             }
         }
 
-        // Login click
+        // Login click listener
         loginBtn.setOnClickListener {
             val phoneNumber = phoneNumberField.text.toString().trim()
             val password = passwordField.text.toString().trim()
-            var organization = orgDropdown.text.toString().trim()
-            if (organization.isEmpty()) organization = "none"
+            val organizationName = orgDropdown.text.toString().trim()
 
-            if (phoneNumber.isEmpty() || password.isEmpty()) {
-                Toast.makeText(this, "Please fill all fields", Toast.LENGTH_SHORT).show()
+            if (phoneNumber.isEmpty() || password.isEmpty() || organizationName.isEmpty()) {
+                Toast.makeText(this, "Please fill all fields and select an organization", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
-            loginWithPhoneNumber(phoneNumber, password, organization)
+            // Find the selected organization from our list to get its ID
+            val selectedOrganization = organizations.find { it.name == organizationName }
+            if (selectedOrganization == null) {
+                Toast.makeText(this, "Please select a valid organization from the list", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            // Call the login function with the ID
+            loginWithPhoneNumber(phoneNumber, password, selectedOrganization.id)
         }
 
-        // Register click
+        // Register click listener
         registerBtn.setOnClickListener {
             val phoneNumber = phoneNumberField.text.toString().trim()
             val password = passwordField.text.toString().trim()
-            var organization = orgDropdown.text.toString().trim()
-            if (organization.isEmpty()) organization = "none"
+            val organizationName = orgDropdown.text.toString().trim()
 
-            if (phoneNumber.isEmpty() || password.isEmpty()) {
-                Toast.makeText(this, "Please fill all fields", Toast.LENGTH_SHORT).show()
+            if (phoneNumber.isEmpty() || password.isEmpty() || organizationName.isEmpty()) {
+                Toast.makeText(this, "Please fill all fields and select an organization", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
-            registerTenant(phoneNumber, password, organization)
+            // Find the selected organization from our list to get its ID
+            val selectedOrganization = organizations.find { it.name == organizationName }
+            if (selectedOrganization == null) {
+                Toast.makeText(this, "Please select a valid organization from the list", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            
+            // Call the register function with the ID
+            registerTenant(phoneNumber, password, selectedOrganization.id)
         }
     }
 
@@ -150,7 +160,7 @@ class LoginActivity : AppCompatActivity() {
         }
     }
 
-    private fun fetchOrganizations(onResult: (List<String>) -> Unit) {
+    private fun fetchOrganizations(onResult: (List<Organization>) -> Unit) {
         val client = OkHttpClient()
         val request = Request.Builder()
             .url(ORGANIZATIONS_URL)
@@ -173,12 +183,14 @@ class LoginActivity : AppCompatActivity() {
                 }
 
                 try {
-                    val orgs = mutableListOf<String>()
-                    if (body.trim().startsWith("[")) {
-                        val jsonArray = JSONArray(body)
-                        for (i in 0 until jsonArray.length()) {
-                            val obj = jsonArray.getJSONObject(i)
-                            orgs.add(obj.optString("organizationName", ""))
+                    val orgs = mutableListOf<Organization>()
+                    val jsonArray = JSONArray(body)
+                    for (i in 0 until jsonArray.length()) {
+                        val obj = jsonArray.getJSONObject(i)
+                        val orgId = obj.optString("id", "")
+                        val orgName = obj.optString("tenantName", "")
+                        if (orgId.isNotEmpty() && orgName.isNotEmpty()) {
+                            orgs.add(Organization(orgId, orgName))
                         }
                     }
                     onResult(orgs)
@@ -190,16 +202,16 @@ class LoginActivity : AppCompatActivity() {
         })
     }
 
-    private fun registerTenant(phoneNumber: String, password: String, organization: String) {
+    private fun registerTenant(phoneNumber: String, password: String, organizationId: String) {
         val client = OkHttpClient()
         val json = JSONObject().apply {
-            put("phoneNumber",phoneNumber )
+            put("phoneNumber", phoneNumber)
             put("password", password)
-            put("tenantName", organization)
+            put("tenantId", organizationId)
         }
 
         val body = RequestBody.create(
-            MediaType.get("application/json; charset=utf-8"),
+            MediaType.parse("application/json; charset=utf-8"),
             json.toString()
         )
 
@@ -208,6 +220,9 @@ class LoginActivity : AppCompatActivity() {
             .post(body)
             .build()
 
+        Log.d("REGISTER_DEBUG", "URL: $REGISTER_URL")
+        Log.d("REGISTER_DEBUG", "Payload: ${json.toString()}")
+        
         client.newCall(registerRequest).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 runOnUiThread {
@@ -220,28 +235,28 @@ class LoginActivity : AppCompatActivity() {
                     if (response.isSuccessful) {
                         Toast.makeText(this@LoginActivity, "Registration successful! Please login.", Toast.LENGTH_SHORT).show()
                     } else {
-                        Toast.makeText(this@LoginActivity, "Registration failed", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@LoginActivity, "Registration failed: ${response.message()}", Toast.LENGTH_SHORT).show()
                     }
                 }
             }
         })
     }
 
-    private fun loginWithPhoneNumber(phoneNumber: String, password: String, organization: String) {
+    private fun loginWithPhoneNumber(phoneNumber: String, password: String, organizationId: String) {
         val client = OkHttpClient()
         val json = JSONObject().apply {
             put("phoneNumber", phoneNumber)
             put("password", password)
-            put("tenantName", organization)
+            put("tenantId", organizationId)
         }
 
         val body = RequestBody.create(
-            MediaType.get("application/json; charset=utf-8"),
+            MediaType.parse("application/json; charset=utf-8"),
             json.toString()
         )
 
         val loginRequest = Request.Builder()
-            .url(LOGIN_URL) 
+            .url(LOGIN_URL)
             .post(body)
             .build()
 
@@ -271,32 +286,23 @@ class LoginActivity : AppCompatActivity() {
                     return
                 }
 
-                 try {
-                    // val secretKey = KeyManager.getOrCreateSecretKey()
-
-                    // val iv = ByteArray(16) 
-                    // SecureRandom().nextBytes(iv)
-                    // val encryptedTokenBytes = NativeEncryptor.encrypt(token, secretKey.encoded, iv)
-                    // val encryptedTokenBase64 = Base64.encodeToString(encryptedTokenBytes, Base64.DEFAULT)
-                    // val ivBase64 = Base64.encodeToString(iv, Base64.DEFAULT)
+                try {
                     val prefs = getSharedPreferences("sharedPref", MODE_PRIVATE).edit()
                     prefs.putString("auth_token", token)
-                    prefs.putString("teacher_phone",phoneNumber)
-                    // prefs.putString("encryption_iv", ivBase64) 
+                    prefs.putString("teacher_phone", phoneNumber)
                     prefs.putBoolean("is_logged_in", true)
                     prefs.apply()
 
                 } catch (e: Exception) {
                     e.printStackTrace()
                     runOnUiThread {
-                        Toast.makeText(this@LoginActivity, "Could not encrypt token", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@LoginActivity, "Could not save token", Toast.LENGTH_SHORT).show()
                     }
                     return
                 }
                 startActivity(Intent(this@LoginActivity, MainActivity::class.java))
-                finish()                
+                finish()
             }
         })
-
     }
 }
