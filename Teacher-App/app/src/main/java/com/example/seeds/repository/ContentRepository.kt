@@ -16,17 +16,21 @@ import javax.inject.Inject
 class ContentRepository @Inject constructor(
     private val network: SeedsService
 ) {
+
+    companion object{
+        const val CONTENT_LIMIT = 15
+    }
+
     suspend fun getAllContent(
-        limit: Int = 10,
+        limit: Int = CONTENT_LIMIT,
         cursor: String? = null
-    ): List<Content> {
+    ): PaginatedResponse<Content> {
         return withContext(Dispatchers.IO) {
-            // Fetch paginated response
-            val response: PaginatedResponse<Content> = network.getAllContent(limit, cursor)
-            // Unwrap data array
-            response.data
+            // Fetch and return the entire response object
+            network.getAllContent(limit, cursor)
         }
     }
+
     suspend fun getContentsById(contentIds: List<String>): List<Content> {
         return withContext(Dispatchers.IO) {
             network.getContentsById(contentIds)

@@ -1,9 +1,15 @@
 package com.example.seeds.ui.home
 
-import androidx.lifecycle.*
+import android.util.Log
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MediatorLiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.Transformations
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.example.seeds.model.Classroom
 import com.example.seeds.model.Content
-import com.example.seeds.model.Student
 import com.example.seeds.repository.ClassroomRepository
 import com.example.seeds.repository.ContentRepository
 import com.example.seeds.repository.TeacherRepository
@@ -13,82 +19,123 @@ import javax.inject.Inject
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    savedStateHandle: SavedStateHandle, 
-    private val teacherRepository: TeacherRepository, 
-    private val contentRepository: ContentRepository, 
-    private val classroomRepository: ClassroomRepository): ViewModel() {
+    savedStateHandle: SavedStateHandle,
+    private val teacherRepository: TeacherRepository,
+    private val contentRepository: ContentRepository,
+    private val classroomRepository: ClassroomRepository
+) : ViewModel() {
 
     val args = HomeFragmentArgs.fromSavedStateHandle(savedStateHandle)
     val showConfirmButton = args.classroom
 
-    private val _students = MutableLiveData<List<Student>>()
-    val students: LiveData<List<Student>>
-        get() = _students
-
-    private val _allContent = MutableLiveData<List<Content>>()
-    val allContent: LiveData<List<Content>>
-        get() = _allContent
-
-    private val _languages = MutableLiveData<List<String>>(listOf())
-    val languages: LiveData<List<String>>
-        get() = _languages
-
-    private val _experiences = MutableLiveData<List<String>>(listOf())
-    val experiences: LiveData<List<String>>
-        get() = _experiences
-
+    private val _allContent = MutableLiveData<List<Content>>(emptyList())
+        val allContent: LiveData<List<Content>> get() = _allContent
     private val _filtersChosen = MutableLiveData(FilterCriteria())
-    val filtersChosen: LiveData<FilterCriteria>
-        get() = _filtersChosen
+    private val _searchQuery = MutableLiveData("")
 
-    private val _filteredContent = MutableLiveData<List<Content>>()
-    val filteredContent: LiveData<List<Content>>
-        get() = _filteredContent
+    // --- UI-VISIBLE LIVE DATA ---
+    val languages: LiveData<List<String>> = Transformations.map(_allContent) { list ->
+        list.map { it.language.lowercase() }.distinct().map { lang -> lang.capitalize() }
+    }
+    val experiences: LiveData<List<String>> = Transformations.map(_allContent) { list ->
+        list.map { it.type.lowercase() }.distinct().map { exp -> exp.capitalize() }
+    }
+    val filtersChosen: LiveData<FilterCriteria> get() = _filtersChosen
 
     private val _navigateBack = MutableLiveData(false)
-    val navigateBack: LiveData<Boolean>
-        get() = _navigateBack
+    val navigateBack: LiveData<Boolean> get() = _navigateBack
 
-    fun updateClassroomContent(classroom: Classroom) {
-        viewModelScope.launch {
-            classroomRepository.saveClassroom(classroom)
-            _navigateBack.value = true
-        }
-    }
-
-    fun doneNavigating() {
-        _navigateBack.value = false
-    }
+    // --- PAGINATION STATE ---
+    private val _isLoading = MutableLiveData(false)
+    val isLoading: LiveData<Boolean> get() = _isLoading
+    private var nextCursor: String? = null
+    private var hasMore: Boolean = true
+    private var isRequestInProgress: Boolean = false
+    private val _filteredContent = MediatorLiveData<List<Content>>()
+    val filteredContent: LiveData<List<Content>> get() = _filteredContent
 
     init {
+        _filteredContent.addSource(_allContent) { recalculateFinalList() }
+        _filteredContent.addSource(_filtersChosen) { recalculateFinalList() }
+        _filteredContent.addSource(_searchQuery) { recalculateFinalList() }
+
+        fetchInitialContent()
+    }
+
+    private fun recalculateFinalList() {
+        val allContent = _allContent.value ?: emptyList()
+        val filters = _filtersChosen.value ?: FilterCriteria()
+        val query = _searchQuery.value ?: ""
+
+        val filteredList = if (filters.languages.isEmpty() && filters.experiences.isEmpty()) {
+            allContent
+        } else {
+            allContent.filter { content ->
+                val matchesLanguage = filters.languages.isEmpty() || filters.languages.map { it.lowercase() }.contains(content.language.lowercase())
+                val matchesExperience = filters.experiences.isEmpty() || filters.experiences.map { it.lowercase() }.contains(content.type.lowercase())
+                matchesLanguage && matchesExperience
+            }
+        }
+
+        val searchedList = if (query.isBlank()) {
+            filteredList
+        } else {
+            filteredList.filter { it.titleText.lowercase().contains(query.lowercase()) }
+        }
+        _filteredContent.value = searchedList
+    }
+
+    fun fetchInitialContent() {
+        if (isRequestInProgress) return
         viewModelScope.launch {
-            val content = contentRepository.getAllContent()
-            _allContent.value = content
-            _languages.value = content.map { it.language.lowercase() }.distinct().map { it.capitalize() }
-            _experiences.value = content.map { it.type.lowercase() }.distinct().map { it.capitalize() }
-            setFiltersChosen(FilterCriteria())
+            isRequestInProgress = true
+            _isLoading.postValue(true)
+            try {
+                val response = contentRepository.getAllContent(cursor = null)
+                _allContent.postValue(response.data)
+                nextCursor = response.pagination.nextCursor
+                hasMore = response.pagination.hasMore
+            } catch (e: Exception) {
+                Log.e("HomeViewModel", "Failed to fetch initial content", e)
+                _allContent.postValue(emptyList())
+            } finally {
+                isRequestInProgress = false
+                _isLoading.postValue(false)
+            }
         }
     }
 
-//     fun applyFilters(filters: FilterCriteria) {
-//         _filteredContent.value = _allContent.value?.filter {
-//             (filters.languages.isEmpty() || it.language.toLowerCase() in filters.languages) &&
-//                     (filters.experiences.isEmpty() || it.type.toLowerCase() in filters.experiences)
-//         }
-//     }
-
-    fun applyFilters(filters: FilterCriteria) {
-        _filteredContent.value = _allContent.value?.filter { content ->
-            val matchesLanguage = 
-                filters.languages.isEmpty() || filters.languages.map {
-                     it.lowercase() }.contains(content.language.lowercase())
-            val matchesExperience = 
-                filters.experiences.isEmpty() || filters.experiences.map {
-                     it.lowercase() }.contains(content.type.lowercase())
-
-            matchesLanguage && matchesExperience
+    fun loadMoreContent() {
+        if (isRequestInProgress || !hasMore) return
+        viewModelScope.launch {
+            isRequestInProgress = true
+            _isLoading.postValue(true)
+            try {
+                val response = contentRepository.getAllContent(cursor = nextCursor)
+                val currentList = _allContent.value ?: emptyList()
+                _allContent.postValue(currentList + response.data)
+                nextCursor = response.pagination.nextCursor
+                hasMore = response.pagination.hasMore
+            } catch (e: Exception) {
+                Log.e("HomeViewModel", "Failed to load more content", e)
+            } finally {
+                isRequestInProgress = false
+                _isLoading.postValue(false)
+            }
         }
     }
+
+    // --- ACTIONS FROM THE FRAGMENT ---
+
+    fun onSearchQueryChanged(query: String) {
+        _searchQuery.value = query
+    }
+
+    fun setFiltersChosen(newFilter: FilterCriteria) {
+        _filtersChosen.value = newFilter
+    }
+
+    // Deleting applyFilters as the Mediator handles it automatically.
 
     fun removeFilter(filter: String) {
         val currentFilters = _filtersChosen.value ?: FilterCriteria()
@@ -97,70 +144,17 @@ class HomeViewModel @Inject constructor(
         setFiltersChosen(FilterCriteria(updatedLanguages, updatedExperiences))
     }
 
-    fun setFiltersChosen(newFilter: FilterCriteria) {
-         _filtersChosen.value = newFilter
-     }
-
     fun clearFilters() {
-        //_filtersChosen.value = listOf()
-        //_filteredContent.value = allContent.value
         setFiltersChosen(FilterCriteria())
     }
 
-    suspend fun registerUser() {
-        teacherRepository.register()
+    fun updateClassroomContent(classroom: Classroom) {
+        viewModelScope.launch {
+            classroomRepository.saveClassroom(classroom)
+            _navigateBack.value = true
+        }
     }
+
+    fun doneNavigating() { _navigateBack.value = false }
+    suspend fun registerUser() { teacherRepository.register() }
 }
-
-
-//        filtersChosen.observeForever { filters ->
-//            _filteredContent.value = applyFilters(_allContent.value ?: emptyList(), filters)
-//        }
-
-//
-//    init {
-//        viewModelScope.launch {
-//            val content = contentRepository.getAllContent()
-//            _allContent.value = content
-//            //_filteredContent.value = content
-//            _languages.value =
-//                content.map { it.language.lowercase() }.distinct().map { it.capitalize() }
-//            _experiences.value = content.map { it.type.lowercase() }.distinct().map {
-//                it.capitalize()
-//            }
-//
-////            _filteredContent.value = content
-//            if(filtersChosen.value != null) {
-//                val langs = _languages.value!!.filter { filtersChosen.value!!.contains(it) }.toMutableSet()
-//                val exps = _experiences.value!!.filter { filtersChosen.value!!.contains(it) }.toMutableSet()
-//                applyFilters(langs, exps)
-//            } else{
-//                _filteredContent.value = content
-//            }
-//        }
-//    }
-
-//    fun applyFilters(languages: MutableSet<String>, experiences: MutableSet<String>) {
-//        var languagesChosen = languages.map{ it.lowercase()}.toMutableSet()
-//        var experiencesChosen = experiences.map{ it.lowercase()}.toMutableSet()
-//
-//        if (experiences.isEmpty()) experiencesChosen = _experiences.value!!.toMutableSet().map{ it.lowercase()}.toMutableSet()
-//        if (languages.isEmpty()) languagesChosen = _languages.value!!.toMutableSet().map{ it.lowercase()} .toMutableSet()
-//
-//
-//        _filteredContent.value = allContent.value?.filter {
-//            languagesChosen.contains(it.language.lowercase()) && experiencesChosen.contains(it.type.lowercase())
-//        }
-//        //INCORRECT -- FIX
-//        _filteredContent.value = allContent.value?.filter {
-//            languagesChosen.contains(it.language.lowercase()) && experiencesChosen.contains(it.type.lowercase())
-//        } // if languagesChosen is empty, it will return all content, if experiencesChosen is empty, it will return all content
-//
-////        if (experiences.isEmpty()) experiencesChosen = _experiences.value?.toMutableSet()?.map{ it.lowercase()}
-////            ?.toMutableSet() ?: mutableSetOf()
-////        if (languages.isEmpty()) languagesChosen = _languages.value?.toMutableSet()?.map{ it.lowercase()}
-////            ?.toMutableSet() ?: mutableSetOf()
-////        _filteredContent.value = allContent.value?.filter {
-////            languagesChosen.contains(it.language.lowercase()) && experiencesChosen.contains(it.type.lowercase())
-////        }
-//    }

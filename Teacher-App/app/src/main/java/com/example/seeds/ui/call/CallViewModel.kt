@@ -180,26 +180,31 @@ class CallViewModel @Inject constructor(
 
         getAccessToken()
         viewModelScope.launch {
-            val selectedContentListIds = args.classroom.contentIds
-            _allContent.value = contentRepository.getAllContent()
+            val allContentList = mutableListOf<Content>()
+            var nextCursor: String? = null
+            var hasMore: Boolean
 
-            val filteredListContent = _allContent.value?.filter {
+            do {
+                val response = contentRepository.getAllContent(cursor = nextCursor)
+                allContentList.addAll(response.data)
+                nextCursor = response.pagination.nextCursor
+                hasMore = response.pagination.hasMore
+            } while (hasMore)
+
+            val selectedContentListIds = args.classroom.contentIds
+            // Filter the complete list of content against what's already selected
+            val filteredListContent = allContentList.filter {
                 !selectedContentListIds.contains(it.id)
             }
-            _allContent.value = filteredListContent!!
+
+            // Assign the final, complete lists to the LiveData
+            _allContent.value = filteredListContent
+            _filteredContent.value = filteredListContent // Initialize filtered content
 
             _languages.value =
                 filteredListContent.map { it.language.lowercase() }.distinct().map { it.capitalize() }
             _experiences.value = filteredListContent.map { it.type.lowercase() }.distinct().map {
                 it.capitalize()
-            }
-
-            if(filtersChosen.value != null) {
-                val langs = _languages.value!!.filter { filtersChosen.value!!.contains(it) }.toMutableSet()
-                val exps = _experiences.value!!.filter { filtersChosen.value!!.contains(it) }.toMutableSet()
-                filterContent(langs, exps)
-            } else{
-                _filteredContent.value = filteredListContent!!
             }
         }
 
