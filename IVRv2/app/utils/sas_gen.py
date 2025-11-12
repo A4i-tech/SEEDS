@@ -4,7 +4,9 @@ from urllib.parse import urlparse, unquote
 import datetime
 import os
 import logging
+import dotenv
 
+dotenv.load_dotenv()
 logger = logging.getLogger(__name__)
 
 class SASGen:
