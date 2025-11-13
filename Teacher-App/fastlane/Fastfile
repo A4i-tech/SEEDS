@@ -3,8 +3,6 @@ default_platform(:android)
 platform :android do
   desc "Build and deploy a staging version to Firebase App Distribution"
   lane :deploy_staging do
-    Dotenv.load('fastlane/.env')
-
     UI.message("Running unit tests...")
     gradle(
       task: 'testDebugUnitTest'
