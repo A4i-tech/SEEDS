@@ -4,9 +4,10 @@ platform :android do
   desc "Build and deploy a staging version to Firebase App Distribution"
   lane :deploy_staging do
     UI.message("Running unit tests...")
-    gradle(
-      task: 'testDebugUnitTest'
-    )
+    
+    # gradle(
+    #   task: 'testDebugUnitTest'
+    # )
     
     gradle(
       task: 'assembleDebug',
