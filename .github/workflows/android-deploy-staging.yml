@@ -3,9 +3,9 @@ name: Deploy Android Staging Build
 # Triggers the workflow on push events to the staging branch
 on:
   push:
-    branches:
-      - 'a4i/staging'
-  # Allows you to run this workflow manually from the Actions tab
+    branches: [a4i/main, a4i/staging, 'teacher-app-ci']
+  pull_request:
+    branches: [a4i/main, a4i/staging, 'teacher-app-ci']
   workflow_dispatch:
 
 jobs:
@@ -35,10 +35,7 @@ jobs:
           echo "FIREBASE_TESTER_GROUPS=${{ secrets.FIREBASE_TESTER_GROUPS }}" >> fastlane/.env
           echo "FIREBASE_CLI_TOKEN=${{ secrets.FIREBASE_CLI_TOKEN }}" >> fastlane/.env
         
-      # 5. Make the Gradle wrapper executable
-      - name: Make gradlew executable
-        run: chmod +x ./gradlew
-
-      # 6. Run the Fastlane deployment lane
+      # Run the Fastlane deployment lane
       - name: Build and Deploy with Fastlane
+        if: github.ref == 'refs/heads/a4i/main'
         run: bundle exec fastlane deploy_staging
