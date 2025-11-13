@@ -63,10 +63,10 @@ wss.on('connection', (ws, req) => {
     console.log(`Control WebSocket connection established with id: ${id}`);
     controlService.handleControlConnection(ws);
   } else {
-    // Start a timer to close the connection after 1 hour
-    const maxConnectionTime = 3600000; // 1 hour in milliseconds
+    // Start a timer to close the connection after 3 minutes
+    const maxConnectionTime = 180000; // 3 minutes in milliseconds
     const connectionTimeout = setTimeout(() => {
-      console.log(`Closing WebSocket connection for ID: ${id} after 1 hour`);
+      console.log(`Closing WebSocket connection for ID: ${id} after 3 minutes`);
       ws.close();
     }, maxConnectionTime);
 
