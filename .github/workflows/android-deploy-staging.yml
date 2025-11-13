@@ -26,10 +26,16 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.2.9'
-          bundler-cache: true
+          bundler-cache: false
           working-directory: ./Teacher-App
-        
-      # Run the Fastlane deployment lane
+
+      - name: Add Linux platform to Gemfile.lock
+        working-directory: ./Teacher-App
+        run: bundle lock --add-platform x86_64-linux
+
+      - name: Install gems
+        working-directory: ./Teacher-App
+        run: bundle install
       - name: Build and Deploy with Fastlane
         if: github.ref == 'refs/heads/teacher-app-ci'
         working-directory: ./Teacher-App
