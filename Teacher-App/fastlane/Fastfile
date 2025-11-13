@@ -4,7 +4,7 @@ platform :android do
   desc "Build and deploy a staging version to Firebase App Distribution"
   lane :deploy_staging do
     UI.message("Running unit tests...")
-    
+
     # gradle(
     #   task: 'testDebugUnitTest'
     # )
@@ -12,8 +12,8 @@ platform :android do
     gradle(
       task: 'assembleDebug',
       properties: {
-        "BASE_URL" => "\"#{ENV['BASE_URL']}\"",
-        "CONTENT_URL" => "\"#{ENV['CONTENT_URL']}\""
+        "BASE_URL" => ENV['BASE_URL'],
+        "CONTENT_URL" => ENV['CONTENT_URL']
       }
     )
 
