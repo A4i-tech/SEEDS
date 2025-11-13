@@ -22,6 +22,12 @@ jobs:
           java-version: '11'
           distribution: 'temurin'
 
+      - name: Install CMake 3.22.1
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake=3.22.1-1ubuntu1.22.04.1 || true
+          cmake --version
+
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
