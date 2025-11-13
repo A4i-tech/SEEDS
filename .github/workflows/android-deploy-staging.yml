@@ -26,11 +26,13 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '2.7'
-          bundler-cache: true 
+          bundler-cache: true
+          working-directory: ./Teacher-App
         
       # Run the Fastlane deployment lane
       - name: Build and Deploy with Fastlane
         if: github.ref == 'refs/heads/teacher-app-ci'
+        working-directory: ./Teacher-App
         env:
           BASE_URL: ${{ secrets.BASE_URL }}
           CONTENT_URL: ${{ secrets.CONTENT_URL }}
