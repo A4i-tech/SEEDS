@@ -36,6 +36,11 @@ jobs:
       - name: Install gems
         working-directory: ./Teacher-App
         run: bundle install
+
+      - name: Make Gradle executable
+        working-directory: ./Teacher-App
+        run: chmod +x gradlew
+
       - name: Build and Deploy with Fastlane
         if: github.ref == 'refs/heads/teacher-app-ci'
         working-directory: ./Teacher-App
