@@ -363,8 +363,7 @@ router.get("/", tryCatchWrapper(async (req, res) => {
 
     if (req.query.ids) {
         const idsArray = Array.isArray(req.query.ids) ? req.query.ids : req.query.ids.split(",");
-        const uuidArray = idsArray.map(id => new Binary(Buffer.from(uuidParse(id)), 4));
-        const contents = await ContentV3.collection.find({ _id: { $in: uuidArray } }).toArray();
+        const contents = await ContentV3.collection.find({ _id: { $in: idsArray } }).toArray();
         return res.json(contents);
     }
 
