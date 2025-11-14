@@ -27,14 +27,20 @@ class AzureServiceBusQueueProvider(BaseQueueProvider):
 
     async def initialize(self):
         """Initializes the Service Bus client and sender."""
-        if not self.connection_string or not self.queue_name:
-            raise ValueError("Service Bus connection string or queue name is not set.")
+        self.validate_configuration()
 
         self._client = ServiceBusClient.from_connection_string(conn_str=self.connection_string)
         self._sender = self._client.get_queue_sender(queue_name=self.queue_name)
         self._receiver = self._client.get_queue_receiver(queue_name=self.queue_name)
         self._initialized = True
         logger.info("Service Bus client and sender initialized.")
+    
+    def validate_configuration(self) -> None:
+        if not self.connection_string:
+            raise ValueError("Service Bus connection string is not set.")
+        if not self.queue_name:
+            raise ValueError("Service Bus queue name is not set.")
+        logger.info("Service Bus configuration validated successfully.")
 
     async def close(self):
         """Closes the Service Bus client."""

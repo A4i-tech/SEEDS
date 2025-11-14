@@ -22,8 +22,21 @@ class BaseQueueProvider(ABC):
         self._initialized = False
 
     @abstractmethod
+    def validate_configuration(self) -> None:
+        """
+        Validate the configuration for the queue provider.
+        Should check for mandatory configuration keys and raise ValueError if invalid.
+        Raises:
+            ValueError: If required configuration keys are missing or invalid.
+        """
+        pass
+
+    @abstractmethod
     async def initialize(self) -> None:
-        """Initialize the queue provider."""
+        """
+        Initialize the queue provider.
+        Optionally calls validate_configuration() to ensure config is valid before initialization.
+        """
         pass
 
     @abstractmethod

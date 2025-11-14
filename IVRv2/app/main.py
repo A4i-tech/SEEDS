@@ -14,7 +14,11 @@ import os
 import asyncio
 from app.actions.base_actions.talk_action import TalkAction
 from app.services.service_bus_manager import service_bus_manager
-from app.workers.call_processor import call_processor, CallProcessor
+from app.workers.call_processor import (
+    CallWebhookProcessor,
+    DtmfInputProcessor,
+    CallEventProcessor,
+)
 
 from app.actions.vonage_actions.vonage_action_factory import VonageActionFactory
 from app.fsm.insti import instantiate_from_latest_content, instantitate_from_doc
@@ -49,6 +53,9 @@ STATUS_BAD_REQUEST = 400
 
 fsm = dict()
 latest_fsm_id = None
+call_webhook_processor = None
+dtmf_input_processor = None
+call_event_processor = None
 
 app = FastAPI(
     title="IVR v2 API",
@@ -72,15 +79,14 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
-ongoing_fsm_mongo = MongoDB(db_name="ivr", collection_name="ongoingIVRState")
+ongoing_fsm_mongo = MongoDB(collection_name="ongoingIVRState")
 
-ivrv2_logs_mongo = MongoDB(db_name="ivr", collection_name="ivrV2Logs")
+ivrv2_logs_mongo = MongoDB(collection_name="ivrV2Logs")
 
-fsm_json_mongo = MongoDB(db_name="ivr", collection_name="fsm")
+fsm_json_mongo = MongoDB(collection_name="fsm")
+radio_fsm_mongo = MongoDB(collection_name="radio")
 
-radio_fsm_mongo = MongoDB(db_name="ivr", collection_name="radio")
-
-calls_log_mongo = MongoDB(db_name="test", collection_name="callsLogs")
+calls_log_mongo = MongoDB(collection_name="callsLogs")
 
 action_factory = VonageActionFactory()
 
@@ -182,7 +188,7 @@ async def startup_event():
     """
     global fsm
     global latest_fsm_id
-    global call_processor
+    global call_webhook_processor, dtmf_input_processor, call_event_processor
 
     # Initialize FSM
     # fsm[comprehension_fsm.fsm_id] = comprehension_fsm
@@ -194,11 +200,26 @@ async def startup_event():
     # Initialize Service Bus Manager
     await service_bus_manager.initialize()
 
-    # Start background call processor
-    call_processor = CallProcessor(fsm)
-    call_processor.latest_fsm_id = latest_fsm_id
-    asyncio.create_task(call_processor.start())
-    logging.info("Application startup complete.")
+    # Create three processors
+    call_webhook_processor = CallWebhookProcessor(fsm)
+    dtmf_input_processor = DtmfInputProcessor(fsm)
+    call_event_processor = CallEventProcessor(fsm)
+    # Update FSM refrences
+    call_webhook_processor.latest_fsm_id = latest_fsm_id
+    dtmf_input_processor.latest_fsm_id = latest_fsm_id
+    call_event_processor.latest_fsm_id = latest_fsm_id
+
+    # Start all processors concurrently
+    asyncio.create_task(call_webhook_processor.start())
+    asyncio.create_task(dtmf_input_processor.start())
+    asyncio.create_task(call_event_processor.start())
+    logging.info("Started all call processors.")
+
+    # # Start background call processor
+    # call_processor = CallProcessor(fsm)
+    # call_processor.latest_fsm_id = latest_fsm_id
+    # asyncio.create_task(call_processor.start())
+    # logging.info("Application startup complete.")
     """
     latest_doc = await fsm_json_mongo.find_top_one("created_at")
     if latest_doc != None: 
@@ -335,7 +356,6 @@ async def call_webhook(request: Request, response: Response):
     call_status = call_data.get("_su")  # 2 = missed call
     phone_number = call_data.get("_cl")  # with country code
     logging.info(f"[WEBHOOK] CALL STATUS: {call_status}")
-    logging.info(f"[WEBHOOK] CALLER NUMBER: {phone_number}")
     if call_status != 2:
         logging.error(
             f"[WEBHOOK] Call status is not missed call (status={call_status})"
@@ -349,12 +369,9 @@ async def call_webhook(request: Request, response: Response):
     logging.info(f"[WEBHOOK] ✓ Logged missed call with ID: {insert_result}")
 
     # send message to service bus to process the call asynchronously
-    logging.info(
-        f"[WEBHOOK] Sending message to queue for phone: {phone_number}, log_id: {insert_result}"
-    )
-    result = await service_bus_manager.start_call_webhook_message(
-        phone_number=phone_number, call_log_id=str(insert_result)
-    )
+    logging.info(f"[WEBHOOK] Sending message log_id: {insert_result}")
+    paylod = {"phone_number": phone_number, "call_log_id": str(insert_result)}
+    result = await service_bus_manager.send_call_webhook(payload=paylod)
     logging.info(f"[WEBHOOK] ✓ Message sent to queue: {result}")
     logging.info("[WEBHOOK] ========================================")
     response.status_code = STATUS_OK
@@ -415,8 +432,6 @@ async def start_ivr(
         # if phone_number is None:
         #     response.status_code = 400
         #     return {"detail": "Sender value is required"}
-
-        print("RECIEVED START IVR CALL FOR PHONE NUMBER", phone_number)
 
         doc = await ongoing_fsm_mongo.find_one_by_query({"phone_number": phone_number})
         if doc != None:
@@ -581,7 +596,7 @@ async def start_bulk_calls(request: BulkCallRequest):
             await ongoing_fsm_mongo.insert(ivr_call_state.dict(by_alias=True))
 
             print(
-                f"Call started for phone number {phone_number} with conversation UUID: {vonage_resp.conversation_uuid}"
+                f"Call started with conversation UUID: {vonage_resp.conversation_uuid}"
             )
 
             # Sleep for one second before initiating the next call
