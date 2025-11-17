@@ -69,21 +69,18 @@ async def process_event(event_data: Dict, conference_id: str):
             vonage_call_status_change_event = VonageCallStatusChangeEvent(**event_data)
             call_status_change_event = vonage_call_status_change_event.get_conf_call_status_change_event(conf)
             logger_instance.info(f"Processing call status change event for {call_status_change_event.phone_number}: {call_status_change_event.status}")
-            new_state_update = {}
-            if call_status_change_event.status == CallStatus.CONNECTED:
-                new_state_update = {"connected": True}
-            elif call_status_change_event.status == CallStatus.DISCONNECTED:
-                new_state_update = {"connected": False}
-            
-            if new_state_update:
-                logger_instance.info(f"[TRIGGER] Firing update for conf {conference_id} due to CallStatus change.")
-                asyncio.create_task(
-                    caller_state_manager.update_state(
-                        conference_id=conference_id,
-                        participant_id=call_status_change_event.phone_number,
-                        new_state=new_state_update
-                    )
+            status_enum = call_status_change_event.status
+
+            new_state_update = {"call_status": status_enum.name}
+
+            logger_instance.info(f"[TRIGGER] Firing update for conf {conference_id} with state: {new_state_update}")
+            asyncio.create_task(
+                caller_state_manager.update_state(
+                    conference_id=conference_id,
+                    participant_id=call_status_change_event.phone_number,
+                    new_state=new_state_update
                 )
+            )
 
             await conf.queue_event(call_status_change_event)
 
