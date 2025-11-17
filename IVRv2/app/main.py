@@ -209,10 +209,10 @@ async def startup_event():
     dtmf_input_processor.latest_fsm_id = latest_fsm_id
     call_event_processor.latest_fsm_id = latest_fsm_id
 
-    # Start all processors concurrently
-    asyncio.create_task(call_webhook_processor.start())
-    asyncio.create_task(dtmf_input_processor.start())
-    asyncio.create_task(call_event_processor.start())
+    # Start all processors in the background
+    call_webhook_processor.start_background()
+    dtmf_input_processor.start_background()
+    call_event_processor.start_background()
     logging.info("Started all call processors.")
 
     # # Start background call processor
@@ -252,16 +252,21 @@ async def shutdown_event():
 
     This function is called automatically when the FastAPI application is shutting down.
     It performs the following tasks:
+    - Gracefully shuts down all processors (30 second timeout per processor)
     - Cleans up the Service Bus Manager resources
 
     Note: This is an internal function and not directly exposed as an API endpoint.
     """
+    logging.info("Starting graceful shutdown...")
+
+    # Shutdown all processors with 30 second timeout each
     if call_webhook_processor:
-        await call_webhook_processor.shutdown()
+        await call_webhook_processor.shutdown(timeout=30)
     if dtmf_input_processor:
-        await dtmf_input_processor.shutdown()
+        await dtmf_input_processor.shutdown(timeout=30)
     if call_event_processor:
-        await call_event_processor.shutdown()
+        await call_event_processor.shutdown(timeout=30)
+
     await service_bus_manager.close()
     logging.info("Application shutdown complete.")
 

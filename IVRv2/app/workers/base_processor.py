@@ -21,6 +21,7 @@ class BaseProcessor(ABC):
         """Initialize the base processor with logging configuration."""
         self.class_name = self.__class__.__name__
         self._shutdown_event = asyncio.Event()
+        self._task: Optional[asyncio.Task] = None
         self.logger = logging.getLogger(self.class_name)
 
     def log_info(self, message: str):
@@ -130,9 +131,49 @@ class BaseProcessor(ABC):
         finally:
             self.log_info("Processor stopped")
 
-    async def shutdown(self):
+    def start_background(self, batch_size: int = 10, max_wait_seconds: int = 5):
         """
-        Trigger graceful shutdown of the processor.
+        Start the processor in the background and return immediately.
+
+        Args:
+            batch_size: Maximum number of messages to receive per batch
+            max_wait_seconds: Maximum time to wait for messages
+
+        Returns:
+            asyncio.Task: The background task
         """
-        self.log_info("Shutdown requested")
+        if self._task is not None and not self._task.done():
+            self.log_warning("Processor already running")
+            return self._task
+
+        self._task = asyncio.create_task(self.start(batch_size, max_wait_seconds))
+        self.log_info("Background task started")
+        return self._task
+
+    async def shutdown(self, timeout: int = 30):
+        """
+        Trigger graceful shutdown of the processor with timeout.
+
+        Args:
+            timeout: Maximum seconds to wait for graceful shutdown before cancelling
+        """
+        self.log_info(f"Shutdown requested (timeout={timeout}s)")
         self._shutdown_event.set()
+
+        if self._task is None or self._task.done():
+            self.log_info("No active task to shutdown")
+            return
+
+        try:
+            # Wait for task to complete gracefully
+            await asyncio.wait_for(self._task, timeout=timeout)
+            self.log_info("Graceful shutdown completed")
+        except asyncio.TimeoutError:
+            self.log_warning(f"Shutdown timeout after {timeout}s, cancelling task")
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                self.log_info("Task cancelled successfully")
+        except Exception as e:
+            self.log_error(f"Error during shutdown: {e}", exc_info=True)
