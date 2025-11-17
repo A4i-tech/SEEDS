@@ -256,8 +256,12 @@ async def shutdown_event():
 
     Note: This is an internal function and not directly exposed as an API endpoint.
     """
-    if call_processor:
-        await call_processor.stop()
+    if call_webhook_processor:
+        await call_webhook_processor.stop()
+    if dtmf_input_processor:
+        await dtmf_input_processor.stop()
+    if call_event_processor:
+        await call_event_processor.stop()
     await service_bus_manager.close()
     logging.info("Application shutdown complete.")
 

@@ -15,22 +15,16 @@ class MongoDB:
 
         client = MongoClient(connection_string)
 
-        # Try to extract database name from connection string
-        db_name = None
+        # Extract database name from connection string
         try:
-            parsed = urlparse(connection_string)
-            # Extract database name from path (e.g., /test or /ivr)
-            path = parsed.path.lstrip("/").split("?")[0]
-            if path:
-                db_name = path
-        except Exception:
-            pass
-
-        # Fallback to environment variable or default
-        if not db_name:
-            db_name = os.environ.get("MONGO_DB_NAME", "SEEDS-Teacher-Backend")
-
-        self.db = client[db_name]
+            parsed_url = urlparse(connection_string)
+            path = parsed_url.path.lstrip('/').split('?')[0]
+            if not path:
+                raise ValueError("Database name not found in connection string")
+            database_name = path
+        except Exception as e:
+            raise ValueError(f"Error parsing database name from connection string: {e}")
+        self.db = client[database_name]
         self.collection = self.db[collection_name]
 
     async def find_by_id(self, id_string: str):
