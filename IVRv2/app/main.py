@@ -209,6 +209,7 @@ async def startup_event():
     dtmf_input_processor.latest_fsm_id = latest_fsm_id
     call_event_processor.latest_fsm_id = latest_fsm_id
 
+    await asyncio.sleep(5)  # Give some time for initialization
     # Start all processors concurrently
     asyncio.create_task(call_webhook_processor.start())
     asyncio.create_task(dtmf_input_processor.start())
@@ -257,11 +258,11 @@ async def shutdown_event():
     Note: This is an internal function and not directly exposed as an API endpoint.
     """
     if call_webhook_processor:
-        await call_webhook_processor.stop()
+        await call_webhook_processor.shutdown()
     if dtmf_input_processor:
-        await dtmf_input_processor.stop()
+        await dtmf_input_processor.shutdown()
     if call_event_processor:
-        await call_event_processor.stop()
+        await call_event_processor.shutdown()
     await service_bus_manager.close()
     logging.info("Application shutdown complete.")
 
@@ -474,7 +475,6 @@ async def start_ivr(
                 "to": [{"type": "phone", "number": phone_number}],
                 "from": {"type": "phone", "number": os.getenv("VONAGE_NUMBER")},
                 "ncco": ncco_actions,
-                "length_timer": os.getenv("CALL_DURATION_LIMIT"),
             }
         )
         vonage_resp = VonageCallStartResponse(**vonage_resp)
@@ -584,7 +584,6 @@ async def start_bulk_calls(request: BulkCallRequest):
                     "to": [{"type": "phone", "number": phone_number}],
                     "from": {"type": "phone", "number": os.getenv("VONAGE_NUMBER")},
                     "ncco": ncco_actions,
-                    "length_timer": os.getenv("CALL_DURATION_LIMIT"),
                 }
             )
             vonage_resp = VonageCallStartResponse(**vonage_resp)
@@ -739,7 +738,7 @@ async def get_event(req: Request, response: Response):
 
 
 @app.post(
-    "/conversation_events",
+    "/webhooks/conversationevents",
     summary="Handle conversation events",
     description="""
     Handles incoming RTC webhook requests related to conversation events, specifically audio play events.
@@ -877,14 +876,88 @@ async def dtmf(input: Request):
 
     input_data = await input.json()
     print("INPUT DATA RAW", input_data)
-    input = DTMFInput(**input_data)
+    dtmf_input = DTMFInput(**input_data)
 
-    # Send to Service Bus for processing
-    await service_bus_manager.send_dtmf_input_message(
-        conversation_uuid=dtmf.conversation_uuid,
-        digits=dtmf.dtmf.digits,
-        input_data=input,
+    # Process DTMF input synchronously to return NCCO immediately
+    print(f"Received request body: {dtmf_input}")
+    digits = dtmf_input.dtmf.digits
+    conv_id = dtmf_input.conversation_uuid
+    doc = await ongoing_fsm_mongo.find_by_id(conv_id)
+    if doc == None:
+        print("ERROR: NO ONGOING IVR STATE FOUND FOR CONV ID: ", conv_id)
+        # Talk Action of server error bye bye
+        ncco = accumulator.combine(
+            [
+                action_factory.get_action_implmentation(x)
+                for x in [
+                    TalkAction(text="Server error. Please try again later. Bye bye.")
+                ]
+            ]
+        )
+        return JSONResponse(ncco)
+
+    ivr_state = IVRCallStateMongoDoc(**doc)
+
+    fsm_in_progress = fsm[ivr_state.fsm_id]
+    print("IS FSM IN PROGRESS NONE", fsm_in_progress == None)
+    # PROCESS MULTIPLE USER INPUTS
+    input_time = datetime.now()
+    print("CURRENT STATE ID", ivr_state.current_state_id)
+    print("INPUT DIGITS", digits)
+    next_actions, next_state_id = None, None
+
+    if digits == "":
+        pre_state_id = ivr_state.current_state_id
+        next_actions, next_state_id = await fsm_in_progress.get_next_actions(
+            "", ivr_state
+        )
+        ivr_state.current_state_id = next_state_id
+        ivr_state.user_actions.append(
+            UserAction(
+                key_pressed="empty",
+                timestamp=input_time,
+                pre_state_id=pre_state_id,
+                post_state_id=next_state_id,
+            )
+        )
+    else:
+        # Process each digit
+        for digit in digits:
+            pre_state_id = ivr_state.current_state_id
+            next_actions, next_state_id = await fsm_in_progress.get_next_actions(
+                digit, ivr_state
+            )
+            ivr_state.current_state_id = next_state_id
+            ivr_state.user_actions.append(
+                UserAction(
+                    key_pressed=digit if digit != "" else "empty",
+                    timestamp=input_time,
+                    pre_state_id=pre_state_id,
+                    post_state_id=next_state_id,
+                )
+            )
+
+    await ongoing_fsm_mongo.update_document(ivr_state.id, ivr_state.dict(by_alias=True))
+
+    # Send to Service Bus for async logging/analytics (fire-and-forget)
+    payload = {
+        "conversation_uuid": dtmf_input.conversation_uuid,
+        "digits": digits,
+        "timestamp": input_time.isoformat(),
+        "pre_state_id": (
+            ivr_state.user_actions[-1].pre_state_id if ivr_state.user_actions else None
+        ),
+        "post_state_id": ivr_state.current_state_id,
+    }
+    asyncio.create_task(service_bus_manager.send_dtmf_input(payload=payload))
+
+    start = time.time()
+    ncco = accumulator.combine(
+        [action_factory.get_action_implmentation(x) for x in next_actions]
     )
+    print("TIME TAKEN TO CREATE NCCO ", time.time() - start)
+    print("NCCO RETURNED FROM INPUT API: ", json.dumps(ncco, indent=2))
+    return JSONResponse(ncco)
     # print(f"Received request body: {input}")
     # digits = input.dtmf.digits
     # conv_id = input.conversation_uuid
