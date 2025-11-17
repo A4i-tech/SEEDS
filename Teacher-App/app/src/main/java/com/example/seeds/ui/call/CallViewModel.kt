@@ -141,9 +141,10 @@ class CallViewModel @Inject constructor(
     val teacherCallStatus: LiveData<StudentCallStatus>
         get() = _teacherCallStatus
 
-    private val _audioPlaying = MutableLiveData(false)
-    val audioPlaying: LiveData<Boolean>
-        get() = _audioPlaying
+    private val _playerState = MutableLiveData(PlayerState.STOPPED)
+    val audioPlaying: LiveData<Boolean> = Transformations.map(_playerState) { state ->
+        state == PlayerState.PLAYING
+    }
 
     private val _navigateBack = MutableLiveData(false)
     val navigateBack: LiveData<Boolean>
@@ -211,6 +212,24 @@ class CallViewModel @Inject constructor(
         Log.d("CONTENTCALL", args.classroom.contents!!.map{
             content -> content.title
         }.toString())
+    }
+
+    fun onPlayPauseClicked() {
+        val content = _selectedContent.value ?: return
+
+        when (_playerState.value) {
+            PlayerState.PLAYING -> {
+                pauseAudio()
+            }
+            PlayerState.PAUSED -> {
+                resumeAudio()
+            }
+            PlayerState.STOPPED -> {
+                playAudio(content.id.toString())
+            }
+            null -> {
+            }
+        }
     }
 
     fun doneNavigating() {
@@ -400,7 +419,17 @@ class CallViewModel @Inject constructor(
             val callStatus = network.getCallStatus(_callToken.value!!.confId).asDomainModel(contactUtils)
             val networkCallState = callStatus.participants
             Log.d("STATEOFCALL", callStatus.toString())
-            _audioPlaying.value = callStatus.audio.state == "play"
+            val serverAudioState = callStatus.audio.state 
+            val newPlayerState = when (serverAudioState) {
+                "play" -> PlayerState.PLAYING
+                "pause" -> PlayerState.PAUSED
+                else -> PlayerState.STOPPED
+            }
+
+            if (_playerState.value != newPlayerState) {
+                _playerState.postValue(newPlayerState)
+            }
+
             Log.d("AUDIOCONTROLNETWORK", callStatus.audio.toString())
             _callState.postValue(networkCallState.sortedByDescending { it.raiseHand })
             Log.d("REFRESHED NETWORK CALL STATE", networkCallState.toString())
@@ -622,46 +651,46 @@ class CallViewModel @Inject constructor(
     fun muteAll() {
         socket.send("muteAll")
     }
-    fun sendAudioCommand(action: String, shouldPlay: Boolean) {
+
+    fun sendAudioCommand(action: String, newStateOnSuccess: PlayerState) {
         Log.d("AUDIO_COMMAND", "$action() called")
 
         val confId = _callToken.value?.confId
         Log.d("AUDIO_COMMAND", "Conference ID: $confId")
 
         if (confId == null) {
-            Log.e("AUDIO_COMMAND", "Conference ID is null")
+            Log.e("AUDIO_COMMAND", "Conference ID is null, cannot send command.")
             _isErrorFromIVR.postValue("Conference not initialized")
-            _isAudioControlDone.postValue(true) // Re-enable button on early exit
+            _isAudioControlDone.postValue(true) 
             return
         }
 
         viewModelScope.launch {
             try {
                 val fullUrl = "$conferenceUrl/conference/${action.lowercase()}audio/$confId"
-                Log.d("AUDIO_COMMAND", "Action: $action | Full URL: $fullUrl")
-                Log.d("AUDIO_COMMAND", "Sending $action request...")
+                Log.d("AUDIO_COMMAND", "Sending $action request to: $fullUrl")
 
-                val response = network.audioCommand(fullUrl) // This will now call the suspend function
+                val response = network.audioCommand(fullUrl)
                 Log.d("AUDIO_COMMAND", "Response received - Code: ${response.code()}")
 
                 if (response.isSuccessful) {
-                    Log.d("AUDIO_COMMAND", "Audio $action request sent successfully")
-                    _audioPlaying.postValue(shouldPlay)
+                    Log.d("AUDIO_COMMAND", "Audio $action request successful. Updating state.")
+                    _playerState.postValue(newStateOnSuccess)
                 } else {
                     Log.e("AUDIO_COMMAND", "Failed to $action audio: ${response.code()} - ${response.message()}")
+                    _isErrorFromIVR.postValue("Failed to $action audio: ${response.code()}")
+                    refreshCallState()
                     try {
                         Log.e("AUDIO_COMMAND", "Error body: ${response.errorBody()?.string()}")
                     } catch (e: Exception) {
                         Log.e("AUDIO_COMMAND", "Could not read error body")
                     }
-                    _isErrorFromIVR.postValue("Failed to $action audio: ${response.code()}")
                 }
             } catch (e: Exception) {
                 Log.e("AUDIO_COMMAND_ERROR", "Exception in $action: ${e.message}", e)
-                e.printStackTrace()
                 _isErrorFromIVR.postValue("Error: ${e.message}")
+                refreshCallState()
             } finally {
-                // This is crucial: always re-enable the button
                 _isAudioControlDone.postValue(true)
             }
         }
@@ -721,38 +750,40 @@ class CallViewModel @Inject constructor(
                 Log.d("PLAY_AUDIO", "Got audio URL: $audioUrl")
                 
                 val fullUrl = "$conferenceUrl/conference/playaudio/$confId"
-                Log.d("PLAY_AUDIO", "Full URL: $fullUrl")
-                Log.d("PLAY_AUDIO", "Audio URL param: $audioUrl")
-                Log.d("PLAY_AUDIO", "Sending play request...")
+                Log.d("PLAY_AUDIO", "Sending play request to: $fullUrl")
                 
                 val response = network.playAudio(fullUrl, audioUrl)
                 Log.d("PLAY_AUDIO", "Response received - Code: ${response.code()}")
                 
                 if (response.isSuccessful) {
-                    Log.d("PLAY_AUDIO", "Audio play request sent successfully")
-                    _audioPlaying.postValue(true)
+                    Log.d("PLAY_AUDIO", "Audio play request successful. Updating state.")
+                    // Pessimistic Update: Change state only AFTER server confirmation.
+                    _playerState.postValue(PlayerState.PLAYING)
                 } else {
                     Log.e("PLAY_AUDIO", "Failed to play audio: ${response.code()} - ${response.message()}")
+                    _isErrorFromIVR.postValue("Failed to play audio: ${response.code()}")
+                    // On failure, ensure the state is correctly set to STOPPED.
+                    _playerState.postValue(PlayerState.STOPPED)
                     try {
                         Log.e("PLAY_AUDIO", "Error body: ${response.errorBody()?.string()}")
                     } catch (e: Exception) {
                         Log.e("PLAY_AUDIO", "Could not read error body")
                     }
-                    _isErrorFromIVR.postValue("Failed to play audio: ${response.code()}")
                 }
             } catch (e: Exception) {
                 Log.e("PLAY_AUDIO_ERROR", "Exception in playAudio: ${e.message}", e)
-                e.printStackTrace()
                 _isErrorFromIVR.postValue("Error: ${e.message}")
+                // Also ensure state is STOPPED on exception.
+                _playerState.postValue(PlayerState.STOPPED)
             } finally {
-                _isAudioControlDone.postValue(true) // This will always run
+                // This will always run to re-enable the UI button.
+                _isAudioControlDone.postValue(true) 
             }
         }
     }
 
-    fun pauseAudio(audioId: String? = null) = sendAudioCommand("Pause", false)
-
-    fun resumeAudio(audioId: String? = null) = sendAudioCommand("Resume", true)
+    fun pauseAudio(audioId: String? = null) = sendAudioCommand("Pause", PlayerState.PAUSED)
+    fun resumeAudio(audioId: String? = null) = sendAudioCommand("Resume", PlayerState.PLAYING)
     // fun resumeAudio(audioId: String) {
     //     if(startedAudio) {
     //         socket.send("resume:$audioId")
