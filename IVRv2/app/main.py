@@ -209,7 +209,6 @@ async def startup_event():
     dtmf_input_processor.latest_fsm_id = latest_fsm_id
     call_event_processor.latest_fsm_id = latest_fsm_id
 
-    await asyncio.sleep(5)  # Give some time for initialization
     # Start all processors concurrently
     asyncio.create_task(call_webhook_processor.start())
     asyncio.create_task(dtmf_input_processor.start())
@@ -475,6 +474,7 @@ async def start_ivr(
                 "to": [{"type": "phone", "number": phone_number}],
                 "from": {"type": "phone", "number": os.getenv("VONAGE_NUMBER")},
                 "ncco": ncco_actions,
+                "length_timer": int(os.getenv("CALL_DURATION_LIMIT_IN_SECONDS", 300)),
             }
         )
         vonage_resp = VonageCallStartResponse(**vonage_resp)
@@ -584,6 +584,9 @@ async def start_bulk_calls(request: BulkCallRequest):
                     "to": [{"type": "phone", "number": phone_number}],
                     "from": {"type": "phone", "number": os.getenv("VONAGE_NUMBER")},
                     "ncco": ncco_actions,
+                    "length_timer": int(
+                        os.getenv("CALL_DURATION_LIMIT_IN_SECONDS", 300)
+                    ),
                 }
             )
             vonage_resp = VonageCallStartResponse(**vonage_resp)
@@ -938,18 +941,6 @@ async def dtmf(input: Request):
             )
 
     await ongoing_fsm_mongo.update_document(ivr_state.id, ivr_state.dict(by_alias=True))
-
-    # Send to Service Bus for async logging/analytics (fire-and-forget)
-    payload = {
-        "conversation_uuid": dtmf_input.conversation_uuid,
-        "digits": digits,
-        "timestamp": input_time.isoformat(),
-        "pre_state_id": (
-            ivr_state.user_actions[-1].pre_state_id if ivr_state.user_actions else None
-        ),
-        "post_state_id": ivr_state.current_state_id,
-    }
-    asyncio.create_task(service_bus_manager.send_dtmf_input(payload=payload))
 
     start = time.time()
     ncco = accumulator.combine(
