@@ -14,15 +14,17 @@ class CallerStateManager:
             cls._instance.events: Dict[str, asyncio.Event] = defaultdict(asyncio.Event)
         return cls._instance
 
-    async def update_state(self, conference_id: str, participant_id: str, new_state: Dict[str, Any]): # <-- RENAMED THIS ARGUMENT
+    async def update_state(self, conference_id: str, participant_id: str, new_state: Dict[str, Any]): 
         if participant_id not in self.states[conference_id]:
             self.states[conference_id][participant_id] = {}
         
-        self.states[conference_id][participant_id].update(new_state) # <-- Also change the variable here
+        self.states[conference_id][participant_id].update(new_state) 
         
         self.versions[conference_id] += 1
-        self.events[conference_id].set()
-        self.events[conference_id].clear()
+        if conference_id in self.events:
+            event = self.events[conference_id]
+            event.set()
+            event.clear()
 
     async def get_state_since_version(self, conference_id: str, known_version: int, timeout: int = 25) -> Tuple[Dict[str, Any], int]:
         current_version = self.versions[conference_id]
@@ -33,5 +35,5 @@ class CallerStateManager:
         except asyncio.TimeoutError:
             pass 
         return self.states[conference_id], self.versions[conference_id]
-
+        
 caller_state_manager = CallerStateManager()
