@@ -2,11 +2,32 @@
 
 import os
 from dotenv import load_dotenv
-from pydantic import BaseModel
-from typing import List
+from pydantic import BaseModel, Field, field_validator
+from typing import ClassVar, List
 
 load_dotenv()
+
 
 class CreateConferenceRequest(BaseModel):
     teacher_phone: str = os.environ.get("MY_NUMBER", "")
     student_phones: List[str] = [os.environ.get("FEATURE_PH", "")]
+
+
+class SeekAudioRequest(BaseModel):
+    MAX_DELTA_SECONDS: ClassVar[int] = 600
+
+    delta_seconds: int = Field(
+        ...,
+        description="Signed seek offset in seconds (negative rewinds, positive fast-forwards)",
+    )
+
+    @field_validator("delta_seconds")
+    @classmethod
+    def validate_delta(cls, value: int) -> int:
+        min_delta = -cls.MAX_DELTA_SECONDS
+        max_delta = cls.MAX_DELTA_SECONDS
+        if value < min_delta or value > max_delta:
+            raise ValueError(
+                f"delta_seconds must be between {min_delta} and {max_delta} seconds"
+            )
+        return value
