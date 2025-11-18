@@ -28,17 +28,19 @@ export function DetailsPage() {
 
   const teacher = users.find((user) => user.role === 'Teacher');
   const students = users.filter((user) => user.role === 'Student');
+  console.log('this is current teacher', teacher);
+  console.log('this is current students', students);
 
   const handleMuteToggle = async (userToUpdate) => {
-    setLoadingIds((prev) => [...prev, userToUpdate.phone_number]);
+    setLoadingIds((prev) => [...prev, userToUpdate.phoneNumber]);
 
     if (userToUpdate.is_muted) {
-      await unmuteParticipant(confId, userToUpdate.phone_number)
+      await unmuteParticipant(confId, userToUpdate.phoneNumber)
     } else {
-      await muteParticipant(confId, userToUpdate.phone_number)
+      await muteParticipant(confId, userToUpdate.phoneNumber)
     }
 
-    setLoadingIds((prev) => prev.filter((id) => id !== userToUpdate.phone_number));
+    setLoadingIds((prev) => prev.filter((id) => id !== userToUpdate.phoneNumber));
   };
 
   const handleStartCall = async () => {
@@ -87,35 +89,35 @@ export function DetailsPage() {
     setIsLoadingMusic(false);
   };
 
-  const handleReconnect = async (phone_number) => {
-    setReconnectingIds((prev) => [...prev, phone_number]);
+  const handleReconnect = async (phoneNumber) => {
+    setReconnectingIds((prev) => [...prev, phoneNumber]);
 
-    await addParticipant(confId, phone_number)
+    await addParticipant(confId, phoneNumber)
 
-    setReconnectingIds((prev) => prev.filter((id) => id !== phone_number));
+    setReconnectingIds((prev) => prev.filter((id) => id !== phoneNumber));
   }
 
   const handleOpenModal = () => setIsModalOpen(true);
   const handleCloseModal = () => setIsModalOpen(false);
 
   const handleAddParticipants = async (selectedPhoneNumbers) => {
-    for (const phone_number of selectedPhoneNumbers) {
-      await addParticipant(confId, phone_number);
+    for (const phoneNumber of selectedPhoneNumbers) {
+      await addParticipant(confId, phoneNumber);
     }
   };
 
   // Filter out students who are already in the userList
   const availableStudents = allStudents.filter(
-    (student) => !userList.some((user) => user.phone_number === student.phone_number)
+    (student) => !userList.some((user) => user.phoneNumber === student.phoneNumber)
   );
 
-  const isLoading = (phone_number) => loadingIds.includes(phone_number);
+  const isLoading = (phoneNumber) => loadingIds.includes(phoneNumber);
   const isPlayingAudio = audioContentState.status === "Playing"
   const isPausedAudio = audioContentState.status === "Paused"
   const isStartingAudio = audioContentState.status === "Starting"
 
   const canReconnect = (user) => user.call_status === "disconnected" && isConfCallRunning
-  const isReconnecting = (phone_number) => reconnectingIds.includes(phone_number)
+  const isReconnecting = (phoneNumber) => reconnectingIds.includes(phoneNumber)
 
   if(hasSunkConf){
     return <App />
@@ -129,12 +131,12 @@ export function DetailsPage() {
           <div className="list-box">
             <h2 className="list-title">Teacher</h2>
             <ul className="list">
-              <li key={teacher.phone_number} className="list-item">
+              <li key={teacher.phoneNumber} className="list-item">
                 <div className="list-item-content">
                   <span className="content"><strong>{teacher.name}</strong></span>
                 </div>
                 <div className="list-item-content">
-                  <span className="content"><strong>{teacher.phone_number}</strong></span>
+                  <span className="content"><strong>{teacher.phoneNumber}</strong></span>
                 </div>
                 <div className="list-item-content">
                   <span className="content"><strong>{teacher.call_status}</strong></span>
@@ -143,10 +145,10 @@ export function DetailsPage() {
                   <div className="list-item-content">
                     <span className="content">
                       <button
-                        onClick={() => handleReconnect(teacher.phone_number)}
+                        onClick={() => handleReconnect(teacher.phoneNumber)}
                         className="mute-button"
                       >
-                        {isReconnecting(teacher.phone_number) ? 'Loading...' : 'Reconnect'}
+                        {isReconnecting(teacher.phoneNumber) ? 'Loading...' : 'Reconnect'}
                       </button>
                     </span>
                   </div>
@@ -155,10 +157,10 @@ export function DetailsPage() {
                   <span className="content">
                     <button
                       onClick={() => handleMuteToggle(teacher)}
-                      disabled={isLoading(teacher.phone_number) || teacher.call_status !== "connected"}
+                      disabled={isLoading(teacher.phoneNumber) || teacher.call_status !== "connected"}
                       className="mute-button"
                     >
-                      {isLoading(teacher.phone_number) ? 'Loading...' : teacher.is_muted ? 'Unmute' : 'Mute'}
+                      {isLoading(teacher.phoneNumber) ? 'Loading...' : teacher.is_muted ? 'Unmute' : 'Mute'}
                     </button>
                   </span>
                 </div>
@@ -172,12 +174,12 @@ export function DetailsPage() {
             <h2 className="list-title">Students</h2>
             <ul className="list">
               {students.map((student) => (
-                <li key={student.phone_number} className="list-item">
+                <li key={student.phoneNumber} className="list-item">
                   <div className="list-item-content">
                     <span className="content"><strong>{student.name}</strong></span>
                   </div>
                   <div className="list-item-content">
-                    <span className="content"><strong>{student.phone_number}</strong></span>
+                    <span className="content"><strong>{student.phoneNumber}</strong></span>
                   </div>
                   <div className="list-item-content">
                     <span className="content"><strong>{student.call_status}</strong></span>
@@ -186,10 +188,10 @@ export function DetailsPage() {
                     <div className="list-item-content">
                       <span className="content">
                         <button
-                          onClick={() => handleReconnect(student.phone_number)}
+                          onClick={() => handleReconnect(student.phoneNumber)}
                           className="mute-button"
                         >
-                          {isReconnecting(student.phone_number) ? 'Loading...' : 'Reconnect'}
+                          {isReconnecting(student.phoneNumber) ? 'Loading...' : 'Reconnect'}
                         </button>
                       </span>
                     </div>
@@ -198,10 +200,10 @@ export function DetailsPage() {
                     <span className="content">
                       <button
                         onClick={() => handleMuteToggle(student)}
-                        disabled={isLoading(student.phone_number) || student.call_status !== "connected"}
+                        disabled={isLoading(student.phoneNumber) || student.call_status !== "connected"}
                         className="mute-button"
                       >
-                        {isLoading(student.phone_number) ? 'Loading...' : student.is_muted ? 'Unmute' : 'Mute'}
+                        {isLoading(student.phoneNumber) ? 'Loading...' : student.is_muted ? 'Unmute' : 'Mute'}
                       </button>
                     </span>
                   </div>

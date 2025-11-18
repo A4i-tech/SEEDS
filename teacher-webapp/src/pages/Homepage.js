@@ -29,14 +29,27 @@ function Homepage() {
       : recvdPhoneNumber || "";
   const {
     selectedStudents,
+    selectedTeacher,
     setConfId,
     loading,
     setLoading,
     handleSSEEvent,
     handleStudentToggle,
+    handleTeacherSelect,
   } = useConference();
   // students fetched from server for the authenticated teacher
   const [studentsList, setStudentsList] = React.useState([]);
+
+  // Set teacher in context when displayedPhone is available
+  React.useEffect(() => {
+    if (displayedPhone && !selectedTeacher) {
+      handleTeacherSelect({
+        name: "Teacher", // You might want to fetch the actual teacher name
+        phoneNumber: displayedPhone,
+        role: "Teacher",
+      });
+    }
+  }, [displayedPhone, selectedTeacher]);
 
   // fetch students from backend endpoint using axios POST with phoneNumber in body
   React.useEffect(() => {
@@ -58,7 +71,11 @@ function Homepage() {
         if (!mounted) return;
         const data = res.data;
         console.log(data);
-        setStudentsList(Array.isArray(data) ? data : []);
+        // Ensure students have the role property
+        const studentsWithRole = Array.isArray(data)
+          ? data.map((s) => ({ ...s, role: "Student" }))
+          : [];
+        setStudentsList(studentsWithRole);
       } catch (err) {
         if (mounted)
           console.error(
@@ -83,7 +100,12 @@ function Homepage() {
   // Handler to add student to array
   const handleAddStudent = (e) => {
     e.preventDefault();
-    if (!newStudent.name.trim() || !newStudent.phoneNumber.trim() || newStudent.phoneNumber.length !== 10) return;
+    if (
+      !newStudent.name.trim() ||
+      !newStudent.phoneNumber.trim() ||
+      newStudent.phoneNumber.length !== 10
+    )
+      return;
     setAddedStudents((prev) => [...prev, newStudent]);
     setNewStudent({ name: "", phoneNumber: "" });
   };
@@ -141,7 +163,7 @@ function Homepage() {
     setLoading(true); // Start loading
     try {
       const data = await createConference(
-        recvdPhoneNumber,
+        displayedPhone,
         selectedStudents.map((item) => item.phoneNumber)
       );
       const conferenceId = data.id;

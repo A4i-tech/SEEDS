@@ -1,17 +1,19 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { AudioContentState, Participant } from '../state'; // You can import from existing state file
+import React, { createContext, useContext, useState, useEffect } from "react";
+import { AudioContentState, Participant } from "../state"; // You can import from existing state file
 
 const ConferenceContext = createContext();
 
 export const useConference = () => useContext(ConferenceContext);
 
 export const ConferenceProvider = ({ children }) => {
-  const [isConfCallRunning, setIsConfCallRunning] = useState(false)
-  const [audioContentState, setAudioContentState] = useState(new AudioContentState())
+  const [isConfCallRunning, setIsConfCallRunning] = useState(false);
+  const [audioContentState, setAudioContentState] = useState(
+    new AudioContentState()
+  );
   const [selectedTeacher, setSelectedTeacher] = useState(null);
   const [selectedStudents, setSelectedStudents] = useState([]);
   const [userList, setUserList] = useState([]);
-  const [confId, setConfId] = useState('');
+  const [confId, setConfId] = useState("");
   const [loading, setLoading] = useState(false);
 
   // Updates the `userList` whenever teacher or students are selected
@@ -21,15 +23,13 @@ export const ConferenceProvider = ({ children }) => {
   }, [selectedTeacher, selectedStudents]);
 
   const handleTeacherSelect = (teacher) => {
-    setSelectedTeacher((prev) =>
-      prev?.phone_number === teacher.phone_number ? null : teacher
-    );
+    setSelectedTeacher(teacher);
   };
 
   const handleStudentToggle = (student) => {
     setSelectedStudents((prevStudents) =>
-      prevStudents.some((s) => s.phone_number === student.phone_number)
-        ? prevStudents.filter((s) => s.phone_number !== student.phone_number)
+      prevStudents.some((s) => s.phoneNumber === student.phoneNumber)
+        ? prevStudents.filter((s) => s.phoneNumber !== student.phoneNumber)
         : [...prevStudents, student]
     );
   };
@@ -37,11 +37,13 @@ export const ConferenceProvider = ({ children }) => {
   const handleSSEEvent = (event) => {
     setIsConfCallRunning(event.is_running);
     setAudioContentState(new AudioContentState(event.audio_content_state));
-  
-    for (let phone_number in event.participants) {
-      const participant = new Participant({ ...event.participants[phone_number] });
-  
-      if (selectedTeacher?.phone_number === phone_number) {
+
+    for (let phoneNumber in event.participants) {
+      const participant = new Participant({
+        ...event.participants[phoneNumber],
+      });
+
+      if (selectedTeacher?.phoneNumber === phoneNumber) {
         const newTeacher = new Participant({
           ...selectedTeacher,
           raised_at: participant.raised_at,
@@ -53,13 +55,13 @@ export const ConferenceProvider = ({ children }) => {
       } else {
         setSelectedStudents((prevStudents) => {
           const studentExists = prevStudents.some(
-            (student) => student.phone_number === phone_number
+            (student) => student.phoneNumber === phoneNumber
           );
-  
+
           if (studentExists) {
             // Update the existing student
             return prevStudents.map((student) =>
-              student.phone_number === phone_number
+              student.phoneNumber === phoneNumber
                 ? new Participant({
                     ...student,
                     raised_at: participant.raised_at,
@@ -77,8 +79,6 @@ export const ConferenceProvider = ({ children }) => {
       }
     }
   };
-  
-
 
   return (
     <ConferenceContext.Provider
