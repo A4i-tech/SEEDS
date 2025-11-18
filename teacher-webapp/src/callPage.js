@@ -22,7 +22,7 @@ const normalizeUser = (user) =>
   user ? { ...user, phoneNumber: getPhoneNumber(user) } : null;
 
 export function DetailsPage() {
-  const { userList, confId, isConfCallRunning, audioContentState } =
+  const { userList, confId, isConfCallRunning, audioContentState, conferenceStudents } =
     useConference();
 
   const [users, setUsers] = useState(userList);
@@ -40,26 +40,20 @@ export function DetailsPage() {
   }, [userList]);
 
   const teacher = normalizeUser(users.find((user) => user.role === "Teacher"));
-  const students = users
-    .filter((user) => user.role === "Student")
-    .map(normalizeUser)
-    .filter(Boolean);
+  const students = conferenceStudents;
 
   const handleMuteToggle = async (userToUpdate) => {
-    const phoneNumber = getPhoneNumber(userToUpdate);
-    if (!phoneNumber) {
-      return;
-    }
-
-    setLoadingIds((prev) => [...prev, phoneNumber]);
+    setLoadingIds((prev) => [...prev, userToUpdate.phoneNumber]);
 
     if (userToUpdate.is_muted) {
-      await unmuteParticipant(confId, phoneNumber);
+      await unmuteParticipant(confId, userToUpdate.phoneNumber);
     } else {
-      await muteParticipant(confId, phoneNumber);
+      await muteParticipant(confId, userToUpdate.phoneNumber);
     }
 
-    setLoadingIds((prev) => prev.filter((id) => id !== phoneNumber));
+    setLoadingIds((prev) =>
+      prev.filter((id) => id !== userToUpdate.phoneNumber)
+    );
   };
 
   const handleStartCall = async () => {
@@ -145,7 +139,7 @@ export function DetailsPage() {
   };
 
   // Filter out students who are already in the userList
-  const availableStudents = allStudents.filter(
+  const availableStudents = conferenceStudents.filter(
     (student) =>
       !userList.some((user) => getPhoneNumber(user) === getPhoneNumber(student))
   );

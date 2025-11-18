@@ -15,6 +15,7 @@ export const ConferenceProvider = ({ children }) => {
   const [userList, setUserList] = useState([]);
   const [confId, setConfId] = useState("");
   const [loading, setLoading] = useState(false);
+  const [conferenceStudents, setConferenceStudents] = useState([]);
 
   // Updates the `userList` whenever teacher or students are selected
   useEffect(() => {
@@ -23,7 +24,9 @@ export const ConferenceProvider = ({ children }) => {
   }, [selectedTeacher, selectedStudents]);
 
   const handleTeacherSelect = (teacher) => {
-    setSelectedTeacher(teacher);
+    setSelectedTeacher((prev) =>
+      prev?.phoneNumber === teacher.phoneNumber ? null : teacher
+    );
   };
 
   const handleStudentToggle = (student) => {
@@ -95,6 +98,8 @@ export const ConferenceProvider = ({ children }) => {
         handleSSEEvent,
         handleTeacherSelect,
         handleStudentToggle,
+        setConferenceStudents,
+        conferenceStudents
       }}
     >
       {children}

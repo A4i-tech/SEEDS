@@ -29,27 +29,16 @@ function Homepage() {
       : recvdPhoneNumber || "";
   const {
     selectedStudents,
-    selectedTeacher,
     setConfId,
     loading,
     setLoading,
     handleSSEEvent,
     handleStudentToggle,
     handleTeacherSelect,
+    setConferenceStudents,
   } = useConference();
   // students fetched from server for the authenticated teacher
   const [studentsList, setStudentsList] = React.useState([]);
-
-  // Set teacher in context when displayedPhone is available
-  React.useEffect(() => {
-    if (displayedPhone && !selectedTeacher) {
-      handleTeacherSelect({
-        name: "Teacher", // You might want to fetch the actual teacher name
-        phoneNumber: displayedPhone,
-        role: "Teacher",
-      });
-    }
-  }, [displayedPhone, selectedTeacher]);
 
   // fetch students from backend endpoint using axios POST with phoneNumber in body
   React.useEffect(() => {
@@ -70,12 +59,8 @@ function Homepage() {
         );
         if (!mounted) return;
         const data = res.data;
-        console.log(data);
-        // Ensure students have the role property
-        const studentsWithRole = Array.isArray(data)
-          ? data.map((s) => ({ ...s, role: "Student" }))
-          : [];
-        setStudentsList(studentsWithRole);
+        console.log("Fetched students:", data);
+        setStudentsList(Array.isArray(data) ? data : []);
       } catch (err) {
         if (mounted)
           console.error(
@@ -87,7 +72,7 @@ function Homepage() {
     return () => {
       mounted = false;
     };
-  }, [displayedPhone]);
+  }, [displayedPhone]); 
 
   // Handler for input changes
   const handleInputChange = (e) => {
@@ -100,12 +85,7 @@ function Homepage() {
   // Handler to add student to array
   const handleAddStudent = (e) => {
     e.preventDefault();
-    if (
-      !newStudent.name.trim() ||
-      !newStudent.phoneNumber.trim() ||
-      newStudent.phoneNumber.length !== 10
-    )
-      return;
+    if (!newStudent.name.trim() || !newStudent.phoneNumber.trim() || newStudent.phoneNumber.length !== 10) return;
     setAddedStudents((prev) => [...prev, newStudent]);
     setNewStudent({ name: "", phoneNumber: "" });
   };
@@ -131,10 +111,10 @@ function Homepage() {
       // 2. Append new students (avoid duplicates by phoneNumber)
       const allStudents = [
         ...addedStudents.filter(
-          (ns) =>
-            !currentStudents.some((cs) => cs.phoneNumber === ns.phoneNumber)
-        ),
-      ];
+        (ns) =>
+          !currentStudents.some((cs) => cs.phoneNumber === ns.phoneNumber)
+      ),
+];
       // 3. Post combined list
       console.log("Posting students:", allStudents);
       await axios.post(
@@ -161,13 +141,21 @@ function Homepage() {
   const [isSubmitted, setIsSubmitted] = React.useState(false);
   const handleFormSubmit = async () => {
     setLoading(true); // Start loading
+    console.log("Starting conference for:", recvdPhoneNumber.phoneNumber, selectedStudents);
+    const teacherObject = {
+      name: "Teacher",
+      phoneNumber: recvdPhoneNumber.phoneNumber,
+      role: "Teacher",
+    };
+    handleTeacherSelect(teacherObject); // Select the teacher
     try {
       const data = await createConference(
-        `91${displayedPhone}`,
+        `91${recvdPhoneNumber.phoneNumber}`,
         selectedStudents.map((item) => `91${item.phoneNumber}`)
       );
       const conferenceId = data.id;
       setConfId(conferenceId);
+      setConferenceStudents(selectedStudents);
       console.log("Conf ID:", conferenceId);
       const sseEp = SSE_ENDPOINTS.CONFERENCE.TEACHER_CONNECT(conferenceId);
       const eventSource = new EventSource(sseEp);
