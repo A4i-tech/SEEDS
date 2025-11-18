@@ -245,13 +245,13 @@ class CallSettingsFragment : BaseFragment() {
 
     private fun removeContent(content: Content) {
         AlertDialog.Builder(requireContext())
-            .setMessage("Are you sure you want to remove ${content.title}?")
+            .setMessage("Are you sure you want to remove ${content.titleText}?")
             .setCancelable(true)
             .setPositiveButton("Yes") { _, _ ->
                 val classroom = viewModel.classroom.value!!
                 classroom.contentIds = classroom.contentIds.filter { it != content.id }
                 viewModel.updateClassroomContent(classroom)
-                logMessage("Content removed from call settings: ${content.id} (${content.title})")
+                logMessage("Content removed from call settings: ${content.id} (${content.titleText})")
             }
             .setNegativeButton("No", null)
             .show()
