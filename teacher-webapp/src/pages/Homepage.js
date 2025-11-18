@@ -163,8 +163,8 @@ function Homepage() {
     setLoading(true); // Start loading
     try {
       const data = await createConference(
-        displayedPhone,
-        selectedStudents.map((item) => item.phoneNumber)
+        `91${displayedPhone}`,
+        selectedStudents.map((item) => `91${item.phoneNumber}`)
       );
       const conferenceId = data.id;
       setConfId(conferenceId);
