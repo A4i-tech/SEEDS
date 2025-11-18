@@ -1,0 +1,48 @@
+import React from "react";
+import { render, screen, fireEvent } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { SeekControls } from "../../src/components/SeekControls";
+
+describe("SeekControls", () => {
+  const defaultProps = {
+    disabled: false,
+    seekingDirection: null,
+    onSeekBackward: jest.fn(),
+    onSeekForward: jest.fn(),
+  };
+
+  const renderControls = (props = {}) => {
+    const merged = { ...defaultProps, ...props };
+    merged.onSeekBackward.mockClear();
+    merged.onSeekForward.mockClear();
+    return render(<SeekControls {...merged} />);
+  };
+
+  test("renders buttons with default labels", () => {
+    renderControls();
+    expect(screen.getByRole("button", { name: "-10s" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "+10s" })).toBeInTheDocument();
+  });
+
+  test("disables buttons when component is disabled", () => {
+    renderControls({ disabled: true });
+    expect(screen.getByRole("button", { name: "-10s" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "+10s" })).toBeDisabled();
+  });
+
+  test("invokes callbacks when clicked", () => {
+    renderControls();
+    fireEvent.click(screen.getByRole("button", { name: "-10s" }));
+    fireEvent.click(screen.getByRole("button", { name: "+10s" }));
+    expect(defaultProps.onSeekBackward).toHaveBeenCalledTimes(1);
+    expect(defaultProps.onSeekForward).toHaveBeenCalledTimes(1);
+  });
+
+  test("shows seeking state for active direction", () => {
+    const { rerender } = renderControls({ seekingDirection: "backward" });
+    expect(screen.getByRole("button", { name: "Seeking..." })).toBeDisabled();
+
+    rerender(<SeekControls {...defaultProps} seekingDirection="forward" />);
+    expect(screen.getAllByText("Seeking...")).toHaveLength(1);
+  });
+});

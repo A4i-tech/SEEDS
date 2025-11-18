@@ -23,6 +23,7 @@ const mockApiService = {
   playAudio: jest.fn(),
   pauseAudio: jest.fn(),
   resumeAudio: jest.fn(),
+  seekAudio: jest.fn(),
   addParticipant: jest.fn(),
 };
 
@@ -87,6 +88,7 @@ describe("DetailsPage Component", () => {
       isConfCallRunning: false,
       audioContentState: { current_url: "", status: "Paused", paused_at: "" },
     });
+    mockApiService.seekAudio.mockResolvedValue({});
   });
 
   describe("Rendering", () => {
@@ -202,6 +204,46 @@ describe("DetailsPage Component", () => {
       renderDetailsPage();
       fireEvent.click(screen.getByText("Resume Music"));
       await expectApiCall(mockApiService.resumeAudio, "test-conf-123");
+    });
+
+    test("handles seek controls states", async () => {
+      const { rerender } = renderDetailsPage();
+      expect(screen.getByText("-10s")).toBeDisabled();
+      expect(screen.getByText("+10s")).toBeDisabled();
+
+      mockConferenceContext.isConfCallRunning = true;
+      mockConferenceContext.audioContentState = {
+        status: "Playing",
+        current_url: "audio.wav",
+      };
+      rerender(<DetailsPage />);
+
+      const rewindButton = screen.getByRole("button", { name: "-10s" });
+      const forwardButton = screen.getByRole("button", { name: "+10s" });
+      expect(rewindButton).toBeEnabled();
+      expect(forwardButton).toBeEnabled();
+
+      fireEvent.click(rewindButton);
+      await waitFor(() => {
+        expect(mockApiService.seekAudio).toHaveBeenNthCalledWith(
+          1,
+          "test-conf-123",
+          -10
+        );
+      });
+
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "+10s" })).toBeEnabled();
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "+10s" }));
+      await waitFor(() => {
+        expect(mockApiService.seekAudio).toHaveBeenNthCalledWith(
+          2,
+          "test-conf-123",
+          10
+        );
+      });
     });
   });
 
