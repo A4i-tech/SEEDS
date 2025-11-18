@@ -6,6 +6,7 @@ on:
     branches: [a4i/staging]
   pull_request:
     branches: [a4i/staging]
+  workflow_call:
   workflow_dispatch:
 
 jobs:
