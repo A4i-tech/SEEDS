@@ -1,33 +1,33 @@
 // src/services/controlService.js
 
-const websocketService = require('./websocketService');
-const connectionManager = require('./connectionManager');
-const { MessageType } = require('../constants')
+const websocketService = require("./websocketService");
+const connectionManager = require("./connectionManager");
+const { MessageType } = require("../constants");
 
 /**
  * Handles the control WebSocket connection from the Python application.
  * @param {WebSocket} ws - The control WebSocket connection.
  */
 function handleControlConnection(ws) {
-  console.log('Control connection established.');
+  console.log("Control connection established.");
 
-  ws.on('message', (message) => {
+  ws.on("message", (message) => {
     try {
       // Parse the JSON string
       const parsedMessage = JSON.parse(message);
       handleControlMessage(parsedMessage);
     } catch (error) {
-      console.error('Error parsing control message:', error);
+      console.error("Error parsing control message:", error);
     }
   });
 
-  ws.on('close', () => {
-    console.log('Control WebSocket connection closed.');
-    connectionManager.removeConnection('confv2server')
+  ws.on("close", () => {
+    console.log("Control WebSocket connection closed.");
+    connectionManager.removeConnection("confv2server");
   });
 
-  ws.on('error', (error) => {
-    console.error('Control WebSocket error:', error);
+  ws.on("error", (error) => {
+    console.error("Control WebSocket error:", error);
   });
 }
 
@@ -39,15 +39,23 @@ function handleControlMessage(controlMessage) {
   const websocketId = controlMessage.websocket_id;
   const type = controlMessage.type;
   const content = controlMessage.message;
-  console.log(`websocket id: ${websocketId}; type: ${type}; message: ${content}`)
+  console.log(
+    `websocket id: ${websocketId}; type: ${type}; message: ${content}`
+  );
   switch (type) {
     case MessageType.PLAY_SYSTEM_MESSAGE:
-      websocketService.playSystemAudioContent(websocketId, content)
-        .catch((error) => console.error(`Error playing audio for ID ${websocketId}:`, error));
+      websocketService
+        .playSystemAudioContent(websocketId, content)
+        .catch((error) =>
+          console.error(`Error playing audio for ID ${websocketId}:`, error)
+        );
       break;
     case MessageType.PLAY_AUDIO:
-      websocketService.playAudioContent(websocketId, content)
-        .catch((error) => console.error(`Error playing audio for ID ${websocketId}:`, error));
+      websocketService
+        .playAudioContent(websocketId, content)
+        .catch((error) =>
+          console.error(`Error playing audio for ID ${websocketId}:`, error)
+        );
       break;
     case MessageType.PAUSE_AUDIO:
       websocketService.pauseAudioContent(websocketId);
@@ -57,6 +65,13 @@ function handleControlMessage(controlMessage) {
       break;
     case MessageType.STOP_AUDIO:
       websocketService.stopAudioContent(websocketId);
+      break;
+    case MessageType.SEEK_AUDIO:
+      websocketService
+        .seekAudioContent(websocketId, content)
+        .catch((error) =>
+          console.error(`Error seeking audio for ID ${websocketId}:`, error)
+        );
       break;
     case MessageType.DISCONNECT:
       websocketService.closeConnection(websocketId);
@@ -70,5 +85,5 @@ function handleControlMessage(controlMessage) {
 }
 
 module.exports = {
-  handleControlConnection
+  handleControlConnection,
 };
