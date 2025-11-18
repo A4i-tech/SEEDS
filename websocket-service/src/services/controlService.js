@@ -9,9 +9,10 @@ const { MessageType } = require("../constants");
  * @param {WebSocket} ws - The control WebSocket connection.
  */
 function handleControlConnection(ws) {
-  console.log("Control connection established.");
+  console.log("Control connection established (confv2server).");
 
   ws.on("message", (message) => {
+    console.log(`Control raw message received: ${message}`);
     try {
       // Parse the JSON string
       const parsedMessage = JSON.parse(message);
@@ -39,8 +40,10 @@ function handleControlMessage(controlMessage) {
   const websocketId = controlMessage.websocket_id;
   const type = controlMessage.type;
   const content = controlMessage.message;
+  const serializedContent =
+    typeof content === "string" ? content : JSON.stringify(content);
   console.log(
-    `websocket id: ${websocketId}; type: ${type}; message: ${content}`
+    `Control message received | websocket id: ${websocketId}; type: ${type}; message: ${serializedContent}`
   );
   switch (type) {
     case MessageType.PLAY_SYSTEM_MESSAGE:

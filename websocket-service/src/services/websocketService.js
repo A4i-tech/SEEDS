@@ -334,8 +334,11 @@ async function seekAudioContent(id, seekPayload) {
   if (!audioState || !audioState.blobData) {
     throw new Error("No audio content data to seek");
   }
-
+  console.log(`this is current audio state ${JSON.stringify(audioState)}`);
   const deltaSeconds = extractDeltaSeconds(seekPayload);
+  console.log(
+    `Seek request received for ID: ${id}; deltaSeconds: ${deltaSeconds}; currentPosition: ${audioState.position}`
+  );
   const totalLength = audioState.blobData.length;
   const currentPosition = audioState.position || 0;
   const targetPosition = clampPosition(
@@ -348,6 +351,9 @@ async function seekAudioContent(id, seekPayload) {
   if (state.currentAudioType === "systemAudioContent") {
     // Acknowledge the seek but leave playback paused until announcements finish.
     audioState.playing = false;
+    console.log(
+      `Seek for ID: ${id} applied while system audio playing; new buffered position: ${targetPosition}`
+    );
     return;
   }
 
@@ -357,6 +363,9 @@ async function seekAudioContent(id, seekPayload) {
   audioState.playing = true;
 
   sendPlaybackStatus(id, PlaybackStatus.PLAYING);
+  console.log(
+    `Restarting audio stream after seek for ID: ${id}; playbackId: ${currentPlaybackId}; startByte: ${targetPosition}`
+  );
   sendAudioContentChunks(ws, id, audioState.blobData, state, currentPlaybackId);
 }
 
