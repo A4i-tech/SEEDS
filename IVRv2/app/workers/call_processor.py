@@ -124,7 +124,7 @@ class CallWebhookProcessor(BaseProcessor):
 
             client = vonage.Client(
                 application_id=settings.vonage_application_id,
-                private_key=settings.vonage_private_key_path,
+                private_key=os.getenv("VONAGE_PRIVATE_KEY_PATH"),
             )
             self.log_info(f"[START_IVR] ✓ Vonage client created")
 
