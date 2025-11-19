@@ -7,13 +7,25 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkRequest
 import android.util.Log
-import androidx.lifecycle.*
-import com.example.seeds.model.*
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.seeds.model.AccessToken
+import com.example.seeds.model.CallDetails
+import com.example.seeds.model.CallerState
+import com.example.seeds.model.Classroom
+import com.example.seeds.model.ConferenceCreateRequest
+import com.example.seeds.model.Content
+import com.example.seeds.model.Student
+import com.example.seeds.model.StudentCallStatus
 import com.example.seeds.network.SeedsService
 import com.example.seeds.network.asDomainModel
 import com.example.seeds.repository.ClassroomRepository
 import com.example.seeds.repository.ContentRepository
 import com.example.seeds.repository.TeacherRepository
+import com.example.seeds.utils.Constants
 import com.example.seeds.utils.ContactUtils
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
@@ -22,11 +34,13 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import okhttp3.*
+import okhttp3.OkHttpClient
+import okhttp3.Response
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
 import okio.ByteString
 import javax.inject.Inject
 import android.content.SharedPreferences
-import com.example.seeds.utils.Constants
 
 const val SOCKET_CLOSE = 1000   
 const val THREAD_SLEEP_TIME = 5000L
@@ -59,7 +73,6 @@ class CallViewModel @Inject constructor(
     private var cancelCallOnFailure: Job? = null
 
     val teacherPhoneNumber = "91${teacherRepository.getTeacherPhoneNumber()}"
-    // Log.d("PAYLOAD_DEBUG","Teacher: $teacherPhoneNumber")
     var startedAudio = false
 
     var content: Content? = if (args.classroom.contents!!.isNotEmpty()) args.classroom.contents!![0] else null
@@ -86,14 +99,6 @@ class CallViewModel @Inject constructor(
     private val _isErrorFromIVR = MutableLiveData<String>(null)
     val isErrorFromIVR: LiveData<String>
         get() = _isErrorFromIVR
-
-    // val _forwardStreamDone = MutableLiveData<Boolean>(true)
-    // val forwardStreamDone: LiveData<Boolean>
-    //     get() = _forwardStreamDone
-
-    // val _backwardStreamDone = MutableLiveData<Boolean>(true)
-    // val backwardStreamDone: LiveData<Boolean>
-    //     get() = _backwardStreamDone
 
     val _isMuteOrUnmuteAllDone = MutableLiveData<Boolean>(true)
     val isMuteOrUnmuteAllDone: LiveData<Boolean>
@@ -217,40 +222,13 @@ class CallViewModel @Inject constructor(
         _navigateBack.value = false
     }
 
-    // private fun getAccessToken() {
-    //     viewModelScope.launch {
-    //         try {
-    //             val payload = ConferenceCreateRequest(
-    //                 teacher_phone = teacherPhoneNumber,
-    //                 student_phones = phoneNumbers
-    //             )
-
-    //             // Directly get the parsed object
-    //             val response = network.getAccessToken(
-    //                 "https://samella-cemeterial-unfortunately.ngrok-free.app/conference/create",
-    //                 payload
-    //             )
-
-    //             val confId = response.id
-    //             Log.d("CONF_ID", "Created conference ID: $confId")
-
-    //             startCall(confId)
-
-    //         } catch (e: Exception) {
-    //             Log.e("GET_ACCESS_TOKEN", "Error creating conference: ${e.message}", e)
-    //         }
-    //     }
-    // }
     private fun getAccessToken() {
         viewModelScope.launch {
             try {
                 val teacherPhoneWithPrefix = "$teacherPhoneNumber"
                 
                 val studentPhonesWithPrefix = phoneNumbers.map { "$it" }
-                // Log.d("PAYLOAD_DEBUG", "$sharedPreferences")
-                // sharedPreferences.all.forEach { (key, value) ->
-                //     Log.d("map values", "$key: $value")
-                // }
+
                 Log.d("PAYLOAD_DEBUG", "Teacher: $teacherPhoneWithPrefix")
                 Log.d("PAYLOAD_DEBUG", "Students: $studentPhonesWithPrefix")
                 
@@ -273,15 +251,6 @@ class CallViewModel @Inject constructor(
             }
         }
     }
-    // private fun getAccessToken() {
-    //     viewModelScope.launch { // gave some Fatal Exception: java.lang.IndexOutOfBoundsException Index 0 out of bounds for length 0 error
-    //         token = network.getAccessToken()
-    //         allStudents = args.classroom.students //teacherRepository.getMyStudents()
-    //         _callToken.postValue(token)
-    //         connectWebSocket()
-    //     }
-    // }
-
     fun updateClassroomContent(classroom: Classroom) {
         viewModelScope.launch {
             try {
@@ -753,21 +722,6 @@ class CallViewModel @Inject constructor(
     fun pauseAudio(audioId: String? = null) = sendAudioCommand("Pause", false)
 
     fun resumeAudio(audioId: String? = null) = sendAudioCommand("Resume", true)
-    // fun resumeAudio(audioId: String) {
-    //     if(startedAudio) {
-    //         socket.send("resume:$audioId")
-    //     } else {
-    //         playAudio(audioId)
-    //         startedAudio = true
-    //         return
-    //     }
-    //     _audioPlaying.postValue(true)
-    // }
-
-    // fun pauseAudio() {
-    //     socket.send("pause")
-    //     _audioPlaying.postValue(false)
-    // }
 
     fun forwardAudio() {
         socket.send("forwardStream")
@@ -776,37 +730,6 @@ class CallViewModel @Inject constructor(
     fun backwardAudio() {
         socket.send("backwardStream")
     }
-
-    // fun endCall() {
-    //     //how to check if socket is initialized
-    //     if (this::socket.isInitialized) {
-    //         socket.send("end")
-    //     }
-    //      // Null Error here
-    // }
-
-    /*
-
-    Commands Server can send:
-    refresh
-    vonageWebSocket:connected
-    vonageWebSocket:disconnected
-    vonageWebSocket:failed
-
-    *****************************************
-
-    Commands the client can send:
-    mute:phNo
-    unmute:phNo
-    play:audioId
-    pause
-    resume:audioId
-    connect:phNo
-    disconnect:phNo
-    endcall
-
-    After every command is complete, refresh event is sent to the client.
-    */
 
     //event on disconnect to Android from Azure PubSub
 
@@ -851,27 +774,11 @@ class CallViewModel @Inject constructor(
             }
         }
     }
-
-    // override fun onCleared() {
-    //     endCall()
-    //     if (this::socket.isInitialized) {
-    //         socket.close(1000, "close")
-    //     }
-    //     //socket.close(1000, "close")
-    // }
-
     fun startNetworkCallback() {
         val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val networkRequest = NetworkRequest.Builder().build()
         connectivityManager.registerNetworkCallback(networkRequest, networkCallback)
     }
-
-    // fun connectWebSocket() {
-    //     val request = Request.Builder()
-    //         .url(token.accessToken)
-    //         .build()
-    //     socket = client.newWebSocket(request, SeedsWebSocketListener())
-    // }
 
 }
 

@@ -75,7 +75,6 @@ class AddMoreContentToCallFragment : BaseFragment() {
             .value?.toMutableList() ?: mutableListOf()).apply {
                     additionalContentChosen?.let { addAll(it) }
                 }
-                        totalContent.addAll(additionalContentChosen!!)
             Log.d("ContentChosen", contentChosen.toString())
             Log.d("AdditionalContentChosen", additionalContentChosen.toString())
             Log.d("totalContent", totalContent.toString())
