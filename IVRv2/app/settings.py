@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     vonage_api_key: str = ""
     vonage_api_secret: str = ""
     vonage_application_id: str = ""
-    vonage_private_key_path: str = ""
+    vonage_application_private_key64: str = ""
     vonage_number: str = ""
     base_url: str = ""
     to_phone_number: str = ""

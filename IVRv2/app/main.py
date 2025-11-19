@@ -1,4 +1,5 @@
 import json
+import base64
 from fastapi import FastAPI, Request, Response, HTTPException, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
@@ -19,7 +20,7 @@ from app.workers.call_processor import (
     DtmfInputProcessor,
     CallEventProcessor,
 )
-
+from app.settings import settings
 from app.actions.vonage_actions.vonage_action_factory import VonageActionFactory
 from app.fsm.insti import instantiate_from_latest_content, instantitate_from_doc
 from app.fsm.radio_instantiation import instantiate_from_content_ids
@@ -425,9 +426,10 @@ async def start_ivr(
 ):
     global fsm
     try:
+        raw_key = base64.b64decode(settings.vonage_application_private_key64).decode("utf-8")
         client = vonage.Client(
-            application_id=application_id,
-            private_key=os.getenv("VONAGE_PRIVATE_KEY_PATH"),
+            application_id=settings.vonage_application_id,
+            private_key=raw_key,
         )
 
         # form_data = await request.form()
@@ -578,10 +580,12 @@ async def start_bulk_calls(request: BulkCallRequest):
                     continue
                     # response.status_code = 403
                     # return {"message": "IVR already running for phone number: " + phone_number}
-
+            raw_key = base64.b64decode(
+                settings.vonage_application_private_key64
+            ).decode("utf-8")
             client = vonage.Client(
                 application_id=application_id,
-                private_key=os.getenv("VONAGE_PRIVATE_KEY_PATH"),
+                private_key=raw_key,
             )
             # print("NCCO:", json.dumps(ncco_actions, indent=2))
             vonage_resp = client.voice.create_call(

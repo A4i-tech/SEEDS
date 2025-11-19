@@ -11,6 +11,12 @@ from typing import Optional
 from app.services.queue.models.queue_message import QueueMessage
 
 
+class PermanentQueueError(Exception):
+    """Raised when a queue message should not be retried and must go to DLQ."""
+
+    pass
+
+
 class BaseProcessor(ABC):
     """
     Abstract base class for all Service Bus message processors.
@@ -114,8 +120,8 @@ class BaseProcessor(ABC):
 
                     self.log_info(f"Received {len(messages)} messages")
 
-                    # Process messages concurrently
-                    tasks = [self.process_message(msg) for msg in messages]
+                    # Process messages concurrently with ack handling
+                    tasks = [self._handle_message(provider, msg) for msg in messages]
                     await asyncio.gather(*tasks, return_exceptions=True)
 
                 except asyncio.TimeoutError:
@@ -130,6 +136,37 @@ class BaseProcessor(ABC):
             raise
         finally:
             self.log_info("Processor stopped")
+
+    async def _handle_message(self, provider, message: QueueMessage):
+        """Process a single message and handle queue acknowledgements."""
+        try:
+            await self.process_message(message)
+            deleted = await provider.delete_message(message)
+            if not deleted:
+                self.log_error(
+                    f"Failed to delete message {message.message_id} after successful processing"
+                )
+        except PermanentQueueError as e:
+            self.log_warning(f"Permanent failure for message {message.message_id}: {e}")
+            moved = await provider.move_dead_letter_queue(message, reason=str(e))
+            if not moved:
+                self.log_error(
+                    f"Failed to move message {message.message_id} to DLQ after permanent failure"
+                )
+            deleted = await provider.delete_message(message)
+            if not deleted:
+                self.log_error(
+                    f"Failed to delete message {message.message_id} after successful processing"
+                )
+        except Exception as e:
+            self.log_error(
+                f"Error processing message {message.message_id}: {e}", exc_info=True
+            )
+            returned = await provider.return_message_to_queue(message)
+            if not returned:
+                self.log_error(
+                    f"Failed to return message {message.message_id} to queue after error"
+                )
 
     def start_background(self, batch_size: int = 10, max_wait_seconds: int = 5):
         """

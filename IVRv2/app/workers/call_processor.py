@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import time
+import base64
 from datetime import datetime
 from typing import Dict, Any, Optional
 
@@ -115,16 +116,10 @@ class CallWebhookProcessor(BaseProcessor):
                     }
             # create Vonage client and initiate call
             self.log_info(f"[START_IVR] Creating Vonage client...")
-            self.log_debug(
-                f"[START_IVR] Application ID: {os.getenv('VONAGE_APPLICATION_ID')}"
-            )
-            self.log_debug(
-                f"[START_IVR] Private key path: {os.getenv('VONAGE_PRIVATE_KEY_PATH')}"
-            )
-
+            raw_key = base64.b64decode(settings.vonage_application_private_key64).decode("utf-8")
             client = vonage.Client(
                 application_id=settings.vonage_application_id,
-                private_key=os.getenv("VONAGE_PRIVATE_KEY_PATH"),
+                private_key=raw_key,
             )
             self.log_info(f"[START_IVR] ✓ Vonage client created")
 
