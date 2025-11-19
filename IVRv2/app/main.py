@@ -580,10 +580,12 @@ async def start_bulk_calls(request: BulkCallRequest):
                     continue
                     # response.status_code = 403
                     # return {"message": "IVR already running for phone number: " + phone_number}
-
+            raw_key = base64.b64decode(
+                settings.vonage_application_private_key64
+            ).decode("utf-8")
             client = vonage.Client(
                 application_id=application_id,
-                private_key=os.getenv("VONAGE_PRIVATE_KEY_PATH"),
+                private_key=raw_key,
             )
             # print("NCCO:", json.dumps(ncco_actions, indent=2))
             vonage_resp = client.voice.create_call(
