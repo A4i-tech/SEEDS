@@ -1,5 +1,4 @@
 // Define a Participant class
-import contactsData from "./contacts.json";
 export class Participant {
   constructor({
     name = "Unknown",
