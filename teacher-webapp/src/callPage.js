@@ -13,6 +13,7 @@ import {
   seekAudio,
 } from "./services/apiService";
 import { AddParticipantModal } from "./components/AddParticipantModal";
+import { AudioContentModal } from "./components/AudioContentModal";
 import { SeekControls } from "./components/SeekControls";
 import { students as allStudents } from "./state";
 import App from "./App";
@@ -22,8 +23,13 @@ const normalizeUser = (user) =>
   user ? { ...user, phoneNumber: getPhoneNumber(user) } : null;
 
 export function DetailsPage() {
-  const { userList, confId, isConfCallRunning, audioContentState, conferenceStudents } =
-    useConference();
+  const {
+    userList,
+    confId,
+    isConfCallRunning,
+    audioContentState,
+    conferenceStudents,
+  } = useConference();
 
   const [users, setUsers] = useState(userList);
   const [loadingIds, setLoadingIds] = useState([]);
@@ -33,7 +39,9 @@ export function DetailsPage() {
   const [hasSunkConf, setHasSunkConf] = useState(false);
   const [isLoadingMusic, setIsLoadingMusic] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAudioModalOpen, setIsAudioModalOpen] = useState(false);
   const [seekDirection, setSeekDirection] = useState(null);
+  const [audioSelectionError, setAudioSelectionError] = useState(null);
 
   useEffect(() => {
     setUsers(userList);
@@ -91,15 +99,52 @@ export function DetailsPage() {
   };
 
   const handleMusicControl = async () => {
-    setIsLoadingMusic(true);
     if (audioContentState.status === "Playing") {
-      await pauseAudio(confId);
-    } else if (audioContentState.status === "Paused") {
-      await resumeAudio(confId);
-    } else {
-      await playAudio(confId);
+      setIsLoadingMusic(true);
+      try {
+        await pauseAudio(confId);
+      } finally {
+        setIsLoadingMusic(false);
+      }
+      return;
     }
-    setIsLoadingMusic(false);
+
+    if (audioContentState.status === "Paused") {
+      setIsLoadingMusic(true);
+      try {
+        await resumeAudio(confId);
+      } finally {
+        setIsLoadingMusic(false);
+      }
+      return;
+    }
+
+    setAudioSelectionError(null);
+    setIsAudioModalOpen(true);
+  };
+
+  const handlePlaySelectedTrack = async (trackUrl) => {
+    if (!confId) {
+      setAudioSelectionError("Conference is not ready.");
+      return;
+    }
+
+    if (!trackUrl) {
+      setAudioSelectionError("Selected track does not have a valid URL.");
+      return;
+    }
+
+    setIsLoadingMusic(true);
+    setAudioSelectionError(null);
+    try {
+      await playAudio(confId, trackUrl);
+    } catch (error) {
+      console.error("Error playing audio:", error);
+      setAudioSelectionError("Unable to start the selected track.");
+    } finally {
+      setIsLoadingMusic(false);
+      setIsAudioModalOpen(false);
+    }
   };
 
   const handleReconnect = async (phoneNumber) => {
@@ -128,6 +173,7 @@ export function DetailsPage() {
 
   const handleOpenModal = () => setIsModalOpen(true);
   const handleCloseModal = () => setIsModalOpen(false);
+  const handleCloseAudioModal = () => setIsAudioModalOpen(false);
 
   const handleAddParticipants = async (selectedPhoneNumbers) => {
     for (const phoneNumber of selectedPhoneNumbers) {
@@ -335,6 +381,9 @@ export function DetailsPage() {
             ? "Resume Music"
             : "Play Music"}
         </button>
+        {audioSelectionError && (
+          <span className="error-text">{audioSelectionError}</span>
+        )}
         <SeekControls
           disabled={!canSeekAudio}
           seekingDirection={seekDirection}
@@ -347,6 +396,11 @@ export function DetailsPage() {
         onClose={handleCloseModal}
         availableStudents={availableStudents}
         onSubmit={handleAddParticipants}
+      />
+      <AudioContentModal
+        open={isAudioModalOpen}
+        onClose={handleCloseAudioModal}
+        onSubmit={handlePlaySelectedTrack}
       />
     </div>
   );

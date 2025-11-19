@@ -8,6 +8,7 @@ export const API_ENDPOINTS = {
   GET_TEACHER_STUDENTS: `${BASE_URL}/teacher/get-students`,
   ADD_TEACHER_STUDENTS: `${BASE_URL}/teacher/add-students`,
   GET_SCHOOLS: `${BASE_URL}/tenant/names`,
+  GET_AUDIO_CONTENT: `${BASE_URL}/content`,
   CONFERENCE: {
     CREATE: `${CONF_BASE}/create`,
     START: (confId) => `${CONF_BASE}/start/${confId}`,

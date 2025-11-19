@@ -60,9 +60,11 @@ export const unmuteParticipant = async (confId, phone_number) => {
   });
 };
 
-export const playAudio = async (confId) => {
-  const url = `https://${APP_CONFIG.STORAGE_ACCOUNT_NAME}.blob.core.windows.net/output-container/25/1.0.wav`;
-  return fetch(API_ENDPOINTS.CONFERENCE.PLAY_AUDIO(confId, url), {
+export const playAudio = async (confId, url) => {
+  const audioUrl =
+    url ??
+    `https://${APP_CONFIG.STORAGE_ACCOUNT_NAME}.blob.core.windows.net/output-container/25/1.0.wav`;
+  return fetch(API_ENDPOINTS.CONFERENCE.PLAY_AUDIO(confId, audioUrl), {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -107,4 +109,21 @@ export const addParticipant = async (confId, phone_number) => {
       "Content-Type": "application/json",
     },
   });
+};
+
+export const fetchAudioContent = async () => {
+  const token = localStorage.getItem("authToken");
+  const response = await fetch(API_ENDPOINTS.GET_AUDIO_CONTENT, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch audio content");
+  }
+
+  return response.json();
 };
