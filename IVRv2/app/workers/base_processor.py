@@ -157,7 +157,7 @@ class BaseProcessor(ABC):
                 self.log_error(
                     f"Failed to return message {message.message_id} to queue after error"
                 )
-        else:
+        finally:
             deleted = await provider.delete_message(message)
             if not deleted:
                 self.log_error(
