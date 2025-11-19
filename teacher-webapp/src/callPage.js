@@ -15,10 +15,12 @@ import {
 import { AddParticipantModal } from "./components/AddParticipantModal";
 import { AudioContentModal } from "./components/AudioContentModal";
 import { SeekControls } from "./components/SeekControls";
-import { students as allStudents } from "./state";
 import App from "./App";
 
-const getPhoneNumber = (user) => user?.phoneNumber ?? user?.phone_number ?? "";
+const getPhoneNumber = (user) => user?.phoneNumber;
+if(!getPhoneNumber){
+  throw new Error("getPhoneNumber function is not defined properly");
+}
 const normalizeUser = (user) =>
   user ? { ...user, phoneNumber: getPhoneNumber(user) } : null;
 

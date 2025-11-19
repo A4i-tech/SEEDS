@@ -1,14 +1,31 @@
 import React, { useEffect, useState } from "react";
 import { fetchAudioContent } from "../services/apiService";
 
+const extractItems = (response) => {
+  if (!response) {
+    return [];
+  }
+
+  if (Array.isArray(response)) {
+    return response;
+  }
+
+  const candidateArrays = ["data", "content", "items", "results"];
+
+  for (const key of candidateArrays) {
+    const collection = response?.[key];
+    if (Array.isArray(collection)) {
+      return collection;
+    }
+  }
+
+  return [];
+};
+
 const buildContentList = (response) => {
-  const rawItems = Array.isArray(response?.data)
-    ? response.data
-    : Array.isArray(response)
-    ? response
-    : Array.isArray(response?.content)
-    ? response.content
-    : [];
+  const rawItems = extractItems(response).filter(
+    (item) => item && item.isDeleted !== true
+  );
 
   const contentList = [];
 
