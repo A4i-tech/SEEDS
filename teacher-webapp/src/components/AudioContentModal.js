@@ -30,7 +30,7 @@ const buildContentList = (response) => {
   const contentList = [];
 
   rawItems.forEach((item) => {
-    const itemId = item?._id || item?.id || item?.audioId || item?.uid;
+    const itemId = item?._id;
     const baseName =
       item?.title?.english ||
       item?.title?.local ||
