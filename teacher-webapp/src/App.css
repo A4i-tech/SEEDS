@@ -151,7 +151,6 @@
   background-color: #0056b3;
 }
 
-
 .submit-button {
   padding: 10px 20px;
   font-size: 1em;
@@ -218,4 +217,31 @@
 .student-list {
   list-style: none;
   padding: 0;
+}
+
+.seek-controls {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+  justify-content: center;
+}
+
+.seek-button {
+  padding: 8px 16px;
+  font-size: 0.95em;
+  cursor: pointer;
+  background-color: #6c63ff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  transition: background-color 0.3s ease;
+}
+
+.seek-button:disabled {
+  background-color: #b9b6ff;
+  cursor: not-allowed;
+}
+
+.seek-button:hover:enabled {
+  background-color: #5847eb;
 }

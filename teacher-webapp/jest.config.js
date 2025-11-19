@@ -1,14 +1,12 @@
 module.exports = {
-  roots: ['<rootDir>/tests'],
-  testMatch: [
-    '**/?(*.)+(spec|test).[jt]s?(x)'
-  ],
+  roots: ["<rootDir>/tests"],
+  testMatch: ["**/?(*.)+(spec|test).[jt]s?(x)"],
   transform: {
-    '^.+\\.(ts|tsx|js)$': 'babel-jest',
+    "^.+.(ts|tsx|js|jsx)$": "babel-jest",
   },
-  testEnvironment: 'jsdom',
-  setupFilesAfterEnv: ['<rootDir>/tests/setupTests.js'],
+  testEnvironment: "jsdom",
+  setupFilesAfterEnv: ["<rootDir>/tests/setupTests.js"],
   moduleNameMapper: {
-    '\\.(css|less|scss|sass)$': '<rootDir>/tests/styleMock.js'
+    "\\.(css|less|scss|sass)$": "<rootDir>/tests/styleMock.js",
   },
 };
