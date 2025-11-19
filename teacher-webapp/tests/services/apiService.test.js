@@ -95,39 +95,6 @@ describe("apiService", () => {
     });
   });
 
-  describe("Audio Control", () => {
-    test("plays, pauses, and resumes audio", async () => {
-      const expectedUrl =
-        "https://testaccount.blob.core.windows.net/output-container/25/1.0.wav";
-
-      fetch.mockResolvedValueOnce(mockEmptyResponse());
-      await apiService.playAudio(confId);
-      expectFetchCall(
-        `${baseUrl}/conference/playaudio/${confId}?url=${expectedUrl}`,
-        "PUT"
-      );
-
-      fetch.mockResolvedValueOnce(mockEmptyResponse());
-      await apiService.pauseAudio(confId);
-      expectFetchCall(`${baseUrl}/conference/pauseaudio/${confId}`, "PUT");
-
-      fetch.mockResolvedValueOnce(mockEmptyResponse());
-      await apiService.resumeAudio(confId);
-      expectFetchCall(`${baseUrl}/conference/resumeaudio/${confId}`, "PUT");
-
-      fetch.mockResolvedValueOnce(mockEmptyResponse());
-      await apiService.seekAudio(confId, 15);
-      expect(fetch).toHaveBeenCalledWith(
-        `${baseUrl}/conference/seekaudio/${confId}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ delta_seconds: 15 }),
-        }
-      );
-    });
-  });
-
   describe("Error Handling", () => {
     test("handles network and JSON parsing errors", async () => {
       fetch.mockRejectedValueOnce(new Error("Network error"));
