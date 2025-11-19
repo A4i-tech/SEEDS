@@ -95,6 +95,54 @@ describe("apiService", () => {
     });
   });
 
+  describe("Audio Control", () => {
+    test("plays, pauses, resumes, and seeks audio (each call uses correct request)", async () => {
+      const expectedUrl =
+        "https://testaccount.blob.core.windows.net/output-container/25/1.0.wav";
+
+      // Play
+      fetch.mockResolvedValueOnce(mockEmptyResponse());
+      await apiService.playAudio(confId);
+
+      // Pause
+      fetch.mockResolvedValueOnce(mockEmptyResponse());
+      await apiService.pauseAudio(confId);
+
+      // Resume
+      fetch.mockResolvedValueOnce(mockEmptyResponse());
+      await apiService.resumeAudio(confId);
+
+      // Seek
+      fetch.mockResolvedValueOnce(mockEmptyResponse());
+      await apiService.seekAudio(confId, 15);
+
+      // Verify the sequence of fetch calls and their args
+      expect(fetch).toHaveBeenNthCalledWith(
+        1,
+        `${baseUrl}/conference/playaudio/${confId}?url=${expectedUrl}`,
+        { method: "PUT", headers: { "Content-Type": "application/json" } }
+      );
+
+      expect(fetch).toHaveBeenNthCalledWith(
+        2,
+        `${baseUrl}/conference/pauseaudio/${confId}`,
+        { method: "PUT", headers: { "Content-Type": "application/json" } }
+      );
+
+      expect(fetch).toHaveBeenNthCalledWith(
+        3,
+        `${baseUrl}/conference/resumeaudio/${confId}`,
+        { method: "PUT", headers: { "Content-Type": "application/json" } }
+      );
+
+      expect(fetch).toHaveBeenNthCalledWith(
+        4,
+        `${baseUrl}/conference/seekaudio/${confId}?delta_seconds=15`,
+        { method: "PUT", headers: { "Content-Type": "application/json" } }
+      );
+    });
+  });
+
   describe("Error Handling", () => {
     test("handles network and JSON parsing errors", async () => {
       fetch.mockRejectedValueOnce(new Error("Network error"));
