@@ -1,4 +1,5 @@
 from datetime import datetime
+import json
 
 from app.models.action_history import ActionHistory, ActionType
 from app.models.ws_service_message import MessageType, WebsocketServiceMessage
@@ -18,7 +19,9 @@ class SeekContentEvent(ConferenceEvent):
             WebsocketServiceMessage(
                 websocket_id=self.conf_call.conf_id,
                 type=MessageType.SEEK_AUDIO,
-                message={"deltaSeconds": self.delta_seconds},
+                # Send the payload as a JSON-encoded string so the
+                # `message` field remains a `str` across services.
+                message=json.dumps({"deltaSeconds": self.delta_seconds}),
             )
         )
 

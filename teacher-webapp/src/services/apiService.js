@@ -91,14 +91,15 @@ export const resumeAudio = async (confId) => {
 };
 
 export const seekAudio = async (confId, deltaSeconds) => {
-  return fetch(API_ENDPOINTS.CONFERENCE.SEEK_AUDIO(confId), {
+  // Send delta_seconds as a query parameter instead of in the request body
+  const url = `${API_ENDPOINTS.CONFERENCE.SEEK_AUDIO(
+    confId
+  )}?delta_seconds=${encodeURIComponent(deltaSeconds)}`;
+  return fetch(url, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      delta_seconds: deltaSeconds,
-    }),
   });
 };
 

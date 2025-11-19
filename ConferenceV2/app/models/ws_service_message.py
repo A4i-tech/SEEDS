@@ -1,5 +1,4 @@
 from enum import Enum
-from typing import Any
 
 from pydantic import BaseModel
 
@@ -20,4 +19,4 @@ class MessageType(str, Enum):
 class WebsocketServiceMessage(BaseModel):
     websocket_id: str
     type: MessageType
-    message: Any = None
+    message: str = ""

@@ -39,7 +39,18 @@ function handleControlConnection(ws) {
 function handleControlMessage(controlMessage) {
   const websocketId = controlMessage.websocket_id;
   const type = controlMessage.type;
-  const content = controlMessage.message;
+  const rawContent = controlMessage.message;
+  // If the message payload is a JSON-encoded string, parse it so downstream
+  // handlers receive an object. Otherwise, keep it as-is (string or object).
+  let content = rawContent;
+  if (typeof rawContent === "string") {
+    try {
+      content = JSON.parse(rawContent);
+    } catch (err) {
+      // not JSON — keep raw string
+      content = rawContent;
+    }
+  }
   const serializedContent =
     typeof content === "string" ? content : JSON.stringify(content);
   console.log(

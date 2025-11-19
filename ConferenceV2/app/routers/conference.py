@@ -1,6 +1,6 @@
 # routers/conference.py
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from app.services.conference_call import ConferenceCall
 from app.services.confevents.resume_content_event import ResumeContentEvent
 from app.services.singletons.conference_call_manager import conference_manager
@@ -13,7 +13,7 @@ from app.services.confevents.remove_participant_event import RemoveParticipantEv
 from app.services.confevents.seek_content_event import SeekContentEvent
 from app.services.confevents.sink_conf_event import SinkConferenceEvent
 from app.services.confevents.unmute_participant_event import UnmuteParticipantEvent
-from app.schemas.conference_schemas import CreateConferenceRequest, SeekAudioRequest
+from app.schemas.conference_schemas import CreateConferenceRequest
 
 router = APIRouter()
 
@@ -161,11 +161,17 @@ async def play_audio(conference_id: str):
 
 
 @router.put("/seekaudio/{conference_id}")
-async def seek_audio(conference_id: str, request: SeekAudioRequest):
+async def seek_audio(
+    conference_id: str,
+    delta_seconds: int = Query(
+        ...,
+        description="Signed seek offset in seconds (negative rewinds, positive fast-forwards)",
+    ),
+):
     conference = conference_manager.get_conference(conference_id)
     if not conference:
         raise HTTPException(status_code=404, detail="Conference not found")
     await conference.queue_event(
-        SeekContentEvent(conf_call=conference, delta_seconds=request.delta_seconds)
+        SeekContentEvent(conf_call=conference, delta_seconds=delta_seconds)
     )
     return {"message": "Event Queued for execution"}
