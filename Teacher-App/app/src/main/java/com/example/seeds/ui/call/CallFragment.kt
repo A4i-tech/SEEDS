@@ -145,9 +145,9 @@ class CallFragment : BaseFragment() {
             }
         })
 
-        binding.retryTeacher.setOnClickListener {
-            viewModel.retryTeacherConnection()
-        }
+        // binding.retryTeacher.setOnClickListener {
+        //     viewModel.retryTeacherConnection()
+        // }
 
         binding.endCallBtn.setOnClickListener {
             val classroom = args.classroom

@@ -3,6 +3,7 @@ package com.example.seeds.ui.call
 import NetworkConnectivityLiveData
 import android.app.Application
 import android.content.Context
+import android.content.SharedPreferences
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkRequest
@@ -10,6 +11,7 @@ import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.Transformations 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.seeds.model.AccessToken
@@ -20,6 +22,7 @@ import com.example.seeds.model.ConferenceCreateRequest
 import com.example.seeds.model.Content
 import com.example.seeds.model.Student
 import com.example.seeds.model.StudentCallStatus
+import com.example.seeds.model.PlayerState
 import com.example.seeds.network.SeedsService
 import com.example.seeds.network.asDomainModel
 import com.example.seeds.repository.ClassroomRepository
@@ -29,8 +32,10 @@ import com.example.seeds.utils.Constants
 import com.example.seeds.utils.ContactUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive 
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import okhttp3.Response
@@ -38,7 +43,6 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
 import javax.inject.Inject
-import android.content.SharedPreferences
 
 const val SOCKET_CLOSE = 1000   
 const val THREAD_SLEEP_TIME = 5000L

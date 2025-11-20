@@ -34,7 +34,6 @@ class AddContentToCallFragment : BaseFragment() {
                 logMessage("Content Clicked: ${it.id} - ${it.title} - $it")
                 viewModel.setSelectedContent(it)
                 viewModel.playAudio(it.id)
-                viewModel.startedAudio = true
                 requireActivity().onBackPressed()
             }
         )
