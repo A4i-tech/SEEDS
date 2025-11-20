@@ -168,6 +168,10 @@ fun provideService(@ApplicationContext context: Context): SeedsService {
                     try {
                         authToken = Encryptor.decrypt(encryptedToken, iv)
                     } catch (e: Exception) {
+                        Log.e("SeedsService", "Failed to decrypt auth token", e)
+
+                        // Clear corrupt data 
+                        sharedPreferences.edit().remove("auth_token").remove("auth_iv").apply()
                 }
             }
         
