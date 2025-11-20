@@ -9,7 +9,7 @@ const controlService = require('./services/controlService');
 const connectionManager = require('./services/connectionManager');
 
 const port = process.env.PORT || 3000;
-
+const MAXIMUM_CONFERENCE_TIME_ALLOWED_IN_MILLISECONDS = 60 * 60 * 1000; // 1 hour in milliseconds
 appInsights.setup(process.env.APPLICATIONINSIGHTS_CONNECTION_STRING)
     .setAutoCollectConsole(true, true) // Capture console logs
     .setDistributedTracingMode(appInsights.DistributedTracingModes.AI)
@@ -63,10 +63,10 @@ wss.on('connection', (ws, req) => {
     console.log(`Control WebSocket connection established with id: ${id}`);
     controlService.handleControlConnection(ws);
   } else {
-    // Start a timer to close the connection after 3 minutes
-    const maxConnectionTime = 180000; // 3 minutes in milliseconds
+    // Start a timer to close the connection after 1 hour
+    const maxConnectionTime = MAXIMUM_CONFERENCE_TIME_ALLOWED_IN_MILLISECONDS;
     const connectionTimeout = setTimeout(() => {
-      console.log(`Closing WebSocket connection for ID: ${id} after 3 minutes`);
+      console.log(`Closing WebSocket connection for ID: ${id} after 1 hour`);
       ws.close();
     }, maxConnectionTime);
 
