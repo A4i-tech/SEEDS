@@ -2,23 +2,40 @@ package com.example.seeds.network
 
 import android.content.Context
 import android.util.Log
-import com.example.seeds.network.AuthInterceptor
 import com.example.seeds.ApplicationJsonAdapterFactory
+import com.example.seeds.BuildConfig
 import com.example.seeds.database.LogEntity
-import com.example.seeds.model.*
+import com.example.seeds.model.CallDetails
+import com.example.seeds.network.CallStatusDto
+import com.example.seeds.network.ClassroomDto
+import com.example.seeds.model.ConferenceCreateRequest
+import com.example.seeds.model.ConferenceCreateResponse
+import com.example.seeds.model.Content
+import com.example.seeds.model.PaginatedResponse
+import com.example.seeds.model.SasUrlResponse
+import com.example.seeds.model.Student
+import com.example.seeds.model.StudentListContainer
 import com.example.seeds.utils.Constants
+import com.example.seeds.utils.Encryptor
 import com.squareup.moshi.Moshi
 import dagger.hilt.android.qualifiers.ApplicationContext
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
-import retrofit2.http.*
-import java.util.*
+import retrofit2.http.Body
+import retrofit2.http.DELETE
+import retrofit2.http.GET
+import retrofit2.http.Header
+import retrofit2.http.POST
+import retrofit2.http.PUT
+import retrofit2.http.Path
+import retrofit2.http.Query
+import retrofit2.http.Url
+import java.util.UUID
 import java.util.concurrent.TimeUnit
-import com.example.seeds.BuildConfig
-import okhttp3.logging.HttpLoggingInterceptor
 
 const val CONTENT_LIMIT = 100
 
@@ -142,10 +159,26 @@ fun provideService(@ApplicationContext context: Context): SeedsService {
         addInterceptor(
             Interceptor { chain ->
                 val sharedPreferences = context.getSharedPreferences("sharedPref", Context.MODE_PRIVATE)
-                val token = sharedPreferences.getString("auth_token", "postman") // default fallback
+        
+                val encryptedToken = sharedPreferences.getString("auth_token", null)
+                val iv = sharedPreferences.getString("auth_iv", null)
 
+                var authToken: String? = null
+                if (encryptedToken != null && iv != null) {
+                    try {
+                        authToken = Encryptor.decrypt(encryptedToken, iv)
+                    } catch (e: Exception) {
+                        Log.e("SeedsService", "Failed to decrypt auth token", e)
+
+                        // Clear corrupt data 
+                        sharedPreferences.edit().remove("auth_token").remove("auth_iv").apply()
+                }
+            }
+        
                 val builder = chain.request().newBuilder()
-                builder.header("Authorization", "Bearer $token")
+                authToken?.let {
+                    builder.header("Authorization", "Bearer $it")
+                }
                 builder.header("signootReqId", UUID.randomUUID().toString())
                 chain.proceed(builder.build())
             }
