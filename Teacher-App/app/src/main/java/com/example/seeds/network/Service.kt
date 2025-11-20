@@ -96,6 +96,11 @@ interface SeedsService {
         @Query("phone_number") phoneNumber: String
     ): Response<Any>
 
+    @GET
+    suspend fun getCallerState(
+        @Url url: String,
+    ): Response<Map<String, StudentCallStatus>>
+
     @GET("call/{confId}/status")
     suspend fun getCallStatus(@Path("confId") confId: String): CallStatusDto
 
