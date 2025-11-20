@@ -11,7 +11,15 @@ class SessionManager(context: Context) {
      * Returns null if the token is not found.
      */
     fun getAuthToken(): String? {
-        return prefs.getString(KEY_AUTH_TOKEN, null)
+        val storedEncryptedJwt = prefs.getString(KEY_AUTH_TOKEN, null)
+        val storedIv = prefs.getString(IV, null)
+
+        return storedEncryptedJwt?.let { encryptedJwt ->
+        storedIv?.let { iv ->
+            Encryptor.decrypt(encryptedJwt, iv)
+        }
+    }
+        
     }
 
     /**
@@ -23,5 +31,6 @@ class SessionManager(context: Context) {
 
     companion object {
         private const val KEY_AUTH_TOKEN = "auth_token"
+        private const val IV = "auth_iv"
     }
 }

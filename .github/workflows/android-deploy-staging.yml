@@ -6,6 +6,7 @@ on:
     branches: [a4i/staging]
   pull_request:
     branches: [a4i/staging]
+  workflow_call:
   workflow_dispatch:
 
 jobs:
@@ -24,11 +25,6 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v2
-
-      - name: Install CMake via SDK Manager
-        run: |
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "cmake;3.22.1" || true
-          ls -la $ANDROID_HOME/cmake/
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1

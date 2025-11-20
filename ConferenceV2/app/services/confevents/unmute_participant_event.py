@@ -5,7 +5,8 @@ from app.models.ws_service_message import MessageType, WebsocketServiceMessage
 from app.services.conference_call import ConferenceCall
 from app.services.confevents.base_event import ConferenceEvent
 from app.services.singletons.websocket_service import WebsocketService
-
+from app.services.caller_state_manager import caller_state_manager
+import asyncio
 
 class UnmuteParticipantEvent(ConferenceEvent):
     def __init__(self, phone_number: str, conf_call: ConferenceCall):
@@ -22,6 +23,15 @@ class UnmuteParticipantEvent(ConferenceEvent):
             
             # Update participant's mute status
             participant.is_muted = False
+
+            asyncio.create_task(
+            caller_state_manager.update_state(
+                conference_id=self.conf_call.conf_id,
+                participant_id=self.phone_number,
+                new_state={"muted": False}
+                )
+            )
+            
             # Set raised hand to false
             participant.is_raised = False
             participant.raised_at = -1

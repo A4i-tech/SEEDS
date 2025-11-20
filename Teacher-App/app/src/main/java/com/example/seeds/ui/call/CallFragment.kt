@@ -36,7 +36,7 @@ class CallFragment : BaseFragment() {
 
     companion object{
         private const val DELAY_FOR_SCOPE = 1500L
-        private const val DELAY_FOR_LAUNCH = 120000L
+        private const val UI_STATE_LOG_TAG = "UI_STATE_DEBUG"
     }
 
     private lateinit var binding: FragmentCallBinding
@@ -70,9 +70,11 @@ class CallFragment : BaseFragment() {
         })
 
         val adapter = StudentCallStatusAdapter(
-            viewModel, 
+            viewModel,
             StudentCallStatusAdapter.OnClickListener { student ->
-                removeUser(student.phoneNumber)
+                student.phoneNumber?.let { phoneNumber ->
+                    removeUser(phoneNumber)
+                }
             }
         )
 
@@ -80,9 +82,18 @@ class CallFragment : BaseFragment() {
         binding.myStudentsList.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(requireContext())
 
         viewModel.callState.observe(viewLifecycleOwner) { studentList ->
-    
+            Log.d(UI_STATE_LOG_TAG, "UI OBSERVER: Student list updated. Count: ${studentList?.size ?: 0}. Submitting to adapter.")
+            Log.d(UI_STATE_LOG_TAG, "UI OBSERVER: Student Data: $studentList")
             studentList?.let {
                 adapter.submitList(it)
+            }
+        }
+
+        viewModel.teacherCallStatus.observe(viewLifecycleOwner) { teacherStatus ->
+            if (teacherStatus == null) {
+                Log.d(UI_STATE_LOG_TAG, "UI OBSERVER: Teacher status is NULL. UI should be in its initial/empty state.")
+            } else {
+                Log.d(UI_STATE_LOG_TAG, "UI OBSERVER: Teacher status updated. Data: $teacherStatus")
             }
         }
 
@@ -90,6 +101,7 @@ class CallFragment : BaseFragment() {
             if(it != null) {
                 Log.d("CallFragment", "Call token: $it")
                 logMessage("Call token: $it")
+                viewModel.startPollingForCallerState(it.confId)
             }
         })
 
@@ -134,24 +146,7 @@ class CallFragment : BaseFragment() {
         })
 
         binding.retryTeacher.setOnClickListener {
-            viewModel.connectParticipant("Teacher", viewModel.teacherPhoneNumber)
-            lifecycleScope.launch {
-                delay(DELAY_FOR_LAUNCH) // 120000 milliseconds = 2 minutes
-
-                if (viewModel.teacherCallStatus.value?.callerState != CallerState.ANSWERED) {
-                    val classroom = args.classroom
-                    classroom.contentIds = viewModel.selectedContentList.value!!.map{
-                        it.id
-                    }
-                    val logmessage = """Call ended because teacher didn't rejoin within 2 minutes - 
-                                        Reason: ${viewModel.teacherCallStatus.value?.callerState}"""
-                    viewModel.updateClassroomContent(classroom)
-
-                    logMessage(logmessage)
-
-                }
-            }
-
+            viewModel.retryTeacherConnection()
         }
 
         binding.endCallBtn.setOnClickListener {
@@ -166,27 +161,10 @@ class CallFragment : BaseFragment() {
         }
 
         binding.muteAllBtn.setOnClickListener {
-            if(viewModel._isMutedAll.value!!){
-                viewModel.unmuteAll()
-                logMessage("Unmuted all")
-                viewModel._isMutedAll.postValue(false)
-            }
-            else {
-                viewModel.muteAll()
-                logMessage("Muted all")
-                viewModel._isMutedAll.postValue(true)
-            }
-            viewModel._isMuteOrUnmuteAllDone.postValue(false)
+            val willBeMuted = viewModel.isMutedAll.value != true
+            logMessage(if (willBeMuted) "Muted all" else "Unmuted all")
+            viewModel.toggleMuteAll()
         }
-
-        viewModel.callState.observe(viewLifecycleOwner, Observer {
-            if(it != null) {
-                logMessage("Call state changed to $it")
-                if(it.none { state -> state.callerState != CallerState.COMPLETED }) {
-                    requireActivity().onBackPressed()
-                }
-            }
-        })
 
         viewModel.isErrorFromIVR.observe(viewLifecycleOwner, Observer {
             if(it != null){
@@ -199,8 +177,11 @@ class CallFragment : BaseFragment() {
             findNavController().navigate(CallFragmentDirections.actionCallFragmentToAddStudentsFragment())
         }
 
+
+
         binding.teacherMic.setOnClickListener {
-            if(viewModel.teacherCallStatus.value!!.isMuted) {
+            // Added null check for safety
+            if(viewModel.teacherCallStatus.value?.isMuted == true) {
                 viewModel.unmuteParticipant(viewModel.teacherPhoneNumber)
                 logMessage("Teacher unmuted")
             }
@@ -219,23 +200,7 @@ class CallFragment : BaseFragment() {
         }
 
         binding.pausePlayButton.setOnClickListener {
-            viewModel._isAudioControlDone.postValue(false)
-            if (viewModel.audioPlaying.value!!) {
-                viewModel.pauseAudio()
-                val logmessage = """Audio paused ${viewModel.selectedContent.value!!.id} 
-                                    ${viewModel.selectedContent.value!!.title}}"""
-                logMessage(logmessage)
-                Log.d("AUDIOCONTROLPAUSEINI", viewModel.selectedContent.value!!.id)
-            }
-            else {
-                if (!viewModel.startedAudio && viewModel.selectedContent.value != null) {
-                    viewModel.playAudio(viewModel.selectedContent.value!!.id)
-                    logMessage("Audio playing ${viewModel.selectedContent.value!!.title}")
-                } else {
-                    viewModel.resumeAudio(viewModel.selectedContent.value!!.id)
-                    logMessage("Audio resumed ${viewModel.selectedContent.value!!.title}")
-                }
-            }
+            viewModel.onPlayPauseClicked()
         }
 
         // Forward 10 Seconds

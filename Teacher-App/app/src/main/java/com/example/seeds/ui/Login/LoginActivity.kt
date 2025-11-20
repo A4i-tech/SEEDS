@@ -13,6 +13,7 @@ import com.example.seeds.databinding.ActivityLoginBinding
 import com.example.seeds.repository.TeacherRepository
 import com.example.seeds.ui.call.CallViewModel
 import com.example.seeds.utils.Constants
+import com.example.seeds.utils.Encryptor
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
@@ -24,7 +25,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.Response
-import com.example.seeds.utils.NativeEncryptor
 import com.example.seeds.utils.KeyManager
 import android.util.Base64
 import java.security.SecureRandom
@@ -286,9 +286,13 @@ class LoginActivity : AppCompatActivity() {
                     return
                 }
 
+                // Encrypt the auth token
+                val (encryptedToken, iv) = Encryptor.encrypt(token)
+
                 try {
                     val prefs = getSharedPreferences("sharedPref", MODE_PRIVATE).edit()
-                    prefs.putString("auth_token", token)
+                    prefs.putString("auth_token", encryptedToken)
+                    prefs.putString("auth_iv",iv)
                     prefs.putString("teacher_phone", phoneNumber)
                     prefs.putBoolean("is_logged_in", true)
                     prefs.apply()

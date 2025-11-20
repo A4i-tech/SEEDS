@@ -1,4 +1,4 @@
-package com.example.seeds.utils 
+package com.example.seeds.utils
 
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -34,8 +34,8 @@ object KeyManager {
         )
             .setBlockModes(KeyProperties.BLOCK_MODE_CBC)
             .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_PKCS7)
-            .setKeySize(256) // AES-256
-            .setUserAuthenticationRequired(false) // Or true for more security
+            .setKeySize(256) 
+            .setUserAuthenticationRequired(false) 
             .build()
 
         keyGenerator.init(spec)

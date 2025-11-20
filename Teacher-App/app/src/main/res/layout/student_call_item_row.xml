@@ -5,7 +5,7 @@
     <data>
         <import type="android.view.View"/>
         <import type="com.example.seeds.model.CallerState"/>
-        
+
         <variable
             name="viewModel"
             type="com.example.seeds.ui.call.CallViewModel" />
@@ -39,21 +39,34 @@
                 android:textSize="18sp"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintEnd_toStartOf="@+id/status_text"
+                app:layout_constraintEnd_toStartOf="@+id/status_ringing_text"
                 app:layout_constraintTop_toTopOf="parent"
                 android:layout_marginEnd="8dp"
                 tools:text="Very Long Student Name Here" />
 
             <TextView
-                android:id="@+id/status_text"
+                android:id="@+id/status_ringing_text"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Ringing"
+                android:text="Ringing..."
                 android:visibility="@{studentCallStatus.callerState == CallerState.RINGING ? View.VISIBLE : View.GONE}"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintTop_toTopOf="parent" />
 
+            <!-- State 2: Connecting (Added this view) -->
+            <TextView
+                android:id="@+id/status_connecting_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Connecting..."
+                android:visibility="@{studentCallStatus.callerState == CallerState.CONNECTING ? View.VISIBLE : View.GONE}"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+
+            <!-- State 3: Connected -->
             <ImageButton
                 android:id="@+id/mic"
                 android:layout_width="wrap_content"
@@ -63,7 +76,7 @@
                 android:onClick="@{() -> viewModel.onMuteToggle(studentCallStatus)}"
                 android:padding="8dp"
                 android:src="@{!studentCallStatus.isMuted ? @drawable/ic_mic : @drawable/ic_mic_off, default=@drawable/ic_mic}"
-                android:visibility="@{studentCallStatus.callerState == CallerState.ANSWERED ? View.VISIBLE: View.GONE, default=gone}"
+                android:visibility="@{studentCallStatus.callerState == CallerState.CONNECTED ? View.VISIBLE: View.GONE}"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toStartOf="@+id/remove_user_btn"
                 app:layout_constraintTop_toTopOf="parent" />
@@ -77,11 +90,12 @@
                 android:onClick="@{() -> removeClickListener.onClick(studentCallStatus)}"
                 android:padding="8dp"
                 android:src="@drawable/ic_remove_student"
-                android:visibility="@{studentCallStatus.callerState == CallerState.ANSWERED || studentCallStatus.callerState == CallerState.RINGING ? View.VISIBLE: View.GONE}"
+                android:visibility="@{studentCallStatus.callerState == CallerState.CONNECTED ? View.VISIBLE: View.GONE}"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintTop_toTopOf="parent" />
 
+            <!-- State 4: Failed/Disconnected -->
             <ImageButton
                 android:id="@+id/retry_student"
                 android:layout_width="wrap_content"
@@ -91,7 +105,7 @@
                 android:onClick="@{() -> viewModel.connectParticipant(studentCallStatus.name, studentCallStatus.phoneNumber)}"
                 android:padding="8dp"
                 android:src="@drawable/ic_retry"
-                android:visibility="@{studentCallStatus.callerState == CallerState.UNANSWERED || studentCallStatus.callerState == CallerState.BUSY || studentCallStatus.callerState == CallerState.TIMEOUT || studentCallStatus.callerState == CallerState.COMPLETED ? View.VISIBLE: View.GONE}"
+                android:visibility="@{studentCallStatus.callerState == CallerState.UNANSWERED || studentCallStatus.callerState == CallerState.BUSY || studentCallStatus.callerState == CallerState.TIMEOUT || studentCallStatus.callerState == CallerState.COMPLETED || studentCallStatus.callerState == CallerState.FAILED ? View.VISIBLE: View.GONE}"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintTop_toTopOf="parent" />
