@@ -200,23 +200,7 @@ class CallFragment : BaseFragment() {
         }
 
         binding.pausePlayButton.setOnClickListener {
-            viewModel._isAudioControlDone.postValue(false)
-            if (viewModel.audioPlaying.value!!) {
-                viewModel.pauseAudio()
-                val logmessage = """Audio paused ${viewModel.selectedContent.value!!.id} 
-                                    ${viewModel.selectedContent.value!!.title}}"""
-                logMessage(logmessage)
-                Log.d("AUDIOCONTROLPAUSEINI", viewModel.selectedContent.value!!.id)
-            }
-            else {
-                if (!viewModel.startedAudio && viewModel.selectedContent.value != null) {
-                    viewModel.playAudio(viewModel.selectedContent.value!!.id)
-                    logMessage("Audio playing ${viewModel.selectedContent.value!!.title}")
-                } else {
-                    viewModel.resumeAudio(viewModel.selectedContent.value!!.id)
-                    logMessage("Audio resumed ${viewModel.selectedContent.value!!.title}")
-                }
-            }
+            viewModel.onPlayPauseClicked()
         }
     }
 
