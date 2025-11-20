@@ -21,7 +21,7 @@ import com.squareup.moshi.Moshi
 import dagger.hilt.android.qualifiers.ApplicationContext
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
-import okhttp3.logging.HttpLoggingInterceptor
+import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
@@ -71,6 +71,9 @@ interface SeedsService {
     suspend fun audioCommand(
         @Url url: String
         ): Response<Any>
+
+    @PUT
+    suspend fun seekAudio(@Url url: String): Response<ResponseBody>
 
     @PUT
     suspend fun muteParticipant(

@@ -847,12 +847,51 @@ class CallViewModel @Inject constructor(
     fun pauseAudio(audioId: String? = null) = sendAudioCommand("Pause", PlayerState.PAUSED)
     fun resumeAudio(audioId: String? = null) = sendAudioCommand("Resume", PlayerState.PLAYING)
 
+    fun seekAudio(deltaSeconds: Int) {
+        Log.d("SEEK_AUDIO", "seekAudio() called with delta: $deltaSeconds")
+
+        val confId = _callToken.value?.confId
+
+        if (confId == null) {
+            Log.e("SEEK_AUDIO", "Conference ID is null")
+            _isErrorFromIVR.postValue("Conference not initialized")
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                val fullUrl = "$conferenceUrl/conference/seekaudio/$confId?delta_seconds=$deltaSeconds"
+                
+                Log.d("SEEK_AUDIO", "Full URL: $fullUrl")
+                Log.d("SEEK_AUDIO", "Sending seek request...")
+                val response = network.seekAudio(fullUrl) 
+
+                if (response.isSuccessful) {
+                    Log.d("SEEK_AUDIO", "Audio seek request sent successfully")
+                } else {
+                    Log.e("SEEK_AUDIO", "Failed to seek audio: ${response.code()} - ${response.message()}")
+                    try {
+                        Log.e("SEEK_AUDIO", "Error body: ${response.errorBody()?.string()}")
+                    } catch (e: Exception) {
+                        Log.e("SEEK_AUDIO", "Could not read error body")
+                    }
+                    _isErrorFromIVR.postValue("Failed to seek audio")
+                }
+            } catch (e: Exception) {
+                Log.e("SEEK_AUDIO_ERROR", "Exception in seekAudio: ${e.message}", e)
+                _isErrorFromIVR.postValue("Error: ${e.message}")
+            } finally {
+                _isAudioControlDone.postValue(true)
+            }
+        }
+    }
+    
     fun forwardAudio() {
-        socket.send("forwardStream")
+        seekAudio(10)
     }
 
     fun backwardAudio() {
-        socket.send("backwardStream")
+        seekAudio(-10)
     }
 
     /*
