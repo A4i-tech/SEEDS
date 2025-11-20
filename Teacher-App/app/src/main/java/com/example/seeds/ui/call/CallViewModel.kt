@@ -15,8 +15,6 @@ import com.example.seeds.repository.ClassroomRepository
 import com.example.seeds.repository.ContentRepository
 import com.example.seeds.repository.TeacherRepository
 import com.example.seeds.utils.ContactUtils
-import com.google.firebase.auth.ktx.auth
-import com.google.firebase.ktx.Firebase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
@@ -60,7 +58,6 @@ class CallViewModel @Inject constructor(
 
     val teacherPhoneNumber = "91${teacherRepository.getTeacherPhoneNumber()}"
     // Log.d("PAYLOAD_DEBUG","Teacher: $teacherPhoneNumber")
-    var startedAudio = false
 
     var content: Content? = if (args.classroom.contents!!.isNotEmpty()) args.classroom.contents!![0] else null
 
@@ -784,21 +781,6 @@ class CallViewModel @Inject constructor(
 
     fun pauseAudio(audioId: String? = null) = sendAudioCommand("Pause", PlayerState.PAUSED)
     fun resumeAudio(audioId: String? = null) = sendAudioCommand("Resume", PlayerState.PLAYING)
-    // fun resumeAudio(audioId: String) {
-    //     if(startedAudio) {
-    //         socket.send("resume:$audioId")
-    //     } else {
-    //         playAudio(audioId)
-    //         startedAudio = true
-    //         return
-    //     }
-    //     _audioPlaying.postValue(true)
-    // }
-
-    // fun pauseAudio() {
-    //     socket.send("pause")
-    //     _audioPlaying.postValue(false)
-    // }
 
     fun forwardAudio() {
         socket.send("forwardStream")
@@ -807,14 +789,6 @@ class CallViewModel @Inject constructor(
     fun backwardAudio() {
         socket.send("backwardStream")
     }
-
-    // fun endCall() {
-    //     //how to check if socket is initialized
-    //     if (this::socket.isInitialized) {
-    //         socket.send("end")
-    //     }
-    //      // Null Error here
-    // }
 
     /*
 
