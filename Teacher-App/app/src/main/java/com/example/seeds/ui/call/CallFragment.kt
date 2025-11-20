@@ -237,6 +237,20 @@ class CallFragment : BaseFragment() {
                 }
             }
         }
+
+        // Forward 10 Seconds
+        binding.forwardButton.setOnClickListener {
+            viewModel._isAudioControlDone.postValue(false)
+            viewModel.forwardAudio()
+            logMessage("Audio forward clicked")
+        }
+
+        // Rewind 10 Seconds
+        binding.backwardButton.setOnClickListener {
+            viewModel._isAudioControlDone.postValue(false)
+            viewModel.backwardAudio()
+            logMessage("Audio backward clicked")
+        }
     }
 
     private fun showFeedback(textView: TextView, message: String) {
