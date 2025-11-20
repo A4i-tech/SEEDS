@@ -68,14 +68,6 @@ class ContentDetailsFragment : BaseFragment() {
                 playMedia(mainPlayer, it)
             }
         }
-         // Observe answer (for riddles)
-        // viewModel.answerUrl.observe(viewLifecycleOwner) { url ->
-        //     url?.let {
-        //         logMessage("AnswerSASURL: $it")
-        //         playMedia(answerPlayer, it, autoPlay = false)
-        //     }
-        // }
-
         // Update content info
         viewModel.currentContent.observe(viewLifecycleOwner) { content ->
             binding.content = content

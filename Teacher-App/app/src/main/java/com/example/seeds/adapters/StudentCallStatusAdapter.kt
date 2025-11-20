@@ -1,6 +1,7 @@
 package com.example.seeds.adapters
 
 import android.view.LayoutInflater
+import android.util.Log
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
@@ -26,6 +27,7 @@ class StudentCallStatusAdapter(
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val student = getItem(position)
+        Log.d("ADAPTER_DEBUG", "REDRAWING student: ${student.name} with state: ${student.callerState}")
         holder.bind(student, viewModel, removeClickListener)
     }
 

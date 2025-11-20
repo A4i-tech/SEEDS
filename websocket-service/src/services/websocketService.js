@@ -1,8 +1,10 @@
 // src/services/websocketService.js
 
-const azureBlobService = require('./azureBlobService');
-const connectionManager = require('./connectionManager');
-const { PlaybackStatus } = require('../constants');
+const azureBlobService = require("./azureBlobService");
+const connectionManager = require("./connectionManager");
+const { PlaybackStatus } = require("../constants");
+
+const AUDIO_BYTES_PER_SECOND = 16000; // 320 bytes * 50 chunks per second
 
 /**
  * Handles play action for audio content (teacher's choice).
@@ -12,7 +14,7 @@ const { PlaybackStatus } = require('../constants');
 async function playAudioContent(id, blobUrl) {
   const connection = connectionManager.getConnection(id);
 
-  if (!connection) throw new Error('WebSocket connection not found');
+  if (!connection) throw new Error("WebSocket connection not found");
 
   const { ws, state } = connection;
 
@@ -41,10 +43,13 @@ async function playAudioContent(id, blobUrl) {
     console.log(`playAudioContent called for ID: ${id}, Blob URL: ${blobUrl}`);
 
     // If no system audio content is playing, start playing audio content
-    if (!state.currentAudioType || state.currentAudioType === 'audioContent') {
-      state.currentAudioType = 'audioContent';
+    if (!state.currentAudioType || state.currentAudioType === "audioContent") {
+      state.currentAudioType = "audioContent";
       const { containerName, blobName } = parseBlobUrl(blobUrl);
-      const blobData = await azureBlobService.getBlobData(containerName, blobName);
+      const blobData = await azureBlobService.getBlobData(
+        containerName,
+        blobName
+      );
       state.audioContentState.blobData = blobData;
 
       sendPlaybackStatus(id, PlaybackStatus.PLAYING);
@@ -53,10 +58,12 @@ async function playAudioContent(id, blobUrl) {
     } else {
       // Keep audio content in paused state
       sendPlaybackStatus(id, PlaybackStatus.PAUSED);
-      console.log(`Audio content playback paused for ID: ${id} due to system audio content in progress`);
+      console.log(
+        `Audio content playback paused for ID: ${id} due to system audio content in progress`
+      );
     }
   } else {
-    throw new Error('WebSocket is not open');
+    throw new Error("WebSocket is not open");
   }
 }
 
@@ -68,7 +75,7 @@ async function playAudioContent(id, blobUrl) {
 async function playSystemAudioContent(id, blobUrl) {
   const connection = connectionManager.getConnection(id);
 
-  if (!connection) throw new Error('WebSocket connection not found');
+  if (!connection) throw new Error("WebSocket connection not found");
 
   const { ws, state } = connection;
 
@@ -79,25 +86,35 @@ async function playSystemAudioContent(id, blobUrl) {
 
     // Enqueue system audio content
     state.systemAudioContentQueue.push({ blobUrl });
-    console.log(`System audio content queued for ID: ${id}, Blob URL: ${blobUrl}`);
+    console.log(
+      `System audio content queued for ID: ${id}, Blob URL: ${blobUrl}`
+    );
 
-    if (state.currentAudioType === 'systemAudioContent') {
+    if (state.currentAudioType === "systemAudioContent") {
       // Do nothing; it will play after the current system audio content
-      console.log(`System audio content already playing for ID: ${id}, new content will be queued`);
+      console.log(
+        `System audio content already playing for ID: ${id}, new content will be queued`
+      );
     } else {
       // Pause audio content if playing
-      if (state.currentAudioType === 'audioContent' && state.audioContentState && state.audioContentState.playing) {
+      if (
+        state.currentAudioType === "audioContent" &&
+        state.audioContentState &&
+        state.audioContentState.playing
+      ) {
         state.audioContentState.playing = false;
         sendPlaybackStatus(id, PlaybackStatus.PAUSED);
-        console.log(`Audio content playback paused for ID: ${id} to play system audio content`);
+        console.log(
+          `Audio content playback paused for ID: ${id} to play system audio content`
+        );
       }
 
       // Set currentAudioType to 'systemAudioContent' and start playing next system audio content
-      state.currentAudioType = 'systemAudioContent';
+      state.currentAudioType = "systemAudioContent";
       playNextSystemAudioContent(ws, id, state);
     }
   } else {
-    throw new Error('WebSocket is not open');
+    throw new Error("WebSocket is not open");
   }
 }
 
@@ -117,7 +134,9 @@ async function playNextSystemAudioContent(ws, id, state) {
 
   const nextSystemAudioContent = state.systemAudioContentQueue.shift();
   const { blobUrl } = nextSystemAudioContent;
-  console.log(`Starting system audio content playback for ID: ${id}, Blob URL: ${blobUrl}`);
+  console.log(
+    `Starting system audio content playback for ID: ${id}, Blob URL: ${blobUrl}`
+  );
 
   const { containerName, blobName } = parseBlobUrl(blobUrl);
   const blobData = await azureBlobService.getBlobData(containerName, blobName);
@@ -144,7 +163,7 @@ function sendAudioContentChunks(ws, id, blobData, state, playbackId) {
     if (
       ws.readyState !== ws.OPEN ||
       state.playbackId !== playbackId ||
-      state.currentAudioType !== 'audioContent' ||
+      state.currentAudioType !== "audioContent" ||
       !state.audioContentState.playing
     ) {
       // Stop sending if playback is paused, stopped, or overridden
@@ -199,7 +218,7 @@ function sendSystemAudioContentChunks(ws, id, blobData, state) {
     // Check if WebSocket is open and currentAudioType is 'systemAudioContent'
     if (
       ws.readyState !== ws.OPEN ||
-      state.currentAudioType !== 'systemAudioContent'
+      state.currentAudioType !== "systemAudioContent"
     ) {
       // Stop sending if overridden or WebSocket closed
       console.log(`Stopping system audio content streaming for ID: ${id}`);
@@ -242,11 +261,15 @@ function sendSystemAudioContentChunks(ws, id, blobData, state) {
 function pauseAudioContent(id) {
   const connection = connectionManager.getConnection(id);
 
-  if (!connection) throw new Error('WebSocket connection not found');
+  if (!connection) throw new Error("WebSocket connection not found");
 
   const { state } = connection;
 
-  if (state.currentAudioType === 'audioContent' && state.audioContentState && state.audioContentState.playing) {
+  if (
+    state.currentAudioType === "audioContent" &&
+    state.audioContentState &&
+    state.audioContentState.playing
+  ) {
     state.audioContentState.playing = false;
     sendPlaybackStatus(id, PlaybackStatus.PAUSED);
     console.log(`Audio content playback paused for ID: ${id}`);
@@ -260,13 +283,18 @@ function pauseAudioContent(id) {
 function resumeAudioContent(id) {
   const connection = connectionManager.getConnection(id);
 
-  if (!connection) throw new Error('WebSocket connection not found');
+  if (!connection) throw new Error("WebSocket connection not found");
 
   const { ws, state } = connection;
 
-  if (state.currentAudioType === 'systemAudioContent' || (state.systemAudioContentQueue && state.systemAudioContentQueue.length > 0)) {
+  if (
+    state.currentAudioType === "systemAudioContent" ||
+    (state.systemAudioContentQueue && state.systemAudioContentQueue.length > 0)
+  ) {
     // Ignore resume request; system audio content is playing or queued
-    console.log(`Resume request ignored for ID: ${id}; system audio content is playing or queued`);
+    console.log(
+      `Resume request ignored for ID: ${id}; system audio content is playing or queued`
+    );
     return;
   }
 
@@ -274,14 +302,71 @@ function resumeAudioContent(id) {
     state.playbackId = (state.playbackId || 0) + 1;
     const currentPlaybackId = state.playbackId;
 
-    state.currentAudioType = 'audioContent';
+    state.currentAudioType = "audioContent";
     state.audioContentState.playing = true;
     sendPlaybackStatus(id, PlaybackStatus.PLAYING);
     console.log(`Resuming audio content playback for ID: ${id}`);
-    sendAudioContentChunks(ws, id, state.audioContentState.blobData, state, currentPlaybackId);
+    sendAudioContentChunks(
+      ws,
+      id,
+      state.audioContentState.blobData,
+      state,
+      currentPlaybackId
+    );
   } else {
-    throw new Error('No audio content data to resume');
+    throw new Error("No audio content data to resume");
   }
+}
+
+/**
+ * Applies a signed delta offset and restarts playback from the new position when possible.
+ * @param {string} id - Unique identifier for the connection.
+ * @param {Object} seekPayload - Payload containing deltaSeconds.
+ */
+async function seekAudioContent(id, seekPayload) {
+  const connection = connectionManager.getConnection(id);
+
+  if (!connection) throw new Error("WebSocket connection not found");
+
+  const { ws, state } = connection;
+  const audioState = state.audioContentState;
+
+  if (!audioState || !audioState.blobData) {
+    throw new Error("No audio content data to seek");
+  }
+  console.log(`this is current audio state ${JSON.stringify(audioState)}`);
+  const deltaSeconds = extractDeltaSeconds(seekPayload);
+  console.log(
+    `Seek request received for ID: ${id}; deltaSeconds: ${deltaSeconds}; currentPosition: ${audioState.position}`
+  );
+  const totalLength = audioState.blobData.length;
+  const currentPosition = audioState.position || 0;
+  const targetPosition = clampPosition(
+    Math.trunc(currentPosition + deltaSeconds * AUDIO_BYTES_PER_SECOND),
+    totalLength
+  );
+
+  audioState.position = targetPosition;
+
+  if (state.currentAudioType === "systemAudioContent") {
+    // Acknowledge the seek but leave playback paused until announcements finish.
+    audioState.playing = false;
+    console.log(
+      `Seek for ID: ${id} applied while system audio playing; new buffered position: ${targetPosition}`
+    );
+    return;
+  }
+
+  state.playbackId = (state.playbackId || 0) + 1;
+  const currentPlaybackId = state.playbackId;
+  state.currentAudioType = "audioContent";
+  audioState.playing = true;
+
+  sendPlaybackStatus(id, PlaybackStatus.PLAYING);
+  console.log(
+    `Restarting audio stream after seek for ID: ${id}; playbackId: ${currentPlaybackId}; startByte: ${targetPosition}`
+  );
+  sendAudioContentChunks(ws, id, audioState.blobData, state, currentPlaybackId);
 }
 
 /**
@@ -291,7 +376,7 @@ function resumeAudioContent(id) {
 function stopAudioContent(id) {
   const connection = connectionManager.getConnection(id);
 
-  if (!connection) throw new Error('WebSocket connection not found');
+  if (!connection) throw new Error("WebSocket connection not found");
 
   const { state } = connection;
 
@@ -311,7 +396,7 @@ function stopAudioContent(id) {
 function closeConnection(id) {
   const connection = connectionManager.getConnection(id);
 
-  if (!connection) throw new Error('WebSocket connection not found');
+  if (!connection) throw new Error("WebSocket connection not found");
 
   const { ws, state } = connection;
   state.isClosed = true;
@@ -336,18 +421,18 @@ function handleAccidentalDisconnection(id) {
  */
 function parseBlobUrl(blobUrl) {
   const url = new URL(blobUrl);
-  const pathSegments = url.pathname.split('/');
+  const pathSegments = url.pathname.split("/");
   const containerName = pathSegments[1];
-  const blobName = pathSegments.slice(2).join('/');
+  const blobName = pathSegments.slice(2).join("/");
   return { containerName, blobName };
 }
 
 function sendPlaybackStatus(id, status) {
-  const { ws } = connectionManager.getConnection('confv2server');
+  const { ws } = connectionManager.getConnection("confv2server");
   ws.send(
     JSON.stringify({
       websocket_id: id,
-      type: 'playback-state-update',
+      type: "playback-state-update",
       message: status,
     }),
     (error) => {
@@ -361,11 +446,11 @@ function sendPlaybackStatus(id, status) {
 }
 
 function sendReconnectionMessage(id) {
-  const { ws } = connectionManager.getConnection('confv2server');
+  const { ws } = connectionManager.getConnection("confv2server");
   ws.send(
     JSON.stringify({
       websocket_id: id,
-      type: 'RECONNECT',
+      type: "RECONNECT",
     }),
     (error) => {
       if (error) {
@@ -377,11 +462,40 @@ function sendReconnectionMessage(id) {
   );
 }
 
+function extractDeltaSeconds(payload) {
+  if (
+    !payload ||
+    (payload.deltaSeconds ?? payload.delta_seconds) === undefined
+  ) {
+    throw new Error("Seek payload must include deltaSeconds");
+  }
+  const delta = Number(payload.deltaSeconds ?? payload.delta_seconds);
+  if (!Number.isFinite(delta)) {
+    throw new Error("Seek payload deltaSeconds must be a finite number");
+  }
+  return delta;
+}
+
+function clampPosition(position, totalLength) {
+  const upperBound = typeof totalLength === "number" ? totalLength : 0;
+  if (upperBound <= 0) {
+    return 0;
+  }
+  if (position < 0) {
+    return 0;
+  }
+  if (position > upperBound) {
+    return upperBound;
+  }
+  return position;
+}
+
 module.exports = {
   playAudioContent,
   playSystemAudioContent,
   pauseAudioContent,
   resumeAudioContent,
+  seekAudioContent,
   stopAudioContent,
   closeConnection,
   handleAccidentalDisconnection,

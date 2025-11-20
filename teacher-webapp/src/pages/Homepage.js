@@ -34,6 +34,8 @@ function Homepage() {
     setLoading,
     handleSSEEvent,
     handleStudentToggle,
+    handleTeacherSelect,
+    setConferenceStudents,
   } = useConference();
   // students fetched from server for the authenticated teacher
   const [studentsList, setStudentsList] = React.useState([]);
@@ -57,7 +59,7 @@ function Homepage() {
         );
         if (!mounted) return;
         const data = res.data;
-        console.log(data);
+        console.log("Fetched students:", data);
         setStudentsList(Array.isArray(data) ? data : []);
       } catch (err) {
         if (mounted)
@@ -70,7 +72,7 @@ function Homepage() {
     return () => {
       mounted = false;
     };
-  }, [displayedPhone]);
+  }, [displayedPhone]); 
 
   // Handler for input changes
   const handleInputChange = (e) => {
@@ -109,10 +111,10 @@ function Homepage() {
       // 2. Append new students (avoid duplicates by phoneNumber)
       const allStudents = [
         ...addedStudents.filter(
-          (ns) =>
-            !currentStudents.some((cs) => cs.phoneNumber === ns.phoneNumber)
-        ),
-      ];
+        (ns) =>
+          !currentStudents.some((cs) => cs.phoneNumber === ns.phoneNumber)
+      ),
+];
       // 3. Post combined list
       console.log("Posting students:", allStudents);
       await axios.post(
@@ -139,13 +141,21 @@ function Homepage() {
   const [isSubmitted, setIsSubmitted] = React.useState(false);
   const handleFormSubmit = async () => {
     setLoading(true); // Start loading
+    console.log("Starting conference for:", recvdPhoneNumber.phoneNumber, selectedStudents);
+    const teacherObject = {
+      name: "Teacher",
+      phoneNumber: recvdPhoneNumber.phoneNumber,
+      role: "Teacher",
+    };
+    handleTeacherSelect(teacherObject); // Select the teacher
     try {
       const data = await createConference(
-        recvdPhoneNumber,
-        selectedStudents.map((item) => item.phoneNumber)
+        `91${recvdPhoneNumber.phoneNumber}`,
+        selectedStudents.map((item) => `91${item.phoneNumber}`)
       );
       const conferenceId = data.id;
       setConfId(conferenceId);
+      setConferenceStudents(selectedStudents);
       console.log("Conf ID:", conferenceId);
       const sseEp = SSE_ENDPOINTS.CONFERENCE.TEACHER_CONNECT(conferenceId);
       const eventSource = new EventSource(sseEp);

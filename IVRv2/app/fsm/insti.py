@@ -53,9 +53,9 @@ def handle_language(filtered_content, speechRate, parent_selections):
 
     Returns:
       sorted_categories (list): A list of complete audio URLs corresponding to each language.
-        Example: ["https://seedsblobstaging.blob.core.windows.net/pull-model-menus/<...>/kannada/1.0.mp3", ...]
+        Example: ["https://seedsstagingblob.blob.core.windows.net/pull-model-menus/<...>/kannada/1.0.mp3", ...]
       values_to_urls (dict): A mapping from each language (in lowercase) to its complete audio URL.
-        Example: {"kannada": "https://seedsblobstaging.blob.core.windows.net/pull-model-menus/<...>/kannada/1.0.mp3", ...}
+        Example: {"kannada": "https://seedsstagingblob.blob.core.windows.net/pull-model-menus/<...>/kannada/1.0.mp3", ...}
     """
     languages = [item["language"].lower() for item in filtered_content]
     unique_languages = set(languages)
@@ -90,9 +90,9 @@ def handle_theme(filtered_content, speechRate, parent_selections):
 
     Returns:
       sorted_categories (list): A list of complete audio URLs corresponding to each theme.
-        Example: ["https://seedsblobstaging.blob.core.windows.net/theme-titles/Our%20body%20and%20its%20functions/1.0.mp3", ...]
+        Example: ["https://seedsstagingblob.blob.core.windows.net/theme-titles/Our%20body%20and%20its%20functions/1.0.mp3", ...]
       values_to_urls (dict): A mapping from the theme’s local display name to its complete audio URL.
-        Example: {"ನಮ್ಮ ದೇಹ ಮತ್ತು ಅದರ ಕಾರ್ಯಗಳು": "https://seedsblobstaging.blob.core.windows.net/theme-titles/Our%20body%20and%20its%20functions/1.0.mp3", ...}
+        Example: {"ನಮ್ಮ ದೇಹ ಮತ್ತು ಅದರ ಕಾರ್ಯಗಳು": "https://seedsstagingblob.blob.core.windows.net/theme-titles/Our%20body%20and%20its%20functions/1.0.mp3", ...}
     """
     print(filtered_content[0:5])
     themes = sorted({item["theme"]["local"] for item in filtered_content})
@@ -122,9 +122,9 @@ Parameters:
 
 Returns:
   sorted_categories (list): A list of audio URLs corresponding to each experience type.
-    Example: ["https://seedsblobstaging.blob.core.windows.net/pull-model-menus/experiencesDialog/kannada/music/For%20Songs/1.0.mp3"]
+    Example: ["https://seedsstagingblob.blob.core.windows.net/pull-model-menus/experiencesDialog/kannada/music/For%20Songs/1.0.mp3"]
   values_to_urls (dict): A mapping from the type (in lowercase) to its audio URL.
-    Example: {"song": "https://seedsblobstaging.blob.core.windows.net/pull-model-menus/experiencesDialog/kannada/music/For%20Songs/1.0.mp3"}
+    Example: {"song": "https://seedsstagingblob.blob.core.windows.net/pull-model-menus/experiencesDialog/kannada/music/For%20Songs/1.0.mp3"}
 """
 def handle_type(filtered_content, speechRate, parent_selections):
     # Extract and sort experience types (converted to lowercase).
@@ -163,11 +163,11 @@ def handle_title(filtered_content, speechRate, parent_selections):
 
     Returns:
       sorted_categories (list): A list of complete audio URLs corresponding to each title.
-        Example (quiz): ["https://seedsblobstaging.blob.core.windows.net/experience-titles/quiz/12f77743-4255-48a8-855b-2f4d7b635c95/1.0.mp3"]
-        Example (non-quiz): ["https://seedsblobstaging.blob.core.windows.net/experience-titles/20/1.0.mp3"]
+        Example (quiz): ["https://seedsstagingblob.blob.core.windows.net/experience-titles/quiz/12f77743-4255-48a8-855b-2f4d7b635c95/1.0.mp3"]
+        Example (non-quiz): ["https://seedsstagingblob.blob.core.windows.net/experience-titles/20/1.0.mp3"]
       values_to_urls (dict): A mapping from the title’s display name to its complete audio URL.
-        Example (quiz): {"ಮೊಲದ ಮರಿ": "https://seedsblobstaging.blob.core.windows.net/experience-titles/quiz/12f77743-4255-48a8-855b-2f4d7b635c95/1.0.mp3"}
-        Example (non-quiz): {"ನಾನು ಮತ್ತು ನನ್ನ ಶರೀರ": "https://seedsblobstaging.blob.core.windows.net/experience-titles/20/1.0.mp3"}
+        Example (quiz): {"ಮೊಲದ ಮರಿ": "https://seedsstagingblob.blob.core.windows.net/experience-titles/quiz/12f77743-4255-48a8-855b-2f4d7b635c95/1.0.mp3"}
+        Example (non-quiz): {"ನಾನು ಮತ್ತು ನನ್ನ ಶರೀರ": "https://seedsstagingblob.blob.core.windows.net/experience-titles/20/1.0.mp3"}
     """
     values_to_urls = {}
     sorted_categories = []
@@ -207,7 +207,7 @@ attribute_handlers = {
     "title": handle_title,
 }
 
-welcomeToSEEDSKannadaUrl = 'https://seedsblobstaging.blob.core.windows.net/pull-model-menus/welcomeDialog/kannada/welcome%20to%20SEEDS/1.0.mp3'
+welcomeToSEEDSKannadaUrl = 'https://seedsstagingblob.blob.core.windows.net/pull-model-menus/welcomeDialog/kannada/welcome%20to%20SEEDS/1.0.mp3'
 
 def getKeyPressUrl(key, language, speechRate):
     replaced_url = pressKeyMessageUrl.replace('{language}', language).replace('{speechRate}', str(speechRate))

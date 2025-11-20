@@ -7,7 +7,6 @@ import android.os.Bundle
 import android.util.Log
 import android.view.MenuItem
 import android.view.View
-import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.lifecycle.lifecycleScope
@@ -15,6 +14,7 @@ import androidx.navigation.findNavController
 import androidx.navigation.ui.AppBarConfiguration
 import androidx.navigation.ui.setupActionBarWithNavController
 import androidx.navigation.ui.setupWithNavController
+import androidx.navigation.ui.NavigationUI
 import androidx.work.WorkManager
 import com.example.seeds.dao.LogDao
 import com.example.seeds.databinding.ActivityMainBinding
@@ -39,7 +39,7 @@ import kotlinx.coroutines.withContext
 import timber.log.Timber
 import javax.inject.Inject
 
-const val PHONE_NUMBER_LENGTH = 13
+const val PHONE_NUMBER_LENGTH = 12
 const val LOG_UPLOAD_INTERVAL_MS = 30_000L
 
 @AndroidEntryPoint
@@ -48,6 +48,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var drawerLayout: DrawerLayout
     private lateinit var sessionManager: SessionManager
+    private lateinit var appBarConfiguration: AppBarConfiguration 
 
     @Inject
     lateinit var database: LogDao
@@ -68,14 +69,6 @@ class MainActivity : AppCompatActivity() {
         sessionManager = SessionManager(applicationContext)
         drawerLayout = binding.drawerLayout
         val navViewDrawer: NavigationView = binding.navViewDrawer
-
-        val toggle = ActionBarDrawerToggle(
-            this, drawerLayout, binding.mainToolbar,
-            R.string.navigation_drawer_open,
-            R.string.navigation_drawer_close
-        )
-        drawerLayout.addDrawerListener(toggle)
-        toggle.syncState()
 
         navViewDrawer.setNavigationItemSelectedListener { menuItem ->
             handleDrawerItemClick(menuItem)
@@ -105,14 +98,9 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-        val appBarConfiguration = AppBarConfiguration(
+        appBarConfiguration = AppBarConfiguration(
             setOf(
                 R.id.homeFragment,
-                R.id.callSettingsFragment,
-                R.id.contactsFragment,
-                R.id.addStudentsFragment,
-                R.id.addContentToCallFragment2,
-                R.id.callFragment,
                 R.id.classroomFragment
             ),
             drawerLayout
@@ -184,10 +172,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onSupportNavigateUp(): Boolean {
         val navController = findNavController(R.id.nav_host_fragment_activity_main)
-        return navController.navigateUp() || 
-        drawerLayout.isDrawerOpen(binding.navViewDrawer) || 
-        super.onSupportNavigateUp()
-    }
+        return NavigationUI.navigateUp(navController, appBarConfiguration)|| super.onSupportNavigateUp()}
 
     override fun onBackPressed() {
         if (drawerLayout.isDrawerOpen(binding.navViewDrawer)) {
