@@ -1,11 +1,9 @@
-import asyncio
 from app.models.participant import CallStatus, Participant
 from app.models.system_audio_messages import SystemAudioMessages
 from app.services.conference_call import ConferenceCall
 from app.services.confevents.base_event import ConferenceEvent
 from app.conf_logger import logger_instance
-from app.services.caller_state_manager import caller_state_manager
-import asyncio
+
 
 class CallStatusChangeEvent(ConferenceEvent):
     def __init__(self, phone_number: str, status: CallStatus, conf_call: ConferenceCall):

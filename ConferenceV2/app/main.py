@@ -6,7 +6,6 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI
-from app.routers import conference, webhooks, websocket
 from fastapi.middleware.cors import CORSMiddleware
 from app.conf_logger import logger_instance
 from app.services.singletons.websocket_service import WebsocketService
