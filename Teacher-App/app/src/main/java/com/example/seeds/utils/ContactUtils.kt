@@ -1,15 +1,26 @@
 package com.example.seeds.utils
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.database.Cursor
 import android.provider.ContactsContract
 import android.telephony.PhoneNumberUtils
-import androidx.annotation.NonNull
+import android.telephony.TelephonyManager
+import androidx.core.app.ActivityCompat
 import com.example.seeds.model.Student
-import java.util.*
+import java.util.ArrayList
+import java.util.Locale
 import kotlin.collections.HashMap
 
 class ContactUtils constructor(private val context: Context) {
+
+    // A companion object to hold private constants for this class.
+    companion object {
+        private const val INDIA_COUNTRY_CODE = "91"
+        private const val NATIONAL_PHONE_NUMBER_LENGTH = 10
+        private const val ZERO_PREFIX = '0'
+    }
 
     var contacts: List<Student>
     var contactsMap: HashMap<String, Student>
@@ -28,7 +39,8 @@ class ContactUtils constructor(private val context: Context) {
                 null,
                 null,
                 null,
-                ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME_PRIMARY + " ASC")
+                ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME_PRIMARY + " ASC"
+            )
         } catch (e: SecurityException) {
             return HashMap()
         }
@@ -38,16 +50,15 @@ class ContactUtils constructor(private val context: Context) {
         while (phones!!.moveToNext()) {
             val colIndexName = phones.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME_PRIMARY)
             val colIndexNumber = phones.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
-            if(colIndexName >= 0 && colIndexNumber >=0)
-            {
+            if (colIndexName >= 0 && colIndexNumber >= 0) {
                 name = phones.getString(colIndexName)
                 phoneNumber = phones.getString(colIndexNumber)
             }
-            if(name != null && phoneNumber != null){
-                if(unprocessedContacts[name] == null)
+            if (name != null && phoneNumber != null) {
+                if (unprocessedContacts[name] == null)
                     unprocessedContacts[name] = arrayListOf()
                 unprocessedContacts[name]!!.add(phoneNumber)
-                contactUsers[phoneNumber] = Student(name=name, phoneNumber=phoneNumber)
+                contactUsers[phoneNumber] = Student(name = name, phoneNumber = phoneNumber)
             }
         }
         contactUsers = processContactsUser(unprocessedContacts)
@@ -58,11 +69,12 @@ class ContactUtils constructor(private val context: Context) {
     private fun processContactsUser(contacts: HashMap<String, ArrayList<String>>): HashMap<String, Student> {
         val contactsUsers = HashMap<String, Student>()
         contacts.forEach { (name, phoneNumbers) ->
-            val finalPhoneNumbers = phoneNumbers.map{
+            val finalPhoneNumbers = phoneNumbers.map {
                 var phone = PhoneNumberUtils.formatNumber(it, Locale.getDefault().country)
                 phone?.let {
                     phone = phone.replace(" ", "").replace("-", "").replace("+", "").replace("(", "").replace(")", "")
-                    if (phone[0] == '0') {
+                    // Use the named constant for the prefix
+                    if (phone[0] == ZERO_PREFIX) {
                         phone = phone.substring(1)
                     }
                     phone
@@ -70,8 +82,11 @@ class ContactUtils constructor(private val context: Context) {
             }.toSet()
             finalPhoneNumbers.forEach {
                 var phno = it
-                if(it.length == 10)phno = "91$phno"
-                contactsUsers[phno] = Student(name=name, phoneNumber = phno)
+                // Use named constants for length check and country code
+                if (it.length == NATIONAL_PHONE_NUMBER_LENGTH) {
+                    phno = "$INDIA_COUNTRY_CODE$phno"
+                }
+                contactsUsers[phno] = Student(name = name, phoneNumber = phno)
             }
         }
         return contactsUsers
@@ -79,7 +94,7 @@ class ContactUtils constructor(private val context: Context) {
 
     fun getStudentsFromString(studentStrings: List<String>): List<Student> {
         return studentStrings.map {
-            contactsMap[it]?: Student(it, it)
+            contactsMap[it] ?: Student(it, it)
         }
     }
 

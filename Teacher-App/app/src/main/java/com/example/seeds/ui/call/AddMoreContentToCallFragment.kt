@@ -53,8 +53,9 @@ class AddMoreContentToCallFragment : BaseFragment() {
                 val text = binding.contentSearchTextBox.text.toString().lowercase()
                 if(text.isNotEmpty()){
                     logMessage("Content search text: $text")
-                    (binding.contentList.adapter as ContentListAdapter).submitList(viewModel.filteredContent.value?.toMutableList()?.filter {
-                        it.title.lowercase().contains(text)
+                    (binding.contentList.adapter as ContentListAdapter)
+                    .submitList(viewModel.filteredContent.value?.toMutableList()?.filter {
+                        it.titleText.lowercase().contains(text)
                     })
                 } else {
                     (binding.contentList.adapter as ContentListAdapter).submitList(viewModel.filteredContent.value)
@@ -67,9 +68,13 @@ class AddMoreContentToCallFragment : BaseFragment() {
             val additionalContentChosen = viewModel.allContent.value?.filter{
                 contentChosen.contains(it.id)
             }
-            logMessage("Additonal content chosen during call: $additionalContentChosen - ${additionalContentChosen?.map{it.title}}")
-            val totalContent = viewModel.selectedContentList.value!!.toMutableList()
-            totalContent.addAll(additionalContentChosen!!)
+            logMessage("""Additonal content chosen during call: 
+            $additionalContentChosen - ${additionalContentChosen?.map{it.titleText}}""")
+            
+            val totalContent = (viewModel.selectedContentList
+            .value?.toMutableList() ?: mutableListOf()).apply {
+                    additionalContentChosen?.let { addAll(it) }
+                }
             Log.d("ContentChosen", contentChosen.toString())
             Log.d("AdditionalContentChosen", additionalContentChosen.toString())
             Log.d("totalContent", totalContent.toString())
@@ -91,8 +96,12 @@ class AddMoreContentToCallFragment : BaseFragment() {
             dialogBinding.lifecycleOwner = viewLifecycleOwner
 
             if(viewModel.filtersChosen.value != null){
-                dialogBinding.languagesList.adapter = FilterContentAdapter(usersInGroup = viewModel.languages.value!!.filter { viewModel.filtersChosen.value!!.contains(it) }.toMutableSet())
-                dialogBinding.experiencesList.adapter = FilterContentAdapter(usersInGroup = viewModel.experiences.value!!.filter { viewModel.filtersChosen.value!!.contains(it) }.toMutableSet())
+                dialogBinding.languagesList.adapter = 
+                    FilterContentAdapter(usersInGroup = viewModel.languages.value!!.filter { 
+                        viewModel.filtersChosen.value!!.contains(it) }.toMutableSet())
+                dialogBinding.experiencesList.adapter = 
+                    FilterContentAdapter(usersInGroup = viewModel.experiences.value!!.filter {
+                        viewModel.filtersChosen.value!!.contains(it) }.toMutableSet())
             } else {
                 dialogBinding.languagesList.adapter = FilterContentAdapter()
                 dialogBinding.experiencesList.adapter = FilterContentAdapter()
@@ -143,7 +152,11 @@ class AddMoreContentToCallFragment : BaseFragment() {
                 val filtersChosen = viewModel.filtersChosen.value!!.toMutableList()
                 filtersChosen.remove(filter)
                 viewModel.setFiltersChosen(filtersChosen)
-                viewModel.filterContent(viewModel.languages.value!!.filter { filtersChosen.contains(it) }.toMutableSet(), viewModel.experiences.value!!.filter { filtersChosen.contains(it) }.toMutableSet())
+                viewModel.filterContent(
+                    viewModel.languages.value!!.filter {
+                         filtersChosen.contains(it) }.toMutableSet(), 
+                         viewModel.experiences.value!!.filter { 
+                            filtersChosen.contains(it) }.toMutableSet())
                 binding.filterChips.removeView(chip)
             }
             binding.filterChips.addView(chip)
@@ -155,8 +168,9 @@ class AddMoreContentToCallFragment : BaseFragment() {
             logMessage("onStart")
             binding.contentSearchTextBox.setText("")
             if(viewModel.filtersChosen.value != null) {
-                val langs = viewModel.languages.value!!.filter { viewModel.filtersChosen.value!!.contains(it) }.toMutableSet()
-                val exps = viewModel.experiences.value!!.filter { viewModel.filtersChosen.value!!.contains(it) }.toMutableSet()
+            val chosenFilters = viewModel.filtersChosen.value ?: emptyList()
+            val langs = viewModel.languages.value.orEmpty().filter { it in chosenFilters }.toMutableSet()
+            val exps = viewModel.experiences.value.orEmpty().filter { it in chosenFilters }.toMutableSet()
                 viewModel.filterContent(langs, exps)
                 setChips(viewModel.filtersChosen.value!!)
             } else{

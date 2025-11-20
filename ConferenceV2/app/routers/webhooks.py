@@ -12,7 +12,8 @@ from app.services.confevents.vonage.vonage_dtmf_input_event import VonageDTMFInp
 from app.services.singletons.conference_call_manager import ConferenceCallManager
 from typing import Dict
 from app.conf_logger import logger_instance
-
+from app.services.caller_state_manager import caller_state_manager
+import asyncio
 
 router = APIRouter()
 
@@ -68,6 +69,19 @@ async def process_event(event_data: Dict, conference_id: str):
             vonage_call_status_change_event = VonageCallStatusChangeEvent(**event_data)
             call_status_change_event = vonage_call_status_change_event.get_conf_call_status_change_event(conf)
             logger_instance.info(f"Processing call status change event for {call_status_change_event.phone_number}: {call_status_change_event.status}")
+            status_enum = call_status_change_event.status
+
+            new_state_update = {"call_status": status_enum.name}
+
+            logger_instance.info(f"[TRIGGER] Firing update for conf {conference_id} with state: {new_state_update}")
+            asyncio.create_task(
+                caller_state_manager.update_state(
+                    conference_id=conference_id,
+                    participant_id=call_status_change_event.phone_number,
+                    new_state=new_state_update
+                )
+            )
+
             await conf.queue_event(call_status_change_event)
 
             # If a student just connected, mute the student

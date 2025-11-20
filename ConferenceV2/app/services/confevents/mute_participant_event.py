@@ -4,6 +4,8 @@ from app.models.system_audio_messages import SystemAudioMessages
 from app.services.conference_call import ConferenceCall
 from app.services.confevents.base_event import ConferenceEvent
 from app.conf_logger import logger_instance
+from app.services.caller_state_manager import caller_state_manager 
+import asyncio
 
 
 class MuteParticipantEvent(ConferenceEvent):
@@ -15,6 +17,15 @@ class MuteParticipantEvent(ConferenceEvent):
     async def execute_event(self):
         if self.phone_number in self.conf_call.state.participants:
             logger_instance.info("EXECUTING MUTE PARTICIPANT EVENT", self.phone_number)
+
+            asyncio.create_task(
+            caller_state_manager.update_state(
+                conference_id=self.conf_call.conf_id,
+                participant_id=self.phone_number,
+                new_state={"muted": True}
+                )
+            )
+            
             # Mute the participant using communication API
             await self.conf_call.communication_api.mute_participant(self.phone_number)
             

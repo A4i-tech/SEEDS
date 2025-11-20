@@ -9,17 +9,21 @@ import android.widget.ImageView
 import android.widget.Toast
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.ListAdapter
 import com.example.seeds.R
 import com.example.seeds.databinding.RemoveStudentItemRowBinding
 import com.example.seeds.model.Student
 
-class RemoveStudentListAdapter(private val onClickListener: OnClickListener? = null) : androidx.recyclerview.widget.ListAdapter<Student, RecyclerView.ViewHolder>(DiffCallBack){
+class RemoveStudentListAdapter(
+    private val onClickListener: OnClickListener? = null) : 
+    ListAdapter<Student, RecyclerView.ViewHolder>(DiffCallBack){
 
     class OnClickListener(val clickListener: (contact: Student) -> Unit) {
         fun onClick(contact: Student) = clickListener(contact)
     }
 
-    inner class ContactViewHolder(private var binding: RemoveStudentItemRowBinding): RecyclerView.ViewHolder(binding.root) {
+    inner class ContactViewHolder(private var binding: RemoveStudentItemRowBinding): 
+    RecyclerView.ViewHolder(binding.root) {
         fun bind (contact: Student) {
             binding.student = contact
             binding.executePendingBindings()

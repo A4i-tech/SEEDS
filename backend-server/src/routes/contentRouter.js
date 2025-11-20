@@ -358,100 +358,50 @@ router.get("/themes",tryCatchWrapper(async (req, res) => {
  */
 
 router.get("/", tryCatchWrapper(async (req, res) => {
-    // Parse pagination parameters
-    const limit = parseInt(req.query.limit) || 10;
+    const limit = parseInt(req.query.limit) || 15; 
     const cursor = req.query.cursor;
 
-    // Fetch by language, theme (English name), and expName (type)
-    if (req.query.language && req.query.theme && req.query.expName) {
-        const language = req.query.language;
-        const theme = decodeURIComponent(req.query.theme).toString(); // English name of the theme
-        const type = req.query.expName;
- 
-        // cursor-based pagination
-        const query = {
-            isPullModel: true,
-            language: language,
-            "theme.english": theme,
-            type: type.toLowerCase()
-        };
-
-        // Add cursor condition if provided
-        if (cursor) {
-            query._id = { $lt: new ObjectId(cursor) };
-        }
-
-        const contents = await ContentV3.find(query)
-            .sort({ _id: -1 })
-            .limit(limit + 1) // Fetch one extra to check if there's more
-            .exec();
-
-        // Check if there are more items
-        const hasMore = contents.length > limit;
-        const data = hasMore ? contents.slice(0, limit) : contents;
-        const nextCursor = hasMore ? data[data.length - 1]._id.toString() : null;
-
-        return res.json({
-            data,
-            pagination: {
-                nextCursor,
-                hasMore,
-                limit
-            }
-        });
-    }
-
-    // Fetch by multiple IDs
     if (req.query.ids) {
         const idsArray = Array.isArray(req.query.ids) ? req.query.ids : req.query.ids.split(",");
-        const uuidArray = idsArray.map(id => new Binary(Buffer.from(uuidParse(id)), 4));
-        const contents = await ContentV3.collection.find({ _id: { $in: uuidArray } }).toArray();
-        
+        const contents = await ContentV3.collection.find({ _id: { $in: idsArray } }).toArray();
         return res.json(contents);
     }
 
-    // Fetch only teacher-app content
+    let query = {};
     if (req.query.onlyTeacherApp) {
-
-        const query = { isTeacherApp: true };
-        
-        if (cursor) {
-            query._id = { $lt: new ObjectId(cursor) };
-        }
-
-        const contents = await ContentV3.find(query)
-            .sort({ _id: -1 })
-            .limit(limit + 1)
-            .exec();
-
-        const hasMore = contents.length > limit;
-        const data = hasMore ? contents.slice(0, limit) : contents;
-        const nextCursor = hasMore ? data[data.length - 1]._id.toString() : null;
-
-        return res.json({
-            data,
-            pagination: {
-                nextCursor,
-                hasMore,
-                limit
-            }
-        });
+        query.isTeacherApp = true;
+    } else if (req.query.language && req.query.theme && req.query.expName) {
+        query.isPullModel = true;
+        query.language = req.query.language;
+        query["theme.english"] = decodeURIComponent(req.query.theme).toString();
+        query.type = req.query.expName.toLowerCase();
     }
-    const query = {};
-    
+
     if (cursor) {
-        query._id = { $lt: new ObjectId(cursor) };
+        const [lastTitle, lastId] = cursor.split('_');
+        const lastIdBinary = new Binary(Buffer.from(uuidParse(lastId)), 4);
+        
+        query.$or = [
+            { "title.english": { $gt: lastTitle } },
+            { 
+                "title.english": lastTitle,
+                _id: { $gt: lastIdBinary } 
+            }
+        ];
     }
-
+    
     const contents = await ContentV3.find(query)
-        .sort({ _id: -1 })
-        .limit(limit + 1)
+        .sort({ "title.english": 1, _id: 1 })
+        .limit(limit + 1) 
         .exec();
 
     const hasMore = contents.length > limit;
     const data = hasMore ? contents.slice(0, limit) : contents;
-    const nextCursor = hasMore ? data[data.length - 1]._id.toString() : null;
+    
+    const lastItem = hasMore ? data[data.length - 1] : null;
+    const nextCursor = lastItem ? `${lastItem.title.english}_${lastItem._id.toString()}` : null;
 
+    // Send the final response
     return res.json({
         data,
         pagination: {

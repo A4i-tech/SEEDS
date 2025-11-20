@@ -6,10 +6,10 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI
-from app.routers import conference, webhooks, websocket
 from fastapi.middleware.cors import CORSMiddleware
 from app.conf_logger import logger_instance
 from app.services.singletons.websocket_service import WebsocketService
+from app.routers import conference, webhooks, websocket, caller_state
 
 load_dotenv()
 
@@ -60,6 +60,7 @@ app.add_middleware(
 app.include_router(conference.router, prefix="/conference", tags=["Conference"])
 app.include_router(webhooks.router, prefix="/webhooks",  tags=["Webhooks"])
 app.include_router(websocket.router, prefix="/websocket", tags=["Websocket for Comm API"])
+app.include_router(caller_state.router)
 
 # SAVE LOGS TO TXT FILE: uvicorn main:app 2>&1 | tee logs.txt
 

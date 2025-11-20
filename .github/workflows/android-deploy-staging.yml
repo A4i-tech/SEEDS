@@ -1,0 +1,57 @@
+name: Deploy Android Staging Build
+
+# Triggers the workflow on push events to the staging branch
+on:
+  push:
+    branches: [a4i/staging]
+  pull_request:
+    branches: [a4i/staging]
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v2
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2.9'
+          bundler-cache: false
+          working-directory: ./Teacher-App
+
+      - name: Add Linux platform to Gemfile.lock
+        working-directory: ./Teacher-App
+        run: bundle lock --add-platform x86_64-linux
+
+      - name: Install gems
+        working-directory: ./Teacher-App
+        run: bundle install
+
+      - name: Make Gradle executable
+        working-directory: ./Teacher-App
+        run: chmod +x gradlew
+
+      - name: Build and Deploy with Fastlane
+        if: github.ref == 'refs/heads/teacher-app-ci'
+        working-directory: ./Teacher-App
+        env:
+          BASE_URL: ${{ secrets.BASE_URL }}
+          CONTENT_URL: ${{ secrets.CONTENT_URL }}
+          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+          FIREBASE_TESTER_GROUPS: ${{ secrets.FIREBASE_TESTER_GROUPS }}
+          FIREBASE_CLI_TOKEN: ${{ secrets.FIREBASE_CLI_TOKEN }}
+        run: bundle exec fastlane deploy_staging

@@ -354,7 +354,7 @@ quiz_new = {
   ]
 }
 
-# sas_test = 'https://seedsblobstaging.blob.core.windows.net/output-container/1dfe33fd-7fb7-4adb-9d60-2d9ae3c44910/1.0.wav'
+# sas_test = 'https://seedsstagingblob.blob.core.windows.net/output-container/1dfe33fd-7fb7-4adb-9d60-2d9ae3c44910/1.0.wav'
 # sas_gen_obj = SASGen(os.getenv("BLOB_STORE_CONN_STR"))
 # sas_url = sas_gen_obj.get_url_with_sas(sas_test)
 # print("SAS", sas_url)
@@ -378,7 +378,7 @@ def getStreamActions(items_list, values_to_urls, level, state, parent_selections
     actions = []
     
     if level == 0 and state == 0:
-        actions.append(StreamAction('https://seedsblobstaging.blob.core.windows.net/pull-model-menus/welcomeDialog/kannada/welcome%20to%20SEEDS/1.0.mp3'))
+        actions.append(StreamAction('https://seedsstagingblob.blob.core.windows.net/pull-model-menus/welcomeDialog/kannada/welcome%20to%20SEEDS/1.0.mp3'))
         
     complete_url = ''
     language = ''
@@ -521,7 +521,7 @@ def generate_states(fsm, content_list, content_attributes, level, parent_state_i
         audioGoingTobePlayedUrl = audioGoingTobePlayedDialogUrl.replace('{language}', language).replace('{speechRate}', speechRate)
         # actions.append(TalkAction(text = "To exit the content. Press 9"))
         actions.append(StreamAction(pullMenuMainUrl + audioGoingTobePlayedUrl))
-        # https://seedsblobstaging.blob.core.windows.net/output-container/23_1/1.0.wav
+        # https://seedsstagingblob.blob.core.windows.net/output-container/23_1/1.0.wav
         # if (parent_selections['type'] != 'quiz'):
         music_url = content_url + filtered_content[0]['id'] + '/1.0.wav'
         actions.append(StreamAction(music_url, record_playback_time=True))
@@ -649,7 +649,7 @@ def generate_states(fsm, content_list, content_attributes, level, parent_state_i
         if level == 0 and state_index == 0:
             print("INITIAL STATE", state_id)
             fsm.init_state_id = state_id
-            # actions.append(StreamAction(url = 'https://seedsblobstaging.blob.core.windows.net/pull-model-menus/welcomeDialog/kannada/welcome%20to%20SEEDS/1.0.mp3'))
+            # actions.append(StreamAction(url = 'https://seedsstagingblob.blob.core.windows.net/pull-model-menus/welcomeDialog/kannada/welcome%20to%20SEEDS/1.0.mp3'))
           
         result_dictionary = getStreamActions(sorted_categories, values_to_urls, level, state_index, parent_selections)
         # print("RESULT DICTIONARY", result_dictionary)

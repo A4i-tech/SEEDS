@@ -16,14 +16,13 @@ class TeacherRepository @Inject constructor(
     private val sharedPreferences: SharedPreferences
 ) {
     fun getTeacherPhoneNumber(): String {
-        return sharedPreferences.getString("phone", "") ?: ""
-            .replace("+", "")
+        return sharedPreferences.getString("teacher_phone", "") ?: ""
     }
 
     suspend fun register() {
-        withContext(Dispatchers.IO) {
-            network.registerTeacher()
-        }
+        // withContext(Dispatchers.IO) {
+        //     network.registerTeacher()
+        // }
     }
 }
 

@@ -15,12 +15,14 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.example.seeds.MainActivity
 import com.example.seeds.R
-import com.google.firebase.auth.ktx.auth
-import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class SplashScreenActivity : AppCompatActivity() {
+
+    companion object{
+        private const val SPLASH_SCREEN_DURATION_MS = 1500L
+    }
     private lateinit var requestPermissionLauncher: ActivityResultLauncher<String>
     private var activityContext = this
 
@@ -62,7 +64,8 @@ class SplashScreenActivity : AppCompatActivity() {
 
         // Check for permission or request it
         when {
-            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED -> {
+            ContextCompat.checkSelfPermission(
+                this, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED -> {
                 checkAndNavigate()
             }
             else -> {
@@ -100,34 +103,29 @@ class SplashScreenActivity : AppCompatActivity() {
 
     private fun checkAndNavigate() {
         lifecycleScope.launch {
-//            delay(2000) // Optional: Add delay for splash screen display
+            // Optional splash delay
+            delay(SPLASH_SCREEN_DURATION_MS)
 
-            // Retrieve login state from SharedPreferences
             val sharedPref = getSharedPreferences("sharedPref", MODE_PRIVATE)
-            Log.d("code", sharedPref.getString("code", null).toString())
-
-            val isLoggedIn = sharedPref.getString("code", null) == "1110"
-            Log.d("CODE", isLoggedIn.toString())
-
-            val intent: Intent
-            if (isLoggedIn) {
-                intent = Intent(activityContext, MainActivity::class.java)
+            val isLoggedIn = sharedPref.getBoolean("is_logged_in", false)
+            val intent = if (isLoggedIn) {
+                Intent(this@SplashScreenActivity, MainActivity::class.java)
             } else {
-                intent = Intent(activityContext, LoginCodeActivity::class.java)
-                intent.flags = intent.flags or Intent.FLAG_ACTIVITY_NO_HISTORY
-                Log.d("REACHED HERE", "")
-
+                Intent(this@SplashScreenActivity, LoginActivity::class.java)
             }
             startActivity(intent)
-//            finish() // Close the SplashScreenActivity
+            finish()
         }
     }
 
 
+
     private fun showPermissionExplanationDialog() {
+        val logmessage = """This app needs to read your contacts to function properly. 
+                                    Without this permission, the app cannot operate."""
         AlertDialog.Builder(this)
             .setTitle("Permission Required")
-            .setMessage("This app needs to read your contacts to function properly. Without this permission, the app cannot operate.")
+            .setMessage(logmessage)
             .setPositiveButton("Try Again") { dialog, which ->
                 requestPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
             }
@@ -143,7 +141,8 @@ class SplashScreenActivity : AppCompatActivity() {
     private fun showPermissionDeniedDialog() {
         AlertDialog.Builder(this)
             .setTitle("Permission Required")
-            .setMessage("This app needs to read your contacts to function properly. Without this permission, the app cannot operate. Enable it from settings")
+            .setMessage("""This app needs to read your contacts to function properly. 
+            Without this permission, the app cannot operate. Enable it from settings""")
             .setPositiveButton("OKAY") { dialog, which ->
                 dialog.dismiss()
                 finishAndRemoveTask() // This will close the current activity

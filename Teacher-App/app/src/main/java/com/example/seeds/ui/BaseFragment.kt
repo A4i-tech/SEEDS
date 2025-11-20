@@ -7,6 +7,7 @@ import android.net.NetworkRequest
 import android.os.Bundle
 import android.util.Log
 import android.view.View
+import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleObserver
@@ -15,11 +16,11 @@ import androidx.navigation.fragment.findNavController
 import com.example.seeds.MainActivity
 import com.example.seeds.R
 import com.example.seeds.utils.Constants.Companion.APP_VERSION
+import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import timber.log.Timber
-import java.util.*
 
 
 abstract class BaseFragment : Fragment(), LifecycleObserver {
@@ -172,4 +173,10 @@ abstract class BaseFragment : Fragment(), LifecycleObserver {
             Timber.tag(this.javaClass.simpleName).d("Appv$APP_VERSION $sessionId $msg")
         }
     }
+    fun showToast(message: String) {
+        if (isAdded) {
+            Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
+        }
+    }
+
 }

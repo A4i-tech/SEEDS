@@ -6,35 +6,49 @@ import android.widget.ImageView
 import android.widget.Toast
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.ListAdapter
 import com.example.seeds.R
 import com.example.seeds.databinding.ContentItemRowBinding
 import com.example.seeds.model.Content
 import com.example.seeds.model.Student
 
 
-class ContentListAdapter(private val onContentClickListener: OnClickListener? = null, val showCheckbox: Boolean = false, val showRemoveContent: Boolean = false, var usersInGroup: MutableSet<String> = mutableSetOf(),
-                         val maximumSelections: Int = 5000) : androidx.recyclerview.widget.ListAdapter<Content, ContentListAdapter.ContentViewHolder>(DiffCallBack){
+class ContentListAdapter(
+    private val onContentClickListener: OnClickListener? = null, 
+    val showCheckbox: Boolean = false, val showRemoveContent: Boolean = false, 
+    var usersInGroup: MutableSet<String> = mutableSetOf(),
+    val maximumSelections: Int = 5000) : 
+    ListAdapter<Content, ContentListAdapter.ContentViewHolder>
+    (DiffCallBack){
 
     class OnClickListener(val clickListener: (content: Content) -> Unit) {
         fun onClick(content: Content) = clickListener(content)
     }
 
-    inner class ContentViewHolder(private var binding: ContentItemRowBinding): RecyclerView.ViewHolder(binding.root) {
+    inner class ContentViewHolder(private var binding: ContentItemRowBinding) :
+        RecyclerView.ViewHolder(binding.root) {
         var contentCheckbox = binding.contentCheckbox
 
         init {
             contentCheckbox.setOnClickListener {
-                if (!usersInGroup.contains(binding.content!!.id)) {
-                    if(usersInGroup.size == maximumSelections) {
-                        Toast.makeText(binding.root.context, "Maximum $maximumSelections user${if(maximumSelections != 1) 's' else ' '} allowed!", Toast.LENGTH_SHORT).show()
+                val contentId = binding.content!!.id
+                if (!usersInGroup.contains(contentId)) {
+                    // The user is not in the group, so try to add them
+                    if (usersInGroup.size == maximumSelections) {
+                        // Maximum selections reached, show a toast and prevent checking the box
+                        val plural = if (maximumSelections != 1) "s" else ""
+                        val message = "Maximum $maximumSelections user$plural allowed!"
+                        Toast.makeText(binding.root.context, message, Toast.LENGTH_SHORT).show()
                         contentCheckbox.isChecked = false
                     } else {
+                        // Add the user to the group
                         contentCheckbox.isChecked = true
-                        usersInGroup.add(binding.content!!.id)
+                        usersInGroup.add(contentId)
                     }
                 } else {
+                    // The user is already in the group, so remove them
                     contentCheckbox.isChecked = false
-                    usersInGroup.remove(binding.content!!.id)
+                    usersInGroup.remove(contentId)
                 }
             }
         }
@@ -83,7 +97,7 @@ class ContentListAdapter(private val onContentClickListener: OnClickListener? = 
     override fun submitList(usersList: List<Content>?) {
         val newUsersList = usersList?.toMutableList()
         newUsersList?.sortBy {
-            it.title
+            it.titleText
         }
         super.submitList(newUsersList)
     }

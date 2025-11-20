@@ -26,14 +26,19 @@ class CheckboxNameListAdapter(private val onClickListener: OnClickListener? = nu
         fun onClick(student: Student) = clickListener(student)
     }
 
-    inner class ContactViewHolder(private var binding: CheckboxNameItemRowBinding): RecyclerView.ViewHolder(binding.root) {
+    inner class ContactViewHolder(
+        private var binding: CheckboxNameItemRowBinding): RecyclerView.ViewHolder(binding.root) {
         var userCheckbox = binding.userGroupCheckbox
 
         init {
             userCheckbox.setOnClickListener {
                 if (!usersInGroup.contains(binding.student!!.phoneNumber)) {
                     if(usersInGroup.size == maximumSelections) {
-                        Toast.makeText(binding.root.context, "Maximum $maximumSelections leader${if(maximumSelections != 1) 's' else ' '} allowed!", Toast.LENGTH_SHORT).show()
+                        val toastMessage = """Maximum $maximumSelections 
+                                              leader${if(maximumSelections != 1)
+                                               's' else ' '} allowed!"""
+
+                        Toast.makeText(binding.root.context,toastMessage,Toast.LENGTH_SHORT).show()
                         userCheckbox.isChecked = false
                     } else {
                         userCheckbox.isChecked = true

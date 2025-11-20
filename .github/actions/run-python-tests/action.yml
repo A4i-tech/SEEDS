@@ -1,0 +1,14 @@
+name: Run Python Tests
+description: Run tests for a Python project
+inputs:
+  directory:
+    description: "Directory of the Python project"
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Run tests with coverage
+      run: |
+        cd ${{ inputs.directory }}
+        poetry run pytest --cov=. --cov-report=html --cov-report=xml --cov-report=json --cov-report=term
+      shell: bash

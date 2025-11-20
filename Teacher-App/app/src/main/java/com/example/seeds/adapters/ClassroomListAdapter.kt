@@ -10,13 +10,17 @@ import com.example.seeds.model.Classroom
 import com.example.seeds.model.Content
 
 
-class ClassroomListAdapter(private val onClickListener: OnClickListener) : androidx.recyclerview.widget.ListAdapter<Classroom, ClassroomListAdapter.ClassroomViewHolder>(DiffCallBack){
+class ClassroomListAdapter(
+    private val onClickListener: OnClickListener) : 
+    androidx.recyclerview.widget.ListAdapter<Classroom, ClassroomListAdapter.ClassroomViewHolder>
+    (DiffCallBack){
 
     class OnClickListener(val clickListener: (classroom: Classroom) -> Unit) {
         fun onClick(classroom: Classroom) = clickListener(classroom)
     }
 
-    inner class ClassroomViewHolder(private var binding: ClassroomItemRowBinding): RecyclerView.ViewHolder(binding.root) {
+    inner class ClassroomViewHolder(
+        private var binding: ClassroomItemRowBinding): RecyclerView.ViewHolder(binding.root) {
         fun bind (classroom: Classroom) {
             binding.classroom = classroom
             binding.executePendingBindings()

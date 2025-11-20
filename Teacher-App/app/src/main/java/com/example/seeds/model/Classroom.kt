@@ -12,6 +12,7 @@ import se.ansman.kotshi.JsonSerializable
 data class Classroom(
     var _id: String? = null,
     var name: String,
+    var teacher : String,
     var students: List<Student>,
     var leaders: List<Student>,
     var contentIds: List<String>,
@@ -20,10 +21,17 @@ data class Classroom(
     companion object {
         fun getNewClassroom(_id:String? = null,
                         name: String ="",
+                        teacher : String="",   
                         students: List<Student> = listOf(),
                         leaders: List<Student> = listOf(),
                         contentIds: List<String> = listOf()): Classroom {
-            return Classroom(_id = _id, name=name, students = students, leaders = leaders, contentIds = contentIds)
+            return Classroom(
+                _id = _id, 
+                name=name ,
+                teacher = teacher, 
+                students = students, 
+                leaders = leaders, 
+                contentIds = contentIds)
         }
     }
 }
@@ -32,6 +40,7 @@ fun Classroom.asDto(): ClassroomDto {
     return ClassroomDto(
         _id,
         name,
+        teacher,
         students.map{
             it.phoneNumber
         },

@@ -32,7 +32,7 @@
         <!-- android:name=".ui.Login.LoginActivity" -->
         <!-- android:exported="false" /> -->
         <activity
-            android:name=".ui.Login.LoginCodeActivity"
+            android:name=".ui.Login.LoginActivity"
             android:exported="false" />
         <activity
             android:name=".MainActivity"

@@ -2,22 +2,12 @@
 const mongoose = require("mongoose");
 
 const TeacherSchema = new mongoose.Schema({
-  email: { type: String, required: true, index: true, unique: true },
-  students: [ String ]
+  tenantId: {type: String, required: true, index: true},
+  phoneNumber: {type: String, required: true, index: true, unique: true},
+  password: {type: String, required: true},
+  studentId: {type: [String], default: []},
 });
 
-var Teacher = (module.exports = mongoose.model("Teacher", TeacherSchema));
+const Teacher = mongoose.model("Teacher", TeacherSchema);
 
-module.exports.getTeacherById = email => {
-    return Teacher.findOne (
-        { email }
-    ).exec()
-}
-
-module.exports.setStudentsByTeacherId = (email, students) => {
-    return Teacher.findOneAndUpdate (
-        { email },
-        { $set: { students } },
-        { new : true }
-    ).exec()
-}
+module.exports = Teacher;

@@ -1,4 +1,5 @@
 # Enum for animal types
+import base64
 from enum import Enum
 import os
 from app.services.communication_api import CommunicationAPI
@@ -14,8 +15,9 @@ class CommunicationAPIFactory:
         from app.services.communication_api import VonageAPI
         
         if type == CommunicationAPIType.VONAGE:
+            raw_key = base64.b64decode(os.environ.get("VONAGE_APPLICATION_PRIVATE_KEY64")).decode("utf-8")
             return VonageAPI(application_id=os.environ.get("VONAGE_APPLICATION_ID"),
-                             private_key_path=os.environ.get("VONAGE_PRIVATE_KEY_PATH"),
+                             private_key_path=raw_key,
                              vonage_number=os.environ.get("VONAGE_NUMBER"),
                              conf_id=conf_id, 
                              ws_server_url=ws_url)

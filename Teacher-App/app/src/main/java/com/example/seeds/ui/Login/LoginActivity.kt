@@ -1,289 +1,312 @@
 package com.example.seeds.ui.Login
 
 import android.content.Intent
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
-import android.os.CountDownTimer
-import android.text.Editable
-import android.text.TextWatcher
-import android.view.View
+import android.widget.ArrayAdapter
 import android.widget.Toast
-import androidx.lifecycle.lifecycleScope
+import androidx.activity.viewModels
+import androidx.appcompat.app.AppCompatActivity
 import com.example.seeds.MainActivity
 import com.example.seeds.R
+import android.R.layout.simple_dropdown_item_1line
 import com.example.seeds.databinding.ActivityLoginBinding
-import com.google.firebase.FirebaseException
-import com.google.firebase.FirebaseTooManyRequestsException
-import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
-import com.google.firebase.auth.PhoneAuthCredential
-import com.google.firebase.auth.PhoneAuthOptions
-import com.google.firebase.auth.PhoneAuthProvider
-import com.google.firebase.auth.ktx.auth
-import com.google.firebase.ktx.Firebase
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import java.util.concurrent.TimeUnit
-import java.util.regex.Pattern
+import com.example.seeds.repository.TeacherRepository
+import com.example.seeds.ui.call.CallViewModel
+import com.example.seeds.utils.Constants
+import com.example.seeds.utils.Encryptor
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.IOException
+import javax.inject.Inject
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.MediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody
+import okhttp3.Response
+import com.example.seeds.utils.KeyManager
+import android.util.Base64
+import java.security.SecureRandom
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import com.google.android.gms.auth.api.credentials.Credential
+import com.google.android.gms.auth.api.credentials.Credentials
+import com.google.android.gms.auth.api.credentials.HintRequest
+import android.util.Log
 
 class LoginActivity : AppCompatActivity() {
 
+    // Data class to hold both the ID and the name of an organization
+    data class Organization(val id: String, val name: String) {
+        override fun toString(): String = name
+    }
+
+    companion object {
+        private const val PHONE_NUMBER_LENGTH = 10
+    }
+
     private lateinit var binding: ActivityLoginBinding
-    private var storedVerificationId: String? = null
-    private var resendToken: PhoneAuthProvider.ForceResendingToken? = null
-    private lateinit var phoneNumber: String
-    private var timerJob: Job? = null
+    private lateinit var phoneHintLauncher: ActivityResultLauncher<IntentSenderRequest>
+    private var organizations = mutableListOf<Organization>()
+
+    @Inject
+    lateinit var teacherRepository: TeacherRepository
+
+    private val viewModel: CallViewModel by viewModels()
+
+    private val LOGIN_URL = Constants.BASE_URL + "/teacher/login"
+    private val REGISTER_URL = Constants.BASE_URL + "/teacher/register"
+    private val ORGANIZATIONS_URL = Constants.BASE_URL + "/tenant/names"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        savedInstanceState?.let { bundle ->
-            storedVerificationId = bundle.getString("storedVerificationId")
-            resendToken = bundle.getParcelable("resendToken")
-            phoneNumber = bundle.getString("phoneNumber", "")
-        }
+        val phoneNumberField = binding.editTextPhoneNumber
+        val passwordField = binding.editTextPassword
+        val orgDropdown = binding.organizationDropdown
+        val loginBtn = binding.phoneNumberLoginBtn
+        val registerBtn = binding.phoneNumberRegisterBtn
 
-        if (storedVerificationId != null) {
-            // OTP has been sent, update UI to show OTP input field
-            binding.codeSentText.visibility = View.VISIBLE
-            binding.editTextPhone.hint = "Please Enter 6 digit OTP"
-            binding.privacyPolicyFirstLine.visibility = View.INVISIBLE
-            binding.privacyPolicySecondLine.visibility = View.INVISIBLE
-            binding.signUpGoogleBtn.text = "Verify"
-            binding.editTextPhone.text.clear()
-        }
-
-        binding.signUpGoogleBtn.setOnClickListener{
-            var isValidPhoneNumber = false
-            val MobilePattern = "[0-9]{10}"
-            var enteredPhoneNumber = binding.editTextPhone.text.toString()
-
-            if (binding.editTextName.text.toString().isEmpty())  {
-                Toast.makeText(applicationContext,"Please Enter Name", Toast.LENGTH_SHORT).show();
+        // Hint launcher initialization
+        phoneHintLauncher =
+            registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+                if (result.resultCode == RESULT_OK) {
+                    val credential = result.data?.getParcelableExtra<Credential>(Credential.EXTRA_KEY)
+                    credential?.id?.let {
+                        val digitsOnly = it.replace(Regex("[^0-9]"), "")
+                        val phoneNumber = digitsOnly.takeLast(PHONE_NUMBER_LENGTH)
+                        phoneNumberField.setText(phoneNumber)
+                    }
+                } else {
+                    Log.d("LoginActivity", "Phone number hint was not selected.")
+                }
             }
-            if(Pattern.matches(MobilePattern, enteredPhoneNumber)) {
-                isValidPhoneNumber = true
-            }
-            enteredPhoneNumber = "+91$enteredPhoneNumber"
 
-            if(binding.editTextName.text.toString().isNotEmpty() && isValidPhoneNumber && storedVerificationId == null) {
-                binding.signUpGoogleBtn.isEnabled = false
-                startPhoneNumberVerification(enteredPhoneNumber)
-                phoneNumber = enteredPhoneNumber
-            }
-            if(!isValidPhoneNumber && storedVerificationId == null)
-                Toast.makeText(applicationContext,"Please Enter Valid Phone Number", Toast.LENGTH_SHORT).show();
+        // Listeners
+        phoneNumberField.setOnClickListener { requestPhoneNumberHint() }
+        phoneNumberField.setOnFocusChangeListener { _, hasFocus -> if (hasFocus) requestPhoneNumberHint() }
 
-            if(storedVerificationId != null){
-                verifyPhoneNumberWithCode(storedVerificationId!!, binding.editTextPhone.text.toString())
+        // Fetch organizations and populate the dropdown
+        fetchOrganizations { orgList ->
+            organizations = orgList.toMutableList()
+            val adapter = ArrayAdapter(this, simple_dropdown_item_1line, organizations)
+            runOnUiThread {
+                orgDropdown.setAdapter(adapter)
             }
         }
 
-        binding.editTextPhone.addTextChangedListener(object: TextWatcher {
-            override fun beforeTextChanged(p0: CharSequence?, p1: Int, p2: Int, p3: Int) {}
-            override fun onTextChanged(p0: CharSequence?, p1: Int, p2: Int, p3: Int) {}
-            override fun afterTextChanged(p0: Editable?) {
-                if(storedVerificationId != null)
-                    binding.signUpGoogleBtn.isEnabled = binding.editTextPhone.text.toString().length == 6
+        // Login click listener
+        loginBtn.setOnClickListener {
+            val phoneNumber = phoneNumberField.text.toString().trim()
+            val password = passwordField.text.toString().trim()
+            val organizationName = orgDropdown.text.toString().trim()
+
+            if (phoneNumber.isEmpty() || password.isEmpty() || organizationName.isEmpty()) {
+                Toast.makeText(this, "Please fill all fields and select an organization", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            // Find the selected organization from our list to get its ID
+            val selectedOrganization = organizations.find { it.name == organizationName }
+            if (selectedOrganization == null) {
+                Toast.makeText(this, "Please select a valid organization from the list", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            // Call the login function with the ID
+            loginWithPhoneNumber(phoneNumber, password, selectedOrganization.id)
+        }
+
+        // Register click listener
+        registerBtn.setOnClickListener {
+            val phoneNumber = phoneNumberField.text.toString().trim()
+            val password = passwordField.text.toString().trim()
+            val organizationName = orgDropdown.text.toString().trim()
+
+            if (phoneNumber.isEmpty() || password.isEmpty() || organizationName.isEmpty()) {
+                Toast.makeText(this, "Please fill all fields and select an organization", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            // Find the selected organization from our list to get its ID
+            val selectedOrganization = organizations.find { it.name == organizationName }
+            if (selectedOrganization == null) {
+                Toast.makeText(this, "Please select a valid organization from the list", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            
+            // Call the register function with the ID
+            registerTenant(phoneNumber, password, selectedOrganization.id)
+        }
+    }
+
+    private fun requestPhoneNumberHint() {
+        val hintRequest = HintRequest.Builder()
+            .setPhoneNumberIdentifierSupported(true)
+            .build()
+        
+        val credentialsClient = Credentials.getClient(this)
+        val intent = credentialsClient.getHintPickerIntent(hintRequest)
+
+        try {
+            val intentSenderRequest = IntentSenderRequest.Builder(intent.intentSender).build()
+            phoneHintLauncher.launch(intentSenderRequest)
+        } catch (e: Exception) {
+            Log.e("LoginActivity", "Could not start hint picker", e)
+        }
+    }
+
+    private fun fetchOrganizations(onResult: (List<Organization>) -> Unit) {
+        val client = OkHttpClient()
+        val request = Request.Builder()
+            .url(ORGANIZATIONS_URL)
+            .get()
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                runOnUiThread {
+                    Toast.makeText(this@LoginActivity, "Failed to load organizations", Toast.LENGTH_SHORT).show()
+                }
+                onResult(emptyList())
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                val body = response.body()?.string() ?: ""
+                if (!response.isSuccessful || body.isBlank()) {
+                    onResult(emptyList())
+                    return
+                }
+
+                try {
+                    val orgs = mutableListOf<Organization>()
+                    val jsonArray = JSONArray(body)
+                    for (i in 0 until jsonArray.length()) {
+                        val obj = jsonArray.getJSONObject(i)
+                        val orgId = obj.optString("id", "")
+                        val orgName = obj.optString("tenantName", "")
+                        if (orgId.isNotEmpty() && orgName.isNotEmpty()) {
+                            orgs.add(Organization(orgId, orgName))
+                        }
+                    }
+                    onResult(orgs)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    onResult(emptyList())
+                }
             }
         })
-
-        binding.resendCodeLink.setOnClickListener {
-            resendToken?.let { token ->
-                resendVerificationCode(phoneNumber, token) // **Changed**
-            }
-//            resendVerificationCode(phoneNumber, resendToken)
-        }
     }
 
-    private fun startPhoneNumberVerification(phoneNumber: String) {
-        val callbacks = object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
+    private fun registerTenant(phoneNumber: String, password: String, organizationId: String) {
+        val client = OkHttpClient()
+        val json = JSONObject().apply {
+            put("phoneNumber", phoneNumber)
+            put("password", password)
+            put("tenantId", organizationId)
+        }
 
-            override fun onVerificationCompleted(credential: PhoneAuthCredential) {
-                // This callback will be invoked in two situations:
-                // 1 - Instant verification. In some cases the phone number can be instantly
-                //     verified without needing to send or enter a verification code.
-                // 2 - Auto-retrieval. On some devices Google Play services can automatically
-                //     detect the incoming verification SMS and perform verification without
-                //     user action.
-                signInWithPhoneAuthCredential(credential)
-            }
+        val body = RequestBody.create(
+            MediaType.parse("application/json; charset=utf-8"),
+            json.toString()
+        )
 
-            override fun onVerificationFailed(e: FirebaseException) {
-                // This callback is invoked in an invalid request for verification is made,
-                // for instance if the the phone number format is not valid.
+        val registerRequest = Request.Builder()
+            .url(REGISTER_URL)
+            .post(body)
+            .build()
 
-                if (e is FirebaseAuthInvalidCredentialsException) {
-                    // Invalid request
-                } else if (e is FirebaseTooManyRequestsException) {
-                    // The SMS quota for the project has been exceeded
+        Log.d("REGISTER_DEBUG", "URL: $REGISTER_URL")
+        Log.d("REGISTER_DEBUG", "Payload: ${json.toString()}")
+        
+        client.newCall(registerRequest).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                runOnUiThread {
+                    Toast.makeText(this@LoginActivity, "Network error during registration", Toast.LENGTH_SHORT).show()
                 }
             }
 
-            override fun onCodeSent(
-                verificationId: String,
-                token: PhoneAuthProvider.ForceResendingToken
-            ) {
-                // The SMS verification code has been sent to the provided phone number, we
-                // now need to ask the user to enter the code and then construct a credential
-                // by combining the code with a verification ID.
-                binding.codeSentText.visibility = View.VISIBLE
-                binding.editTextPhone.hint = "Please Enter 6 digit OTP"
-                binding.privacyPolicyFirstLine.visibility = View.INVISIBLE
-                binding.privacyPolicySecondLine.visibility = View.INVISIBLE
-                binding.signUpGoogleBtn.text = "Verify"
-                // Save verification ID and resending token so we can use them later
-                storedVerificationId = verificationId
-                resendToken = token
-                binding.editTextPhone.text.clear()
-
-                startResendTimer()
-            }
-        }
-
-
-
-        val options = PhoneAuthOptions.newBuilder(Firebase.auth)
-            .setPhoneNumber(phoneNumber)       // Phone number to verify
-            .setTimeout(60L, TimeUnit.SECONDS) // Timeout and unit
-            .setActivity(this)                 // Activity (for callback binding)
-            .setCallbacks(callbacks)          // OnVerificationStateChangedCallbacks
-            .build()
-        PhoneAuthProvider.verifyPhoneNumber(options) //PhoneAuthOptions is a configuration tool that tailors the phone number verification process to your specific requirements. It encapsulates all necessary information for Firebase to execute the OTP sending and verification process according to the provided specifications.
-
-//        timerJob?.cancel()
-//        timerJob = lifecycleScope.launch {
-//            var timer = 60
-//            while(timer >= 0){
-//                delay(1000)
-//                binding.timeRemaining.setText("Resend OTP in: ${timer}s")
-//                timer -= 1
-//            }
-//            binding.codeSentText.visibility = View.GONE
-//            binding.resendCodeLink.visibility = View.VISIBLE
-//            binding.resendCodeText.visibility = View.VISIBLE
-//        }
-    }
-
-    private fun startResendTimer() {
-        timerJob?.cancel()  // Cancel any existing timer
-        timerJob = lifecycleScope.launch {
-            var timer = 60  // Set the countdown duration
-            while(timer >= 0){
-                delay(1000)
-                binding.timeRemaining.setText("Resend OTP in: ${timer}s")
-                timer -= 1
-            }
-            // Update UI to allow resending the OTP
-            binding.codeSentText.visibility = View.GONE
-            binding.resendCodeLink.visibility = View.VISIBLE
-            binding.resendCodeText.visibility = View.VISIBLE
-        }
-    }
-
-    override fun onSaveInstanceState(outState: Bundle) {
-        super.onSaveInstanceState(outState)
-        outState.putString("storedVerificationId", storedVerificationId)
-        resendToken?.let { token -> // **Added**
-            outState.putParcelable("resendToken", token) // **Added**
-        }
-        outState.putString("phoneNumber", phoneNumber) // **Added**
-    }
-
-    private fun resendVerificationCode(
-        phoneNumber: String,
-        token: PhoneAuthProvider.ForceResendingToken
-    ) {
-        val callbacks = object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
-
-            override fun onVerificationCompleted(credential: PhoneAuthCredential) {
-                // This callback will be invoked in two situations:
-                // 1 - Instant verification. In some cases the phone number can be instantly
-                //     verified without needing to send or enter a verification code.
-                // 2 - Auto-retrieval. On some devices Google Play services can automatically
-                //     detect the incoming verification SMS and perform verification without
-                //     user action.
-                signInWithPhoneAuthCredential(credential)
-            }
-
-            override fun onVerificationFailed(e: FirebaseException) {
-                // This callback is invoked in an invalid request for verification is made,
-                // for instance if the the phone number format is not valid.
-
-                if (e is FirebaseAuthInvalidCredentialsException) {
-                    // Invalid request
-                } else if (e is FirebaseTooManyRequestsException) {
-                    // The SMS quota for the project has been exceeded
-                }
-            }
-
-            override fun onCodeSent(
-                verificationId: String,
-                token: PhoneAuthProvider.ForceResendingToken
-            ) {
-                // The SMS verification code has been sent to the provided phone number, we
-                // now need to ask the user to enter the code and then construct a credential
-                // by combining the code with a verification ID.
-
-                // Save verification ID and resending token so we can use them later
-                storedVerificationId = verificationId
-                resendToken = token
-                binding.codeSentText.visibility = View.VISIBLE
-                binding.editTextPhone.hint = "Enter OTP"
-                binding.signUpGoogleBtn.text = "Verify"
-
-                binding.editTextPhone.text.clear()
-            }
-        }
-
-        val options = PhoneAuthOptions.newBuilder(Firebase.auth)
-            .setPhoneNumber(phoneNumber) // Phone number to verify
-            .setTimeout(60L, TimeUnit.SECONDS) // Timeout and unit
-            .setActivity(this) // Activity (for callback binding)
-            .setCallbacks(callbacks) // OnVerificationStateChangedCallbacks
-            .setForceResendingToken(token) // ForceResendingToken from callbacks
-            .build()
-        PhoneAuthProvider.verifyPhoneNumber(options)
-        object : CountDownTimer(60000, 1000) {
-
-            // Callback function, fired on regular interval
-            override fun onTick(millisUntilFinished: Long) {
-                binding.timeRemaining.setText("seconds remaining: " + millisUntilFinished / 1000)
-            }
-
-            // Callback function, fired
-            // when the time is up
-            override fun onFinish() {
-                binding.timeRemaining.setText("Click on resend code")
-            }
-        }.start()
-    }
-
-    private fun verifyPhoneNumberWithCode(verificationId: String, code: String) {
-        val credential = PhoneAuthProvider.getCredential(verificationId, code)
-        signInWithPhoneAuthCredential(credential)
-    }
-
-    private fun signInWithPhoneAuthCredential(credential: PhoneAuthCredential) {
-        Firebase.auth.signInWithCredential(credential)
-            .addOnCompleteListener(this) { task ->
-                if (task.isSuccessful) {
-                    // Sign in success, update UI with the signed-in user's information
-
-                    val user = task.result?.user
-                    val intent = Intent(this, MainActivity::class.java)
-                    startActivity(intent)
-                } else {
-                    // Sign in failed, display a message and update the UI
-
-                    if (task.exception is FirebaseAuthInvalidCredentialsException) {
-                        binding.codeSentText.text = "INVALID OTP"
-                        // The verification code entered was invalid
+            override fun onResponse(call: Call, response: Response) {
+                runOnUiThread {
+                    if (response.isSuccessful) {
+                        Toast.makeText(this@LoginActivity, "Registration successful! Please login.", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this@LoginActivity, "Registration failed: ${response.message()}", Toast.LENGTH_SHORT).show()
                     }
-                    // Update UI
                 }
             }
+        })
+    }
+
+    private fun loginWithPhoneNumber(phoneNumber: String, password: String, organizationId: String) {
+        val client = OkHttpClient()
+        val json = JSONObject().apply {
+            put("phoneNumber", phoneNumber)
+            put("password", password)
+            put("tenantId", organizationId)
+        }
+
+        val body = RequestBody.create(
+            MediaType.parse("application/json; charset=utf-8"),
+            json.toString()
+        )
+
+        val loginRequest = Request.Builder()
+            .url(LOGIN_URL)
+            .post(body)
+            .build()
+
+        client.newCall(loginRequest).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                runOnUiThread {
+                    Toast.makeText(this@LoginActivity, "Network error", Toast.LENGTH_SHORT).show()
+                }
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                if (!response.isSuccessful) {
+                    runOnUiThread {
+                        Toast.makeText(this@LoginActivity, "Invalid credentials", Toast.LENGTH_SHORT).show()
+                    }
+                    return
+                }
+
+                val responseBody = response.body()?.string() ?: "{}"
+                val json = JSONObject(responseBody)
+                val token = json.optString("token", "")
+
+                if (token.isEmpty()) {
+                    runOnUiThread {
+                        Toast.makeText(this@LoginActivity, "Failed to retrieve token", Toast.LENGTH_SHORT).show()
+                    }
+                    return
+                }
+
+                // Encrypt the auth token
+                val (encryptedToken, iv) = Encryptor.encrypt(token)
+
+                try {
+                    val prefs = getSharedPreferences("sharedPref", MODE_PRIVATE).edit()
+                    prefs.putString("auth_token", encryptedToken)
+                    prefs.putString("auth_iv",iv)
+                    prefs.putString("teacher_phone", phoneNumber)
+                    prefs.putBoolean("is_logged_in", true)
+                    prefs.apply()
+
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    runOnUiThread {
+                        Toast.makeText(this@LoginActivity, "Could not save token", Toast.LENGTH_SHORT).show()
+                    }
+                    return
+                }
+                startActivity(Intent(this@LoginActivity, MainActivity::class.java))
+                finish()
+            }
+        })
     }
 }

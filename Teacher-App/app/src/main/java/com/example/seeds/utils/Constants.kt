@@ -1,10 +1,11 @@
 package com.example.seeds.utils
+import com.example.seeds.BuildConfig
 
 class Constants {
     companion object {
-        const val BASE_URL = "https://seeds-teacherapp.azurewebsites.net"
-//        const val BASE_URL = "https://1f6e-122-172-87-186.ngrok-free.app"
-        const val APP_VERSION = "3"
+        val BASE_URL: String = BuildConfig.BASE_URL
+        val CONTENT_URL: String = BuildConfig.CONTENT_URL
+        const val APP_VERSION = "1.0.0"
     }
 }
 
