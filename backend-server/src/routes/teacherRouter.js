@@ -1,5 +1,5 @@
 "use strict";
-const {STATUS} = require("../config/constants");
+const { STATUS } = require("../config/constants");
 const express = require("express");
 const Teacher = require("../models/Teacher.js");
 const Student = require("../models/Student.js");
@@ -41,24 +41,122 @@ const router = express.Router();
  *       401:
  *         description: Unauthorized - invalid or missing token
  */
-router.post("/get-students",
-  authenticateToken,
-  async (req, res) => {
-    const teacher = await Teacher.findOne({phoneNumber: req.body.phoneNumber});
-    if (!teacher) return res.sendStatus(STATUS.NOT_FOUND);
-    let results = [];
-    for (let i = 0; i < teacher.studentId.length; i++) {
-      const student = await Student.findById(teacher.studentId[i]);
-      if (student) {
-        results.push({
-          name: student.name,
-          phoneNumber: student.phoneNumber
-        });
+router.post("/get-students", authenticateToken, async (req, res) => {
+  const teacher = await Teacher.findOne({ phoneNumber: req.body.phoneNumber });
+  if (!teacher) return res.sendStatus(STATUS.NOT_FOUND);
+  let results = [];
+  for (let i = 0; i < teacher.studentId.length; i++) {
+    const student = await Student.findById(teacher.studentId[i]);
+    if (student) {
+      results.push({
+        name: student.name,
+        phoneNumber: student.phoneNumber,
+      });
+    }
+  }
+  return res.json(results);
+});
+
+/**
+ * @swagger
+ * /teacher/get-teachers:
+ *   get:
+ *     summary: Get teachers for a tenant
+ *     tags: [Teachers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: tenantId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Tenant identifier
+ *     responses:
+ *       200:
+ *         description: List of teachers for the tenant
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   _id:
+ *                     type: string
+ *                   phoneNumber:
+ *                     type: string
+ *                   students:
+ *                     type: array
+ *                     items:
+ *                       type: object
+ *                       properties:
+ *                         name:
+ *                           type: string
+ *                         phoneNumber:
+ *                           type: string
+ *       400:
+ *         description: Missing tenantId
+ *       401:
+ *         description: Unauthorized - invalid or missing token
+ *       500:
+ *         description: Internal server error
+ */
+router.get("/get-teachers", authenticateToken, async (req, res) => {
+  const tenantId = req.query?.tenantId;
+  if (!tenantId) return res.sendStatus(STATUS.BAD_REQUEST);
+
+  try {
+    const teachers = await Teacher.find(
+      { tenantId },
+      "_id phoneNumber studentId",
+    ).lean();
+
+    if (!teachers || teachers.length === 0) return res.json([]);
+
+    // collect unique student ids
+    const studentIdSet = new Set();
+    for (const t of teachers) {
+      if (Array.isArray(t.studentId)) {
+        for (const sid of t.studentId) {
+          if (sid) studentIdSet.add(String(sid));
+        }
       }
     }
+
+    const studentIds = Array.from(studentIdSet);
+
+    // single query for all referenced students
+    const students =
+      studentIds.length > 0
+        ? await Student.find(
+            { _id: { $in: studentIds } },
+            "name phoneNumber",
+          ).lean()
+        : [];
+
+    const studentMap = {};
+    for (const s of students) {
+      studentMap[String(s._id)] = s;
+    }
+
+    const results = teachers.map((t) => ({
+      _id: t._id,
+      phoneNumber: t.phoneNumber,
+      students: (t.studentId || [])
+        .map((id) => {
+          const s = studentMap[String(id)];
+          return s ? { name: s.name, phoneNumber: s.phoneNumber } : null;
+        })
+        .filter(Boolean),
+    }));
+
     return res.json(results);
+  } catch (err) {
+    console.error("Error fetching teachers by tenantId:", err);
+    return res.sendStatus(STATUS.INTERNAL_ERROR);
   }
-);
+});
 
 /**
  * @swagger
@@ -107,39 +205,38 @@ router.post("/get-students",
  *       401:
  *         description: Unauthorized - invalid or missing token
  */
-router.post("/add-students",
-  authenticateToken,
-  async (req, res) => {
-    if(!Array.isArray(req.body.students) || req.body.students.length === 0) {
-      return res.sendStatus(STATUS.BAD_REQUEST);
-    }
-    const teacher = await Teacher.findOne({phoneNumber: req.body.phoneNumber});
-    if (!teacher) return res.sendStatus(STATUS.NOT_FOUND);
-    let results = [];
-
-    for(let i = 0; i < req.body.students.length; i++) {
-      const studentData = req.body.students[i];
-      if(!studentData.name || !studentData.phoneNumber) {
-        continue;
-      }
-      const studentExists = await Student.findOne({phoneNumber: studentData.phoneNumber});
-      if(studentExists) {
-        continue;
-      }
-      const student = await Student.create(req.body.students[i]);
-      const studentId = student._id.toString();
-      await Teacher.updateOne(
-        {_id: teacher._id},
-        { $addToSet: { studentId: studentId } }
-      );
-      results.push({
-        name: student.name,
-        phoneNumber: student.phoneNumber
-      });
-    }
-    return res.status(STATUS.OK).json(results);
+router.post("/add-students", authenticateToken, async (req, res) => {
+  if (!Array.isArray(req.body.students) || req.body.students.length === 0) {
+    return res.sendStatus(STATUS.BAD_REQUEST);
   }
-);
+  const teacher = await Teacher.findOne({ phoneNumber: req.body.phoneNumber });
+  if (!teacher) return res.sendStatus(STATUS.NOT_FOUND);
+  let results = [];
+
+  for (let i = 0; i < req.body.students.length; i++) {
+    const studentData = req.body.students[i];
+    if (!studentData.name || !studentData.phoneNumber) {
+      continue;
+    }
+    const studentExists = await Student.findOne({
+      phoneNumber: studentData.phoneNumber,
+    });
+    if (studentExists) {
+      continue;
+    }
+    const student = await Student.create(req.body.students[i]);
+    const studentId = student._id.toString();
+    await Teacher.updateOne(
+      { _id: teacher._id },
+      { $addToSet: { studentId: studentId } },
+    );
+    results.push({
+      name: student.name,
+      phoneNumber: student.phoneNumber,
+    });
+  }
+  return res.status(STATUS.OK).json(results);
+});
 
 /**
  *  @swagger
@@ -179,9 +276,7 @@ router.post("/add-students",
  *       401:
  *         description: Invalid credentials
  */
-router.post('/login',
-  teacherAuthProvider.login
-);
+router.post("/login", teacherAuthProvider.login);
 
 /**
  * @swagger
@@ -201,9 +296,7 @@ router.post('/login',
  *       401:
  *         description: Unauthorized - invalid or missing token
  */
-router.post('/register',
-  teacherAuthProvider.register
-);
+router.post("/register", teacherAuthProvider.register);
 
 /**
  * @swagger
@@ -227,11 +320,8 @@ router.post('/register',
  *       401:
  *         description: Unauthorized, token is missing or invalid
  */
-router.post('/logout',
-  authenticateToken,
-  (req, res) => {
-    res.status(STATUS.OK).json({message: 'Logout successful'});
-  }
-);
+router.post("/logout", authenticateToken, (req, res) => {
+  res.status(STATUS.OK).json({ message: "Logout successful" });
+});
 
-module.exports = router
+module.exports = router;

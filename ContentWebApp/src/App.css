@@ -1,36 +1,38 @@
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
+#root {
+  margin: 0 auto;
+  text-align: center;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
 }
 
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
 }
 
-.App-link {
-  color: #61dafb;
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
 }
 
-@keyframes App-logo-spin {
+@keyframes logo-spin {
   from {
     transform: rotate(0deg);
   }
   to {
     transform: rotate(360deg);
   }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
 }
 
 .table-striped > tbody > tr:nth-child(odd) > td,
@@ -55,7 +57,6 @@
 ::placeholder {
   /* Chrome, Firefox, Opera, Safari 10.1+ */
   color: #28574f;
- 
 }
 
 .optionsGrid {
@@ -82,15 +83,15 @@ label {
   color: #28574f;
 }
 
-.tableHeading{
+.tableHeading {
   background-color: #28574f;
 }
 
-.row{
+.row {
   box-shadow: 0 0 10px 2px rgba(0, 0, 0, 0.1);
 }
 
-.check{
+.check {
   accent-color: #28574f;
   margin-right: 10px;
 }
