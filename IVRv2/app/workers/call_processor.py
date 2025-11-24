@@ -49,15 +49,15 @@ class CallWebhookProcessor(BaseProcessor):
         """Get the call webhook queue provider"""
         provider = service_bus_manager.get_call_webhook_provider()
         if provider is None:
-            print(
-                "ERROR: Call webhook provider is None - Service Bus may not be initialized"
+            self.log_error(
+                "Call webhook provider is None - Service Bus may not be initialized"
             )
         return provider
 
     async def process_message(self, message: QueueMessage):
         """Process a single message from the queue."""
-        print(
-            f"INFO: [CallWebhookProcessor] Received message from queue: {message.message_id}"
+        self.log_info(
+            f"Received message from queue: {message.message_id}"
         )
         await self.process_call_webhook(message.payload)
 
@@ -71,25 +71,22 @@ class CallWebhookProcessor(BaseProcessor):
             webhook_received_time = time.time()
             phone_number = message_data.get("phone_number")
             call_log_id = message_data.get("call_log_id")
-            print(
-                f"INFO: [WEBHOOK_PROCESSOR] Starting processing for phone: {phone_number}, call_log_id: {call_log_id} (timestamp: {webhook_received_time})"
+            self.log_info(
+                f"[WEBHOOK_PROCESSOR] Starting processing for phone: {phone_number}, call_log_id: {call_log_id} (timestamp: {webhook_received_time})"
             )
 
             start_ivr_response = await self._start_ivr_internal(phone_number)
 
             if start_ivr_response.get("status_code") == 200:
-                print(f"INFO: ✓ IVR started successfully for {phone_number}")
+                self.log_info(f"✓ IVR started successfully for {phone_number}")
                 await calls_log_mongo.update_document(
                     call_log_id, {"status": "called", "called_at": datetime.now()}
                 )
-                print(f"INFO: ✓ Call log updated for call_log_id: {call_log_id}")
+                self.log_info(f"✓ Call log updated for call_log_id: {call_log_id}")
             else:
-                print(f"WARNING: ✗ IVR failed to start: {start_ivr_response}")
+                self.log_warning(f"✗ IVR failed to start: {start_ivr_response}")
         except Exception as e:
-            print(f"ERROR: ✗ Error processing call webhook: {e}")
-            import traceback
-
-            traceback.print_exc()
+            self.log_error(f"✗ Error processing call webhook: {e}", exc_info=True)
             raise
 
     async def _start_ivr_internal(self, phone_number: str) -> Dict[str, Any]:
@@ -102,10 +99,10 @@ class CallWebhookProcessor(BaseProcessor):
         """
         try:
             start_time = time.time()
-            print(f"INFO: [START_IVR] Starting IVR for phone number: {phone_number}")
+            self.log_info(f"[START_IVR] Starting IVR for phone number: {phone_number}")
 
             # check for existing ongoing call
-            print(f"DEBUG: [START_IVR] Checking for existing ongoing call...")
+            self.log_debug(f"[START_IVR] Checking for existing ongoing call...")
             doc = await ongoing_fsm_mongo.find_one_by_query(
                 {"phone_number": phone_number}
             )
@@ -116,15 +113,15 @@ class CallWebhookProcessor(BaseProcessor):
                 ):
                     await ongoing_fsm_mongo.delete(phone_number)
                 else:
-                    print(
-                        f"INFO: Ongoing IVR call already exists for phone number: {phone_number}"
+                    self.log_info(
+                        f"Ongoing IVR call already exists for phone number: {phone_number}"
                     )
                     return {
                         "status_code": 400,
                         "message": f"IVR already in progress{phone_number}",
                     }
             # create Vonage client and initiate call
-            print(f"INFO: [START_IVR] Creating Vonage client...")
+            self.log_info(f"[START_IVR] Creating Vonage client...")
             raw_key = base64.b64decode(
                 settings.vonage_application_private_key64
             ).decode("utf-8")
@@ -132,32 +129,32 @@ class CallWebhookProcessor(BaseProcessor):
                 application_id=settings.vonage_application_id,
                 private_key=raw_key,
             )
-            print(f"INFO: [START_IVR] ✓ Vonage client created")
+            self.log_info(f"[START_IVR] ✓ Vonage client created")
 
-            print(f"INFO: [START_IVR] Getting FSM with ID: {self.latest_fsm_id}")
+            self.log_info(f"[START_IVR] Getting FSM with ID: {self.latest_fsm_id}")
             latest_fsm = self.fsm.get(self.latest_fsm_id)
             if not latest_fsm:
-                print(
-                    f"ERROR: [START_IVR] ✗ FSM not found with ID: {self.latest_fsm_id}"
+                self.log_error(
+                    f"[START_IVR] ✗ FSM not found with ID: {self.latest_fsm_id}"
                 )
                 return {
                     "status_code": 500,
                     "message": f"FSM not found",
                 }
 
-            print(f"INFO: [START_IVR] Building NCCO actions...")
+            self.log_info(f"[START_IVR] Building NCCO actions...")
             ncco_actions = accumulator.combine(
                 [
                     action_factory.get_action_implmentation(x)
                     for x in latest_fsm.get_start_fsm_actions()
                 ]
             )
-            print(
-                f"INFO: [START_IVR] ✓ NCCO actions built: {len(ncco_actions)} actions"
+            self.log_info(
+                f"[START_IVR] ✓ NCCO actions built: {len(ncco_actions)} actions"
             )
-            print(f"DEBUG: [START_IVR] NCCO: {json.dumps(ncco_actions, indent=2)}")
+            self.log_debug(f"[START_IVR] NCCO: {json.dumps(ncco_actions, indent=2)}")
 
-            print(f"INFO: Initiating Vonage call to {phone_number}...")
+            self.log_info(f"Initiating Vonage call to {phone_number}...")
             vonage_start_time = time.time()
             vonage_response = client.voice.create_call(
                 {
@@ -167,13 +164,13 @@ class CallWebhookProcessor(BaseProcessor):
                 }
             )
             vonage_elapsed = time.time() - vonage_start_time
-            print(
-                f"INFO: [START_IVR] ✓ Vonage API call successful! (took {vonage_elapsed:.2f}s)"
+            self.log_info(
+                f"[START_IVR] ✓ Vonage API call successful! (took {vonage_elapsed:.2f}s)"
             )
-            print(f"INFO: [START_IVR] Vonage response: {vonage_response}")
+            self.log_info(f"[START_IVR] Vonage response: {vonage_response}")
             vonage_response = VonageCallStartResponse(**vonage_response)
-            print(
-                f"INFO: [START_IVR] Conversation UUID: {vonage_response.conversation_uuid}"
+            self.log_info(
+                f"[START_IVR] Conversation UUID: {vonage_response.conversation_uuid}"
             )
 
             # CRITICAL: Create ivr state IMMEDIATELY after getting conversation_uuid
@@ -190,8 +187,8 @@ class CallWebhookProcessor(BaseProcessor):
                 ivr_call_state.dict(by_alias=True)
             )
             mongo_elapsed = time.time() - mongo_start_time
-            print(
-                f"INFO: [START_IVR] ✓ IVR state created in DB for conversation_uuid: {vonage_response.conversation_uuid} (took {mongo_elapsed:.2f}s), insert_id: {insert_result}"
+            self.log_info(
+                f"[START_IVR] ✓ IVR state created in DB for conversation_uuid: {vonage_response.conversation_uuid} (took {mongo_elapsed:.2f}s), insert_id: {insert_result}"
             )
 
             # VERIFY: Immediately check if the document can be retrieved
@@ -199,29 +196,27 @@ class CallWebhookProcessor(BaseProcessor):
                 vonage_response.conversation_uuid
             )
             if verify_doc is None:
-                print(
-                    f"ERROR: [START_IVR] ✗ CRITICAL: Document was inserted but cannot be retrieved! conversation_uuid: {vonage_response.conversation_uuid}"
+                self.log_error(
+                    f"[START_IVR] ✗ CRITICAL: Document was inserted but cannot be retrieved! conversation_uuid: {vonage_response.conversation_uuid}"
                 )
             else:
-                print(
-                    f"INFO: [START_IVR] ✓ Verified: Document is retrievable immediately after insert"
+                self.log_info(
+                    f"[START_IVR] ✓ Verified: Document is retrievable immediately after insert"
                 )
 
             total_elapsed = time.time() - start_time
-            print(
-                f"INFO: IVR call started for phone number: {phone_number}, conversation_uuid: {vonage_response.conversation_uuid} (total time: {total_elapsed:.2f}s)"
+            self.log_info(
+                f"IVR call started for phone number: {phone_number}, conversation_uuid: {vonage_response.conversation_uuid} (total time: {total_elapsed:.2f}s)"
             )
             return {
                 "status_code": 200,
                 "message": f"IVR started for phone number {phone_number}",
             }
         except Exception as e:
-            print(
-                f"ERROR: [START_IVR] ✗ Error starting IVR for phone number {phone_number}: {e}"
+            self.log_error(
+                f"[START_IVR] ✗ Error starting IVR for phone number {phone_number}: {e}",
+                exc_info=True
             )
-            import traceback
-
-            traceback.print_exc()
             return {
                 "status_code": 500,
                 "message": f"Failed to start IVR: {str(e)}",
@@ -244,20 +239,20 @@ class DtmfInputProcessor(BaseProcessor):
         """Get the DTMF input queue provider"""
         provider = service_bus_manager.get_dtmf_input_provider()
         if provider is None:
-            print(
-                "ERROR: DTMF input provider is None - Service Bus may not be initialized"
+            self.log_error(
+                "DTMF input provider is None - Service Bus may not be initialized"
             )
         return provider
 
     async def process_message(self, message: QueueMessage):
         """Process a single message from the queue."""
-        print(
-            f"INFO: [DtmfInputProcessor] Received message from queue: {message.message_id}, type: {message.type}"
+        self.log_info(
+            f"Received message from queue: {message.message_id}, type: {message.type}"
         )
         # Filter: only process dtmf_input messages
         if message.type.value != "dtmf_input":
-            print(
-                f"DEBUG: [DtmfInputProcessor] Skipping message type: {message.type.value}"
+            self.log_debug(
+                f"Skipping message type: {message.type.value}"
             )
             from app.workers.base_processor import SkipMessageError
 
@@ -273,18 +268,18 @@ class DtmfInputProcessor(BaseProcessor):
         try:
             conv_id = message_data.get("conversation_uuid")
             digits = message_data.get("digits")
-            print(f"INFO: Processing DTMF: conv_id={conv_id}, digits='{digits}'")
+            self.log_info(f"Processing DTMF: conv_id={conv_id}, digits='{digits}'")
 
             # Get IVR state
             doc = await ongoing_fsm_mongo.find_by_id(conv_id)
             if doc is None:
-                print(f"ERROR: No ongoing IVR state found for conv_id: {conv_id}")
+                self.log_error(f"No ongoing IVR state found for conv_id: {conv_id}")
                 return
 
             ivr_state = IVRCallStateMongoDoc(**doc)
             fsm_in_progress = self.fsm.get(ivr_state.fsm_id)
             if not fsm_in_progress:
-                print(f"WARNING: No FSM found for FSM ID: {ivr_state.fsm_id}")
+                self.log_warning(f"No FSM found for FSM ID: {ivr_state.fsm_id}")
                 return
 
             # Process input
@@ -332,13 +327,10 @@ class DtmfInputProcessor(BaseProcessor):
                 ivr_state.id, ivr_state.dict(by_alias=True)
             )
 
-            print(f"INFO: ✓ DTMF processed: new_state={ivr_state.current_state_id}")
+            self.log_info(f"✓ DTMF processed: new_state={ivr_state.current_state_id}")
 
         except Exception as e:
-            print(f"ERROR: Error processing DTMF input: {e}")
-            import traceback
-
-            traceback.print_exc()
+            self.log_error(f"Error processing DTMF input: {e}", exc_info=True)
             raise
 
 
@@ -358,20 +350,20 @@ class CallEventProcessor(BaseProcessor):
         """Get the call event queue provider"""
         provider = service_bus_manager.get_call_event_provider()
         if provider is None:
-            print(
-                "ERROR: Call event provider is None - Service Bus may not be initialized"
+            self.log_error(
+                "Call event provider is None - Service Bus may not be initialized"
             )
         return provider
 
     async def process_message(self, message: QueueMessage):
         """Process a single message from the queue."""
-        print(
-            f"INFO: [CallEventProcessor] Received message from queue: {message.message_id}, type: {message.type}"
+        self.log_info(
+            f"Received message from queue: {message.message_id}, type: {message.type}"
         )
         # Filter: only process call_event messages
         if message.type.value != "call_event":
-            print(
-                f"DEBUG: [CallEventProcessor] Skipping message type: {message.type.value}"
+            self.log_debug(
+                f"Skipping message type: {message.type.value}"
             )
             from app.workers.base_processor import SkipMessageError
 
@@ -388,12 +380,12 @@ class CallEventProcessor(BaseProcessor):
         """
         try:
             # Log the raw payload for debugging
-            print(f"INFO: Processing call event: {json.dumps(message_data)}")
+            self.log_info(f"Processing call event: {json.dumps(message_data)}")
 
             # Get conversation_uuid directly from message_data
             conversation_uuid = message_data.get("conversation_uuid")
             if not conversation_uuid:
-                print(f"ERROR: No conversation_uuid in event data: {message_data}")
+                self.log_error(f"No conversation_uuid in event data: {message_data}")
                 return
 
             status = message_data.get("status")
@@ -412,20 +404,20 @@ class CallEventProcessor(BaseProcessor):
 
                 if attempt < max_retries - 1:
                     # Only wait if we have retries left
-                    print(
-                        f"DEBUG: IVR state not found for {conversation_uuid} (status: {status}), attempt {attempt + 1}/{max_retries}, waiting {retry_delay}s..."
+                    self.log_debug(
+                        f"IVR state not found for {conversation_uuid} (status: {status}), attempt {attempt + 1}/{max_retries}, waiting {retry_delay}s..."
                     )
                     await asyncio.sleep(retry_delay)
 
             if doc is None:
                 # After retries, still not found
                 if status in ["started", "ringing"]:
-                    print(
-                        f"DEBUG: IVR state not found after {max_retries} retries for early event: {conversation_uuid} (status: {status}) - may be external call"
+                    self.log_debug(
+                        f"IVR state not found after {max_retries} retries for early event: {conversation_uuid} (status: {status}) - may be external call"
                     )
                 else:
-                    print(
-                        f"WARNING: No ongoing IVR state found after {max_retries} retries for conversation_uuid: {conversation_uuid} (status: {status}) - call may have ended before state was created"
+                    self.log_warning(
+                        f"No ongoing IVR state found after {max_retries} retries for conversation_uuid: {conversation_uuid} (status: {status}) - call may have ended before state was created"
                     )
                 return
 
@@ -453,27 +445,24 @@ class CallEventProcessor(BaseProcessor):
                     if log_doc is None:
                         await ivrv2_logs_mongo.insert(ivr_state.dict(by_alias=True))
                         await ongoing_fsm_mongo.delete(conversation_uuid)
-                        print(f"INFO: ✓ Call ended and logged: {conversation_uuid}")
+                        self.log_info(f"✓ Call ended and logged: {conversation_uuid}")
                     else:
-                        print(
-                            f"WARNING: Duplicate call log entry exists for {ivr_state.id}"
+                        self.log_warning(
+                            f"Duplicate call log entry exists for {ivr_state.id}"
                         )
                 else:
                     # Update ongoing state
                     await ongoing_fsm_mongo.update_document(
                         ivr_state.id, ivr_state.dict(by_alias=True)
                     )
-                    print(f"INFO: ✓ Call state updated: {status}")
+                    self.log_info(f"✓ Call state updated: {status}")
             except ValueError:
-                print(f"WARNING: Unknown call status: {status}")
+                self.log_warning(f"Unknown call status: {status}")
 
         except ValidationError as ve:
-            print(f"ERROR: Validation error processing call event: {ve}")
+            self.log_error(f"Validation error processing call event: {ve}")
         except Exception as e:
-            print(f"ERROR: Error processing call event: {e}")
-            import traceback
-
-            traceback.print_exc()
+            self.log_error(f"Error processing call event: {e}", exc_info=True)
             raise
 
 

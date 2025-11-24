@@ -103,8 +103,8 @@ class BaseProcessor(ABC):
             batch_size: Maximum number of messages to receive per batch
             max_wait_seconds: Maximum time to wait for messages
         """
-        print(
-            f"INFO: [{self.class_name}] Starting processor with batch_size={batch_size}, max_wait={max_wait_seconds}s"
+        self.log_info(
+            f"Starting processor with batch_size={batch_size}, max_wait={max_wait_seconds}s"
         )
 
         try:
@@ -112,13 +112,11 @@ class BaseProcessor(ABC):
             if provider is None:
                 raise RuntimeError("Provider is None - cannot start processor")
 
-            print(
-                f"INFO: [{self.class_name}] Provider obtained, entering message loop..."
-            )
+            self.log_info("Provider obtained, entering message loop...")
 
             while not self._shutdown_event.is_set():
                 try:
-                    print(f"DEBUG: [{self.class_name}] Waiting for messages...")
+                    self.log_debug("Waiting for messages...")
                     # Receive messages with timeout
                     messages = await asyncio.wait_for(
                         provider.receive_messages(batch_size, max_wait_seconds),
@@ -126,12 +124,10 @@ class BaseProcessor(ABC):
                     )
 
                     if not messages:
-                        print(f"DEBUG: [{self.class_name}] No messages received")
+                        self.log_debug("No messages received")
                         continue
 
-                    print(
-                        f"INFO: [{self.class_name}] Received {len(messages)} messages"
-                    )
+                    self.log_info(f"Received {len(messages)} messages")
 
                     # Process messages concurrently with ack handling
                     tasks = [self._handle_message(provider, msg) for msg in messages]
@@ -161,13 +157,11 @@ class BaseProcessor(ABC):
                 )
         except SkipMessageError:
             # Message not for this processor, return to queue for others
-            print(
-                f"DEBUG: [{self.class_name}] Returning skipped message to queue: {message.message_id}"
-            )
+            self.log_debug(f"Returning skipped message to queue: {message.message_id}")
             returned = await provider.return_message_to_queue(message)
             if not returned:
-                print(
-                    f"ERROR: [{self.class_name}] Failed to return skipped message {message.message_id} to queue"
+                self.log_error(
+                    f"Failed to return skipped message {message.message_id} to queue"
                 )
         except PermanentQueueError as e:
             self.log_warning(f"Permanent failure for message {message.message_id}: {e}")

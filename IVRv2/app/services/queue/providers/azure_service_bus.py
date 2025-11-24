@@ -38,8 +38,8 @@ class AzureServiceBusQueueProvider(BaseQueueProvider):
         await self._receiver.__aenter__()
 
         self._initialized = True
-        print(
-            f"INFO: [AzureServiceBus] ✓ Service Bus client initialized for queue: {self.queue_name}"
+        logger.info(
+            f"[AzureServiceBus] ✓ Service Bus client initialized for queue: {self.queue_name}"
         )
         logger.info("Service Bus client and receiver initialized.")
 
@@ -52,18 +52,18 @@ class AzureServiceBusQueueProvider(BaseQueueProvider):
 
     async def close(self):
         """Closes the Service Bus client."""
-        print(
-            f"INFO: [AzureServiceBus] Closing connections for queue: {self.queue_name}"
+        logger.info(
+            f"[AzureServiceBus] Closing connections for queue: {self.queue_name}"
         )
         if self._receiver:
             await self._receiver.__aexit__(None, None, None)
-            print(
-                f"INFO: [AzureServiceBus] ✓ Receiver closed for queue: {self.queue_name}"
+            logger.info(
+                f"[AzureServiceBus] ✓ Receiver closed for queue: {self.queue_name}"
             )
         if self._client:
             await self._client.close()
-            print(
-                f"INFO: [AzureServiceBus] ✓ Client closed for queue: {self.queue_name}"
+            logger.info(
+                f"[AzureServiceBus] ✓ Client closed for queue: {self.queue_name}"
             )
         self._initialized = False
         logger.info("Service Bus client closed.")
@@ -76,12 +76,12 @@ class AzureServiceBusQueueProvider(BaseQueueProvider):
         :return:
         """
         try:
-            print(
-                f"DEBUG: [AzureServiceBus] Sending message to queue: {self.queue_name}"
+            logger.debug(
+                f"[AzureServiceBus] Sending message to queue: {self.queue_name}"
             )
-            print(f"DEBUG: [AzureServiceBus] Message ID: {message.message_id}")
-            print(
-                f"DEBUG: [AzureServiceBus] Message content: {message.to_json_string()}"
+            logger.debug(f"[AzureServiceBus] Message ID: {message.message_id}")
+            logger.debug(
+                f"[AzureServiceBus] Message content: {message.to_json_string()}"
             )
             sb_message = ServiceBusMessage(
                 body=message.to_json_string(),
@@ -96,14 +96,14 @@ class AzureServiceBusQueueProvider(BaseQueueProvider):
             ) as sender:
                 await sender.send_messages(sb_message)
 
-            print(
-                f"INFO: [AzureServiceBus] ✓ Message sent successfully to queue: {self.queue_name}"
+            logger.info(
+                f"[AzureServiceBus] ✓ Message sent successfully to queue: {self.queue_name}"
             )
             logger.info(f"Message sent to Service Bus: {message}")
             return True
         except Exception as e:
-            print(
-                f"ERROR: [AzureServiceBus] Failed to send message to Service Bus: {e}"
+            logger.error(
+                f"[AzureServiceBus] Failed to send message to Service Bus: {e}"
             )
             import traceback
 
@@ -124,38 +124,38 @@ class AzureServiceBusQueueProvider(BaseQueueProvider):
         List[QueueMessage]: List of received messages.
         """
         try:
-            print(
-                f"DEBUG: [AzureServiceBus] Attempting to receive messages from queue: {self.queue_name}, max={max_messages}, wait={wait_time_seconds}s"
+            logger.debug(
+                f"[AzureServiceBus] Attempting to receive messages from queue: {self.queue_name}, max={max_messages}, wait={wait_time_seconds}s"
             )
             received = await self._receiver.receive_messages(
                 max_message_count=max_messages, max_wait_time=wait_time_seconds
             )
-            print(
-                f"DEBUG: [AzureServiceBus] Received {len(received)} raw messages from Service Bus"
+            logger.debug(
+                f"[AzureServiceBus] Received {len(received)} raw messages from Service Bus"
             )
             messages = []
             for sb_message in received:
                 try:
-                    print(
-                        f"DEBUG: [AzureServiceBus] Processing message: {sb_message.message_id}"
+                    logger.debug(
+                        f"[AzureServiceBus] Processing message: {sb_message.message_id}"
                     )
-                    print(
-                        f"DEBUG: [AzureServiceBus] Message body type: {type(sb_message)}"
+                    logger.debug(
+                        f"[AzureServiceBus] Message body type: {type(sb_message)}"
                     )
-                    print(
-                        f"DEBUG: [AzureServiceBus] Message body (raw): {str(sb_message)}"
+                    logger.debug(
+                        f"[AzureServiceBus] Message body (raw): {str(sb_message)}"
                     )
                     queue_msg = QueueMessage.from_json_string(str(sb_message))
                     queue_msg.message_id = sb_message.message_id
                     # store the original message for later deletion
                     self._message_map[queue_msg.message_id] = sb_message
                     messages.append(queue_msg)
-                    print(
-                        f"DEBUG: [AzureServiceBus] ✓ Successfully parsed message: {queue_msg.message_id}"
+                    logger.debug(
+                        f"[AzureServiceBus] ✓ Successfully parsed message: {queue_msg.message_id}"
                     )
                 except Exception as e:
-                    print(
-                        f"ERROR: [AzureServiceBus] Failed to parse message from Service Bus: {e}"
+                    logger.error(
+                        f"[AzureServiceBus] Failed to parse message from Service Bus: {e}"
                     )
                     import traceback
 
@@ -163,11 +163,11 @@ class AzureServiceBusQueueProvider(BaseQueueProvider):
                     await self._receiver.dead_letter_message(
                         sb_message, reason="ParsingError", error_description=str(e)
                     )
-            print(f"DEBUG: [AzureServiceBus] Returning {len(messages)} parsed messages")
+            logger.debug(f"[AzureServiceBus] Returning {len(messages)} parsed messages")
             return messages
         except Exception as e:
-            print(
-                f"ERROR: [AzureServiceBus] Failed to receive messages from Service Bus: {e}"
+            logger.error(
+                f"[AzureServiceBus] Failed to receive messages from Service Bus: {e}"
             )
             import traceback
 
