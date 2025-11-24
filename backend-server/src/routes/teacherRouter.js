@@ -239,6 +239,89 @@ router.post("/add-students", authenticateToken, async (req, res) => {
 });
 
 /**
+ * @swagger
+ * /teacher/remove-students:
+ *   post:
+ *     summary: Remove students from teacher's list
+ *     tags: [Teachers]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - phoneNumber
+ *               - students
+ *               - remove
+ *             properties:
+ *               phoneNumber:
+ *                 type: string
+ *                 description: Teacher's phone number
+ *               students:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     phoneNumber:
+ *                       type: string
+ *                 description: Array of student objects with phone numbers to remove
+ *               remove:
+ *                 type: boolean
+ *                 description: Flag indicating removal operation
+ *     responses:
+ *       200:
+ *         description: Students successfully removed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Students removed successfully
+ *                 removedCount:
+ *                   type: number
+ *       400:
+ *         description: Invalid request body
+ *       404:
+ *         description: Teacher not found
+ *       401:
+ *         description: Unauthorized - invalid or missing token
+ */
+router.post("/remove-students", authenticateToken, async (req, res) => {
+  if (!Array.isArray(req.body.students) || req.body.students.length === 0) {
+    return res.sendStatus(STATUS.BAD_REQUEST);
+  }
+
+  const teacher = await Teacher.findOne({ phoneNumber: req.body.phoneNumber });
+  if (!teacher) return res.sendStatus(STATUS.NOT_FOUND);
+
+  let removedCount = 0;
+
+  for (let i = 0; i < req.body.students.length; i++) {
+    const studentPhoneNumber = req.body.students[i].phoneNumber;
+    if (!studentPhoneNumber) continue;
+
+    const student = await Student.findOne({ phoneNumber: studentPhoneNumber });
+    if (student) {
+      await Teacher.updateOne(
+        { _id: teacher._id },
+        { $pull: { studentId: student._id.toString() } },
+      );
+      removedCount++;
+    }
+  }
+
+  return res.status(STATUS.OK).json({
+    message: "Students removed successfully",
+    removedCount: removedCount,
+  });
+});
+
+/**
  *  @swagger
  * /teacher/login:
  *   post:
