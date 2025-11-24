@@ -77,6 +77,22 @@ const inputStyle = {
     transition: "border-color 0.2s ease, box-shadow 0.2s ease",
 };
 
+const passwordHintsContainerStyle = {
+    marginTop: "8px",
+    fontSize: "12px",
+    color: "#94a3b8",
+};
+
+const passwordHintsListStyle = {
+    margin: "4px 0 0",
+    paddingLeft: "18px",
+};
+
+const passwordHintItemStyle = (isValid) => ({
+    margin: "2px 0",
+    color: isValid ? "#16a34a" : "#94a3b8",
+});
+
 const buttonStyle = {
     width: "100%",
     border: "none",
@@ -96,17 +112,47 @@ const footerStyle = {
     color: "#94a3b8",
 };
 
+const PASSWORD_POLICY = {
+    minLength: 8,
+    minLowercase: 1,
+    minUppercase: 1,
+    minNumbers: 1,
+    minSymbols: 1,
+};
+
+const getPasswordPolicyStatus = (password) => {
+    const length = password.length >= PASSWORD_POLICY.minLength;
+    const lower = (password.match(/[a-z]/g) || []).length >= PASSWORD_POLICY.minLowercase;
+    const upper = (password.match(/[A-Z]/g) || []).length >= PASSWORD_POLICY.minUppercase;
+    const numbers = (password.match(/[0-9]/g) || []).length >= PASSWORD_POLICY.minNumbers;
+    const symbols = (password.match(/[^A-Za-z0-9]/g) || []).length >= PASSWORD_POLICY.minSymbols;
+
+    const isValid = length && lower && upper && numbers && symbols;
+
+    return { length, lower, upper, numbers, symbols, isValid };
+};
+
+const isValidEmail = (email) => {
+    if (!email) return false;
+    // Basic, user-friendly email pattern; backend still has final say
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email.trim());
+};
+
 const Register = () => {
     const navigate = useNavigate();
     const baseURL = process.env.REACT_APP_API_BASE_URL || "http://localhost:4000";
     const [formData, setFormData] = useState({
-        name: "",
+        tenantName: "",
         email: "",
         password: "",
         confirmPassword: "",
     });
     const [error, setError] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const passwordStatus = getPasswordPolicyStatus(formData.password || "");
+    const emailIsValid = formData.email ? isValidEmail(formData.email) : null; // null = untouched/empty
 
     const handleChange = (field) => (event) => {
         setFormData((prev) => ({ ...prev, [field]: event.target.value }));
@@ -116,8 +162,13 @@ const Register = () => {
         event.preventDefault();
         setError("");
 
-        if (!formData.email || !formData.password || !formData.name || !formData.confirmPassword) {
+        if (!formData.email || !formData.password || !formData.tenantName || !formData.confirmPassword) {
             setError("All fields are required.");
+            return;
+        }
+
+        if (!isValidEmail(formData.email)) {
+            setError("Please enter a valid email address.");
             return;
         }
 
@@ -126,12 +177,17 @@ const Register = () => {
             return;
         }
 
+        if (!passwordStatus.isValid) {
+            setError("Password does not meet the minimum security requirements below.");
+            return;
+        }
+
         try {
             setIsSubmitting(true);
             const response = await axios.post(`${baseURL}/tenant/register`, {
                 email: formData.email,
                 password: formData.password,
-                name: formData.name,
+                tenantName: formData.tenantName,
             });
 
             if (response.status === 201) {
@@ -168,15 +224,15 @@ const Register = () => {
 
                 <form onSubmit={handleRegister} style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
                     <div style={{ display: "flex", flexDirection: "column" }}>
-                        <label htmlFor="name" style={labelStyle}>
-                            Full Name
+                        <label htmlFor="tenantName" style={labelStyle}>
+                            Tenant Name
                         </label>
                         <input
-                            id="name"
+                            id="tenantName"
                             type="text"
-                            placeholder="Enter your full name"
-                            value={formData.name}
-                            onChange={handleChange("name")}
+                            placeholder="Enter your tenant name"
+                            value={formData.tenantName}
+                            onChange={handleChange("tenantName")}
                             style={inputStyle}
                         />
                     </div>
@@ -191,8 +247,29 @@ const Register = () => {
                             placeholder="Enter your email"
                             value={formData.email}
                             onChange={handleChange("email")}
-                            style={inputStyle}
+                            style={{
+                                ...inputStyle,
+                                borderColor:
+                                    emailIsValid === null
+                                        ? "#e2e8f0"
+                                        : emailIsValid
+                                        ? "#16a34a"
+                                        : "#ef4444",
+                            }}
                         />
+                        {formData.email && (
+                            <span
+                                style={{
+                                    marginTop: "4px",
+                                    fontSize: "12px",
+                                    color: emailIsValid ? "#16a34a" : "#ef4444",
+                                }}
+                            >
+                                {emailIsValid
+                                    ? "Looks like a valid email."
+                                    : "Please enter a valid email address (e.g. name@example.com)."}
+                            </span>
+                        )}
                     </div>
 
                     <div style={{ display: "flex", flexDirection: "column" }}>
@@ -207,6 +284,26 @@ const Register = () => {
                             onChange={handleChange("password")}
                             style={inputStyle}
                         />
+                        <div style={passwordHintsContainerStyle}>
+                            <span>Password must include:</span>
+                            <ul style={passwordHintsListStyle}>
+                                <li style={passwordHintItemStyle(passwordStatus.length)}>
+                                    At least {PASSWORD_POLICY.minLength} characters
+                                </li>
+                                <li style={passwordHintItemStyle(passwordStatus.lower)}>
+                                    At least {PASSWORD_POLICY.minLowercase} lowercase letter
+                                </li>
+                                <li style={passwordHintItemStyle(passwordStatus.upper)}>
+                                    At least {PASSWORD_POLICY.minUppercase} uppercase letter
+                                </li>
+                                <li style={passwordHintItemStyle(passwordStatus.numbers)}>
+                                    At least {PASSWORD_POLICY.minNumbers} number
+                                </li>
+                                <li style={passwordHintItemStyle(passwordStatus.symbols)}>
+                                    At least {PASSWORD_POLICY.minSymbols} symbol (e.g. !@#$)
+                                </li>
+                            </ul>
+                        </div>
                     </div>
 
                     <div style={{ display: "flex", flexDirection: "column" }}>

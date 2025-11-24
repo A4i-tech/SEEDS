@@ -2,275 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Multiselect from "multiselect-react-dropdown";
 import { SEEDS_URL } from "../Constants";
-import LogoutButton from "./LogoutButton";
-
-const pageStyle = {
-  minHeight: "100vh",
-  backgroundColor: "#f4f6f8",
-  padding: "32px 24px 48px",
-};
-
-const containerStyle = {
-  maxWidth: "1200px",
-  margin: "0 auto",
-  display: "flex",
-  flexDirection: "column",
-  gap: "24px",
-};
-
-const headerCardStyle = {
-  backgroundColor: "#ffffff",
-  borderRadius: "0",
-  padding: "16px 32px",
-  boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
-  display: "flex",
-  flexDirection: "row",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: "24px",
-};
-
-const headerTopStyle = {
-  display: "flex",
-  flexDirection: "row",
-  alignItems: "center",
-  gap: "32px",
-  flex: 1,
-};
-
-const headerTextStyle = {
-  display: "flex",
-  flexDirection: "row",
-  alignItems: "center",
-  gap: "8px",
-  fontSize: "20px",
-  fontWeight: 700,
-  color: "#0f172a",
-};
-
-const greetingStyle = {
-  fontSize: "14px",
-  color: "#8f9bb3",
-  fontWeight: 600,
-  letterSpacing: "0.04em",
-  textTransform: "uppercase",
-};
-
-const titleStyle = {
-  fontSize: "32px",
-  color: "#0f172a",
-  fontWeight: 700,
-  margin: 0,
-};
-
-const subtitleStyle = {
-  fontSize: "15px",
-  color: "#64748b",
-  margin: 0,
-};
-
-const actionGroupStyle = {
-  display: "flex",
-  gap: "24px",
-  alignItems: "center",
-};
-
-const navLinkStyle = (isActive) => ({
-  background: "none",
-  border: "none",
-  padding: "8px 4px",
-  fontSize: "15px",
-  fontWeight: isActive ? 600 : 500,
-  color: isActive ? "#0f172a" : "#64748b",
-  cursor: "pointer",
-  borderBottom: isActive ? "2px solid #0f172a" : "2px solid transparent",
-  transition: "all 0.2s",
-});
-
-const userAvatarStyle = {
-  width: "36px",
-  height: "36px",
-  borderRadius: "50%",
-  backgroundColor: "#1d4ed8",
-  color: "#ffffff",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: "14px",
-  fontWeight: 600,
-};
-
-const userDropdownContainerStyle = {
-  position: "relative",
-};
-
-const userDropdownStyle = {
-  position: "absolute",
-  top: "calc(100% + 8px)",
-  right: 0,
-  backgroundColor: "#ffffff",
-  border: "1px solid #e2e8f0",
-  borderRadius: "12px",
-  boxShadow: "0 10px 25px rgba(0, 0, 0, 0.1)",
-  minWidth: "180px",
-  zIndex: 1000,
-  overflow: "hidden",
-};
-
-const dropdownItemStyle = {
-  padding: "12px 16px",
-  fontSize: "14px",
-  color: "#0f172a",
-  cursor: "pointer",
-  border: "none",
-  background: "none",
-  width: "100%",
-  textAlign: "left",
-  display: "flex",
-  alignItems: "center",
-  gap: "8px",
-  transition: "background-color 0.2s",
-};
-
-const primaryButtonStyle = {
-  border: "none",
-  borderRadius: "12px",
-  padding: "12px 20px",
-  backgroundColor: "#0f172a",
-  color: "#ffffff",
-  fontWeight: 600,
-  cursor: "pointer",
-};
-
-const secondaryButtonStyle = {
-  ...primaryButtonStyle,
-  backgroundColor: "#1d4ed8",
-};
-
-const actionGhostButtonStyle = {
-  ...primaryButtonStyle,
-  backgroundColor: "#ffffff",
-  color: "#0f172a",
-  border: "1px solid #e2e8f0",
-};
-
-const tabsContainerStyle = {
-  display: "flex",
-  gap: "8px",
-  backgroundColor: "#e2e8f0",
-  borderRadius: "999px",
-  padding: "6px",
-  alignSelf: "flex-start",
-  flexWrap: "wrap",
-};
-
-const tabButtonStyle = (isActive) => ({
-  border: "none",
-  borderRadius: "999px",
-  padding: "10px 24px",
-  fontSize: "14px",
-  fontWeight: 600,
-  backgroundColor: isActive ? "#ffffff" : "transparent",
-  color: isActive ? "#0f172a" : "#475569",
-  boxShadow: isActive ? "0 10px 20px rgba(15,23,42,0.08)" : "none",
-  cursor: isActive ? "default" : "pointer",
-});
-
-const cardStyle = {
-  backgroundColor: "#ffffff",
-  borderRadius: "20px",
-  padding: "28px",
-  boxShadow: "0 20px 45px rgba(15, 23, 42, 0.08)",
-};
-
-const cardHeaderStyle = {
-  display: "flex",
-  flexWrap: "wrap",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  gap: "16px",
-};
-
-const cardTitleStyle = {
-  fontSize: "22px",
-  color: "#0f172a",
-  fontWeight: 700,
-};
-
-const cardDescriptionStyle = {
-  fontSize: "15px",
-  color: "#64748b",
-};
-
-const filterWrapperStyle = {
-  marginTop: "18px",
-  border: "1px solid #e2e8f0",
-  borderRadius: "14px",
-  padding: "16px",
-  backgroundColor: "#f8fafc",
-};
-
-const tableWrapperStyle = {
-  marginTop: "24px",
-  border: "1px solid #e2e8f0",
-  borderRadius: "16px",
-  overflow: "hidden",
-};
-
-const tableStyle = {
-  width: "100%",
-  borderCollapse: "collapse",
-};
-
-const tableHeaderStyle = {
-  backgroundColor: "#0f172a",
-  color: "#ffffff",
-  textAlign: "left",
-  padding: "14px 16px",
-  fontSize: "13px",
-  letterSpacing: "0.04em",
-};
-
-const tableCellStyle = {
-  padding: "16px",
-  borderBottom: "1px solid #e2e8f0",
-  fontSize: "14px",
-  color: "#0f172a",
-};
-
-const actionButtonBase = {
-  border: "none",
-  borderRadius: "10px",
-  padding: "10px 16px",
-  fontSize: "13px",
-  fontWeight: 600,
-  color: "#ffffff",
-  cursor: "pointer",
-};
-
-const ivrGridStyle = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  gap: "16px",
-  marginTop: "24px",
-};
-
-const ivrCardStyle = {
-  backgroundColor: "#0f172a",
-  color: "#ffffff",
-  borderRadius: "18px",
-  padding: "20px",
-  display: "flex",
-  flexDirection: "column",
-  gap: "12px",
-  cursor: "pointer",
-};
-
-const labelStyle = {
-  fontSize: "14px",
-  color: "#0f172a",
-  fontWeight: 600,
-};
+import "./allContent.css";
 
 const AllContent = () => {
   const [content, setContent] = useState([]);
@@ -285,6 +17,16 @@ const AllContent = () => {
   const [teacherPassword, setTeacherPassword] = useState("");
   const [teacherMessage, setTeacherMessage] = useState("");
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+
+  // pagination and loading state for content listing
+  const [paginationInfo, setPaginationInfo] = useState({
+    nextCursor: null,
+    hasMore: false,
+    limit: 0,
+  });
+  const [isLoadingContent, setIsLoadingContent] = useState(false);
+  const [isFiltered, setIsFiltered] = useState(false);
+
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -325,8 +67,6 @@ const AllContent = () => {
     }
   };
 
-  const sortContentByCreationTime = (contentArray) =>
-    contentArray.sort((a, b) => b.creation_time - a.creation_time);
 
   const generateOptions = (contentList) => {
     const languageSet = new Set();
@@ -389,21 +129,30 @@ const AllContent = () => {
         langs.includes(contentItem.language.toLowerCase()) &&
         exps.includes(contentItem.type.toLowerCase())
     );
-    setContent(sortContentByCreationTime(filteredList));
+    setIsFiltered(true);
+    setContent(filteredList);
   };
 
   useEffect(() => {
     const getContent = async () => {
-      const contentFromServer = await getAllContent();
-      const contentFromServerNotDeleted = contentFromServer.data.filter(
-        (item) => !item.isDeleted
-      );
-      const sorted = sortContentByCreationTime(
-        contentFromServerNotDeleted.slice()
-      );
-      setAllContent(sorted);
-      setContent(sorted);
-      setOptions(generateOptions(sorted));
+      setIsLoadingContent(true);
+      try {
+        const { data, pagination } = await getAllContent();
+        const initialItems = data || [];
+        setAllContent(initialItems);
+        setContent(initialItems);
+        setOptions(generateOptions(initialItems));
+        setPaginationInfo({
+          nextCursor: pagination?.nextCursor || null,
+          hasMore: !!pagination?.hasMore,
+          limit: pagination?.limit || 0,
+        });
+        setIsFiltered(false);
+      } catch (e) {
+        console.error("Error fetching content:", e);
+      } finally {
+        setIsLoadingContent(false);
+      }
     };
     getContent();
   }, []);
@@ -546,13 +295,66 @@ const AllContent = () => {
     }
   };
 
-  const getAllContent = async () => {
-    const seedsRes = await fetch(`${SEEDS_URL}/content`, {
+  const PAGE_SIZE = 50;
+
+  const getAllContent = async (cursor) => {
+    const params = new URLSearchParams();
+    params.append("limit", String(PAGE_SIZE));
+    if (cursor) {
+      params.append("cursor", cursor);
+    }
+
+    const seedsRes = await fetch(`${SEEDS_URL}/content?${params.toString()}`, {
       method: "GET",
       headers: getAuthHeaders(),
     });
+
+    if (!seedsRes.ok) {
+      const text = await seedsRes.text();
+      throw new Error(text || `Failed to fetch content (${seedsRes.status})`);
+    }
+
     const seedsData = await seedsRes.json();
-    return seedsData;
+    const data = seedsData.data || [];
+    const pagination = seedsData.pagination || {};
+    return { data, pagination };
+  };
+
+  const loadMoreContent = async () => {
+    if (!paginationInfo.hasMore || !paginationInfo.nextCursor) return;
+
+    setIsLoadingContent(true);
+    try {
+      const { data, pagination } = await getAllContent(paginationInfo.nextCursor);
+      const newItems = data || [];
+      if (!newItems.length) {
+        setPaginationInfo({ nextCursor: null, hasMore: false, limit: paginationInfo.limit });
+        return;
+      }
+
+      const existingIds = new Set(allContent.map((c) => c.id));
+      const merged = [...allContent];
+      newItems.forEach((item) => {
+        if (!existingIds.has(item.id)) {
+          merged.push(item);
+        }
+      });
+
+      setAllContent(merged);
+      if (!isFiltered) {
+        setContent(merged);
+      }
+      setOptions(generateOptions(merged));
+      setPaginationInfo({
+        nextCursor: pagination?.nextCursor || null,
+        hasMore: !!pagination?.hasMore,
+        limit: pagination?.limit || paginationInfo.limit,
+      });
+    } catch (e) {
+      console.error("Error loading more content:", e);
+    } finally {
+      setIsLoadingContent(false);
+    }
   };
 
   const onDelete = async (type, id) => {
@@ -574,9 +376,7 @@ const AllContent = () => {
           headers: getAuthHeaders(),
         });
       }
-      setContent(
-        sortContentByCreationTime(content.filter((item) => item.id !== id))
-      );
+      setContent(content.filter((item) => item.id !== id));
     }
   };
 
@@ -588,62 +388,53 @@ const AllContent = () => {
   };
 
   return (
-    <div style={pageStyle}>
-      <div style={containerStyle}>
-        <div style={headerCardStyle}>
-          <div style={headerTopStyle}>
-            <div style={headerTextStyle}>
-              <div style={{ fontSize: "24px", color: "#f97316" }}>🌱</div>
+    <div className="page">
+      <div className="container">
+        <div className="header-card">
+          <div className="header-top">
+            <div className="header-text">
+              <div className="seed-icon">🌱</div>
               <span>SEEDS</span>
             </div>
-            <div style={actionGroupStyle}>
+            <div className="action-group">
               <button
-                style={navLinkStyle(activeTab === "content")}
+                className={`nav-link ${activeTab === "content" ? "active" : ""}`}
                 onClick={() => setActiveTab("content")}
               >
                 Content
               </button>
               <button
-                style={navLinkStyle(activeTab === "registration")}
+                className={`nav-link ${
+                  activeTab === "registration" ? "active" : ""
+                }`}
                 onClick={() => setActiveTab("registration")}
               >
                 Registration
               </button>
               <button
-                style={navLinkStyle(activeTab === "analytics")}
+                className={`nav-link ${
+                  activeTab === "analytics" ? "active" : ""
+                }`}
                 onClick={() => setActiveTab("analytics")}
               >
                 Analytics
               </button>
             </div>
           </div>
-          <div style={userDropdownContainerStyle}>
+          <div className="user-dropdown-container">
             <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-                cursor: "pointer",
-              }}
+              className="user-info-wrapper"
               onClick={() => setShowUserDropdown(!showUserDropdown)}
             >
-              <span style={{ fontSize: "14px", color: "#64748b" }}>
-                Welcome, {currentUser}
-              </span>
-              <div style={userAvatarStyle}>
+              <span className="welcome-text">Welcome, {currentUser}</span>
+              <div className="user-avatar">
                 {currentUser.substring(0, 2).toUpperCase()}
               </div>
             </div>
             {showUserDropdown && (
-              <div style={userDropdownStyle}>
+              <div className="user-dropdown">
                 <button
-                  style={dropdownItemStyle}
-                  onMouseEnter={(e) =>
-                    (e.target.style.backgroundColor = "#f8fafc")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.target.style.backgroundColor = "transparent")
-                  }
+                  className="dropdown-item"
                   onClick={() => {
                     setShowUserDropdown(false);
                     navigate("/profile");
@@ -652,16 +443,7 @@ const AllContent = () => {
                   Profile
                 </button>
                 <button
-                  style={{
-                    ...dropdownItemStyle,
-                    borderTop: "1px solid #e2e8f0",
-                  }}
-                  onMouseEnter={(e) =>
-                    (e.target.style.backgroundColor = "#f8fafc")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.target.style.backgroundColor = "transparent")
-                  }
+                  className="dropdown-item with-border"
                   onClick={() => {
                     setShowUserDropdown(false);
                     localStorage.removeItem("authToken");
@@ -676,25 +458,23 @@ const AllContent = () => {
           </div>
         </div>
         {updateIVRStatus && (
-          <div
-            style={{ fontSize: "14px", color: "#16a34a", padding: "12px 32px" }}
-          >
-            {updateIVRStatus}
-          </div>
+          <div className="status-message">{updateIVRStatus}</div>
         )}
 
         {activeTab !== "registration" && (
-          <div style={tabsContainerStyle}>
+          <div className="tabs-container">
             <button
               type="button"
-              style={tabButtonStyle(activeTab === "content")}
+              className={`tab-button ${
+                activeTab === "content" ? "active" : ""
+              }`}
               onClick={() => setActiveTab("content")}
             >
               Audio Content
             </button>
             <button
               type="button"
-              style={tabButtonStyle(activeTab === "ivr")}
+              className={`tab-button ${activeTab === "ivr" ? "active" : ""}`}
               onClick={() => setActiveTab("ivr")}
             >
               IVR Setup
@@ -703,23 +483,26 @@ const AllContent = () => {
         )}
 
         {activeTab === "content" && (
-          <div style={cardStyle}>
-            <div style={cardHeaderStyle}>
+          <div className="card">
+            <div className="card-header">
               <div>
-                <div style={cardTitleStyle}>Audio Content Library</div>
-                <div style={cardDescriptionStyle}>
+                <div className="card-title">Audio Content Library</div>
+                <div className="card-description">
                   Add and manage educational audio files
                 </div>
               </div>
-              <div style={{ display: "flex", gap: "12px" }}>
+              <div className="button-group">
                 <button
-                  style={primaryButtonStyle}
-                  onClick={() => setContent(allContent)}
+                  className="primary-button"
+                  onClick={() => {
+                    setIsFiltered(false);
+                    setContent(allContent);
+                  }}
                 >
                   Reset Filters
                 </button>
                 <button
-                  style={{ ...primaryButtonStyle, backgroundColor: "#059669" }}
+                  className="primary-button button-add-content"
                   onClick={() => navigate("/content/create")}
                 >
                   + Add Content
@@ -727,16 +510,8 @@ const AllContent = () => {
               </div>
             </div>
 
-            <div style={filterWrapperStyle}>
-              <p
-                style={{
-                  marginBottom: "8px",
-                  color: "#0f172a",
-                  fontWeight: 600,
-                }}
-              >
-                Filter content
-              </p>
+            <div className="filter-wrapper">
+              <p className="filter-label">Filter content</p>
               <Multiselect
                 options={options}
                 onSelect={(selectedList) => setFilteredList(selectedList)}
@@ -757,95 +532,73 @@ const AllContent = () => {
               />
             </div>
 
-            <div style={tableWrapperStyle}>
-              {content.length === 0 ? (
-                <div
-                  style={{
-                    padding: "32px",
-                    textAlign: "center",
-                    color: "#64748b",
-                    fontWeight: 600,
-                  }}
-                >
-                  No content found.
-                </div>
+            <div className="table-wrapper">
+              {isLoadingContent && content.length === 0 && (
+                <div className="no-content">Loading content...</div>
+              )}
+              {!isLoadingContent && content.length === 0 ? (
+                <div className="no-content">No content found.</div>
               ) : (
-                <table style={tableStyle}>
+                <table className="content-table">
                   <thead>
                     <tr>
-                      <th style={tableHeaderStyle}>Title</th>
-                      <th style={tableHeaderStyle}>Theme</th>
-                      <th style={tableHeaderStyle}>Uploaded</th>
-                      <th style={tableHeaderStyle}>Language</th>
-                      <th style={tableHeaderStyle}>Type</th>
-                      <th style={tableHeaderStyle}>Actions</th>
+                      <th className="table-header">Title</th>
+                      <th className="table-header">Theme</th>
+                      <th className="table-header">Uploaded</th>
+                      <th className="table-header">Language</th>
+                      <th className="table-header">Type</th>
+                      <th className="table-header">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {content.map((item) => (
-                      <tr key={item.id} style={{ backgroundColor: "#ffffff" }}>
-                        <td style={tableCellStyle}>
+                      <tr key={item.id} className="table-row-white">
+                        <td className="table-cell">
                           {item.title && typeof item.title === "object"
                             ? item.title.english
                             : item.title}
                           <br />
-                          <span style={{ color: "#94a3b8" }}>
+                          <span className="table-cell-secondary">
                             {item.title && typeof item.title === "object"
                               ? item.title.local
                               : item.localTitle}
                           </span>
                         </td>
-                        <td style={tableCellStyle}>
+                        <td className="table-cell">
                           {item.theme && typeof item.theme === "object"
                             ? item.theme.english
                             : item.theme}
                           <br />
-                          <span style={{ color: "#94a3b8" }}>
+                          <span className="table-cell-secondary">
                             {item.theme && typeof item.theme === "object"
                               ? item.theme.local
                               : item.localTheme}
                           </span>
                         </td>
-                        <td style={tableCellStyle}>
+                        <td className="table-cell">
                           {item.isTeacherApp && "TA"}
                           {item.isPullModel && ", IVR"}
                           {item.type === "quiz" && " IVR"}
                         </td>
-                        <td style={tableCellStyle}>{item.language}</td>
-                        <td style={tableCellStyle}>{item.type}</td>
-                        <td style={{ ...tableCellStyle }}>
-                          <div
-                            style={{
-                              display: "flex",
-                              gap: "8px",
-                              flexWrap: "wrap",
-                            }}
-                          >
+                        <td className="table-cell">{item.language}</td>
+                        <td className="table-cell">{item.type}</td>
+                        <td className="table-cell">
+                          <div className="action-buttons-wrapper">
                             <button
                               onClick={() => onEdit(item.type, item.id)}
-                              style={{
-                                ...actionButtonBase,
-                                backgroundColor: "#eab308",
-                                color: "#1f2937",
-                              }}
+                              className="action-button-base action-button-edit"
                             >
                               Edit
                             </button>
                             <button
                               onClick={() => onView(item.type, item.id)}
-                              style={{
-                                ...actionButtonBase,
-                                backgroundColor: "#0ea5e9",
-                              }}
+                              className="action-button-base action-button-view"
                             >
                               View
                             </button>
                             <button
                               onClick={() => onDelete(item.type, item.id)}
-                              style={{
-                                ...actionButtonBase,
-                                backgroundColor: "#ef4444",
-                              }}
+                              className="action-button-base action-button-delete"
                             >
                               Delete
                             </button>
@@ -857,45 +610,58 @@ const AllContent = () => {
                 </table>
               )}
             </div>
+
+            {!isFiltered && paginationInfo.hasMore && (
+              <div className="load-more-wrapper">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={loadMoreContent}
+                  disabled={isLoadingContent}
+                >
+                  {isLoadingContent ? "Loading more..." : "Load more"}
+                </button>
+              </div>
+            )}
           </div>
         )}
 
         {activeTab === "ivr" && (
-          <div style={cardStyle}>
-            <div style={cardHeaderStyle}>
+          <div className="card">
+            <div className="card-header">
               <div>
-                <div style={cardTitleStyle}>IVR System Configuration</div>
-                <div style={cardDescriptionStyle}>
+                <div className="card-title">IVR System Configuration</div>
+                <div className="card-description">
                   Configure Interactive Voice Response settings
                 </div>
               </div>
             </div>
 
-            <div style={ivrGridStyle}>
+            <div className="ivr-grid">
               <div
-                style={{ ...ivrCardStyle, backgroundColor: "#0f172a" }}
+                className="ivr-card"
                 onClick={() => navigate("/ivr")}
               >
-                <h3 style={{ margin: 0, fontSize: "18px" }}>IVR Usage</h3>
-                <p style={{ margin: 0, color: "rgba(255,255,255,0.8)" }}>
+                <h3 className="registration-title">IVR Usage</h3>
+                <p className="placeholder-text">
                   Monitor how your IVR tree performs.
                 </p>
               </div>
               <div
-                style={{ ...ivrCardStyle, backgroundColor: "#1d4ed8" }}
+                className="ivr-card blue"
                 onClick={() => navigate("/viewivr")}
               >
-                <h3 style={{ margin: 0, fontSize: "18px" }}>Visualise IVR</h3>
-                <p style={{ margin: 0, color: "rgba(255,255,255,0.8)" }}>
+                <h3 className="registration-title">Visualise IVR</h3>
+                <p className="placeholder-text">
                   View the full IVR flow in one place.
                 </p>
               </div>
               <div
-                style={{ ...ivrCardStyle, backgroundColor: "#047857" }}
+                className="ivr-card green"
                 onClick={() => navigate("/bulkcall")}
               >
-                <h3 style={{ margin: 0, fontSize: "18px" }}>Mass Call</h3>
-                <p style={{ margin: 0, color: "rgba(255,255,255,0.8)" }}>
+                <h3 className="registration-title">Mass Call</h3>
+                <p className="placeholder-text">
                   Initiate bulk outreach campaigns instantly.
                 </p>
               </div>
@@ -904,36 +670,16 @@ const AllContent = () => {
         )}
 
         {activeTab === "registration" && (
-          <div
-            style={{
-              ...cardStyle,
-              display: "flex",
-              flexDirection: "column",
-              gap: "24px",
-            }}
-          >
+          <div className="card registration-flex-card">
             <div>
-              <div style={cardTitleStyle}>Registration Management</div>
-              <div style={cardDescriptionStyle}>
+              <div className="card-title">Registration Management</div>
+              <div className="card-description">
                 Register teachers for your organization.
               </div>
             </div>
-            <div
-              style={{
-                border: "1px solid #e2e8f0",
-                borderRadius: "18px",
-                padding: "20px",
-                backgroundColor: "#f8fafc",
-                display: "flex",
-                flexDirection: "column",
-                gap: "14px",
-              }}
-            >
-              <h3 style={{ margin: 0, color: "#0f172a" }}>Register Teacher</h3>
-              <label
-                style={{ ...labelStyle, marginBottom: "0" }}
-                htmlFor="teacher-phone"
-              >
+            <div className="registration-card">
+              <h3 className="registration-title">Register Teacher</h3>
+              <label className="label" htmlFor="teacher-phone">
                 Phone Number
               </label>
               <input
@@ -948,18 +694,9 @@ const AllContent = () => {
                   }
                 }}
                 maxLength={10}
-                style={{
-                  width: "100%",
-                  borderRadius: "10px",
-                  border: "1px solid #cbd5f5",
-                  padding: "12px",
-                  fontSize: "15px",
-                }}
+                className="input-field"
               />
-              <label
-                style={{ ...labelStyle, marginBottom: "0" }}
-                htmlFor="teacher-password"
-              >
+              <label className="label" htmlFor="teacher-password">
                 Password
               </label>
               <input
@@ -968,21 +705,11 @@ const AllContent = () => {
                 placeholder="Set a password"
                 value={teacherPassword}
                 onChange={(e) => setTeacherPassword(e.target.value)}
-                style={{
-                  width: "100%",
-                  borderRadius: "10px",
-                  border: "1px solid #cbd5f5",
-                  padding: "12px",
-                  fontSize: "15px",
-                }}
+                className="input-field"
               />
               <button
                 type="button"
-                style={{
-                  ...primaryButtonStyle,
-                  width: "100%",
-                  marginTop: "8px",
-                }}
+                className="primary-button full-width-button"
                 onClick={async () => {
                   if (!teacherPhone || !teacherPassword) {
                     setTeacherMessage("Phone and password are required.");
@@ -1042,63 +769,30 @@ const AllContent = () => {
                 Save Teacher
               </button>
               {teacherMessage && (
-                <p style={{ color: "#16a34a", fontSize: "13px", margin: 0 }}>
-                  {teacherMessage}
-                </p>
+                <p className="success-message">{teacherMessage}</p>
               )}
             </div>
 
-            <div style={{ marginTop: 24 }}>
-              <h3 style={{ marginBottom: "12px", color: "#0f172a" }}>
-                Teachers & Students
-              </h3>
+            <div className="teachers-section">
+              <h3 className="teachers-section-title">Teachers & Students</h3>
               {teachers.length === 0 ? (
-                <div
-                  style={{
-                    border: "1px solid #e2e8f0",
-                    borderRadius: "16px",
-                    padding: "24px",
-                    textAlign: "center",
-                    color: "#94a3b8",
-                  }}
-                >
-                  No teachers available.
-                </div>
+                <div className="no-teachers">No teachers available.</div>
               ) : (
-                <div style={{ display: "flex", gap: 16 }}>
+                <div className="teachers-layout">
                   {/* Left pane: teacher list */}
-                  <div
-                    style={{
-                      width: 320,
-                      border: "1px solid #e2e8f0",
-                      borderRadius: 12,
-                      padding: 12,
-                      background: "#fff",
-                      maxHeight: 560,
-                      overflowY: "auto",
-                    }}
-                  >
-                    <div style={{ fontWeight: 700, marginBottom: 8 }}>
-                      Teachers
-                    </div>
-                    <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                  <div className="teachers-list-pane">
+                    <div className="teachers-list-title">Teachers</div>
+                    <ul className="teachers-list">
                       {teachers.map((tt) => (
-                        <li key={tt._id} style={{ marginBottom: 8 }}>
+                        <li key={tt._id} className="teacher-list-item">
                           <button
                             type="button"
                             onClick={() => setSelectedTeacherId(tt._id)}
-                            style={{
-                              width: "100%",
-                              textAlign: "left",
-                              padding: "8px 10px",
-                              borderRadius: 8,
-                              border: "1px solid transparent",
-                              background:
-                                String(tt._id) === String(selectedTeacherId)
-                                  ? "#e6eefc"
-                                  : "transparent",
-                              cursor: "pointer",
-                            }}
+                            className={`teacher-button ${
+                              String(tt._id) === String(selectedTeacherId)
+                                ? "selected"
+                                : ""
+                            }`}
                           >
                             {tt.phoneNumber}
                           </button>
@@ -1108,17 +802,7 @@ const AllContent = () => {
                   </div>
 
                   {/* Right pane: selected teacher details */}
-                  <div
-                    style={{
-                      flex: 1,
-                      border: "1px solid #e2e8f0",
-                      borderRadius: 12,
-                      padding: 12,
-                      background: "#fff",
-                      maxHeight: 560,
-                      overflowY: "auto",
-                    }}
-                  >
+                  <div className="teacher-details-pane">
                     {selectedTeacherId ? (
                       (() => {
                         const teacher = teachers.find(
@@ -1126,62 +810,27 @@ const AllContent = () => {
                         );
                         if (!teacher)
                           return (
-                            <div style={{ color: "#94a3b8" }}>
+                            <div className="placeholder-text">
                               Teacher not found.
                             </div>
                           );
                         return (
                           <div>
-                            <div
-                              style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                              }}
-                            >
-                              <div style={{ fontWeight: 700 }}>Students</div>
-                              <div style={{ color: "#64748b", fontSize: 13 }}>
+                            <div className="teacher-details-header">
+                              <div className="students-title">Students</div>
+                              <div className="teacher-info-text">
                                 Teacher: {teacher.phoneNumber}
                               </div>
                             </div>
 
-                            <div style={{ marginTop: 12 }}>
-                              <div style={{ overflowX: "auto" }}>
-                                <table
-                                  style={{
-                                    width: "100%",
-                                    borderCollapse: "collapse",
-                                  }}
-                                >
+                            <div className="students-section">
+                              <div className="table-scroll">
+                                <table className="students-table">
                                   <thead>
                                     <tr>
-                                      <th
-                                        style={{
-                                          textAlign: "left",
-                                          padding: 8,
-                                          borderBottom: "1px solid #e2e8f0",
-                                        }}
-                                      >
-                                        Name
-                                      </th>
-                                      <th
-                                        style={{
-                                          textAlign: "left",
-                                          padding: 8,
-                                          borderBottom: "1px solid #e2e8f0",
-                                        }}
-                                      >
-                                        Phone
-                                      </th>
-                                      <th
-                                        style={{
-                                          textAlign: "left",
-                                          padding: 8,
-                                          borderBottom: "1px solid #e2e8f0",
-                                        }}
-                                      >
-                                        Actions
-                                      </th>
+                                      <th>Name</th>
+                                      <th>Phone</th>
+                                      <th>Actions</th>
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -1189,10 +838,7 @@ const AllContent = () => {
                                       <tr>
                                         <td
                                           colSpan={3}
-                                          style={{
-                                            padding: 12,
-                                            color: "#94a3b8",
-                                          }}
+                                          className="no-students-cell"
                                         >
                                           No students
                                         </td>
@@ -1200,28 +846,9 @@ const AllContent = () => {
                                     ) : (
                                       (teacher.students || []).map((s, i) => (
                                         <tr key={i}>
-                                          <td
-                                            style={{
-                                              padding: 8,
-                                              borderBottom: "1px solid #f1f5f9",
-                                            }}
-                                          >
-                                            {s.name}
-                                          </td>
-                                          <td
-                                            style={{
-                                              padding: 8,
-                                              borderBottom: "1px solid #f1f5f9",
-                                            }}
-                                          >
-                                            {s.phoneNumber}
-                                          </td>
-                                          <td
-                                            style={{
-                                              padding: 8,
-                                              borderBottom: "1px solid #f1f5f9",
-                                            }}
-                                          >
+                                          <td>{s.name}</td>
+                                          <td>{s.phoneNumber}</td>
+                                          <td>
                                             <button
                                               type="button"
                                               onClick={async () => {
@@ -1269,9 +896,7 @@ const AllContent = () => {
                                                   console.error(err);
                                                 }
                                               }}
-                                              style={{
-                                                ...actionGhostButtonStyle,
-                                              }}
+                                              className="action-ghost-button"
                                             >
                                               Remove
                                             </button>
@@ -1284,17 +909,12 @@ const AllContent = () => {
                               </div>
                             </div>
 
-                            <div style={{ marginTop: 12 }}>
+                            <div className="add-students-section">
                               <strong>Add students (multiple):</strong>
                               {(teacher.newStudents || []).map((s, i) => (
                                 <div
                                   key={i}
-                                  style={{
-                                    display: "flex",
-                                    gap: 8,
-                                    marginTop: 8,
-                                    alignItems: "center",
-                                  }}
+                                  className="add-students-row"
                                 >
                                   <input
                                     placeholder="Name"
@@ -1307,11 +927,7 @@ const AllContent = () => {
                                         e.target.value
                                       )
                                     }
-                                    style={{
-                                      padding: 8,
-                                      borderRadius: 8,
-                                      border: "1px solid #e2e8f0",
-                                    }}
+                                    className="add-students-input"
                                   />
                                   <input
                                     placeholder="Phone number"
@@ -1324,39 +940,32 @@ const AllContent = () => {
                                         e.target.value
                                       )
                                     }
-                                    style={{
-                                      padding: 8,
-                                      borderRadius: 8,
-                                      border: "1px solid #e2e8f0",
-                                    }}
+                                    className="add-students-input"
                                   />
                                   <button
                                     type="button"
                                     onClick={() =>
                                       removeStudentRow(teacher._id, i)
                                     }
-                                    style={{ ...actionGhostButtonStyle }}
+                                    className="action-ghost-button"
                                   >
                                     Remove
                                   </button>
                                 </div>
                               ))}
 
-                              <div style={{ marginTop: 12 }}>
+                              <div className="add-students-buttons">
                                 <button
                                   type="button"
                                   onClick={() => addStudentRow(teacher._id)}
-                                  style={{ ...secondaryButtonStyle }}
+                                  className="secondary-button"
                                 >
                                   + Add another student
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => submitNewStudents(teacher)}
-                                  style={{
-                                    ...primaryButtonStyle,
-                                    marginLeft: 8,
-                                  }}
+                                  className="primary-button button-ml-8"
                                   disabled={teacher.submitting}
                                 >
                                   {teacher.submitting
@@ -1369,7 +978,7 @@ const AllContent = () => {
                         );
                       })()
                     ) : (
-                      <div style={{ color: "#94a3b8" }}>
+                      <div className="placeholder-text">
                         Select a teacher to view details.
                       </div>
                     )}
