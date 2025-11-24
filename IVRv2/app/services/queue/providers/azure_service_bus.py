@@ -9,6 +9,7 @@ from app.services.queue.models.queue_message import QueueMessage
 
 logger = logging.getLogger(__name__)
 
+
 class AzureServiceBusQueueProvider(BaseQueueProvider):
     """
     Azure Service Bus implementation of the BaseQueueProvider.
@@ -26,15 +27,22 @@ class AzureServiceBusQueueProvider(BaseQueueProvider):
         self._message_map = {}
 
     async def initialize(self):
-        """Initializes the Service Bus client and sender."""
+        """Initializes the Service Bus client. Sender/receiver are created per-operation."""
         self.validate_configuration()
 
-        self._client = ServiceBusClient.from_connection_string(conn_str=self.connection_string)
-        self._sender = self._client.get_queue_sender(queue_name=self.queue_name)
+        self._client = ServiceBusClient.from_connection_string(
+            conn_str=self.connection_string
+        )
+        # Create receiver for continuous listening (kept open)
         self._receiver = self._client.get_queue_receiver(queue_name=self.queue_name)
+        await self._receiver.__aenter__()
+
         self._initialized = True
-        logger.info("Service Bus client and sender initialized.")
-    
+        print(
+            f"INFO: [AzureServiceBus] ✓ Service Bus client initialized for queue: {self.queue_name}"
+        )
+        logger.info("Service Bus client and receiver initialized.")
+
     def validate_configuration(self) -> None:
         if not self.connection_string:
             raise ValueError("Service Bus connection string is not set.")
@@ -44,32 +52,62 @@ class AzureServiceBusQueueProvider(BaseQueueProvider):
 
     async def close(self):
         """Closes the Service Bus client."""
-        if self._sender:
-            await self._sender.close()
+        print(
+            f"INFO: [AzureServiceBus] Closing connections for queue: {self.queue_name}"
+        )
         if self._receiver:
-            await self._receiver.close()
+            await self._receiver.__aexit__(None, None, None)
+            print(
+                f"INFO: [AzureServiceBus] ✓ Receiver closed for queue: {self.queue_name}"
+            )
         if self._client:
             await self._client.close()
+            print(
+                f"INFO: [AzureServiceBus] ✓ Client closed for queue: {self.queue_name}"
+            )
         self._initialized = False
         logger.info("Service Bus client closed.")
 
     async def send_message(self, message: QueueMessage) -> bool:
         """
         Sends a message to the Service Bus queue.
+        Uses async context manager to ensure proper connection handling.
         :param message:
         :return:
         """
         try:
+            print(
+                f"DEBUG: [AzureServiceBus] Sending message to queue: {self.queue_name}"
+            )
+            print(f"DEBUG: [AzureServiceBus] Message ID: {message.message_id}")
+            print(
+                f"DEBUG: [AzureServiceBus] Message content: {message.to_json_string()}"
+            )
             sb_message = ServiceBusMessage(
                 body=message.to_json_string(),
                 content_type="application/json",
                 message_id=message.message_id,
-                correlation_id=message.correlation_id
+                correlation_id=message.correlation_id,
             )
-            await self._sender.send_messages(sb_message)
+
+            # Use async context manager for proper connection lifecycle
+            async with self._client.get_queue_sender(
+                queue_name=self.queue_name
+            ) as sender:
+                await sender.send_messages(sb_message)
+
+            print(
+                f"INFO: [AzureServiceBus] ✓ Message sent successfully to queue: {self.queue_name}"
+            )
             logger.info(f"Message sent to Service Bus: {message}")
             return True
         except Exception as e:
+            print(
+                f"ERROR: [AzureServiceBus] Failed to send message to Service Bus: {e}"
+            )
+            import traceback
+
+            traceback.print_exc()
             logger.error(f"Failed to send message to Service Bus: {e}")
             return False
 
@@ -77,7 +115,7 @@ class AzureServiceBusQueueProvider(BaseQueueProvider):
         self,
         max_messages: int = 10,
         wait_time_seconds: int = 5,
-        ) -> List[QueueMessage]:
+    ) -> List[QueueMessage]:
         """
         Receive messages from the queue.
         :param max_messages:
@@ -86,28 +124,54 @@ class AzureServiceBusQueueProvider(BaseQueueProvider):
         List[QueueMessage]: List of received messages.
         """
         try:
+            print(
+                f"DEBUG: [AzureServiceBus] Attempting to receive messages from queue: {self.queue_name}, max={max_messages}, wait={wait_time_seconds}s"
+            )
             received = await self._receiver.receive_messages(
-                max_message_count=max_messages,
-                max_wait_time=wait_time_seconds
+                max_message_count=max_messages, max_wait_time=wait_time_seconds
+            )
+            print(
+                f"DEBUG: [AzureServiceBus] Received {len(received)} raw messages from Service Bus"
             )
             messages = []
             for sb_message in received:
                 try:
+                    print(
+                        f"DEBUG: [AzureServiceBus] Processing message: {sb_message.message_id}"
+                    )
+                    print(
+                        f"DEBUG: [AzureServiceBus] Message body type: {type(sb_message)}"
+                    )
+                    print(
+                        f"DEBUG: [AzureServiceBus] Message body (raw): {str(sb_message)}"
+                    )
                     queue_msg = QueueMessage.from_json_string(str(sb_message))
-                    queue_msg.message_id=sb_message.message_id
+                    queue_msg.message_id = sb_message.message_id
                     # store the original message for later deletion
                     self._message_map[queue_msg.message_id] = sb_message
                     messages.append(queue_msg)
-                except Exception as e:
-                    logger.error(f"Failed to parse message from Service Bus: {e}")
-                    await self._receiver.dead_letter_message(
-                        sb_message,
-                        reason="ParsingError",
-                        error_description=str(e)
+                    print(
+                        f"DEBUG: [AzureServiceBus] ✓ Successfully parsed message: {queue_msg.message_id}"
                     )
+                except Exception as e:
+                    print(
+                        f"ERROR: [AzureServiceBus] Failed to parse message from Service Bus: {e}"
+                    )
+                    import traceback
+
+                    traceback.print_exc()
+                    await self._receiver.dead_letter_message(
+                        sb_message, reason="ParsingError", error_description=str(e)
+                    )
+            print(f"DEBUG: [AzureServiceBus] Returning {len(messages)} parsed messages")
             return messages
         except Exception as e:
-            logger.error(f"Failed to receive messages from Service Bus: {e}")
+            print(
+                f"ERROR: [AzureServiceBus] Failed to receive messages from Service Bus: {e}"
+            )
+            import traceback
+
+            traceback.print_exc()
             return []
 
     async def delete_message(self, message: QueueMessage) -> bool:
@@ -122,11 +186,15 @@ class AzureServiceBusQueueProvider(BaseQueueProvider):
         try:
             sb_message = self._message_map.get(message.message_id)
             if not sb_message:
-                logger.error(f"Message with ID {message.message_id} not found for deletion.")
+                logger.error(
+                    f"Message with ID {message.message_id} not found for deletion."
+                )
                 return False
             await self._receiver.complete_message(sb_message)
             del self._message_map[message.message_id]
-            logger.debug(f"Message with ID {message.message_id} deleted from Service Bus.")
+            logger.debug(
+                f"Message with ID {message.message_id} deleted from Service Bus."
+            )
             return True
         except Exception as e:
             logger.error(f"Failed to delete message from Service Bus: {e}")
@@ -143,11 +211,15 @@ class AzureServiceBusQueueProvider(BaseQueueProvider):
         try:
             sb_message = self._message_map.get(message.message_id)
             if not sb_message:
-                logger.error(f"Message with ID {message.message_id} not found for return.")
+                logger.error(
+                    f"Message with ID {message.message_id} not found for return."
+                )
                 return False
             await self._receiver.abandon_message(sb_message)
             del self._message_map[message.message_id]
-            logger.info(f"Message with ID {message.message_id} returned to queue for reprocessing.")
+            logger.info(
+                f"Message with ID {message.message_id} returned to queue for reprocessing."
+            )
             return True
         except Exception as e:
             logger.error(f"Failed to return message to queue: {e}")
@@ -165,12 +237,12 @@ class AzureServiceBusQueueProvider(BaseQueueProvider):
         try:
             sb_message = self._message_map.get(message.message_id)
             if not sb_message:
-                logger.error(f"Message with ID {message.message_id} not found for DLQ move.")
+                logger.error(
+                    f"Message with ID {message.message_id} not found for DLQ move."
+                )
                 return False
             await self._receiver.dead_letter_message(
-                sb_message,
-                reason="MaxRetriesExceeded",
-                error_description=reason
+                sb_message, reason="MaxRetriesExceeded", error_description=reason
             )
             del self._message_map[message.message_id]
             logger.warning(f"Message with ID {message.message_id} moved to DLQ.")
@@ -199,7 +271,9 @@ class AzureServiceBusQueueProvider(BaseQueueProvider):
         try:
             count = 0
             while True:
-                messages = await self.receive_messages(max_messages=100, wait_time_seconds=2)
+                messages = await self.receive_messages(
+                    max_messages=100, wait_time_seconds=2
+                )
                 if not messages:
                     break
                 for message in messages:

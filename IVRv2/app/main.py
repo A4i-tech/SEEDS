@@ -194,27 +194,46 @@ async def startup_event():
     # Initialize FSM
     # fsm[comprehension_fsm.fsm_id] = comprehension_fsm
     # latest_fsm_id = comprehension_fsm.fsm_id
+    print("[STARTUP] Initializing FSM from latest content...")
     updated_fsm = await instantiate_from_latest_content()
     fsm[updated_fsm.fsm_id] = updated_fsm
     latest_fsm_id = updated_fsm.fsm_id
+    print(f"[STARTUP] ✓ FSM initialized with ID: {latest_fsm_id}")
 
     # Initialize Service Bus Manager
+    print("[STARTUP] Initializing Service Bus Manager...")
     await service_bus_manager.initialize()
+    print("[STARTUP] ✓ Service Bus Manager initialized")
 
     # Create three processors
+    print("[STARTUP] Creating processors...")
     call_webhook_processor = CallWebhookProcessor(fsm)
     dtmf_input_processor = DtmfInputProcessor(fsm)
     call_event_processor = CallEventProcessor(fsm)
+    print("[STARTUP] ✓ Processors created")
+
     # Update FSM refrences
     call_webhook_processor.latest_fsm_id = latest_fsm_id
     dtmf_input_processor.latest_fsm_id = latest_fsm_id
     call_event_processor.latest_fsm_id = latest_fsm_id
+    print("[STARTUP] ✓ FSM references updated")
 
     # Start all processors in the background
-    call_webhook_processor.start_background()
-    dtmf_input_processor.start_background()
-    call_event_processor.start_background()
-    logging.info("Started all call processors.")
+    print("[STARTUP] Starting background processors...")
+    try:
+        task1 = call_webhook_processor.start_background()
+        print(f"[STARTUP] ✓ CallWebhookProcessor started: {task1}")
+        task2 = dtmf_input_processor.start_background()
+        print(f"[STARTUP] ✓ DtmfInputProcessor started: {task2}")
+        task3 = call_event_processor.start_background()
+        print(f"[STARTUP] ✓ CallEventProcessor started: {task3}")
+        print("[STARTUP] ✓✓✓ All processors started successfully ✓✓✓")
+    except Exception as e:
+        print(f"[STARTUP] ✗✗✗ ERROR starting processors: {e}")
+        import traceback
+
+        traceback.print_exc()
+        raise
 
     # # Start background call processor
     # call_processor = CallProcessor(fsm)
@@ -359,8 +378,9 @@ async def update_ivr(request: Request, response: Response):
     },
 )
 async def call_webhook(request: Request, response: Response):
+    webhook_start_time = time.time()
     logging.info("[WEBHOOK] ========================================")
-    logging.info("[WEBHOOK] Webhook received a request to start IVR")
+    logging.info(f"[WEBHOOK] Webhook received at timestamp: {webhook_start_time}")
     call_data = await request.json()
     logging.info(f"[WEBHOOK] CALL DATA RECEIVED: {call_data}")
     call_status = call_data.get("_su")  # 2 = missed call
@@ -379,11 +399,23 @@ async def call_webhook(request: Request, response: Response):
     logging.info(f"[WEBHOOK] ✓ Logged missed call with ID: {insert_result}")
 
     # send message to service bus to process the call asynchronously
-    logging.info(f"[WEBHOOK] Sending message log_id: {insert_result}")
-    paylod = {"phone_number": phone_number, "call_log_id": str(insert_result)}
-    result = await service_bus_manager.send_call_webhook(payload=paylod)
-    logging.info(f"[WEBHOOK] ✓ Message sent to queue: {result}")
-    logging.info("[WEBHOOK] ========================================")
+    print(f"[WEBHOOK] Sending message to call_webhook queue, log_id: {insert_result}")
+    payload = {"phone_number": phone_number, "call_log_id": str(insert_result)}
+    print(f"[WEBHOOK] Payload: {payload}")
+    try:
+        result = await service_bus_manager.send_call_webhook(payload=payload)
+        print(f"[WEBHOOK] ✓ Message send result: {result}")
+        if result:
+            print(f"[WEBHOOK] ✓✓✓ Message successfully sent to queue")
+        else:
+            print(f"[WEBHOOK] ✗✗✗ Message send FAILED - returned False")
+    except Exception as e:
+        print(f"[WEBHOOK] ✗✗✗ Exception sending message: {e}")
+        import traceback
+
+        traceback.print_exc()
+        raise
+    print("[WEBHOOK] ========================================")
     response.status_code = STATUS_OK
     return {
         "status_code": response.status_code,
@@ -426,7 +458,9 @@ async def start_ivr(
 ):
     global fsm
     try:
-        raw_key = base64.b64decode(settings.vonage_application_private_key64).decode("utf-8")
+        raw_key = base64.b64decode(settings.vonage_application_private_key64).decode(
+            "utf-8"
+        )
         client = vonage.Client(
             application_id=settings.vonage_application_id,
             private_key=raw_key,
@@ -670,12 +704,12 @@ def get_answer():
     "/event",
     summary="Handle call events",
     description="""
-    Processes call events from Vonage.
+    Processes call events from Vonage asynchronously via queue.
     Handles various call status updates and forwards them to the appropriate FSM handler.
     """,
     response_model=dict,
     responses={
-        200: {"description": "Event processed successfully"},
+        200: {"description": "Event queued successfully"},
         400: {"description": "Invalid request"},
         500: {"description": "Internal server error"},
     },
@@ -683,57 +717,32 @@ def get_answer():
 async def get_event(req: Request, response: Response):
     try:
         req_data = await req.json()
-        print("Raw REQUEST Data:", req_data)
+        logging.info(f"[EVENT] Raw REQUEST Data: {req_data}")
 
         event_request = EventWebhookRequest(**req_data)
-        print(
-            "EVENT RECEIVED: ",
-            json.dumps(
-                event_request.dict(by_alias=True), cls=CustomJSONEncoder, indent=2
-            ),
+        logging.info(
+            f"[EVENT] EVENT RECEIVED: {json.dumps(event_request.dict(by_alias=True), cls=CustomJSONEncoder, indent=2)}"
         )
-        doc = await ongoing_fsm_mongo.find_by_id(event_request.conversation_uuid)
-        if doc is not None:
-            ivr_state = IVRCallStateMongoDoc(**doc)
-            ivr_state.call_status_updates[event_request.timestamp] = (
-                event_request.status.value
-            )
 
-        if event_request.status in CallStatus.get_end_call_enums():
-            if doc is None:
-                print(
-                    "ERROR: NO ONGOING IVR STATE FOUND FOR CONV ID: ",
-                    event_request.conversation_uuid,
-                )
-                response.status_code = 400
-                return {
-                    "message": f"event received, no ongoing fsm found with id {event_request.conversation_uuid}"
-                }
-
-            ivr_state.stopped_at = datetime.now()
-            ivr_state.duration = event_request.duration
-
-            doc = await ivrv2_logs_mongo.find_by_id(ivr_state.id)
-            if doc is None:
-                await ivrv2_logs_mongo.insert(ivr_state.dict(by_alias=True))
-                await ongoing_fsm_mongo.delete(event_request.conversation_uuid)
-            else:
-                print("DOC ALREADY EXISTS AND DUPLICATE KEY ERROR WOULD BE RAISED")
-                print(doc)
-
-        else:
-            if doc is not None:
-                await ongoing_fsm_mongo.update_document(
-                    ivr_state.id, ivr_state.dict(by_alias=True)
-                )
+        # Send event to queue for async processing
+        payload = {
+            "conversation_uuid": event_request.conversation_uuid,
+            "status": event_request.status.value,
+            "timestamp": event_request.timestamp,
+            "duration": event_request.duration,
+        }
+        await service_bus_manager.send_call_event(payload=payload)
+        logging.info(
+            f"[EVENT] ✓ Event sent to queue for conversation: {event_request.conversation_uuid}"
+        )
 
         response.status_code = 200
-        return {"message": "event received"}
+        return {"message": "event queued for processing"}
     except ValidationError as ve:
         error_traceback = traceback.format_exc()
-        print("Validation error:", ve.errors())
-        print("Request data causing the error:", req_data)
-        print(error_traceback)  # Log the traceback for debugging purposes
+        logging.error(f"Validation error: {ve.errors()}")
+        logging.error(f"Request data causing the error: {req_data}")
+        logging.error(error_traceback)
         response.status_code = 422
         return {
             "error": "Validation error occurred while processing the request.",
@@ -741,7 +750,7 @@ async def get_event(req: Request, response: Response):
         }
     except Exception as e:
         error_traceback = traceback.format_exc()
-        print(error_traceback)  # Log the traceback for debugging purposes
+        logging.error(error_traceback)
         response.status_code = 500
         return {
             "error": "An error occurred while processing the request.",
