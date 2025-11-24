@@ -56,9 +56,7 @@ class CallWebhookProcessor(BaseProcessor):
 
     async def process_message(self, message: QueueMessage):
         """Process a single message from the queue."""
-        self.log_info(
-            f"Received message from queue: {message.message_id}"
-        )
+        self.log_info(f"Received message from queue: {message.message_id}")
         await self.process_call_webhook(message.payload)
 
     async def process_call_webhook(self, message_data: Dict[str, Any]):
@@ -215,7 +213,7 @@ class CallWebhookProcessor(BaseProcessor):
         except Exception as e:
             self.log_error(
                 f"[START_IVR] ✗ Error starting IVR for phone number {phone_number}: {e}",
-                exc_info=True
+                exc_info=True,
             )
             return {
                 "status_code": 500,
@@ -251,9 +249,7 @@ class DtmfInputProcessor(BaseProcessor):
         )
         # Filter: only process dtmf_input messages
         if message.type.value != "dtmf_input":
-            self.log_debug(
-                f"Skipping message type: {message.type.value}"
-            )
+            self.log_debug(f"Skipping message type: {message.type.value}")
             from app.workers.base_processor import SkipMessageError
 
             raise SkipMessageError(
@@ -362,9 +358,7 @@ class CallEventProcessor(BaseProcessor):
         )
         # Filter: only process call_event messages
         if message.type.value != "call_event":
-            self.log_debug(
-                f"Skipping message type: {message.type.value}"
-            )
+            self.log_debug(f"Skipping message type: {message.type.value}")
             from app.workers.base_processor import SkipMessageError
 
             raise SkipMessageError(
