@@ -7,7 +7,6 @@ import com.example.seeds.model.Student
 import com.example.seeds.model.StudentListContainer
 import com.example.seeds.model.PaginatedResponse
 import com.example.seeds.network.SeedsService
-import com.example.seeds.utils.ContactUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.DisposableHandle
 import kotlinx.coroutines.withContext
