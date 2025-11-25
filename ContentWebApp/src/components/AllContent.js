@@ -42,13 +42,15 @@ const AllContent = () => {
 
   useEffect(() => {
     const token = localStorage.getItem("authToken");
+    const tenantName = localStorage.getItem("tenantName");
+    
     if (!token) {
       navigate("/");
       return;
     }
 
-    if (location.state?.name) {
-      setCurrentUser(location.state.name);
+    if (tenantName) {
+      setCurrentUser(tenantName);
     } else {
       setCurrentUser("User");
     }
@@ -171,7 +173,7 @@ const AllContent = () => {
       }
 
       const response = await fetch(
-        `${SEEDS_URL}/teacher/get-teachers?tenantId=${tenantId}`,
+        `${SEEDS_URL}/v1/teacher/teachers?tenantId=${tenantId}`,
         {
           method: "GET",
           headers: getAuthHeaders(),
@@ -746,7 +748,6 @@ const AllContent = () => {
                     );
 
                     if (response.ok) {
-                      const data = await response.json();
                       setTeacherPhone("");
                       setTeacherPassword("");
                       setTeacherMessage("Teacher registered successfully!");
@@ -865,9 +866,9 @@ const AllContent = () => {
                                                     remove: true,
                                                   };
                                                   const res = await fetch(
-                                                    `${SEEDS_URL}/teacher/remove-students`,
+                                                    `${SEEDS_URL}/v1/teacher/students`,
                                                     {
-                                                      method: "POST",
+                                                      method: "DELETE",
                                                       headers: getAuthHeaders(),
                                                       body: JSON.stringify(
                                                         payload

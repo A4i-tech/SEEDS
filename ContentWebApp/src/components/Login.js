@@ -65,7 +65,7 @@ const tabButtonStyle = (active) => ({
 const labelStyle = {
   fontSize: "14px",
   fontWeight: 600,
-  color: "#0f172a",
+  color: "#fff",
   marginBottom: "6px",
 };
 
@@ -128,10 +128,11 @@ const Login = () => {
       });
 
       if (response.status === 200) {
-        const { name, token, id } = response.data;
+        const { tenantName, token, id } = response.data;
         localStorage.setItem("authToken", token);
         localStorage.setItem("tenantId", id);
-        navigate("/content", { state: { name } });
+        localStorage.setItem("tenantName", tenantName);
+        navigate("/content", { state: { name: tenantName } });
       } else {
         setShowError("Invalid credentials. Please try again.");
       }

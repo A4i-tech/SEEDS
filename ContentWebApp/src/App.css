@@ -95,3 +95,21 @@ label {
   accent-color: #28574f;
   margin-right: 10px;
 }
+input,
+textarea,
+select,
+.input-field,
+.add-students-input,
+.login-email,
+.login-password,
+.tenantName,
+.email,
+.password,
+.confirm-password {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  border: 1px solid #e2e8f0;
+  padding: 8px;
+  border-radius: 8px;
+}
