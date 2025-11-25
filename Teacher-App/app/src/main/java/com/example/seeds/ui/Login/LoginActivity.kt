@@ -57,7 +57,6 @@ class LoginActivity : AppCompatActivity() {
     private val viewModel: CallViewModel by viewModels()
 
     private val LOGIN_URL = Constants.BASE_URL + "/teacher/login"
-    private val REGISTER_URL = Constants.BASE_URL + "/teacher/register"
     private val ORGANIZATIONS_URL = Constants.BASE_URL + "/tenant/names"
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -69,7 +68,6 @@ class LoginActivity : AppCompatActivity() {
         val passwordField = binding.editTextPassword
         val orgDropdown = binding.organizationDropdown
         val loginBtn = binding.phoneNumberLoginBtn
-        val registerBtn = binding.phoneNumberRegisterBtn
 
         // Hint launcher initialization
         phoneHintLauncher =
@@ -121,27 +119,6 @@ class LoginActivity : AppCompatActivity() {
             loginWithPhoneNumber(phoneNumber, password, selectedOrganization.id)
         }
 
-        // Register click listener
-        registerBtn.setOnClickListener {
-            val phoneNumber = phoneNumberField.text.toString().trim()
-            val password = passwordField.text.toString().trim()
-            val organizationName = orgDropdown.text.toString().trim()
-
-            if (phoneNumber.isEmpty() || password.isEmpty() || organizationName.isEmpty()) {
-                Toast.makeText(this, "Please fill all fields and select an organization", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            // Find the selected organization from our list to get its ID
-            val selectedOrganization = organizations.find { it.name == organizationName }
-            if (selectedOrganization == null) {
-                Toast.makeText(this, "Please select a valid organization from the list", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            
-            // Call the register function with the ID
-            registerTenant(phoneNumber, password, selectedOrganization.id)
-        }
     }
 
     private fun requestPhoneNumberHint() {
@@ -197,46 +174,6 @@ class LoginActivity : AppCompatActivity() {
                 } catch (e: Exception) {
                     e.printStackTrace()
                     onResult(emptyList())
-                }
-            }
-        })
-    }
-
-    private fun registerTenant(phoneNumber: String, password: String, organizationId: String) {
-        val client = OkHttpClient()
-        val json = JSONObject().apply {
-            put("phoneNumber", phoneNumber)
-            put("password", password)
-            put("tenantId", organizationId)
-        }
-
-        val body = RequestBody.create(
-            MediaType.parse("application/json; charset=utf-8"),
-            json.toString()
-        )
-
-        val registerRequest = Request.Builder()
-            .url(REGISTER_URL)
-            .post(body)
-            .build()
-
-        Log.d("REGISTER_DEBUG", "URL: $REGISTER_URL")
-        Log.d("REGISTER_DEBUG", "Payload: ${json.toString()}")
-        
-        client.newCall(registerRequest).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                runOnUiThread {
-                    Toast.makeText(this@LoginActivity, "Network error during registration", Toast.LENGTH_SHORT).show()
-                }
-            }
-
-            override fun onResponse(call: Call, response: Response) {
-                runOnUiThread {
-                    if (response.isSuccessful) {
-                        Toast.makeText(this@LoginActivity, "Registration successful! Please login.", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(this@LoginActivity, "Registration failed: ${response.message()}", Toast.LENGTH_SHORT).show()
-                    }
                 }
             }
         })
