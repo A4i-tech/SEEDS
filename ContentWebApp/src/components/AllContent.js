@@ -40,6 +40,125 @@ const AllContent = () => {
     };
   }, []);
 
+  const [isUpdatingIVR, setIsUpdatingIVR] = useState(false);
+
+  const PAGE_SIZE = 50;
+
+  const getAllContent = useCallback(
+    async (cursor, signal) => {
+      const params = new URLSearchParams();
+      params.append("limit", String(PAGE_SIZE));
+      if (cursor) {
+        params.append("cursor", cursor);
+      }
+
+      const seedsRes = await fetch(
+        `${SEEDS_URL}/content?${params.toString()}`,
+        {
+          method: "GET",
+          headers: getAuthHeaders(),
+          signal,
+        }
+      );
+
+      if (!seedsRes.ok) {
+        const text = await seedsRes.text();
+        throw new Error(text || `Failed to fetch content (${seedsRes.status})`);
+      }
+
+      const seedsData = await seedsRes.json();
+      const data = seedsData.data || [];
+      const pagination = seedsData.pagination || {};
+      return { data, pagination };
+    },
+    [getAuthHeaders]
+  );
+
+  const loadMoreContent = useCallback(async () => {
+    if (!paginationInfo.hasMore || !paginationInfo.nextCursor) return;
+
+    setIsLoadingContent(true);
+    const ac = new AbortController();
+    try {
+      const { data, pagination } = await getAllContent(
+        paginationInfo.nextCursor,
+        ac.signal
+      );
+      const newItems = data || [];
+      if (!newItems.length) {
+        setPaginationInfo((prev) => ({
+          nextCursor: null,
+          hasMore: false,
+          limit: prev.limit,
+        }));
+        return;
+      }
+
+      setAllContent((prevAll) => {
+        const existingIds = new Set(prevAll.map((c) => c.id));
+        const merged = [...prevAll];
+        newItems.forEach((item) => {
+          if (!existingIds.has(item.id)) merged.push(item);
+        });
+        if (!isFiltered) setContent(merged);
+        setOptions(generateOptions(merged));
+        return merged;
+      });
+
+      setPaginationInfo({
+        nextCursor: pagination?.nextCursor || null,
+        hasMore: !!pagination?.hasMore,
+        limit: pagination?.limit || paginationInfo.limit,
+      });
+    } catch (e) {
+      if (e.name !== "AbortError")
+        console.error("Error loading more content:", e);
+    } finally {
+      setIsLoadingContent(false);
+    }
+    return () => ac.abort();
+  }, [paginationInfo, getAllContent, isFiltered]);
+
+  const fetchTeachers = useCallback(
+    async (signal) => {
+      try {
+        const tenantId = localStorage.getItem("tenantId");
+        if (!tenantId) {
+          return;
+        }
+
+        const response = await fetch(
+          `${SEEDS_URL}/v1/teacher/teachers?tenantId=${tenantId}`,
+          {
+            method: "GET",
+            headers: getAuthHeaders(),
+            signal,
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          const list = data.data || data || [];
+          // augment teachers with local UI state for adding students
+          const withState = list.map((t) => ({
+            ...t,
+            newStudents: [{ name: "", phoneNumber: "" }],
+            submitting: false,
+          }));
+          setTeachers(withState);
+          // set default selection to first teacher if none selected
+          setSelectedTeacherId(
+            (prev) => prev || withState[0]?._id || withState[0]?.id || null
+          );
+        }
+      } catch (error) {
+        if (error.name !== "AbortError")
+          console.error("Error fetching teachers:", error);
+      }
+    },
+    [getAuthHeaders]
+  );
+
   useEffect(() => {
     const token = localStorage.getItem("authToken");
     const tenantName = localStorage.getItem("tenantName");
@@ -56,18 +175,33 @@ const AllContent = () => {
     }
   }, [location.state, navigate]);
 
-  const onUpdateIVR = async () => {
+  const onUpdateIVR = useCallback(async () => {
+    if (!ivrURL) {
+      setUpdateIVRStatus("IVR URL not configured.");
+      return;
+    }
+    setIsUpdatingIVR(true);
+    setUpdateIVRStatus("");
     try {
       const response = await fetch(`${ivrURL}/updateivr`, {
         method: "POST",
         headers: getAuthHeaders(),
       });
+      if (!response.ok) {
+        const txt = await response.text();
+        throw new Error(txt || `Update IVR failed (${response.status})`);
+      }
       const data = await response.json();
-      setUpdateIVRStatus(data.message);
+      setUpdateIVRStatus(data.message || "IVR updated.");
     } catch (error) {
-      setUpdateIVRStatus("Unable to update IVR right now.");
+      console.error("onUpdateIVR error:", error);
+      setUpdateIVRStatus(error.message || "Unable to update IVR right now.");
+    } finally {
+      setIsUpdatingIVR(false);
+      // clear status after a short delay
+      setTimeout(() => setUpdateIVRStatus(""), 4000);
     }
-  };
+  }, [getAuthHeaders, ivrURL]);
 
   const generateOptions = (contentList) => {
     const languageSet = new Set();
@@ -159,7 +293,7 @@ const AllContent = () => {
     };
     getContent();
     return () => ac.abort();
-  }, []);
+  }, [getAllContent]);
 
   useEffect(() => {
     const ac = new AbortController();
@@ -167,47 +301,7 @@ const AllContent = () => {
       fetchTeachers(ac.signal);
     }
     return () => ac.abort();
-  }, [activeTab]);
-
-  const fetchTeachers = useCallback(
-    async (signal) => {
-      try {
-        const tenantId = localStorage.getItem("tenantId");
-        if (!tenantId) {
-          return;
-        }
-
-        const response = await fetch(
-          `${SEEDS_URL}/v1/teacher/teachers?tenantId=${tenantId}`,
-          {
-            method: "GET",
-            headers: getAuthHeaders(),
-            signal,
-          }
-        );
-
-        if (response.ok) {
-          const data = await response.json();
-          const list = data.data || data || [];
-          // augment teachers with local UI state for adding students
-          const withState = list.map((t) => ({
-            ...t,
-            newStudents: [{ name: "", phoneNumber: "" }],
-            submitting: false,
-          }));
-          setTeachers(withState);
-          // set default selection to first teacher if none selected
-          setSelectedTeacherId(
-            (prev) => prev || withState[0]?._id || withState[0]?.id || null
-          );
-        }
-      } catch (error) {
-        if (error.name !== "AbortError")
-          console.error("Error fetching teachers:", error);
-      }
-    },
-    [getAuthHeaders]
-  );
+  }, [activeTab, fetchTeachers]);
 
   // Helpers for add-students UI
   const updateTeacherState = (id, patch) => {
@@ -305,83 +399,6 @@ const AllContent = () => {
       setTimeout(() => setTeacherMessage(""), 3000);
     }
   };
-
-  const PAGE_SIZE = 50;
-
-  const getAllContent = useCallback(
-    async (cursor, signal) => {
-      const params = new URLSearchParams();
-      params.append("limit", String(PAGE_SIZE));
-      if (cursor) {
-        params.append("cursor", cursor);
-      }
-
-      const seedsRes = await fetch(
-        `${SEEDS_URL}/content?${params.toString()}`,
-        {
-          method: "GET",
-          headers: getAuthHeaders(),
-          signal,
-        }
-      );
-
-      if (!seedsRes.ok) {
-        const text = await seedsRes.text();
-        throw new Error(text || `Failed to fetch content (${seedsRes.status})`);
-      }
-
-      const seedsData = await seedsRes.json();
-      const data = seedsData.data || [];
-      const pagination = seedsData.pagination || {};
-      return { data, pagination };
-    },
-    [getAuthHeaders]
-  );
-
-  const loadMoreContent = useCallback(async () => {
-    if (!paginationInfo.hasMore || !paginationInfo.nextCursor) return;
-
-    setIsLoadingContent(true);
-    const ac = new AbortController();
-    try {
-      const { data, pagination } = await getAllContent(
-        paginationInfo.nextCursor,
-        ac.signal
-      );
-      const newItems = data || [];
-      if (!newItems.length) {
-        setPaginationInfo((prev) => ({
-          nextCursor: null,
-          hasMore: false,
-          limit: prev.limit,
-        }));
-        return;
-      }
-
-      setAllContent((prevAll) => {
-        const existingIds = new Set(prevAll.map((c) => c.id));
-        const merged = [...prevAll];
-        newItems.forEach((item) => {
-          if (!existingIds.has(item.id)) merged.push(item);
-        });
-        if (!isFiltered) setContent(merged);
-        setOptions(generateOptions(merged));
-        return merged;
-      });
-
-      setPaginationInfo({
-        nextCursor: pagination?.nextCursor || null,
-        hasMore: !!pagination?.hasMore,
-        limit: pagination?.limit || paginationInfo.limit,
-      });
-    } catch (e) {
-      if (e.name !== "AbortError")
-        console.error("Error loading more content:", e);
-    } finally {
-      setIsLoadingContent(false);
-    }
-    return () => ac.abort();
-  }, [paginationInfo, getAllContent, isFiltered]);
 
   const onDelete = async (type, id) => {
     if (window.confirm("Are you sure?")) {
@@ -528,6 +545,13 @@ const AllContent = () => {
                   }}
                 >
                   Reset Filters
+                </button>
+                <button
+                  type="button"
+                  className="primary-button button-ml-8"
+                  onClick={onUpdateIVR}
+                >
+                  Update IVR
                 </button>
                 <button
                   className="primary-button button-add-content"
