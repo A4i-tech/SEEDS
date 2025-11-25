@@ -233,9 +233,9 @@ class CallViewModel @Inject constructor(
 
         Log.d("CONTENTCALL", args.classroom?.contents?.map { content -> content.title }?.toString() ?: "No content")
 
-        viewModelScope.launch {
-            loadTeacherStudents()
-        }
+        // viewModelScope.launch {
+        //     loadTeacherStudents()
+        // }
     }
 
     fun onPlayPauseClicked() {
@@ -542,15 +542,15 @@ class CallViewModel @Inject constructor(
         }
     }
 
-    private suspend fun loadTeacherStudents() {
-        try {
-            teacherStudentsMap = teacherStudentsDirectory.studentsByPhone()
-            allStudents = teacherStudentsMap.values.toList()
-            updateStudentsNotOnCall(_callState.value)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to load teacher students", e)
-        }
-    }
+    // private suspend fun loadTeacherStudents() {
+    //     try {
+    //         teacherStudentsMap = teacherStudentsDirectory.studentsByPhone()
+    //         allStudents = teacherStudentsMap.values.toList()
+    //         updateStudentsNotOnCall(_callState.value)
+    //     } catch (e: Exception) {
+    //         Log.e(TAG, "Failed to load teacher students", e)
+    //     }
+    // }
 
     private fun updateStudentsNotOnCall(currentState: List<StudentCallStatus>?) {
         if (currentState == null || allStudents.isEmpty()) {
@@ -971,6 +971,27 @@ class CallViewModel @Inject constructor(
 
     fun backwardAudio() {
         seekAudio(-10)
+    }
+
+    fun prepareStudentListForAdding() {
+        // Only load if the list is empty to avoid re-fetching data
+        if (allStudents.isEmpty()) {
+            viewModelScope.launch {
+                loadTeacherStudents()
+            }
+        }
+    }
+
+    // The loadTeacherStudents function itself remains unchanged
+    private suspend fun loadTeacherStudents() {
+        try {
+            teacherStudentsMap = teacherStudentsDirectory.studentsByPhone()
+            allStudents = teacherStudentsMap.values.toList()
+            // After loading, refresh the list of students not on the call
+            updateStudentsNotOnCall(_callState.value)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load teacher students", e)
+        }
     }
 
     /*
