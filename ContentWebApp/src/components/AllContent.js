@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Multiselect from "multiselect-react-dropdown";
 import { SEEDS_URL } from "../Constants";
@@ -32,13 +32,13 @@ const AllContent = () => {
 
   const ivrURL = process.env.REACT_APP_API_IVRV2_URL;
 
-  const getAuthHeaders = () => {
+  const getAuthHeaders = useCallback(() => {
     const token = localStorage.getItem("authToken");
     return {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     };
-  };
+  }, []);
 
   useEffect(() => {
     const token = localStorage.getItem("authToken");
@@ -135,10 +135,11 @@ const AllContent = () => {
   };
 
   useEffect(() => {
+    const ac = new AbortController();
     const getContent = async () => {
       setIsLoadingContent(true);
       try {
-        const { data, pagination } = await getAllContent();
+        const { data, pagination } = await getAllContent(null, ac.signal);
         const initialItems = data || [];
         setAllContent(initialItems);
         setContent(initialItems);
@@ -150,54 +151,63 @@ const AllContent = () => {
         });
         setIsFiltered(false);
       } catch (e) {
-        console.error("Error fetching content:", e);
+        if (e.name !== "AbortError")
+          console.error("Error fetching content:", e);
       } finally {
         setIsLoadingContent(false);
       }
     };
     getContent();
+    return () => ac.abort();
   }, []);
 
   useEffect(() => {
+    const ac = new AbortController();
     if (activeTab === "registration") {
-      fetchTeachers();
+      fetchTeachers(ac.signal);
     }
+    return () => ac.abort();
   }, [activeTab]);
 
-  const fetchTeachers = async () => {
-    try {
-      const tenantId = localStorage.getItem("tenantId");
-      if (!tenantId) {
-        return;
-      }
-
-      const response = await fetch(
-        `${SEEDS_URL}/v1/teacher/teachers?tenantId=${tenantId}`,
-        {
-          method: "GET",
-          headers: getAuthHeaders(),
+  const fetchTeachers = useCallback(
+    async (signal) => {
+      try {
+        const tenantId = localStorage.getItem("tenantId");
+        if (!tenantId) {
+          return;
         }
-      );
 
-      if (response.ok) {
-        const data = await response.json();
-        const list = data.data || data || [];
-        // augment teachers with local UI state for adding students
-        const withState = list.map((t) => ({
-          ...t,
-          newStudents: [{ name: "", phoneNumber: "" }],
-          submitting: false,
-        }));
-        setTeachers(withState);
-        // set default selection to first teacher if none selected
-        setSelectedTeacherId(
-          (prev) => prev || withState[0]?._id || withState[0]?.id || null
+        const response = await fetch(
+          `${SEEDS_URL}/v1/teacher/teachers?tenantId=${tenantId}`,
+          {
+            method: "GET",
+            headers: getAuthHeaders(),
+            signal,
+          }
         );
+
+        if (response.ok) {
+          const data = await response.json();
+          const list = data.data || data || [];
+          // augment teachers with local UI state for adding students
+          const withState = list.map((t) => ({
+            ...t,
+            newStudents: [{ name: "", phoneNumber: "" }],
+            submitting: false,
+          }));
+          setTeachers(withState);
+          // set default selection to first teacher if none selected
+          setSelectedTeacherId(
+            (prev) => prev || withState[0]?._id || withState[0]?.id || null
+          );
+        }
+      } catch (error) {
+        if (error.name !== "AbortError")
+          console.error("Error fetching teachers:", error);
       }
-    } catch (error) {
-      console.error("Error fetching teachers:", error);
-    }
-  };
+    },
+    [getAuthHeaders]
+  );
 
   // Helpers for add-students UI
   const updateTeacherState = (id, patch) => {
@@ -298,71 +308,80 @@ const AllContent = () => {
 
   const PAGE_SIZE = 50;
 
-  const getAllContent = async (cursor) => {
-    const params = new URLSearchParams();
-    params.append("limit", String(PAGE_SIZE));
-    if (cursor) {
-      params.append("cursor", cursor);
-    }
+  const getAllContent = useCallback(
+    async (cursor, signal) => {
+      const params = new URLSearchParams();
+      params.append("limit", String(PAGE_SIZE));
+      if (cursor) {
+        params.append("cursor", cursor);
+      }
 
-    const seedsRes = await fetch(`${SEEDS_URL}/content?${params.toString()}`, {
-      method: "GET",
-      headers: getAuthHeaders(),
-    });
+      const seedsRes = await fetch(
+        `${SEEDS_URL}/content?${params.toString()}`,
+        {
+          method: "GET",
+          headers: getAuthHeaders(),
+          signal,
+        }
+      );
 
-    if (!seedsRes.ok) {
-      const text = await seedsRes.text();
-      throw new Error(text || `Failed to fetch content (${seedsRes.status})`);
-    }
+      if (!seedsRes.ok) {
+        const text = await seedsRes.text();
+        throw new Error(text || `Failed to fetch content (${seedsRes.status})`);
+      }
 
-    const seedsData = await seedsRes.json();
-    const data = seedsData.data || [];
-    const pagination = seedsData.pagination || {};
-    return { data, pagination };
-  };
+      const seedsData = await seedsRes.json();
+      const data = seedsData.data || [];
+      const pagination = seedsData.pagination || {};
+      return { data, pagination };
+    },
+    [getAuthHeaders]
+  );
 
-  const loadMoreContent = async () => {
+  const loadMoreContent = useCallback(async () => {
     if (!paginationInfo.hasMore || !paginationInfo.nextCursor) return;
 
     setIsLoadingContent(true);
+    const ac = new AbortController();
     try {
       const { data, pagination } = await getAllContent(
-        paginationInfo.nextCursor
+        paginationInfo.nextCursor,
+        ac.signal
       );
       const newItems = data || [];
       if (!newItems.length) {
-        setPaginationInfo({
+        setPaginationInfo((prev) => ({
           nextCursor: null,
           hasMore: false,
-          limit: paginationInfo.limit,
-        });
+          limit: prev.limit,
+        }));
         return;
       }
 
-      const existingIds = new Set(allContent.map((c) => c.id));
-      const merged = [...allContent];
-      newItems.forEach((item) => {
-        if (!existingIds.has(item.id)) {
-          merged.push(item);
-        }
+      setAllContent((prevAll) => {
+        const existingIds = new Set(prevAll.map((c) => c.id));
+        const merged = [...prevAll];
+        newItems.forEach((item) => {
+          if (!existingIds.has(item.id)) merged.push(item);
+        });
+        if (!isFiltered) setContent(merged);
+        setOptions(generateOptions(merged));
+        return merged;
       });
 
-      setAllContent(merged);
-      if (!isFiltered) {
-        setContent(merged);
-      }
-      setOptions(generateOptions(merged));
       setPaginationInfo({
         nextCursor: pagination?.nextCursor || null,
         hasMore: !!pagination?.hasMore,
         limit: pagination?.limit || paginationInfo.limit,
       });
     } catch (e) {
-      console.error("Error loading more content:", e);
+      if (e.name !== "AbortError")
+        console.error("Error loading more content:", e);
     } finally {
       setIsLoadingContent(false);
     }
-  };
+    return () => ac.abort();
+  }, [paginationInfo, getAllContent, isFiltered]);
 
   const onDelete = async (type, id) => {
     if (window.confirm("Are you sure?")) {
@@ -543,7 +562,25 @@ const AllContent = () => {
 
             <div className="table-wrapper">
               {isLoadingContent && content.length === 0 && (
-                <div className="no-content">Loading content...</div>
+                <table className="content-table">
+                  <thead>
+                    <tr>
+                      <th className="table-header">Title</th>
+                      <th className="table-header">Theme</th>
+                      <th className="table-header">Uploaded</th>
+                      <th className="table-header">Language</th>
+                      <th className="table-header">Type</th>
+                      <th className="table-header">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <tr key={i} className="skeleton-row">
+                        <td colSpan={6} className="skeleton-cell"></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               )}
               {!isLoadingContent && content.length === 0 ? (
                 <div className="no-content">No content found.</div>

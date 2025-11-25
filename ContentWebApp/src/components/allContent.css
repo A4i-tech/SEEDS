@@ -120,8 +120,8 @@
 }
 
 .dropdown-item {
-  padding: 12px 16px;
-  font-size: 14px;
+  padding: 12px;
+  font-size: 18px;
   color: #0f172a;
   cursor: pointer;
   border: none;
@@ -561,4 +561,22 @@
   display: flex;
   flex-direction: column;
   gap: 24px;
+}
+
+/* Skeleton loading styles */
+.skeleton-row td.skeleton-cell {
+  padding: 18px;
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s linear infinite;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
