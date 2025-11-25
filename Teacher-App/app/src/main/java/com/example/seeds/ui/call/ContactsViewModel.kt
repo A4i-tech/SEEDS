@@ -4,23 +4,27 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.seeds.repository.TeacherRepository
+import com.example.seeds.model.Student
+import com.example.seeds.repository.TeacherStudentsDirectory
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
-class ContactsViewModel @Inject constructor(): ViewModel(){
+class ContactsViewModel @Inject constructor(
+    private val teacherStudentsDirectory: TeacherStudentsDirectory
+) : ViewModel() {
 
-//    private val _navigateBack = MutableLiveData<Boolean>(false)
-//    val navigateBack: LiveData<Boolean>
-//        get() = _navigateBack
+    private val _students = MutableLiveData<List<Student>>(emptyList())
+    val students: LiveData<List<Student>> get() = _students
 
-//    fun setMyStudents(students: List<String>){
-//        viewModelScope.launch {
-//            teacherRepository.setMyStudents(students)
-//            _navigateBack.value = true
-//        }
-//    }
+    init {
+        refreshStudents()
+    }
 
+    fun refreshStudents() {
+        viewModelScope.launch {
+            _students.postValue(teacherStudentsDirectory.students())
+        }
+    }
 }

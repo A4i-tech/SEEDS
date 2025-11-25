@@ -109,8 +109,8 @@ interface SeedsService {
     @GET("call/{confId}/status")
     suspend fun getCallStatus(@Path("confId") confId: String): CallStatusDto
 
-    @GET ("teacher/students")
-    suspend fun getStudents(): List<String>
+    @POST("teacher/get-students")
+    suspend fun getTeacherStudents(@Body body: GetStudentsRequest): List<Student>
 
     @GET("participants")
     suspend fun getParticipants(): List<Student>

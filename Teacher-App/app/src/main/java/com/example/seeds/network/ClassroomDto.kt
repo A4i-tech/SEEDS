@@ -2,7 +2,7 @@ package com.example.seeds.network
 
 import android.content.Context
 import com.example.seeds.model.Classroom
-import com.example.seeds.utils.ContactUtils
+import com.example.seeds.model.Student
 
 data class ClassroomDto(
     var _id: String? = null,
@@ -21,7 +21,9 @@ private fun normalizePhoneNumber(number: String): String {
     }
 }
 
-fun ClassroomDto.asDomainModel(context: Context, contactUtils: ContactUtils): Classroom {
+fun ClassroomDto.asDomainModel(
+    context: Context
+): Classroom {
     val prefs = context.getSharedPreferences("sharedPref", Context.MODE_PRIVATE)
     val teacherId = prefs.getString("teacher_id", "") ?: ""
 
@@ -33,12 +35,14 @@ fun ClassroomDto.asDomainModel(context: Context, contactUtils: ContactUtils): Cl
         _id,
         name,
         teacherId,
-        contactUtils.getStudentsFromString(normalizedStudents),
-        contactUtils.getStudentsFromString(normalizedLeaders),
+        normalizedStudents.map { Student(phoneNumber = it, name = it) },
+        normalizedLeaders.map { Student(phoneNumber = it, name = it) },
         contentIds ?: emptyList()
     )
 }
 
-fun List<ClassroomDto>.asDomainModel(context: Context, contactUtils: ContactUtils): List<Classroom> {
-    return map { it.asDomainModel(context, contactUtils) }
+fun List<ClassroomDto>.asDomainModel(
+    context: Context
+): List<Classroom> {
+    return map { it.asDomainModel(context) }
 }
