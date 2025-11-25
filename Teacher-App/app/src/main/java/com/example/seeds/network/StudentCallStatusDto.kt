@@ -1,8 +1,8 @@
 package com.example.seeds.network
 
-import com.example.seeds.model.StudentCallStatus
 import com.example.seeds.model.CallerState
-import com.example.seeds.utils.ContactUtils
+import com.example.seeds.model.Student
+import com.example.seeds.model.StudentCallStatus
 
 data class StudentCallStatusDto (
     val status: String?,
@@ -12,7 +12,7 @@ data class StudentCallStatusDto (
     val raiseHand: Boolean
 )
 
-fun List<StudentCallStatusDto>.asDomainModel(contactUtils: ContactUtils): List<StudentCallStatus> {
+fun List<StudentCallStatusDto>.asDomainModel(studentsByPhone: Map<String, Student>): List<StudentCallStatus> {
 
     return map {
         StudentCallStatus (
@@ -32,7 +32,7 @@ fun List<StudentCallStatusDto>.asDomainModel(contactUtils: ContactUtils): List<S
             it.isMuted?: true,
             it.onHold?: false,
             it.phoneNumber,
-            contactUtils.getNameFromString(it.phoneNumber),
+            studentsByPhone[it.phoneNumber]?.name ?: it.phoneNumber,
             it.raiseHand
         )
     }

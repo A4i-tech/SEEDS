@@ -28,8 +28,9 @@ import com.example.seeds.network.asDomainModel
 import com.example.seeds.repository.ClassroomRepository
 import com.example.seeds.repository.ContentRepository
 import com.example.seeds.repository.TeacherRepository
+import com.example.seeds.repository.TeacherStudentsDirectory
+// import com.example.seeds.repository.UserPreferencesRepository
 import com.example.seeds.utils.Constants
-import com.example.seeds.utils.ContactUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -60,6 +61,7 @@ class CallViewModel @Inject constructor(
 //    @ApplicationContext private val context: Context,
     private val sharedPreferences: SharedPreferences,
     private val teacherRepository: TeacherRepository,
+    private val teacherStudentsDirectory: TeacherStudentsDirectory,
     private val contentRepository: ContentRepository,
     private val classroomRepository: ClassroomRepository,
 //    val networkConnectivityLiveData: NetworkConnectivityLiveData
@@ -67,7 +69,6 @@ class CallViewModel @Inject constructor(
 
     private val TAG = "CallViewModel_LOG"
 
-    private val contactUtils = ContactUtils(context)
     private val conferenceUrl = Constants.CONTENT_URL
     val args = CallFragmentArgs.fromSavedStateHandle(savedStateHandle)
 
@@ -76,6 +77,7 @@ class CallViewModel @Inject constructor(
     private var callStarted = false
     private var phoneNumbers: List<String> = args.phoneNumbers.toMutableList()
     private var allStudents = listOf<Student>()
+    private var teacherStudentsMap: Map<String, Student> = emptyMap()
     private lateinit var token: AccessToken
     private var cancelCallOnFailure: Job? = null
     private var knownStateVersion = 0
@@ -117,7 +119,7 @@ class CallViewModel @Inject constructor(
     val isAudioControlDone: LiveData<Boolean>
         get() = _isAudioControlDone
 
-    private val _students = MutableLiveData<List<Student>>()
+    private val _students = MutableLiveData<List<Student>>(emptyList())
     val students: LiveData<List<Student>>
         get() = _students
 
@@ -196,6 +198,7 @@ class CallViewModel @Inject constructor(
                 )
             }
             _callState.postValue(initialCallStatuses)
+            updateStudentsNotOnCall(initialCallStatuses)
 
             getAccessToken()
             viewModelScope.launch {
@@ -226,6 +229,10 @@ class CallViewModel @Inject constructor(
         } 
 
         Log.d("CONTENTCALL", args.classroom?.contents?.map { content -> content.title }?.toString() ?: "No content")
+
+        viewModelScope.launch {
+            loadTeacherStudents()
+        }
     }
 
     fun onPlayPauseClicked() {
@@ -360,7 +367,9 @@ class CallViewModel @Inject constructor(
                                             }
 
                                         Log.d("POLLING_DEBUG", ">>> POSTING Student List to UI: $newStudentList")
-                                        _callState.postValue(newStudentList.sortedByDescending { it.raiseHand })
+                                        val sortedList = newStudentList.sortedByDescending { it.raiseHand }
+                                        _callState.postValue(sortedList)
+                                        updateStudentsNotOnCall(sortedList)
 
                                         Log.d("POLLING_DEBUG", "------------------------------------------------------------------\n")
                                     }
@@ -470,10 +479,12 @@ class CallViewModel @Inject constructor(
 
     fun refreshCallState() {
         viewModelScope.launch {
-            val callStatus = network.getCallStatus(_callToken.value!!.confId).asDomainModel(contactUtils)
-            val networkCallState = callStatus.participants
-            Log.d("STATEOFCALL", callStatus.toString())
-            val serverAudioState = callStatus.audio.state 
+            try {
+                teacherStudentsMap = teacherStudentsDirectory.studentsByPhone()
+                val callStatus = network.getCallStatus(_callToken.value!!.confId).asDomainModel(teacherStudentsMap)
+                val networkCallState = callStatus.participants
+                Log.d("STATEOFCALL", callStatus.toString())
+                val serverAudioState = callStatus.audio.state 
             val newPlayerState = when (serverAudioState) {
                 "play" -> PlayerState.PLAYING
                 "pause" -> PlayerState.PAUSED
@@ -484,25 +495,52 @@ class CallViewModel @Inject constructor(
                 _playerState.postValue(newPlayerState)
             }
 
-            Log.d("AUDIOCONTROLNETWORK", callStatus.audio.toString())
-            _callState.postValue(networkCallState.sortedByDescending { it.raiseHand })
-            Log.d("REFRESHED NETWORK CALL STATE", networkCallState.toString())
-            _teacherCallStatus.postValue(networkCallState.find {it.phoneNumber == teacherPhoneNumber})
-            Log.d("TEACHERCALLSTATUS", _teacherCallStatus.value.toString())
-            studentsNotOnCall = allStudents.filter { stu ->
-                networkCallState.find { stu.phoneNumber == it.phoneNumber } == null
-                        || when(networkCallState.find { stu.phoneNumber == it.phoneNumber }?.callerState) {
-                                CallerState.COMPLETED, 
-                                CallerState.FAILED, 
-                                CallerState.REJECTED, 
-                                CallerState.CANCELLED, 
-                                CallerState.UNANSWERED, 
-                                CallerState.BUSY -> true
-                                else -> false
-                            }
+                Log.d("AUDIOCONTROLNETWORK", callStatus.audio.toString())
+                _callState.postValue(networkCallState.sortedByDescending { it.raiseHand })
+                Log.d("REFRESHED NETWORK CALL STATE", networkCallState.toString())
+                _teacherCallStatus.postValue(networkCallState.find {it.phoneNumber == teacherPhoneNumber})
+                Log.d("TEACHERCALLSTATUS", _teacherCallStatus.value.toString())
+                updateStudentsNotOnCall(networkCallState)
+                _isMutedAll.value = networkCallState.filter { it.phoneNumber != teacherPhoneNumber }.all { it.isMuted }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to refresh call state", e)
             }
-            _isMutedAll.value = networkCallState.filter { it.phoneNumber != teacherPhoneNumber }.all { it.isMuted }
         }
+    }
+
+    private suspend fun loadTeacherStudents() {
+        try {
+            teacherStudentsMap = teacherStudentsDirectory.studentsByPhone()
+            allStudents = teacherStudentsMap.values.toList()
+            updateStudentsNotOnCall(_callState.value)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load teacher students", e)
+        }
+    }
+
+    private fun updateStudentsNotOnCall(currentState: List<StudentCallStatus>?) {
+        if (currentState == null || allStudents.isEmpty()) {
+            return
+        }
+        studentsNotOnCall = allStudents.filter { stu ->
+            val status = currentState.find { it.phoneNumber == stu.phoneNumber }
+            status == null || when(status.callerState) {
+                CallerState.COMPLETED,
+                CallerState.FAILED,
+                CallerState.REJECTED,
+                CallerState.CANCELLED,
+                CallerState.UNANSWERED,
+                CallerState.BUSY -> true
+                else -> false
+            }
+        }
+        _students.postValue(studentsNotOnCall)
+    }
+
+    fun getStudentName(phoneNumber: String): String {
+        return teacherStudentsMap[phoneNumber]?.name
+            ?: args.classroom.students.find { it.phoneNumber == phoneNumber }?.name
+            ?: phoneNumber
     }
 
     fun filterContent(languages: MutableSet<String>, experiences: MutableSet<String>) {
