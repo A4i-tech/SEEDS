@@ -23,11 +23,13 @@ import com.example.seeds.model.Content
 import com.example.seeds.model.Student
 import com.example.seeds.model.StudentCallStatus
 import com.example.seeds.model.PlayerState
+import com.example.seeds.model.SessionHistoryItem
 import com.example.seeds.network.SeedsService
 import com.example.seeds.network.asDomainModel
 import com.example.seeds.repository.ClassroomRepository
 import com.example.seeds.repository.ContentRepository
 import com.example.seeds.repository.TeacherRepository
+import com.example.seeds.repository.UserPreferencesRepository
 import com.example.seeds.repository.TeacherStudentsDirectory
 // import com.example.seeds.repository.UserPreferencesRepository
 import com.example.seeds.utils.Constants
@@ -64,6 +66,7 @@ class CallViewModel @Inject constructor(
     private val teacherStudentsDirectory: TeacherStudentsDirectory,
     private val contentRepository: ContentRepository,
     private val classroomRepository: ClassroomRepository,
+    private val userPreferencesRepository: UserPreferencesRepository
 //    val networkConnectivityLiveData: NetworkConnectivityLiveData
     ) : ViewModel(){
 
@@ -279,6 +282,8 @@ class CallViewModel @Inject constructor(
 
                 val confId = response.id
                 Log.d("CONF_ID", "Created conference ID: $confId")
+
+                saveCallStateToPrefs(confId)
                 startCall(confId)
 
             } catch (e: Exception) {
@@ -413,6 +418,34 @@ class CallViewModel @Inject constructor(
         }
     }
 
+    private fun saveCallStateToPrefs(confId: String) {
+        viewModelScope.launch {
+            val activeStudentIds = args.classroom?.students
+                ?.filter { phoneNumbers.contains(it.phoneNumber) }
+                ?.map { it.phoneNumber } 
+                ?.toSet() ?: emptySet()
+
+            val classroomId = args.classroom?._id ?: ""
+            val classroomName = args.classroom?.name ?: ""
+
+            userPreferencesRepository.saveLastCallDetails(
+                conferenceId = confId,
+                classroomId = classroomId,
+                classroomName = classroomName,
+                studentIds = activeStudentIds
+            )
+
+            val historyItem = SessionHistoryItem(
+                groupId = classroomId,
+                groupName = classroomName,
+                timestamp = System.currentTimeMillis(),
+                wasConference = true,
+                studentCount = activeStudentIds.size
+            )
+            userPreferencesRepository.addSessionToHistory(historyItem)
+        }
+    }
+
     fun endCall() {
         Log.d("CALL_END", "endCall() called")
 
@@ -442,7 +475,8 @@ class CallViewModel @Inject constructor(
 
                 if (response.isSuccessful) {
                     Log.d("CALL_END", "Conference ended successfully!")
-
+                    
+                    userPreferencesRepository.clearSession()
                     _navigateBack.postValue(true)
 
                 } else {
@@ -850,7 +884,10 @@ class CallViewModel @Inject constructor(
                     _isAudioControlDone.postValue(true) // Re-enable button
                     return@launch
                 }
-                
+
+                val contentId = selectedContent.value?.id ?: ""
+                userPreferencesRepository.saveAudioState(contentId, true)
+
                 Log.d("PLAY_AUDIO", "Got audio URL: $audioUrl")
                 
                 val fullUrl = "$conferenceUrl/conference/playaudio/$confId"
