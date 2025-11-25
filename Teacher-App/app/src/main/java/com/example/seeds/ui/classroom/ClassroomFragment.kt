@@ -68,6 +68,18 @@ class ClassroomFragment : BaseFragment() {
             .actionClassroomFragmentToCreateClassroomFragment(emptyClassroom))
         }
 
+        viewModel.navigateToCallSettings.observe(viewLifecycleOwner) { classroom ->
+            if (classroom != null) {
+                Log.d("ResumeDebug", "Observer in Fragment triggered. Navigating to CallSettingsFragment.")
+                
+                findNavController().navigate(
+                    ClassroomFragmentDirections.actionClassroomFragmentToCallSettingsFragment(classroom)
+                )
+            
+                viewModel.onNavigationComplete()
+            }
+        }
+
         return binding.root
     }
 

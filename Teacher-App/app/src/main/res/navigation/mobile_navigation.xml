@@ -143,7 +143,8 @@
             android:label="No Internet"
             tools:layout="@layout/fragment_call_no_internet"/>
     </navigation>
-    <fragment
+    
+<fragment
         android:id="@+id/classroomFragment"
         android:name="com.example.seeds.ui.classroom.ClassroomFragment"
         android:label="My Groups"
@@ -154,6 +155,18 @@
         <action
             android:id="@+id/action_classroomFragment_to_callSettingsFragment"
             app:destination="@id/callSettingsFragment" />
+        <!-- 
+        <action
+            android:id="@+id/action_classroomFragment_to_callFragment"
+            app:destination="@id/callFragment" >
+            <argument
+                android:name="phoneNumbers"
+                app:argType="string[]" />
+            <argument
+                android:name="classroom"
+                app:argType="com.example.seeds.model.Classroom" />
+        </action> 
+        -->
     </fragment>
     <fragment
         android:id="@+id/createClassroomFragment"
