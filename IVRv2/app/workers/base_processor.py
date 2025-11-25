@@ -17,6 +17,12 @@ class PermanentQueueError(Exception):
     pass
 
 
+class SkipMessageError(Exception):
+    """Raised when a processor should skip a message and return it to queue for other processors."""
+
+    pass
+
+
 class BaseProcessor(ABC):
     """
     Abstract base class for all Service Bus message processors.
@@ -106,8 +112,11 @@ class BaseProcessor(ABC):
             if provider is None:
                 raise RuntimeError("Provider is None - cannot start processor")
 
+            self.log_info("Provider obtained, entering message loop...")
+
             while not self._shutdown_event.is_set():
                 try:
+                    self.log_debug("Waiting for messages...")
                     # Receive messages with timeout
                     messages = await asyncio.wait_for(
                         provider.receive_messages(batch_size, max_wait_seconds),
@@ -145,6 +154,14 @@ class BaseProcessor(ABC):
             if not deleted:
                 self.log_error(
                     f"Failed to delete message {message.message_id} after successful processing"
+                )
+        except SkipMessageError:
+            # Message not for this processor, return to queue for others
+            self.log_debug(f"Returning skipped message to queue: {message.message_id}")
+            returned = await provider.return_message_to_queue(message)
+            if not returned:
+                self.log_error(
+                    f"Failed to return skipped message {message.message_id} to queue"
                 )
         except PermanentQueueError as e:
             self.log_warning(f"Permanent failure for message {message.message_id}: {e}")

@@ -112,7 +112,7 @@ accumulator = action_factory.get_action_accumulator_implmentation()
 async def get_ivr_structure():
     content = await get_latest_content()
     structured_content = process_content(content)
-    print(structured_content)
+    logging.info(f"Structured content: {structured_content}")
     html_content = format_data_html(structured_content)
     return html_content
 
@@ -156,9 +156,9 @@ async def get_fsm(
         new_fsm = copy.deepcopy(fsm_by_id)
         states = []
         for state_id in fsm_by_id.states:
-            # print("STATE", state_id)
+            logging.debug(f"STATE: {state_id}")
             state_object = fsm_by_id.states[state_id]
-            # print("STATE OBJECT fsm.states[state] ", state_object)
+            logging.debug(f"STATE OBJECT fsm.states[state]: {state_object}")
             new_state = dict()
             new_state["id"] = state_object.id
             new_state["menu"] = (
@@ -194,27 +194,46 @@ async def startup_event():
     # Initialize FSM
     # fsm[comprehension_fsm.fsm_id] = comprehension_fsm
     # latest_fsm_id = comprehension_fsm.fsm_id
+    logging.info("[STARTUP] Initializing FSM from latest content...")
     updated_fsm = await instantiate_from_latest_content()
     fsm[updated_fsm.fsm_id] = updated_fsm
     latest_fsm_id = updated_fsm.fsm_id
+    logging.info(f"[STARTUP] ✓ FSM initialized with ID: {latest_fsm_id}")
 
     # Initialize Service Bus Manager
+    logging.info("[STARTUP] Initializing Service Bus Manager...")
     await service_bus_manager.initialize()
+    logging.info("[STARTUP] ✓ Service Bus Manager initialized")
 
     # Create three processors
+    logging.info("[STARTUP] Creating processors...")
     call_webhook_processor = CallWebhookProcessor(fsm)
     dtmf_input_processor = DtmfInputProcessor(fsm)
     call_event_processor = CallEventProcessor(fsm)
+    logging.info("[STARTUP] ✓ Processors created")
+
     # Update FSM refrences
     call_webhook_processor.latest_fsm_id = latest_fsm_id
     dtmf_input_processor.latest_fsm_id = latest_fsm_id
     call_event_processor.latest_fsm_id = latest_fsm_id
+    logging.info("[STARTUP] ✓ FSM references updated")
 
     # Start all processors in the background
-    call_webhook_processor.start_background()
-    dtmf_input_processor.start_background()
-    call_event_processor.start_background()
-    logging.info("Started all call processors.")
+    logging.info("[STARTUP] Starting background processors...")
+    try:
+        task1 = call_webhook_processor.start_background()
+        logging.info(f"[STARTUP] ✓ CallWebhookProcessor started: {task1}")
+        task2 = dtmf_input_processor.start_background()
+        logging.info(f"[STARTUP] ✓ DtmfInputProcessor started: {task2}")
+        task3 = call_event_processor.start_background()
+        logging.info(f"[STARTUP] ✓ CallEventProcessor started: {task3}")
+        logging.info("[STARTUP] ✓✓✓ All processors started successfully ✓✓✓")
+    except Exception as e:
+        logging.error(f"[STARTUP] ✗✗✗ ERROR starting processors: {e}")
+        import traceback
+
+        traceback.print_exc()
+        raise
 
     # # Start background call processor
     # call_processor = CallProcessor(fsm)
@@ -228,9 +247,9 @@ async def startup_event():
         fsm[latest_fsm.fsm_id] = latest_fsm
         latest_fsm_id = latest_fsm.fsm_id
         # fsm = instantitate_from_doc(IVRfsmDoc(**latest_doc))
-        print("Instantiated FSM with id: ", latest_fsm.fsm_id)
+        logging.info(f"Instantiated FSM with id: {latest_fsm.fsm_id}")
     else:
-        print("No FSM found in MongoDB, please call `updateivr` API to create a new FSM object from latest content before calling any APIs")
+        logging.warning("No FSM found in MongoDB, please call `updateivr` API to create a new FSM object from latest content before calling any APIs")
     """
     # fsm[comprehension_fsm.fsm_id] = comprehension_fsm
     # latest_fsm_id = comprehension_fsm.fsm_id
@@ -359,8 +378,9 @@ async def update_ivr(request: Request, response: Response):
     },
 )
 async def call_webhook(request: Request, response: Response):
+    webhook_start_time = time.time()
     logging.info("[WEBHOOK] ========================================")
-    logging.info("[WEBHOOK] Webhook received a request to start IVR")
+    logging.info(f"[WEBHOOK] Webhook received at timestamp: {webhook_start_time}")
     call_data = await request.json()
     logging.info(f"[WEBHOOK] CALL DATA RECEIVED: {call_data}")
     call_status = call_data.get("_su")  # 2 = missed call
@@ -379,10 +399,22 @@ async def call_webhook(request: Request, response: Response):
     logging.info(f"[WEBHOOK] ✓ Logged missed call with ID: {insert_result}")
 
     # send message to service bus to process the call asynchronously
-    logging.info(f"[WEBHOOK] Sending message log_id: {insert_result}")
-    paylod = {"phone_number": phone_number, "call_log_id": str(insert_result)}
-    result = await service_bus_manager.send_call_webhook(payload=paylod)
-    logging.info(f"[WEBHOOK] ✓ Message sent to queue: {result}")
+    logging.info(f"[WEBHOOK] Sending message to call_webhook queue, log_id: {insert_result}")
+    payload = {"phone_number": phone_number, "call_log_id": str(insert_result)}
+    logging.info(f"[WEBHOOK] Payload: {payload}")
+    try:
+        result = await service_bus_manager.send_call_webhook(payload=payload)
+        logging.info(f"[WEBHOOK] ✓ Message send result: {result}")
+        if result:
+            logging.info(f"[WEBHOOK] ✓✓✓ Message successfully sent to queue")
+        else:
+            logging.error(f"[WEBHOOK] ✗✗✗ Message send FAILED - returned False")
+    except Exception as e:
+        logging.error(f"[WEBHOOK] ✗✗✗ Exception sending message: {e}")
+        import traceback
+
+        traceback.print_exc()
+        raise
     logging.info("[WEBHOOK] ========================================")
     response.status_code = STATUS_OK
     return {
@@ -426,7 +458,9 @@ async def start_ivr(
 ):
     global fsm
     try:
-        raw_key = base64.b64decode(settings.vonage_application_private_key64).decode("utf-8")
+        raw_key = base64.b64decode(settings.vonage_application_private_key64).decode(
+            "utf-8"
+        )
         client = vonage.Client(
             application_id=settings.vonage_application_id,
             private_key=raw_key,
@@ -458,7 +492,7 @@ async def start_ivr(
 
             # OTHERWISE DON'T ALLOW THE CALL TO BE STARTED
             else:
-                print("doc found", doc)
+                logging.warning(f"doc found: {doc}")
                 response.status_code = 403
                 return {
                     "status_code": response.status_code,
@@ -474,7 +508,7 @@ async def start_ivr(
         )
 
         # ncco_actions = accumulator.combine([action_factory.get_action_implmentation(x) for x in fsm.get_start_fsm_actions()])
-        print("NCCO:", json.dumps(ncco_actions, indent=2))
+        logging.info(f"NCCO: {json.dumps(ncco_actions, indent=2)}")
 
         vonage_resp = client.voice.create_call(
             {
@@ -485,7 +519,7 @@ async def start_ivr(
             }
         )
         vonage_resp = VonageCallStartResponse(**vonage_resp)
-        print("VONAGE RESPONSE", vonage_resp)
+        logging.info(f"VONAGE RESPONSE: {vonage_resp}")
 
         ivr_call_state = IVRCallStateMongoDoc(
             _id=vonage_resp.conversation_uuid,
@@ -504,7 +538,7 @@ async def start_ivr(
         }
     except Exception as e:
         error_traceback = traceback.format_exc()
-        print(error_traceback)  # Log the traceback for debugging purposes
+        logging.error(f"Error in start_ivr: {error_traceback}")
         response.status_code = 500
         return {
             "status_code": response.status_code,
@@ -537,7 +571,7 @@ async def start_bulk_calls(request: BulkCallRequest):
         phone_numbers = request.phone_numbers
         content_ids = request.content_ids
         # Step 3: Get the FSM using content IDs
-        print(content_ids, phone_numbers)
+        logging.info(f"Content IDs: {content_ids}, Phone numbers: {phone_numbers}")
         radio_fsm = await instantiate_from_content_ids(content_ids=content_ids)
         fsm[radio_fsm.fsm_id] = radio_fsm
 
@@ -557,7 +591,7 @@ async def start_bulk_calls(request: BulkCallRequest):
                 for x in radio_fsm.get_start_fsm_actions()
             ]
         )
-        print("NCCO:", json.dumps(ncco_actions, indent=2))
+        logging.info(f"NCCO: {json.dumps(ncco_actions, indent=2)}")
 
         for phone_number in phone_numbers:
             doc = await ongoing_fsm_mongo.find_one_by_query(
@@ -610,7 +644,7 @@ async def start_bulk_calls(request: BulkCallRequest):
 
             await ongoing_fsm_mongo.insert(ivr_call_state.dict(by_alias=True))
 
-            print(
+            logging.info(
                 f"Call started with conversation UUID: {vonage_resp.conversation_uuid}"
             )
 
@@ -623,7 +657,7 @@ async def start_bulk_calls(request: BulkCallRequest):
 
     except Exception as e:
         error_traceback = traceback.format_exc()
-        print(error_traceback)  # Log the traceback for debugging purposes
+        logging.error(f"Error in start_bulk_calls: {error_traceback}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -670,12 +704,12 @@ def get_answer():
     "/event",
     summary="Handle call events",
     description="""
-    Processes call events from Vonage.
+    Processes call events from Vonage asynchronously via queue.
     Handles various call status updates and forwards them to the appropriate FSM handler.
     """,
     response_model=dict,
     responses={
-        200: {"description": "Event processed successfully"},
+        200: {"description": "Event queued successfully"},
         400: {"description": "Invalid request"},
         500: {"description": "Internal server error"},
     },
@@ -683,57 +717,32 @@ def get_answer():
 async def get_event(req: Request, response: Response):
     try:
         req_data = await req.json()
-        print("Raw REQUEST Data:", req_data)
+        logging.info(f"[EVENT] Raw REQUEST Data: {req_data}")
 
         event_request = EventWebhookRequest(**req_data)
-        print(
-            "EVENT RECEIVED: ",
-            json.dumps(
-                event_request.dict(by_alias=True), cls=CustomJSONEncoder, indent=2
-            ),
+        logging.info(
+            f"[EVENT] EVENT RECEIVED: {json.dumps(event_request.dict(by_alias=True), cls=CustomJSONEncoder, indent=2)}"
         )
-        doc = await ongoing_fsm_mongo.find_by_id(event_request.conversation_uuid)
-        if doc is not None:
-            ivr_state = IVRCallStateMongoDoc(**doc)
-            ivr_state.call_status_updates[event_request.timestamp] = (
-                event_request.status.value
-            )
 
-        if event_request.status in CallStatus.get_end_call_enums():
-            if doc is None:
-                print(
-                    "ERROR: NO ONGOING IVR STATE FOUND FOR CONV ID: ",
-                    event_request.conversation_uuid,
-                )
-                response.status_code = 400
-                return {
-                    "message": f"event received, no ongoing fsm found with id {event_request.conversation_uuid}"
-                }
-
-            ivr_state.stopped_at = datetime.now()
-            ivr_state.duration = event_request.duration
-
-            doc = await ivrv2_logs_mongo.find_by_id(ivr_state.id)
-            if doc is None:
-                await ivrv2_logs_mongo.insert(ivr_state.dict(by_alias=True))
-                await ongoing_fsm_mongo.delete(event_request.conversation_uuid)
-            else:
-                print("DOC ALREADY EXISTS AND DUPLICATE KEY ERROR WOULD BE RAISED")
-                print(doc)
-
-        else:
-            if doc is not None:
-                await ongoing_fsm_mongo.update_document(
-                    ivr_state.id, ivr_state.dict(by_alias=True)
-                )
+        # Send event to queue for async processing
+        payload = {
+            "conversation_uuid": event_request.conversation_uuid,
+            "status": event_request.status.value,
+            "timestamp": event_request.timestamp,
+            "duration": event_request.duration,
+        }
+        await service_bus_manager.send_call_event(payload=payload)
+        logging.info(
+            f"[EVENT] ✓ Event sent to queue for conversation: {event_request.conversation_uuid}"
+        )
 
         response.status_code = 200
-        return {"message": "event received"}
+        return {"message": "event queued for processing"}
     except ValidationError as ve:
         error_traceback = traceback.format_exc()
-        print("Validation error:", ve.errors())
-        print("Request data causing the error:", req_data)
-        print(error_traceback)  # Log the traceback for debugging purposes
+        logging.error(f"Validation error: {ve.errors()}")
+        logging.error(f"Request data causing the error: {req_data}")
+        logging.error(error_traceback)
         response.status_code = 422
         return {
             "error": "Validation error occurred while processing the request.",
@@ -741,7 +750,7 @@ async def get_event(req: Request, response: Response):
         }
     except Exception as e:
         error_traceback = traceback.format_exc()
-        print(error_traceback)  # Log the traceback for debugging purposes
+        logging.error(error_traceback)
         response.status_code = 500
         return {
             "error": "An error occurred while processing the request.",
@@ -802,10 +811,8 @@ async def get_conv_event(req: ConversationRTCWebhookRequest):
                 for action in stream_actions:
                     # IGNORE THE SAS PART OF THE stream URL
                     if req_stream_url.startswith(action.url):
-                        print(
-                            json.dumps(
-                                req.dict(by_alias=True), indent=2, cls=CustomJSONEncoder
-                            )
+                        logging.info(
+                            f"Stream action matched: {json.dumps(req.dict(by_alias=True), indent=2, cls=CustomJSONEncoder)}"
                         )
                         ivr_state.stream_playback.append(
                             StreamPlaybackInfo(
@@ -825,10 +832,8 @@ async def get_conv_event(req: ConversationRTCWebhookRequest):
             should_update = False
             for playback_info in ivr_state.stream_playback:
                 if playback_info.play_id == req_play_id:
-                    print(
-                        json.dumps(
-                            req.dict(by_alias=True), indent=2, cls=CustomJSONEncoder
-                        )
+                    logging.info(
+                        f"Playback stopped: {json.dumps(req.dict(by_alias=True), indent=2, cls=CustomJSONEncoder)}"
                     )
                     playback_info.stopped_at = req.timestamp
                     should_update = True
@@ -845,10 +850,8 @@ async def get_conv_event(req: ConversationRTCWebhookRequest):
             should_update = False
             for playback_info in ivr_state.stream_playback:
                 if playback_info.play_id == req_play_id:
-                    print(
-                        json.dumps(
-                            req.dict(by_alias=True), indent=2, cls=CustomJSONEncoder
-                        )
+                    logging.info(
+                        f"Playback done: {json.dumps(req.dict(by_alias=True), indent=2, cls=CustomJSONEncoder)}"
                     )
                     playback_info.done_at = req.timestamp
                     should_update = True
@@ -887,16 +890,16 @@ async def dtmf(input: Request):
     global fsm
 
     input_data = await input.json()
-    print("INPUT DATA RAW", input_data)
+    logging.info(f"INPUT DATA RAW: {input_data}")
     dtmf_input = DTMFInput(**input_data)
 
     # Process DTMF input synchronously to return NCCO immediately
-    print(f"Received request body: {dtmf_input}")
+    logging.info(f"Received request body: {dtmf_input}")
     digits = dtmf_input.dtmf.digits
     conv_id = dtmf_input.conversation_uuid
     doc = await ongoing_fsm_mongo.find_by_id(conv_id)
     if doc == None:
-        print("ERROR: NO ONGOING IVR STATE FOUND FOR CONV ID: ", conv_id)
+        logging.error(f"ERROR: NO ONGOING IVR STATE FOUND FOR CONV ID: {conv_id}")
         # Talk Action of server error bye bye
         ncco = accumulator.combine(
             [
@@ -911,11 +914,11 @@ async def dtmf(input: Request):
     ivr_state = IVRCallStateMongoDoc(**doc)
 
     fsm_in_progress = fsm[ivr_state.fsm_id]
-    print("IS FSM IN PROGRESS NONE", fsm_in_progress == None)
+    logging.debug(f"IS FSM IN PROGRESS NONE: {fsm_in_progress == None}")
     # PROCESS MULTIPLE USER INPUTS
     input_time = datetime.now()
-    print("CURRENT STATE ID", ivr_state.current_state_id)
-    print("INPUT DIGITS", digits)
+    logging.info(f"CURRENT STATE ID: {ivr_state.current_state_id}")
+    logging.info(f"INPUT DIGITS: {digits}")
     next_actions, next_state_id = None, None
 
     if digits == "":
@@ -955,8 +958,8 @@ async def dtmf(input: Request):
     ncco = accumulator.combine(
         [action_factory.get_action_implmentation(x) for x in next_actions]
     )
-    print("TIME TAKEN TO CREATE NCCO ", time.time() - start)
-    print("NCCO RETURNED FROM INPUT API: ", json.dumps(ncco, indent=2))
+    logging.info(f"TIME TAKEN TO CREATE NCCO: {time.time() - start}")
+    logging.info(f"NCCO RETURNED FROM INPUT API: {json.dumps(ncco, indent=2)}")
     return JSONResponse(ncco)
     # print(f"Received request body: {input}")
     # digits = input.dtmf.digits
