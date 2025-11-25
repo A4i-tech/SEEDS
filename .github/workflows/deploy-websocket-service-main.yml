@@ -1,9 +1,9 @@
 name: Deploy Websocket Service Main
 on:
   push:
-    branches: [a4i/main, final-azure-fix]
+    branches: a4i/main
   pull_request:
-    branches: [a4i/main, final-azure-fix]
+    branches: a4i/main
   workflow_call:
   workflow_dispatch:
 env:

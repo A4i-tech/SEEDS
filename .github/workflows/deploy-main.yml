@@ -2,9 +2,9 @@ name: Deploy Main Services
 
 on:
     push:
-        branches: [a4i/main, final-azure-fix]
+        branches: a4i/main
     pull_request:
-        branches: [a4i/main, final-azure-fix]
+        branches: a4i/main
     workflow_call:
     workflow_dispatch:
 
@@ -101,7 +101,7 @@ jobs:
             - name: Determine environment tag
               id: env-tag
               run: |
-                  if [[ "${{ github.ref }}" == "refs/heads/a4i/main" ]] || [[ "${{ github.ref }}" == "refs/heads/final-azure-fix" ]]; then
+                  if [[ "${{ github.ref }}" == "refs/heads/a4i/main" ]]; then
                     echo "tag=prod" >> $GITHUB_OUTPUT
                   elif [[ "${{ github.ref }}" == "refs/heads/a4i/staging" ]]; then
                     echo "tag=staging" >> $GITHUB_OUTPUT

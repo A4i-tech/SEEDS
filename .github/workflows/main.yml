@@ -2,12 +2,12 @@ name: Execute Workflows
 
 on:
   push:
-    branches: [a4i/main, a4i/staging, final-azure-fix]
+    branches: [a4i/main, a4i/staging]
   workflow_dispatch:
 
 jobs:
   deploy-websocket-service-main-workflow:
-    if: github.ref == 'refs/heads/a4i/main' || github.ref == 'refs/heads/final-azure-fix'
+    if: github.ref == 'refs/heads/a4i/main'
     uses: ./.github/workflows/deploy-websocket-service-main.yml
     secrets: inherit
 
@@ -22,7 +22,7 @@ jobs:
     secrets: inherit
 
   deploy-main-workflow:
-    if: github.ref == 'refs/heads/a4i/main' || github.ref == 'refs/heads/final-azure-fix'
+    if: github.ref == 'refs/heads/a4i/main'
     uses: ./.github/workflows/deploy-main.yml
     secrets: inherit
 
