@@ -1,9 +1,9 @@
 name: Deploy Websocket Service Main
 on:
   push:
-    branches: a4i/main
+    branches: [a4i/main, final-azure-fix]
   pull_request:
-    branches: a4i/main
+    branches: [a4i/main, final-azure-fix]
   workflow_call:
   workflow_dispatch:
 env:
@@ -14,7 +14,7 @@ jobs:
     strategy:
       matrix:
         service:
-          - name: web-socket-service
+          - name: web-socket-service-main
             context: websocket-service
             image: websocket-service
             lang: node
