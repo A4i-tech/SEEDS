@@ -360,8 +360,10 @@
 }
 
 .seed-icon {
-  font-size: 24px;
-  color: #f97316;
+  width: 28px;
+  height: 28px;
+  display: inline-block;
+  object-fit: contain;
 }
 
 .user-info-wrapper {

@@ -43,7 +43,7 @@ const AllContent = () => {
   useEffect(() => {
     const token = localStorage.getItem("authToken");
     const tenantName = localStorage.getItem("tenantName");
-    
+
     if (!token) {
       navigate("/");
       return;
@@ -68,7 +68,6 @@ const AllContent = () => {
       setUpdateIVRStatus("Unable to update IVR right now.");
     }
   };
-
 
   const generateOptions = (contentList) => {
     const languageSet = new Set();
@@ -327,10 +326,16 @@ const AllContent = () => {
 
     setIsLoadingContent(true);
     try {
-      const { data, pagination } = await getAllContent(paginationInfo.nextCursor);
+      const { data, pagination } = await getAllContent(
+        paginationInfo.nextCursor
+      );
       const newItems = data || [];
       if (!newItems.length) {
-        setPaginationInfo({ nextCursor: null, hasMore: false, limit: paginationInfo.limit });
+        setPaginationInfo({
+          nextCursor: null,
+          hasMore: false,
+          limit: paginationInfo.limit,
+        });
         return;
       }
 
@@ -395,12 +400,14 @@ const AllContent = () => {
         <div className="header-card">
           <div className="header-top">
             <div className="header-text">
-              <div className="seed-icon">🌱</div>
+              <img className="seed-icon" src="/seeds-icon.png" alt="SEEDS" />
               <span>SEEDS</span>
             </div>
             <div className="action-group">
               <button
-                className={`nav-link ${activeTab === "content" ? "active" : ""}`}
+                className={`nav-link ${
+                  activeTab === "content" ? "active" : ""
+                }`}
                 onClick={() => setActiveTab("content")}
               >
                 Content
@@ -640,10 +647,7 @@ const AllContent = () => {
             </div>
 
             <div className="ivr-grid">
-              <div
-                className="ivr-card"
-                onClick={() => navigate("/ivr")}
-              >
+              <div className="ivr-card" onClick={() => navigate("/ivr")}>
                 <h3 className="registration-title">IVR Usage</h3>
                 <p className="placeholder-text">
                   Monitor how your IVR tree performs.
@@ -913,10 +917,7 @@ const AllContent = () => {
                             <div className="add-students-section">
                               <strong>Add students (multiple):</strong>
                               {(teacher.newStudents || []).map((s, i) => (
-                                <div
-                                  key={i}
-                                  className="add-students-row"
-                                >
+                                <div key={i} className="add-students-row">
                                   <input
                                     placeholder="Name"
                                     value={s.name}
