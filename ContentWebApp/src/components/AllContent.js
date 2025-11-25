@@ -266,7 +266,7 @@ const AllContent = () => {
 
     updateTeacherState(teacher._id, { submitting: true });
     try {
-      const res = await fetch(`${SEEDS_URL}/teacher/add-students`, {
+      const res = await fetch(`${SEEDS_URL}/v1/teacher/add-students`, {
         method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify({
