@@ -5,6 +5,7 @@ class Constants {
     companion object {
         val BASE_URL: String = BuildConfig.BASE_URL
         val CONTENT_URL: String = BuildConfig.CONTENT_URL
+        val TENANT_NAME: String = BuildConfig.TENANT_NAME
         const val APP_VERSION = "1.0.0"
     }
 }

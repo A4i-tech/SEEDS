@@ -34,6 +34,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import com.google.android.gms.auth.api.credentials.Credential
 import com.google.android.gms.auth.api.credentials.Credentials
 import com.google.android.gms.auth.api.credentials.HintRequest
+import com.google.android.material.textfield.TextInputLayout.END_ICON_NONE
 import android.util.Log
 
 class LoginActivity : AppCompatActivity() {
@@ -50,6 +51,7 @@ class LoginActivity : AppCompatActivity() {
     private lateinit var binding: ActivityLoginBinding
     private lateinit var phoneHintLauncher: ActivityResultLauncher<IntentSenderRequest>
     private var organizations = mutableListOf<Organization>()
+    private var predefinedTenantId: String? = null
 
     @Inject
     lateinit var teacherRepository: TeacherRepository
@@ -57,6 +59,7 @@ class LoginActivity : AppCompatActivity() {
     private val viewModel: CallViewModel by viewModels()
 
     private val LOGIN_URL = Constants.BASE_URL + "/teacher/login"
+    private val REGISTER_URL = Constants.BASE_URL + "/teacher/register"
     private val ORGANIZATIONS_URL = Constants.BASE_URL + "/tenant/names"
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -66,8 +69,8 @@ class LoginActivity : AppCompatActivity() {
 
         val phoneNumberField = binding.editTextPhoneNumber
         val passwordField = binding.editTextPassword
-        val orgDropdown = binding.organizationDropdown
         val loginBtn = binding.phoneNumberLoginBtn
+        val registerBtn = binding.phoneNumberRegisterBtn
 
         // Hint launcher initialization
         phoneHintLauncher =
@@ -88,37 +91,95 @@ class LoginActivity : AppCompatActivity() {
         phoneNumberField.setOnClickListener { requestPhoneNumberHint() }
         phoneNumberField.setOnFocusChangeListener { _, hasFocus -> if (hasFocus) requestPhoneNumberHint() }
 
-        // Fetch organizations and populate the dropdown
-        fetchOrganizations { orgList ->
-            organizations = orgList.toMutableList()
-            val adapter = ArrayAdapter(this, simple_dropdown_item_1line, organizations)
-            runOnUiThread {
-                orgDropdown.setAdapter(adapter)
-            }
+        val predefinedTenantName = Constants.TENANT_NAME // Your tenant name from constants
+
+        if (!predefinedTenantName.isNullOrBlank()) {
+            // SCENARIO 1: Tenant name is pre-configured. Set text and disable the field.
+            binding.organizationLayout.hint = "Organization"
+            binding.organizationDropdown.setText(predefinedTenantName)
+            binding.organizationDropdown.isEnabled = false // Makes it behave like a read-only field
+            binding.organizationLayout.endIconMode = END_ICON_NONE
+        } else {
+            // SCENARIO 2: No pre-configured tenant. Keep it as a selectable dropdown.
+            binding.organizationLayout.hint = "Select Organization"
+            binding.organizationDropdown.isEnabled = true
         }
+
+        fetchOrganizations(predefinedTenantName)
 
         // Login click listener
         loginBtn.setOnClickListener {
             val phoneNumber = phoneNumberField.text.toString().trim()
             val password = passwordField.text.toString().trim()
-            val organizationName = orgDropdown.text.toString().trim()
+            
+            // 1. Get the organization ID. The helper function handles all validation.
+            val organizationId = getSelectedOrganizationId()
 
-            if (phoneNumber.isEmpty() || password.isEmpty() || organizationName.isEmpty()) {
-                Toast.makeText(this, "Please fill all fields and select an organization", Toast.LENGTH_SHORT).show()
+            // 2. If the ID is null, the helper function already showed a toast, so just stop.
+            if (organizationId == null) {
                 return@setOnClickListener
             }
 
-            // Find the selected organization from our list to get its ID
-            val selectedOrganization = organizations.find { it.name == organizationName }
-            if (selectedOrganization == null) {
-                Toast.makeText(this, "Please select a valid organization from the list", Toast.LENGTH_SHORT).show()
+            // 3. Check the other fields.
+            if (phoneNumber.isEmpty() || password.isEmpty()) {
+                Toast.makeText(this, "Please fill phone number and password", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
-            // Call the login function with the ID
-            loginWithPhoneNumber(phoneNumber, password, selectedOrganization.id)
+            // 4. Call the login function with the ID directly.
+            loginWithPhoneNumber(phoneNumber, password, organizationId)
         }
 
+        // Register click listener
+        registerBtn.setOnClickListener {
+            val phoneNumber = phoneNumberField.text.toString().trim()
+            val password = passwordField.text.toString().trim()
+            
+            // 1. Get the organization ID.
+            val organizationId = getSelectedOrganizationId()
+
+            // 2. If the ID is null, stop.
+            if (organizationId == null) {
+                return@setOnClickListener
+            }
+
+            // 3. Check the other fields.
+            if (phoneNumber.isEmpty() || password.isEmpty()) {
+                Toast.makeText(this, "Please fill phone number and password", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            
+            // 4. Call the register function with the ID directly.
+            registerTenant(phoneNumber, password, organizationId)
+        }
+    }
+
+    private fun getSelectedOrganizationId(): String? {
+        val predefinedTenantName = Constants.TENANT_NAME
+
+        return if (!predefinedTenantName.isNullOrBlank()) {
+            // SCENARIO 1: Return the pre-fetched ID
+            if (predefinedTenantId == null) {
+                Toast.makeText(this, "Organization is not configured correctly.", Toast.LENGTH_SHORT).show()
+                null
+            } else {
+                predefinedTenantId
+            }
+        } else {
+            // SCENARIO 2: Get the ID from the user's dropdown selection
+            val organizationName = binding.organizationDropdown.text.toString().trim()
+            if (organizationName.isEmpty()) {
+                Toast.makeText(this, "Please select an organization", Toast.LENGTH_SHORT).show()
+                return null
+            }
+            val selectedOrganization = organizations.find { it.name == organizationName }
+            if (selectedOrganization == null) {
+                Toast.makeText(this, "Please select a valid organization", Toast.LENGTH_SHORT).show()
+                null
+            } else {
+                selectedOrganization.id
+            }
+        }
     }
 
     private fun requestPhoneNumberHint() {
@@ -137,25 +198,21 @@ class LoginActivity : AppCompatActivity() {
         }
     }
 
-    private fun fetchOrganizations(onResult: (List<Organization>) -> Unit) {
+    private fun fetchOrganizations(predefinedTenantName: String?) {
         val client = OkHttpClient()
-        val request = Request.Builder()
-            .url(ORGANIZATIONS_URL)
-            .get()
-            .build()
+        val request = Request.Builder().url(ORGANIZATIONS_URL).get().build()
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 runOnUiThread {
                     Toast.makeText(this@LoginActivity, "Failed to load organizations", Toast.LENGTH_SHORT).show()
                 }
-                onResult(emptyList())
             }
 
             override fun onResponse(call: Call, response: Response) {
-                val body = response.body()?.string() ?: ""
-                if (!response.isSuccessful || body.isBlank()) {
-                    onResult(emptyList())
+                val body = response.body()?.string()
+                if (!response.isSuccessful || body.isNullOrBlank()) {
+                    // Handle error, maybe disable login/register
                     return
                 }
 
@@ -164,16 +221,69 @@ class LoginActivity : AppCompatActivity() {
                     val jsonArray = JSONArray(body)
                     for (i in 0 until jsonArray.length()) {
                         val obj = jsonArray.getJSONObject(i)
-                        val orgId = obj.optString("id", "")
-                        val orgName = obj.optString("tenantName", "")
-                        if (orgId.isNotEmpty() && orgName.isNotEmpty()) {
-                            orgs.add(Organization(orgId, orgName))
+                        orgs.add(Organization(obj.getString("id"), obj.getString("tenantName")))
+                    }
+
+                    runOnUiThread {
+                        if (!predefinedTenantName.isNullOrBlank()) {
+                            // SCENARIO 1: Find the ID that matches the pre-configured name
+                            val tenant = orgs.find { it.name.equals(predefinedTenantName, ignoreCase = true) }
+                            if (tenant != null) {
+                                predefinedTenantId = tenant.id
+                            } else {
+                                Toast.makeText(this@LoginActivity, "Configured organization '$predefinedTenantName' not found.", Toast.LENGTH_LONG).show()
+                                binding.phoneNumberLoginBtn.isEnabled = false
+                                binding.phoneNumberRegisterBtn.isEnabled = false
+                            }
+                        } else {
+                            // SCENARIO 2: Populate the dropdown for the user to select from
+                            organizations = orgs
+                            val adapter = ArrayAdapter(this@LoginActivity, simple_dropdown_item_1line, organizations)
+                            binding.organizationDropdown.setAdapter(adapter)
                         }
                     }
-                    onResult(orgs)
                 } catch (e: Exception) {
                     e.printStackTrace()
-                    onResult(emptyList())
+                }
+            }
+        })
+    }
+
+    private fun registerTenant(phoneNumber: String, password: String, organizationId: String) {
+        val client = OkHttpClient()
+        val json = JSONObject().apply {
+            put("phoneNumber", phoneNumber)
+            put("password", password)
+            put("tenantId", organizationId)
+        }
+
+        val body = RequestBody.create(
+            MediaType.parse("application/json; charset=utf-8"),
+            json.toString()
+        )
+
+        val registerRequest = Request.Builder()
+            .url(REGISTER_URL)
+            .post(body)
+            .build()
+
+        Log.d("REGISTER_DEBUG", "URL: $REGISTER_URL")
+        Log.d("REGISTER_DEBUG", "Payload: ${json.toString()}")
+        
+        client.newCall(registerRequest).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                runOnUiThread {
+                    Toast.makeText(this@LoginActivity, "Network error during registration", Toast.LENGTH_SHORT).show()
+                }
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                runOnUiThread {
+                    if (response.isSuccessful) {
+                        Toast.makeText(this@LoginActivity, "Registration successful! Please login.", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this@LoginActivity, "Registration failed: ${response.message()}", Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
         })
