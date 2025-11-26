@@ -31,18 +31,20 @@ class AddStudentsFragment : BaseFragment() {
         // Inflate the layout for this fragment
         binding = FragmentAddStudentsBinding.inflate(inflater)
         binding.lifecycleOwner = viewLifecycleOwner
-        binding.myStudentsList.adapter = CheckboxNameListAdapter()
-        (binding.myStudentsList.adapter as CheckboxNameListAdapter).submitList(viewModel.studentsNotOnCall)
+        val adapter = CheckboxNameListAdapter()
+        binding.myStudentsList.adapter = adapter
         binding.viewModel = viewModel
+
+        viewModel.students.observe(viewLifecycleOwner) { students ->
+            adapter.submitList(students)
+        }
 
         binding.addStudentsBtn.setOnClickListener {
             logMessage("""Students added to call: 
             ${(binding.myStudentsList.adapter as CheckboxNameListAdapter).usersInGroup}""")
 
             (binding.myStudentsList.adapter as CheckboxNameListAdapter).usersInGroup.map { phoneNumber ->
-                val name = viewModel.args.classroom.students.filter {
-                    it.phoneNumber == phoneNumber
-                }[0].name
+                val name = viewModel.getStudentName(phoneNumber)
                 Log.d("ADDSTUDENTSFRAGMENT", "Name: $name, Phone: $phoneNumber")
                 viewModel.connectParticipant(name, phoneNumber)
             }

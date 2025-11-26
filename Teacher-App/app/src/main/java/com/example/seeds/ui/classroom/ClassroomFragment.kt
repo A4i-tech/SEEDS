@@ -3,8 +3,6 @@ package com.example.seeds.ui.classroom
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
-import android.util.Log
-import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -14,13 +12,12 @@ import com.example.seeds.R
 import com.example.seeds.adapters.ClassroomListAdapter
 import com.example.seeds.databinding.FragmentClassroomBinding
 import com.example.seeds.model.Classroom
-import com.example.seeds.model.Content
 import com.example.seeds.ui.BaseFragment
-import com.example.seeds.ui.createclassroom.CreateClassroomFragmentArgs
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class ClassroomFragment : BaseFragment() {
+
     private val viewModel: ClassroomViewModel by viewModels()
     override var bottomNavigationViewVisibility = View.VISIBLE
     private lateinit var binding: FragmentClassroomBinding
@@ -28,59 +25,127 @@ class ClassroomFragment : BaseFragment() {
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {
-        binding = FragmentClassroomBinding.inflate(layoutInflater)
-        binding.viewModel = viewModel
+    ): View {
+        binding = FragmentClassroomBinding.inflate(inflater, container, false)
         binding.lifecycleOwner = viewLifecycleOwner
+        binding.viewModel = viewModel
 
-        binding.myClassroomsList.adapter = ClassroomListAdapter(ClassroomListAdapter.OnClickListener{
-            logMessage("Classroom clicked: ${it._id} - ${it.name}")
-            findNavController().navigate(ClassroomFragmentDirections.actionClassroomFragmentToCallSettingsFragment(it))
-        })
-
-        binding.searchTextBox.addTextChangedListener(object: TextWatcher {
-            override fun beforeTextChanged(p0: CharSequence?, p1: Int, p2: Int, p3: Int) {}
-            override fun onTextChanged(p0: CharSequence?, p1: Int, p2: Int, p3: Int) {}
-            override fun afterTextChanged(p0: Editable?) {
-                val text = binding.searchTextBox.text.toString().lowercase()
-                if(text.isNotEmpty()){
-                    logMessage("Classroom search text: $text")
-                     val filteredList = viewModel.classrooms.value?.toMutableList()?.filter {
-                         it.name.lowercase().contains(text)
-                     }
-                    (binding.myClassroomsList.adapter as ClassroomListAdapter).submitList(filteredList)
-                    if(filteredList != null){
-                        if(filteredList.isNotEmpty()){ binding.noGroupsFoundText.visibility = View.INVISIBLE }
-                        else{ binding.noGroupsFoundText.visibility = View.VISIBLE }
-                    }
-                } else {
-                    binding.noGroupsFoundText.visibility = View.INVISIBLE
-                    (binding.myClassroomsList.adapter as ClassroomListAdapter).submitList(viewModel.classrooms.value)
-                }
-            }
-        })
-
-        binding.createClassroomBtn.setOnClickListener {
-            logMessage("Create classroom button clicked")
-            val emptyClassroom = Classroom.getNewClassroom()
-            findNavController()
-            .navigate(ClassroomFragmentDirections
-            .actionClassroomFragmentToCreateClassroomFragment(emptyClassroom))
-        }
+        setupRecyclerView()
+        setupSearchBox()
+        setupListeners()
+        setupObservers()
 
         return binding.root
     }
 
-    override fun onStart() {
-        viewModel.refreshClassrooms()
-        //scroll to the top
-        logMessage("onStart")
-        binding.searchTextBox.setText("")
-        super.onStart()
+    private fun setupRecyclerView() {
+        val adapter = ClassroomListAdapter(ClassroomListAdapter.OnClickListener { classroom ->
+            navigateToCallSettings(classroom)
+        })
+        binding.myClassroomsList.adapter = adapter
     }
 
-    override fun onStop() {
-        logMessage("onStop")
-        super.onStop()
+    private fun setupListeners() {
+        binding.createClassroomBtn.setOnClickListener {
+            val emptyClassroom = Classroom.getNewClassroom()
+            findNavController().navigate(
+                ClassroomFragmentDirections.actionClassroomFragmentToCreateClassroomFragment(emptyClassroom)
+            )
+        }
+    }
+
+    private fun setupObservers() {
+        // List Observer
+        viewModel.classrooms.observe(viewLifecycleOwner) { list ->
+            (binding.myClassroomsList.adapter as? ClassroomListAdapter)?.submitList(list)
+            if (binding.searchTextBox.text.isNullOrEmpty()) {
+                updateEmptyState(list.isNullOrEmpty())
+            }
+        }
+
+        viewModel.navigateToCallSettings.observe(viewLifecycleOwner) { classroom ->
+            if (classroom != null) {
+                navigateToCallSettings(classroom)
+                viewModel.onNavigationComplete()
+            }
+        }
+
+        viewModel.navigateToCall.observe(viewLifecycleOwner) { classroom ->
+            if (classroom != null) {
+                logMessage("Directly resuming call for: ${classroom.name}")
+                val phoneNumbers = classroom.students?.map { it.phoneNumber }?.toTypedArray() ?: emptyArray()
+                
+                findNavController().navigate(
+                    ClassroomFragmentDirections.actionClassroomFragmentToCallNav(
+                        phoneNumbers,
+                        classroom,
+                    )
+                )
+                viewModel.onNavigationComplete()
+            }
+        }
+
+         viewModel.navigateToContentDetails.observe(viewLifecycleOwner) { content ->
+            if (content != null) {
+                logMessage("Resuming content: ${content.titleText}")
+                
+                // Navigate to the Standalone Player (ContentDetailsFragment)
+                // Ensure this action exists in your Navigation Graph!
+                findNavController().navigate(
+                   ClassroomFragmentDirections.actionClassroomFragmentToContentDetailsFragment(content)
+                )
+                viewModel.onNavigationComplete()
+            }
+        }
+
+        // 2. Choose Audio (New - Optional, goes to Home/Library)
+        viewModel.navigateToLibrary.observe(viewLifecycleOwner) { shouldNavigate ->
+            if (shouldNavigate) {
+                findNavController().navigate(R.id.homeFragment)
+                viewModel.onNavigationComplete()
+            }
+        }
+
+        viewModel.errorMessage.observe(viewLifecycleOwner) { error ->
+            if (!error.isNullOrEmpty()) logMessage("Error: $error")
+        }
+    }
+
+    private fun setupSearchBox() {
+        binding.searchTextBox.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                val searchText = s.toString().lowercase().trim()
+                val currentList = viewModel.classrooms.value ?: emptyList()
+
+                if (searchText.isNotEmpty()) {
+                    val filteredList = currentList.filter {
+                        it.name.lowercase().contains(searchText)
+                    }
+                    (binding.myClassroomsList.adapter as? ClassroomListAdapter)?.submitList(filteredList)
+                    updateEmptyState(filteredList.isEmpty())
+                } else {
+                    (binding.myClassroomsList.adapter as? ClassroomListAdapter)?.submitList(currentList)
+                    updateEmptyState(currentList.isEmpty())
+                }
+            }
+        })
+    }
+
+    private fun updateEmptyState(isEmpty: Boolean) {
+        binding.noGroupsFoundText.visibility = if (isEmpty) View.VISIBLE else View.INVISIBLE
+    }
+
+    private fun navigateToCallSettings(classroom: Classroom) {
+        findNavController().navigate(
+            ClassroomFragmentDirections.actionClassroomFragmentToCallSettingsFragment(classroom)
+        )
+    }
+
+    override fun onStart() {
+        super.onStart()
+        viewModel.refreshClassrooms()
+        binding.searchTextBox.setText("")
     }
 }

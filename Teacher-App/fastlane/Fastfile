@@ -14,6 +14,7 @@ platform :android do
       properties: {
         "BASE_URL" => ENV['BASE_URL'],
         "CONTENT_URL" => ENV['CONTENT_URL']
+        "TENAT_NAME" => ENV['TENANT_NAME']
       }
     )
 

@@ -1,0 +1,605 @@
+.page {
+  min-height: 100vh;
+  background-color: #f4f6f8;
+  padding: 32px 24px 48px;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.header-card {
+  background-color: #ffffff;
+  border-radius: 0;
+  padding: 16px 32px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+}
+
+.header-top {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 32px;
+  flex: 1;
+}
+
+.header-text {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.greeting {
+  font-size: 14px;
+  color: #8f9bb3;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.title {
+  font-size: 32px;
+  color: #0f172a;
+  font-weight: 700;
+  margin: 0;
+}
+
+.subtitle {
+  font-size: 15px;
+  color: #64748b;
+  margin: 0;
+}
+
+.action-group {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+}
+
+.nav-link {
+  background: none;
+  border: none;
+  padding: 8px 4px;
+  font-size: 15px;
+  font-weight: 500;
+  color: #64748b;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.nav-link.active {
+  font-weight: 600;
+  color: #0f172a;
+  border-bottom: 2px solid #0f172a;
+}
+
+.user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-color: #1d4ed8;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.user-dropdown-container {
+  position: relative;
+}
+
+.user-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  min-width: 180px;
+  z-index: 1000;
+  overflow: hidden;
+  padding: 4px; /* remove outer padding so spacing is inside items */
+  font-size: 18px;
+}
+
+.dropdown-item {
+  margin: 0; /* reset margin for consistent sizing */
+  padding: 10px 16px; /* consistent vertical padding */
+  font-size: 18px; /* normalized size */
+  line-height: 1.2;
+  color: #0f172a;
+  cursor: pointer;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background-color 0.2s;
+  box-sizing: border-box;
+  min-height: 40px; /* ensure consistent height and vertical centering */
+}
+
+.dropdown-item:hover {
+  background-color: #f8fafc;
+}
+
+.dropdown-item.with-border {
+  /* keep class for compatibility but don't rely on it for separator */
+  margin-top: 0;
+}
+
+/* consistent separator between items */
+.dropdown-item + .dropdown-item {
+  border-top: 1px solid #e2e8f0;
+}
+
+.primary-button {
+  border: none;
+  border-radius: 12px;
+  padding: 12px 20px;
+  background-color: #0f172a;
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.secondary-button {
+  border: none;
+  border-radius: 12px;
+  padding: 12px 20px;
+  background-color: #1d4ed8;
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.action-ghost-button {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 20px;
+  background-color: #ffffff;
+  color: #0f172a;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tabs-container {
+  display: flex;
+  gap: 8px;
+  background-color: #e2e8f0;
+  border-radius: 999px;
+  padding: 6px;
+  align-self: flex-start;
+  flex-wrap: wrap;
+}
+
+.tab-button {
+  border: none;
+  border-radius: 999px;
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  background-color: transparent;
+  color: #475569;
+  cursor: pointer;
+}
+
+.tab-button.active {
+  background-color: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
+  cursor: default;
+}
+
+.card {
+  background-color: #ffffff;
+  border-radius: 20px;
+  padding: 28px;
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
+}
+
+.card-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.card-title {
+  font-size: 22px;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.card-description {
+  font-size: 15px;
+  color: #64748b;
+}
+
+.filter-wrapper {
+  margin-top: 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 16px;
+  background-color: #f8fafc;
+}
+
+.table-wrapper {
+  margin-top: 24px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.content-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table-header {
+  background-color: #0f172a;
+  color: #ffffff;
+  text-align: left;
+  padding: 14px 16px;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}
+
+.table-cell {
+  padding: 16px;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.action-button-base {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.action-button-edit {
+  background-color: #eab308;
+  color: #1f2937;
+}
+
+.action-button-view {
+  background-color: #0ea5e9;
+}
+
+.action-button-delete {
+  background-color: #ef4444;
+}
+
+.ivr-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.ivr-card {
+  background-color: #0f172a;
+  color: #ffffff;
+  border-radius: 18px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.ivr-card.blue {
+  background-color: #1d4ed8;
+}
+
+.ivr-card.green {
+  background-color: #047857;
+}
+
+.label {
+  font-size: 14px;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.status-message {
+  font-size: 14px;
+  color: #16a34a;
+  padding: 12px 32px;
+}
+
+.no-content {
+  padding: 32px;
+  text-align: center;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.button-group {
+  display: flex;
+  gap: 12px;
+}
+
+.button-add-content {
+  background-color: #059669;
+}
+
+.filter-label {
+  margin-bottom: 8px;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.table-row-white {
+  background-color: #ffffff;
+}
+
+.table-cell-secondary {
+  color: #94a3b8;
+}
+
+.action-buttons-wrapper {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.seed-icon {
+  width: 28px;
+  height: 28px;
+  display: inline-block;
+  object-fit: contain;
+}
+
+.user-info-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.welcome-text {
+  font-size: 14px;
+  color: #64748b;
+}
+
+.registration-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 20px;
+  background-color: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.registration-title {
+  margin: 0;
+  color: #000000;
+}
+
+.ivr-card .registration-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+  line-height: 1.2;
+  color: #ffffff;
+}
+
+.ivr-card .placeholder-text {
+  font-size: 14px;
+  color: #e6eaf2;
+}
+
+.input-field {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid #cbd5f5;
+  background-color: #ffffff;
+  padding: 12px;
+  font-size: 15px;
+}
+
+.full-width-button {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.success-message {
+  color: #16a34a;
+  font-size: 13px;
+  margin: 0;
+}
+
+.teachers-section {
+  margin-top: 24px;
+}
+
+.teachers-section-title {
+  margin-bottom: 12px;
+  color: #0f172a;
+}
+
+.no-teachers {
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 24px;
+  text-align: center;
+  color: #94a3b8;
+}
+
+.teachers-layout {
+  display: flex;
+  gap: 16px;
+}
+
+.teachers-list-pane {
+  width: 320px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff;
+  max-height: 560px;
+  overflow-y: auto;
+}
+
+.teachers-list-title {
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.teachers-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.teacher-list-item {
+  margin-bottom: 8px;
+}
+
+.teacher-button {
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+}
+
+.teacher-button.selected {
+  background: #e6eefc;
+}
+
+.teacher-details-pane {
+  flex: 1;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff;
+  max-height: 560px;
+  overflow-y: auto;
+}
+
+.teacher-details-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.students-title {
+  font-weight: 700;
+}
+
+.teacher-info-text {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.students-section {
+  margin-top: 12px;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.students-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.students-table th {
+  text-align: left;
+  padding: 8px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.students-table td {
+  padding: 8px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.no-students-cell {
+  padding: 12px;
+  color: #94a3b8;
+}
+
+.add-students-section {
+  margin-top: 12px;
+}
+
+.add-students-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  align-items: center;
+}
+
+.add-students-input {
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.add-students-buttons {
+  margin-top: 12px;
+}
+
+.button-ml-8 {
+  margin-left: 8px;
+}
+
+.placeholder-text {
+  color: #94a3b8;
+}
+
+.registration-flex-card {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Skeleton loading styles */
+.skeleton-row td.skeleton-cell {
+  padding: 18px;
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s linear infinite;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}

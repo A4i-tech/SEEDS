@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.seeds.model.Content
 import com.example.seeds.repository.ContentRepository
+import com.example.seeds.repository.UserPreferencesRepository // <--- 1. Import This
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -13,10 +14,11 @@ import javax.inject.Inject
 @HiltViewModel
 class ContentDetailsViewModel @Inject constructor(
     val savedStateHandle: SavedStateHandle,
-    val contentRepository: ContentRepository
+    val contentRepository: ContentRepository,
+    private val userPreferencesRepository: UserPreferencesRepository // <--- 2. Inject This
 ) : ViewModel() {
 
-    // Get current content from navigation args (same as before)
+    // Get current content from navigation args
     val content = ContentDetailsFragmentArgs.fromSavedStateHandle(savedStateHandle).content
 
     // Observable content (current item displayed). Initialize with the nav-arg content.
@@ -27,20 +29,26 @@ class ContentDetailsViewModel @Inject constructor(
     val contentUrl: MutableLiveData<String?>
         get() = _contentUrl
 
-    // Optional: store list of contents if loaded in advance (from pagination); caller can provide it
+    // Optional: store list of contents if loaded in advance
     private val contentsList = mutableListOf<Content>()
     private var currentIndex = 0
 
     fun setContents(contents: List<Content>) {
         contentsList.clear()
         contentsList.addAll(contents)
-        // Find current index based on currentContent (nav-arg)
         currentIndex = contentsList.indexOfFirst { it.id == currentContent.value?.id }
         if (currentIndex < 0) currentIndex = 0
     }
 
     fun refreshContentUrl() {
         val content = currentContent.value ?: return
+
+        // <--- 3. SAVE TO HISTORY HERE ---
+        // Whenever we prepare the URL (which happens on load and next page), we save state.
+        viewModelScope.launch {
+            userPreferencesRepository.saveLastPlayedContent(content)
+        }
+        // ------------------------------
 
         // Prefer the first audioContent entry if available
         val src = when {
@@ -63,16 +71,15 @@ class ContentDetailsViewModel @Inject constructor(
 
     /**
      * Move to next content from the provided contentsList. Returns true if moved.
-     * Caller must call setContents(...) before using this if relying on a list.
      */
     fun loadNextContent(): Boolean {
         if (contentsList.isEmpty()) return false
         if (currentIndex >= contentsList.size - 1) return false
         currentIndex++
         currentContent.value = contentsList[currentIndex]
-        refreshContentUrl()
+        
+        // This will trigger the save logic inside refreshContentUrl again for the new page
+        refreshContentUrl() 
         return true
     }
 }
-
-

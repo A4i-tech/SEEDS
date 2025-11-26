@@ -1,12 +1,10 @@
 import { useState } from "react";
 import AddQuiz from "./AddQuiz";
 import AddStory from "./AddStory";
-import { useLocation } from "react-router-dom";
 
 const AddContent = () => {
   const [experience, setExperience] = useState("Story");
 
-  const location = useLocation();
 
   const handleChange = (event) => {
     setExperience(event.target.value);

@@ -1,8 +1,11 @@
 package com.example.seeds.ui.call
 
+import com.google.gson.Gson
+import kotlinx.coroutines.flow.first
 import NetworkConnectivityLiveData
 import android.app.Application
 import android.content.Context
+import android.content.SharedPreferences
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkRequest
@@ -10,6 +13,7 @@ import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.Transformations 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.seeds.model.AccessToken
@@ -20,17 +24,23 @@ import com.example.seeds.model.ConferenceCreateRequest
 import com.example.seeds.model.Content
 import com.example.seeds.model.Student
 import com.example.seeds.model.StudentCallStatus
+import com.example.seeds.model.PlayerState
+import com.example.seeds.model.SessionHistoryItem
 import com.example.seeds.network.SeedsService
 import com.example.seeds.network.asDomainModel
 import com.example.seeds.repository.ClassroomRepository
 import com.example.seeds.repository.ContentRepository
 import com.example.seeds.repository.TeacherRepository
+import com.example.seeds.repository.UserPreferencesRepository
+import com.example.seeds.repository.TeacherStudentsDirectory
+// import com.example.seeds.repository.UserPreferencesRepository
 import com.example.seeds.utils.Constants
-import com.example.seeds.utils.ContactUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive 
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import okhttp3.Response
@@ -39,6 +49,13 @@ import okhttp3.WebSocketListener
 import okio.ByteString
 import javax.inject.Inject
 import android.content.SharedPreferences
+
+const val SOCKET_CLOSE = 1000   
+const val THREAD_SLEEP_TIME = 5000L
+const val DELAY_FOR_VIEW_MODEL = 180000L
+const val DELAY_FOR_LAUNCH = 120000L
+const val POLLING_INTERVAL_MS = 5000L 
+
 
 const val SOCKET_CLOSE = 1000   
 const val THREAD_SLEEP_TIME = 5000L
@@ -56,14 +73,15 @@ class CallViewModel @Inject constructor(
 //    @ApplicationContext private val context: Context,
     private val sharedPreferences: SharedPreferences,
     private val teacherRepository: TeacherRepository,
+    private val teacherStudentsDirectory: TeacherStudentsDirectory,
     private val contentRepository: ContentRepository,
     private val classroomRepository: ClassroomRepository,
+    private val userPreferencesRepository: UserPreferencesRepository
 //    val networkConnectivityLiveData: NetworkConnectivityLiveData
     ) : ViewModel(){
 
     private val TAG = "CallViewModel_LOG"
 
-    private val contactUtils = ContactUtils(context)
     private val conferenceUrl = Constants.CONTENT_URL
     val args = CallFragmentArgs.fromSavedStateHandle(savedStateHandle)
 
@@ -72,6 +90,7 @@ class CallViewModel @Inject constructor(
     private var callStarted = false
     private var phoneNumbers: List<String> = args.phoneNumbers.toMutableList()
     private var allStudents = listOf<Student>()
+    private var teacherStudentsMap: Map<String, Student> = emptyMap()
     private lateinit var token: AccessToken
     private var cancelCallOnFailure: Job? = null
     private var knownStateVersion = 0
@@ -84,6 +103,7 @@ class CallViewModel @Inject constructor(
 
     private val client =  OkHttpClient()
     private lateinit var socket: WebSocket
+    private val gson = Gson()
 
     private val _callToken = MutableLiveData<AccessToken>()
     val callToken: LiveData<AccessToken>
@@ -113,7 +133,7 @@ class CallViewModel @Inject constructor(
     val isAudioControlDone: LiveData<Boolean>
         get() = _isAudioControlDone
 
-    private val _students = MutableLiveData<List<Student>>()
+    private val _students = MutableLiveData<List<Student>>(emptyList())
     val students: LiveData<List<Student>>
         get() = _students
 
@@ -180,7 +200,7 @@ class CallViewModel @Inject constructor(
             _isErrorFromIVR.postValue("Error: Classroom data is missing.")
             _navigateBack.postValue(true)
         } else {
-
+            // 1. Setup Initial Students State
             val initialCallStatuses = args.classroom.students.map { student ->
                 StudentCallStatus(
                     name = student.name,
@@ -192,8 +212,10 @@ class CallViewModel @Inject constructor(
                 )
             }
             _callState.postValue(initialCallStatuses)
+            updateStudentsNotOnCall(initialCallStatuses)
 
             getAccessToken()
+
             viewModelScope.launch {
                 val allContentList = mutableListOf<Content>()
                 var nextCursor: String? = null
@@ -218,6 +240,40 @@ class CallViewModel @Inject constructor(
                 _experiences.value = filteredListContent.map { it.type.lowercase() }.distinct().map {
                     it.capitalize()
                 }
+
+                // --- DEBUG RESTORE LOGIC ---
+                try {
+                    val prefs = userPreferencesRepository.userPrefs.first()
+                    
+                    Log.d("RESTORE_DEBUG", "Current Classroom ID: ${args.classroom._id}")
+                    Log.d("RESTORE_DEBUG", "Saved Classroom ID:   ${prefs.lastClassroomId}")
+                    Log.d("RESTORE_DEBUG", "Saved JSON Length:    ${prefs.lastContentJson.length}")
+
+                    // Check IDs match
+                    if (prefs.lastClassroomId == args.classroom._id) {
+                        if (prefs.lastContentJson.isNotEmpty()) {
+                            val savedContent = gson.fromJson(prefs.lastContentJson, Content::class.java)
+                            if (savedContent != null) {
+                                Log.d("RESTORE_DEBUG", "SUCCESS: Restoring content: ${savedContent.titleText}")
+                                
+                                // Update LiveData for observers
+                                _selectedContent.value = savedContent
+                                
+                                // Update local variable just in case UI uses it directly
+                                content = savedContent 
+                            } else {
+                                Log.e("RESTORE_DEBUG", "Failed: Parsed content is null")
+                            }
+                        } else {
+                            Log.w("RESTORE_DEBUG", "Failed: JSON is empty. (Did you play audio in the last session?)")
+                        }
+                    } else {
+                        Log.w("RESTORE_DEBUG", "Failed: IDs do not match.")
+                    }
+                } catch (e: Exception) {
+                    Log.e("RESTORE_DEBUG", "Exception during restore", e)
+                }
+                // ---------------------------
             }
         } 
 
@@ -268,6 +324,8 @@ class CallViewModel @Inject constructor(
 
                 val confId = response.id
                 Log.d("CONF_ID", "Created conference ID: $confId")
+
+                saveCallStateToPrefs(confId)
                 startCall(confId)
 
             } catch (e: Exception) {
@@ -356,7 +414,9 @@ class CallViewModel @Inject constructor(
                                             }
 
                                         Log.d("POLLING_DEBUG", ">>> POSTING Student List to UI: $newStudentList")
-                                        _callState.postValue(newStudentList.sortedByDescending { it.raiseHand })
+                                        val sortedList = newStudentList.sortedByDescending { it.raiseHand }
+                                        _callState.postValue(sortedList)
+                                        updateStudentsNotOnCall(sortedList)
 
                                         Log.d("POLLING_DEBUG", "------------------------------------------------------------------\n")
                                     }
@@ -400,6 +460,34 @@ class CallViewModel @Inject constructor(
         }
     }
 
+    private fun saveCallStateToPrefs(confId: String) {
+        viewModelScope.launch {
+            val activeStudentIds = args.classroom?.students
+                ?.filter { phoneNumbers.contains(it.phoneNumber) }
+                ?.map { it.phoneNumber } 
+                ?.toSet() ?: emptySet()
+
+            val classroomId = args.classroom?._id ?: ""
+            val classroomName = args.classroom?.name ?: ""
+
+            userPreferencesRepository.saveLastCallDetails(
+                conferenceId = confId,
+                classroomId = classroomId,
+                classroomName = classroomName,
+                studentIds = activeStudentIds
+            )
+
+            val historyItem = SessionHistoryItem(
+                groupId = classroomId,
+                groupName = classroomName,
+                timestamp = System.currentTimeMillis(),
+                wasConference = true,
+                studentCount = activeStudentIds.size
+            )
+            userPreferencesRepository.addSessionToHistory(historyItem)
+        }
+    }
+
     fun endCall() {
         Log.d("CALL_END", "endCall() called")
 
@@ -429,7 +517,8 @@ class CallViewModel @Inject constructor(
 
                 if (response.isSuccessful) {
                     Log.d("CALL_END", "Conference ended successfully!")
-
+                    
+                    userPreferencesRepository.clearSession()
                     _navigateBack.postValue(true)
 
                 } else {
@@ -466,10 +555,12 @@ class CallViewModel @Inject constructor(
 
     fun refreshCallState() {
         viewModelScope.launch {
-            val callStatus = network.getCallStatus(_callToken.value!!.confId).asDomainModel(contactUtils)
-            val networkCallState = callStatus.participants
-            Log.d("STATEOFCALL", callStatus.toString())
-            val serverAudioState = callStatus.audio.state 
+            try {
+                teacherStudentsMap = teacherStudentsDirectory.studentsByPhone()
+                val callStatus = network.getCallStatus(_callToken.value!!.confId).asDomainModel(teacherStudentsMap)
+                val networkCallState = callStatus.participants
+                Log.d("STATEOFCALL", callStatus.toString())
+                val serverAudioState = callStatus.audio.state 
             val newPlayerState = when (serverAudioState) {
                 "play" -> PlayerState.PLAYING
                 "pause" -> PlayerState.PAUSED
@@ -480,25 +571,52 @@ class CallViewModel @Inject constructor(
                 _playerState.postValue(newPlayerState)
             }
 
-            Log.d("AUDIOCONTROLNETWORK", callStatus.audio.toString())
-            _callState.postValue(networkCallState.sortedByDescending { it.raiseHand })
-            Log.d("REFRESHED NETWORK CALL STATE", networkCallState.toString())
-            _teacherCallStatus.postValue(networkCallState.find {it.phoneNumber == teacherPhoneNumber})
-            Log.d("TEACHERCALLSTATUS", _teacherCallStatus.value.toString())
-            studentsNotOnCall = allStudents.filter { stu ->
-                networkCallState.find { stu.phoneNumber == it.phoneNumber } == null
-                        || when(networkCallState.find { stu.phoneNumber == it.phoneNumber }?.callerState) {
-                                CallerState.COMPLETED, 
-                                CallerState.FAILED, 
-                                CallerState.REJECTED, 
-                                CallerState.CANCELLED, 
-                                CallerState.UNANSWERED, 
-                                CallerState.BUSY -> true
-                                else -> false
-                            }
+                Log.d("AUDIOCONTROLNETWORK", callStatus.audio.toString())
+                _callState.postValue(networkCallState.sortedByDescending { it.raiseHand })
+                Log.d("REFRESHED NETWORK CALL STATE", networkCallState.toString())
+                _teacherCallStatus.postValue(networkCallState.find {it.phoneNumber == teacherPhoneNumber})
+                Log.d("TEACHERCALLSTATUS", _teacherCallStatus.value.toString())
+                updateStudentsNotOnCall(networkCallState)
+                _isMutedAll.value = networkCallState.filter { it.phoneNumber != teacherPhoneNumber }.all { it.isMuted }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to refresh call state", e)
             }
-            _isMutedAll.value = networkCallState.filter { it.phoneNumber != teacherPhoneNumber }.all { it.isMuted }
         }
+    }
+
+    // private suspend fun loadTeacherStudents() {
+    //     try {
+    //         teacherStudentsMap = teacherStudentsDirectory.studentsByPhone()
+    //         allStudents = teacherStudentsMap.values.toList()
+    //         updateStudentsNotOnCall(_callState.value)
+    //     } catch (e: Exception) {
+    //         Log.e(TAG, "Failed to load teacher students", e)
+    //     }
+    // }
+
+    private fun updateStudentsNotOnCall(currentState: List<StudentCallStatus>?) {
+        if (currentState == null || allStudents.isEmpty()) {
+            return
+        }
+        studentsNotOnCall = allStudents.filter { stu ->
+            val status = currentState.find { it.phoneNumber == stu.phoneNumber }
+            status == null || when(status.callerState) {
+                CallerState.COMPLETED,
+                CallerState.FAILED,
+                CallerState.REJECTED,
+                CallerState.CANCELLED,
+                CallerState.UNANSWERED,
+                CallerState.BUSY -> true
+                else -> false
+            }
+        }
+        _students.postValue(studentsNotOnCall)
+    }
+
+    fun getStudentName(phoneNumber: String): String {
+        return teacherStudentsMap[phoneNumber]?.name
+            ?: args.classroom.students.find { it.phoneNumber == phoneNumber }?.name
+            ?: phoneNumber
     }
 
     fun filterContent(languages: MutableSet<String>, experiences: MutableSet<String>) {
@@ -808,7 +926,11 @@ class CallViewModel @Inject constructor(
                     _isAudioControlDone.postValue(true) // Re-enable button
                     return@launch
                 }
-                
+
+                val contentId = selectedContent.value?.id ?: ""
+                userPreferencesRepository.saveLastCallContent(selectedContentObj)
+                userPreferencesRepository.saveAudioState(contentId, true)
+
                 Log.d("PLAY_AUDIO", "Got audio URL: $audioUrl")
                 
                 val fullUrl = "$conferenceUrl/conference/playaudio/$confId"
@@ -892,6 +1014,27 @@ class CallViewModel @Inject constructor(
 
     fun backwardAudio() {
         seekAudio(-10)
+    }
+
+    fun prepareStudentListForAdding() {
+        // Only load if the list is empty to avoid re-fetching data
+        if (allStudents.isEmpty()) {
+            viewModelScope.launch {
+                loadTeacherStudents()
+            }
+        }
+    }
+
+    // The loadTeacherStudents function itself remains unchanged
+    private suspend fun loadTeacherStudents() {
+        try {
+            teacherStudentsMap = teacherStudentsDirectory.studentsByPhone()
+            allStudents = teacherStudentsMap.values.toList()
+            // After loading, refresh the list of students not on the call
+            updateStudentsNotOnCall(_callState.value)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load teacher students", e)
+        }
     }
 
     /*

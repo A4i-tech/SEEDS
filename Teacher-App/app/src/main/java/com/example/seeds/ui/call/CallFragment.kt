@@ -4,51 +4,44 @@ import NetworkConnectivityLiveData
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
-import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.activity.addCallback
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.widget.PopupMenu
-import androidx.fragment.app.viewModels
+import androidx.fragment.app.Fragment
 import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.viewModelScope
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
 import androidx.navigation.navGraphViewModels
 import com.example.seeds.R
-import com.example.seeds.adapters.ContentListAdapter
 import com.example.seeds.adapters.StudentCallStatusAdapter
 import com.example.seeds.databinding.FragmentCallBinding
-import com.example.seeds.model.CallerState
 import com.example.seeds.ui.BaseFragment
-import com.example.seeds.ui.createclassroom.CreateClassroomFragmentArgs
-import com.example.seeds.utils.ContactUtils
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.math.log
 
 @AndroidEntryPoint
 class CallFragment : BaseFragment() {
 
-    companion object{
+    companion object {
         private const val DELAY_FOR_SCOPE = 1500L
         private const val UI_STATE_LOG_TAG = "UI_STATE_DEBUG"
     }
 
     private lateinit var binding: FragmentCallBinding
     private val viewModel: CallViewModel by navGraphViewModels(R.id.call_nav) { defaultViewModelProviderFactory }
-    private val args : CallFragmentArgs by navArgs()
+    private val args: CallFragmentArgs by navArgs()
     private lateinit var networkConnectivityLiveData: NetworkConnectivityLiveData
 
+    private var studentAdapter: StudentCallStatusAdapter? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {
+    ): View {
         binding = FragmentCallBinding.inflate(inflater, container, false)
         return binding.root
     }
@@ -60,32 +53,43 @@ class CallFragment : BaseFragment() {
         binding.lifecycleOwner = viewLifecycleOwner
         networkConnectivityLiveData = NetworkConnectivityLiveData(requireActivity().applicationContext)
 
-        networkConnectivityLiveData.observe(viewLifecycleOwner, Observer { isConnected ->
-            if(isConnected) {
+        setupObservers()
+        setupClickListeners()
+        setupRecyclerView()
+        setupOnBackPressed()
+    }
+
+    private fun setupRecyclerView() {
+        if (studentAdapter == null) {
+            studentAdapter = StudentCallStatusAdapter(
+                viewModel,
+                StudentCallStatusAdapter.OnClickListener { student ->
+                    student.phoneNumber?.let { phoneNumber ->
+                        removeUser(phoneNumber)
+                    }
+                }
+            )
+        }
+        binding.myStudentsList.adapter = studentAdapter
+        binding.myStudentsList.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(requireContext())
+    }
+
+    private fun setupObservers() {
+        networkConnectivityLiveData.observe(viewLifecycleOwner) { isConnected ->
+            if (isConnected) {
                 Log.d("CallFragment", "Network is connected")
             } else {
                 findNavController().navigate(CallFragmentDirections.actionCallFragmentToCallNoInternetFragment())
                 Log.d("CallFragment", "Network is not connected")
             }
-        })
-
-        val adapter = StudentCallStatusAdapter(
-            viewModel,
-            StudentCallStatusAdapter.OnClickListener { student ->
-                student.phoneNumber?.let { phoneNumber ->
-                    removeUser(phoneNumber)
-                }
-            }
-        )
-
-        binding.myStudentsList.adapter = adapter
-        binding.myStudentsList.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(requireContext())
+        }
 
         viewModel.callState.observe(viewLifecycleOwner) { studentList ->
             Log.d(UI_STATE_LOG_TAG, "UI OBSERVER: Student list updated. Count: ${studentList?.size ?: 0}. Submitting to adapter.")
             Log.d(UI_STATE_LOG_TAG, "UI OBSERVER: Student Data: $studentList")
             studentList?.let {
-                adapter.submitList(it)
+                // Use the class property adapter here
+                studentAdapter?.submitList(it)
             }
         }
 
@@ -97,63 +101,33 @@ class CallFragment : BaseFragment() {
             }
         }
 
-        viewModel.callToken.observe(viewLifecycleOwner, Observer {
-            if(it != null) {
+        viewModel.callToken.observe(viewLifecycleOwner) {
+            if (it != null) {
                 Log.d("CallFragment", "Call token: $it")
                 logMessage("Call token: $it")
                 viewModel.startPollingForCallerState(it.confId)
             }
-        })
+        }
 
-        requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner) {
-            if(viewModel.navigateBack.value == true) {
-                if (!findNavController().navigateUp()) {
-                    if (isEnabled) {
-                        isEnabled = false
-                        requireActivity().onBackPressedDispatcher.onBackPressed()
-                        viewModel.doneNavigating()
-                    }
-                }
-            }
-            else {
-                AlertDialog.Builder(requireContext())
-                    .setMessage("Do you wish to end the call?")
-                    .setCancelable(false)
-                    .setPositiveButton("Yes") { _, _ ->
-                        lifecycleScope.launch {
-                            val classroom = args.classroom
-                            classroom.contentIds = viewModel.selectedContentList.value?.map {
-                                it.id
-                            }?: emptyList()
-                            viewModel.endCall()
-                            logMessage("""Call Ended on Back with final contents - 
-                            id: ${classroom._id} - name: ${classroom.name} - 
-                            contentIds: ${classroom.contentIds}""")
-                            logMessage("""Call ended with Final Call Status: 
-                            ${viewModel.callState.value}""")
-                            viewModel.updateClassroomContent(classroom)
-                        }
-                    }
-                    .setNegativeButton("No", null)
-                    .show()
+        viewModel.navigateBack.observe(viewLifecycleOwner) {
+            if (it) {
+                // More robust way to handle back navigation triggered by ViewModel
+                findNavController().popBackStack()
+                viewModel.doneNavigating() // Reset the event
             }
         }
 
-        viewModel.navigateBack.observe(viewLifecycleOwner, Observer {
-            if(it){
-                requireActivity().onBackPressed()
+        viewModel.isErrorFromIVR.observe(viewLifecycleOwner) {
+            if (it != null) {
+                logMessage("Error from IVR server: $it")
             }
-        })
-
-        binding.retryTeacher.setOnClickListener {
-            viewModel.retryTeacherConnection()
         }
+    }
 
+    private fun setupClickListeners() {
         binding.endCallBtn.setOnClickListener {
             val classroom = args.classroom
-            classroom.contentIds = viewModel.selectedContentList.value?.map {
-                it.id
-            } ?: emptyList()
+            classroom.contentIds = viewModel.selectedContentList.value?.map { it.id } ?: emptyList()
             logMessage("Call Ended on end call button with final contents - id: ${classroom._id}")
 
             viewModel.endCall()
@@ -166,12 +140,6 @@ class CallFragment : BaseFragment() {
             viewModel.toggleMuteAll()
         }
 
-        viewModel.isErrorFromIVR.observe(viewLifecycleOwner, Observer {
-            if(it != null){
-                logMessage("Error from IVR server: $it")
-            }
-        })
-
         binding.addStudentsButton.setOnClickListener {
             logMessage("Add students button clicked")
             findNavController().navigate(CallFragmentDirections.actionCallFragmentToAddStudentsFragment())
@@ -180,12 +148,10 @@ class CallFragment : BaseFragment() {
 
 
         binding.teacherMic.setOnClickListener {
-            // Added null check for safety
-            if(viewModel.teacherCallStatus.value?.isMuted == true) {
+            if (viewModel.teacherCallStatus.value?.isMuted == true) {
                 viewModel.unmuteParticipant(viewModel.teacherPhoneNumber)
                 logMessage("Teacher unmuted")
-            }
-            else {
+            } else {
                 viewModel.muteParticipant(viewModel.teacherPhoneNumber)
                 logMessage("Teacher muted")
             }
@@ -216,15 +182,34 @@ class CallFragment : BaseFragment() {
             viewModel.backwardAudio()
             logMessage("Audio backward clicked")
         }
+        
+        binding.addStudentsButton.setOnClickListener {
+            logMessage("Add students button clicked")
+            viewModel.prepareStudentListForAdding() 
+            findNavController().navigate(CallFragmentDirections.actionCallFragmentToAddStudentsFragment())
+        }
     }
 
-    private fun showFeedback(textView: TextView, message: String) {
-        textView.text = message
-        textView.visibility = View.VISIBLE
-
-        lifecycleScope.launch {
-            delay(DELAY_FOR_SCOPE) // Delay for 1.5 seconds
-            textView.visibility = View.INVISIBLE
+    private fun setupOnBackPressed() {
+        requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner) {
+            AlertDialog.Builder(requireContext())
+                .setMessage("Do you wish to end the call?")
+                .setCancelable(false)
+                .setPositiveButton("Yes") { _, _ ->
+                    lifecycleScope.launch {
+                        val classroom = args.classroom
+                        classroom.contentIds = viewModel.selectedContentList.value?.map { it.id } ?: emptyList()
+                        viewModel.endCall()
+                        logMessage("""Call Ended on Back with final contents - 
+                        id: ${classroom._id} - name: ${classroom.name} - 
+                        contentIds: ${classroom.contentIds}""")
+                        logMessage("""Call ended with Final Call Status: 
+                        ${viewModel.callState.value}""")
+                        viewModel.updateClassroomContent(classroom)
+                    }
+                }
+                .setNegativeButton("No", null)
+                .show()
         }
     }
 
@@ -241,12 +226,12 @@ class CallFragment : BaseFragment() {
     }
 
     override fun onStart() {
-        logMessage("onStart")
         super.onStart()
+        logMessage("onStart")
     }
 
     override fun onStop() {
-        logMessage("onStop")
         super.onStop()
+        logMessage("onStop")
     }
 }

@@ -14,6 +14,7 @@ import com.example.seeds.model.Content
 import com.example.seeds.model.PaginatedResponse
 import com.example.seeds.model.SasUrlResponse
 import com.example.seeds.model.Student
+import com.example.seeds.model.StudentCallStatus
 import com.example.seeds.model.StudentListContainer
 import com.example.seeds.utils.Constants
 import com.example.seeds.utils.Encryptor
@@ -23,6 +24,7 @@ import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.ResponseBody
 import retrofit2.Response
+import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
 import retrofit2.http.Body
@@ -107,8 +109,8 @@ interface SeedsService {
     @GET("call/{confId}/status")
     suspend fun getCallStatus(@Path("confId") confId: String): CallStatusDto
 
-    @GET ("teacher/students")
-    suspend fun getStudents(): List<String>
+    @POST("v1/teacher/students")
+    suspend fun getTeacherStudents(@Body body: GetStudentsRequest): List<Student>
 
     @GET("participants")
     suspend fun getParticipants(): List<Student>

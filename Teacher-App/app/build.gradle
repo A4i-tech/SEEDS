@@ -39,7 +39,7 @@ android {
 
         buildConfigField "String", "BASE_URL", "\"${project.findProperty('BASE_URL')}\""
         buildConfigField "String", "CONTENT_URL", "\"${project.findProperty('CONTENT_URL')}\""
-
+        buildConfigField "String", "TENANT_NAME", "\"${project.findProperty('TENANT_NAME')}\""
     }
 
     signingConfigs {
@@ -91,7 +91,7 @@ dependencies {
     
     implementation 'com.google.code.gson:gson:2.10.1'
     implementation 'com.google.android.gms:play-services-auth:20.0.0'
-
+    implementation 'androidx.datastore:datastore-preferences:1.0.0'
 
     // Kotlin
     implementation "org.jetbrains.kotlin:kotlin-stdlib:1.6.10"
