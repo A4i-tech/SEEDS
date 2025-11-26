@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.ArrayAdapter
 import android.widget.Toast
+import android.view.View
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import com.example.seeds.MainActivity
@@ -92,10 +93,7 @@ class LoginActivity : AppCompatActivity() {
         val predefinedTenantName = Constants.TENANT_NAME 
 
         if (!predefinedTenantName.isNullOrBlank()) {
-            binding.organizationLayout.hint = "Organization"
-            binding.organizationDropdown.setText(predefinedTenantName)
-            binding.organizationDropdown.isEnabled = false 
-            binding.organizationLayout.endIconMode = END_ICON_NONE
+            binding.organizationLayout.visibility = View.GONE
         } else {
             binding.organizationLayout.hint = "Select Organization"
             binding.organizationDropdown.isEnabled = true
