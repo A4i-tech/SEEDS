@@ -488,7 +488,7 @@ const AllContent = () => {
                   Profile
                 </button>
                 <button
-                  className="dropdown-item with-border"
+                  className="dropdown-item"
                   onClick={() => {
                     setShowUserDropdown(false);
                     localStorage.removeItem("authToken");

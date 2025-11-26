@@ -115,13 +115,15 @@
   min-width: 180px;
   z-index: 1000;
   overflow: hidden;
-  padding: 15px 0;
-  font-size: 20px;
+  padding: 4px; /* remove outer padding so spacing is inside items */
+  font-size: 18px;
 }
 
 .dropdown-item {
-  padding: 12px;
-  font-size: 18px;
+  margin: 0; /* reset margin for consistent sizing */
+  padding: 10px 16px; /* consistent vertical padding */
+  font-size: 18px; /* normalized size */
+  line-height: 1.2;
   color: #0f172a;
   cursor: pointer;
   border: none;
@@ -132,6 +134,8 @@
   align-items: center;
   gap: 8px;
   transition: background-color 0.2s;
+  box-sizing: border-box;
+  min-height: 40px; /* ensure consistent height and vertical centering */
 }
 
 .dropdown-item:hover {
@@ -139,6 +143,12 @@
 }
 
 .dropdown-item.with-border {
+  /* keep class for compatibility but don't rely on it for separator */
+  margin-top: 0;
+}
+
+/* consistent separator between items */
+.dropdown-item + .dropdown-item {
   border-top: 1px solid #e2e8f0;
 }
 
@@ -390,7 +400,20 @@
 
 .registration-title {
   margin: 0;
+  color: #000000;
+}
+
+.ivr-card .registration-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+  line-height: 1.2;
   color: #ffffff;
+}
+
+.ivr-card .placeholder-text {
+  font-size: 14px;
+  color: #e6eaf2;
 }
 
 .input-field {
