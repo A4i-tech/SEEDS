@@ -178,6 +178,12 @@ class CallFragment : BaseFragment() {
             viewModel.backwardAudio()
             logMessage("Audio backward clicked")
         }
+        
+        binding.addStudentsButton.setOnClickListener {
+            logMessage("Add students button clicked")
+            viewModel.prepareStudentListForAdding() 
+            findNavController().navigate(CallFragmentDirections.actionCallFragmentToAddStudentsFragment())
+        }
     }
 
     private fun setupOnBackPressed() {

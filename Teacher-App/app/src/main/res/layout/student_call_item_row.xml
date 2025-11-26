@@ -105,7 +105,7 @@
                 android:onClick="@{() -> viewModel.connectParticipant(studentCallStatus.name, studentCallStatus.phoneNumber)}"
                 android:padding="8dp"
                 android:src="@drawable/ic_retry"
-                android:visibility="@{studentCallStatus.callerState == CallerState.UNANSWERED || studentCallStatus.callerState == CallerState.BUSY || studentCallStatus.callerState == CallerState.TIMEOUT || studentCallStatus.callerState == CallerState.COMPLETED || studentCallStatus.callerState == CallerState.FAILED ? View.VISIBLE: View.GONE}"
+                android:visibility="@{studentCallStatus.callerState == CallerState.UNANSWERED || studentCallStatus.callerState == CallerState.BUSY || studentCallStatus.callerState == CallerState.TIMEOUT || studentCallStatus.callerState == CallerState.COMPLETED || studentCallStatus.callerState == CallerState.FAILED || studentCallStatus.callerState == CallerState.CANCELLED || studentCallStatus.callerState == CallerState.REJECTED ? View.VISIBLE: View.GONE}"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintTop_toTopOf="parent" />
