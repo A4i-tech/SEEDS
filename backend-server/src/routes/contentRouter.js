@@ -361,13 +361,19 @@ router.get("/", tryCatchWrapper(async (req, res) => {
     const limit = parseInt(req.query.limit) || 15; 
     const cursor = req.query.cursor;
 
+    // If specific IDs are requested, return non-deleted content sorted by creation time (newest first)
     if (req.query.ids) {
         const idsArray = Array.isArray(req.query.ids) ? req.query.ids : req.query.ids.split(",");
-        const contents = await ContentV3.collection.find({ _id: { $in: idsArray } }).toArray();
+        const contents = await ContentV3.collection
+            .find({ _id: { $in: idsArray }, isDeleted: { $ne: true } })
+            .sort({ creation_time: -1 })
+            .toArray();
         return res.json(contents);
     }
 
-    let query = {};
+    // Base query always excludes deleted content
+    let query = { isDeleted: { $ne: true } };
+
     if (req.query.onlyTeacherApp) {
         query.isTeacherApp = true;
     } else if (req.query.language && req.query.theme && req.query.expName) {
@@ -377,21 +383,23 @@ router.get("/", tryCatchWrapper(async (req, res) => {
         query.type = req.query.expName.toLowerCase();
     }
 
+    // Cursor-based pagination using creation_time (descending) and _id as a tie-breaker
     if (cursor) {
-        const [lastTitle, lastId] = cursor.split('_');
+        const [lastCreationTimeStr, lastId] = cursor.split('_');
+        const lastCreationTime = parseInt(lastCreationTimeStr, 10);
         const lastIdBinary = new Binary(Buffer.from(uuidParse(lastId)), 4);
-        
+
         query.$or = [
-            { "title.english": { $gt: lastTitle } },
-            { 
-                "title.english": lastTitle,
-                _id: { $gt: lastIdBinary } 
+            { creation_time: { $lt: lastCreationTime } },
+            {
+                creation_time: lastCreationTime,
+                _id: { $lt: lastIdBinary }
             }
         ];
     }
     
     const contents = await ContentV3.find(query)
-        .sort({ "title.english": 1, _id: 1 })
+        .sort({ creation_time: -1, _id: -1 })
         .limit(limit + 1) 
         .exec();
 
@@ -399,7 +407,7 @@ router.get("/", tryCatchWrapper(async (req, res) => {
     const data = hasMore ? contents.slice(0, limit) : contents;
     
     const lastItem = hasMore ? data[data.length - 1] : null;
-    const nextCursor = lastItem ? `${lastItem.title.english}_${lastItem._id.toString()}` : null;
+    const nextCursor = lastItem ? `${lastItem.creation_time}_${lastItem._id.toString()}` : null;
 
     // Send the final response
     return res.json({
