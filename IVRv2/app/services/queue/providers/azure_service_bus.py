@@ -9,7 +9,6 @@ from app.services.queue.models.queue_message import QueueMessage
 
 logger = logging.getLogger(__name__)
 
-
 class AzureServiceBusQueueProvider(BaseQueueProvider):
     """
     Azure Service Bus implementation of the BaseQueueProvider.

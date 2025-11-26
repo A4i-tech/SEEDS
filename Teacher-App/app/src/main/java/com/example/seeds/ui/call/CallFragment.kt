@@ -145,6 +145,8 @@ class CallFragment : BaseFragment() {
             findNavController().navigate(CallFragmentDirections.actionCallFragmentToAddStudentsFragment())
         }
 
+
+
         binding.teacherMic.setOnClickListener {
             if (viewModel.teacherCallStatus.value?.isMuted == true) {
                 viewModel.unmuteParticipant(viewModel.teacherPhoneNumber)
@@ -167,12 +169,14 @@ class CallFragment : BaseFragment() {
             viewModel.onPlayPauseClicked()
         }
 
+        // Forward 10 Seconds
         binding.forwardButton.setOnClickListener {
             viewModel._isAudioControlDone.postValue(false)
             viewModel.forwardAudio()
             logMessage("Audio forward clicked")
         }
 
+        // Rewind 10 Seconds
         binding.backwardButton.setOnClickListener {
             viewModel._isAudioControlDone.postValue(false)
             viewModel.backwardAudio()
