@@ -37,7 +37,7 @@ module.exports = {
       const token = generateToken(
         {id: tenant._id || tenant.id, email: tenant.email, name: tenant.tenantName}
       );
-      return res.status(STATUS.OK).json({token});
+      return res.status(STATUS.OK).json({token, id: tenant._id || tenant.id, tenantName: tenant.tenantName});
     } catch (error) {
       console.error('Login error:', error);
       return res.status(STATUS.INTERNAL_ERROR).json({message: 'Internal server error'});

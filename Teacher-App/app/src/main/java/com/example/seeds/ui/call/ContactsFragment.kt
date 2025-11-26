@@ -13,7 +13,6 @@ import java.util.*
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
 import com.example.seeds.adapters.CheckboxNameListAdapter
-import com.example.seeds.utils.ContactUtils
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -23,7 +22,6 @@ class ContactsFragment : BaseFragment() {
     private  var tempStudents: ArrayList<Student> = arrayListOf()
     private val args: ContactsFragmentArgs by navArgs()
     private val viewModel: ContactsViewModel by viewModels()
-    private lateinit var contactUtils: ContactUtils
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -39,22 +37,17 @@ class ContactsFragment : BaseFragment() {
 
         setHasOptionsMenu(true)
 
-        contactUtils = ContactUtils(requireContext())
-        val allStudentsHash = contactUtils.contactsMap
-        students = ArrayList(allStudentsHash.values)
-
-        val usersInGroup = hashMapOf<String, Boolean>() //probably useless
-        students.map {
-            usersInGroup[it.phoneNumber] = false
-        } //probably useless
-
-        tempStudents.addAll(students)
-
         binding.contactsList.adapter = CheckboxNameListAdapter(
             usersInGroup = studentsPhoneNumbers.toMutableSet(), showPhoneNumber = true
         )
 
-        (binding.contactsList.adapter as CheckboxNameListAdapter).submitList(tempStudents.toList())
+        viewModel.students.observe(viewLifecycleOwner) { loaded ->
+            students.clear()
+            students.addAll(loaded)
+            tempStudents.clear()
+            tempStudents.addAll(loaded)
+            (binding.contactsList.adapter as CheckboxNameListAdapter).submitList(tempStudents.toList())
+        }
 
         binding.addPeopleConfirmBtn.setOnClickListener {
             val users = (binding.contactsList.adapter as CheckboxNameListAdapter).usersInGroup.toList()

@@ -1,5 +1,5 @@
 "use strict";
-const {STATUS} = require("../config/constants");
+const { STATUS } = require("../config/constants");
 const express = require("express");
 const Teacher = require("../models/Teacher.js");
 const Student = require("../models/Student.js");
@@ -13,52 +13,6 @@ const teacherAuthProvider = require("../auth/teacher/teacherAuthProviderMiddlewa
  */
 const router = express.Router();
 
-/**
- * @swagger
- * /teacher/get-students:
- *   get:
- *     summary: Get all students for the current teacher
- *     tags: [Teachers]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: List of students and their phone numbers
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 type: object
- *                 properties:
- *                   name:
- *                     type: string
- *                   phoneNumber:
- *                     type: string
- *                 description: Student object
- *       404:
- *         description: Teacher not found
- *       401:
- *         description: Unauthorized - invalid or missing token
- */
-router.post("/get-students",
-  authenticateToken,
-  async (req, res) => {
-    const teacher = await Teacher.findOne({phoneNumber: req.body.phoneNumber});
-    if (!teacher) return res.sendStatus(STATUS.NOT_FOUND);
-    let results = [];
-    for (let i = 0; i < teacher.studentId.length; i++) {
-      const student = await Student.findById(teacher.studentId[i]);
-      if (student) {
-        results.push({
-          name: student.name,
-          phoneNumber: student.phoneNumber
-        });
-      }
-    }
-    return res.json(results);
-  }
-);
 
 /**
  * @swagger
@@ -107,39 +61,39 @@ router.post("/get-students",
  *       401:
  *         description: Unauthorized - invalid or missing token
  */
-router.post("/add-students",
-  authenticateToken,
-  async (req, res) => {
-    if(!Array.isArray(req.body.students) || req.body.students.length === 0) {
-      return res.sendStatus(STATUS.BAD_REQUEST);
-    }
-    const teacher = await Teacher.findOne({phoneNumber: req.body.phoneNumber});
-    if (!teacher) return res.sendStatus(STATUS.NOT_FOUND);
-    let results = [];
-
-    for(let i = 0; i < req.body.students.length; i++) {
-      const studentData = req.body.students[i];
-      if(!studentData.name || !studentData.phoneNumber) {
-        continue;
-      }
-      const studentExists = await Student.findOne({phoneNumber: studentData.phoneNumber});
-      if(studentExists) {
-        continue;
-      }
-      const student = await Student.create(req.body.students[i]);
-      const studentId = student._id.toString();
-      await Teacher.updateOne(
-        {_id: teacher._id},
-        { $addToSet: { studentId: studentId } }
-      );
-      results.push({
-        name: student.name,
-        phoneNumber: student.phoneNumber
-      });
-    }
-    return res.status(STATUS.OK).json(results);
+router.post("/add-students", authenticateToken, async (req, res) => {
+  if (!Array.isArray(req.body.students) || req.body.students.length === 0) {
+    return res.sendStatus(STATUS.BAD_REQUEST);
   }
-);
+  const teacher = await Teacher.findOne({ phoneNumber: req.body.phoneNumber });
+  if (!teacher) return res.sendStatus(STATUS.NOT_FOUND);
+  let results = [];
+
+  for (let i = 0; i < req.body.students.length; i++) {
+    const studentData = req.body.students[i];
+    if (!studentData.name || !studentData.phoneNumber) {
+      continue;
+    }
+    const studentExists = await Student.findOne({
+      phoneNumber: studentData.phoneNumber,
+    });
+    if (studentExists) {
+      continue;
+    }
+    const student = await Student.create(req.body.students[i]);
+    const studentId = student._id.toString();
+    await Teacher.updateOne(
+      { _id: teacher._id },
+      { $addToSet: { studentId: studentId } },
+    );
+    results.push({
+      name: student.name,
+      phoneNumber: student.phoneNumber,
+    });
+  }
+  return res.status(STATUS.OK).json(results);
+});
+
 
 /**
  *  @swagger
@@ -179,9 +133,7 @@ router.post("/add-students",
  *       401:
  *         description: Invalid credentials
  */
-router.post('/login',
-  teacherAuthProvider.login
-);
+router.post("/login", teacherAuthProvider.login);
 
 /**
  * @swagger
@@ -201,9 +153,7 @@ router.post('/login',
  *       401:
  *         description: Unauthorized - invalid or missing token
  */
-router.post('/register',
-  teacherAuthProvider.register
-);
+router.post("/register", teacherAuthProvider.register);
 
 /**
  * @swagger
@@ -227,11 +177,8 @@ router.post('/register',
  *       401:
  *         description: Unauthorized, token is missing or invalid
  */
-router.post('/logout',
-  authenticateToken,
-  (req, res) => {
-    res.status(STATUS.OK).json({message: 'Logout successful'});
-  }
-);
+router.post("/logout", authenticateToken, (req, res) => {
+  res.status(STATUS.OK).json({ message: "Logout successful" });
+});
 
-module.exports = router
+module.exports = router;
