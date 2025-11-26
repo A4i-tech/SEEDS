@@ -1,5 +1,7 @@
 package com.example.seeds.ui.call
 
+import com.google.gson.Gson
+import kotlinx.coroutines.flow.first
 import NetworkConnectivityLiveData
 import android.app.Application
 import android.content.Context
@@ -93,6 +95,7 @@ class CallViewModel @Inject constructor(
 
     private val client =  OkHttpClient()
     private lateinit var socket: WebSocket
+    private val gson = Gson()
 
     private val _callToken = MutableLiveData<AccessToken>()
     val callToken: LiveData<AccessToken>
@@ -189,7 +192,7 @@ class CallViewModel @Inject constructor(
             _isErrorFromIVR.postValue("Error: Classroom data is missing.")
             _navigateBack.postValue(true)
         } else {
-
+            // 1. Setup Initial Students State
             val initialCallStatuses = args.classroom.students.map { student ->
                 StudentCallStatus(
                     name = student.name,
@@ -204,6 +207,7 @@ class CallViewModel @Inject constructor(
             updateStudentsNotOnCall(initialCallStatuses)
 
             getAccessToken()
+
             viewModelScope.launch {
                 val allContentList = mutableListOf<Content>()
                 var nextCursor: String? = null
@@ -228,14 +232,44 @@ class CallViewModel @Inject constructor(
                 _experiences.value = filteredListContent.map { it.type.lowercase() }.distinct().map {
                     it.capitalize()
                 }
+
+                // --- DEBUG RESTORE LOGIC ---
+                try {
+                    val prefs = userPreferencesRepository.userPrefs.first()
+                    
+                    Log.d("RESTORE_DEBUG", "Current Classroom ID: ${args.classroom._id}")
+                    Log.d("RESTORE_DEBUG", "Saved Classroom ID:   ${prefs.lastClassroomId}")
+                    Log.d("RESTORE_DEBUG", "Saved JSON Length:    ${prefs.lastContentJson.length}")
+
+                    // Check IDs match
+                    if (prefs.lastClassroomId == args.classroom._id) {
+                        if (prefs.lastContentJson.isNotEmpty()) {
+                            val savedContent = gson.fromJson(prefs.lastContentJson, Content::class.java)
+                            if (savedContent != null) {
+                                Log.d("RESTORE_DEBUG", "SUCCESS: Restoring content: ${savedContent.titleText}")
+                                
+                                // Update LiveData for observers
+                                _selectedContent.value = savedContent
+                                
+                                // Update local variable just in case UI uses it directly
+                                content = savedContent 
+                            } else {
+                                Log.e("RESTORE_DEBUG", "Failed: Parsed content is null")
+                            }
+                        } else {
+                            Log.w("RESTORE_DEBUG", "Failed: JSON is empty. (Did you play audio in the last session?)")
+                        }
+                    } else {
+                        Log.w("RESTORE_DEBUG", "Failed: IDs do not match.")
+                    }
+                } catch (e: Exception) {
+                    Log.e("RESTORE_DEBUG", "Exception during restore", e)
+                }
+                // ---------------------------
             }
         } 
 
         Log.d("CONTENTCALL", args.classroom?.contents?.map { content -> content.title }?.toString() ?: "No content")
-
-        // viewModelScope.launch {
-        //     loadTeacherStudents()
-        // }
     }
 
     fun onPlayPauseClicked() {
@@ -886,6 +920,7 @@ class CallViewModel @Inject constructor(
                 }
 
                 val contentId = selectedContent.value?.id ?: ""
+                userPreferencesRepository.saveLastCallContent(selectedContentObj)
                 userPreferencesRepository.saveAudioState(contentId, true)
 
                 Log.d("PLAY_AUDIO", "Got audio URL: $audioUrl")
