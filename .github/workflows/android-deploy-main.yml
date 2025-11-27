@@ -1,0 +1,49 @@
+name: Deploy Android Production Build
+
+# Triggers the workflow on push events to the main branch
+on:
+  push:
+    branches: [a4i/main]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy-production:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v2
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.1' 
+          bundler-cache: true 
+          working-directory: ./Teacher-App
+
+      - name: Make Gradle executable
+        working-directory: ./Teacher-App
+        run: chmod +x gradlew
+
+      - name: Build and Deploy Production with Fastlane
+        if: github.ref == 'refs/heads/a4i/main'
+        working-directory: ./Teacher-App
+        env:
+          # Production Build Config values
+          PROD_BASE_URL: ${{ secrets.PROD_BASE_URL }}
+          PROD_CONTENT_URL: ${{ secrets.PROD_CONTENT_URL }}
+          PROD_TENANT_NAME: ${{ secrets.FIREBASE_PROD_TESTER_GROUPS }}
+
+          FIREBASE_PROD_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+          FIREBASE_PROD_TESTER_GROUPS: ${{ secrets.FIREBASE_PROD_TESTER_GROUPS }}
+          FIREBASE_CLI_TOKEN: ${{ secrets.FIREBASE_CLI_TOKEN }}
+        run: bundle exec fastlane deploy_prod
