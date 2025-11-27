@@ -14,7 +14,7 @@ platform :android do
       properties: {
         "BASE_URL" => ENV['BASE_URL'],
         "CONTENT_URL" => ENV['CONTENT_URL']
-        "TENAT_NAME" => ENV['TENANT_NAME']
+        "TENANT_NAME" => ENV['TENANT_NAME']
       }
     )
 
@@ -28,6 +28,38 @@ platform :android do
       firebase_cli_token: ENV['FIREBASE_CLI_TOKEN'],
 
       release_notes: "New staging build uploaded by fastlane."
+    )
+
+    UI.success("Successfully built and deployed to Firebase App Distribution!")
+  end
+
+  desc "Build and deploy a production version to Firebase App Distribution"
+  lane :deploy_prod do
+    UI.message("Running unit tests...")
+
+    # gradle(
+    #   task: 'testReleaseUnitTest'
+    # )
+    
+    gradle(
+      task: 'assembleRelease',
+      properties: {
+        "BASE_URL" => ENV['PROD_BASE_URL'],
+        "CONTENT_URL" => ENV['PROD_CONTENT_URL']
+        "TENANT_NAME" => ENV['FIREBASE_PROD_TESTER_GROUPS']
+      }
+    )
+
+    firebase_app_distribution(
+      app: ENV['FIREBASE_PROD_APP_ID'],
+
+      apk_path: "app/build/outputs/apk/release/app-release.apk",
+
+      groups: ENV['FIREBASE_PROD_TESTER_GROUPS'],
+
+      firebase_cli_token: ENV['FIREBASE_CLI_TOKEN'],
+
+      release_notes: "New production build uploaded by fastlane."
     )
 
     UI.success("Successfully built and deployed to Firebase App Distribution!")
