@@ -48,14 +48,6 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
 import javax.inject.Inject
-import android.content.SharedPreferences
-
-const val SOCKET_CLOSE = 1000   
-const val THREAD_SLEEP_TIME = 5000L
-const val DELAY_FOR_VIEW_MODEL = 180000L
-const val DELAY_FOR_LAUNCH = 120000L
-const val POLLING_INTERVAL_MS = 5000L 
-
 
 const val SOCKET_CLOSE = 1000   
 const val THREAD_SLEEP_TIME = 5000L
