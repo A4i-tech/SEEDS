@@ -35,3 +35,38 @@ jobs:
     needs: deploy-staging-workflow
     uses: ./.github/workflows/coverage-summary.yml
     secrets: inherit
+
+  notify-teams:
+    runs-on: ubuntu-latest
+    
+    if: always()
+
+    needs: 
+      - deploy-websocket-service-main-workflow
+      - deploy-websocket-service-staging-workflow
+      - deploy-staging-workflow
+      - deploy-main-workflow
+      - deploy-android-staging
+      - run-coverage-summary
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Dispatch Notification
+        uses: ./.github/actions/teams-notify
+        env:
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+        with:
+
+          activity-title: "Workflow Outcome: ${{ contains(needs.*.result, 'failure') && 'FAILURE' || 'SUCCESS' }}"
+          summary: "Deployment finished for ${{ github.ref_name }}"
+          theme-color: "${{ contains(needs.*.result, 'failure') && 'FF0000' || '00FF00' }}"
+          facts: |
+            [
+              { "name": "Branch", "value": "${{ github.ref_name }}" },
+              { "name": "Websocket Main", "value": "${{ needs.deploy-websocket-service-main-workflow.result }}" },
+              { "name": "Websocket Staging", "value": "${{ needs.deploy-websocket-service-staging-workflow.result }}" },
+              { "name": "Backend Staging", "value": "${{ needs.deploy-staging-workflow.result }}" },
+              { "name": "Backend Main", "value": "${{ needs.deploy-main-workflow.result }}" },
+              { "name": "Android Staging", "value": "${{ needs.deploy-android-staging.result }}" }
+            ]
