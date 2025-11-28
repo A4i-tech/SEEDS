@@ -1,6 +1,5 @@
 name: Deploy Android Production Build
 
-# Triggers the workflow on push events to the main branch
 on:
   push:
     branches: [a4i/main]
@@ -38,12 +37,17 @@ jobs:
         if: github.ref == 'refs/heads/a4i/main'
         working-directory: ./Teacher-App
         env:
-          # Production Build Config values
-          PROD_BASE_URL: ${{ secrets.PROD_BASE_URL }}
-          PROD_CONTENT_URL: ${{ secrets.PROD_CONTENT_URL }}
-          PROD_TENANT_NAME: ${{ secrets.FIREBASE_PROD_TESTER_GROUPS }}
+          # Config variables
+          BASE_URL:               ${{ secrets.PROD_BASE_URL }}
+          CONTENT_URL:            ${{ secrets.PROD_CONTENT_URL }}
+          TENANT_NAME:            ${{ secrets.FIREBASE_PROD_TESTER_GROUPS }}
+          FIREBASE_APP_ID:        ${{ secrets.FIREBASE_APP_ID }}
+          FIREBASE_TESTER_GROUPS: ${{ secrets.FIREBASE_PROD_TESTER_GROUPS }}
+          FIREBASE_CLI_TOKEN:     ${{ secrets.FIREBASE_CLI_TOKEN }}
 
-          FIREBASE_PROD_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
-          FIREBASE_PROD_TESTER_GROUPS: ${{ secrets.FIREBASE_PROD_TESTER_GROUPS }}
-          FIREBASE_CLI_TOKEN: ${{ secrets.FIREBASE_CLI_TOKEN }}
+          # Signing secrets
+          SIGNING_KEYSTORE_BASE64: ${{ secrets.PROD_KEYSTORE_BASE64 }}
+          SIGNING_KEYSTORE_PASSWORD: ${{ secrets.PROD_KEYSTORE_PASSWORD }}
+          SIGNING_KEY_ALIAS:      ${{ secrets.PROD_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD:   ${{ secrets.PROD_KEY_PASSWORD }}
         run: bundle exec fastlane deploy_prod

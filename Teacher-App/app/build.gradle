@@ -1,3 +1,5 @@
+import java.util.Base64
+
 plugins {
     id 'com.android.application'
     id 'kotlin-android'
@@ -8,24 +10,48 @@ plugins {
     id 'io.gitlab.arturbosch.detekt' version '1.21.0'
 }
 
-def envFile = rootProject.file('fastlane/.env')
-if (envFile.exists()) {
-    envFile.eachLine { line ->
-        if (line.contains('=')) {
-            def (key, value) = line.split('=', 2).collect { it.trim() }
-            project.ext.set(key, value.replaceAll(/^"|"$/, ""))
-        }
+
+File stagingKeystoreFile = null
+File releaseKeystoreFile = null
+
+def stagingBase64 = project.findProperty('STAGING_KEYSTORE_BASE64') ?: ""
+if (!stagingBase64.toString().isEmpty()) {
+    try {
+        byte[] decoded = Base64.getDecoder().decode(stagingBase64.toString())
+        File tempFile = rootProject.file("temp_staging_keystore.jks")
+        new FileOutputStream(tempFile).write(decoded)
+        stagingKeystoreFile = tempFile
+        println "✅ Successfully created staging keystore file"
+    } catch (Exception e) {
+        println "⚠️ Failed to decode staging keystore: " + e.message
     }
 }
 
-// kapt {
-//     correctErrorTypes = true
-//     useBuildCache = false
-//     showProcessorTimings = true
-//     arguments {
-//         arg("verbose", "true")
-//     }
-// }
+def releaseBase64 = project.findProperty('SIGNING_KEYSTORE_BASE64') ?: ""
+if (!releaseBase64.toString().isEmpty()) {
+    try {
+        byte[] decoded = Base64.getDecoder().decode(releaseBase64.toString())
+        File tempFile = rootProject.file("temp_release_keystore.jks")
+        new FileOutputStream(tempFile).write(decoded)
+        releaseKeystoreFile = tempFile
+        println "✅ Successfully created release keystore file"
+    } catch (Exception e) {
+        println "⚠️ Failed to decode release keystore: " + e.message
+    }
+}
+
+def stagingPass = project.findProperty('STAGING_KEYSTORE_PASSWORD') ?: ""
+def stagingAlias = project.findProperty('STAGING_KEY_ALIAS') ?: ""
+def stagingKeyPass = project.findProperty('STAGING_KEY_PASSWORD') ?: ""
+
+def releasePass = project.findProperty('SIGNING_KEYSTORE_PASSWORD') ?: ""
+def releaseAlias = project.findProperty('SIGNING_KEY_ALIAS') ?: ""
+def releaseKeyPass = project.findProperty('SIGNING_KEY_PASSWORD') ?: ""
+
+def baseUrl = project.findProperty('BASE_URL')
+def contentUrl = project.findProperty('CONTENT_URL') 
+def tenantName = project.findProperty('TENANT_NAME') 
+
 android {
     compileSdk 32
 
@@ -33,21 +59,34 @@ android {
         applicationId "com.example.seeds"
         minSdk 23
         targetSdk 32
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "2025.11"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
-        buildConfigField "String", "BASE_URL", "\"${project.findProperty('BASE_URL')}\""
-        buildConfigField "String", "CONTENT_URL", "\"${project.findProperty('CONTENT_URL')}\""
-        buildConfigField "String", "TENANT_NAME", "\"${project.findProperty('TENANT_NAME')}\""
+        buildConfigField "String", "BASE_URL", "\"${baseUrl}\""
+        buildConfigField "String", "CONTENT_URL", "\"${contentUrl}\""
+        buildConfigField "String", "TENANT_NAME", "\"${tenantName}\""
+        
+        def displayAlias = stagingAlias ?: releaseAlias ?: "none"
+        buildConfigField "String", "KEY_ALIAS", "\"${displayAlias}\""
     }
 
     signingConfigs {
         debug {
-            storeFile rootProject.file('keystore.jks')
-            keyAlias 'debugkey'
-            keyPassword 'signoot123'
-            storePassword 'signoot123'
+            if (stagingKeystoreFile != null && stagingKeystoreFile.exists()) {
+                storeFile stagingKeystoreFile
+                storePassword stagingPass
+                keyAlias stagingAlias
+                keyPassword stagingKeyPass
+            }
+        }
+        release {
+            if (releaseKeystoreFile != null && releaseKeystoreFile.exists()) {
+                storeFile releaseKeystoreFile
+                storePassword releasePass
+                keyAlias releaseAlias
+                keyPassword releaseKeyPass
+            }
         }
     }
 
@@ -55,6 +94,15 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            
+            if (releaseKeystoreFile != null && releaseKeystoreFile.exists()) {
+                signingConfig signingConfigs.release
+            }
+        }
+        debug {
+            if (stagingKeystoreFile != null && stagingKeystoreFile.exists()) {
+                signingConfig signingConfigs.debug
+            }
         }
     }
 
@@ -76,8 +124,6 @@ android {
         abortOnError false
     }
 }
-
-// Force consistent Kotlin versions
 configurations.all {
     resolutionStrategy {
         force "org.jetbrains.kotlin:kotlin-stdlib:1.6.10"
@@ -88,11 +134,9 @@ configurations.all {
 }
 
 dependencies {
-    
     implementation 'com.google.code.gson:gson:2.10.1'
     implementation 'com.google.android.gms:play-services-auth:20.0.0'
     implementation 'androidx.datastore:datastore-preferences:1.0.0'
-
     // Kotlin
     implementation "org.jetbrains.kotlin:kotlin-stdlib:1.6.10"
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.6.10"
@@ -106,25 +150,21 @@ dependencies {
     implementation 'androidx.constraintlayout:constraintlayout:2.0.4'
     implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.3.1'
     implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.3.1'
-
     // Navigation
     def version_navigation = "2.4.0"
     implementation "androidx.navigation:navigation-fragment-ktx:$version_navigation"
     implementation "androidx.navigation:navigation-ui-ktx:$version_navigation"
     implementation "androidx.hilt:hilt-navigation-fragment:1.0.0"
-
     // RecyclerView
     def version_recyclerview = "1.2.1"
     implementation "androidx.recyclerview:recyclerview:$version_recyclerview"
-
-    // Hilt for Dependency Injection
+    // Hilt
     implementation "com.google.dagger:hilt-android:2.37"
     implementation "androidx.hilt:hilt-lifecycle-viewmodel:1.0.0-alpha03"
     kapt "com.google.dagger:hilt-android-compiler:2.37"
     kapt "androidx.hilt:hilt-compiler:1.0.0-alpha03"
     implementation 'androidx.hilt:hilt-work:1.0.0'
     kapt 'androidx.hilt:hilt-compiler:1.0.0'
-
     // Retrofit & Moshi
     def version_retrofit = "2.9.0"
     def version_moshi = "1.8.0"
@@ -132,48 +172,37 @@ dependencies {
     implementation "com.squareup.retrofit2:converter-moshi:$version_retrofit"
     implementation "com.squareup.moshi:moshi:$version_moshi"
     implementation "com.squareup.moshi:moshi-kotlin:$version_moshi"
-
-    // Kotshi for Moshi
+    // Kotshi
     def kotshiVersion = "2.7.0"
     implementation "se.ansman.kotshi:api:$kotshiVersion"
     kapt "se.ansman.kotshi:compiler:$kotshiVersion"
-
-    // Room Database
+    // Room
     def room_version = "2.4.1"
     implementation "androidx.room:room-runtime:$room_version"
     implementation "androidx.room:room-ktx:$room_version"
     kapt "androidx.room:room-compiler:$room_version"
-
     // ExoPlayer
     def version_exoplayer = "2.16.1"
     implementation "com.google.android.exoplayer:exoplayer-core:$version_exoplayer"
     implementation "com.google.android.exoplayer:exoplayer-ui:$version_exoplayer"
-
     // WorkManager
     def work_version = "2.7.1"
     implementation "androidx.work:work-runtime-ktx:$work_version"
-
-
-
     // Firebase
     implementation platform('com.google.firebase:firebase-bom:29.1.0')
     implementation 'com.google.firebase:firebase-analytics-ktx'
     implementation 'com.google.firebase:firebase-auth-ktx'
     implementation 'com.google.firebase:firebase-crashlytics-ktx'
-
     // Browser
     implementation "androidx.browser:browser:1.3.0"
-
-    // Timber (logging)
+    // Timber
     implementation "com.jakewharton.timber:timber:5.0.1"
-
     // Testing
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.3'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.4.0'
 }
 
-// Detekt configuration block
 detekt {
     toolVersion = "1.21.0"
     config = files("$rootDir/config/detekt/detekt.yml")

@@ -1,67 +1,84 @@
 default_platform(:android)
 
 platform :android do
-  desc "Build and deploy a staging version to Firebase App Distribution"
-  lane :deploy_staging do
-    UI.message("Running unit tests...")
 
-    # gradle(
-    #   task: 'testDebugUnitTest'
-    # )
-    
-    gradle(
-      task: 'assembleDebug',
-      properties: {
-        "BASE_URL" => ENV['BASE_URL'],
-        "CONTENT_URL" => ENV['CONTENT_URL']
-        "TENANT_NAME" => ENV['TENANT_NAME']
-      }
-    )
+  private_lane :load_env_file do |options|
+    path = "./#{options[:filename]}"
+    UI.message("Attempting to load environment file from: '#{path}'...")
 
-    firebase_app_distribution(
-      app: ENV['FIREBASE_APP_ID'],
+    unless File.exist?(path)
+      UI.user_error!("Could not find .env file at path: '#{path}'. Please ensure it exists in the 'fastlane' directory.")
+      next
+    end
 
-      apk_path: "app/build/outputs/apk/debug/app-debug.apk",
-
-      groups: ENV['FIREBASE_TESTER_GROUPS'],
-
-      firebase_cli_token: ENV['FIREBASE_CLI_TOKEN'],
-
-      release_notes: "New staging build uploaded by fastlane."
-    )
-
-    UI.success("Successfully built and deployed to Firebase App Distribution!")
+    File.foreach(path) do |line|
+      next if line.strip.empty? || line.start_with?('#')
+      key, value = line.split('=', 2).map(&:strip)
+      value = value.gsub(/\A"|"\Z/, '')
+      ENV[key] = value
+    end
+    UI.success("Successfully loaded environment file.")
   end
 
-  desc "Build and deploy a production version to Firebase App Distribution"
-  lane :deploy_prod do
-    UI.message("Running unit tests...")
+  desc "Build and deploy a STAGING version to Firebase"
+  lane :deploy_staging do
+    load_env_file(filename: ".env.staging")
 
-    # gradle(
-    #   task: 'testReleaseUnitTest'
-    # )
-    
+    UI.message("Building Debug APK for staging...")
     gradle(
-      task: 'assembleRelease',
+      task: ":app:assembleDebug",
       properties: {
-        "BASE_URL" => ENV['PROD_BASE_URL'],
-        "CONTENT_URL" => ENV['PROD_CONTENT_URL']
-        "TENANT_NAME" => ENV['FIREBASE_PROD_TESTER_GROUPS']
+        "BASE_URL" => ENV['STAGING_BASE_URL'],
+        "CONTENT_URL" => ENV['STAGING_CONTENT_URL'],
+        "TENANT_NAME" => ENV['STAGING_TENANT_NAME'],
+
+        "STAGING_KEYSTORE_BASE64" => ENV['STAGING_KEYSTORE_BASE64'],
+        "STAGING_KEYSTORE_PASSWORD" => ENV['STAGING_KEYSTORE_PASSWORD'],
+        "STAGING_KEY_ALIAS" => ENV['STAGING_KEY_ALIAS'],
+        "STAGING_KEY_PASSWORD" => ENV['STAGING_KEY_PASSWORD']
       }
     )
 
+    UI.message("Uploading staging build to Firebase App Distribution...")
     firebase_app_distribution(
-      app: ENV['FIREBASE_PROD_APP_ID'],
-
-      apk_path: "app/build/outputs/apk/release/app-release.apk",
-
-      groups: ENV['FIREBASE_PROD_TESTER_GROUPS'],
-
-      firebase_cli_token: ENV['FIREBASE_CLI_TOKEN'],
-
-      release_notes: "New production build uploaded by fastlane."
+      app: ENV['FIREBASE_STAGING_APP_ID'],
+      apk_path: "app/build/outputs/apk/debug/app-debug.apk",
+      groups: ENV['FIREBASE_STAGING_TESTER_GROUPS'],
+      firebase_cli_token: ENV['FIREBASE_CLI_TOKEN']
     )
 
-    UI.success("Successfully built and deployed to Firebase App Distribution!")
+    UI.success("✅ Successfully deployed new STAGING build to Firebase!")
+  end
+
+  desc "Build and deploy a PRODUCTION version to Firebase"
+  lane :deploy_prod do
+    load_env_file(filename: ".env.prod")
+
+    UI.message("Building Release APK for production...")
+    gradle(
+      task: ":app:assembleRelease",
+      properties: {
+        # Pass the production-specific variables to Gradle
+        "BASE_URL" => ENV['PROD_BASE_URL'],
+        "CONTENT_URL" => ENV['PROD_CONTENT_URL'],
+        "TENANT_NAME" => ENV['PROD_TENANT_NAME'],
+
+        # Production Signing Credentials
+        "SIGNING_KEYSTORE_BASE64" => ENV['SIGNING_KEYSTORE_BASE64'],
+        "SIGNING_KEYSTORE_PASSWORD" => ENV['SIGNING_KEYSTORE_PASSWORD'],
+        "SIGNING_KEY_ALIAS" => ENV['SIGNING_KEY_ALIAS'],
+        "SIGNING_KEY_PASSWORD" => ENV['SIGNING_KEY_PASSWORD']
+      }
+    )
+
+    UI.message("Uploading production build to Firebase App Distribution...")
+    firebase_app_distribution(
+      app: ENV['FIREBASE_PROD_APP_ID'],
+      apk_path: "app/build/outputs/apk/release/app-release.apk",
+      groups: ENV['FIREBASE_PROD_TESTER_GROUPS'],
+      firebase_cli_token: ENV['FIREBASE_CLI_TOKEN']
+    )
+
+    UI.success("✅ Successfully deployed new PRODUCTION build to Firebase!")
   end
 end
