@@ -2,7 +2,7 @@ name: Deploy Android Staging Build
 
 on:
   push:
-    branches: [a4i/staging, prod-lane]
+    branches: [a4i/staging]
   pull_request:
     branches: [a4i/staging]
   workflow_call:
@@ -45,7 +45,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build and Deploy with Fastlane
-        if: github.ref == 'refs/heads/prod-lane'
+        if: github.ref == 'refs/heads/a4i/staging'
         working-directory: ./Teacher-App
         env:
           STAGING_BASE_URL:               ${{ secrets.BASE_URL_ANDROID_STAGING }}
