@@ -2,7 +2,7 @@ name: Deploy Android Staging Build
 
 on:
   push:
-    branches: [a4i/staging]
+    branches: [a4i/staging, prod-lane]
   pull_request:
     branches: [a4i/staging]
   workflow_call:
@@ -48,14 +48,13 @@ jobs:
         if: github.ref == 'refs/heads/a4i/staging'
         working-directory: ./Teacher-App
         env:
-          BASE_URL:               ${{ secrets.BASE_URL }}
-          CONTENT_URL:            ${{ secrets.CONTENT_URL }}
-          TENANT_NAME:            ${{ secrets.FIREBASE_TESTER_GROUPS }}
-          FIREBASE_APP_ID:        ${{ secrets.FIREBASE_APP_ID }}
-          FIREBASE_TESTER_GROUPS: ${{ secrets.FIREBASE_TESTER_GROUPS }}
+          STAGING_BASE_URL:               ${{ secrets.BASE_URL_ANDROID_STAGING }}
+          STAGING_CONTENT_URL:            ${{ secrets.CONTENT_URL_ANDROID_STAGING }}
+          STAGING_TENANT_NAME:            ${{ secrets.FIREBASE_TESTER_GROUPS_ANDROID_STAGING }}
+          FIREBASE_STAGING_APP_ID:        ${{ secrets.FIREBASE_APP_ID_ANDROID_STAGING }}
+          FIREBASE_STAGING_TESTER_GROUPS: ${{ secrets.FIREBASE_TESTER_GROUPS_ANDROID_STAGING }}
           FIREBASE_CLI_TOKEN:     ${{ secrets.FIREBASE_CLI_TOKEN }}
 
-          # NEW: Signing secrets for Staging/Debug build
           STAGING_KEYSTORE_BASE64:   ${{ secrets.STAGING_KEYSTORE_BASE64 }}
           STAGING_KEYSTORE_PASSWORD: ${{ secrets.STAGING_KEYSTORE_PASSWORD }}
           STAGING_KEY_ALIAS:         ${{ secrets.STAGING_KEY_ALIAS }}
