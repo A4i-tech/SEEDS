@@ -2,7 +2,7 @@ name: Execute Workflows
 
 on:
   push:
-    branches: [a4i/main, a4i/staging, '91-teams-alert']
+    branches: [a4i/main, a4i/staging]
   workflow_dispatch:
 
 jobs:
@@ -29,8 +29,13 @@ jobs:
     secrets: inherit
 
   deploy-android-staging:
-    if: github.ref == 'refs/heads/a4i/staging' || github.ref == 'refs/heads/91-teams-alert'
+    if: github.ref == 'refs/heads/a4i/staging'
     uses: ./.github/workflows/android-deploy-staging.yml
+    secrets: inherit
+
+  deploy-android-main:
+    if: github.ref == 'refs/heads/a4i/main'
+    uses: ./ .github/workflows/android-deploy-main.yml
     secrets: inherit
 
   run-coverage-summary:
@@ -47,6 +52,7 @@ jobs:
       - deploy-staging-workflow
       - deploy-main-workflow
       - deploy-android-staging
+      - deploy-android-main
       - run-coverage-summary
     steps:
       - name: Checkout Code
@@ -55,7 +61,7 @@ jobs:
       - name: Dispatch Notification
         uses: ./.github/actions/teams-notify
         with:
-          
+
           teams-webhook-url: ${{ secrets.TEAMS_WEBHOOK_URL }}
           
           activity-title: "Workflow Outcome: ${{ contains(needs.*.result, 'failure') && 'FAILURE' || 'SUCCESS' }}"
