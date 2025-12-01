@@ -1,5 +1,5 @@
 name: Dispatch Teams Notification
-description: Send a message card to Microsoft Teams via an incoming webhook.
+description: Send an Adaptive Card to Microsoft Teams via an incoming webhook.
 inputs:
   summary:
     description: Short summary shown in the Teams notification.
@@ -8,7 +8,7 @@ inputs:
     description: Main title rendered inside the Teams card.
     required: true
   theme-color:
-    description: Hex color used to highlight the notification.
+    description: Hex color used to highlight the notification (FF0000 for Red/Failure).
     required: false
     default: '0076D7'
   facts:
@@ -17,7 +17,7 @@ inputs:
     default: '[]'
   teams-webhook-url:
     description: Incoming Microsoft Teams webhook URL.
-    required: true # Make this required here, pass it from the workflow
+    required: true
 
 runs:
   using: composite
@@ -25,7 +25,6 @@ runs:
     - name: Dispatch notification to Microsoft Teams
       shell: bash
       env:
-        # We only use inputs here. We do NOT use secrets or needs directly.
         FACTS_INPUT: ${{ inputs.facts }}
         WEBHOOK_URL_INPUT: ${{ inputs.teams-webhook-url }}
         SUMMARY_INPUT: ${{ inputs.summary }}
@@ -39,37 +38,76 @@ runs:
           exit 1
         fi
 
-        # Initialize Facts
+        # --- 1. PREPARE FACTS ---
         FACTS='[]'
 
-        # Helper function to add facts
         add_fact() {
           local name="$1"
           local value="$2"
           if [ -z "$value" ]; then return; fi
+          # Note: We build standard name/value here, we will map to title/value for Adaptive Card later
           FACTS="$(jq --arg name "$name" --arg value "$value" '. + [{"name":$name,"value":$value}]' <<< "$FACTS")"
         }
 
-        # Add standard facts automatically
+        # Add standard facts
         add_fact "Branch" "${{ github.ref_name }}"
         add_fact "Commit" "${{ github.sha }}"
         add_fact "Actor" "${{ github.actor }}"
 
-        # Merge user-provided facts (passed from inputs)
+        # Merge user-provided facts
         if [ -n "$(echo "$FACTS_INPUT" | tr -d '[:space:]')" ]; then
           FACTS="$(jq --argjson extra "$FACTS_INPUT" '. + $extra' <<< "$FACTS")"
         fi
 
-        # Construct JSON Payload
+        # --- 2. CONSTRUCT ADAPTIVE CARD PAYLOAD ---
+        # We use Adaptive Cards because 'MessageCard' is deprecated and fails on new 'Workflows' URLs.
+        # We also map the Color input to Adaptive Card styles (Red -> Attention, Green/Blue -> Good/Accent).
+
         PAYLOAD="$(jq -cn \
+          --arg title "$ACTIVITY_INPUT" \
           --arg summary "$SUMMARY_INPUT" \
-          --arg activity "$ACTIVITY_INPUT" \
           --arg color "$COLOR_INPUT" \
           --argjson facts "$FACTS" \
-          '{ "@type":"MessageCard", "@context":"http://schema.org/extensions", "themeColor":$color, "summary":$summary, "sections":[{"activityTitle":$activity,"facts":$facts}] }' \
+          '{
+            "type": "message",
+            "attachments": [
+              {
+                "contentType": "application/vnd.microsoft.card.adaptive",
+                "contentUrl": null,
+                "content": {
+                  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                  "type": "AdaptiveCard",
+                  "version": "1.2",
+                  "body": [
+                    {
+                      "type": "TextBlock",
+                      "text": $title,
+                      "weight": "Bolder",
+                      "size": "Medium",
+                      "color": (if $color == "FF0000" then "Attention" else "Good" end)
+                    },
+                    {
+                      "type": "TextBlock",
+                      "text": $summary,
+                      "isSubtle": true,
+                      "wrap": true
+                    },
+                    {
+                      "type": "FactSet",
+                      "facts": ($facts | map({title: .name, value: .value}))
+                    }
+                  ]
+                }
+              }
+            ]
+          }' \
         )"
 
-        # Send Request
-        curl -sS -X POST -H "Content-Type: application/json" \
+        # --- 3. SEND NOTIFICATION (DEBUG MODE) ---
+        # -v: Verbose (prints the response body if it fails, e.g., "Summary required")
+        # -f: Fail (exit code 1) if HTTP status is 400/500 (Server Error)
+        
+        echo "Sending payload..."
+        curl -v -f -H "Content-Type: application/json" \
           -d "$PAYLOAD" \
-          "$WEBHOOK_URL_INPUT" || true
+          "$WEBHOOK_URL_INPUT"
