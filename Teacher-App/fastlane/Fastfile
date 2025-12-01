@@ -6,18 +6,24 @@ platform :android do
     path = "./#{options[:filename]}"
     UI.message("Attempting to load environment file from: '#{path}'...")
 
-    unless File.exist?(path)
-      UI.user_error!("Could not find .env file at path: '#{path}'. Please ensure it exists in the 'fastlane' directory.")
-      next
+    if File.exist?(path)
+      # LOCAL MODE: File exists, load it
+      File.foreach(path) do |line|
+        next if line.strip.empty? || line.start_with?('#')
+        key, value = line.split('=', 2).map(&:strip)
+        value = value.gsub(/\A"|"\Z/, '')
+        ENV[key] = value
+      end
+      UI.success("Successfully loaded environment file.")
+    else
+      # CI MODE: File missing, check if we are in CI
+      if ENV['CI']
+        UI.important("File '#{path}' not found. Running in CI mode, assuming environment variables are set directly in the workflow.")
+      else
+        # LOCAL ERROR: If not in CI and file is missing, we should probably fail
+        UI.user_error!("Could not find .env file at path: '#{path}'. Please ensure it exists in the 'fastlane' directory.")
+      end
     end
-
-    File.foreach(path) do |line|
-      next if line.strip.empty? || line.start_with?('#')
-      key, value = line.split('=', 2).map(&:strip)
-      value = value.gsub(/\A"|"\Z/, '')
-      ENV[key] = value
-    end
-    UI.success("Successfully loaded environment file.")
   end
 
   desc "Build and deploy a STAGING version to Firebase"
