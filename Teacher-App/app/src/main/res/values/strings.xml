@@ -8,4 +8,7 @@
 
     <string name="navigation_drawer_open">Open navigation drawer</string>
     <string name="navigation_drawer_close">Close navigation drawer</string>
+    <string name="resume_session_title">Resume Last Session</string>
+    <string name="resume_playback_title">Resume Playback</string>
+    
 </resources>

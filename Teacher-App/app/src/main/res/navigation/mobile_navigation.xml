@@ -167,6 +167,24 @@
                 app:argType="com.example.seeds.model.Classroom" />
         </action> 
         -->
+        <action
+            android:id="@+id/action_classroomFragment_to_call_nav"
+            app:destination="@id/call_nav">
+            <argument
+                android:name="phoneNumbers"
+                app:argType="string[]" />
+            <argument
+                android:name="classroom"
+                app:argType="com.example.seeds.model.Classroom" />
+            <argument
+                android:name="leader"
+                app:argType="string"
+                app:nullable="true"
+                android:defaultValue="@null" />
+        </action>
+        <action
+            android:id="@+id/action_classroomFragment_to_contentDetailsFragment"
+            app:destination="@id/contentDetailsFragment" />
     </fragment>
     <fragment
         android:id="@+id/createClassroomFragment"
