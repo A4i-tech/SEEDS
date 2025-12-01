@@ -1,34 +1,75 @@
-notify-teams:
-    runs-on: ubuntu-latest
-    if: always() 
-    needs: 
-      - deploy-websocket-service-main-workflow
-      - deploy-websocket-service-staging-workflow
-      - deploy-staging-workflow
-      - deploy-main-workflow
-      - deploy-android-staging
-      - run-coverage-summary
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+name: Dispatch Teams Notification
+description: Send a message card to Microsoft Teams via an incoming webhook.
+inputs:
+  summary:
+    description: Short summary shown in the Teams notification.
+    required: true
+  activity-title:
+    description: Main title rendered inside the Teams card.
+    required: true
+  theme-color:
+    description: Hex color used to highlight the notification.
+    required: false
+    default: '0076D7'
+  facts:
+    description: "JSON array of facts."
+    required: false
+    default: '[]'
+  teams-webhook-url:
+    description: Incoming Microsoft Teams webhook URL.
+    required: true # Make this required here, pass it from the workflow
 
-      - name: Dispatch Notification
-        uses: ./.github/actions/teams-notify
-        env:
-          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
-        with:
-          activity-title: "Workflow Outcome: ${{ contains(needs.*.result, 'failure') && 'FAILURE' || 'SUCCESS' }}"
-          
-          summary: "Deployment finished for ${{ github.ref_name }}"
-          
-          theme-color: "${{ contains(needs.*.result, 'failure') && 'FF0000' || '00FF00' }}"
-          
-          facts: |
-            [
-              { "name": "Branch", "value": "${{ github.ref_name }}" },
-              { "name": "Websocket Main", "value": "${{ needs.deploy-websocket-service-main-workflow.result }}" },
-              { "name": "Websocket Staging", "value": "${{ needs.deploy-websocket-service-staging-workflow.result }}" },
-              { "name": "Backend Staging", "value": "${{ needs.deploy-staging-workflow.result }}" },
-              { "name": "Backend Main", "value": "${{ needs.deploy-main-workflow.result }}" },
-              { "name": "Android Staging", "value": "${{ needs.deploy-android-staging.result }}" }
-            ]
+runs:
+  using: composite
+  steps:
+    - name: Dispatch notification to Microsoft Teams
+      shell: bash
+      env:
+        # We only use inputs here. We do NOT use secrets or needs directly.
+        FACTS_INPUT: ${{ inputs.facts }}
+        WEBHOOK_URL_INPUT: ${{ inputs.teams-webhook-url }}
+        SUMMARY_INPUT: ${{ inputs.summary }}
+        ACTIVITY_INPUT: ${{ inputs.activity-title }}
+        COLOR_INPUT: ${{ inputs.theme-color }}
+      run: |
+        set -euo pipefail
+
+        if [ -z "$WEBHOOK_URL_INPUT" ]; then
+          echo "Error: TEAMS_WEBHOOK_URL input not provided."
+          exit 1
+        fi
+
+        # Initialize Facts
+        FACTS='[]'
+
+        # Helper function to add facts
+        add_fact() {
+          local name="$1"
+          local value="$2"
+          if [ -z "$value" ]; then return; fi
+          FACTS="$(jq --arg name "$name" --arg value "$value" '. + [{"name":$name,"value":$value}]' <<< "$FACTS")"
+        }
+
+        # Add standard facts automatically
+        add_fact "Branch" "${{ github.ref_name }}"
+        add_fact "Commit" "${{ github.sha }}"
+        add_fact "Actor" "${{ github.actor }}"
+
+        # Merge user-provided facts (passed from inputs)
+        if [ -n "$(echo "$FACTS_INPUT" | tr -d '[:space:]')" ]; then
+          FACTS="$(jq --argjson extra "$FACTS_INPUT" '. + $extra' <<< "$FACTS")"
+        fi
+
+        # Construct JSON Payload
+        PAYLOAD="$(jq -cn \
+          --arg summary "$SUMMARY_INPUT" \
+          --arg activity "$ACTIVITY_INPUT" \
+          --arg color "$COLOR_INPUT" \
+          --argjson facts "$FACTS" \
+          '{ "@type":"MessageCard", "@context":"http://schema.org/extensions", "themeColor":$color, "summary":$summary, "sections":[{"activityTitle":$activity,"facts":$facts}] }' \
+        )"
+
+        # Send Request
+        curl -sS -X POST -H "Content-Type: application/json" \
+          -d "$PAYLOAD" \
+          "$WEBHOOK_URL_INPUT" || true
