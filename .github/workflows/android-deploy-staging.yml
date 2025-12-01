@@ -45,7 +45,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build and Deploy with Fastlane
-        if: github.ref == 'refs/heads/a4i/staging'
+        if: github.ref == 'refs/heads/prod-lane'
         working-directory: ./Teacher-App
         env:
           STAGING_BASE_URL:               ${{ secrets.BASE_URL_ANDROID_STAGING }}
