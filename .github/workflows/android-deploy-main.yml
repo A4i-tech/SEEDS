@@ -2,7 +2,7 @@ name: Deploy Android Production Build
 
 on:
   push:
-    branches: [a4i/main, prod-lane]
+    branches: [a4i/main]
   pull_request:
     branches: [a4i/main]
   workflow_call:
@@ -45,14 +45,14 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build and Deploy Production with Fastlane
-        if: github.ref == 'refs/heads/prod-lane'
+        if: github.ref == 'refs/heads/a4i/main'
         working-directory: ./Teacher-App
         env:
 
           PROD_BASE_URL:               ${{ secrets.BASE_URL_ANDROID_PROD }}
           PROD_CONTENT_URL:            ${{ secrets.CONTENT_URL_ANDROID_PROD }}
           PROD_TENANT_NAME:            ${{ secrets.FIREBASE_PROD_TESTER_GROUPS }}
-          FIREBASE_PROD_APP_ID:        ${{ secrets.FIREBASE_APP_ID_ANDROID_STAGING }}
+          FIREBASE_PROD_APP_ID:        ${{ secrets.FIREBASE_PROD_APP_ID }}
           FIREBASE_PROD_TESTER_GROUPS: ${{ secrets.FIREBASE_PROD_TESTER_GROUPS }}
           FIREBASE_CLI_TOKEN:     ${{ secrets.FIREBASE_CLI_TOKEN }}
 
