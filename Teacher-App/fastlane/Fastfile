@@ -2,12 +2,23 @@ default_platform(:android)
 
 platform :android do
 
+  # Helper method to fix group names (removes spaces, downcases)
+  # Example: "Vision Empower, QA Team" -> "vision-empower,qa-team"
+  def sanitize_tester_groups(raw_groups)
+    return nil if raw_groups.nil? || raw_groups.empty?
+    
+    sanitized = raw_groups.to_s.split(',').map do |group|
+      group.strip.downcase.gsub(' ', '-')
+    end.join(',')
+    
+    return sanitized
+  end
+
   private_lane :load_env_file do |options|
     path = "./#{options[:filename]}"
     UI.message("Attempting to load environment file from: '#{path}'...")
 
     if File.exist?(path)
-      # LOCAL MODE: File exists, load it
       File.foreach(path) do |line|
         next if line.strip.empty? || line.start_with?('#')
         key, value = line.split('=', 2).map(&:strip)
@@ -16,11 +27,9 @@ platform :android do
       end
       UI.success("Successfully loaded environment file.")
     else
-      # CI MODE: File missing, check if we are in CI
       if ENV['CI']
         UI.important("File '#{path}' not found. Running in CI mode, assuming environment variables are set directly in the workflow.")
       else
-        # LOCAL ERROR: If not in CI and file is missing, we should probably fail
         UI.user_error!("Could not find .env file at path: '#{path}'. Please ensure it exists in the 'fastlane' directory.")
       end
     end
@@ -29,6 +38,10 @@ platform :android do
   desc "Build and deploy a STAGING version to Firebase"
   lane :deploy_staging do
     load_env_file(filename: ".env.staging")
+
+    # Sanitize groups dynamically
+    staging_groups = sanitize_tester_groups(ENV['FIREBASE_STAGING_TESTER_GROUPS'])
+    UI.message("Deploying Staging to groups: #{staging_groups}")
 
     UI.message("Building Debug APK for staging...")
     gradle(
@@ -49,7 +62,7 @@ platform :android do
     firebase_app_distribution(
       app: ENV['FIREBASE_STAGING_APP_ID'],
       apk_path: "app/build/outputs/apk/debug/app-debug.apk",
-      groups: ENV['FIREBASE_STAGING_TESTER_GROUPS'],
+      groups: staging_groups, 
       firebase_cli_token: ENV['FIREBASE_CLI_TOKEN']
     )
 
@@ -60,16 +73,18 @@ platform :android do
   lane :deploy_prod do
     load_env_file(filename: ".env.prod")
 
+    # Sanitize groups dynamically (Fixes "Invalid request" error)
+    prod_groups = sanitize_tester_groups(ENV['FIREBASE_PROD_TESTER_GROUPS'])
+    UI.message("Deploying Production to groups: #{prod_groups}")
+
     UI.message("Building Release APK for production...")
     gradle(
       task: ":app:assembleRelease",
       properties: {
-        # Pass the production-specific variables to Gradle
         "BASE_URL" => ENV['PROD_BASE_URL'],
         "CONTENT_URL" => ENV['PROD_CONTENT_URL'],
         "TENANT_NAME" => ENV['PROD_TENANT_NAME'],
 
-        # Production Signing Credentials
         "SIGNING_KEYSTORE_BASE64" => ENV['SIGNING_KEYSTORE_BASE64'],
         "SIGNING_KEYSTORE_PASSWORD" => ENV['SIGNING_KEYSTORE_PASSWORD'],
         "SIGNING_KEY_ALIAS" => ENV['SIGNING_KEY_ALIAS'],
@@ -81,7 +96,7 @@ platform :android do
     firebase_app_distribution(
       app: ENV['FIREBASE_PROD_APP_ID'],
       apk_path: "app/build/outputs/apk/release/app-release.apk",
-      groups: ENV['FIREBASE_PROD_TESTER_GROUPS'],
+      groups: prod_groups, 
       firebase_cli_token: ENV['FIREBASE_CLI_TOKEN']
     )
 
