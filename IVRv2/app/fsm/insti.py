@@ -461,14 +461,6 @@ def generate_states(fsm, content_list, content_attributes, level, parent_state_i
 
 
 async def instantiate_from_latest_content(content_ids: Optional[List[str]] = None):
-    # # content = await get_content(content_ids)
-    # script_dir = os.path.dirname(os.path.abspath(__file__))  # Get script directory
-    # file_path = os.path.join(script_dir, "contentsV3.json")  # Build absolute path
-
-    # print(file_path)
-
-    # with open(file_path, "r", encoding="utf-8") as file:
-    #     content = json.load(file)
 
     content = await contents_v3_data.find_all()
 
