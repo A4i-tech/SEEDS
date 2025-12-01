@@ -2,32 +2,34 @@ name: Execute Workflows
 
 on:
   push:
-    branches: [a4i/main, a4i/staging]
+    branches: [a4i/main, a4i/staging, '91-teams-alert']
   workflow_dispatch:
 
 jobs:
+
   deploy-websocket-service-main-workflow:
     if: github.ref == 'refs/heads/a4i/main'
     uses: ./.github/workflows/deploy-websocket-service-main.yml
     secrets: inherit
 
   deploy-websocket-service-staging-workflow:
-    if: github.ref == 'refs/heads/a4i/staging'
+    if: github.ref == 'refs/heads/a4i/staging' 
     uses: ./.github/workflows/deploy-websocket-service-staging.yml
     secrets: inherit
 
   deploy-staging-workflow:
-    if: github.ref == 'refs/heads/a4i/staging'
+    if: github.ref == 'refs/heads/a4i/staging' 
     uses: ./.github/workflows/deploy-staging.yml
     secrets: inherit
 
+  # Main job stays the same
   deploy-main-workflow:
     if: github.ref == 'refs/heads/a4i/main'
     uses: ./.github/workflows/deploy-main.yml
     secrets: inherit
 
   deploy-android-staging:
-    if: github.ref == 'refs/heads/a4i/staging'
+    if: github.ref == 'refs/heads/a4i/staging' || github.ref == 'refs/heads/91-teams-alert'
     uses: ./.github/workflows/android-deploy-staging.yml
     secrets: inherit
 
@@ -38,9 +40,7 @@ jobs:
 
   notify-teams:
     runs-on: ubuntu-latest
-    
     if: always()
-
     needs: 
       - deploy-websocket-service-main-workflow
       - deploy-websocket-service-staging-workflow
@@ -57,7 +57,6 @@ jobs:
         env:
           TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
         with:
-
           activity-title: "Workflow Outcome: ${{ contains(needs.*.result, 'failure') && 'FAILURE' || 'SUCCESS' }}"
           summary: "Deployment finished for ${{ github.ref_name }}"
           theme-color: "${{ contains(needs.*.result, 'failure') && 'FF0000' || '00FF00' }}"

@@ -1,70 +1,34 @@
-name: Dispatch Teams Notification
-description: Send a message card to Microsoft Teams via an incoming webhook.
-inputs:
-  summary:
-    description: Short summary shown in the Teams notification.
-    required: true
-  activity-title:
-    description: Main title rendered inside the Teams card.
-    required: true
-  theme-color:
-    description: Hex color used to highlight the notification.
-    required: false
-    default: '0076D7'
-  facts:
-    description: "JSON array of {\"name\": \"...\", \"value\": \"...\"} facts to append."
-    required: false
-    default: '[]'
-  teams-webhook-url:
-    description: Incoming Microsoft Teams webhook URL (falls back to TEAMS_WEBHOOK_URL env var).
-    required: false
-    default: ''
-runs:
-  using: composite
-  steps:
-    - name: Dispatch notification to Microsoft Teams
-      shell: bash
-      env:
-        FACTS_INPUT: ${{ inputs.facts }}
-        WEBHOOK_URL_INPUT: ${{ inputs.teams-webhook-url }}
-      run: |
-        set -euo pipefail
+notify-teams:
+    runs-on: ubuntu-latest
+    if: always() 
+    needs: 
+      - deploy-websocket-service-main-workflow
+      - deploy-websocket-service-staging-workflow
+      - deploy-staging-workflow
+      - deploy-main-workflow
+      - deploy-android-staging
+      - run-coverage-summary
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-        WEBHOOK_URL="${WEBHOOK_URL_INPUT:-${TEAMS_WEBHOOK_URL:-}}"
-
-        if [ -z "$WEBHOOK_URL" ]; then
-          echo "TEAMS_WEBHOOK_URL secret not provided. Skipping Teams notification."
-          exit 0
-        fi
-
-        FACTS='[]'
-
-        add_fact() {
-          local name="$1"
-          local value="$2"
-          if [ -z "$value" ]; then
-            return
-          fi
-          FACTS="$(jq --arg name "$name" --arg value "$value" '. + [{"name":$name,"value":$value}]' <<< "$FACTS")"
-        }
-
-        add_fact "Branch" "${{ github.ref_name }}"
-        add_fact "Commit" "${{ github.sha }}"
-        add_fact "Workflow" "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-        add_fact "Actor" "${{ github.actor }}"
-
-        if [ -n "$(echo "$FACTS_INPUT" | tr -d '[:space:]')" ]; then
-          FACTS="$(jq --argjson extra "$FACTS_INPUT" '. + $extra' <<< "$FACTS")"
-        fi
-
-        PAYLOAD="$(jq -cn \
-          --arg summary "${{ inputs.summary }}" \
-          --arg activity "${{ inputs.activity-title }}" \
-          --arg color "${{ inputs.theme-color }}" \
-          --argjson facts "$FACTS" \
-          '{ "@type":"MessageCard", "@context":"http://schema.org/extensions", "themeColor":$color, "summary":$summary, "sections":[{"activityTitle":$activity,"facts":$facts}] }' \
-        )"
-
-        curl -sS -X POST -H "Content-Type: application/json" \
-          -d "$PAYLOAD" \
-          "$WEBHOOK_URL" || true
+      - name: Dispatch Notification
+        uses: ./.github/actions/teams-notify
+        env:
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+        with:
+          activity-title: "Workflow Outcome: ${{ contains(needs.*.result, 'failure') && 'FAILURE' || 'SUCCESS' }}"
+          
+          summary: "Deployment finished for ${{ github.ref_name }}"
+          
+          theme-color: "${{ contains(needs.*.result, 'failure') && 'FF0000' || '00FF00' }}"
+          
+          facts: |
+            [
+              { "name": "Branch", "value": "${{ github.ref_name }}" },
+              { "name": "Websocket Main", "value": "${{ needs.deploy-websocket-service-main-workflow.result }}" },
+              { "name": "Websocket Staging", "value": "${{ needs.deploy-websocket-service-staging-workflow.result }}" },
+              { "name": "Backend Staging", "value": "${{ needs.deploy-staging-workflow.result }}" },
+              { "name": "Backend Main", "value": "${{ needs.deploy-main-workflow.result }}" },
+              { "name": "Android Staging", "value": "${{ needs.deploy-android-staging.result }}" }
+            ]
