@@ -49,11 +49,11 @@ jobs:
         working-directory: ./Teacher-App
         env:
 
-          BASE_URL:               ${{ secrets.CONFERENCE_V2_AZURE_PUBLISH_PROFILE }}
-          CONTENT_URL:            ${{ secrets.CONFERENCE_V2_AZURE_PUBLISH_PROFILE }}
-          TENANT_NAME:            ${{ secrets.FIREBASE_PROD_TESTER_GROUPS }}
-          FIREBASE_APP_ID:        ${{ secrets.FIREBASE_APP_ID_ANDROID_STAGING }}
-          FIREBASE_TESTER_GROUPS: ${{ secrets.FIREBASE_PROD_TESTER_GROUPS }}
+          PROD_BASE_URL:               ${{ secrets.CONFERENCE_V2_AZURE_PUBLISH_PROFILE }}
+          PROD_CONTENT_URL:            ${{ secrets.CONFERENCE_V2_AZURE_PUBLISH_PROFILE }}
+          PROD_TENANT_NAME:            ${{ secrets.FIREBASE_PROD_TESTER_GROUPS }}
+          FIREBASE_PROD_APP_ID:        ${{ secrets.FIREBASE_APP_ID_ANDROID_STAGING }}
+          FIREBASE_PROD_TESTER_GROUPS: ${{ secrets.FIREBASE_PROD_TESTER_GROUPS }}
           FIREBASE_CLI_TOKEN:     ${{ secrets.FIREBASE_CLI_TOKEN }}
 
           SIGNING_KEYSTORE_BASE64: ${{ secrets.PROD_KEYSTORE_BASE64 }}
