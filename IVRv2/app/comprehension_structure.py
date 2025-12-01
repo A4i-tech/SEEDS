@@ -1,54 +1,36 @@
-from app.settings import settings
-from app.utils.mongodb import MongoDB
+from typing import Optional, Dict, Any, List
 
-# Validate storage env
-storage_account_name = settings.storage_account_name
-if not storage_account_name:
-    raise ValueError("STORAGE_ACCOUNT_NAME environment variable is not set.")
+from app.repositories.comprehension_repository import ComprehensionRepository
+from app.dependencies import get_comprehension_repository
+from app.utils.audio import hydrate_comprehension_document
 
-# URL base components
-storage_account_base_url = f"https://{storage_account_name}.blob.core.windows.net/"
-output_container_path = "output-container/"
-
-
-def build_audio_url(relative_path: str) -> str:
-    """Append relative audio path to Azure blob base URL"""
-    return f"{storage_account_base_url}{output_container_path}{relative_path}"
-
-
-def hydrate_comprehension_document(doc: dict) -> dict:
-    """Convert relative audio paths stored in DB into full URLs at runtime."""
+async def load_comprehension_structure(repository: Optional[ComprehensionRepository] = None) -> List[Dict[str, Any]]:
+    """
+    Load and hydrate comprehension structure from the database.
     
-    # Add high level audio fields
-    if "titleAudioPath" in doc:
-        doc["titleAudio"] = build_audio_url(doc["titleAudioPath"])
+    Args:
+        repository: Optional repository instance to use for data access.
 
-    if "themeAudioPath" in doc:
-        doc["themeAudio"] = build_audio_url(doc["themeAudioPath"])
+    Returns:
+        dict: Hydrated comprehension structure with full audio URLs.
 
-    # Process questions + options
-    for q in doc.get("questions", []):
-        if "audio_path" in q["question"]:
-            q["question"]["url"] = build_audio_url(q["question"]["audio_path"])
+    Raises:
+        ValueError: If the comprehension document is not found.
+    """
 
-        for opt in q.get("options", []):
-            if "audio_path" in opt:
-                opt["url"] = build_audio_url(opt["audio_path"])
+    repo = repository or get_comprehension_repository()
+    db_doc = await repo.get_all_comprehensions()
 
-    return doc
-
-
-async def load_comprehension_structure():
-    """Load and hydrate comprehension structure from MongoDB."""
-    comprehension = MongoDB("comprehension")
-    db_doc = await comprehension.find_all()
-
-    if not db_doc:
-        raise ValueError("Comprehension document not found in MongoDB.")
-    print(f"Loaded comprehension structure from DB: {db_doc}")
-    # Final structure consumed by IVR logic
     return hydrate_comprehension_document(db_doc)
+    
+comprehension_structure: Optional[List[Dict[str, Any]]] = None
 
+async def initialize_comprehension_structure(repository: Optional[ComprehensionRepository] = None):
+    """
+    Initialize the global comprehension structure variable.
 
-# This will be None until load_comprehension_structure() is called
-comprehension_structure = None
+    Args:
+        repository: Optional repository instance to use for data access.
+    """
+    global comprehension_structure
+    comprehension_structure = await load_comprehension_structure(repository)
