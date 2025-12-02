@@ -1,17 +1,18 @@
 /* eslint-env node */
 /* global process */
-const fs = require('fs');
-const path = require('path');
-const dotenv = require('dotenv');
+const fs = require("fs");
+const path = require("path");
+const dotenv = require("dotenv");
 
-const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env';
+const envFile =
+  process.env.NODE_ENV === "production" ? ".env.production" : ".env";
 const envPath = path.resolve(process.cwd(), envFile);
 
 if (fs.existsSync(envPath)) {
-  dotenv.config({path: envPath});
+  dotenv.config({ path: envPath });
   console.log(`Loaded environment variables from ${envFile}`);
 } else {
-  console.log('Using system environment variables');
+  console.log("Using system environment variables");
 }
 const config = {
   port: process.env.PORT,
@@ -25,9 +26,11 @@ const config = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN,
   passwordSaltRounds: process.env.PASSWORD_SALT_ROUNDS,
 };
-if (config.authType === 'firebase') {
+if (config.authType === "firebase") {
   if (!config.firebaseApiKey || !config.firebaseServiceAccount) {
-    throw new Error('Firebase auth selected but FIREBASE_API_KEY or FIREBASE_SERVICE_ACCOUNT is missing in environment variables');
+    throw new Error(
+      "Firebase auth selected but FIREBASE_API_KEY or FIREBASE_SERVICE_ACCOUNT is missing in environment variables",
+    );
   }
 }
 module.exports = config;
