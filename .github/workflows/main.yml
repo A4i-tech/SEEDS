@@ -26,9 +26,9 @@ jobs:
     uses: ./.github/workflows/deploy-main.yml
     secrets: inherit
 
-  deploy-android-staging:
-    if: github.ref == 'refs/heads/a4i/staging'
-    uses: ./.github/workflows/android-deploy-staging.yml
+  deploy-android:
+    if: github.ref == 'refs/heads/a4i/staging' || github.ref == 'refs/heads/a4i/main'
+    uses: ./.github/workflows/android-deploy.yml
     secrets: inherit
 
   run-coverage-summary:

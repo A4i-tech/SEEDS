@@ -21,7 +21,15 @@ For _fastlane_ installation instructions, see [Installing _fastlane_](https://do
 [bundle exec] fastlane android deploy_staging
 ```
 
-Build and deploy a staging version to Firebase App Distribution
+Build and deploy a STAGING version to Firebase
+
+### android deploy_prod
+
+```sh
+[bundle exec] fastlane android deploy_prod
+```
+
+Build and deploy a PRODUCTION version to Firebase
 
 ----
 
