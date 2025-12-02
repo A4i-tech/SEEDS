@@ -49,7 +49,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build and Deploy Staging
-        if: github.ref == 'refs/heads/a4i/staging'
+        if: github.ref == 'refs/heads/a4i/staging' && github.event_name == 'push'
         working-directory: ./Teacher-App
         env:
           STAGING_BASE_URL:               ${{ secrets.BASE_URL_ANDROID_STAGING }}
