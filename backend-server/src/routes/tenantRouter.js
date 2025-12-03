@@ -1,7 +1,9 @@
-const express = require('express');
-const tenantAuthProvider = require('../auth/tenant/tenantAuthProviderMiddleware');
-const {STATUS} = require("../config/constants");
-const authenticateToken = require('../auth/authenticateToken');
+const express = require("express");
+const tenantAuthProvider = require("../auth/tenant/tenantAuthProviderMiddleware");
+const { STATUS } = require("../config/constants");
+const authenticateToken = require("../auth/authenticateToken");
+const IvrV2Log = require("../models/IvrV2Log");
+const { route } = require("..");
 /**
  *  @swagger
  * tags:
@@ -26,9 +28,7 @@ const router = express.Router();
  *               items:
  *                 type: string
  */
-router.get("/names",
-  tenantAuthProvider.getAllTenants
-);
+router.get("/names", tenantAuthProvider.getAllTenants);
 
 /**
  * @swagger
@@ -65,16 +65,13 @@ router.get("/names",
  *       401:
  *         description: Invalid credentials
  */
-router.post('/login',
-  tenantAuthProvider.login,
-  (req, res) => {
-    // Send a success response with the extracted userId
-    res.status(STATUS.OK).json({
-      message: 'Login successful',
-      userId: req.userId
-    });
-  }
-);
+router.post("/login", tenantAuthProvider.login, (req, res) => {
+  // Send a success response with the extracted userId
+  res.status(STATUS.OK).json({
+    message: "Login successful",
+    userId: req.userId,
+  });
+});
 
 /**
  * @swagger
@@ -98,13 +95,10 @@ router.post('/login',
  *       401:
  *         description: Unauthorized, token is missing or invalid
  */
-router.post('/logout',
-  authenticateToken,
-  (req, res) => {
-    // Acknowledge logout
-    res.status(STATUS.OK).json({message: 'Logout successful'});
-  }
-);
+router.post("/logout", authenticateToken, (req, res) => {
+  // Acknowledge logout
+  res.status(STATUS.OK).json({ message: "Logout successful" });
+});
 
 /**
  * @swagger
@@ -141,8 +135,85 @@ router.post('/logout',
  *       409:
  *         description: Conflict, email already exists
  */
-router.post('/register',
-  tenantAuthProvider.register
-);
+router.post("/register", tenantAuthProvider.register);
+
+/**
+ * @swagger
+ * /tenant/analytics:
+ *   post:
+ *     summary: Get analytics data for a date range
+ *     tags: [Tenant]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               startDate:
+ *                 type: string
+ *                 format: date-time
+ *                 description: Start of date range
+ *               endDate:
+ *                 type: string
+ *                 format: date-time
+ *                 description: End of date range
+ *             required:
+ *               - startDate
+ *               - endDate
+ *     responses:
+ *       200:
+ *         description: Analytics data for the specified date range
+ *       400:
+ *         description: Missing or invalid date range
+ *       401:
+ *         description: Unauthorized
+ */
+router.post("/analytics", authenticateToken, async (req, res) => {
+  try {
+    const { startDate, endDate } = req.body;
+
+    if (!startDate || !endDate) {
+      return res.status(STATUS.BAD_REQUEST).json({
+        message: "Both startDate and endDate are required",
+      });
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return res.status(STATUS.BAD_REQUEST).json({
+        message: "Invalid date format",
+      });
+    }
+
+    // Get tenant_id from authenticated user
+    const tenantId = req.user.tenantId;
+
+    // Query IvrV2Log for data in the date range with matching tenant_id
+    const analyticsData = await IvrV2Log.find({
+      tenant_id: tenantId,
+      created_at: {
+        $gte: start,
+        $lte: end,
+      },
+    }).exec();
+
+    res.status(STATUS.OK).json({
+      startDate,
+      endDate,
+      count: analyticsData.length,
+      data: analyticsData,
+    });
+  } catch (error) {
+    console.error("Analytics error:", error);
+    res.status(STATUS.INTERNAL_ERROR).json({
+      message: "Error retrieving analytics data",
+    });
+  }
+});
 
 module.exports = router;

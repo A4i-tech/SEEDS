@@ -27,7 +27,7 @@ from app.settings import settings
 # Initialize MongoDB connections
 ongoing_fsm_mongo = MongoDB(collection_name="ongoingIVRState")
 calls_log_mongo = MongoDB(collection_name="callLogs")
-ivrv2_logs_mongo = MongoDB(collection_name="ivrv2Logs")
+ivrv2_logs_mongo = MongoDB(collection_name="ivrV2Logs")
 
 action_factory = VonageActionFactory()
 accumulator = action_factory.get_action_accumulator_implmentation()

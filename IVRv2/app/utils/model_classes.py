@@ -41,6 +41,7 @@ class IVRCallStateMongoDoc(BaseModel):
     stream_playback: List[StreamPlaybackInfo] = []
     experience_data: Dict[str, Any] = {}
     call_status_updates: Dict[str, Any] = {}
+    tenant_id: str = "690dbc1b3b41c70deffa2761"
 
     def dict(self, *args, **kwargs):
         # Serialize the model to JSON and then parse it back to a Python dictionary
