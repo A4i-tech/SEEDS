@@ -6,8 +6,7 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "jest test --coverage --config=./jest.config.js --no-watch --no-progress",
-    "eject": "react-scripts eject",
-    "server": "json-server --watch db.json --port 5001"
+    "eject": "react-scripts eject"
   },
   "dependencies": {
     "@azure/storage-blob": "^12.12.0",
