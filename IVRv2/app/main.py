@@ -82,7 +82,7 @@ app.add_middleware(
 
 ongoing_fsm_mongo = MongoDB(collection_name="ongoingIVRState")
 
-ivrv2_logs_mongo = MongoDB(collection_name="ivrV2Logs")
+ivrv2_logs_mongo = MongoDB(collection_name="ivrv2logs")
 
 fsm_json_mongo = MongoDB(collection_name="fsm")
 radio_fsm_mongo = MongoDB(collection_name="radio")

@@ -173,11 +173,17 @@ router.post("/register", tenantAuthProvider.register);
  */
 router.post("/analytics", authenticateToken, async (req, res) => {
   try {
-    const { startDate, endDate } = req.body;
+    const { startDate, endDate, tenantId } = req.body;
 
     if (!startDate || !endDate) {
       return res.status(STATUS.BAD_REQUEST).json({
         message: "Both startDate and endDate are required",
+      });
+    }
+
+    if (!tenantId) {
+      return res.status(STATUS.BAD_REQUEST).json({
+        message: "Tenant ID is required",
       });
     }
 
@@ -190,15 +196,14 @@ router.post("/analytics", authenticateToken, async (req, res) => {
       });
     }
 
-    // Get tenant_id from authenticated user
-    const tenantId = req.user.tenantId;
+    const startStr = start.toISOString();
+    const endStr = end.toISOString();
 
-    // Query IvrV2Log for data in the date range with matching tenant_id
     const analyticsData = await IvrV2Log.find({
       tenant_id: tenantId,
       created_at: {
-        $gte: start,
-        $lte: end,
+        $gte: startStr,
+        $lte: endStr,
       },
     }).exec();
 
