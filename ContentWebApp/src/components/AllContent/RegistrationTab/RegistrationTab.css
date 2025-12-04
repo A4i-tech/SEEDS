@@ -1,0 +1,155 @@
+/* Teachers section */
+.teachers-section {
+  margin-top: 24px;
+}
+
+.teachers-section-title {
+  margin-bottom: 12px;
+  color: #0f172a;
+}
+
+/* Teachers layout */
+.teachers-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Teachers list pane */
+.teachers-list-pane {
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fff;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+@media (min-width: 768px) {
+  .teachers-layout {
+    flex-direction: row;
+    gap: 14px;
+  }
+
+  .teachers-list-pane {
+    width: 280px;
+    border-radius: 10px;
+    max-height: 480px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .teachers-layout {
+    gap: 16px;
+  }
+
+  .teachers-list-pane {
+    width: 320px;
+    border-radius: 12px;
+    max-height: 560px;
+  }
+}
+
+.teachers-list-title {
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.teachers-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.teacher-list-item {
+  margin-bottom: 8px;
+}
+
+/* Teacher details pane */
+.teacher-details-pane {
+  flex: 1;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fff;
+  max-height: 400px;
+  overflow-y: auto;
+  width: 100%;
+}
+
+.teacher-details-header {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+@media (min-width: 768px) {
+  .teacher-details-pane {
+    border-radius: 10px;
+    max-height: 480px;
+  }
+
+  .teacher-details-header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0;
+  }
+}
+
+@media (min-width: 1024px) {
+  .teacher-details-pane {
+    border-radius: 12px;
+    max-height: 560px;
+  }
+}
+
+.students-title {
+  font-weight: 700;
+}
+
+.teacher-info-text {
+  color: #64748b;
+  font-size: 13px;
+}
+
+/* Students section */
+.students-section {
+  margin-top: 12px;
+}
+
+/* Add students section */
+.add-students-section {
+  margin-top: 12px;
+}
+
+.add-students-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  align-items: stretch;
+}
+
+.add-students-buttons {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (min-width: 640px) {
+  .add-students-row {
+    flex-direction: row;
+    align-items: center;
+  }
+}
+
+@media (min-width: 1024px) {
+  .add-students-buttons {
+    gap: 12px;
+  }
+}

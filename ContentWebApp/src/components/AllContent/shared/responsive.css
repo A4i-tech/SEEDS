@@ -1,0 +1,229 @@
+/**
+ * Responsive utilities  design helpers
+ * Global responsive patterns and utilities
+ */
+
+/* Touch-friendly interactions */
+* {
+  /* Prevent text size adjustment on orientation change */
+  -webkit-text-size-adjust: 100%;
+  -moz-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Touch-friendly tap targets (minimum 44x44px for accessibility) */
+button,
+a,
+[role="button"],
+[tabindex="0"] {
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Mobile-specific optimizations */
+@media (max-width: 767px) {
+  /* Prevent horizontal overflow */
+  body {
+    overflow-x: hidden;
+  }
+
+  /* Better touch scrolling on iOS */
+  * {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Hide scrollbars on mobile for cleaner UI */
+  .table-wrapper::-webkit-scrollbar,
+  .teachers-list-pane::-webkit-scrollbar,
+  .teacher-details-pane::-webkit-scrollbar {
+    height: 4px;
+    width: 4px;
+  }
+
+  .table-wrapper::-webkit-scrollbar-thumb,
+  .teachers-list-pane::-webkit-scrollbar-thumb,
+  .teacher-details-pane::-webkit-scrollbar-thumb {
+    background: #cbd5e0;
+    border-radius: 2px;
+  }
+}
+
+/* Tablet optimizations */
+@media (min-width: 768px) and (max-width: 1023px) {
+  /* Better scrollbars for tablet */
+  .table-wrapper::-webkit-scrollbar,
+  .teachers-list-pane::-webkit-scrollbar,
+  .teacher-details-pane::-webkit-scrollbar {
+    height: 6px;
+    width: 6px;
+  }
+
+  .table-wrapper::-webkit-scrollbar-thumb,
+  .teachers-list-pane::-webkit-scrollbar-thumb,
+  .teacher-details-pane::-webkit-scrollbar-thumb {
+    background: #a0aec0;
+    border-radius: 3px;
+  }
+}
+
+/* Desktop scrollbar styling */
+@media (min-width: 1024px) {
+  .table-wrapper::-webkit-scrollbar,
+  .teachers-list-pane::-webkit-scrollbar,
+  .teacher-details-pane::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+  }
+
+  .table-wrapper::-webkit-scrollbar-thumb,
+  .teachers-list-pane::-webkit-scrollbar-thumb,
+  .teacher-details-pane::-webkit-scrollbar-thumb {
+    background: #718096;
+    border-radius: 4px;
+  }
+
+  .table-wrapper::-webkit-scrollbar-thumb:hover,
+  .teachers-list-pane::-webkit-scrollbar-thumb:hover,
+  .teacher-details-pane::-webkit-scrollbar-thumb:hover {
+    background: #4a5568;
+  }
+}
+
+/* Responsive typography scale */
+:root {
+  /* Mobile-first (320px+) */
+  --font-size-xs: 11px;
+  --font-size-sm: 13px;
+  --font-size-base: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 18px;
+  --font-size-2xl: 20px;
+  --font-size-3xl: 24px;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --font-size-xs: 12px;
+    --font-size-sm: 13px;
+    --font-size-base: 15px;
+    --font-size-lg: 17px;
+    --font-size-xl: 20px;
+    --font-size-2xl: 24px;
+    --font-size-3xl: 28px;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --font-size-xs: 12px;
+    --font-size-sm: 14px;
+    --font-size-base: 16px;
+    --font-size-lg: 18px;
+    --font-size-xl: 20px;
+    --font-size-2xl: 28px;
+    --font-size-3xl: 32px;
+  }
+}
+
+/* Spacing scale */
+:root {
+  /* Mobile-first */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 24px;
+  --spacing-2xl: 32px;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --spacing-xs: 6px;
+    --spacing-sm: 10px;
+    --spacing-md: 14px;
+    --spacing-lg: 20px;
+    --spacing-xl: 28px;
+    --spacing-2xl: 40px;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --spacing-xs: 8px;
+    --spacing-sm: 12px;
+    --spacing-md: 16px;
+    --spacing-lg: 24px;
+    --spacing-xl: 32px;
+    --spacing-2xl: 48px;
+  }
+}
+
+/* Utility classes for responsive visibility */
+.mobile-only {
+  display: block;
+}
+
+.tablet-up {
+  display: none;
+}
+
+.desktop-only {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .mobile-only {
+    display: none;
+  }
+
+  .tablet-up {
+    display: block;
+  }
+}
+
+@media (min-width: 1024px) {
+  .desktop-only {
+    display: block;
+  }
+}
+
+/* Responsive flex utilities */
+.flex-col-mobile {
+  flex-direction: column;
+}
+
+@media (min-width: 768px) {
+  .flex-col-mobile {
+    flex-direction: row;
+  }
+}
+
+/* Safe area insets for notched devices */
+@supports (padding: env(safe-area-inset-top)) {
+  .page {
+    padding-top: max(12px, env(safe-area-inset-top));
+    padding-left: max(8px, env(safe-area-inset-left));
+    padding-right: max(8px, env(safe-area-inset-right));
+    padding-bottom: max(24px, env(safe-area-inset-bottom));
+  }
+}
+
+/* Focus visible for keyboard navigation */
+:focus-visible {
+  outline: 2px solid #1d4ed8;
+  outline-offset: 2px;
+}
+
+/* Remove focus outline for mouse users */
+:focus:not(:focus-visible) {
+  outline: none;
+}

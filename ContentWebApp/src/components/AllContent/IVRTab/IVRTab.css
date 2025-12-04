@@ -1,0 +1,32 @@
+/* IVR grid layout */
+.ivr-grid {
+  display: grid;
+  grid-template-columns: 1fr; /* Single column on mobile */
+  gap: 12px;
+  margin-top: 16px;
+}
+
+/* Small phones (380px+) - 1 column */
+@media (min-width: 380px) {
+  .ivr-grid {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+}
+
+/* Tablet (640px+) - 2 columns minimum */
+@media (min-width: 640px) {
+  .ivr-grid {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+    margin-top: 20px;
+  }
+}
+
+/* Desktop (1024px+) - Original design */
+@media (min-width: 1024px) {
+  .ivr-grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-top: 24px;
+  }
+}
