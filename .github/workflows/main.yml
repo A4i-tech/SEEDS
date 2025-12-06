@@ -64,7 +64,7 @@ jobs:
             [
               { "name": "Websocket Main", "value": "${{ needs.deploy-websocket-service-main-workflow.result }}" },
               { "name": "Websocket Staging", "value": "${{ needs.deploy-websocket-service-staging-workflow.result }}" },
-              { "name": "Backend Staging", "value": "${{ needs.deploy-staging-workflow.result }}" },
-              { "name": "Backend Main", "value": "${{ needs.deploy-main-workflow.result }}" },
-              { "name": "Android Staging", "value": "${{ needs.deploy-android-staging.result }}" }
+              { "name": "Webservices Staging", "value": "${{ needs.deploy-staging-workflow.result }}" },
+              { "name": "Webservices Main", "value": "${{ needs.deploy-main-workflow.result }}" },
+              { "name": "Android Staging", "value": "${{ needs.deploy-android.result }}" }
             ]
