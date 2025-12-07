@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useAnalytics } from "../../../hooks/useAnalytics";
 import DateRangeSelector from "./DateRangeSelector";
 import AnalyticsStats from "./AnalyticsStats";
-import AnalyticsTable from "./AnalyticsTable";
 import "./css/AnalyticsTab.css";
 import "../shared/cards.css";
 
@@ -101,7 +100,6 @@ const AnalyticsTab = () => {
       {!error && analyticsData && analyticsData.length > 0 && (
         <>
           <AnalyticsStats stats={stats} />
-          <AnalyticsTable data={analyticsData} />
         </>
       )}
 
