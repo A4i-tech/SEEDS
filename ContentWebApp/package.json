@@ -32,6 +32,7 @@
     "recharts": "^2.10.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-react": "^5.6.2",
+    "tree-sitter": "^0.22.4",
     "uuid": "^9.0.0",
     "web-vitals": "^3.0.0",
     "xlsx": "^0.18.5"
