@@ -1,5 +1,5 @@
 import React from "react";
-import "./RegistrationTab.css";
+import "./css/TeachersList.css";
 import "../shared/buttons.css";
 
 const TeachersList = ({ teachers, selectedTeacherId, onSelectTeacher }) => {

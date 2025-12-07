@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import "./css/TeacherRegistrationForm.css";
 import "../shared/buttons.css";
 import "../shared/cards.css";
 import "../shared/utilities.css";

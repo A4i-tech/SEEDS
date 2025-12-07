@@ -1,15 +1,22 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useCallback, useMemo } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import "../shared/buttons.css";
-import "./DateRangeSelector.css";
+import "./css/DateRangeSelector.css";
 
 const QUICK_SELECT_OPTIONS = [
-  { label: "Last 10 Days", days: 10 },
+  { label: "Last 7 Days", days: 7 },
   { label: "Last 15 Days", days: 15 },
   { label: "Last 30 Days", days: 30 },
   { label: "Last 90 Days", days: 90 },
 ];
+
+const diffInDays = (start, end) => {
+  if (!start || !end) return null;
+  const startMs = new Date(start).setHours(0, 0, 0, 0);
+  const endMs = new Date(end).setHours(0, 0, 0, 0);
+  return Math.round((endMs - startMs) / (1000 * 60 * 60 * 24));
+};
 
 const DateRangeSelector = ({
   startDate,
@@ -18,41 +25,55 @@ const DateRangeSelector = ({
   onEndDateChange,
   onFetch,
   isLoading,
+  onClose,
 }) => {
-  const [showCustomRange, setShowCustomRange] = useState(false);
-
   const handleFetch = useCallback(() => {
     if (startDate && endDate) {
       onFetch(startDate, endDate);
+      if (onClose) onClose();
     }
-  }, [startDate, endDate, onFetch]);
+  }, [startDate, endDate, onFetch, onClose]);
+
+  const handleRangeChange = useCallback(
+    (dates) => {
+      const [start, end] = dates;
+      onStartDateChange(start);
+      onEndDateChange(end);
+    },
+    [onStartDateChange, onEndDateChange]
+  );
 
   const handleQuickSelect = useCallback(
     (days) => {
       const end = new Date();
-      const start = new Date();
+      const start = new Date(end);
       start.setDate(start.getDate() - days);
 
       onStartDateChange(start);
       onEndDateChange(end);
       onFetch(start, end);
+      if (onClose) onClose();
     },
-    [onStartDateChange, onEndDateChange, onFetch]
+    [onStartDateChange, onEndDateChange, onFetch, onClose]
   );
-
-  const toggleCustomRange = useCallback(() => {
-    setShowCustomRange((prev) => !prev);
-  }, []);
 
   const isCustomFetchDisabled = useMemo(
     () => !startDate || !endDate || isLoading,
     [startDate, endDate, isLoading]
   );
 
+  const isPresetActive = useCallback(
+    (days) => {
+      const diff = diffInDays(startDate, endDate);
+      return diff === days;
+    },
+    [startDate, endDate]
+  );
+
   return (
     <div className="date-range-selector">
       {/* Quick Select Section */}
-      <div style={{ marginBottom: showCustomRange ? "20px" : "0" }}>
+      <div className="quick-select-row">
         <label className="section-label">Quick Select</label>
         <div className="button-group">
           {QUICK_SELECT_OPTIONS.map(({ label, days }) => (
@@ -60,85 +81,58 @@ const DateRangeSelector = ({
               key={days}
               onClick={() => handleQuickSelect(days)}
               disabled={isLoading}
-              className="quick-select-button"
+              className={`quick-select-button ${
+                isPresetActive(days) ? "active" : ""
+              }`}
               aria-label={`Select ${label.toLowerCase()}`}
             >
               {label}
             </button>
           ))}
-
-          {/* Custom Range Toggle */}
-          <button
-            onClick={toggleCustomRange}
-            disabled={isLoading}
-            className={`toggle-button ${showCustomRange ? "active" : ""}`}
-            aria-label={
-              showCustomRange
-                ? "Hide custom date range"
-                : "Show custom date range"
-            }
-            aria-expanded={showCustomRange}
-          >
-            {showCustomRange ? "Hide Custom Range" : "Custom Range"}
-          </button>
         </div>
       </div>
 
-      {/* Custom Date Range Section */}
-      {showCustomRange && (
-        <div
-          className="custom-range-box"
-          role="region"
-          aria-label="Custom date range selector"
-        >
-          <label className="section-label">Custom Date Range</label>
-          <div className="form-row">
-            <div className="form-field">
-              <label htmlFor="start-date-picker" className="field-label">
-                Start Date
-              </label>
-              <DatePicker
-                id="start-date-picker"
-                selected={startDate}
-                onChange={onStartDateChange}
-                maxDate={new Date()}
-                dateFormat="yyyy-MM-dd"
-                className="mintgreen"
-                placeholderText="Select start date"
-                disabled={isLoading}
-                aria-label="Select start date"
-              />
+      {/* Single Calendar Range Picker */}
+      <div
+        className="range-picker-box"
+        role="region"
+        aria-label="Date range selector"
+      >
+        <label className="section-label">Date Range</label>
+        <div className="range-picker-row">
+          <DatePicker
+            selectsRange
+            startDate={startDate}
+            endDate={endDate}
+            onChange={handleRangeChange}
+            maxDate={new Date()}
+            dateFormat="yyyy-MM-dd"
+            className="mintgreen"
+            inline
+          />
+          <div className="range-actions">
+            <div className="selected-range">
+              {startDate && endDate ? (
+                <>
+                  <span>{startDate.toLocaleDateString()}</span>
+                  <span className="range-separator">to</span>
+                  <span>{endDate.toLocaleDateString()}</span>
+                </>
+              ) : (
+                <span>Select start and end dates</span>
+              )}
             </div>
-            <div className="form-field">
-              <label htmlFor="end-date-picker" className="field-label">
-                End Date
-              </label>
-              <DatePicker
-                id="end-date-picker"
-                selected={endDate}
-                onChange={onEndDateChange}
-                minDate={startDate}
-                maxDate={new Date()}
-                dateFormat="yyyy-MM-dd"
-                className="mintgreen"
-                placeholderText="Select end date"
-                disabled={isLoading}
-                aria-label="Select end date"
-              />
-            </div>
-            <div>
-              <button
-                className="primary-button"
-                onClick={handleFetch}
-                disabled={isCustomFetchDisabled}
-                aria-label="Fetch analytics for custom date range"
-              >
-                {isLoading ? "Loading..." : "Fetch Analytics"}
-              </button>
-            </div>
+            <button
+              className="primary-button"
+              onClick={handleFetch}
+              disabled={isCustomFetchDisabled}
+              aria-label="Apply date range to analytics"
+            >
+              {isLoading ? "Loading..." : "Apply"}
+            </button>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 };

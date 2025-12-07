@@ -1,4 +1,5 @@
 import React from "react";
+import "./css/StudentsTable.css";
 import "../shared/tables.css";
 
 const StudentsTable = ({ students, onRemoveStudent }) => {

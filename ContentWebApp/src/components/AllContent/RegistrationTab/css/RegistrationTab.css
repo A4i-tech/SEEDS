@@ -1,0 +1,39 @@
+/* Registration layout */
+.registration-flex-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.teachers-section {
+  margin-top: 24px;
+}
+
+.teachers-section-title {
+  margin-bottom: 12px;
+  color: #0f172a;
+}
+
+.teachers-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.no-teachers {
+  padding: 12px;
+  color: #94a3b8;
+}
+
+@media (min-width: 768px) {
+  .teachers-layout {
+    flex-direction: row;
+    gap: 14px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .teachers-layout {
+    gap: 16px;
+  }
+}

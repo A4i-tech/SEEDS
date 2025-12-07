@@ -1,7 +1,7 @@
 import React from "react";
 import StudentsTable from "./StudentsTable";
 import AddStudentsForm from "./AddStudentsForm";
-import "./RegistrationTab.css";
+import "./css/TeacherDetails.css";
 import "../shared/buttons.css";
 import "../shared/tables.css";
 import "../shared/utilities.css";

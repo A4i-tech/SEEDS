@@ -1,7 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import IVRCard from "./IVRCard";
-import "./IVRTab.css";
+import "./css/IVRTab.css";
 import "../shared/cards.css";
 
 const IVRTab = () => {

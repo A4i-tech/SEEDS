@@ -1,6 +1,9 @@
 import React from "react";
 import "../shared/tables.css";
 import "../shared/utilities.css";
+import "./css/AnalyticsStats.css";
+import CallsByDateChart from "./CallsByDateChart";
+import StepDepthChart from "./StepDepthChart";
 
 const AnalyticsStats = ({ stats }) => {
   const statCards = [
@@ -10,55 +13,32 @@ const AnalyticsStats = ({ stats }) => {
     { label: "Total Duration", value: stats.totalDuration, color: "#9C27B0" },
   ];
 
+  const hasCallsByDate = Object.keys(stats.callsByDate).length > 0;
+  const hasStepDepth = stats.stepDepthData && stats.stepDepthData.length > 0;
+
   return (
-    <div style={{ padding: "20px" }}>
-      <h3 style={{ marginBottom: "20px", fontSize: "18px", fontWeight: "600" }}>
-        Summary Statistics
-      </h3>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-          gap: "20px",
-        }}
-      >
+    <div className="stats-container">
+      <h3 className="stats-title">Summary Statistics</h3>
+      <div className="stat-cards">
         {statCards.map((stat, index) => (
           <div
             key={index}
-            style={{
-              backgroundColor: "#f5f5f5",
-              borderRadius: "8px",
-              padding: "20px",
-              borderLeft: `4px solid ${stat.color}`,
-              boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-            }}
+            className="stat-card"
+            style={{ borderLeftColor: stat.color }}
           >
-            <div
-              style={{ fontSize: "14px", color: "#666", marginBottom: "8px" }}
-            >
-              {stat.label}
-            </div>
-            <div
-              style={{ fontSize: "28px", fontWeight: "bold", color: "#333" }}
-            >
-              {stat.value}
-            </div>
+            <div className="stat-label">{stat.label}</div>
+            <div className="stat-value">{stat.value}</div>
           </div>
         ))}
       </div>
 
-      {/* Calls by Date */}
-      {Object.keys(stats.callsByDate).length > 0 && (
-        <div style={{ marginTop: "30px" }}>
-          <h4
-            style={{
-              marginBottom: "15px",
-              fontSize: "16px",
-              fontWeight: "600",
-            }}
-          >
-            Calls by Date
-          </h4>
+      {hasCallsByDate && <CallsByDateChart data={stats.callsByDate} />}
+
+      {hasStepDepth && <StepDepthChart data={stats.stepDepthData} />}
+
+      {hasCallsByDate && (
+        <div className="chart-section">
+          <h4 className="chart-title">Calls by Date (Detailed)</h4>
           <div className="table-wrapper">
             <table className="content-table">
               <thead>

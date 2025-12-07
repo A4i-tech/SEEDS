@@ -4,6 +4,13 @@
   background-color: #fafafa;
 }
 
+.date-range-selector .quick-select-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
 .date-range-selector .section-label {
   display: block;
   margin-bottom: 12px;
@@ -48,44 +55,54 @@
   color: #ffffff;
 }
 
+.date-range-selector .quick-select-button.active {
+  background-color: #0f172a;
+  color: #ffffff;
+}
+
 .date-range-selector .quick-select-button:disabled,
 .date-range-selector .toggle-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
-.date-range-selector .custom-range-box {
+.date-range-selector .range-picker-box {
   padding: 16px;
   background-color: #fff;
   border-radius: 8px;
   border: 1px solid #e0e0e0;
 }
 
-.date-range-selector .form-row {
+.date-range-selector .range-picker-row {
   display: flex;
   gap: 16px;
-  align-items: flex-end;
+  align-items: stretch;
   flex-wrap: wrap;
 }
 
-.date-range-selector .form-field {
-  flex: 1 1 200px;
+.date-range-selector .range-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 220px;
+  justify-content: space-between;
 }
 
-.date-range-selector .form-row > div:last-child {
-  flex: 1 1 200px;
-}
-
-.date-range-selector .field-label {
-  display: block;
-  margin-bottom: 8px;
-  font-weight: 500;
+.date-range-selector .selected-range {
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background-color: #f8fafc;
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
   font-size: 13px;
-  color: #666;
+  color: #0f172a;
 }
 
-.date-range-selector input {
-  text-align: center;
+.date-range-selector .range-separator {
+  color: #94a3b8;
 }
 
 .date-range-selector .primary-button {
@@ -93,4 +110,14 @@
   font-size: 14px;
   font-weight: 600;
   min-width: 150px;
+}
+
+@media (max-width: 768px) {
+  .date-range-selector .range-picker-row {
+    flex-direction: column;
+  }
+
+  .date-range-selector .range-actions {
+    width: 100%;
+  }
 }

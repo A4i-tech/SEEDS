@@ -2,7 +2,7 @@ import React from "react";
 import TeacherRegistrationForm from "./TeacherRegistrationForm";
 import TeachersList from "./TeachersList";
 import TeacherDetails from "./TeacherDetails";
-import "./RegistrationTab.css";
+import "./css/RegistrationTab.css";
 import "../shared/buttons.css";
 import "../shared/cards.css";
 import "../shared/tables.css";

@@ -2,7 +2,7 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import ContentFilters from "./ContentFilters";
 import ContentTable from "./ContentTable";
-import "./ContentTab.css";
+import "./css/ContentTab.css";
 import "../shared/buttons.css";
 import "../shared/cards.css";
 import "../shared/utilities.css";

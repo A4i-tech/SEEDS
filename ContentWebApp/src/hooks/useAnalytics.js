@@ -62,6 +62,7 @@ export const useAnalytics = () => {
         avgDuration: "0m 0s",
         totalDuration: "0m 0s",
         callsByDate: {},
+        stepDepthData: [],
       };
     }
 
@@ -107,12 +108,30 @@ export const useAnalytics = () => {
       return acc;
     }, {});
 
+    // Calculate step depth distribution
+    // Step depth = number of user actions (key presses) in a call
+    const stepDepthDistribution = analyticsData.reduce((acc, log) => {
+      const stepDepth = log.user_actions ? log.user_actions.length : 0;
+      acc[stepDepth] = (acc[stepDepth] || 0) + 1;
+      return acc;
+    }, {});
+
+    // Convert step depth distribution to sorted array for charting
+    const stepDepthData = Object.entries(stepDepthDistribution)
+      .sort(([depthA], [depthB]) => parseInt(depthA) - parseInt(depthB))
+      .map(([depth, count]) => ({
+        depth: parseInt(depth),
+        label: `${parseInt(depth)} action${parseInt(depth) !== 1 ? "s" : ""}`,
+        count,
+      }));
+
     return {
       totalCalls,
       uniqueUsers,
       avgDuration,
       totalDuration,
       callsByDate,
+      stepDepthData,
     };
   }, [analyticsData]);
 

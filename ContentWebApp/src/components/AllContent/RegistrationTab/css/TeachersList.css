@@ -1,0 +1,63 @@
+/* Teachers list pane */
+.teachers-list-pane {
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fff;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+@media (min-width: 768px) {
+  .teachers-list-pane {
+    width: 280px;
+    border-radius: 10px;
+    max-height: 480px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .teachers-list-pane {
+    width: 320px;
+    border-radius: 12px;
+    max-height: 560px;
+  }
+}
+
+.teachers-list-title {
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.teachers-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.teacher-list-item {
+  margin-bottom: 8px;
+}
+
+.teacher-button {
+  width: 100%;
+  text-align: left;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: #0f172a;
+  transition: background-color 0.2s ease, border-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.teacher-button:hover {
+  background: #e2e8f0;
+}
+
+.teacher-button.selected {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1e3a8a;
+}

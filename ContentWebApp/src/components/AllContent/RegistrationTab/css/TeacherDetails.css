@@ -1,0 +1,55 @@
+/* Teacher details pane */
+.teacher-details-pane {
+  flex: 1;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fff;
+  max-height: 400px;
+  overflow-y: auto;
+  width: 100%;
+}
+
+.teacher-details-header {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+@media (min-width: 768px) {
+  .teacher-details-pane {
+    border-radius: 10px;
+    max-height: 480px;
+  }
+
+  .teacher-details-header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0;
+  }
+}
+
+@media (min-width: 1024px) {
+  .teacher-details-pane {
+    border-radius: 12px;
+    max-height: 560px;
+  }
+}
+
+.students-title {
+  font-weight: 700;
+}
+
+.teacher-info-text {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.placeholder-text {
+  color: #94a3b8;
+  font-size: 14px;
+}
