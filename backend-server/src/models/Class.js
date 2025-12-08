@@ -12,7 +12,7 @@ const ClassRoomSchema = new mongoose.Schema({
 var ClassRoom = (module.exports = mongoose.model("Class", ClassRoomSchema));
 
 module.exports.getClassById = _id => {
-  return ClassRoom.findOne({ _id: mongoose.Types.ObjectId(_id) }).exec();
+  return ClassRoom.findById(_id).exec();
 }
 
 module.exports.getClassesByTeacherId = teacher => {
