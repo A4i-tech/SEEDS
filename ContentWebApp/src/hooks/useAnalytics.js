@@ -38,8 +38,8 @@ export const useAnalytics = () => {
         setDateRange({ startDate, endDate });
       } catch (err) {
         if (err.name !== "AbortError") {
-          console.error("Error fetching analytics:", err);
-          setError(err.message || "Failed to fetch analytics data");
+          console.error("Unable to fetch analytics:", err);
+          setError(err.message || "Unable to fetch analytics data");
           setAnalyticsData([]);
         }
       } finally {
