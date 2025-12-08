@@ -51,10 +51,8 @@ const DateRangeSelector = ({
 
       onStartDateChange(start);
       onEndDateChange(end);
-      onFetch(start, end);
-      if (onClose) onClose();
     },
-    [onStartDateChange, onEndDateChange, onFetch, onClose]
+    [onStartDateChange, onEndDateChange]
   );
 
   const isCustomFetchDisabled = useMemo(
