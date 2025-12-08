@@ -382,9 +382,11 @@ async def call_webhook(request: Request, response: Response):
     logging.info("[WEBHOOK] ========================================")
     logging.info(f"[WEBHOOK] Webhook received at timestamp: {webhook_start_time}")
     call_data = await request.json()
+    query_params = request.query_params
     logging.info(f"[WEBHOOK] CALL DATA RECEIVED: {call_data}")
     call_status = call_data.get("_su")  # 2 = missed call
     phone_number = call_data.get("_cl")  # with country code
+    tenant_id = query_params.get("tenant_id") # optional tenant id
     logging.info(f"[WEBHOOK] CALL STATUS: {call_status}")
     if call_status != 2:
         logging.error(
@@ -400,7 +402,7 @@ async def call_webhook(request: Request, response: Response):
 
     # send message to service bus to process the call asynchronously
     logging.info(f"[WEBHOOK] Sending message to call_webhook queue, log_id: {insert_result}")
-    payload = {"phone_number": phone_number, "call_log_id": str(insert_result)}
+    payload = {"phone_number": phone_number, "call_log_id": str(insert_result), "tenant_id": tenant_id}
     logging.info(f"[WEBHOOK] Payload: {payload}")
     try:
         result = await service_bus_manager.send_call_webhook(payload=payload)
