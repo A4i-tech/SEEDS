@@ -106,6 +106,17 @@ class MainActivity : AppCompatActivity() {
             drawerLayout
         )
         setupActionBarWithNavController(navController, appBarConfiguration)
+
+        navController.addOnDestinationChangedListener { _, destination, _ ->
+            if (destination.id == R.id.callFragment) {
+                supportActionBar?.setDisplayHomeAsUpEnabled(false)
+                supportActionBar?.setHomeButtonEnabled(false)
+                binding.mainToolbar.navigationIcon = null
+                drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
+            } else {
+                drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
+            }
+        }
         navView.setupWithNavController(navController)
     }
 
