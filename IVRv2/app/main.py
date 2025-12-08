@@ -915,8 +915,8 @@ async def dtmf(input: Request):
 
     ivr_state = IVRCallStateMongoDoc(**doc)
 
-    fsm_in_progress = fsm[ivr_state.fsm_id]
-    logging.debug(f"IS FSM IN PROGRESS NONE: {fsm_in_progress == None}")
+    fsm_in_progress = copy.deepcopy(fsm[ivr_state.fsm_id])
+    logging.debug(f"FSM cloned for conv_id={conv_id}")
     # PROCESS MULTIPLE USER INPUTS
     input_time = datetime.now()
     logging.info(f"CURRENT STATE ID: {ivr_state.current_state_id}")
