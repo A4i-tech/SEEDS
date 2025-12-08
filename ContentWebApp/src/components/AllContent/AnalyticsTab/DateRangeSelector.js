@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useMemo, useState, useEffect } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import "../shared/buttons.css";
@@ -27,6 +27,21 @@ const DateRangeSelector = ({
   isLoading,
   onClose,
 }) => {
+  const [inputValue, setInputValue] = useState("");
+
+  // Sync input value with props
+  useEffect(() => {
+    if (startDate && endDate) {
+      setInputValue(
+        `${startDate.toISOString().split("T")[0]} to ${
+          endDate.toISOString().split("T")[0]
+        }`
+      );
+    } else {
+      setInputValue("");
+    }
+  }, [startDate, endDate]);
+
   const handleFetch = useCallback(() => {
     if (startDate && endDate) {
       onFetch(startDate, endDate);
@@ -109,16 +124,36 @@ const DateRangeSelector = ({
             inline
           />
           <div className="range-actions">
-            <div className="selected-range">
-              {startDate && endDate ? (
-                <>
-                  <span>{startDate.toLocaleDateString()}</span>
-                  <span className="range-separator">to</span>
-                  <span>{endDate.toLocaleDateString()}</span>
-                </>
-              ) : (
-                <span>Select start and end dates</span>
-              )}
+            <div className="date-inputs-column">
+              <div className="date-input-group">
+                <label className="input-label">Date Range</label>
+                <input
+                  type="text"
+                  value={inputValue}
+                  onChange={(e) => {
+                    setInputValue(e.target.value);
+                  }}
+                  onBlur={(e) => {
+                    const value = e.target.value;
+                    const parts = value.split(" to ");
+                    if (parts.length === 2) {
+                      const start = new Date(parts[0]);
+                      const end = new Date(parts[1]);
+                      if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+                        onStartDateChange(start);
+                        onEndDateChange(end);
+                      }
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.target.blur();
+                    }
+                  }}
+                  placeholder="yyyy-mm-dd to yyyy-mm-dd"
+                  className="date-text-input"
+                />
+              </div>
             </div>
             <button
               className="primary-button"
