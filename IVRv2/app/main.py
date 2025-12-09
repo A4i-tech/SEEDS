@@ -122,6 +122,33 @@ async def get_ivr_structure():
 
 
 @app.get(
+    "/latest_fsm_id",
+    summary="Get current FSM ID",
+    description="""
+    Returns the FSM ID currently loaded in the server's memory.
+    
+    This endpoint is useful for testing and debugging to ensure clients
+    are using the same FSM ID as the server.
+    """,
+    responses={
+        200: {"description": "Current FSM ID and initial state"},
+        500: {"description": "FSM not initialized"},
+    },
+)
+async def get_latest_fsm_id():
+    """Return the current FSM ID loaded in server memory"""
+    global latest_fsm_id, fsm
+    if latest_fsm_id is None:
+        raise HTTPException(status_code=500, detail="FSM not initialized")
+
+    current_fsm = fsm.get(latest_fsm_id)
+    return {
+        "fsm_id": latest_fsm_id,
+        "init_state_id": current_fsm.init_state_id if current_fsm else "LA0",
+    }
+
+
+@app.get(
     "/getFSM",
     summary="Retrieve FSM by ID",
     description="""
@@ -919,12 +946,9 @@ async def dtmf(input: Request):
 
     ivr_state = IVRCallStateMongoDoc(**doc)
 
-    # Use latest_fsm_id instead of document's fsm_id for flexibility
-    # This allows documents to work even if FSM was regenerated
-    fsm_in_progress = copy.deepcopy(fsm[latest_fsm_id])
-    logging.debug(
-        f"FSM cloned for conv_id={conv_id}, using latest_fsm_id={latest_fsm_id}"
-    )
+    # Clone the FSM for this conversation
+    fsm_in_progress = copy.deepcopy(fsm[ivr_state.fsm_id])
+    logging.debug(f"FSM cloned for conv_id={conv_id}, fsm_id={ivr_state.fsm_id}")
     # PROCESS MULTIPLE USER INPUTS
     input_time = datetime.now()
     logging.info(f"CURRENT STATE ID: {ivr_state.current_state_id}")

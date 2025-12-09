@@ -46,37 +46,52 @@ logger = logging.getLogger(__name__)
 # --- Setup/Cleanup Functions ---
 
 
-def _get_latest_fsm():
-    """Get latest FSM using instantiate_from_latest_content (async)"""
-    try:
-        from app.fsm.insti import instantiate_from_latest_content
+def _get_fsm_id_from_server(host="http://localhost:9210"):
+    """Get FSM ID directly from the running server's /latest_fsm_id endpoint"""
+    import requests
 
-        loop = asyncio.get_event_loop()
-        latest_fsm = loop.run_until_complete(instantiate_from_latest_content())
-        return latest_fsm
+    try:
+        response = requests.get(f"{host}/latest_fsm_id")
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✓ Server is running at {host}")
+            return {"fsm_id": data["fsm_id"], "init_state_id": data["init_state_id"]}
+        else:
+            print(f"ERROR: Server returned status {response.status_code}")
+            print(f"Response: {response.text}")
+            return None
+    except requests.exceptions.ConnectionError:
+        print(f"ERROR: Cannot connect to server at {host}")
+        print(
+            "Please ensure the server is running: poetry run uvicorn app.main:app --host 0.0.0.0 --port 9210"
+        )
+        return None
     except Exception as e:
-        print(f"Could not load latest FSM: {e}")
+        print(f"Could not get FSM ID from server: {e}")
+        import traceback
+
+        traceback.print_exc()
         return None
 
 
-def setup_test_data(num_users=100):
+def setup_test_data(num_users=100, host="http://localhost:9210"):
     """Create test IVR state documents in MongoDB."""
     print("=" * 60)
     print(f"SETTING UP LOAD TEST DATA FOR {num_users} USERS")
     print("=" * 60)
 
     ongoing_fsm_mongo = MongoDB(collection_name="ongoingIVRState")
-    latest_fsm = _get_latest_fsm()
+    fsm_info = _get_fsm_id_from_server(host)
 
-    if latest_fsm is None:
+    if fsm_info is None:
         raise RuntimeError(
-            "Could not load FSM from database. Please ensure the server has started and loaded an FSM."
+            "Could not get FSM ID from server. Please ensure the server is running."
         )
 
-    fsm_id = latest_fsm.fsm_id
-    init_state_id = latest_fsm.init_state_id
+    fsm_id = fsm_info["fsm_id"]
+    init_state_id = fsm_info["init_state_id"]
 
-    print(f"\n✓ Loaded FSM ID: {fsm_id}")
+    print(f"\n✓ Server's current FSM ID: {fsm_id}")
     print(f"✓ Initial state ID: {init_state_id}")
 
     # Clean up any existing test data
