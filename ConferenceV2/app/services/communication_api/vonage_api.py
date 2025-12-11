@@ -301,12 +301,15 @@ class VonageAPI(CommunicationAPI):
             )
 
             try:
-                # Use params dict with action key - this is the correct format for Vonage SDK
-                self.client.voice.update_call(
-                    uuid=call_leg_id, params={"action": "earmuff"}
+                # For Vonage SDK v2, send action in JSON body
+                print(f"[VONAGE API] Attempting earmuff with action='earmuff'")
+
+                response = self.client.voice.update_call(
+                    uuid=call_leg_id, action="earmuff"
                 )
 
-                print(f"[VONAGE API] ✓ Successfully earmuffed {phone_number}\n")
+                print(f"[VONAGE API] ✓ Successfully earmuffed {phone_number}")
+                print(f"[VONAGE API] Response: {response}\n")
 
                 logger_instance.info(
                     f"[VONAGE API CALL] ✓ Earmuff successful for {phone_number}"
@@ -348,12 +351,13 @@ class VonageAPI(CommunicationAPI):
             )
 
             try:
-                # Use params dict with action key - this is the correct format for Vonage SDK
-                self.client.voice.update_call(
-                    uuid=call_leg_id, params={"action": "unearmuff"}
+                # For Vonage SDK v2, send action in JSON body
+                response = self.client.voice.update_call(
+                    uuid=call_leg_id, action="unearmuff"
                 )
 
-                print(f"[VONAGE API] ✓ Successfully unearmuffed {phone_number}\n")
+                print(f"[VONAGE API] ✓ Successfully unearmuffed {phone_number}")
+                print(f"[VONAGE API] Response: {response}\n")
 
                 logger_instance.info(
                     f"[VONAGE API CALL] ✓ Unearmuff successful for {phone_number}"
