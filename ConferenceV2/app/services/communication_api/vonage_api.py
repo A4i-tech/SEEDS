@@ -85,20 +85,94 @@ class VonageAPI(CommunicationAPI):
             ],
         }
 
-        logger_instance.info(
-            f"[NCCO] Adding participant {phone_number} with audio stream monitoring"
-        )
-        logger_instance.info(f"[NCCO] Audio stream URL: {audio_stream_url}")
-
         vonage_resp = self.client.voice.create_call(call_data)
         logger_instance.info(
             "VONAGE ADD PARTICIPANT RESPONSE", json.dumps(vonage_resp, indent=2)
         )
+
+        participant_call_leg_id = vonage_resp["uuid"]
+
+        # Store participant info
         self.participant_info_map[phone_number] = VonageParticipantInfo(
             phone_number=phone_number,
-            call_leg_id=vonage_resp["uuid"],
+            call_leg_id=participant_call_leg_id,
             initial_conv_id=vonage_resp["conversation_uuid"],
         )
+
+        # Now create a separate audio monitoring WebSocket connection
+        # that ONLY listens to this specific participant using canHear
+        self._create_audio_monitor_for_participant(
+            phone_number, participant_call_leg_id
+        )
+
+    def _create_audio_monitor_for_participant(
+        self, phone_number: str, participant_call_leg_id: str
+    ):
+        """
+        Creates a dedicated audio monitoring WebSocket that ONLY listens to a specific participant.
+
+        Uses Vonage's selective audio control (canHear) to isolate this participant's audio
+        for real-time hold detection without interference from other participants.
+        """
+        audio_stream_url = f"{self.events_webhook_url.replace('http://', 'ws://').replace('https://', 'wss://')}/audio-stream/{self.conf_id}/{phone_number}"
+
+        logger_instance.info(
+            f"[AUDIO MONITOR] Creating selective audio monitor for {phone_number} (leg: {participant_call_leg_id})"
+        )
+        print(
+            f"[AUDIO MONITOR] 🎧 Setting up selective audio stream for {phone_number}\n"
+            f"  Call Leg ID: {participant_call_leg_id}\n"
+            f"  WebSocket URL: {audio_stream_url}\n"
+        )
+
+        # Create a new call leg that's just a WebSocket listening to this participant
+        audio_monitor_call_data = {
+            "to": [
+                {
+                    "type": "websocket",
+                    "uri": audio_stream_url,
+                    "content-type": "audio/l16;rate=16000",
+                    "headers": {
+                        "X-Participant-Phone": phone_number,
+                        "X-Participant-Leg-ID": participant_call_leg_id,
+                        "X-Conference-ID": self.conf_id,
+                    },
+                }
+            ],
+            "from": {"type": "phone", "number": self.vonage_number},
+            "event_url": [self.events_webhook_url + f"/webhooks/event/{self.conf_id}"],
+            "answer_url": [
+                self.events_webhook_url
+                + f"/webhooks/audio-monitor-answer/{self.conf_id}/{phone_number}"
+            ],
+            "ncco": [
+                {
+                    "action": "conversation",
+                    "name": self.conf_id,
+                    # SELECTIVE AUDIO: Only hear this specific participant
+                    "canHear": [participant_call_leg_id],
+                    # Don't send any audio back (monitor only)
+                    "canSpeak": [],
+                }
+            ],
+        }
+
+        try:
+            monitor_resp = self.client.voice.create_call(audio_monitor_call_data)
+            logger_instance.info(
+                f"[AUDIO MONITOR] Created audio monitor for {phone_number}: {json.dumps(monitor_resp, indent=2)}"
+            )
+            print(
+                f"[AUDIO MONITOR] ✅ Audio monitor active for {phone_number}\n"
+                f"  Monitor Leg ID: {monitor_resp['uuid']}\n"
+            )
+        except Exception as e:
+            logger_instance.error(
+                f"[AUDIO MONITOR] Error creating audio monitor for {phone_number}: {e}"
+            )
+            print(
+                f"[AUDIO MONITOR] ❌ Failed to create monitor for {phone_number}: {e}\n"
+            )
 
     async def _try_connecting_websocket_with_participant(
         self, participant: VonageParticipantInfo
