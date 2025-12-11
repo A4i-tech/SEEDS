@@ -49,6 +49,10 @@ class VonageAPI(CommunicationAPI):
         self, phone_number: str, welcome_message: SystemAudioMessages
     ):
         call_payload = {"type": "phone", "number": phone_number}
+
+        # Build audio stream websocket URL for hold detection
+        audio_stream_url = f"{self.events_webhook_url.replace('http://', 'ws://').replace('https://', 'wss://')}/audio-stream/{self.conf_id}/{phone_number}"
+
         call_data = {
             "to": [call_payload],
             "from": {"type": "phone", "number": self.vonage_number},
@@ -58,9 +62,34 @@ class VonageAPI(CommunicationAPI):
                     "action": "stream",
                     "streamUrl": [sas_gen.get_url_with_sas(welcome_message.value)],
                 },
+                # Connect audio stream websocket for real-time hold detection
+                {
+                    "action": "connect",
+                    "eventUrl": [
+                        self.events_webhook_url + f"/webhooks/event/{self.conf_id}"
+                    ],
+                    "from": f"AudioMonitor-{phone_number}",
+                    "endpoint": [
+                        {
+                            "type": "websocket",
+                            "uri": audio_stream_url,
+                            "content-type": "audio/l16;rate=16000",
+                            "headers": {
+                                "X-Participant": phone_number,
+                                "X-Conference-ID": self.conf_id,
+                            },
+                        }
+                    ],
+                },
                 {"action": "conversation", "name": self.conf_id},
             ],
         }
+
+        logger_instance.info(
+            f"[NCCO] Adding participant {phone_number} with audio stream monitoring"
+        )
+        logger_instance.info(f"[NCCO] Audio stream URL: {audio_stream_url}")
+
         vonage_resp = self.client.voice.create_call(call_data)
         logger_instance.info(
             "VONAGE ADD PARTICIPANT RESPONSE", json.dumps(vonage_resp, indent=2)

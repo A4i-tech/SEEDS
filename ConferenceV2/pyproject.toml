@@ -25,7 +25,8 @@ dependencies = [
     "websockets",
     "opencensus-ext-azure",
     "pytz",
-    "httpx"
+    "httpx",
+    "numpy"
 ]
 
 
