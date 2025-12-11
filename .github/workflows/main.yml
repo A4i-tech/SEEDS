@@ -6,32 +6,65 @@ on:
   workflow_dispatch:
 
 jobs:
+
   deploy-websocket-service-main-workflow:
     if: github.ref == 'refs/heads/a4i/main'
     uses: ./.github/workflows/deploy-websocket-service-main.yml
     secrets: inherit
 
   deploy-websocket-service-staging-workflow:
-    if: github.ref == 'refs/heads/a4i/staging'
+    if: github.ref == 'refs/heads/a4i/staging' 
     uses: ./.github/workflows/deploy-websocket-service-staging.yml
     secrets: inherit
 
-  # deploy-staging-workflow:
+  deploy-staging-workflow:
   #   if: github.ref == 'refs/heads/a4i/staging'
-  #   uses: ./.github/workflows/deploy-staging.yml
-  #   secrets: inherit
+    uses: ./.github/workflows/deploy-staging.yml
+    secrets: inherit
 
   deploy-main-workflow:
     if: github.ref == 'refs/heads/a4i/main'
     uses: ./.github/workflows/deploy-main.yml
     secrets: inherit
 
-  deploy-android-staging:
-    if: github.ref == 'refs/heads/a4i/staging'
-    uses: ./.github/workflows/android-deploy-staging.yml
+  deploy-android:
+    if: github.ref == 'refs/heads/a4i/staging' || github.ref == 'refs/heads/a4i/main'
+    uses: ./.github/workflows/android-deploy.yml
     secrets: inherit
 
   run-coverage-summary:
     needs: deploy-staging-workflow
     uses: ./.github/workflows/coverage-summary.yml
     secrets: inherit
+
+  notify-teams:
+    runs-on: ubuntu-latest
+    if: always()
+    needs: 
+      - deploy-websocket-service-main-workflow
+      - deploy-websocket-service-staging-workflow
+      - deploy-staging-workflow
+      - deploy-main-workflow
+      - deploy-android
+      - run-coverage-summary
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Dispatch Notification
+        uses: ./.github/actions/teams-notify
+        with:
+
+          teams-webhook-url: ${{ secrets.TEAMS_WEBHOOK_URL }}
+          
+          activity-title: "Workflow Outcome: ${{ contains(needs.*.result, 'failure') && 'FAILURE' || 'SUCCESS' }}"
+          summary: "Deployment finished for ${{ github.ref_name }}"
+          theme-color: "${{ contains(needs.*.result, 'failure') && 'FF0000' || '00FF00' }}"
+          facts: |
+            [
+              { "name": "Websocket Main", "value": "${{ needs.deploy-websocket-service-main-workflow.result }}" },
+              { "name": "Websocket Staging", "value": "${{ needs.deploy-websocket-service-staging-workflow.result }}" },
+              { "name": "Backend Staging", "value": "${{ needs.deploy-staging-workflow.result }}" },
+              { "name": "Backend Main", "value": "${{ needs.deploy-main-workflow.result }}" },
+              { "name": "Android Staging", "value": "${{ needs.deploy-android-staging.result }}" }
+            ]

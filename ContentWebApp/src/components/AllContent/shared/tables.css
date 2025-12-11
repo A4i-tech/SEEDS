@@ -1,0 +1,139 @@
+/* Table wrapper  with horizontal scroll */
+.table-wrapper {
+  margin-top: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Content table  */
+.content-table {
+  width: 100%;
+  min-width: 600px; /* Ensure horizontal scroll on mobile */
+  border-collapse: collapse;
+}
+
+/* Table header  */
+.table-header {
+  background-color: #0f172a;
+  color: #ffffff;
+  text-align: center;
+  padding: 10px 12px;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  border-right: 1px solid #334155;
+}
+
+.table-header:last-child {
+  border-right: none;
+}
+
+/* Table cell  */
+.table-cell {
+  padding: 12px;
+  border-bottom: 1px solid #e2e8f0;
+  border-right: 1px solid #e2e8f0;
+  font-size: 13px;
+  color: #0f172a;
+  white-space: nowrap;
+}
+
+.table-cell:last-child {
+  border-right: none;
+}
+
+@media (min-width: 768px) {
+  .table-wrapper {
+    margin-top: 20px;
+    border-radius: 12px;
+  }
+
+  .content-table {
+    min-width: unset;
+  }
+
+  .table-header {
+    padding: 12px 14px;
+    font-size: 12px;
+  }
+
+  .table-cell {
+    padding: 14px;
+    font-size: 13px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .table-wrapper {
+    margin-top: 24px;
+    border-radius: 16px;
+  }
+
+  .table-header {
+    padding: 14px 16px;
+    font-size: 13px;
+    letter-spacing: 0.04em;
+  }
+
+  .table-cell {
+    padding: 16px;
+    font-size: 14px;
+  }
+}
+
+/* Table row variants */
+.table-row-white {
+  background-color: #ffffff;
+}
+
+.table-cell-secondary {
+  color: #94a3b8;
+}
+
+/* Table scroll wrapper */
+.table-scroll {
+  overflow-x: auto;
+}
+
+/* Students table */
+.students-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.students-table th {
+  text-align: left;
+  padding: 8px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.students-table td {
+  padding: 8px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.no-students-cell {
+  padding: 12px;
+  color: #94a3b8;
+}
+
+/* Skeleton loading styles */
+.skeleton-row td.skeleton-cell {
+  padding: 18px;
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s linear infinite;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}

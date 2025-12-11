@@ -409,3 +409,5 @@ coverage/
 htmlcov*/
 
 **/.env
+**/.env.*
+**/*.jks

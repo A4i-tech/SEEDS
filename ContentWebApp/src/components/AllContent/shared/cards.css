@@ -1,0 +1,260 @@
+/* Base card styles  */
+.card {
+  background-color: #ffffff;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+/* Card header layout  */
+.card-header {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+/* Card typography  */
+.card-title {
+  font-size: 18px;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.card-description {
+  font-size: 14px;
+  color: #64748b;
+}
+
+@media (min-width: 768px) {
+  .card {
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.07);
+  }
+
+  .card-header {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .card-title {
+    font-size: 20px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .card {
+    border-radius: 20px;
+    padding: 28px;
+    box-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
+  }
+
+  .card-header {
+    gap: 16px;
+  }
+
+  .card-title {
+    font-size: 22px;
+  }
+
+  .card-description {
+    font-size: 15px;
+  }
+}
+
+/* Filter wrapper for cards  */
+.filter-wrapper {
+  margin-top: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+  background-color: #f8fafc;
+}
+
+@media (min-width: 768px) {
+  .filter-wrapper {
+    margin-top: 16px;
+    border-radius: 12px;
+    padding: 14px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .filter-wrapper {
+    margin-top: 18px;
+    border-radius: 14px;
+    padding: 16px;
+  }
+}
+
+/* Header card variant  */
+.header-card {
+  background-color: #ffffff;
+  border-radius: 0;
+  padding: 12px 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch;
+  gap: 12px;
+}
+
+@media (min-width: 768px) {
+  .header-card {
+    padding: 14px 24px;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .header-card {
+    padding: 16px 32px;
+    gap: 24px;
+  }
+}
+
+/* IVR card styles  */
+.ivr-card {
+  background-color: #0f172a;
+  color: #ffffff;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  -webkit-tap-highlight-color: rgba(255, 255, 255, 0.1);
+}
+
+.ivr-card:active {
+  transform: scale(0.98);
+}
+
+.ivr-card.blue {
+  background-color: #1d4ed8;
+}
+
+.ivr-card.green {
+  background-color: #047857;
+}
+
+.ivr-card .registration-title {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 6px 0;
+  line-height: 1.2;
+  color: #ffffff;
+}
+
+.ivr-card .placeholder-text {
+  font-size: 13px;
+  color: #e6eaf2;
+}
+
+@media (min-width: 768px) {
+  .ivr-card {
+    border-radius: 16px;
+    padding: 18px;
+    gap: 11px;
+  }
+
+  .ivr-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+  }
+
+  .ivr-card:active {
+    transform: scale(1);
+  }
+
+  .ivr-card .registration-title {
+    font-size: 15px;
+    margin: 0 0 7px 0;
+  }
+
+  .ivr-card .placeholder-text {
+    font-size: 13px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .ivr-card {
+    border-radius: 18px;
+    padding: 20px;
+    gap: 12px;
+  }
+
+  .ivr-card .registration-title {
+    font-size: 16px;
+    margin: 0 0 8px 0;
+  }
+
+  .ivr-card .placeholder-text {
+    font-size: 14px;
+  }
+}
+
+/* Registration card styles  */
+.registration-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+  background-color: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.registration-title {
+  margin: 0;
+  color: #000000;
+  font-size: 16px;
+}
+
+.registration-flex-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+@media (min-width: 768px) {
+  .registration-card {
+    border-radius: 16px;
+    padding: 18px;
+    gap: 13px;
+  }
+
+  .registration-title {
+    font-size: 17px;
+  }
+
+  .registration-flex-card {
+    gap: 20px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .registration-card {
+    border-radius: 18px;
+    padding: 20px;
+    gap: 14px;
+  }
+
+  .registration-title {
+    font-size: 18px;
+  }
+
+  .registration-flex-card {
+    gap: 24px;
+  }
+}

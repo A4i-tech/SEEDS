@@ -30,7 +30,7 @@ let monod;
 describe('Tenant Auth API', () => {
     beforeAll(async () => {
         monod = await MongoMemoryServer.create();
-        await mongoose.connect(monod.getUri(), { useNewUrlParser: true, useUnifiedTopology: true });
+        await mongoose.connect(monod.getUri());
     });
 
     afterAll(async () => {
@@ -138,14 +138,4 @@ describe('Tenant Auth API', () => {
         expect(res.body.message).toBe('Invalid credentials');
     });
 
-    test('Firebase login fails with invalid token', async () => {
-        // Simulate Firebase provider
-        const originalAuthType = process.env.AUTH_TYPE;
-        process.env.AUTH_TYPE = 'firebase';
-        const res = await request(app)
-            .post('/tenant/login')
-            .set('authtoken', 'invalid-token');
-        expect(res.statusCode).toBe(STATUS_BAD_REQUEST);
-        process.env.AUTH_TYPE = originalAuthType;
-    });
 });

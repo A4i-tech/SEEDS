@@ -14,6 +14,7 @@ import com.example.seeds.databinding.FragmentClassroomBinding
 import com.example.seeds.model.Classroom
 import com.example.seeds.ui.BaseFragment
 import dagger.hilt.android.AndroidEntryPoint
+import com.google.android.material.bottomnavigation.BottomNavigationView
 
 @AndroidEntryPoint
 class ClassroomFragment : BaseFragment() {
@@ -98,10 +99,10 @@ class ClassroomFragment : BaseFragment() {
             }
         }
 
-        // 2. Choose Audio (New - Optional, goes to Home/Library)
         viewModel.navigateToLibrary.observe(viewLifecycleOwner) { shouldNavigate ->
             if (shouldNavigate) {
-                findNavController().navigate(R.id.homeFragment)
+                val bottomNav = requireActivity().findViewById<BottomNavigationView>(R.id.nav_view)
+                bottomNav.selectedItemId = R.id.homeFragment 
                 viewModel.onNavigationComplete()
             }
         }
