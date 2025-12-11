@@ -27,7 +27,7 @@ from app.settings import settings
 # Initialize MongoDB connections
 ongoing_fsm_mongo = MongoDB(collection_name="ongoingIVRState")
 calls_log_mongo = MongoDB(collection_name="callLogs")
-ivrv2_logs_mongo = MongoDB(collection_name="ivrv2Logs")
+ivrv2_logs_mongo = MongoDB(collection_name="ivrv2logs")
 
 action_factory = VonageActionFactory()
 accumulator = action_factory.get_action_accumulator_implmentation()
@@ -69,11 +69,12 @@ class CallWebhookProcessor(BaseProcessor):
             webhook_received_time = time.time()
             phone_number = message_data.get("phone_number")
             call_log_id = message_data.get("call_log_id")
+            tenant_id = message_data.get("tenant_id")
             self.log_info(
                 f"[WEBHOOK_PROCESSOR] Starting processing for phone: {phone_number}, call_log_id: {call_log_id} (timestamp: {webhook_received_time})"
             )
 
-            start_ivr_response = await self._start_ivr_internal(phone_number)
+            start_ivr_response = await self._start_ivr_internal(phone_number, tenant_id)
 
             if start_ivr_response.get("status_code") == 200:
                 self.log_info(f"✓ IVR started successfully for {phone_number}")
@@ -87,11 +88,14 @@ class CallWebhookProcessor(BaseProcessor):
             self.log_error(f"✗ Error processing call webhook: {e}", exc_info=True)
             raise
 
-    async def _start_ivr_internal(self, phone_number: str) -> Dict[str, Any]:
+    async def _start_ivr_internal(
+        self, phone_number: str, tenant_id: str
+    ) -> Dict[str, Any]:
         """
         Internal method to start IVR for a given phone number.
         Args:
             phone_number (str): The phone number to start IVR for.
+            tenant_id (str): The tenant ID associated with the call.
         Returns:
             Dict[str, Any]: Response indicating success or failure.
         """
@@ -179,6 +183,7 @@ class CallWebhookProcessor(BaseProcessor):
                 fsm_id=latest_fsm.fsm_id,
                 current_state_id=latest_fsm.init_state_id,
                 created_at=datetime.now(),
+                tenant_id=tenant_id,
             )
             mongo_start_time = time.time()
             insert_result = await ongoing_fsm_mongo.insert(

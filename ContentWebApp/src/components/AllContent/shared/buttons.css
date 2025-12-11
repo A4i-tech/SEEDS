@@ -1,0 +1,187 @@
+/* Primary button styles  */
+.primary-button {
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  background-color: #0f172a;
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+/* Secondary button styles  */
+.secondary-button {
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  background-color: #1d4ed8;
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+/* Ghost button styles  */
+.action-ghost-button {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 16px;
+  background-color: #ffffff;
+  color: #0f172a;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+@media (min-width: 768px) {
+  .primary-button,
+  .secondary-button,
+  .action-ghost-button {
+    border-radius: 10px;
+    padding: 11px 18px;
+    font-size: 15px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .primary-button,
+  .secondary-button,
+  .action-ghost-button {
+    border-radius: 12px;
+    padding: 12px 20px;
+    font-size: 16px;
+  }
+}
+
+/* Action button base */
+.action-button-base {
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffffff;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.1s ease, opacity 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.action-button-base:active {
+  transform: scale(0.95);
+  opacity: 0.9;
+}
+
+@media (min-width: 768px) {
+  .action-button-base {
+    border-radius: 9px;
+    padding: 9px 14px;
+    font-size: 12px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .action-button-base {
+    border-radius: 10px;
+    padding: 10px 16px;
+    font-size: 13px;
+  }
+
+  .action-button-base:hover {
+    opacity: 0.9;
+  }
+
+  .action-button-base:active {
+    transform: scale(1);
+  }
+}
+
+/* Action button variants */
+.action-button-edit {
+  background-color: #eab308;
+  color: #1f2937;
+}
+
+.action-button-view {
+  background-color: #0ea5e9;
+}
+
+.action-button-delete {
+  background-color: #ef4444;
+}
+
+/* Add content button variant */
+.button-add-content {
+  background-color: #059669;
+}
+
+/* Full width button modifier */
+.full-width-button {
+  width: 100%;
+  margin-top: 8px;
+}
+
+/* Button group layout  */
+.button-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.button-group > * {
+  flex: 1 1 auto;
+  min-width: fit-content;
+}
+
+/* Action buttons wrapper  */
+.action-buttons-wrapper {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+@media (min-width: 768px) {
+  .button-group {
+    gap: 10px;
+    width: auto;
+  }
+
+  .button-group > * {
+    flex: 0 1 auto;
+  }
+
+  .action-buttons-wrapper {
+    gap: 8px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .button-group {
+    gap: 12px;
+  }
+}
+
+/* Button margin utilities */
+.button-ml-8 {
+  margin-left: 8px;
+}
+
+/* Teacher-specific button */
+.teacher-button {
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+}
+
+.teacher-button.selected {
+  background: #e6eefc;
+}
