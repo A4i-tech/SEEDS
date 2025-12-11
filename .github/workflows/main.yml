@@ -13,12 +13,12 @@ jobs:
     secrets: inherit
 
   deploy-websocket-service-staging-workflow:
-    if: github.ref == 'refs/heads/a4i/staging' 
+    if: github.ref == 'refs/heads/a4i/staging'
     uses: ./.github/workflows/deploy-websocket-service-staging.yml
     secrets: inherit
 
   deploy-staging-workflow:
-  #   if: github.ref == 'refs/heads/a4i/staging'
+    #   if: github.ref == 'refs/heads/a4i/staging'
     uses: ./.github/workflows/deploy-staging.yml
     secrets: inherit
 
@@ -40,7 +40,7 @@ jobs:
   notify-teams:
     runs-on: ubuntu-latest
     if: always()
-    needs: 
+    needs:
       - deploy-websocket-service-main-workflow
       - deploy-websocket-service-staging-workflow
       - deploy-staging-workflow
@@ -51,20 +51,23 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Dispatch Notification
+      - name: Send Teams Notification
         uses: ./.github/actions/teams-notify
         with:
-
           teams-webhook-url: ${{ secrets.TEAMS_WEBHOOK_URL }}
-          
-          activity-title: "Workflow Outcome: ${{ contains(needs.*.result, 'failure') && 'FAILURE' || 'SUCCESS' }}"
-          summary: "Deployment finished for ${{ github.ref_name }}"
+          activity-title: "CI/CD Notifications"
+          summary: "Workflow ${{ contains(needs.*.result, 'failure') && 'Failed' || 'Complete' }} for ${{ github.ref_name }}"
           theme-color: "${{ contains(needs.*.result, 'failure') && 'FF0000' || '00FF00' }}"
           facts: |
             [
+              { "name": "Branch", "value": "${{ github.ref_name }}" },
+              { "name": "Commit", "value": "${{ github.sha }}" },
+              { "name": "Workflow", "value": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" },
+              { "name": "Actor", "value": "${{ github.actor }}" },
+              { "name": "Stage", "value": "Workflow ${{ contains(needs.*.result, 'failure') && 'Failed' || 'Complete' }}" },
               { "name": "Websocket Main", "value": "${{ needs.deploy-websocket-service-main-workflow.result }}" },
               { "name": "Websocket Staging", "value": "${{ needs.deploy-websocket-service-staging-workflow.result }}" },
               { "name": "Backend Staging", "value": "${{ needs.deploy-staging-workflow.result }}" },
               { "name": "Backend Main", "value": "${{ needs.deploy-main-workflow.result }}" },
-              { "name": "Android Staging", "value": "${{ needs.deploy-android-staging.result }}" }
+              { "name": "Android Staging", "value": "${{ needs.deploy-android.result }}" }
             ]
