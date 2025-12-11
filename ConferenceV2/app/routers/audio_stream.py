@@ -61,24 +61,26 @@ async def audio_stream_websocket(
             f"  Participant: {phone_number}\n"
             f"  Conference: {conference_id}\n"
             f"  Detection: {reason}\n"
-            f"  Action: Earmuffing to block carrier announcement\n"
+            f"  Action: MUTING to block hold music from broadcasting\n"
+            f"  Note: Participant can still HEAR conference (not earmuffed)\n"
             f"{'#'*80}\n"
         )
 
-        # Immediately earmuff to prevent announcement from broadcasting
+        # Immediately MUTE to prevent hold music from broadcasting to others
+        # Don't earmuff - participant should still hear the conference
         try:
-            await conf.communication_api.earmuff_participant(phone_number)
+            await conf.communication_api.mute_participant(phone_number)
             logger_instance.info(
-                f"[AUDIO STREAM] ✓ Successfully earmuffed {phone_number} (hold detected)"
+                f"[AUDIO STREAM] ✓ Successfully muted {phone_number} (hold detected)"
             )
             print(
-                f"[AUDIO STREAM] ✅ Earmuffed {phone_number} - announcement blocked!\n"
+                f"[AUDIO STREAM] ✅ Muted {phone_number} - hold music blocked from others!\n"
             )
         except Exception as e:
             logger_instance.error(
-                f"[AUDIO STREAM] Error earmuffing {phone_number} on hold detection: {e}"
+                f"[AUDIO STREAM] Error muting {phone_number} on hold detection: {e}"
             )
-            print(f"[AUDIO STREAM] ❌ Error earmuffing {phone_number}: {e}\n")
+            print(f"[AUDIO STREAM] ❌ Error muting {phone_number}: {e}\n")
 
     # Initialize audio analyzer for this participant
     analyzer = AudioStreamAnalyzer(phone_number, on_hold_detected)
