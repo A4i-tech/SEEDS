@@ -39,6 +39,16 @@ class CommunicationAPI(ABC):
     async def mute_participant(self, phone_number: str):
         pass
 
+    # EARMUFF PARTICIPANT - blocks bidirectional audio (prevents hold music broadcast)
+    @abstractmethod
+    async def earmuff_participant(self, phone_number: str):
+        pass
+
+    # UNEARMUFF PARTICIPANT - restores bidirectional audio
+    @abstractmethod
+    async def unearmuff_participant(self, phone_number: str):
+        pass
+
     # UNMUTE PARTICIPANT IN THE CONF
     @abstractmethod
     async def unmute_participant(self, phone_number: str):
