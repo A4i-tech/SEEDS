@@ -82,11 +82,7 @@ app.add_middleware(
 
 ongoing_fsm_mongo = MongoDB(collection_name="ongoingIVRState")
 
-<<<<<<< HEAD
-ivrv2_logs_mongo = MongoDB(collection_name="ivrv2logs")
-=======
 ivrv2_logs_mongo = MongoDB(collection_name="ivrv2Logs")
->>>>>>> 8f89f02 (implemented stress testing through locustfile.py)
 
 fsm_json_mongo = MongoDB(collection_name="fsm")
 radio_fsm_mongo = MongoDB(collection_name="radio")
@@ -417,7 +413,7 @@ async def call_webhook(request: Request, response: Response):
     logging.info(f"[WEBHOOK] CALL DATA RECEIVED: {call_data}")
     call_status = call_data.get("_su")  # 2 = missed call
     phone_number = call_data.get("_cl")  # with country code
-    tenant_id = query_params.get("tenant_id") # optional tenant id
+    tenant_id = query_params.get("tenant_id")  # optional tenant id
     logging.info(f"[WEBHOOK] CALL STATUS: {call_status}")
     if call_status != 2:
         logging.error(
@@ -432,8 +428,14 @@ async def call_webhook(request: Request, response: Response):
     logging.info(f"[WEBHOOK] ✓ Logged missed call with ID: {insert_result}")
 
     # send message to service bus to process the call asynchronously
-    logging.info(f"[WEBHOOK] Sending message to call_webhook queue, log_id: {insert_result}")
-    payload = {"phone_number": phone_number, "call_log_id": str(insert_result), "tenant_id": tenant_id}
+    logging.info(
+        f"[WEBHOOK] Sending message to call_webhook queue, log_id: {insert_result}"
+    )
+    payload = {
+        "phone_number": phone_number,
+        "call_log_id": str(insert_result),
+        "tenant_id": tenant_id,
+    }
     logging.info(f"[WEBHOOK] Payload: {payload}")
     try:
         result = await service_bus_manager.send_call_webhook(payload=payload)
