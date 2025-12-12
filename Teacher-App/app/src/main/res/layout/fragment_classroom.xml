@@ -9,165 +9,71 @@
             type="com.example.seeds.ui.classroom.ClassroomViewModel" />
     </data>
 
-    <androidx.constraintlayout.widget.ConstraintLayout
+    <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:fillViewport="true">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
         tools:context=".ui.classroom.ClassroomFragment">
 
-        <!-- 1. RESUME SESSION CARD -->
+        <!-- 2. UNIFIED HISTORY SECTION (Recent Activity) -->
         <androidx.cardview.widget.CardView
-            android:id="@+id/resume_session_card"
+            android:id="@+id/unified_history_card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/activity_horizontal_margin"
             android:layout_marginStart="@dimen/activity_horizontal_margin"
             android:layout_marginEnd="@dimen/activity_horizontal_margin"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="6dp"
-            app:cardBackgroundColor="#E0F7FA"
-            android:visibility="@{viewModel.showResumeCard ? View.VISIBLE : View.GONE}"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="4dp"
+            app:cardBackgroundColor="@color/white"
+            android:visibility="@{viewModel.hasHistory ? View.VISIBLE : View.GONE}"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent">
 
-            <androidx.constraintlayout.widget.ConstraintLayout
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:padding="20dp">
+                android:orientation="vertical"
+                android:padding="16dp">
 
-                <!-- Dynamic Header Title -->
+                <!-- History Header -->
                 <TextView
-                    android:id="@+id/resume_title"
+                    android:id="@+id/history_header"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@{viewModel.isLastSessionContent ? @string/resume_playback_title : @string/resume_session_title}"
-                    tools:text="Resume Last Session"
-                    android:textSize="14sp"
+                    android:text="Recent Activity"
+                    android:textSize="18sp"
                     android:textStyle="bold"
-                    android:textColor="#006064"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toTopOf="parent"/>
+                    android:textColor="?attr/colorPrimary"
+                    android:drawablePadding="8dp"
+                    android:contentDescription="Recent content and session history"
+                    android:importantForAccessibility="yes"
+                    app:drawableStartCompat="@drawable/ic_history" />
 
-                <!-- Main Title: Shows Class Name (Call) OR Content Title (Audio) -->
-                <TextView
-                    android:id="@+id/resume_class_name"
-                    android:layout_width="0dp"
+                <!-- Unified History RecyclerView -->
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/unified_history_list"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="@{viewModel.lastSessionUiState.mainTitle}"
-                    tools:text="Class 5B - Mathematics"
-                    android:textColor="@color/black"
-                    android:textSize="22sp"
-                    android:textStyle="bold"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintTop_toBottomOf="@+id/resume_title"/>
-
-                <!-- Details Container: Students & Call Audio -->
-                <!-- VISIBILITY: GONE if in Standalone Audio Mode -->
-                <LinearLayout
-                    android:id="@+id/resume_details_container"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
                     android:layout_marginTop="8dp"
-                    android:visibility="@{viewModel.lastSessionUiState.classDetailsVisible ? View.VISIBLE : View.GONE}"
-                    app:layout_constraintTop_toBottomOf="@+id/resume_class_name"
-                    app:layout_constraintStart_toStartOf="parent">
+                    android:nestedScrollingEnabled="false"
+                    app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+                    tools:itemCount="5"
+                    tools:listitem="@layout/content_history_item_row" />
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@{viewModel.lastSessionUiState.studentCountInfo}"
-                        tools:text="Students: 24"
-                        android:textSize="14sp"
-                        android:textColor="#455A64"
-                        android:drawablePadding="6dp"
-                        app:drawableStartCompat="@drawable/ic_group" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="@{viewModel.lastSessionUiState.lastAudioInfo}"
-                        tools:text="Last: Chapter 4 Intro"
-                        android:textSize="14sp"
-                        android:textColor="#455A64"
-                        android:drawablePadding="6dp"
-                        app:drawableStartCompat="@drawable/ic_music_note" />
-                </LinearLayout>
-
-                <!-- ============================================================== -->
-                <!-- MODE A: CALL / CLASSROOM SESSION (Visible if NOT content mode) -->
-                <!-- ============================================================== -->
-
-                <Button
-                    android:id="@+id/btn_resume_call"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
-                    android:text="Resume Call"
-                    android:backgroundTint="?attr/colorPrimary"
-                    android:textColor="@color/white"
-                    android:onClick="@{() -> viewModel.onResumeCallClicked()}"
-                    android:visibility="@{viewModel.isLastSessionContent ? View.GONE : View.VISIBLE}"
-                    android:layout_marginEnd="8dp"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintEnd_toStartOf="@+id/btn_edit_class"
-                    app:layout_constraintTop_toBottomOf="@+id/resume_details_container" />
-
-                <Button
-                    android:id="@+id/btn_edit_class"
-                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:text="Edit Class"
-                    android:onClick="@{() -> viewModel.onEditClassClicked()}"
-                    android:visibility="@{viewModel.isLastSessionContent ? View.GONE : View.VISIBLE}"
-                    app:layout_constraintStart_toEndOf="@+id/btn_resume_call"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintTop_toTopOf="@+id/btn_resume_call" />
-
-                <!-- ============================================================== -->
-                <!-- MODE B: STANDALONE AUDIO SESSION (Visible if CONTENT mode) -->
-                <!-- ============================================================== -->
-
-                <Button
-                    android:id="@+id/btn_resume_audio"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
-                    android:text="Resume Audio"
-                    android:backgroundTint="?attr/colorPrimary"
-                    android:textColor="@color/white"
-                    android:onClick="@{() -> viewModel.onResumeAudioClicked()}"
-                    android:visibility="@{viewModel.isLastSessionContent ? View.VISIBLE : View.GONE}"
-                    android:layout_marginEnd="8dp"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintEnd_toStartOf="@+id/btn_choose_audio"
-                    app:layout_constraintTop_toBottomOf="@+id/resume_details_container" />
-
-                <Button
-                    android:id="@+id/btn_choose_audio"
-                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:text="Choose Audio"
-                    android:onClick="@{() -> viewModel.onChooseAudioClicked()}"
-                    android:visibility="@{viewModel.isLastSessionContent ? View.VISIBLE : View.GONE}"
-                    app:layout_constraintStart_toEndOf="@+id/btn_resume_audio"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintTop_toTopOf="@+id/btn_resume_audio" />
-
-            </androidx.constraintlayout.widget.ConstraintLayout>
+            </LinearLayout>
         </androidx.cardview.widget.CardView>
 
         <!-- Main Container (Groups List) - UNCHANGED -->
         <androidx.cardview.widget.CardView
             android:backgroundTint="#EFF5F5"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/resume_session_card"
-            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/unified_history_card"
             app:cardCornerRadius="12dp"
             android:layout_marginTop="16dp"
             android:layout_marginStart="@dimen/activity_horizontal_margin"
@@ -175,15 +81,17 @@
             android:layout_marginBottom="@dimen/activity_horizontal_margin"
             app:cardElevation="0dp"
             android:layout_width="match_parent"
-            android:layout_height="0dp">
+            android:layout_height="wrap_content"
+            android:minHeight="400dp">
 
             <androidx.constraintlayout.widget.ConstraintLayout
                 android:id="@+id/container"
-                android:layout_height="match_parent"
+                android:layout_height="wrap_content"
                 android:layout_width="match_parent"
                 android:paddingTop="10dp"
                 android:paddingLeft="10dp"
-                android:paddingRight="10dp">
+                android:paddingRight="10dp"
+                android:paddingBottom="10dp">
 
                 <TextView
                     android:id="@+id/classroom_heading"
@@ -196,14 +104,15 @@
 
                 <ImageView
                     android:id="@+id/create_classroom_btn"
-                    android:layout_width="32dp"
-                    android:layout_height="32dp"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
                     android:src="@drawable/ic_creategroup"
+                    android:contentDescription="Create new classroom group"
                     app:tint="?attr/colorPrimary"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:clickable="true"
                     android:focusable="true"
-                    android:padding="2dp"
+                    android:padding="8dp"
                     android:layout_marginStart="12dp"
                     app:layout_constraintStart_toEndOf="@+id/classroom_heading"
                     app:layout_constraintBottom_toBottomOf="@+id/classroom_heading"
@@ -229,8 +138,9 @@
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/my_classrooms_list"
                     android:layout_width="match_parent"
-                    android:layout_height="0dp"
+                    android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
+                    android:nestedScrollingEnabled="false"
                     android:scrollbars="vertical"
                     android:scrollbarThumbVertical="@drawable/custom_scroll_style"
                     app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
@@ -239,7 +149,6 @@
                     app:layout_constraintTop_toBottomOf="@+id/search_text_box"
                     tools:itemCount="10"
                     app:classroomData="@{viewModel.classrooms}"
-                    app:layout_constraintBottom_toBottomOf="parent"
                     tools:listitem="@layout/classroom_item_row" />
 
                 <TextView
@@ -270,4 +179,5 @@
         </androidx.cardview.widget.CardView>
 
     </androidx.constraintlayout.widget.ConstraintLayout>
+    </androidx.core.widget.NestedScrollView>
 </layout>

@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools">
+    
+    <data>
+        <import type="android.view.View"/>
+        <variable
+            name="sessionItem"
+            type="com.example.seeds.model.SessionHistoryItem" />
+        <variable
+            name="clickListener"
+            type="android.view.View.OnClickListener" />
+    </data>
+
+    <androidx.cardview.widget.CardView
+        android:id="@+id/session_card_view"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="72dp"
+        android:layout_marginStart="0dp"
+        android:layout_marginEnd="0dp"
+        android:layout_marginTop="6dp"
+        android:layout_marginBottom="6dp"
+        android:backgroundTint="@color/white"
+        android:tag="@{sessionItem}"
+        android:onClick="@{clickListener}"
+        android:clickable="true"
+        android:focusable="true"
+        android:foreground="?android:attr/selectableItemBackground"
+        app:cardCornerRadius="8dp"
+        app:cardElevation="2dp">
+
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="12dp">
+
+            <ImageView
+                android:id="@+id/session_icon"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:layout_marginEnd="16dp"
+                android:contentDescription="Conference session"
+                android:importantForAccessibility="no"
+                android:src="@drawable/ic_baseline_call_24"
+                android:tint="?attr/colorPrimary"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <TextView
+                android:id="@+id/session_title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="12dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                tools:text="📞 Class 5A"
+                android:textColor="@color/black"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:importantForAccessibility="yes"
+                app:layout_constraintBottom_toTopOf="@+id/session_metadata"
+                app:layout_constraintEnd_toStartOf="@+id/arrow_icon"
+                app:layout_constraintStart_toEndOf="@+id/session_icon"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintVertical_chainStyle="packed" />
+
+            <TextView
+                android:id="@+id/session_metadata"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:layout_marginEnd="12dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                tools:text="5 students • Conference"
+                android:textColor="?attr/colorPrimary"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:importantForAccessibility="yes"
+                app:layout_constraintBottom_toTopOf="@+id/timestamp_text"
+                app:layout_constraintEnd_toStartOf="@+id/arrow_icon"
+                app:layout_constraintStart_toEndOf="@+id/session_icon"
+                app:layout_constraintTop_toBottomOf="@+id/session_title" />
+
+            <TextView
+                android:id="@+id/timestamp_text"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:layout_marginEnd="12dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="#757575"
+                android:textSize="14sp"
+                android:importantForAccessibility="yes"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toStartOf="@+id/arrow_icon"
+                app:layout_constraintStart_toEndOf="@+id/session_icon"
+                app:layout_constraintTop_toBottomOf="@+id/session_metadata"
+                tools:text="2 hours ago" />
+
+            <ImageView
+                android:id="@+id/arrow_icon"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:contentDescription="Open session"
+                android:importantForAccessibility="no"
+                android:src="@android:drawable/ic_menu_more"
+                android:tint="#757575"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+    </androidx.cardview.widget.CardView>
+</layout>

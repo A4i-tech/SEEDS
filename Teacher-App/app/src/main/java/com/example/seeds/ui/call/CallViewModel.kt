@@ -920,7 +920,14 @@ class CallViewModel @Inject constructor(
                 }
 
                 val contentId = selectedContent.value?.id ?: ""
-                userPreferencesRepository.saveLastCallContent(selectedContentObj)
+                val classroomName = args.classroom?.name
+                val studentCount = args.classroom?.students?.size
+                userPreferencesRepository.saveLastCallContent(
+                    selectedContentObj,
+                    classroomName = classroomName,
+                    studentCount = studentCount,
+                    wasConference = true
+                )
                 userPreferencesRepository.saveAudioState(contentId, true)
 
                 Log.d("PLAY_AUDIO", "Got audio URL: $audioUrl")
