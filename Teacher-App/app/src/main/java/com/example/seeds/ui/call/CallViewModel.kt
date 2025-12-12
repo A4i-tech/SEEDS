@@ -176,6 +176,12 @@ class CallViewModel @Inject constructor(
     val networkConnected: LiveData<Boolean>
         get() = _networkConnected
 
+    private val _participantDropped = MutableLiveData<String?>()
+    val participantDropped: LiveData<String?>
+        get() = _participantDropped
+
+    private val previousStudentStates = mutableMapOf<String, CallerState?>()
+
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
             _networkConnected.postValue(true)
@@ -294,6 +300,10 @@ class CallViewModel @Inject constructor(
         _navigateBack.value = false
     }
 
+    fun clearParticipantDroppedNotification() {
+        _participantDropped.value = null
+    }
+
     private fun getAccessToken() {
         viewModelScope.launch {
             try {
@@ -390,6 +400,25 @@ class CallViewModel @Inject constructor(
                                         }
                                         val currentStudentList = _callState.value ?: emptyList()
                                         val currentStudentMap = currentStudentList.associateBy { it.phoneNumber }
+                                        
+                                        // Check for students transitioning from CONNECTED to DISCONNECTED
+                                        partialStateMap
+                                            .filter { it.key != teacherPhoneNumber }
+                                            .forEach { (phoneNumber, partialUpdate) ->
+                                                val previousState = previousStudentStates[phoneNumber]
+                                                val currentState = partialUpdate.callerState
+                                                
+                                                Log.d("STUDENT_STATE", "Student $phoneNumber: $previousState -> $currentState")
+                                                
+                                                if (previousState == CallerState.CONNECTED && currentState == CallerState.DISCONNECTED) {
+                                                    Log.d("STUDENT_DROP", "Student $phoneNumber disconnected, posting notification")
+                                                    _participantDropped.postValue(phoneNumber)
+                                                }
+                                                
+                                                // Update previous state
+                                                previousStudentStates[phoneNumber] = currentState
+                                            }
+                                        
                                         val newStudentList = partialStateMap
                                             .filter { it.key != teacherPhoneNumber } 
                                             .map { (phoneNumber, partialUpdate) ->

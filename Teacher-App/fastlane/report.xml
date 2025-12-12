@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="fastlane.lanes">
+    
+    
+    
+      
+      <testcase classname="fastlane.lanes" name="0: default_platform" time="0.0024866">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="1: Switch to android load_env_file lane" time="0.0018661">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="2: :app:assembleDebug" time="24.1294636">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="3: firebase_app_distribution" time="11.8682758">
+        
+      </testcase>
+    
+  </testsuite>
+</testsuites>
