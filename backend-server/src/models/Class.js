@@ -20,5 +20,5 @@ module.exports.getClassesByTeacherId = teacher => {
 }
 
 module.exports.deleteClassById = id => {
-  return ClassRoom.deleteOne({_id: mongoose.Types.ObjectId(id)}).exec()
+  return ClassRoom.findByIdAndDelete(id).exec()
 }
