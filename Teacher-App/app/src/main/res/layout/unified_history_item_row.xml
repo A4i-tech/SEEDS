@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <data>
+        <import type="android.view.View"/>
+        <variable
+            name="contentItem"
+            type="com.example.seeds.model.ContentHistoryItem" />
+        <variable
+            name="sessionItem"
+            type="com.example.seeds.model.SessionHistoryItem" />
+        <variable
+            name="clickListener"
+            type="android.view.View.OnClickListener" />
+    </data>
+
+    <androidx.cardview.widget.CardView
+        android:id="@+id/unified_card_view"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginVertical="4dp"
+        android:layout_marginHorizontal="2dp"
+        app:cardCornerRadius="8dp"
+        app:cardElevation="2dp"
+        app:cardBackgroundColor="@color/white"
+        android:onClick="@{clickListener}"
+        android:clickable="true"
+        android:focusable="true"
+        android:foreground="?android:attr/selectableItemBackground">
+
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="72dp"
+            android:padding="10dp">
+
+            <!-- 1. ICON -->
+            <ImageView
+                android:id="@+id/item_icon"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/circle_bg_light"
+                android:padding="8dp"
+                android:contentDescription="@string/content_icon"
+                android:importantForAccessibility="no"
+                android:src='@{sessionItem != null ? @drawable/ic_baseline_call_24 : ((contentItem.content.type.equals("Rhyme") || contentItem.content.type.equals("Poem")) ? @drawable/ic_content_music : @drawable/ic_content_book)}'
+                app:tint="?attr/colorPrimary"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent"
+                tools:src="@drawable/ic_content_book" />
+
+            <!-- 2. TITLE -->
+            <TextView
+                android:id="@+id/item_title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="8dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text='@{sessionItem != null ? sessionItem.groupName : contentItem.content.titleText}'
+                android:textColor="@color/black"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:importantForAccessibility="yes"
+                app:layout_constraintBottom_toTopOf="@+id/item_subtitle"
+                app:layout_constraintEnd_toStartOf="@+id/action_button"
+                app:layout_constraintStart_toEndOf="@+id/item_icon"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintVertical_chainStyle="packed"
+                tools:text="Harry Potter Chapter 1" />
+
+            <!-- 3. SUBTITLE (Fixed Bullet Rendering) -->
+            <!-- Using \u2022 instead of the character ensures it renders correctly -->
+            <TextView
+                android:id="@+id/item_subtitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="8dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                
+                android:text='@{sessionItem != null ? ("Conference \u2022 " + sessionItem.studentCount + " Students") : ((contentItem.wasConference ? ("In Call \u2022 " + (contentItem.classroomName ?? "") + " \u2022 ") : "Self Learning \u2022 ") + contentItem.content.type)}'
+                
+                android:textColor='@{(sessionItem != null || contentItem.wasConference) ? @color/teal_700 : @android:color/darker_gray}'
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:importantForAccessibility="yes"
+                app:layout_constraintBottom_toTopOf="@+id/item_timestamp"
+                app:layout_constraintEnd_toStartOf="@+id/action_button"
+                app:layout_constraintStart_toEndOf="@+id/item_icon"
+                app:layout_constraintTop_toBottomOf="@+id/item_title"
+                tools:text="In Call • Class 5A • Story" />
+
+            <!-- 4. TIMESTAMP -->
+            <TextView
+                android:id="@+id/item_timestamp"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="8dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="#9E9E9E"
+                android:textSize="12sp"
+                android:importantForAccessibility="yes"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toStartOf="@+id/action_button"
+                app:layout_constraintStart_toEndOf="@+id/item_icon"
+                app:layout_constraintTop_toBottomOf="@+id/item_subtitle"
+                tools:text="2 hours ago" />
+
+            <!-- 5. ACTION BUTTON -->
+            <ImageView
+                android:id="@+id/action_button"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:src='@{sessionItem != null ? @android:drawable/ic_menu_more : @drawable/ic_play}'
+                app:tint="?attr/colorPrimary"
+                android:contentDescription='@{sessionItem != null ? "View Session Options" : "Play Content"}'
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+    </androidx.cardview.widget.CardView>
+</layout>

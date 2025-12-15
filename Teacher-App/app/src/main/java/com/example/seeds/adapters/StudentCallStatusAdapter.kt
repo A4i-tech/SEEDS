@@ -1,17 +1,18 @@
 package com.example.seeds.adapters
 
 import android.view.LayoutInflater
-import android.util.Log
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.example.seeds.databinding.StudentCallItemRowBinding
 import com.example.seeds.model.StudentCallStatus
+import com.example.seeds.model.Student
 import com.example.seeds.ui.call.CallViewModel
 
 class StudentCallStatusAdapter(
     private val viewModel: CallViewModel,
+    private val allStudents: List<Student>,
     private val removeClickListener: OnClickListener
 ) : ListAdapter<StudentCallStatus, StudentCallStatusAdapter.ViewHolder>(DiffCallback) {
 
@@ -26,19 +27,25 @@ class StudentCallStatusAdapter(
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        val student = getItem(position)
-        Log.d("ADAPTER_DEBUG", "REDRAWING student: ${student.name} with state: ${student.callerState}")
-        holder.bind(student, viewModel, removeClickListener)
+        val status = getItem(position)
+        val matchingStudent = allStudents.find { it.phoneNumber == status.phoneNumber }
+
+        if (matchingStudent != null) {
+            holder.bind(status, matchingStudent, viewModel, removeClickListener)
+        }
     }
 
     class ViewHolder(private val binding: StudentCallItemRowBinding) :
         RecyclerView.ViewHolder(binding.root) {
+        
         fun bind(
-            student: StudentCallStatus,
+            studentCallStatus: StudentCallStatus,
+            student: Student, 
             viewModel: CallViewModel,
             removeListener: OnClickListener
         ) {
-            binding.studentCallStatus = student
+            binding.studentCallStatus = studentCallStatus
+            binding.student = student 
             binding.viewModel = viewModel
             binding.removeClickListener = removeListener
             binding.executePendingBindings()

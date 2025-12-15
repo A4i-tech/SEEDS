@@ -1,21 +1,16 @@
 package com.example.seeds.model
 
-/**
- * Sealed class representing different types of history items
- * that can be displayed in the recent activity feed.
- */
 sealed class HistoryItem {
     abstract val timestamp: Long
-    
-    data class ContentItem(
-        val historyItem: ContentHistoryItem
-    ) : HistoryItem() {
-        override val timestamp: Long get() = historyItem.timestamp
+    abstract val id: String
+
+    data class ContentItem(val contentHistoryItem: ContentHistoryItem) : HistoryItem() {
+        override val timestamp: Long get() = contentHistoryItem.timestamp
+        override val id: String get() = "${contentHistoryItem.content.id}_${contentHistoryItem.timestamp}"
     }
-    
-    data class SessionItem(
-        val historyItem: SessionHistoryItem
-    ) : HistoryItem() {
-        override val timestamp: Long get() = historyItem.timestamp
+
+    data class SessionItem(val sessionHistoryItem: SessionHistoryItem) : HistoryItem() {
+        override val timestamp: Long get() = sessionHistoryItem.timestamp
+        override val id: String get() = "${sessionHistoryItem.groupId}_${sessionHistoryItem.timestamp}"
     }
 }

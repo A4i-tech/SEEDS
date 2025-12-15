@@ -19,7 +19,6 @@
         android:layout_height="wrap_content"
         tools:context=".ui.classroom.ClassroomFragment">
 
-        <!-- 2. UNIFIED HISTORY SECTION (Recent Activity) -->
         <androidx.cardview.widget.CardView
             android:id="@+id/unified_history_card"
             android:layout_width="match_parent"
