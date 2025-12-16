@@ -95,3 +95,12 @@ jobs:
           )
 
           echo "facts_json=$FINAL_JSON" >> $GITHUB_OUTPUT
+
+      - name: Send Teams Notification
+        uses: ./.github/actions/teams-notify
+        with:
+          teams-webhook-url: ${{ secrets.TEAMS_WEBHOOK_URL }}
+          activity-title: "CI/CD Notifications"
+          summary: "Workflow ${{ contains(needs.*.result, 'failure') && 'Failed' || 'Complete' }} for ${{ github.ref_name }}"
+          theme-color: "${{ contains(needs.*.result, 'failure') && 'FF0000' || '00FF00' }}"
+          facts: ${{ steps.facts.outputs.facts_json }}    
