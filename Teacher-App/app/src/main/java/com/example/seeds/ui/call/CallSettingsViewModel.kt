@@ -1,29 +1,32 @@
 package com.example.seeds.ui.call
 
 import android.util.Log
-import androidx.lifecycle.*
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.example.seeds.model.Classroom
 import com.example.seeds.model.Content
 import com.example.seeds.model.Student
 import com.example.seeds.repository.ClassroomRepository
 import com.example.seeds.repository.ContentRepository
 import com.example.seeds.repository.StudentRepository
-import com.example.seeds.repository.TeacherRepository
+import com.example.seeds.repository.TeacherStudentsDirectory 
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
-class CallSettingsViewModel @Inject constructor(savedStateHandle: SavedStateHandle,
-                                                private val studentRepository: StudentRepository,
-                                                private val classroomRepository: ClassroomRepository,
-                                                private val contentRepository: ContentRepository): ViewModel(){
+class CallSettingsViewModel @Inject constructor(
+    savedStateHandle: SavedStateHandle,
+    private val studentRepository: StudentRepository,
+    private val classroomRepository: ClassroomRepository,
+    private val contentRepository: ContentRepository,
+    private val teacherStudentsDirectory: TeacherStudentsDirectory 
+) : ViewModel() {
 
     val args = CallSettingsFragmentArgs.fromSavedStateHandle(savedStateHandle)
-
-//    private val _students = MutableLiveData<List<Student>>()
-//    val students: LiveData<List<Student>>
-//        get() = _students
 
     private val _classroom = MutableLiveData<Classroom>(args.classroom)
     val classroom: LiveData<Classroom>
@@ -33,26 +36,22 @@ class CallSettingsViewModel @Inject constructor(savedStateHandle: SavedStateHand
     val studentsForCall: LiveData<List<Student>>
         get() = _studentsForCall
 
-//    private val _selectedContentList = MutableLiveData<List<Content>>()
-//    val selectedContentList: LiveData<List<Content>>
-//        get() = _selectedContentList
-
-    fun updateStudentsForCall(students: List<Student>){
-        _studentsForCall.postValue(students)
-    }
-
     private val _goToHome = MutableLiveData(false)
     val goToHome: LiveData<Boolean>
         get() = _goToHome
 
-    //private val _selectedStudents = MutableLiveData<List<Student>>()
-    //var selectedStudents: LiveData<List<Student>> = studentRepository.getSelectedStudents()
-       // get() = _selectedStudents
-    //val selectedContent: List<Content> = args.content.toList()
+    init {
+        viewModelScope.launch {
+            val fixedClassroom = repairClassroomNames(args.classroom)
+            _classroom.postValue(fixedClassroom)
+            
+            refreshClassroom()
+        }
+    }
 
-//    fun setSelectedContentList(content: List<Content>){
-//        _selectedContentList.value = content
-//    }
+    fun updateStudentsForCall(students: List<Student>) {
+        _studentsForCall.postValue(students)
+    }
 
     fun updateClassroomContent(classroom: Classroom) {
         viewModelScope.launch {
@@ -61,16 +60,47 @@ class CallSettingsViewModel @Inject constructor(savedStateHandle: SavedStateHand
         }
     }
 
-    fun refreshClassroom(){
+    fun refreshClassroom() {
         viewModelScope.launch {
-            val classroomById = classroomRepository.getClassroomById(args.classroom._id!!)
-            Log.d("ONSTARTCALLEDCALLSETTINGSCLASSROOMREFRESHED", classroomById.toString())
-            if(classroomById.contentIds.isNotEmpty())
-                classroomById.contents = contentRepository.getContentsById(classroomById.contentIds)
-            else
-                classroomById.contents = listOf()
-            _classroom.postValue(classroomById)
-            //_selectedContentList.postValue(classroomById.contents!!)
+            try {
+                var classroomById = classroomRepository.getClassroomById(args.classroom._id!!)
+                Log.d("CallSettings", "Refreshed Classroom: ${classroomById.name}")
+
+                if (classroomById.contentIds.isNotEmpty()) {
+                    classroomById.contents = contentRepository.getContentsById(classroomById.contentIds)
+                } else {
+                    classroomById.contents = listOf()
+                }
+
+                classroomById = repairClassroomNames(classroomById)
+
+                _classroom.postValue(classroomById)
+                
+            } catch (e: Exception) {
+                Log.e("CallSettings", "Error refreshing classroom", e)
+            }
+        }
+    }
+
+    private suspend fun repairClassroomNames(classroom: Classroom): Classroom {
+        return try {
+            val directoryMap = teacherStudentsDirectory.studentsByPhone()
+            
+            val fixedStudents = classroom.students.map { student ->
+                val correctDetails = directoryMap[student.phoneNumber] 
+                    ?: directoryMap[student.phoneNumber.removePrefix("91")]
+                    ?: directoryMap["91${student.phoneNumber}"]
+
+                if (correctDetails != null) {
+                    student.copy(name = correctDetails.name)
+                } else {
+                    student
+                }
+            }
+            classroom.apply { students = fixedStudents }
+        } catch (e: Exception) {
+            Log.e("CallSettings", "Failed to repair names", e)
+            classroom
         }
     }
 

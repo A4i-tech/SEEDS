@@ -84,7 +84,7 @@
                 app:layout_constraintEnd_toStartOf="@+id/play_icon"
                 app:layout_constraintStart_toEndOf="@+id/content_icon"
                 app:layout_constraintTop_toBottomOf="@+id/content_title"
-                tools:text="Story • Kannada" />
+                tools:text="Story - Kannada" />
 
             <TextView
                 android:id="@+id/timestamp_text"
@@ -120,7 +120,7 @@
                 app:layout_constraintEnd_toStartOf="@+id/play_icon"
                 app:layout_constraintStart_toEndOf="@+id/content_icon"
                 app:layout_constraintTop_toBottomOf="@+id/timestamp_text"
-                tools:text="📞 Class 5A • 25 students" />
+                tools:text="📞 Class 5A - 25 students" />
 
             <ImageView
                 android:id="@+id/play_icon"

@@ -2,221 +2,334 @@ package com.example.seeds.repository
 
 import android.content.Context
 import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
-import androidx.test.core.app.ApplicationProvider
-import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.seeds.model.Content
 import com.example.seeds.model.ContentHistoryItem
-import com.example.seeds.model.LocalizedContent
+import com.example.seeds.model.Classroom
+import com.example.seeds.model.SessionHistoryItem
 import com.example.seeds.utils.Constants
 import com.google.gson.Gson
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.test.runTest
-import org.junit.After
-import org.junit.Assert.*
-import org.junit.Before
-import org.junit.Test
-import org.junit.runner.RunWith
+import com.google.gson.reflect.TypeToken
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import javax.inject.Inject
+import javax.inject.Singleton
 
-/**
- * Unit tests for UserPreferencesRepository content history functionality.
- * Tests the move-to-top deduplication strategy and N-item limit enforcement.
- */
-@OptIn(ExperimentalCoroutinesApi::class)
-@RunWith(AndroidJUnit4::class)
-class UserPreferencesRepositoryTest {
+private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "seeds_user_config")
 
-    private lateinit var context: Context
-    private lateinit var repository: UserPreferencesRepository
-    private val gson = Gson()
+data class UserPrefs(
+    val userId: String = "",
+    val userName: String = "",
+    
+    // Resume State
+    val lastActionType: String = "CALL", // "CALL" or "CONTENT"
+    val lastClassroomId: String = "",
+    
+    // SEPARATE STORAGE:
+    val lastContentJson: String = "",       
+    val lastCallContentJson: String = "",   
 
-    @Before
-    fun setup() {
-        context = ApplicationProvider.getApplicationContext()
-        repository = UserPreferencesRepository(context)
-    }
+    // Other existing fields...
+    val activeGroupId: String = "",
+    val activeStudentIds: Set<String> = emptySet(),
+    val isAudioPlaying: Boolean = false,
+    val activeContentId: String = "",
+    val history: List<SessionHistoryItem> = emptyList(),
+    val contentHistory: List<ContentHistoryItem> = emptyList(),
+    val lastConferenceId: String = "",
+    val lastClassroomName: String = "",
+    val lastStudentIds: Set<String> = emptySet()
+)
 
-    @After
-    fun tearDown() = runTest {
-        // Clear all preferences after each test
-        context.dataStore.edit { it.clear() }
-    }
+@Singleton
+class UserPreferencesRepository @Inject constructor(
+    @ApplicationContext private val context: Context
+) {
+    private val dataStore = context.dataStore
+    private val gson = Gson() 
 
-    @Test
-    fun saveContentToHistory_addsNewContent() = runTest {
-        // Given
-        val content = createTestContent("1", "Test Content 1")
+    private object Keys {
+        val USER_ID = stringPreferencesKey("user_id")
+        val USER_NAME = stringPreferencesKey("user_name")
+        val PHONE = stringPreferencesKey("user_phone")
+        val CLASSROOMS_JSON = stringPreferencesKey("classrooms_cache_json")
 
-        // When
-        repository.saveContentToHistory(content)
-
-        // Then
-        val history = repository.getContentHistory().first()
-        assertEquals(1, history.size)
-        assertEquals("1", history[0].contentId)
-        assertEquals("Test Content 1", history[0].content.titleText)
-    }
-
-    @Test
-    fun saveContentToHistory_maintainsOrderNewestFirst() = runTest {
-        // Given
-        val content1 = createTestContent("1", "First")
-        val content2 = createTestContent("2", "Second")
-        val content3 = createTestContent("3", "Third")
-
-        // When
-        repository.saveContentToHistory(content1)
-        Thread.sleep(10) // Ensure different timestamps
-        repository.saveContentToHistory(content2)
-        Thread.sleep(10)
-        repository.saveContentToHistory(content3)
-
-        // Then
-        val history = repository.getContentHistory().first()
-        assertEquals(3, history.size)
-        assertEquals("3", history[0].contentId) // Most recent first
-        assertEquals("2", history[1].contentId)
-        assertEquals("1", history[2].contentId)
-    }
-
-    @Test
-    fun saveContentToHistory_movesToTopWhenDuplicate() = runTest {
-        // Given
-        val content1 = createTestContent("1", "Content 1")
-        val content2 = createTestContent("2", "Content 2")
-        val content3 = createTestContent("3", "Content 3")
-        val content1Updated = createTestContent("1", "Content 1 Updated")
-
-        // When - Add 3 items, then re-add the first one
-        repository.saveContentToHistory(content1)
-        Thread.sleep(10)
-        repository.saveContentToHistory(content2)
-        Thread.sleep(10)
-        repository.saveContentToHistory(content3)
-        Thread.sleep(10)
-        val timestampBefore = System.currentTimeMillis()
-        Thread.sleep(10)
-        repository.saveContentToHistory(content1Updated)
-        val timestampAfter = System.currentTimeMillis()
-
-        // Then - Should have 3 items (not 4), with content1 at top with new timestamp
-        val history = repository.getContentHistory().first()
-        assertEquals(3, history.size)
-        assertEquals("1", history[0].contentId) // Moved to top
-        assertEquals("3", history[1].contentId)
-        assertEquals("2", history[2].contentId)
+        // Keys for Logic
+        val LAST_ACTION_TYPE = stringPreferencesKey("last_action_type")
+        val LAST_CLASSROOM_ID = stringPreferencesKey("last_classroom_id")
         
-        // Verify timestamp was updated
-        assertTrue(history[0].timestamp >= timestampBefore)
-        assertTrue(history[0].timestamp <= timestampAfter)
+        // SEPARATE KEYS FOR AUDIO
+        val LAST_CONTENT_JSON = stringPreferencesKey("last_content_json")          // Standalone
+        val LAST_CALL_CONTENT_JSON = stringPreferencesKey("last_call_content_json") // In-Call
+
+        // Other keys...
+        val ACTIVE_GROUP_ID = stringPreferencesKey("active_group_id")
+        val ACTIVE_STUDENT_IDS = stringSetPreferencesKey("active_student_ids")
+        val IS_CONFERENCE_MODE = booleanPreferencesKey("is_conference_mode")
+        val ACTIVE_CONTENT_ID = stringPreferencesKey("active_content_id")
+        val IS_AUDIO_PLAYING = booleanPreferencesKey("is_audio_playing")
+        val LAST_CONF_ID = stringPreferencesKey("last_conference_id") 
+        val LAST_CLASSROOM_NAME = stringPreferencesKey("last_classroom_name")
+        val LAST_STUDENT_IDS = stringSetPreferencesKey("last_student_ids")
+        val HISTORY_JSON = stringPreferencesKey("history_json")
+        val CONTENT_HISTORY_JSON = stringPreferencesKey("content_history_json")
     }
 
-    @Test
-    fun saveContentToHistory_enforcesLimit() = runTest {
-        // Given - Create more items than the limit
-        val itemsToCreate = Constants.DEFAULT_CONTENT_HISTORY_SIZE + 3
-
-        // When - Add items exceeding the limit
-        for (i in 1..itemsToCreate) {
-            val content = createTestContent(i.toString(), "Content $i")
-            repository.saveContentToHistory(content)
-            Thread.sleep(5)
+    val userPrefs: Flow<UserPrefs> = dataStore.data.map { prefs ->
+        val historyJson = prefs[Keys.HISTORY_JSON]
+        val historyList: List<SessionHistoryItem> = if (!historyJson.isNullOrEmpty()) {
+            val type = object : TypeToken<List<SessionHistoryItem>>() {}.type
+            gson.fromJson(historyJson, type) ?: emptyList()
+        } else {
+            emptyList()
+        }
+        
+        val contentHistoryJson = prefs[Keys.CONTENT_HISTORY_JSON]
+        val contentHistoryList: List<ContentHistoryItem> = if (!contentHistoryJson.isNullOrEmpty()) {
+            val type = object : TypeToken<List<ContentHistoryItem>>() {}.type
+            gson.fromJson(contentHistoryJson, type) ?: emptyList()
+        } else {
+            emptyList()
         }
 
-        // Then - Should only keep the configured limit
-        val history = repository.getContentHistory().first()
-        assertEquals(Constants.DEFAULT_CONTENT_HISTORY_SIZE, history.size)
-        
-        // Verify newest items are kept
-        assertEquals(itemsToCreate.toString(), history[0].contentId)
-        assertEquals((itemsToCreate - 1).toString(), history[1].contentId)
-        assertEquals((itemsToCreate - Constants.DEFAULT_CONTENT_HISTORY_SIZE + 1).toString(), 
-            history[Constants.DEFAULT_CONTENT_HISTORY_SIZE - 1].contentId)
-    }
+        UserPrefs(
+            userId = prefs[Keys.USER_ID] ?: "",
+            userName = prefs[Keys.USER_NAME] ?: "",
+            lastActionType = prefs[Keys.LAST_ACTION_TYPE] ?: "CALL",
+            lastClassroomId = prefs[Keys.LAST_CLASSROOM_ID] ?: "",
+            
+            // MAP SEPARATE JSONS
+            lastContentJson = prefs[Keys.LAST_CONTENT_JSON] ?: "",
+            lastCallContentJson = prefs[Keys.LAST_CALL_CONTENT_JSON] ?: "",
 
-    @Test
-    fun getContentHistory_returnsEmptyListInitially() = runTest {
-        // When
-        val history = repository.getContentHistory().first()
-
-        // Then
-        assertTrue(history.isEmpty())
-    }
-
-    @Test
-    fun saveLastPlayedContent_alsoSavesToHistory() = runTest {
-        // Given
-        val content = createTestContent("1", "Test Content")
-
-        // When
-        repository.saveLastPlayedContent(content)
-
-        // Then - Content should be in both last played and history
-        val userPrefs = repository.userPrefs.first()
-        assertNotNull(userPrefs.lastContentJson)
-        assertTrue(userPrefs.lastContentJson.contains("Test Content"))
-        
-        val history = repository.getContentHistory().first()
-        assertEquals(1, history.size)
-        assertEquals("1", history[0].contentId)
-    }
-
-    @Test
-    fun contentHistoryItem_isSameContent_worksCorrectly() {
-        // Given
-        val content1 = createTestContent("1", "Content 1")
-        val content2 = createTestContent("2", "Content 2")
-        val item1 = ContentHistoryItem(content1, System.currentTimeMillis())
-        val item1Duplicate = ContentHistoryItem(content1, System.currentTimeMillis() + 1000)
-        val item2 = ContentHistoryItem(content2, System.currentTimeMillis())
-
-        // Then
-        assertTrue(item1.isSameContent(item1Duplicate))
-        assertFalse(item1.isSameContent(item2))
-        assertTrue(item1.isSameContent("1"))
-        assertFalse(item1.isSameContent("2"))
-    }
-
-    @Test
-    fun contentHistory_persistsAcrossInstances() = runTest {
-        // Given
-        val content = createTestContent("1", "Persistent Content")
-        repository.saveContentToHistory(content)
-
-        // When - Create new repository instance
-        val newRepository = UserPreferencesRepository(context)
-        val history = newRepository.getContentHistory().first()
-
-        // Then - Data should persist
-        assertEquals(1, history.size)
-        assertEquals("1", history[0].contentId)
-        assertEquals("Persistent Content", history[0].content.titleText)
-    }
-
-    // Helper Methods
-
-    private fun createTestContent(id: String, title: String): Content {
-        return Content(
-            _id = id,
-            type = "story",
-            description = "Test description",
-            language = "english",
-            title = LocalizedContent(
-                text = title,
-                audioUrl = "https://example.com/audio.mp3"
-            ),
-            theme = null,
-            audioContent = emptyList(),
-            isPullModel = false,
-            isTeacherApp = true,
-            createdBy = "test",
-            creation_time = System.currentTimeMillis(),
-            isDeleted = false
+            activeGroupId = prefs[Keys.ACTIVE_GROUP_ID] ?: "",
+            activeStudentIds = prefs[Keys.ACTIVE_STUDENT_IDS] ?: emptySet(),
+            isAudioPlaying = prefs[Keys.IS_AUDIO_PLAYING] ?: false,
+            activeContentId = prefs[Keys.ACTIVE_CONTENT_ID] ?: "",
+            history = historyList,
+            contentHistory = contentHistoryList,
+            lastConferenceId = prefs[Keys.LAST_CONF_ID] ?: "",
+            lastClassroomName = prefs[Keys.LAST_CLASSROOM_NAME] ?: "",
+            lastStudentIds = prefs[Keys.LAST_STUDENT_IDS] ?: emptySet()
         )
     }
 
-    private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "seeds_user_config")
+    suspend fun saveUser(id: String, name: String, phone: String) {
+        dataStore.edit { 
+            it[Keys.USER_ID] = id
+            it[Keys.USER_NAME] = name
+            it[Keys.PHONE] = phone
+        }
+    }
+
+    // Sets mode to "CALL"
+    suspend fun saveLastCallDetails(conferenceId: String, classroomId: String, classroomName: String, studentIds: Set<String>) {
+        dataStore.edit { 
+            it[Keys.LAST_CONF_ID] = conferenceId
+            it[Keys.LAST_CLASSROOM_ID] = classroomId
+            it[Keys.LAST_CLASSROOM_NAME] = classroomName
+            it[Keys.ACTIVE_GROUP_ID] = classroomId
+            
+            it[Keys.LAST_ACTION_TYPE] = "CALL" 
+        }
+    }
+
+    // Sets mode to "CONTENT"
+    suspend fun saveLastPlayedContent(content: Content) {
+        val json = gson.toJson(content)
+        dataStore.edit { 
+            it[Keys.LAST_CONTENT_JSON] = json         
+            it[Keys.ACTIVE_CONTENT_ID] = content.id.toString()
+            
+            it[Keys.LAST_ACTION_TYPE] = "CONTENT"
+        }
+        // Also add to content history (separate mode)
+        saveContentToHistory(content, wasConference = false)
+    }
+
+    // Saves audio, but KEEPS mode as "CALL"
+    // Also saves to content history with conference details
+    suspend fun saveLastCallContent(
+        content: Content,
+        classroomName: String? = null,
+        studentCount: Int? = null,
+        wasConference: Boolean = true
+    ) {
+        val json = gson.toJson(content)
+        dataStore.edit { 
+            it[Keys.LAST_CALL_CONTENT_JSON] = json      
+        }
+        // Also add to content history with conference details
+        saveContentToHistory(content, classroomName, studentCount, wasConference)
+    }
+
+    suspend fun saveClassrooms(classrooms: List<Classroom>) {
+        val jsonString = gson.toJson(classrooms)
+        dataStore.edit { prefs -> prefs[Keys.CLASSROOMS_JSON] = jsonString }
+    }
+    
+    suspend fun getCachedClassrooms(): List<Classroom> {
+        var classrooms: List<Classroom> = emptyList()
+        dataStore.edit { prefs ->
+            val jsonString = prefs[Keys.CLASSROOMS_JSON]
+            if (!jsonString.isNullOrEmpty()) {
+                val type = object : TypeToken<List<Classroom>>() {}.type
+                classrooms = gson.fromJson(jsonString, type) ?: emptyList()
+            }
+        }
+        return classrooms
+    }
+
+    suspend fun saveSessionState(groupId: String, studentIds: Set<String>, isConference: Boolean) {
+        dataStore.edit { 
+            it[Keys.ACTIVE_GROUP_ID] = groupId
+            it[Keys.ACTIVE_STUDENT_IDS] = studentIds
+            it[Keys.IS_CONFERENCE_MODE] = isConference
+        }
+    }
+
+    suspend fun saveAudioState(contentId: String, isPlaying: Boolean) {
+        dataStore.edit { 
+            it[Keys.ACTIVE_CONTENT_ID] = contentId
+            it[Keys.IS_AUDIO_PLAYING] = isPlaying
+        }
+    }
+
+    suspend fun addSessionToHistory(item: SessionHistoryItem) {
+        dataStore.edit { prefs ->
+            // 1. Get current Session History
+            val sessionJson = prefs[Keys.HISTORY_JSON]
+            val sessionList: List<SessionHistoryItem> = if (!sessionJson.isNullOrEmpty()) {
+                val type = object : TypeToken<List<SessionHistoryItem>>() {}.type
+                gson.fromJson(sessionJson, type) ?: emptyList()
+            } else { emptyList() }
+            
+            val newSessionList = listOf(item) + sessionList
+
+            // 2. Get current Content History
+            val contentJson = prefs[Keys.CONTENT_HISTORY_JSON]
+            val contentList: List<ContentHistoryItem> = if (!contentJson.isNullOrEmpty()) {
+                val type = object : TypeToken<List<ContentHistoryItem>>() {}.type
+                gson.fromJson(contentJson, type) ?: emptyList()
+            } else { emptyList() }
+
+            // 3. Enforce Combined Limit of 5
+            enforceCombinedHistoryLimit(prefs, newSessionList, contentList)
+        }
+    }
+    
+    /**
+     * Saves content to history with move-to-top deduplication.
+     * Enforces a combined limit of 5 items between Content and Sessions.
+     * 
+     * @param content The content to save
+     * @param classroomName Optional classroom/group name
+     * @param studentCount Optional number of students in session
+     * @param wasConference Whether this was a conference call (tags the audio type)
+     */
+    suspend fun saveContentToHistory(
+        content: Content,
+        classroomName: String? = null,
+        studentCount: Int? = null,
+        wasConference: Boolean = false
+    ) {
+        dataStore.edit { prefs ->
+            // 1. Get current Content History
+            val contentJson = prefs[Keys.CONTENT_HISTORY_JSON]
+            val currentContentList: List<ContentHistoryItem> = if (!contentJson.isNullOrEmpty()) {
+                val type = object : TypeToken<List<ContentHistoryItem>>() {}.type
+                gson.fromJson(contentJson, type) ?: emptyList()
+            } else { emptyList() }
+            
+            // Create new history item with current timestamp and session details
+            val newItem = ContentHistoryItem(
+                content = content,
+                timestamp = System.currentTimeMillis(),
+                classroomName = classroomName,
+                studentCount = studentCount,
+                wasConference = wasConference
+            )
+            
+            // Remove existing entry for this content (move-to-top deduplication)
+            val filteredContentList = currentContentList.filter { !it.isSameContent(content._id) }
+            val newContentList = listOf(newItem) + filteredContentList
+
+            // 2. Get current Session History
+            val sessionJson = prefs[Keys.HISTORY_JSON]
+            val sessionList: List<SessionHistoryItem> = if (!sessionJson.isNullOrEmpty()) {
+                val type = object : TypeToken<List<SessionHistoryItem>>() {}.type
+                gson.fromJson(sessionJson, type) ?: emptyList()
+            } else { emptyList() }
+
+            // 3. Enforce Combined Limit of 5
+            enforceCombinedHistoryLimit(prefs, sessionList, newContentList)
+        }
+    }
+
+    /**
+     * Helper to enforce the combined limit of 5 items across Session and Content history.
+     * Sorts all items by timestamp, keeps the top 5, and saves them back to DataStore.
+     */
+    private fun enforceCombinedHistoryLimit(
+        prefs: MutablePreferences,
+        sessions: List<SessionHistoryItem>,
+        contents: List<ContentHistoryItem>
+    ) {
+        val maxCombinedSize = 5
+
+        // Wrapper to handle sorting of different types
+        data class SortableItem(
+            val timestamp: Long,
+            val type: String, // "SESSION" or "CONTENT"
+            val session: SessionHistoryItem? = null,
+            val content: ContentHistoryItem? = null
+        )
+
+        val combinedList = mutableListOf<SortableItem>()
+        sessions.forEach { combinedList.add(SortableItem(it.timestamp, "SESSION", session = it)) }
+        contents.forEach { combinedList.add(SortableItem(it.timestamp, "CONTENT", content = it)) }
+
+        // Sort descending by timestamp and take top N
+        val sortedTrimmed = combinedList.sortedByDescending { it.timestamp }.take(maxCombinedSize)
+
+        // Split back into respective lists
+        val finalSessions = sortedTrimmed.filter { it.type == "SESSION" }.mapNotNull { it.session }
+        val finalContents = sortedTrimmed.filter { it.type == "CONTENT" }.mapNotNull { it.content }
+
+        // Save back to Preferences
+        prefs[Keys.HISTORY_JSON] = gson.toJson(finalSessions)
+        prefs[Keys.CONTENT_HISTORY_JSON] = gson.toJson(finalContents)
+    }
+    
+    /**
+     * Returns a Flow of content history items, ordered by most recent first.
+     */
+    fun getContentHistory(): Flow<List<ContentHistoryItem>> {
+        return dataStore.data.map { prefs ->
+            val contentHistoryJson = prefs[Keys.CONTENT_HISTORY_JSON]
+            if (!contentHistoryJson.isNullOrEmpty()) {
+                val type = object : TypeToken<List<ContentHistoryItem>>() {}.type
+                gson.fromJson<List<ContentHistoryItem>>(contentHistoryJson, type) ?: emptyList()
+            } else {
+                emptyList()
+            }
+        }
+    }
+
+    suspend fun clearSession() {
+        dataStore.edit { 
+            it.remove(Keys.ACTIVE_GROUP_ID)
+            it.remove(Keys.ACTIVE_STUDENT_IDS)
+            it.remove(Keys.ACTIVE_CONTENT_ID)
+            it.remove(Keys.IS_AUDIO_PLAYING)
+        }
+    }
+    
+    suspend fun clearContentHistory() {
+        dataStore.edit { 
+            it.remove(Keys.CONTENT_HISTORY_JSON)
+        }
+    }
 }

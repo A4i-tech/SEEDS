@@ -35,16 +35,19 @@ class ClassroomViewModel @Inject constructor(
         prefs.history ?: emptyList()
     }
     
-    // Unified history combining content and sessions, sorted by timestamp
     val unifiedHistory: LiveData<List<HistoryItem>> = MediatorLiveData<List<HistoryItem>>().apply {
         var currentContentHistory: List<com.example.seeds.model.ContentHistoryItem> = emptyList()
         var currentSessionHistory: List<com.example.seeds.model.SessionHistoryItem> = emptyList()
         
         fun update() {
             val combined = mutableListOf<HistoryItem>()
+            // Map content history to UI model
             currentContentHistory.forEach { combined.add(HistoryItem.ContentItem(it)) }
+            // Map session history to UI model
             currentSessionHistory.forEach { combined.add(HistoryItem.SessionItem(it)) }
-            value = combined.sortedByDescending { it.timestamp }
+            
+            // UPDATED: Sort by descending timestamp and strict limit of 5
+            value = combined.sortedByDescending { it.timestamp }.take(5)
         }
         
         addSource(contentHistory) { content ->
