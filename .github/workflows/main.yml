@@ -54,47 +54,44 @@ jobs:
       - name: Generate Notification Facts
         id: facts
         shell: bash
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          RUN_URL: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          IS_FAILURE: ${{ contains(needs.*.result, 'failure') }}
         run: |
-          facts_list=()
+          JOB_MAPPING='{
+            "deploy-websocket-service-main-workflow": "Websocket Main",
+            "deploy-websocket-service-staging-workflow": "Websocket Staging",
+            "deploy-staging-workflow": "Webservice Staging",
+            "deploy-main-workflow": "Webservice Main",
+            "deploy-android": "Android Staging"
+          }'
 
-          add_fact() {
-            local name="$1"
-            local value="$2"
-            facts_list+=("{ \"name\": \"$name\", \"value\": \"$value\" }")
-          }
-
-          add_fact "Workflow" "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-
-          # Calculate overall status
-          if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" ]]; then
-            add_fact "Stage" "Workflow Failed"
+          if [[ "$IS_FAILURE" == "true" ]]; then
+            STAGE_VAL="Workflow Failed"
           else
-            add_fact "Stage" "Workflow Complete"
+            STAGE_VAL="Workflow Complete"
           fi
 
-          if [[ "${{ needs.deploy-websocket-service-main-workflow.result }}" != "skipped" ]]; then
-            add_fact "Websocket Main" "${{ needs.deploy-websocket-service-main-workflow.result }}"
-          fi
+          FINAL_JSON=$(jq -n -c \
+            --arg url "$RUN_URL" \
+            --arg stage "$STAGE_VAL" \
+            --argjson needs "$NEEDS_JSON" \
+            --argjson map "$JOB_MAPPING" \
+            '
+            [
+              { "name": "Workflow", "value": $url },
+              { "name": "Stage", "value": $stage }
+            ] + (
+              $needs | to_entries | map(
+                select(.value.result != "skipped") | 
+                select($map[.key] != null) | 
+                { 
+                  "name": $map[.key], 
+                  "value": .value.result 
+                }
+              )
+            )'
+          )
 
-          if [[ "${{ needs.deploy-websocket-service-staging-workflow.result }}" != "skipped" ]]; then
-            add_fact "Websocket Staging" "${{ needs.deploy-websocket-service-staging-workflow.result }}"
-          fi
-
-          if [[ "${{ needs.deploy-staging-workflow.result }}" != "skipped" ]]; then
-            add_fact "Webservice Staging" "${{ needs.deploy-staging-workflow.result }}"
-          fi
-
-          if [[ "${{ needs.deploy-main-workflow.result }}" != "skipped" ]]; then
-            add_fact "Webservice Main" "${{ needs.deploy-main-workflow.result }}"
-          fi
-
-          if [[ "${{ needs.deploy-android.result }}" != "skipped" ]]; then
-            add_fact "Android Staging" "${{ needs.deploy-android.result }}"
-          fi
-
-          IFS=,
-          json_string="[${facts_list[*]}]"
-
-          echo "facts_json<<EOF" >> $GITHUB_OUTPUT
-          echo "$json_string" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          echo "facts_json=$FINAL_JSON" >> $GITHUB_OUTPUT
