@@ -132,7 +132,7 @@
                     <androidx.recyclerview.widget.RecyclerView
                         android:id="@+id/my_classrooms_list"
                         android:layout_width="match_parent"
-                        android:layout_height="0dp"
+                        android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
                         android:nestedScrollingEnabled="false"
                         android:scrollbars="vertical"
@@ -141,7 +141,6 @@
                         app:layout_constraintEnd_toEndOf="parent"
                         app:layout_constraintStart_toStartOf="parent"
                         app:layout_constraintTop_toBottomOf="@+id/search_text_box"
-                        app:layout_constraintBottom_toBottomOf="parent"
                         tools:itemCount="10"
                         app:classroomData="@{viewModel.classrooms}"
                         tools:listitem="@layout/classroom_item_row" />
