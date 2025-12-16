@@ -14,169 +14,168 @@
         android:layout_height="match_parent"
         android:fillViewport="true">
 
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        tools:context=".ui.classroom.ClassroomFragment">
-
-        <androidx.cardview.widget.CardView
-            android:id="@+id/unified_history_card"
+        <androidx.constraintlayout.widget.ConstraintLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/activity_horizontal_margin"
-            android:layout_marginStart="@dimen/activity_horizontal_margin"
-            android:layout_marginEnd="@dimen/activity_horizontal_margin"
-            app:cardCornerRadius="12dp"
-            app:cardElevation="4dp"
-            app:cardBackgroundColor="@color/white"
-            android:visibility="@{viewModel.hasHistory ? View.VISIBLE : View.GONE}"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent">
+            android:layout_height="match_parent"
+            tools:context=".ui.classroom.ClassroomFragment">
 
-            <LinearLayout
+            <androidx.cardview.widget.CardView
+                android:id="@+id/unified_history_card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
+                android:layout_marginTop="@dimen/activity_horizontal_margin"
+                android:layout_marginStart="@dimen/activity_horizontal_margin"
+                android:layout_marginEnd="@dimen/activity_horizontal_margin"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="4dp"
+                app:cardBackgroundColor="@color/white"
+                android:visibility="@{viewModel.hasHistory ? View.VISIBLE : View.GONE}"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent">
 
-                <!-- History Header -->
-                <TextView
-                    android:id="@+id/history_header"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Recent Activity"
-                    android:textSize="18sp"
-                    android:textStyle="bold"
-                    android:textColor="?attr/colorPrimary"
-                    android:drawablePadding="8dp"
-                    android:contentDescription="Recent content and session history"
-                    android:importantForAccessibility="yes"
-                    app:drawableStartCompat="@drawable/ic_history" />
-
-                <!-- Unified History RecyclerView -->
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/unified_history_list"
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:nestedScrollingEnabled="false"
-                    app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-                    tools:itemCount="5"
-                    tools:listitem="@layout/content_history_item_row" />
+                    android:orientation="vertical"
+                    android:padding="16dp">
 
-            </LinearLayout>
-        </androidx.cardview.widget.CardView>
+                    <TextView
+                        android:id="@+id/history_header"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Recent Activity"
+                        android:textSize="18sp"
+                        android:textStyle="bold"
+                        android:textColor="?attr/colorPrimary"
+                        android:drawablePadding="8dp"
+                        android:contentDescription="Recent content and session history"
+                        android:importantForAccessibility="yes"
+                        app:drawableStartCompat="@drawable/ic_history" />
 
-        <!-- Main Container (Groups List) - UNCHANGED -->
-        <androidx.cardview.widget.CardView
-            android:backgroundTint="#EFF5F5"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/unified_history_card"
-            app:cardCornerRadius="12dp"
-            android:layout_marginTop="16dp"
-            android:layout_marginStart="@dimen/activity_horizontal_margin"
-            android:layout_marginEnd="@dimen/activity_horizontal_margin"
-            android:layout_marginBottom="@dimen/activity_horizontal_margin"
-            app:cardElevation="0dp"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:minHeight="400dp">
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/unified_history_list"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:nestedScrollingEnabled="false"
+                        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+                        tools:itemCount="5"
+                        tools:listitem="@layout/content_history_item_row" />
 
-            <androidx.constraintlayout.widget.ConstraintLayout
-                android:id="@+id/container"
-                android:layout_height="wrap_content"
-                android:layout_width="match_parent"
-                android:paddingTop="10dp"
-                android:paddingLeft="10dp"
-                android:paddingRight="10dp"
-                android:paddingBottom="10dp">
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
 
-                <TextView
-                    android:id="@+id/classroom_heading"
-                    style="@style/AllTitles"
-                    android:text="My Groups"
-                    android:textColor="?attr/colorPrimary"
-                    app:layout_constraintTop_toTopOf="parent"
-                    app:layout_constraintStart_toStartOf="parent"
-                    />
+            <androidx.cardview.widget.CardView
+                android:id="@+id/groups_container_card"
+                android:backgroundTint="#EFF5F5"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/unified_history_card"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:cardCornerRadius="12dp"
+                android:layout_marginTop="16dp"
+                android:layout_marginStart="@dimen/activity_horizontal_margin"
+                android:layout_marginEnd="@dimen/activity_horizontal_margin"
+                android:layout_marginBottom="@dimen/activity_horizontal_margin"
+                app:cardElevation="0dp"
+                android:layout_width="0dp"
+                android:layout_height="0dp">
 
-                <ImageView
-                    android:id="@+id/create_classroom_btn"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
-                    android:src="@drawable/ic_creategroup"
-                    android:contentDescription="Create new classroom group"
-                    app:tint="?attr/colorPrimary"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:padding="8dp"
-                    android:layout_marginStart="12dp"
-                    app:layout_constraintStart_toEndOf="@+id/classroom_heading"
-                    app:layout_constraintBottom_toBottomOf="@+id/classroom_heading"
-                    app:layout_constraintTop_toTopOf="@+id/classroom_heading" />
-
-                <EditText
-                    android:id="@+id/search_text_box"
-                    style="@style/EditSearchBox"
-                    android:layout_marginTop="12dp"
-                    android:background="@drawable/rounded_search_box"
-                    android:drawableStart="@drawable/ic_search"
-                    android:drawablePadding="8dp"
-                    android:hint="Search Groups"
-                    android:paddingLeft="12dp"
-                    android:paddingTop="8dp"
-                    android:paddingBottom="8dp"
-                    android:textColorHint="#C1CDCD"
-                    android:visibility="@{(viewModel.classrooms != null &amp;&amp; !viewModel.classrooms.isEmpty()) ? View.VISIBLE : View.GONE}"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@+id/classroom_heading" />
-
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/my_classrooms_list"
+                <androidx.constraintlayout.widget.ConstraintLayout
+                    android:id="@+id/container"
+                    android:layout_height="match_parent"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:nestedScrollingEnabled="false"
-                    android:scrollbars="vertical"
-                    android:scrollbarThumbVertical="@drawable/custom_scroll_style"
-                    app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@+id/search_text_box"
-                    tools:itemCount="10"
-                    app:classroomData="@{viewModel.classrooms}"
-                    tools:listitem="@layout/classroom_item_row" />
+                    android:padding="10dp">
 
-                <TextView
-                    android:id="@+id/no_groups_found_text"
-                    style="@style/AllTitles"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintTop_toTopOf="parent"
-                    app:layout_constraintBottom_toBottomOf="parent"
-                    android:text="No Groups Found"
-                    android:visibility="invisible" />
+                    <TextView
+                        android:id="@+id/classroom_heading"
+                        style="@style/AllTitles"
+                        android:text="My Groups"
+                        android:textColor="?attr/colorPrimary"
+                        app:layout_constraintTop_toTopOf="parent"
+                        app:layout_constraintStart_toStartOf="parent"
+                        />
 
-                <TextView
-                    android:id="@+id/no_internet"
-                    style="@style/AllTitles"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintTop_toTopOf="parent"
-                    app:layout_constraintBottom_toBottomOf="parent"
-                    android:text="No Internet available!"
-                    android:visibility="invisible" />
+                    <ImageView
+                        android:id="@+id/create_classroom_btn"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:src="@drawable/ic_creategroup"
+                        android:contentDescription="Create new classroom group"
+                        app:tint="?attr/colorPrimary"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:padding="8dp"
+                        android:layout_marginStart="12dp"
+                        app:layout_constraintStart_toEndOf="@+id/classroom_heading"
+                        app:layout_constraintBottom_toBottomOf="@+id/classroom_heading"
+                        app:layout_constraintTop_toTopOf="@+id/classroom_heading" />
 
-            </androidx.constraintlayout.widget.ConstraintLayout>
-        </androidx.cardview.widget.CardView>
+                    <EditText
+                        android:id="@+id/search_text_box"
+                        style="@style/EditSearchBox"
+                        android:layout_marginTop="12dp"
+                        android:background="@drawable/rounded_search_box"
+                        android:drawableStart="@drawable/ic_search"
+                        android:drawablePadding="8dp"
+                        android:hint="Search Groups"
+                        android:paddingLeft="12dp"
+                        android:paddingTop="8dp"
+                        android:paddingBottom="8dp"
+                        android:textColorHint="#C1CDCD"
+                        android:visibility="@{(viewModel.classrooms != null &amp;&amp; !viewModel.classrooms.isEmpty()) ? View.VISIBLE : View.GONE}"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toBottomOf="@+id/classroom_heading" />
 
-    </androidx.constraintlayout.widget.ConstraintLayout>
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/my_classrooms_list"
+                        android:layout_width="match_parent"
+                        android:layout_height="0dp"
+                        android:layout_marginTop="8dp"
+                        android:nestedScrollingEnabled="false"
+                        android:scrollbars="vertical"
+                        android:scrollbarThumbVertical="@drawable/custom_scroll_style"
+                        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toBottomOf="@+id/search_text_box"
+                        app:layout_constraintBottom_toBottomOf="parent"
+                        tools:itemCount="10"
+                        app:classroomData="@{viewModel.classrooms}"
+                        tools:listitem="@layout/classroom_item_row" />
+
+                    <TextView
+                        android:id="@+id/no_groups_found_text"
+                        style="@style/AllTitles"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintTop_toTopOf="parent"
+                        app:layout_constraintBottom_toBottomOf="parent"
+                        android:text="No Groups Found"
+                        android:gravity="center"
+                        android:visibility="invisible" />
+
+                    <TextView
+                        android:id="@+id/no_internet"
+                        style="@style/AllTitles"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintTop_toTopOf="parent"
+                        app:layout_constraintBottom_toBottomOf="parent"
+                        android:text="No Internet available!"
+                        android:gravity="center"
+                        android:visibility="invisible" />
+
+                </androidx.constraintlayout.widget.ConstraintLayout>
+            </androidx.cardview.widget.CardView>
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
     </androidx.core.widget.NestedScrollView>
 </layout>
