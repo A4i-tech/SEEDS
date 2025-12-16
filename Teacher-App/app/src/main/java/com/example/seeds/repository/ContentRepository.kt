@@ -32,7 +32,9 @@ class ContentRepository @Inject constructor(
 
     suspend fun getContentsById(contentIds: List<String>): List<Content> {
         return withContext(Dispatchers.IO) {
-            network.getContentsById(contentIds)
+            // Convert list to comma-separated string for the API
+            val idsParam = contentIds.joinToString(",")
+            network.getContentsById(idsParam)
         }
     }
 

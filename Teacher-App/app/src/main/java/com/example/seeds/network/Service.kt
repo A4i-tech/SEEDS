@@ -128,7 +128,7 @@ interface SeedsService {
     ): PaginatedResponse<Content>
 
     @GET("content")
-    suspend fun getContentsById(@Query("ids[]") ids: List<String>): List<Content>
+    suspend fun getContentsById(@Query("ids") ids: String): List<Content>
 
     @GET("content/sasUrl")
     suspend fun getSasUrl(@Query("url") url: String): SasUrlResponse

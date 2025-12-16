@@ -145,8 +145,8 @@ class UserPreferencesRepository @Inject constructor(
             
             it[Keys.LAST_ACTION_TYPE] = "CONTENT"
         }
-        // Also add to content history
-        saveContentToHistory(content)
+        // Also add to content history (separate mode)
+        saveContentToHistory(content, wasConference = false)
     }
 
     // Saves audio, but KEEPS mode as "CALL"
@@ -199,25 +199,35 @@ class UserPreferencesRepository @Inject constructor(
 
     suspend fun addSessionToHistory(item: SessionHistoryItem) {
         dataStore.edit { prefs ->
-            val currentJson = prefs[Keys.HISTORY_JSON]
-            val currentList: List<SessionHistoryItem> = if (!currentJson.isNullOrEmpty()) {
+            // 1. Get current Session History
+            val sessionJson = prefs[Keys.HISTORY_JSON]
+            val sessionList: List<SessionHistoryItem> = if (!sessionJson.isNullOrEmpty()) {
                 val type = object : TypeToken<List<SessionHistoryItem>>() {}.type
-                gson.fromJson(currentJson, type) ?: emptyList()
+                gson.fromJson(sessionJson, type) ?: emptyList()
             } else { emptyList() }
-            val newList = (listOf(item) + currentList).take(Constants.DEFAULT_SESSION_HISTORY_SIZE)
-            prefs[Keys.HISTORY_JSON] = gson.toJson(newList)
+            
+            val newSessionList = listOf(item) + sessionList
+
+            // 2. Get current Content History
+            val contentJson = prefs[Keys.CONTENT_HISTORY_JSON]
+            val contentList: List<ContentHistoryItem> = if (!contentJson.isNullOrEmpty()) {
+                val type = object : TypeToken<List<ContentHistoryItem>>() {}.type
+                gson.fromJson(contentJson, type) ?: emptyList()
+            } else { emptyList() }
+
+            // 3. Enforce Combined Limit of 5
+            enforceCombinedHistoryLimit(prefs, newSessionList, contentList)
         }
     }
     
     /**
      * Saves content to history with move-to-top deduplication.
-     * If the content already exists in history, it's moved to the top with updated timestamp.
-     * Otherwise, it's added to the top and the list is trimmed to DEFAULT_CONTENT_HISTORY_SIZE.
+     * Enforces a combined limit of 5 items between Content and Sessions.
      * 
      * @param content The content to save
      * @param classroomName Optional classroom/group name
      * @param studentCount Optional number of students in session
-     * @param wasConference Whether this was a conference call
+     * @param wasConference Whether this was a conference call (tags the audio type)
      */
     suspend fun saveContentToHistory(
         content: Content,
@@ -226,10 +236,11 @@ class UserPreferencesRepository @Inject constructor(
         wasConference: Boolean = false
     ) {
         dataStore.edit { prefs ->
-            val currentJson = prefs[Keys.CONTENT_HISTORY_JSON]
-            val currentList: List<ContentHistoryItem> = if (!currentJson.isNullOrEmpty()) {
+            // 1. Get current Content History
+            val contentJson = prefs[Keys.CONTENT_HISTORY_JSON]
+            val currentContentList: List<ContentHistoryItem> = if (!contentJson.isNullOrEmpty()) {
                 val type = object : TypeToken<List<ContentHistoryItem>>() {}.type
-                gson.fromJson(currentJson, type) ?: emptyList()
+                gson.fromJson(contentJson, type) ?: emptyList()
             } else { emptyList() }
             
             // Create new history item with current timestamp and session details
@@ -242,12 +253,54 @@ class UserPreferencesRepository @Inject constructor(
             )
             
             // Remove existing entry for this content (move-to-top deduplication)
-            val filteredList = currentList.filter { !it.isSameContent(content._id) }
-            
-            // Add new item at the top and limit to configured size
-            val newList = (listOf(newItem) + filteredList).take(Constants.DEFAULT_CONTENT_HISTORY_SIZE)
-            prefs[Keys.CONTENT_HISTORY_JSON] = gson.toJson(newList)
+            val filteredContentList = currentContentList.filter { !it.isSameContent(content._id) }
+            val newContentList = listOf(newItem) + filteredContentList
+
+            // 2. Get current Session History
+            val sessionJson = prefs[Keys.HISTORY_JSON]
+            val sessionList: List<SessionHistoryItem> = if (!sessionJson.isNullOrEmpty()) {
+                val type = object : TypeToken<List<SessionHistoryItem>>() {}.type
+                gson.fromJson(sessionJson, type) ?: emptyList()
+            } else { emptyList() }
+
+            // 3. Enforce Combined Limit of 5
+            enforceCombinedHistoryLimit(prefs, sessionList, newContentList)
         }
+    }
+
+    /**
+     * Helper to enforce the combined limit of 5 items across Session and Content history.
+     * Sorts all items by timestamp, keeps the top 5, and saves them back to DataStore.
+     */
+    private fun enforceCombinedHistoryLimit(
+        prefs: MutablePreferences,
+        sessions: List<SessionHistoryItem>,
+        contents: List<ContentHistoryItem>
+    ) {
+        val maxCombinedSize = 5
+
+        // Wrapper to handle sorting of different types
+        data class SortableItem(
+            val timestamp: Long,
+            val type: String, // "SESSION" or "CONTENT"
+            val session: SessionHistoryItem? = null,
+            val content: ContentHistoryItem? = null
+        )
+
+        val combinedList = mutableListOf<SortableItem>()
+        sessions.forEach { combinedList.add(SortableItem(it.timestamp, "SESSION", session = it)) }
+        contents.forEach { combinedList.add(SortableItem(it.timestamp, "CONTENT", content = it)) }
+
+        // Sort descending by timestamp and take top N
+        val sortedTrimmed = combinedList.sortedByDescending { it.timestamp }.take(maxCombinedSize)
+
+        // Split back into respective lists
+        val finalSessions = sortedTrimmed.filter { it.type == "SESSION" }.mapNotNull { it.session }
+        val finalContents = sortedTrimmed.filter { it.type == "CONTENT" }.mapNotNull { it.content }
+
+        // Save back to Preferences
+        prefs[Keys.HISTORY_JSON] = gson.toJson(finalSessions)
+        prefs[Keys.CONTENT_HISTORY_JSON] = gson.toJson(finalContents)
     }
     
     /**
