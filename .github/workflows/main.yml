@@ -18,7 +18,7 @@ jobs:
     secrets: inherit
 
   deploy-staging-workflow:
-    #   if: github.ref == 'refs/heads/a4i/staging'
+    if: github.ref == 'refs/heads/a4i/staging'
     uses: ./.github/workflows/deploy-staging.yml
     secrets: inherit
 
