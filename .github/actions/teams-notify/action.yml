@@ -62,34 +62,36 @@ runs:
                   "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
                   "type": "AdaptiveCard",
                   "version": "1.2",
-                  "body": [
-                    {
-                      "type": "TextBlock",
-                      "text": $title,
-                      "weight": "Bolder",
-                      "size": "Medium",
-                      "color": (if $color == "FF0000" then "Attention" else "Good" end)
-                    },
-                    {
-                      "type": "TextBlock",
-                      "text": "\($branch) · by \($actor)",
-                      "isSubtle": true,
-                      "wrap": true,
-                      "size": "Small"
-                    },
-                    {
-                      "type": "TextBlock",
-                      "text": "[View commit](https://github.com/${{ github.repository }}/commit/\($sha))",
-                      "size": "Small",
-                      "wrap": true,
-                      "spacing": "None"
-                    }
-                  ] + (
-                    if ($sections | length > 0) then 
-                      $sections 
-                    else 
-                      [{ "type": "FactSet", "facts": ($facts | map({title: .name, value: .value})) }] 
-                    end
+                  "body": (
+                    [
+                      {
+                        "type": "TextBlock",
+                        "text": $title,
+                        "weight": "Bolder",
+                        "size": "Medium",
+                        "color": (if $color == "FF0000" then "Attention" else "Good" end)
+                      },
+                      {
+                        "type": "TextBlock",
+                        "text": "\($branch) · by \($actor)",
+                        "isSubtle": true,
+                        "wrap": true,
+                        "size": "Small"
+                      },
+                      {
+                        "type": "TextBlock",
+                        "text": "[View commit](https://github.com/${{ github.repository }}/commit/\($sha))",
+                        "size": "Small",
+                        "wrap": true,
+                        "spacing": "None"
+                      }
+                    ] + (
+                      if ($sections | length > 0) then 
+                        $sections 
+                      else 
+                        [{ "type": "FactSet", "facts": ($facts | map({title: .name, value: .value})) }] 
+                      end
+                    )
                   )
                 }
               }
@@ -97,4 +99,5 @@ runs:
           }' \
         )"
 
+        echo "Sending payload..."
         curl -v -f -H "Content-Type: application/json" -d "$PAYLOAD" "$WEBHOOK_URL_INPUT"
