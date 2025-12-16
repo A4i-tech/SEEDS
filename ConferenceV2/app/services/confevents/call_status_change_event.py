@@ -23,7 +23,5 @@ class CallStatusChangeEvent(ConferenceEvent):
                     is_teacher = self.conf_call.state.get_teacher().phone_number == participant.phone_number
                     if is_teacher:
                         await self.conf_call.stream_system_message(SystemAudioMessages.TEACHER_HAS_DROPPED)
-                    else:
-                        await self.conf_call.stream_system_message(SystemAudioMessages.STUDENT_HAS_DROPPED) 
                     
                 await self.conf_call.update_state()

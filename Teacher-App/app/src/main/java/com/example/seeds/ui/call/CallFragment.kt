@@ -122,6 +122,21 @@ class CallFragment : BaseFragment() {
                 logMessage("Error from IVR server: $it")
             }
         }
+
+        viewModel.participantDropped.observe(viewLifecycleOwner) { phoneNumber ->
+            if (phoneNumber != null) {
+                val message = "$phoneNumber has left the call"
+                
+                com.google.android.material.snackbar.Snackbar.make(
+                    binding.root,
+                    message,
+                    com.google.android.material.snackbar.Snackbar.LENGTH_LONG
+                ).show()
+                
+                logMessage("Student disconnected: $phoneNumber")
+                viewModel.clearParticipantDroppedNotification()
+            }
+        }
     }
 
     private fun setupClickListeners() {

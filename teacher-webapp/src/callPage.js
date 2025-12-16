@@ -18,7 +18,7 @@ import { SeekControls } from "./components/SeekControls";
 import App from "./App";
 
 const getPhoneNumber = (user) => user?.phoneNumber;
-if(!getPhoneNumber){
+if (!getPhoneNumber) {
   throw new Error("getPhoneNumber function is not defined properly");
 }
 const normalizeUser = (user) =>
@@ -34,6 +34,7 @@ export function DetailsPage() {
   } = useConference();
 
   const [users, setUsers] = useState(userList);
+  const [notification, setNotification] = useState(null);
   const [loadingIds, setLoadingIds] = useState([]);
   const [reconnectingIds, setReconnectingIds] = useState([]);
   const [isLoadingCall, setIsLoadingCall] = useState(false);
@@ -48,6 +49,27 @@ export function DetailsPage() {
   useEffect(() => {
     setUsers(userList);
   }, [userList]);
+
+  // Listen for conference notifications
+  useEffect(() => {
+    const handleNotification = (event) => {
+      const { detail } = event;
+      if (detail.type === "participant_dropped") {
+        // Show notification
+        setNotification({
+          message: `${detail.participantPhone} has left the call`,
+          timestamp: detail.timestamp,
+        });
+        // Auto-hide after 5 seconds
+        setTimeout(() => setNotification(null), 5000);
+      }
+    };
+
+    window.addEventListener("conferenceNotification", handleNotification);
+    return () => {
+      window.removeEventListener("conferenceNotification", handleNotification);
+    };
+  }, []);
 
   const teacher = normalizeUser(users.find((user) => user.role === "Teacher"));
   const students = conferenceStudents;
@@ -210,6 +232,15 @@ export function DetailsPage() {
 
   return (
     <div className="app-container">
+      {/* Notification Toast */}
+      {notification && (
+        <div className="notification-toast">
+          <div className="notification-content">
+            <span className="notification-icon">🔔</span>
+            <span>{notification.message}</span>
+          </div>
+        </div>
+      )}
       <h1 className="welcome-title">Details</h1>
       <div className="list-container">
         {teacher && (
