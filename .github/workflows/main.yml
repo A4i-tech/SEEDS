@@ -2,7 +2,7 @@ name: Execute Workflows
 
 on:
   push:
-    branches: [a4i/main, a4i/staging, teams-alert]
+    branches: [a4i/main, a4i/staging,teams-alert]
   workflow_dispatch:
 
 jobs:
@@ -63,22 +63,15 @@ jobs:
             facts_list+=("{ \"name\": \"$name\", \"value\": \"$value\" }")
           }
 
-          # --- REMOVED: Branch, Commit, and Actor ---
-          # Your action.yml adds these automatically at lines 48-50.
-          
-          # --- KEEP: Workflow Link ---
-          # The action.yml does NOT add the link to the run, so we keep this.
           add_fact "Workflow" "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
-          # --- KEEP: Stage Status ---
+          # Calculate overall status
           if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" ]]; then
             add_fact "Stage" "Workflow Failed"
           else
             add_fact "Stage" "Workflow Complete"
           fi
 
-          # --- KEEP: Job Statuses (Filter out Skipped) ---
-          
           if [[ "${{ needs.deploy-websocket-service-main-workflow.result }}" != "skipped" ]]; then
             add_fact "Websocket Main" "${{ needs.deploy-websocket-service-main-workflow.result }}"
           fi
@@ -99,7 +92,6 @@ jobs:
             add_fact "Android Staging" "${{ needs.deploy-android.result }}"
           fi
 
-          # Construct JSON
           IFS=,
           json_string="[${facts_list[*]}]"
 
