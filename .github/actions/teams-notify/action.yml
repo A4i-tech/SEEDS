@@ -38,7 +38,6 @@ runs:
           exit 1
         fi
 
-        # --- 1. PREPARE FACTS ---
         FACTS='[]'
 
         add_fact() {
@@ -58,10 +57,6 @@ runs:
         if [ -n "$(echo "$FACTS_INPUT" | tr -d '[:space:]')" ]; then
           FACTS="$(jq --argjson extra "$FACTS_INPUT" '. + $extra' <<< "$FACTS")"
         fi
-
-        # --- 2. CONSTRUCT ADAPTIVE CARD PAYLOAD ---
-        # We use Adaptive Cards because 'MessageCard' is deprecated and fails on new 'Workflows' URLs.
-        # We also map the Color input to Adaptive Card styles (Red -> Attention, Green/Blue -> Good/Accent).
 
         PAYLOAD="$(jq -cn \
           --arg title "$ACTIVITY_INPUT" \
@@ -102,10 +97,6 @@ runs:
             ]
           }' \
         )"
-
-        # --- 3. SEND NOTIFICATION (DEBUG MODE) ---
-        # -v: Verbose (prints the response body if it fails, e.g., "Summary required")
-        # -f: Fail (exit code 1) if HTTP status is 400/500 (Server Error)
         
         echo "Sending payload..."
         curl -v -f -H "Content-Type: application/json" \
