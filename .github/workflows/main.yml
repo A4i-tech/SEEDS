@@ -2,7 +2,7 @@ name: Execute Workflows
 
 on:
   push:
-    branches: [a4i/main, a4i/staging,teams-alert]
+    branches: [a4i/main, a4i/staging]
   workflow_dispatch:
 
 jobs:
@@ -114,7 +114,7 @@ jobs:
         uses: ./.github/actions/teams-notify
         with:
           teams-webhook-url: ${{ secrets.TEAMS_WEBHOOK_URL }}
-          activity-title: "Shiksha-Copilot"
+          activity-title: "SEEDS"
           summary: "Deployment details for ${{ github.ref_name }}"
           theme-color: "${{ contains(needs.*.result, 'failure') && 'FF0000' || '00FF00' }}"
           custom-sections: ${{ steps.layout.outputs.columns_json }}
