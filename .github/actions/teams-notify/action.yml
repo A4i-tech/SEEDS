@@ -8,9 +8,13 @@ inputs:
     description: Main title rendered inside the Teams card.
     required: true
   theme-color:
-    description: Hex color used to highlight the notification (FF0000 for Red/Failure).
+    description: Hex color used to highlight the notification.
     required: false
     default: '0076D7'
+  custom-sections:
+    description: "JSON string for custom Adaptive Card body sections."
+    required: false
+    default: '[]'
   facts:
     description: "JSON array of facts."
     required: false
@@ -26,6 +30,7 @@ runs:
       shell: bash
       env:
         FACTS_INPUT: ${{ inputs.facts }}
+        SECTIONS_INPUT: ${{ inputs.custom-sections }}
         WEBHOOK_URL_INPUT: ${{ inputs.teams-webhook-url }}
         SUMMARY_INPUT: ${{ inputs.summary }}
         ACTIVITY_INPUT: ${{ inputs.activity-title }}
@@ -38,31 +43,15 @@ runs:
           exit 1
         fi
 
-        FACTS='[]'
-
-        add_fact() {
-          local name="$1"
-          local value="$2"
-          if [ -z "$value" ]; then return; fi
-          # Note: We build standard name/value here, we will map to title/value for Adaptive Card later
-          FACTS="$(jq --arg name "$name" --arg value "$value" '. + [{"name":$name,"value":$value}]' <<< "$FACTS")"
-        }
-
-        # Add standard facts
-        add_fact "Branch" "${{ github.ref_name }}"
-        add_fact "Commit" "${{ github.sha }}"
-        add_fact "Actor" "${{ github.actor }}"
-
-        # Merge user-provided facts
-        if [ -n "$(echo "$FACTS_INPUT" | tr -d '[:space:]')" ]; then
-          FACTS="$(jq --argjson extra "$FACTS_INPUT" '. + $extra' <<< "$FACTS")"
-        fi
-
         PAYLOAD="$(jq -cn \
           --arg title "$ACTIVITY_INPUT" \
           --arg summary "$SUMMARY_INPUT" \
           --arg color "$COLOR_INPUT" \
-          --argjson facts "$FACTS" \
+          --argjson facts "$FACTS_INPUT" \
+          --argjson sections "$SECTIONS_INPUT" \
+          --arg branch "${{ github.ref_name }}" \
+          --arg actor "${{ github.actor }}" \
+          --arg sha "${{ github.sha }}" \
           '{
             "type": "message",
             "attachments": [
@@ -83,22 +72,29 @@ runs:
                     },
                     {
                       "type": "TextBlock",
-                      "text": $summary,
+                      "text": "\($branch) · by \($actor)",
                       "isSubtle": true,
-                      "wrap": true
+                      "wrap": true,
+                      "size": "Small"
                     },
                     {
-                      "type": "FactSet",
-                      "facts": ($facts | map({title: .name, value: .value}))
+                      "type": "TextBlock",
+                      "text": "[View commit](https://github.com/${{ github.repository }}/commit/\($sha))",
+                      "size": "Small",
+                      "wrap": true,
+                      "spacing": "None"
                     }
-                  ]
+                  ] + (
+                    if ($sections | length > 0) then 
+                      $sections 
+                    else 
+                      [{ "type": "FactSet", "facts": ($facts | map({title: .name, value: .value})) }] 
+                    end
+                  )
                 }
               }
             ]
           }' \
         )"
-        
-        echo "Sending payload..."
-        curl -v -f -H "Content-Type: application/json" \
-          -d "$PAYLOAD" \
-          "$WEBHOOK_URL_INPUT"
+
+        curl -v -f -H "Content-Type: application/json" -d "$PAYLOAD" "$WEBHOOK_URL_INPUT"

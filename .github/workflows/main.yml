@@ -51,56 +51,70 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Generate Notification Facts
-        id: facts
+      - name: Generate Notification Layout
+        id: layout
         shell: bash
         env:
           NEEDS_JSON: ${{ toJSON(needs) }}
           RUN_URL: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          IS_FAILURE: ${{ contains(needs.*.result, 'failure') }}
         run: |
           JOB_MAPPING='{
-            "deploy-websocket-service-main-workflow": "Websocket Main",
-            "deploy-websocket-service-staging-workflow": "Websocket Staging",
-            "deploy-staging-workflow": "Webservice Staging",
-            "deploy-main-workflow": "Webservice Main",
-            "deploy-android": "Android Staging"
+            "deploy-websocket-service-main-workflow": "Websocket",
+            "deploy-websocket-service-staging-workflow": "Websocket",
+            "deploy-staging-workflow": "Backend",
+            "deploy-main-workflow": "Backend",
+            "deploy-android": "Android"
           }'
 
-          if [[ "$IS_FAILURE" == "true" ]]; then
-            STAGE_VAL="Workflow Failed"
-          else
-            STAGE_VAL="Workflow Complete"
-          fi
-
-          FINAL_JSON=$(jq -n -c \
+          COLUMNS_JSON=$(jq -n -c \
             --arg url "$RUN_URL" \
-            --arg stage "$STAGE_VAL" \
             --argjson needs "$NEEDS_JSON" \
             --argjson map "$JOB_MAPPING" \
             '
+            ($needs | to_entries | map(select(.value.result != "skipped") | select($map[.key] != null))) as $jobs |
+            
             [
-              { "name": "Workflow", "value": $url },
-              { "name": "Stage", "value": $stage }
-            ] + (
-              $needs | to_entries | map(
-                select(.value.result != "skipped") | 
-                select($map[.key] != null) | 
-                { 
-                  "name": $map[.key], 
-                  "value": .value.result 
-                }
-              )
-            )'
+              {
+                "type": "ColumnSet",
+                "spacing": "Medium",
+                "columns": (
+                  $jobs | map({
+                    "type": "Column",
+                    "width": "stretch",
+                    "items": [
+                      {
+                        "type": "TextBlock",
+                        "text": $map[.key],
+                        "weight": "Bolder",
+                        "size": "Default"
+                      },
+                      {
+                        "type": "TextBlock",
+                        "text": (if .value.result == "success" then "Built and deployed" else "Failed" end),
+                        "size": "Small",
+                        "wrap": true,
+                        "color": (if .value.result == "success" then "Default" else "Attention" end)
+                      },
+                      {
+                        "type": "TextBlock",
+                        "text": "[Open](\($url))",
+                        "size": "Small",
+                        "color": "Accent"
+                      }
+                    ]
+                  })
+                )
+              }
+            ]'
           )
-
-          echo "facts_json=$FINAL_JSON" >> $GITHUB_OUTPUT
+          
+          echo "columns_json=$COLUMNS_JSON" >> $GITHUB_OUTPUT
 
       - name: Send Teams Notification
         uses: ./.github/actions/teams-notify
         with:
           teams-webhook-url: ${{ secrets.TEAMS_WEBHOOK_URL }}
-          activity-title: "CI/CD Notifications"
-          summary: "Workflow ${{ contains(needs.*.result, 'failure') && 'Failed' || 'Complete' }} for ${{ github.ref_name }}"
+          activity-title: "Shiksha-Copilot"
+          summary: "Deployment details for ${{ github.ref_name }}"
           theme-color: "${{ contains(needs.*.result, 'failure') && 'FF0000' || '00FF00' }}"
-          facts: ${{ steps.facts.outputs.facts_json }}    
+          custom-sections: ${{ steps.layout.outputs.columns_json }}
