@@ -5,7 +5,7 @@ on:
     branches: 
       - a4i/staging
       - a4i/main
-      - version-auto  # ✅ Added here
+      - 2026.01.01 
   pull_request:
     branches: 
       - a4i/staging
@@ -49,7 +49,6 @@ jobs:
         working-directory: ./Teacher-App
         run: chmod +x gradlew
 
-      # --- STAGING DEPLOYMENT ---
       - name: Build and Deploy Staging
         if: github.ref == 'refs/heads/a4i/staging' && github.event_name == 'push'
         working-directory: ./Teacher-App
@@ -67,32 +66,28 @@ jobs:
           STAGING_KEY_PASSWORD:           ${{ secrets.STAGING_KEY_PASSWORD }}
         run: bundle exec fastlane deploy_staging
 
-      # --- EXTRACTION STEP ---
       - name: Extract Version from PR Title
-        # UPDATED: Runs on main OR version-auto
         if: (github.ref == 'refs/heads/a4i/main' || github.ref == 'refs/heads/version-auto') && github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo "🔎 Searching for PR associated with commit ${{ github.sha }}..."
+          echo " Searching for PR associated with commit ${{ github.sha }}..."
           
           # Fetch the PR title associated with this merge commit
           PR_TITLE=$(gh pr list --search "${{ github.sha }}" --state merged --json title --jq '.[0].title')
           
-          echo "📄 Found PR Title: $PR_TITLE"
+          echo "Found PR Title: $PR_TITLE"
           
           if [[ $PR_TITLE =~ ([0-9]{4}\.[0-9]{2}\.[0-9]{2}) ]]; then
             DETECTED_VERSION="${BASH_REMATCH[1]}"
-            echo "✅ Version detected: $DETECTED_VERSION"
+            echo "Version detected: $DETECTED_VERSION"
             echo "CI_VERSION_NAME=$DETECTED_VERSION" >> $GITHUB_ENV
           else
-            echo "⚠️ No version found in PR title. Gradle will use default fallback."
+            echo "No version found in PR title. Gradle will use default fallback."
           fi
 
-      # --- PRODUCTION DEPLOYMENT ---
       - name: Build and Deploy Production
-        # UPDATED: Runs on main OR version-auto
-        if: (github.ref == 'refs/heads/a4i/main' || github.ref == 'refs/heads/version-auto') && github.event_name == 'push'
+        if: (github.ref == 'refs/heads/a4i/main' || github.ref == 'refs/heads/2026.01.01') && github.event_name == 'push'
         working-directory: ./Teacher-App
         env:
           CI_VERSION_NAME:             ${{ env.CI_VERSION_NAME }}
@@ -101,7 +96,7 @@ jobs:
           PROD_CONTENT_URL:            ${{ secrets.CONTENT_URL_ANDROID_STAGING }}
           PROD_TENANT_NAME:            ${{ secrets.FIREBASE_TESTER_GROUPS_ANDROID_STAGING }}
           FIREBASE_PROD_APP_ID:        ${{ secrets.FIREBASE_APP_ID_ANDROID_STAGING }}
-          FIREBASE_PROD_TESTER_GROUPS: ${{ secrets.FIREBASE_TESTER_GROUPS_ANDROID_STAGING }}
+          FIREBASE_PROD_TESTER_GROUPS: ${{ secrets.LOCAL_TESTERS }}
           FIREBASE_CLI_TOKEN:          ${{ secrets.FIREBASE_CLI_TOKEN }}
 
           SIGNING_KEYSTORE_BASE64:     ${{ secrets.STAGING_KEYSTORE_BASE64 }}
