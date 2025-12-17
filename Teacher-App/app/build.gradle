@@ -59,8 +59,8 @@ android {
         applicationId "com.example.seeds"
         minSdk 23
         targetSdk 32
-        versionCode 2
-        versionName "2025.11"
+        def envVersionName = System.getenv("VERSION_NAME")
+        versionName envVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
         buildConfigField "String", "BASE_URL", "\"${baseUrl}\""
