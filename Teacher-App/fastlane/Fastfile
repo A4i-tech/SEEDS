@@ -73,14 +73,20 @@ platform :android do
   lane :deploy_prod do
     load_env_file(filename: ".env.prod")
 
-    # Sanitize groups dynamically (Fixes "Invalid request" error)
     prod_groups = sanitize_tester_groups(ENV['FIREBASE_PROD_TESTER_GROUPS'])
     UI.message("Deploying Production to groups: #{prod_groups}")
+    
+    # Debug print to ensure Fastlane sees the variable
+    UI.message("🚀 Version Name from CI: #{ENV['CI_VERSION_NAME']}")
 
     UI.message("Building Release APK for production...")
     gradle(
       task: ":app:assembleRelease",
       properties: {
+        # --- ADD THIS LINE ---
+        "VERSION_NAME" => ENV['CI_VERSION_NAME'], 
+        # ---------------------
+        
         "BASE_URL" => ENV['PROD_BASE_URL'],
         "CONTENT_URL" => ENV['PROD_CONTENT_URL'],
         "TENANT_NAME" => ENV['PROD_TENANT_NAME'],

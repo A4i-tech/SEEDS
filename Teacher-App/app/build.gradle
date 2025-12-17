@@ -59,7 +59,17 @@ android {
         applicationId "com.example.seeds"
         minSdk 23
         targetSdk 32
-        def ciVersionName = System.getenv("CI_VERSION_NAME")
+        def versionProp = project.findProperty("VERSION_NAME") as String
+        def versionEnv = System.getenv("CI_VERSION_NAME")
+        
+        def finalVersionName = versionProp ?: versionEnv
+        
+        if (finalVersionName == null || finalVersionName.isEmpty()) {
+             finalVersionName = "2025.12.00-DEV" 
+             println "⚠️ No Version found. Using default: $finalVersionName"
+        }
+
+        versionName finalVersionName
         
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
