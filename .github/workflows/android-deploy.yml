@@ -101,7 +101,7 @@ jobs:
           fi
 
       - name: Build and Deploy Production
-        if: (github.ref == 'refs/heads/a4i/main' || github.ref == 'refs/heads/version-auto') && github.event_name == 'push'
+        if: (github.ref == 'refs/heads/a4i/main' || github.ref == 'refs/heads/2026.01.01') && github.event_name == 'push'
         working-directory: ./Teacher-App
         env:
           # This must match the variable set above
