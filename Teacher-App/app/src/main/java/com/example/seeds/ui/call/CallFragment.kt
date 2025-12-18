@@ -163,16 +163,11 @@ class CallFragment : BaseFragment() {
             viewModel.toggleMuteAll()
         }
 
-        binding.teacherMic.setOnClickListener {
-            if (viewModel.teacherCallStatus.value?.isMuted == true) {
-                viewModel.unmuteParticipant(viewModel.teacherPhoneNumber)
-                logMessage("Teacher unmuted")
-            } else {
-                viewModel.muteParticipant(viewModel.teacherPhoneNumber)
-                logMessage("Teacher muted")
-            }
+        binding.retryTeacher.setOnClickListener {
+            logMessage("Teacher clicked to rejoin call")
+            viewModel.rejoinTeacher()
         }
-
+        
         binding.addContentButton.setOnClickListener {
             findNavController().navigate(CallFragmentDirections.actionCallFragmentToAddMoreContentToCallFragment())
         }
