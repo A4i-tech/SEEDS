@@ -65,8 +65,8 @@ android {
         def finalVersionName = versionProp ?: versionEnv
         
         if (finalVersionName == null || finalVersionName.isEmpty()) {
-             finalVersionName = "2025.12.00-DEV" 
-             println "⚠️ No Version found. Using default: $finalVersionName"
+             finalVersionName = "2025-DEV" 
+             println "No Version found. Using default: $finalVersionName"
         }
 
         versionName finalVersionName
