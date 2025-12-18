@@ -212,6 +212,14 @@ class CallViewModel @Inject constructor(
             _callState.postValue(initialCallStatuses)
             updateStudentsNotOnCall(initialCallStatuses)
 
+            _teacherCallStatus.postValue(
+                StudentCallStatus(
+                    name = "You (Teacher)",
+                    phoneNumber = teacherPhoneNumber,
+                    callerState = CallerState.CONNECTING,
+                )
+            )
+
             getAccessToken()
 
             viewModelScope.launch {
@@ -553,6 +561,28 @@ class CallViewModel @Inject constructor(
 
     override fun onCleared() {
         closeSocket()
+    }
+    
+    fun rejoinTeacher() {
+        val confId = _callToken.value?.confId ?: return
+        val currentStatus = _teacherCallStatus.value ?: return
+        _teacherCallStatus.value = currentStatus.copy(callerState = CallerState.CONNECTING)
+
+        viewModelScope.launch {
+            try {
+                val fullUrl = "$conferenceUrl/conference/addparticipant/$confId"
+                
+                val response = network.connectParticipant(fullUrl, teacherPhoneNumber)
+                
+                if (!response.isSuccessful) {
+                    Log.e(TAG, "Failed to rejoin teacher: ${response.code()}")
+                    refreshCallState() 
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Exception rejoining teacher", e)
+                refreshCallState()
+            }
+        }
     }
 
     fun refreshCallState() {
