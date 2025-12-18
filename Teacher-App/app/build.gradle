@@ -59,8 +59,18 @@ android {
         applicationId "com.example.seeds"
         minSdk 23
         targetSdk 32
-        versionCode 2
-        versionName "2025.11"
+        def versionProp = project.findProperty("VERSION_NAME") as String
+        def versionEnv = System.getenv("CI_VERSION_NAME")
+        
+        def finalVersionName = versionProp ?: versionEnv
+        
+        if (finalVersionName == null || finalVersionName.isEmpty()) {
+             finalVersionName = "2025-DEV" 
+             println "No Version found. Using default: $finalVersionName"
+        }
+
+        versionName finalVersionName
+        
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
         buildConfigField "String", "BASE_URL", "\"${baseUrl}\""
