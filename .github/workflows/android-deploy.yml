@@ -67,7 +67,7 @@ jobs:
         run: bundle exec fastlane deploy_staging
 
       - name: Extract Version from PR Title
-        if: github.ref == 'refs/heads/a4i/staging' && github.event_name == 'pull_request'
+        if: (github.ref == 'refs/heads/a4i/staging' || github.ref == 'refs/heads/2026.01.01') && github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
