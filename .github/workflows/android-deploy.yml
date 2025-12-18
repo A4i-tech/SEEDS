@@ -11,7 +11,8 @@ on:
     branches: 
       - a4i/staging
       - a4i/main
-
+      
+  workflow_call:
   workflow_dispatch:
 
 jobs:
