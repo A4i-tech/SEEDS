@@ -32,16 +32,21 @@ const ContentSchema = new mongoose.Schema({
 
 const ContentV3 = mongoose.model("ContentV3", ContentSchema);
 
+// Add static method to ContentV3 model for backward compatibility
+ContentV3.getContentById = function(id) {
+  return ContentV3.findOne({ _id: id }).exec()
+}
+
 const getContent = () => {
     return ContentV3.find().sort({_id: -1}).exec()
 }
 
 const getContentsByIds = ids => {
-    return ContentV3.find({ id: { $in: ids } }).exec()
+    return ContentV3.find({ _id: { $in: ids } }).exec()
 }
 
 const getContentById = id => {
-  return ContentV3.findOne({ id }).exec()
+  return ContentV3.findOne({ _id: id }).exec()
 }
 
 module.exports = {

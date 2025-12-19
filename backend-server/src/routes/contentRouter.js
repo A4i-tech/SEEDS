@@ -18,7 +18,7 @@ const fetch = (...args) =>
 
 // Project modules
 const Content = require("../models/Content.js");
-const { ContentV3, getContent } = require("../models/ContentV3.js");
+const { ContentV3, getContent, getContentById } = require("../models/ContentV3.js");
 const QuizCreateRequest = require("../models/QuizCreateRequest.js");
 const { QuizData, fromQuizCreateRequest } = require("../models/QuizData.js");
 const BlobService = require("../services/BlobService.js");
@@ -224,12 +224,30 @@ router.post("/quiz", tryCatchWrapper(async (req, res)=>{
  */
 router.get("/sasUrl", tryCatchWrapper(async (req, res)=>{
     const url = req.query.url;  // URL is now obtained from query string
-    if (!url) {
+    if (!url || url.trim() === '') {
         return res.status(400).json({ error: "URL parameter is required." });
     }
 
-    const urlWithSAS = await blobService.getURLWithSAS(url);
-    return res.json({ url: urlWithSAS });
+    // Validate URL format
+    try {
+        const decodedUrl = decodeURIComponent(url);
+        const parsedUrl = new URL(decodedUrl);
+        
+        // Check if it's a valid Azure Blob Storage URL
+        if (!parsedUrl.hostname.includes('blob.core.windows.net')) {
+            return res.status(400).json({ error: "Invalid blob storage URL format." });
+        }
+    } catch (urlError) {
+        return res.status(400).json({ error: `Invalid URL format: ${urlError.message}` });
+    }
+
+    try {
+        const urlWithSAS = await blobService.getURLWithSAS(url);
+        return res.json({ url: urlWithSAS });
+    } catch (blobError) {
+        console.error('Error generating SAS URL:', blobError);
+        return res.status(500).json({ error: `Failed to generate SAS URL: ${blobError.message}` });
+    }
 }))
 
 /**
@@ -472,7 +490,13 @@ router.get("/sasToken", tryCatchWrapper(async (req, res) => {
 }))
 
 router.get("/:contentId", tryCatchWrapper(async (req, res) => {
-    return res.json(await ContentV3.getContentById(req.params.contentId));
+    // getContentById queries by 'id' field, but ContentV3 uses '_id' as primary key
+    // So we need to query by _id directly
+    const content = await ContentV3.findOne({ _id: req.params.contentId }).exec();
+    if (!content) {
+        return res.status(404).json({ error: "Content not found" });
+    }
+    return res.json(content);
 }))
 
 // router.get("/:contentId/processed", tryCatchWrapper(async (req, res) => {
