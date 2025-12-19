@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { useNavigate } from "react-router-dom";
+import { getAuthHeaders } from "../utils/authHelpers";
+import "./AddQuiz.css";
 
 const AddQuiz = ({ quiz }) => {
   const navigate = useNavigate();
@@ -105,8 +107,8 @@ const AddQuiz = ({ quiz }) => {
       fetch(`${process.env.REACT_APP_SEEDS_URL}/content/quiz`, {
         method: "POST",
         headers: {
-          "content-type": "application/json",
-          authToken: "postman", // or your actual token
+          ...getAuthHeaders(),
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(metadata),
       })
@@ -138,34 +140,32 @@ const AddQuiz = ({ quiz }) => {
   };
 
   return (
-    <form onSubmit={onSubmit}>
-      <div className="metadataGrid">
-        <div>
-          <label>Title</label>
-          <br />
-          <input
-            className="mintgreen"
-            type="text"
-            name="title"
-            placeholder=" Add Title"
-            value={metadata.title || ""}
-            onChange={(event) =>
-              setMetadata({ ...metadata, title: event.target.value })
-            }
-          />
-        </div>
+    <form className="add-quiz-form" onSubmit={onSubmit}>
+      <div className="form-section">
+        <div className="form-section-title">Quiz Information</div>
+        <div className="form-grid">
+          <div className="form-group">
+            <label className="form-label form-label-required">Title</label>
+            <input
+              className="form-input"
+              type="text"
+              name="title"
+              placeholder="Enter quiz title"
+              value={metadata.title || ""}
+              onChange={(event) =>
+                setMetadata({ ...metadata, title: event.target.value })
+              }
+            />
+          </div>
 
-        <div>
-          <label>
-            Language
-            <br />
+          <div className="form-group">
+            <label className="form-label form-label-required">Language</label>
             <select
               value={metadata.language || ""}
               onChange={(event) =>
                 setMetadata({ ...metadata, language: event.target.value })
               }
-              className="mintgreen"
-              style={{ width: "200px" }}
+              className="form-select"
             >
               <option value="kannada">Kannada</option>
               <option value="hindi">Hindi</option>
@@ -174,134 +174,135 @@ const AddQuiz = ({ quiz }) => {
               <option value="tamil">Tamil</option>
               <option value="bengali">Bengali</option>
             </select>
-          </label>
-        </div>
+          </div>
 
-        <div>
-          <label>Positive Marks</label>
-          <br />
-          <input
-            type="number"
-            className="mintgreen"
-            name="positiveMark"
-            placeholder="Add Positive Marks"
-            value={metadata.positiveMark || 1}
-            onChange={(event) =>
-              setMetadata({ ...metadata, positiveMark: event.target.value })
-            }
-          />
-        </div>
+          <div className="form-group">
+            <label className="form-label form-label-required">Positive Marks</label>
+            <input
+              type="number"
+              className="form-input"
+              name="positiveMark"
+              placeholder="Enter positive marks"
+              value={metadata.positiveMark || 1}
+              onChange={(event) =>
+                setMetadata({ ...metadata, positiveMark: event.target.value })
+              }
+            />
+          </div>
 
-        <div>
-          <label>Negative Marks</label>
-          <br />
-          <input
-            type="number"
-            className="mintgreen"
-            name="negativeMark"
-            placeholder="Add Negative Marks"
-            value={metadata.negativeMark || 0}
-            onChange={(event) =>
-              setMetadata({ ...metadata, negativeMark: event.target.value })
-            }
-          />
+          <div className="form-group">
+            <label className="form-label form-label-required">Negative Marks</label>
+            <input
+              type="number"
+              className="form-input"
+              name="negativeMark"
+              placeholder="Enter negative marks"
+              value={metadata.negativeMark || 0}
+              onChange={(event) =>
+                setMetadata({ ...metadata, negativeMark: event.target.value })
+              }
+            />
+          </div>
         </div>
       </div>
-      {inputFields.map((input, index) => {
-        return (
-          <div key={index} style={{ marginTop: "1%" }}>
-            <div className="optionsGrid">
-              <div>
-                <label>Question {index + 1}</label>
-                <br />
+
+      <div className="form-section">
+        <div className="form-section-title">Questions</div>
+        {inputFields.map((input, index) => {
+          return (
+            <div key={index} className="question-card">
+              <div className="question-header">
+                <div className="question-number">
+                  <div className="question-number-badge">{index + 1}</div>
+                  <div className="question-number-label">Question {index + 1}</div>
+                </div>
+                {inputFields.length > 1 && (
+                  <button
+                    className="btn-remove"
+                    type="button"
+                    onClick={() => removeFields(index)}
+                  >
+                    Remove Question
+                  </button>
+                )}
+              </div>
+              <div className="form-group" style={{ marginBottom: "20px" }}>
+                <label className="form-label form-label-required">Question Text</label>
                 <input
                   type="text"
-                  className="mintgreen"
+                  className="form-input"
                   name="question"
-                  placeholder=" Add Question"
+                  placeholder="Enter your question"
                   value={input.question}
                   onChange={(event) => handleFormChange(index, event)}
                 />
               </div>
-              <div>
-                <button
-                  className="btn"
-                  type="button"
-                  style={{ backgroundColor: "#28574F", color: "white" }}
-                  onClick={() => removeFields(index)}
-                >
-                  Remove
-                </button>
-              </div>
-              <div>
-                <label>Option A (Correct Answer) </label>
-                <br />
-                <input
-                  type="text"
-                  name="optionA"
-                  className="mintgreen"
-                  placeholder=" Add Option A"
-                  value={input.optionA}
-                  onChange={(event) => handleFormChange(index, event)}
-                />
-              </div>
-              <div>
-                <label>Option B</label>
-                <br />
-                <input
-                  type="text"
-                  className="mintgreen"
-                  placeholder=" Add Option B"
-                  name="optionB"
-                  value={input.optionB}
-                  onChange={(event) => handleFormChange(index, event)}
-                />
-              </div>
-              <div>
-                <label>Option C</label>
-                <br />
-                <input
-                  type="text"
-                  className="mintgreen"
-                  name="optionC"
-                  placeholder=" Add Option C"
-                  value={input.optionC}
-                  onChange={(event) => handleFormChange(index, event)}
-                />
-              </div>
-              <div>
-                <label>Option D</label>
-                <br />
-                <input
-                  type="text"
-                  className="mintgreen"
-                  name="optionD"
-                  placeholder=" Add Option D"
-                  value={input.optionD}
-                  onChange={(event) => handleFormChange(index, event)}
-                />
+              <div className="options-grid">
+                <div className="option-group">
+                  <label className="option-label option-label-correct">Option A (Correct Answer)</label>
+                  <input
+                    type="text"
+                    name="optionA"
+                    className="form-input"
+                    placeholder="Enter option A"
+                    value={input.optionA}
+                    onChange={(event) => handleFormChange(index, event)}
+                  />
+                </div>
+                <div className="option-group">
+                  <label className="option-label">Option B</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Enter option B"
+                    name="optionB"
+                    value={input.optionB}
+                    onChange={(event) => handleFormChange(index, event)}
+                  />
+                </div>
+                <div className="option-group">
+                  <label className="option-label">Option C</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    name="optionC"
+                    placeholder="Enter option C"
+                    value={input.optionC}
+                    onChange={(event) => handleFormChange(index, event)}
+                  />
+                </div>
+                <div className="option-group">
+                  <label className="option-label">Option D</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    name="optionD"
+                    placeholder="Enter option D"
+                    value={input.optionD}
+                    onChange={(event) => handleFormChange(index, event)}
+                  />
+                </div>
               </div>
             </div>
-            <br />
-          </div>
-        );
-      })}
-      <button
-        type="button"
-        className="btn"
-        style={{ backgroundColor: "#28574F", color: "white" }}
-        onClick={addFields}
-      >
-        + Question
-      </button>
-      <br />
-      <br />
-      <input
-        type="submit"
-        style={{ backgroundColor: "#E5A83B", color: "white" }}
-        value="Save"
-        className="btn btn-block"
-      />
+          );
+        })}
+        <button
+          type="button"
+          className="btn-add-question"
+          onClick={addFields}
+        >
+          ➕ Add Question
+        </button>
+      </div>
+
+      <div className="form-actions">
+        <button
+          type="submit"
+          className="btn-primary"
+        >
+          💾 Save Quiz
+        </button>
+      </div>
     </form>
   );
 };

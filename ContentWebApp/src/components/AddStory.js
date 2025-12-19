@@ -3,8 +3,10 @@ import { BlockBlobClient } from "@azure/storage-blob";
 import { useNavigate } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
 import { SEEDS_URL, AUDIO_BASE_URL } from "../Constants";
+import { getAuthHeaders } from "../utils/authHelpers";
+import "./AddStory.css";
 
-const AddStory = ({ content, contentType }) => {
+const AddStory = ({ content, contentType, onContentTypeChange }) => {
   const [metadata, setMetadata] = useState({
     id: "",
     type: "Story",
@@ -34,26 +36,44 @@ const AddStory = ({ content, contentType }) => {
 
 
   const getAllContent = async () => {
-    const seedsRes = await fetch(
-      `${SEEDS_URL}/content`,
-      {
-        method: "GET",
-        headers: {
-          authToken: "postman",
-        },
+    try {
+      const seedsRes = await fetch(
+        `${SEEDS_URL}/content`,
+        {
+          method: "GET",
+          headers: getAuthHeaders(),
+        }
+      );
+      if (!seedsRes.ok) {
+        throw new Error(`Failed to fetch content: ${seedsRes.status}`);
       }
-    );
-    const seedsData = await seedsRes.json();
-    return seedsData;
+      const seedsData = await seedsRes.json();
+      // Handle both { data: [...] } and direct array responses
+      const contentArray = Array.isArray(seedsData) ? seedsData : (seedsData.data || []);
+      return contentArray;
+    } catch (error) {
+      console.error("Error fetching content:", error);
+      return [];
+    }
   };
 
   const populateThemes = (content) => {
+    if (!Array.isArray(content)) {
+      console.warn("populateThemes: content is not an array", content);
+      return;
+    }
     const newThemes = {};
     content.forEach(item => {
-      if (item.language && item.theme && item.localTheme) {
+      if (!item) return;
+      
+      // Handle both object and string formats for theme
+      const themeEnglish = typeof item.theme === "object" ? item.theme.english : item.theme;
+      const themeLocal = typeof item.theme === "object" ? item.theme.local : item.localTheme;
+      
+      if (item.language && themeEnglish && themeLocal) {
         const lang = item.language.toLowerCase();
         newThemes[lang] = newThemes[lang] || {};
-        newThemes[lang][item.theme.toLowerCase()] = item.localTheme.toLowerCase();
+        newThemes[lang][themeEnglish.toLowerCase()] = themeLocal.toLowerCase();
       }
     });
     setThemes(newThemes);
@@ -92,13 +112,31 @@ const AddStory = ({ content, contentType }) => {
   };
 
   const fetchTitlesUnderTheme = useCallback((language, theme) => {
-    const filteredContent = allContent.filter(item =>
-      item.language.toLowerCase() === language.toLowerCase() &&
-      item.theme.toLowerCase() === theme.toLowerCase()
-    );
+    if (!Array.isArray(allContent)) {
+      console.warn("fetchTitlesUnderTheme: allContent is not an array", allContent);
+      setTitlesUnderTheme({});
+      return;
+    }
+    
+    const filteredContent = allContent.filter(item => {
+      if (!item || !item.language) return false;
+      
+      // Handle both object and string formats for theme
+      const itemTheme = typeof item.theme === "object" ? item.theme.english : item.theme;
+      
+      return item.language.toLowerCase() === language.toLowerCase() &&
+        itemTheme && itemTheme.toLowerCase() === theme.toLowerCase();
+    });
+    
     const titleMap = {};
     filteredContent.forEach(item => {
-      titleMap[item.title.toLowerCase()] = item.localTitle;
+      // Handle both object and string formats for title
+      const titleEnglish = typeof item.title === "object" ? item.title.english : item.title;
+      const titleLocal = typeof item.title === "object" ? item.title.local : item.localTitle;
+      
+      if (titleEnglish && titleLocal) {
+        titleMap[titleEnglish.toLowerCase()] = titleLocal;
+      }
     });
     setTitlesUnderTheme(titleMap);
   }, [allContent]);
@@ -117,13 +155,17 @@ const AddStory = ({ content, contentType }) => {
 
   useEffect(() => {
     const getContent = async () => {
-      console.log("FUNCTION CALLED");
-      const contentFromServer = await getAllContent();
-      setAllContent(contentFromServer);
-      populateThemes(contentFromServer);
-      console.log("contentFromServer", contentFromServer.length);
-
-      // filterContent();
+      try {
+        const contentFromServer = await getAllContent();
+        // Ensure we always set an array
+        const contentArray = Array.isArray(contentFromServer) ? contentFromServer : [];
+        setAllContent(contentArray);
+        populateThemes(contentArray);
+        console.log("Content loaded:", contentArray.length, "items");
+      } catch (error) {
+        console.error("Error loading content:", error);
+        setAllContent([]);
+      }
     };
     getContent();
   }, []);
@@ -234,11 +276,12 @@ const AddStory = ({ content, contentType }) => {
   };
 
   const sendStory = async () => {
-    const _id = content ? content.id : uuidv4();
+    // Get the correct ID - prefer _id, fallback to id
+    const contentId = content ? (content._id || content.id) : uuidv4();
     // Always send title and theme as objects
     var newMetadata = {
       ...metadata,
-      _id,
+      _id: contentId,
       type: contentType,
       title: {
         english: metadata.title.english || "",
@@ -258,36 +301,51 @@ const AddStory = ({ content, contentType }) => {
     }
     delete newMetadata["audioFile"];
     delete newMetadata["answerAudioFile"];
+    
+    // Ensure required fields are present
+    if (!newMetadata.type || !newMetadata.language) {
+      throw new Error("Type and language are required fields");
+    }
+    
     if (content) {
-      newMetadata = { ...newMetadata, _id: content._id };
+      // Since PATCH route is not available in backend, use POST
+      // This will create a new version with the same _id
       const seedsRes = await fetch(
-        `${SEEDS_URL}/content?isAudioUploaded=${isAudioUploaded}`,
+        `${SEEDS_URL}/content/`,
         {
-          method: "PATCH",
+          method: "POST",
           headers: {
-            authToken: "postman",
+            ...getAuthHeaders(),
             "Content-Type": "application/json",
           },
           body: JSON.stringify(newMetadata),
         }
       );
+      if (!seedsRes.ok) {
+        const errorData = await seedsRes.json().catch(() => ({ error: "Failed to update content" }));
+        throw new Error(errorData.error || `HTTP ${seedsRes.status}: Failed to update content`);
+      }
       await seedsRes.json();
     } else {
       const seedsRes = await fetch(`${SEEDS_URL}/content/`, {
         method: "POST",
         headers: {
-          authToken: "postman",
+          ...getAuthHeaders(),
           "Content-Type": "application/json",
         },
         body: JSON.stringify(newMetadata),
       });
+      if (!seedsRes.ok) {
+        const errorData = await seedsRes.json().catch(() => ({ error: "Failed to create content" }));
+        throw new Error(errorData.error || `HTTP ${seedsRes.status}: Failed to create content`);
+      }
       await seedsRes.json();
     }
     if (metadata.audioFile) {
       const extname = metadata.audioFile.split(".").pop();
-      var filename = `${_id}.${extname}`;
+      var filename = `${contentId}.${extname}`;
       if (contentType === "Riddle") {
-        filename = `${_id}_question.${extname}`;
+        filename = `${contentId}_question.${extname}`;
       }
       const res = await fetch(
         `${SEEDS_URL}/content/sasToken?` +
@@ -296,9 +354,7 @@ const AddStory = ({ content, contentType }) => {
         }),
         {
           method: "GET",
-          headers: {
-            authToken: "postman",
-          },
+          headers: getAuthHeaders(),
         }
       );
       const sasUrl = (await res.json()).sasToken;
@@ -320,7 +376,7 @@ const AddStory = ({ content, contentType }) => {
     }
     if (metadata.answerAudioFile) {
       const answerExtname = metadata.answerAudioFile.split(".").pop();
-      var answerFilename = `${_id}_answer.${answerExtname}`;
+      var answerFilename = `${contentId}_answer.${answerExtname}`;
       const resAnswer = await fetch(
         `${SEEDS_URL}/content/sasToken?` +
         new URLSearchParams({
@@ -328,9 +384,7 @@ const AddStory = ({ content, contentType }) => {
         }),
         {
           method: "GET",
-          headers: {
-            authToken: "postman",
-          },
+          headers: getAuthHeaders(),
         }
       );
       const sasUrlAnswer = (await resAnswer.json()).sasToken;
@@ -361,18 +415,39 @@ const AddStory = ({ content, contentType }) => {
   };
 
   return (
-    <form className="add-form" onSubmit={onSubmit}>
-      <div className="metadataGrid" style={{ paddingBottom: "20px" }}>
-
-        <div>
-          <label>
-            Language:
-            <br />
+    <form className="add-story-form" onSubmit={onSubmit}>
+      {(contentType === "Story" || contentType === "Poem" || contentType === "Song" || contentType === "Riddle") && onContentTypeChange && (
+        <div className="form-section" style={{ marginBottom: "24px" }}>
+          <div className="form-group">
+            <label className="form-label">Content Type</label>
+            <select
+              value={contentType}
+              onChange={(event) => {
+                if (onContentTypeChange) {
+                  onContentTypeChange(event);
+                }
+                setMetadata(prev => ({ ...prev, type: event.target.value }));
+              }}
+              className="form-select"
+              style={{ maxWidth: "200px" }}
+            >
+              <option value="Story">Story</option>
+              <option value="Poem">Poem</option>
+              <option value="Song">Song</option>
+              <option value="Riddle">Riddle</option>
+            </select>
+          </div>
+        </div>
+      )}
+      <div className="form-section">
+        <div className="form-section-title">Basic Information</div>
+        <div className="form-grid">
+          <div className="form-group">
+            <label className="form-label form-label-required">Language</label>
             <select
               value={metadata.language || ""}
               onChange={handleLanguageChange}
-              className="mintgreen"
-              style={{ width: "150px" }}
+              className="form-select"
             >
               <option value="kannada">Kannada</option>
               <option value="hindi">Hindi</option>
@@ -381,248 +456,246 @@ const AddStory = ({ content, contentType }) => {
               <option value="tamil">Tamil</option>
               <option value="bengali">Bengali</option>
             </select>
-          </label>
+          </div>
         </div>
       </div>
 
-      <div className="metadataGrid">
-        {/* <div>
-          <label>Description </label>
-          <br />
-          <textarea
-            rows={5}
-            cols={24}
-            type="text"
-            name="description"
-            className="mintgreen"
-            placeholder="Add Description"
-            value={metadata.description || ""}
-            onChange={(event) =>
-              setMetadata({ ...metadata, description: event.target.value })
-            }
-          />
-        </div> */}
-
-        {/* <div>
-          <label>English Theme </label>
-          <br />
-          <input
-            type="text"
-            name="theme"
-            className="mintgreen"
-            placeholder="Add Theme"
-            value={metadata.theme || ""}
-            onChange={(event) =>
-              setMetadata({ ...metadata, theme: event.target.value })
-            }
-          />
-        </div> */}
-        <div>
-          <label>English Theme</label>
-          <select name="theme" value={metadata.theme.english} onChange={handleThemeChange} className="mintgreen">
-            <option value="">Choose Theme</option>
-            {themes[metadata.language] && Object.keys(themes[metadata.language]).map(theme => (
-              <option key={theme} value={theme}>{theme}</option>
-            ))}
-            <option value="new-theme" selected={metadata.theme.local === "new-theme"}>Choose New Theme</option>
-          </select>
-        </div>
-        {metadata.language !== "english" && (
-          <div>
-            <label>{metadata.language} Theme</label>
-            <select name="localTheme" value={metadata.theme.local} onChange={handleThemeChange} className="mintgreen">
+      <div className="form-section">
+        <div className="form-section-title">Theme</div>
+        <div className="form-grid">
+          <div className="form-group">
+            <label className="form-label form-label-required">English Theme</label>
+            <select 
+              name="theme" 
+              value={metadata.theme.english || ""} 
+              onChange={handleThemeChange} 
+              className="form-select"
+            >
               <option value="">Choose Theme</option>
-              {themes[metadata.language] && Object.values(themes[metadata.language]).map(localTheme => (
-                <option key={localTheme} value={localTheme}>{localTheme}</option>
+              {themes[metadata.language] && Object.keys(themes[metadata.language]).map(theme => (
+                <option key={theme} value={theme}>{theme}</option>
               ))}
-              <option value="new-theme" selected={metadata.theme.local === "new-theme"}>Choose New Theme</option>
+              <option value="new-theme">Create New Theme</option>
             </select>
           </div>
-        )}
-
-
-
-        {/* {metadata.language != "english" && (
-          <div>
-            <label>{metadata.language} Theme </label>
-            <br />
-            <input
-              type="text"
-              name="localTheme"
-              className="mintgreen"
-              placeholder="Add Theme"
-              value={metadata.localTheme || ""}
-              onChange={(event) =>
-                setMetadata({ ...metadata, localTheme: event.target.value })
-              }
-            />
-          </div>
-        )} */}
+          {metadata.language !== "english" && (
+            <div className="form-group">
+              <label className="form-label form-label-required">{metadata.language.charAt(0).toUpperCase() + metadata.language.slice(1)} Theme</label>
+              <select 
+                name="localTheme" 
+                value={metadata.theme.local || ""} 
+                onChange={handleThemeChange} 
+                className="form-select"
+              >
+                <option value="">Choose Theme</option>
+                {themes[metadata.language] && Object.values(themes[metadata.language]).map(localTheme => (
+                  <option key={localTheme} value={localTheme}>{localTheme}</option>
+                ))}
+                <option value="new-theme">Create New Theme</option>
+              </select>
+            </div>
+          )}
+        </div>
       </div>
 
       {newTheme && (
-        <>
-          <div>
-            <label>Add New English Theme</label>
-            <input type="text" value={metadata.theme.english} onChange={(event) => setMetadata({ ...metadata, theme: { ...metadata.theme, english: event.target.value } })} className="mintgreen" placeholder="Enter new theme" />
+        <div className="new-theme-section">
+          <div className="form-section-title">New Theme Details</div>
+          <div className="form-grid">
+            <div className="form-group">
+              <label className="form-label form-label-required">New English Theme</label>
+              <input 
+                type="text" 
+                value={metadata.theme.english || ""} 
+                onChange={(event) => setMetadata({ ...metadata, theme: { ...metadata.theme, english: event.target.value } })} 
+                className="form-input" 
+                placeholder="Enter new theme in English" 
+              />
+            </div>
+            {metadata.language !== "english" && (
+              <div className="form-group">
+                <label className="form-label form-label-required">New {metadata.language.charAt(0).toUpperCase() + metadata.language.slice(1)} Theme</label>
+                <input 
+                  type="text" 
+                  value={metadata.theme.local || ""} 
+                  onChange={(event) => setMetadata({ ...metadata, theme: { ...metadata.theme, local: event.target.value } })} 
+                  className="form-input" 
+                  placeholder={`Enter new theme in ${metadata.language}`} 
+                />
+              </div>
+            )}
           </div>
-          {metadata.language !== "english" && (
-            <div>
-              <label>Add New {metadata.language} Theme</label>
-              <input type="text" value={metadata.theme.local} onChange={(event) => setMetadata({ ...metadata, theme: { ...metadata.theme, local: event.target.value } })} className="mintgreen" placeholder={`Enter new theme in ${metadata.language}`} />
-            </div>)}
-        </>
-      )}
-
-      <div>
-        <label>English Title </label>
-        <br />
-        <input
-          type="text"
-          name="titleEnglish"
-          className="mintgreen"
-          placeholder="Add Title"
-          value={metadata.title.english || ""}
-          onChange={(event) =>
-            setMetadata({ ...metadata, title: { ...metadata.title, english: event.target.value } })
-          }
-        />
-      </div>
-
-      {metadata.language !== "english" && (
-        <div>
-          <label>{metadata.language} Title </label>
-          <br />
-          <input
-            type="text"
-            name="titleLocal"
-            className="mintgreen"
-            placeholder="Add Title"
-            value={metadata.title.local || ""}
-            onChange={(event) =>
-              setMetadata({ ...metadata, title: { ...metadata.title, local: event.target.value } })
-            }
-          />
         </div>
       )}
 
+      <div className="form-section">
+        <div className="form-section-title">Title</div>
+        <div className="form-grid">
+          <div className="form-group">
+            <label className="form-label form-label-required">English Title</label>
+            <input
+              type="text"
+              name="titleEnglish"
+              className="form-input"
+              placeholder="Enter title in English"
+              value={metadata.title.english || ""}
+              onChange={(event) =>
+                setMetadata({ ...metadata, title: { ...metadata.title, english: event.target.value } })
+              }
+            />
+          </div>
+          {metadata.language !== "english" && (
+            <div className="form-group">
+              <label className="form-label form-label-required">{metadata.language.charAt(0).toUpperCase() + metadata.language.slice(1)} Title</label>
+              <input
+                type="text"
+                name="titleLocal"
+                className="form-input"
+                placeholder={`Enter title in ${metadata.language}`}
+                value={metadata.title.local || ""}
+                onChange={(event) =>
+                  setMetadata({ ...metadata, title: { ...metadata.title, local: event.target.value } })
+                }
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
       {Object.keys(titlesUnderTheme).length > 0 && !newTheme && (
-        <div>
-          <label>Existing Titles under "{metadata.theme.english}" in {metadata.language}:</label>
-          <ul>
+        <div className="existing-titles">
+          <label className="existing-titles-label">
+            Existing Titles under "{metadata.theme.english}" in {metadata.language}:
+          </label>
+          <ul className="existing-titles-list">
             {Object.entries(titlesUnderTheme).map(([englishTitle, localTitle], index) => (
-              <li key={index}>{`${englishTitle} - ${localTitle}`}</li>
+              <li key={index} className="existing-titles-item">{`${englishTitle} - ${localTitle}`}</li>
             ))}
           </ul>
         </div>
       )}
 
-      {/* {themes.length > 0 && (
-          <div>
-            <label>Available {metadata.language} Themes:</label>
-            <ul>
-              {themes.map((theme, index) => (
-                <li key={index}>{theme}</li>
-              ))}
-            </ul>
-          </div>
-        )} */}
-
-      {metadata.isProcessed && audioSrc && (
-        <label>
-          Current {contentType === "Riddle" && `Question `} Audio File: <br />{" "}
-          <audio controls src={audioSrc} />
-        </label>
-      )}
-      <br />
-      {metadata.isProcessed && answerAudioSrc && (
-        <label>
-          Current {contentType === "Riddle" && `Answer `} Audio File: <br />{" "}
-          <audio controls src={answerAudioSrc} />
-        </label>
-      )}
-      {!metadata.isProcessed && audioSrc && <h6>Audio is being processed</h6>}
-
-      <div>
-        {audioSrc && (
-          <label>
-            Change {contentType} {contentType === "Riddle" && `Question `}Audio
-            File{" "}
-          </label>
-        )}
-        {!audioSrc && (
-          <label>
-            {contentType} {contentType === "Riddle" && `Question `}Audio File{" "}
-          </label>
-        )}
-        <br />
-        <input
-          type="file"
-          name="audioFile"
-          className="mintgreen"
-          placeholder="Add Audio File"
-          value={metadata.audioFile || ""}
-          onChange={(event) => handleUploadFile(event)}
-        />
-      </div>
-
-      {contentType === "Riddle" && (
-        <div>
-          {answerAudioSrc && (
-            <label>Change {contentType} Answer Audio File </label>
+      {(metadata.isProcessed && audioSrc) || (metadata.isProcessed && answerAudioSrc) || (!metadata.isProcessed && audioSrc) ? (
+        <div className="audio-section">
+          {metadata.isProcessed && audioSrc && (
+            <div>
+              <label className="audio-section-label">
+                Current {contentType === "Riddle" ? "Question " : ""}Audio File
+              </label>
+              <audio controls src={audioSrc} className="audio-player" />
+            </div>
           )}
-          {!answerAudioSrc && <label>{contentType} Answer Audio File </label>}
-          <br />
-          <input
-            type="file"
-            name="audioFile"
-            className="mintgreen"
-            placeholder="Add Answer Audio File"
-            value={metadata.answerAudioFile || ""}
-            onChange={(event) => handleUploadAnswerFile(event)}
-          />
+          {metadata.isProcessed && answerAudioSrc && (
+            <div style={{ marginTop: "16px" }}>
+              <label className="audio-section-label">
+                Current Answer Audio File
+              </label>
+              <audio controls src={answerAudioSrc} className="audio-player" />
+            </div>
+          )}
+          {!metadata.isProcessed && audioSrc && (
+            <div className="audio-processing">Audio is being processed</div>
+          )}
         </div>
-      )}
+      ) : null}
 
-      <div>
-        <input
-          type="checkbox"
-          name="isPullModel"
-          className="mintgreen check"
-          checked={metadata.isPullModel || false}
-          onChange={(event) =>
-            setMetadata({ ...metadata, isPullModel: !metadata.isPullModel })
-          }
-        />
-        <label>Add to IVR </label>
+      <div className="form-section">
+        <div className="form-section-title">Audio Files</div>
+        <div className="form-group">
+          <label className="form-label">
+            {audioSrc ? `Change ${contentType} ${contentType === "Riddle" ? "Question " : ""}Audio File` : `${contentType} ${contentType === "Riddle" ? "Question " : ""}Audio File`}
+            <span className="form-label-required"> *</span>
+          </label>
+          <div className="form-file-wrapper">
+            <input
+              type="file"
+              name="audioFile"
+              id="audioFile"
+              accept="audio/*"
+              className="form-file-input"
+              onChange={(event) => handleUploadFile(event)}
+            />
+            <label htmlFor="audioFile" className="form-file-label">
+              📁 Choose Audio File
+            </label>
+          </div>
+          {file && (
+            <div className="form-file-name">Selected: {file.name}</div>
+          )}
+        </div>
+
+        {contentType === "Riddle" && (
+          <div className="form-group" style={{ marginTop: "20px" }}>
+            <label className="form-label">
+              {answerAudioSrc ? `Change ${contentType} Answer Audio File` : `${contentType} Answer Audio File`}
+              <span className="form-label-required"> *</span>
+            </label>
+            <div className="form-file-wrapper">
+              <input
+                type="file"
+                name="answerAudioFile"
+                id="answerAudioFile"
+                accept="audio/*"
+                className="form-file-input"
+                onChange={(event) => handleUploadAnswerFile(event)}
+              />
+              <label htmlFor="answerAudioFile" className="form-file-label">
+                📁 Choose Answer Audio File
+              </label>
+            </div>
+            {answerFile && (
+              <div className="form-file-name">Selected: {answerFile.name}</div>
+            )}
+          </div>
+        )}
       </div>
 
-      <div>
-        <input
-          type="checkbox"
-          name="isTeacherApp"
-          className="mintgreen check"
-          checked={metadata.isTeacherApp || false}
-          onChange={(event) =>
-            setMetadata({ ...metadata, isTeacherApp: !metadata.isTeacherApp })
-          }
-        />
-        <label> Add to Teacher App </label>
+      <div className="form-section">
+        <div className="form-section-title">Platform Integration</div>
+        <div className="checkbox-group">
+          <div className="checkbox-item">
+            <input
+              type="checkbox"
+              name="isPullModel"
+              id="isPullModel"
+              checked={metadata.isPullModel || false}
+              onChange={(event) =>
+                setMetadata({ ...metadata, isPullModel: !metadata.isPullModel })
+              }
+            />
+            <label htmlFor="isPullModel">Add to IVR</label>
+          </div>
+          <div className="checkbox-item">
+            <input
+              type="checkbox"
+              name="isTeacherApp"
+              id="isTeacherApp"
+              checked={metadata.isTeacherApp || false}
+              onChange={(event) =>
+                setMetadata({ ...metadata, isTeacherApp: !metadata.isTeacherApp })
+              }
+            />
+            <label htmlFor="isTeacherApp">Add to Teacher App</label>
+          </div>
+        </div>
       </div>
 
-      <input
-        disabled={isSaveButtonDisabled}
-        type="submit"
-        className="btn"
-        style={{ backgroundColor: "#E5A83B", color: "white" }}
-        value="Save"
-      />
-      <img
-        style={{ opacity: isSaveButtonDisabled === false ? 0 : 1 }}
-        src="https://cdn.dribbble.com/users/255512/screenshots/2215917/animation.gif"
-        alt="Circular Progress Bar"
-        width={150}
-      />
+      <div className="form-actions">
+        <button
+          type="submit"
+          disabled={isSaveButtonDisabled}
+          className="btn-primary"
+        >
+          {isSaveButtonDisabled ? (
+            <>
+              <div className="loading-spinner" style={{ width: "20px", height: "20px", borderWidth: "2px" }}></div>
+              Saving...
+            </>
+          ) : (
+            "💾 Save Content"
+          )}
+        </button>
+      </div>
     </form>
   );
 };

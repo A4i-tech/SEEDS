@@ -41,8 +41,11 @@ const ContentTable = ({ content, isLoading, onEdit, onView, onDelete }) => {
             </tr>
           </thead>
           <tbody>
-            {content.map((item) => (
-              <tr key={item.id} className="table-row-white">
+            {content.map((item) => {
+              // Get ID - prefer id, fallback to _id
+              const itemId = item.id || item._id;
+              return (
+              <tr key={itemId} className="table-row-white">
                 <td className="table-cell">
                   {item.title && typeof item.title === "object"
                     ? item.title.english
@@ -75,19 +78,19 @@ const ContentTable = ({ content, isLoading, onEdit, onView, onDelete }) => {
                 <td className="table-cell">
                   <div className="action-buttons-wrapper">
                     <button
-                      onClick={() => onEdit(item.type, item.id)}
+                      onClick={() => onEdit(item.type, itemId)}
                       className="action-button-base action-button-edit"
                     >
                       Edit
                     </button>
                     <button
-                      onClick={() => onView(item.type, item.id)}
+                      onClick={() => onView(item.type, itemId)}
                       className="action-button-base action-button-view"
                     >
                       View
                     </button>
                     <button
-                      onClick={() => onDelete(item.type, item.id)}
+                      onClick={() => onDelete(item.type, itemId)}
                       className="action-button-base action-button-delete"
                     >
                       Delete
@@ -95,7 +98,8 @@ const ContentTable = ({ content, isLoading, onEdit, onView, onDelete }) => {
                   </div>
                 </td>
               </tr>
-            ))}
+            );
+            })}
           </tbody>
         </table>
       )}

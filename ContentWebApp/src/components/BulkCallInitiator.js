@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { SEEDS_URL } from "../Constants";
+import { getAuthHeaders } from "../utils/authHelpers";
 
 // const SEEDS_URL = 'your_seeds_url'; // replace with your SEEDS_URL
 
@@ -17,9 +18,7 @@ const BulkCallInitiator = () => {
                 `${SEEDS_URL}/content`,
                 {
                   method: "GET",
-                  headers: {
-                    authToken: "postman",
-                  },
+                  headers: getAuthHeaders(),
                 }
               );
             const seedsData = await seedsRes.json();

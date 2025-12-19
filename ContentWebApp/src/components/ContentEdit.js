@@ -1,107 +1,232 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import AddQuiz from "./AddQuiz";
 import AddStory from "./AddStory";
-import { useEffect } from "react";
-import { useParams, useLocation } from "react-router-dom";
 import { SEEDS_URL } from "../Constants";
+import { getAuthHeaders } from "../utils/authHelpers";
+import "./ContentDetails.css";
 
 const ContentEdit = () => {
   const { type, id } = useParams();
-  // console.log(type, id);
-  const [content, setContent] = useState({});
+  const navigate = useNavigate();
+  const [content, setContent] = useState(null);
   const [experience, setExperience] = useState("quiz");
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const contentById = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      if (type === "quiz") {
+        const placeRes = await fetch(
+          "https://place-seeds.azurewebsites.net/rawDataById?" +
+            new URLSearchParams({
+              id: id,
+            })
+        );
+        if (!placeRes.ok) {
+          throw new Error(`Failed to fetch quiz: ${placeRes.status}`);
+        }
+        const data = await placeRes.json();
+        return data;
+      } else {
+        const seedsRes = await fetch(`${SEEDS_URL}/content/${id}`, {
+          method: "GET",
+          headers: getAuthHeaders(),
+        });
+        if (!seedsRes.ok) {
+          const errorData = await seedsRes.json().catch(() => ({ error: "Failed to fetch content" }));
+          throw new Error(errorData.error || `Failed to fetch content: ${seedsRes.status}`);
+        }
+        const seedsData = await seedsRes.json();
+        return seedsData;
+      }
+    } catch (error) {
+      console.error("Error fetching content for edit:", error);
+      setError(error.message || "Failed to load content");
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [type, id]);
 
   useEffect(() => {
     const getContentById = async () => {
       const contentFromServer = await contentById();
-      setContent(contentFromServer);
-      console.log("quizInEdit", contentFromServer);
-      setExperience(contentFromServer.type);
+      if (contentFromServer) {
+        setContent(contentFromServer);
+        // Set experience based on content type, handling both object and string formats
+        const contentType = contentFromServer.type || "quiz";
+        setExperience(contentType);
+      }
     };
     getContentById();
-  }, []);
-
-  const contentById = async () => {
-    // const res = await fetch("http://localhost:5001/content");
-
-    if (type === "quiz") {
-      const placeRes = await fetch(
-        "https://place-seeds.azurewebsites.net/rawDataById?" +
-          new URLSearchParams({
-            id: id,
-          })
-      );
-      const data = await placeRes.json();
-      console.log(data);
-      return data;
-    } else {
-      const seedsRes = await fetch(`${SEEDS_URL}/content/${id}`, {
-        method: "GET",
-        headers: {
-          authToken: "postman",
-        },
-      });
-      const seedsData = await seedsRes.json();
-      return seedsData;
-    }
-  };
-
-  const location = useLocation();
-  console.log("link props", location.state);
+  }, [contentById]);
 
   const handleChange = (event) => {
     setExperience(event.target.value);
-    console.log(event.target.value);
   };
 
-  if (
-    content &&
-    !content.isProcessed
-  ) {
+  if (isLoading) {
     return (
-      <>
-        <div style={{ margin: "20px" }}>
-          <h3>{content.title}</h3>
-          <p>Content is being processed, try again later!</p>
+      <div className="content-details-container">
+        <div className="content-details-wrapper">
+          <div className="content-details-loading">
+            <div className="loading-spinner"></div>
+            <p className="loading-text">Loading content for editing...</p>
+          </div>
         </div>
-      </>
-    );
-  } else {
-    return (
-      <>
-        <div style={{ margin: "20px" }}>
-          <h3>Edit Content</h3>
-          {content &&
-            (experience === "Story" ||
-              experience === "Poem" ||
-              experience === "Song") && (
-              <form>
-                <label>
-                  Experience:
-                  <select
-                    value={experience}
-                    onChange={(event) => handleChange(event)}
-                    className="mintgreen"
-                    style={{ width: "150px" }}
-                  >
-                    <option value="Story">Story</option>
-                    <option value="Poem">Poem</option>
-                    <option value="Song">Song</option>
-                  </select>
-                </label>
-              </form>
-            )}
-          {content && experience === "quiz" && content.isProcessed && <AddQuiz quiz={content} />}
-          {content &&
-            (experience !== "quiz") &&
-            content.isProcessed && (
-              <AddStory content={content} contentType={experience} />
-            )}
-          <div />
-        </div>
-      </>
+      </div>
     );
   }
+
+  if (error) {
+    return (
+      <div className="content-details-container">
+        <div className="content-details-wrapper">
+          <div className="content-details-error">
+            <div className="error-icon">⚠️</div>
+            <h3 className="error-title">Error Loading Content</h3>
+            <p className="error-message">{error}</p>
+            <button
+              onClick={() => navigate("/content")}
+              style={{
+                marginTop: "24px",
+                padding: "12px 24px",
+                background: "#3b82f6",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                fontSize: "14px",
+                fontWeight: "600",
+                cursor: "pointer",
+              }}
+            >
+              Back to Content
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!content) {
+    return (
+      <div className="content-details-container">
+        <div className="content-details-wrapper">
+          <div className="content-details-error">
+            <div className="error-icon">🔍</div>
+            <h3 className="error-title">Content Not Found</h3>
+            <p className="error-message">The requested content could not be found.</p>
+            <button
+              onClick={() => navigate("/content")}
+              style={{
+                marginTop: "24px",
+                padding: "12px 24px",
+                background: "#3b82f6",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                fontSize: "14px",
+                fontWeight: "600",
+                cursor: "pointer",
+              }}
+            >
+              Back to Content
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Check if content is processed (ContentV3 uses isProcessed field)
+  const isProcessed = content.isProcessed !== false;
+
+  if (!isProcessed) {
+    const titleText = typeof content.title === "object" 
+      ? content.title.english || content.title.local 
+      : content.title || "Unknown Title";
+    
+    return (
+      <div className="content-details-container">
+        <div className="content-details-wrapper">
+          <div className="content-processing">
+            <div className="processing-icon">⏳</div>
+            <h3 className="processing-title">{titleText}</h3>
+            <p className="processing-message">Content is being processed and cannot be edited yet. Please try again later!</p>
+            <button
+              onClick={() => navigate("/content")}
+              style={{
+                marginTop: "24px",
+                padding: "12px 24px",
+                background: "#3b82f6",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                fontSize: "14px",
+                fontWeight: "600",
+                cursor: "pointer",
+              }}
+            >
+              Back to Content
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Get content type - handle both object and string formats
+  const contentType = typeof content.type === "string" ? content.type : (content.type || experience);
+  const normalizedType = contentType.toLowerCase();
+
+  return (
+    <div className="content-details-container">
+      <div className="content-details-wrapper">
+        <button
+          onClick={() => navigate("/content")}
+          style={{
+            marginBottom: "16px",
+            padding: "10px 20px",
+            background: "white",
+            color: "#3b82f6",
+            border: "2px solid #3b82f6",
+            borderRadius: "10px",
+            fontSize: "14px",
+            fontWeight: "600",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            transition: "all 0.2s ease",
+            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.background = "#3b82f6";
+            e.target.style.color = "white";
+            e.target.style.transform = "translateX(-4px)";
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.background = "white";
+            e.target.style.color = "#3b82f6";
+            e.target.style.transform = "translateX(0)";
+          }}
+        >
+          ← Back to Content
+        </button>
+
+        {/* Render appropriate edit component */}
+        {normalizedType === "quiz" ? (
+          <AddQuiz quiz={content} />
+        ) : (
+          <AddStory content={content} contentType={experience} onContentTypeChange={handleChange} />
+        )}
+      </div>
+    </div>
+  );
 };
 
 export default ContentEdit;

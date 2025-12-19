@@ -8,8 +8,10 @@ export const useContentFilters = (allContent, setContent, setIsFiltered) => {
    * Generate filter options when content changes
    */
   useEffect(() => {
-    if (allContent.length > 0) {
+    if (Array.isArray(allContent) && allContent.length > 0) {
       setOptions(generateFilterOptions(allContent));
+    } else {
+      setOptions([]);
     }
   }, [allContent]);
 
@@ -18,6 +20,10 @@ export const useContentFilters = (allContent, setContent, setIsFiltered) => {
    */
   const handleFilterChange = useCallback(
     (selectedList) => {
+      if (!Array.isArray(allContent)) {
+        console.warn("handleFilterChange: allContent is not an array", allContent);
+        return;
+      }
       const filteredList = applyFilters(allContent, selectedList, options);
       setIsFiltered(true);
       setContent(filteredList);

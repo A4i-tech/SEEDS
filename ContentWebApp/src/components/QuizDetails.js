@@ -1,68 +1,94 @@
 import React from "react";
+import "./QuizDetails.css";
 
 const QuizDetails = ({ quiz }) => {
-  console.log(quiz);
+  const getTitle = () => {
+    if (typeof quiz.title === 'object') {
+      return quiz.title.english || quiz.title.local || 'Quiz';
+    }
+    return quiz.title || 'Quiz';
+  };
+
   return (
-    <>
-    <h2>Quiz</h2>
-      <div className="metadataGrid">
-        <div>
-          <div>Title</div>
-          <p><b>{quiz.title}</b></p>
-        </div>
-
-        <div>
-          <div>Language</div>
-          <p><b>{quiz.language}</b></p>
-        </div>
-
-        <div>
-          <label>Positive Marks</label>
-          <br />
-          <p className="mintgreen" style={{width:"100px", textAlign: "center"}}>{quiz.positiveMark}</p>
-        </div>
-
-        <div>
-          <label>Negative Marks</label>
-          <br />
-          <p className="mintgreen" style={{width:"100px", textAlign: "center"}}>{quiz.negativeMark}</p>
+    <div className="quiz-details">
+      {/* Header Section */}
+      <div className="quiz-header">
+        <div className="quiz-title-section">
+          <span className="quiz-type-badge">Quiz</span>
+          <h1 className="quiz-title-main">{getTitle()}</h1>
         </div>
       </div>
-      {quiz.questions.map((question, index) => {
-        return (
-          <div key={index} style={{ marginTop: "1%" }}>
-            <div>
-              <label>Question {index + 1}</label>
-              <br />
-              <p style={{fontWeight: "700"}}>{question}</p>
-            </div>
-            <div className="optionsDetailsGrid">
-              <div>
-                <label>Option A (Correct Answer) </label>
-                <br />
-                <p className="mintgreen">{quiz.options[index][0]}</p>
-              </div>
-              <div>
-                <label>Option B</label>
-                <br />
-                <p className="mintgreen">{quiz.options[index][1]}</p>
-              </div>
-              <div>
-                <label>Option C</label>
-                <br />
-                <p className="mintgreen">{quiz.options[index][2]}</p>
-              </div>
-              <div>
-                <label>Option D</label>
-                <br />
-                <p className="mintgreen">{quiz.options[index][3]}</p>
-              </div>
-            </div>
-            <br />
+
+      {/* Content Section */}
+      <div className="quiz-content">
+        {/* Metadata Grid */}
+        <div className="quiz-metadata-grid">
+          <div className="quiz-metadata-item">
+            <p className="quiz-metadata-label">Language</p>
+            <p className="quiz-metadata-value" style={{ fontSize: '18px', color: '#0f172a' }}>
+              {quiz.language || 'N/A'}
+            </p>
           </div>
-        );
-      })}
-    </>
+
+          <div className="quiz-metadata-item">
+            <p className="quiz-metadata-label">Positive Marks</p>
+            <p className="quiz-metadata-value">+{quiz.positiveMark || 0}</p>
+          </div>
+
+          <div className="quiz-metadata-item">
+            <p className="quiz-metadata-label">Negative Marks</p>
+            <p className="quiz-metadata-value" style={{ color: '#dc2626' }}>
+              -{quiz.negativeMark || 0}
+            </p>
+          </div>
+
+          <div className="quiz-metadata-item">
+            <p className="quiz-metadata-label">Total Questions</p>
+            <p className="quiz-metadata-value" style={{ fontSize: '18px', color: '#0f172a' }}>
+              {quiz.questions?.length || 0}
+            </p>
+          </div>
+        </div>
+
+        {/* Questions Section */}
+        <div className="questions-section">
+          {quiz.questions?.map((question, index) => {
+            const options = quiz.options?.[index] || [];
+            const correctAnswer = options[0]; // Option A is the correct answer
+
+            return (
+              <div key={index} className="question-card">
+                <div className="question-header">
+                  <div className="question-number">{index + 1}</div>
+                  <p className="question-text">{question}</p>
+                </div>
+
+                <div className="options-grid">
+                  {options.map((option, optIndex) => {
+                    const optionLabel = String.fromCharCode(65 + optIndex); // A, B, C, D
+                    const isCorrect = optIndex === 0; // Option A is correct
+
+                    return (
+                      <div
+                        key={optIndex}
+                        className={`option-card ${isCorrect ? 'correct' : ''}`}
+                      >
+                        <p className={`option-label ${isCorrect ? 'correct-label' : ''}`}>
+                          Option {optionLabel} {isCorrect && '(Correct Answer)'}
+                        </p>
+                        <p className={`option-value ${isCorrect ? 'correct-value' : ''}`}>
+                          {option}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 };
 

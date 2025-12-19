@@ -25,8 +25,17 @@ export const contentService = {
       signal,
     });
 
+    // Normalize data: ensure all items have 'id' field (convert _id to id if needed)
+    const normalizedData = (response.data || []).map((item) => {
+      // If item has _id but no id, use _id as id
+      if (!item.id && item._id) {
+        return { ...item, id: item._id };
+      }
+      return item;
+    });
+
     return {
-      data: response.data || [],
+      data: normalizedData,
       pagination: response.pagination || {},
     };
   },
