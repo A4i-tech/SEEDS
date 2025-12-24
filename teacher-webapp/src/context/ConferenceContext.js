@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useRef,
+} from "react";
 import { AudioContentState, Participant } from "../state"; // You can import from existing state file
 
 const ConferenceContext = createContext();
@@ -16,6 +22,7 @@ export const ConferenceProvider = ({ children }) => {
   const [confId, setConfId] = useState("");
   const [loading, setLoading] = useState(false);
   const [conferenceStudents, setConferenceStudents] = useState([]);
+  const previousParticipantStatusRef = useRef({});
 
   // Updates the `userList` whenever teacher or students are selected
   useEffect(() => {
@@ -40,6 +47,44 @@ export const ConferenceProvider = ({ children }) => {
   const handleSSEEvent = (event) => {
     setIsConfCallRunning(event.is_running);
     setAudioContentState(new AudioContentState(event.audio_content_state));
+
+    // Check for students transitioning from connected to disconnected
+    for (let phoneNumber in event.participants) {
+      const participant = event.participants[phoneNumber];
+      const previousStatus = previousParticipantStatusRef.current[phoneNumber];
+
+      console.log(
+        `[ConferenceContext] ${participant.name} (${phoneNumber}): ${previousStatus} -> ${participant.call_status}`
+      );
+
+      // If it's a student transitioning from connected to disconnected, show notification
+      if (
+        participant.role === "Student" &&
+        previousStatus === "connected" &&
+        participant.call_status === "disconnected"
+      ) {
+        console.log(
+          `[ConferenceContext] Dispatching notification for ${participant.name} (${participant.phone_number})`
+        );
+        window.dispatchEvent(
+          new CustomEvent("conferenceNotification", {
+            detail: {
+              type: "participant_dropped",
+              participantName: participant.name,
+              participantPhone: participant.phone_number,
+              timestamp: new Date().toISOString(),
+            },
+          })
+        );
+      }
+    }
+
+    // Update previous status tracking
+    const newStatusMap = {};
+    for (let phoneNumber in event.participants) {
+      newStatusMap[phoneNumber] = event.participants[phoneNumber].call_status;
+    }
+    previousParticipantStatusRef.current = newStatusMap;
 
     for (let phoneNumber in event.participants) {
       const participant = new Participant({
@@ -99,7 +144,7 @@ export const ConferenceProvider = ({ children }) => {
         handleTeacherSelect,
         handleStudentToggle,
         setConferenceStudents,
-        conferenceStudents
+        conferenceStudents,
       }}
     >
       {children}

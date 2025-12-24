@@ -10,11 +10,11 @@ import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
 import com.example.seeds.R
 import com.example.seeds.adapters.ClassroomListAdapter
+import com.example.seeds.adapters.UnifiedHistoryAdapter
 import com.example.seeds.databinding.FragmentClassroomBinding
 import com.example.seeds.model.Classroom
 import com.example.seeds.ui.BaseFragment
 import dagger.hilt.android.AndroidEntryPoint
-import com.google.android.material.bottomnavigation.BottomNavigationView
 
 @AndroidEntryPoint
 class ClassroomFragment : BaseFragment() {
@@ -32,6 +32,7 @@ class ClassroomFragment : BaseFragment() {
         binding.viewModel = viewModel
 
         setupRecyclerView()
+        setupUnifiedHistoryRecyclerView()
         setupSearchBox()
         setupListeners()
         setupObservers()
@@ -44,6 +45,18 @@ class ClassroomFragment : BaseFragment() {
             navigateToCallSettings(classroom)
         })
         binding.myClassroomsList.adapter = adapter
+    }
+    
+    private fun setupUnifiedHistoryRecyclerView() {
+        val historyAdapter = UnifiedHistoryAdapter(
+            onContentClick = { historyItem ->
+                viewModel.onContentHistoryItemClicked(historyItem)
+            },
+            onSessionClick = { sessionItem ->
+                viewModel.onSessionHistoryItemClicked(sessionItem)
+            }
+        )
+        binding.unifiedHistoryList.adapter = historyAdapter
     }
 
     private fun setupListeners() {
@@ -63,6 +76,11 @@ class ClassroomFragment : BaseFragment() {
                 updateEmptyState(list.isNullOrEmpty())
             }
         }
+        
+        // Unified History Observer
+        viewModel.unifiedHistory.observe(viewLifecycleOwner) { historyList ->
+            (binding.unifiedHistoryList.adapter as? UnifiedHistoryAdapter)?.submitList(historyList)
+        }
 
         viewModel.navigateToCallSettings.observe(viewLifecycleOwner) { classroom ->
             if (classroom != null) {
@@ -71,38 +89,13 @@ class ClassroomFragment : BaseFragment() {
             }
         }
 
-        viewModel.navigateToCall.observe(viewLifecycleOwner) { classroom ->
-            if (classroom != null) {
-                logMessage("Directly resuming call for: ${classroom.name}")
-                val phoneNumbers = classroom.students?.map { it.phoneNumber }?.toTypedArray() ?: emptyArray()
-                
-                findNavController().navigate(
-                    ClassroomFragmentDirections.actionClassroomFragmentToCallNav(
-                        phoneNumbers,
-                        classroom,
-                    )
-                )
-                viewModel.onNavigationComplete()
-            }
-        }
-
-         viewModel.navigateToContentDetails.observe(viewLifecycleOwner) { content ->
+        // Navigate to content from history
+        viewModel.navigateToHistoryContent.observe(viewLifecycleOwner) { content ->
             if (content != null) {
-                logMessage("Resuming content: ${content.titleText}")
-                
-                // Navigate to the Standalone Player (ContentDetailsFragment)
-                // Ensure this action exists in your Navigation Graph!
+                logMessage("Playing content from history: ${content.titleText}")
                 findNavController().navigate(
-                   ClassroomFragmentDirections.actionClassroomFragmentToContentDetailsFragment(content)
+                    ClassroomFragmentDirections.actionClassroomFragmentToContentDetailsFragment(content)
                 )
-                viewModel.onNavigationComplete()
-            }
-        }
-
-        viewModel.navigateToLibrary.observe(viewLifecycleOwner) { shouldNavigate ->
-            if (shouldNavigate) {
-                val bottomNav = requireActivity().findViewById<BottomNavigationView>(R.id.nav_view)
-                bottomNav.selectedItemId = R.id.homeFragment 
                 viewModel.onNavigationComplete()
             }
         }

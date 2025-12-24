@@ -13,9 +13,10 @@
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="?android:colorBackground"  
+        android:background="?android:colorBackground"
         tools:context=".ui.call.CallFragment">
 
+        <!-- TEACHER CARD (Top) -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/teacher_call_status"
             android:layout_width="match_parent"
@@ -48,18 +49,7 @@
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintTop_toTopOf="parent" />
 
-                <ImageButton
-                    android:id="@+id/teacher_mic"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:contentDescription="mute"
-                    android:paddingHorizontal="8dp"
-                    android:background="@null"
-                    android:src="@{!viewModel.teacherCallStatus.isMuted ? @drawable/ic_mic : @drawable/ic_mic_off, default=@drawable/ic_mic}"
-                    android:visibility='@{viewModel.teacherCallStatus.callerState == CallerState.CONNECTED ? View.VISIBLE: View.GONE, default="gone"}'
-                    app:layout_constraintBottom_toBottomOf="parent"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintTop_toTopOf="parent" />
+                <!-- Mute button and Old Retry Icon removed from here -->
 
                 <TextView
                     android:id="@+id/textView3"
@@ -72,23 +62,11 @@
                     app:layout_constraintEnd_toEndOf="parent"
                     app:layout_constraintTop_toTopOf="parent" />
 
-                <ImageView
-                    android:id="@+id/retry_teacher"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginEnd="18dp"
-                    android:contentDescription="Retry call"
-                    android:paddingHorizontal="8dp"
-                    android:src="@drawable/ic_retry"
-                    android:visibility='@{viewModel.teacherCallStatus.callerState == CallerState.UNANSWERED || viewModel.teacherCallStatus.callerState == CallerState.BUSY || viewModel.teacherCallStatus.callerState == CallerState.TIMEOUT || viewModel.teacherCallStatus.callerState == CallerState.UNDEFINED  || viewModel.teacherCallStatus.callerState == CallerState.COMPLETED || viewModel.teacherCallStatus.callerState == CallerState.DISCONNECTED ? View.VISIBLE: View.GONE}'
-                    app:layout_constraintBottom_toBottomOf="parent"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintTop_toTopOf="parent" />
-
             </androidx.constraintlayout.widget.ConstraintLayout>
         </com.google.android.material.card.MaterialCardView>
 
 
+        <!-- CONTENT CARD -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/sign_to_answer_card"
             android:layout_width="match_parent"
@@ -182,6 +160,7 @@
             </androidx.constraintlayout.widget.ConstraintLayout>
         </com.google.android.material.card.MaterialCardView>
 
+        <!-- AUDIO CONTROLS -->
         <ImageButton
             android:id="@+id/pause_play_button"
             android:layout_width="wrap_content"
@@ -226,6 +205,7 @@
             app:layout_constraintTop_toTopOf="@+id/pause_play_button"
             app:srcCompat="@drawable/ic_forward" />
 
+        <!-- INITIATING TEXT -->
         <TextView
             android:id="@+id/initiating_call_text"
             style="@style/AllTitles"
@@ -238,20 +218,42 @@
             app:layout_constraintTop_toTopOf="parent"
             tools:text="Initiating Call!" />
 
+        <!-- BOTTOM BUTTONS (CHAINED) -->
+        
+        <!-- End Call Button: Updated constraints for chaining -->
         <Button
             android:id="@+id/end_call_btn"
             style="@style/PrimaryButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_margin="@dimen/activity_horizontal_margin"
+            android:layout_marginVertical="@dimen/activity_horizontal_margin"
             android:text="End call"
             android:textAlignment="center"
             android:textAllCaps="false"
             android:textSize="20sp"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/retry_teacher"
+            app:layout_constraintHorizontal_chainStyle="packed"
             app:layout_constraintStart_toStartOf="parent" />
 
+        <!-- Rejoin Button: New button, chained to End Call -->
+        <Button
+            android:id="@+id/retry_teacher"
+            style="@style/PrimaryButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:text="Rejoin"
+            android:textAllCaps="false"
+            android:textSize="20sp"
+            android:visibility='@{viewModel.teacherCallStatus.callerState == CallerState.UNANSWERED || viewModel.teacherCallStatus.callerState == CallerState.BUSY || viewModel.teacherCallStatus.callerState == CallerState.TIMEOUT || viewModel.teacherCallStatus.callerState == CallerState.UNDEFINED  || viewModel.teacherCallStatus.callerState == CallerState.COMPLETED || viewModel.teacherCallStatus.callerState == CallerState.DISCONNECTED ? View.VISIBLE: View.GONE}'
+            app:layout_constraintBottom_toBottomOf="@+id/end_call_btn"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toEndOf="@+id/end_call_btn"
+            app:layout_constraintTop_toTopOf="@+id/end_call_btn" />
+
+
+        <!-- ADD STUDENTS BUTTON -->
         <Button
             android:id="@+id/add_students_button"
             style="@style/PrimaryButton"
@@ -266,6 +268,7 @@
             app:layout_constraintStart_toStartOf="@+id/guideline2"
             app:layout_constraintTop_toTopOf="@+id/mute_all_btn" />
 
+        <!-- ADD CONTENT BUTTONS -->
         <TextView
             android:id="@+id/content_heading"
             style="@style/AllTitles"
@@ -319,6 +322,7 @@
             app:constraint_referenced_ids="sign_to_answer_card,mute_all_btn"
             tools:layout_editor_absoluteY="731dp" />
 
+        <!-- STUDENT LIST CARD -->
         <androidx.cardview.widget.CardView
             android:id="@+id/select_students_call_settings_cardview"
             android:layout_width="0dp"
@@ -341,21 +345,20 @@
                 android:layout_height="match_parent"
                 android:layout_margin="16dp">
 
-
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/my_students_list"
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:scrollbars="vertical"
-                app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toTopOf="parent"
-                app:studentCallStatusData="@{viewModel.callState}"
-                app:teacherPhoneNumber="@{viewModel.teacherPhoneNumber}"
-                tools:itemCount="5"
-                tools:listitem="@layout/student_call_item_row" />
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/my_students_list"
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:scrollbars="vertical"
+                    app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:studentCallStatusData="@{viewModel.callState}"
+                    app:teacherPhoneNumber="@{viewModel.teacherPhoneNumber}"
+                    tools:itemCount="5"
+                    tools:listitem="@layout/student_call_item_row" />
 
                 <TextView
                     android:id="@+id/textView"
@@ -371,7 +374,7 @@
             </androidx.constraintlayout.widget.ConstraintLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- UNCOMMENTED FEEDBACK TEXTVIEWS -->
+        <!-- FEEDBACK TEXTVIEWS -->
         <TextView
             android:id="@+id/forward_feedback"
             android:layout_width="wrap_content"

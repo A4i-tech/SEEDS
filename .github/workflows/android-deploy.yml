@@ -1,14 +1,17 @@
 name: Deploy Android Build
 
 on:
+
   push:
     branches: 
       - a4i/staging
       - a4i/main
+
   pull_request:
     branches: 
       - a4i/staging
-      - a4i/main  
+      - a4i/main
+      
   workflow_call:
   workflow_dispatch:
 
@@ -65,11 +68,44 @@ jobs:
           STAGING_KEY_PASSWORD:           ${{ secrets.STAGING_KEY_PASSWORD }}
         run: bundle exec fastlane deploy_staging
 
+      - name: Extract Version from PR Title
+        if: github.ref == 'refs/heads/a4i/main'  && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Searching for PR associated with commit ${{ github.sha }}..."
+          
+          PR_JSON=$(gh pr list --search "${{ github.sha }}" --state merged --json title,url)
+          
+          echo "Raw PR JSON: $PR_JSON"
+          
+          PR_TITLE=$(echo "$PR_JSON" | jq -r '.[0].title')
+          
+          if [[ "$PR_TITLE" == "null" || -z "$PR_TITLE" ]]; then
+            echo "Error: No merged PR found for this commit."
+            echo "   This usually happens if you pushed directly instead of merging a PR,"
+            echo "   or if the PR was squash-merged very recently."
+            exit 1
+          fi
+
+          echo "Found PR Title: $PR_TITLE"
+          
+          if [[ $PR_TITLE =~ ([0-9]{4}\.[0-9]{2}\.[0-9]{2}) ]]; then
+            DETECTED_VERSION="${BASH_REMATCH[1]}"
+            echo "Version detected: $DETECTED_VERSION"
+            echo "CI_VERSION_NAME=$DETECTED_VERSION" >> $GITHUB_ENV
+          else
+            echo "Error: PR Title '$PR_TITLE' does not contain a version pattern like 'YYYY.MM.DD'."
+            echo "   Please update the PR title to include the version."
+            exit 1
+          fi
+
       - name: Build and Deploy Production
         if: github.ref == 'refs/heads/a4i/main' && github.event_name == 'push'
-        
         working-directory: ./Teacher-App
         env:
+          CI_VERSION_NAME:             ${{ env.CI_VERSION_NAME }}
+
           PROD_BASE_URL:               ${{ secrets.BASE_URL_ANDROID_PROD }}
           PROD_CONTENT_URL:            ${{ secrets.CONTENT_URL_ANDROID_PROD }}
           PROD_TENANT_NAME:            ${{ secrets.FIREBASE_PROD_TESTER_GROUPS }}
@@ -81,4 +117,6 @@ jobs:
           SIGNING_KEYSTORE_PASSWORD:   ${{ secrets.PROD_KEYSTORE_PASSWORD }}
           SIGNING_KEY_ALIAS:           ${{ secrets.PROD_KEY_ALIAS }}
           SIGNING_KEY_PASSWORD:        ${{ secrets.PROD_KEY_PASSWORD }}
+
+
         run: bundle exec fastlane deploy_prod
