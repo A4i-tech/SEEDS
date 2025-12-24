@@ -411,3 +411,4 @@ htmlcov*/
 **/.env
 **/.env.*
 **/*.jks
+**/report.xml
