@@ -133,7 +133,12 @@ class CallFragment : BaseFragment() {
 
         viewModel.participantDropped.observe(viewLifecycleOwner) { phoneNumber ->
             if (phoneNumber != null) {
-                val message = "$phoneNumber has left the call"
+                // 1. Find the student in the validated list whose phone number matches
+                val student = viewModel.validatedStudents.value?.find { it.phoneNumber == phoneNumber }
+                
+                // 2. Use the name if found, otherwise fallback to the phone number
+                val displayName = student?.name ?: phoneNumber
+                val message = "$displayName has left the call"
                 
                 com.google.android.material.snackbar.Snackbar.make(
                     binding.root,
@@ -141,7 +146,7 @@ class CallFragment : BaseFragment() {
                     com.google.android.material.snackbar.Snackbar.LENGTH_LONG
                 ).show()
                 
-                logMessage("Student disconnected: $phoneNumber")
+                logMessage("Student disconnected: $displayName ($phoneNumber)")
                 viewModel.clearParticipantDroppedNotification()
             }
         }
