@@ -7,10 +7,13 @@ Vonage sends PCM audio frames via WebSocket which we analyze for hold detection.
 import json
 import asyncio
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+import os
 from typing import Dict
 from app.conf_logger import logger_instance
 from app.services.audio_stream_analyzer import AudioStreamAnalyzer
 from app.services.singletons.conference_call_manager import conference_manager
+from app.services.confevents.mute_participant_event import MuteParticipantEvent
+from app.services.confevents.unmute_participant_event import UnmuteParticipantEvent
 
 router = APIRouter()
 
@@ -48,43 +51,22 @@ async def audio_stream_websocket(
         await websocket.close()
         return
 
-    # Create hold detection callback
+    # Create hold detection callback (kept for compatibility; actions now enqueued below)
     async def on_hold_detected(reason: str):
-        """Triggered when hold is detected in audio stream."""
         logger_instance.info(
             f"[AUDIO STREAM] 🚨 HOLD DETECTED for {phone_number} - Reason: {reason}"
         )
-        print(
-            f"\n{'#'*80}\n"
-            f"🚨 [AUDIO STREAM] HOLD EVENT DETECTED! 🚨\n"
-            f"{'#'*80}\n"
-            f"  Participant: {phone_number}\n"
-            f"  Conference: {conference_id}\n"
-            f"  Detection: {reason}\n"
-            f"  Action: MUTING to block hold music from broadcasting\n"
-            f"  Note: Participant can still HEAR conference (not earmuffed)\n"
-            f"{'#'*80}\n"
-        )
-
-        # Immediately MUTE to prevent hold music from broadcasting to others
-        # Don't earmuff - participant should still hear the conference
-        try:
-            await conf.communication_api.mute_participant(phone_number)
-            logger_instance.info(
-                f"[AUDIO STREAM] ✓ Successfully muted {phone_number} (hold detected)"
-            )
-            print(
-                f"[AUDIO STREAM] ✅ Muted {phone_number} - hold music blocked from others!\n"
-            )
-        except Exception as e:
-            logger_instance.error(
-                f"[AUDIO STREAM] Error muting {phone_number} on hold detection: {e}"
-            )
-            print(f"[AUDIO STREAM] ❌ Error muting {phone_number}: {e}\n")
 
     # Initialize audio analyzer for this participant
     analyzer = AudioStreamAnalyzer(phone_number, on_hold_detected)
     audio_analyzers[phone_number] = analyzer
+
+    # Feature flag: enable/disable automatic mute on hold/music detection
+    auto_hold_mute_enabled = os.getenv("AUTO_HOLD_MUTE_ENABLED", "true").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
 
     try:
         while True:
@@ -96,11 +78,50 @@ async def audio_stream_websocket(
                 pcm_chunk = message["bytes"]
 
                 # Analyze frame for hold detection
-                detection_reason = analyzer.analyze_pcm_frame(pcm_chunk)
+                decision = analyzer.analyze_pcm_frame(pcm_chunk)
 
-                if detection_reason:
-                    # Hold detected! Trigger earmuff
-                    await on_hold_detected(detection_reason)
+                if decision and auto_hold_mute_enabled:
+                    action, reason = decision
+
+                    # Never auto-mute the teacher
+                    teacher_phone = (
+                        conf.state.get_teacher().phone_number
+                        if conf.state.get_teacher()
+                        else None
+                    )
+                    if phone_number == teacher_phone:
+                        continue
+
+                    if action == "mute":
+                        logger_instance.info(
+                            f"[AUDIO STREAM] 🚨 Auto-mute triggered for {phone_number} - {reason}"
+                        )
+                        try:
+                            await conf.queue_event(
+                                MuteParticipantEvent(
+                                    phone_number=phone_number,
+                                    conf_call=conf,
+                                    stream_system_message=False,
+                                )
+                            )
+                        except Exception as e:
+                            logger_instance.error(
+                                f"[AUDIO STREAM] Error enqueuing auto-mute: {e}"
+                            )
+                    elif action == "unmute":
+                        logger_instance.info(
+                            f"[AUDIO STREAM] ✅ Auto-unmute triggered for {phone_number} - {reason}"
+                        )
+                        try:
+                            await conf.queue_event(
+                                UnmuteParticipantEvent(
+                                    phone_number=phone_number, conf_call=conf
+                                )
+                            )
+                        except Exception as e:
+                            logger_instance.error(
+                                f"[AUDIO STREAM] Error enqueuing auto-unmute: {e}"
+                            )
 
             elif "text" in message:
                 # JSON metadata from Vonage (call events, etc.)
