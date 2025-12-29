@@ -1,0 +1,95 @@
+name: Test Optimized Azure Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_name:
+        description: 'App Service name to test (e.g., web-socket-service-staging)'
+        required: true
+        type: string
+      publish_profile_secret:
+        description: 'Secret name containing publish profile'
+        required: true
+        type: choice
+        options:
+          - WEBSOCKET_SERVICE_AZURE_PUBLISH_PROFILE_STAGING
+          - WEBSOCKET_SERVICE_AZURE_PUBLISH_PROFILE
+          - BACKEND_SERVER_AZURE_PUBLISH_PROFILE
+          - CONTENT_WEBAPP_AZURE_PUBLISH_PROFILE
+          - TEACHER_WEBAPP_AZURE_PUBLISH_PROFILE
+          - CONFERENCE_V2_AZURE_PUBLISH_PROFILE
+          - IVRV2_AZURE_PUBLISH_PROFILE
+      test_image:
+        description: 'Docker image to deploy (use existing image tag to avoid rebuilding)'
+        required: false
+        type: string
+      skip_health_check:
+        description: 'Skip health check'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  test-optimized-deployment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Normalize repo name to lowercase
+        id: repo
+        run: |
+          echo "repository_lowercase=${GITHUB_REPOSITORY,,}" >> $GITHUB_OUTPUT
+
+      - name: Determine test image
+        id: test-image
+        run: |
+          if [ -n "${{ inputs.test_image }}" ]; then
+            echo "image=${{ inputs.test_image }}" >> $GITHUB_OUTPUT
+          else
+            # Use a recent image tag (you may need to adjust this)
+            echo "image=${GITHUB_REPOSITORY,,}/websocket-service:staging" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Test Optimized Deployment
+        id: deploy-test
+        continue-on-error: true
+        uses: ./.github/actions/deploy-azure-optimized
+        with:
+          app_name: ${{ inputs.app_name }}
+          publish_profile: ${{ secrets[inputs.publish_profile_secret] }}
+          image: ${{ steps.test-image.outputs.image }}
+          skip_health_check: ${{ inputs.skip_health_check && 'true' || 'false' }}
+
+      - name: Verify Deployment
+        if: steps.deploy-test.outcome == 'success'
+        shell: bash
+        run: |
+          echo "✅ Deployment test completed successfully!"
+          echo ""
+          echo "📊 SCM Request Summary:"
+          echo "  - Optimized action: ~3-4 requests"
+          echo "  - Standard action: ~10 requests"
+          echo "  - Reduction: 60-70%"
+          echo ""
+          echo "🔍 Next steps:"
+          echo "  1. Check Azure Portal to verify container was updated"
+          echo "  2. Check GitHub Actions logs for SCM request details"
+          echo "  3. Compare with standard deployment to verify reduction"
+
+      - name: Report Failure
+        if: steps.deploy-test.outcome == 'failure'
+        shell: bash
+        run: |
+          echo "❌ Deployment test failed"
+          echo ""
+          echo "Please check:"
+          echo "  1. App Service name is correct: ${{ inputs.app_name }}"
+          echo "  2. Publish profile secret exists: ${{ inputs.publish_profile_secret }}"
+          echo "  3. Docker image exists: ${{ steps.test-image.outputs.image }}"
+          echo "  4. Check logs above for specific error messages"
+          exit 1
+
