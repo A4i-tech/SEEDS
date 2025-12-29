@@ -288,7 +288,7 @@ const Profile = () => {
               <input
                 style={inputDisabledStyle}
                 type="text"
-                value={profile?.name || ""}
+                value={profile?.tenantName || ""}
                 disabled
               />
             </div>

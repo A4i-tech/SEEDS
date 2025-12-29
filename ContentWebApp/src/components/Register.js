@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { SEEDS_URL } from "../Constants";
 
 const pageStyle = {
     minHeight: "100vh",
@@ -141,7 +142,6 @@ const isValidEmail = (email) => {
 
 const Register = () => {
     const navigate = useNavigate();
-    const baseURL = process.env.REACT_APP_API_BASE_URL || "http://localhost:4000";
     const [formData, setFormData] = useState({
         tenantName: "",
         email: "",
@@ -184,7 +184,7 @@ const Register = () => {
 
         try {
             setIsSubmitting(true);
-            const response = await axios.post(`${baseURL}/tenant/register`, {
+            const response = await axios.post(`${SEEDS_URL}/tenant/register`, {
                 email: formData.email,
                 password: formData.password,
                 tenantName: formData.tenantName,
