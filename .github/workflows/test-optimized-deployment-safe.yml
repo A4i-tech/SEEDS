@@ -1,0 +1,109 @@
+name: Test Optimized Deployment (Safe - Any Branch)
+
+# This workflow can run on ANY branch via push trigger
+# Safe to test without modifying staging/main workflows
+
+on:
+  push:
+    branches:
+      - 'test/**'  # Any branch starting with test/
+      - 'feature/**'  # Any feature branch
+    paths:
+      - '.github/workflows/test-optimized-deployment-safe.yml'
+      - '.github/actions/deploy-azure-optimized/**'
+  workflow_dispatch:
+    inputs:
+      app_name:
+        description: 'App Service name (e.g., web-socket-service-staging)'
+        required: true
+        type: string
+      publish_profile_secret:
+        description: 'Secret name for publish profile'
+        required: true
+        type: choice
+        options:
+          - WEBSOCKET_SERVICE_AZURE_PUBLISH_PROFILE_STAGING
+          - WEBSOCKET_SERVICE_AZURE_PUBLISH_PROFILE
+      test_image:
+        description: 'Docker image (leave empty to use existing)'
+        required: false
+        type: string
+      skip_health_check:
+        description: 'Skip health check'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  test-optimized-deployment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Normalize repo name to lowercase
+        id: repo
+        run: |
+          echo "repository_lowercase=${GITHUB_REPOSITORY,,}" >> $GITHUB_OUTPUT
+
+      - name: Determine test image
+        id: test-image
+        run: |
+          if [ -n "${{ inputs.test_image }}" ]; then
+            echo "image=${{ inputs.test_image }}" >> $GITHUB_OUTPUT
+          elif [ -n "${{ github.event.inputs.test_image }}" ]; then
+            echo "image=${{ github.event.inputs.test_image }}" >> $GITHUB_OUTPUT
+          else
+            # Use existing staging image to avoid rebuilding
+            echo "image=${GITHUB_REPOSITORY,,}/websocket-service:staging" >> $GITHUB_OUTPUT
+          fi
+          echo "Using image: ${{ steps.test-image.outputs.image }}"
+
+      - name: Test Optimized Deployment
+        id: deploy-test
+        continue-on-error: true
+        uses: ./.github/actions/deploy-azure-optimized
+        with:
+          app_name: ${{ inputs.app_name || github.event.inputs.app_name || 'web-socket-service-staging' }}
+          publish_profile: ${{ secrets[inputs.publish_profile_secret || github.event.inputs.publish_profile_secret || 'WEBSOCKET_SERVICE_AZURE_PUBLISH_PROFILE_STAGING'] }}
+          image: ${{ steps.test-image.outputs.image }}
+          skip_health_check: ${{ inputs.skip_health_check || github.event.inputs.skip_health_check == 'true' || 'false' }}
+
+      - name: Test Results Summary
+        if: always()
+        shell: bash
+        run: |
+          echo ""
+          echo "=========================================="
+          if [ "${{ steps.deploy-test.outcome }}" == "success" ]; then
+            echo "✅ TEST PASSED: Optimized deployment successful!"
+            echo ""
+            echo "📊 SCM Request Summary:"
+            echo "  - Optimized action: ~3-4 requests"
+            echo "  - Standard action: ~10 requests"
+            echo "  - Reduction: 60-70%"
+            echo ""
+            echo "✅ Next steps:"
+            echo "  1. Verify in Azure Portal that container was updated"
+            echo "  2. Check that app is still running correctly"
+            echo "  3. If all good, you can now use optimized action in staging/main"
+          else
+            echo "❌ TEST FAILED: Deployment encountered errors"
+            echo ""
+            echo "Please check:"
+            echo "  1. App Service name: ${{ inputs.app_name || 'web-socket-service-staging' }}"
+            echo "  2. Publish profile secret exists"
+            echo "  3. Docker image is accessible"
+            echo "  4. Review error logs above"
+          fi
+          echo "=========================================="
+
+      - name: Fail if deployment failed
+        if: steps.deploy-test.outcome == 'failure'
+        run: |
+          echo "Deployment test failed. Check logs above for details."
+          exit 1
+
