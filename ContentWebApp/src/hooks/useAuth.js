@@ -1,5 +1,5 @@
-import { useCallback, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   getAuthHeaders,
   isAuthenticated,
@@ -9,16 +9,6 @@ import {
 
 export const useAuth = () => {
   const navigate = useNavigate();
-  const location = useLocation();
-
-  /**
-   * Check authentication and redirect if not authenticated
-   */
-  useEffect(() => {
-    if (!isAuthenticated()) {
-      navigate("/");
-    }
-  }, [navigate, location]);
 
   /**
    * Get authentication headers

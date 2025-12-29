@@ -11,26 +11,49 @@ import "./App.css";
 import Login from "./components/Login";
 import ApiDocumentation from "./components/ApiDocumentation";
 import Register from "./components/Register";
+import ProtectedRoute from "./components/ProtectedRoute";
+import PublicRoute from "./components/PublicRoute";
 
 function App() {
   return (
     <div className="App">
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Login />}></Route>
-          <Route path="/content" element={<AllContent />} />
-          <Route path="/content/create" element={<AddContent />} />
+          <Route path="/" element={<PublicRoute element={<Login />} />}></Route>
+          <Route
+            path="/content"
+            element={<ProtectedRoute element={<AllContent />} />}
+          />
+          <Route
+            path="/content/create"
+            element={<ProtectedRoute element={<AddContent />} />}
+          />
           <Route
             path="/content/detail/:type/:id"
-            element={<ContentDetails />}
+            element={<ProtectedRoute element={<ContentDetails />} />}
           />
-          <Route path="/content/edit/:type/:id" element={<ContentEdit />} />
-          <Route path="/ivr" element={<IVR />} />
-          <Route path="/viewivr" element={<ViewIVR />} />
-          <Route path="/bulkcall" element={<BulkCallInitiator />} />
+          <Route
+            path="/content/edit/:type/:id"
+            element={<ProtectedRoute element={<ContentEdit />} />}
+          />
+          <Route path="/ivr" element={<ProtectedRoute element={<IVR />} />} />
+          <Route
+            path="/viewivr"
+            element={<ProtectedRoute element={<ViewIVR />} />}
+          />
+          <Route
+            path="/bulkcall"
+            element={<ProtectedRoute element={<BulkCallInitiator />} />}
+          />
           <Route path="/api-docs" element={<ApiDocumentation />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/profile" element={<Profile />} />
+          <Route
+            path="/register"
+            element={<PublicRoute element={<Register />} />}
+          />
+          <Route
+            path="/profile"
+            element={<ProtectedRoute element={<Profile />} />}
+          />
         </Routes>
       </BrowserRouter>
     </div>
