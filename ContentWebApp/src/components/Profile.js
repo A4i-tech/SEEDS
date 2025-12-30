@@ -298,28 +298,6 @@ const Profile = () => {
                 disabled
               />
             </div>
-            {profile?.phone && (
-              <div>
-                <label style={labelStyle}>Phone</label>
-                <input
-                  style={inputDisabledStyle}
-                  type="tel"
-                  value={profile.phone}
-                  disabled
-                />
-              </div>
-            )}
-            {profile?.address && (
-              <div>
-                <label style={labelStyle}>Address</label>
-                <input
-                  style={inputDisabledStyle}
-                  type="text"
-                  value={profile.address}
-                  disabled
-                />
-              </div>
-            )}
           </div>
         </div>
 

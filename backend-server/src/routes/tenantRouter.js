@@ -304,7 +304,11 @@ router.get("/me", authenticateToken, async (req, res) => {
     if (!tenant) {
       return res.status(STATUS.NOT_FOUND).json({ message: "Tenant not found" });
     }
-    return res.status(STATUS.OK).json(tenant);
+    const tenantData = {
+      email: tenant.email,
+      tenantName: tenant.tenantName,
+    };
+    return res.status(STATUS.OK).json(tenantData);
   } catch (error) {
     console.error("Get tenant error:", error);
     return res
