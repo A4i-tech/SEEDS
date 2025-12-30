@@ -59,7 +59,8 @@ module.exports = {
     }
   },
   async register(req, res) {
-    const { phoneNumber, password, tenantId } = req.body;
+    const { phoneNumber, password } = req.body;
+    const tenantId = req.userId;
     if (!phoneNumber || !password || !tenantId) {
       return res
         .status(STATUS.BAD_REQUEST)

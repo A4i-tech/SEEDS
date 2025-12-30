@@ -1,11 +1,12 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { SEEDS_URL } from "../Constants";
 import {
   getAuthHeaders,
   isAuthenticated,
-  getTenantInfo,
   clearAuth,
 } from "../utils/authHelpers";
+import { apiFetch } from "../services/api";
 
 export const useAuth = () => {
   const navigate = useNavigate();
@@ -38,8 +39,13 @@ export const useAuth = () => {
   /**
    * Get current user info
    */
-  const getCurrentUser = useCallback(() => {
-    const { tenantName } = getTenantInfo();
+  const getCurrentUser = useCallback(async () => {
+    const req = await apiFetch(`${SEEDS_URL}/tenant/me`, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
+    console.log("Current User Info:", req);
+    const tenantName = req.tenantName;
     return tenantName || "User";
   }, []);
 
@@ -48,6 +54,5 @@ export const useAuth = () => {
     logout,
     getCurrentUser,
     isAuthenticated: isAuthenticated(),
-    tenantInfo: getTenantInfo(),
   };
 };

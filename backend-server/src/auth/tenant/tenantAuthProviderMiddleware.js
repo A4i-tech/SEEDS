@@ -114,12 +114,13 @@ module.exports = {
     return res.status(STATUS.OK).json(tenants);
   },
   async changePassword(req, res) {
-    const { tenantId, newPassword } = req.body;
-    if (!tenantId || !newPassword) {
+    const { newPassword } = req.body;
+    if (!newPassword) {
       return res
         .status(STATUS.BAD_REQUEST)
-        .json({ message: "Tenant ID and new password are required" });
+        .json({ message: "New password is required" });
     }
+    tenantId = req.userId;
     if (!validator.isStrongPassword(newPassword, PASSWORD_POLICY)) {
       return res
         .status(STATUS.BAD_REQUEST)

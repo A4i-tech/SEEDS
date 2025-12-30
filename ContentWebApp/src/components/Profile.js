@@ -173,8 +173,7 @@ const Profile = () => {
 
   const fetchProfile = async () => {
     try {
-      const tenantId = localStorage.getItem("tenantId");
-      const response = await fetch(`${SEEDS_URL}/tenant/${tenantId}`, {
+      const response = await fetch(`${SEEDS_URL}/tenant/me`, {
         method: "GET",
         headers: getAuthHeaders(),
       });
@@ -211,12 +210,10 @@ const Profile = () => {
     setIsChangingPassword(true);
 
     try {
-      const tenantId = localStorage.getItem("tenantId");
       const response = await fetch(`${SEEDS_URL}/tenant/change-password`, {
         method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify({
-          tenantId: tenantId,
           newPassword: passwordData.newPassword,
         }),
       });

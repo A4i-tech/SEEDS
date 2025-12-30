@@ -8,22 +8,17 @@ export const useTeachers = (activeTab) => {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState("");
 
-  const { getAuthHeaders, tenantInfo } = useAuth();
+  const { getAuthHeaders } = useAuth();
 
   /**
    * Fetch teachers list
    */
   const fetchTeachers = useCallback(
     async (signal = null) => {
-      const { tenantId } = tenantInfo;
-      if (!tenantId) {
-        return;
-      }
 
       setIsLoading(true);
       try {
         const data = await teacherService.getTeachers(
-          tenantId,
           getAuthHeaders(),
           signal
         );
@@ -50,7 +45,7 @@ export const useTeachers = (activeTab) => {
         setIsLoading(false);
       }
     },
-    [getAuthHeaders, tenantInfo]
+    [getAuthHeaders]
   );
 
   /**
@@ -69,12 +64,6 @@ export const useTeachers = (activeTab) => {
    */
   const registerTeacher = useCallback(
     async (phoneNumber, password) => {
-      const { tenantId } = tenantInfo;
-
-      if (!tenantId) {
-        setMessage("Tenant ID not found. Please log in again.");
-        return false;
-      }
 
       if (!phoneNumber || !password) {
         setMessage("Phone and password are required.");
@@ -88,7 +77,6 @@ export const useTeachers = (activeTab) => {
 
       try {
         await teacherService.registerTeacher(
-          tenantId,
           phoneNumber,
           password,
           getAuthHeaders()
@@ -107,7 +95,7 @@ export const useTeachers = (activeTab) => {
         return false;
       }
     },
-    [getAuthHeaders, tenantInfo, fetchTeachers]
+    [getAuthHeaders, fetchTeachers]
   );
 
   /**

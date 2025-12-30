@@ -173,8 +173,8 @@ router.post("/register", tenantAuthProvider.register);
  */
 router.post("/analytics", authenticateToken, async (req, res) => {
   try {
-    const { startDate, endDate, tenantId } = req.body;
-
+    const { startDate, endDate } = req.body;
+    tenantId = req.userId;
     if (!startDate || !endDate) {
       return res.status(STATUS.BAD_REQUEST).json({
         message: "Both startDate and endDate are required",
@@ -297,8 +297,8 @@ router.post(
  *       500:
  *         description: Internal server error
  */
-router.get("/:tenantId", authenticateToken, async (req, res) => {
-  const { tenantId } = req.params;
+router.get("/me", authenticateToken, async (req, res) => {
+  const tenantId = req.userId;
   try {
     const tenant = await tenantAuthProvider.getTenantById(tenantId);
     if (!tenant) {
