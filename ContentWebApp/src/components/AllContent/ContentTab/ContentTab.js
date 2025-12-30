@@ -14,6 +14,7 @@ const ContentTab = ({
   paginationInfo,
   isFiltered,
   options,
+  selectedValues,
   onFilterChange,
   onResetFilters,
   onUpdateIVR,
@@ -22,6 +23,7 @@ const ContentTab = ({
   onDelete,
   onLoadMore,
   isUpdatingIVR,
+  multiselectRef,
 }) => {
   const navigate = useNavigate();
 
@@ -55,7 +57,12 @@ const ContentTab = ({
         </div>
       </div>
 
-      <ContentFilters options={options} onFilterChange={onFilterChange} />
+      <ContentFilters
+        options={options}
+        selectedValues={selectedValues}
+        onFilterChange={onFilterChange}
+        multiselectRef={multiselectRef}
+      />
 
       <ContentTable
         content={content}
