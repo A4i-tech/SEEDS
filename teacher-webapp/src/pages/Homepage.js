@@ -21,7 +21,7 @@ function Homepage() {
   // State for save status
   const [saveStatus, setSaveStatus] = React.useState("");
   const location = useLocation();
-  const recvdPhoneNumber = location.state;
+  const recvdPhoneNumber = location.state || localStorage.getItem("phoneNumber");
   // derive a displayable phone number: support either an object {phoneNumber: '...'} or a raw string
   const displayedPhone =
     recvdPhoneNumber && typeof recvdPhoneNumber === "object"
@@ -176,7 +176,7 @@ function Homepage() {
     }
   };
   if (isSubmitted) {
-    return <DetailsPage />;
+    return <DetailsPage onConferenceEnded={() => setIsSubmitted(false)} />;
   }
   return (
     <div className="app-container">

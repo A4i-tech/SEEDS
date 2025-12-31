@@ -15,7 +15,6 @@ import {
 import { AddParticipantModal } from "./components/AddParticipantModal";
 import { AudioContentModal } from "./components/AudioContentModal";
 import { SeekControls } from "./components/SeekControls";
-import App from "./App";
 
 const getPhoneNumber = (user) => user?.phoneNumber;
 if (!getPhoneNumber) {
@@ -24,7 +23,7 @@ if (!getPhoneNumber) {
 const normalizeUser = (user) =>
   user ? { ...user, phoneNumber: getPhoneNumber(user) } : null;
 
-export function DetailsPage() {
+export function DetailsPage({ onConferenceEnded }) {
   const {
     userList,
     confId,
@@ -45,7 +44,6 @@ export function DetailsPage() {
   const [isAudioModalOpen, setIsAudioModalOpen] = useState(false);
   const [seekDirection, setSeekDirection] = useState(null);
   const [audioSelectionError, setAudioSelectionError] = useState(null);
-
   useEffect(() => {
     setUsers(userList);
   }, [userList]);
@@ -226,8 +224,14 @@ export function DetailsPage() {
   const isReconnecting = (phoneNumber) =>
     phoneNumber && reconnectingIds.includes(phoneNumber);
 
+  // Notify parent (Homepage) when conference has sunk so it can switch back to the form
+  useEffect(() => {
+    if (hasSunkConf) {
+      onConferenceEnded?.();
+    }
+  }, [hasSunkConf, onConferenceEnded]);
   if (hasSunkConf) {
-    return <App />;
+    return null;
   }
 
   return (
