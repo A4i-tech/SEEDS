@@ -26,10 +26,11 @@ function Homepage() {
   const navigate = useNavigation();
   const recvdPhoneNumber = location.state;
   // derive a displayable phone number: support either an object {phoneNumber: '...'} or a raw string
+  // fallback to localStorage if location.state is lost (e.g., after page refresh)
   const displayedPhone =
     recvdPhoneNumber && typeof recvdPhoneNumber === "object"
       ? recvdPhoneNumber.phoneNumber || ""
-      : recvdPhoneNumber || "";
+      : recvdPhoneNumber || localStorage.getItem("phoneNumber") || "";
   const {
     selectedStudents,
     setConfId,
