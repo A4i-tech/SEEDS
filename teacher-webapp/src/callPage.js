@@ -16,12 +16,16 @@ import { AddParticipantModal } from "./components/AddParticipantModal";
 import { AudioContentModal } from "./components/AudioContentModal";
 import { SeekControls } from "./components/SeekControls";
 
-const getPhoneNumber = (user) => user?.phoneNumber;
-if (!getPhoneNumber) {
-  throw new Error("getPhoneNumber function is not defined properly");
+// Utility to normalize phone numbers to '91' format (for display)
+function normalizePhone(value) {
+  if (!value) return "";
+  const digitsOnly = String(value).replace(/\D/g, "");
+  if (digitsOnly.length === 12 && digitsOnly.startsWith("91"))
+    return digitsOnly;
+  if (digitsOnly.length === 10) return "91" + digitsOnly;
+  if (digitsOnly.length > 12) return "91" + digitsOnly.slice(-10);
+  return digitsOnly;
 }
-const normalizeUser = (user) =>
-  user ? { ...user, phoneNumber: getPhoneNumber(user) } : null;
 
 export function DetailsPage({ onConferenceEnded }) {
   const {
@@ -30,6 +34,8 @@ export function DetailsPage({ onConferenceEnded }) {
     isConfCallRunning,
     audioContentState,
     conferenceStudents,
+    selectedStudents,
+    selectedTeacher,
   } = useConference();
 
   const [users, setUsers] = useState(userList);
@@ -69,8 +75,19 @@ export function DetailsPage({ onConferenceEnded }) {
     };
   }, []);
 
-  const teacher = normalizeUser(users.find((user) => user.role === "Teacher"));
-  const students = conferenceStudents;
+  // Use live-updated teacher from context for accurate status
+  const teacher = selectedTeacher
+    ? {
+        ...selectedTeacher,
+        phoneNumber: normalizePhone(selectedTeacher.phoneNumber),
+      }
+    : null;
+  // Prefer live-updated selectedStudents (kept in sync via SSE); fall back to initial conferenceStudents
+  const students = (
+    selectedStudents && selectedStudents.length > 0
+      ? selectedStudents
+      : conferenceStudents
+  ).map((s) => (s ? { ...s, phoneNumber: normalizePhone(s.phoneNumber) } : s));
 
   const handleMuteToggle = async (userToUpdate) => {
     setLoadingIds((prev) => [...prev, userToUpdate.phoneNumber]);
@@ -209,7 +226,7 @@ export function DetailsPage({ onConferenceEnded }) {
   // Filter out students who are already in the userList
   const availableStudents = conferenceStudents.filter(
     (student) =>
-      !userList.some((user) => getPhoneNumber(user) === getPhoneNumber(student))
+      !userList.some((user) => user.phoneNumber === student.phoneNumber)
   );
 
   const isLoading = (phoneNumber) =>

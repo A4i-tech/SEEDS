@@ -144,13 +144,13 @@ function Homepage() {
     console.log("Starting conference for:", recvdPhoneNumber.phoneNumber, selectedStudents);
     const teacherObject = {
       name: "Teacher",
-      phoneNumber: recvdPhoneNumber.phoneNumber,
+      phoneNumber: displayedPhone,
       role: "Teacher",
     };
     handleTeacherSelect(teacherObject); // Select the teacher
     try {
       const data = await createConference(
-        `91${recvdPhoneNumber.phoneNumber}`,
+        `91${displayedPhone}`,
         selectedStudents.map((item) => `91${item.phoneNumber}`)
       );
       const conferenceId = data.id;

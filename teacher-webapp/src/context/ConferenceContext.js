@@ -7,6 +7,17 @@ import React, {
 } from "react";
 import { AudioContentState, Participant } from "../state"; // You can import from existing state file
 
+// Utility to normalize phone numbers to '91' format
+function normalizePhone(value) {
+  if (!value) return "";
+  const digitsOnly = String(value).replace(/\D/g, "");
+  if (digitsOnly.length === 12 && digitsOnly.startsWith("91"))
+    return digitsOnly;
+  if (digitsOnly.length === 10) return "91" + digitsOnly;
+  if (digitsOnly.length > 12) return "91" + digitsOnly.slice(-10);
+  return digitsOnly;
+}
+
 const ConferenceContext = createContext();
 
 export const useConference = () => useContext(ConferenceContext);
@@ -48,9 +59,16 @@ export const ConferenceProvider = ({ children }) => {
     setIsConfCallRunning(event.is_running);
     setAudioContentState(new AudioContentState(event.audio_content_state));
 
-    // Check for students transitioning from connected to disconnected
+    // Normalize all participant phone numbers to '91' format
+    const normalizedParticipants = {};
     for (let phoneNumber in event.participants) {
-      const participant = event.participants[phoneNumber];
+      const normPhone = normalizePhone(phoneNumber);
+      normalizedParticipants[normPhone] = event.participants[phoneNumber];
+    }
+
+    // Check for students transitioning from connected to disconnected
+    for (let phoneNumber in normalizedParticipants) {
+      const participant = normalizedParticipants[phoneNumber];
       const previousStatus = previousParticipantStatusRef.current[phoneNumber];
 
       console.log(
@@ -81,17 +99,21 @@ export const ConferenceProvider = ({ children }) => {
 
     // Update previous status tracking
     const newStatusMap = {};
-    for (let phoneNumber in event.participants) {
-      newStatusMap[phoneNumber] = event.participants[phoneNumber].call_status;
+    for (let phoneNumber in normalizedParticipants) {
+      newStatusMap[phoneNumber] =
+        normalizedParticipants[phoneNumber].call_status;
     }
     previousParticipantStatusRef.current = newStatusMap;
 
-    for (let phoneNumber in event.participants) {
+    for (let phoneNumber in normalizedParticipants) {
       const participant = new Participant({
-        ...event.participants[phoneNumber],
+        ...normalizedParticipants[phoneNumber],
       });
 
-      if (selectedTeacher?.phoneNumber === phoneNumber) {
+      if (
+        selectedTeacher?.phoneNumber &&
+        normalizePhone(selectedTeacher.phoneNumber) === phoneNumber
+      ) {
         const newTeacher = new Participant({
           ...selectedTeacher,
           raised_at: participant.raised_at,
@@ -103,13 +125,13 @@ export const ConferenceProvider = ({ children }) => {
       } else {
         setSelectedStudents((prevStudents) => {
           const studentExists = prevStudents.some(
-            (student) => student.phoneNumber === phoneNumber
+            (student) => normalizePhone(student.phoneNumber) === phoneNumber
           );
 
           if (studentExists) {
             // Update the existing student
             return prevStudents.map((student) =>
-              student.phoneNumber === phoneNumber
+              normalizePhone(student.phoneNumber) === phoneNumber
                 ? new Participant({
                     ...student,
                     raised_at: participant.raised_at,
@@ -119,10 +141,8 @@ export const ConferenceProvider = ({ children }) => {
                   })
                 : student
             );
-          } else {
-            // Add the new student
-            return [...prevStudents, participant];
           }
+          return prevStudents;
         });
       }
     }
