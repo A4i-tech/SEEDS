@@ -1,25 +1,27 @@
 import React from "react";
 import { useState, useEffect } from "react";
 import { SEEDS_URL } from "../Constants";
+import { getAuthHeaders } from "../utils/authHelpers";
 
 const StoryDetails = ({ type, story }) => {
-  const [audioSrc, setAudioSrc] = useState('');
-  const [answerAudioSrc, setAnswerAudioSrc] = useState('');
+  const [audioSrc, setAudioSrc] = useState("");
+  const [answerAudioSrc, setAnswerAudioSrc] = useState("");
 
   useEffect(() => {
     const fetchSASUrl = async (url) => {
       try {
-        const response = await fetch(`${SEEDS_URL}/content/sasUrl?url=${encodeURIComponent(url)}`, {
-          method: 'GET',
-          headers: {
-            authToken: 'postman',
-          },
-        });
+        const response = await fetch(
+          `${SEEDS_URL}/content/sasUrl?url=${encodeURIComponent(url)}`,
+          {
+            method: "GET",
+            headers: getAuthHeaders(),
+          }
+        );
         const data = await response.json();
         return data.url;
       } catch (error) {
-        console.error('Error fetching SAS URL:', error);
-        return ''; // Return empty string on error
+        console.error("Error fetching SAS URL:", error);
+        return ""; // Return empty string on error
       }
     };
 
@@ -27,7 +29,7 @@ const StoryDetails = ({ type, story }) => {
     const initialAnswerSrc = `https://seedsblob.blob.core.windows.net/output-container/${story.id}/answer/1.0.wav`;
     let questionSrc = `https://seedsblob.blob.core.windows.net/output-container/${story.id}/question/1.0.wav`;
 
-    if (type === 'Riddle') {
+    if (type === "Riddle") {
       fetchSASUrl(questionSrc).then(setAudioSrc);
       fetchSASUrl(initialAnswerSrc).then(setAnswerAudioSrc);
     } else {

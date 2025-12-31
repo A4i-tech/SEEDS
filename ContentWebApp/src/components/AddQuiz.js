@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { useNavigate } from "react-router-dom";
+import { getAuthHeaders } from "../utils/authHelpers";
 
 const AddQuiz = ({ quiz }) => {
   const navigate = useNavigate();
@@ -104,10 +105,7 @@ const AddQuiz = ({ quiz }) => {
       console.log(JSON.stringify(metadata));
       fetch(`${process.env.REACT_APP_SEEDS_URL}/content/quiz`, {
         method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authToken: "postman", // or your actual token
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify(metadata),
       })
         .then((res) => {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { SEEDS_URL } from "../Constants";
+import { getAuthHeaders } from "../utils/authHelpers";
 
 const pageStyle = {
   minHeight: "100vh",
@@ -154,13 +155,7 @@ const Profile = () => {
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
 
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem("authToken");
-    return {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    };
-  };
+  // ...existing code...
 
   useEffect(() => {
     const token = localStorage.getItem("authToken");
