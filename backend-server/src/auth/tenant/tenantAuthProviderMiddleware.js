@@ -52,12 +52,10 @@ module.exports = {
       return res.status(STATUS.BAD_REQUEST).json({ message: "Invalid email format" });
     }
     if (!validator.isStrongPassword(password, PASSWORD_POLICY)) {
-      return res
-        .status(STATUS.BAD_REQUEST)
-        .json({
-          message:
-            "Password must be at least 8 characters, and include uppercase, lowercase, number, and special character",
-        });
+      return res.status(STATUS.BAD_REQUEST).json({
+        message:
+          "Password must be at least 8 characters, and include uppercase, lowercase, number, and special character",
+      });
     }
     try {
       const existingTenant = await dbAdapter.getTenantByEmail(email);

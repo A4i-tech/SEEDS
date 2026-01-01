@@ -1,5 +1,3 @@
-/* eslint-env node */
-/* global process */
 const fs = require("fs");
 const path = require("path");
 const dotenv = require("dotenv");
