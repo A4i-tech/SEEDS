@@ -71,7 +71,10 @@ async function processQuizData(job) {
             option.url = optionBlobClient.url;
             console.log(`   PROCESSED OPTION INDEX: ${optionIndex} ${option.url}`);
           } catch (optionError) {
-            console.error(`Error processing option ${optionIndex} for question ${questionIndex}:`, optionError);
+            console.error(
+              `Error processing option ${optionIndex} for question ${questionIndex}:`,
+              optionError
+            );
             option.errorMessage = optionError.message || "Unknown option error";
           }
           optionIndex++;

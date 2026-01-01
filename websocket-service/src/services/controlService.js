@@ -40,8 +40,7 @@ function handleControlMessage(controlMessage) {
   const websocketId = controlMessage.websocket_id;
   const type = controlMessage.type;
   const content = controlMessage.message;
-  const serializedContent =
-    typeof content === "string" ? content : JSON.stringify(content);
+  const serializedContent = typeof content === "string" ? content : JSON.stringify(content);
   console.log(
     `Control message received | websocket id: ${websocketId}; type: ${type}; message: ${serializedContent}`
   );
@@ -49,16 +48,12 @@ function handleControlMessage(controlMessage) {
     case MessageType.PLAY_SYSTEM_MESSAGE:
       websocketService
         .playSystemAudioContent(websocketId, content)
-        .catch((error) =>
-          console.error(`Error playing audio for ID ${websocketId}:`, error)
-        );
+        .catch((error) => console.error(`Error playing audio for ID ${websocketId}:`, error));
       break;
     case MessageType.PLAY_AUDIO:
       websocketService
         .playAudioContent(websocketId, content)
-        .catch((error) =>
-          console.error(`Error playing audio for ID ${websocketId}:`, error)
-        );
+        .catch((error) => console.error(`Error playing audio for ID ${websocketId}:`, error));
       break;
     case MessageType.PAUSE_AUDIO:
       websocketService.pauseAudioContent(websocketId);
@@ -72,9 +67,7 @@ function handleControlMessage(controlMessage) {
     case MessageType.SEEK_AUDIO:
       websocketService
         .seekAudioContent(websocketId, content)
-        .catch((error) =>
-          console.error(`Error seeking audio for ID ${websocketId}:`, error)
-        );
+        .catch((error) => console.error(`Error seeking audio for ID ${websocketId}:`, error));
       break;
     case MessageType.DISCONNECT:
       websocketService.closeConnection(websocketId);

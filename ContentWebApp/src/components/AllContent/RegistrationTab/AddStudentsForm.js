@@ -18,21 +18,14 @@ const AddStudentsForm = ({
           <input
             placeholder="Name"
             value={student.name}
-            onChange={(e) =>
-              onSetNewStudentValue(teacher._id, index, "name", e.target.value)
-            }
+            onChange={(e) => onSetNewStudentValue(teacher._id, index, "name", e.target.value)}
             className="add-students-input"
           />
           <input
             placeholder="Phone number"
             value={student.phoneNumber}
             onChange={(e) =>
-              onSetNewStudentValue(
-                teacher._id,
-                index,
-                "phoneNumber",
-                e.target.value
-              )
+              onSetNewStudentValue(teacher._id, index, "phoneNumber", e.target.value)
             }
             className="add-students-input"
           />

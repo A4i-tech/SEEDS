@@ -20,10 +20,7 @@ function App() {
           <Route path="/" element={<Login />}></Route>
           <Route path="/content" element={<AllContent />} />
           <Route path="/content/create" element={<AddContent />} />
-          <Route
-            path="/content/detail/:type/:id"
-            element={<ContentDetails />}
-          />
+          <Route path="/content/detail/:type/:id" element={<ContentDetails />} />
           <Route path="/content/edit/:type/:id" element={<ContentEdit />} />
           <Route path="/ivr" element={<IVR />} />
           <Route path="/viewivr" element={<ViewIVR />} />

@@ -23,10 +23,7 @@ export const exportToCSV = (data, headers, filename) => {
       .map((header) => {
         const value = row[header];
         // Handle values with commas or quotes
-        if (
-          typeof value === "string" &&
-          (value.includes(",") || value.includes('"'))
-        ) {
+        if (typeof value === "string" && (value.includes(",") || value.includes('"'))) {
           return `"${value.replace(/"/g, '""')}"`;
         }
         return value;

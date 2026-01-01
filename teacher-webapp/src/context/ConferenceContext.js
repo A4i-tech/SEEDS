@@ -1,10 +1,4 @@
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useRef,
-} from "react";
+import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import { AudioContentState, Participant } from "../state"; // You can import from existing state file
 
 const ConferenceContext = createContext();
@@ -13,9 +7,7 @@ export const useConference = () => useContext(ConferenceContext);
 
 export const ConferenceProvider = ({ children }) => {
   const [isConfCallRunning, setIsConfCallRunning] = useState(false);
-  const [audioContentState, setAudioContentState] = useState(
-    new AudioContentState()
-  );
+  const [audioContentState, setAudioContentState] = useState(new AudioContentState());
   const [selectedTeacher, setSelectedTeacher] = useState(null);
   const [selectedStudents, setSelectedStudents] = useState([]);
   const [userList, setUserList] = useState([]);
@@ -31,9 +23,7 @@ export const ConferenceProvider = ({ children }) => {
   }, [selectedTeacher, selectedStudents]);
 
   const handleTeacherSelect = (teacher) => {
-    setSelectedTeacher((prev) =>
-      prev?.phoneNumber === teacher.phoneNumber ? null : teacher
-    );
+    setSelectedTeacher((prev) => (prev?.phoneNumber === teacher.phoneNumber ? null : teacher));
   };
 
   const handleStudentToggle = (student) => {
@@ -102,9 +92,7 @@ export const ConferenceProvider = ({ children }) => {
         setSelectedTeacher(newTeacher);
       } else {
         setSelectedStudents((prevStudents) => {
-          const studentExists = prevStudents.some(
-            (student) => student.phoneNumber === phoneNumber
-          );
+          const studentExists = prevStudents.some((student) => student.phoneNumber === phoneNumber);
 
           if (studentExists) {
             // Update the existing student

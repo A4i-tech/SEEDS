@@ -46,10 +46,7 @@ async function playAudioContent(id, blobUrl) {
     if (!state.currentAudioType || state.currentAudioType === "audioContent") {
       state.currentAudioType = "audioContent";
       const { containerName, blobName } = parseBlobUrl(blobUrl);
-      const blobData = await azureBlobService.getBlobData(
-        containerName,
-        blobName
-      );
+      const blobData = await azureBlobService.getBlobData(containerName, blobName);
       state.audioContentState.blobData = blobData;
 
       sendPlaybackStatus(id, PlaybackStatus.PLAYING);
@@ -86,15 +83,11 @@ async function playSystemAudioContent(id, blobUrl) {
 
     // Enqueue system audio content
     state.systemAudioContentQueue.push({ blobUrl });
-    console.log(
-      `System audio content queued for ID: ${id}, Blob URL: ${blobUrl}`
-    );
+    console.log(`System audio content queued for ID: ${id}, Blob URL: ${blobUrl}`);
 
     if (state.currentAudioType === "systemAudioContent") {
       // Do nothing; it will play after the current system audio content
-      console.log(
-        `System audio content already playing for ID: ${id}, new content will be queued`
-      );
+      console.log(`System audio content already playing for ID: ${id}, new content will be queued`);
     } else {
       // Pause audio content if playing
       if (
@@ -104,9 +97,7 @@ async function playSystemAudioContent(id, blobUrl) {
       ) {
         state.audioContentState.playing = false;
         sendPlaybackStatus(id, PlaybackStatus.PAUSED);
-        console.log(
-          `Audio content playback paused for ID: ${id} to play system audio content`
-        );
+        console.log(`Audio content playback paused for ID: ${id} to play system audio content`);
       }
 
       // Set currentAudioType to 'systemAudioContent' and start playing next system audio content
@@ -134,9 +125,7 @@ async function playNextSystemAudioContent(ws, id, state) {
 
   const nextSystemAudioContent = state.systemAudioContentQueue.shift();
   const { blobUrl } = nextSystemAudioContent;
-  console.log(
-    `Starting system audio content playback for ID: ${id}, Blob URL: ${blobUrl}`
-  );
+  console.log(`Starting system audio content playback for ID: ${id}, Blob URL: ${blobUrl}`);
 
   const { containerName, blobName } = parseBlobUrl(blobUrl);
   const blobData = await azureBlobService.getBlobData(containerName, blobName);
@@ -216,10 +205,7 @@ function sendSystemAudioContentChunks(ws, id, blobData, state) {
 
   function sendNextChunk() {
     // Check if WebSocket is open and currentAudioType is 'systemAudioContent'
-    if (
-      ws.readyState !== ws.OPEN ||
-      state.currentAudioType !== "systemAudioContent"
-    ) {
+    if (ws.readyState !== ws.OPEN || state.currentAudioType !== "systemAudioContent") {
       // Stop sending if overridden or WebSocket closed
       console.log(`Stopping system audio content streaming for ID: ${id}`);
       return;
@@ -292,9 +278,7 @@ function resumeAudioContent(id) {
     (state.systemAudioContentQueue && state.systemAudioContentQueue.length > 0)
   ) {
     // Ignore resume request; system audio content is playing or queued
-    console.log(
-      `Resume request ignored for ID: ${id}; system audio content is playing or queued`
-    );
+    console.log(`Resume request ignored for ID: ${id}; system audio content is playing or queued`);
     return;
   }
 
@@ -306,13 +290,7 @@ function resumeAudioContent(id) {
     state.audioContentState.playing = true;
     sendPlaybackStatus(id, PlaybackStatus.PLAYING);
     console.log(`Resuming audio content playback for ID: ${id}`);
-    sendAudioContentChunks(
-      ws,
-      id,
-      state.audioContentState.blobData,
-      state,
-      currentPlaybackId
-    );
+    sendAudioContentChunks(ws, id, state.audioContentState.blobData, state, currentPlaybackId);
   } else {
     throw new Error("No audio content data to resume");
   }
@@ -463,10 +441,7 @@ function sendReconnectionMessage(id) {
 }
 
 function extractDeltaSeconds(payload) {
-  if (
-    !payload ||
-    (payload.deltaSeconds ?? payload.delta_seconds) === undefined
-  ) {
+  if (!payload || (payload.deltaSeconds ?? payload.delta_seconds) === undefined) {
     throw new Error("Seek payload must include deltaSeconds");
   }
   const delta = Number(payload.deltaSeconds ?? payload.delta_seconds);

@@ -1,11 +1,6 @@
 import { useCallback, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import {
-  getAuthHeaders,
-  isAuthenticated,
-  getTenantInfo,
-  clearAuth,
-} from "../utils/authHelpers";
+import { getAuthHeaders, isAuthenticated, getTenantInfo, clearAuth } from "../utils/authHelpers";
 
 export const useAuth = () => {
   const navigate = useNavigate();

@@ -149,20 +149,14 @@ const Login = () => {
       <div style={cardStyle}>
         <header style={headerStyle}>
           <h1 style={titleStyle}>SEEDS</h1>
-          <p style={descriptionStyle}>
-            Educational App for Visually Impaired Students
-          </p>
+          <p style={descriptionStyle}>Educational App for Visually Impaired Students</p>
         </header>
 
         <div style={tabsStyle}>
           <button type="button" style={tabButtonStyle(true)}>
             Login
           </button>
-          <button
-            type="button"
-            style={tabButtonStyle(false)}
-            onClick={() => navigate("/register")}
-          >
+          <button type="button" style={tabButtonStyle(false)} onClick={() => navigate("/register")}>
             Sign Up
           </button>
         </div>

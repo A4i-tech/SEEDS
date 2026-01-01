@@ -22,9 +22,7 @@ export const AudioSelectionModal = ({ open, onClose, onConfirm }) => {
 
       try {
         const response = await fetchAudioContent();
-        const content = Array.isArray(response)
-          ? response
-          : response?.content ?? [];
+        const content = Array.isArray(response) ? response : (response?.content ?? []);
 
         if (isActive) {
           setTracks(content);
@@ -74,9 +72,7 @@ export const AudioSelectionModal = ({ open, onClose, onConfirm }) => {
         <h2>Select Audio</h2>
         {isLoading && <p>Loading tracks...</p>}
         {error && <p className="error-text">{error}</p>}
-        {!isLoading && !error && tracks.length === 0 && (
-          <p>No audio tracks available.</p>
-        )}
+        {!isLoading && !error && tracks.length === 0 && <p>No audio tracks available.</p>}
 
         {!isLoading && !error && tracks.length > 0 && (
           <ul className="track-list">
@@ -92,12 +88,8 @@ export const AudioSelectionModal = ({ open, onClose, onConfirm }) => {
                       checked={selectedTrackId === trackId}
                       onChange={() => setSelectedTrackId(trackId)}
                     />
-                    <span className="track-name">
-                      {track?.name || track?.title || "Untitled"}
-                    </span>
-                    {track?.duration && (
-                      <span className="track-duration">{track.duration}</span>
-                    )}
+                    <span className="track-name">{track?.name || track?.title || "Untitled"}</span>
+                    {track?.duration && <span className="track-duration">{track.duration}</span>}
                   </label>
                 </li>
               );
@@ -106,10 +98,7 @@ export const AudioSelectionModal = ({ open, onClose, onConfirm }) => {
         )}
 
         <div className="modal-actions">
-          <button
-            onClick={handleConfirm}
-            disabled={!selectedTrack || isLoading || !!error}
-          >
+          <button onClick={handleConfirm} disabled={!selectedTrack || isLoading || !!error}>
             Play Selected
           </button>
           <button onClick={onClose}>Cancel</button>

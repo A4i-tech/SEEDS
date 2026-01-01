@@ -33,11 +33,7 @@ const AllContent = () => {
     setIsFiltered,
   } = useContent();
 
-  const { options, handleFilterChange } = useContentFilters(
-    allContent,
-    setContent,
-    setIsFiltered
-  );
+  const { options, handleFilterChange } = useContentFilters(allContent, setContent, setIsFiltered);
 
   const {
     teachers,
@@ -104,17 +100,13 @@ const AllContent = () => {
           onLogout={logout}
         />
 
-        {updateIVRStatus && (
-          <div className="status-message">{updateIVRStatus}</div>
-        )}
+        {updateIVRStatus && <div className="status-message">{updateIVRStatus}</div>}
 
         {activeTab !== "registration" && activeTab !== "analytics" && (
           <div className="tabs-container">
             <button
               type="button"
-              className={`tab-button ${
-                activeTab === "content" ? "active" : ""
-              }`}
+              className={`tab-button ${activeTab === "content" ? "active" : ""}`}
               onClick={() => setActiveTab("content")}
             >
               Audio Content
