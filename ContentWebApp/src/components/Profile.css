@@ -1,0 +1,101 @@
+.profile-page {
+  background-color: #f4f6f8;
+}
+
+.profile-container {
+  gap: 16px;
+}
+
+.profile-toolbar {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.profile-fields,
+.profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.profile-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.profile-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.profile-input {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  color: #0f172a;
+  background-color: #ffffff;
+}
+
+.profile-input-disabled {
+  background-color: #f8fafc;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.profile-error {
+  font-size: 13px;
+  color: #ef4444;
+}
+
+.profile-success {
+  font-size: 13px;
+  color: #16a34a;
+}
+
+.profile-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.loading-card {
+  text-align: center;
+  color: #64748b;
+  padding: 32px 16px;
+}
+
+@media (min-width: 768px) {
+  .profile-container {
+    gap: 20px;
+  }
+
+  .profile-grid {
+    gap: 20px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .profile-container {
+    gap: 24px;
+  }
+
+  .profile-grid {
+    gap: 24px;
+  }
+}
