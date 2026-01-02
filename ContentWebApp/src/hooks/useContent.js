@@ -44,12 +44,10 @@ export const useContent = () => {
    * Load initial content
    */
   useEffect(() => {
-    const ac = new AbortController();
-
     const loadInitialContent = async () => {
       setIsLoading(true);
       try {
-        const { data, pagination } = await fetchContent(null, ac.signal);
+        const { data, pagination } = await fetchContent(null);
         setAllContent(data);
         setContent(data);
         setPaginationInfo({
@@ -68,7 +66,7 @@ export const useContent = () => {
     };
 
     loadInitialContent();
-    return () => ac.abort();
+    return undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
