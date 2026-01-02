@@ -12,7 +12,11 @@ on:
 jobs:
   aggregate-coverage:
     runs-on: ubuntu-latest
-    if: github.event.workflow_run.conclusion == 'success'
+    if: github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_call' || github.event_name == 'workflow_dispatch'
+    outputs:
+      overall_coverage: ${{ steps.aggregate.outputs.overall_coverage }}
+      services_tested: ${{ steps.aggregate.outputs.services_tested }}
+      total_services: ${{ steps.aggregate.outputs.total_services }}
     permissions:
       pull-requests: write
       actions: read
@@ -26,6 +30,18 @@ jobs:
         continue-on-error: true
         with:
           path: coverage-artifacts
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: List downloaded artifacts
+        run: |
+          echo "Checking for coverage artifacts..."
+          if [ -d "coverage-artifacts" ]; then
+            echo "Artifacts directory exists. Contents:"
+            ls -la coverage-artifacts/ || echo "No artifacts found"
+          else
+            echo "⚠️ No coverage artifacts directory found"
+            echo "This is expected if running manually without previous workflow runs"
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -107,7 +123,14 @@ jobs:
                       print(f"{service}: {coverage['lines']}%")
 
           # Calculate overall average
-          overall_coverage = round(total_lines / total_services, 1) if total_services > 0 else 0
+          if total_services == 0:
+              print("⚠️ WARNING: No coverage artifacts found!")
+              print("This workflow needs coverage artifacts from service workflows.")
+              print("It should run after deploy workflows complete, or artifacts must exist from previous runs.")
+              overall_coverage = 0
+          else:
+              overall_coverage = round(total_lines / total_services, 1)
+              print(f"✅ Calculated overall coverage from {total_services} service(s)")
 
           # Generate markdown report
           report = "## 📊 Test Coverage Report\n\n"
@@ -145,9 +168,22 @@ jobs:
           with open('coverage_report.md', 'w') as f:
               f.write(report)
 
-          print(f"::set-output name=overall_coverage::{overall_coverage}")
-          print(f"::set-output name=services_tested::{total_services}")
-          print(f"::set-output name=total_services::{len(services)}")
+          # Write outputs to GITHUB_OUTPUT file
+          output_file = os.environ.get('GITHUB_OUTPUT')
+          if output_file:
+              with open(output_file, 'a') as f:
+                  f.write(f"overall_coverage={overall_coverage}\n")
+                  f.write(f"services_tested={total_services}\n")
+                  f.write(f"total_services={len(services)}\n")
+          else:
+              # Fallback: print to stdout for debugging
+              print(f"::notice::overall_coverage={overall_coverage}")
+              print(f"::notice::services_tested={total_services}")
+              print(f"::notice::total_services={len(services)}")
+          
+          print(f"Overall Coverage: {overall_coverage}%")
+          print(f"Services Tested: {total_services}")
+          print(f"Total Services: {len(services)}")
           EOF
 
           python aggregate_coverage.py
