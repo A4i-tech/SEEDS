@@ -236,14 +236,10 @@ router.post("/analytics", authenticateToken, async (req, res) => {
  *           schema:
  *             type: object
  *             properties:
- *               tenantId:
- *                 type: string
- *                 description: Tenant identifier
  *               newPassword:
  *                 type: string
  *                 description: New password (must meet policy)
  *             required:
- *               - tenantId
  *               - newPassword
  *     responses:
  *       200:
@@ -263,19 +259,12 @@ router.post(
 
 /**
  * @swagger
- * /tenant/{tenantId}:
+ * /tenant/me:
  *   get:
  *     summary: Get tenant details by ID
  *     tags: [Tenant]
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: tenantId
- *         required: true
- *         schema:
- *           type: string
- *         description: Tenant identifier
  *     responses:
  *       200:
  *         description: Tenant details retrieved successfully

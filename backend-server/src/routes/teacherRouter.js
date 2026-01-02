@@ -153,7 +153,7 @@ router.post("/login", teacherAuthProvider.login);
  *       401:
  *         description: Unauthorized - invalid or missing token
  */
-router.post("/register", teacherAuthProvider.register);
+router.post("/register", authenticateToken, teacherAuthProvider.register);
 
 /**
  * @swagger
