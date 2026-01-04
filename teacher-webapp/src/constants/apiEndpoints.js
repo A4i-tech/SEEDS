@@ -14,10 +14,8 @@ export const API_ENDPOINTS = {
     START: (confId) => `${CONF_BASE}/start/${confId}`,
     END: (confId) => `${CONF_BASE}/end/${confId}`,
     SINK: (confId) => `${CONF_BASE}/sink/${confId}`,
-    MUTE: (confId, phone) =>
-      `${CONF_BASE}/muteparticipant/${confId}?phone_number=${phone}`,
-    UNMUTE: (confId, phone) =>
-      `${CONF_BASE}/unmuteparticipant/${confId}?phone_number=${phone}`,
+    MUTE: (confId, phone) => `${CONF_BASE}/muteparticipant/${confId}?phone_number=${phone}`,
+    UNMUTE: (confId, phone) => `${CONF_BASE}/unmuteparticipant/${confId}?phone_number=${phone}`,
     PLAY_AUDIO: (confId, url) => `${CONF_BASE}/playaudio/${confId}?url=${url}`,
     PAUSE_AUDIO: (confId) => `${CONF_BASE}/pauseaudio/${confId}`,
     RESUME_AUDIO: (confId) => `${CONF_BASE}/resumeaudio/${confId}`,

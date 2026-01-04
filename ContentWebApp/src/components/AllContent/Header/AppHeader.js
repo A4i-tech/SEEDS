@@ -35,9 +35,7 @@ const AppHeader = ({ activeTab, onTabChange, currentUser, onLogout }) => {
             Content
           </button>
           <button
-            className={`nav-link ${
-              activeTab === "registration" ? "active" : ""
-            }`}
+            className={`nav-link ${activeTab === "registration" ? "active" : ""}`}
             onClick={() => onTabChange("registration")}
           >
             Registration
@@ -51,20 +49,12 @@ const AppHeader = ({ activeTab, onTabChange, currentUser, onLogout }) => {
         </div>
       </div>
       <div className="user-dropdown-container">
-        <div
-          className="user-info-wrapper"
-          onClick={() => setShowUserDropdown(!showUserDropdown)}
-        >
+        <div className="user-info-wrapper" onClick={() => setShowUserDropdown(!showUserDropdown)}>
           <span className="welcome-text">Welcome, {currentUser}</span>
-          <div className="user-avatar">
-            {currentUser.substring(0, 2).toUpperCase()}
-          </div>
+          <div className="user-avatar">{currentUser.substring(0, 2).toUpperCase()}</div>
         </div>
         {showUserDropdown && (
-          <UserDropdown
-            onProfileClick={handleProfileClick}
-            onLogoutClick={handleLogoutClick}
-          />
+          <UserDropdown onProfileClick={handleProfileClick} onLogoutClick={handleLogoutClick} />
         )}
       </div>
     </div>

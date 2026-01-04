@@ -34,10 +34,13 @@ const router = express.Router();
  *       400:
  *         description: Invalid log data provided
  */
-router.post('/', tryCatchWrapper( async (req, res) => {
+router.post(
+  "/",
+  tryCatchWrapper(async (req, res) => {
     await Log.insertMany(req.body);
     return res.sendStatus(200);
-}))
+  })
+);
 
 /**
  * @swagger
@@ -66,8 +69,11 @@ router.post('/', tryCatchWrapper( async (req, res) => {
  *       404:
  *         description: No logs found for the specified user
  */
-router.get("/:userId", tryCatchWrapper(async (req, res) => {
+router.get(
+  "/:userId",
+  tryCatchWrapper(async (req, res) => {
     return res.json(await Log.getLogsByUserId(req.params.userId));
-}))
+  })
+);
 
 module.exports = router;

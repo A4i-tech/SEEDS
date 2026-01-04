@@ -54,10 +54,7 @@ const ContentEdit = () => {
     console.log(event.target.value);
   };
 
-  if (
-    content &&
-    !content.isProcessed
-  ) {
+  if (content && !content.isProcessed) {
     return (
       <>
         <div style={{ margin: "20px" }}>
@@ -72,9 +69,7 @@ const ContentEdit = () => {
         <div style={{ margin: "20px" }}>
           <h3>Edit Content</h3>
           {content &&
-            (experience === "Story" ||
-              experience === "Poem" ||
-              experience === "Song") && (
+            (experience === "Story" || experience === "Poem" || experience === "Song") && (
               <form>
                 <label>
                   Experience:
@@ -92,11 +87,9 @@ const ContentEdit = () => {
               </form>
             )}
           {content && experience === "quiz" && content.isProcessed && <AddQuiz quiz={content} />}
-          {content &&
-            (experience !== "quiz") &&
-            content.isProcessed && (
-              <AddStory content={content} contentType={experience} />
-            )}
+          {content && experience !== "quiz" && content.isProcessed && (
+            <AddStory content={content} contentType={experience} />
+          )}
           <div />
         </div>
       </>

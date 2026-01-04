@@ -15,27 +15,22 @@ import {
 import { AddParticipantModal } from "./components/AddParticipantModal";
 import { AudioContentModal } from "./components/AudioContentModal";
 import { SeekControls } from "./components/SeekControls";
+import App from "./App";
 
-// Utility to normalize phone numbers to '91' format (for display)
-function normalizePhone(value) {
-  if (!value) return "";
-  const digitsOnly = String(value).replace(/\D/g, "");
-  if (digitsOnly.length === 12 && digitsOnly.startsWith("91"))
-    return digitsOnly;
-  if (digitsOnly.length === 10) return "91" + digitsOnly;
-  if (digitsOnly.length > 12) return "91" + digitsOnly.slice(-10);
-  return digitsOnly;
+const getPhoneNumber = (user) => user?.phoneNumber;
+if (!getPhoneNumber) {
+  throw new Error("getPhoneNumber function is not defined properly");
 }
+const normalizeUser = (user) =>
+  user ? { ...user, phoneNumber: getPhoneNumber(user) } : null;
 
-export function DetailsPage({ onConferenceEnded }) {
+export function DetailsPage() {
   const {
     userList,
     confId,
     isConfCallRunning,
     audioContentState,
     conferenceStudents,
-    selectedStudents,
-    selectedTeacher,
   } = useConference();
 
   const [users, setUsers] = useState(userList);
@@ -98,9 +93,7 @@ export function DetailsPage({ onConferenceEnded }) {
       await muteParticipant(confId, userToUpdate.phoneNumber);
     }
 
-    setLoadingIds((prev) =>
-      prev.filter((id) => id !== userToUpdate.phoneNumber)
-    );
+    setLoadingIds((prev) => prev.filter((id) => id !== userToUpdate.phoneNumber));
   };
 
   const handleStartCall = async () => {
@@ -226,20 +219,17 @@ export function DetailsPage({ onConferenceEnded }) {
   // Filter out students who are already in the userList
   const availableStudents = conferenceStudents.filter(
     (student) =>
-      !userList.some((user) => user.phoneNumber === student.phoneNumber)
+      !userList.some((user) => getPhoneNumber(user) === getPhoneNumber(student))
   );
 
-  const isLoading = (phoneNumber) =>
-    phoneNumber && loadingIds.includes(phoneNumber);
+  const isLoading = (phoneNumber) => phoneNumber && loadingIds.includes(phoneNumber);
   const isPlayingAudio = audioContentState.status === "Playing";
   const isPausedAudio = audioContentState.status === "Paused";
   const isStartingAudio = audioContentState.status === "Starting";
   const canSeekAudio = isConfCallRunning && !isStartingAudio && Boolean(confId);
 
-  const canReconnect = (user) =>
-    user?.call_status === "disconnected" && isConfCallRunning;
-  const isReconnecting = (phoneNumber) =>
-    phoneNumber && reconnectingIds.includes(phoneNumber);
+  const canReconnect = (user) => user?.call_status === "disconnected" && isConfCallRunning;
+  const isReconnecting = (phoneNumber) => phoneNumber && reconnectingIds.includes(phoneNumber);
 
   // Notify parent (Homepage) when conference has sunk so it can switch back to the form
   useEffect(() => {
@@ -291,9 +281,7 @@ export function DetailsPage({ onConferenceEnded }) {
                         onClick={() => handleReconnect(teacher.phoneNumber)}
                         className="mute-button"
                       >
-                        {isReconnecting(teacher.phoneNumber)
-                          ? "Loading..."
-                          : "Reconnect"}
+                        {isReconnecting(teacher.phoneNumber) ? "Loading..." : "Reconnect"}
                       </button>
                     </span>
                   </div>
@@ -303,16 +291,15 @@ export function DetailsPage({ onConferenceEnded }) {
                     <button
                       onClick={() => handleMuteToggle(teacher)}
                       disabled={
-                        isLoading(teacher.phoneNumber) ||
-                        teacher.call_status !== "connected"
+                        isLoading(teacher.phoneNumber) || teacher.call_status !== "connected"
                       }
                       className="mute-button"
                     >
                       {isLoading(teacher.phoneNumber)
                         ? "Loading..."
                         : teacher.is_muted
-                        ? "Unmute"
-                        : "Mute"}
+                          ? "Unmute"
+                          : "Mute"}
                     </button>
                   </span>
                 </div>
@@ -349,9 +336,7 @@ export function DetailsPage({ onConferenceEnded }) {
                           onClick={() => handleReconnect(student.phoneNumber)}
                           className="mute-button"
                         >
-                          {isReconnecting(student.phoneNumber)
-                            ? "Loading..."
-                            : "Reconnect"}
+                          {isReconnecting(student.phoneNumber) ? "Loading..." : "Reconnect"}
                         </button>
                       </span>
                     </div>
@@ -361,26 +346,21 @@ export function DetailsPage({ onConferenceEnded }) {
                       <button
                         onClick={() => handleMuteToggle(student)}
                         disabled={
-                          isLoading(student.phoneNumber) ||
-                          student.call_status !== "connected"
+                          isLoading(student.phoneNumber) || student.call_status !== "connected"
                         }
                         className="mute-button"
                       >
                         {isLoading(student.phoneNumber)
                           ? "Loading..."
                           : student.is_muted
-                          ? "Unmute"
-                          : "Mute"}
+                            ? "Unmute"
+                            : "Mute"}
                       </button>
                     </span>
                   </div>
                   {student.is_raised && (
                     <div className="list-item-content">
-                      <span
-                        className="raised-hand-icon"
-                        role="img"
-                        aria-label="raised hand"
-                      >
+                      <span className="raised-hand-icon" role="img" aria-label="raised hand">
                         ✋
                       </span>
                     </div>
@@ -398,11 +378,7 @@ export function DetailsPage({ onConferenceEnded }) {
           onClick={isConfCallRunning ? handleEndCall : handleStartCall}
           disabled={isLoadingCall}
         >
-          {isLoadingCall
-            ? "Loading..."
-            : isConfCallRunning
-            ? "End Call"
-            : "Start Call"}
+          {isLoadingCall ? "Loading..." : isConfCallRunning ? "End Call" : "Start Call"}
         </button>
 
         <button
@@ -413,11 +389,7 @@ export function DetailsPage({ onConferenceEnded }) {
           {isSinkingConf ? "Sinking..." : "Sink Conference"}
         </button>
 
-        <button
-          className="action-button"
-          onClick={handleOpenModal}
-          disabled={!isConfCallRunning}
-        >
+        <button className="action-button" onClick={handleOpenModal} disabled={!isConfCallRunning}>
           Add Participant
         </button>
         <button
@@ -428,16 +400,14 @@ export function DetailsPage({ onConferenceEnded }) {
           {isLoadingMusic
             ? "Loading..."
             : isStartingAudio
-            ? "Starting..."
-            : isPlayingAudio
-            ? "Pause Music"
-            : isPausedAudio
-            ? "Resume Music"
-            : "Play Music"}
+              ? "Starting..."
+              : isPlayingAudio
+                ? "Pause Music"
+                : isPausedAudio
+                  ? "Resume Music"
+                  : "Play Music"}
         </button>
-        {audioSelectionError && (
-          <span className="error-text">{audioSelectionError}</span>
-        )}
+        {audioSelectionError && <span className="error-text">{audioSelectionError}</span>}
         <SeekControls
           disabled={!canSeekAudio}
           seekingDirection={seekDirection}

@@ -13,9 +13,7 @@ const TeachersList = ({ teachers, selectedTeacherId, onSelectTeacher }) => {
               type="button"
               onClick={() => onSelectTeacher(teacher._id)}
               className={`teacher-button ${
-                String(teacher._id) === String(selectedTeacherId)
-                  ? "selected"
-                  : ""
+                String(teacher._id) === String(selectedTeacherId) ? "selected" : ""
               }`}
             >
               {teacher.phoneNumber}

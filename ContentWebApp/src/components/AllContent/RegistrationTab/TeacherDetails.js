@@ -17,9 +17,7 @@ const TeacherDetails = ({
   if (!teacher) {
     return (
       <div className="teacher-details-pane">
-        <div className="placeholder-text">
-          Select a teacher to view details.
-        </div>
+        <div className="placeholder-text">Select a teacher to view details.</div>
       </div>
     );
   }
@@ -33,9 +31,7 @@ const TeacherDetails = ({
 
       <StudentsTable
         students={teacher.students || []}
-        onRemoveStudent={(studentPhone) =>
-          onRemoveStudent(teacher, studentPhone)
-        }
+        onRemoveStudent={(studentPhone) => onRemoveStudent(teacher, studentPhone)}
       />
 
       <AddStudentsForm

@@ -119,9 +119,7 @@ function Login() {
           onChange={(e) => setSchoolName(e.target.value)}
           style={inputStyle}
         >
-          <option value="">
-            {loadingSchools ? "Loading Schools..." : "Select School"}
-          </option>
+          <option value="">{loadingSchools ? "Loading Schools..." : "Select School"}</option>
           {schools.map((sch, idx) => {
             const value = sch.id;
             const label = sch.tenantName;

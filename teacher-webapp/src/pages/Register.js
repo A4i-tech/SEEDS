@@ -103,9 +103,7 @@ const Register = () => {
           onChange={(e) => setSchoolName(e.target.value)}
           style={inputStyle}
         >
-          <option value="">
-            {loadingSchools ? "Loading Schools" : "Select School"}
-          </option>
+          <option value="">{loadingSchools ? "Loading Schools" : "Select School"}</option>
           {school.map((sch, idx) => {
             const value = sch.id;
             const label = sch.tenantName;

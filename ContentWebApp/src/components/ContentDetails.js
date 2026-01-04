@@ -25,15 +25,12 @@ const ContentDetails = () => {
         data = await placeRes.json();
         console.log("ContentDetailsData", data);
       } else {
-        const seedsRes = await fetch(
-          `${SEEDS_URL}/content/${id}`,
-          {
-            method: "GET",
-            headers: {
-              authToken: "postman",
-            },
-          }
-        );
+        const seedsRes = await fetch(`${SEEDS_URL}/content/${id}`, {
+          method: "GET",
+          headers: {
+            authToken: "postman",
+          },
+        });
         data = await seedsRes.json();
         console.log("ContentDetailsData1", data);
       }
@@ -67,9 +64,9 @@ const ContentDetails = () => {
         {content && content.isProcessed && content.type === "quiz" && (
           <QuizDetails quiz={content} />
         )}
-        {content &&
-          content.isProcessed &&
-          (content.type !== "quiz") && <StoryDetails type={content.type} story={content} />}
+        {content && content.isProcessed && content.type !== "quiz" && (
+          <StoryDetails type={content.type} story={content} />
+        )}
       </div>
     );
   }
