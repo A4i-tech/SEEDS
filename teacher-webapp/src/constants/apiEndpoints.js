@@ -5,6 +5,7 @@ const CONF_BASE = `${APP_CONFIG.CONF_SERVER_BASE_URI}/conference`;
 export const API_ENDPOINTS = {
   LOGIN: `${BASE_URL}/teacher/login`,
   REGISTER: `${BASE_URL}/teacher/register`,
+  GET_CURRENT_USER: `${BASE_URL}/teacher/me`,
   GET_TEACHER_STUDENTS: `${BASE_URL}/v1/teacher/students`,
   ADD_TEACHER_STUDENTS: `${BASE_URL}/v1/teacher/add-students`,
   GET_SCHOOLS: `${BASE_URL}/tenant/names`,

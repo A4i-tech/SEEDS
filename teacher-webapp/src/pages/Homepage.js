@@ -8,6 +8,7 @@ import { SSE_ENDPOINTS } from "../constants/sseEndpoints";
 import { API_ENDPOINTS } from "../constants/apiEndpoints";
 import { useLocation } from "react-router-dom";
 import { StudentList } from "../components/StudentList";
+import { useAuth } from "../hooks/useAuth";
 import axios from "axios";
 
 function Homepage() {
@@ -21,12 +22,10 @@ function Homepage() {
   // State for save status
   const [saveStatus, setSaveStatus] = React.useState("");
   const location = useLocation();
-  const recvdPhoneNumber = location.state || localStorage.getItem("phoneNumber");
-  // derive a displayable phone number: support either an object {phoneNumber: '...'} or a raw string
-  const displayedPhone =
-    recvdPhoneNumber && typeof recvdPhoneNumber === "object"
-      ? recvdPhoneNumber.phoneNumber || ""
-      : recvdPhoneNumber || "";
+  const navigate = useNavigation();
+  const { getCurrentUser, clearUserCache } = useAuth();
+  const recvdPhoneNumber = location.state;
+  const [displayedPhone, setDisplayedPhone] = React.useState("");
   const {
     selectedStudents,
     setConfId,
@@ -39,6 +38,42 @@ function Homepage() {
   } = useConference();
   // students fetched from server for the authenticated teacher
   const [studentsList, setStudentsList] = React.useState([]);
+
+  // Fetch phone number from location.state or API
+  React.useEffect(() => {
+    let mounted = true;
+    
+    // Priority 1: location.state (from navigation)
+    if (recvdPhoneNumber) {
+      const phone = typeof recvdPhoneNumber === "object" 
+        ? recvdPhoneNumber.phoneNumber || ""
+        : recvdPhoneNumber || "";
+      if (phone) {
+        setDisplayedPhone(phone);
+        return;
+      }
+    }
+
+    // Priority 2: Fetch from API using cached user info
+    getCurrentUser()
+      .then((userInfo) => {
+        if (mounted && userInfo?.phoneNumber) {
+          setDisplayedPhone(userInfo.phoneNumber);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to get user info:", err);
+        // If API fails, redirect to login
+        if (mounted) {
+          clearAuth();
+          navigate.goToLogin();
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [recvdPhoneNumber, getCurrentUser, navigate]);
 
   // fetch students from backend endpoint using axios POST with phoneNumber in body
   React.useEffect(() => {
@@ -72,24 +107,20 @@ function Homepage() {
     return () => {
       mounted = false;
     };
-  }, [displayedPhone]);
+  }, [displayedPhone]); 
 
   // Handler for input changes
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    const digitsOnly = name === "phoneNumber" ? value.replace(/\D/g, "") : value;
+    const digitsOnly =
+      name === "phoneNumber" ? value.replace(/\D/g, "") : value;
     setNewStudent((prev) => ({ ...prev, [name]: digitsOnly }));
   };
 
   // Handler to add student to array
   const handleAddStudent = (e) => {
     e.preventDefault();
-    if (
-      !newStudent.name.trim() ||
-      !newStudent.phoneNumber.trim() ||
-      newStudent.phoneNumber.length !== 10
-    )
-      return;
+    if (!newStudent.name.trim() || !newStudent.phoneNumber.trim() || newStudent.phoneNumber.length !== 10) return;
     setAddedStudents((prev) => [...prev, newStudent]);
     setNewStudent({ name: "", phoneNumber: "" });
   };
@@ -115,9 +146,10 @@ function Homepage() {
       // 2. Append new students (avoid duplicates by phoneNumber)
       const allStudents = [
         ...addedStudents.filter(
-          (ns) => !currentStudents.some((cs) => cs.phoneNumber === ns.phoneNumber)
-        ),
-      ];
+        (ns) =>
+          !currentStudents.some((cs) => cs.phoneNumber === ns.phoneNumber)
+      ),
+];
       // 3. Post combined list
       console.log("Posting students:", allStudents);
       await axios.post(
@@ -144,7 +176,11 @@ function Homepage() {
   const [isSubmitted, setIsSubmitted] = React.useState(false);
   const handleFormSubmit = async () => {
     setLoading(true); // Start loading
-    console.log("Starting conference for:", recvdPhoneNumber.phoneNumber, selectedStudents);
+    console.log(
+      "Starting conference for:",
+      displayedPhone,
+      selectedStudents
+    );
     const teacherObject = {
       name: "Teacher",
       phoneNumber: displayedPhone,
@@ -230,14 +266,22 @@ function Homepage() {
       {/* Save Students Button */}
       <button
         onClick={handleSaveStudents}
-        disabled={!displayedPhone || addedStudents.length === 0 || saveStatus === "saving"}
+        disabled={
+          !displayedPhone ||
+          addedStudents.length === 0 ||
+          saveStatus === "saving"
+        }
         style={{ marginBottom: 16 }}
       >
         {saveStatus === "saving" ? "Saving..." : "Save Students"}
       </button>
-      {saveStatus === "success" && <span style={{ color: "green", marginLeft: 8 }}>Saved!</span>}
+      {saveStatus === "success" && (
+        <span style={{ color: "green", marginLeft: 8 }}>Saved!</span>
+      )}
       {saveStatus === "error" && (
-        <span style={{ color: "red", marginLeft: 8 }}>Error saving students</span>
+        <span style={{ color: "red", marginLeft: 8 }}>
+          Error saving students
+        </span>
       )}
       <div className="list-container">
         <StudentList

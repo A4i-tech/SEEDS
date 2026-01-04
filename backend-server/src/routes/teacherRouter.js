@@ -176,4 +176,47 @@ router.post("/logout", authenticateToken, (req, res) => {
   res.status(STATUS.OK).json({ message: "Logout successful" });
 });
 
+/**
+ * @swagger
+ * /teacher/me:
+ *   get:
+ *     summary: Get current authenticated teacher information
+ *     tags: [Teachers]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Teacher information retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 phoneNumber:
+ *                   type: string
+ *                   description: Teacher's phone number
+ *                   example: "1234567890"
+ *       401:
+ *         description: Unauthorized - invalid or missing token
+ *       404:
+ *         description: Teacher not found
+ *       500:
+ *         description: Internal server error
+ */
+router.get("/me", authenticateToken, async (req, res) => {
+  console.log("Fetching teacher info for ID:", req.userId);
+  try {
+    const teacher = await Teacher.findById(req.userId);
+    if (!teacher) {
+      return res.sendStatus(STATUS.NOT_FOUND);
+    }
+    const teacherData = {
+      phoneNumber: teacher.phoneNumber,
+    };
+    res.status(STATUS.OK).json(teacherData);
+  } catch (error) {
+    res.sendStatus(STATUS.INTERNAL_ERROR);
+  }
+});
+
 module.exports = router;
