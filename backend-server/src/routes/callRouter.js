@@ -7,7 +7,7 @@ const FsmContext = require("../models/FsmContext.js");
 const path = require("path");
 const { tryCatchWrapper, tryCatchWrapperLog } = require(path.join("..", "util.js"));
 
-const axios = require('axios').default;
+const axios = require("axios").default;
 
 /**
  * @swagger
@@ -38,13 +38,16 @@ const router = express.Router();
  *                   description: JWT token for conference calls
  */
 
-router.get("/accessToken", tryCatchWrapper(async (req, res) => {
-    console.log(process.env.IVR_SERVER_URL)
-    console.log("HERE")
-    const response = await axios.get(`${process.env.IVR_SERVER_URL}conference_call/accessToken`)
-    console.log(response.data)
-    return res.json(response.data)
-}))
+router.get(
+  "/accessToken",
+  tryCatchWrapper(async (req, res) => {
+    console.log(process.env.IVR_SERVER_URL);
+    console.log("HERE");
+    const response = await axios.get(`${process.env.IVR_SERVER_URL}conference_call/accessToken`);
+    console.log(response.data);
+    return res.json(response.data);
+  })
+);
 
 /**
  * @swagger
@@ -84,12 +87,15 @@ router.get("/accessToken", tryCatchWrapper(async (req, res) => {
  *                   type: string
  */
 
-router.post('/start', tryCatchWrapperLog(async (req, res) => {
-    console.log("START CALL BOD", req.body)
-    const response = await axios.post(`${process.env.IVR_SERVER_URL}conference_call`, req.body)
-    console.log("START CALL RESPONSE", response.data)
-    return res.json(response.data)
-}))
+router.post(
+  "/start",
+  tryCatchWrapperLog(async (req, res) => {
+    console.log("START CALL BOD", req.body);
+    const response = await axios.post(`${process.env.IVR_SERVER_URL}conference_call`, req.body);
+    console.log("START CALL RESPONSE", response.data);
+    return res.json(response.data);
+  })
+);
 
 /**
  * @swagger
@@ -129,10 +135,15 @@ router.post('/start', tryCatchWrapperLog(async (req, res) => {
  *                         type: string
  */
 
-router.get("/:confId/status", tryCatchWrapper(async (req, res) => {
-    const response = await axios.get(`${process.env.IVR_SERVER_URL}conference_call/${req.params.confId}/status`)
-    return res.json(response.data)
-}))
+router.get(
+  "/:confId/status",
+  tryCatchWrapper(async (req, res) => {
+    const response = await axios.get(
+      `${process.env.IVR_SERVER_URL}conference_call/${req.params.confId}/status`
+    );
+    return res.json(response.data);
+  })
+);
 
 /**
  * @swagger
@@ -157,11 +168,14 @@ router.get("/:confId/status", tryCatchWrapper(async (req, res) => {
  *               $ref: '#/components/schemas/CallLog'
  */
 
-router.post("/logCall", tryCatchWrapper(async(req, res) => {
+router.post(
+  "/logCall",
+  tryCatchWrapper(async (req, res) => {
     const callLog = CallLog(req.body);
-    await callLog.save()
+    await callLog.save();
     return res.json(callLog);
-}))
+  })
+);
 
 /**
  * @swagger
@@ -186,11 +200,14 @@ router.post("/logCall", tryCatchWrapper(async(req, res) => {
  *               $ref: '#/components/schemas/FsmContext'
  */
 
-router.post("/fsmContext", tryCatchWrapper(async(req, res) => {
+router.post(
+  "/fsmContext",
+  tryCatchWrapper(async (req, res) => {
     const fsmContext = FsmContext(req.body);
-    await fsmContext.save()
+    await fsmContext.save();
     return res.json(fsmContext);
-}))
+  })
+);
 
 /**
  * @swagger
@@ -216,11 +233,12 @@ router.post("/fsmContext", tryCatchWrapper(async(req, res) => {
  *               $ref: '#/components/schemas/FsmContext'
  */
 
-router.get("/fsmContext/:contextId", tryCatchWrapper(async (req, res) => {
-    return res.json(
-        await FsmContext.getContextById(req.params.contextId)
-    )
-}))
+router.get(
+  "/fsmContext/:contextId",
+  tryCatchWrapper(async (req, res) => {
+    return res.json(await FsmContext.getContextById(req.params.contextId));
+  })
+);
 
 /**
  * @swagger
@@ -246,10 +264,11 @@ router.get("/fsmContext/:contextId", tryCatchWrapper(async (req, res) => {
  *               $ref: '#/components/schemas/CallLog'
  */
 
-router.get("/logCall/:callId", tryCatchWrapper(async (req, res) => {
-    return res.json(
-        await CallLog.getCallLogById(req.params.callId)
-    );
-}))
+router.get(
+  "/logCall/:callId",
+  tryCatchWrapper(async (req, res) => {
+    return res.json(await CallLog.getCallLogById(req.params.callId));
+  })
+);
 
 module.exports = router;

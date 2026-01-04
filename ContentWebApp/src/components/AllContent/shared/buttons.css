@@ -67,7 +67,9 @@
   color: #ffffff;
   cursor: pointer;
   white-space: nowrap;
-  transition: transform 0.1s ease, opacity 0.2s ease;
+  transition:
+    transform 0.1s ease,
+    opacity 0.2s ease;
   -webkit-tap-highlight-color: transparent;
 }
 

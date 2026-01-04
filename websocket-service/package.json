@@ -5,7 +5,10 @@
   "scripts": {
     "test": "jest test --coverage --no-watch --no-progress",
     "test:watch": "jest --watch",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "lint": "npx eslint src/",
+    "lint:fix": "npx eslint src/ --fix && npx prettier src/ --write",
+    "fix:file": "npx eslint --fix && npx prettier --write"
   },
   "keywords": [],
   "author": "",
@@ -20,6 +23,10 @@
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
     "jest": "^29.7.0"
   },
   "jest": {

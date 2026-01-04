@@ -84,10 +84,7 @@ export const useContent = () => {
     const ac = new AbortController();
 
     try {
-      const { data, pagination } = await fetchContent(
-        paginationInfo.nextCursor,
-        ac.signal
-      );
+      const { data, pagination } = await fetchContent(paginationInfo.nextCursor, ac.signal);
 
       if (!data.length) {
         setPaginationInfo((prev) => ({

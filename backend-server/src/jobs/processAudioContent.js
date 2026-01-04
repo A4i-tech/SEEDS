@@ -97,7 +97,10 @@ async function processNewContent(job) {
     // Process each audio content item.
     for (const audioContentItem of contentDoc.audioContent) {
       const ip_url = audioContentItem.audioUrl;
-      audioContentItem.audioUrl = await generateWAVFileAndUploadToOutputContainer(ip_url, contentDoc.id);
+      audioContentItem.audioUrl = await generateWAVFileAndUploadToOutputContainer(
+        ip_url,
+        contentDoc.id
+      );
     }
 
     if (contentDoc.isPullModel) {

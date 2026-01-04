@@ -1,5 +1,5 @@
-const mongoose = require('mongoose');
-const {dbConnection} = require('./env')
+const mongoose = require("mongoose");
+const { dbConnection } = require("./env");
 
 let connected = false;
 
@@ -8,7 +8,7 @@ async function mongo() {
     return mongoose.connection.db;
   }
   if (!dbConnection) {
-    throw new Error('MongoDB connection string is not defined in environment variables.');
+    throw new Error("MongoDB connection string is not defined in environment variables.");
   }
   await mongoose.connect(dbConnection);
   connected = true;

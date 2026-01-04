@@ -4,28 +4,36 @@ const QuizDetails = ({ quiz }) => {
   console.log(quiz);
   return (
     <>
-    <h2>Quiz</h2>
+      <h2>Quiz</h2>
       <div className="metadataGrid">
         <div>
           <div>Title</div>
-          <p><b>{quiz.title}</b></p>
+          <p>
+            <b>{quiz.title}</b>
+          </p>
         </div>
 
         <div>
           <div>Language</div>
-          <p><b>{quiz.language}</b></p>
+          <p>
+            <b>{quiz.language}</b>
+          </p>
         </div>
 
         <div>
           <label>Positive Marks</label>
           <br />
-          <p className="mintgreen" style={{width:"100px", textAlign: "center"}}>{quiz.positiveMark}</p>
+          <p className="mintgreen" style={{ width: "100px", textAlign: "center" }}>
+            {quiz.positiveMark}
+          </p>
         </div>
 
         <div>
           <label>Negative Marks</label>
           <br />
-          <p className="mintgreen" style={{width:"100px", textAlign: "center"}}>{quiz.negativeMark}</p>
+          <p className="mintgreen" style={{ width: "100px", textAlign: "center" }}>
+            {quiz.negativeMark}
+          </p>
         </div>
       </div>
       {quiz.questions.map((question, index) => {
@@ -34,7 +42,7 @@ const QuizDetails = ({ quiz }) => {
             <div>
               <label>Question {index + 1}</label>
               <br />
-              <p style={{fontWeight: "700"}}>{question}</p>
+              <p style={{ fontWeight: "700" }}>{question}</p>
             </div>
             <div className="optionsDetailsGrid">
               <div>
