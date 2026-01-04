@@ -49,13 +49,11 @@ module.exports = {
         email: tenant.email,
         name: tenant.tenantName,
       });
-      return res
-        .status(STATUS.OK)
-        .json({
-          token,
-          id: tenant._id || tenant.id,
-          tenantName: tenant.tenantName,
-        });
+      return res.status(STATUS.OK).json({
+        token,
+        id: tenant._id || tenant.id,
+        tenantName: tenant.tenantName,
+      });
     } catch (error) {
       console.error("Login error:", error);
       return res
@@ -76,12 +74,10 @@ module.exports = {
         .json({ message: "Invalid email format" });
     }
     if (!validator.isStrongPassword(password, PASSWORD_POLICY)) {
-      return res
-        .status(STATUS.BAD_REQUEST)
-        .json({
-          message:
-            "Password must be at least 8 characters, and include uppercase, lowercase, number, and special character",
-        });
+      return res.status(STATUS.BAD_REQUEST).json({
+        message:
+          "Password must be at least 8 characters, and include uppercase, lowercase, number, and special character",
+      });
     }
     try {
       const existingTenant = await dbAdapter.getTenantByEmail(email);
@@ -114,21 +110,31 @@ module.exports = {
     return res.status(STATUS.OK).json(tenants);
   },
   async changePassword(req, res) {
-    const { newPassword } = req.body;
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword) {
+      return res
+        .status(STATUS.BAD_REQUEST)
+        .json({
+          message: "Current password is required for security verification",
+        });
+    }
+
     if (!newPassword) {
       return res
         .status(STATUS.BAD_REQUEST)
         .json({ message: "New password is required" });
     }
+
     tenantId = req.userId;
+
     if (!validator.isStrongPassword(newPassword, PASSWORD_POLICY)) {
-      return res
-        .status(STATUS.BAD_REQUEST)
-        .json({
-          message:
-            "Password must be at least 8 characters, and include uppercase, lowercase, number, and special character",
-        });
+      return res.status(STATUS.BAD_REQUEST).json({
+        message:
+          "Password must be at least 8 characters, and include uppercase, lowercase, number, and special character",
+      });
     }
+
     try {
       const tenant = await dbAdapter.getTenantById(tenantId);
       if (!tenant) {
@@ -136,11 +142,26 @@ module.exports = {
           .status(STATUS.NOT_FOUND)
           .json({ message: "Tenant not found" });
       }
+
+      // Verify current password
+      const isCurrentPasswordCorrect = await bcrypt.compare(
+        currentPassword,
+        tenant.password,
+      );
+      if (!isCurrentPasswordCorrect) {
+        return res
+          .status(STATUS.UNAUTHORIZED)
+          .json({ message: "Current password is incorrect" });
+      }
+
+      // Check if new password is same as current password
       const isSamePassword = await bcrypt.compare(newPassword, tenant.password);
       if (isSamePassword) {
         return res
           .status(STATUS.BAD_REQUEST)
-          .json({ message: "Password cannot be old password" });
+          .json({
+            message: "New password must be different from current password",
+          });
       }
 
       const hashedPassword = await bcrypt.hash(

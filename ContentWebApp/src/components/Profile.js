@@ -17,6 +17,7 @@ const Profile = () => {
   const [loading, setLoading] = useState(true);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [passwordData, setPasswordData] = useState({
+    currentPassword: "",
     newPassword: "",
     confirmPassword: "",
   });
@@ -27,7 +28,6 @@ const Profile = () => {
   const handleTabChange = (tab) => {
     navigate("/content", { state: { activeTab: tab } });
   };
-
 
   const fetchProfile = useCallback(async () => {
     setLoading(true);
@@ -75,13 +75,23 @@ const Profile = () => {
     setPasswordError("");
     setPasswordSuccess("");
 
+    if (!passwordData.currentPassword) {
+      setPasswordError("Current password is required for security");
+      return;
+    }
+
     if (passwordData.newPassword.length < 6) {
-      setPasswordError("Password must be at least 6 characters");
+      setPasswordError("New password must be at least 6 characters");
       return;
     }
 
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      setPasswordError("Passwords don't match");
+      setPasswordError("New passwords don't match");
+      return;
+    }
+
+    if (passwordData.currentPassword === passwordData.newPassword) {
+      setPasswordError("New password must be different from current password");
       return;
     }
 
@@ -92,17 +102,25 @@ const Profile = () => {
         method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify({
+          currentPassword: passwordData.currentPassword,
           newPassword: passwordData.newPassword,
         }),
       });
 
       if (response.ok) {
         setPasswordSuccess("Password updated successfully!");
-        setPasswordData({ newPassword: "", confirmPassword: "" });
+        setPasswordData({
+          currentPassword: "",
+          newPassword: "",
+          confirmPassword: "",
+        });
         setTimeout(() => setPasswordSuccess(""), 3000);
       } else {
         const errorData = await response.json();
-        setPasswordError(errorData.message || "Failed to update password");
+        setPasswordError(
+          errorData.message ||
+            "Failed to update password. Please verify your current password.",
+        );
       }
     } catch (error) {
       console.error("Error updating password:", error);
@@ -167,6 +185,29 @@ const Profile = () => {
                 </div>
               </div>
               <form onSubmit={handlePasswordChange} className="profile-form">
+                <div className="profile-field">
+                  <label className="profile-label" htmlFor="current-password">
+                    Current Password
+                  </label>
+                  <input
+                    id="current-password"
+                    className="profile-input"
+                    type="password"
+                    placeholder="Enter your current password"
+                    value={passwordData.currentPassword}
+                    onChange={(e) =>
+                      setPasswordData({
+                        ...passwordData,
+                        currentPassword: e.target.value,
+                      })
+                    }
+                    required
+                  />
+                  <p className="profile-hint">
+                    For security, please verify your current password before
+                    changing it
+                  </p>
+                </div>
                 <div className="profile-field">
                   <label className="profile-label" htmlFor="new-password">
                     New Password
