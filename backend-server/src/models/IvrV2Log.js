@@ -7,7 +7,7 @@ const UserActionSchema = new mongoose.Schema(
     timestamp: { type: Date },
     details: { type: mongoose.Schema.Types.Mixed },
   },
-  { _id: false },
+  { _id: false }
 );
 
 const StreamPlaybackInfoSchema = new mongoose.Schema(
@@ -17,7 +17,7 @@ const StreamPlaybackInfoSchema = new mongoose.Schema(
     ended_at: { type: Date },
     duration: { type: Number },
   },
-  { _id: false },
+  { _id: false }
 );
 
 const IvrV2LogSchema = new mongoose.Schema(
@@ -34,7 +34,7 @@ const IvrV2LogSchema = new mongoose.Schema(
     call_status_updates: { type: mongoose.Schema.Types.Mixed, default: {} },
     tenant_id: { type: String, required: true },
   },
-  { collection: "ivrv2logs" },
+  { collection: "ivrv2logs" }
 );
 
 var IvrV2Log = mongoose.model("IvrV2Log", IvrV2LogSchema);

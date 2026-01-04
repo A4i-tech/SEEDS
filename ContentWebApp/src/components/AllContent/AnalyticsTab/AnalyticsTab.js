@@ -10,8 +10,7 @@ const AnalyticsTab = () => {
   const [endDate, setEndDate] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
 
-  const { analyticsData, isLoading, error, stats, fetchAnalytics } =
-    useAnalytics();
+  const { analyticsData, isLoading, error, stats, fetchAnalytics } = useAnalytics();
 
   const getLastNDaysRange = useCallback((days) => {
     const end = new Date();
@@ -53,11 +52,7 @@ const AnalyticsTab = () => {
         </div>
         <div className="filters-inline">
           <div className="range-pill">Showing: {selectedRangeLabel}</div>
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={() => setShowFilters(true)}
-          >
+          <button type="button" className="secondary-button" onClick={() => setShowFilters(true)}>
             Filters
           </button>
         </div>
@@ -69,9 +64,7 @@ const AnalyticsTab = () => {
             <div className="filters-modal-header">
               <div>
                 <div className="filters-title">Filters</div>
-                <div className="filters-subtitle">
-                  Adjust your analytics view
-                </div>
+                <div className="filters-subtitle">Adjust your analytics view</div>
               </div>
               <button
                 type="button"
@@ -110,15 +103,12 @@ const AnalyticsTab = () => {
         startDate &&
         endDate && (
           <div className="no-data-message">
-            No data found for the selected date range. Try selecting different
-            dates.
+            No data found for the selected date range. Try selecting different dates.
           </div>
         )}
 
       {!startDate && !endDate && !isLoading && (
-        <div className="initial-message">
-          Select a date range above to view analytics data.
-        </div>
+        <div className="initial-message">Select a date range above to view analytics data.</div>
       )}
     </div>
   );

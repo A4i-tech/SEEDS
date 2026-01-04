@@ -22,12 +22,10 @@ export const exportToCSV = (data, headers, filename) => {
     headers
       .map((header) => {
         const value = row[header];
+        const doubleQuote = String.fromCharCode(34);
         // Handle values with commas or quotes
-        if (
-          typeof value === "string" &&
-          (value.includes(",") || value.includes('"'))
-        ) {
-          return `"${value.replace(/"/g, '""')}"`;
+        if (typeof value === "string" && (value.includes(",") || value.includes(doubleQuote))) {
+          return `"${value.replace(/"/g, doubleQuote + doubleQuote)}"`;
         }
         return value;
       })

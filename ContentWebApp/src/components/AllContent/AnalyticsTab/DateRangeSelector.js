@@ -33,9 +33,7 @@ const DateRangeSelector = ({
   useEffect(() => {
     if (startDate && endDate) {
       setInputValue(
-        `${startDate.toISOString().split("T")[0]} to ${
-          endDate.toISOString().split("T")[0]
-        }`
+        `${startDate.toISOString().split("T")[0]} to ${endDate.toISOString().split("T")[0]}`
       );
     } else {
       setInputValue("");
@@ -94,9 +92,7 @@ const DateRangeSelector = ({
               key={days}
               onClick={() => handleQuickSelect(days)}
               disabled={isLoading}
-              className={`quick-select-button ${
-                isPresetActive(days) ? "active" : ""
-              }`}
+              className={`quick-select-button ${isPresetActive(days) ? "active" : ""}`}
               aria-label={`Select ${label.toLowerCase()}`}
             >
               {label}
@@ -106,11 +102,7 @@ const DateRangeSelector = ({
       </div>
 
       {/* Single Calendar Range Picker */}
-      <div
-        className="range-picker-box"
-        role="region"
-        aria-label="Date range selector"
-      >
+      <div className="range-picker-box" role="region" aria-label="Date range selector">
         <label className="section-label">Date Range</label>
         <div className="range-picker-row">
           <DatePicker

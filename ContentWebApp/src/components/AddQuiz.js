@@ -47,12 +47,7 @@ const AddQuiz = ({ quiz }) => {
   const createQuizJson = () => {
     // const newMetadata = {...metadata[0]}
     metadata["questions"] = inputFields.map((mcq) => mcq.question);
-    const options = inputFields.map((mcq) => [
-      mcq.optionA,
-      mcq.optionB,
-      mcq.optionC,
-      mcq.optionD,
-    ]);
+    const options = inputFields.map((mcq) => [mcq.optionA, mcq.optionB, mcq.optionC, mcq.optionD]);
     const correctAnswers = Array(options.length).fill(0);
     metadata["correctAnswers"] = correctAnswers;
     metadata["options"] = options;
@@ -147,9 +142,7 @@ const AddQuiz = ({ quiz }) => {
             name="title"
             placeholder=" Add Title"
             value={metadata.title || ""}
-            onChange={(event) =>
-              setMetadata({ ...metadata, title: event.target.value })
-            }
+            onChange={(event) => setMetadata({ ...metadata, title: event.target.value })}
           />
         </div>
 
@@ -159,9 +152,7 @@ const AddQuiz = ({ quiz }) => {
             <br />
             <select
               value={metadata.language || ""}
-              onChange={(event) =>
-                setMetadata({ ...metadata, language: event.target.value })
-              }
+              onChange={(event) => setMetadata({ ...metadata, language: event.target.value })}
               className="mintgreen"
               style={{ width: "200px" }}
             >
@@ -184,9 +175,7 @@ const AddQuiz = ({ quiz }) => {
             name="positiveMark"
             placeholder="Add Positive Marks"
             value={metadata.positiveMark || 1}
-            onChange={(event) =>
-              setMetadata({ ...metadata, positiveMark: event.target.value })
-            }
+            onChange={(event) => setMetadata({ ...metadata, positiveMark: event.target.value })}
           />
         </div>
 
@@ -199,9 +188,7 @@ const AddQuiz = ({ quiz }) => {
             name="negativeMark"
             placeholder="Add Negative Marks"
             value={metadata.negativeMark || 0}
-            onChange={(event) =>
-              setMetadata({ ...metadata, negativeMark: event.target.value })
-            }
+            onChange={(event) => setMetadata({ ...metadata, negativeMark: event.target.value })}
           />
         </div>
       </div>

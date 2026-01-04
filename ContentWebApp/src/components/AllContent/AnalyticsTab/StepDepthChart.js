@@ -93,10 +93,7 @@ const StepDepthChart = ({ data }) => {
             <Tooltip content={<CustomTooltip />} />
             <Bar dataKey="count" fill="#2196F3" isAnimationActive={true}>
               {data.map((entry, index) => (
-                <Cell
-                  key={`cell-${index}`}
-                  fill={colorPalette[index % colorPalette.length]}
-                />
+                <Cell key={`cell-${index}`} fill={colorPalette[index % colorPalette.length]} />
               ))}
             </Bar>
           </BarChart>
@@ -104,12 +101,10 @@ const StepDepthChart = ({ data }) => {
       </div>
 
       <div className="chart-summary">
-        <strong>Total calls analyzed:</strong>{" "}
-        {data.reduce((sum, d) => sum + d.count, 0)}
+        <strong>Total calls analyzed:</strong> {data.reduce((sum, d) => sum + d.count, 0)}
         <br />
         <strong>Most common depth:</strong>{" "}
-        {data.reduce((max, d) => (d.count > max.count ? d : max))?.label ||
-          "N/A"}
+        {data.reduce((max, d) => (d.count > max.count ? d : max))?.label || "N/A"}
       </div>
     </div>
   );

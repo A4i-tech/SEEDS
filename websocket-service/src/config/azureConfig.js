@@ -1,9 +1,9 @@
 // src/config/azureConfig.js
 
-require('dotenv').config();
-const { DefaultAzureCredential } = require('@azure/identity');
-const { BlobServiceClient } = require('@azure/storage-blob');
-const { StorageSharedKeyCredential } = require('@azure/storage-blob');
+require("dotenv").config();
+const { DefaultAzureCredential } = require("@azure/identity");
+const { BlobServiceClient } = require("@azure/storage-blob");
+const { StorageSharedKeyCredential } = require("@azure/storage-blob");
 // Use DefaultAzureCredential for authentication
 
 // Replace with your Azure Storage account name
@@ -13,21 +13,20 @@ let useAccountKey = false;
 let blobServiceClient = null;
 
 if (!accountName) {
-  throw new Error('Azure Storage account name not specified in environment variables.');
+  throw new Error("Azure Storage account name not specified in environment variables.");
 }
-if (accountName && accountKey){
+if (accountName && accountKey) {
   useAccountKey = true;
-  console.log('Using Azure Storage account key for authentication.');
+  console.log("Using Azure Storage account key for authentication.");
 }
 
-if(useAccountKey){
+if (useAccountKey) {
   const credential = new StorageSharedKeyCredential(accountName, accountKey);
   blobServiceClient = new BlobServiceClient(
     `https://${accountName}.blob.core.windows.net`,
     credential
   );
-}
-else{
+} else {
   const credential = new DefaultAzureCredential();
   blobServiceClient = new BlobServiceClient(
     `https://${accountName}.blob.core.windows.net`,

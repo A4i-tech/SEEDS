@@ -9,15 +9,10 @@ export const generateFilterOptions = (contentList) => {
 
   contentList.forEach((contentItem) => {
     if (contentItem.language) {
-      languageSet.add(
-        contentItem.language.charAt(0).toUpperCase() +
-          contentItem.language.slice(1)
-      );
+      languageSet.add(contentItem.language.charAt(0).toUpperCase() + contentItem.language.slice(1));
     }
     if (contentItem.type) {
-      experienceSet.add(
-        contentItem.type.charAt(0).toUpperCase() + contentItem.type.slice(1)
-      );
+      experienceSet.add(contentItem.type.charAt(0).toUpperCase() + contentItem.type.slice(1));
     }
   });
 
@@ -27,13 +22,11 @@ export const generateFilterOptions = (contentList) => {
     id: index + 1,
   }));
 
-  const experienceOptions = Array.from(experienceSet).map(
-    (experience, index) => ({
-      category: "Experience",
-      name: experience,
-      id: index + 1 + languageSet.size,
-    })
-  );
+  const experienceOptions = Array.from(experienceSet).map((experience, index) => ({
+    category: "Experience",
+    name: experience,
+    id: index + 1 + languageSet.size,
+  }));
 
   return [...languageOptions, ...experienceOptions];
 };

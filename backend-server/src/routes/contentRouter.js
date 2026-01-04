@@ -700,17 +700,17 @@ router.post(
 //     return res.send("populating...")
 // })
 
-// async function deleteBlobFromAContainer(containerName,blobNamePrefix){
-//     const containerClient = blobService.getContainerClient(containerName);
-//     const options = {
-//       deleteSnapshots: 'include' // or 'only'
-//     }
-//     const blobList = containerClient.listBlobsFlat({prefix:blobNamePrefix})
-//     for await (const blob of blobList){
-//       await containerClient.deleteBlob(blob.name,options)
-//       console.log(`Deleted blob with name = ${blob.name}`)
-//     }
-//   }
+async function deleteBlobFromAContainer(containerName, blobNamePrefix) {
+  const containerClient = blobService.getContainerClient(containerName);
+  const options = {
+    deleteSnapshots: "include", // include snapshots when deleting
+  };
+  const blobList = containerClient.listBlobsFlat({ prefix: blobNamePrefix });
+  for await (const blob of blobList) {
+    await containerClient.deleteBlob(blob.name, options);
+    console.log(`Deleted blob with name = ${blob.name}`);
+  }
+}
 
 async function deleteAudioBlobs(audioId) {
   const blobNamePrefix = audioId;

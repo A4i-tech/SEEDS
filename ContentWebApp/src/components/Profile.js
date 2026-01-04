@@ -236,9 +236,7 @@ const Profile = () => {
     return (
       <div style={pageStyle}>
         <div style={containerStyle}>
-          <div
-            style={{ textAlign: "center", padding: "60px 0", color: "#64748b" }}
-          >
+          <div style={{ textAlign: "center", padding: "60px 0", color: "#64748b" }}>
             Loading profile...
           </div>
         </div>
@@ -280,12 +278,7 @@ const Profile = () => {
           <div style={formStyle}>
             <div>
               <label style={labelStyle}>Organization Name</label>
-              <input
-                style={inputDisabledStyle}
-                type="text"
-                value={profile?.name || ""}
-                disabled
-              />
+              <input style={inputDisabledStyle} type="text" value={profile?.name || ""} disabled />
             </div>
             <div>
               <label style={labelStyle}>Email</label>
@@ -299,23 +292,13 @@ const Profile = () => {
             {profile?.phone && (
               <div>
                 <label style={labelStyle}>Phone</label>
-                <input
-                  style={inputDisabledStyle}
-                  type="tel"
-                  value={profile.phone}
-                  disabled
-                />
+                <input style={inputDisabledStyle} type="tel" value={profile.phone} disabled />
               </div>
             )}
             {profile?.address && (
               <div>
                 <label style={labelStyle}>Address</label>
-                <input
-                  style={inputDisabledStyle}
-                  type="text"
-                  value={profile.address}
-                  disabled
-                />
+                <input style={inputDisabledStyle} type="text" value={profile.address} disabled />
               </div>
             )}
           </div>
@@ -381,9 +364,7 @@ const Profile = () => {
               />
             </div>
             {passwordError && <div style={errorStyle}>{passwordError}</div>}
-            {passwordSuccess && (
-              <div style={successStyle}>{passwordSuccess}</div>
-            )}
+            {passwordSuccess && <div style={successStyle}>{passwordSuccess}</div>}
             <div style={{ display: "flex", gap: "12px" }}>
               <button
                 type="submit"
@@ -392,11 +373,7 @@ const Profile = () => {
               >
                 {isChangingPassword ? "Updating..." : "Update Password"}
               </button>
-              <button
-                type="button"
-                style={backButtonStyle}
-                onClick={() => navigate("/content")}
-              >
+              <button type="button" style={backButtonStyle} onClick={() => navigate("/content")}>
                 Back to Dashboard
               </button>
             </div>

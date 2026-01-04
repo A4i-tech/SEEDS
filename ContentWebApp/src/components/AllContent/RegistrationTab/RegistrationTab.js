@@ -25,15 +25,10 @@ const RegistrationTab = ({
     <div className="card registration-flex-card">
       <div>
         <div className="card-title">Registration Management</div>
-        <div className="card-description">
-          Register teachers for your organization.
-        </div>
+        <div className="card-description">Register teachers for your organization.</div>
       </div>
 
-      <TeacherRegistrationForm
-        onRegister={onRegisterTeacher}
-        message={message}
-      />
+      <TeacherRegistrationForm onRegister={onRegisterTeacher} message={message} />
 
       <div className="teachers-section">
         <h3 className="teachers-section-title">Teachers & Students</h3>

@@ -5,7 +5,10 @@
   "scripts": {
     "test": "jest test --coverage --no-watch --no-progress",
     "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
+    "dev": "nodemon src/index.js",
+    "lint": "npx eslint src/",
+    "lint:fix": "npx eslint src/ --fix && npx prettier src/ --write",
+    "fix:file": "npx eslint --fix && npx prettier --write"
   },
   "keywords": [],
   "author": "",
@@ -34,7 +37,10 @@
     "validator": "^13.9.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.2",
     "@types/node": "^24.10.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
     "globals": "^16.5.0",
     "jest": "^30.1.1",
     "nodemon": "^3.1.11",
