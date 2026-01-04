@@ -41,7 +41,7 @@ export const useTeachers = (activeTab) => {
         setIsLoading(false);
       }
     },
-    [getAuthHeaders],
+    [getAuthHeaders]
   );
 
   /**
@@ -71,11 +71,7 @@ export const useTeachers = (activeTab) => {
       }
 
       try {
-        await teacherService.registerTeacher(
-          phoneNumber,
-          password,
-          getAuthHeaders(),
-        );
+        await teacherService.registerTeacher(phoneNumber, password, getAuthHeaders());
 
         setMessage("Teacher registered successfully!");
         await fetchTeachers();
@@ -90,16 +86,14 @@ export const useTeachers = (activeTab) => {
         return false;
       }
     },
-    [getAuthHeaders, fetchTeachers],
+    [getAuthHeaders, fetchTeachers]
   );
 
   /**
    * Update teacher state
    */
   const updateTeacherState = useCallback((id, patch) => {
-    setTeachers((prev) =>
-      prev.map((t) => (String(t._id) === String(id) ? { ...t, ...patch } : t)),
-    );
+    setTeachers((prev) => prev.map((t) => (String(t._id) === String(id) ? { ...t, ...patch } : t)));
   }, []);
 
   /**
@@ -112,12 +106,9 @@ export const useTeachers = (activeTab) => {
           ? t
           : {
               ...t,
-              newStudents: [
-                ...(t.newStudents || []),
-                { name: "", phoneNumber: "" },
-              ],
-            },
-      ),
+              newStudents: [...(t.newStudents || []), { name: "", phoneNumber: "" }],
+            }
+      )
     );
   }, []);
 
@@ -134,7 +125,7 @@ export const useTeachers = (activeTab) => {
           ...t,
           newStudents: arr.length ? arr : [{ name: "", phoneNumber: "" }],
         };
-      }),
+      })
     );
   }, []);
 
@@ -146,10 +137,10 @@ export const useTeachers = (activeTab) => {
       prev.map((t) => {
         if (String(t._id) !== String(teacherId)) return t;
         const arr = (t.newStudents || []).map((s, i) =>
-          i === index ? { ...s, [field]: value } : s,
+          i === index ? { ...s, [field]: value } : s
         );
         return { ...t, newStudents: arr };
-      }),
+      })
     );
   }, []);
 
@@ -166,9 +157,7 @@ export const useTeachers = (activeTab) => {
         .filter((s) => s.name && s.phoneNumber);
 
       if (payloadStudents.length === 0) {
-        setMessage(
-          "Please enter at least one student with name and phone number.",
-        );
+        setMessage("Please enter at least one student with name and phone number.");
         setTimeout(() => setMessage(""), 3000);
         return;
       }
@@ -178,7 +167,7 @@ export const useTeachers = (activeTab) => {
         const added = await teacherService.addStudents(
           teacher.phoneNumber,
           payloadStudents,
-          getAuthHeaders(),
+          getAuthHeaders()
         );
 
         // Append returned students to local list and reset form
@@ -197,7 +186,7 @@ export const useTeachers = (activeTab) => {
         updateTeacherState(teacher._id, { submitting: false });
       }
     },
-    [getAuthHeaders, updateTeacherState],
+    [getAuthHeaders, updateTeacherState]
   );
 
   /**
@@ -209,27 +198,23 @@ export const useTeachers = (activeTab) => {
         await teacherService.removeStudent(
           teacher.phoneNumber,
           studentPhoneNumber,
-          getAuthHeaders(),
+          getAuthHeaders()
         );
 
         updateTeacherState(teacher._id, {
-          students: (teacher.students || []).filter(
-            (st) => st.phoneNumber !== studentPhoneNumber,
-          ),
+          students: (teacher.students || []).filter((st) => st.phoneNumber !== studentPhoneNumber),
         });
       } catch (error) {
         console.error("Remove student error:", error);
       }
     },
-    [getAuthHeaders, updateTeacherState],
+    [getAuthHeaders, updateTeacherState]
   );
 
   /**
    * Get selected teacher object
    */
-  const selectedTeacher = teachers.find(
-    (t) => String(t._id) === String(selectedTeacherId),
-  );
+  const selectedTeacher = teachers.find((t) => String(t._id) === String(selectedTeacherId));
 
   return {
     teachers,

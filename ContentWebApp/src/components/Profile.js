@@ -118,8 +118,7 @@ const Profile = () => {
       } else {
         const errorData = await response.json();
         setPasswordError(
-          errorData.message ||
-            "Failed to update password. Please verify your current password.",
+          errorData.message || "Failed to update password. Please verify your current password."
         );
       }
     } catch (error) {
@@ -148,9 +147,7 @@ const Profile = () => {
               <div className="card-header">
                 <div>
                   <h2 className="card-title">Account Information</h2>
-                  <p className="card-description">
-                    Your tenant details (read-only)
-                  </p>
+                  <p className="card-description">Your tenant details (read-only)</p>
                 </div>
               </div>
               <div className="profile-fields">
@@ -179,9 +176,7 @@ const Profile = () => {
               <div className="card-header">
                 <div>
                   <h2 className="card-title">Change Password</h2>
-                  <p className="card-description">
-                    Update your account password
-                  </p>
+                  <p className="card-description">Update your account password</p>
                 </div>
               </div>
               <form onSubmit={handlePasswordChange} className="profile-form">
@@ -204,8 +199,7 @@ const Profile = () => {
                     required
                   />
                   <p className="profile-hint">
-                    For security, please verify your current password before
-                    changing it
+                    For security, please verify your current password before changing it
                   </p>
                 </div>
                 <div className="profile-field">
@@ -246,18 +240,10 @@ const Profile = () => {
                     required
                   />
                 </div>
-                {passwordError && (
-                  <div className="profile-error">{passwordError}</div>
-                )}
-                {passwordSuccess && (
-                  <div className="profile-success">{passwordSuccess}</div>
-                )}
+                {passwordError && <div className="profile-error">{passwordError}</div>}
+                {passwordSuccess && <div className="profile-success">{passwordSuccess}</div>}
                 <div className="profile-actions">
-                  <button
-                    type="submit"
-                    className="primary-button"
-                    disabled={isChangingPassword}
-                  >
+                  <button type="submit" className="primary-button" disabled={isChangingPassword}>
                     {isChangingPassword ? "Updating..." : "Update Password"}
                   </button>
                 </div>

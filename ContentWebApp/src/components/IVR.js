@@ -46,12 +46,8 @@ const IVR = () => {
     Papa.parse(file, {
       header: true,
       complete: (results) => {
-        const uniqueSchools = [
-          ...new Set(results.data.map((row) => row["School"])),
-        ];
-        const uniqueSchoolsNonEmpty = uniqueSchools.filter(
-          (school) => school !== undefined,
-        );
+        const uniqueSchools = [...new Set(results.data.map((row) => row["School"]))];
+        const uniqueSchoolsNonEmpty = uniqueSchools.filter((school) => school !== undefined);
         setSchools(uniqueSchoolsNonEmpty);
         setStudentData(results.data);
         console.log("UNIQUE SCHOOLS", uniqueSchoolsNonEmpty);
@@ -112,19 +108,19 @@ const IVR = () => {
               };
             });
             const name = studentData.find(
-              (student) => student["Student Phone Number"] === phoneNumber,
+              (student) => student["Student Phone Number"] === phoneNumber
             )
-              ? studentData.find(
-                  (student) => student["Student Phone Number"] === phoneNumber,
-                )["Student name"]
+              ? studentData.find((student) => student["Student Phone Number"] === phoneNumber)[
+                  "Student name"
+                ]
               : null;
 
             const school = studentData.find(
-              (student) => student["Student Phone Number"] === phoneNumber,
+              (student) => student["Student Phone Number"] === phoneNumber
             )
-              ? studentData.find(
-                  (student) => student["Student Phone Number"] === phoneNumber,
-                )["School"]
+              ? studentData.find((student) => student["Student Phone Number"] === phoneNumber)[
+                  "School"
+                ]
               : null;
             // console.log("NAME", name, "PHONE NUMBER", phoneNumber);
             return {
@@ -147,19 +143,16 @@ const IVR = () => {
           const phoneNumber = userInsight.phoneNumber;
           console.log("PHONE NUMBER", phoneNumber);
           const school = studentData.find(
-            (student) => student["Student Phone Number"] === phoneNumber,
+            (student) => student["Student Phone Number"] === phoneNumber
           )
-            ? studentData.find(
-                (student) => student["Student Phone Number"] === phoneNumber,
-              )["School"]
+            ? studentData.find((student) => student["Student Phone Number"] === phoneNumber)[
+                "School"
+              ]
             : null;
           return school === selectedSchool;
         });
         // console.log("DATA PROCESSED", dataProcessed);
-        console.log(
-          "DATA PROCESSED CORRECT SCHOOL",
-          dataProcessedCorrectSchool,
-        );
+        console.log("DATA PROCESSED CORRECT SCHOOL", dataProcessedCorrectSchool);
         setContentUsage(dataProcessedCorrectSchool);
       }
     };

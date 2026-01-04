@@ -20,7 +20,7 @@ const ContentEdit = () => {
           "https://place-seeds.azurewebsites.net/rawDataById?" +
             new URLSearchParams({
               id: id,
-            }),
+            })
         );
         const data = await placeRes.json();
         console.log(data);
@@ -86,9 +86,7 @@ const ContentEdit = () => {
                 </label>
               </form>
             )}
-          {content && experience === "quiz" && content.isProcessed && (
-            <AddQuiz quiz={content} />
-          )}
+          {content && experience === "quiz" && content.isProcessed && <AddQuiz quiz={content} />}
           {content && experience !== "quiz" && content.isProcessed && (
             <AddStory content={content} contentType={experience} />
           )}
