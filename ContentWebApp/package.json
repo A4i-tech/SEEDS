@@ -6,7 +6,10 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "jest test --coverage --config=./jest.config.js --no-watch --no-progress",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "lint": "npx eslint src/",
+    "lint:fix": "npx eslint src/ --fix && npx prettier src/ --write",
+    "fix:file": "npx eslint --fix && npx prettier --write"
   },
   "dependencies": {
     "@azure/storage-blob": "^12.12.0",
@@ -43,14 +46,11 @@
     "@testing-library/jest-dom": "^6.0.0",
     "@testing-library/react": "^14.0.0",
     "@testing-library/user-event": "^14.0.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
     "jest": "^27.5.1",
-    "jest-environment-jsdom": "^27.5.1"
-  },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
+    "jest-environment-jsdom": "^27.5.1",
+    "prettier": "^3.7.4"
   },
   "browser": {
     "buffer": false

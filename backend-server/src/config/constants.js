@@ -15,5 +15,5 @@ module.exports = {
     minUppercase: 1,
     minNumbers: 1,
     minSymbols: 1,
-  }
-}
+  },
+};

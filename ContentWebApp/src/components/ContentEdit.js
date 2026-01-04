@@ -69,9 +69,7 @@ const ContentEdit = () => {
         <div style={{ margin: "20px" }}>
           <h3>Edit Content</h3>
           {content &&
-            (experience === "Story" ||
-              experience === "Poem" ||
-              experience === "Song") && (
+            (experience === "Story" || experience === "Poem" || experience === "Song") && (
               <form>
                 <label>
                   Experience:

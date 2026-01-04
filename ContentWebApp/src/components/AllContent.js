@@ -34,11 +34,13 @@ const AllContent = () => {
     setIsFiltered,
   } = useContent();
 
-  const { options, handleFilterChange } = useContentFilters(
-    allContent,
-    setContent,
-    setIsFiltered
-  );
+  const {
+    options,
+    selectedValues,
+    handleFilterChange,
+    resetFilters: resetContentFilters,
+    multiselectRef,
+  } = useContentFilters(allContent, setContent, setIsFiltered);
 
   const {
     teachers,
@@ -121,17 +123,13 @@ const AllContent = () => {
           onLogout={logout}
         />
 
-        {updateIVRStatus && (
-          <div className="status-message">{updateIVRStatus}</div>
-        )}
+        {updateIVRStatus && <div className="status-message">{updateIVRStatus}</div>}
 
         {activeTab !== "registration" && activeTab !== "analytics" && (
           <div className="tabs-container">
             <button
               type="button"
-              className={`tab-button ${
-                activeTab === "content" ? "active" : ""
-              }`}
+              className={`tab-button ${activeTab === "content" ? "active" : ""}`}
               onClick={() => setActiveTab("content")}
             >
               Audio Content
@@ -154,14 +152,16 @@ const AllContent = () => {
             paginationInfo={paginationInfo}
             isFiltered={isFiltered}
             options={options}
+            selectedValues={selectedValues}
             onFilterChange={handleFilterChange}
-            onResetFilters={resetFilters}
+            onResetFilters={resetContentFilters}
             onUpdateIVR={handleUpdateIVR}
             onEdit={handleEdit}
             onView={handleView}
             onDelete={deleteContent}
             onLoadMore={loadMore}
             isUpdatingIVR={isUpdatingIVR}
+            multiselectRef={multiselectRef}
           />
         )}
 

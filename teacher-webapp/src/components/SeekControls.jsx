@@ -1,12 +1,7 @@
 import React from "react";
 import PropTypes from "prop-types";
 
-export const SeekControls = ({
-  disabled,
-  seekingDirection,
-  onSeekBackward,
-  onSeekForward,
-}) => {
+export const SeekControls = ({ disabled, seekingDirection, onSeekBackward, onSeekForward }) => {
   const isBusy = Boolean(seekingDirection);
 
   return (

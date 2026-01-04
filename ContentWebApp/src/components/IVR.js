@@ -85,14 +85,14 @@ const IVR = () => {
         console.log("DATES", dates);
 
         const seedsRes = await fetch(
-          `https://seeds-ivr.centralindia.azurecontainer.io/mono_call/insights`,
+          "https://seeds-ivr.centralindia.azurecontainer.io/mono_call/insights",
           {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
             },
             body: JSON.stringify({ dates: dates }),
-          },
+          }
         );
         const seedsData = await seedsRes.json();
         console.log("CREATED", seedsData);
@@ -337,11 +337,7 @@ const IVR = () => {
                       </tr>
                       <tr>
                         <td>
-                          <b>
-                            {!selectedSchool &&
-                              selectedSchool.length > 0 &&
-                              "School: "}
-                          </b>
+                          <b>{!selectedSchool && selectedSchool.length > 0 && "School: "}</b>
                           {!selectedSchool && person.school}
                         </td>
                       </tr>

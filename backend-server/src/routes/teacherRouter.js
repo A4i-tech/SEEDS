@@ -13,7 +13,6 @@ const teacherAuthProvider = require("../auth/teacher/teacherAuthProviderMiddlewa
  */
 const router = express.Router();
 
-
 /**
  * @swagger
  * /teacher/add-students:
@@ -82,10 +81,7 @@ router.post("/add-students", authenticateToken, async (req, res) => {
     }
     const student = await Student.create(req.body.students[i]);
     const studentId = student._id.toString();
-    await Teacher.updateOne(
-      { _id: teacher._id },
-      { $addToSet: { studentId: studentId } },
-    );
+    await Teacher.updateOne({ _id: teacher._id }, { $addToSet: { studentId: studentId } });
     results.push({
       name: student.name,
       phoneNumber: student.phoneNumber,
@@ -93,7 +89,6 @@ router.post("/add-students", authenticateToken, async (req, res) => {
   }
   return res.status(STATUS.OK).json(results);
 });
-
 
 /**
  *  @swagger

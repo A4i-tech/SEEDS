@@ -12,9 +12,7 @@ const IVRTab = () => {
       <div className="card-header">
         <div>
           <div className="card-title">IVR System Configuration</div>
-          <div className="card-description">
-            Configure Interactive Voice Response settings
-          </div>
+          <div className="card-description">Configure Interactive Voice Response settings</div>
         </div>
       </div>
 
