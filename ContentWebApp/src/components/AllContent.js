@@ -29,7 +29,6 @@ const AllContent = () => {
     isFiltered,
     loadMore,
     deleteContent,
-    resetFilters,
     setContent,
     setIsFiltered,
   } = useContent();
