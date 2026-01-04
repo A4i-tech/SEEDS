@@ -73,10 +73,7 @@ function cleanupTempFiles(filePaths) {
  */
 function generateTempPaths(contentId, ip_url) {
   const baseDir = os.tmpdir();
-  const tempInputPath = path.join(
-    baseDir,
-    `${contentId}_audioContent_${path.basename(ip_url)}`
-  );
+  const tempInputPath = path.join(baseDir, `${contentId}_audioContent_${path.basename(ip_url)}`);
   const tempOutputPath = path.join(
     baseDir,
     `output_${contentId}_audioContent_${path.basename(ip_url).replace(/\.(mp3|wav)$/, ".wav")}`

@@ -32,9 +32,7 @@ const ContentTab = ({
       <div className="card-header">
         <div>
           <div className="card-title">Audio Content Library</div>
-          <div className="card-description">
-            Add and manage educational audio files
-          </div>
+          <div className="card-description">Add and manage educational audio files</div>
         </div>
         <div className="button-group">
           <button className="primary-button" onClick={onResetFilters}>

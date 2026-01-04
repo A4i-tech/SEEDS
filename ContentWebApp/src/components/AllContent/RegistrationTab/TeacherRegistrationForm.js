@@ -47,11 +47,7 @@ const TeacherRegistrationForm = ({ onRegister, message }) => {
         onChange={(e) => setTeacherPassword(e.target.value)}
         className="input-field"
       />
-      <button
-        type="button"
-        className="primary-button full-width-button"
-        onClick={handleSubmit}
-      >
+      <button type="button" className="primary-button full-width-button" onClick={handleSubmit}>
         Save Teacher
       </button>
       {message && <p className="success-message">{message}</p>}

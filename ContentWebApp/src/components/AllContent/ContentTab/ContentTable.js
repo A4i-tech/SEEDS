@@ -44,9 +44,7 @@ const ContentTable = ({ content, isLoading, onEdit, onView, onDelete }) => {
             {content.map((item) => (
               <tr key={item.id} className="table-row-white">
                 <td className="table-cell">
-                  {item.title && typeof item.title === "object"
-                    ? item.title.english
-                    : item.title}
+                  {item.title && typeof item.title === "object" ? item.title.english : item.title}
                   <br />
                   <span className="table-cell-secondary">
                     {item.title && typeof item.title === "object"
@@ -55,9 +53,7 @@ const ContentTable = ({ content, isLoading, onEdit, onView, onDelete }) => {
                   </span>
                 </td>
                 <td className="table-cell">
-                  {item.theme && typeof item.theme === "object"
-                    ? item.theme.english
-                    : item.theme}
+                  {item.theme && typeof item.theme === "object" ? item.theme.english : item.theme}
                   <br />
                   <span className="table-cell-secondary">
                     {item.theme && typeof item.theme === "object"
