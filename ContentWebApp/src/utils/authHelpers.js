@@ -1,5 +1,3 @@
-import { apiFetch } from "../services/api";
-import { SEEDS_URL } from "../Constants";
 /**
  * Get authorization headers with bearer token
  * @returns {Object} Headers object with Authorization
@@ -19,7 +17,6 @@ export const getAuthHeaders = () => {
 export const isAuthenticated = () => {
   return !!localStorage.getItem("authToken");
 };
-
 
 /**
  * Clear all authentication data

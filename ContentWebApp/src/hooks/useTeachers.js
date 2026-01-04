@@ -15,13 +15,9 @@ export const useTeachers = (activeTab) => {
    */
   const fetchTeachers = useCallback(
     async (signal = null) => {
-
       setIsLoading(true);
       try {
-        const data = await teacherService.getTeachers(
-          getAuthHeaders(),
-          signal
-        );
+        const data = await teacherService.getTeachers(getAuthHeaders(), signal);
 
         // Augment teachers with local UI state for adding students
         const withState = data.map((t) => ({
@@ -45,7 +41,7 @@ export const useTeachers = (activeTab) => {
         setIsLoading(false);
       }
     },
-    [getAuthHeaders]
+    [getAuthHeaders],
   );
 
   /**
@@ -57,14 +53,13 @@ export const useTeachers = (activeTab) => {
       fetchTeachers(ac.signal);
     }
     return () => ac.abort();
-  }, [activeTab]);
+  }, [activeTab, fetchTeachers]);
 
   /**
    * Register a new teacher
    */
   const registerTeacher = useCallback(
     async (phoneNumber, password) => {
-
       if (!phoneNumber || !password) {
         setMessage("Phone and password are required.");
         return false;
@@ -79,7 +74,7 @@ export const useTeachers = (activeTab) => {
         await teacherService.registerTeacher(
           phoneNumber,
           password,
-          getAuthHeaders()
+          getAuthHeaders(),
         );
 
         setMessage("Teacher registered successfully!");
@@ -95,7 +90,7 @@ export const useTeachers = (activeTab) => {
         return false;
       }
     },
-    [getAuthHeaders, fetchTeachers]
+    [getAuthHeaders, fetchTeachers],
   );
 
   /**
@@ -103,7 +98,7 @@ export const useTeachers = (activeTab) => {
    */
   const updateTeacherState = useCallback((id, patch) => {
     setTeachers((prev) =>
-      prev.map((t) => (String(t._id) === String(id) ? { ...t, ...patch } : t))
+      prev.map((t) => (String(t._id) === String(id) ? { ...t, ...patch } : t)),
     );
   }, []);
 
@@ -121,8 +116,8 @@ export const useTeachers = (activeTab) => {
                 ...(t.newStudents || []),
                 { name: "", phoneNumber: "" },
               ],
-            }
-      )
+            },
+      ),
     );
   }, []);
 
@@ -139,7 +134,7 @@ export const useTeachers = (activeTab) => {
           ...t,
           newStudents: arr.length ? arr : [{ name: "", phoneNumber: "" }],
         };
-      })
+      }),
     );
   }, []);
 
@@ -151,10 +146,10 @@ export const useTeachers = (activeTab) => {
       prev.map((t) => {
         if (String(t._id) !== String(teacherId)) return t;
         const arr = (t.newStudents || []).map((s, i) =>
-          i === index ? { ...s, [field]: value } : s
+          i === index ? { ...s, [field]: value } : s,
         );
         return { ...t, newStudents: arr };
-      })
+      }),
     );
   }, []);
 
@@ -172,7 +167,7 @@ export const useTeachers = (activeTab) => {
 
       if (payloadStudents.length === 0) {
         setMessage(
-          "Please enter at least one student with name and phone number."
+          "Please enter at least one student with name and phone number.",
         );
         setTimeout(() => setMessage(""), 3000);
         return;
@@ -183,7 +178,7 @@ export const useTeachers = (activeTab) => {
         const added = await teacherService.addStudents(
           teacher.phoneNumber,
           payloadStudents,
-          getAuthHeaders()
+          getAuthHeaders(),
         );
 
         // Append returned students to local list and reset form
@@ -202,7 +197,7 @@ export const useTeachers = (activeTab) => {
         updateTeacherState(teacher._id, { submitting: false });
       }
     },
-    [getAuthHeaders, updateTeacherState]
+    [getAuthHeaders, updateTeacherState],
   );
 
   /**
@@ -214,26 +209,26 @@ export const useTeachers = (activeTab) => {
         await teacherService.removeStudent(
           teacher.phoneNumber,
           studentPhoneNumber,
-          getAuthHeaders()
+          getAuthHeaders(),
         );
 
         updateTeacherState(teacher._id, {
           students: (teacher.students || []).filter(
-            (st) => st.phoneNumber !== studentPhoneNumber
+            (st) => st.phoneNumber !== studentPhoneNumber,
           ),
         });
       } catch (error) {
         console.error("Remove student error:", error);
       }
     },
-    [getAuthHeaders, updateTeacherState]
+    [getAuthHeaders, updateTeacherState],
   );
 
   /**
    * Get selected teacher object
    */
   const selectedTeacher = teachers.find(
-    (t) => String(t._id) === String(selectedTeacherId)
+    (t) => String(t._id) === String(selectedTeacherId),
   );
 
   return {

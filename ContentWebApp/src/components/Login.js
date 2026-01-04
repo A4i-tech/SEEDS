@@ -128,7 +128,7 @@ const Login = () => {
       });
 
       if (response.status === 200) {
-        const { tenantName, token, id } = response.data;
+        const { tenantName, token } = response.data;
         localStorage.setItem("authToken", token);
         navigate("/content", { state: { name: tenantName } });
       } else {

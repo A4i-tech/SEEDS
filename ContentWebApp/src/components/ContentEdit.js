@@ -12,6 +12,31 @@ const ContentEdit = () => {
   const [experience, setExperience] = useState("quiz");
 
   useEffect(() => {
+    const contentById = async () => {
+      // const res = await fetch("http://localhost:5001/content");
+
+      if (type === "quiz") {
+        const placeRes = await fetch(
+          "https://place-seeds.azurewebsites.net/rawDataById?" +
+            new URLSearchParams({
+              id: id,
+            }),
+        );
+        const data = await placeRes.json();
+        console.log(data);
+        return data;
+      } else {
+        const seedsRes = await fetch(`${SEEDS_URL}/content/${id}`, {
+          method: "GET",
+          headers: {
+            authToken: "postman",
+          },
+        });
+        const seedsData = await seedsRes.json();
+        return seedsData;
+      }
+    };
+
     const getContentById = async () => {
       const contentFromServer = await contentById();
       setContent(contentFromServer);
@@ -19,32 +44,7 @@ const ContentEdit = () => {
       setExperience(contentFromServer.type);
     };
     getContentById();
-  }, []);
-
-  const contentById = async () => {
-    // const res = await fetch("http://localhost:5001/content");
-
-    if (type === "quiz") {
-      const placeRes = await fetch(
-        "https://place-seeds.azurewebsites.net/rawDataById?" +
-          new URLSearchParams({
-            id: id,
-          })
-      );
-      const data = await placeRes.json();
-      console.log(data);
-      return data;
-    } else {
-      const seedsRes = await fetch(`${SEEDS_URL}/content/${id}`, {
-        method: "GET",
-        headers: {
-          authToken: "postman",
-        },
-      });
-      const seedsData = await seedsRes.json();
-      return seedsData;
-    }
-  };
+  }, [type, id]);
 
   const location = useLocation();
   console.log("link props", location.state);
@@ -54,10 +54,7 @@ const ContentEdit = () => {
     console.log(event.target.value);
   };
 
-  if (
-    content &&
-    !content.isProcessed
-  ) {
+  if (content && !content.isProcessed) {
     return (
       <>
         <div style={{ margin: "20px" }}>
@@ -91,12 +88,12 @@ const ContentEdit = () => {
                 </label>
               </form>
             )}
-          {content && experience === "quiz" && content.isProcessed && <AddQuiz quiz={content} />}
-          {content &&
-            (experience !== "quiz") &&
-            content.isProcessed && (
-              <AddStory content={content} contentType={experience} />
-            )}
+          {content && experience === "quiz" && content.isProcessed && (
+            <AddQuiz quiz={content} />
+          )}
+          {content && experience !== "quiz" && content.isProcessed && (
+            <AddStory content={content} contentType={experience} />
+          )}
           <div />
         </div>
       </>

@@ -1,5 +1,5 @@
 import { SEEDS_URL } from "../Constants";
-import { apiFetch, buildQueryString } from "./api";
+import { apiFetch } from "./api";
 
 export const teacherService = {
   /**
