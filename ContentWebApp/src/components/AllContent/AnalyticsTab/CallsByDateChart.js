@@ -13,11 +13,7 @@ import "./css/AnalyticsCharts.css";
 
 const CallsByDateChart = ({ data }) => {
   if (!data || Object.keys(data).length === 0) {
-    return (
-      <div className="no-data-message">
-        No data available for the selected date range.
-      </div>
-    );
+    return <div className="no-data-message">No data available for the selected date range.</div>;
   }
 
   // Convert callsByDate object to array for charting
@@ -64,10 +60,7 @@ const CallsByDateChart = ({ data }) => {
       </div>
       <div className="chart-card">
         <ResponsiveContainer width="100%" height={300}>
-          <LineChart
-            data={chartData}
-            margin={{ top: 5, right: 30, left: 0, bottom: 50 }}
-          >
+          <LineChart data={chartData} margin={{ top: 5, right: 30, left: 0, bottom: 50 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
             <XAxis
               dataKey="date"

@@ -37,9 +37,12 @@ const encryption_key = process.env.PHONE_NUMBER_ENCRYPTION_KEY;
  *       500:
  *         description: Server error while retrieving participants
  */
-router.get("/participants", tryCatchWrapper(async (req, res) => {
+router.get(
+  "/participants",
+  tryCatchWrapper(async (req, res) => {
     const result = await UserInfo.getAllUsers(encryption_key);
     return res.json(result);
-}))
+  })
+);
 
 module.exports = router;

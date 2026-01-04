@@ -47,10 +47,7 @@ router.post("/students", authenticateToken, async (req, res) => {
   const studentIds = Array.isArray(teacher.studentId) ? teacher.studentId : [];
   const students =
     studentIds.length > 0
-      ? await Student.find(
-          { _id: { $in: studentIds } },
-          "name phoneNumber",
-        ).lean()
+      ? await Student.find({ _id: { $in: studentIds } }, "name phoneNumber").lean()
       : [];
   const results = students.map((student) => ({
     name: student.name,
@@ -109,10 +106,7 @@ router.get("/teachers", authenticateToken, async (req, res) => {
   if (!tenantId) return res.sendStatus(STATUS.BAD_REQUEST);
 
   try {
-    const teachers = await Teacher.find(
-      { tenantId },
-      "_id phoneNumber studentId",
-    ).lean();
+    const teachers = await Teacher.find({ tenantId }, "_id phoneNumber studentId").lean();
 
     if (!teachers || teachers.length === 0) return res.json([]);
 
@@ -131,10 +125,7 @@ router.get("/teachers", authenticateToken, async (req, res) => {
     // single query for all referenced students
     const students =
       studentIds.length > 0
-        ? await Student.find(
-            { _id: { $in: studentIds } },
-            "name phoneNumber",
-          ).lean()
+        ? await Student.find({ _id: { $in: studentIds } }, "name phoneNumber").lean()
         : [];
 
     const studentMap = {};
@@ -228,10 +219,7 @@ router.post("/add-students", authenticateToken, async (req, res) => {
     }
     const student = await Student.create(req.body.students[i]);
     const studentId = student._id.toString();
-    await Teacher.updateOne(
-      { _id: teacher._id },
-      { $addToSet: { studentId: studentId } },
-    );
+    await Teacher.updateOne({ _id: teacher._id }, { $addToSet: { studentId: studentId } });
     results.push({
       name: student.name,
       phoneNumber: student.phoneNumber,
@@ -311,7 +299,7 @@ router.delete("/students", authenticateToken, async (req, res) => {
     if (student) {
       await Teacher.updateOne(
         { _id: teacher._id },
-        { $pull: { studentId: student._id.toString() } },
+        { $pull: { studentId: student._id.toString() } }
       );
       removedCount++;
     }

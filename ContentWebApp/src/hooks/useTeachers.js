@@ -22,11 +22,7 @@ export const useTeachers = (activeTab) => {
 
       setIsLoading(true);
       try {
-        const data = await teacherService.getTeachers(
-          tenantId,
-          getAuthHeaders(),
-          signal
-        );
+        const data = await teacherService.getTeachers(tenantId, getAuthHeaders(), signal);
 
         // Augment teachers with local UI state for adding students
         const withState = data.map((t) => ({
@@ -87,12 +83,7 @@ export const useTeachers = (activeTab) => {
       }
 
       try {
-        await teacherService.registerTeacher(
-          tenantId,
-          phoneNumber,
-          password,
-          getAuthHeaders()
-        );
+        await teacherService.registerTeacher(tenantId, phoneNumber, password, getAuthHeaders());
 
         setMessage("Teacher registered successfully!");
         await fetchTeachers();
@@ -114,9 +105,7 @@ export const useTeachers = (activeTab) => {
    * Update teacher state
    */
   const updateTeacherState = useCallback((id, patch) => {
-    setTeachers((prev) =>
-      prev.map((t) => (String(t._id) === String(id) ? { ...t, ...patch } : t))
-    );
+    setTeachers((prev) => prev.map((t) => (String(t._id) === String(id) ? { ...t, ...patch } : t)));
   }, []);
 
   /**
@@ -129,10 +118,7 @@ export const useTeachers = (activeTab) => {
           ? t
           : {
               ...t,
-              newStudents: [
-                ...(t.newStudents || []),
-                { name: "", phoneNumber: "" },
-              ],
+              newStudents: [...(t.newStudents || []), { name: "", phoneNumber: "" }],
             }
       )
     );
@@ -183,9 +169,7 @@ export const useTeachers = (activeTab) => {
         .filter((s) => s.name && s.phoneNumber);
 
       if (payloadStudents.length === 0) {
-        setMessage(
-          "Please enter at least one student with name and phone number."
-        );
+        setMessage("Please enter at least one student with name and phone number.");
         setTimeout(() => setMessage(""), 3000);
         return;
       }
@@ -230,9 +214,7 @@ export const useTeachers = (activeTab) => {
         );
 
         updateTeacherState(teacher._id, {
-          students: (teacher.students || []).filter(
-            (st) => st.phoneNumber !== studentPhoneNumber
-          ),
+          students: (teacher.students || []).filter((st) => st.phoneNumber !== studentPhoneNumber),
         });
       } catch (error) {
         console.error("Remove student error:", error);
@@ -244,9 +226,7 @@ export const useTeachers = (activeTab) => {
   /**
    * Get selected teacher object
    */
-  const selectedTeacher = teachers.find(
-    (t) => String(t._id) === String(selectedTeacherId)
-  );
+  const selectedTeacher = teachers.find((t) => String(t._id) === String(selectedTeacherId));
 
   return {
     teachers,

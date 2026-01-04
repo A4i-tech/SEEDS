@@ -23,19 +23,13 @@ const extractItems = (response) => {
 };
 
 const buildContentList = (response) => {
-  const rawItems = extractItems(response).filter(
-    (item) => item && item.isDeleted !== true
-  );
+  const rawItems = extractItems(response).filter((item) => item && item.isDeleted !== true);
 
   const contentList = [];
 
   rawItems.forEach((item) => {
     const itemId = item?._id;
-    const baseName =
-      item?.title?.english ||
-      item?.title?.local ||
-      item?.title ||
-      "Unnamed Audio";
+    const baseName = item?.title?.english || item?.title?.local || item?.title || "Unnamed Audio";
 
     if (item?.audioContent && Array.isArray(item.audioContent)) {
       item.audioContent.forEach((audio, index) => {
@@ -136,9 +130,7 @@ export const AudioContentModal = ({ open, onClose, onSubmit }) => {
         <h2>Select Audio Content</h2>
         {isLoading && <p>Loading audio content...</p>}
         {error && <p className="error-text">{error}</p>}
-        {!isLoading && !error && audioContent.length === 0 && (
-          <p>No audio content available.</p>
-        )}
+        {!isLoading && !error && audioContent.length === 0 && <p>No audio content available.</p>}
 
         {!isLoading && !error && audioContent.length > 0 && (
           <ul className="track-list">
@@ -153,23 +145,16 @@ export const AudioContentModal = ({ open, onClose, onSubmit }) => {
                     onChange={() => setSelectedContent(content.url)}
                   />
                   <span className="track-name">{content.name}</span>
-                  {content.language && (
-                    <span className="track-language">{content.language}</span>
-                  )}
+                  {content.language && <span className="track-language">{content.language}</span>}
                 </label>
-                {content.description && (
-                  <p className="track-description">{content.description}</p>
-                )}
+                {content.description && <p className="track-description">{content.description}</p>}
               </li>
             ))}
           </ul>
         )}
 
         <div className="modal-actions">
-          <button
-            onClick={handleSubmit}
-            disabled={!selectedContent || isLoading || !!error}
-          >
+          <button onClick={handleSubmit} disabled={!selectedContent || isLoading || !!error}>
             Play Selected
           </button>
           <button onClick={onClose}>Cancel</button>

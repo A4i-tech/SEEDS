@@ -5,7 +5,6 @@ import AddStory from "./AddStory";
 const AddContent = () => {
   const [experience, setExperience] = useState("Story");
 
-
   const handleChange = (event) => {
     setExperience(event.target.value);
   };

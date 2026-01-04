@@ -28,11 +28,7 @@ export const useAnalytics = () => {
       const ac = new AbortController();
 
       try {
-        const response = await analyticsService.getAnalytics(
-          startDate,
-          endDate,
-          getAuthHeaders()
-        );
+        const response = await analyticsService.getAnalytics(startDate, endDate, getAuthHeaders());
 
         setAnalyticsData(response.data || []);
         setDateRange({ startDate, endDate });
@@ -88,15 +84,11 @@ export const useAnalytics = () => {
       return `${minutes}m ${seconds}s`;
     };
 
-    const durations = analyticsData
-      .map((log) => parseDuration(log.duration))
-      .filter((d) => d > 0);
+    const durations = analyticsData.map((log) => parseDuration(log.duration)).filter((d) => d > 0);
 
     const totalDurationSeconds = durations.reduce((sum, d) => sum + d, 0);
     const avgDurationSeconds =
-      durations.length > 0
-        ? Math.floor(totalDurationSeconds / durations.length)
-        : 0;
+      durations.length > 0 ? Math.floor(totalDurationSeconds / durations.length) : 0;
 
     const avgDuration = formatDuration(avgDurationSeconds);
     const totalDuration = formatDuration(totalDurationSeconds);

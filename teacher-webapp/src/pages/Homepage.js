@@ -81,8 +81,7 @@ function Homepage() {
   // Handler for input changes
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    const digitsOnly =
-      name === "phoneNumber" ? value.replace(/\D/g, "") : value;
+    const digitsOnly = name === "phoneNumber" ? value.replace(/\D/g, "") : value;
     setNewStudent((prev) => ({ ...prev, [name]: digitsOnly }));
   };
 
@@ -222,16 +221,10 @@ function Homepage() {
       </button>
       <h1 className="welcome-title">Welcome</h1>
       {/* show the received phone number when available */}
-      {displayedPhone ? (
-        <p className="received-phone">Phone: {displayedPhone}</p>
-      ) : null}
+      {displayedPhone ? <p className="received-phone">Phone: {displayedPhone}</p> : null}
 
       {/* Add Student Form */}
-      <form
-        className="add-student-form"
-        onSubmit={handleAddStudent}
-        style={{ marginBottom: 16 }}
-      >
+      <form className="add-student-form" onSubmit={handleAddStudent} style={{ marginBottom: 16 }}>
         <input
           type="text"
           name="name"
@@ -273,22 +266,14 @@ function Homepage() {
       {/* Save Students Button */}
       <button
         onClick={handleSaveStudents}
-        disabled={
-          !displayedPhone ||
-          addedStudents.length === 0 ||
-          saveStatus === "saving"
-        }
+        disabled={!displayedPhone || addedStudents.length === 0 || saveStatus === "saving"}
         style={{ marginBottom: 16 }}
       >
         {saveStatus === "saving" ? "Saving..." : "Save Students"}
       </button>
-      {saveStatus === "success" && (
-        <span style={{ color: "green", marginLeft: 8 }}>Saved!</span>
-      )}
+      {saveStatus === "success" && <span style={{ color: "green", marginLeft: 8 }}>Saved!</span>}
       {saveStatus === "error" && (
-        <span style={{ color: "red", marginLeft: 8 }}>
-          Error saving students
-        </span>
+        <span style={{ color: "red", marginLeft: 8 }}>Error saving students</span>
       )}
       <div className="list-container">
         <StudentList
