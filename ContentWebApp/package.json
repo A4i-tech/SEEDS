@@ -3,14 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "prestart": "npm run lint:fix",
     "start": "react-scripts start",
     "build": "react-scripts build",
-    "pretest": "npm run lint:fix",
     "test": "jest test --coverage --config=./jest.config.js --no-watch --no-progress",
     "eject": "react-scripts eject",
     "lint": "npx eslint src/",
-    "lint:fix": "npx eslint src/ --fix && npx prettier src/ --write"
+    "lint:fix": "npx eslint src/ --fix && npx prettier src/ --write",
+    "fix:file": "npx eslint --fix && npx prettier --write"
   },
   "dependencies": {
     "@azure/storage-blob": "^12.12.0",
