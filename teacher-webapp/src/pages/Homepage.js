@@ -11,6 +11,7 @@ import { useNavigation } from "../hooks/useNavigation";
 import { clearAuth } from "../utils/authHelpers";
 import { StudentList } from "../components/StudentList";
 import axios from "axios";
+import { normalizePhoneNumber, formatStudentPhones } from "../utils/phoneUtils";
 
 function Homepage() {
   // State for new student form
@@ -148,27 +149,73 @@ function Homepage() {
 
   const [isSubmitted, setIsSubmitted] = React.useState(false);
   const handleFormSubmit = async () => {
+    if (selectedStudents.length === 0) {
+      alert("Please select at least one student");
+      return;
+    }
+
+    // Get teacher phone number safely
+    const teacherPhone =
+      recvdPhoneNumber && typeof recvdPhoneNumber === "object"
+        ? recvdPhoneNumber.phoneNumber || ""
+        : recvdPhoneNumber || "";
+
+    if (!teacherPhone) {
+      alert("Teacher phone number is missing");
+      return;
+    }
+
     setLoading(true); // Start loading
-    console.log(
-      "Starting conference for:",
-      recvdPhoneNumber.phoneNumber,
-      selectedStudents
-    );
+    console.log("Starting conference for:", teacherPhone, selectedStudents);
+
     const teacherObject = {
       name: "Teacher",
-      phoneNumber: recvdPhoneNumber.phoneNumber,
+      phoneNumber: teacherPhone,
       role: "Teacher",
     };
     handleTeacherSelect(teacherObject); // Select the teacher
+
     try {
-      const data = await createConference(
-        `91${recvdPhoneNumber.phoneNumber}`,
-        selectedStudents.map((item) => `91${item.phoneNumber}`)
-      );
+      // Normalize phone numbers to ensure correct format (91XXXXXXXXXX)
+      const teacherPhoneFormatted = normalizePhoneNumber(teacherPhone);
+      const studentPhonesFormatted = formatStudentPhones(selectedStudents);
+
+      if (!teacherPhoneFormatted) {
+        alert("Invalid teacher phone number format");
+        setLoading(false);
+        return;
+      }
+
+      if (studentPhonesFormatted.length === 0) {
+        alert("No valid student phone numbers found");
+        setLoading(false);
+        return;
+      }
+
+      if (studentPhonesFormatted.length !== selectedStudents.length) {
+        console.warn(
+          `Some student phone numbers were invalid. Expected ${selectedStudents.length}, got ${studentPhonesFormatted.length}`
+        );
+      }
+
+      console.log("Creating conference with:", {
+        teacher: teacherPhoneFormatted,
+        students: studentPhonesFormatted,
+        studentCount: studentPhonesFormatted.length,
+      });
+
+      const data = await createConference(teacherPhoneFormatted, studentPhonesFormatted);
+
+      if (!data || !data.id) {
+        throw new Error("Conference creation failed: No conference ID returned");
+      }
+
       const conferenceId = data.id;
       setConfId(conferenceId);
       setConferenceStudents(selectedStudents);
-      console.log("Conf ID:", conferenceId);
+      console.log("Conference created successfully. Conf ID:", conferenceId);
+      console.log("Student phones sent:", studentPhonesFormatted);
+
       const sseEp = SSE_ENDPOINTS.CONFERENCE.TEACHER_CONNECT(conferenceId);
       const eventSource = new EventSource(sseEp);
       eventSource.onmessage = (event) => {
@@ -183,6 +230,7 @@ function Homepage() {
       setIsSubmitted(true); // Navigate to DetailsPage
     } catch (error) {
       console.error("Error in API call:", error);
+      alert(`Failed to create conference: ${error.message || "Unknown error"}`);
     } finally {
       setLoading(false); // Stop loading
     }

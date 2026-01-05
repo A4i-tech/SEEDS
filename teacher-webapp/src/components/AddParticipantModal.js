@@ -1,9 +1,21 @@
 import React, { useState } from "react";
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Checkbox,
+  FormControlLabel,
+  List,
+  ListItem,
+  Typography,
+  CircularProgress,
+} from "@mui/material";
 
 export const AddParticipantModal = ({ open, onClose, availableStudents, onSubmit }) => {
   const [selectedStudents, setSelectedStudents] = useState([]);
-
-  if (!open) return null; // If modal is not open, don't render anything
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleToggleStudent = (phone_number) => {
     setSelectedStudents((prevSelected) =>
@@ -13,37 +25,55 @@ export const AddParticipantModal = ({ open, onClose, availableStudents, onSubmit
     );
   };
 
-  const handleSubmit = () => {
-    onSubmit(selectedStudents);
+  const handleSubmit = async () => {
+    if (selectedStudents.length === 0) return;
+    setIsSubmitting(true);
+    await onSubmit(selectedStudents);
     setSelectedStudents([]);
+    setIsSubmitting(false);
     onClose();
   };
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-content">
-        <h2>Select Participants to Add</h2>
-        <ul className="student-list">
-          {availableStudents.map((student) => (
-            <li key={student.phone_number}>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={selectedStudents.includes(student.phone_number)}
-                  onChange={() => handleToggleStudent(student.phone_number)}
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>Select Participants to Add</DialogTitle>
+      <DialogContent>
+        {availableStudents.length === 0 ? (
+          <Typography color="text.secondary">No available students to add.</Typography>
+        ) : (
+          <List>
+            {availableStudents.map((student) => (
+              <ListItem key={student.phone_number}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={selectedStudents.includes(student.phone_number)}
+                      onChange={() => handleToggleStudent(student.phone_number)}
+                    />
+                  }
+                  label={`${student.name} - ${student.phone_number}`}
                 />
-                {student.name} - {student.phone_number}
-              </label>
-            </li>
-          ))}
-        </ul>
-        <div className="modal-actions">
-          <button onClick={handleSubmit} disabled={selectedStudents.length === 0}>
-            Submit
-          </button>
-          <button onClick={onClose}>Cancel</button>
-        </div>
-      </div>
-    </div>
+              </ListItem>
+            ))}
+          </List>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button
+          onClick={handleSubmit}
+          disabled={selectedStudents.length === 0 || isSubmitting}
+          variant="contained"
+          sx={{
+            bgcolor: "#2e7d32",
+            "&:hover": {
+              bgcolor: "#1b5e20",
+            },
+          }}
+        >
+          {isSubmitting ? <CircularProgress size={20} /> : "Submit"}
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 };

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { Box, Typography } from "@mui/material";
 import { useConference } from "./context/ConferenceContext";
 import {
   startConferenceCall,
@@ -15,6 +16,10 @@ import {
 import { AddParticipantModal } from "./components/AddParticipantModal";
 import { AudioContentModal } from "./components/AudioContentModal";
 import { SeekControls } from "./components/SeekControls";
+import { ParticipantList } from "./components/participants/ParticipantList";
+import { ControlButtonGroup } from "./components/controls/ControlButtonGroup";
+import { PageContainer } from "./components/layout/PageContainer";
+import { showToast } from "./utils/toast";
 import App from "./App";
 
 const getPhoneNumber = (user) => user?.phoneNumber;
@@ -28,7 +33,6 @@ export function DetailsPage() {
     useConference();
 
   const [users, setUsers] = useState(userList);
-  const [notification, setNotification] = useState(null);
   const [loadingIds, setLoadingIds] = useState([]);
   const [reconnectingIds, setReconnectingIds] = useState([]);
   const [isLoadingCall, setIsLoadingCall] = useState(false);
@@ -49,13 +53,7 @@ export function DetailsPage() {
     const handleNotification = (event) => {
       const { detail } = event;
       if (detail.type === "participant_dropped") {
-        // Show notification
-        setNotification({
-          message: `${detail.participantPhone} has left the call`,
-          timestamp: detail.timestamp,
-        });
-        // Auto-hide after 5 seconds
-        setTimeout(() => setNotification(null), 5000);
+        showToast.info(`${detail.participantPhone} has left the call`);
       }
     };
 
@@ -65,27 +63,40 @@ export function DetailsPage() {
     };
   }, []);
 
-  const teacher = normalizeUser(users.find((user) => user.role === "Teacher"));
+  // Get teacher from userList (which is updated by SSE events)
+  const teacherFromUserList = normalizeUser(users.find((user) => user.role === "Teacher"));
   const students = conferenceStudents;
+
+  // Ensure teacher has the latest data from userList
+  const teacher = teacherFromUserList;
 
   const handleMuteToggle = async (userToUpdate) => {
     setLoadingIds((prev) => [...prev, userToUpdate.phoneNumber]);
 
-    if (userToUpdate.is_muted) {
-      await unmuteParticipant(confId, userToUpdate.phoneNumber);
-    } else {
-      await muteParticipant(confId, userToUpdate.phoneNumber);
+    try {
+      if (userToUpdate.is_muted) {
+        await unmuteParticipant(confId, userToUpdate.phoneNumber);
+        showToast.success(`${userToUpdate.name || "Participant"} unmuted`);
+      } else {
+        await muteParticipant(confId, userToUpdate.phoneNumber);
+        showToast.info(`${userToUpdate.name || "Participant"} muted`);
+      }
+    } catch (error) {
+      console.error("Error toggling mute:", error);
+      showToast.error("Failed to toggle mute");
+    } finally {
+      setLoadingIds((prev) => prev.filter((id) => id !== userToUpdate.phoneNumber));
     }
-
-    setLoadingIds((prev) => prev.filter((id) => id !== userToUpdate.phoneNumber));
   };
 
   const handleStartCall = async () => {
     setIsLoadingCall(true);
     try {
       await startConferenceCall(confId);
+      showToast.success("Call started successfully");
     } catch (error) {
       console.error("Error starting the call:", error);
+      showToast.error("Failed to start call");
     } finally {
       setIsLoadingCall(false);
     }
@@ -95,8 +106,10 @@ export function DetailsPage() {
     setIsLoadingCall(true);
     try {
       await endConferenceCall(confId);
+      showToast.success("Call ended");
     } catch (error) {
-      console.error("Error starting the call:", error);
+      console.error("Error ending the call:", error);
+      showToast.error("Failed to end call");
     } finally {
       setIsLoadingCall(false);
     }
@@ -106,11 +119,13 @@ export function DetailsPage() {
     setIsSinkingConf(true);
     try {
       await sinkConferenceCall(confId);
+      showToast.success("Conference sunk successfully");
+      setHasSunkConf(true);
     } catch (error) {
-      console.error("Error starting the call:", error);
+      console.error("Error sinking conference:", error);
+      showToast.error("Failed to sink conference");
     } finally {
       setIsSinkingConf(false);
-      setHasSunkConf(true);
     }
   };
 
@@ -192,11 +207,17 @@ export function DetailsPage() {
   const handleCloseAudioModal = () => setIsAudioModalOpen(false);
 
   const handleAddParticipants = async (selectedPhoneNumbers) => {
-    for (const phoneNumber of selectedPhoneNumbers) {
-      if (!phoneNumber) {
-        continue;
+    try {
+      for (const phoneNumber of selectedPhoneNumbers) {
+        if (!phoneNumber) {
+          continue;
+        }
+        await addParticipant(confId, phoneNumber);
       }
-      await addParticipant(confId, phoneNumber);
+      showToast.success(`Added ${selectedPhoneNumbers.length} participant(s)`);
+    } catch (error) {
+      console.error("Error adding participants:", error);
+      showToast.error("Failed to add participants");
     }
   };
 
@@ -214,184 +235,102 @@ export function DetailsPage() {
   const canReconnect = (user) => user?.call_status === "disconnected" && isConfCallRunning;
   const isReconnecting = (phoneNumber) => phoneNumber && reconnectingIds.includes(phoneNumber);
 
+  // Merge conferenceStudents with userList data to get call status, mute status, etc.
+  // This preserves the original functionality: show all conferenceStudents
+  // but update them with real-time data from userList (SSE events)
+  // Use a Map to avoid duplicates and ensure we only show each student once
+  const studentMap = new Map();
+  students.forEach((student) => {
+    const phoneNumber = getPhoneNumber(student);
+    if (phoneNumber) {
+      studentMap.set(phoneNumber, student);
+    }
+  });
+
+  // Update with real-time data from userList
+  const activeStudents = Array.from(studentMap.values()).map((student) => {
+    const phoneNumber = getPhoneNumber(student);
+    const userInCall = userList.find((user) => getPhoneNumber(user) === phoneNumber);
+    // If student is in the call (userList), merge the call status and mute status
+    // Otherwise, just use the student data as-is
+    return userInCall
+      ? {
+          ...student,
+          call_status: userInCall.call_status,
+          is_muted: userInCall.is_muted,
+          is_raised: userInCall.is_raised,
+        }
+      : student;
+  });
+
   if (hasSunkConf) {
     return <App />;
   }
 
   return (
-    <div className="app-container">
-      {/* Notification Toast */}
-      {notification && (
-        <div className="notification-toast">
-          <div className="notification-content">
-            <span className="notification-icon">🔔</span>
-            <span>{notification.message}</span>
-          </div>
-        </div>
-      )}
-      <h1 className="welcome-title">Details</h1>
-      <div className="list-container">
-        {teacher && (
-          <div className="list-box">
-            <h2 className="list-title">Teacher</h2>
-            <ul className="list">
-              <li key={teacher.phoneNumber} className="list-item">
-                <div className="list-item-content">
-                  <span className="content">
-                    <strong>{teacher.name}</strong>
-                  </span>
-                </div>
-                <div className="list-item-content">
-                  <span className="content">
-                    <strong>{teacher.phoneNumber}</strong>
-                  </span>
-                </div>
-                <div className="list-item-content">
-                  <span className="content">
-                    <strong>{teacher.call_status}</strong>
-                  </span>
-                </div>
-                {canReconnect(teacher) && (
-                  <div className="list-item-content">
-                    <span className="content">
-                      <button
-                        onClick={() => handleReconnect(teacher.phoneNumber)}
-                        className="mute-button"
-                      >
-                        {isReconnecting(teacher.phoneNumber) ? "Loading..." : "Reconnect"}
-                      </button>
-                    </span>
-                  </div>
-                )}
-                <div className="list-item-content">
-                  <span className="content">
-                    <button
-                      onClick={() => handleMuteToggle(teacher)}
-                      disabled={
-                        isLoading(teacher.phoneNumber) || teacher.call_status !== "connected"
-                      }
-                      className="mute-button"
-                    >
-                      {isLoading(teacher.phoneNumber)
-                        ? "Loading..."
-                        : teacher.is_muted
-                          ? "Unmute"
-                          : "Mute"}
-                    </button>
-                  </span>
-                </div>
-              </li>
-            </ul>
-          </div>
-        )}
-
-        {students.length > 0 && (
-          <div className="list-box">
-            <h2 className="list-title">Students</h2>
-            <ul className="list">
-              {students.map((student) => (
-                <li key={student.phoneNumber} className="list-item">
-                  <div className="list-item-content">
-                    <span className="content">
-                      <strong>{student.name}</strong>
-                    </span>
-                  </div>
-                  <div className="list-item-content">
-                    <span className="content">
-                      <strong>{student.phoneNumber}</strong>
-                    </span>
-                  </div>
-                  <div className="list-item-content">
-                    <span className="content">
-                      <strong>{student.call_status}</strong>
-                    </span>
-                  </div>
-                  {canReconnect(student) && (
-                    <div className="list-item-content">
-                      <span className="content">
-                        <button
-                          onClick={() => handleReconnect(student.phoneNumber)}
-                          className="mute-button"
-                        >
-                          {isReconnecting(student.phoneNumber) ? "Loading..." : "Reconnect"}
-                        </button>
-                      </span>
-                    </div>
-                  )}
-                  <div className="list-item-content">
-                    <span className="content">
-                      <button
-                        onClick={() => handleMuteToggle(student)}
-                        disabled={
-                          isLoading(student.phoneNumber) || student.call_status !== "connected"
-                        }
-                        className="mute-button"
-                      >
-                        {isLoading(student.phoneNumber)
-                          ? "Loading..."
-                          : student.is_muted
-                            ? "Unmute"
-                            : "Mute"}
-                      </button>
-                    </span>
-                  </div>
-                  {student.is_raised && (
-                    <div className="list-item-content">
-                      <span className="raised-hand-icon" role="img" aria-label="raised hand">
-                        ✋
-                      </span>
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
-
-      <div className="button-container">
-        <button
-          className="action-button"
-          onClick={isConfCallRunning ? handleEndCall : handleStartCall}
-          disabled={isLoadingCall}
-        >
-          {isLoadingCall ? "Loading..." : isConfCallRunning ? "End Call" : "Start Call"}
-        </button>
-
-        <button
-          className="action-button"
-          onClick={handleSinkConf}
-          disabled={isConfCallRunning || isSinkingConf}
-        >
-          {isSinkingConf ? "Sinking..." : "Sink Conference"}
-        </button>
-
-        <button className="action-button" onClick={handleOpenModal} disabled={!isConfCallRunning}>
-          Add Participant
-        </button>
-        <button
-          className="action-button"
-          onClick={handleMusicControl}
-          disabled={isLoadingMusic || !isConfCallRunning || isStartingAudio}
-        >
-          {isLoadingMusic
-            ? "Loading..."
-            : isStartingAudio
-              ? "Starting..."
-              : isPlayingAudio
-                ? "Pause Music"
-                : isPausedAudio
-                  ? "Resume Music"
-                  : "Play Music"}
-        </button>
-        {audioSelectionError && <span className="error-text">{audioSelectionError}</span>}
-        <SeekControls
-          disabled={!canSeekAudio}
-          seekingDirection={seekDirection}
-          onSeekBackward={() => handleSeek(-10)}
-          onSeekForward={() => handleSeek(10)}
+    <PageContainer maxWidth="md">
+      <Box
+        sx={{
+          bgcolor: "#f5f5f5",
+          minHeight: "100vh",
+          py: 4,
+        }}
+      >
+        {/* Participant List */}
+        <ParticipantList
+          teacher={teacher}
+          students={activeStudents}
+          onMuteToggle={handleMuteToggle}
+          onReconnect={handleReconnect}
+          isLoading={isLoading}
+          isReconnecting={isReconnecting}
+          canReconnect={canReconnect}
         />
-      </div>
+
+        {/* Control Buttons */}
+        <ControlButtonGroup
+          isConfCallRunning={isConfCallRunning}
+          isLoadingCall={isLoadingCall}
+          isSinkingConf={isSinkingConf}
+          isLoadingMusic={isLoadingMusic}
+          isPlayingAudio={isPlayingAudio}
+          isPausedAudio={isPausedAudio}
+          isStartingAudio={isStartingAudio}
+          onStartCall={handleStartCall}
+          onEndCall={handleEndCall}
+          onSinkConf={handleSinkConf}
+          onAddParticipant={handleOpenModal}
+          onMusicControl={handleMusicControl}
+        />
+
+        {/* Seek Controls */}
+        <Box
+          sx={{
+            display: "flex",
+            gap: 2,
+            justifyContent: "center",
+            mt: 2,
+          }}
+        >
+          <SeekControls
+            disabled={!canSeekAudio}
+            seekingDirection={seekDirection}
+            onSeekBackward={() => handleSeek(-10)}
+            onSeekForward={() => handleSeek(10)}
+          />
+        </Box>
+
+        {/* Error Message */}
+        {audioSelectionError && (
+          <Box sx={{ mt: 2, textAlign: "center" }}>
+            <Typography color="error" variant="body2">
+              {audioSelectionError}
+            </Typography>
+          </Box>
+        )}
+      </Box>
+
+      {/* Modals */}
       <AddParticipantModal
         open={isModalOpen}
         onClose={handleCloseModal}
@@ -403,6 +342,6 @@ export function DetailsPage() {
         onClose={handleCloseAudioModal}
         onSubmit={handlePlaySelectedTrack}
       />
-    </div>
+    </PageContainer>
   );
 }
