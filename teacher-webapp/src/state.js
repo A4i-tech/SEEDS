@@ -6,7 +6,7 @@ export class Participant {
     role = "Student",
     raised_at = -1,
     is_raised = false,
-    is_muted = true,
+    is_muted = false,
     call_status = "disconnected",
   } = {}) {
     // Destructure object and provide default values
