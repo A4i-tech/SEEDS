@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useConference } from "./context/ConferenceContext";
+import { useConference, normalizePhone } from "./context/ConferenceContext";
 import {
   startConferenceCall,
   endConferenceCall,
@@ -15,25 +15,24 @@ import {
 import { AddParticipantModal } from "./components/AddParticipantModal";
 import { AudioContentModal } from "./components/AudioContentModal";
 import { SeekControls } from "./components/SeekControls";
-import App from "./App";
 
 const getPhoneNumber = (user) => user?.phoneNumber;
 if (!getPhoneNumber) {
   throw new Error("getPhoneNumber function is not defined properly");
 }
-const normalizeUser = (user) =>
-  user ? { ...user, phoneNumber: getPhoneNumber(user) } : null;
 
-export function DetailsPage() {
+export function DetailsPage({ onConferenceEnded }) {
   const {
     userList,
     confId,
     isConfCallRunning,
     audioContentState,
     conferenceStudents,
+    selectedTeacher,
+    selectedStudents,
   } = useConference();
 
-  const [users, setUsers] = useState(userList);
+  const [, setUsers] = useState(userList);
   const [notification, setNotification] = useState(null);
   const [loadingIds, setLoadingIds] = useState([]);
   const [reconnectingIds, setReconnectingIds] = useState([]);
@@ -79,21 +78,34 @@ export function DetailsPage() {
     : null;
   // Prefer live-updated selectedStudents (kept in sync via SSE); fall back to initial conferenceStudents
   const students = (
-    selectedStudents && selectedStudents.length > 0
-      ? selectedStudents
-      : conferenceStudents
+    selectedStudents && selectedStudents.length > 0 ? selectedStudents : conferenceStudents
   ).map((s) => (s ? { ...s, phoneNumber: normalizePhone(s.phoneNumber) } : s));
 
   const handleMuteToggle = async (userToUpdate) => {
-    setLoadingIds((prev) => [...prev, userToUpdate.phoneNumber]);
+    const phoneNumber = userToUpdate.phoneNumber;
+    setLoadingIds((prev) => [...prev, phoneNumber]);
 
-    if (userToUpdate.is_muted) {
-      await unmuteParticipant(confId, userToUpdate.phoneNumber);
-    } else {
-      await muteParticipant(confId, userToUpdate.phoneNumber);
+    try {
+      const response = userToUpdate.is_muted
+        ? await unmuteParticipant(confId, phoneNumber)
+        : await muteParticipant(confId, phoneNumber);
+
+      if (!response.ok) {
+        throw new Error(`Failed to ${userToUpdate.is_muted ? "unmute" : "mute"} participant`);
+      }
+
+      // Success - SSE will update the state automatically
+    } catch (error) {
+      console.error("Error toggling mute:", error);
+      setNotification({
+        message: `Failed to ${userToUpdate.is_muted ? "unmute" : "mute"} ${userToUpdate.name}. Please try again.`,
+        timestamp: Date.now(),
+      });
+      // Auto-hide notification after 5 seconds
+      setTimeout(() => setNotification(null), 5000);
+    } finally {
+      setLoadingIds((prev) => prev.filter((id) => id !== phoneNumber));
     }
-
-    setLoadingIds((prev) => prev.filter((id) => id !== userToUpdate.phoneNumber));
   };
 
   const handleStartCall = async () => {
@@ -218,8 +230,7 @@ export function DetailsPage() {
 
   // Filter out students who are already in the userList
   const availableStudents = conferenceStudents.filter(
-    (student) =>
-      !userList.some((user) => getPhoneNumber(user) === getPhoneNumber(student))
+    (student) => !userList.some((user) => getPhoneNumber(user) === getPhoneNumber(student))
   );
 
   const isLoading = (phoneNumber) => phoneNumber && loadingIds.includes(phoneNumber);
@@ -236,7 +247,8 @@ export function DetailsPage() {
     if (hasSunkConf) {
       onConferenceEnded?.();
     }
-  }, [hasSunkConf, onConferenceEnded]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasSunkConf]);
   if (hasSunkConf) {
     return null;
   }

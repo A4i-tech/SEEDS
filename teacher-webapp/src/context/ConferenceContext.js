@@ -2,11 +2,10 @@ import React, { createContext, useContext, useState, useEffect, useRef } from "r
 import { AudioContentState, Participant } from "../state"; // You can import from existing state file
 
 // Utility to normalize phone numbers to '91' format
-function normalizePhone(value) {
+export function normalizePhone(value) {
   if (!value) return "";
   const digitsOnly = String(value).replace(/\D/g, "");
-  if (digitsOnly.length === 12 && digitsOnly.startsWith("91"))
-    return digitsOnly;
+  if (digitsOnly.length === 12 && digitsOnly.startsWith("91")) return digitsOnly;
   if (digitsOnly.length === 10) return "91" + digitsOnly;
   if (digitsOnly.length > 12) return "91" + digitsOnly.slice(-10);
   return digitsOnly;
@@ -90,8 +89,7 @@ export const ConferenceProvider = ({ children }) => {
     // Update previous status tracking
     const newStatusMap = {};
     for (let phoneNumber in normalizedParticipants) {
-      newStatusMap[phoneNumber] =
-        normalizedParticipants[phoneNumber].call_status;
+      newStatusMap[phoneNumber] = normalizedParticipants[phoneNumber].call_status;
     }
     previousParticipantStatusRef.current = newStatusMap;
 

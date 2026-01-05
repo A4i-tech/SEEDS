@@ -9,6 +9,8 @@ import { API_ENDPOINTS } from "../constants/apiEndpoints";
 import { useLocation } from "react-router-dom";
 import { StudentList } from "../components/StudentList";
 import { useAuth } from "../hooks/useAuth";
+import { useNavigation } from "../hooks/useNavigation";
+import { clearAuth } from "../utils/authHelpers";
 import axios from "axios";
 
 function Homepage() {
@@ -23,7 +25,7 @@ function Homepage() {
   const [saveStatus, setSaveStatus] = React.useState("");
   const location = useLocation();
   const navigate = useNavigation();
-  const { getCurrentUser, clearUserCache } = useAuth();
+  const { getCurrentUser } = useAuth();
   const recvdPhoneNumber = location.state;
   const [displayedPhone, setDisplayedPhone] = React.useState("");
   const {
