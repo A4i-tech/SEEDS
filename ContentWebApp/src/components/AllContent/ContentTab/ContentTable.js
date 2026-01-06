@@ -42,7 +42,8 @@ const ContentTable = ({ content, isLoading, onEdit, onView, onDelete }) => {
           </thead>
           <tbody>
             {content.map((item) => {
-              const itemId = item.id || item._id; // API may return id or _id
+              // Get ID - prefer id, fallback to _id
+              const itemId = item.id || item._id;
               return (
                 <tr key={itemId} className="table-row-white">
                   <td className="table-cell">
@@ -117,6 +118,7 @@ const ContentTable = ({ content, isLoading, onEdit, onView, onDelete }) => {
                   </td>
                 </tr>
               );
+            })}
             })}
           </tbody>
         </table>
