@@ -1,5 +1,5 @@
-import { useCallback, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { SEEDS_URL } from "../Constants";
 import { getAuthHeaders, isAuthenticated, clearAuth } from "../utils/authHelpers";
 import { apiFetch } from "../services/api";

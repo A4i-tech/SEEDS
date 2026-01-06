@@ -27,6 +27,7 @@ async function processQuizData(job) {
     if (!content || !content._id) {
       throw new Error("Invalid content data received.");
     }
+    // Use a document instance for transformation, but upsert on save to allow edits.
     const quizDoc = new QuizData(content);
     console.log("Processing Quiz content:", quizDoc);
 
@@ -127,10 +128,30 @@ async function processQuizData(job) {
     // Job completed successfully
     clearTimeout(timeout);
     job.attrs.completedAt = new Date();
-    job.attrs.data.processedContent = quizDoc.toObject();
+    const processed = quizDoc.toObject();
+    job.attrs.data.processedContent = processed;
     await job.save();
-    await quizDoc.save();
-    console.log("SAVED QUIZ DOC");
+
+    // Save normally; if it already exists, fall back to upsert for edits
+    let saveError = null;
+    try {
+      await quizDoc.save();
+      console.log("SAVED QUIZ DOC (new)");
+    } catch (err) {
+      saveError = err;
+    }
+
+    // If duplicate key (already exists), upsert instead
+    if (saveError && saveError.code === 11000) {
+      await QuizData.findOneAndUpdate(
+        { _id: processed._id },
+        processed,
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+      console.log("UPDATED QUIZ DOC (upsert)");
+    } else if (saveError) {
+      throw saveError;
+    }
     console.log(`Processed JOB: ${quizDoc}`);
   } catch (error) {
     console.error("Job failed due to error:", error);

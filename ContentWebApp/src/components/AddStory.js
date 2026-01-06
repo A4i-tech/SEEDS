@@ -329,10 +329,8 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
         audioUrl: metadata.theme.audioUrl || "",
       },
     };
-    var isAudioUploaded = "true";
     if (!metadata.audioFile && !metadata.answerAudioFile) {
       newMetadata["isProcessed"] = metadata.isProcessed;
-      isAudioUploaded = "false";
     }
     delete newMetadata["audioFile"];
     delete newMetadata["answerAudioFile"];

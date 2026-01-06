@@ -171,6 +171,12 @@ const AddQuiz = ({ quiz }) => {
     };
     setInputFields([...inputFields, newfield]);
   };
+
+  const handleCorrectAnswerChange = (questionIndex, optionIndex) => {
+    const updated = [...inputFields];
+    updated[questionIndex].correctAnswer = optionIndex;
+    setInputFields(updated);
+  };
   //     "positiveMark" : 1,    "negativeMark" : 0,    "id" : "Ramayana quiz 2",    "language" : "Kannada",
   const removeFields = (index) => {
     let data = [...inputFields];
@@ -250,11 +256,8 @@ const AddQuiz = ({ quiz }) => {
         {inputFields.map((input, index) => {
           return (
             <div key={index} className="question-card">
-              <div className="question-header">
-                <div className="question-number">
-                  <div className="question-number-badge">{index + 1}</div>
-                  <div className="question-number-label">Question {index + 1}</div>
-                </div>
+              <div className="question-simple-header">
+                <span className="question-simple-title">Question {index + 1}</span>
                 {inputFields.length > 1 && (
                   <button
                     className="btn-remove"
@@ -277,50 +280,36 @@ const AddQuiz = ({ quiz }) => {
                 />
               </div>
               <div className="options-grid">
-                <div className="option-group">
-                  <label className="option-label option-label-correct">Option A (Correct Answer)</label>
-                  <input
-                    type="text"
-                    name="optionA"
-                    className="form-input"
-                    placeholder="Enter option A"
-                    value={input.optionA}
-                    onChange={(event) => handleFormChange(index, event)}
-                  />
-                </div>
-                <div className="option-group">
-                  <label className="option-label">Option B</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder="Enter option B"
-                    name="optionB"
-                    value={input.optionB}
-                    onChange={(event) => handleFormChange(index, event)}
-                  />
-                </div>
-                <div className="option-group">
-                  <label className="option-label">Option C</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    name="optionC"
-                    placeholder="Enter option C"
-                    value={input.optionC}
-                    onChange={(event) => handleFormChange(index, event)}
-                  />
-                </div>
-                <div className="option-group">
-                  <label className="option-label">Option D</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    name="optionD"
-                    placeholder="Enter option D"
-                    value={input.optionD}
-                    onChange={(event) => handleFormChange(index, event)}
-                  />
-                </div>
+                {["optionA", "optionB", "optionC", "optionD"].map((field, optionIdx) => {
+                  const labels = ["Option A", "Option B", "Option C", "Option D"];
+                  const isCorrect = input.correctAnswer === optionIdx;
+                  return (
+                    <div className={`option-group ${isCorrect ? "option-group-correct" : ""}`} key={field}>
+                      <div className="option-label-row">
+                        <label className={`option-label ${isCorrect ? "option-label-correct" : ""}`}>
+                          {labels[optionIdx]} {isCorrect ? "(Correct Answer)" : ""}
+                        </label>
+                        <label className="option-radio">
+                          <input
+                            type="radio"
+                            name={`correct-${index}`}
+                            checked={isCorrect}
+                            onChange={() => handleCorrectAnswerChange(index, optionIdx)}
+                          />
+                          <span>Select correct</span>
+                        </label>
+                      </div>
+                      <input
+                        type="text"
+                        name={field}
+                        className="form-input"
+                        placeholder={`Enter ${labels[optionIdx]}`}
+                        value={input[field]}
+                        onChange={(event) => handleFormChange(index, event)}
+                      />
+                    </div>
+                  );
+                })}
               </div>
             </div>
           );
