@@ -174,8 +174,8 @@ function Login() {
               aria-label="School selection"
               aria-required="true"
             >
-              <MenuItem value="">
-                {loadingSchools ? "Loading Schools..." : "Select School"}
+              <MenuItem value="" disabled={loadingSchools}>
+                {loadingSchools ? "Select School" : "Select School"}
               </MenuItem>
               {schools.map((sch, idx) => {
                 const value = sch.id;

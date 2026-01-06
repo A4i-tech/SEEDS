@@ -12,6 +12,8 @@ import { clearAuth } from "../utils/authHelpers";
 import { StudentList } from "../components/StudentList";
 import axios from "axios";
 import { normalizePhoneNumber, formatStudentPhones } from "../utils/phoneUtils";
+import { CircularProgress } from "@mui/material";
+import { StudentListSkeleton } from "../components/skeletons/StudentListSkeleton";
 
 function Homepage() {
   // State for new student form
@@ -44,12 +46,14 @@ function Homepage() {
   } = useConference();
   // students fetched from server for the authenticated teacher
   const [studentsList, setStudentsList] = React.useState([]);
+  const [isLoadingStudents, setIsLoadingStudents] = React.useState(false);
 
   // fetch students from backend endpoint using axios POST with phoneNumber in body
   React.useEffect(() => {
     if (!displayedPhone) return;
     let mounted = true;
     const token = localStorage.getItem("authToken");
+    setIsLoadingStudents(true);
     (async () => {
       try {
         const res = await axios.post(
@@ -72,6 +76,10 @@ function Homepage() {
             "Error fetching students",
             err.response ? err.response.status : err.message
           );
+      } finally {
+        if (mounted) {
+          setIsLoadingStudents(false);
+        }
       }
     })();
     return () => {
@@ -315,27 +323,46 @@ function Homepage() {
       <button
         onClick={handleSaveStudents}
         disabled={!displayedPhone || addedStudents.length === 0 || saveStatus === "saving"}
-        style={{ marginBottom: 16 }}
+        style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}
       >
-        {saveStatus === "saving" ? "Saving..." : "Save Students"}
+        {saveStatus === "saving" ? (
+          <>
+            <CircularProgress size={16} />
+            <span>Saving</span>
+          </>
+        ) : (
+          "Save Students"
+        )}
       </button>
       {saveStatus === "success" && <span style={{ color: "green", marginLeft: 8 }}>Saved!</span>}
       {saveStatus === "error" && (
         <span style={{ color: "red", marginLeft: 8 }}>Error saving students</span>
       )}
       <div className="list-container">
-        <StudentList
-          students={studentsList}
-          selectedStudents={selectedStudents}
-          onStudentToggle={handleStudentToggle}
-        />
+        {isLoadingStudents ? (
+          <StudentListSkeleton count={6} />
+        ) : (
+          <StudentList
+            students={studentsList}
+            selectedStudents={selectedStudents}
+            onStudentToggle={handleStudentToggle}
+          />
+        )}
       </div>
       <button
         className="start-conference-button"
         onClick={handleFormSubmit}
         disabled={selectedStudents.length === 0 || loading}
+        style={{ display: "flex", alignItems: "center", gap: 8 }}
       >
-        {loading ? "Starting Conference..." : "Start Conference"}
+        {loading ? (
+          <>
+            <CircularProgress size={16} />
+            <span>Starting Conference</span>
+          </>
+        ) : (
+          "Start Conference"
+        )}
       </button>
     </div>
   );

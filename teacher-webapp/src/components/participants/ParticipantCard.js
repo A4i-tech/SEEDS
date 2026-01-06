@@ -140,7 +140,7 @@ export const ParticipantCard = ({
           }}
           aria-label={participant.is_muted ? "Unmute" : "Mute"}
         >
-          {isLoading ? "Loading..." : participant.is_muted ? "Unmute" : "Mute"}
+          {participant.is_muted ? "Unmute" : "Mute"}
         </Button>
       </Box>
     </Box>

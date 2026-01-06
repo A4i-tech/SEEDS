@@ -58,11 +58,12 @@ export const ControlButtonGroup = ({
         }}
         aria-label={isConfCallRunning ? "End call" : "Start call"}
       >
-        {isLoadingCall ? "Loading..." : isConfCallRunning ? "End Call" : "Start Call"}
+        {isConfCallRunning ? "End Call" : "Start Call"}
       </Button>
 
       <Button
         variant="contained"
+        startIcon={isSinkingConf ? <CircularProgress size={20} color="inherit" /> : null}
         onClick={onSinkConf}
         disabled={isConfCallRunning || isSinkingConf}
         sx={{
@@ -77,7 +78,7 @@ export const ControlButtonGroup = ({
         }}
         aria-label="Sink conference"
       >
-        {isSinkingConf ? "Sinking..." : "Sink Conference"}
+        Sink Conference
       </Button>
 
       <Button
@@ -131,15 +132,7 @@ export const ControlButtonGroup = ({
         }}
         aria-label={isPlayingAudio ? "Pause music" : isPausedAudio ? "Resume music" : "Play music"}
       >
-        {isLoadingMusic
-          ? "Loading..."
-          : isStartingAudio
-            ? "Starting..."
-            : isPlayingAudio
-              ? "Pause Music"
-              : isPausedAudio
-                ? "Resume Music"
-                : "Play Music"}
+        {isPlayingAudio ? "Pause Music" : isPausedAudio ? "Resume Music" : "Play Music"}
       </Button>
     </Box>
   );

@@ -151,8 +151,8 @@ const Register = () => {
               aria-label="School selection"
               aria-required="true"
             >
-              <MenuItem value="">
-                {loadingSchools ? "Loading Schools..." : "Select School"}
+              <MenuItem value="" disabled={loadingSchools}>
+                {loadingSchools ? "Select School" : "Select School"}
               </MenuItem>
               {school.map((sch, idx) => {
                 const value = sch.id;
