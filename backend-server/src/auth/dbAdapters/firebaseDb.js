@@ -67,4 +67,9 @@ module.exports = {
     await newTeacherRef.set({ phoneNumber, password, tenantId });
     return { id: newTeacherRef.id, phoneNumber, password, tenantId };
   },
+  async updateTenantPassword(tenantId, newPassword) {
+    const tenantRef = db.collection("Tenants").doc(tenantId);
+    await tenantRef.update({ password: newPassword });
+    return;
+  },
 };

@@ -3,6 +3,7 @@ import { BlockBlobClient } from "@azure/storage-blob";
 import { useNavigate } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
 import { SEEDS_URL, AUDIO_BASE_URL } from "../Constants";
+import { getAuthHeaders } from "../utils/authHelpers";
 
 const AddStory = ({ content, contentType }) => {
   const [metadata, setMetadata] = useState({
@@ -33,9 +34,7 @@ const AddStory = ({ content, contentType }) => {
   const getAllContent = async () => {
     const seedsRes = await fetch(`${SEEDS_URL}/content`, {
       method: "GET",
-      headers: {
-        authToken: "postman",
-      },
+      headers: getAuthHeaders(),
     });
     const seedsData = await seedsRes.json();
     return seedsData;
@@ -261,20 +260,14 @@ const AddStory = ({ content, contentType }) => {
       newMetadata = { ...newMetadata, _id: content._id };
       const seedsRes = await fetch(`${SEEDS_URL}/content?isAudioUploaded=${isAudioUploaded}`, {
         method: "PATCH",
-        headers: {
-          authToken: "postman",
-          "Content-Type": "application/json",
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify(newMetadata),
       });
       await seedsRes.json();
     } else {
       const seedsRes = await fetch(`${SEEDS_URL}/content/`, {
         method: "POST",
-        headers: {
-          authToken: "postman",
-          "Content-Type": "application/json",
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify(newMetadata),
       });
       await seedsRes.json();
@@ -292,9 +285,7 @@ const AddStory = ({ content, contentType }) => {
           }),
         {
           method: "GET",
-          headers: {
-            authToken: "postman",
-          },
+          headers: getAuthHeaders(),
         }
       );
       const sasUrl = (await res.json()).sasToken;
@@ -324,9 +315,7 @@ const AddStory = ({ content, contentType }) => {
           }),
         {
           method: "GET",
-          headers: {
-            authToken: "postman",
-          },
+          headers: getAuthHeaders(),
         }
       );
       const sasUrlAnswer = (await resAnswer.json()).sasToken;

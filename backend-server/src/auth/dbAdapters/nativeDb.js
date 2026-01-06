@@ -1,5 +1,6 @@
 const Tenant = require("../../models/Tenant");
 const Teacher = require("../../models/Teacher");
+
 module.exports = {
   async getAllTenants() {
     const docs = await Tenant.find({}).lean().exec();
@@ -23,5 +24,8 @@ module.exports = {
   },
   async insertTeacher({ phoneNumber, password, tenantId }) {
     return Teacher.create({ phoneNumber, password, tenantId });
+  },
+  async updateTenantPassword(tenantId, newPassword) {
+    return Tenant.findByIdAndUpdate(tenantId, { password: newPassword });
   },
 };

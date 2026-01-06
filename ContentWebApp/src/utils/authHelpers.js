@@ -19,21 +19,8 @@ export const isAuthenticated = () => {
 };
 
 /**
- * Get current user's tenant information
- * @returns {{tenantId: string|null, tenantName: string|null}}
- */
-export const getTenantInfo = () => {
-  return {
-    tenantId: localStorage.getItem("tenantId"),
-    tenantName: localStorage.getItem("tenantName"),
-  };
-};
-
-/**
  * Clear all authentication data
  */
 export const clearAuth = () => {
   localStorage.removeItem("authToken");
-  localStorage.removeItem("tenantId");
-  localStorage.removeItem("tenantName");
 };

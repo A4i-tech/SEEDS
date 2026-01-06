@@ -96,7 +96,7 @@ const IVR = () => {
         // seedsData[selectedDate.toLocaleDateString()].userInsights;
         // console.log("USER INSIGHTS", userInsights);
         var dp = [];
-        Object.values(seedsData).map((dateData) => {
+        Object.values(seedsData).forEach((dateData) => {
           const userInsights = dateData.userInsights;
           const dateProcessed = userInsights.map((userInsight) => {
             const phoneNumber = userInsight.phoneNumber.substring(2);
