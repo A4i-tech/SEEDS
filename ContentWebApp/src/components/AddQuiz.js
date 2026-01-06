@@ -18,23 +18,66 @@ const AddQuiz = ({ quiz }) => {
 
   useEffect(() => {
     if (quiz && Object.keys(quiz).length > 0) {
+      // Handle title - can be string or object
+      const title = typeof quiz.title === "object" ? quiz.title.english : quiz.title;
+      
+      // Handle marks - check for both singular and plural field names
+      const positiveMark = quiz.positiveMarks ?? quiz.positiveMark ?? 1;
+      const negativeMark = quiz.negativeMarks ?? quiz.negativeMark ?? 0;
+
       const quizMetadata = {
-        title: quiz.title,
+        title: title,
         language: quiz.language,
-        positiveMark: quiz.positiveMark,
-        negativeMark: quiz.negativeMark,
+        positiveMark: positiveMark,
+        negativeMark: negativeMark,
       };
       setMetadata(quizMetadata);
-      // var a = []
-      const a = quiz.options.map((option, index) => ({
-        question: quiz.questions[index],
-        optionA: option[0],
-        optionB: option[1],
-        optionC: option[2],
-        optionD: option[3],
-      }));
-      setInputFields(a);
-    } else {
+
+      // Handle questions - can be array of strings or array of objects
+      const questions = quiz.questions || [];
+      const inputFieldsData = questions.map((questionItem, index) => {
+        let questionText = "";
+        let options = [];
+
+        if (typeof questionItem === "string") {
+          // Old format: question is a string
+          questionText = questionItem;
+          // Try to get options from quiz.options if it exists (old format)
+          if (quiz.options && Array.isArray(quiz.options[index])) {
+            options = quiz.options[index];
+          } else {
+            options = ["", "", "", ""];
+          }
+        } else if (questionItem && typeof questionItem === "object") {
+          // New format: question is an object
+          questionText =
+            questionItem.question?.text ||
+            questionItem.question ||
+            questionItem.text ||
+            "";
+          options = questionItem.options || [];
+        }
+
+        // Extract option texts (handle both string and object formats)
+        const optionTexts = options.map((opt) => {
+          return typeof opt === "object" ? opt.text || "" : opt || "";
+        });
+
+        // Ensure we have at least 4 options
+        while (optionTexts.length < 4) {
+          optionTexts.push("");
+        }
+
+        return {
+          question: questionText,
+          optionA: optionTexts[0] || "",
+          optionB: optionTexts[1] || "",
+          optionC: optionTexts[2] || "",
+          optionD: optionTexts[3] || "",
+        };
+      });
+
+      setInputFields(inputFieldsData.length > 0 ? inputFieldsData : [{ question: "", optionA: "", optionB: "", optionC: "", optionD: "" }]);
     }
   }, [quiz]);
 

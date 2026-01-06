@@ -67,7 +67,26 @@ const ContentTable = ({ content, isLoading, onEdit, onView, onDelete }) => {
                   {item.type === "quiz" && " IVR"}
                 </td>
                 <td className="table-cell">{item.language}</td>
-                <td className="table-cell">{item.type}</td>
+                <td className="table-cell">
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                    {item.type}
+                    {item.type === "quiz" && (
+                      <span
+                        style={{
+                          backgroundColor: "#007bff",
+                          color: "white",
+                          fontSize: "10px",
+                          padding: "2px 6px",
+                          borderRadius: "10px",
+                          fontWeight: "bold",
+                        }}
+                        title="Quiz Content"
+                      >
+                        Q
+                      </span>
+                    )}
+                  </span>
+                </td>
                 <td className="table-cell">
                   <div className="action-buttons-wrapper">
                     <button

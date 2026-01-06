@@ -8,38 +8,37 @@ import { getAuthHeaders } from "../utils/authHelpers";
 const ContentDetails = () => {
   const { type, id } = useParams();
   const [content, setContent] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const contentById = useCallback(async () => {
-    console.log("CONTENTBYID", type);
-    // console.log(type)
-    // const res = await fetch("http://localhost:5001/content");
-
     try {
-      let data;
-      if (type === "quiz") {
-        const placeRes = await fetch(
-          "https://place-seeds.azurewebsites.net/rawDataById?" +
-            new URLSearchParams({
-              id: id,
-            })
-        );
-        data = await placeRes.json();
-        console.log("ContentDetailsData", data);
-      } else {
-        const seedsRes = await fetch(`${SEEDS_URL}/content/${id}`, {
-          method: "GET",
-          headers: getAuthHeaders(),
-        });
-        data = await seedsRes.json();
-        console.log("ContentDetailsData1", data);
+      setLoading(true);
+      setError(null);
+
+      // Fetch from main endpoint - now includes quiz data
+      const headers = getAuthHeaders();
+      const response = await fetch(`${SEEDS_URL}/content/${id}`, {
+        method: "GET",
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch content: ${response.status}`);
       }
+
+      const data = await response.json();
+      console.log("ContentDetailsData", data);
       setContent(data);
       return data;
     } catch (error) {
       console.error("Error fetching content:", error);
+      setError(error.message);
       return null;
+    } finally {
+      setLoading(false);
     }
-  }, [type, id]);
+  }, [id]);
 
   useEffect(() => {
     const fetchContent = async () => {
@@ -48,27 +47,54 @@ const ContentDetails = () => {
     fetchContent();
   }, [contentById]);
 
-  if (content && !content.isProcessed) {
-    return (
-      <>
-        <div style={{ margin: "20px" }}>
-          <h3>Title: {content.title}</h3>
-          <p>Content is being processed, try again later!</p>
-        </div>
-      </>
-    );
-  } else {
+  if (loading) {
     return (
       <div style={{ margin: "20px" }}>
-        {content && content.isProcessed && content.type === "quiz" && (
-          <QuizDetails quiz={content} />
-        )}
-        {content && content.isProcessed && content.type !== "quiz" && (
-          <StoryDetails type={content.type} story={content} />
-        )}
+        <p>Loading content...</p>
       </div>
     );
   }
+
+  if (error) {
+    return (
+      <div style={{ margin: "20px" }}>
+        <h3>Error</h3>
+        <p>{error}</p>
+      </div>
+    );
+  }
+
+  if (!content) {
+    return (
+      <div style={{ margin: "20px" }}>
+        <h3>Content not found</h3>
+      </div>
+    );
+  }
+
+  // Check if content is processed (for non-quiz content)
+  // Quiz content doesn't have isProcessed field, so we check if it has questions
+  const isProcessed = content.isProcessed !== false && (content.type === "quiz" ? content.questions?.length > 0 : true);
+
+  if (!isProcessed && content.type !== "quiz") {
+    const title = typeof content.title === "object" ? content.title.english : content.title;
+    return (
+      <div style={{ margin: "20px" }}>
+        <h3>Title: {title}</h3>
+        <p>Content is being processed, try again later!</p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ margin: "20px" }}>
+      {content.type === "quiz" ? (
+        <QuizDetails quiz={content} />
+      ) : (
+        <StoryDetails type={content.type} story={content} />
+      )}
+    </div>
+  );
 };
 
 export default ContentDetails;

@@ -39,14 +39,8 @@ export const contentService = {
    * @returns {Promise<void>}
    */
   async deleteContent(type, id, headers = {}) {
-    let url;
-
-    if (type === "quiz") {
-      const params = buildQueryString({ id, type: "quiz" });
-      url = `https://place-seeds.azurewebsites.net/byId?${params}`;
-    } else {
-      url = `${SEEDS_URL}/content/${id}`;
-    }
+    // All content (including quizzes) is now deleted through the main endpoint
+    const url = `${SEEDS_URL}/content/${id}`;
 
     await apiFetch(url, {
       method: "DELETE",

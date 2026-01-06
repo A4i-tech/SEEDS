@@ -378,50 +378,156 @@ router.get(
     // If specific IDs are requested, return non-deleted content sorted by creation time (newest first)
     if (req.query.ids) {
       const idsArray = Array.isArray(req.query.ids) ? req.query.ids : req.query.ids.split(",");
-      const contents = await ContentV3.collection
-        .find({ _id: { $in: idsArray }, isDeleted: { $ne: true } })
-        .sort({ creation_time: -1 })
-        .toArray();
-      return res.json(contents);
+      
+      // Fetch both content and quiz data for the requested IDs
+      const [contents, quizzes] = await Promise.all([
+        ContentV3.find({ _id: { $in: idsArray }, isDeleted: { $ne: true } })
+          .sort({ creation_time: -1 })
+          .exec(),
+        QuizData.find({ _id: { $in: idsArray }, isDeleted: { $ne: true } })
+          .sort({ creation_time: -1 })
+          .exec(),
+      ]);
+      
+      // Transform content to ensure id field exists
+      const transformedContents = contents.map((content) => {
+        const contentObj = content.toObject();
+        return {
+          ...contentObj,
+          id: contentObj.id || contentObj._id,
+        };
+      });
+      
+      // Transform quiz data to match content format
+      const transformedQuizzes = quizzes.map((quiz) => {
+        const quizObj = quiz.toObject();
+        return {
+          ...quizObj,
+          id: quizObj._id,
+          type: "quiz",
+        };
+      });
+      
+      // Merge and sort
+      const allContent = [...transformedContents, ...transformedQuizzes].sort(
+        (a, b) => (b.creation_time || 0) - (a.creation_time || 0)
+      );
+      
+      return res.json(allContent);
     }
 
     // Base query always excludes deleted content
-    let query = { isDeleted: { $ne: true } };
+    let contentQuery = { isDeleted: { $ne: true } };
+    let quizQuery = { isDeleted: { $ne: true } };
+    let shouldFetchContent = true;
+    let shouldFetchQuizzes = true;
 
     if (req.query.onlyTeacherApp) {
-      query.isTeacherApp = true;
+      contentQuery.isTeacherApp = true;
+      quizQuery.isTeacherApp = true;
     } else if (req.query.language && req.query.theme && req.query.expName) {
-      query.isPullModel = true;
-      query.language = req.query.language;
-      query["theme.english"] = decodeURIComponent(req.query.theme).toString();
-      query.type = req.query.expName.toLowerCase();
+      const expName = req.query.expName.toLowerCase();
+      
+      if (expName === "quiz") {
+        // If filtering for quiz, only query QuizData
+        shouldFetchContent = false;
+        quizQuery.isPullModel = true;
+        quizQuery.language = req.query.language;
+        quizQuery["theme.english"] = decodeURIComponent(req.query.theme).toString();
+      } else {
+        // If filtering for other types, only query ContentV3
+        shouldFetchQuizzes = false;
+        contentQuery.isPullModel = true;
+        contentQuery.language = req.query.language;
+        contentQuery["theme.english"] = decodeURIComponent(req.query.theme).toString();
+        contentQuery.type = expName;
+      }
     }
 
-    // Cursor-based pagination using creation_time (descending) and _id as a tie-breaker
+    // Fetch content and quizzes separately
+    // Fetch more items to account for merging and pagination
+    const fetchLimit = limit * 2; // Fetch more to ensure we have enough after merging
+
+    let contents = [];
+    if (shouldFetchContent) {
+      contents = await ContentV3.find(contentQuery)
+        .sort({ creation_time: -1, _id: -1 })
+        .limit(fetchLimit)
+        .exec();
+    }
+
+    let quizzes = [];
+    if (shouldFetchQuizzes) {
+      quizzes = await QuizData.find(quizQuery)
+        .sort({ creation_time: -1, _id: -1 })
+        .limit(fetchLimit)
+        .exec();
+    }
+
+    // Transform content to ensure id field exists
+    const transformedContents = contents.map((content) => {
+      const contentObj = content.toObject();
+      return {
+        ...contentObj,
+        id: contentObj.id || contentObj._id,
+      };
+    });
+
+    // Transform quiz data to match content format
+    const transformedQuizzes = quizzes.map((quiz) => {
+      const quizObj = quiz.toObject();
+      return {
+        ...quizObj,
+        id: quizObj._id,
+        type: "quiz",
+      };
+    });
+
+    // Merge content and quizzes
+    let allContent = [...transformedContents, ...transformedQuizzes];
+
+    // Sort by creation_time (descending), then by _id (descending) as tie-breaker
+    allContent.sort((a, b) => {
+      const timeA = a.creation_time || 0;
+      const timeB = b.creation_time || 0;
+      if (timeB !== timeA) {
+        return timeB - timeA;
+      }
+      // If creation_time is equal, compare _id as string
+      const idA = a._id?.toString() || "";
+      const idB = b._id?.toString() || "";
+      return idB.localeCompare(idA);
+    });
+
+    // Apply cursor-based pagination if cursor is provided
     if (cursor) {
       const [lastCreationTimeStr, lastId] = cursor.split("_");
       const lastCreationTime = parseInt(lastCreationTimeStr, 10);
-      const lastIdBinary = new Binary(Buffer.from(uuidParse(lastId)), 4);
-
-      query.$or = [
-        { creation_time: { $lt: lastCreationTime } },
-        {
-          creation_time: lastCreationTime,
-          _id: { $lt: lastIdBinary },
-        },
-      ];
+      
+      allContent = allContent.filter((item) => {
+        const itemTime = item.creation_time || 0;
+        if (itemTime < lastCreationTime) {
+          return true;
+        }
+        if (itemTime === lastCreationTime) {
+          const itemId = item._id?.toString() || "";
+          return itemId < lastId;
+        }
+        return false;
+      });
     }
 
-    const contents = await ContentV3.find(query)
-      .sort({ creation_time: -1, _id: -1 })
-      .limit(limit + 1)
-      .exec();
+    // Apply limit and check if there are more items
+    const hasMore = allContent.length > limit;
+    const data = hasMore ? allContent.slice(0, limit) : allContent;
 
-    const hasMore = contents.length > limit;
-    const data = hasMore ? contents.slice(0, limit) : contents;
-
+    // Generate next cursor from last item
     const lastItem = hasMore ? data[data.length - 1] : null;
-    const nextCursor = lastItem ? `${lastItem.creation_time}_${lastItem._id.toString()}` : null;
+    let nextCursor = null;
+    if (lastItem) {
+      const lastId = lastItem._id?.toString() || lastItem.id || "";
+      nextCursor = `${lastItem.creation_time || 0}_${lastId}`;
+    }
 
     // Send the final response
     return res.json({
