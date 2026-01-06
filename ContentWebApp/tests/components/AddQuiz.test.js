@@ -9,13 +9,13 @@ describe("AddQuiz", () => {
         <AddQuiz />
       </MemoryRouter>
     );
-    expect(screen.getByPlaceholderText(/Add Title/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Enter quiz title/i)).toBeInTheDocument();
     expect(screen.getByRole("combobox")).toBeInTheDocument();
     expect(
-      screen.getByPlaceholderText(/Add Positive Marks/i)
+      screen.getByPlaceholderText(/Enter positive marks/i)
     ).toBeInTheDocument();
     expect(
-      screen.getByPlaceholderText(/Add Negative Marks/i)
+      screen.getByPlaceholderText(/Enter negative marks/i)
     ).toBeInTheDocument();
     // There should be one question textbox (input[name=question])
     expect(
@@ -23,14 +23,14 @@ describe("AddQuiz", () => {
         .getAllByRole("textbox", { name: "" })
         .filter((input) => input.getAttribute("name") === "question").length
     ).toBe(1);
-    expect(screen.getByPlaceholderText(/Add Option A/i)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/Add Option B/i)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/Add Option C/i)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/Add Option D/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Enter option A/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Enter option B/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Enter option C/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Enter option D/i)).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /\+ Question/i })
+      screen.getByRole("button", { name: /➕ Add Question/i })
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Save/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /💾 Save Quiz/i })).toBeInTheDocument();
   });
 
   it("adds a new question field when '+ Question' is clicked", () => {
@@ -39,7 +39,7 @@ describe("AddQuiz", () => {
         <AddQuiz />
       </MemoryRouter>
     );
-    const addButton = screen.getByRole("button", { name: /\+ Question/i });
+    const addButton = screen.getByRole("button", { name: /➕ Add Question/i });
     fireEvent.click(addButton);
     // There should be two question textboxes now
     expect(
@@ -55,9 +55,9 @@ describe("AddQuiz", () => {
         <AddQuiz />
       </MemoryRouter>
     );
-    const addButton = screen.getByRole("button", { name: /\+ Question/i });
+    const addButton = screen.getByRole("button", { name: /➕ Add Question/i });
     fireEvent.click(addButton);
-    let removeButtons = screen.getAllByRole("button", { name: /Remove/i });
+    let removeButtons = screen.getAllByRole("button", { name: /Remove Question/i });
     expect(removeButtons.length).toBe(2);
     fireEvent.click(removeButtons[1]);
     expect(
@@ -71,12 +71,29 @@ describe("AddQuiz", () => {
     const quiz = {
       title: "Sample Quiz",
       language: "english",
-      positiveMark: 2,
-      negativeMark: 1,
-      questions: ["Q1?", "Q2?"],
-      options: [
-        ["A1", "B1", "C1", "D1"],
-        ["A2", "B2", "C2", "D2"],
+      positiveMarks: 2,
+      negativeMarks: 1,
+      questions: [
+        {
+          question: { text: "Q1?" },
+          options: [
+            { id: "opt1", text: "A1" },
+            { id: "opt2", text: "B1" },
+            { id: "opt3", text: "C1" },
+            { id: "opt4", text: "D1" },
+          ],
+          correct_option_id: "opt1",
+        },
+        {
+          question: { text: "Q2?" },
+          options: [
+            { id: "opt5", text: "A2" },
+            { id: "opt6", text: "B2" },
+            { id: "opt7", text: "C2" },
+            { id: "opt8", text: "D2" },
+          ],
+          correct_option_id: "opt5",
+        },
       ],
       id: "quiz-1",
     };
