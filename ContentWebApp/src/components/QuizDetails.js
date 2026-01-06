@@ -5,22 +5,52 @@ import {
   extractQuestionOptions,
   getCorrectOptionIndex,
 } from "../utils/quizDataTransform";
+import "./QuizDetails.css";
 
 const QuizDetails = ({ quiz }) => {
   if (!quiz) {
-    return <div>Loading quiz data...</div>;
+    return (
+      <div className="quiz-details">
+        <div className="content-details-loading">
+          <div className="loading-spinner"></div>
+          <p className="loading-text">Loading quiz data...</p>
+        </div>
+      </div>
+    );
   }
 
   // Transform quiz data to ensure consistent structure
   const transformedQuiz = transformQuizItem(quiz);
 
   // Handle title - can be string or object
-  const title = typeof transformedQuiz.title === "object" ? transformedQuiz.title.english : transformedQuiz.title;
-  const localTitle = typeof transformedQuiz.title === "object" ? transformedQuiz.title.local : transformedQuiz.localTitle;
+  const getTitle = () => {
+    if (typeof transformedQuiz.title === "object") {
+      return transformedQuiz.title.english || transformedQuiz.title.local || "Quiz";
+    }
+    return transformedQuiz.title || "Quiz";
+  };
+
+  const getLocalTitle = () => {
+    if (typeof transformedQuiz.title === "object") {
+      return transformedQuiz.title.local;
+    }
+    return transformedQuiz.localTitle;
+  };
 
   // Handle theme - can be string or object
-  const theme = typeof transformedQuiz.theme === "object" ? transformedQuiz.theme.english : transformedQuiz.theme;
-  const localTheme = typeof transformedQuiz.theme === "object" ? transformedQuiz.theme.local : transformedQuiz.localTheme;
+  const getTheme = () => {
+    if (typeof transformedQuiz.theme === "object") {
+      return transformedQuiz.theme.english || transformedQuiz.theme.local || "";
+    }
+    return transformedQuiz.theme || "";
+  };
+
+  const getLocalTheme = () => {
+    if (typeof transformedQuiz.theme === "object") {
+      return transformedQuiz.theme.local;
+    }
+    return transformedQuiz.localTheme;
+  };
 
   // Handle marks - already normalized by transformQuizItem
   const positiveMarks = transformedQuiz.positiveMarks ?? 0;
@@ -30,127 +60,120 @@ const QuizDetails = ({ quiz }) => {
   const questions = transformedQuiz.questions || [];
 
   return (
-    <>
-      <h2>Quiz Details</h2>
-      <div className="metadataGrid">
-        <div>
-          <div>Title</div>
-          <p>
-            <b>{title}</b>
-            {localTitle && (
-              <>
-                <br />
-                <span style={{ color: "#666", fontSize: "0.9em" }}>{localTitle}</span>
-              </>
-            )}
-          </p>
-        </div>
-
-        <div>
-          <div>Theme</div>
-          <p>
-            <b>{theme}</b>
-            {localTheme && (
-              <>
-                <br />
-                <span style={{ color: "#666", fontSize: "0.9em" }}>{localTheme}</span>
-              </>
-            )}
-          </p>
-        </div>
-
-        <div>
-          <div>Language</div>
-          <p>
-            <b>{quiz.language}</b>
-          </p>
-        </div>
-
-        <div>
-          <label>Positive Marks</label>
-          <br />
-          <p className="mintgreen" style={{ width: "100px", textAlign: "center" }}>
-            {positiveMarks}
-          </p>
-        </div>
-
-        <div>
-          <label>Negative Marks</label>
-          <br />
-          <p className="mintgreen" style={{ width: "100px", textAlign: "center" }}>
-            {negativeMarks}
-          </p>
-        </div>
-
-        <div>
-          <label>Questions Count</label>
-          <br />
-          <p style={{ width: "100px", textAlign: "center" }}>{questions.length}</p>
+    <div className="quiz-details">
+      {/* Header Section */}
+      <div className="quiz-header">
+        <div className="quiz-title-section">
+          <span className="quiz-type-badge">Quiz</span>
+          <h1 className="quiz-title-main">{getTitle()}</h1>
+          {getLocalTitle() && getLocalTitle() !== getTitle() && (
+            <p className="quiz-title-local" style={{ marginTop: "8px", color: "#666", fontSize: "0.9em" }}>
+              {getLocalTitle()}
+            </p>
+          )}
         </div>
       </div>
 
-      {questions.length > 0 && (
-        <div style={{ marginTop: "20px" }}>
-          <h3>Questions</h3>
-          {questions.map((questionItem, index) => {
-            // Use utility functions to extract question data
-            const questionText = extractQuestionText(questionItem);
-            const options = extractQuestionOptions(questionItem);
-            const correctOptionIndex = getCorrectOptionIndex(questionItem, options);
-            const correctOptionId = questionItem.correct_option_id || questionItem.correctOptionId;
+      {/* Content Section */}
+      <div className="quiz-content">
+        {/* Metadata Grid */}
+        <div className="quiz-metadata-grid">
+          <div className="quiz-metadata-item">
+            <p className="quiz-metadata-label">Language</p>
+            <p className="quiz-metadata-value" style={{ fontSize: "18px", color: "#0f172a" }}>
+              {transformedQuiz.language || "N/A"}
+            </p>
+          </div>
 
-            return (
-              <div key={index} style={{ marginTop: "20px", padding: "15px", border: "1px solid #ddd", borderRadius: "8px" }}>
-                <div>
-                  <label style={{ fontWeight: "bold", fontSize: "1.1em" }}>
-                    Question {index + 1}
-                  </label>
-                  <br />
-                  <p style={{ fontWeight: "700", marginTop: "8px" }}>{questionText}</p>
-                </div>
-                {options.length > 0 && (
-                  <div className="optionsDetailsGrid" style={{ marginTop: "15px" }}>
-                    {options.map((optionText, optIndex) => {
-                      // Check if this is the correct option
-                      const isCorrect = correctOptionId
-                        ? (questionItem.options?.[optIndex]?.id === correctOptionId)
-                        : optIndex === correctOptionIndex;
-
-                      return (
-                        <div
-                          key={optIndex}
-                          style={{
-                            padding: "10px",
-                            backgroundColor: isCorrect ? "#d4edda" : "#f8f9fa",
-                            borderRadius: "4px",
-                            border: isCorrect ? "2px solid #28a745" : "1px solid #dee2e6",
-                          }}
-                        >
-                          <label>
-                            Option {String.fromCharCode(65 + optIndex)}
-                            {isCorrect && (
-                              <span style={{ color: "#28a745", marginLeft: "8px", fontWeight: "bold" }}>
-                                ✓ Correct
-                              </span>
-                            )}
-                          </label>
-                          <br />
-                          <p style={{ marginTop: "5px", color: isCorrect ? "#155724" : "#333" }}>
-                            {optionText}
-                          </p>
-                        </div>
-                      );
-                    })}
-                  </div>
+          {getTheme() && (
+            <div className="quiz-metadata-item">
+              <p className="quiz-metadata-label">Theme</p>
+              <p className="quiz-metadata-value" style={{ fontSize: "18px", color: "#0f172a" }}>
+                {getTheme()}
+                {getLocalTheme() && getLocalTheme() !== getTheme() && (
+                  <span style={{ display: "block", fontSize: "0.85em", color: "#666", marginTop: "4px" }}>
+                    {getLocalTheme()}
+                  </span>
                 )}
-              </div>
-            );
-          })}
-        </div>
-      )}
+              </p>
+            </div>
+          )}
 
-      {questions.length === 0 && <p style={{ marginTop: "20px", color: "#666" }}>No questions available.</p>}
-    </>
+          <div className="quiz-metadata-item">
+            <p className="quiz-metadata-label">Positive Marks</p>
+            <p className="quiz-metadata-value">+{positiveMarks}</p>
+          </div>
+
+          <div className="quiz-metadata-item">
+            <p className="quiz-metadata-label">Negative Marks</p>
+            <p className="quiz-metadata-value" style={{ color: "#dc2626" }}>
+              -{negativeMarks}
+            </p>
+          </div>
+
+          <div className="quiz-metadata-item">
+            <p className="quiz-metadata-label">Total Questions</p>
+            <p className="quiz-metadata-value" style={{ fontSize: "18px", color: "#0f172a" }}>
+              {questions.length}
+            </p>
+          </div>
+        </div>
+
+        {/* Questions Section */}
+        <div className="questions-section">
+          {questions.length > 0 ? (
+            questions.map((questionItem, index) => {
+              // Use utility functions to extract question data
+              const questionText = extractQuestionText(questionItem);
+              const options = extractQuestionOptions(questionItem);
+              const correctOptionIndex = getCorrectOptionIndex(questionItem, options);
+              const correctOptionId = questionItem.correct_option_id || questionItem.correctOptionId;
+
+              return (
+                <div key={index} className="question-card">
+                  <div className="question-header">
+                    <div className="question-number">{index + 1}</div>
+                    <p className="question-text">{questionText}</p>
+                  </div>
+
+                  {options.length > 0 && (
+                    <div className="options-grid">
+                      {options.map((optionText, optIndex) => {
+                        const optionLabel = String.fromCharCode(65 + optIndex); // A, B, C, D
+                        // Check if this is the correct option
+                        const isCorrect = correctOptionId
+                          ? (questionItem.options?.[optIndex]?.id === correctOptionId)
+                          : optIndex === correctOptionIndex;
+
+                        return (
+                          <div
+                            key={optIndex}
+                            className={`option-card ${isCorrect ? "correct" : ""}`}
+                          >
+                            <p className={`option-label ${isCorrect ? "correct-label" : ""}`}>
+                              Option {optionLabel} {isCorrect && "(Correct Answer)"}
+                            </p>
+                            <p className={`option-value ${isCorrect ? "correct-value" : ""}`}>
+                              {optionText}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          ) : (
+            <div className="question-card">
+              <p style={{ color: "#666", textAlign: "center", padding: "20px" }}>
+                No questions available.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 };
 
