@@ -42,8 +42,10 @@ const ContentTable = ({ content, isLoading, onEdit, onView, onDelete }) => {
           </thead>
           <tbody>
             {content.map((item) => {
-              // Get ID - prefer id, fallback to _id
-              const itemId = item.id || item._id;
+              // Get ID - prefer id, fallback to _id, ensure it's a string
+              const itemId = (item.id || item._id || "").toString();
+              // Get type and normalize to lowercase
+              const itemType = (item.type || "story").toLowerCase();
               return (
                 <tr key={itemId} className="table-row-white">
                   <td className="table-cell">
