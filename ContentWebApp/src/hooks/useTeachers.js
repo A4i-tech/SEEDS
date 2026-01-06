@@ -8,21 +8,16 @@ export const useTeachers = (activeTab) => {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState("");
 
-  const { getAuthHeaders, tenantInfo } = useAuth();
+  const { getAuthHeaders } = useAuth();
 
   /**
    * Fetch teachers list
    */
   const fetchTeachers = useCallback(
     async (signal = null) => {
-      const { tenantId } = tenantInfo;
-      if (!tenantId) {
-        return;
-      }
-
       setIsLoading(true);
       try {
-        const data = await teacherService.getTeachers(tenantId, getAuthHeaders(), signal);
+        const data = await teacherService.getTeachers(getAuthHeaders(), signal);
 
         // Augment teachers with local UI state for adding students
         const withState = data.map((t) => ({
@@ -46,7 +41,7 @@ export const useTeachers = (activeTab) => {
         setIsLoading(false);
       }
     },
-    [getAuthHeaders, tenantInfo]
+    [getAuthHeaders]
   );
 
   /**
@@ -58,20 +53,13 @@ export const useTeachers = (activeTab) => {
       fetchTeachers(ac.signal);
     }
     return () => ac.abort();
-  }, [activeTab]);
+  }, [activeTab, fetchTeachers]);
 
   /**
    * Register a new teacher
    */
   const registerTeacher = useCallback(
     async (phoneNumber, password) => {
-      const { tenantId } = tenantInfo;
-
-      if (!tenantId) {
-        setMessage("Tenant ID not found. Please log in again.");
-        return false;
-      }
-
       if (!phoneNumber || !password) {
         setMessage("Phone and password are required.");
         return false;
@@ -83,7 +71,7 @@ export const useTeachers = (activeTab) => {
       }
 
       try {
-        await teacherService.registerTeacher(tenantId, phoneNumber, password, getAuthHeaders());
+        await teacherService.registerTeacher(phoneNumber, password, getAuthHeaders());
 
         setMessage("Teacher registered successfully!");
         await fetchTeachers();
@@ -98,7 +86,7 @@ export const useTeachers = (activeTab) => {
         return false;
       }
     },
-    [getAuthHeaders, tenantInfo, fetchTeachers]
+    [getAuthHeaders, fetchTeachers]
   );
 
   /**

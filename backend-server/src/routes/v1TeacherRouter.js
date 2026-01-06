@@ -4,7 +4,6 @@ const express = require("express");
 const Teacher = require("../models/Teacher.js");
 const Student = require("../models/Student.js");
 const authenticateToken = require("../auth/authenticateToken");
-const teacherAuthProvider = require("../auth/teacher/teacherAuthProviderMiddleware");
 /**
  * @swagger
  * tags:
@@ -64,13 +63,6 @@ router.post("/students", authenticateToken, async (req, res) => {
  *     tags: [Teachers]
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: tenantId
- *         required: true
- *         schema:
- *           type: string
- *         description: Tenant identifier
  *     responses:
  *       200:
  *         description: List of teachers for the tenant
@@ -94,17 +86,15 @@ router.post("/students", authenticateToken, async (req, res) => {
  *                           type: string
  *                         phoneNumber:
  *                           type: string
- *       400:
- *         description: Missing tenantId
  *       401:
  *         description: Unauthorized - invalid or missing token
  *       500:
  *         description: Internal server error
  */
 router.get("/teachers", authenticateToken, async (req, res) => {
-  const tenantId = req.query?.tenantId;
+  const tenantId = req.userId;
   if (!tenantId) return res.sendStatus(STATUS.BAD_REQUEST);
-
+  console.log("Fetching teachers for tenantId:", tenantId);
   try {
     const teachers = await Teacher.find({ tenantId }, "_id phoneNumber studentId").lean();
 

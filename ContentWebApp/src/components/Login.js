@@ -128,10 +128,8 @@ const Login = () => {
       });
 
       if (response.status === 200) {
-        const { tenantName, token, id } = response.data;
+        const { tenantName, token } = response.data;
         localStorage.setItem("authToken", token);
-        localStorage.setItem("tenantId", id);
-        localStorage.setItem("tenantName", tenantName);
         navigate("/content", { state: { name: tenantName } });
       } else {
         setShowError("Invalid credentials. Please try again.");

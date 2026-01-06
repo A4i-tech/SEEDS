@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useContent } from "../hooks/useContent";
@@ -17,6 +17,7 @@ const AllContent = () => {
   const [activeTab, setActiveTab] = useState("content");
   const [updateIVRStatus, setUpdateIVRStatus] = useState("");
   const [isUpdatingIVR, setIsUpdatingIVR] = useState(false);
+  const [currentUser, setCurrentUser] = useState("User");
 
   const navigate = useNavigate();
   const { getAuthHeaders, logout, getCurrentUser } = useAuth();
@@ -28,7 +29,6 @@ const AllContent = () => {
     isFiltered,
     loadMore,
     deleteContent,
-    resetFilters,
     setContent,
     setIsFiltered,
   } = useContent();
@@ -56,6 +56,22 @@ const AllContent = () => {
   } = useTeachers(activeTab);
 
   const ivrURL = process.env.REACT_APP_API_IVRV2_URL;
+
+  /**
+   * Fetch current user on mount
+   */
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const userName = await getCurrentUser();
+        setCurrentUser(userName);
+      } catch (error) {
+        console.error("Error fetching user:", error);
+        setCurrentUser("User");
+      }
+    };
+    fetchUser();
+  }, [getCurrentUser]);
 
   /**
    * Handle IVR update
@@ -102,7 +118,7 @@ const AllContent = () => {
         <AppHeader
           activeTab={activeTab}
           onTabChange={setActiveTab}
-          currentUser={getCurrentUser()}
+          currentUser={currentUser}
           onLogout={logout}
         />
 
