@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import QuizDetails from "./QuizDetails";
 import StoryDetails from "./StoryDetails";
 import { SEEDS_URL } from "../Constants";
+import { getAuthHeaders } from "../utils/authHelpers";
 
 const ContentDetails = () => {
   const { type, id } = useParams();
