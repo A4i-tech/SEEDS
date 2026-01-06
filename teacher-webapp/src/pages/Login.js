@@ -49,7 +49,6 @@ function Login() {
       console.log(response);
       if (response.status === STATUS_CODES.SUCCESS) {
         localStorage.setItem("authToken", response.data.token);
-        localStorage.setItem("phoneNumber", response.data.phoneNumber);
         console.log("Login successful!");
         navigate.goToHome(response.data.phoneNumber);
       }

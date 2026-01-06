@@ -54,7 +54,7 @@ export function DetailsPage({ onConferenceEnded }) {
     if (isConfCallRunning && selectedStudents && selectedStudents.length > 0) {
       selectedStudents.forEach((student) => {
         const phoneNumber = student.phoneNumber;
-        if (!mutedStudentsRef.current.has(phoneNumber) && student.call_status === "connected") {
+        if (!mutedStudentsRef.current.has(phoneNumber)) {
           mutedStudentsRef.current.add(phoneNumber);
           handleMuteToggle(student);
         }
@@ -103,10 +103,6 @@ export function DetailsPage({ onConferenceEnded }) {
       const response = userToUpdate.is_muted
         ? await unmuteParticipant(confId, phoneNumber)
         : await muteParticipant(confId, phoneNumber);
-
-      if (!response.ok) {
-        throw new Error(`Failed to ${userToUpdate.is_muted ? "unmute" : "mute"} participant`);
-      }
 
       // Success - SSE will update the state automatically
     } catch (error) {

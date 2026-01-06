@@ -11,8 +11,6 @@ import { useNavigation } from "../hooks/useNavigation";
 import { clearAuth } from "../utils/authHelpers";
 import { StudentList } from "../components/StudentList";
 import { useAuth } from "../hooks/useAuth";
-import { useNavigation } from "../hooks/useNavigation";
-import { clearAuth } from "../utils/authHelpers";
 import axios from "axios";
 
 function Homepage() {
@@ -25,15 +23,12 @@ function Homepage() {
   const [addedStudents, setAddedStudents] = React.useState([]);
   // State for save status
   const [saveStatus, setSaveStatus] = React.useState("");
+  // State for displayed phone number
+  const [displayedPhone, setDisplayedPhone] = React.useState("");
   const location = useLocation();
   const navigate = useNavigation();
   const recvdPhoneNumber = location.state;
-  // derive a displayable phone number: support either an object {phoneNumber: '...'} or a raw string
-  // fallback to localStorage if location.state is lost (e.g., after page refresh)
-  const displayedPhone =
-    recvdPhoneNumber && typeof recvdPhoneNumber === "object"
-      ? recvdPhoneNumber.phoneNumber || ""
-      : recvdPhoneNumber || localStorage.getItem("phoneNumber") || "";
+  const { getCurrentUser } = useAuth();
   const {
     selectedStudents,
     setConfId,
@@ -159,8 +154,7 @@ function Homepage() {
       // 2. Append new students (avoid duplicates by phoneNumber)
       const allStudents = [
         ...addedStudents.filter(
-          (ns) =>
-            !currentStudents.some((cs) => cs.phoneNumber === ns.phoneNumber)
+          (ns) => !currentStudents.some((cs) => cs.phoneNumber === ns.phoneNumber)
         ),
       ];
       // 3. Post combined list
@@ -189,11 +183,7 @@ function Homepage() {
   const [isSubmitted, setIsSubmitted] = React.useState(false);
   const handleFormSubmit = async () => {
     setLoading(true); // Start loading
-    console.log(
-      "Starting conference for:",
-      recvdPhoneNumber.phoneNumber,
-      selectedStudents
-    );
+    console.log("Starting conference for:", recvdPhoneNumber.phoneNumber, selectedStudents);
     const teacherObject = {
       name: "Teacher",
       phoneNumber: displayedPhone,
