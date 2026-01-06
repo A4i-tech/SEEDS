@@ -19,8 +19,13 @@ const ContentDetails = () => {
       setError(null);
 
       // Fetch from main endpoint - now includes quiz data
+      // Ensure ID is a string and encode it for URL safety
+      const contentId = String(id || "").trim();
+      if (!contentId) {
+        throw new Error("Content ID is required");
+      }
       const headers = getAuthHeaders();
-      const response = await fetch(`${SEEDS_URL}/content/${id}`, {
+      const response = await fetch(`${SEEDS_URL}/content/${encodeURIComponent(contentId)}`, {
         method: "GET",
         headers,
       });
@@ -123,11 +128,15 @@ const ContentDetails = () => {
     );
   }
 
+  // Normalize content type for comparison
+  const contentType = typeof content.type === "string" ? content.type.toLowerCase() : (content.type || "");
+  const isQuiz = contentType === "quiz";
+
   // Check if content is processed (for non-quiz content)
   // Quiz content doesn't have isProcessed field, so we check if it has questions
-  const isProcessed = content.isProcessed !== false && (content.type === "quiz" ? content.questions?.length > 0 : true);
+  const isProcessed = content.isProcessed !== false && (isQuiz ? content.questions?.length > 0 : true);
 
-  if (!isProcessed && content.type !== "quiz") {
+  if (!isProcessed && !isQuiz) {
     const titleText = typeof content.title === "object" 
       ? content.title.english || content.title.local 
       : content.title || "Unknown Title";
@@ -197,10 +206,10 @@ const ContentDetails = () => {
           ← Back to Content
         </button>
         <div className="content-details-card">
-          {content.type === "quiz" ? (
+          {isQuiz ? (
             <QuizDetails quiz={content} />
           ) : (
-            <StoryDetails type={content.type} story={content} />
+            <StoryDetails type={content.type || contentType} story={content} />
           )}
         </div>
       </div>

@@ -10,7 +10,7 @@ const ContentEdit = () => {
   const { type, id } = useParams();
   const navigate = useNavigate();
   const [content, setContent] = useState(null);
-  const [experience, setExperience] = useState("quiz");
+  const [experience, setExperience] = useState(type || "quiz");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -20,8 +20,13 @@ const ContentEdit = () => {
       setError(null);
 
       // Fetch from main endpoint - now includes quiz data
+      // Ensure ID is a string and encode it for URL safety
+      const contentId = String(id || "").trim();
+      if (!contentId) {
+        throw new Error("Content ID is required");
+      }
       const headers = getAuthHeaders();
-      const response = await fetch(`${SEEDS_URL}/content/${id}`, {
+      const response = await fetch(`${SEEDS_URL}/content/${encodeURIComponent(contentId)}`, {
         method: "GET",
         headers,
       });
@@ -49,8 +54,17 @@ const ContentEdit = () => {
       if (contentFromServer) {
         setContent(contentFromServer);
         // Set experience based on content type, handling both object and string formats
-        const contentType = contentFromServer.type || type;
-        setExperience(contentType);
+        const contentType = contentFromServer.type || type || "quiz";
+        // Normalize to handle case variations
+        const normalizedType = typeof contentType === "string" 
+          ? contentType.toLowerCase() 
+          : contentType;
+        setExperience(normalizedType);
+      } else {
+        // If content fetch fails, still set experience from URL param
+        if (type) {
+          setExperience(type.toLowerCase());
+        }
       }
     };
     getContentById();
@@ -173,8 +187,10 @@ const ContentEdit = () => {
   }
 
   // Get content type - handle both object and string formats
-  const contentType = typeof content.type === "string" ? content.type : (content.type || experience);
-  const normalizedType = contentType.toLowerCase();
+  const contentType = content.type || experience || type || "quiz";
+  const normalizedType = typeof contentType === "string" 
+    ? contentType.toLowerCase() 
+    : (contentType || "quiz");
 
   return (
     <div className="content-details-container">

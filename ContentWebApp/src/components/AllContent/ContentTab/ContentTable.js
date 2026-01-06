@@ -42,8 +42,10 @@ const ContentTable = ({ content, isLoading, onEdit, onView, onDelete }) => {
           </thead>
           <tbody>
             {content.map((item) => {
-              // Get ID - prefer id, fallback to _id
-              const itemId = item.id || item._id;
+              // Get ID - prefer id, fallback to _id, ensure it's a string
+              const itemId = (item.id || item._id || "").toString();
+              // Get type and normalize to lowercase
+              const itemType = (item.type || "story").toLowerCase();
               return (
               <tr key={itemId} className="table-row-white">
                 <td className="table-cell">
@@ -67,13 +69,13 @@ const ContentTable = ({ content, isLoading, onEdit, onView, onDelete }) => {
                 <td className="table-cell">
                   {item.isTeacherApp && "TA"}
                   {item.isPullModel && ", IVR"}
-                  {item.type === "quiz" && " IVR"}
+                  {itemType === "quiz" && " IVR"}
                 </td>
                 <td className="table-cell">{item.language}</td>
                 <td className="table-cell">
                   <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                    {item.type}
-                    {item.type === "quiz" && (
+                    {itemType}
+                    {itemType === "quiz" && (
                       <span
                         style={{
                           backgroundColor: "#007bff",
@@ -93,19 +95,19 @@ const ContentTable = ({ content, isLoading, onEdit, onView, onDelete }) => {
                 <td className="table-cell">
                   <div className="action-buttons-wrapper">
                     <button
-                      onClick={() => onEdit(item.type, itemId)}
+                      onClick={() => onEdit(itemType, itemId)}
                       className="action-button-base action-button-edit"
                     >
                       Edit
                     </button>
                     <button
-                      onClick={() => onView(item.type, itemId)}
+                      onClick={() => onView(itemType, itemId)}
                       className="action-button-base action-button-view"
                     >
                       View
                     </button>
                     <button
-                      onClick={() => onDelete(item.type, itemId)}
+                      onClick={() => onDelete(itemType, itemId)}
                       className="action-button-base action-button-delete"
                     >
                       Delete

@@ -25,7 +25,7 @@ const processNewContent = require("../jobs/processAudioContent.js");
 const processQuizContent = require("../jobs/processQuizContent.js");
 const { tryCatchWrapper } = require(path.join("..", "util.js"));
 const { Binary } = require("mongodb");
-const { parse: uuidParse } = require("uuid");
+const { parse: uuidParse, validate: uuidValidate } = require("uuid");
 // Initialize instances
 const blobService = new BlobService();
 const router = express.Router();
@@ -598,7 +598,44 @@ router.get(
 router.get(
   "/:contentId",
   tryCatchWrapper(async (req, res) => {
-    return res.json(await ContentV3.getContentById(req.params.contentId));
+    const contentId = req.params.contentId;
+    let content = null;
+
+    // Try to find in ContentV3 first (uses _id as String)
+    content = await ContentV3.findOne({ _id: contentId }).exec();
+
+    // If not found in ContentV3, try QuizData (also uses _id as String)
+    if (!content) {
+      content = await QuizData.findOne({ _id: contentId }).exec();
+      if (content) {
+        // Transform quiz data to match expected frontend structure
+        const quizObj = content.toObject();
+        content = {
+          ...quizObj,
+          id: quizObj._id,
+          type: "quiz",
+          title: quizObj.title?.english || quizObj.title,
+          localTitle: quizObj.title?.local || quizObj.localTitle,
+          theme: quizObj.theme?.english || quizObj.theme,
+          localTheme: quizObj.theme?.local || quizObj.localTheme,
+          positiveMark: quizObj.positiveMarks,
+          negativeMark: quizObj.negativeMarks,
+        };
+      }
+    } else {
+      // Transform ContentV3 to ensure id field exists
+      const contentObj = content.toObject();
+      content = {
+        ...contentObj,
+        id: contentObj.id || contentObj._id,
+      };
+    }
+
+    if (!content) {
+      return res.status(404).json({ error: "Content not found" });
+    }
+
+    return res.json(content);
   })
 );
 
@@ -646,10 +683,26 @@ router.get(
 router.delete(
   "/:contentId",
   tryCatchWrapper(async (req, res) => {
-    const result = await ContentV3.updateOne(
-      { id: req.params.contentId },
+    const contentId = req.params.contentId;
+    
+    // Try to delete from ContentV3 first (uses _id as String)
+    let result = await ContentV3.updateOne(
+      { _id: contentId },
       { $set: { isDeleted: true } }
     );
+
+    // If not found in ContentV3, try QuizData (also uses _id as String)
+    if (result.matchedCount === 0) {
+      result = await QuizData.updateOne(
+        { _id: contentId },
+        { $set: { isDeleted: true } }
+      );
+    }
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ error: "Content not found" });
+    }
+
     return res.json(result);
   })
 );
