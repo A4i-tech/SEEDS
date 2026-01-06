@@ -14,16 +14,6 @@ const resetUserCache = () => {
 
 export const useAuth = () => {
   const navigate = useNavigate();
-  const location = useLocation();
-
-  /**
-   * Check authentication and redirect if not authenticated
-   */
-  useEffect(() => {
-    if (!isAuthenticated()) {
-      navigate("/");
-    }
-  }, [navigate, location]);
 
   /**
    * Get authentication headers
