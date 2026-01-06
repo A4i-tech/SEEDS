@@ -126,16 +126,24 @@ export const useContent = () => {
    */
   const deleteContent = useCallback(
     async (type, id) => {
-      if (!window.confirm("Are you sure?")) {
+      const contentType = type === "quiz" ? "quiz" : "content";
+      const confirmMessage = `Are you sure you want to delete this ${contentType}? This action cannot be undone.`;
+      
+      if (!window.confirm(confirmMessage)) {
         return;
       }
 
       try {
         await contentService.deleteContent(type, id, getAuthHeaders());
-        setContent((prev) => prev.filter((item) => item.id !== id));
-        setAllContent((prev) => prev.filter((item) => item.id !== id));
+        // Remove from both content and allContent
+        setContent((prev) => prev.filter((item) => item.id !== id && item._id !== id));
+        setAllContent((prev) => prev.filter((item) => item.id !== id && item._id !== id));
+        // Show success message
+        alert(`${contentType.charAt(0).toUpperCase() + contentType.slice(1)} deleted successfully.`);
       } catch (error) {
         console.error("Error deleting content:", error);
+        const errorMessage = error.response?.data?.error || error.message || "Failed to delete content";
+        alert(`Error deleting ${contentType}: ${errorMessage}`);
         throw error;
       }
     },

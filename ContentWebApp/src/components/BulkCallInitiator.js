@@ -27,7 +27,6 @@ const BulkCallInitiator = () => {
 
         fetchContents();
     }, []);
-  }, []);
 
     const handleFileUpload = (e) => {
         const file = e.target.files[0];

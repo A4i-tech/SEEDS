@@ -7,7 +7,7 @@ import { getAuthHeaders } from "../utils/authHelpers";
 import "./ContentDetails.css";
 
 const ContentDetails = () => {
-  const { type, id } = useParams();
+  const { id } = useParams();
   const navigate = useNavigate();
   const [content, setContent] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
