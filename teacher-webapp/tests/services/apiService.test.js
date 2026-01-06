@@ -70,14 +70,18 @@ describe("apiService", () => {
 
   describe("Participant Management", () => {
     test("mutes and unmutes participants", async () => {
-      fetch.mockResolvedValueOnce(mockEmptyResponse());
+      fetch.mockResolvedValueOnce({
+        json: jest.fn().mockResolvedValueOnce({}),
+      });
       await apiService.muteParticipant(confId, phoneNumber);
       expectFetchCall(
         `${baseUrl}/conference/muteparticipant/${confId}?phone_number=${phoneNumber}`,
         "PUT"
       );
 
-      fetch.mockResolvedValueOnce(mockEmptyResponse());
+      fetch.mockResolvedValueOnce({
+        json: jest.fn().mockResolvedValueOnce({}),
+      });
       await apiService.unmuteParticipant(confId, phoneNumber);
       expectFetchCall(
         `${baseUrl}/conference/unmuteparticipant/${confId}?phone_number=${phoneNumber}`,
