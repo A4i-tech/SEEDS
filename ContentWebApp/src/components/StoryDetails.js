@@ -1,6 +1,7 @@
 import React from "react";
 import { useState, useEffect } from "react";
 import { SEEDS_URL } from "../Constants";
+import { getAuthHeaders } from "../utils/authHelpers";
 
 const StoryDetails = ({ type, story }) => {
   const [audioSrc, setAudioSrc] = useState("");
@@ -11,9 +12,7 @@ const StoryDetails = ({ type, story }) => {
       try {
         const response = await fetch(`${SEEDS_URL}/content/sasUrl?url=${encodeURIComponent(url)}`, {
           method: "GET",
-          headers: {
-            authToken: "postman",
-          },
+          headers: getAuthHeaders(),
         });
         const data = await response.json();
         return data.url;

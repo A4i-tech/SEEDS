@@ -4,6 +4,7 @@ import AddStory from "./AddStory";
 import { useEffect } from "react";
 import { useParams, useLocation } from "react-router-dom";
 import { SEEDS_URL } from "../Constants";
+import { getAuthHeaders } from "../utils/authHelpers";
 
 const ContentEdit = () => {
   const { type, id } = useParams();
@@ -28,9 +29,7 @@ const ContentEdit = () => {
       } else {
         const seedsRes = await fetch(`${SEEDS_URL}/content/${id}`, {
           method: "GET",
-          headers: {
-            authToken: "postman",
-          },
+          headers: getAuthHeaders(),
         });
         const seedsData = await seedsRes.json();
         return seedsData;
