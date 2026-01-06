@@ -2,13 +2,14 @@ import { useState, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { useNavigate } from "react-router-dom";
 import { getAuthHeaders } from "../utils/authHelpers";
-import { transformQuizItem, extractQuestionText, extractQuestionOptions } from "../utils/quizDataTransform";
+import { transformQuizItem, extractQuestionText, extractQuestionOptions, getCorrectOptionIndex } from "../utils/quizDataTransform";
+import { SEEDS_URL } from "../Constants";
 import "./AddQuiz.css";
 
 const AddQuiz = ({ quiz }) => {
   const navigate = useNavigate();
   const [inputFields, setInputFields] = useState([
-    { question: "", optionA: "", optionB: "", optionC: "", optionD: "" },
+    { question: "", optionA: "", optionB: "", optionC: "", optionD: "", correctAnswer: 0 },
   ]);
 
   const [metadata, setMetadata] = useState({
@@ -51,16 +52,24 @@ const AddQuiz = ({ quiz }) => {
           optionTexts.push("");
         }
 
+        // Get correct answer index (for preserving when editing)
+        const correctIndex = getCorrectOptionIndex(questionItem, optionTexts);
+
         return {
           question: questionText,
           optionA: optionTexts[0] || "",
           optionB: optionTexts[1] || "",
           optionC: optionTexts[2] || "",
           optionD: optionTexts[3] || "",
+          correctAnswer: correctIndex, // Store correct answer index
         };
       });
 
-      setInputFields(inputFieldsData.length > 0 ? inputFieldsData : [{ question: "", optionA: "", optionB: "", optionC: "", optionD: "" }]);
+      setInputFields(
+        inputFieldsData.length > 0
+          ? inputFieldsData
+          : [{ question: "", optionA: "", optionB: "", optionC: "", optionD: "", correctAnswer: 0 }]
+      );
     }
   }, [quiz]);
 
@@ -71,15 +80,15 @@ const AddQuiz = ({ quiz }) => {
   };
 
   const createQuizJson = () => {
-    // const newMetadata = {...metadata[0]}
     metadata["questions"] = inputFields.map((mcq) => mcq.question);
     const options = inputFields.map((mcq) => [mcq.optionA, mcq.optionB, mcq.optionC, mcq.optionD]);
-    const correctAnswers = Array(options.length).fill(0);
+    // Preserve correct answers from form (default to 0 if not set)
+    const correctAnswers = inputFields.map((mcq) => mcq.correctAnswer !== undefined ? mcq.correctAnswer : 0);
     metadata["correctAnswers"] = correctAnswers;
     metadata["options"] = options;
     metadata["type"] = "quiz";
     if (quiz) {
-      metadata["id"] = quiz.id;
+      metadata["id"] = quiz.id || quiz._id;
     } else {
       metadata["id"] = uuidv4();
     }
@@ -116,29 +125,38 @@ const AddQuiz = ({ quiz }) => {
     return valid;
   };
 
-  const onSubmit = (e) => {
+  const onSubmit = async (e) => {
     e.preventDefault();
     console.log("inputFields", inputFields);
-    console.log("metatdata", metadata);
+    console.log("metadata", metadata);
     createQuizJson();
 
-    if (isValid()) {
-      console.log(JSON.stringify(metadata));
-      fetch(`${process.env.REACT_APP_SEEDS_URL}/content/quiz`, {
+    if (!isValid()) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${SEEDS_URL}/content/quiz`, {
         method: "POST",
         headers: {
           ...getAuthHeaders(),
           "Content-Type": "application/json",
         },
         body: JSON.stringify(metadata),
-      })
-        .then((res) => {
-          alert("Saved successfully.");
-          navigate("/content");
-        })
-        .catch((err) => {
-          console.log(err.message);
-        });
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Failed to save quiz" }));
+        throw new Error(errorData.error || `Failed to save quiz: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log("Quiz saved successfully:", result);
+      alert("Quiz saved successfully.");
+      navigate("/content");
+    } catch (err) {
+      console.error("Error saving quiz:", err);
+      alert(`Failed to save quiz: ${err.message}`);
     }
   };
 
@@ -149,6 +167,7 @@ const AddQuiz = ({ quiz }) => {
       optionB: "",
       optionC: "",
       optionD: "",
+      correctAnswer: 0, // Default to first option
     };
     setInputFields([...inputFields, newfield]);
   };
