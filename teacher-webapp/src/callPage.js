@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useConference, normalizePhone } from "./context/ConferenceContext";
 import {
   startConferenceCall,
@@ -44,9 +44,23 @@ export function DetailsPage({ onConferenceEnded }) {
   const [isAudioModalOpen, setIsAudioModalOpen] = useState(false);
   const [seekDirection, setSeekDirection] = useState(null);
   const [audioSelectionError, setAudioSelectionError] = useState(null);
+  const mutedStudentsRef = useRef(new Set());
   useEffect(() => {
     setUsers(userList);
   }, [userList]);
+
+  // Auto-mute all students when they load initially
+  useEffect(() => {
+    if (isConfCallRunning && selectedStudents && selectedStudents.length > 0) {
+      selectedStudents.forEach((student) => {
+        const phoneNumber = student.phoneNumber;
+        if (!mutedStudentsRef.current.has(phoneNumber) && student.call_status === "connected") {
+          mutedStudentsRef.current.add(phoneNumber);
+          handleMuteToggle(student);
+        }
+      });
+    }
+  }, [isConfCallRunning, selectedStudents]);
 
   // Listen for conference notifications
   useEffect(() => {
