@@ -1,24 +1,33 @@
 import React from "react";
+import {
+  transformQuizItem,
+  extractQuestionText,
+  extractQuestionOptions,
+  getCorrectOptionIndex,
+} from "../utils/quizDataTransform";
 
 const QuizDetails = ({ quiz }) => {
   if (!quiz) {
     return <div>Loading quiz data...</div>;
   }
 
+  // Transform quiz data to ensure consistent structure
+  const transformedQuiz = transformQuizItem(quiz);
+
   // Handle title - can be string or object
-  const title = typeof quiz.title === "object" ? quiz.title.english : quiz.title;
-  const localTitle = typeof quiz.title === "object" ? quiz.title.local : quiz.localTitle;
+  const title = typeof transformedQuiz.title === "object" ? transformedQuiz.title.english : transformedQuiz.title;
+  const localTitle = typeof transformedQuiz.title === "object" ? transformedQuiz.title.local : transformedQuiz.localTitle;
 
   // Handle theme - can be string or object
-  const theme = typeof quiz.theme === "object" ? quiz.theme.english : quiz.theme;
-  const localTheme = typeof quiz.theme === "object" ? quiz.theme.local : quiz.localTheme;
+  const theme = typeof transformedQuiz.theme === "object" ? transformedQuiz.theme.english : transformedQuiz.theme;
+  const localTheme = typeof transformedQuiz.theme === "object" ? transformedQuiz.theme.local : transformedQuiz.localTheme;
 
-  // Handle marks - check for both singular and plural field names
-  const positiveMarks = quiz.positiveMarks ?? quiz.positiveMark ?? 0;
-  const negativeMarks = quiz.negativeMarks ?? quiz.negativeMark ?? 0;
+  // Handle marks - already normalized by transformQuizItem
+  const positiveMarks = transformedQuiz.positiveMarks ?? 0;
+  const negativeMarks = transformedQuiz.negativeMarks ?? 0;
 
   // Handle questions - can be array of strings or array of objects
-  const questions = quiz.questions || [];
+  const questions = transformedQuiz.questions || [];
 
   return (
     <>
@@ -84,26 +93,11 @@ const QuizDetails = ({ quiz }) => {
         <div style={{ marginTop: "20px" }}>
           <h3>Questions</h3>
           {questions.map((questionItem, index) => {
-            // Handle different question structures
-            let questionText = "";
-            let options = [];
-            let correctOptionId = null;
-
-            if (typeof questionItem === "string") {
-              // Old format: question is a string
-              questionText = questionItem;
-              // Try to get options from quiz.options if it exists
-              options = quiz.options?.[index] || [];
-            } else if (questionItem && typeof questionItem === "object") {
-              // New format: question is an object
-              questionText =
-                questionItem.question?.text ||
-                questionItem.question ||
-                questionItem.text ||
-                "";
-              options = questionItem.options || [];
-              correctOptionId = questionItem.correct_option_id || questionItem.correctOptionId;
-            }
+            // Use utility functions to extract question data
+            const questionText = extractQuestionText(questionItem);
+            const options = extractQuestionOptions(questionItem);
+            const correctOptionIndex = getCorrectOptionIndex(questionItem, options);
+            const correctOptionId = questionItem.correct_option_id || questionItem.correctOptionId;
 
             return (
               <div key={index} style={{ marginTop: "20px", padding: "15px", border: "1px solid #ddd", borderRadius: "8px" }}>
@@ -116,13 +110,11 @@ const QuizDetails = ({ quiz }) => {
                 </div>
                 {options.length > 0 && (
                   <div className="optionsDetailsGrid" style={{ marginTop: "15px" }}>
-                    {options.map((option, optIndex) => {
-                      // Handle option as string or object
-                      const optionText = typeof option === "object" ? option.text : option;
-                      const optionId = typeof option === "object" ? option.id : null;
+                    {options.map((optionText, optIndex) => {
+                      // Check if this is the correct option
                       const isCorrect = correctOptionId
-                        ? optionId === correctOptionId || optIndex === 0
-                        : optIndex === 0; // Default: first option is correct if no ID provided
+                        ? (questionItem.options?.[optIndex]?.id === correctOptionId)
+                        : optIndex === correctOptionIndex;
 
                       return (
                         <div

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { useNavigate } from "react-router-dom";
 import { getAuthHeaders } from "../utils/authHelpers";
+import { transformQuizItem, extractQuestionText, extractQuestionOptions } from "../utils/quizDataTransform";
 
 const AddQuiz = ({ quiz }) => {
   const navigate = useNavigate();
@@ -18,52 +19,33 @@ const AddQuiz = ({ quiz }) => {
 
   useEffect(() => {
     if (quiz && Object.keys(quiz).length > 0) {
-      // Handle title - can be string or object
-      const title = typeof quiz.title === "object" ? quiz.title.english : quiz.title;
+      // Transform quiz data to ensure consistent structure
+      const transformedQuiz = transformQuizItem(quiz);
       
-      // Handle marks - check for both singular and plural field names
-      const positiveMark = quiz.positiveMarks ?? quiz.positiveMark ?? 1;
-      const negativeMark = quiz.negativeMarks ?? quiz.negativeMark ?? 0;
+      // Handle title - already normalized by transformQuizItem
+      const title = typeof transformedQuiz.title === "object" ? transformedQuiz.title.english : transformedQuiz.title;
+      
+      // Handle marks - already normalized by transformQuizItem
+      const positiveMark = transformedQuiz.positiveMarks ?? 1;
+      const negativeMark = transformedQuiz.negativeMarks ?? 0;
 
       const quizMetadata = {
         title: title,
-        language: quiz.language,
+        language: transformedQuiz.language,
         positiveMark: positiveMark,
         negativeMark: negativeMark,
       };
       setMetadata(quizMetadata);
 
-      // Handle questions - can be array of strings or array of objects
-      const questions = quiz.questions || [];
-      const inputFieldsData = questions.map((questionItem, index) => {
-        let questionText = "";
-        let options = [];
-
-        if (typeof questionItem === "string") {
-          // Old format: question is a string
-          questionText = questionItem;
-          // Try to get options from quiz.options if it exists (old format)
-          if (quiz.options && Array.isArray(quiz.options[index])) {
-            options = quiz.options[index];
-          } else {
-            options = ["", "", "", ""];
-          }
-        } else if (questionItem && typeof questionItem === "object") {
-          // New format: question is an object
-          questionText =
-            questionItem.question?.text ||
-            questionItem.question ||
-            questionItem.text ||
-            "";
-          options = questionItem.options || [];
-        }
-
-        // Extract option texts (handle both string and object formats)
-        const optionTexts = options.map((opt) => {
-          return typeof opt === "object" ? opt.text || "" : opt || "";
-        });
+      // Handle questions - use utility functions to extract data
+      const questions = transformedQuiz.questions || [];
+      const inputFieldsData = questions.map((questionItem) => {
+        // Use utility functions to extract question and options
+        const questionText = extractQuestionText(questionItem);
+        const options = extractQuestionOptions(questionItem);
 
         // Ensure we have at least 4 options
+        const optionTexts = [...options];
         while (optionTexts.length < 4) {
           optionTexts.push("");
         }
