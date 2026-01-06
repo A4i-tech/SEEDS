@@ -15,11 +15,7 @@ export const useContentFilters = (allContent, setContent, setIsFiltered) => {
   const handleFilterChange = useCallback(
     (selectedList) => {
       setSelectedValues(selectedList);
-      const filteredList = applyFilters(
-        allContent,
-        selectedList,
-        optionsRef.current
-      );
+      const filteredList = applyFilters(allContent, selectedList, optionsRef.current);
       setIsFiltered(true);
       setContent(filteredList);
     },

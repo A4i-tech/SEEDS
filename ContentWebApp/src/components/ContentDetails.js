@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import QuizDetails from "./QuizDetails";
 import StoryDetails from "./StoryDetails";
 import { SEEDS_URL } from "../Constants";
+import { getAuthHeaders } from "../utils/authHelpers";
 
 const ContentDetails = () => {
   const { type, id } = useParams();
@@ -27,9 +28,7 @@ const ContentDetails = () => {
       } else {
         const seedsRes = await fetch(`${SEEDS_URL}/content/${id}`, {
           method: "GET",
-          headers: {
-            authToken: "postman",
-          },
+          headers: getAuthHeaders(),
         });
         data = await seedsRes.json();
         console.log("ContentDetailsData1", data);

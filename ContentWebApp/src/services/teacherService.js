@@ -1,17 +1,15 @@
 import { SEEDS_URL } from "../Constants";
-import { apiFetch, buildQueryString } from "./api";
+import { apiFetch } from "./api";
 
 export const teacherService = {
   /**
    * Fetch all teachers for a tenant
-   * @param {string} tenantId - Tenant ID
    * @param {Object} headers - Auth headers
    * @param {AbortSignal} signal - Abort signal for cancellation
    * @returns {Promise<Array>}
    */
-  async getTeachers(tenantId, headers = {}, signal = null) {
-    const queryString = buildQueryString({ tenantId });
-    const url = `${SEEDS_URL}/v1/teacher/teachers?${queryString}`;
+  async getTeachers(headers = {}, signal = null) {
+    const url = `${SEEDS_URL}/v1/teacher/teachers`;
 
     const response = await apiFetch(url, {
       method: "GET",
@@ -24,20 +22,18 @@ export const teacherService = {
 
   /**
    * Register a new teacher
-   * @param {string} tenantId - Tenant ID
    * @param {string} phoneNumber - Teacher phone number
    * @param {string} password - Teacher password
    * @param {Object} headers - Auth headers
    * @returns {Promise<Object>}
    */
-  async registerTeacher(tenantId, phoneNumber, password, headers = {}) {
+  async registerTeacher(phoneNumber, password, headers = {}) {
     const url = `${SEEDS_URL}/teacher/register`;
 
     return await apiFetch(url, {
       method: "POST",
       headers,
       body: JSON.stringify({
-        tenantId,
         phoneNumber,
         password,
       }),
