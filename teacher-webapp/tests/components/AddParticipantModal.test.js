@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { AddParticipantModal } from '../../src/components/AddParticipantModal';
 
@@ -71,7 +71,8 @@ describe('AddParticipantModal Component', () => {
             renderModal({ availableStudents: [] });
 
             expect(screen.getByText('Select Participants to Add')).toBeInTheDocument();
-            expect(screen.getByRole('list')).toBeEmptyDOMElement();
+            expect(screen.getByText('No available students to add.')).toBeInTheDocument();
+            expect(screen.queryByRole('list')).not.toBeInTheDocument();
             expect(getButtons().submit).toBeDisabled();
         });
     });
@@ -130,7 +131,8 @@ describe('AddParticipantModal Component', () => {
     });
 
     describe('Form Actions', () => {
-        test('handles submit with selected students', () => {
+        test('handles submit with selected students', async () => {
+            defaultProps.onSubmit.mockResolvedValueOnce(undefined);
             renderModal();
 
             // Select students 1 and 3
@@ -139,8 +141,12 @@ describe('AddParticipantModal Component', () => {
 
             fireEvent.click(getButtons().submit);
 
-            expect(defaultProps.onSubmit).toHaveBeenCalledWith(['1111111111', '3333333333']);
-            expect(defaultProps.onClose).toHaveBeenCalled();
+            await waitFor(() => {
+                expect(defaultProps.onSubmit).toHaveBeenCalledWith(['1111111111', '3333333333']);
+            });
+            await waitFor(() => {
+                expect(defaultProps.onClose).toHaveBeenCalled();
+            });
         });
 
         test('handles cancel button click', () => {
@@ -152,14 +158,26 @@ describe('AddParticipantModal Component', () => {
             expect(defaultProps.onSubmit).not.toHaveBeenCalled();
         });
 
-        test('clears selection after submit', () => {
+        test('clears selection after submit', async () => {
+            defaultProps.onSubmit.mockResolvedValueOnce(undefined);
             const { rerender } = renderModal();
 
             fireEvent.click(getStudentCheckbox(1));
+            expect(getStudentCheckbox(1)).toBeChecked();
+
             fireEvent.click(getButtons().submit);
 
-            // Re-render to verify state reset
-            rerender(<AddParticipantModal {...defaultProps} />);
+            // Wait for async operations to complete
+            await waitFor(() => {
+                expect(defaultProps.onSubmit).toHaveBeenCalled();
+                expect(defaultProps.onClose).toHaveBeenCalled();
+            });
+
+            // Close and reopen the modal to verify state is reset
+            rerender(<AddParticipantModal {...defaultProps} open={false} />);
+            rerender(<AddParticipantModal {...defaultProps} open={true} />);
+            
+            // After reopening, the checkbox should not be checked (state was cleared)
             expect(getStudentCheckbox(1)).not.toBeChecked();
         });
     });
@@ -169,7 +187,8 @@ describe('AddParticipantModal Component', () => {
             renderModal({ availableStudents: [] });
 
             expect(screen.getByText('Select Participants to Add')).toBeInTheDocument();
-            expect(screen.getByRole('list')).toBeEmptyDOMElement();
+            expect(screen.getByText('No available students to add.')).toBeInTheDocument();
+            expect(screen.queryByRole('list')).not.toBeInTheDocument();
             expect(getButtons().submit).toBeDisabled();
         });
 
