@@ -67,9 +67,8 @@ function Login() {
       });
       if (response.status === STATUS_CODES.SUCCESS) {
         localStorage.setItem("authToken", response.data.token);
-        localStorage.setItem("phoneNumber", response.data.phoneNumber);
         showToast.success("Login successful!");
-        navigate.goToHome(response.data.phoneNumber);
+        navigate.goToClassroom();
       }
     } catch (error) {
       console.error("Login error:", error);

@@ -1,4 +1,16 @@
 /**
+ * Get authentication headers with token
+ * @returns {Object} Headers object with Authorization
+ */
+export const getAuthHeaders = () => {
+  const token = localStorage.getItem("authToken");
+  return {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${token}`,
+  };
+};
+
+/**
  * Check if user is authenticated
  * @returns {boolean} True if token exists
  */
