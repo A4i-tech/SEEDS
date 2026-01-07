@@ -273,14 +273,11 @@ const AddStory = ({ content, contentType }) => {
     delete newMetadata["answerAudioFile"];
     if (content) {
       newMetadata = { ...newMetadata, _id: content._id };
-      const seedsRes = await fetch(
-        `${SEEDS_URL}/content?isAudioUploaded=${isAudioUploaded}`,
-        {
-          method: "PATCH",
-          headers: getAuthHeaders(),
-          body: JSON.stringify(newMetadata),
-        },
-      );
+      const seedsRes = await fetch(`${SEEDS_URL}/content?isAudioUploaded=${isAudioUploaded}`, {
+        method: "PATCH",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(newMetadata),
+      });
       await seedsRes.json();
     } else {
       const seedsRes = await fetch(`${SEEDS_URL}/content/`, {
@@ -304,7 +301,7 @@ const AddStory = ({ content, contentType }) => {
         {
           method: "GET",
           headers: getAuthHeaders(),
-        },
+        }
       );
       const sasUrl = (await res.json()).sasToken;
       const client = new BlockBlobClient(sasUrl);
@@ -334,7 +331,7 @@ const AddStory = ({ content, contentType }) => {
         {
           method: "GET",
           headers: getAuthHeaders(),
-        },
+        }
       );
       const sasUrlAnswer = (await resAnswer.json()).sasToken;
       const clientAnswer = new BlockBlobClient(sasUrlAnswer);

@@ -13,6 +13,29 @@ const ContentEdit = () => {
   const [experience, setExperience] = useState("quiz");
 
   useEffect(() => {
+    const contentById = async () => {
+      // const res = await fetch("http://localhost:5001/content");
+
+      if (type === "quiz") {
+        const placeRes = await fetch(
+          "https://place-seeds.azurewebsites.net/rawDataById?" +
+            new URLSearchParams({
+              id: id,
+            })
+        );
+        const data = await placeRes.json();
+        console.log(data);
+        return data;
+      } else {
+        const seedsRes = await fetch(`${SEEDS_URL}/content/${id}`, {
+          method: "GET",
+          headers: getAuthHeaders(),
+        });
+        const seedsData = await seedsRes.json();
+        return seedsData;
+      }
+    };
+
     const getContentById = async () => {
       const contentFromServer = await contentById();
       setContent(contentFromServer);
@@ -20,30 +43,7 @@ const ContentEdit = () => {
       setExperience(contentFromServer.type);
     };
     getContentById();
-  }, []);
-
-  const contentById = async () => {
-    // const res = await fetch("http://localhost:5001/content");
-
-    if (type === "quiz") {
-      const placeRes = await fetch(
-        "https://place-seeds.azurewebsites.net/rawDataById?" +
-          new URLSearchParams({
-            id: id,
-          }),
-      );
-      const data = await placeRes.json();
-      console.log(data);
-      return data;
-    } else {
-      const seedsRes = await fetch(`${SEEDS_URL}/content/${id}`, {
-        method: "GET",
-        headers: getAuthHeaders(),
-      });
-      const seedsData = await seedsRes.json();
-      return seedsData;
-    }
-  };
+  }, [type, id]);
 
   const location = useLocation();
   console.log("link props", location.state);

@@ -7,6 +7,8 @@ import getCurrentTime from "../utils/CurrentTime";
 import { SSE_ENDPOINTS } from "../constants/sseEndpoints";
 import { API_ENDPOINTS } from "../constants/apiEndpoints";
 import { useLocation } from "react-router-dom";
+import { useNavigation } from "../hooks/useNavigation";
+import { clearAuth } from "../utils/authHelpers";
 import { StudentList } from "../components/StudentList";
 import axios from "axios";
 
@@ -21,12 +23,14 @@ function Homepage() {
   // State for save status
   const [saveStatus, setSaveStatus] = React.useState("");
   const location = useLocation();
+  const navigate = useNavigation();
   const recvdPhoneNumber = location.state;
   // derive a displayable phone number: support either an object {phoneNumber: '...'} or a raw string
+  // fallback to localStorage if location.state is lost (e.g., after page refresh)
   const displayedPhone =
     recvdPhoneNumber && typeof recvdPhoneNumber === "object"
       ? recvdPhoneNumber.phoneNumber || ""
-      : recvdPhoneNumber || "";
+      : recvdPhoneNumber || localStorage.getItem("phoneNumber") || "";
   const {
     selectedStudents,
     setConfId,
@@ -115,7 +119,8 @@ function Homepage() {
       // 2. Append new students (avoid duplicates by phoneNumber)
       const allStudents = [
         ...addedStudents.filter(
-          (ns) => !currentStudents.some((cs) => cs.phoneNumber === ns.phoneNumber)
+          (ns) =>
+            !currentStudents.some((cs) => cs.phoneNumber === ns.phoneNumber)
         ),
       ];
       // 3. Post combined list
@@ -144,7 +149,11 @@ function Homepage() {
   const [isSubmitted, setIsSubmitted] = React.useState(false);
   const handleFormSubmit = async () => {
     setLoading(true); // Start loading
-    console.log("Starting conference for:", recvdPhoneNumber.phoneNumber, selectedStudents);
+    console.log(
+      "Starting conference for:",
+      recvdPhoneNumber.phoneNumber,
+      selectedStudents
+    );
     const teacherObject = {
       name: "Teacher",
       phoneNumber: recvdPhoneNumber.phoneNumber,
@@ -181,8 +190,35 @@ function Homepage() {
   if (isSubmitted) {
     return <DetailsPage />;
   }
+
+  const handleLogout = () => {
+    clearAuth();
+    navigate.goToLogin();
+  };
+
   return (
     <div className="app-container">
+      <button
+        onClick={handleLogout}
+        style={{
+          position: "fixed",
+          top: "16px",
+          right: "16px",
+          padding: "8px 16px",
+          backgroundColor: "#dc3545",
+          color: "white",
+          border: "none",
+          borderRadius: "4px",
+          cursor: "pointer",
+          fontSize: "14px",
+          fontWeight: "500",
+          zIndex: 1000,
+        }}
+        onMouseOver={(e) => (e.target.style.backgroundColor = "#c82333")}
+        onMouseOut={(e) => (e.target.style.backgroundColor = "#dc3545")}
+      >
+        Logout
+      </button>
       <h1 className="welcome-title">Welcome</h1>
       {/* show the received phone number when available */}
       {displayedPhone ? <p className="received-phone">Phone: {displayedPhone}</p> : null}

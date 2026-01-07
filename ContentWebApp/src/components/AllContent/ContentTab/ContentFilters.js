@@ -3,12 +3,7 @@ import Multiselect from "multiselect-react-dropdown";
 import "../shared/cards.css";
 import "../shared/utilities.css";
 
-const ContentFilters = ({
-  options,
-  onFilterChange,
-  selectedValues,
-  multiselectRef,
-}) => (
+const ContentFilters = ({ options, onFilterChange, selectedValues, multiselectRef }) => (
   <div className="filter-wrapper">
     <p className="filter-label">Filter content</p>
     <Multiselect

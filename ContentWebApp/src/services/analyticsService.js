@@ -14,11 +14,6 @@ export const analyticsService = {
       throw new Error("Both startDate and endDate are required");
     }
 
-    const tenantId = localStorage.getItem("tenantId");
-    if (!tenantId) {
-      throw new Error("Tenant ID not found. Please log in again.");
-    }
-
     const url = `${SEEDS_URL}/tenant/analytics`;
 
     const response = await apiFetch(url, {
@@ -27,7 +22,6 @@ export const analyticsService = {
       body: JSON.stringify({
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
-        tenantId: tenantId,
       }),
     });
 

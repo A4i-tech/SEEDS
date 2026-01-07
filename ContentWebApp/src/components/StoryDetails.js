@@ -18,13 +18,10 @@ const StoryDetails = ({ type, story }) => {
   useEffect(() => {
     const fetchSASUrl = async (url) => {
       try {
-        const response = await fetch(
-          `${SEEDS_URL}/content/sasUrl?url=${encodeURIComponent(url)}`,
-          {
-            method: "GET",
-            headers: getAuthHeaders(),
-          },
-        );
+        const response = await fetch(`${SEEDS_URL}/content/sasUrl?url=${encodeURIComponent(url)}`, {
+          method: "GET",
+          headers: getAuthHeaders(),
+        });
         const data = await response.json();
         return data.url;
       } catch (error) {

@@ -173,8 +173,8 @@ router.post("/register", tenantAuthProvider.register);
  */
 router.post("/analytics", authenticateToken, async (req, res) => {
   try {
-    const { startDate, endDate, tenantId } = req.body;
-
+    const { startDate, endDate } = req.body;
+    const tenantId = req.userId;
     if (!startDate || !endDate) {
       return res.status(STATUS.BAD_REQUEST).json({
         message: "Both startDate and endDate are required",
@@ -218,6 +218,91 @@ router.post("/analytics", authenticateToken, async (req, res) => {
     res.status(STATUS.INTERNAL_ERROR).json({
       message: "Error retrieving analytics data",
     });
+  }
+});
+
+/**
+ * @swagger
+ * /tenant/change-password:
+ *   post:
+ *     summary: Change tenant password
+ *     tags: [Tenant]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               newPassword:
+ *                 type: string
+ *                 description: New password (must meet policy)
+ *             required:
+ *               - newPassword
+ *     responses:
+ *       200:
+ *         description: Password changed successfully
+ *       400:
+ *         description: Missing fields or weak/old password
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Tenant not found
+ */
+router.post(
+  "/change-password",
+  authenticateToken,
+  tenantAuthProvider.changePassword,
+);
+
+/**
+ * @swagger
+ * /tenant/me:
+ *   get:
+ *     summary: Get tenant details by ID
+ *     tags: [Tenant]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Tenant details retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 id:
+ *                   type: string
+ *                 email:
+ *                   type: string
+ *                 tenantName:
+ *                   type: string
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Tenant not found
+ *       500:
+ *         description: Internal server error
+ */
+router.get("/me", authenticateToken, async (req, res) => {
+  const tenantId = req.userId;
+  try {
+    const tenant = await tenantAuthProvider.getTenantById(tenantId);
+    if (!tenant) {
+      return res.status(STATUS.NOT_FOUND).json({ message: "Tenant not found" });
+    }
+    const tenantData = {
+      email: tenant.email,
+      tenantName: tenant.tenantName,
+    };
+    return res.status(STATUS.OK).json(tenantData);
+  } catch (error) {
+    console.error("Get tenant error:", error);
+    return res
+      .status(STATUS.INTERNAL_ERROR)
+      .json({ message: "Internal server error" });
   }
 });
 
