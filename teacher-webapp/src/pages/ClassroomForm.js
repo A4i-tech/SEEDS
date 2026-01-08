@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Box,
   Card,
@@ -212,9 +212,9 @@ const ClassroomForm = () => {
     navigate("/classrooms");
   };
 
-  const getStudentByPhone = (phoneNumber) => {
+  const getStudentByPhone = useCallback((phoneNumber) => {
     return teacherStudentsList.find((s) => s.phoneNumber === phoneNumber);
-  };
+  }, [teacherStudentsList]);
 
   if (loading || isLoadingStudents) {
     return <LoadingSpinner />;
