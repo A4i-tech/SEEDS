@@ -5,10 +5,18 @@ const CONF_BASE = `${APP_CONFIG.CONF_SERVER_BASE_URI}/conference`;
 export const API_ENDPOINTS = {
   LOGIN: `${BASE_URL}/teacher/login`,
   REGISTER: `${BASE_URL}/teacher/register`,
+  GET_TEACHER_ME: `${BASE_URL}/teacher/me`,
   GET_TEACHER_STUDENTS: `${BASE_URL}/v1/teacher/students`,
   ADD_TEACHER_STUDENTS: `${BASE_URL}/v1/teacher/add-students`,
   GET_SCHOOLS: `${BASE_URL}/tenant/names`,
   GET_AUDIO_CONTENT: `${BASE_URL}/content`,
+  CLASSROOM: {
+    GET_ALL: `${BASE_URL}/class`,
+    GET_BY_ID: (classId) => `${BASE_URL}/class/${classId}`,
+    CREATE: `${BASE_URL}/class`,
+    UPDATE: `${BASE_URL}/class`,
+    DELETE: (classId) => `${BASE_URL}/class/${classId}`,
+  },
   CONFERENCE: {
     CREATE: `${CONF_BASE}/create`,
     START: (confId) => `${CONF_BASE}/start/${confId}`,

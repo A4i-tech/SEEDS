@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Box, Typography } from "@mui/material";
+import { useNavigate } from "react-router-dom";
 import { useConference } from "./context/ConferenceContext";
 import {
   startConferenceCall,
@@ -20,7 +21,6 @@ import { ParticipantList } from "./components/participants/ParticipantList";
 import { ControlButtonGroup } from "./components/controls/ControlButtonGroup";
 import { PageContainer } from "./components/layout/PageContainer";
 import { showToast } from "./utils/toast";
-import App from "./App";
 
 const getPhoneNumber = (user) => user?.phoneNumber;
 if (!getPhoneNumber) {
@@ -29,6 +29,7 @@ if (!getPhoneNumber) {
 const normalizeUser = (user) => (user ? { ...user, phoneNumber: getPhoneNumber(user) } : null);
 
 export function DetailsPage() {
+  const navigate = useNavigate();
   const { userList, confId, isConfCallRunning, audioContentState, conferenceStudents } =
     useConference();
 
@@ -263,9 +264,12 @@ export function DetailsPage() {
       : student;
   });
 
-  if (hasSunkConf) {
-    return <App />;
-  }
+  useEffect(() => {
+    if (hasSunkConf) {
+      // Navigate back to classrooms list after sinking conference
+      navigate("/classrooms");
+    }
+  }, [hasSunkConf, navigate]);
 
   return (
     <PageContainer maxWidth="md">

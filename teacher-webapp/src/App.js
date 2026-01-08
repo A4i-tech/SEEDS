@@ -1,6 +1,6 @@
 import React from "react";
 import "./App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import { ToastContainer } from "react-toastify";
@@ -10,9 +10,11 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import PublicRoute from "./components/PublicRoute";
 import theme from "./theme/theme";
 
-import Homepage from "./pages/Homepage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import ClassroomList from "./pages/ClassroomList";
+import ClassroomForm from "./pages/ClassroomForm";
+import ClassroomDetail from "./pages/ClassroomDetail";
 
 function App() {
   return (
@@ -20,17 +22,23 @@ function App() {
       <CssBaseline />
       <BrowserRouter>
         <Routes>
+          <Route path={ROUTES.LOGIN} element={<PublicRoute element={<Login />} />} />
+          <Route path={ROUTES.REGISTER} element={<PublicRoute element={<Register />} />} />
           <Route
-            path={ROUTES.LOGIN}
-            element={<PublicRoute element={<Login />} />}
+            path={ROUTES.CLASSROOMS}
+            element={<ProtectedRoute element={<ClassroomList />} />}
           />
           <Route
-            path={ROUTES.HOME}
-            element={<ProtectedRoute element={<Homepage />} />}
+            path={ROUTES.CLASSROOM_NEW}
+            element={<ProtectedRoute element={<ClassroomForm />} />}
           />
           <Route
-            path={ROUTES.REGISTER}
-            element={<PublicRoute element={<Register />} />}
+            path={ROUTES.CLASSROOM_EDIT(":classroomId")}
+            element={<ProtectedRoute element={<ClassroomForm />} />}
+          />
+          <Route
+            path={ROUTES.CLASSROOM_DETAIL(":classroomId")}
+            element={<ProtectedRoute element={<ClassroomDetail />} />}
           />
         </Routes>
       </BrowserRouter>
