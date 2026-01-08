@@ -82,7 +82,7 @@ app.add_middleware(
 
 ongoing_fsm_mongo = MongoDB(collection_name="ongoingIVRState")
 
-ivrv2_logs_mongo = MongoDB(collection_name="ivrv2logs")
+ivrv2_logs_mongo = MongoDB(collection_name="ivrv2Logs")
 
 fsm_json_mongo = MongoDB(collection_name="fsm")
 radio_fsm_mongo = MongoDB(collection_name="radio")
@@ -115,6 +115,33 @@ async def get_ivr_structure():
     logging.info(f"Structured content: {structured_content}")
     html_content = format_data_html(structured_content)
     return html_content
+
+
+@app.get(
+    "/latest_fsm_id",
+    summary="Get current FSM ID",
+    description="""
+    Returns the FSM ID currently loaded in the server's memory.
+    
+    This endpoint is useful for testing and debugging to ensure clients
+    are using the same FSM ID as the server.
+    """,
+    responses={
+        200: {"description": "Current FSM ID and initial state"},
+        500: {"description": "FSM not initialized"},
+    },
+)
+async def get_latest_fsm_id():
+    """Return the current FSM ID loaded in server memory"""
+    global latest_fsm_id, fsm
+    if latest_fsm_id is None:
+        raise HTTPException(status_code=500, detail="FSM not initialized")
+
+    current_fsm = fsm.get(latest_fsm_id)
+    return {
+        "fsm_id": latest_fsm_id,
+        "init_state_id": current_fsm.init_state_id if current_fsm else "LA0",
+    }
 
 
 @app.get(
@@ -386,7 +413,7 @@ async def call_webhook(request: Request, response: Response):
     logging.info(f"[WEBHOOK] CALL DATA RECEIVED: {call_data}")
     call_status = call_data.get("_su")  # 2 = missed call
     phone_number = call_data.get("_cl")  # with country code
-    tenant_id = query_params.get("tenant_id") # optional tenant id
+    tenant_id = query_params.get("tenant_id")  # optional tenant id
     logging.info(f"[WEBHOOK] CALL STATUS: {call_status}")
     if call_status != 2:
         logging.error(
@@ -401,8 +428,14 @@ async def call_webhook(request: Request, response: Response):
     logging.info(f"[WEBHOOK] ✓ Logged missed call with ID: {insert_result}")
 
     # send message to service bus to process the call asynchronously
-    logging.info(f"[WEBHOOK] Sending message to call_webhook queue, log_id: {insert_result}")
-    payload = {"phone_number": phone_number, "call_log_id": str(insert_result), "tenant_id": tenant_id}
+    logging.info(
+        f"[WEBHOOK] Sending message to call_webhook queue, log_id: {insert_result}"
+    )
+    payload = {
+        "phone_number": phone_number,
+        "call_log_id": str(insert_result),
+        "tenant_id": tenant_id,
+    }
     logging.info(f"[WEBHOOK] Payload: {payload}")
     try:
         result = await service_bus_manager.send_call_webhook(payload=payload)
@@ -915,8 +948,9 @@ async def dtmf(input: Request):
 
     ivr_state = IVRCallStateMongoDoc(**doc)
 
-    fsm_in_progress = fsm[ivr_state.fsm_id]
-    logging.debug(f"IS FSM IN PROGRESS NONE: {fsm_in_progress == None}")
+    # Clone the FSM for this conversation
+    fsm_in_progress = copy.deepcopy(fsm[ivr_state.fsm_id])
+    logging.debug(f"FSM cloned for conv_id={conv_id}, fsm_id={ivr_state.fsm_id}")
     # PROCESS MULTIPLE USER INPUTS
     input_time = datetime.now()
     logging.info(f"CURRENT STATE ID: {ivr_state.current_state_id}")
