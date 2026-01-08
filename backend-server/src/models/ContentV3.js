@@ -49,9 +49,9 @@ const getContentsByIds = (ids) => {
   return ContentV3.find({ id: { $in: ids } }).exec();
 };
 
-const getContentById = (id) => {
-  return ContentV3.findOne({ id }).exec();
-};
+const getContentById = _id => {
+  return ContentV3.findOne({ _id }).exec()
+}
 
 module.exports = {
   TextContentSchema,

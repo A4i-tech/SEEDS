@@ -41,57 +41,64 @@ const ContentTable = ({ content, isLoading, onEdit, onView, onDelete }) => {
             </tr>
           </thead>
           <tbody>
-            {content.map((item) => (
-              <tr key={item.id} className="table-row-white">
-                <td className="table-cell">
-                  {item.title && typeof item.title === "object" ? item.title.english : item.title}
-                  <br />
-                  <span className="table-cell-secondary">
+            {content.map((item) => {
+              const itemId = item.id || item._id; // API may return id or _id
+              return (
+                <tr key={itemId} className="table-row-white">
+                  <td className="table-cell">
                     {item.title && typeof item.title === "object"
-                      ? item.title.local
-                      : item.localTitle}
-                  </span>
-                </td>
-                <td className="table-cell">
-                  {item.theme && typeof item.theme === "object" ? item.theme.english : item.theme}
-                  <br />
-                  <span className="table-cell-secondary">
+                      ? item.title.english
+                      : item.title}
+                    <br />
+                    <span className="table-cell-secondary">
+                      {item.title && typeof item.title === "object"
+                        ? item.title.local
+                        : item.localTitle}
+                    </span>
+                  </td>
+                  <td className="table-cell">
                     {item.theme && typeof item.theme === "object"
-                      ? item.theme.local
-                      : item.localTheme}
-                  </span>
-                </td>
-                <td className="table-cell">
-                  {item.isTeacherApp && "TA"}
-                  {item.isPullModel && ", IVR"}
-                  {item.type === "quiz" && " IVR"}
-                </td>
-                <td className="table-cell">{item.language}</td>
-                <td className="table-cell">{item.type}</td>
-                <td className="table-cell">
-                  <div className="action-buttons-wrapper">
-                    <button
-                      onClick={() => onEdit(item.type, item.id)}
-                      className="action-button-base action-button-edit"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => onView(item.type, item.id)}
-                      className="action-button-base action-button-view"
-                    >
-                      View
-                    </button>
-                    <button
-                      onClick={() => onDelete(item.type, item.id)}
-                      className="action-button-base action-button-delete"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                      ? item.theme.english
+                      : item.theme}
+                    <br />
+                    <span className="table-cell-secondary">
+                      {item.theme && typeof item.theme === "object"
+                        ? item.theme.local
+                        : item.localTheme}
+                    </span>
+                  </td>
+                  <td className="table-cell">
+                    {item.isTeacherApp && "TA"}
+                    {item.isPullModel && ", IVR"}
+                    {item.type === "quiz" && " IVR"}
+                  </td>
+                  <td className="table-cell">{item.language}</td>
+                  <td className="table-cell">{item.type}</td>
+                  <td className="table-cell">
+                    <div className="action-buttons-wrapper">
+                      <button
+                        onClick={() => onEdit(item.type, itemId)}
+                        className="action-button-base action-button-edit"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => onView(item.type, itemId)}
+                        className="action-button-base action-button-view"
+                      >
+                        View
+                      </button>
+                      <button
+                        onClick={() => onDelete(item.type, itemId)}
+                        className="action-button-base action-button-delete"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}

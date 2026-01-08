@@ -13,11 +13,16 @@ const path = require("path");
 // Third-party modules
 const Agenda = require("agenda");
 const { ObjectId } = require("mongoose").Types;
-const fetch = (...args) => import("node-fetch").then(({ default: fetch }) => fetch(...args));
+const fetch = (...args) =>
+  import("node-fetch").then(({ default: fetch }) => fetch(...args));
 
 // Project modules
 const Content = require("../models/Content.js");
-const { ContentV3, getContent } = require("../models/ContentV3.js");
+const {
+  ContentV3,
+  getContent,
+  getContentById,
+} = require("../models/ContentV3.js");
 const QuizCreateRequest = require("../models/QuizCreateRequest.js");
 const { QuizData, fromQuizCreateRequest } = require("../models/QuizData.js");
 const BlobService = require("../services/BlobService.js");
@@ -117,7 +122,8 @@ router.get("/jobs", async (req, res) => {
     const jobList = (
       await Promise.all(
         jobs.map(async (job) => {
-          const mongooseModel = job.attrs.name === "processQuizContent" ? QuizData : ContentV3;
+          const mongooseModel =
+            job.attrs.name === "processQuizContent" ? QuizData : ContentV3;
           const contentId = job.attrs.data?.content?._id || null;
           let documentExists = false;
 
@@ -137,7 +143,7 @@ router.get("/jobs", async (req, res) => {
               language: job.attrs.data.content.language,
             },
           };
-        })
+        }),
       )
     ).filter((job) => job !== null);
     jobList.sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
@@ -189,12 +195,14 @@ router.post(
     const quizData = fromQuizCreateRequest(quizCreateRequest);
     quizData.creation_time = Math.floor(Date.now() / 1000);
     const quizDataDoc = quizData.toObject();
-    const job = await agenda.now("processQuizContent", { content: quizDataDoc });
+    const job = await agenda.now("processQuizContent", {
+      content: quizDataDoc,
+    });
     res.json({
       message: "Processing New Content job scheduled!",
       jobId: job.attrs._id,
     });
-  })
+  }),
 );
 
 /**
@@ -236,7 +244,7 @@ router.get(
 
     const urlWithSAS = await blobService.getURLWithSAS(url);
     return res.json({ url: urlWithSAS });
-  })
+  }),
 );
 
 /**
@@ -275,9 +283,10 @@ router.get(
   "/themes",
   tryCatchWrapper(async (req, res) => {
     const language = req.query.language;
-    const content = await ContentV3.find({ language: language, isPullModel: true }).sort({
-      _id: -1,
-    });
+    const content = await ContentV3.find({
+      language: language,
+      isPullModel: true,
+    }).sort({ _id: -1 });
     const themeSet = new Set();
     const themes = [];
     console.log(content.length);
@@ -293,7 +302,7 @@ router.get(
       }
     }
     return res.send(themes);
-  })
+  }),
 );
 
 /**
@@ -377,7 +386,9 @@ router.get(
 
     // If specific IDs are requested, return non-deleted content sorted by creation time (newest first)
     if (req.query.ids) {
-      const idsArray = Array.isArray(req.query.ids) ? req.query.ids : req.query.ids.split(",");
+      const idsArray = Array.isArray(req.query.ids)
+        ? req.query.ids
+        : req.query.ids.split(",");
       const contents = await ContentV3.collection
         .find({ _id: { $in: idsArray }, isDeleted: { $ne: true } })
         .sort({ creation_time: -1 })
@@ -421,7 +432,9 @@ router.get(
     const data = hasMore ? contents.slice(0, limit) : contents;
 
     const lastItem = hasMore ? data[data.length - 1] : null;
-    const nextCursor = lastItem ? `${lastItem.creation_time}_${lastItem._id.toString()}` : null;
+    const nextCursor = lastItem
+      ? `${lastItem.creation_time}_${lastItem._id.toString()}`
+      : null;
 
     // Send the final response
     return res.json({
@@ -432,7 +445,7 @@ router.get(
         limit,
       },
     });
-  })
+  }),
 );
 
 // async function regenerateAllTitleAudios(){
@@ -480,20 +493,27 @@ router.get(
   "/sasToken",
   tryCatchWrapper(async (req, res) => {
     const containerName = "input-container";
-    const sasToken = await blobService.getUploadSASToken(req.query.blobName, containerName);
+    const sasToken = await blobService.getUploadSASToken(
+      req.query.blobName,
+      containerName,
+    );
     const container_client = blobService.getContainerClient(containerName);
 
     return res.json({
       sasToken: `${container_client.getBlockBlobClient(req.query.blobName).url}?${sasToken}`,
     });
-  })
+  }),
 );
 
 router.get(
   "/:contentId",
   tryCatchWrapper(async (req, res) => {
-    return res.json(await ContentV3.getContentById(req.params.contentId));
-  })
+    const content = await getContentById(req.params.contentId);
+    if (!content) {
+      return res.status(404).json({ error: "Content not found" });
+    }
+    return res.json(content);
+  }),
 );
 
 // router.get("/:contentId/processed", tryCatchWrapper(async (req, res) => {
@@ -542,10 +562,10 @@ router.delete(
   tryCatchWrapper(async (req, res) => {
     const result = await ContentV3.updateOne(
       { id: req.params.contentId },
-      { $set: { isDeleted: true } }
+      { $set: { isDeleted: true } },
     );
     return res.json(result);
-  })
+  }),
 );
 
 router.post(
@@ -556,12 +576,14 @@ router.post(
 
     const savedContent = await content.save();
 
-    const job = await agenda.now("processNewContent", { content: savedContent.toObject() });
+    const job = await agenda.now("processNewContent", {
+      content: savedContent.toObject(),
+    });
     res.json({
       message: "Processing New Content job scheduled!",
       jobId: job.attrs._id,
     });
-  })
+  }),
 );
 
 // router.patch("/",tryCatchWrapper(async (req,res) => {

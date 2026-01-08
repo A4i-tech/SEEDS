@@ -53,11 +53,18 @@ const ContentEdit = () => {
     console.log(event.target.value);
   };
 
-  if (content && !content.isProcessed) {
+  const isProcessed =
+    content?.isProcessed ?? Boolean(content?.audioContent?.length);
+  const titleText =
+    typeof content?.title === "object"
+      ? content.title.english || content.title.local || "Untitled"
+      : content?.title || "Untitled";
+
+  if (content && !isProcessed) {
     return (
       <>
         <div style={{ margin: "20px" }}>
-          <h3>{content.title}</h3>
+          <h3>{titleText}</h3>
           <p>Content is being processed, try again later!</p>
         </div>
       </>
@@ -85,8 +92,10 @@ const ContentEdit = () => {
                 </label>
               </form>
             )}
-          {content && experience === "quiz" && content.isProcessed && <AddQuiz quiz={content} />}
-          {content && experience !== "quiz" && content.isProcessed && (
+          {content && experience === "quiz" && isProcessed && (
+            <AddQuiz quiz={content} />
+          )}
+          {content && experience !== "quiz" && isProcessed && (
             <AddStory content={content} contentType={experience} />
           )}
           <div />

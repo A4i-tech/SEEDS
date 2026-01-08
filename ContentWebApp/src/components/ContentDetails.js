@@ -21,7 +21,7 @@ const ContentDetails = () => {
           "https://place-seeds.azurewebsites.net/rawDataById?" +
             new URLSearchParams({
               id: id,
-            })
+            }),
         );
         data = await placeRes.json();
         console.log("ContentDetailsData", data);
@@ -48,11 +48,19 @@ const ContentDetails = () => {
     fetchContent();
   }, [contentById]);
 
-  if (content && !content.isProcessed) {
+  const isProcessed =
+    content?.isProcessed ?? Boolean(content?.audioContent?.length);
+
+  if (content && !isProcessed) {
+    const titleEnglish = content.title?.english ?? content.title;
+    const titleLocal = content.title?.local ?? content.localTitle;
     return (
       <>
         <div style={{ margin: "20px" }}>
-          <h3>Title: {content.title}</h3>
+          <h3>
+            Title: {titleEnglish}
+            {titleLocal ? ` / ${titleLocal}` : ""}
+          </h3>
           <p>Content is being processed, try again later!</p>
         </div>
       </>
@@ -60,10 +68,10 @@ const ContentDetails = () => {
   } else {
     return (
       <div style={{ margin: "20px" }}>
-        {content && content.isProcessed && content.type === "quiz" && (
+        {content && isProcessed && content.type === "quiz" && (
           <QuizDetails quiz={content} />
         )}
-        {content && content.isProcessed && content.type !== "quiz" && (
+        {content && isProcessed && content.type !== "quiz" && (
           <StoryDetails type={content.type} story={content} />
         )}
       </div>

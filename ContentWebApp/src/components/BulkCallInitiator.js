@@ -98,7 +98,9 @@ const BulkCallInitiator = () => {
       />
       <ul>
         {contentList
-          .filter((content) => content.title.toLowerCase().includes(searchTerm.toLowerCase()))
+          .filter((content) =>
+            content.title.toLowerCase().includes(searchTerm.toLowerCase())
+          )
           .map((content) => (
             <li key={content.id}>
               <input
