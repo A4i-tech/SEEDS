@@ -4,9 +4,15 @@
  */
 export const getAuthHeaders = () => {
   const token = localStorage.getItem("authToken");
+
+  if (!token) {
+    clearAuth();
+    return null;
+  }
+
   return {
     "Content-Type": "application/json",
-    "Authorization": `Bearer ${token}`,
+    Authorization: `Bearer ${token}`,
   };
 };
 

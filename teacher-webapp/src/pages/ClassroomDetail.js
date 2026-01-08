@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Box,
   Card,
@@ -46,6 +46,9 @@ const ClassroomDetail = () => {
   const [teacherStudentsList, setTeacherStudentsList] = useState([]);
   const [conferenceStarted, setConferenceStarted] = useState(false);
   const [teacherPhone, setTeacherPhone] = useState(null);
+  const [conferenceId, setConferenceId] = useState(null);
+  const eventSourceRef = useRef(null);
+  const isMountedRef = useRef(true);
 
   const {
     selectedStudents,
@@ -58,52 +61,100 @@ const ClassroomDetail = () => {
     setConferenceStudents,
   } = useConference();
 
+  // Main data loading effect - handles sequential and parallel fetching
   useEffect(() => {
-    fetchClassroom();
-    fetchTeacherInfo();
-  }, [classroomId]);
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        setErrorMsg("");
 
-  const fetchTeacherInfo = async () => {
-    try {
-      const teacher = await getCurrentTeacher();
-      setTeacherPhone(teacher.phoneNumber);
+        // Step 1: Fetch teacher info first (required for students and validation)
+        const teacher = await getCurrentTeacher();
+        if (!teacher?.phoneNumber) {
+          throw new Error("Teacher phone number not available");
+        }
+        setTeacherPhone(teacher.phoneNumber);
 
-      // Fetch students after getting teacher phone
-      await fetchTeacherStudents(teacher.phoneNumber);
-    } catch (err) {
-      console.error("Error fetching teacher info:", err);
-      showToast.error("Failed to fetch teacher information");
-    }
-  };
+        // Step 2: Fetch classroom and students in parallel (both are independent)
+        const [classroomData, studentData] = await Promise.all([
+          getClassroomById(classroomId),
+          getTeacherStudents(teacher.phoneNumber),
+        ]);
 
-  const fetchClassroom = async () => {
-    try {
-      setLoading(true);
-      setErrorMsg("");
-      const data = await getClassroomById(classroomId);
-      setClassroom(data);
-    } catch (err) {
-      setErrorMsg("Failed to load classroom details. Please try again.");
-      showToast.error("Failed to load classroom");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchTeacherStudents = async (phoneNumber) => {
-    try {
-      if (!phoneNumber) {
-        console.warn("No teacher phone provided");
-        return;
+        setClassroom(classroomData);
+        setTeacherStudentsList(Array.isArray(studentData) ? studentData : []);
+      } catch (err) {
+        console.error("Error loading classroom data:", err);
+        setErrorMsg("Failed to load classroom details. Please try again.");
+        showToast.error("Failed to load classroom data");
+      } finally {
+        setLoading(false);
       }
+    };
 
-      const data = await getTeacherStudents(phoneNumber);
-      setTeacherStudentsList(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error("Error fetching teacher students:", err);
-      // Don't show error - we'll still allow conference with phone numbers only
+    loadData();
+  }, [classroomId, getCurrentTeacher]);
+
+  // Handle SSE connection cleanup on mount/unmount
+  useEffect(() => {
+    // Track if component is mounted
+    isMountedRef.current = true;
+
+    return () => {
+      isMountedRef.current = false;
+      // Clean up SSE connection on unmount
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+    };
+  }, []);
+
+  // Handle SSE connection when conference starts
+  useEffect(() => {
+    if (!conferenceStarted || !conferenceId) {
+      return;
     }
-  };
+
+    try {
+      const sseEp = SSE_ENDPOINTS.CONFERENCE.TEACHER_CONNECT(conferenceId);
+      const eventSource = new EventSource(sseEp);
+      eventSourceRef.current = eventSource;
+
+      eventSource.onmessage = (event) => {
+        // Only process if component is still mounted
+        if (!isMountedRef.current) return;
+
+        console.log(`${getCurrentTime()} Message from SSE:`, event.data);
+        try {
+          const parsedData = JSON.parse(event.data);
+          if (isMountedRef.current && handleSSEEvent) {
+            handleSSEEvent(parsedData);
+          }
+        } catch (parseError) {
+          console.error("Error parsing SSE data:", parseError);
+        }
+      };
+
+      eventSource.onerror = (err) => {
+        console.error("SSE Error:", err);
+        if (eventSourceRef.current) {
+          eventSourceRef.current.close();
+          eventSourceRef.current = null;
+        }
+      };
+    } catch (error) {
+      console.error("Error setting up SSE connection:", error);
+    }
+
+    // Cleanup on unmount or when conference ends
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+    };
+  }, [conferenceStarted, conferenceId, handleSSEEvent]);
 
   const handleBack = () => {
     navigate("/classrooms");
@@ -162,10 +213,7 @@ const ClassroomDetail = () => {
         studentCount: studentPhonesFormatted.length,
       });
 
-      const data = await createConference(
-        teacherPhoneFormatted,
-        studentPhonesFormatted
-      );
+      const data = await createConference(teacherPhoneFormatted, studentPhonesFormatted);
 
       if (!data || !data.id) {
         throw new Error("Conference creation failed: No conference ID returned");
@@ -173,21 +221,11 @@ const ClassroomDetail = () => {
 
       const conferenceId = data.id;
       setConfId(conferenceId);
+      setConferenceId(conferenceId);
       setConferenceStudents(selectedStudents);
       console.log("Conference created successfully. Conf ID:", conferenceId);
       console.log("Student phones sent:", studentPhonesFormatted);
 
-      const sseEp = SSE_ENDPOINTS.CONFERENCE.TEACHER_CONNECT(conferenceId);
-      const eventSource = new EventSource(sseEp);
-      eventSource.onmessage = (event) => {
-        console.log(`${getCurrentTime()} Message from SSE:`, event.data);
-        const parsedData = JSON.parse(event.data);
-        handleSSEEvent(parsedData);
-      };
-      eventSource.onerror = (err) => {
-        console.error("SSE Error:", err);
-        eventSource.close();
-      };
       setConferenceStarted(true);
       showToast.success("Conference started successfully");
     } catch (error) {
@@ -246,11 +284,7 @@ const ClassroomDetail = () => {
   return (
     <PageContainer>
       <Box sx={{ mb: 3 }}>
-        <Button
-          startIcon={<ArrowBackIcon />}
-          onClick={handleBack}
-          sx={{ mb: 2 }}
-        >
+        <Button startIcon={<ArrowBackIcon />} onClick={handleBack} sx={{ mb: 2 }}>
           Back to Classrooms
         </Button>
         <Box
@@ -277,7 +311,9 @@ const ClassroomDetail = () => {
             <Button
               variant="contained"
               color="success"
-              startIcon={conferenceLoading ? <CircularProgress size={16} color="inherit" /> : <CallIcon />}
+              startIcon={
+                conferenceLoading ? <CircularProgress size={16} color="inherit" /> : <CallIcon />
+              }
               onClick={handleStartConference}
               disabled={selectedStudents.length === 0 || conferenceLoading}
             >
@@ -295,7 +331,8 @@ const ClassroomDetail = () => {
 
       {selectedStudents.length > 0 && (
         <Alert severity="info" sx={{ mb: 3 }}>
-          {selectedStudents.length} student{selectedStudents.length !== 1 ? "s" : ""} selected for conference
+          {selectedStudents.length} student{selectedStudents.length !== 1 ? "s" : ""} selected for
+          conference
         </Alert>
       )}
 
@@ -375,10 +412,7 @@ const ClassroomDetail = () => {
                       }}
                       onClick={() => handleToggleStudent(phoneNumber)}
                     >
-                      <Checkbox
-                        checked={selected}
-                        sx={{ mr: 1 }}
-                      />
+                      <Checkbox checked={selected} sx={{ mr: 1 }} />
                       <ListItemText
                         primary={student ? student.name : phoneNumber}
                         secondary={phoneNumber}
@@ -387,12 +421,7 @@ const ClassroomDetail = () => {
                         }}
                       />
                       {studentIsLeader && (
-                        <Chip
-                          label="Leader"
-                          color="secondary"
-                          size="small"
-                          icon={<SchoolIcon />}
-                        />
+                        <Chip label="Leader" color="secondary" size="small" icon={<SchoolIcon />} />
                       )}
                     </ListItem>
                   </React.Fragment>
