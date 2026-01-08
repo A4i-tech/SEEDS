@@ -1,8 +1,8 @@
-from pymongo import MongoClient
+from pymongo import MongoClient, ReturnDocument
 from dotenv import load_dotenv
 from app.settings import settings
 from urllib.parse import urlparse
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from app.interfaces.database import IDatabase
 
 load_dotenv()
@@ -54,3 +54,44 @@ class MongoDB(IDatabase):
 
     def get_collection(self):
         return self.collection
+
+    async def find_one_and_update(
+        self,
+        query: dict,
+        update: dict,
+        upsert: bool = False,
+        return_document: str = "after"
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Atomic find and update operation.
+
+        Args:
+            query: Filter criteria
+            update: Update operations (use $set, $inc, etc.)
+            upsert: Create if not exists
+            return_document: "before" or "after"
+
+        Returns:
+            The document (before or after update), or None
+        """
+        return_doc = ReturnDocument.AFTER if return_document == "after" else ReturnDocument.BEFORE
+        return self.collection.find_one_and_update(
+            query,
+            update,
+            upsert=upsert,
+            return_document=return_doc
+        )
+
+    async def delete_with_verification(self, id: str) -> Tuple[bool, Optional[Dict[str, Any]]]:
+        """
+        Delete document and return what was deleted.
+
+        Args:
+            id: Document ID to delete
+
+        Returns:
+            (True, deleted_doc) if deleted
+            (False, None) if not found
+        """
+        deleted_doc = self.collection.find_one_and_delete({"_id": id})
+        return (deleted_doc is not None, deleted_doc)

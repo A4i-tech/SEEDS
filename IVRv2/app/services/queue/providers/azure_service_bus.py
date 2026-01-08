@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import List, Optional
 
@@ -24,6 +25,7 @@ class AzureServiceBusQueueProvider(BaseQueueProvider):
         self._sender: Optional[ServiceBusSender] = None
         self._receiver: Optional[ServiceBusReceiver] = None
         self._message_map = {}
+        self._message_map_lock = asyncio.Lock()  # Thread-safe access to message map
 
     async def initialize(self):
         """Initializes the Service Bus client. Sender/receiver are created per-operation."""
@@ -146,8 +148,9 @@ class AzureServiceBusQueueProvider(BaseQueueProvider):
                     )
                     queue_msg = QueueMessage.from_json_string(str(sb_message))
                     queue_msg.message_id = sb_message.message_id
-                    # store the original message for later deletion
-                    self._message_map[queue_msg.message_id] = sb_message
+                    # store the original message for later deletion (thread-safe)
+                    async with self._message_map_lock:
+                        self._message_map[queue_msg.message_id] = sb_message
                     messages.append(queue_msg)
                     logger.debug(
                         f"[AzureServiceBus] ✓ Successfully parsed message: {queue_msg.message_id}"
@@ -183,14 +186,16 @@ class AzureServiceBusQueueProvider(BaseQueueProvider):
         """
 
         try:
-            sb_message = self._message_map.get(message.message_id)
-            if not sb_message:
-                logger.error(
-                    f"Message with ID {message.message_id} not found for deletion."
-                )
-                return False
+            async with self._message_map_lock:
+                sb_message = self._message_map.get(message.message_id)
+                if not sb_message:
+                    logger.error(
+                        f"Message with ID {message.message_id} not found for deletion."
+                    )
+                    return False
             await self._receiver.complete_message(sb_message)
-            del self._message_map[message.message_id]
+            async with self._message_map_lock:
+                self._message_map.pop(message.message_id, None)
             logger.debug(
                 f"Message with ID {message.message_id} deleted from Service Bus."
             )
@@ -208,14 +213,16 @@ class AzureServiceBusQueueProvider(BaseQueueProvider):
             bool: True if the message was returned successfully, False otherwise.
         """
         try:
-            sb_message = self._message_map.get(message.message_id)
-            if not sb_message:
-                logger.error(
-                    f"Message with ID {message.message_id} not found for return."
-                )
-                return False
+            async with self._message_map_lock:
+                sb_message = self._message_map.get(message.message_id)
+                if not sb_message:
+                    logger.error(
+                        f"Message with ID {message.message_id} not found for return."
+                    )
+                    return False
             await self._receiver.abandon_message(sb_message)
-            del self._message_map[message.message_id]
+            async with self._message_map_lock:
+                self._message_map.pop(message.message_id, None)
             logger.info(
                 f"Message with ID {message.message_id} returned to queue for reprocessing."
             )
@@ -234,16 +241,18 @@ class AzureServiceBusQueueProvider(BaseQueueProvider):
             bool: True if the message was moved successfully, False otherwise.
         """
         try:
-            sb_message = self._message_map.get(message.message_id)
-            if not sb_message:
-                logger.error(
-                    f"Message with ID {message.message_id} not found for DLQ move."
-                )
-                return False
+            async with self._message_map_lock:
+                sb_message = self._message_map.get(message.message_id)
+                if not sb_message:
+                    logger.error(
+                        f"Message with ID {message.message_id} not found for DLQ move."
+                    )
+                    return False
             await self._receiver.dead_letter_message(
                 sb_message, reason="MaxRetriesExceeded", error_description=reason
             )
-            del self._message_map[message.message_id]
+            async with self._message_map_lock:
+                self._message_map.pop(message.message_id, None)
             logger.warning(f"Message with ID {message.message_id} moved to DLQ.")
             return True
         except Exception as e:
