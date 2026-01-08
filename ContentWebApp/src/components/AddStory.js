@@ -641,7 +641,7 @@ const AddStory = ({ content, contentType }) => {
           <label
             style={{ display: "block", marginBottom: "8px", fontWeight: "500" }}
           >
-            Current {contentType === "Riddle" && `Question `}Audio File:
+            Current {contentType === "Riddle" && "Question "}Audio File:
           </label>
           <audio
             controls
@@ -656,7 +656,7 @@ const AddStory = ({ content, contentType }) => {
           <label
             style={{ display: "block", marginBottom: "8px", fontWeight: "500" }}
           >
-            Current {contentType === "Riddle" && `Answer `}Audio File:
+            Current {contentType === "Riddle" && "Answer "}Audio File:
           </label>
           <audio
             controls
@@ -686,7 +686,7 @@ const AddStory = ({ content, contentType }) => {
           style={{ display: "block", marginBottom: "8px", fontWeight: "500" }}
         >
           {audioSrc ? "Change" : ""} {contentType}{" "}
-          {contentType === "Riddle" && `Question `}Audio File
+          {contentType === "Riddle" && "Question "}Audio File
         </label>
         <input
           type="file"
