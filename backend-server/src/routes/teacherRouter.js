@@ -197,18 +197,20 @@ router.post("/logout", authenticateToken, (req, res) => {
  *         description: Unauthorized - invalid or missing token
  *       404:
  *         description: Teacher not found
- */ 
+ */
 
 router.get("/me", authenticateToken, async (req, res) => {
-  const teacherId = req.userId;
-  const teacher = await Teacher.findById(teacherId);
-  if (!teacher) {
-    return res.sendStatus(STATUS.NOT_FOUND);
+  try {
+    const teacherId = req.userId;
+    const teacher = await Teacher.findById(teacherId).select("phoneNumber").lean();
+    if (!teacher) {
+      return res.sendStatus(STATUS.NOT_FOUND);
+    }
+    res.status(STATUS.OK).json({ phoneNumber: teacher.phoneNumber });
+  } catch (err) {
+    console.error("Error fetching teacher profile", err);
+    res.sendStatus(STATUS.INTERNAL_ERROR);
   }
-  const teacherData = {
-    phoneNumber: teacher.phoneNumber,
-  };
-  res.status(STATUS.OK).json(teacherData);
 });
 
 module.exports = router;
