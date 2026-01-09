@@ -62,19 +62,31 @@ class VonageAPI(CommunicationAPI):
                                                         call_leg_id=vonage_resp['uuid'],
                                                         initial_conv_id=vonage_resp['conversation_uuid'])
     
-    async def _try_connecting_websocket_with_participant(self, participant: VonageParticipantInfo):
+    async def _try_connecting_websocket_with_participant(
+        self,
+        participant: VonageParticipantInfo,
+        max_wait: int = 5,
+        check_interval: float = 0.5
+    ):
         """
-        Connecting websocket to this conference call, requires an active call leg. 
+        Connecting websocket to this conference call, requires an active call leg.
         The user with active call leg is transferred into a new NCCO which first connects a websocket to the user's call leg
         and then transfers both - user's call leg and the websocket, back into the conference
-        
+
+        Args:
+            participant: The participant to connect
+            max_wait: Maximum seconds to wait for transfer completion (default: 5)
+            check_interval: Seconds between verification checks (default: 0.5)
+
         Returns True if the above process happened for the given participant
         """
         call = self.client.voice.get_call(uuid=participant.call_leg_id)
         logger_instance.info(f'Checking participant {participant.phone_number} call status: {call["status"]}')
         if call['status'] == 'answered':
             logger_instance.info(f'CONNECTING WEBSOCKET TO THE CONFERENCE {self.conf_id} USING NUMBER {participant.phone_number} URL: {self.ws_server_url}')
-            self.client.voice.update_call(uuid=participant.call_leg_id, 
+
+            # Initiate transfer
+            self.client.voice.update_call(uuid=participant.call_leg_id,
                                                     params={
                                                         "action": "transfer",
                                                         "destination": {
@@ -96,17 +108,42 @@ class VonageAPI(CommunicationAPI):
                                                                     ],
                                                                 },
                                                                 {
-                                                                    "action": "conversation", 
+                                                                    "action": "conversation",
                                                                     "name": self.conf_id
                                                                 }
                                                             ]
                                                         }
                                                     })
-            # Say it takes 2 seconds for vonage to connect the websocket to the conference. 
-            # TODO: Figure out a way around this assumption
-            await asyncio.sleep(2)
-            logger_instance.info(f'WebSocket connection established for conference {self.conf_id}')
-            return True
+
+            # Poll until transfer complete (instead of hardcoded sleep)
+            logger_instance.info(f'Waiting for websocket transfer to complete for {participant.phone_number}...')
+            for attempt in range(int(max_wait / check_interval)):
+                await asyncio.sleep(check_interval)
+
+                try:
+                    # Check if participant is in conversation
+                    call = self.client.voice.get_call(uuid=participant.call_leg_id)
+                    conversation_uuid = call.get('conversation_uuid')
+
+                    if conversation_uuid == self.conf_id:
+                        logger_instance.info(
+                            f'Participant {participant.phone_number} successfully transferred to conference '
+                            f'after {(attempt + 1) * check_interval:.1f}s'
+                        )
+                        return True
+
+                except Exception as e:
+                    logger_instance.warning(
+                        f'Error checking transfer status for {participant.phone_number} '
+                        f'(attempt {attempt + 1}): {e}'
+                    )
+
+            # Transfer may not have completed, but log warning instead of failing
+            logger_instance.warning(
+                f'Participant {participant.phone_number} transfer verification timed out after {max_wait}s. '
+                f'Transfer may still be in progress.'
+            )
+            return True  # Return True to avoid blocking, but logged warning
         else:
             logger_instance.info(f'Cannot connect WebSocket - participant {participant.phone_number} call status is {call["status"]} (need "answered")')
         return False
@@ -212,7 +249,18 @@ class VonageAPI(CommunicationAPI):
         """
         if phone_number in self.participant_info_map:
             participant_info = self.participant_info_map[phone_number]
-            self.client.voice.update_call(uuid=participant_info.call_leg_id, action="mute")
+            try:
+                self.client.voice.update_call(uuid=participant_info.call_leg_id, action="mute")
+                logger_instance.info(f"Successfully muted participant {phone_number}")
+            except Exception as e:
+                logger_instance.error(f"Failed to mute participant {phone_number}: {e}")
+                raise  # Re-raise for retry logic
+        else:
+            logger_instance.error(
+                f"Cannot mute participant {phone_number}: not found in participant_info_map. "
+                f"Available participants: {list(self.participant_info_map.keys())}"
+            )
+            raise ValueError(f"Participant {phone_number} not found in participant map")
 
     # client.update_call()
     async def unmute_participant(self, phone_number: str):
