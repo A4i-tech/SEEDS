@@ -131,7 +131,15 @@ class BaseProcessor(ABC):
 
                     # Process messages concurrently with ack handling
                     tasks = [self._handle_message(provider, msg) for msg in messages]
-                    await asyncio.gather(*tasks, return_exceptions=True)
+                    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+                    # Log any failures that were returned as exceptions
+                    for i, result in enumerate(results):
+                        if isinstance(result, Exception):
+                            self.log_error(
+                                f"Task {i} failed with exception: {result}",
+                                exc_info=result,
+                            )
 
                 except asyncio.TimeoutError:
                     self.log_debug("Receive timeout, continuing...")
