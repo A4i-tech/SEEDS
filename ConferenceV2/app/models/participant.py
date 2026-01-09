@@ -21,7 +21,7 @@ class Participant(BaseModel):
     role: Role
     raised_at: int = Field(default=-1)
     is_raised: bool = Field(default=False)
-    is_muted: bool = Field(default=False)
+    is_muted: bool = Field(default=True)
     call_status: CallStatus = Field(default=CallStatus.DISCONNECTED)
 
     class Config:
