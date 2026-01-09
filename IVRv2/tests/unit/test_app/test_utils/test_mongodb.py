@@ -1,6 +1,7 @@
 import pytest
 import sys
 import os
+import threading
 from unittest.mock import AsyncMock, MagicMock, patch
 from pymongo.errors import PyMongoError
 
@@ -11,7 +12,19 @@ sys.path.append(
     )
 )
 
+import app.utils.mongodb as mongodb
 from app.utils.mongodb import MongoDB
+
+
+@pytest.fixture(autouse=True)
+def reset_mongo_singleton():
+    """Ensure MongoDB singleton state is reset between tests to avoid cross-test leakage."""
+
+    mongodb._mongo_client = None
+    mongodb._database_name = None
+    yield
+    mongodb._mongo_client = None
+    mongodb._database_name = None
 
 
 class TestMongoDB:
@@ -40,7 +53,12 @@ class TestMongoDB:
         mongo = MongoDB("test_collection")
 
         assert mongo.collection == self.mock_collection
-        mock_mongo_client.assert_called_once_with("mongodb://localhost:27017/test")
+
+        mock_mongo_client.assert_called_once()
+        args, kwargs = mock_mongo_client.call_args
+        assert args[0] == "mongodb://localhost:27017/test"
+        assert kwargs == {"maxPoolSize": 50, "serverSelectionTimeoutMS": 5000}
+
         self.mock_client.__getitem__.assert_called_with("test")
 
     @patch.dict(
@@ -175,9 +193,10 @@ class TestMongoDB:
         result = await mongo.update_document(doc_id, new_doc)
 
         assert result == mock_result
-        self.mock_collection.replace_one.assert_called_once_with(
-            {"_id": doc_id}, new_doc, upsert=True
-        )
+        self.mock_collection.replace_one.assert_called_once()
+        args, kwargs = self.mock_collection.replace_one.call_args
+        assert args == ({"_id": doc_id}, new_doc, True)
+        assert kwargs == {}
 
     @patch.dict(
         os.environ, {"MONGO_DB_CONNECTION_STRING": "mongodb://localhost:27017/test"}
@@ -217,3 +236,44 @@ class TestMongoDB:
 
         with pytest.raises(PyMongoError):
             await mongo.find_by_id("test_id")
+
+    @patch.dict(
+        os.environ, {"MONGO_DB_CONNECTION_STRING": "mongodb://localhost:27017/test"}
+    )
+    @patch("app.utils.mongodb.settings")
+    @patch("app.utils.mongodb.MongoClient")
+    def test_concurrent_initialization_single_client(
+        self, mock_mongo_client, mock_settings
+    ):
+        """Ensure only one MongoClient is created under concurrent init."""
+
+        mock_settings.mongo_db_connection_string = "mongodb://localhost:27017/test"
+        mock_mongo_client.return_value = self.mock_client
+
+        start_event = threading.Event()
+        results = []
+        errors = []
+
+        def worker():
+            start_event.wait()
+            try:
+                mongo = MongoDB("test_collection")
+                results.append(mongo.collection)
+            except Exception as exc:  # noqa: PERF203
+                errors.append(exc)
+
+        threads = [threading.Thread(target=worker) for _ in range(2)]
+        for t in threads:
+            t.start()
+
+        start_event.set()
+        for t in threads:
+            t.join(timeout=5)
+
+        assert not errors
+        assert len(results) == 2
+        mock_mongo_client.assert_called_once()
+        args, kwargs = mock_mongo_client.call_args
+        assert args[0] == "mongodb://localhost:27017/test"
+        assert kwargs == {"maxPoolSize": 50, "serverSelectionTimeoutMS": 5000}
+        assert all(col is self.mock_collection for col in results)
