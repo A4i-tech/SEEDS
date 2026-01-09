@@ -3,6 +3,7 @@ import { BlockBlobClient } from "@azure/storage-blob";
 import { useNavigate } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
 import { SEEDS_URL, AUDIO_BASE_URL } from "../Constants";
+import { getAuthHeaders } from "../utils/authHelpers";
 
 const AddStory = ({ content, contentType }) => {
   const [metadata, setMetadata] = useState({
@@ -18,11 +19,9 @@ const AddStory = ({ content, contentType }) => {
     isTeacherApp: true,
     isProcessed: false,
     isDeleted: false,
-    audioFile: "",       // for upload only (not sent to backend)
-    answerAudioFile: ""  // for upload only (not sent to backend)
+    audioFile: "", // for upload only (not sent to backend)
+    answerAudioFile: "", // for upload only (not sent to backend)
   });
-
-
 
   const [titlesUnderTheme, setTitlesUnderTheme] = useState([]);
   const [audioSrc, setAudioSrc] = useState();
@@ -32,28 +31,25 @@ const AddStory = ({ content, contentType }) => {
   const [themes, setThemes] = useState({});
   const [newTheme, setNewTheme] = useState(false);
 
-
   const getAllContent = async () => {
-    const seedsRes = await fetch(
-      `${SEEDS_URL}/content`,
-      {
-        method: "GET",
-        headers: {
-          authToken: "postman",
-        },
-      }
-    );
+    const seedsRes = await fetch(`${SEEDS_URL}/content`, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
     const seedsData = await seedsRes.json();
-    return seedsData;
+    // Handle paginated response
+    return seedsData.data || seedsData || [];
   };
 
   const populateThemes = (content) => {
     const newThemes = {};
-    content.forEach(item => {
-      if (item.language && item.theme && item.localTheme) {
+    content.forEach((item) => {
+      const themeEnglish = item.theme?.english || item.theme;
+      const themeLocal = item.theme?.local || item.localTheme;
+      if (item.language && themeEnglish && themeLocal) {
         const lang = item.language.toLowerCase();
         newThemes[lang] = newThemes[lang] || {};
-        newThemes[lang][item.theme.toLowerCase()] = item.localTheme.toLowerCase();
+        newThemes[lang][themeEnglish.toLowerCase()] = themeLocal.toLowerCase();
       }
     });
     setThemes(newThemes);
@@ -64,9 +60,13 @@ const AddStory = ({ content, contentType }) => {
     if (value === "new-theme") {
       setNewTheme(true);
       setTitlesUnderTheme([]);
-      setMetadata(prev => ({
+      setMetadata((prev) => ({
         ...prev,
-        theme: { english: name === "theme" ? "" : prev.theme.english, local: name === "localTheme" ? "" : prev.theme.local, audioUrl: "" },
+        theme: {
+          english: name === "theme" ? "" : prev.theme.english,
+          local: name === "localTheme" ? "" : prev.theme.local,
+          audioUrl: "",
+        },
         // Reset title as object
         title: { english: "", local: "", audioUrl: "" },
       }));
@@ -79,11 +79,17 @@ const AddStory = ({ content, contentType }) => {
         localTheme = themes[metadata.language][value];
       } else {
         localTheme = value;
-        englishTheme = Object.keys(themes[metadata.language]).find(key => themes[metadata.language][key] === value);
+        englishTheme = Object.keys(themes[metadata.language]).find(
+          (key) => themes[metadata.language][key] === value,
+        );
       }
-      setMetadata(prev => ({
+      setMetadata((prev) => ({
         ...prev,
-        theme: { english: englishTheme || "", local: localTheme || "", audioUrl: "" },
+        theme: {
+          english: englishTheme || "",
+          local: localTheme || "",
+          audioUrl: "",
+        },
         // Reset title as object
         title: { english: "", local: "", audioUrl: "" },
       }));
@@ -91,21 +97,29 @@ const AddStory = ({ content, contentType }) => {
     }
   };
 
-  const fetchTitlesUnderTheme = useCallback((language, theme) => {
-    const filteredContent = allContent.filter(item =>
-      item.language.toLowerCase() === language.toLowerCase() &&
-      item.theme.toLowerCase() === theme.toLowerCase()
-    );
-    const titleMap = {};
-    filteredContent.forEach(item => {
-      titleMap[item.title.toLowerCase()] = item.localTitle;
-    });
-    setTitlesUnderTheme(titleMap);
-  }, [allContent]);
+  const fetchTitlesUnderTheme = useCallback(
+    (language, theme) => {
+      const filteredContent = allContent.filter((item) => {
+        const itemTheme = item.theme?.english || item.theme;
+        return (
+          item.language.toLowerCase() === language.toLowerCase() &&
+          itemTheme.toLowerCase() === theme.toLowerCase()
+        );
+      });
+      const titleMap = {};
+      filteredContent.forEach((item) => {
+        const titleEnglish = item.title?.english || item.title;
+        const titleLocal = item.title?.local || item.localTitle;
+        titleMap[titleEnglish.toLowerCase()] = titleLocal;
+      });
+      setTitlesUnderTheme(titleMap);
+    },
+    [allContent],
+  );
 
   const handleLanguageChange = (event) => {
     const newLanguage = event.target.value;
-    setMetadata(prev => ({
+    setMetadata((prev) => ({
       ...prev,
       language: newLanguage,
       theme: { english: "", local: "", audioUrl: "" },
@@ -138,12 +152,12 @@ const AddStory = ({ content, contentType }) => {
         title: {
           english: content.title?.english || "",
           local: content.title?.local || "",
-          audioUrl: content.title?.audioUrl || ""
+          audioUrl: content.title?.audioUrl || "",
         },
         theme: {
           english: content.theme?.english || "",
           local: content.theme?.local || "",
-          audioUrl: content.theme?.audioUrl || ""
+          audioUrl: content.theme?.audioUrl || "",
         },
         audioContent: content.audioContent || [],
         createdBy: content.createdBy || "",
@@ -152,31 +166,22 @@ const AddStory = ({ content, contentType }) => {
         isProcessed: content.isProcessed ?? false,
         isDeleted: content.isDeleted ?? false,
         audioFile: "",
-        answerAudioFile: ""
+        answerAudioFile: "",
       };
       setMetadata(quizMetadata);
       if (contentType !== "Riddle") {
-        setAudioSrc(
-          `${AUDIO_BASE_URL}/${content.id}.mp3`
-        );
+        setAudioSrc(`${AUDIO_BASE_URL}/${content.id}.mp3`);
       } else {
-        setAudioSrc(
-          `${AUDIO_BASE_URL}/${content.id}/question.mp3`
-        );
-        setAnswerAudioSrc(
-          `${AUDIO_BASE_URL}/${content.id}/answer.mp3`
-        );
+        setAudioSrc(`${AUDIO_BASE_URL}/${content.id}/question.mp3`);
+        setAnswerAudioSrc(`${AUDIO_BASE_URL}/${content.id}/answer.mp3`);
       }
       fetchTitlesUnderTheme(quizMetadata.language, quizMetadata.theme.english);
     }
   }, [content, contentType, fetchTitlesUnderTheme]);
 
-
-
   const [file, setFile] = useState();
   const [answerFile, setAnswerFile] = useState();
   const navigate = useNavigate();
-
 
   const isValid = () => {
     var valid = true;
@@ -193,7 +198,12 @@ const AddStory = ({ content, contentType }) => {
       valid = false;
     }
     // Check if theme or localTheme is empty or if new theme is being created
-    else if (!metadata.theme.english || metadata.theme.english === "new-theme" || !metadata.theme.local || metadata.theme.local === "new-theme") {
+    else if (
+      !metadata.theme.english ||
+      metadata.theme.english === "new-theme" ||
+      !metadata.theme.local ||
+      metadata.theme.local === "new-theme"
+    ) {
       alert("Theme and local theme cannot be empty");
       valid = false;
     }
@@ -216,13 +226,16 @@ const AddStory = ({ content, contentType }) => {
       valid = false;
     }
     // Check if answer audio file is provided when it is supposed to be uploaded
-    else if (contentType === "Riddle" && !answerAudioSrc && !metadata.answerAudioFile) {
+    else if (
+      contentType === "Riddle" &&
+      !answerAudioSrc &&
+      !metadata.answerAudioFile
+    ) {
       alert("Answer audio file cannot be empty");
       valid = false;
     }
     return valid;
   };
-
 
   const onSubmit = (e) => {
     e.preventDefault();
@@ -243,13 +256,13 @@ const AddStory = ({ content, contentType }) => {
       title: {
         english: metadata.title.english || "",
         local: metadata.title.local || "",
-        audioUrl: metadata.title.audioUrl || ""
+        audioUrl: metadata.title.audioUrl || "",
       },
       theme: {
         english: metadata.theme.english || "",
         local: metadata.theme.local || "",
-        audioUrl: metadata.theme.audioUrl || ""
-      }
+        audioUrl: metadata.theme.audioUrl || "",
+      },
     };
     var isAudioUploaded = "true";
     if (!metadata.audioFile && !metadata.answerAudioFile) {
@@ -260,25 +273,16 @@ const AddStory = ({ content, contentType }) => {
     delete newMetadata["answerAudioFile"];
     if (content) {
       newMetadata = { ...newMetadata, _id: content._id };
-      const seedsRes = await fetch(
-        `${SEEDS_URL}/content?isAudioUploaded=${isAudioUploaded}`,
-        {
-          method: "PATCH",
-          headers: {
-            authToken: "postman",
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(newMetadata),
-        }
-      );
+      const seedsRes = await fetch(`${SEEDS_URL}/content?isAudioUploaded=${isAudioUploaded}`, {
+        method: "PATCH",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(newMetadata),
+      });
       await seedsRes.json();
     } else {
       const seedsRes = await fetch(`${SEEDS_URL}/content/`, {
         method: "POST",
-        headers: {
-          authToken: "postman",
-          "Content-Type": "application/json",
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify(newMetadata),
       });
       await seedsRes.json();
@@ -291,14 +295,12 @@ const AddStory = ({ content, contentType }) => {
       }
       const res = await fetch(
         `${SEEDS_URL}/content/sasToken?` +
-        new URLSearchParams({
-          blobName: filename,
-        }),
+          new URLSearchParams({
+            blobName: filename,
+          }),
         {
           method: "GET",
-          headers: {
-            authToken: "postman",
-          },
+          headers: getAuthHeaders(),
         }
       );
       const sasUrl = (await res.json()).sasToken;
@@ -323,14 +325,12 @@ const AddStory = ({ content, contentType }) => {
       var answerFilename = `${_id}_answer.${answerExtname}`;
       const resAnswer = await fetch(
         `${SEEDS_URL}/content/sasToken?` +
-        new URLSearchParams({
-          blobName: answerFilename,
-        }),
+          new URLSearchParams({
+            blobName: answerFilename,
+          }),
         {
           method: "GET",
-          headers: {
-            authToken: "postman",
-          },
+          headers: getAuthHeaders(),
         }
       );
       const sasUrlAnswer = (await resAnswer.json()).sasToken;
@@ -362,157 +362,265 @@ const AddStory = ({ content, contentType }) => {
 
   return (
     <form className="add-form" onSubmit={onSubmit}>
-      <div className="metadataGrid" style={{ paddingBottom: "20px" }}>
-
-        <div>
-          <label>
-            Language:
-            <br />
-            <select
-              value={metadata.language || ""}
-              onChange={handleLanguageChange}
-              className="mintgreen"
-              style={{ width: "150px" }}
-            >
-              <option value="kannada">Kannada</option>
-              <option value="hindi">Hindi</option>
-              <option value="marathi">Marathi</option>
-              <option value="english">English</option>
-              <option value="tamil">Tamil</option>
-              <option value="bengali">Bengali</option>
-            </select>
-          </label>
-        </div>
+      <div style={{ marginBottom: "30px" }}>
+        <label
+          style={{ display: "block", marginBottom: "8px", fontWeight: "500" }}
+        >
+          Language:
+        </label>
+        <select
+          value={metadata.language || ""}
+          onChange={handleLanguageChange}
+          className="mintgreen"
+          style={{ width: "100%", maxWidth: "300px", padding: "8px" }}
+        >
+          <option value="kannada">Kannada</option>
+          <option value="hindi">Hindi</option>
+          <option value="marathi">Marathi</option>
+          <option value="english">English</option>
+          <option value="tamil">Tamil</option>
+          <option value="bengali">Bengali</option>
+        </select>
       </div>
 
-      <div className="metadataGrid">
-        {/* <div>
-          <label>Description </label>
-          <br />
-          <textarea
-            rows={5}
-            cols={24}
-            type="text"
-            name="description"
-            className="mintgreen"
-            placeholder="Add Description"
-            value={metadata.description || ""}
-            onChange={(event) =>
-              setMetadata({ ...metadata, description: event.target.value })
-            }
-          />
-        </div> */}
-
-        {/* <div>
-          <label>English Theme </label>
-          <br />
-          <input
-            type="text"
-            name="theme"
-            className="mintgreen"
-            placeholder="Add Theme"
-            value={metadata.theme || ""}
-            onChange={(event) =>
-              setMetadata({ ...metadata, theme: event.target.value })
-            }
-          />
-        </div> */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            metadata.language === "english" ? "1fr" : "1fr 1fr",
+          gap: "20px",
+          marginBottom: "25px",
+        }}
+      >
         <div>
-          <label>English Theme</label>
-          <select name="theme" value={metadata.theme.english} onChange={handleThemeChange} className="mintgreen">
+          <label
+            style={{ display: "block", marginBottom: "8px", fontWeight: "500" }}
+          >
+            English Theme
+          </label>
+          <select
+            name="theme"
+            value={metadata.theme.english}
+            onChange={handleThemeChange}
+            className="mintgreen"
+            style={{ width: "100%", padding: "8px" }}
+          >
             <option value="">Choose Theme</option>
-            {themes[metadata.language] && Object.keys(themes[metadata.language]).map(theme => (
-              <option key={theme} value={theme}>{theme}</option>
-            ))}
-            <option value="new-theme" selected={metadata.theme.local === "new-theme"}>Choose New Theme</option>
+            {themes[metadata.language] &&
+              Object.keys(themes[metadata.language]).map((theme) => (
+                <option key={theme} value={theme}>
+                  {theme}
+                </option>
+              ))}
+            <option
+              value="new-theme"
+              selected={metadata.theme.local === "new-theme"}
+            >
+              Choose New Theme
+            </option>
           </select>
         </div>
         {metadata.language !== "english" && (
           <div>
-            <label>{metadata.language} Theme</label>
-            <select name="localTheme" value={metadata.theme.local} onChange={handleThemeChange} className="mintgreen">
+            <label
+              style={{
+                display: "block",
+                marginBottom: "8px",
+                fontWeight: "500",
+                textTransform: "capitalize",
+              }}
+            >
+              {metadata.language} Theme
+            </label>
+            <select
+              name="localTheme"
+              value={metadata.theme.local}
+              onChange={handleThemeChange}
+              className="mintgreen"
+              style={{ width: "100%", padding: "8px" }}
+            >
               <option value="">Choose Theme</option>
-              {themes[metadata.language] && Object.values(themes[metadata.language]).map(localTheme => (
-                <option key={localTheme} value={localTheme}>{localTheme}</option>
-              ))}
-              <option value="new-theme" selected={metadata.theme.local === "new-theme"}>Choose New Theme</option>
+              {themes[metadata.language] &&
+                Object.values(themes[metadata.language]).map((localTheme) => (
+                  <option key={localTheme} value={localTheme}>
+                    {localTheme}
+                  </option>
+                ))}
+              <option
+                value="new-theme"
+                selected={metadata.theme.local === "new-theme"}
+              >
+                Choose New Theme
+              </option>
             </select>
           </div>
         )}
-
-
-
-        {/* {metadata.language != "english" && (
-          <div>
-            <label>{metadata.language} Theme </label>
-            <br />
-            <input
-              type="text"
-              name="localTheme"
-              className="mintgreen"
-              placeholder="Add Theme"
-              value={metadata.localTheme || ""}
-              onChange={(event) =>
-                setMetadata({ ...metadata, localTheme: event.target.value })
-              }
-            />
-          </div>
-        )} */}
       </div>
 
       {newTheme && (
-        <>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns:
+              metadata.language === "english" ? "1fr" : "1fr 1fr",
+            gap: "20px",
+            marginBottom: "25px",
+            padding: "15px",
+            backgroundColor: "#f8f9fa",
+            borderRadius: "8px",
+          }}
+        >
           <div>
-            <label>Add New English Theme</label>
-            <input type="text" value={metadata.theme.english} onChange={(event) => setMetadata({ ...metadata, theme: { ...metadata.theme, english: event.target.value } })} className="mintgreen" placeholder="Enter new theme" />
+            <label
+              style={{
+                display: "block",
+                marginBottom: "8px",
+                fontWeight: "500",
+              }}
+            >
+              Add New English Theme
+            </label>
+            <input
+              type="text"
+              value={metadata.theme.english}
+              onChange={(event) =>
+                setMetadata({
+                  ...metadata,
+                  theme: { ...metadata.theme, english: event.target.value },
+                })
+              }
+              className="mintgreen"
+              placeholder="Enter new theme"
+              style={{ width: "100%", padding: "8px" }}
+            />
           </div>
           {metadata.language !== "english" && (
             <div>
-              <label>Add New {metadata.language} Theme</label>
-              <input type="text" value={metadata.theme.local} onChange={(event) => setMetadata({ ...metadata, theme: { ...metadata.theme, local: event.target.value } })} className="mintgreen" placeholder={`Enter new theme in ${metadata.language}`} />
-            </div>)}
-        </>
-      )}
-
-      <div>
-        <label>English Title </label>
-        <br />
-        <input
-          type="text"
-          name="titleEnglish"
-          className="mintgreen"
-          placeholder="Add Title"
-          value={metadata.title.english || ""}
-          onChange={(event) =>
-            setMetadata({ ...metadata, title: { ...metadata.title, english: event.target.value } })
-          }
-        />
-      </div>
-
-      {metadata.language !== "english" && (
-        <div>
-          <label>{metadata.language} Title </label>
-          <br />
-          <input
-            type="text"
-            name="titleLocal"
-            className="mintgreen"
-            placeholder="Add Title"
-            value={metadata.title.local || ""}
-            onChange={(event) =>
-              setMetadata({ ...metadata, title: { ...metadata.title, local: event.target.value } })
-            }
-          />
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: "8px",
+                  fontWeight: "500",
+                  textTransform: "capitalize",
+                }}
+              >
+                Add New {metadata.language} Theme
+              </label>
+              <input
+                type="text"
+                value={metadata.theme.local}
+                onChange={(event) =>
+                  setMetadata({
+                    ...metadata,
+                    theme: { ...metadata.theme, local: event.target.value },
+                  })
+                }
+                className="mintgreen"
+                placeholder={`Enter new theme in ${metadata.language}`}
+                style={{ width: "100%", padding: "8px" }}
+              />
+            </div>
+          )}
         </div>
       )}
 
-      {Object.keys(titlesUnderTheme).length > 0 && !newTheme && (
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            metadata.language === "english" ? "1fr" : "1fr 1fr",
+          gap: "20px",
+          marginBottom: "25px",
+        }}
+      >
         <div>
-          <label>Existing Titles under "{metadata.theme.english}" in {metadata.language}:</label>
-          <ul>
-            {Object.entries(titlesUnderTheme).map(([englishTitle, localTitle], index) => (
-              <li key={index}>{`${englishTitle} - ${localTitle}`}</li>
-            ))}
+          <label
+            style={{ display: "block", marginBottom: "8px", fontWeight: "500" }}
+          >
+            English Title
+          </label>
+          <input
+            type="text"
+            name="titleEnglish"
+            className="mintgreen"
+            placeholder="Add Title"
+            value={metadata.title.english || ""}
+            onChange={(event) =>
+              setMetadata({
+                ...metadata,
+                title: { ...metadata.title, english: event.target.value },
+              })
+            }
+            style={{ width: "100%", padding: "8px" }}
+          />
+        </div>
+
+        {metadata.language !== "english" && (
+          <div>
+            <label
+              style={{
+                display: "block",
+                marginBottom: "8px",
+                fontWeight: "500",
+                textTransform: "capitalize",
+              }}
+            >
+              {metadata.language} Title
+            </label>
+            <input
+              type="text"
+              name="titleLocal"
+              className="mintgreen"
+              placeholder="Add Title"
+              value={metadata.title.local || ""}
+              onChange={(event) =>
+                setMetadata({
+                  ...metadata,
+                  title: { ...metadata.title, local: event.target.value },
+                })
+              }
+              style={{ width: "100%", padding: "8px" }}
+            />
+          </div>
+        )}
+      </div>
+
+      {Object.keys(titlesUnderTheme).length > 0 && !newTheme && (
+        <div
+          style={{
+            marginBottom: "25px",
+            padding: "15px",
+            backgroundColor: "#f8f9fa",
+            borderRadius: "8px",
+            border: "1px solid #dee2e6",
+          }}
+        >
+          <label
+            style={{
+              display: "block",
+              marginBottom: "12px",
+              fontWeight: "500",
+              fontSize: "14px",
+            }}
+          >
+            Existing Titles under "{metadata.theme.english}" in{" "}
+            {metadata.language}:
+          </label>
+          <ul
+            style={{
+              margin: 0,
+              paddingLeft: "20px",
+              lineHeight: "1.8",
+              color: "#495057",
+            }}
+          >
+            {Object.entries(titlesUnderTheme).map(
+              ([englishTitle, localTitle], index) => (
+                <li key={index} style={{ marginBottom: "4px" }}>
+                  {englishTitle} - {localTitle}
+                </li>
+              ),
+            )}
           </ul>
         </div>
       )}
@@ -529,33 +637,57 @@ const AddStory = ({ content, contentType }) => {
         )} */}
 
       {metadata.isProcessed && audioSrc && (
-        <label>
-          Current {contentType === "Riddle" && `Question `} Audio File: <br />{" "}
-          <audio controls src={audioSrc} />
-        </label>
+        <div style={{ marginBottom: "20px" }}>
+          <label
+            style={{ display: "block", marginBottom: "8px", fontWeight: "500" }}
+          >
+            Current {contentType === "Riddle" && "Question "}Audio File:
+          </label>
+          <audio
+            controls
+            src={audioSrc}
+            style={{ width: "100%", maxWidth: "500px" }}
+          />
+        </div>
       )}
-      <br />
-      {metadata.isProcessed && answerAudioSrc && (
-        <label>
-          Current {contentType === "Riddle" && `Answer `} Audio File: <br />{" "}
-          <audio controls src={answerAudioSrc} />
-        </label>
-      )}
-      {!metadata.isProcessed && audioSrc && <h6>Audio is being processed</h6>}
 
-      <div>
-        {audioSrc && (
-          <label>
-            Change {contentType} {contentType === "Riddle" && `Question `}Audio
-            File{" "}
+      {metadata.isProcessed && answerAudioSrc && (
+        <div style={{ marginBottom: "20px" }}>
+          <label
+            style={{ display: "block", marginBottom: "8px", fontWeight: "500" }}
+          >
+            Current {contentType === "Riddle" && "Answer "}Audio File:
           </label>
-        )}
-        {!audioSrc && (
-          <label>
-            {contentType} {contentType === "Riddle" && `Question `}Audio File{" "}
-          </label>
-        )}
-        <br />
+          <audio
+            controls
+            src={answerAudioSrc}
+            style={{ width: "100%", maxWidth: "500px" }}
+          />
+        </div>
+      )}
+
+      {!metadata.isProcessed && audioSrc && (
+        <div
+          style={{
+            padding: "12px",
+            backgroundColor: "#fff3cd",
+            borderRadius: "6px",
+            marginBottom: "20px",
+            color: "#856404",
+            border: "1px solid #ffeaa7",
+          }}
+        >
+          <strong>Audio is being processed</strong>
+        </div>
+      )}
+
+      <div style={{ marginBottom: "20px" }}>
+        <label
+          style={{ display: "block", marginBottom: "8px", fontWeight: "500" }}
+        >
+          {audioSrc ? "Change" : ""} {contentType}{" "}
+          {contentType === "Riddle" && "Question "}Audio File
+        </label>
         <input
           type="file"
           name="audioFile"
@@ -563,16 +695,17 @@ const AddStory = ({ content, contentType }) => {
           placeholder="Add Audio File"
           value={metadata.audioFile || ""}
           onChange={(event) => handleUploadFile(event)}
+          style={{ width: "100%", maxWidth: "500px", padding: "8px" }}
         />
       </div>
 
       {contentType === "Riddle" && (
-        <div>
-          {answerAudioSrc && (
-            <label>Change {contentType} Answer Audio File </label>
-          )}
-          {!answerAudioSrc && <label>{contentType} Answer Audio File </label>}
-          <br />
+        <div style={{ marginBottom: "20px" }}>
+          <label
+            style={{ display: "block", marginBottom: "8px", fontWeight: "500" }}
+          >
+            {answerAudioSrc ? "Change" : ""} {contentType} Answer Audio File
+          </label>
           <input
             type="file"
             name="audioFile"
@@ -580,49 +713,92 @@ const AddStory = ({ content, contentType }) => {
             placeholder="Add Answer Audio File"
             value={metadata.answerAudioFile || ""}
             onChange={(event) => handleUploadAnswerFile(event)}
+            style={{ width: "100%", maxWidth: "500px", padding: "8px" }}
           />
         </div>
       )}
 
-      <div>
-        <input
-          type="checkbox"
-          name="isPullModel"
-          className="mintgreen check"
-          checked={metadata.isPullModel || false}
-          onChange={(event) =>
-            setMetadata({ ...metadata, isPullModel: !metadata.isPullModel })
-          }
-        />
-        <label>Add to IVR </label>
+      <div
+        style={{
+          display: "flex",
+          gap: "30px",
+          marginBottom: "30px",
+          padding: "15px",
+          backgroundColor: "#f8f9fa",
+          borderRadius: "8px",
+        }}
+      >
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            cursor: "pointer",
+            gap: "8px",
+          }}
+        >
+          <input
+            type="checkbox"
+            name="isPullModel"
+            className="mintgreen check"
+            checked={metadata.isPullModel || false}
+            onChange={(event) =>
+              setMetadata({ ...metadata, isPullModel: !metadata.isPullModel })
+            }
+            style={{ width: "18px", height: "18px", cursor: "pointer" }}
+          />
+          <span style={{ fontWeight: "500" }}>Add to IVR</span>
+        </label>
+
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            cursor: "pointer",
+            gap: "8px",
+          }}
+        >
+          <input
+            type="checkbox"
+            name="isTeacherApp"
+            className="mintgreen check"
+            checked={metadata.isTeacherApp || false}
+            onChange={(event) =>
+              setMetadata({ ...metadata, isTeacherApp: !metadata.isTeacherApp })
+            }
+            style={{ width: "18px", height: "18px", cursor: "pointer" }}
+          />
+          <span style={{ fontWeight: "500" }}>Add to Teacher App</span>
+        </label>
       </div>
 
-      <div>
+      <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
         <input
-          type="checkbox"
-          name="isTeacherApp"
-          className="mintgreen check"
-          checked={metadata.isTeacherApp || false}
-          onChange={(event) =>
-            setMetadata({ ...metadata, isTeacherApp: !metadata.isTeacherApp })
-          }
+          disabled={isSaveButtonDisabled}
+          type="submit"
+          className="btn"
+          style={{
+            backgroundColor: isSaveButtonDisabled ? "#ccc" : "#E5A83B",
+            color: "white",
+            padding: "12px 40px",
+            fontSize: "16px",
+            fontWeight: "600",
+            border: "none",
+            borderRadius: "6px",
+            cursor: isSaveButtonDisabled ? "not-allowed" : "pointer",
+            transition: "background-color 0.2s",
+          }}
+          value="Save"
         />
-        <label> Add to Teacher App </label>
+        {isSaveButtonDisabled && (
+          <img
+            src="https://cdn.dribbble.com/users/255512/screenshots/2215917/animation.gif"
+            alt="Saving..."
+            width={40}
+            height={40}
+            style={{ opacity: 1 }}
+          />
+        )}
       </div>
-
-      <input
-        disabled={isSaveButtonDisabled}
-        type="submit"
-        className="btn"
-        style={{ backgroundColor: "#E5A83B", color: "white" }}
-        value="Save"
-      />
-      <img
-        style={{ opacity: isSaveButtonDisabled === false ? 0 : 1 }}
-        src="https://cdn.dribbble.com/users/255512/screenshots/2215917/animation.gif"
-        alt="Circular Progress Bar"
-        width={150}
-      />
     </form>
   );
 };

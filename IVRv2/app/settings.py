@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     call_duration_limit: int = 0
     provider_type: str = ""
     azure_service_bus_max_retries: int = 3
+    mongo_max_pool_size: int = 50
 
     # Derived Queue names
     @property

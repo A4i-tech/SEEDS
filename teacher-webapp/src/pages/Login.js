@@ -1,9 +1,23 @@
-import React, { useEffect } from "react";
-import { useState } from "react";
+import React, { useEffect, useState } from "react";
+import {
+  Box,
+  Container,
+  TextField,
+  Button,
+  MenuItem,
+  Typography,
+  Alert,
+  CircularProgress,
+  Link,
+  Paper,
+  InputAdornment,
+} from "@mui/material";
+import { Phone as PhoneIcon, Lock as LockIcon, School as SchoolIcon } from "@mui/icons-material";
 import axios from "axios";
 import { API_ENDPOINTS } from "../constants/apiEndpoints";
 import { STATUS_CODES } from "../constants/statusCodes";
 import { useNavigation } from "../hooks/useNavigation";
+import { showToast } from "../utils/toast";
 
 function Login() {
   const navigate = useNavigation();
@@ -13,6 +27,7 @@ function Login() {
   const [schoolName, setSchoolName] = useState("");
   const [loadingSchools, setLoadingSchools] = useState(false);
   const [schools, setSchools] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const fetchSchools = async () => {
@@ -23,9 +38,11 @@ function Login() {
           setSchools(response.data);
         } else {
           console.error("Failed to fetch schools");
+          showToast.error("Failed to load schools");
         }
       } catch (error) {
         console.error("Error fetching schools:", error);
+        showToast.error("Failed to load schools");
       } finally {
         setLoadingSchools(false);
       }
@@ -40,21 +57,27 @@ function Login() {
       return;
     }
 
+    setIsSubmitting(true);
+    setShowError(null);
     try {
       const response = await axios.post(`${API_ENDPOINTS.LOGIN}`, {
         phoneNumber,
         password,
         tenantId: schoolName,
       });
-      console.log(response);
       if (response.status === STATUS_CODES.SUCCESS) {
         localStorage.setItem("authToken", response.data.token);
-        console.log("Login successful!");
-        navigate.goToHome(response.data.phoneNumber);
+        showToast.success("Login successful!");
+        navigate.goToClassroom();
       }
     } catch (error) {
-      console.error("Username or password or tenant name incorrect", error);
-      setShowError("Username or password or tenant name incorrect");
+      console.error("Login error:", error);
+      const errorMessage =
+        error.response?.data?.message || "Username or password or tenant name incorrect";
+      setShowError(errorMessage);
+      showToast.error("Login failed");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -62,95 +85,140 @@ function Login() {
     navigate.goToRegister();
   };
 
-  const inputStyle = {
-    marginBottom: "10px",
-    padding: "8px",
-    width: "100%",
-    boxSizing: "border-box",
-    borderRadius: "4px",
-    border: "1px solid #ccc",
-    fontSize: "16px",
-  };
-
-  const formContainerStyle = {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    width: "300px",
-    gap: "15px",
+  const handleKeyPress = (e) => {
+    if (e.key === "Enter") {
+      handleLogin();
+    }
   };
 
   return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        height: "100vh",
-        flexDirection: "column",
-      }}
-    >
-      <h1>Login</h1>
-      <br />
-      <div style={formContainerStyle}>
-        <input
-          type="tel"
-          placeholder="Phone Number"
-          value={phoneNumber}
-          onChange={(e) => {
-            const digitsOnly = e.target.value.replace(/\D/g, "");
-            setPhoneNumber(digitsOnly);
-          }}
-          minLength="10"
-          maxLength="10"
-          pattern="\d{10}"
-          style={inputStyle}
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          style={inputStyle}
-        />
-        <select
-          value={schoolName}
-          onChange={(e) => setSchoolName(e.target.value)}
-          style={inputStyle}
-        >
-          <option value="">
-            {loadingSchools ? "Loading Schools..." : "Select School"}
-          </option>
-          {schools.map((sch, idx) => {
-            const value = sch.id;
-            const label = sch.tenantName;
-            return (
-              <option key={idx} value={value}>
-                {label}
-              </option>
-            );
-          })}
-        </select>
-        <button
-          className="btn"
-          onClick={handleLogin}
-          style={{ padding: "10px 20px", fontSize: "16px" }}
-        >
-          Login
-        </button>
-        <span
-          style={{
-            color: "#28574F",
-            cursor: "pointer",
-            textDecoration: "underline",
-          }}
-          onClick={handleRegister}
-        >
-          Signup
-        </span>
-      </div>
-      {showError && <p style={{ color: "red" }}>{showError}</p>}
-    </div>
+    <Container component="main" maxWidth="xs">
+      <Box
+        sx={{
+          marginTop: 8,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+        }}
+      >
+        <Paper elevation={3} sx={{ p: 4, width: "100%" }}>
+          <Typography component="h1" variant="h4" align="center" gutterBottom>
+            Login
+          </Typography>
+
+          <Box component="form" sx={{ mt: 3 }}>
+            <TextField
+              fullWidth
+              label="Phone Number"
+              type="tel"
+              value={phoneNumber}
+              onChange={(e) => {
+                const digitsOnly = e.target.value.replace(/\D/g, "");
+                setPhoneNumber(digitsOnly);
+              }}
+              inputProps={{
+                minLength: 10,
+                maxLength: 10,
+                pattern: "\\d{10}",
+              }}
+              margin="normal"
+              required
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <PhoneIcon />
+                  </InputAdornment>
+                ),
+              }}
+              aria-label="Phone number input"
+              aria-required="true"
+              onKeyPress={handleKeyPress}
+            />
+
+            <TextField
+              fullWidth
+              label="Password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              margin="normal"
+              required
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <LockIcon />
+                  </InputAdornment>
+                ),
+              }}
+              aria-label="Password input"
+              aria-required="true"
+              onKeyPress={handleKeyPress}
+            />
+
+            <TextField
+              fullWidth
+              select
+              label="School"
+              value={schoolName}
+              onChange={(e) => setSchoolName(e.target.value)}
+              margin="normal"
+              required
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    {loadingSchools ? <CircularProgress size={20} /> : <SchoolIcon />}
+                  </InputAdornment>
+                ),
+              }}
+              aria-label="School selection"
+              aria-required="true"
+            >
+              <MenuItem value="" disabled={loadingSchools}>
+                {loadingSchools ? "Select School" : "Select School"}
+              </MenuItem>
+              {schools.map((sch, idx) => {
+                const value = sch.id;
+                const label = sch.tenantName;
+                return (
+                  <MenuItem key={idx} value={value}>
+                    {label}
+                  </MenuItem>
+                );
+              })}
+            </TextField>
+
+            {showError && (
+              <Alert severity="error" sx={{ mt: 2 }}>
+                {showError}
+              </Alert>
+            )}
+
+            <Button
+              type="button"
+              fullWidth
+              variant="contained"
+              sx={{ mt: 3, mb: 2 }}
+              onClick={handleLogin}
+              disabled={isSubmitting || loadingSchools}
+            >
+              {isSubmitting ? <CircularProgress size={24} color="inherit" /> : "Login"}
+            </Button>
+
+            <Box textAlign="center">
+              <Link
+                component="button"
+                variant="body2"
+                onClick={handleRegister}
+                sx={{ cursor: "pointer" }}
+                aria-label="Navigate to registration page"
+              >
+                Don&apos;t have an account? Sign up
+              </Link>
+            </Box>
+          </Box>
+        </Paper>
+      </Box>
+    </Container>
   );
 }
 

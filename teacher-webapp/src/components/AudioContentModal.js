@@ -1,4 +1,19 @@
 import React, { useEffect, useState } from "react";
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Radio,
+  RadioGroup,
+  FormControlLabel,
+  FormControl,
+  Typography,
+  CircularProgress,
+  Alert,
+  Box,
+} from "@mui/material";
 import { fetchAudioContent } from "../services/apiService";
 
 const extractItems = (response) => {
@@ -23,19 +38,13 @@ const extractItems = (response) => {
 };
 
 const buildContentList = (response) => {
-  const rawItems = extractItems(response).filter(
-    (item) => item && item.isDeleted !== true
-  );
+  const rawItems = extractItems(response).filter((item) => item && item.isDeleted !== true);
 
   const contentList = [];
 
   rawItems.forEach((item) => {
     const itemId = item?._id;
-    const baseName =
-      item?.title?.english ||
-      item?.title?.local ||
-      item?.title ||
-      "Unnamed Audio";
+    const baseName = item?.title?.english || item?.title?.local || item?.title || "Unnamed Audio";
 
     if (item?.audioContent && Array.isArray(item.audioContent)) {
       item.audioContent.forEach((audio, index) => {
@@ -131,50 +140,73 @@ export const AudioContentModal = ({ open, onClose, onSubmit }) => {
   };
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-content">
-        <h2>Select Audio Content</h2>
-        {isLoading && <p>Loading audio content...</p>}
-        {error && <p className="error-text">{error}</p>}
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle>Select Audio Content</DialogTitle>
+      <DialogContent>
+        {isLoading && (
+          <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
+            <CircularProgress />
+          </Box>
+        )}
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        )}
         {!isLoading && !error && audioContent.length === 0 && (
-          <p>No audio content available.</p>
+          <Typography color="text.secondary">No audio content available.</Typography>
         )}
 
         {!isLoading && !error && audioContent.length > 0 && (
-          <ul className="track-list">
-            {audioContent.map((content) => (
-              <li key={content.id} className="track-list-item">
-                <label>
-                  <input
-                    type="radio"
-                    name="audio-content"
-                    value={content.url}
-                    checked={selectedContent === content.url}
-                    onChange={() => setSelectedContent(content.url)}
-                  />
-                  <span className="track-name">{content.name}</span>
-                  {content.language && (
-                    <span className="track-language">{content.language}</span>
-                  )}
-                </label>
-                {content.description && (
-                  <p className="track-description">{content.description}</p>
-                )}
-              </li>
-            ))}
-          </ul>
+          <FormControl component="fieldset" fullWidth>
+            <RadioGroup
+              value={selectedContent || ""}
+              onChange={(e) => setSelectedContent(e.target.value)}
+            >
+              {audioContent.map((content) => (
+                <FormControlLabel
+                  key={content.id}
+                  value={content.url}
+                  control={<Radio />}
+                  label={
+                    <Box>
+                      <Typography variant="body1" fontWeight={500}>
+                        {content.name}
+                      </Typography>
+                      {content.language && (
+                        <Typography variant="caption" color="text.secondary">
+                          {content.language}
+                        </Typography>
+                      )}
+                      {content.description && (
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                          {content.description}
+                        </Typography>
+                      )}
+                    </Box>
+                  }
+                />
+              ))}
+            </RadioGroup>
+          </FormControl>
         )}
-
-        <div className="modal-actions">
-          <button
-            onClick={handleSubmit}
-            disabled={!selectedContent || isLoading || !!error}
-          >
-            Play Selected
-          </button>
-          <button onClick={onClose}>Cancel</button>
-        </div>
-      </div>
-    </div>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button
+          onClick={handleSubmit}
+          disabled={!selectedContent || isLoading || !!error}
+          variant="contained"
+          sx={{
+            bgcolor: "#2e7d32",
+            "&:hover": {
+              bgcolor: "#1b5e20",
+            },
+          }}
+        >
+          Play Selected
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 };

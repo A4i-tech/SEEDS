@@ -4,6 +4,9 @@
  */
 export const getAuthHeaders = () => {
   const token = localStorage.getItem("authToken");
+  if (!token) {
+    throw new Error("No auth token found");
+  }
   return {
     "Content-Type": "application/json",
     Authorization: `Bearer ${token}`,
@@ -19,21 +22,8 @@ export const isAuthenticated = () => {
 };
 
 /**
- * Get current user's tenant information
- * @returns {{tenantId: string|null, tenantName: string|null}}
- */
-export const getTenantInfo = () => {
-  return {
-    tenantId: localStorage.getItem("tenantId"),
-    tenantName: localStorage.getItem("tenantName"),
-  };
-};
-
-/**
  * Clear all authentication data
  */
 export const clearAuth = () => {
   localStorage.removeItem("authToken");
-  localStorage.removeItem("tenantId");
-  localStorage.removeItem("tenantName");
 };

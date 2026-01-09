@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import QuizDetails from "./QuizDetails";
 import StoryDetails from "./StoryDetails";
 import { SEEDS_URL } from "../Constants";
+import { getAuthHeaders } from "../utils/authHelpers";
 
 const ContentDetails = () => {
   const { type, id } = useParams();
@@ -20,20 +21,15 @@ const ContentDetails = () => {
           "https://place-seeds.azurewebsites.net/rawDataById?" +
             new URLSearchParams({
               id: id,
-            })
+            }),
         );
         data = await placeRes.json();
         console.log("ContentDetailsData", data);
       } else {
-        const seedsRes = await fetch(
-          `${SEEDS_URL}/content/${id}`,
-          {
-            method: "GET",
-            headers: {
-              authToken: "postman",
-            },
-          }
-        );
+        const seedsRes = await fetch(`${SEEDS_URL}/content/${id}`, {
+          method: "GET",
+          headers: getAuthHeaders(),
+        });
         data = await seedsRes.json();
         console.log("ContentDetailsData1", data);
       }
@@ -52,11 +48,19 @@ const ContentDetails = () => {
     fetchContent();
   }, [contentById]);
 
-  if (content && !content.isProcessed) {
+  const isProcessed =
+    content?.isProcessed ?? Boolean(content?.audioContent?.length);
+
+  if (content && !isProcessed) {
+    const titleEnglish = content.title?.english ?? content.title;
+    const titleLocal = content.title?.local ?? content.localTitle;
     return (
       <>
         <div style={{ margin: "20px" }}>
-          <h3>Title: {content.title}</h3>
+          <h3>
+            Title: {titleEnglish}
+            {titleLocal ? ` / ${titleLocal}` : ""}
+          </h3>
           <p>Content is being processed, try again later!</p>
         </div>
       </>
@@ -64,12 +68,12 @@ const ContentDetails = () => {
   } else {
     return (
       <div style={{ margin: "20px" }}>
-        {content && content.isProcessed && content.type === "quiz" && (
+        {content && isProcessed && content.type === "quiz" && (
           <QuizDetails quiz={content} />
         )}
-        {content &&
-          content.isProcessed &&
-          (content.type !== "quiz") && <StoryDetails type={content.type} story={content} />}
+        {content && isProcessed && content.type !== "quiz" && (
+          <StoryDetails type={content.type} story={content} />
+        )}
       </div>
     );
   }

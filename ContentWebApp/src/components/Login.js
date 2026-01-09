@@ -128,10 +128,8 @@ const Login = () => {
       });
 
       if (response.status === 200) {
-        const { tenantName, token, id } = response.data;
+        const { tenantName, token } = response.data;
         localStorage.setItem("authToken", token);
-        localStorage.setItem("tenantId", id);
-        localStorage.setItem("tenantName", tenantName);
         navigate("/content", { state: { name: tenantName } });
       } else {
         setShowError("Invalid credentials. Please try again.");
@@ -149,20 +147,14 @@ const Login = () => {
       <div style={cardStyle}>
         <header style={headerStyle}>
           <h1 style={titleStyle}>SEEDS</h1>
-          <p style={descriptionStyle}>
-            Educational App for Visually Impaired Students
-          </p>
+          <p style={descriptionStyle}>Educational App for Visually Impaired Students</p>
         </header>
 
         <div style={tabsStyle}>
           <button type="button" style={tabButtonStyle(true)}>
             Login
           </button>
-          <button
-            type="button"
-            style={tabButtonStyle(false)}
-            onClick={() => navigate("/register")}
-          >
+          <button type="button" style={tabButtonStyle(false)} onClick={() => navigate("/register")}>
             Sign Up
           </button>
         </div>

@@ -21,13 +21,8 @@ from app.utils.model_classes import (
     UserAction,
     VonageCallStartResponse,
 )
-from app.utils.mongodb import MongoDB
+from app.core.dependencies import get_app_state
 from app.settings import settings
-
-# Initialize MongoDB connections
-ongoing_fsm_mongo = MongoDB(collection_name="ongoingIVRState")
-calls_log_mongo = MongoDB(collection_name="callLogs")
-ivrv2_logs_mongo = MongoDB(collection_name="ivrv2logs")
 
 action_factory = VonageActionFactory()
 accumulator = action_factory.get_action_accumulator_implmentation()
@@ -78,7 +73,8 @@ class CallWebhookProcessor(BaseProcessor):
 
             if start_ivr_response.get("status_code") == 200:
                 self.log_info(f"✓ IVR started successfully for {phone_number}")
-                await calls_log_mongo.update_document(
+                app_state = get_app_state()
+                await app_state.calls_log_mongo.update_document(
                     call_log_id, {"status": "called", "called_at": datetime.now()}
                 )
                 self.log_info(f"✓ Call log updated for call_log_id: {call_log_id}")
@@ -102,6 +98,10 @@ class CallWebhookProcessor(BaseProcessor):
         try:
             start_time = time.time()
             self.log_info(f"[START_IVR] Starting IVR for phone number: {phone_number}")
+
+            # Get app state for MongoDB access
+            app_state = get_app_state()
+            ongoing_fsm_mongo = app_state.ongoing_fsm_mongo
 
             # check for existing ongoing call
             self.log_debug(f"[START_IVR] Checking for existing ongoing call...")
@@ -271,6 +271,10 @@ class DtmfInputProcessor(BaseProcessor):
             digits = message_data.get("digits")
             self.log_info(f"Processing DTMF: conv_id={conv_id}, digits='{digits}'")
 
+            # Get app state for MongoDB access
+            app_state = get_app_state()
+            ongoing_fsm_mongo = app_state.ongoing_fsm_mongo
+
             # Get IVR state
             doc = await ongoing_fsm_mongo.find_by_id(conv_id)
             if doc is None:
@@ -390,6 +394,11 @@ class CallEventProcessor(BaseProcessor):
             status = message_data.get("status")
             timestamp_str = message_data.get("timestamp")
             duration = message_data.get("duration")
+
+            # Get app state for MongoDB access
+            app_state = get_app_state()
+            ongoing_fsm_mongo = app_state.ongoing_fsm_mongo
+            ivrv2_logs_mongo = app_state.ivrv2_logs_mongo
 
             # Retry logic: Wait for IVR state to be created (handles race condition)
             doc = None

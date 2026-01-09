@@ -8,9 +8,15 @@ process.env.REACT_APP_STORAGE_ACCOUNT_NAME = "testaccount";
 
 describe("apiService", () => {
   const mockSuccessResponse = () => ({
+    ok: true,
     json: jest.fn().mockResolvedValueOnce({ id: "conf-123" }),
+    text: jest.fn().mockResolvedValueOnce(""),
   });
-  const mockEmptyResponse = () => ({});
+  const mockEmptyResponse = () => ({
+    ok: true,
+    json: jest.fn().mockResolvedValueOnce({}),
+    text: jest.fn().mockResolvedValueOnce(""),
+  });
   const confId = "conf-123";
   const phoneNumber = "1234567890";
   const baseUrl = process.env.REACT_APP_CONF_SERVER_BASE_URI;
@@ -144,14 +150,31 @@ describe("apiService", () => {
   });
 
   describe("Error Handling", () => {
-    test("handles network and JSON parsing errors", async () => {
+    test("handles network errors", async () => {
       fetch.mockRejectedValueOnce(new Error("Network error"));
       await expect(apiService.createConference("123", ["456"])).rejects.toThrow(
         "Network error"
       );
+    });
 
+    test("handles HTTP error responses", async () => {
       fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        statusText: "Bad Request",
+        json: jest.fn().mockResolvedValueOnce({}),
+        text: jest.fn().mockResolvedValueOnce("Error message"),
+      });
+      await expect(apiService.createConference("123", ["456"])).rejects.toThrow(
+        "Failed to create conference: 400 Bad Request"
+      );
+    });
+
+    test("handles JSON parsing errors", async () => {
+      fetch.mockResolvedValueOnce({
+        ok: true,
         json: jest.fn().mockRejectedValueOnce(new Error("Invalid JSON")),
+        text: jest.fn().mockResolvedValueOnce(""),
       });
       await expect(apiService.createConference("123", ["456"])).rejects.toThrow(
         "Invalid JSON"

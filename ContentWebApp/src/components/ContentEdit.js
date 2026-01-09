@@ -4,6 +4,7 @@ import AddStory from "./AddStory";
 import { useEffect } from "react";
 import { useParams, useLocation } from "react-router-dom";
 import { SEEDS_URL } from "../Constants";
+import { getAuthHeaders } from "../utils/authHelpers";
 
 const ContentEdit = () => {
   const { type, id } = useParams();
@@ -12,6 +13,29 @@ const ContentEdit = () => {
   const [experience, setExperience] = useState("quiz");
 
   useEffect(() => {
+    const contentById = async () => {
+      // const res = await fetch("http://localhost:5001/content");
+
+      if (type === "quiz") {
+        const placeRes = await fetch(
+          "https://place-seeds.azurewebsites.net/rawDataById?" +
+            new URLSearchParams({
+              id: id,
+            })
+        );
+        const data = await placeRes.json();
+        console.log(data);
+        return data;
+      } else {
+        const seedsRes = await fetch(`${SEEDS_URL}/content/${id}`, {
+          method: "GET",
+          headers: getAuthHeaders(),
+        });
+        const seedsData = await seedsRes.json();
+        return seedsData;
+      }
+    };
+
     const getContentById = async () => {
       const contentFromServer = await contentById();
       setContent(contentFromServer);
@@ -19,32 +43,7 @@ const ContentEdit = () => {
       setExperience(contentFromServer.type);
     };
     getContentById();
-  }, []);
-
-  const contentById = async () => {
-    // const res = await fetch("http://localhost:5001/content");
-
-    if (type === "quiz") {
-      const placeRes = await fetch(
-        "https://place-seeds.azurewebsites.net/rawDataById?" +
-          new URLSearchParams({
-            id: id,
-          })
-      );
-      const data = await placeRes.json();
-      console.log(data);
-      return data;
-    } else {
-      const seedsRes = await fetch(`${SEEDS_URL}/content/${id}`, {
-        method: "GET",
-        headers: {
-          authToken: "postman",
-        },
-      });
-      const seedsData = await seedsRes.json();
-      return seedsData;
-    }
-  };
+  }, [type, id]);
 
   const location = useLocation();
   console.log("link props", location.state);
@@ -54,14 +53,18 @@ const ContentEdit = () => {
     console.log(event.target.value);
   };
 
-  if (
-    content &&
-    !content.isProcessed
-  ) {
+  const isProcessed =
+    content?.isProcessed ?? Boolean(content?.audioContent?.length);
+  const titleText =
+    typeof content?.title === "object"
+      ? content.title.english || content.title.local || "Untitled"
+      : content?.title || "Untitled";
+
+  if (content && !isProcessed) {
     return (
       <>
         <div style={{ margin: "20px" }}>
-          <h3>{content.title}</h3>
+          <h3>{titleText}</h3>
           <p>Content is being processed, try again later!</p>
         </div>
       </>
@@ -72,9 +75,7 @@ const ContentEdit = () => {
         <div style={{ margin: "20px" }}>
           <h3>Edit Content</h3>
           {content &&
-            (experience === "Story" ||
-              experience === "Poem" ||
-              experience === "Song") && (
+            (experience === "Story" || experience === "Poem" || experience === "Song") && (
               <form>
                 <label>
                   Experience:
@@ -91,12 +92,12 @@ const ContentEdit = () => {
                 </label>
               </form>
             )}
-          {content && experience === "quiz" && content.isProcessed && <AddQuiz quiz={content} />}
-          {content &&
-            (experience !== "quiz") &&
-            content.isProcessed && (
-              <AddStory content={content} contentType={experience} />
-            )}
+          {content && experience === "quiz" && isProcessed && (
+            <AddQuiz quiz={content} />
+          )}
+          {content && experience !== "quiz" && isProcessed && (
+            <AddStory content={content} contentType={experience} />
+          )}
           <div />
         </div>
       </>

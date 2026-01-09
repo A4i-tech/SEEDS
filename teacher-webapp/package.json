@@ -6,31 +6,38 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "jest test --coverage --config=./jest.config.js --no-watch --no-progress",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "lint": "npx eslint src/",
+    "lint:fix": "npx eslint src/ --fix && npx prettier src/ --write",
+    "fix:file": "npx eslint --fix && npx prettier --write"
   },
   "dependencies": {
     "@azure/identity": "^4.4.1",
     "@azure/service-bus": "^7.9.5",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^7.3.6",
+    "@mui/lab": "^7.0.1-beta.20",
+    "@mui/material": "^7.3.6",
     "axios": "0.27.2",
+    "framer-motion": "^12.23.26",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.30.1",
-    "react-scripts": "5.0.1"
+    "react-scripts": "5.0.1",
+    "react-toastify": "^11.0.5"
   },
   "devDependencies": {
     "@babel/preset-react": "^7.27.1",
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
     "jest": "^27.5.1",
     "jest-environment-jsdom": "^27.5.1",
+    "prettier": "^3.7.4",
     "web-vitals": "^2.1.4"
-  },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
   },
   "browserslist": {
     "production": [

@@ -1,39 +1,48 @@
 import React from "react";
 import { useState, useEffect } from "react";
 import { SEEDS_URL } from "../Constants";
+import { getAuthHeaders } from "../utils/authHelpers";
 
 const StoryDetails = ({ type, story }) => {
-  const [audioSrc, setAudioSrc] = useState('');
-  const [answerAudioSrc, setAnswerAudioSrc] = useState('');
+  const [audioSrc, setAudioSrc] = useState("");
+  const [answerAudioSrc, setAnswerAudioSrc] = useState("");
+
+  const storyId = story.id || story._id; // ContentV3 uses _id
+  const titleEnglish = story.title?.english ?? story.title;
+  const titleLocal = story.title?.local ?? story.localTitle;
+  const themeEnglish = story.theme?.english ?? story.theme;
+  const themeLocal = story.theme?.local ?? story.localTheme;
+  const isProcessed = story.isProcessed ?? Boolean(story.audioContent?.length);
+  const primaryAudio = story.audioContent?.[0]?.audioUrl;
 
   useEffect(() => {
     const fetchSASUrl = async (url) => {
       try {
         const response = await fetch(`${SEEDS_URL}/content/sasUrl?url=${encodeURIComponent(url)}`, {
-          method: 'GET',
-          headers: {
-            authToken: 'postman',
-          },
+          method: "GET",
+          headers: getAuthHeaders(),
         });
         const data = await response.json();
         return data.url;
       } catch (error) {
-        console.error('Error fetching SAS URL:', error);
-        return ''; // Return empty string on error
+        console.error("Error fetching SAS URL:", error);
+        return ""; // Return empty string on error
       }
     };
 
-    const initialSrc = `https://seedsblob.blob.core.windows.net/output-container/${story.id}/1.0.wav`;
-    const initialAnswerSrc = `https://seedsblob.blob.core.windows.net/output-container/${story.id}/answer/1.0.wav`;
-    let questionSrc = `https://seedsblob.blob.core.windows.net/output-container/${story.id}/question/1.0.wav`;
+    const defaultSrc = `https://seedsblob.blob.core.windows.net/output-container/${storyId}/1.0.wav`;
+    const defaultAnswerSrc = `https://seedsblob.blob.core.windows.net/output-container/${storyId}/answer/1.0.wav`;
+    const defaultQuestionSrc = `https://seedsblob.blob.core.windows.net/output-container/${storyId}/question/1.0.wav`;
 
-    if (type === 'Riddle') {
-      fetchSASUrl(questionSrc).then(setAudioSrc);
-      fetchSASUrl(initialAnswerSrc).then(setAnswerAudioSrc);
+    const resolvedPrimary = primaryAudio || defaultSrc;
+
+    if (String(type).toLowerCase() === "riddle") {
+      fetchSASUrl(defaultQuestionSrc).then(setAudioSrc);
+      fetchSASUrl(defaultAnswerSrc).then(setAnswerAudioSrc);
     } else {
-      fetchSASUrl(initialSrc).then(setAudioSrc);
+      fetchSASUrl(resolvedPrimary).then(setAudioSrc);
     }
-  }, [story.id, type]);
+  }, [storyId, type, primaryAudio]);
 
   return (
     <>
@@ -43,8 +52,8 @@ const StoryDetails = ({ type, story }) => {
         <div style={{ paddingBottom: "30px" }}>
           <div>Title</div>
           <div />
-          <h4>{story.title}</h4>
-          <h4>{story.localTitle}</h4>
+          <h4>{titleEnglish}</h4>
+          <h4>{titleLocal}</h4>
         </div>
         <div style={{ paddingBottom: "30px" }}>
           <div>Language</div>
@@ -68,21 +77,26 @@ const StoryDetails = ({ type, story }) => {
       <div style={{ paddingBottom: "30px" }}>
         <div>Theme</div>
         <div />
-        <h4>{story.theme}</h4>
-        <h4>{story.localTheme}</h4>
+        <h4>{themeEnglish}</h4>
+        <h4>{themeLocal}</h4>
       </div>
-      {story.isProcessed && (
+      {isProcessed && (
         <div style={{ paddingBottom: "30px" }}>
           Audio: <br /> <audio controls src={audioSrc} />
+          {story.audioContent?.[0]?.description && (
+            <div className="table-cell-secondary" style={{ marginTop: "8px" }}>
+              {story.audioContent[0].description}
+            </div>
+          )}
         </div>
       )}
-      {story.isProcessed && type === "Riddle" && (
+      {isProcessed && String(type).toLowerCase() === "riddle" && (
         <div style={{ paddingBottom: "30px" }}>
           Answer Audio: <br /> <audio controls src={answerAudioSrc} />
         </div>
       )}
 
-      {!story.isProcessed && <h6>Audio is being processed</h6>}
+      {!isProcessed && <h6>Audio is being processed</h6>}
     </>
   );
 };

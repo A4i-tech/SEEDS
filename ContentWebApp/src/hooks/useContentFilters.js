@@ -1,32 +1,39 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { generateFilterOptions, applyFilters } from "../utils/filterHelpers";
 
 export const useContentFilters = (allContent, setContent, setIsFiltered) => {
-  const [options, setOptions] = useState([]);
+  const [selectedValues, setSelectedValues] = useState([]);
+  const multiselectRef = useRef(null);
+  const optionsRef = useRef([]);
 
-  /**
-   * Generate filter options when content changes
-   */
   useEffect(() => {
     if (allContent.length > 0) {
-      setOptions(generateFilterOptions(allContent));
+      optionsRef.current = generateFilterOptions(allContent);
     }
   }, [allContent]);
 
-  /**
-   * Apply selected filters to content
-   */
   const handleFilterChange = useCallback(
     (selectedList) => {
-      const filteredList = applyFilters(allContent, selectedList, options);
+      setSelectedValues(selectedList);
+      const filteredList = applyFilters(allContent, selectedList, optionsRef.current);
       setIsFiltered(true);
       setContent(filteredList);
     },
-    [allContent, options, setContent, setIsFiltered]
+    [allContent, setContent, setIsFiltered]
   );
 
+  const resetFilters = useCallback(() => {
+    setSelectedValues([]);
+    multiselectRef.current?.resetSelectedValues();
+    setIsFiltered(false);
+    setContent(allContent);
+  }, [allContent, setContent, setIsFiltered]);
+
   return {
-    options,
+    options: optionsRef.current,
+    selectedValues,
     handleFilterChange,
+    resetFilters,
+    multiselectRef,
   };
 };

@@ -1,11 +1,6 @@
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useRef,
-} from "react";
+import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import { AudioContentState, Participant } from "../state"; // You can import from existing state file
+import { normalizePhoneNumber } from "../utils/phoneUtils";
 
 const ConferenceContext = createContext();
 
@@ -13,9 +8,7 @@ export const useConference = () => useContext(ConferenceContext);
 
 export const ConferenceProvider = ({ children }) => {
   const [isConfCallRunning, setIsConfCallRunning] = useState(false);
-  const [audioContentState, setAudioContentState] = useState(
-    new AudioContentState()
-  );
+  const [audioContentState, setAudioContentState] = useState(new AudioContentState());
   const [selectedTeacher, setSelectedTeacher] = useState(null);
   const [selectedStudents, setSelectedStudents] = useState([]);
   const [userList, setUserList] = useState([]);
@@ -31,9 +24,7 @@ export const ConferenceProvider = ({ children }) => {
   }, [selectedTeacher, selectedStudents]);
 
   const handleTeacherSelect = (teacher) => {
-    setSelectedTeacher((prev) =>
-      prev?.phoneNumber === teacher.phoneNumber ? null : teacher
-    );
+    setSelectedTeacher((prev) => (prev?.phoneNumber === teacher.phoneNumber ? null : teacher));
   };
 
   const handleStudentToggle = (student) => {
@@ -90,8 +81,12 @@ export const ConferenceProvider = ({ children }) => {
       const participant = new Participant({
         ...event.participants[phoneNumber],
       });
+      const normalizedEventPhone = normalizePhoneNumber(phoneNumber);
 
-      if (selectedTeacher?.phoneNumber === phoneNumber) {
+      if (
+        selectedTeacher?.phoneNumber &&
+        normalizePhoneNumber(selectedTeacher.phoneNumber) === normalizedEventPhone
+      ) {
         const newTeacher = new Participant({
           ...selectedTeacher,
           raised_at: participant.raised_at,
@@ -103,13 +98,13 @@ export const ConferenceProvider = ({ children }) => {
       } else {
         setSelectedStudents((prevStudents) => {
           const studentExists = prevStudents.some(
-            (student) => student.phoneNumber === phoneNumber
+            (student) => normalizePhoneNumber(student.phoneNumber) === normalizedEventPhone
           );
 
           if (studentExists) {
             // Update the existing student
             return prevStudents.map((student) =>
-              student.phoneNumber === phoneNumber
+              normalizePhoneNumber(student.phoneNumber) === normalizedEventPhone
                 ? new Participant({
                     ...student,
                     raised_at: participant.raised_at,

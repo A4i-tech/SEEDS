@@ -37,12 +37,10 @@ const voiceName = {
 };
 
 function getTTSAttributes(language) {
-  const translationCode =
-    humanLanguageCodeToTranslationLanguageCode[language.toLowerCase()];
+  const translationCode = humanLanguageCodeToTranslationLanguageCode[language.toLowerCase()];
   if (!translationCode) return null; // Language not found
 
-  const languageCode =
-    translationLanguageCodeToAzureSpeechCode[translationCode];
+  const languageCode = translationLanguageCodeToAzureSpeechCode[translationCode];
   const voice = voiceName[languageCode];
 
   return languageCode && voice ? { languageCode, voiceName: voice } : null;
@@ -54,26 +52,18 @@ async function getCognitiveServicesToken(resource) {
     const accessToken = await credential.getToken(resource);
     return accessToken.token;
   } catch (error) {
-    console.error(
-      "Error fetching access token for resource: " + resource,
-      error
-    );
+    console.error("Error fetching access token for resource: " + resource, error);
     throw error;
   }
 }
 
 async function createSpeechConfig() {
-  const token = await getCognitiveServicesToken(
-    "https://cognitiveservices.azure.com/.default"
-  );
+  const token = await getCognitiveServicesToken("https://cognitiveservices.azure.com/.default");
   const region = process.env.TTS_REGION;
   const resourceId = process.env.TTS_RESOURCE_ID;
   const authorizationToken = `aad#${resourceId}#${token}`;
 
-  const speechConfig = sdk.SpeechConfig.fromAuthorizationToken(
-    authorizationToken,
-    region
-  );
+  const speechConfig = sdk.SpeechConfig.fromAuthorizationToken(authorizationToken, region);
   return speechConfig;
 }
 
@@ -91,9 +81,7 @@ async function textToSpeech(text, language, rate, filename) {
     speechConfig.speechSynthesisOutputFormat =
       sdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3;
 
-    let audioConfig = filename
-      ? sdk.AudioConfig.fromAudioFileOutput(filename)
-      : null;
+    let audioConfig = filename ? sdk.AudioConfig.fromAudioFileOutput(filename) : null;
 
     const { languageCode, voiceName } = getTTSAttributes(language) || {};
 
@@ -130,11 +118,7 @@ async function textToSpeech(text, language, rate, filename) {
             }
           } else {
             console.error("TTS synthesis failed:", result.errorDetails);
-            reject(
-              new Error(
-                result.errorDetails || "Unknown error synthesizing speech"
-              )
-            );
+            reject(new Error(result.errorDetails || "Unknown error synthesizing speech"));
           }
           synthesizer.close();
         },

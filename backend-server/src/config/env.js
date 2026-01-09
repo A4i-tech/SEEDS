@@ -1,11 +1,8 @@
-/* eslint-env node */
-/* global process */
 const fs = require("fs");
 const path = require("path");
 const dotenv = require("dotenv");
 
-const envFile =
-  process.env.NODE_ENV === "production" ? ".env.production" : ".env";
+const envFile = process.env.NODE_ENV === "production" ? ".env.production" : ".env";
 const envPath = path.resolve(process.cwd(), envFile);
 
 if (fs.existsSync(envPath)) {
@@ -29,7 +26,7 @@ const config = {
 if (config.authType === "firebase") {
   if (!config.firebaseApiKey || !config.firebaseServiceAccount) {
     throw new Error(
-      "Firebase auth selected but FIREBASE_API_KEY or FIREBASE_SERVICE_ACCOUNT is missing in environment variables",
+      "Firebase auth selected but FIREBASE_API_KEY or FIREBASE_SERVICE_ACCOUNT is missing in environment variables"
     );
   }
 }

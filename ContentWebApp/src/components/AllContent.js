@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useContent } from "../hooks/useContent";
@@ -17,6 +17,7 @@ const AllContent = () => {
   const [activeTab, setActiveTab] = useState("content");
   const [updateIVRStatus, setUpdateIVRStatus] = useState("");
   const [isUpdatingIVR, setIsUpdatingIVR] = useState(false);
+  const [currentUser, setCurrentUser] = useState("User");
 
   const navigate = useNavigate();
   const { getAuthHeaders, logout, getCurrentUser } = useAuth();
@@ -28,16 +29,17 @@ const AllContent = () => {
     isFiltered,
     loadMore,
     deleteContent,
-    resetFilters,
     setContent,
     setIsFiltered,
   } = useContent();
 
-  const { options, handleFilterChange } = useContentFilters(
-    allContent,
-    setContent,
-    setIsFiltered
-  );
+  const {
+    options,
+    selectedValues,
+    handleFilterChange,
+    resetFilters: resetContentFilters,
+    multiselectRef,
+  } = useContentFilters(allContent, setContent, setIsFiltered);
 
   const {
     teachers,
@@ -54,6 +56,22 @@ const AllContent = () => {
   } = useTeachers(activeTab);
 
   const ivrURL = process.env.REACT_APP_API_IVRV2_URL;
+
+  /**
+   * Fetch current user on mount
+   */
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const userName = await getCurrentUser();
+        setCurrentUser(userName);
+      } catch (error) {
+        console.error("Error fetching user:", error);
+        setCurrentUser("User");
+      }
+    };
+    fetchUser();
+  }, [getCurrentUser]);
 
   /**
    * Handle IVR update
@@ -100,21 +118,17 @@ const AllContent = () => {
         <AppHeader
           activeTab={activeTab}
           onTabChange={setActiveTab}
-          currentUser={getCurrentUser()}
+          currentUser={currentUser}
           onLogout={logout}
         />
 
-        {updateIVRStatus && (
-          <div className="status-message">{updateIVRStatus}</div>
-        )}
+        {updateIVRStatus && <div className="status-message">{updateIVRStatus}</div>}
 
         {activeTab !== "registration" && activeTab !== "analytics" && (
           <div className="tabs-container">
             <button
               type="button"
-              className={`tab-button ${
-                activeTab === "content" ? "active" : ""
-              }`}
+              className={`tab-button ${activeTab === "content" ? "active" : ""}`}
               onClick={() => setActiveTab("content")}
             >
               Audio Content
@@ -137,14 +151,16 @@ const AllContent = () => {
             paginationInfo={paginationInfo}
             isFiltered={isFiltered}
             options={options}
+            selectedValues={selectedValues}
             onFilterChange={handleFilterChange}
-            onResetFilters={resetFilters}
+            onResetFilters={resetContentFilters}
             onUpdateIVR={handleUpdateIVR}
             onEdit={handleEdit}
             onView={handleView}
             onDelete={deleteContent}
             onLoadMore={loadMore}
             isUpdatingIVR={isUpdatingIVR}
+            multiselectRef={multiselectRef}
           />
         )}
 

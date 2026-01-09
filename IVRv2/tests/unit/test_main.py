@@ -8,14 +8,16 @@ from httpx import AsyncClient
 import json
 
 # Set up required environment variables before importing main
-os.environ.setdefault('MONGO_DB_CONNECTION_STRING', 'mongodb://localhost:27017/test')
-os.environ.setdefault('VONAGE_APPLICATION_ID', 'test_app_id')
-os.environ.setdefault('VONAGE_PRIVATE_KEY_PATH', 'test_key_path')
-os.environ.setdefault('VONAGE_NUMBER', '+1234567890')
-os.environ.setdefault('NGROK_URL', 'http://test.ngrok.io')
+os.environ.setdefault("MONGO_DB_CONNECTION_STRING", "mongodb://localhost:27017/test")
+os.environ.setdefault("VONAGE_APPLICATION_ID", "test_app_id")
+os.environ.setdefault("VONAGE_PRIVATE_KEY_PATH", "test_key_path")
+os.environ.setdefault("VONAGE_NUMBER", "+1234567890")
+os.environ.setdefault("NGROK_URL", "http://test.ngrok.io")
 
 # Add the parent directory to the path for imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.append(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 
 from app.main import app
 from app.utils.model_classes import StartIVRFormData, BulkCallRequest
@@ -42,20 +44,20 @@ class TestMainApplication:
     def mock_fsm(self):
         """Create a mock FSM object with common methods."""
         from app.utils.model_classes import IVRfsmDoc
-        
+
         fsm = MagicMock()
         fsm.fsm_id = self.TEST_FSM_ID
-        
+
         # Create a proper IVRfsmDoc for serialize method
         mock_fsm_doc = IVRfsmDoc(
             _id=self.TEST_FSM_ID,
             init_state_id=self.TEST_STATE_ID,
             states=[],
             transitions=[],
-            created_at=1234567890
+            created_at=1234567890,
         )
         fsm.serialize.return_value = mock_fsm_doc
-        
+
         fsm.get_start_fsm_actions.return_value = [{"action": "talk", "text": "Welcome"}]
         fsm.get_next_actions.return_value = [{"action": "talk", "text": "Next step"}]
         return fsm
@@ -66,16 +68,13 @@ class TestMainApplication:
         return {
             "phone_number": self.TEST_PHONE_NUMBER,
             "fsm_id": self.TEST_FSM_ID,
-            "current_state_id": self.TEST_STATE_ID
+            "current_state_id": self.TEST_STATE_ID,
         }
 
     @pytest.fixture
     def mock_vonage_response(self):
         """Create a mock Vonage call response."""
-        return {
-            "uuid": self.TEST_CALL_UUID,
-            "status": "started"
-        }
+        return {"uuid": self.TEST_CALL_UUID, "status": "started"}
 
     def _assert_successful_response(self, response, expected_status=200):
         """Helper method to assert successful response."""
@@ -92,7 +91,7 @@ class TestMainApplication:
         """Helper method to create event data."""
         data = {
             "status": status,
-            "conversation_uuid": conversation_uuid or self.TEST_CALL_UUID
+            "conversation_uuid": conversation_uuid or self.TEST_CALL_UUID,
         }
         data.update(kwargs)
         return data
@@ -100,11 +99,8 @@ class TestMainApplication:
     def _create_input_data(self, dtmf="1", conversation_uuid=None):
         """Helper method to create input data."""
         return {
-            "dtmf": {
-                "digits": dtmf,
-                "timed_out": False
-            },
-            "conversation_uuid": conversation_uuid or self.TEST_CALL_UUID
+            "dtmf": {"digits": dtmf, "timed_out": False},
+            "conversation_uuid": conversation_uuid or self.TEST_CALL_UUID,
         }
 
     def _create_complete_event_data(self, status, conversation_uuid=None, **kwargs):
@@ -116,7 +112,7 @@ class TestMainApplication:
             "from": kwargs.get("from_", self.TEST_PHONE_NUMBER),
             "to": kwargs.get("to", self.TEST_PHONE_NUMBER_2),
             "direction": kwargs.get("direction", "outbound"),
-            "timestamp": kwargs.get("timestamp", "2023-01-01T12:00:00Z")
+            "timestamp": kwargs.get("timestamp", "2023-01-01T12:00:00Z"),
         }
         # Add any additional kwargs
         for key, value in kwargs.items():
@@ -137,88 +133,100 @@ class TestMainApplication:
         assert len(ncco) > 0
         assert ncco[0]["action"] == "talk"
 
-    @patch('app.main.get_latest_content')
-    @patch('app.main.process_content')
-    @patch('app.main.format_data_html')
-    def test_ivr_structure_endpoint(self, mock_format_html, mock_process, mock_get_content):
+    @patch("app.main.get_latest_content")
+    @patch("app.main.process_content")
+    @patch("app.main.format_data_html")
+    def test_ivr_structure_endpoint(
+        self, mock_format_html, mock_process, mock_get_content
+    ):
         """Test the /ivr_structure endpoint."""
+
         # Mock the async function and its dependencies
         async def mock_content():
             return {"test": "content"}
-        
+
         mock_get_content.return_value = mock_content()
         mock_process.return_value = {"processed": "content"}
         mock_format_html.return_value = "<html>Test</html>"
-        
+
         response = self.client.get("/ivr_structure")
         assert response.status_code == 200
         assert "text/html" in response.headers.get("content-type", "")
         assert "<html>" in response.text
 
-    @patch('app.main.ongoing_fsm_mongo')
-    def test_update_ivr_endpoint_success(self, mock_ongoing_mongo, mock_fsm):
+    @patch("app.main.get_app_state")
+    def test_update_ivr_endpoint_success(self, mock_get_app_state, mock_fsm):
         """Test successful IVR update when no users are active."""
-        # Make find_all return a coroutine
-        async def mock_find_all():
-            return []
-        async def mock_find_top_one(field):
-            return None
-        async def mock_insert(data):
-            return True
+        # Setup mock app state with async mock collections
+        mock_state = MagicMock()
+        mock_state.fsm = {}
+        mock_state.latest_fsm_id = None
 
-        mock_ongoing_mongo.find_all = mock_find_all
+        # Create AsyncMock for collection methods
+        mock_ongoing_fsm = MagicMock()
+        mock_ongoing_fsm.find_all = AsyncMock(return_value=[])
+        mock_state.ongoing_fsm_mongo = mock_ongoing_fsm
 
-        with patch('app.main.fsm_json_mongo') as mock_fsm_json_mongo:
-            mock_fsm_json_mongo.find_top_one = mock_find_top_one
-            mock_fsm_json_mongo.insert = mock_insert
+        mock_fsm_json = MagicMock()
+        mock_fsm_json.find_top_one = AsyncMock(return_value=None)
+        mock_fsm_json.insert = AsyncMock(return_value=True)
+        mock_state.fsm_json_mongo = mock_fsm_json
 
-            with patch('app.main.instantiate_from_latest_content', return_value=mock_fsm):
-                response = self.client.post("/updateivr")
-                data = self._assert_successful_response(response)
-                assert "successfully" in data["message"].lower()
+        mock_get_app_state.return_value = mock_state
 
-    @patch('app.main.ongoing_fsm_mongo')
-    def test_update_ivr_endpoint_conflict(self, mock_ongoing_mongo):
+        with patch("app.main.instantiate_from_latest_content", return_value=mock_fsm):
+            response = self.client.post("/updateivr")
+            data = self._assert_successful_response(response)
+            assert "successfully" in data["message"].lower()
+
+    @patch("app.main.get_app_state")
+    def test_update_ivr_endpoint_conflict(self, mock_get_app_state):
         """Test IVR update fails when users are active."""
-        # Make find_all return a coroutine with active calls
-        async def mock_find_all():
-            return [{"call_id": "test1"}, {"call_id": "test2"}]
-        mock_ongoing_mongo.find_all = mock_find_all
-        
+        # Setup mock app state with ongoing calls
+        mock_state = MagicMock()
+        mock_ongoing_fsm = MagicMock()
+        mock_ongoing_fsm.find_all = AsyncMock(
+            return_value=[{"call_id": "test1"}, {"call_id": "test2"}]
+        )
+        mock_state.ongoing_fsm_mongo = mock_ongoing_fsm
+        mock_get_app_state.return_value = mock_state
+
         response = self.client.post("/updateivr")
         data = self._assert_successful_response(response, 409)
         assert "Cannot Update IVR" in data["message"]
         assert "2 users" in data["message"]
 
-    @patch('app.main.fsm_json_mongo')
-    @patch('app.main.radio_fsm_mongo')
-    def test_get_fsm_endpoint_not_found(self, mock_radio_fsm_mongo, mock_fsm_json_mongo):
+    @patch("app.main.get_app_state")
+    def test_get_fsm_endpoint_not_found(self, mock_get_app_state):
         """Test FSM retrieval when FSM doesn't exist."""
-        # Mock both MongoDB instances to return None (FSM not found)
-        mock_fsm_json_mongo.find_by_id = AsyncMock(return_value=None)
-        mock_radio_fsm_mongo.find_by_id = AsyncMock(return_value=None)
-        
+        # Setup mock app state with async mock collections
+        mock_state = MagicMock()
+
+        mock_fsm_json = MagicMock()
+        mock_fsm_json.find_by_id = AsyncMock(return_value=None)
+        mock_state.fsm_json_mongo = mock_fsm_json
+
+        mock_radio_fsm = MagicMock()
+        mock_radio_fsm.find_by_id = AsyncMock(return_value=None)
+        mock_state.radio_fsm_mongo = mock_radio_fsm
+
+        mock_get_app_state.return_value = mock_state
+
         response = self.client.get(f"/getFSM?fsm_id={self.NON_EXISTENT_FSM}")
         data = self._assert_successful_response(response, 404)
         assert "not found" in data["detail"].lower()
 
     def test_start_bulk_calls_empty_list(self):
         """Test bulk calls with empty phone number list."""
-        bulk_data = {
-            "phone_numbers": [],
-            "fsm_id": self.TEST_FSM_ID
-        }
-        
+        bulk_data = {"phone_numbers": [], "fsm_id": self.TEST_FSM_ID}
+
         response = self.client.post("/start_bulk_calls", json=bulk_data)
         assert response.status_code == 422
 
     def test_fallback_endpoint(self):
         """Test fallback endpoint."""
-        fallback_data = {
-            "conversation_uuid": self.TEST_CALL_UUID,
-            "reason": "timeout"
-        }
-        
+        fallback_data = {"conversation_uuid": self.TEST_CALL_UUID, "reason": "timeout"}
+
         response = self.client.post("/fallback", json=fallback_data)
         data = self._assert_successful_response(response)
         # The fallback endpoint returns a simple message, not NCCO
@@ -240,5 +248,5 @@ class TestMainApplication:
 
     def test_method_not_allowed(self):
         """Test using wrong HTTP method."""
-        response = self.client.get("/start_ivr")  
+        response = self.client.get("/start_ivr")
         assert response.status_code == 405

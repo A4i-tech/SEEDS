@@ -21,11 +21,7 @@ const AnalyticsStats = ({ stats }) => {
       <h3 className="stats-title">Summary Statistics</h3>
       <div className="stat-cards">
         {statCards.map((stat, index) => (
-          <div
-            key={index}
-            className="stat-card"
-            style={{ borderLeftColor: stat.color }}
-          >
+          <div key={index} className="stat-card" style={{ borderLeftColor: stat.color }}>
             <div className="stat-label">{stat.label}</div>
             <div className="stat-value">{stat.value}</div>
           </div>
