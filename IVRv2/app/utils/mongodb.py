@@ -1,121 +1,135 @@
+"""
+MongoDB database access module.
+
+This module provides backward-compatible access to MongoDB collections.
+New code should prefer using app.core.database and dependency injection.
+
+DEPRECATED: Direct use of get_mongo_client() and MongoDB class at module level.
+Prefer using the lifespan-managed MongoDBManager and dependency injection instead.
+"""
+
 import asyncio
 import logging
-import threading
+import warnings
 from typing import Any, Dict, List, Optional
-from urllib.parse import urlparse
-
-from pymongo import MongoClient
 
 from app.interfaces.database import IDatabase
-from app.settings import settings
+from app.core.database import (
+    MongoDBManager,
+    MongoDBCollection,
+    mongodb_manager,
+    get_mongodb_manager,
+    init_mongodb_manager,
+    close_mongodb_manager,
+)
 
 logger = logging.getLogger(__name__)
 
 
-# Shared MongoClient singleton with connection pooling
-_mongo_client: Optional[MongoClient] = None
-_database_name: Optional[str] = None
-_client_lock = threading.Lock()
+def get_mongo_client():
+    """Get the MongoDB client from the global manager.
 
+    DEPRECATED: Use dependency injection with get_mongodb_manager() instead.
 
-def get_mongo_client() -> MongoClient:
-    """Get or create a shared MongoClient singleton with connection pooling.
+    Returns:
+        MongoClient instance.
 
-    Thread-safe using double-checked locking pattern.
-    Ensures atomicity: both client and database_name are set together or not at all.
+    Raises:
+        RuntimeError: If the manager has not been initialized via lifespan.
     """
-
-    global _mongo_client, _database_name
-
-    if _mongo_client is not None:
-        return _mongo_client
-
-    with _client_lock:
-        if _mongo_client is None:
-            connection_string = settings.mongo_db_connection_string
-            if not connection_string or connection_string == "NONE":
-                raise ValueError(
-                    "MONGO_DB_CONNECTION_STRING environment variable not set"
-                )
-
-
-            try:
-                parsed_url = urlparse(connection_string)
-                path = parsed_url.path.lstrip("/").split("?")[0]
-                if not path:
-                    raise ValueError("Database name not found in connection string")
-                db_name = path
-            except Exception as e:
-                raise ValueError(
-                    f"Error parsing database name from connection string: {e}"
-                )
-
-            # Only create client after successful URL parsing
-            client = MongoClient(
-                connection_string,
-                maxPoolSize=50,
-                serverSelectionTimeoutMS=5000,
-            )
-
-            # Set both globals atomically after all operations succeed
-            _database_name = db_name
-            _mongo_client = client
-
-    return _mongo_client
+    warnings.warn(
+        "get_mongo_client() is deprecated. Use dependency injection instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return get_mongodb_manager().client
 
 
 def get_database_name() -> str:
-    """Get the database name (ensures client is initialized first)."""
+    """Get the database name from the global manager.
 
-    get_mongo_client()
-    if _database_name is None:
-        raise ValueError("Database name not initialized")
-    return _database_name
+    DEPRECATED: Use dependency injection with get_mongodb_manager() instead.
+
+    Returns:
+        Database name string.
+
+    Raises:
+        RuntimeError: If the manager has not been initialized via lifespan.
+    """
+    warnings.warn(
+        "get_database_name() is deprecated. Use dependency injection instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return get_mongodb_manager().database_name
 
 
 def close_mongo_client() -> None:
     """Close the MongoDB client connection pool gracefully.
 
-    Thread-safe function to close the singleton MongoClient during application shutdown.
-    Safe to call multiple times (idempotent).
+    DEPRECATED: Cleanup is handled automatically by the lifespan manager.
     """
-
-    global _mongo_client, _database_name
-
-    with _client_lock:
-        if _mongo_client is not None:
-            try:
-                _mongo_client.close()
-                logger.info("MongoDB client connection closed successfully")
-            except Exception as e:
-                logger.warning(f"Error closing MongoDB client: {e}")
-            finally:
-                _mongo_client = None
-                _database_name = None
-        else:
-            logger.debug("MongoDB client already closed or never initialized")
+    warnings.warn(
+        "close_mongo_client() is deprecated. Lifespan handles cleanup automatically.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    close_mongodb_manager()
 
 
 class MongoDB(IDatabase):
-    def __init__(self, collection_name):
-        client = get_mongo_client()
-        database_name = get_database_name()
-        self.db = client[database_name]
-        self.collection = self.db[collection_name]
+    """MongoDB collection wrapper implementing the IDatabase interface.
+
+    This class provides backward compatibility for existing code.
+    New code should use MongoDBCollection from app.core.database with
+    dependency injection.
+    """
+
+    def __init__(self, collection_name: str):
+        """Initialize with a collection name.
+
+        Note: This requires the MongoDBManager to be initialized via lifespan.
+        For module-level instantiation during import, this will fail until
+        the application starts. Consider using dependency injection instead.
+        """
+        try:
+            manager = get_mongodb_manager()
+            self.db = manager.database
+            self.collection = self.db[collection_name]
+        except RuntimeError:
+            # During import time, manager may not be initialized yet
+            # Store collection name and initialize lazily
+            self._collection_name = collection_name
+            self._lazy_initialized = False
+            self.db = None
+            self.collection = None
+
+    def _ensure_initialized(self) -> None:
+        """Ensure the collection is initialized (lazy initialization)."""
+        if self.collection is None:
+            manager = get_mongodb_manager()
+            self.db = manager.database
+            self.collection = self.db[self._collection_name]
+            self._lazy_initialized = True
 
     async def find_by_id(self, id_string: str) -> Optional[Dict[str, Any]]:
+        self._ensure_initialized()
         return await asyncio.to_thread(self.collection.find_one, {"_id": id_string})
 
     async def find_one_by_query(self, query: dict) -> Optional[Dict[str, Any]]:
+        self._ensure_initialized()
         return await asyncio.to_thread(self.collection.find_one, query)
 
     async def find_all(self) -> List[Dict[str, Any]]:
+        self._ensure_initialized()
         return await asyncio.to_thread(lambda: list(self.collection.find()))
 
     async def query_items(self, query: dict) -> List[Dict[str, Any]]:
+        self._ensure_initialized()
         return await asyncio.to_thread(lambda: list(self.collection.find(query)))
 
     async def insert(self, doc: dict) -> Any:
+        self._ensure_initialized()
         result = await asyncio.to_thread(self.collection.insert_one, doc)
         if not result.acknowledged:
             raise RuntimeError(
@@ -124,6 +138,7 @@ class MongoDB(IDatabase):
         return result.inserted_id
 
     async def update_document(self, id: str, new_doc: dict) -> Any:
+        self._ensure_initialized()
         result = await asyncio.to_thread(
             self.collection.replace_one, {"_id": id}, new_doc, True
         )
@@ -132,15 +147,18 @@ class MongoDB(IDatabase):
         return result
 
     async def delete(self, id: str) -> Any:
+        self._ensure_initialized()
         result = await asyncio.to_thread(self.collection.delete_one, {"_id": id})
         if not result.acknowledged:
             raise RuntimeError(f"MongoDB delete not acknowledged for id: {id}")
         return result
 
     async def find_top_one(self, attr: str) -> Optional[Dict[str, Any]]:
+        self._ensure_initialized()
         return await asyncio.to_thread(
             lambda: self.collection.find_one(sort=[(attr, -1)])
         )
 
     def get_collection(self):
+        self._ensure_initialized()
         return self.collection

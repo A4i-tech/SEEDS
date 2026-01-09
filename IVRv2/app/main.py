@@ -24,7 +24,8 @@ from app.settings import settings
 from app.actions.vonage_actions.vonage_action_factory import VonageActionFactory
 from app.fsm.insti import instantiate_from_latest_content, instantitate_from_doc
 from app.fsm.radio_instantiation import instantiate_from_content_ids
-from app.utils.mongodb import MongoDB, close_mongo_client
+from app.core.lifespan import lifespan
+from app.core.state import get_app_state
 from fastapi.responses import HTMLResponse
 from app.fsm.visualiseIVR import get_latest_content, process_content
 from app.utils.model_classes import (
@@ -52,11 +53,8 @@ application_id = os.getenv("VONAGE_APPLICATION_ID")
 STATUS_OK = 200
 STATUS_BAD_REQUEST = 400
 
-fsm = dict()
-latest_fsm_id = None
-call_webhook_processor = None
-dtmf_input_processor = None
-call_event_processor = None
+# Application state is managed via lifespan context manager
+# Access via get_app_state() from app.core.state
 
 app = FastAPI(
     title="IVR v2 API",
@@ -69,6 +67,7 @@ app = FastAPI(
     version="2.0.0",
     contact={"name": "SEEDS Support", "email": "support@seeds.org"},
     license_info={"name": "MIT License"},
+    lifespan=lifespan,
 )
 
 # Add CORS middleware configuration
@@ -79,15 +78,6 @@ app.add_middleware(
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
 )
-
-ongoing_fsm_mongo = MongoDB(collection_name="ongoingIVRState")
-
-ivrv2_logs_mongo = MongoDB(collection_name="ivrv2logs")
-
-fsm_json_mongo = MongoDB(collection_name="fsm")
-radio_fsm_mongo = MongoDB(collection_name="radio")
-
-calls_log_mongo = MongoDB(collection_name="callsLogs")
 
 action_factory = VonageActionFactory()
 
@@ -142,7 +132,11 @@ async def get_ivr_structure():
 async def get_fsm(
     fsm_id: str = Query(..., description="The unique identifier of the FSM to retrieve")
 ):
-    # global fsm
+    # Get state from lifespan-managed app state
+    state = get_app_state()
+    fsm_json_mongo = state.fsm_json_mongo
+    radio_fsm_mongo = state.radio_fsm_mongo
+
     fsm_by_id = None
     doc = await fsm_json_mongo.find_by_id(fsm_id)
     if doc is not None:
@@ -174,127 +168,6 @@ async def get_fsm(
         raise HTTPException(status_code=404, detail="FSM not found")
 
 
-@app.on_event("startup")
-async def startup_event():
-    """
-    Initialize the application on startup.
-
-    This function is called automatically when the FastAPI application starts up.
-    It performs the following tasks:
-    - Initializes the global FSM (Finite State Machine) dictionary
-    - Loads the latest FSM from the database
-    - Sets up the initial FSM state
-
-    Note: This is an internal function and not directly exposed as an API endpoint.
-    """
-    global fsm
-    global latest_fsm_id
-    global call_webhook_processor, dtmf_input_processor, call_event_processor
-
-    # Initialize FSM
-    # fsm[comprehension_fsm.fsm_id] = comprehension_fsm
-    # latest_fsm_id = comprehension_fsm.fsm_id
-    logging.info("[STARTUP] Initializing FSM from latest content...")
-    updated_fsm = await instantiate_from_latest_content()
-    fsm[updated_fsm.fsm_id] = updated_fsm
-    latest_fsm_id = updated_fsm.fsm_id
-    logging.info(f"[STARTUP] ✓ FSM initialized with ID: {latest_fsm_id}")
-
-    # Initialize Service Bus Manager
-    logging.info("[STARTUP] Initializing Service Bus Manager...")
-    await service_bus_manager.initialize()
-    logging.info("[STARTUP] ✓ Service Bus Manager initialized")
-
-    # Create three processors
-    logging.info("[STARTUP] Creating processors...")
-    call_webhook_processor = CallWebhookProcessor(fsm)
-    dtmf_input_processor = DtmfInputProcessor(fsm)
-    call_event_processor = CallEventProcessor(fsm)
-    logging.info("[STARTUP] ✓ Processors created")
-
-    # Update FSM refrences
-    call_webhook_processor.latest_fsm_id = latest_fsm_id
-    dtmf_input_processor.latest_fsm_id = latest_fsm_id
-    call_event_processor.latest_fsm_id = latest_fsm_id
-    logging.info("[STARTUP] ✓ FSM references updated")
-
-    # Start all processors in the background
-    logging.info("[STARTUP] Starting background processors...")
-    try:
-        task1 = call_webhook_processor.start_background()
-        logging.info(f"[STARTUP] ✓ CallWebhookProcessor started: {task1}")
-        task2 = dtmf_input_processor.start_background()
-        logging.info(f"[STARTUP] ✓ DtmfInputProcessor started: {task2}")
-        task3 = call_event_processor.start_background()
-        logging.info(f"[STARTUP] ✓ CallEventProcessor started: {task3}")
-        logging.info("[STARTUP] ✓✓✓ All processors started successfully ✓✓✓")
-    except Exception as e:
-        logging.error(f"[STARTUP] ✗✗✗ ERROR starting processors: {e}")
-        import traceback
-
-        traceback.print_exc()
-        raise
-
-    # # Start background call processor
-    # call_processor = CallProcessor(fsm)
-    # call_processor.latest_fsm_id = latest_fsm_id
-    # asyncio.create_task(call_processor.start())
-    # logging.info("Application startup complete.")
-    """
-    latest_doc = await fsm_json_mongo.find_top_one("created_at")
-    if latest_doc != None: 
-        latest_fsm = instantitate_from_doc(IVRfsmDoc(**latest_doc))
-        fsm[latest_fsm.fsm_id] = latest_fsm
-        latest_fsm_id = latest_fsm.fsm_id
-        # fsm = instantitate_from_doc(IVRfsmDoc(**latest_doc))
-        logging.info(f"Instantiated FSM with id: {latest_fsm.fsm_id}")
-    else:
-        logging.warning("No FSM found in MongoDB, please call `updateivr` API to create a new FSM object from latest content before calling any APIs")
-    """
-    # fsm[comprehension_fsm.fsm_id] = comprehension_fsm
-    # latest_fsm_id = comprehension_fsm.fsm_id
-
-    # latest_doc = await fsm_json_mongo.find_top_one("created_at")
-    # if latest_doc != None:
-    #     latest_fsm = instantitate_from_doc(IVRfsmDoc(**latest_doc))
-    #     fsm[latest_fsm.fsm_id] = latest_fsm
-    #     latest_fsm_id = latest_fsm.fsm_id
-    #     # fsm = instantitate_from_doc(IVRfsmDoc(**latest_doc))
-    #     print("Instantiated FSM with id: ", latest_fsm.fsm_id)
-    # else:
-    #     print("No FSM found in MongoDB, please call `updateivr` API to create a new FSM object from latest content before calling any APIs")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """
-    Clean up resources on application shutdown.
-
-    This function is called automatically when the FastAPI application is shutting down.
-    It performs the following tasks:
-    - Gracefully shuts down all processors (30 second timeout per processor)
-    - Cleans up the Service Bus Manager resources
-
-    Note: This is an internal function and not directly exposed as an API endpoint.
-    """
-    logging.info("Starting graceful shutdown...")
-
-    # Shutdown all processors with 30 second timeout each
-    if call_webhook_processor:
-        await call_webhook_processor.shutdown(timeout=30)
-    if dtmf_input_processor:
-        await dtmf_input_processor.shutdown(timeout=30)
-    if call_event_processor:
-        await call_event_processor.shutdown(timeout=30)
-
-    await service_bus_manager.close()
-
-    # Close MongoDB connection pool
-    close_mongo_client()
-
-    logging.info("Application shutdown complete.")
-
-
 @app.post(
     "/updateivr",
     summary="Update IVR configuration",
@@ -313,8 +186,11 @@ async def shutdown_event():
     },
 )
 async def update_ivr(request: Request, response: Response):
-    global fsm
-    global latest_fsm_id
+    # Get state from lifespan-managed app state
+    state = get_app_state()
+    fsm = state.fsm
+    ongoing_fsm_mongo = state.ongoing_fsm_mongo
+    fsm_json_mongo = state.fsm_json_mongo
 
     # FIND ONGOING FSM COUNT
     docs = await ongoing_fsm_mongo.find_all()
@@ -327,7 +203,7 @@ async def update_ivr(request: Request, response: Response):
 
     updated_fsm = await instantiate_from_latest_content()
     fsm[updated_fsm.fsm_id] = updated_fsm
-    latest_fsm_id = updated_fsm.fsm_id
+    state.latest_fsm_id = updated_fsm.fsm_id
     # fsm = await instantiate_from_latest_content()
     current_fsm_doc = updated_fsm.serialize()
 
@@ -348,7 +224,7 @@ async def update_ivr(request: Request, response: Response):
             # USE SAME FSM ID AS IN LATEST FSM DOC FROM MONGO
             fsm[latest_fsm_doc.id] = updated_fsm
             del fsm[updated_fsm.fsm_id]
-            latest_fsm_id = latest_fsm_doc.id
+            state.latest_fsm_id = latest_fsm_doc.id
             # latest_fsm_id = latest_fsm_doc.id
             # fsm.fsm_id = latest_fsm_doc.id
             response_message += "Current FSM and FSM in mongo are same, skipping addition of new FSM to mongo."
@@ -382,6 +258,10 @@ async def update_ivr(request: Request, response: Response):
     },
 )
 async def call_webhook(request: Request, response: Response):
+    # Get state from lifespan-managed app state
+    state = get_app_state()
+    calls_log_mongo = state.calls_log_mongo
+
     webhook_start_time = time.time()
     logging.info("[WEBHOOK] ========================================")
     logging.info(f"[WEBHOOK] Webhook received at timestamp: {webhook_start_time}")
@@ -468,7 +348,12 @@ async def start_ivr(
         ..., description="Phone number to call in E.164 format (e.g., +1234567890)"
     ),
 ):
-    global fsm
+    # Get state from lifespan-managed app state
+    state = get_app_state()
+    fsm = state.fsm
+    latest_fsm_id = state.latest_fsm_id
+    ongoing_fsm_mongo = state.ongoing_fsm_mongo
+
     try:
         raw_key = base64.b64decode(settings.vonage_application_private_key64).decode(
             "utf-8"
@@ -578,7 +463,12 @@ async def start_ivr(
     },
 )
 async def start_bulk_calls(request: BulkCallRequest):
-    global fsm
+    # Get state from lifespan-managed app state
+    state = get_app_state()
+    fsm = state.fsm
+    ongoing_fsm_mongo = state.ongoing_fsm_mongo
+    radio_fsm_mongo = state.radio_fsm_mongo
+
     try:
         phone_numbers = request.phone_numbers
         content_ids = request.content_ids
@@ -804,7 +694,11 @@ async def get_conv_event(req: ConversationRTCWebhookRequest):
     - Checks the play ID provided in the event against the IVR state document.
     - Updates the corresponding 'stoppedAt' and 'doneAt' timestamps for the playback information in the document.
     """
-    global fsm
+    # Get state from lifespan-managed app state
+    state = get_app_state()
+    fsm = state.fsm
+    ongoing_fsm_mongo = state.ongoing_fsm_mongo
+
     if (
         req.type == ConversationRTCEventType.AUDIO_PLAY
         and "stream_url" in req.body
@@ -899,7 +793,10 @@ async def get_conv_event(req: ConversationRTCWebhookRequest):
     },
 )
 async def dtmf(input: Request):
-    global fsm
+    # Get state from lifespan-managed app state
+    state = get_app_state()
+    fsm = state.fsm
+    ongoing_fsm_mongo = state.ongoing_fsm_mongo
 
     input_data = await input.json()
     logging.info(f"INPUT DATA RAW: {input_data}")
