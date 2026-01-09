@@ -35,7 +35,7 @@ export const useAuth = () => {
     const token = localStorage.getItem("authToken");
     return {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${token}`,
+      Authorization: `Bearer ${token}`,
     };
   }, []);
 
@@ -43,7 +43,7 @@ export const useAuth = () => {
    * Logout user and clear all auth data
    */
   const logout = useCallback(() => {
-    clearAuthHelper();  // Clears both token AND phoneNumber
+    clearAuthHelper(); // Clears both token AND phoneNumber
     resetTeacherCache();
     navigate("/");
   }, [navigate]);
@@ -67,19 +67,10 @@ export const useAuth = () => {
     }
 
     // Create new promise for API call
-    cachedTeacherPromise = fetchCurrentTeacher()
-      .then((teacher) => {
-        console.log("Current Teacher Info:", teacher);
-        cachedTeacher = teacher;
-        cachedTeacherPromise = null;  // Clear promise after resolution
-        return cachedTeacher;
-      })
-      .catch((err) => {
-        cachedTeacherPromise = null;  // Clear promise on error
-        throw err;
-      });
-
-    return cachedTeacherPromise;
+    cachedTeacherPromise = await fetchCurrentTeacher();
+    cachedTeacher = cachedTeacherPromise;
+    cachedTeacherPromise = null;
+    return cachedTeacher;
   }, []);
 
   return {

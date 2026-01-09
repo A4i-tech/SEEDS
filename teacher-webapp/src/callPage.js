@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Box, Typography } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { useConference } from "./context/ConferenceContext";
@@ -21,12 +21,9 @@ import { ParticipantList } from "./components/participants/ParticipantList";
 import { ControlButtonGroup } from "./components/controls/ControlButtonGroup";
 import { PageContainer } from "./components/layout/PageContainer";
 import { showToast } from "./utils/toast";
+import { normalizePhoneNumber } from "./utils/phoneUtils";
 
 const getPhoneNumber = (user) => user?.phoneNumber;
-if (!getPhoneNumber) {
-  throw new Error("getPhoneNumber function is not defined properly");
-}
-const normalizeUser = (user) => (user ? { ...user, phoneNumber: getPhoneNumber(user) } : null);
 
 export function DetailsPage() {
   const navigate = useNavigate();
@@ -44,10 +41,32 @@ export function DetailsPage() {
   const [isAudioModalOpen, setIsAudioModalOpen] = useState(false);
   const [seekDirection, setSeekDirection] = useState(null);
   const [audioSelectionError, setAudioSelectionError] = useState(null);
+  const mutedStudentsRef = useRef(new Set());
 
   useEffect(() => {
     setUsers(userList);
   }, [userList]);
+
+  // Auto-mute all students when they join the call
+  useEffect(() => {
+    if (isConfCallRunning && userList && userList.length > 0) {
+      userList.forEach((user) => {
+        const normalizedPhone = normalizePhoneNumber(user.phoneNumber);
+        if (
+          user.role === "Student" &&
+          user.call_status === "connected" &&
+          !user.is_muted &&
+          !mutedStudentsRef.current.has(normalizedPhone)
+        ) {
+          mutedStudentsRef.current.add(normalizedPhone);
+          muteParticipant(confId, normalizedPhone).catch((error) => {
+            console.error("Error auto-muting student:", error);
+            mutedStudentsRef.current.delete(normalizedPhone);
+          });
+        }
+      });
+    }
+  }, [isConfCallRunning, userList, confId]);
 
   // Listen for conference notifications
   useEffect(() => {
@@ -65,28 +84,27 @@ export function DetailsPage() {
   }, []);
 
   // Get teacher from userList (which is updated by SSE events)
-  const teacherFromUserList = normalizeUser(users.find((user) => user.role === "Teacher"));
+  const teacher = users.find((user) => user.role === "Teacher") || null;
   const students = conferenceStudents;
 
-  // Ensure teacher has the latest data from userList
-  const teacher = teacherFromUserList;
-
   const handleMuteToggle = async (userToUpdate) => {
-    setLoadingIds((prev) => [...prev, userToUpdate.phoneNumber]);
+    const phoneNumber = userToUpdate.phoneNumber;
+    const normalizedPhone = normalizePhoneNumber(phoneNumber);
+    setLoadingIds((prev) => [...prev, phoneNumber]);
 
     try {
-      if (userToUpdate.is_muted) {
-        await unmuteParticipant(confId, userToUpdate.phoneNumber);
-        showToast.success(`${userToUpdate.name || "Participant"} unmuted`);
-      } else {
-        await muteParticipant(confId, userToUpdate.phoneNumber);
-        showToast.info(`${userToUpdate.name || "Participant"} muted`);
-      }
+      userToUpdate.is_muted
+        ? await unmuteParticipant(confId, normalizedPhone)
+        : await muteParticipant(confId, normalizedPhone);
+
+      // Success - SSE will update the state automatically
     } catch (error) {
       console.error("Error toggling mute:", error);
-      showToast.error("Failed to toggle mute");
+      showToast.error(
+        `Failed to ${userToUpdate.is_muted ? "unmute" : "mute"} ${userToUpdate.name || "Participant"}. Please try again.`
+      );
     } finally {
-      setLoadingIds((prev) => prev.filter((id) => id !== userToUpdate.phoneNumber));
+      setLoadingIds((prev) => prev.filter((id) => id !== phoneNumber));
     }
   };
 
@@ -224,7 +242,12 @@ export function DetailsPage() {
 
   // Filter out students who are already in the userList
   const availableStudents = conferenceStudents.filter(
-    (student) => !userList.some((user) => getPhoneNumber(user) === getPhoneNumber(student))
+    (student) =>
+      !userList.some(
+        (user) =>
+          normalizePhoneNumber(getPhoneNumber(user)) ===
+          normalizePhoneNumber(getPhoneNumber(student))
+      )
   );
 
   const isLoading = (phoneNumber) => phoneNumber && loadingIds.includes(phoneNumber);
@@ -239,19 +262,21 @@ export function DetailsPage() {
   // Merge conferenceStudents with userList data to get call status, mute status, etc.
   // This preserves the original functionality: show all conferenceStudents
   // but update them with real-time data from userList (SSE events)
-  // Use a Map to avoid duplicates and ensure we only show each student once
+  // Use a Map with normalized phone numbers to avoid duplicates
   const studentMap = new Map();
   students.forEach((student) => {
     const phoneNumber = getPhoneNumber(student);
     if (phoneNumber) {
-      studentMap.set(phoneNumber, student);
+      const normalizedPhone = normalizePhoneNumber(phoneNumber);
+      studentMap.set(normalizedPhone, student);
     }
   });
 
   // Update with real-time data from userList
-  const activeStudents = Array.from(studentMap.values()).map((student) => {
-    const phoneNumber = getPhoneNumber(student);
-    const userInCall = userList.find((user) => getPhoneNumber(user) === phoneNumber);
+  const activeStudents = Array.from(studentMap.entries()).map(([normalizedPhone, student]) => {
+    const userInCall = userList.find(
+      (user) => normalizePhoneNumber(getPhoneNumber(user)) === normalizedPhone
+    );
     // If student is in the call (userList), merge the call status and mute status
     // Otherwise, just use the student data as-is
     return userInCall

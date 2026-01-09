@@ -64,21 +64,23 @@ export const sinkConferenceCall = async (confId) => {
 };
 
 export const muteParticipant = async (confId, phone_number) => {
-  return fetch(API_ENDPOINTS.CONFERENCE.MUTE(confId, phone_number), {
+  const response = await fetch(API_ENDPOINTS.CONFERENCE.MUTE(confId, phone_number), {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
     },
   });
+  return response.json();
 };
 
 export const unmuteParticipant = async (confId, phone_number) => {
-  return fetch(API_ENDPOINTS.CONFERENCE.UNMUTE(confId, phone_number), {
+  const response = await fetch(API_ENDPOINTS.CONFERENCE.UNMUTE(confId, phone_number), {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
     },
   });
+  return response.json();
 };
 
 export const playAudio = async (confId, url) => {
