@@ -75,6 +75,7 @@ class ConferenceCall:
                 phone_number=phone,
                 role=Role.STUDENT,
                 call_status=CallStatus.DISCONNECTED,
+                is_muted=True  # Students default to muted
             )
             self.state.participants[phone] = student
     

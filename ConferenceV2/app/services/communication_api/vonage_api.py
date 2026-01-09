@@ -269,4 +269,15 @@ class VonageAPI(CommunicationAPI):
         """
         if phone_number in self.participant_info_map:
             participant_info = self.participant_info_map[phone_number]
-            self.client.voice.update_call(uuid=participant_info.call_leg_id, action="unmute")
+            try:
+                self.client.voice.update_call(uuid=participant_info.call_leg_id, action="unmute")
+                logger_instance.info(f"Successfully unmuted participant {phone_number}")
+            except Exception as e:
+                logger_instance.error(f"Failed to unmute participant {phone_number}: {e}")
+                raise  # Re-raise for error handling
+        else:
+            logger_instance.error(
+                f"Cannot unmute participant {phone_number}: not found in participant_info_map. "
+                f"Available participants: {list(self.participant_info_map.keys())}"
+            )
+            raise ValueError(f"Participant {phone_number} not found in participant map")

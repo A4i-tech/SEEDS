@@ -17,20 +17,19 @@ class UnmuteParticipantEvent(ConferenceEvent):
         # TODO: Speak out announcement messages in conversation through comm API, check if the participant is already unmuted
         if self.phone_number in self.conf_call.state.participants:
             participant = self.conf_call.state.participants[self.phone_number]
-            
-            # Unmute the participant via communication API
-            await self.conf_call.communication_api.unmute_participant(self.phone_number)
-            
-            # Update participant's mute status
-            participant.is_muted = False
 
-            asyncio.create_task(
-            caller_state_manager.update_state(
+            # Update state in MongoDB (AWAIT this time - no fire-and-forget)
+            await caller_state_manager.update_state(
                 conference_id=self.conf_call.conf_id,
                 participant_id=self.phone_number,
                 new_state={"muted": False}
-                )
             )
+
+            # Unmute the participant via communication API
+            await self.conf_call.communication_api.unmute_participant(self.phone_number)
+
+            # Update participant's mute status in local state
+            participant.is_muted = False
             
             # Set raised hand to false
             participant.is_raised = False
