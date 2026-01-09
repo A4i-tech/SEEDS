@@ -6,9 +6,9 @@ export const useNavigation = () => {
 
   return {
     goToLogin: () => navigate(ROUTES.LOGIN),
-    // accept optional state (e.g., { phoneNumber }) to pass to the target route
-    goToHome: (phoneNumber) =>
-      navigate(ROUTES.HOME, { state: phoneNumber ? { phoneNumber } : undefined }),
+    // Redirect to classrooms instead of home
+    goToClassroom: (phoneNumber) =>
+      navigate(ROUTES.CLASSROOMS, { state: phoneNumber ? { phoneNumber } : undefined }),
     goToRegister: () => navigate(ROUTES.REGISTER),
   };
 };

@@ -175,5 +175,42 @@ router.post("/register", authenticateToken, teacherAuthProvider.register);
 router.post("/logout", authenticateToken, (req, res) => {
   res.status(STATUS.OK).json({ message: "Logout successful" });
 });
+/**
+ * @swagger
+ * /teacher/me:
+ *   get:
+ *     summary: Get current teacher information
+ *     tags: [Teachers]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Current teacher information
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 phoneNumber:
+ *                   type: string
+ *       401:
+ *         description: Unauthorized - invalid or missing token
+ *       404:
+ *         description: Teacher not found
+ */
+
+router.get("/me", authenticateToken, async (req, res) => {
+  try {
+    const teacherId = req.userId;
+    const teacher = await Teacher.findById(teacherId).select("phoneNumber").lean();
+    if (!teacher) {
+      return res.sendStatus(STATUS.NOT_FOUND);
+    }
+    res.status(STATUS.OK).json({ phoneNumber: teacher.phoneNumber });
+  } catch (err) {
+    console.error("Error fetching teacher profile", err);
+    res.sendStatus(STATUS.INTERNAL_ERROR);
+  }
+});
 
 module.exports = router;

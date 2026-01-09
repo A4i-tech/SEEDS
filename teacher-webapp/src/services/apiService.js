@@ -2,17 +2,38 @@ import { API_ENDPOINTS } from "../constants/apiEndpoints";
 import { APP_CONFIG } from "../config/appConfig";
 
 export const createConference = async (teacherPhone, studentPhones) => {
+  const requestBody = {
+    teacher_phone: teacherPhone,
+    student_phones: studentPhones,
+  };
+
+  console.log("Creating conference with request:", {
+    teacher_phone: teacherPhone,
+    student_phones: studentPhones,
+    student_count: studentPhones.length,
+  });
+
   const response = await fetch(API_ENDPOINTS.CONFERENCE.CREATE, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      teacher_phone: teacherPhone,
-      student_phones: studentPhones,
-    }),
+    body: JSON.stringify(requestBody),
   });
-  return response.json();
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("Conference creation failed:", {
+      status: response.status,
+      statusText: response.statusText,
+      error: errorText,
+    });
+    throw new Error(`Failed to create conference: ${response.status} ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  console.log("Conference created successfully:", data);
+  return data;
 };
 
 export const startConferenceCall = async (confId) => {
@@ -43,21 +64,23 @@ export const sinkConferenceCall = async (confId) => {
 };
 
 export const muteParticipant = async (confId, phone_number) => {
-  return fetch(API_ENDPOINTS.CONFERENCE.MUTE(confId, phone_number), {
+  const response = await fetch(API_ENDPOINTS.CONFERENCE.MUTE(confId, phone_number), {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
     },
   });
+  return response.json();
 };
 
 export const unmuteParticipant = async (confId, phone_number) => {
-  return fetch(API_ENDPOINTS.CONFERENCE.UNMUTE(confId, phone_number), {
+  const response = await fetch(API_ENDPOINTS.CONFERENCE.UNMUTE(confId, phone_number), {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
     },
   });
+  return response.json();
 };
 
 export const playAudio = async (confId, url) => {

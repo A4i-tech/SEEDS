@@ -1,4 +1,19 @@
 import React, { useEffect, useState } from "react";
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Radio,
+  RadioGroup,
+  FormControlLabel,
+  FormControl,
+  Typography,
+  CircularProgress,
+  Alert,
+  Box,
+} from "@mui/material";
 import { fetchAudioContent } from "../services/apiService";
 
 const extractItems = (response) => {
@@ -125,41 +140,73 @@ export const AudioContentModal = ({ open, onClose, onSubmit }) => {
   };
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-content">
-        <h2>Select Audio Content</h2>
-        {isLoading && <p>Loading audio content...</p>}
-        {error && <p className="error-text">{error}</p>}
-        {!isLoading && !error && audioContent.length === 0 && <p>No audio content available.</p>}
-
-        {!isLoading && !error && audioContent.length > 0 && (
-          <ul className="track-list">
-            {audioContent.map((content) => (
-              <li key={content.id} className="track-list-item">
-                <label>
-                  <input
-                    type="radio"
-                    name="audio-content"
-                    value={content.url}
-                    checked={selectedContent === content.url}
-                    onChange={() => setSelectedContent(content.url)}
-                  />
-                  <span className="track-name">{content.name}</span>
-                  {content.language && <span className="track-language">{content.language}</span>}
-                </label>
-                {content.description && <p className="track-description">{content.description}</p>}
-              </li>
-            ))}
-          </ul>
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle>Select Audio Content</DialogTitle>
+      <DialogContent>
+        {isLoading && (
+          <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
+            <CircularProgress />
+          </Box>
+        )}
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        )}
+        {!isLoading && !error && audioContent.length === 0 && (
+          <Typography color="text.secondary">No audio content available.</Typography>
         )}
 
-        <div className="modal-actions">
-          <button onClick={handleSubmit} disabled={!selectedContent || isLoading || !!error}>
-            Play Selected
-          </button>
-          <button onClick={onClose}>Cancel</button>
-        </div>
-      </div>
-    </div>
+        {!isLoading && !error && audioContent.length > 0 && (
+          <FormControl component="fieldset" fullWidth>
+            <RadioGroup
+              value={selectedContent || ""}
+              onChange={(e) => setSelectedContent(e.target.value)}
+            >
+              {audioContent.map((content) => (
+                <FormControlLabel
+                  key={content.id}
+                  value={content.url}
+                  control={<Radio />}
+                  label={
+                    <Box>
+                      <Typography variant="body1" fontWeight={500}>
+                        {content.name}
+                      </Typography>
+                      {content.language && (
+                        <Typography variant="caption" color="text.secondary">
+                          {content.language}
+                        </Typography>
+                      )}
+                      {content.description && (
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                          {content.description}
+                        </Typography>
+                      )}
+                    </Box>
+                  }
+                />
+              ))}
+            </RadioGroup>
+          </FormControl>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button
+          onClick={handleSubmit}
+          disabled={!selectedContent || isLoading || !!error}
+          variant="contained"
+          sx={{
+            bgcolor: "#2e7d32",
+            "&:hover": {
+              bgcolor: "#1b5e20",
+            },
+          }}
+        >
+          Play Selected
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 };
