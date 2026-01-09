@@ -138,7 +138,7 @@ class BaseProcessor(ABC):
                         if isinstance(result, Exception):
                             self.log_error(
                                 f"Task {i} failed with exception: {result}",
-                                exc_info=True,
+                                exc_info=result,
                             )
 
                 except asyncio.TimeoutError:

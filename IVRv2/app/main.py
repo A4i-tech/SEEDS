@@ -24,7 +24,7 @@ from app.settings import settings
 from app.actions.vonage_actions.vonage_action_factory import VonageActionFactory
 from app.fsm.insti import instantiate_from_latest_content, instantitate_from_doc
 from app.fsm.radio_instantiation import instantiate_from_content_ids
-from app.utils.mongodb import MongoDB
+from app.utils.mongodb import MongoDB, close_mongo_client
 from fastapi.responses import HTMLResponse
 from app.fsm.visualiseIVR import get_latest_content, process_content
 from app.utils.model_classes import (
@@ -288,6 +288,10 @@ async def shutdown_event():
         await call_event_processor.shutdown(timeout=30)
 
     await service_bus_manager.close()
+
+    # Close MongoDB connection pool
+    close_mongo_client()
+
     logging.info("Application shutdown complete.")
 
 
@@ -386,7 +390,7 @@ async def call_webhook(request: Request, response: Response):
     logging.info(f"[WEBHOOK] CALL DATA RECEIVED: {call_data}")
     call_status = call_data.get("_su")  # 2 = missed call
     phone_number = call_data.get("_cl")  # with country code
-    tenant_id = query_params.get("tenant_id") # optional tenant id
+    tenant_id = query_params.get("tenant_id")  # optional tenant id
     logging.info(f"[WEBHOOK] CALL STATUS: {call_status}")
     if call_status != 2:
         logging.error(
@@ -401,8 +405,14 @@ async def call_webhook(request: Request, response: Response):
     logging.info(f"[WEBHOOK] ✓ Logged missed call with ID: {insert_result}")
 
     # send message to service bus to process the call asynchronously
-    logging.info(f"[WEBHOOK] Sending message to call_webhook queue, log_id: {insert_result}")
-    payload = {"phone_number": phone_number, "call_log_id": str(insert_result), "tenant_id": tenant_id}
+    logging.info(
+        f"[WEBHOOK] Sending message to call_webhook queue, log_id: {insert_result}"
+    )
+    payload = {
+        "phone_number": phone_number,
+        "call_log_id": str(insert_result),
+        "tenant_id": tenant_id,
+    }
     logging.info(f"[WEBHOOK] Payload: {payload}")
     try:
         result = await service_bus_manager.send_call_webhook(payload=payload)

@@ -1,15 +1,15 @@
 import asyncio
+import logging
 import threading
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
-from dotenv import load_dotenv
 from pymongo import MongoClient
 
 from app.interfaces.database import IDatabase
 from app.settings import settings
 
-load_dotenv()
+logger = logging.getLogger(__name__)
 
 
 # Shared MongoClient singleton with connection pooling
@@ -22,6 +22,7 @@ def get_mongo_client() -> MongoClient:
     """Get or create a shared MongoClient singleton with connection pooling.
 
     Thread-safe using double-checked locking pattern.
+    Ensures atomicity: both client and database_name are set together or not at all.
     """
 
     global _mongo_client, _database_name
@@ -37,22 +38,28 @@ def get_mongo_client() -> MongoClient:
                     "MONGO_DB_CONNECTION_STRING environment variable not set"
                 )
 
-            _mongo_client = MongoClient(
-                connection_string,
-                maxPoolSize=50,
-                serverSelectionTimeoutMS=5000,
-            )
 
             try:
                 parsed_url = urlparse(connection_string)
                 path = parsed_url.path.lstrip("/").split("?")[0]
                 if not path:
                     raise ValueError("Database name not found in connection string")
-                _database_name = path
+                db_name = path
             except Exception as e:
                 raise ValueError(
                     f"Error parsing database name from connection string: {e}"
                 )
+
+            # Only create client after successful URL parsing
+            client = MongoClient(
+                connection_string,
+                maxPoolSize=50,
+                serverSelectionTimeoutMS=5000,
+            )
+
+            # Set both globals atomically after all operations succeed
+            _database_name = db_name
+            _mongo_client = client
 
     return _mongo_client
 
@@ -64,6 +71,29 @@ def get_database_name() -> str:
     if _database_name is None:
         raise ValueError("Database name not initialized")
     return _database_name
+
+
+def close_mongo_client() -> None:
+    """Close the MongoDB client connection pool gracefully.
+
+    Thread-safe function to close the singleton MongoClient during application shutdown.
+    Safe to call multiple times (idempotent).
+    """
+
+    global _mongo_client, _database_name
+
+    with _client_lock:
+        if _mongo_client is not None:
+            try:
+                _mongo_client.close()
+                logger.info("MongoDB client connection closed successfully")
+            except Exception as e:
+                logger.warning(f"Error closing MongoDB client: {e}")
+            finally:
+                _mongo_client = None
+                _database_name = None
+        else:
+            logger.debug("MongoDB client already closed or never initialized")
 
 
 class MongoDB(IDatabase):
