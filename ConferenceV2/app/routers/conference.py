@@ -133,6 +133,22 @@ async def unmute_participant(conference_id: str, phone_number: str):
     return {"message": "Event Queued for execution"}
 
 
+@router.put("/muteallstudents/{conference_id}")
+async def mute_all_students(conference_id: str):
+    conference = conference_manager.get_conference(conference_id)
+    if not conference:
+        raise HTTPException(status_code=404, detail="Conference not found")
+
+    # Queue mute events for all students
+    students = conference.state.get_students()
+    for student in students:
+        await conference.queue_event(
+            MuteParticipantEvent(phone_number=student.phone_number, conf_call=conference, stream_system_message=False)
+        )
+
+    return {"message": f"Queued mute events for {len(students)} students"}
+
+
 @router.put("/playaudio/{conference_id}")
 async def play_audio(conference_id: str, url: str):
     conference = conference_manager.get_conference(conference_id)

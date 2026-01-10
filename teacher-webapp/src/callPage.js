@@ -8,6 +8,7 @@ import {
   sinkConferenceCall,
   muteParticipant,
   unmuteParticipant,
+  muteAllStudents,
   playAudio,
   pauseAudio,
   addParticipant,
@@ -124,6 +125,16 @@ export function DetailsPage() {
       showToast.error("Failed to sink conference");
     } finally {
       setIsSinkingConf(false);
+    }
+  };
+
+  const handleMuteAllStudents = async () => {
+    try {
+      await muteAllStudents(confId);
+      showToast.success("Muting all students");
+    } catch (error) {
+      console.error("Error muting all students:", error);
+      showToast.error("Failed to mute all students");
     }
   };
 
@@ -309,6 +320,7 @@ export function DetailsPage() {
           onSinkConf={handleSinkConf}
           onAddParticipant={handleOpenModal}
           onMusicControl={handleMusicControl}
+          onMuteAllStudents={handleMuteAllStudents}
         />
 
         {/* Seek Controls */}

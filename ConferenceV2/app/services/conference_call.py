@@ -87,21 +87,6 @@ class ConferenceCall:
             self.state.teacher_phone_number,
             [student.phone_number for student in self.state.get_students()]
         )
-
-        # Wait 2 seconds for students to answer before queuing mute events
-        await asyncio.sleep(2)
-
-        # Queue mute events for all students
-        from app.services.confevents.mute_participant_event import MuteParticipantEvent
-        for student in self.state.get_students():
-            await self.queue_event(
-                MuteParticipantEvent(
-                    phone_number=student.phone_number,
-                    conf_call=self,
-                    stream_system_message=False  # Don't stream messages during initial mute
-                )
-            )
-
         self.state.is_running = True
         # TODO: Set CONNECTED CALL STATUS WHEN ATLEAST ONE OF THE PARTICIPANTS HAVE PICKED UP
         self.state.action_history.append(ActionHistory(

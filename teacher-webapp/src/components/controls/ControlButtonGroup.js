@@ -6,6 +6,7 @@ import {
   PersonAdd as PersonAddIcon,
   MusicNote as MusicNoteIcon,
   Pause as PauseIcon,
+  VolumeOff as VolumeOffIcon,
 } from "@mui/icons-material";
 
 export const ControlButtonGroup = ({
@@ -21,6 +22,7 @@ export const ControlButtonGroup = ({
   onSinkConf,
   onAddParticipant,
   onMusicControl,
+  onMuteAllStudents,
   disabled,
 }) => {
   return (
@@ -102,6 +104,29 @@ export const ControlButtonGroup = ({
         aria-label="Add participant"
       >
         Add Participant
+      </Button>
+
+      <Button
+        variant="outlined"
+        startIcon={<VolumeOffIcon />}
+        onClick={onMuteAllStudents}
+        disabled={!isConfCallRunning}
+        sx={{
+          borderColor: "#d32f2f",
+          color: "#d32f2f",
+          bgcolor: "#ffffff",
+          "&:hover": {
+            borderColor: "#b71c1c",
+            bgcolor: "#ffebee",
+          },
+          "&:disabled": {
+            borderColor: "#cccccc",
+            color: "#cccccc",
+          },
+        }}
+        aria-label="Mute all students"
+      >
+        Mute All Students
       </Button>
 
       <Button

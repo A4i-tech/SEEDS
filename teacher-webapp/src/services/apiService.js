@@ -83,6 +83,16 @@ export const unmuteParticipant = async (confId, phone_number) => {
   return response.json();
 };
 
+export const muteAllStudents = async (confId) => {
+  const response = await fetch(API_ENDPOINTS.CONFERENCE.MUTE_ALL_STUDENTS(confId), {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+  return response.json();
+};
+
 export const playAudio = async (confId, url) => {
   const audioUrl =
     url ??
