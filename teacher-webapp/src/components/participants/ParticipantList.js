@@ -58,14 +58,14 @@ export const ParticipantList = ({
         </>
       ) : (
         <>
-          {teacher && (
-            <Box sx={{ mb: 3 }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
-                <SchoolIcon sx={{ color: "#2e7d32", fontSize: 24 }} />
-                <Typography variant="h6" fontWeight={600}>
-                  Teacher
-                </Typography>
-              </Box>
+          <Box sx={{ mb: 3 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+              <SchoolIcon sx={{ color: "#2e7d32", fontSize: 24 }} />
+              <Typography variant="h6" fontWeight={600}>
+                Teacher
+              </Typography>
+            </Box>
+            {teacher ? (
               <ParticipantCard
                 participant={teacher}
                 isTeacher={true}
@@ -75,8 +75,22 @@ export const ParticipantList = ({
                 isReconnecting={isReconnecting(teacher.phoneNumber)}
                 canReconnect={canReconnect(teacher)}
               />
-            </Box>
-          )}
+            ) : (
+              <Paper
+                variant="outlined"
+                sx={{
+                  p: 2,
+                  textAlign: "center",
+                  bgcolor: "action.hover",
+                  borderRadius: 1,
+                }}
+              >
+                <Typography variant="body2" color="text.secondary">
+                  Loading teacher information...
+                </Typography>
+              </Paper>
+            )}
+          </Box>
 
           {students.length > 0 && (
             <Box>

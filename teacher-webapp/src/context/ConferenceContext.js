@@ -89,6 +89,8 @@ export const ConferenceProvider = ({ children }) => {
       ) {
         const newTeacher = new Participant({
           ...selectedTeacher,
+          ...event.participants[phoneNumber],
+          role: selectedTeacher.role,
           raised_at: participant.raised_at,
           is_raised: participant.is_raised,
           is_muted: participant.is_muted,

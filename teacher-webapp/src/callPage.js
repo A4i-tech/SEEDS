@@ -27,8 +27,14 @@ const getPhoneNumber = (user) => user?.phoneNumber;
 
 export function DetailsPage() {
   const navigate = useNavigate();
-  const { userList, confId, isConfCallRunning, audioContentState, conferenceStudents } =
-    useConference();
+  const {
+    userList,
+    confId,
+    isConfCallRunning,
+    audioContentState,
+    conferenceStudents,
+    selectedTeacher,
+  } = useConference();
 
   const [users, setUsers] = useState(userList);
   const [loadingIds, setLoadingIds] = useState([]);
@@ -45,7 +51,7 @@ export function DetailsPage() {
 
   useEffect(() => {
     setUsers(userList);
-  }, [userList]);
+  }, [userList, selectedTeacher]);
 
   // Auto-mute all students when they join the call
   useEffect(() => {
@@ -84,7 +90,8 @@ export function DetailsPage() {
   }, []);
 
   // Get teacher from userList (which is updated by SSE events)
-  const teacher = users.find((user) => user.role === "Teacher") || null;
+  // Falls back to selectedTeacher if not found in users
+  const teacher = users.find((user) => user?.role === "Teacher") || selectedTeacher || null;
   const students = conferenceStudents;
 
   const handleMuteToggle = async (userToUpdate) => {
