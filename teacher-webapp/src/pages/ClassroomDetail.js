@@ -59,6 +59,7 @@ const ClassroomDetail = () => {
     handleStudentToggle,
     handleTeacherSelect,
     setConferenceStudents,
+    setAllClassroomStudents,
   } = useConference();
 
   // Main data loading effect - handles sequential and parallel fetching
@@ -222,7 +223,18 @@ const ClassroomDetail = () => {
       const conferenceId = data.id;
       setConfId(conferenceId);
       setConferenceId(conferenceId);
+
       setConferenceStudents(selectedStudents);
+
+      // Pass ALL students with both property name formats for "Add Participant" modal
+      // This allows adding unselected students later
+      const allStudentsFormatted = teacherStudentsList.map((student) => ({
+        name: student.name,
+        phoneNumber: student.phoneNumber,
+        phone_number: student.phoneNumber, // For AddParticipantModal compatibility
+      }));
+      setAllClassroomStudents(allStudentsFormatted);
+
       console.log("Conference created successfully. Conf ID:", conferenceId);
       console.log("Student phones sent:", studentPhonesFormatted);
 
