@@ -22,8 +22,11 @@ class AddParticipantEvent(ConferenceEvent):
                 phone_number=self.phone_number,
                 role=Role.STUDENT,
                 call_status=CallStatus.DISCONNECTED,
+                is_muted=True,  # New students start muted
             )
             current_participants_dict[self.phone_number] = participant
+            # Note: The webhook handler will mute this student when they connect
+            # (same logic as initial students - see webhooks.py:87-90)
 
         # If it's an old participant, check if the participant is already connected
         elif current_participants_dict[self.phone_number].call_status != CallStatus.CONNECTED:

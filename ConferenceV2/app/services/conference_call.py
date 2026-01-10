@@ -68,13 +68,14 @@ class ConferenceCall:
         self.state.participants[teacher_phone] = teacher
         self.state.teacher_phone_number = teacher_phone
 
-        # Create student participants
+        # Create student participants (pre-muted)
         for phone in student_phones:
             student = Participant(
                 name="Student",
                 phone_number=phone,
                 role=Role.STUDENT,
                 call_status=CallStatus.DISCONNECTED,
+                is_muted=True,  # Students start muted by default
             )
             self.state.participants[phone] = student
     
