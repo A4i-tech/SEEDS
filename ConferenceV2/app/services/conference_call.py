@@ -68,14 +68,13 @@ class ConferenceCall:
         self.state.participants[teacher_phone] = teacher
         self.state.teacher_phone_number = teacher_phone
 
-        # Create student participants (pre-muted)
+        # Create student participants
         for phone in student_phones:
             student = Participant(
                 name="Student",
                 phone_number=phone,
                 role=Role.STUDENT,
                 call_status=CallStatus.DISCONNECTED,
-                is_muted=True,  # Students start muted by default
             )
             self.state.participants[phone] = student
     
@@ -85,18 +84,33 @@ class ConferenceCall:
     async def start_conference(self):
         # Start the call via communication API
         await self.communication_api.start_conf(
-            self.state.teacher_phone_number, 
+            self.state.teacher_phone_number,
             [student.phone_number for student in self.state.get_students()]
         )
+
+        # Wait 2 seconds for students to answer before queuing mute events
+        await asyncio.sleep(2)
+
+        # Queue mute events for all students
+        from app.services.confevents.mute_participant_event import MuteParticipantEvent
+        for student in self.state.get_students():
+            await self.queue_event(
+                MuteParticipantEvent(
+                    phone_number=student.phone_number,
+                    conf_call=self,
+                    stream_system_message=False  # Don't stream messages during initial mute
+                )
+            )
+
         self.state.is_running = True
         # TODO: Set CONNECTED CALL STATUS WHEN ATLEAST ONE OF THE PARTICIPANTS HAVE PICKED UP
         self.state.action_history.append(ActionHistory(
-                                                    timestamp=datetime.now().isoformat(), 
-                                                    action_type=ActionType.CONFERENCE_START, 
+                                                    timestamp=datetime.now().isoformat(),
+                                                    action_type=ActionType.CONFERENCE_START,
                                                     metadata={
                                                         "teacher_phone": self.state.teacher_phone_number,
                                                         "student_phones": [student.phone_number for student in self.state.get_students()]
-                                                    }, 
+                                                    },
                                                     owner=self.state.teacher_phone_number
                                                  )
                                     )

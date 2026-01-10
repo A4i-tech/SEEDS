@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { Box, Typography } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { useConference } from "./context/ConferenceContext";
@@ -41,32 +41,11 @@ export function DetailsPage() {
   const [isAudioModalOpen, setIsAudioModalOpen] = useState(false);
   const [seekDirection, setSeekDirection] = useState(null);
   const [audioSelectionError, setAudioSelectionError] = useState(null);
-  const mutedStudentsRef = useRef(new Set());
 
   useEffect(() => {
     setUsers(userList);
   }, [userList]);
 
-  // Auto-mute all students when they join the call
-  useEffect(() => {
-    if (isConfCallRunning && userList && userList.length > 0) {
-      userList.forEach((user) => {
-        const normalizedPhone = normalizePhoneNumber(user.phoneNumber);
-        if (
-          user.role === "Student" &&
-          user.call_status === "connected" &&
-          !user.is_muted &&
-          !mutedStudentsRef.current.has(normalizedPhone)
-        ) {
-          mutedStudentsRef.current.add(normalizedPhone);
-          muteParticipant(confId, normalizedPhone).catch((error) => {
-            console.error("Error auto-muting student:", error);
-            mutedStudentsRef.current.delete(normalizedPhone);
-          });
-        }
-      });
-    }
-  }, [isConfCallRunning, userList, confId]);
 
   // Listen for conference notifications
   useEffect(() => {
