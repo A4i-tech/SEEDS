@@ -15,6 +15,7 @@ export const ConferenceProvider = ({ children }) => {
   const [confId, setConfId] = useState("");
   const [loading, setLoading] = useState(false);
   const [conferenceStudents, setConferenceStudents] = useState([]);
+  const [allClassroomStudents, setAllClassroomStudents] = useState([]);
   const previousParticipantStatusRef = useRef({});
 
   // Updates the `userList` whenever teacher or students are selected
@@ -140,6 +141,8 @@ export const ConferenceProvider = ({ children }) => {
         handleStudentToggle,
         setConferenceStudents,
         conferenceStudents,
+        allClassroomStudents,
+        setAllClassroomStudents,
       }}
     >
       {children}

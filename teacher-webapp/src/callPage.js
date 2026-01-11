@@ -27,8 +27,15 @@ const getPhoneNumber = (user) => user?.phoneNumber;
 
 export function DetailsPage() {
   const navigate = useNavigate();
-  const { userList, confId, isConfCallRunning, audioContentState, conferenceStudents } =
-    useConference();
+  const {
+    userList,
+    confId,
+    isConfCallRunning,
+    audioContentState,
+    conferenceStudents,
+    selectedTeacher,
+    allClassroomStudents,
+  } = useConference();
 
   const [users, setUsers] = useState(userList);
   const [loadingIds, setLoadingIds] = useState([]);
@@ -241,7 +248,7 @@ export function DetailsPage() {
   };
 
   // Filter out students who are already in the userList
-  const availableStudents = conferenceStudents.filter(
+  const availableStudents = allClassroomStudents.filter(
     (student) =>
       !userList.some(
         (user) =>
