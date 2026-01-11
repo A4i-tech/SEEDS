@@ -21,7 +21,7 @@ from app.utils.model_classes import (
     UserAction,
     VonageCallStartResponse,
 )
-from app.core.state import get_app_state
+from app.core.dependencies import get_app_state
 from app.settings import settings
 
 action_factory = VonageActionFactory()
