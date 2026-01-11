@@ -22,6 +22,7 @@ class AddParticipantEvent(ConferenceEvent):
                 phone_number=self.phone_number,
                 role=Role.STUDENT,
                 call_status=CallStatus.DISCONNECTED,
+                is_muted=True,  # Students start muted at Vonage API level
             )
             current_participants_dict[self.phone_number] = participant
 
