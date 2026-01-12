@@ -122,7 +122,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await service_bus_manager.close()
 
     # Close MongoDB connection pool (also clears global)
-    close_mongodb_manager()
+    await close_mongodb_manager()
 
     # Clear global state
     clear_app_state()

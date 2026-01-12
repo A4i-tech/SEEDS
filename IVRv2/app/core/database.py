@@ -3,6 +3,8 @@ MongoDB database management using FastAPI lifespan and dependency injection.
 
 This module provides a clean, testable approach to MongoDB connection management
 without relying on global state or module-level side effects.
+
+Uses Motor for async MongoDB operations.
 """
 
 import logging
@@ -11,8 +13,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
-from pymongo import MongoClient
-from pymongo.database import Database
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 
 from app.interfaces.database import IDatabase
 from app.settings import settings
@@ -22,18 +23,18 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class MongoDBManager:
-    """Manages MongoDB client lifecycle and provides collection access.
+    """Manages async MongoDB client lifecycle using Motor and provides collection access.
 
     This class encapsulates MongoDB connection management, ensuring proper
     initialization and cleanup without relying on global state.
     """
 
-    _client: Optional[MongoClient] = field(default=None, repr=False)
+    _client: Optional[AsyncIOMotorClient] = field(default=None, repr=False)
     _database_name: Optional[str] = field(default=None)
-    _database: Optional[Database] = field(default=None, repr=False)
+    _database: Optional[AsyncIOMotorDatabase] = field(default=None, repr=False)
 
     def initialize(self) -> None:
-        """Initialize the MongoDB client and database connection.
+        """Initialize the async MongoDB client and database connection.
 
         Parses the connection string first to ensure atomicity - if parsing fails,
         no client is created, preventing inconsistent state.
@@ -60,17 +61,17 @@ class MongoDBManager:
             raise ValueError(f"Error parsing database name from connection string: {e}")
 
         # Only create client after successful URL parsing
-        self._client = MongoClient(
+        self._client = AsyncIOMotorClient(
             connection_string,
             maxPoolSize=settings.mongo_max_pool_size,
             serverSelectionTimeoutMS=5000,
         )
         self._database = self._client[self._database_name]
         logger.info(
-            f"MongoDB client initialized successfully, database: {self._database_name}"
+            f"MongoDB async client initialized successfully, database: {self._database_name}"
         )
 
-    def close(self) -> None:
+    async def close(self) -> None:
         """Close the MongoDB client connection gracefully.
 
         Safe to call multiple times (idempotent).
@@ -78,9 +79,9 @@ class MongoDBManager:
         if self._client is not None:
             try:
                 self._client.close()
-                logger.info("MongoDB client connection closed successfully")
+                logger.info("MongoDB async client connection closed successfully")
             except Exception as e:
-                logger.warning(f"Error closing MongoDB client: {e}")
+                logger.warning(f"Error closing MongoDB async client: {e}")
             finally:
                 self._client = None
                 self._database = None
@@ -89,8 +90,8 @@ class MongoDBManager:
             logger.debug("MongoDB client already closed or never initialized")
 
     @property
-    def client(self) -> MongoClient:
-        """Get the MongoDB client instance.
+    def client(self) -> AsyncIOMotorClient:
+        """Get the async MongoDB client instance.
 
         Raises:
             RuntimeError: If the manager has not been initialized.
@@ -102,7 +103,7 @@ class MongoDBManager:
         return self._client
 
     @property
-    def database(self) -> Database:
+    def database(self) -> AsyncIOMotorDatabase:
         """Get the database instance.
 
         Raises:
@@ -142,79 +143,58 @@ class MongoDBManager:
 class MongoDBCollection(IDatabase):
     """MongoDB collection wrapper implementing the IDatabase interface.
 
-    Provides async methods for common database operations using asyncio.to_thread
-    to avoid blocking the event loop.
+    Provides async methods for common database operations using Motor.
     """
 
     def __init__(self, collection):
-        """Initialize with a PyMongo collection instance."""
+        """Initialize with a Motor AsyncIOMotorCollection instance."""
         self.collection = collection
 
     async def find_by_id(self, id_string: str) -> Optional[Dict[str, Any]]:
         """Find a document by its _id field."""
-        import asyncio
-
-        return await asyncio.to_thread(self.collection.find_one, {"_id": id_string})
+        return await self.collection.find_one({"_id": id_string})
 
     async def find_one_by_query(self, query: dict) -> Optional[Dict[str, Any]]:
         """Find a single document matching the query."""
-        import asyncio
-
-        return await asyncio.to_thread(self.collection.find_one, query)
+        return await self.collection.find_one(query)
 
     async def find_all(self) -> List[Dict[str, Any]]:
         """Find all documents in the collection."""
-        import asyncio
-
-        return await asyncio.to_thread(lambda: list(self.collection.find()))
+        cursor = self.collection.find({})
+        return await cursor.to_list(length=None)
 
     async def query_items(self, query: dict) -> List[Dict[str, Any]]:
         """Find all documents matching the query."""
-        import asyncio
-
-        return await asyncio.to_thread(lambda: list(self.collection.find(query)))
+        cursor = self.collection.find(query)
+        return await cursor.to_list(length=None)
 
     async def insert(self, doc: dict) -> Any:
         """Insert a document into the collection."""
-        import asyncio
-
-        result = await asyncio.to_thread(self.collection.insert_one, doc)
-        if not result.acknowledged:
-            raise RuntimeError(
-                f"MongoDB insert not acknowledged for doc: {doc.get('_id')}"
-            )
+        result = await self.collection.insert_one(doc)
+        if not result.inserted_id:
+            raise RuntimeError(f"MongoDB insert failed for doc: {doc.get('_id')}")
         return result.inserted_id
 
     async def update_document(self, id: str, new_doc: dict) -> Any:
         """Replace a document by its _id field."""
-        import asyncio
-
-        result = await asyncio.to_thread(
-            self.collection.replace_one, {"_id": id}, new_doc, True
-        )
+        result = await self.collection.replace_one({"_id": id}, new_doc, upsert=True)
         if not result.acknowledged:
             raise RuntimeError(f"MongoDB update not acknowledged for id: {id}")
         return result
 
     async def delete(self, id: str) -> Any:
         """Delete a document by its _id field."""
-        import asyncio
-
-        result = await asyncio.to_thread(self.collection.delete_one, {"_id": id})
+        result = await self.collection.delete_one({"_id": id})
         if not result.acknowledged:
             raise RuntimeError(f"MongoDB delete not acknowledged for id: {id}")
         return result
 
     async def find_top_one(self, attr: str) -> Optional[Dict[str, Any]]:
         """Find the document with the highest value for the specified attribute."""
-        import asyncio
-
-        return await asyncio.to_thread(
-            lambda: self.collection.find_one(sort=[(attr, -1)])
-        )
+        return await self.collection.find_one(sort=[(attr, -1)])
 
     def get_collection(self):
-        """Get the underlying PyMongo collection."""
+        """Get the underlying Motor collection."""
         return self.collection
 
 
@@ -252,12 +232,12 @@ def init_mongodb_manager() -> MongoDBManager:
     return mongodb_manager
 
 
-def close_mongodb_manager() -> None:
+async def close_mongodb_manager() -> None:
     """Close the global MongoDB manager.
 
     Called during application lifespan shutdown.
     """
     global mongodb_manager
     if mongodb_manager is not None:
-        mongodb_manager.close()
+        await mongodb_manager.close()
         mongodb_manager = None

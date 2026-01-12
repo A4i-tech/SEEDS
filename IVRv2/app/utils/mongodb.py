@@ -114,50 +114,46 @@ class MongoDB(IDatabase):
 
     async def find_by_id(self, id_string: str) -> Optional[Dict[str, Any]]:
         self._ensure_initialized()
-        return await asyncio.to_thread(self.collection.find_one, {"_id": id_string})
+        return await self.collection.find_one({"_id": id_string})
 
     async def find_one_by_query(self, query: dict) -> Optional[Dict[str, Any]]:
         self._ensure_initialized()
-        return await asyncio.to_thread(self.collection.find_one, query)
+        return await self.collection.find_one(query)
 
     async def find_all(self) -> List[Dict[str, Any]]:
         self._ensure_initialized()
-        return await asyncio.to_thread(lambda: list(self.collection.find()))
+        cursor = self.collection.find({})
+        return await cursor.to_list(length=None)
 
     async def query_items(self, query: dict) -> List[Dict[str, Any]]:
         self._ensure_initialized()
-        return await asyncio.to_thread(lambda: list(self.collection.find(query)))
+        cursor = self.collection.find(query)
+        return await cursor.to_list(length=None)
 
     async def insert(self, doc: dict) -> Any:
         self._ensure_initialized()
-        result = await asyncio.to_thread(self.collection.insert_one, doc)
-        if not result.acknowledged:
-            raise RuntimeError(
-                f"MongoDB insert not acknowledged for doc: {doc.get('_id')}"
-            )
+        result = await self.collection.insert_one(doc)
+        if not result.inserted_id:
+            raise RuntimeError(f"MongoDB insert failed for doc: {doc.get('_id')}")
         return result.inserted_id
 
     async def update_document(self, id: str, new_doc: dict) -> Any:
         self._ensure_initialized()
-        result = await asyncio.to_thread(
-            self.collection.replace_one, {"_id": id}, new_doc, True
-        )
+        result = await self.collection.replace_one({"_id": id}, new_doc, upsert=True)
         if not result.acknowledged:
             raise RuntimeError(f"MongoDB update not acknowledged for id: {id}")
         return result
 
     async def delete(self, id: str) -> Any:
         self._ensure_initialized()
-        result = await asyncio.to_thread(self.collection.delete_one, {"_id": id})
+        result = await self.collection.delete_one({"_id": id})
         if not result.acknowledged:
             raise RuntimeError(f"MongoDB delete not acknowledged for id: {id}")
         return result
 
     async def find_top_one(self, attr: str) -> Optional[Dict[str, Any]]:
         self._ensure_initialized()
-        return await asyncio.to_thread(
-            lambda: self.collection.find_one(sort=[(attr, -1)])
-        )
+        return await self.collection.find_one(sort=[(attr, -1)])
 
     def get_collection(self):
         self._ensure_initialized()

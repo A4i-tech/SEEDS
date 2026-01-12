@@ -806,9 +806,26 @@ async def dtmf(input: Request):
     logging.info(f"Received request body: {dtmf_input}")
     digits = dtmf_input.dtmf.digits
     conv_id = dtmf_input.conversation_uuid
-    doc = await ongoing_fsm_mongo.find_by_id(conv_id)
+    # Retry logic to handle race condition where DTMF arrives before state is created
+    doc = None
+    max_retries = 3
+    retry_delay = 0.5  # seconds - shorter delay for DTMF input
+
+    for attempt in range(max_retries):
+        doc = await ongoing_fsm_mongo.find_by_id(conv_id)
+        if doc is not None:
+            break
+
+        if attempt < max_retries - 1:
+            logging.debug(
+                f"IVR state not found for {conv_id}, attempt {attempt + 1}/{max_retries}, waiting {retry_delay}s..."
+            )
+            await asyncio.sleep(retry_delay)
+
     if doc == None:
-        logging.error(f"ERROR: NO ONGOING IVR STATE FOUND FOR CONV ID: {conv_id}")
+        logging.error(
+            f"ERROR: NO ONGOING IVR STATE FOUND FOR CONV ID: {conv_id} after {max_retries} retries"
+        )
         # Talk Action of server error bye bye
         ncco = accumulator.combine(
             [

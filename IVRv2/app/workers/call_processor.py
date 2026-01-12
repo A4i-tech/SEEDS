@@ -275,10 +275,26 @@ class DtmfInputProcessor(BaseProcessor):
             app_state = get_app_state()
             ongoing_fsm_mongo = app_state.ongoing_fsm_mongo
 
-            # Get IVR state
-            doc = await ongoing_fsm_mongo.find_by_id(conv_id)
+            # Retry logic to handle race condition where DTMF arrives before state is created
+            doc = None
+            max_retries = 3
+            retry_delay = 0.5  # seconds
+
+            for attempt in range(max_retries):
+                doc = await ongoing_fsm_mongo.find_by_id(conv_id)
+                if doc is not None:
+                    break
+
+                if attempt < max_retries - 1:
+                    self.log_debug(
+                        f"IVR state not found for {conv_id}, attempt {attempt + 1}/{max_retries}, waiting {retry_delay}s..."
+                    )
+                    await asyncio.sleep(retry_delay)
+
             if doc is None:
-                self.log_error(f"No ongoing IVR state found for conv_id: {conv_id}")
+                self.log_error(
+                    f"No ongoing IVR state found for conv_id: {conv_id} after {max_retries} retries"
+                )
                 return
 
             ivr_state = IVRCallStateMongoDoc(**doc)
@@ -431,7 +447,10 @@ class CallEventProcessor(BaseProcessor):
 
             ivr_state = IVRCallStateMongoDoc(**doc)
 
-            # Parse timestamp and store with string key to avoid Pydantic serialization issues
+            # Parse timestamp and prepare atomic update operations
+            # Use atomic $set operations to avoid read-modify-write race conditions
+            update_operations = {}
+
             if timestamp_str:
                 if isinstance(timestamp_str, str):
                     timestamp = datetime.fromisoformat(
@@ -439,31 +458,59 @@ class CallEventProcessor(BaseProcessor):
                     )
                 else:
                     timestamp = timestamp_str
-                # Store with ISO format string as key
-                ivr_state.call_status_updates[timestamp.isoformat()] = status
+                # Store status update with ISO format string as key using atomic $set
+                update_operations[f"call_status_updates.{timestamp.isoformat()}"] = (
+                    status
+                )
 
             # Check if this is an end-call status
             try:
                 status_enum = CallStatus(status)
                 if status_enum in CallStatus.get_end_call_enums():
-                    ivr_state.stopped_at = datetime.now()
-                    ivr_state.duration = duration
+                    # For end-call events, use atomic update to avoid lost updates
+                    # Set the final state atomically
+                    update_operations["stopped_at"] = datetime.now()
+                    update_operations["duration"] = duration
 
-                    log_doc = await ivrv2_logs_mongo.find_by_id(ivr_state.id)
-                    if log_doc is None:
-                        await ivrv2_logs_mongo.insert(ivr_state.dict(by_alias=True))
+                    try:
+                        # Use atomic $set for update with Motor (native async)
+                        await ongoing_fsm_mongo.collection.update_one(
+                            {"_id": conversation_uuid}, {"$set": update_operations}
+                        )
+
+                        # Archive to logs collection with upsert
+                        # Re-read the updated document to get all final state
+                        final_doc = await ongoing_fsm_mongo.find_by_id(
+                            conversation_uuid
+                        )
+                        if final_doc:
+                            ivr_state_final = IVRCallStateMongoDoc(**final_doc)
+                            await ivrv2_logs_mongo.update_document(
+                                ivr_state_final.id, ivr_state_final.dict(by_alias=True)
+                            )
+
                         await ongoing_fsm_mongo.delete(conversation_uuid)
                         self.log_info(f"✓ Call ended and logged: {conversation_uuid}")
-                    else:
-                        self.log_warning(
-                            f"Duplicate call log entry exists for {ivr_state.id}"
+                    except Exception as e:
+                        self.log_error(
+                            f"Error archiving call log for {conversation_uuid}: {e}",
+                            exc_info=True,
                         )
                 else:
-                    # Update ongoing state
-                    await ongoing_fsm_mongo.update_document(
-                        ivr_state.id, ivr_state.dict(by_alias=True)
-                    )
-                    self.log_info(f"✓ Call state updated: {status}")
+                    # For ongoing updates, use atomic $set to update only changed fields
+                    # This prevents lost updates from concurrent events
+                    update_operations["current_state_id"] = ivr_state.current_state_id
+
+                    try:
+                        await ongoing_fsm_mongo.collection.update_one(
+                            {"_id": conversation_uuid}, {"$set": update_operations}
+                        )
+                        self.log_info(f"✓ Call state updated: {status}")
+                    except Exception as e:
+                        self.log_error(
+                            f"Error updating call state for {conversation_uuid}: {e}",
+                            exc_info=True,
+                        )
             except ValueError:
                 self.log_warning(f"Unknown call status: {status}")
 
