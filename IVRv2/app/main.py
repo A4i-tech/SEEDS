@@ -823,8 +823,8 @@ async def dtmf(input: Request):
             await asyncio.sleep(retry_delay)
 
     if doc == None:
-        logging.error(
-            f"ERROR: NO ONGOING IVR STATE FOUND FOR CONV ID: {conv_id} after {max_retries} retries"
+        logging.info(
+            f"INFO: NO ONGOING IVR STATE FOUND FOR CONV ID: {conv_id} after {max_retries} retries"
         )
         # Talk Action of server error bye bye
         ncco = accumulator.combine(

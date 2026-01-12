@@ -327,7 +327,7 @@ class DtmfInputProcessor(BaseProcessor):
                         await asyncio.sleep(retry_delay)
 
                 if doc is None:
-                    self.log_error(
+                    self.log_info(
                         f"No ongoing IVR state found for conv_id: {conv_id} after {max_retries} retries"
                     )
                     return
@@ -502,7 +502,7 @@ class CallEventProcessor(BaseProcessor):
                             f"IVR state not found after {max_retries} retries for early event: {conversation_uuid} (status: {status}) - may be external call"
                         )
                     else:
-                        self.log_warning(
+                        self.log_info(
                             f"No ongoing IVR state found after {max_retries} retries for conversation_uuid: {conversation_uuid} (status: {status}) - call may have ended before state was created"
                         )
                     return
