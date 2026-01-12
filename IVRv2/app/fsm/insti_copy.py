@@ -640,7 +640,7 @@ def generate_states(fsm, content_list, content_attributes, level, parent_state_i
         state_id_final_state = f"{state_id}-LastMenu"
         actions_final = []
         actions_final.append(StreamAction(pullMenuMainUrl + audioFinishedUrl))
-        actions_final.append(InputAction(type_=["dtmf"], eventApi='/input'))
+        actions_final.append(InputAction(type_=["dtmf"], eventApi='/input', timeOut=10))
         fsm.add_state(State(state_id=state_id_final_state, actions=actions_final))
 
         fsm.add_transition(
@@ -660,7 +660,7 @@ def generate_states(fsm, content_list, content_attributes, level, parent_state_i
         if all(item[k].lower() == v.lower() for k, v in parent_selections.items()):
             filtered_content.append(item)
 
-    input_action = InputAction(type_=["dtmf"], eventApi='/input')
+    input_action = InputAction(type_=["dtmf"], eventApi='/input', timeOut=10)
 
     category = content_attributes[level]['category']
     category_id_prefix = content_attributes[level]['id']
