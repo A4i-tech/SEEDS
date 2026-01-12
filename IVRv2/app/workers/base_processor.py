@@ -5,10 +5,12 @@ Provides common functionality for all processor types.
 
 import asyncio
 import logging
+import time
 from abc import ABC, abstractmethod
 from typing import Optional
 
 from app.services.queue.models.queue_message import QueueMessage
+from app.core.telemetry import trace_operation, track_metric
 
 
 class PermanentQueueError(Exception):
@@ -156,42 +158,101 @@ class BaseProcessor(ABC):
 
     async def _handle_message(self, provider, message: QueueMessage):
         """Process a single message and handle queue acknowledgements."""
-        try:
-            await self.process_message(message)
-            deleted = await provider.delete_message(message)
-            if not deleted:
+        start_time = time.time()
+        queue_name = getattr(provider, 'queue_name', 'unknown')
+
+        # Create trace span with context propagation
+        with trace_operation(
+            f"{self.class_name}.process_message",
+            {
+                "message_id": message.message_id,
+                "message_type": message.type.value,
+                "queue_name": queue_name,
+            }
+        ) as span:
+            try:
+                await self.process_message(message)
+                deleted = await provider.delete_message(message)
+
+                # Track success metrics
+                duration = time.time() - start_time
+                track_metric("queue_message_processed", 1, {
+                    "processor": self.class_name,
+                    "queue": queue_name,
+                    "status": "success",
+                    "message_type": message.type.value
+                })
+                track_metric("queue_processing_duration", duration, {
+                    "processor": self.class_name,
+                    "queue": queue_name,
+                })
+
+                if not deleted:
+                    self.log_error(
+                        f"Failed to delete message {message.message_id} after successful processing"
+                    )
+                    if span:
+                        span.add_event("message_deletion_failed")
+
+            except SkipMessageError:
+                # Message not for this processor, return to queue for others
+                self.log_debug(f"Returning skipped message to queue: {message.message_id}")
+                returned = await provider.return_message_to_queue(message)
+
+                track_metric("queue_message_processed", 1, {
+                    "processor": self.class_name,
+                    "queue": queue_name,
+                    "status": "skipped"
+                })
+
+                if not returned:
+                    self.log_error(
+                        f"Failed to return skipped message {message.message_id} to queue"
+                    )
+
+            except PermanentQueueError as e:
+                self.log_warning(f"Permanent failure for message {message.message_id}: {e}")
+                moved = await provider.move_dead_letter_queue(message, reason=str(e))
+                if not moved:
+                    self.log_error(
+                        f"Failed to move message {message.message_id} to DLQ after permanent failure"
+                    )
+                deleted = await provider.delete_message(message)
+                if not deleted:
+                    self.log_error(
+                        f"Failed to delete message {message.message_id} after successful processing"
+                    )
+
+                track_metric("queue_error", 1, {
+                    "processor": self.class_name,
+                    "queue": queue_name,
+                    "error_type": "permanent",
+                })
+
+            except Exception as e:
                 self.log_error(
-                    f"Failed to delete message {message.message_id} after successful processing"
+                    f"Error processing message {message.message_id}: {e}", exc_info=True
                 )
-        except SkipMessageError:
-            # Message not for this processor, return to queue for others
-            self.log_debug(f"Returning skipped message to queue: {message.message_id}")
-            returned = await provider.return_message_to_queue(message)
-            if not returned:
-                self.log_error(
-                    f"Failed to return skipped message {message.message_id} to queue"
-                )
-        except PermanentQueueError as e:
-            self.log_warning(f"Permanent failure for message {message.message_id}: {e}")
-            moved = await provider.move_dead_letter_queue(message, reason=str(e))
-            if not moved:
-                self.log_error(
-                    f"Failed to move message {message.message_id} to DLQ after permanent failure"
-                )
-            deleted = await provider.delete_message(message)
-            if not deleted:
-                self.log_error(
-                    f"Failed to delete message {message.message_id} after successful processing"
-                )
-        except Exception as e:
-            self.log_error(
-                f"Error processing message {message.message_id}: {e}", exc_info=True
-            )
-            returned = await provider.return_message_to_queue(message)
-            if not returned:
-                self.log_error(
-                    f"Failed to return message {message.message_id} to queue after error"
-                )
+                returned = await provider.return_message_to_queue(message)
+                if not returned:
+                    self.log_error(
+                        f"Failed to return message {message.message_id} to queue after error"
+                    )
+
+                duration = time.time() - start_time
+                track_metric("queue_error", 1, {
+                    "processor": self.class_name,
+                    "queue": queue_name,
+                    "error_type": "transient"
+                })
+                track_metric("queue_processing_duration", duration, {
+                    "processor": self.class_name,
+                    "queue": queue_name,
+                    "status": "error"
+                })
+
+                if span:
+                    span.record_exception(e)
 
     def start_background(self, batch_size: int = 10, max_wait_seconds: int = 5):
         """
