@@ -3,7 +3,7 @@ import sys
 import os
 import threading
 from unittest.mock import AsyncMock, MagicMock, patch
-from pymongo.errors import PyMongoError
+from motor.motor_asyncio import AsyncIOMotorClient
 
 # Add the parent directory to the path for imports
 sys.path.append(
@@ -31,7 +31,7 @@ def mock_mongodb_manager(reset_mongo_singleton):
     """Create a mock MongoDB manager and set it as the global manager."""
     manager = MagicMock(spec=MongoDBManager)
     mock_db = MagicMock()
-    mock_collection = MagicMock()
+    mock_collection = AsyncMock()
     mock_db.__getitem__ = MagicMock(return_value=mock_collection)
     manager.database = mock_db
     manager.client = MagicMock()
@@ -57,12 +57,12 @@ class TestMongoDB:
         os.environ, {"MONGO_DB_CONNECTION_STRING": "mongodb://localhost:27017/test"}
     )
     @patch("app.core.database.settings")
-    @patch("app.core.database.MongoClient")
-    def test_mongodb_initialization(self, mock_mongo_client, mock_settings):
+    @patch("app.core.database.AsyncIOMotorClient")
+    def test_mongodb_initialization(self, mock_motor_client, mock_settings):
         """Test MongoDB initialization."""
         mock_settings.mongo_db_connection_string = "mongodb://localhost:27017/test"
         mock_settings.mongo_max_pool_size = 50
-        mock_mongo_client.return_value = self.mock_client
+        mock_motor_client.return_value = self.mock_client
 
         # Initialize the manager first
         manager = MongoDBManager()
@@ -75,8 +75,8 @@ class TestMongoDB:
         mongo._ensure_initialized()
 
         assert mongo.collection is not None
-        mock_mongo_client.assert_called_once()
-        args, kwargs = mock_mongo_client.call_args
+        mock_motor_client.assert_called_once()
+        args, kwargs = mock_motor_client.call_args
         assert args[0] == "mongodb://localhost:27017/test"
         assert kwargs == {"maxPoolSize": 50, "serverSelectionTimeoutMS": 5000}
 
@@ -84,14 +84,14 @@ class TestMongoDB:
         os.environ, {"MONGO_DB_CONNECTION_STRING": "mongodb://localhost:27017/ivr"}
     )
     @patch("app.core.database.settings")
-    @patch("app.core.database.MongoClient")
+    @patch("app.core.database.AsyncIOMotorClient")
     def test_mongodb_initialization_with_default_db(
-        self, mock_mongo_client, mock_settings
+        self, mock_motor_client, mock_settings
     ):
         """Test MongoDB initialization with database in connection string."""
         mock_settings.mongo_db_connection_string = "mongodb://localhost:27017/ivr"
         mock_settings.mongo_max_pool_size = 50
-        mock_mongo_client.return_value = self.mock_client
+        mock_motor_client.return_value = self.mock_client
 
         # Initialize the manager first
         manager = MongoDBManager()
@@ -115,24 +115,21 @@ class TestMongoDB:
         ):
             manager.initialize()
 
-    def test_find_by_id(self, mock_mongodb_manager):
+    @pytest.mark.asyncio
+    async def test_find_by_id(self, mock_mongodb_manager):
         """Test finding document by ID."""
         manager, mock_db, mock_collection = mock_mongodb_manager
         expected_doc = {"_id": "test_id", "name": "test document"}
         mock_collection.find_one.return_value = expected_doc
 
         mongo = MongoDB("test_collection")
-        # Run sync since we're testing the mock
-        import asyncio
-
-        result = asyncio.get_event_loop().run_until_complete(
-            mongo.find_by_id("test_id")
-        )
+        result = await mongo.find_by_id("test_id")
 
         assert result == expected_doc
         mock_collection.find_one.assert_called_once_with({"_id": "test_id"})
 
-    def test_find_one_by_query(self, mock_mongodb_manager):
+    @pytest.mark.asyncio
+    async def test_find_one_by_query(self, mock_mongodb_manager):
         """Test finding one document by query."""
         manager, mock_db, mock_collection = mock_mongodb_manager
         expected_doc = {"name": "test", "status": "active"}
@@ -140,34 +137,31 @@ class TestMongoDB:
 
         mongo = MongoDB("test_collection")
         query = {"status": "active"}
-        import asyncio
-
-        result = asyncio.get_event_loop().run_until_complete(
-            mongo.find_one_by_query(query)
-        )
+        result = await mongo.find_one_by_query(query)
 
         assert result == expected_doc
         mock_collection.find_one.assert_called_once_with(query)
 
-    def test_find_all(self, mock_mongodb_manager):
+    @pytest.mark.asyncio
+    async def test_find_all(self, mock_mongodb_manager):
         """Test finding all documents."""
         manager, mock_db, mock_collection = mock_mongodb_manager
         expected_docs = [{"_id": "1", "name": "doc1"}, {"_id": "2", "name": "doc2"}]
 
-        # Mock cursor behavior
+        # Mock cursor behavior - cursor itself is not async, but to_list is
         mock_cursor = MagicMock()
-        mock_cursor.__iter__ = MagicMock(return_value=iter(expected_docs))
-        mock_collection.find.return_value = mock_cursor
+        mock_cursor.to_list = AsyncMock(return_value=expected_docs)
+
+        mock_collection.find = MagicMock(return_value=mock_cursor)
 
         mongo = MongoDB("test_collection")
-        import asyncio
-
-        result = asyncio.get_event_loop().run_until_complete(mongo.find_all())
+        result = await mongo.find_all()
 
         assert result == expected_docs
-        mock_collection.find.assert_called_once_with()
+        mock_collection.find.assert_called_once_with({})
 
-    def test_insert(self, mock_mongodb_manager):
+    @pytest.mark.asyncio
+    async def test_insert(self, mock_mongodb_manager):
         """Test inserting a document."""
         manager, mock_db, mock_collection = mock_mongodb_manager
         mock_result = MagicMock()
@@ -178,14 +172,13 @@ class TestMongoDB:
         mongo = MongoDB("test_collection")
         test_doc = {"name": "test document", "value": 42}
 
-        import asyncio
-
-        result = asyncio.get_event_loop().run_until_complete(mongo.insert(test_doc))
+        result = await mongo.insert(test_doc)
 
         assert result == "new_id_123"
         mock_collection.insert_one.assert_called_once_with(test_doc)
 
-    def test_update_document(self, mock_mongodb_manager):
+    @pytest.mark.asyncio
+    async def test_update_document(self, mock_mongodb_manager):
         """Test updating a document."""
         manager, mock_db, mock_collection = mock_mongodb_manager
         mock_result = MagicMock()
@@ -197,19 +190,16 @@ class TestMongoDB:
         doc_id = "test_id"
         new_doc = {"name": "updated document", "value": 100}
 
-        import asyncio
-
-        result = asyncio.get_event_loop().run_until_complete(
-            mongo.update_document(doc_id, new_doc)
-        )
+        result = await mongo.update_document(doc_id, new_doc)
 
         assert result == mock_result
         mock_collection.replace_one.assert_called_once()
         args, kwargs = mock_collection.replace_one.call_args
-        assert args == ({"_id": doc_id}, new_doc, True)
-        assert kwargs == {}
+        assert args == ({"_id": doc_id}, new_doc)
+        assert kwargs == {"upsert": True}
 
-    def test_delete(self, mock_mongodb_manager):
+    @pytest.mark.asyncio
+    async def test_delete(self, mock_mongodb_manager):
         """Test deleting a document."""
         manager, mock_db, mock_collection = mock_mongodb_manager
         mock_result = MagicMock()
@@ -220,38 +210,37 @@ class TestMongoDB:
         mongo = MongoDB("test_collection")
         doc_id = "test_id"
 
-        import asyncio
-
-        result = asyncio.get_event_loop().run_until_complete(mongo.delete(doc_id))
+        result = await mongo.delete(doc_id)
 
         assert result == mock_result
         mock_collection.delete_one.assert_called_once_with({"_id": doc_id})
 
-    def test_mongodb_error_handling(self, mock_mongodb_manager):
+    @pytest.mark.asyncio
+    async def test_mongodb_error_handling(self, mock_mongodb_manager):
         """Test MongoDB error handling."""
+        from pymongo.errors import PyMongoError
+
         manager, mock_db, mock_collection = mock_mongodb_manager
         mock_collection.find_one.side_effect = PyMongoError("Connection error")
 
         mongo = MongoDB("test_collection")
 
-        import asyncio
-
         with pytest.raises(PyMongoError):
-            asyncio.get_event_loop().run_until_complete(mongo.find_by_id("test_id"))
+            await mongo.find_by_id("test_id")
 
     @patch.dict(
         os.environ, {"MONGO_DB_CONNECTION_STRING": "mongodb://localhost:27017/test"}
     )
     @patch("app.core.database.settings")
-    @patch("app.core.database.MongoClient")
+    @patch("app.core.database.AsyncIOMotorClient")
     def test_concurrent_initialization_single_client(
-        self, mock_mongo_client, mock_settings
+        self, mock_motor_client, mock_settings
     ):
         """Ensure only one MongoClient is created under concurrent init."""
 
         mock_settings.mongo_db_connection_string = "mongodb://localhost:27017/test"
         mock_settings.mongo_max_pool_size = 50
-        mock_mongo_client.return_value = self.mock_client
+        mock_motor_client.return_value = self.mock_client
 
         start_event = threading.Event()
         results = []
