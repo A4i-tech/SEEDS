@@ -78,7 +78,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Initialize FSM
     logger.info("[LIFESPAN] Initializing FSM from latest content...")
     try:
-        updated_fsm = await instantiate_from_latest_content()
+        updated_fsm = await instantiate_from_latest_content(
+            contents_v3_collection=state.contents_v3_mongo
+        )
         state.fsm[updated_fsm.fsm_id] = updated_fsm
         state.latest_fsm_id = updated_fsm.fsm_id
         logger.info(f"[LIFESPAN] ✓ FSM initialized with ID: {state.latest_fsm_id}")

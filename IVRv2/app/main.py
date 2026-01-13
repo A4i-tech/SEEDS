@@ -209,7 +209,9 @@ async def update_ivr(request: Request, response: Response):
             "status_code": response.status_code,
         }
 
-    updated_fsm = await instantiate_from_latest_content()
+    updated_fsm = await instantiate_from_latest_content(
+        contents_v3_collection=state.contents_v3_mongo
+    )
     fsm[updated_fsm.fsm_id] = updated_fsm
     state.latest_fsm_id = updated_fsm.fsm_id
     # fsm = await instantiate_from_latest_content()
