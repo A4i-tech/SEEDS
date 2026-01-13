@@ -81,7 +81,7 @@ class PureAudio:
         final_state_id = f"{state_id}-LastMenu"
         final_actions = []
         final_actions.append(StreamAction(pullMenuMainUrl + finished_url))
-        final_actions.append(InputAction(type_=["dtmf"], eventApi="/input", timeOut=10))
+        final_actions.append(InputAction(type_=["dtmf"], eventApi="/input"))
         final_state = State(state_id=final_state_id, actions=final_actions)
         fsm.add_state(final_state)
 

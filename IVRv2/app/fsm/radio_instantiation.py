@@ -182,7 +182,7 @@ async def instantiate_from_content_ids(content_ids: List[str]):
             actions.append(StreamAction(getKeyPressUrl(key, language, speechRate)))
             key_to_value_mapping[int(key)] = current_content['title']
             
-        actions.append(InputAction(type_=["dtmf"], eventApi='/input', timeOut=10))
+        actions.append(InputAction(type_=["dtmf"], eventApi='/input'))
         options = [Option(key=key, value=value) for key, value in key_to_value_mapping.items()]
         description = "Welcome State"
         menu = Menu(description=description, options=options if options else None, level=0)
@@ -195,7 +195,7 @@ async def instantiate_from_content_ids(content_ids: List[str]):
         actions_final = []
         audioFinishedUrl = audioFinishedMessageUrl.replace('{language}', language).replace('{speechRate}', speechRate)
         actions_final.append(StreamAction(pullMenuMainUrl + audioFinishedUrl))
-        actions_final.append(InputAction(type_=["dtmf"], eventApi='/input', timeOut=10))
+        actions_final.append(InputAction(type_=["dtmf"], eventApi='/input'))
         options = []
         exit_option = Option(key=9, value='start')
         next_state = Option(key=0, value='exit')
