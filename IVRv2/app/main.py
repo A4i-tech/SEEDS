@@ -44,7 +44,22 @@ import copy
 
 # from comprehension_model_classes import fsm as comprehension_fsm
 import logging
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from azure.monitor.opentelemetry import configure_azure_monitor
+from opentelemetry import trace
+from opentelemetry.trace import get_tracer_provider
+from opentelemetry.propagate import extract
+from logging import getLogger, INFO
+from app.settings import settings
 
+# Configure Azure Monitor if enabled
+if settings.enable_application_insights and settings.applicationinsights_connection_string:
+    configure_azure_monitor(
+        connection_string=settings.applicationinsights_connection_string,
+    )
+
+tracer = trace.get_tracer(__name__, tracer_provider=get_tracer_provider())
+logger = getLogger(__name__)
 
 load_dotenv()
 
@@ -69,7 +84,7 @@ app = FastAPI(
     license_info={"name": "MIT License"},
     lifespan=lifespan,
 )
-
+FastAPIInstrumentor.instrument_app(app)
 # Add CORS middleware configuration
 app.add_middleware(
     CORSMiddleware,
