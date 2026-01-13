@@ -89,7 +89,7 @@ class MongoDBManager:
         """
         if self._client is not None:
             try:
-                self._client.close()
+                await self._client.close()
                 logger.info(
                     "[MongoDB Shutdown] MongoDB async client connection closed successfully"
                 )
