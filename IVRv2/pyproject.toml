@@ -37,7 +37,8 @@ dependencies = [
     "opentelemetry-instrumentation-pymongo (>=0.48b0,<1.0.0)",
     "opentelemetry-instrumentation-httpx (>=0.48b0,<1.0.0)",
     "opentelemetry-instrumentation-requests (>=0.48b0,<1.0.0)",
-    "opentelemetry-instrumentation-logging (>=0.48b0,<1.0.0)"
+    "opentelemetry-instrumentation-logging (>=0.48b0,<1.0.0)",
+    "azure-monitor-events-extension (>=0.1.0,<0.2.0)"
 ]
 
 
