@@ -52,10 +52,11 @@ from opentelemetry.propagate import extract
 from app.application_logger.azure_app_insights import AppInsightsLogHandler
 from app.settings import settings
 
-# Configure Azure Monitor
-configure_azure_monitor(
-    connection_string=settings.applicationinsights_connection_string,
-)
+# Configure Azure Monitor if connection string is available
+if settings.applicationinsights_connection_string:
+    configure_azure_monitor(
+        connection_string=settings.applicationinsights_connection_string,
+    )
 
 tracer = trace.get_tracer(__name__, tracer_provider=get_tracer_provider())
 logging = AppInsightsLogHandler.getLogger(__name__)
