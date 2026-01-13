@@ -18,11 +18,6 @@ from app.core.database import (
 )
 from app.core.state import AppState, set_app_state, clear_app_state
 from app.services.service_bus_manager import service_bus_manager
-from app.core.telemetry import (
-    initialize_telemetry,
-    instrument_fastapi,
-    shutdown_telemetry,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -50,16 +45,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # === STARTUP ===
     logger.info("[LIFESPAN] Starting application initialization...")
-
-    # Initialize telemetry FIRST so all operations are traced
-    logger.info("[LIFESPAN] Initializing Application Insights telemetry...")
-    telemetry_enabled = initialize_telemetry()
-    if telemetry_enabled:
-        logger.info("[LIFESPAN] ✓ Telemetry initialized")
-        # Instrument the FastAPI app
-        instrument_fastapi(app)
-    else:
-        logger.warning("[LIFESPAN] Telemetry not available")
 
     # Create app state
     state = AppState()
@@ -141,9 +126,5 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Clear global state
     clear_app_state()
-
-    # Shutdown telemetry LAST to capture all shutdown operations
-    if telemetry_enabled:
-        shutdown_telemetry()
 
     logger.info("[LIFESPAN] ✓✓✓ Application shutdown complete ✓✓✓")

@@ -26,12 +26,6 @@ class Settings(BaseSettings):
     azure_service_bus_max_retries: int = 3
     mongo_max_pool_size: int = 50
 
-    # Application Insights Configuration
-    applicationinsights_connection_string: str = ""
-    enable_application_insights: bool = True
-    appinsights_sample_rate: float = 1.0
-    appinsights_log_level: str = "INFO"
-
     # Derived Queue names
     @property
     def call_webhook_queue_name(self) -> str:
