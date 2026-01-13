@@ -18,7 +18,22 @@ from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from app.interfaces.database import IDatabase
 from app.settings import settings
 
-logger = logging.getLogger(__name__)
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from azure.monitor.opentelemetry import configure_azure_monitor
+from opentelemetry import trace
+from opentelemetry.trace import get_tracer_provider
+from opentelemetry.propagate import extract
+from app.application_logger.azure_app_insights import AppInsightsLogHandler
+
+# Configure Azure Monitor if connection string is available
+if settings.applicationinsights_connection_string:
+    configure_azure_monitor(
+        connection_string=settings.applicationinsights_connection_string,
+    )
+
+tracer = trace.get_tracer(__name__, tracer_provider=get_tracer_provider())
+
+logger = AppInsightsLogHandler.getLogger(__name__)
 
 
 @dataclass
@@ -48,17 +63,25 @@ class MongoDBManager:
 
         connection_string = settings.mongo_db_connection_string
         if not connection_string or connection_string == "NONE":
-            raise ValueError("MONGO_DB_CONNECTION_STRING environment variable not set")
+            error_msg = "MONGO_DB_CONNECTION_STRING environment variable not set"
+            logger.error(f"[MongoDB Init] {error_msg}")
+            raise ValueError(error_msg)
 
         # Parse database name BEFORE creating client to ensure atomicity
         try:
             parsed_url = urlparse(connection_string)
             path = parsed_url.path.lstrip("/").split("?")[0]
             if not path:
-                raise ValueError("Database name not found in connection string")
+                error_msg = "Database name not found in connection string path"
+                logger.error(
+                    f"[MongoDB Init] {error_msg}. Connection string pattern: mongodb://host:port/database_name"
+                )
+                raise ValueError(error_msg)
             self._database_name = path
         except Exception as e:
-            raise ValueError(f"Error parsing database name from connection string: {e}")
+            error_msg = f"Error parsing database name from connection string: {e}"
+            logger.error(f"[MongoDB Init] {error_msg}")
+            raise ValueError(error_msg) from e
 
         # Only create client after successful URL parsing
         self._client = AsyncIOMotorClient(
@@ -79,15 +102,21 @@ class MongoDBManager:
         if self._client is not None:
             try:
                 self._client.close()
-                logger.info("MongoDB async client connection closed successfully")
+                logger.info(
+                    "[MongoDB Shutdown] MongoDB async client connection closed successfully"
+                )
             except Exception as e:
-                logger.warning(f"Error closing MongoDB async client: {e}")
+                logger.warning(
+                    f"[MongoDB Shutdown] Error closing MongoDB async client: {e}"
+                )
             finally:
                 self._client = None
                 self._database = None
                 self._database_name = None
         else:
-            logger.debug("MongoDB client already closed or never initialized")
+            logger.debug(
+                "[MongoDB Shutdown] MongoDB client already closed or never initialized"
+            )
 
     @property
     def client(self) -> AsyncIOMotorClient:
@@ -97,9 +126,12 @@ class MongoDBManager:
             RuntimeError: If the manager has not been initialized.
         """
         if self._client is None:
-            raise RuntimeError(
-                "MongoDB manager not initialized. Call initialize() first."
+            error_msg = (
+                "MongoDB manager not initialized. Call initialize() first. "
+                "Ensure the application lifespan startup completed successfully."
             )
+            logger.error(f"[MongoDB Access] {error_msg}")
+            raise RuntimeError(error_msg)
         return self._client
 
     @property
@@ -110,9 +142,12 @@ class MongoDBManager:
             RuntimeError: If the manager has not been initialized.
         """
         if self._database is None:
-            raise RuntimeError(
-                "MongoDB manager not initialized. Call initialize() first."
+            error_msg = (
+                "MongoDB manager not initialized. Call initialize() first. "
+                "Ensure the application lifespan startup completed successfully."
             )
+            logger.error(f"[MongoDB Access] {error_msg}")
+            raise RuntimeError(error_msg)
         return self._database
 
     @property
@@ -123,9 +158,12 @@ class MongoDBManager:
             RuntimeError: If the manager has not been initialized.
         """
         if self._database_name is None:
-            raise RuntimeError(
-                "MongoDB manager not initialized. Call initialize() first."
+            error_msg = (
+                "MongoDB manager not initialized. Call initialize() first. "
+                "Ensure the application lifespan startup completed successfully."
             )
+            logger.error(f"[MongoDB Access] {error_msg}")
+            raise RuntimeError(error_msg)
         return self._database_name
 
     def get_collection(self, collection_name: str) -> "MongoDBCollection":

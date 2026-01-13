@@ -105,12 +105,22 @@ class MongoDB(IDatabase):
             self.collection = None
 
     def _ensure_initialized(self) -> None:
-        """Ensure the collection is initialized (lazy initialization)."""
+        """Ensure the collection is initialized (lazy initialization).
+        
+        Raises:
+            RuntimeError: If the MongoDB manager is not initialized.
+        """
         if self.collection is None:
-            manager = get_mongodb_manager()
-            self.db = manager.database
-            self.collection = self.db[self._collection_name]
-            self._lazy_initialized = True
+            try:
+                manager = get_mongodb_manager()
+                self.db = manager.database
+                self.collection = self.db[self._collection_name]
+                self._lazy_initialized = True
+            except RuntimeError as e:
+                logger.error(
+                    f"Failed to initialize MongoDB collection '{getattr(self, '_collection_name', 'unknown')}': {e}"
+                )
+                raise
 
     async def find_by_id(self, id_string: str) -> Optional[Dict[str, Any]]:
         self._ensure_initialized()

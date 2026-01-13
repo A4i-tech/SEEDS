@@ -21,7 +21,8 @@ class AppInsightsLogHandler(logging.Handler):
     # map structured logs to this field in 'extra'
     # e.g., logger.info("message", extra={AppInsightsLogHandler.DETAILS: {"key1": "value1"}})
     # 'key1' will be accessible thru customDimenisons.["details.key1"]
-    DETAILS = str(uuid.uuid4())
+    txt = "IVR v2 app_insights_log_handler_details_"
+    DETAILS = str(txt)
 
     @staticmethod
     def getLogger(name: str, level: int = logging.DEBUG) -> logging.Logger:
