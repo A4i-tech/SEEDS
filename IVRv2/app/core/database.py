@@ -208,6 +208,29 @@ class MongoDBCollection(IDatabase):
             raise RuntimeError(f"MongoDB update not acknowledged for id: {id}")
         return result
 
+    async def update_one(self, filter_query: dict, update_query: dict) -> Any:
+        """Update a single document with atomic operators (e.g., $set).
+
+        This method is ideal for atomic updates using MongoDB operators like $set,
+        $inc, $push, etc. to avoid lost updates in concurrent scenarios.
+
+        Args:
+            filter_query: The filter to match documents (e.g., {"_id": "value"})
+            update_query: The update operations (e.g., {"$set": {"field": "value"}})
+
+        Returns:
+            The update result object with modified_count, matched_count, etc.
+
+        Raises:
+            RuntimeError: If the update is not acknowledged by the server
+        """
+        result = await self.collection.update_one(filter_query, update_query)
+        if not result.acknowledged:
+            raise RuntimeError(
+                f"MongoDB atomic update not acknowledged for filter: {filter_query}"
+            )
+        return result
+
     async def delete(self, id: str) -> Any:
         """Delete a document by its _id field."""
         result = await self.collection.delete_one({"_id": id})

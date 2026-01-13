@@ -479,7 +479,7 @@ class CallEventProcessor(BaseProcessor):
 
                     try:
                         # Use atomic $set for update with Motor (native async)
-                        await ongoing_fsm_mongo.collection.update_one(
+                        await ongoing_fsm_mongo.update_one(
                             {"_id": conversation_uuid}, {"$set": update_operations}
                         )
 
@@ -507,7 +507,7 @@ class CallEventProcessor(BaseProcessor):
                     update_operations["current_state_id"] = ivr_state.current_state_id
 
                     try:
-                        await ongoing_fsm_mongo.collection.update_one(
+                        await ongoing_fsm_mongo.update_one(
                             {"_id": conversation_uuid}, {"$set": update_operations}
                         )
                         logging.info(f"✓ Call state updated: {status}")
