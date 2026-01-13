@@ -17,22 +17,10 @@ from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 
 from app.interfaces.database import IDatabase
 from app.settings import settings
-
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from azure.monitor.opentelemetry import configure_azure_monitor
-from opentelemetry import trace
-from opentelemetry.trace import get_tracer_provider
-from opentelemetry.propagate import extract
+from app.core.telemetry import get_tracer
 from app.application_logger.azure_app_insights import AppInsightsLogHandler
 
-# Configure Azure Monitor if connection string is available
-if settings.applicationinsights_connection_string:
-    configure_azure_monitor(
-        connection_string=settings.applicationinsights_connection_string,
-    )
-
-tracer = trace.get_tracer(__name__, tracer_provider=get_tracer_provider())
-
+tracer = get_tracer(__name__)
 logger = AppInsightsLogHandler.getLogger(__name__)
 
 

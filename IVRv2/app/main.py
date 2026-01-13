@@ -45,20 +45,13 @@ import copy
 # from comprehension_model_classes import fsm as comprehension_fsm
 import logging
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from azure.monitor.opentelemetry import configure_azure_monitor
-from opentelemetry import trace
-from opentelemetry.trace import get_tracer_provider
-from opentelemetry.propagate import extract
+from app.core.telemetry import configure_telemetry, get_tracer
 from app.application_logger.azure_app_insights import AppInsightsLogHandler
-from app.settings import settings
 
-# Configure Azure Monitor if connection string is available
-if settings.applicationinsights_connection_string:
-    configure_azure_monitor(
-        connection_string=settings.applicationinsights_connection_string,
-    )
+# Configure telemetry once for the entire application
+configure_telemetry()
 
-tracer = trace.get_tracer(__name__, tracer_provider=get_tracer_provider())
+tracer = get_tracer(__name__)
 logging = AppInsightsLogHandler.getLogger(__name__)
 
 load_dotenv()
