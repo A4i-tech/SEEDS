@@ -49,7 +49,7 @@ from azure.monitor.opentelemetry import configure_azure_monitor
 from opentelemetry import trace
 from opentelemetry.trace import get_tracer_provider
 from opentelemetry.propagate import extract
-from logging import getLogger, INFO
+from app.application_logger.azure_app_insights import AppInsightsLogHandler
 from app.settings import settings
 
 # Configure Azure Monitor if enabled
@@ -59,7 +59,7 @@ if settings.enable_application_insights and settings.applicationinsights_connect
     )
 
 tracer = trace.get_tracer(__name__, tracer_provider=get_tracer_provider())
-logger = getLogger(__name__)
+logging = AppInsightsLogHandler.getLogger(__name__)
 
 load_dotenv()
 
