@@ -560,7 +560,7 @@ class CallEventProcessor(BaseProcessor):
                                 "tenant_id": ivr_state.tenant_id or "unknown"
                             })
                             if duration is not None:
-                                track_metric("call_duration", int(duration), {
+                                track_metric("call_duration", duration, {
                                     "status": status
                                 })
 
