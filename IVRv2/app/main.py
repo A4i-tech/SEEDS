@@ -44,7 +44,15 @@ import copy
 
 # from comprehension_model_classes import fsm as comprehension_fsm
 import logging
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from app.core.telemetry import configure_telemetry, get_tracer
+from app.application_logger.azure_app_insights import AppInsightsLogHandler
 
+# Configure telemetry once for the entire application
+configure_telemetry()
+
+tracer = get_tracer(__name__)
+logging = AppInsightsLogHandler.getLogger(__name__)
 
 load_dotenv()
 
@@ -69,7 +77,7 @@ app = FastAPI(
     license_info={"name": "MIT License"},
     lifespan=lifespan,
 )
-
+FastAPIInstrumentor.instrument_app(app)
 # Add CORS middleware configuration
 app.add_middleware(
     CORSMiddleware,
@@ -201,7 +209,9 @@ async def update_ivr(request: Request, response: Response):
             "status_code": response.status_code,
         }
 
-    updated_fsm = await instantiate_from_latest_content()
+    updated_fsm = await instantiate_from_latest_content(
+        contents_v3_collection=state.contents_v3_mongo
+    )
     fsm[updated_fsm.fsm_id] = updated_fsm
     state.latest_fsm_id = updated_fsm.fsm_id
     # fsm = await instantiate_from_latest_content()
@@ -806,9 +816,26 @@ async def dtmf(input: Request):
     logging.info(f"Received request body: {dtmf_input}")
     digits = dtmf_input.dtmf.digits
     conv_id = dtmf_input.conversation_uuid
-    doc = await ongoing_fsm_mongo.find_by_id(conv_id)
+    # Retry logic to handle race condition where DTMF arrives before state is created
+    doc = None
+    max_retries = 3
+    retry_delay = 0.5  # seconds - shorter delay for DTMF input
+
+    for attempt in range(max_retries):
+        doc = await ongoing_fsm_mongo.find_by_id(conv_id)
+        if doc is not None:
+            break
+
+        if attempt < max_retries - 1:
+            logging.debug(
+                f"IVR state not found for {conv_id}, attempt {attempt + 1}/{max_retries}, waiting {retry_delay}s..."
+            )
+            await asyncio.sleep(retry_delay)
+
     if doc == None:
-        logging.error(f"ERROR: NO ONGOING IVR STATE FOUND FOR CONV ID: {conv_id}")
+        logging.info(
+            f"INFO: NO ONGOING IVR STATE FOUND FOR CONV ID: {conv_id} after {max_retries} retries"
+        )
         # Talk Action of server error bye bye
         ncco = accumulator.combine(
             [

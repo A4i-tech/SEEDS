@@ -58,7 +58,7 @@ class PureAudio:
         actions.append(StreamAction(pullMenuMainUrl + finished_url))
 
         # Add an input action to capture DTMF.
-        actions.append(InputAction(type_=["dtmf"], eventApi="/input", timeOut=3))
+        actions.append(InputAction(type_=["dtmf"], eventApi="/input", timeOut=10))
 
         # Build a simple menu with options.
         options = [

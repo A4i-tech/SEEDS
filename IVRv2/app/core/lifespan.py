@@ -18,8 +18,11 @@ from app.core.database import (
 )
 from app.core.state import AppState, set_app_state, clear_app_state
 from app.services.service_bus_manager import service_bus_manager
+from app.core.telemetry import get_tracer
+from app.application_logger.azure_app_insights import AppInsightsLogHandler
 
-logger = logging.getLogger(__name__)
+tracer = get_tracer(__name__)
+logger = AppInsightsLogHandler.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -51,21 +54,60 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Initialize MongoDB - use init_mongodb_manager to set global for backward compatibility
     logger.info("[LIFESPAN] Initializing MongoDB...")
-    state.mongodb_manager = init_mongodb_manager()
-    state.initialize_collections()
-    logger.info("[LIFESPAN] ✓ MongoDB initialized")
+    try:
+        state.mongodb_manager = init_mongodb_manager()
+        state.initialize_collections()
+        logger.info("[LIFESPAN] ✓ MongoDB initialized")
+    except ValueError as e:
+        logger.error(f"[LIFESPAN] ✗ MongoDB configuration error: {e}")
+        logger.error(
+            "[LIFESPAN] Please check MONGO_DB_CONNECTION_STRING environment variable"
+        )
+        raise RuntimeError(f"Failed to initialize MongoDB: {e}") from e
+    except Exception as e:
+        logger.error(
+            f"[LIFESPAN] ✗ MongoDB initialization failed: {type(e).__name__}: {e}"
+        )
+        logger.error(
+            "[LIFESPAN] Application startup aborted due to MongoDB connection failure"
+        )
+        # Clean up any partial initialization
+        await close_mongodb_manager()
+        raise RuntimeError(f"Failed to initialize MongoDB: {e}") from e
 
     # Initialize FSM
     logger.info("[LIFESPAN] Initializing FSM from latest content...")
-    updated_fsm = await instantiate_from_latest_content()
-    state.fsm[updated_fsm.fsm_id] = updated_fsm
-    state.latest_fsm_id = updated_fsm.fsm_id
-    logger.info(f"[LIFESPAN] ✓ FSM initialized with ID: {state.latest_fsm_id}")
+    try:
+        updated_fsm = await instantiate_from_latest_content(
+            contents_v3_collection=state.contents_v3_mongo
+        )
+        state.fsm[updated_fsm.fsm_id] = updated_fsm
+        state.latest_fsm_id = updated_fsm.fsm_id
+        logger.info(f"[LIFESPAN] ✓ FSM initialized with ID: {state.latest_fsm_id}")
+    except Exception as e:
+        logger.error(f"[LIFESPAN] ✗ FSM initialization failed: {type(e).__name__}: {e}")
+        logger.error(
+            "[LIFESPAN] Application startup aborted due to FSM initialization failure"
+        )
+        # Clean up MongoDB before re-raising
+        await close_mongodb_manager()
+        raise RuntimeError(f"Failed to initialize FSM: {e}") from e
 
     # Initialize Service Bus Manager
     logger.info("[LIFESPAN] Initializing Service Bus Manager...")
-    await service_bus_manager.initialize()
-    logger.info("[LIFESPAN] ✓ Service Bus Manager initialized")
+    try:
+        await service_bus_manager.initialize()
+        logger.info("[LIFESPAN] ✓ Service Bus Manager initialized")
+    except Exception as e:
+        logger.error(
+            f"[LIFESPAN] ✗ Service Bus initialization failed: {type(e).__name__}: {e}"
+        )
+        logger.error(
+            "[LIFESPAN] Application startup aborted due to Service Bus initialization failure"
+        )
+        # Clean up MongoDB before re-raising
+        await close_mongodb_manager()
+        raise RuntimeError(f"Failed to initialize Service Bus: {e}") from e
 
     # Create processors with state reference
     logger.info("[LIFESPAN] Creating processors...")
@@ -122,7 +164,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await service_bus_manager.close()
 
     # Close MongoDB connection pool (also clears global)
-    close_mongodb_manager()
+    await close_mongodb_manager()
 
     # Clear global state
     clear_app_state()
