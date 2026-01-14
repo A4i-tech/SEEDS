@@ -43,14 +43,11 @@ describe("apiService", () => {
       fetch.mockResolvedValueOnce(mockSuccessResponse());
       const studentPhones = ["0987654321", "1122334455"];
 
-      const result = await apiService.createConference(
-        phoneNumber,
-        studentPhones
-      );
+      const result = await apiService.createConference(phoneNumber, studentPhones);
 
       expectFetchCall(`${baseUrl}/conference/create`, "POST", {
-        teacher_phone: phoneNumber,
-        student_phones: studentPhones,
+        teacher_phone: "91" + phoneNumber,
+        student_phones: studentPhones.map((phone) => "91" + phone),
       });
       expect(result).toEqual({ id: "conf-123" });
     });
@@ -79,14 +76,14 @@ describe("apiService", () => {
       fetch.mockResolvedValueOnce(mockEmptyResponse());
       await apiService.muteParticipant(confId, phoneNumber);
       expectFetchCall(
-        `${baseUrl}/conference/muteparticipant/${confId}?phone_number=${phoneNumber}`,
+        `${baseUrl}/conference/muteparticipant/${confId}?phone_number=${"91" + phoneNumber}`,
         "PUT"
       );
 
       fetch.mockResolvedValueOnce(mockEmptyResponse());
       await apiService.unmuteParticipant(confId, phoneNumber);
       expectFetchCall(
-        `${baseUrl}/conference/unmuteparticipant/${confId}?phone_number=${phoneNumber}`,
+        `${baseUrl}/conference/unmuteparticipant/${confId}?phone_number=${"91" + phoneNumber}`,
         "PUT"
       );
     });
@@ -95,7 +92,7 @@ describe("apiService", () => {
       fetch.mockResolvedValueOnce(mockEmptyResponse());
       await apiService.addParticipant(confId, phoneNumber);
       expectFetchCall(
-        `${baseUrl}/conference/addparticipant/${confId}?phone_number=${phoneNumber}`,
+        `${baseUrl}/conference/addparticipant/${confId}?phone_number=${"91" + phoneNumber}`,
         "PUT"
       );
     });
@@ -103,8 +100,7 @@ describe("apiService", () => {
 
   describe("Audio Control", () => {
     test("plays, pauses, resumes, and seeks audio (each call uses correct request)", async () => {
-      const expectedUrl =
-        "https://testaccount.blob.core.windows.net/output-container/25/1.0.wav";
+      const expectedUrl = "https://testaccount.blob.core.windows.net/output-container/25/1.0.wav";
 
       // Play
       fetch.mockResolvedValueOnce(mockEmptyResponse());
@@ -129,17 +125,15 @@ describe("apiService", () => {
         { method: "PUT", headers: { "Content-Type": "application/json" } }
       );
 
-      expect(fetch).toHaveBeenNthCalledWith(
-        2,
-        `${baseUrl}/conference/pauseaudio/${confId}`,
-        { method: "PUT", headers: { "Content-Type": "application/json" } }
-      );
+      expect(fetch).toHaveBeenNthCalledWith(2, `${baseUrl}/conference/pauseaudio/${confId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+      });
 
-      expect(fetch).toHaveBeenNthCalledWith(
-        3,
-        `${baseUrl}/conference/resumeaudio/${confId}`,
-        { method: "PUT", headers: { "Content-Type": "application/json" } }
-      );
+      expect(fetch).toHaveBeenNthCalledWith(3, `${baseUrl}/conference/resumeaudio/${confId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+      });
 
       expect(fetch).toHaveBeenNthCalledWith(
         4,
@@ -152,9 +146,7 @@ describe("apiService", () => {
   describe("Error Handling", () => {
     test("handles network errors", async () => {
       fetch.mockRejectedValueOnce(new Error("Network error"));
-      await expect(apiService.createConference("123", ["456"])).rejects.toThrow(
-        "Network error"
-      );
+      await expect(apiService.createConference("123", ["456"])).rejects.toThrow("Network error");
     });
 
     test("handles HTTP error responses", async () => {
@@ -176,9 +168,7 @@ describe("apiService", () => {
         json: jest.fn().mockRejectedValueOnce(new Error("Invalid JSON")),
         text: jest.fn().mockResolvedValueOnce(""),
       });
-      await expect(apiService.createConference("123", ["456"])).rejects.toThrow(
-        "Invalid JSON"
-      );
+      await expect(apiService.createConference("123", ["456"])).rejects.toThrow("Invalid JSON");
     });
   });
 });

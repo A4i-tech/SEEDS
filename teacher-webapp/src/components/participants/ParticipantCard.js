@@ -26,6 +26,11 @@ export const ParticipantCard = ({
   isReconnecting,
   canReconnect,
 }) => {
+  // Defensive check: return null if participant is not provided
+  if (!participant) {
+    return null;
+  }
+
   const getStatusColor = (status) => {
     switch (status) {
       case "connected":
@@ -88,7 +93,7 @@ export const ParticipantCard = ({
             )}
           </Box>
         </Box>
-        {participant.is_raised && (
+        {participant?.is_raised && (
           <Tooltip title="Raised hand">
             <RaisedHandIcon sx={{ color: "#ff9800", fontSize: 24 }} />
           </Tooltip>
@@ -102,7 +107,7 @@ export const ParticipantCard = ({
         {canReconnect && (
           <Tooltip title="Reconnect">
             <IconButton
-              onClick={() => onReconnect(participant.phoneNumber)}
+              onClick={() => onReconnect && onReconnect(participant.phoneNumber)}
               disabled={isReconnecting}
               sx={{ color: "#2e7d32" }}
               aria-label="Reconnect participant"
@@ -122,7 +127,7 @@ export const ParticipantCard = ({
               <MicIcon />
             )
           }
-          onClick={() => onMuteToggle(participant)}
+          onClick={() => onMuteToggle && onMuteToggle(participant)}
           disabled={isLoading || participant.call_status !== "connected"}
           sx={{
             borderColor: "#e0e0e0",
