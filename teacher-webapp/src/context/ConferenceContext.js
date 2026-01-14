@@ -16,7 +16,7 @@ export const ConferenceProvider = ({ children }) => {
   const [conferenceStudents, setConferenceStudents] = useState([]);
   const [allClassroomStudents, setAllClassroomStudents] = useState([]);
   const previousParticipantStatusRef = useRef({});
-  
+
   // Single source of truth: Map of all participants keyed by normalized phone number
   // This gets updated directly when SSE events arrive
   const [participantsMap, setParticipantsMap] = useState(new Map());
@@ -59,29 +59,35 @@ export const ConferenceProvider = ({ children }) => {
 
     setParticipantsMap((prevMap) => {
       const newMap = new Map(prevMap);
-      
+
       // Add/update teacher
       if (selectedTeacher) {
         const normalizedPhone = normalizePhoneNumber(selectedTeacher.phoneNumber);
         const existingParticipant = newMap.get(normalizedPhone);
-        newMap.set(normalizedPhone, new Participant({
-          ...existingParticipant,
-          ...selectedTeacher,
-          role: "Teacher",
-          phoneNumber: selectedTeacher.phoneNumber,
-        }));
+        newMap.set(
+          normalizedPhone,
+          new Participant({
+            ...existingParticipant,
+            ...selectedTeacher,
+            role: "Teacher",
+            phoneNumber: selectedTeacher.phoneNumber,
+          })
+        );
       }
 
       // Add/update students
       selectedStudents.forEach((student) => {
         const normalizedPhone = normalizePhoneNumber(student.phoneNumber);
         const existingParticipant = newMap.get(normalizedPhone);
-        newMap.set(normalizedPhone, new Participant({
-          ...existingParticipant,
-          ...student,
-          role: "Student",
-          phoneNumber: student.phoneNumber,
-        }));
+        newMap.set(
+          normalizedPhone,
+          new Participant({
+            ...existingParticipant,
+            ...student,
+            role: "Student",
+            phoneNumber: student.phoneNumber,
+          })
+        );
       });
 
       return newMap;
@@ -114,7 +120,7 @@ export const ConferenceProvider = ({ children }) => {
     // This directly updates the Map with the latest data from SSE events
     setParticipantsMap((prevMap) => {
       const newMap = new Map(prevMap);
-      
+
       // Check for students transitioning from connected to disconnected
       for (let phoneNumber in event.participants) {
         const participantData = event.participants[phoneNumber];
@@ -139,24 +145,45 @@ export const ConferenceProvider = ({ children }) => {
           );
         }
 
-        // Create or update participant with latest data from SSE
-        // If participant already exists in map, merge with existing data to preserve name/phoneNumber
+        // Update participant with latest SSE data - only update dynamic state, ignore name from SSE
         const existingParticipant = newMap.get(normalizedPhone);
+
+        // Resolve name: use existing name if available, otherwise lookup from allClassroomStudents for new participants
+        let name = existingParticipant?.name;
+        if (!existingParticipant) {
+          if (participantData.role === "Student") {
+            const student = allClassroomStudents.find(
+              (s) => s && normalizePhoneNumber(s.phoneNumber || s.phone_number) === normalizedPhone
+            );
+            name = student?.name;
+          } else if (participantData.role === "Teacher" && selectedTeacher) {
+            if (normalizePhoneNumber(selectedTeacher.phoneNumber) === normalizedPhone) {
+              name = selectedTeacher.name;
+            }
+          }
+        }
+
         const participant = new Participant({
-          // Preserve existing data if available (especially name from initial selection)
           ...(existingParticipant || {}),
-          // Override with latest SSE data
-          ...participantData,
+          name: name,
           phoneNumber: phoneNumber,
           phone_number: participantData.phone_number || phoneNumber,
-          // Ensure proper typing for boolean/number fields
+          role: existingParticipant?.role || participantData.role || "Student",
+          // Only update dynamic state from SSE (ignore name)
+          call_status:
+            participantData.call_status || existingParticipant?.call_status || "disconnected",
+          is_muted:
+            participantData.is_muted !== undefined
+              ? Boolean(participantData.is_muted)
+              : (existingParticipant?.is_muted ?? false),
           is_raised:
             participantData.is_raised === true ||
             participantData.is_raised === "true" ||
             participantData.is_raised === 1,
-          raised_at: participantData.raised_at !== undefined ? Number(participantData.raised_at) : (existingParticipant?.raised_at ?? -1),
-          is_muted: participantData.is_muted !== undefined ? Boolean(participantData.is_muted) : (existingParticipant?.is_muted ?? false),
-          call_status: participantData.call_status || existingParticipant?.call_status || "disconnected",
+          raised_at:
+            participantData.raised_at !== undefined
+              ? Number(participantData.raised_at)
+              : (existingParticipant?.raised_at ?? -1),
         });
 
         newMap.set(normalizedPhone, participant);
