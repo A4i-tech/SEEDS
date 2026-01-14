@@ -76,7 +76,7 @@ export const ControlButtonGroup = ({
             bgcolor: "#cccccc",
           },
         }}
-        aria-label="Sink conference"
+        aria-label="End conference"
       >
         End Conference
       </Button>

@@ -37,22 +37,13 @@ export const ConferenceProvider = ({ children }) => {
     };
 
     setSelectedStudents((prevStudents) => {
-      // Use normalized comparison for matching
-      const normalizedPrev = prevStudents.map((s) => ({
-        ...s,
-        phoneNumber: normalizePhoneNumber(s.phoneNumber), // Normalize existing students too
-      }));
-
-      const exists = normalizedPrev.some(
-        (s) => normalizePhoneNumber(s.phoneNumber) === normalizedPhone
-      );
+      // `normalizedStudent.phoneNumber` is already normalized; assume stored students are too.
+      const exists = prevStudents.some((s) => s.phoneNumber === normalizedPhone);
 
       if (exists) {
-        return normalizedPrev.filter(
-          (s) => normalizePhoneNumber(s.phoneNumber) !== normalizedPhone
-        );
+        return prevStudents.filter((s) => s.phoneNumber !== normalizedPhone);
       } else {
-        return [...normalizedPrev, normalizedStudent];
+        return [...prevStudents, normalizedStudent];
       }
     });
   };
