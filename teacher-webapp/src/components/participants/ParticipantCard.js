@@ -108,7 +108,7 @@ export const ParticipantCard = ({
           <Tooltip title="Reconnect">
             <IconButton
               onClick={() => onReconnect && onReconnect(participant.phoneNumber)}
-              disabled={isReconnecting || !participant.phoneNumber}
+              disabled={isReconnecting}
               sx={{ color: "#2e7d32" }}
               aria-label="Reconnect participant"
             >
