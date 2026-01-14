@@ -27,6 +27,8 @@ class AppState:
     fsm_json_mongo: Optional[MongoDBCollection] = None
     radio_fsm_mongo: Optional[MongoDBCollection] = None
     calls_log_mongo: Optional[MongoDBCollection] = None
+    contents_v3_mongo: Optional[MongoDBCollection] = None
+    comprehension_mongo: Optional[MongoDBCollection] = None
 
     # FSM state
     fsm: Dict[str, Any] = field(default_factory=dict)
@@ -53,6 +55,8 @@ class AppState:
         self.fsm_json_mongo = self.mongodb_manager.get_collection("fsm")
         self.radio_fsm_mongo = self.mongodb_manager.get_collection("radio")
         self.calls_log_mongo = self.mongodb_manager.get_collection("callsLogs")
+        self.contents_v3_mongo = self.mongodb_manager.get_collection("contentsV3")
+        self.comprehension_mongo = self.mongodb_manager.get_collection("comprehension")
 
 
 # Global app state instance - set during lifespan

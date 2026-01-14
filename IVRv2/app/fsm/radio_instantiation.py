@@ -218,7 +218,7 @@ async def instantiate_from_content_ids(content_ids: List[str]):
                 content_actions.append(StreamAction(music_url, record_playback_time=True))
                 audioFinishedUrl = audioFinishedMessageUrl.replace('{language}', language).replace('{speechRate}', speechRate)
                 content_actions.append(StreamAction(pullMenuMainUrl + audioFinishedUrl))
-                content_actions.append(InputAction(type_=["dtmf"], eventApi='/input', timeOut=3))
+                content_actions.append(InputAction(type_=["dtmf"], eventApi='/input', timeOut=10))
 
                 state_id = current_content['title'] + " Audio Playing" # to remove '-' at the end
                 # print("STATE ID", state_id)

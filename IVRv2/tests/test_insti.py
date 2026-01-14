@@ -1,12 +1,14 @@
 import pytest
 import asyncio
 from app.fsm import insti
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 
-class DummyMongoDB:
-    def __init__(self, collection):
-        pass
+class DummyMongoDBCollection:
+    """Mock MongoDB collection for testing."""
+
+    def __init__(self, collection_name: str = None):
+        self.collection_name = collection_name
 
     async def find_all(self):
         # Return a document matching the provided contentv3.json structure and types
@@ -41,10 +43,6 @@ class DummyMongoDB:
         ]
 
 
-# Patch contents_v3_data in insti module to use DummyMongoDB instance
-insti.contents_v3_data = DummyMongoDB("contentsV3")
-
-
 # Patch fsm.print_states and open to avoid side effects
 def dummy_print_states(self):
     pass
@@ -65,8 +63,13 @@ async def test_instantiate_from_latest_content():
         def __exit__(self, exc_type, exc_val, exc_tb):
             pass
 
+    # Create mock collection
+    mock_collection = DummyMongoDBCollection("contentsV3")
+
     with patch("builtins.open", return_value=DummyFile()):
-        fsm = await insti.instantiate_from_latest_content()
+        fsm = await insti.instantiate_from_latest_content(
+            contents_v3_collection=mock_collection
+        )
     assert fsm is not None
     assert hasattr(fsm, "states")
     assert isinstance(fsm.states, dict)

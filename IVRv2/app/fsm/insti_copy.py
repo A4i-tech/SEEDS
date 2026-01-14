@@ -606,7 +606,7 @@ def generate_states(fsm, content_list, content_attributes, level, parent_state_i
         audioFinishedUrl = audioFinishedMessageUrl.replace('{language}', language).replace('{speechRate}', speechRate)
 
         actions.append(StreamAction(pullMenuMainUrl + audioFinishedUrl))
-        actions.append(InputAction(type_=["dtmf"], eventApi='/input', timeOut=3))
+        actions.append(InputAction(type_=["dtmf"], eventApi='/input', timeOut=10))
 
         state_id = state_id[:-1]  # to remove '-' at the end
         # print("STATE ID", state_id)
