@@ -79,7 +79,7 @@ export const ParticipantCard = ({
           </Typography>
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: 0.5 }}>
             <Typography variant="body2" color="text.secondary">
-              {participant.phoneNumber || "N/A"}
+              {participant.phoneNumber}
             </Typography>
             {participant.call_status && (
               <Box

@@ -49,7 +49,6 @@ const ClassroomDetail = () => {
   const [conferenceId, setConferenceId] = useState(null);
   const eventSourceRef = useRef(null);
   const isMountedRef = useRef(true);
-  const previousClassroomIdRef = useRef(null);
 
   const {
     selectedStudents,
@@ -63,23 +62,6 @@ const ClassroomDetail = () => {
     setConferenceStudents,
     setAllClassroomStudents,
   } = useConference();
-
-  // Clear ALL selected students when classroom changes
-  // Use a ref to track the previous classroomId to avoid sessionStorage dependency
-  useEffect(() => {
-    if (!classroomId) return;
-
-    const hasClassroomChanged =
-      previousClassroomIdRef.current !== null && previousClassroomIdRef.current !== classroomId;
-
-    // Clear ALL selected students when classroom changes (not on initial mount)
-    if (hasClassroomChanged && selectedStudents.length > 0) {
-      clearSelectedStudents();
-    }
-
-    // Update ref AFTER checking (so next time we can detect the change)
-    previousClassroomIdRef.current = classroomId;
-  }, [classroomId, clearSelectedStudents, selectedStudents.length]);
 
   // Main data loading effect - handles sequential and parallel fetching
   useEffect(() => {

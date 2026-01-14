@@ -23,21 +23,18 @@ import { PageContainer } from "./components/layout/PageContainer";
 import { showToast } from "./utils/toast";
 import { normalizePhoneNumber } from "./utils/phoneUtils";
 
-const getPhoneNumber = (user) => user?.phoneNumber;
-
 export function DetailsPage() {
   const navigate = useNavigate();
   const {
-    userList,
     confId,
     isConfCallRunning,
     audioContentState,
-    conferenceStudents,
-    selectedTeacher,
+    getTeacher,
+    getStudents,
     allClassroomStudents,
+    getAllParticipants,
   } = useConference();
 
-  const [users, setUsers] = useState(userList);
   const [loadingIds, setLoadingIds] = useState([]);
   const [reconnectingIds, setReconnectingIds] = useState([]);
   const [isLoadingCall, setIsLoadingCall] = useState(false);
@@ -49,10 +46,6 @@ export function DetailsPage() {
   const [seekDirection, setSeekDirection] = useState(null);
   const [audioSelectionError, setAudioSelectionError] = useState(null);
   const mutedStudentsRef = useRef(new Set());
-
-  useEffect(() => {
-    setUsers(userList);
-  }, [userList]);
 
   // Listen for conference notifications
   useEffect(() => {
@@ -69,11 +62,9 @@ export function DetailsPage() {
     };
   }, []);
 
-  // Get teacher from userList (which is updated by SSE events)
-  // Prefer selectedTeacher from context as it's directly updated by SSE events
-  // Fallback to users.find() if selectedTeacher is not available
-  const teacher = selectedTeacher || users.find((user) => user.role === "Teacher") || null;
-  const students = conferenceStudents || [];
+  // Get teacher and students from centralized state
+  const teacher = getTeacher();
+  const activeStudents = getStudents();
 
   const handleMuteToggle = async (userToUpdate) => {
     const phoneNumber = userToUpdate.phoneNumber;
@@ -263,19 +254,19 @@ export function DetailsPage() {
     }
   };
 
-  // Filter out students who are already in the userList
-  // Use normalized phone number comparison to ensure accurate matching
+  // Filter out students who are already in the call (using centralized participantsMap)
+  const allParticipants = getAllParticipants();
   const availableStudents = (allClassroomStudents || []).filter((student) => {
     if (!student) return false;
 
     const studentPhone = normalizePhoneNumber(student.phoneNumber || student.phone_number);
     if (!studentPhone) return false;
 
-    // Check if student is already in userList (already in the call)
-    const isAlreadyInCall = (userList || []).some((user) => {
-      if (!user) return false;
-      const userPhone = normalizePhoneNumber(getPhoneNumber(user));
-      return userPhone && userPhone === studentPhone;
+    // Check if student is already in the call using centralized state
+    const isAlreadyInCall = allParticipants.some((participant) => {
+      if (!participant) return false;
+      const participantPhone = normalizePhoneNumber(participant.phoneNumber);
+      return participantPhone && participantPhone === studentPhone;
     });
 
     return !isAlreadyInCall;
@@ -289,103 +280,6 @@ export function DetailsPage() {
 
   const canReconnect = (user) => user?.call_status === "disconnected" && isConfCallRunning;
   const isReconnecting = (phoneNumber) => phoneNumber && reconnectingIds.includes(phoneNumber);
-
-  // Merge conferenceStudents with userList data to get call status, mute status, etc.
-  // This preserves the original functionality: show all conferenceStudents
-  // but update them with real-time data from userList (SSE events)
-  // Also include students from userList that were added during the call (not in conferenceStudents)
-  // Use a Map with normalized phone numbers to avoid duplicates
-  const studentMap = new Map();
-  // Safely handle empty or undefined students array
-  if (Array.isArray(students)) {
-    students.forEach((student) => {
-      if (student) {
-        const phoneNumber = getPhoneNumber(student);
-        if (phoneNumber) {
-          const normalizedPhone = normalizePhoneNumber(phoneNumber);
-          studentMap.set(normalizedPhone, student);
-        }
-      }
-    });
-  }
-
-  // Add students from userList that aren't in conferenceStudents (newly added participants)
-  // Safely handle empty or undefined userList
-  if (Array.isArray(userList)) {
-    userList.forEach((user) => {
-      if (user && user.role === "Student") {
-        const phoneNumber = getPhoneNumber(user);
-        if (phoneNumber) {
-          const normalizedPhone = normalizePhoneNumber(phoneNumber);
-          if (!studentMap.has(normalizedPhone)) {
-            // This is a newly added student, try to find the actual name from allClassroomStudents
-            const studentFromClassroom = Array.isArray(allClassroomStudents)
-              ? allClassroomStudents.find(
-                  (student) =>
-                    student && normalizePhoneNumber(getPhoneNumber(student)) === normalizedPhone
-                )
-              : null;
-            // Use the name from allClassroomStudents if available, otherwise use the user's name
-            const studentToAdd = studentFromClassroom
-              ? {
-                  ...user,
-                  name: studentFromClassroom.name,
-                  phoneNumber: phoneNumber, // Ensure phoneNumber is set correctly
-                }
-              : user;
-            studentMap.set(normalizedPhone, studentToAdd);
-          }
-        }
-      }
-    });
-  }
-
-  // Update with real-time data from userList
-  const activeStudents = Array.from(studentMap.entries())
-    .map(([normalizedPhone, student]) => {
-      if (!student) return null;
-
-      const userInCall = Array.isArray(userList)
-        ? userList.find(
-            (user) => user && normalizePhoneNumber(getPhoneNumber(user)) === normalizedPhone
-          )
-        : null;
-
-      // If student is in the call (userList), merge all real-time data including raised hand status
-      // Otherwise, just use the student data as-is
-      if (userInCall) {
-        const mergedStudent = {
-          ...student,
-          ...userInCall, // Spread all userInCall properties first
-          // Preserve original student data (name, phoneNumber) but override with real-time data
-          name: student.name || userInCall.name,
-          phoneNumber: student.phoneNumber || userInCall.phoneNumber,
-          // Explicitly ensure raised hand fields are included (these come from SSE events)
-          is_raised:
-            userInCall.is_raised !== undefined
-              ? userInCall.is_raised
-              : (student.is_raised ?? false),
-          raised_at:
-            userInCall.raised_at !== undefined ? userInCall.raised_at : (student.raised_at ?? -1),
-          // Ensure call status and mute status are included
-          call_status: userInCall.call_status || student.call_status,
-          is_muted:
-            userInCall.is_muted !== undefined ? userInCall.is_muted : (student.is_muted ?? false),
-        };
-
-        // Debug: Log raised hand status for merged students
-        if (mergedStudent.is_raised) {
-          console.log(
-            `[callPage] Student ${mergedStudent.name} (${mergedStudent.phoneNumber}) has raised hand: is_raised=${mergedStudent.is_raised}, raised_at=${mergedStudent.raised_at}`
-          );
-        }
-
-        return mergedStudent;
-      }
-
-      return student;
-    })
-    .filter(Boolean); // Remove any null entries
 
   useEffect(() => {
     if (hasSunkConf) {
