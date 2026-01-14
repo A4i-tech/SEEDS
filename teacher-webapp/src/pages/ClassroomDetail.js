@@ -49,6 +49,7 @@ const ClassroomDetail = () => {
   const [conferenceId, setConferenceId] = useState(null);
   const eventSourceRef = useRef(null);
   const isMountedRef = useRef(true);
+  const previousClassroomIdRef = useRef(null);
 
   const {
     selectedStudents,
@@ -58,9 +59,27 @@ const ClassroomDetail = () => {
     handleSSEEvent,
     handleStudentToggle,
     handleTeacherSelect,
+    clearSelectedStudents,
     setConferenceStudents,
     setAllClassroomStudents,
   } = useConference();
+
+  // Clear ALL selected students when classroom changes
+  // Use a ref to track the previous classroomId to avoid sessionStorage dependency
+  useEffect(() => {
+    if (!classroomId) return;
+
+    const hasClassroomChanged =
+      previousClassroomIdRef.current !== null && previousClassroomIdRef.current !== classroomId;
+
+    // Clear ALL selected students when classroom changes (not on initial mount)
+    if (hasClassroomChanged && selectedStudents.length > 0) {
+      clearSelectedStudents();
+    }
+
+    // Update ref AFTER checking (so next time we can detect the change)
+    previousClassroomIdRef.current = classroomId;
+  }, [classroomId, clearSelectedStudents, selectedStudents.length]);
 
   // Main data loading effect - handles sequential and parallel fetching
   useEffect(() => {
@@ -226,13 +245,25 @@ const ClassroomDetail = () => {
 
       setConferenceStudents(selectedStudents);
 
+      // Normalize selected students' phone numbers before setting conference students
+      const normalizedSelectedStudents = selectedStudents.map((student) => ({
+        ...student,
+        phoneNumber: normalizePhoneNumber(student.phoneNumber),
+      }));
+
+      setConferenceStudents(normalizedSelectedStudents);
+
       // Pass ALL students with both property name formats for "Add Participant" modal
       // This allows adding unselected students later
-      const allStudentsFormatted = teacherStudentsList.map((student) => ({
-        name: student.name,
-        phoneNumber: student.phoneNumber,
-        phone_number: student.phoneNumber, // For AddParticipantModal compatibility
-      }));
+      // Normalize phone numbers to ensure consistent format (91XXXXXXXXXX)
+      const allStudentsFormatted = teacherStudentsList.map((student) => {
+        const normalizedPhone = normalizePhoneNumber(student.phoneNumber);
+        return {
+          name: student.name,
+          phoneNumber: normalizedPhone,
+          phone_number: normalizedPhone, // For AddParticipantModal compatibility
+        };
+      });
       setAllClassroomStudents(allStudentsFormatted);
 
       console.log("Conference created successfully. Conf ID:", conferenceId);
@@ -253,21 +284,38 @@ const ClassroomDetail = () => {
     return teacherStudentsList.find((s) => s.phoneNumber === phoneNumber);
   };
 
-  // Check if student phone is selected
+  // Check if student phone is selected (using normalized comparison)
   const isStudentSelected = (phoneNumber) => {
-    return selectedStudents.some((s) => s.phoneNumber === phoneNumber);
+    const normalizedPhone = normalizePhoneNumber(phoneNumber);
+    return selectedStudents.some((s) => {
+      const normalizedSelected = normalizePhoneNumber(s.phoneNumber);
+      return normalizedSelected === normalizedPhone;
+    });
   };
 
   // Toggle student selection
   const handleToggleStudent = (phoneNumber) => {
-    // Try to get student from teacher's list first
-    let student = getStudentByPhone(phoneNumber);
+    if (!phoneNumber) return;
 
-    // If not found, create a student object with just the phone number
+    // Normalize phone number first to ensure consistent format
+    const normalizedPhone = normalizePhoneNumber(phoneNumber);
+
+    // Try to get student from teacher's list first (using normalized comparison)
+    let student = teacherStudentsList.find(
+      (s) => normalizePhoneNumber(s.phoneNumber) === normalizedPhone
+    );
+
+    // If not found, create a student object with normalized phone number
     if (!student) {
       student = {
-        name: phoneNumber, // Use phone as name if no student data
-        phoneNumber: phoneNumber,
+        name: phoneNumber, // Use original phone as name if no student data
+        phoneNumber: normalizedPhone, // Always store normalized phone number
+      };
+    } else {
+      // Ensure the student object has normalized phone number
+      student = {
+        ...student,
+        phoneNumber: normalizedPhone,
       };
     }
 
@@ -341,12 +389,17 @@ const ClassroomDetail = () => {
         </Alert>
       )}
 
-      {selectedStudents.length > 0 && (
-        <Alert severity="info" sx={{ mb: 3 }}>
-          {selectedStudents.length} student{selectedStudents.length !== 1 ? "s" : ""} selected for
-          conference
-        </Alert>
-      )}
+      {(() => {
+        // Count only students that are actually in the current classroom
+        const selectedInClassroom =
+          classroom?.students?.filter((phoneNumber) => isStudentSelected(phoneNumber)) || [];
+        return selectedInClassroom.length > 0 ? (
+          <Alert severity="info" sx={{ mb: 3 }}>
+            {selectedInClassroom.length} student{selectedInClassroom.length !== 1 ? "s" : ""}{" "}
+            selected for conference
+          </Alert>
+        ) : null;
+      })()}
 
       <Card sx={{ mb: 3 }}>
         <CardContent>

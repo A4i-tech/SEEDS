@@ -29,14 +29,45 @@ export const ConferenceProvider = ({ children }) => {
   };
 
   const handleStudentToggle = (student) => {
-    setSelectedStudents((prevStudents) =>
-      prevStudents.some((s) => s.phoneNumber === student.phoneNumber)
-        ? prevStudents.filter((s) => s.phoneNumber !== student.phoneNumber)
-        : [...prevStudents, student]
-    );
+    // Normalize phone number to ensure consistent format
+    const normalizedPhone = normalizePhoneNumber(student.phoneNumber);
+    const normalizedStudent = {
+      ...student,
+      phoneNumber: normalizedPhone, // Always store normalized phone number
+    };
+
+    setSelectedStudents((prevStudents) => {
+      // Use normalized comparison for matching
+      const normalizedPrev = prevStudents.map((s) => ({
+        ...s,
+        phoneNumber: normalizePhoneNumber(s.phoneNumber), // Normalize existing students too
+      }));
+
+      const exists = normalizedPrev.some(
+        (s) => normalizePhoneNumber(s.phoneNumber) === normalizedPhone
+      );
+
+      if (exists) {
+        return normalizedPrev.filter(
+          (s) => normalizePhoneNumber(s.phoneNumber) !== normalizedPhone
+        );
+      } else {
+        return [...normalizedPrev, normalizedStudent];
+      }
+    });
+  };
+
+  const clearSelectedStudents = () => {
+    setSelectedStudents([]);
   };
 
   const handleSSEEvent = (event) => {
+    console.log("[ConferenceContext] SSE Event received:", {
+      is_running: event.is_running,
+      participants_count: event.participants ? Object.keys(event.participants).length : 0,
+      participants: event.participants,
+    });
+
     setIsConfCallRunning(event.is_running);
     setAudioContentState(new AudioContentState(event.audio_content_state));
 
@@ -48,6 +79,13 @@ export const ConferenceProvider = ({ children }) => {
       console.log(
         `[ConferenceContext] ${participant.name} (${phoneNumber}): ${previousStatus} -> ${participant.call_status}`
       );
+
+      // Debug: Log raised hand status changes
+      if (participant.is_raised !== undefined) {
+        console.log(
+          `[ConferenceContext] ${participant.name} (${phoneNumber}) raised hand status: is_raised=${participant.is_raised}, raised_at=${participant.raised_at}`
+        );
+      }
 
       // If it's a student transitioning from connected to disconnected, show notification
       if (
@@ -79,8 +117,20 @@ export const ConferenceProvider = ({ children }) => {
     previousParticipantStatusRef.current = newStatusMap;
 
     for (let phoneNumber in event.participants) {
+      const participantData = event.participants[phoneNumber];
+      // Map phone_number (snake_case from backend) to phoneNumber (camelCase for frontend)
+      // Use the loop key as the phoneNumber since it's the actual phone number
+      // Ensure boolean values are properly handled (backend might send as string or number)
       const participant = new Participant({
-        ...event.participants[phoneNumber],
+        ...participantData,
+        phoneNumber: phoneNumber, // Use the key from the loop as it's the actual phone number
+        phone_number: participantData.phone_number || phoneNumber, // Also preserve snake_case for compatibility
+        // Explicitly handle raised hand fields - ensure they're properly typed
+        is_raised:
+          participantData.is_raised === true ||
+          participantData.is_raised === "true" ||
+          participantData.is_raised === 1,
+        raised_at: participantData.raised_at !== undefined ? Number(participantData.raised_at) : -1,
       });
       const normalizedEventPhone = normalizePhoneNumber(phoneNumber);
 
@@ -90,11 +140,14 @@ export const ConferenceProvider = ({ children }) => {
       ) {
         const newTeacher = new Participant({
           ...selectedTeacher,
-          raised_at: participant.raised_at,
-          is_raised: participant.is_raised,
-          is_muted: participant.is_muted,
-          call_status: participant.call_status,
+          raised_at: participant.raised_at ?? selectedTeacher.raised_at ?? -1,
+          is_raised: participant.is_raised ?? selectedTeacher.is_raised ?? false,
+          is_muted: participant.is_muted ?? selectedTeacher.is_muted ?? false,
+          call_status: participant.call_status || selectedTeacher.call_status,
         });
+        console.log(
+          `[ConferenceContext] Updated teacher: is_raised=${newTeacher.is_raised}, raised_at=${newTeacher.raised_at}`
+        );
         setSelectedTeacher(newTeacher);
       } else {
         setSelectedStudents((prevStudents) => {
@@ -104,17 +157,22 @@ export const ConferenceProvider = ({ children }) => {
 
           if (studentExists) {
             // Update the existing student
-            return prevStudents.map((student) =>
-              normalizePhoneNumber(student.phoneNumber) === normalizedEventPhone
-                ? new Participant({
-                    ...student,
-                    raised_at: participant.raised_at,
-                    is_raised: participant.is_raised,
-                    is_muted: participant.is_muted,
-                    call_status: participant.call_status,
-                  })
-                : student
-            );
+            return prevStudents.map((student) => {
+              if (normalizePhoneNumber(student.phoneNumber) === normalizedEventPhone) {
+                const updatedStudent = new Participant({
+                  ...student,
+                  raised_at: participant.raised_at ?? student.raised_at ?? -1,
+                  is_raised: participant.is_raised ?? student.is_raised ?? false,
+                  is_muted: participant.is_muted ?? student.is_muted ?? false,
+                  call_status: participant.call_status || student.call_status,
+                });
+                console.log(
+                  `[ConferenceContext] Updated student ${student.name} (${student.phoneNumber}): is_raised=${updatedStudent.is_raised}, raised_at=${updatedStudent.raised_at}`
+                );
+                return updatedStudent;
+              }
+              return student;
+            });
           } else {
             // Add the new student
             return [...prevStudents, participant];
@@ -139,6 +197,7 @@ export const ConferenceProvider = ({ children }) => {
         handleSSEEvent,
         handleTeacherSelect,
         handleStudentToggle,
+        clearSelectedStudents,
         setConferenceStudents,
         conferenceStudents,
         allClassroomStudents,

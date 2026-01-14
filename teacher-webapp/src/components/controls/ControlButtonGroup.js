@@ -78,7 +78,7 @@ export const ControlButtonGroup = ({
         }}
         aria-label="Sink conference"
       >
-        Sink Conference
+        End Conference
       </Button>
 
       <Button
