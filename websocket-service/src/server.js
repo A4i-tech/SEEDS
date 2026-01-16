@@ -10,16 +10,35 @@ const connectionManager = require("./services/connectionManager");
 
 const port = process.env.PORT || 3000;
 const MAXIMUM_CONFERENCE_TIME_ALLOWED_IN_MILLISECONDS = 60 * 60 * 1000; // 1 hour in milliseconds
-appInsights
-  .setup(process.env.APPLICATIONINSIGHTS_CONNECTION_STRING)
-  .setAutoCollectConsole(true, true) // Capture console logs
-  .setDistributedTracingMode(appInsights.DistributedTracingModes.AI)
-  .start();
+
+// Initialize Application Insights only if connection string is provided
+if (process.env.APPLICATIONINSIGHTS_CONNECTION_STRING) {
+  appInsights
+    .setup(process.env.APPLICATIONINSIGHTS_CONNECTION_STRING)
+    .setAutoCollectConsole(true, true) // Capture console logs
+    .setDistributedTracingMode(appInsights.DistributedTracingModes.AI)
+    .start();
+} else {
+  console.warn("APPLICATIONINSIGHTS_CONNECTION_STRING not set, skipping Application Insights");
+}
 
 // Create HTTP server without Express
 const server = http.createServer((req, res) => {
   // Parse the request URL
   const parsedUrl = url.parse(req.url, true);
+
+  // Health check endpoint for Azure App Service
+  if (req.method === "GET" && parsedUrl.pathname === "/health") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(
+      JSON.stringify({
+        status: "healthy",
+        timestamp: new Date().toISOString(),
+        service: "websocket-service",
+      })
+    );
+    return;
+  }
 
   // Check if the request is a GET request to the root path '/'
   if (req.method === "GET" && parsedUrl.pathname === "/") {
@@ -97,4 +116,58 @@ wss.on("connection", (ws, req) => {
 
 server.listen(port, () => {
   console.log(`Server is running on port ${port}`);
+});
+
+// Graceful shutdown handling
+const gracefulShutdown = (signal) => {
+  console.log(`Received ${signal}, starting graceful shutdown...`);
+
+  // Stop accepting new connections
+  server.close(() => {
+    console.log("HTTP server closed");
+
+    // Close all WebSocket connections
+    wss.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.close();
+      }
+    });
+
+    // Close WebSocket server
+    wss.close(() => {
+      console.log("WebSocket server closed");
+      process.exit(0);
+    });
+  });
+
+  // Force shutdown after 10 seconds
+  setTimeout(() => {
+    console.error("Forced shutdown after timeout");
+    process.exit(1);
+  }, 10000);
+};
+
+// Handle termination signals
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+
+// Handle uncaught exceptions
+process.on("uncaughtException", (error) => {
+  console.error("Uncaught Exception:", error);
+  gracefulShutdown("uncaughtException");
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("Unhandled Rejection at:", promise, "reason:", reason);
+  gracefulShutdown("unhandledRejection");
+});
+
+// Add error handler for server
+server.on("error", (error) => {
+  if (error.syscall !== "listen") {
+    throw error;
+  }
+
+  console.error(`Server error: ${error}`);
+  process.exit(1);
 });
