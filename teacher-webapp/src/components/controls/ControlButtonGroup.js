@@ -6,6 +6,8 @@ import {
   PersonAdd as PersonAddIcon,
   MusicNote as MusicNoteIcon,
   Pause as PauseIcon,
+  MicOff as MicOffIcon,
+  Mic as MicIcon,
 } from "@mui/icons-material";
 
 export const ControlButtonGroup = ({
@@ -16,13 +18,25 @@ export const ControlButtonGroup = ({
   isPlayingAudio,
   isPausedAudio,
   isStartingAudio,
+  isMutingAll,
+  isUnmutingAll,
+  activeStudents = [],
   onStartCall,
   onEndCall,
   onSinkConf,
   onAddParticipant,
   onMusicControl,
+  onMuteAll,
+  onUnmuteAll,
   disabled,
 }) => {
+  // Determine if all students are muted
+  const allStudentsMuted = activeStudents.length > 0 && activeStudents.every(
+    (student) => student.is_muted === true
+  );
+  
+  // Show mute/unmute all buttons only when call is running and there are students
+  const showBulkMuteControls = isConfCallRunning && activeStudents.length > 0;
   return (
     <Box
       sx={{
@@ -134,6 +148,39 @@ export const ControlButtonGroup = ({
       >
         {isPlayingAudio ? "Pause Music" : isPausedAudio ? "Resume Music" : "Play Music"}
       </Button>
+
+      {showBulkMuteControls && (
+        <Button
+          variant="outlined"
+          startIcon={
+            isMutingAll || isUnmutingAll ? (
+              <CircularProgress size={20} />
+            ) : allStudentsMuted ? (
+              <MicIcon />
+            ) : (
+              <MicOffIcon />
+            )
+          }
+          onClick={allStudentsMuted ? onUnmuteAll : onMuteAll}
+          disabled={isMutingAll || isUnmutingAll || !isConfCallRunning}
+          sx={{
+            borderColor: allStudentsMuted ? "#2e7d32" : "#d32f2f",
+            color: allStudentsMuted ? "#2e7d32" : "#d32f2f",
+            bgcolor: "#ffffff",
+            "&:hover": {
+              borderColor: allStudentsMuted ? "#1b5e20" : "#c62828",
+              bgcolor: allStudentsMuted ? "#e8f5e9" : "#ffebee",
+            },
+            "&:disabled": {
+              borderColor: "#cccccc",
+              color: "#cccccc",
+            },
+          }}
+          aria-label={allStudentsMuted ? "Unmute all students" : "Mute all students"}
+        >
+          {allStudentsMuted ? "Unmute All" : "Mute All"}
+        </Button>
+      )}
     </Box>
   );
 };
