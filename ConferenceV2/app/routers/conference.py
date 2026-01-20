@@ -107,7 +107,7 @@ async def add_participant(conference_id: str, phone_number: str):
 
 
 @router.put("/removeparticipant/{conference_id}")
-async def add_participant(conference_id: str, phone_number: str):
+async def remove_participant(conference_id: str, phone_number: str):
     conference = conference_manager.get_conference(conference_id)
     if not conference:
         raise HTTPException(status_code=404, detail="Conference not found")
