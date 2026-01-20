@@ -57,12 +57,16 @@ async def start_conference(conference_id: str):
 @router.get("/teacherappconnect/{conference_id}")
 async def connect_smartphone(conference_id: str):
     conference = conference_manager.get_conference(conference_id)
+    if not conference:
+        raise HTTPException(status_code=404, detail="Conference not found")
     return await conference.connect_smartphone()
 
 
 @router.post("/teacherappdisconnect/{conference_id}")
 async def disconnect_smartphone(conference_id: str):
     conference = conference_manager.get_conference(conference_id)
+    if not conference:
+        raise HTTPException(status_code=404, detail="Conference not found")
     return await conference.disconnect_smartphone()
 
 
