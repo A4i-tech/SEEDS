@@ -21,6 +21,7 @@ import {
   People as PeopleIcon,
   School as SchoolIcon,
   Logout as LogoutIcon,
+  PlayArrow as PlayArrowIcon,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { getAllClassrooms, deleteClassroom } from "../services/classroomService";
@@ -94,6 +95,10 @@ const ClassroomList = () => {
     logout();
   };
 
+  const handlePlayContent = () => {
+    navigate(ROUTES.CONTENT);
+  };
+
   if (loading) {
     return <LoadingSpinner />;
   }
@@ -112,6 +117,14 @@ const ClassroomList = () => {
           My Classrooms
         </Typography>
         <Box sx={{ display: "flex", gap: 2 }}>
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<PlayArrowIcon />}
+            onClick={handlePlayContent}
+          >
+            Play Content
+          </Button>
           <Button
             variant="contained"
             color="primary"

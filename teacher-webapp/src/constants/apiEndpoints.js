@@ -10,6 +10,8 @@ export const API_ENDPOINTS = {
   ADD_TEACHER_STUDENTS: `${BASE_URL}/v1/teacher/add-students`,
   GET_SCHOOLS: `${BASE_URL}/tenant/names`,
   GET_AUDIO_CONTENT: `${BASE_URL}/content`,
+  GET_CONTENT: `${BASE_URL}/content`,
+  GET_CONTENT_SAS_URL: `${BASE_URL}/content/sasUrl`,
   CLASSROOM: {
     GET_ALL: `${BASE_URL}/class`,
     GET_BY_ID: (classId) => `${BASE_URL}/class/${classId}`,
