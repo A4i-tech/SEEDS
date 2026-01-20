@@ -193,7 +193,7 @@ async def play_audio(conference_id: str, url: str):
 
 
 @router.put("/pauseaudio/{conference_id}")
-async def play_audio(conference_id: str):
+async def pause_audio(conference_id: str):
     conference = conference_manager.get_conference(conference_id)
     if not conference:
         raise HTTPException(status_code=404, detail="Conference not found")
@@ -202,7 +202,7 @@ async def play_audio(conference_id: str):
 
 
 @router.put("/resumeaudio/{conference_id}")
-async def play_audio(conference_id: str):
+async def resume_audio(conference_id: str):
     conference = conference_manager.get_conference(conference_id)
     if not conference:
         raise HTTPException(status_code=404, detail="Conference not found")
