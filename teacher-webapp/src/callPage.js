@@ -13,6 +13,7 @@ import {
   playAudio,
   pauseAudio,
   addParticipant,
+  removeParticipant,
   resumeAudio,
   seekAudio,
 } from "./services/apiService";
@@ -39,6 +40,7 @@ export function DetailsPage() {
 
   const [loadingIds, setLoadingIds] = useState([]);
   const [reconnectingIds, setReconnectingIds] = useState([]);
+  const [removingIds, setRemovingIds] = useState([]);
   const [isLoadingCall, setIsLoadingCall] = useState(false);
   const [isSinkingConf, setIsSinkingConf] = useState(false);
   const [hasSunkConf, setHasSunkConf] = useState(false);
@@ -295,6 +297,45 @@ export function DetailsPage() {
     }
   };
 
+  const handleRemoveParticipant = async (participant) => {
+    if (!confId) {
+      showToast.error("Conference ID is missing");
+      return;
+    }
+
+    if (!participant || !participant.phoneNumber) {
+      showToast.error("Invalid participant");
+      return;
+    }
+
+    // Confirmation dialog
+    const participantName = participant.name || participant.phoneNumber;
+    const confirmed = window.confirm(
+      `Are you sure you want to remove ${participantName} from the conference?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    const phoneNumber = participant.phoneNumber;
+    setRemovingIds((prev) => [...prev, phoneNumber]);
+
+    try {
+      const normalizedPhone = normalizePhoneNumber(phoneNumber);
+      await removeParticipant(confId, normalizedPhone);
+      showToast.success(`${participantName} removed successfully`);
+      // SSE will automatically update the UI by removing the participant from participantsMap
+    } catch (error) {
+      console.error("Error removing participant:", error);
+      showToast.error(
+        `Failed to remove ${participantName}: ${error.message || "Unknown error"}`
+      );
+    } finally {
+      setRemovingIds((prev) => prev.filter((id) => id !== phoneNumber));
+    }
+  };
+
   // Filter out students who are already in the call (using centralized participantsMap)
   const allParticipants = getAllParticipants();
   const availableStudents = (allClassroomStudents || []).filter((student) => {
@@ -321,6 +362,7 @@ export function DetailsPage() {
 
   const canReconnect = (user) => user?.call_status === "disconnected" && isConfCallRunning;
   const isReconnecting = (phoneNumber) => phoneNumber && reconnectingIds.includes(phoneNumber);
+  const isRemoving = (phoneNumber) => phoneNumber && removingIds.includes(phoneNumber);
 
   useEffect(() => {
     if (hasSunkConf) {
@@ -344,8 +386,10 @@ export function DetailsPage() {
           students={activeStudents}
           onMuteToggle={handleMuteToggle}
           onReconnect={handleReconnect}
+          onRemove={handleRemoveParticipant}
           isLoading={isLoading}
           isReconnecting={isReconnecting}
+          isRemoving={isRemoving}
           canReconnect={canReconnect}
         />
 
