@@ -50,6 +50,10 @@ class UnmuteAllEvent(ConferenceEvent):
                     failed_phones.append(student_phone)
                 elif result:
                     unmuted_count += 1
+            
+            # Stream system message once for all students (not per student)
+            if self.stream_system_message and unmuted_count > 0:
+                await self.conf_call.stream_system_message(SystemAudioMessages.STUDENT_IS_UNMUTED)
         
         # Log the action in the action history
         self.conf_call.state.action_history.append(
@@ -95,10 +99,6 @@ class UnmuteAllEvent(ConferenceEvent):
                     new_state={"muted": False}
                 )
             )
-            
-            # Stream system message if enabled and not teacher
-            if self.stream_system_message and phone_number != self.conf_call.state.get_teacher().phone_number:
-                await self.conf_call.stream_system_message(SystemAudioMessages.STUDENT_IS_UNMUTED)
             
             return True
         except Exception as e:

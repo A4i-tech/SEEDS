@@ -50,6 +50,10 @@ class MuteAllEvent(ConferenceEvent):
                     failed_phones.append(student_phone)
                 elif result:
                     muted_count += 1
+            
+            # Stream system message once for all students (not per student)
+            if self.stream_system_message and muted_count > 0:
+                await self.conf_call.stream_system_message(SystemAudioMessages.STUDENT_IS_MUTED)
         
         # Log the action in the action history
         self.conf_call.state.action_history.append(
@@ -88,11 +92,6 @@ class MuteAllEvent(ConferenceEvent):
             # Update the participant's muted status
             if phone_number in self.conf_call.state.participants:
                 self.conf_call.state.participants[phone_number].is_muted = True
-                
-                # Stream system message if enabled and not teacher
-                if self.stream_system_message and phone_number != self.conf_call.state.get_teacher().phone_number:
-                    await self.conf_call.stream_system_message(SystemAudioMessages.STUDENT_IS_MUTED)
-                
                 return True
         except Exception as e:
             logger_instance.error(f"Error muting student {phone_number}: {e}")
