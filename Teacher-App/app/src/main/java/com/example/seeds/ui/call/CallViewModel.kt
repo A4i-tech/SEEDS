@@ -801,11 +801,73 @@ class CallViewModel @Inject constructor(
     }
     
     fun unmuteAll() {
-        socket.send("unMuteAll")
+        val confId = _callToken.value?.confId ?: return
+        
+        // Optimistic update: Mark all students as unmuted
+        val currentList = _callState.value?.toMutableList() ?: return
+        val updatedList = currentList.map { participant ->
+            if (participant.phoneNumber != teacherPhoneNumber) {
+                participant.copy(isMuted = false)
+            } else {
+                participant
+            }
+        }.toMutableList()
+        _callState.postValue(updatedList)
+        _isMuteOrUnmuteAllDone.postValue(false)
+
+        viewModelScope.launch {
+            try {
+                val fullUrl = "$conferenceUrl/conference/unmuteall/$confId"
+                val response = network.unmuteAll(fullUrl)
+                if (response.isSuccessful) {
+                    // Success - refresh to get actual server state
+                    refreshCallState()
+                } else {
+                    // Failed - revert optimistic update
+                    refreshCallState()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to unmute all", e)
+                refreshCallState()
+            } finally {
+                _isMuteOrUnmuteAllDone.postValue(true)
+            }
+        }
     }
 
     fun muteAll() {
-        socket.send("muteAll")
+        val confId = _callToken.value?.confId ?: return
+        
+        // Optimistic update: Mark all students as muted
+        val currentList = _callState.value?.toMutableList() ?: return
+        val updatedList = currentList.map { participant ->
+            if (participant.phoneNumber != teacherPhoneNumber) {
+                participant.copy(isMuted = true)
+            } else {
+                participant
+            }
+        }.toMutableList()
+        _callState.postValue(updatedList)
+        _isMuteOrUnmuteAllDone.postValue(false)
+
+        viewModelScope.launch {
+            try {
+                val fullUrl = "$conferenceUrl/conference/muteall/$confId"
+                val response = network.muteAll(fullUrl)
+                if (response.isSuccessful) {
+                    // Success - refresh to get actual server state
+                    refreshCallState()
+                } else {
+                    // Failed - revert optimistic update
+                    refreshCallState()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to mute all", e)
+                refreshCallState()
+            } finally {
+                _isMuteOrUnmuteAllDone.postValue(true)
+            }
+        }
     }
 
     fun sendAudioCommand(action: String, newStateOnSuccess: PlayerState) {
