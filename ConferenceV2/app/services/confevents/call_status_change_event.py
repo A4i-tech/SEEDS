@@ -18,6 +18,9 @@ class CallStatusChangeEvent(ConferenceEvent):
                 logger_instance.info("EXECUTING CALL STATUS CHANGE EVENT FOR NUMBER", self.phone_number, "STATUS:", self.status.value)
                 participant.call_status = self.status
                 
+                # Update activity timestamp when participants connect/disconnect
+                self.conf_call.state.update_activity()
+                
                 # Stream participant disconnected message
                 if self.status == CallStatus.DISCONNECTED:
                     is_teacher = self.conf_call.state.get_teacher().phone_number == participant.phone_number

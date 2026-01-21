@@ -18,6 +18,9 @@ class RemoveParticipantEvent(ConferenceEvent):
             # Delete the participant from the conference state
             del self.conf_call.state.participants[self.phone_number]
             
+            # Update activity when removing participant
+            self.conf_call.state.update_activity()
+            
             # Log the removal in the action history
             self.conf_call.state.action_history.append(
                 ActionHistory(

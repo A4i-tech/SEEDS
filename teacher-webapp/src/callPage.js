@@ -89,13 +89,22 @@ export function DetailsPage() {
 
   const handleStartCall = async () => {
     setIsLoadingCall(true);
+    
+    // Set a 5-second timeout to re-enable the button even if request is still pending
+    const timeoutId = setTimeout(() => {
+      setIsLoadingCall(false);
+      console.warn("Start conference request taking longer than 5 seconds. Button re-enabled.");
+    }, 5000);
+    
     try {
       await startConferenceCall(confId);
+      clearTimeout(timeoutId);
       showToast.success("Call started successfully");
+      setIsLoadingCall(false);
     } catch (error) {
+      clearTimeout(timeoutId);
       console.error("Error starting the call:", error);
-      showToast.error("Failed to start call");
-    } finally {
+      showToast.error("Failed to start call. Please try again.");
       setIsLoadingCall(false);
     }
   };

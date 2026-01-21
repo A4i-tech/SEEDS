@@ -30,6 +30,9 @@ class ConferenceCallManager:
         self.ws_base_url = os.environ.get("WS_SERVER_EP", "")
 
     def create_conference(self, teacher_phone: str, student_phones: List[str]) -> ConferenceCall:
+        # Cleanup stale conferences for the same teacher before creating new one
+        self._cleanup_stale_conferences_for_teacher(teacher_phone)
+        
         conf_id = str(uuid.uuid4())
         conference_call = ConferenceCall(
             conf_id=conf_id,
@@ -43,6 +46,34 @@ class ConferenceCallManager:
         conference_call.set_participant_state(teacher_phone, student_phones)
         self.conferences[conf_id] = conference_call
         return conference_call
+    
+    def _cleanup_stale_conferences_for_teacher(self, teacher_phone: str) -> int:
+        """
+        Cleanup stale conferences for a specific teacher.
+        Returns number of conferences cleaned up.
+        """
+        cleaned_count = 0
+        stale_conf_ids = []
+        
+        for conf_id, conf in list(self.conferences.items()):
+            # Check if this conference belongs to the teacher and is stale
+            if (conf.state.teacher_phone_number == teacher_phone and conf.is_stale()):
+                stale_conf_ids.append(conf_id)
+                cleaned_count += 1
+        
+        # Delete stale conferences
+        for conf_id in stale_conf_ids:
+            logger_instance.info(
+                f"Cleaning up stale conference {conf_id} for teacher {teacher_phone}"
+            )
+            self.delete_conference(conf_id)
+        
+        if cleaned_count > 0:
+            logger_instance.info(
+                f"Cleaned up {cleaned_count} stale conference(s) for teacher {teacher_phone}"
+            )
+        
+        return cleaned_count
    
     async def start_conference_call(self, conf_id: str) -> None:
         conf: ConferenceCall = self.get_conference(conf_id)
@@ -64,6 +95,29 @@ class ConferenceCallManager:
             if phone_number in participant_phone_numbers:
                 return conf
         return None
+    
+    async def cleanup_all_stale_conferences(self) -> int:
+        """
+        Background job to cleanup all stale conferences.
+        Returns number of conferences cleaned up.
+        """
+        cleaned_count = 0
+        stale_conf_ids = []
+        
+        for conf_id, conf in list(self.conferences.items()):
+            if conf.is_stale():
+                stale_conf_ids.append(conf_id)
+                cleaned_count += 1
+        
+        # Delete stale conferences
+        for conf_id in stale_conf_ids:
+            logger_instance.info(f"Background cleanup: Removing stale conference {conf_id}")
+            self.delete_conference(conf_id)
+        
+        if cleaned_count > 0:
+            logger_instance.info(f"Background cleanup: Removed {cleaned_count} stale conference(s)")
+        
+        return cleaned_count
 
 # UNIVERSAL ConferenceCallManager instance
 conference_manager = ConferenceCallManager(

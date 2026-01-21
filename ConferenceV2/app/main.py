@@ -28,8 +28,33 @@ async def lifespan(app: FastAPI):
     # Start background task to listen for messages from Node.js
     ws = WebsocketService()
     await ws.initialize()
+    
+    # Start background task for stale conference cleanup
+    from app.services.singletons.conference_call_manager import conference_manager
+    
+    async def cleanup_stale_conferences_periodically():
+        """Background task to periodically cleanup stale conferences."""
+        while True:
+            try:
+                await asyncio.sleep(300)  # Run every 5 minutes
+                cleaned = await conference_manager.cleanup_all_stale_conferences()
+                if cleaned > 0:
+                    logger_instance.info(f"Background cleanup: {cleaned} stale conferences removed")
+            except Exception as e:
+                import traceback
+                logger_instance.error(f"Error in background cleanup: {e}")
+                logger_instance.error(f"Traceback: {''.join(traceback.format_tb(e.__traceback__))}")
+    
+    cleanup_task = asyncio.create_task(cleanup_stale_conferences_periodically())
+    
     yield
-    # End background task to listen for messages from Node.js
+    
+    # Cleanup
+    cleanup_task.cancel()
+    try:
+        await cleanup_task
+    except asyncio.CancelledError:
+        pass
     ws.cancel_bg_processes()
 
 app = FastAPI(title=f"SEEDS Conference Call System", lifespan=lifespan)

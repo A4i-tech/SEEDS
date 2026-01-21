@@ -30,6 +30,8 @@ class AddParticipantEvent(ConferenceEvent):
         elif current_participants_dict[self.phone_number].call_status != CallStatus.CONNECTED:
             await self.conf_call.communication_api.add_participant(self.phone_number)
             current_participants_dict[self.phone_number].call_status = CallStatus.CONNECTING
+            # Update activity when adding participant
+            self.conf_call.state.update_activity()
 
         # Update action history
         self.conf_call.state.action_history.append(ActionHistory(

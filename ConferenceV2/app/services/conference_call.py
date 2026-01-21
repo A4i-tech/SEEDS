@@ -1,7 +1,7 @@
 # services/conference_call.py
 
 import traceback
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 import asyncio
 
@@ -40,7 +40,12 @@ class ConferenceCall:
         #     )
         
         self.event_queue = asyncio.Queue()
-        self.event_queue_processing_task: asyncio.Task = None
+        self.event_queue_processing_task: Optional[asyncio.Task] = None
+        # Initialize state timestamps if not set
+        if not self.state.created_at:
+            self.state.created_at = datetime.now().isoformat()
+        if not self.state.last_activity_at:
+            self.state.last_activity_at = datetime.now().isoformat()
     
     async def stream_system_message(self, message: SystemAudioMessages):
         if self.state.is_running and self.communication_api.get_is_websocket_connected():
@@ -89,6 +94,7 @@ class ConferenceCall:
             [student.phone_number for student in self.state.get_students()]
         )
         self.state.is_running = True
+        self.state.update_activity()  # Conference started - mark as active
         # TODO: Set CONNECTED CALL STATUS WHEN ATLEAST ONE OF THE PARTICIPANTS HAVE PICKED UP
         self.state.action_history.append(ActionHistory(
                                                     timestamp=datetime.now().isoformat(), 
@@ -115,6 +121,13 @@ class ConferenceCall:
             return await self.connection_manager.disconnect(client=teacher)
         raise ValueError("No teacher participant in conf call " + self.conf_id)
         
+    def is_stale(self, idle_timeout_minutes: int = 60) -> bool:
+        """
+        Check if conference is stale.
+        Delegates to state model which contains the business logic.
+        """
+        return self.state.is_stale(idle_timeout_minutes)
+    
     async def update_state(self):
         # Save state to storage
         await self.storage_manager.save_state(self.conf_id, self.state.model_dump(by_alias=True))
