@@ -72,8 +72,7 @@ class CallViewModel @Inject constructor(
     val leader = args.leader.toString()
 
     private var callStarted = false
-    private var phoneNumbers: List<String> = args.phoneNumbers.toMutableList()
-
+    
     private var allStudents = listOf<Student>()
     private var teacherStudentsMap: Map<String, Student> = emptyMap()
     
@@ -83,6 +82,13 @@ class CallViewModel @Inject constructor(
     private var isPollingStarted = false
 
     val teacherPhoneNumber = "91${teacherRepository.getTeacherPhoneNumber()}"
+    
+    // Filter out teacher phone
+    // args.phoneNumbers should only contain selected students from CallSettingsFragment
+    private var phoneNumbers: List<String> = args.phoneNumbers
+        .filter { it != teacherPhoneNumber } // Remove teacher phone if present
+        .distinct()
+        .toMutableList()
 
     var content: Content? = args.classroom?.contents?.firstOrNull()
 
@@ -201,16 +207,30 @@ class CallViewModel @Inject constructor(
                 loadCorrectStudentNames()
             }
 
-            val initialCallStatuses = args.classroom.students.map { student ->
-                StudentCallStatus(
-                    name = student.name,
-                    phoneNumber = student.phoneNumber,
-                    callerState = CallerState.RINGING,
-                    isMuted = false,
-                    onHold = false,
-                    raiseHand = false
-                )
-            }
+            // Only create initial call statuses for selected students (phoneNumbers)
+            // Filter classroom students to only include those in phoneNumbers
+            val selectedStudentPhones = phoneNumbers.toSet()
+            val initialCallStatuses = args.classroom.students
+                .filter { student -> 
+                    // Normalize phone number for comparison
+                    val normalizedPhone = if (student.phoneNumber.startsWith("91")) {
+                        student.phoneNumber
+                    } else {
+                        "91${student.phoneNumber}"
+                    }
+                    selectedStudentPhones.contains(normalizedPhone) || 
+                    selectedStudentPhones.contains(student.phoneNumber)
+                }
+                .map { student ->
+                    StudentCallStatus(
+                        name = student.name,
+                        phoneNumber = student.phoneNumber,
+                        callerState = CallerState.RINGING,
+                        isMuted = false,
+                        onHold = false,
+                        raiseHand = false
+                    )
+                }
             _callState.postValue(initialCallStatuses)
             updateStudentsNotOnCall(initialCallStatuses)
 
@@ -512,12 +532,21 @@ class CallViewModel @Inject constructor(
             try {
                 val names = mutableListOf<String>()
                 names.add("Teacher")
-                for (num in args.phoneNumbers.drop(1)) {
-                    val student = args.classroom.students.find { it.phoneNumber == num }
+                // Use phoneNumbers (which only contains selected students)
+                for (num in phoneNumbers) {
+                    val student = args.classroom.students.find { 
+                        val normalizedPhone = if (it.phoneNumber.startsWith("91")) {
+                            it.phoneNumber
+                        } else {
+                            "91${it.phoneNumber}"
+                        }
+                        it.phoneNumber == num || normalizedPhone == num
+                    }
                     if (student != null) names.add(student.name)
                 }
 
                 val fullUrl = "$conferenceUrl/conference/start/$confId"
+                // Use phoneNumbers which only contains selected students (teacher phone already filtered out)
                 val response = network.startCall(fullUrl, CallDetails(confId, phoneNumbers, names))
 
                 if (response.isSuccessful) {
