@@ -15,8 +15,8 @@ export const transformQuizItem = (quiz) => {
     return null;
   }
 
-  // Ensure id field exists (use _id if id not present)
-  const id = quiz.id || quiz._id || null;
+  // Ensure id field exists (backend always provides id field)
+  const id = quiz.id || null;
 
   // Handle title - can be string or object
   let title = quiz.title;
@@ -225,10 +225,10 @@ export const normalizeQuizForTable = (quiz) => {
     return null;
   }
 
-  // Ensure all fields required by ContentTable are present
+  // Ensure all fields required by ContentTable are present (backend always provides id field)
   return {
     ...transformed,
-    id: transformed.id || transformed._id,
+    id: transformed.id,
     type: "quiz",
     title: transformed.title || { english: "", local: "" },
     theme: transformed.theme || { english: "", local: "" },
@@ -242,7 +242,7 @@ export const normalizeQuizForTable = (quiz) => {
  * @returns {Boolean} True if item is a quiz
  */
 export const isQuiz = (item) => {
-  return item && (item.type === "quiz" || item._id || item.id);
+  return item && (item.type === "quiz" || item.id);
 };
 
 /**
@@ -257,9 +257,9 @@ export const validateQuizData = (quiz) => {
     return { isValid: false, errors: ["Quiz data is null or undefined"] };
   }
 
-  // Check required fields
-  if (!quiz.id && !quiz._id) {
-    errors.push("Quiz missing id or _id field");
+  // Check required fields (backend always provides id field)
+  if (!quiz.id) {
+    errors.push("Quiz missing id field");
   }
 
   const title = quiz.title;

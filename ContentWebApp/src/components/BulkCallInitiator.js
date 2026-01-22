@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import { SEEDS_URL } from "../Constants";
-import { getAuthHeaders } from "../utils/authHelpers";
+import { useAuth } from "../hooks/useAuth";
+import { contentService } from "../services/contentService";
 
 // const SEEDS_URL = 'your_seeds_url'; // replace with your SEEDS_URL
 
 const BulkCallInitiator = () => {
+    const { getAuthHeaders } = useAuth();
     const [phoneNumbers, setPhoneNumbers] = useState([]);
     const [contentList, setContentList] = useState([]);
     const [selectedContents, setSelectedContents] = useState([]);
@@ -14,19 +15,17 @@ const BulkCallInitiator = () => {
     // Fetch content IDs
     useEffect(() => {
         const fetchContents = async () => {
-            const seedsRes = await fetch(
-                `${SEEDS_URL}/content`,
-                {
-                  method: "GET",
-                  headers: getAuthHeaders(),
-                }
-              );
-            const seedsData = await seedsRes.json();
-            setContentList(seedsData); // Assuming seedsData is an array of contents
+            try {
+                const seedsData = await contentService.getAllContent(getAuthHeaders());
+                setContentList(seedsData);
+            } catch (error) {
+                console.error("Error fetching content:", error);
+                alert("Failed to fetch content list");
+            }
         };
 
         fetchContents();
-    }, []);
+    }, [getAuthHeaders]);
 
     const handleFileUpload = (e) => {
         const file = e.target.files[0];

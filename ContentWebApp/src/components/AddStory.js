@@ -304,8 +304,8 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
   };
 
   const sendStory = async () => {
-    // Get the correct ID - prefer _id, fallback to id
-    const contentId = content ? (content._id || content.id) : uuidv4();
+    // Get the correct ID - backend always provides id field
+    const contentId = content ? content.id : uuidv4();
     const languageLower = (metadata.language || "").toLowerCase();
     // Always send title and theme as objects
     var newMetadata = {

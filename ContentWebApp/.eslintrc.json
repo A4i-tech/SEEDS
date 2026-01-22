@@ -1,8 +1,7 @@
 {
   "extends": ["react-app", "react-app/jest", "prettier"],
   "rules": {
-    "quotes": "off",
-    "jsx-quotes": "off",
-    "import/no-anonymous-default-export": "off"
+    "quotes": ["error", "double"],
+    "jsx-quotes": ["error", "prefer-double"]
   }
 }

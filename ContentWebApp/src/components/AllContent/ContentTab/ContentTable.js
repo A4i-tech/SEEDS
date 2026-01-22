@@ -42,8 +42,8 @@ const ContentTable = ({ content, isLoading, onEdit, onView, onDelete }) => {
           </thead>
           <tbody>
             {content.map((item) => {
-              // Get ID - prefer id, fallback to _id, ensure it's a string
-              const itemId = (item.id || item._id || "").toString();
+              // Get ID - standardized to use id field (backend always provides id)
+              const itemId = (item.id || "").toString();
               // Get type and normalize to lowercase
               const itemType = (item.type || "story").toLowerCase();
               return (

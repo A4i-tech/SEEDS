@@ -30,13 +30,13 @@ describe('processQuizContent', () => {
 
         mockQuizData = {
             id: 'quiz-123',
+            _id: 'quiz-123',
             language: 'en',
             isPullModel: false,
             questions: [],
             title: { local: 'Test Quiz' },
             theme: { english: 'education', local: 'Education' },
-            toObject: jest.fn().mockReturnValue({ id: 'quiz-123' }),
-            save: jest.fn().mockResolvedValue()
+            toObject: jest.fn().mockReturnValue({ id: 'quiz-123', _id: 'quiz-123' })
         };
 
         const mockBlobClient = {
@@ -45,7 +45,13 @@ describe('processQuizContent', () => {
             url: 'https://example.com/audio.mp3'
         };
 
+        // Mock QuizData constructor and static findOneAndUpdate method
         QuizData.mockImplementation(() => mockQuizData);
+        QuizData.findOneAndUpdate = jest.fn().mockImplementation((query, update, options) => {
+            // Return a promise that resolves with the updated document
+            return Promise.resolve(mockQuizData);
+        });
+        
         BlobService.mockImplementation(() => ({
             getContainerClient: jest.fn().mockReturnValue({
                 getBlockBlobClient: jest.fn().mockReturnValue(mockBlobClient)
@@ -84,7 +90,7 @@ describe('processQuizContent', () => {
 
     const expectJobSuccess = (job) => {
         expect(job.attrs.completedAt).toBeInstanceOf(Date);
-        expect(mockQuizData.save).toHaveBeenCalled();
+        expect(mocks.QuizData.findOneAndUpdate).toHaveBeenCalled();
     };
 
     const expectJobStarted = (job) => {
@@ -117,7 +123,7 @@ describe('processQuizContent', () => {
             await processQuizData(mockJob);
 
             expectJobSuccess(mockJob);
-            expect(mockJob.attrs.data.processedContent).toEqual({ id: 'quiz-123' });
+            expect(mockJob.attrs.data.processedContent).toMatchObject({ id: 'quiz-123' });
         });
 
         const errorCases = [

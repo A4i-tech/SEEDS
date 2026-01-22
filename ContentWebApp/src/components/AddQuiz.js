@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { useNavigate } from "react-router-dom";
-import { getAuthHeaders } from "../utils/authHelpers";
+import { useAuth } from "../hooks/useAuth";
+import { contentService } from "../services/contentService";
 import { transformQuizItem, extractQuestionText, extractQuestionOptions, getCorrectOptionIndex } from "../utils/quizDataTransform";
-import { SEEDS_URL } from "../Constants";
 import "./AddQuiz.css";
 
 const AddQuiz = ({ quiz }) => {
   const navigate = useNavigate();
+  const { getAuthHeaders } = useAuth();
   const [inputFields, setInputFields] = useState([
     { question: "", optionA: "", optionB: "", optionC: "", optionD: "", correctAnswer: 0 },
   ]);
@@ -88,7 +89,7 @@ const AddQuiz = ({ quiz }) => {
     metadata["options"] = options;
     metadata["type"] = "quiz";
     if (quiz) {
-      metadata["id"] = quiz.id || quiz._id;
+      metadata["id"] = quiz.id;
     } else {
       metadata["id"] = uuidv4();
     }
@@ -136,27 +137,14 @@ const AddQuiz = ({ quiz }) => {
     }
 
     try {
-      const response = await fetch(`${SEEDS_URL}/content/quiz`, {
-        method: "POST",
-        headers: {
-          ...getAuthHeaders(),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(metadata),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Failed to save quiz" }));
-        throw new Error(errorData.error || `Failed to save quiz: ${response.status}`);
-      }
-
-      const result = await response.json();
+      const result = await contentService.createQuiz(metadata, getAuthHeaders());
       console.log("Quiz saved successfully:", result);
       alert("Quiz saved successfully.");
       navigate("/content");
     } catch (err) {
       console.error("Error saving quiz:", err);
-      alert(`Failed to save quiz: ${err.message}`);
+      const errorMessage = err.message || "Failed to save quiz";
+      alert(`Failed to save quiz: ${errorMessage}`);
     }
   };
 

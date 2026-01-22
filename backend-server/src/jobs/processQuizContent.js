@@ -132,26 +132,14 @@ async function processQuizData(job) {
     job.attrs.data.processedContent = processed;
     await job.save();
 
-    // Save normally; if it already exists, fall back to upsert for edits
-    let saveError = null;
-    try {
-      await quizDoc.save();
-      console.log("SAVED QUIZ DOC (new)");
-    } catch (err) {
-      saveError = err;
-    }
-
-    // If duplicate key (already exists), upsert instead
-    if (saveError && saveError.code === 11000) {
-      await QuizData.findOneAndUpdate(
-        { _id: processed._id },
-        processed,
-        { upsert: true, new: true, setDefaultsOnInsert: true }
-      );
-      console.log("UPDATED QUIZ DOC (upsert)");
-    } else if (saveError) {
-      throw saveError;
-    }
+    // Use atomic upsert operation to avoid race conditions
+    // This handles both insert (new quiz) and update (existing quiz) cases atomically
+    await QuizData.findOneAndUpdate(
+      { _id: processed._id },
+      processed,
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    console.log("SAVED/UPDATED QUIZ DOC (atomic upsert)");
     console.log(`Processed JOB: ${quizDoc}`);
   } catch (error) {
     console.error("Job failed due to error:", error);

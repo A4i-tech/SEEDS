@@ -386,33 +386,34 @@ router.get(
 
     // If specific IDs are requested, return non-deleted content sorted by creation time (newest first)
     if (req.query.ids) {
+      if (!req.query.ids || (typeof req.query.ids === 'string' && req.query.ids.trim() === '')) {
+        return res.status(400).json({ error: "ids query parameter is required" });
+      }
       const idsArray = Array.isArray(req.query.ids) ? req.query.ids : req.query.ids.split(",");
       
       // Fetch both content and quiz data for the requested IDs
       const [contents, quizzes] = await Promise.all([
         ContentV3.find({ _id: { $in: idsArray }, isDeleted: { $ne: true } })
-          .sort({ creation_time: -1 })
           .exec(),
         QuizData.find({ _id: { $in: idsArray }, isDeleted: { $ne: true } })
-          .sort({ creation_time: -1 })
           .exec(),
       ]);
       
-      // Transform content to ensure id field exists
+      // Transform content to ensure id field exists (standardize: always use id from _id)
       const transformedContents = contents.map((content) => {
         const contentObj = content.toObject();
         return {
           ...contentObj,
-          id: contentObj.id || contentObj._id,
+          id: contentObj._id || contentObj.id,
         };
       });
       
-      // Transform quiz data to match content format
+      // Transform quiz data to match content format (standardize: always use id from _id)
       const transformedQuizzes = quizzes.map((quiz) => {
         const quizObj = quiz.toObject();
         return {
           ...quizObj,
-          id: quizObj._id,
+          id: quizObj._id || quizObj.id,
           type: "quiz",
         };
       });
@@ -457,37 +458,39 @@ router.get(
     // Fetch more items to account for merging and pagination
     const fetchLimit = limit * 2; // Fetch more to ensure we have enough after merging
 
-    let contents = [];
-    if (shouldFetchContent) {
-      contents = await ContentV3.find(contentQuery)
-        .sort({ creation_time: -1, _id: -1 })
-        .limit(fetchLimit)
-        .exec();
-    }
+    // Fetch both content and quizzes concurrently using Promise.all
+    // Use .lean() for faster reads (returns plain objects instead of Mongoose documents)
+    // Note: No sorting at DB level - we sort once after merging
+    const [contents, quizzes] = await Promise.all([
+      shouldFetchContent
+        ? ContentV3.find(contentQuery)
+            .limit(fetchLimit)
+            .lean()
+            .exec()
+        : Promise.resolve([]),
+      shouldFetchQuizzes
+        ? QuizData.find(quizQuery)
+            .limit(fetchLimit)
+            .lean()
+            .exec()
+        : Promise.resolve([]),
+    ]);
 
-    let quizzes = [];
-    if (shouldFetchQuizzes) {
-      quizzes = await QuizData.find(quizQuery)
-        .sort({ creation_time: -1, _id: -1 })
-        .limit(fetchLimit)
-        .exec();
-    }
-
-    // Transform content to ensure id field exists
-    const transformedContents = contents.map((content) => {
-      const contentObj = content.toObject();
+    // Transform content to ensure id field exists (standardize: always use id from _id)
+    // Note: .lean() returns plain objects, so no need for .toObject()
+    const transformedContents = contents.map((contentObj) => {
       return {
         ...contentObj,
-        id: contentObj.id || contentObj._id,
+        id: contentObj._id || contentObj.id,
       };
     });
 
-    // Transform quiz data to match content format
-    const transformedQuizzes = quizzes.map((quiz) => {
-      const quizObj = quiz.toObject();
+    // Transform quiz data to match content format (standardize: always use id from _id)
+    // Note: .lean() returns plain objects, so no need for .toObject()
+    const transformedQuizzes = quizzes.map((quizObj) => {
       return {
         ...quizObj,
-        id: quizObj._id,
+        id: quizObj._id || quizObj.id,
         type: "quiz",
       };
     });
@@ -530,11 +533,11 @@ router.get(
     const hasMore = allContent.length > limit;
     const data = hasMore ? allContent.slice(0, limit) : allContent;
 
-    // Generate next cursor from last item
+    // Generate next cursor from last item (standardized: use id field)
     const lastItem = hasMore ? data[data.length - 1] : null;
     let nextCursor = null;
     if (lastItem) {
-      const lastId = lastItem._id?.toString() || lastItem.id || "";
+      const lastId = lastItem.id?.toString() || lastItem._id?.toString() || "";
       nextCursor = `${lastItem.creation_time || 0}_${lastId}`;
     }
 
@@ -621,26 +624,25 @@ router.get(
     if (!content) {
       content = await QuizData.findOne({ _id: contentId }).exec();
       if (content) {
-        // Transform quiz data to match expected frontend structure
+        // Transform quiz data to match expected frontend structure (standardize: always use id from _id)
         const quizObj = content.toObject();
         content = {
           ...quizObj,
-          id: quizObj._id,
+          id: quizObj._id || quizObj.id,
           type: "quiz",
           title: quizObj.title?.english || quizObj.title,
           localTitle: quizObj.title?.local || quizObj.localTitle,
           theme: quizObj.theme?.english || quizObj.theme,
           localTheme: quizObj.theme?.local || quizObj.localTheme,
-          positiveMark: quizObj.positiveMarks,
-          negativeMark: quizObj.negativeMarks,
+          // Keep positiveMarks and negativeMarks as-is (plural form matches database schema)
         };
       }
     } else {
-      // Transform ContentV3 to ensure id field exists
+      // Transform ContentV3 to ensure id field exists (standardize: always use id from _id)
       const contentObj = content.toObject();
       content = {
         ...contentObj,
-        id: contentObj.id || contentObj._id,
+        id: contentObj._id || contentObj.id,
       };
     }
 

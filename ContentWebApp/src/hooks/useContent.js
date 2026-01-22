@@ -135,9 +135,9 @@ export const useContent = () => {
 
       try {
         await contentService.deleteContent(type, id, getAuthHeaders());
-        // Remove from both content and allContent
-        setContent((prev) => prev.filter((item) => item.id !== id && item._id !== id));
-        setAllContent((prev) => prev.filter((item) => item.id !== id && item._id !== id));
+        // Remove from both content and allContent (backend always provides id field)
+        setContent((prev) => prev.filter((item) => item.id !== id));
+        setAllContent((prev) => prev.filter((item) => item.id !== id));
         // Show success message
         alert(`${contentType.charAt(0).toUpperCase() + contentType.slice(1)} deleted successfully.`);
       } catch (error) {
