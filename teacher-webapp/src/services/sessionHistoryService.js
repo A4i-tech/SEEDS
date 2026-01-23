@@ -10,6 +10,8 @@
  * - Stores: groupId, groupName, timestamp, studentCount, wasConference
  */
 
+import { isLocalStorageAvailable } from "../utils/authHelpers";
+
 const STORAGE_KEY = "seeds_session_history";
 const DEFAULT_SESSION_HISTORY_SIZE = 10; // Configurable, default 10 (Android uses 10)
 
@@ -38,6 +40,11 @@ export class SessionHistoryItem {
  * @returns {SessionHistoryItem[]}
  */
 export function getSessionHistory() {
+  if (!isLocalStorageAvailable()) {
+    console.warn("localStorage is not available, returning empty history");
+    return [];
+  }
+
   try {
     const historyJson = localStorage.getItem(STORAGE_KEY);
     if (!historyJson) {
@@ -70,6 +77,11 @@ export function getSessionHistory() {
  * @param {number} options.maxSize - Maximum history size (defaults to DEFAULT_SESSION_HISTORY_SIZE)
  */
 export function addSessionToHistory(sessionData, options = {}) {
+  if (!isLocalStorageAvailable()) {
+    console.warn("localStorage is not available, cannot save session history");
+    return;
+  }
+
   try {
     const {
       maxSize = DEFAULT_SESSION_HISTORY_SIZE,
@@ -113,6 +125,10 @@ export function addSessionToHistory(sessionData, options = {}) {
  * Clear all session history.
  */
 export function clearSessionHistory() {
+  if (!isLocalStorageAvailable()) {
+    return;
+  }
+
   try {
     localStorage.removeItem(STORAGE_KEY);
   } catch (error) {
