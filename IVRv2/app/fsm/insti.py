@@ -53,7 +53,7 @@ from app.fsm.ivr_constants import (
 )
 from app.fsm.ivr_utils import get_content
 from app.core.database import MongoDBCollection
-
+from app.settings import settings
 load_dotenv()
 
 input_action = InputAction(type_=["dtmf"], eventApi="/input")
@@ -242,7 +242,7 @@ attribute_handlers = {
     "title": handle_title,
 }
 
-welcomeToSEEDSKannadaUrl = "https://seedsstagingblob.blob.core.windows.net/pull-model-menus/welcomeDialog/kannada/welcome%20to%20SEEDS/1.0.mp3"
+welcomeToSEEDSKannadaUrl = f"https://{settings.storage_account_name}.blob.core.windows.net/pull-model-menus/welcomeDialog/kannada/welcome%20to%20SEEDS/1.0.mp3"
 
 
 def getKeyPressUrl(key, language, speechRate):
