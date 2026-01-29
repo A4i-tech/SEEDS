@@ -3,16 +3,20 @@ import { Box, Typography, Paper } from "@mui/material";
 import { School as SchoolIcon, People as PeopleIcon } from "@mui/icons-material";
 import { ParticipantCard } from "./ParticipantCard";
 import { ParticipantCardSkeleton } from "../skeletons/ParticipantCardSkeleton";
+import { normalizePhoneNumber } from "../../utils/phoneUtils";
 
 export const ParticipantList = ({
   teacher,
   students,
   onMuteToggle,
   onReconnect,
+  onAssignLeader,
+  onRevokeLeader,
   isLoading,
   isReconnecting,
   canReconnect,
   loading = false,
+  isLoadingLeader = null,
 }) => {
   return (
     <Paper
@@ -93,9 +97,15 @@ export const ParticipantList = ({
                   isTeacher={false}
                   onMuteToggle={onMuteToggle}
                   onReconnect={onReconnect}
+                  onAssignLeader={onAssignLeader}
+                  onRevokeLeader={onRevokeLeader}
                   isLoading={isLoading(student.phoneNumber)}
                   isReconnecting={isReconnecting(student.phoneNumber)}
                   canReconnect={canReconnect(student)}
+                  isLeaderLoading={
+                    isLoadingLeader != null &&
+                    normalizePhoneNumber(student.phoneNumber) === isLoadingLeader
+                  }
                 />
               ))}
             </Box>

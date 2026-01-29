@@ -32,5 +32,7 @@ export const API_ENDPOINTS = {
     SEEK_AUDIO: (confId) => `${CONF_BASE}/seekaudio/${confId}`,
     ADD_PARTICIPANT: (confId, phone) =>
       `${CONF_BASE}/addparticipant/${confId}?phone_number=${phone}`,
+    ASSIGN_LEADER: (confId, phone) => `${CONF_BASE}/assignleader/${confId}?phone_number=${phone}`,
+    REVOKE_LEADER: (confId) => `${CONF_BASE}/revokeleader/${confId}`,
   },
 };

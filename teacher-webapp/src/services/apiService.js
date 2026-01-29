@@ -172,6 +172,33 @@ export const addParticipant = async (confId, phone_number) => {
   });
 };
 
+export const assignLeader = async (confId, phone_number) => {
+  const normalizedPhone = normalizePhoneNumber(phone_number);
+  const response = await fetch(API_ENDPOINTS.CONFERENCE.ASSIGN_LEADER(confId, normalizedPhone), {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to assign leader: ${response.status} ${response.statusText}`);
+  }
+  return response.json();
+};
+
+export const revokeLeader = async (confId) => {
+  const response = await fetch(API_ENDPOINTS.CONFERENCE.REVOKE_LEADER(confId), {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to revoke leader: ${response.status} ${response.statusText}`);
+  }
+  return response.json();
+};
+
 export const fetchAudioContent = async () => {
   const token = localStorage.getItem("authToken");
   const response = await fetch(API_ENDPOINTS.GET_AUDIO_CONTENT, {

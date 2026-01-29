@@ -5,6 +5,7 @@ import {
   IconButton,
   Avatar,
   Button,
+  Chip,
   CircularProgress,
   Tooltip,
 } from "@mui/material";
@@ -15,6 +16,7 @@ import {
   School as SchoolIcon,
   PhoneCallback as ReconnectIcon,
   WavingHand as RaisedHandIcon,
+  Star as LeaderIcon,
 } from "@mui/icons-material";
 
 export const ParticipantCard = ({
@@ -22,9 +24,12 @@ export const ParticipantCard = ({
   isTeacher = false,
   onMuteToggle,
   onReconnect,
+  onAssignLeader,
+  onRevokeLeader,
   isLoading,
   isReconnecting,
   canReconnect,
+  isLeaderLoading = false,
 }) => {
   // Defensive check: return null if participant is not provided
   if (!participant) {
@@ -98,6 +103,15 @@ export const ParticipantCard = ({
             <RaisedHandIcon sx={{ color: "#ff9800", fontSize: 24 }} />
           </Tooltip>
         )}
+        {!isTeacher && participant?.is_leader && (
+          <Chip
+            size="small"
+            icon={<LeaderIcon sx={{ fontSize: 16 }} />}
+            label="Leader"
+            color="secondary"
+            sx={{ fontWeight: 600 }}
+          />
+        )}
       </Box>
       <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
         {/* Show phone icon with arrow when connected */}
@@ -115,6 +129,35 @@ export const ParticipantCard = ({
               {isReconnecting ? <CircularProgress size={20} /> : <ReconnectIcon />}
             </IconButton>
           </Tooltip>
+        )}
+        {!isTeacher && (
+          <>
+            {participant?.is_leader ? (
+              <Button
+                variant="outlined"
+                color="secondary"
+                startIcon={isLeaderLoading ? <CircularProgress size={16} /> : <LeaderIcon />}
+                onClick={() => onRevokeLeader && onRevokeLeader()}
+                disabled={isLeaderLoading}
+                sx={{ flexShrink: 0 }}
+                aria-label="Revoke leader"
+              >
+                Revoke Leader
+              </Button>
+            ) : (
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={isLeaderLoading ? <CircularProgress size={16} /> : <LeaderIcon />}
+                onClick={() => onAssignLeader && onAssignLeader(participant.phoneNumber)}
+                disabled={isLeaderLoading}
+                sx={{ flexShrink: 0 }}
+                aria-label="Assign leader"
+              >
+                Assign Leader
+              </Button>
+            )}
+          </>
         )}
         <Button
           variant="outlined"

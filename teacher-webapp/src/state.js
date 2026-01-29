@@ -8,6 +8,7 @@ export class Participant {
     is_raised = false,
     is_muted = false,
     call_status = "disconnected",
+    is_leader = false,
   } = {}) {
     // Destructure object and provide default values
     this.name = name;
@@ -17,6 +18,7 @@ export class Participant {
     this.is_raised = is_raised;
     this.is_muted = is_muted;
     this.call_status = call_status;
+    this.is_leader = is_leader;
   }
 }
 

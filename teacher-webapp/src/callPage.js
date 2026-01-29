@@ -15,6 +15,8 @@ import {
   addParticipant,
   resumeAudio,
   seekAudio,
+  assignLeader,
+  revokeLeader,
 } from "./services/apiService";
 import { AddParticipantModal } from "./components/AddParticipantModal";
 import { AudioContentModal } from "./components/AudioContentModal";
@@ -49,6 +51,7 @@ export function DetailsPage() {
   const [audioSelectionError, setAudioSelectionError] = useState(null);
   const [isMutingAll, setIsMutingAll] = useState(false);
   const [isUnmutingAll, setIsUnmutingAll] = useState(false);
+  const [loadingLeaderId, setLoadingLeaderId] = useState(null);
 
   // Listen for conference notifications
   useEffect(() => {
@@ -276,6 +279,30 @@ export function DetailsPage() {
     }
   };
 
+  const handleAssignLeader = async (phoneNumber) => {
+    const normalizedPhone = normalizePhoneNumber(phoneNumber);
+    setLoadingLeaderId(normalizedPhone);
+    try {
+      await assignLeader(confId, normalizedPhone);
+      showToast.success("Leader assigned");
+    } catch (error) {
+      console.error("Error assigning leader:", error);
+      showToast.error("Failed to assign leader. Please try again.");
+    } finally {
+      setLoadingLeaderId(null);
+    }
+  };
+
+  const handleRevokeLeader = async () => {
+    try {
+      await revokeLeader(confId);
+      showToast.success("Leader revoked");
+    } catch (error) {
+      console.error("Error revoking leader:", error);
+      showToast.error("Failed to revoke leader. Please try again.");
+    }
+  };
+
   const handleUnmuteAll = async () => {
     if (!confId) {
       showToast.error("Conference ID is missing");
@@ -344,9 +371,12 @@ export function DetailsPage() {
           students={activeStudents}
           onMuteToggle={handleMuteToggle}
           onReconnect={handleReconnect}
+          onAssignLeader={handleAssignLeader}
+          onRevokeLeader={handleRevokeLeader}
           isLoading={isLoading}
           isReconnecting={isReconnecting}
           canReconnect={canReconnect}
+          isLoadingLeader={loadingLeaderId}
         />
 
         {/* Control Buttons */}

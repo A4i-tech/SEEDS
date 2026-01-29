@@ -107,6 +107,16 @@ export const ConferenceProvider = ({ children }) => {
     );
   };
 
+  const leaderPhoneNumber = (() => {
+    const leader = getStudents().find((p) => p.is_leader);
+    return leader ? normalizePhoneNumber(leader.phoneNumber) : null;
+  })();
+
+  const getLeader = () => {
+    if (!leaderPhoneNumber) return null;
+    return participantsMap.get(leaderPhoneNumber) || null;
+  };
+
   // Get all participants as an array (for backward compatibility)
   const getAllParticipants = () => {
     return Array.from(participantsMap.values());
@@ -184,6 +194,9 @@ export const ConferenceProvider = ({ children }) => {
             participantData.raised_at !== undefined
               ? Number(participantData.raised_at)
               : (existingParticipant?.raised_at ?? -1),
+          is_leader:
+            Boolean(event.leader_phone_number) &&
+            normalizePhoneNumber(event.leader_phone_number) === normalizedPhone,
         });
 
         newMap.set(normalizedPhone, participant);
@@ -211,6 +224,8 @@ export const ConferenceProvider = ({ children }) => {
         getAllParticipants,
         getTeacher,
         getStudents,
+        getLeader,
+        leaderPhoneNumber,
         // Backward compatibility - derived from participantsMap
         userList: getAllParticipants(),
         confId,
