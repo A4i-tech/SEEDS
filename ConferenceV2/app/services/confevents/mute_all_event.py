@@ -77,21 +77,22 @@ class MuteAllEvent(ConferenceEvent):
     async def _mute_student(self, phone_number: str) -> bool:
         """Helper method to mute a single student."""
         try:
-            # Update caller state manager
-            asyncio.create_task(
-                caller_state_manager.update_state(
-                    conference_id=self.conf_call.conf_id,
-                    participant_id=phone_number,
-                    new_state={"muted": True}
-                )
-            )
-            
             # Mute the participant using communication API
             await self.conf_call.communication_api.mute_participant(phone_number)
-            
+
             # Update the participant's muted status
             if phone_number in self.conf_call.state.participants:
                 self.conf_call.state.participants[phone_number].is_muted = True
+
+                # Update caller state manager
+                asyncio.create_task(
+                    caller_state_manager.update_state(
+                        conference_id=self.conf_call.conf_id,
+                        participant_id=phone_number,
+                        new_state={"muted": True}
+                    )
+                )
+                
                 return True
         except Exception as e:
             logger_instance.error(f"Error muting student {phone_number}: {e}")
