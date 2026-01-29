@@ -8,6 +8,8 @@ import {
   sinkConferenceCall,
   muteParticipant,
   unmuteParticipant,
+  muteAll,
+  unmuteAll,
   playAudio,
   pauseAudio,
   addParticipant,
@@ -45,7 +47,8 @@ export function DetailsPage() {
   const [isAudioModalOpen, setIsAudioModalOpen] = useState(false);
   const [seekDirection, setSeekDirection] = useState(null);
   const [audioSelectionError, setAudioSelectionError] = useState(null);
-  const mutedStudentsRef = useRef(new Set());
+  const [isMutingAll, setIsMutingAll] = useState(false);
+  const [isUnmutingAll, setIsUnmutingAll] = useState(false);
 
   // Listen for conference notifications
   useEffect(() => {
@@ -254,6 +257,44 @@ export function DetailsPage() {
     }
   };
 
+  const handleMuteAll = async () => {
+    if (!confId) {
+      showToast.error("Conference ID is missing");
+      return;
+    }
+
+    setIsMutingAll(true);
+    try {
+      await muteAll(confId);
+      showToast.success("Muting all students...");
+      // SSE will automatically update the UI with new mute states
+    } catch (error) {
+      console.error("Error muting all:", error);
+      showToast.error(`Failed to mute all: ${error.message || "Unknown error"}`);
+    } finally {
+      setIsMutingAll(false);
+    }
+  };
+
+  const handleUnmuteAll = async () => {
+    if (!confId) {
+      showToast.error("Conference ID is missing");
+      return;
+    }
+
+    setIsUnmutingAll(true);
+    try {
+      await unmuteAll(confId);
+      showToast.success("Unmuting all students...");
+      // SSE will automatically update the UI with new mute states
+    } catch (error) {
+      console.error("Error unmuting all:", error);
+      showToast.error(`Failed to unmute all: ${error.message || "Unknown error"}`);
+    } finally {
+      setIsUnmutingAll(false);
+    }
+  };
+
   // Filter out students who are already in the call (using centralized participantsMap)
   const allParticipants = getAllParticipants();
   const availableStudents = (allClassroomStudents || []).filter((student) => {
@@ -317,11 +358,16 @@ export function DetailsPage() {
           isPlayingAudio={isPlayingAudio}
           isPausedAudio={isPausedAudio}
           isStartingAudio={isStartingAudio}
+          isMutingAll={isMutingAll}
+          isUnmutingAll={isUnmutingAll}
+          activeStudents={activeStudents}
           onStartCall={handleStartCall}
           onEndCall={handleEndCall}
           onSinkConf={handleSinkConf}
           onAddParticipant={handleOpenModal}
           onMusicControl={handleMusicControl}
+          onMuteAll={handleMuteAll}
+          onUnmuteAll={handleUnmuteAll}
         />
 
         {/* Seek Controls */}
