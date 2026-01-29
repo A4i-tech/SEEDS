@@ -15,7 +15,10 @@ from app.services.confevents.seek_content_event import SeekContentEvent
 from app.services.confevents.sink_conf_event import SinkConferenceEvent
 from app.services.confevents.unmute_participant_event import UnmuteParticipantEvent
 from app.services.confevents.unmute_all_event import UnmuteAllEvent
+from app.services.confevents.assign_leader_event import AssignLeaderEvent
+from app.services.confevents.revoke_leader_event import RevokeLeaderEvent
 from app.schemas.conference_schemas import CreateConferenceRequest
+from app.models.participant import Role
 
 router = APIRouter()
 
@@ -180,6 +183,52 @@ async def unmute_all(conference_id: str):
     await conference.queue_event(
         UnmuteAllEvent(conf_call=conference)
     )
+    return {"message": "Event Queued for execution"}
+
+
+@router.put("/assignleader/{conference_id}")
+async def assign_leader(conference_id: str, phone_number: str):
+    """
+    Assign a student as the conference leader.
+    Only teachers can perform this action.
+    Exactly one leader per conference; assigning a new leader overwrites the previous.
+    """
+    conference = conference_manager.get_conference(conference_id)
+    if not conference:
+        raise HTTPException(status_code=404, detail="Conference not found")
+
+    teacher = conference.state.get_teacher()
+    if not teacher:
+        raise HTTPException(status_code=403, detail="Only teachers can assign leader")
+
+    if phone_number not in conference.state.participants:
+        raise HTTPException(status_code=404, detail="Participant not found")
+
+    participant = conference.state.participants[phone_number]
+    if participant.role != Role.STUDENT:
+        raise HTTPException(status_code=400, detail="Only students can be assigned as leader")
+
+    await conference.queue_event(
+        AssignLeaderEvent(phone_number=phone_number, conf_call=conference)
+    )
+    return {"message": "Event Queued for execution"}
+
+
+@router.put("/revokeleader/{conference_id}")
+async def revoke_leader(conference_id: str):
+    """
+    Revoke the conference leader.
+    Only teachers can perform this action.
+    """
+    conference = conference_manager.get_conference(conference_id)
+    if not conference:
+        raise HTTPException(status_code=404, detail="Conference not found")
+
+    teacher = conference.state.get_teacher()
+    if not teacher:
+        raise HTTPException(status_code=403, detail="Only teachers can revoke leader")
+
+    await conference.queue_event(RevokeLeaderEvent(conf_call=conference))
     return {"message": "Event Queued for execution"}
 
 

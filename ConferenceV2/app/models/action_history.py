@@ -17,7 +17,10 @@ class ActionType(str, Enum):
     TEACHER_MUTE_ALL = "Teacher-MuteAll"
     TEACHER_UNMUTE_ALL = "Teacher-UnmuteAll"
     TEACHER_AUDIO_PLAYBACK_STATUS_CHANGE = "Teacher-AudioPlaybackStatusChange"
-    
+    TEACHER_ASSIGN_LEADER = "Teacher-AssignLeader"
+    TEACHER_REVOKE_LEADER = "Teacher-RevokeLeader"
+    LEADER_DISCONNECTED = "Leader-Disconnected"
+
 
 class ActionHistory(BaseModel):
     timestamp: str
