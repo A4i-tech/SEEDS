@@ -48,9 +48,33 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 ### Output Format (JSON)
 ```json
 {
-  "text": "The number you have called is on hold.",
+  "text": "The number you have called has put you on hold.",
   "duration": 8.0,
   "is_hold": true,
   "hold_score": 0.92
 }
 ```
+
+## Validation Logs
+Tested with a real call recording containing the phrase: *"The number you have called has put you on hold. Please wait."*
+
+**Log Output:**
+```text
+INFO:ml-audio-service:TRANSCRIPTION [Duration: 8.0s]: The number you have called has put you on hold. Please wait.
+DEBUG:ml-audio-service:Hold score: 0.85 for text: 'The number you have called has put you on hold. Please wait.'
+WARNING:ml-audio-service:HOLD DETECTED for test_real_audio_client | Score: 0.85 | Text: The number you have called has put you on hold. Please wait.
+```
+
+## Integration Details
+The service sends a JSON string over the WebSocket connection for every processed audio chunk.
+
+**Example Response:**
+```json
+{
+    "text": "The number you have called has put you on hold.",
+    "duration": 8.0,
+    "is_hold": true,
+    "hold_score": 0.90
+}
+```
+Client applications should parse this JSON and check the `is_hold` boolean flag to trigger downstream actions.
