@@ -10,20 +10,20 @@ on:
       - completed
 
 jobs:
-    aggregate-coverage:
-        runs-on: ubuntu-latest
-        if: github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_call' || github.event_name == 'workflow_dispatch'
-        outputs:
-            overall_coverage: ${{ steps.aggregate.outputs.overall_coverage }}
-            services_tested: ${{ steps.aggregate.outputs.services_tested }}
-            total_services: ${{ steps.aggregate.outputs.total_services }}
-        permissions:
-            pull-requests: write
-            actions: read
-            contents: read
-        steps:
-            - name: Checkout
-              uses: actions/checkout@v4
+  aggregate-coverage:
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_call' || github.event_name == 'workflow_dispatch'
+    outputs:
+      overall_coverage: ${{ steps.aggregate.outputs.overall_coverage }}
+      services_tested: ${{ steps.aggregate.outputs.services_tested }}
+      total_services: ${{ steps.aggregate.outputs.total_services }}
+    permissions:
+      pull-requests: write
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Download coverage artifacts
         uses: dawidd6/action-download-artifact@v3
