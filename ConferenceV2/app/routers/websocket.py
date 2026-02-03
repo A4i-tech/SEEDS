@@ -20,30 +20,61 @@ async def websocket_endpoint(websocket: WebSocket, conference_id: str):
         await websocket.accept()
         conf.set_websocket(websocket)
         logger_instance.info("WEBSOCKET ACCEPTED FOR CONF: ", conference_id)
+        
+        # Initialize Audio Services
+        try:
+            from app.services.audio.transcriber import AudioTranscriber
+            from app.services.audio.hold_detector import HoldDetector
+            transcriber = AudioTranscriber()
+            hold_detector = HoldDetector()
+            logger_instance.info("Audio Services Initialized for ", conference_id)
+        except Exception as e:
+            logger_instance.error(f"Failed to initialize Audio Services: {e}")
+            transcriber = None
+            hold_detector = None
+
         try:
             while True:
                 try:
-                    msg = await websocket.receive()  # Use receive_text or receive_json based on your message type
-                    # Check if the message type indicates the connection is closing
+                    msg = await websocket.receive()
+                    
                     if msg['type'] == 'websocket.disconnect':
                         logger_instance.info(f"WebSocket Client disconnected for {conference_id}")
-                        conf.set_websocket(None)  # Clear the WebSocket on disconnection
-                        break  # Exit the loop to stop processing once disconnected
+                        conf.set_websocket(None)
+                        break
 
-                    logger_instance.info('RECEIVED WEBSOCKET MSG for conf ID: ', conference_id)
-                    # Handle incoming messages or keep the connection alive
-                    # await asyncio.sleep(1)  # Simulate activity to keep connection open
+                    # Handle binary (audio) messages
+                    if "bytes" in msg and msg["bytes"] is not None:
+                        if transcriber and hold_detector:
+                            result = await transcriber.process_chunk(msg["bytes"])
+                            
+                            if result:
+                                text = result["text"]
+                                segments = result.get("segments", [])
+                                # duration = result["duration"]
+                                
+                                detect_result = await hold_detector.detect(text)
+                                if detect_result["is_hold"]:
+                                    score = detect_result["score"]
+                                    logger_instance.warning(f"HOLD DETECTED for {conference_id} | Score: {score:.2f} | Text: {text}")
+                                else:
+                                    logger_instance.info(f"TRANSCRIPTION: {text} | Segments: {len(segments)}")
+
+                    # Handle text messages
+                    elif "text" in msg and msg["text"] is not None:
+                        logger_instance.info('RECEIVED WEBSOCKET MSG for conf ID: ', conference_id, " Message: ", msg["text"])
+                        
                 except WebSocketDisconnect:
                     logger_instance.info(f"WebSocket Client disconnected for {conference_id}")
-                    conf.set_websocket(None)  # Clear the WebSocket on disconnection
-                    break  # Exit the loop to stop processing once disconnected
+                    conf.set_websocket(None)
+                    break 
                 except Exception as e:
                     logger_instance.info(f"An error occurred while receiving message: {e}")
                     traceback.print_exc()
                     conf.set_websocket(None)
-                    break  # Exit the loop to stop processing on error
+                    break
         except Exception as e:
             logger_instance.info(f"An error occurred in websocket router: {e}")
             traceback.print_exc()
-            conf.set_websocket(None)  # Ensure cleanup in case of error
+            conf.set_websocket(None)
     
