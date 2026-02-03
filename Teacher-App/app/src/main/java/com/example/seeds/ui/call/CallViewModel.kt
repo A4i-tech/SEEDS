@@ -102,7 +102,7 @@ class CallViewModel @Inject constructor(
     val validatedStudents: LiveData<List<Student>>
         get() = _validatedStudents
 
-    val _isMutedAll = MutableLiveData(false)
+    val _isMutedAll = MutableLiveData(true)
     val isMutedAll: LiveData<Boolean>
         get() = _isMutedAll
 

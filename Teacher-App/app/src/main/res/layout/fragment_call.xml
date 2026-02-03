@@ -304,7 +304,7 @@
             android:layout_marginStart="16dp"
             android:layout_marginEnd="8dp"
             android:enabled="@{viewModel.isMuteOrUnmuteAllDone ? true: false}"
-            android:text="@{viewModel.isMutedAll ? `Unmute All`: `Mute All`, default=`Mute All`}"
+            android:text="@{viewModel.isMutedAll ? `Unmute All`: `Mute All`, default=`Unmute All`}"
             android:textAllCaps="false"
             android:textSize="16sp"
             android:visibility="@{viewModel.callState.size() > 1 ? View.VISIBLE : View.GONE}"
