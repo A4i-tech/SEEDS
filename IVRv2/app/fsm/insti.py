@@ -90,6 +90,9 @@ def handle_language(filtered_content, speechRate, parent_selections):
     sorted_languages = sorted(count_languages.items(), key=lambda x: x[1], reverse=True)
     sorted_langs = [lang for lang, _ in sorted_languages]
 
+    # Only include languages that have IVR dialog URLs (skip unsupported languages in content)
+    sorted_langs = [lang for lang in sorted_langs if lang in languageDialogUrls]
+
     values_to_urls = {}
     sorted_categories = []
     sorted_keys = []
