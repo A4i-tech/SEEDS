@@ -9,9 +9,10 @@ from app.services.caller_state_manager import caller_state_manager
 import asyncio
 
 class UnmuteParticipantEvent(ConferenceEvent):
-    def __init__(self, phone_number: str, conf_call: ConferenceCall):
+    def __init__(self, phone_number: str, conf_call: ConferenceCall, stream_system_message: bool = True):
         self.phone_number = phone_number
         self.conf_call = conf_call
+        self.stream_system_message = stream_system_message
 
     async def execute_event(self):
         # TODO: Speak out announcement messages in conversation through comm API, check if the participant is already unmuted
@@ -36,7 +37,7 @@ class UnmuteParticipantEvent(ConferenceEvent):
             participant.is_raised = False
             participant.raised_at = -1
             
-            if self.phone_number != self.conf_call.state.get_teacher().phone_number:
+            if self.stream_system_message and self.phone_number != self.conf_call.state.get_teacher().phone_number:
                 await self.conf_call.stream_system_message(SystemAudioMessages.STUDENT_IS_UNMUTED)
             
             # Log the unmute action in the action history
