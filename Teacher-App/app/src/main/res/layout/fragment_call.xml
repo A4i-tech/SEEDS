@@ -307,7 +307,7 @@
             android:text="@{viewModel.isMutedAll ? `Unmute All`: `Mute All`, default=`Unmute All`}"
             android:textAllCaps="false"
             android:textSize="16sp"
-            android:visibility="@{viewModel.callState.size() > 1 ? View.VISIBLE : View.GONE}"
+            android:visibility="@{viewModel.callState.size() > 1 || !viewModel.connectionLost ? View.VISIBLE : View.GONE}"
             app:layout_constraintEnd_toStartOf="@+id/guideline2"
             app:layout_constraintHorizontal_bias="0.0"
             app:layout_constraintStart_toStartOf="@+id/teacher_call_status"

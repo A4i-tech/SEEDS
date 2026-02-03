@@ -91,7 +91,9 @@ class UnmuteAllEvent(ConferenceEvent):
         """Helper method to unmute a single student using UnmuteParticipantEvent."""
         try:
             unmute_event = UnmuteParticipantEvent(
-                phone_number=phone_number, conf_call=self.conf_call
+                phone_number=phone_number,
+                conf_call=self.conf_call,
+                stream_system_message=False,
             )
             await unmute_event.execute_event()
             return True
