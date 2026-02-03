@@ -79,8 +79,9 @@ class ConferenceCall:
             )
             self.state.participants[phone] = student
     
-    # def set_websocket(self, websocket: WebSocket):
-    #     self.websocket_service.set_websocket(websocket)
+    def set_websocket(self, websocket: WebSocket):
+        self._websocket = websocket
+        # self.websocket_service.set_websocket(websocket)
 
     async def start_conference(self):
         # Start the call via communication API
