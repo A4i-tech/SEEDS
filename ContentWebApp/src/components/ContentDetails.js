@@ -2,14 +2,12 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import QuizDetails from "./QuizDetails";
 import StoryDetails from "./StoryDetails";
-import { useAuth } from "../hooks/useAuth";
 import { contentService } from "../services/contentService";
 import "./ContentDetails.css";
 
 const ContentDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { getAuthHeaders } = useAuth();
   const [content, setContent] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -19,7 +17,7 @@ const ContentDetails = () => {
       setIsLoading(true);
       setError(null);
 
-      const data = await contentService.getContentById(id, getAuthHeaders());
+      const data = await contentService.getContentById(id);
       console.log("ContentDetailsData", data);
       setContent(data);
       return data;
@@ -30,7 +28,7 @@ const ContentDetails = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [id, getAuthHeaders]);
+  }, [id]);
 
   useEffect(() => {
     const fetchContent = async () => {

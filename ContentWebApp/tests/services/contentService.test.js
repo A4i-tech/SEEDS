@@ -1,6 +1,16 @@
 import { contentService } from "../../src/services/contentService";
 import { SEEDS_URL } from "../../src/Constants";
 
+const mockAuthHeaders = {
+  "Content-Type": "application/json",
+  Authorization: "Bearer test-token",
+};
+
+// Mock authHelpers so getAuthHeaders is available in service (no localStorage in tests)
+jest.mock("../../src/utils/authHelpers", () => ({
+  getAuthHeaders: jest.fn(() => mockAuthHeaders),
+}));
+
 // Mock the api module
 jest.mock("../../src/services/api", () => ({
   apiFetch: jest.fn(),
@@ -25,13 +35,13 @@ describe("contentService", () => {
       const { apiFetch } = require("../../src/services/api");
       apiFetch.mockResolvedValue({});
 
-      await contentService.deleteContent("quiz", "quiz-123", {});
+      await contentService.deleteContent("quiz", "quiz-123");
 
       expect(apiFetch).toHaveBeenCalledWith(
         `${SEEDS_URL}/content/quiz-123`,
         expect.objectContaining({
           method: "DELETE",
-          headers: {},
+          headers: mockAuthHeaders,
         })
       );
     });
@@ -40,30 +50,28 @@ describe("contentService", () => {
       const { apiFetch } = require("../../src/services/api");
       apiFetch.mockResolvedValue({});
 
-      await contentService.deleteContent("story", "story-123", {});
+      await contentService.deleteContent("story", "story-123");
 
       expect(apiFetch).toHaveBeenCalledWith(
         `${SEEDS_URL}/content/story-123`,
         expect.objectContaining({
           method: "DELETE",
-          headers: {},
+          headers: mockAuthHeaders,
         })
       );
     });
 
-    it("should include auth headers when provided", async () => {
+    it("should include auth headers from getAuthHeaders", async () => {
       const { apiFetch } = require("../../src/services/api");
       apiFetch.mockResolvedValue({});
 
-      const headers = { Authorization: "Bearer token123" };
-
-      await contentService.deleteContent("quiz", "quiz-123", headers);
+      await contentService.deleteContent("quiz", "quiz-123");
 
       expect(apiFetch).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
           method: "DELETE",
-          headers,
+          headers: mockAuthHeaders,
         })
       );
     });

@@ -286,7 +286,10 @@ router.get(
     const content = await ContentV3.find({
       language: language,
       isPullModel: true,
-    }).sort({ _id: -1 });
+    })
+      .sort({ _id: -1 })
+      .lean()
+      .exec();
     const themeSet = new Set();
     const themes = [];
     console.log(content.length);
@@ -386,37 +389,33 @@ router.get(
 
     // If specific IDs are requested, return non-deleted content sorted by creation time (newest first)
     if (req.query.ids) {
-      if (!req.query.ids || (typeof req.query.ids === 'string' && req.query.ids.trim() === '')) {
+      if (!req.query.ids || (typeof req.query.ids === "string" && req.query.ids.trim() === "")) {
         return res.status(400).json({ error: "ids query parameter is required" });
       }
       const idsArray = Array.isArray(req.query.ids) ? req.query.ids : req.query.ids.split(",");
       
-      // Fetch both content and quiz data for the requested IDs
+      // Fetch both content and quiz data for the requested IDs (lean for read-only)
       const [contents, quizzes] = await Promise.all([
         ContentV3.find({ _id: { $in: idsArray }, isDeleted: { $ne: true } })
+          .lean()
           .exec(),
         QuizData.find({ _id: { $in: idsArray }, isDeleted: { $ne: true } })
+          .lean()
           .exec(),
       ]);
       
       // Transform content to ensure id field exists (standardize: always use id from _id)
-      const transformedContents = contents.map((content) => {
-        const contentObj = content.toObject();
-        return {
-          ...contentObj,
-          id: contentObj._id || contentObj.id,
-        };
-      });
+      const transformedContents = contents.map((content) => ({
+        ...content,
+        id: content._id || content.id,
+      }));
       
       // Transform quiz data to match content format (standardize: always use id from _id)
-      const transformedQuizzes = quizzes.map((quiz) => {
-        const quizObj = quiz.toObject();
-        return {
-          ...quizObj,
-          id: quizObj._id || quizObj.id,
-          type: "quiz",
-        };
-      });
+      const transformedQuizzes = quizzes.map((quiz) => ({
+        ...quiz,
+        id: quiz._id || quiz.id,
+        type: "quiz",
+      }));
       
       // Merge and sort
       const allContent = [...transformedContents, ...transformedQuizzes].sort(
@@ -617,32 +616,30 @@ router.get(
     const contentId = req.params.contentId;
     let content = null;
 
-    // Try to find in ContentV3 first (uses _id as String)
-    content = await ContentV3.findOne({ _id: contentId }).exec();
+    // Try to find in ContentV3 first (uses _id as String) (lean for read-only)
+    content = await ContentV3.findOne({ _id: contentId }).lean().exec();
 
     // If not found in ContentV3, try QuizData (also uses _id as String)
     if (!content) {
-      content = await QuizData.findOne({ _id: contentId }).exec();
+      content = await QuizData.findOne({ _id: contentId }).lean().exec();
       if (content) {
         // Transform quiz data to match expected frontend structure (standardize: always use id from _id)
-        const quizObj = content.toObject();
+        // QuizData stores theme, localTheme, title, localTitle as top-level strings
         content = {
-          ...quizObj,
-          id: quizObj._id || quizObj.id,
+          ...content,
+          id: content._id || content.id,
           type: "quiz",
-          title: quizObj.title?.english || quizObj.title,
-          localTitle: quizObj.title?.local || quizObj.localTitle,
-          theme: quizObj.theme?.english || quizObj.theme,
-          localTheme: quizObj.theme?.local || quizObj.localTheme,
-          // Keep positiveMarks and negativeMarks as-is (plural form matches database schema)
+          title: content.title,
+          localTitle: content.localTitle,
+          theme: content.theme,
+          localTheme: content.localTheme,
         };
       }
     } else {
       // Transform ContentV3 to ensure id field exists (standardize: always use id from _id)
-      const contentObj = content.toObject();
       content = {
-        ...contentObj,
-        id: contentObj._id || contentObj.id,
+        ...content,
+        id: content._id || content.id,
       };
     }
 
@@ -887,7 +884,7 @@ async function deleteAudioBlobs(audioId) {
 }
 
 async function deleteUnnecessaryStorage() {
-  const docs = await Content.find({});
+  const docs = await Content.find({}).lean().exec();
   const containerName = "output-container";
   const containerClient = blobService.getContainerClient(containerName);
   for (const doc of docs) {

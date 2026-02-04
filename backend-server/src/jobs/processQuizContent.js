@@ -128,15 +128,15 @@ async function processQuizData(job) {
     // Job completed successfully
     clearTimeout(timeout);
     job.attrs.completedAt = new Date();
-    const processed = quizDoc.toObject();
-    job.attrs.data.processedContent = processed;
+    job.attrs.data.processedContent = quizDoc.toObject();
     await job.save();
 
     // Use atomic upsert operation to avoid race conditions
     // This handles both insert (new quiz) and update (existing quiz) cases atomically
+    const processedContent = job.attrs.data.processedContent;
     await QuizData.findOneAndUpdate(
-      { _id: processed._id },
-      processed,
+      { _id: processedContent._id },
+      processedContent,
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
     console.log("SAVED/UPDATED QUIZ DOC (atomic upsert)");

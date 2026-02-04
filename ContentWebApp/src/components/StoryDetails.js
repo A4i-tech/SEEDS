@@ -5,15 +5,15 @@ import { getAuthHeaders } from "../utils/authHelpers";
 import "./StoryDetails.css";
 
 const StoryDetails = ({ type, story }) => {
-  const [audioSrc, setAudioSrc] = useState('');
-  const [answerAudioSrc, setAnswerAudioSrc] = useState('');
+  const [audioSrc, setAudioSrc] = useState("");
+  const [answerAudioSrc, setAnswerAudioSrc] = useState("");
 
   useEffect(() => {
     const fetchSASUrl = async (url) => {
       // Validate URL before making request
-      if (!url || typeof url !== 'string' || url.trim() === '') {
-        console.warn('Invalid or empty audio URL:', url);
-        return '';
+      if (!url || typeof url !== "string" || url.trim() === "") {
+        console.warn("Invalid or empty audio URL:", url);
+        return "";
       }
       
       try {
@@ -23,16 +23,16 @@ const StoryDetails = ({ type, story }) => {
         });
         
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-          console.error('Failed to fetch SAS URL:', response.status, errorData);
-          return '';
+          const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+          console.error("Failed to fetch SAS URL:", response.status, errorData);
+          return "";
         }
         
         const data = await response.json();
-        return data.url || '';
+        return data.url || "";
       } catch (error) {
-        console.error('Error fetching SAS URL:', error);
-        return '';
+        console.error("Error fetching SAS URL:", error);
+        return "";
       }
     };
 
@@ -44,10 +44,10 @@ const StoryDetails = ({ type, story }) => {
       if (story.audioContent && story.audioContent.length > 0 && story.audioContent[0].audioUrl) {
         return story.audioContent[0].audioUrl;
       }
-      if (story.title && typeof story.title === 'object' && story.title.audioUrl) {
+      if (story.title && typeof story.title === "object" && story.title.audioUrl) {
         return story.title.audioUrl;
       }
-      if (story.theme && typeof story.theme === 'object' && story.theme.audioUrl) {
+      if (story.theme && typeof story.theme === "object" && story.theme.audioUrl) {
         return story.theme.audioUrl;
       }
       return null;
@@ -61,11 +61,11 @@ const StoryDetails = ({ type, story }) => {
     }
 
     // For Riddles, also fetch answer audio
-    if (type === 'Riddle') {
+    if (type === "Riddle") {
       // Try to find answer audio in audioContent array
       const answerAudio = story.audioContent?.find(ac => 
-        ac.description?.toLowerCase().includes('answer') || 
-        ac.audioUrl?.toLowerCase().includes('answer')
+        ac.description?.toLowerCase().includes("answer") || 
+        ac.audioUrl?.toLowerCase().includes("answer")
       );
       
       if (answerAudio?.audioUrl) {
@@ -79,31 +79,31 @@ const StoryDetails = ({ type, story }) => {
 
   // Helper to get text from title/theme (handle both object and string formats)
   const getTitleText = () => {
-    if (typeof story.title === 'object') {
-      return story.title.english || story.title.local || '';
+    if (typeof story.title === "object") {
+      return story.title.english || story.title.local || "";
     }
-    return story.title || '';
+    return story.title || "";
   };
 
   const getLocalTitle = () => {
-    if (typeof story.title === 'object') {
-      return story.title.local || '';
+    if (typeof story.title === "object") {
+      return story.title.local || "";
     }
-    return story.localTitle || '';
+    return story.localTitle || "";
   };
 
   const getThemeText = () => {
-    if (typeof story.theme === 'object') {
-      return story.theme.english || story.theme.local || '';
+    if (typeof story.theme === "object") {
+      return story.theme.english || story.theme.local || "";
     }
-    return story.theme || '';
+    return story.theme || "";
   };
 
   const getLocalTheme = () => {
-    if (typeof story.theme === 'object') {
-      return story.theme.local || '';
+    if (typeof story.theme === "object") {
+      return story.theme.local || "";
     }
-    return story.localTheme || '';
+    return story.localTheme || "";
   };
 
   return (
@@ -111,7 +111,7 @@ const StoryDetails = ({ type, story }) => {
       {/* Header Section */}
       <div className="story-header">
         <div className="story-title-section">
-          <span className="story-type-badge">{story.type || 'Content'}</span>
+          <span className="story-type-badge">{story.type || "Content"}</span>
           <h1 className="story-title-main">{getTitleText()}</h1>
           {getLocalTitle() && (
             <p className="story-title-local">{getLocalTitle()}</p>
@@ -125,7 +125,7 @@ const StoryDetails = ({ type, story }) => {
         <div className="metadata-grid">
           <div className="metadata-item">
             <p className="metadata-label">Language</p>
-            <p className="metadata-value">{story.language || 'N/A'}</p>
+            <p className="metadata-value">{story.language || "N/A"}</p>
           </div>
 
           <div className="metadata-item">
@@ -138,7 +138,7 @@ const StoryDetails = ({ type, story }) => {
                 <span className="platform-badge teacher">Teacher App</span>
               )}
               {!story.isPullModel && !story.isTeacherApp && (
-                <span style={{ fontSize: '14px', color: '#94a3b8', fontWeight: '400' }}>Not specified</span>
+                <span style={{ fontSize: "14px", color: "#94a3b8", fontWeight: "400" }}>Not specified</span>
               )}
             </div>
           </div>

@@ -1,22 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import * as XLSX from 'xlsx';
-import { useAuth } from "../hooks/useAuth";
+import React, { useState, useEffect } from "react";
+import * as XLSX from "xlsx";
 import { contentService } from "../services/contentService";
 
-// const SEEDS_URL = 'your_seeds_url'; // replace with your SEEDS_URL
+// const SEEDS_URL = "your_seeds_url"; // replace with your SEEDS_URL
 
 const BulkCallInitiator = () => {
-    const { getAuthHeaders } = useAuth();
     const [phoneNumbers, setPhoneNumbers] = useState([]);
     const [contentList, setContentList] = useState([]);
     const [selectedContents, setSelectedContents] = useState([]);
-    const [searchTerm, setSearchTerm] = useState('');
+    const [searchTerm, setSearchTerm] = useState("");
 
     // Fetch content IDs
     useEffect(() => {
         const fetchContents = async () => {
             try {
-                const seedsData = await contentService.getAllContent(getAuthHeaders());
+                const seedsData = await contentService.getAllContent();
                 setContentList(seedsData);
             } catch (error) {
                 console.error("Error fetching content:", error);
@@ -25,24 +23,24 @@ const BulkCallInitiator = () => {
         };
 
         fetchContents();
-    }, [getAuthHeaders]);
+    }, []);
 
     const handleFileUpload = (e) => {
         const file = e.target.files[0];
-        console.log('File:', file);
+        console.log("File:", file);
         const reader = new FileReader();
         reader.onload = (evt) => {
             const data = new Uint8Array(evt.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
+            const workbook = XLSX.read(data, { type: "array" });
             const sheetName = workbook.SheetNames[0];
             const sheet = workbook.Sheets[sheetName];
             const parsedData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-            console.log('Parsed Data:', parsedData);
+            console.log("Parsed Data:", parsedData);
             const phoneNumbers = parsedData.map(row => row[0]);
             
-            console.log('Extracted Phone Numbers:', phoneNumbers);
-            // const phoneNumbers = parsedData.flat().filter(item => typeof item === 'string');
-            // console.log('Extracted Phone Numbers:', phoneNumbers);
+            console.log("Extracted Phone Numbers:", phoneNumbers);
+            // const phoneNumbers = parsedData.flat().filter(item => typeof item === "string");
+            // console.log("Extracted Phone Numbers:", phoneNumbers);
             setPhoneNumbers(phoneNumbers);
         };
         reader.readAsArrayBuffer(file);
@@ -59,10 +57,10 @@ const BulkCallInitiator = () => {
     };
 
     const handleStartCalls = async () => {
-        const response = await fetch('/start_bulk_calls', {
-            method: 'POST',
+        const response = await fetch("/start_bulk_calls", {
+            method: "POST",
             headers: {
-                'Content-Type': 'application/json',
+                "Content-Type": "application/json",
             },
             body: JSON.stringify({
                 phone_numbers: phoneNumbers,
@@ -71,11 +69,11 @@ const BulkCallInitiator = () => {
         });
 
         if (response.ok) {
-            alert('Calls initiated successfully.');
+            alert("Calls initiated successfully.");
         } else {
             const errorData = await response.json();
             console.error(errorData);
-            alert('Failed to initiate calls.');
+            alert("Failed to initiate calls.");
         }
     };
 

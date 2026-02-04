@@ -1,14 +1,12 @@
 import { useState, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../hooks/useAuth";
 import { contentService } from "../services/contentService";
 import { transformQuizItem, extractQuestionText, extractQuestionOptions, getCorrectOptionIndex } from "../utils/quizDataTransform";
 import "./AddQuiz.css";
 
 const AddQuiz = ({ quiz }) => {
   const navigate = useNavigate();
-  const { getAuthHeaders } = useAuth();
   const [inputFields, setInputFields] = useState([
     { question: "", optionA: "", optionB: "", optionC: "", optionD: "", correctAnswer: 0 },
   ]);
@@ -137,7 +135,7 @@ const AddQuiz = ({ quiz }) => {
     }
 
     try {
-      const result = await contentService.createQuiz(metadata, getAuthHeaders());
+      const result = await contentService.createQuiz(metadata);
       console.log("Quiz saved successfully:", result);
       alert("Quiz saved successfully.");
       navigate("/content");

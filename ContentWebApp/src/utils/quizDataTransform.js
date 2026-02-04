@@ -28,11 +28,11 @@ export const transformQuizItem = (quiz) => {
       audioUrl: quiz.titleAudio || "",
     };
   } else if (title && typeof title === "object") {
-    // Ensure all fields exist
+    // Ensure all fields exist from the title object only (no quiz fallbacks)
     title = {
       english: title.english || "",
-      local: title.local || quiz.localTitle || "",
-      audioUrl: title.audioUrl || quiz.titleAudio || "",
+      local: title.local || "",
+      audioUrl: title.audioUrl || "",
     };
   } else {
     // Fallback
@@ -53,11 +53,11 @@ export const transformQuizItem = (quiz) => {
       audioUrl: quiz.themeAudio || "",
     };
   } else if (theme && typeof theme === "object") {
-    // Ensure all fields exist
+    // Ensure all fields exist from the theme object only (no quiz fallbacks)
     theme = {
       english: theme.english || "",
-      local: theme.local || quiz.localTheme || "",
-      audioUrl: theme.audioUrl || quiz.themeAudio || "",
+      local: theme.local || "",
+      audioUrl: theme.audioUrl || "",
     };
   } else {
     // Fallback

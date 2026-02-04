@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
 import { contentService } from "../services/contentService";
-import { useAuth } from "./useAuth";
 
 const PAGE_SIZE = 50;
 
@@ -15,30 +14,24 @@ export const useContent = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isFiltered, setIsFiltered] = useState(false);
 
-  const { getAuthHeaders } = useAuth();
-
   /**
    * Fetch content with optional cursor for pagination
    */
-  const fetchContent = useCallback(
-    async (cursor = null, signal = null) => {
-      try {
-        const { data, pagination } = await contentService.getContent(
-          cursor,
-          getAuthHeaders(),
-          PAGE_SIZE,
-          signal
-        );
-        return { data, pagination };
-      } catch (error) {
-        if (error.name !== "AbortError") {
-          console.error("Error fetching content:", error);
-        }
-        throw error;
+  const fetchContent = useCallback(async (cursor = null, signal = null) => {
+    try {
+      const { data, pagination } = await contentService.getContent(
+        cursor,
+        PAGE_SIZE,
+        signal
+      );
+      return { data, pagination };
+    } catch (error) {
+      if (error.name !== "AbortError") {
+        console.error("Error fetching content:", error);
       }
-    },
-    [getAuthHeaders]
-  );
+      throw error;
+    }
+  }, []);
 
   /**
    * Load initial content
@@ -134,7 +127,7 @@ export const useContent = () => {
       }
 
       try {
-        await contentService.deleteContent(type, id, getAuthHeaders());
+        await contentService.deleteContent(type, id);
         // Remove from both content and allContent (backend always provides id field)
         setContent((prev) => prev.filter((item) => item.id !== id));
         setAllContent((prev) => prev.filter((item) => item.id !== id));
@@ -147,7 +140,7 @@ export const useContent = () => {
         throw error;
       }
     },
-    [getAuthHeaders]
+    []
   );
 
   /**
