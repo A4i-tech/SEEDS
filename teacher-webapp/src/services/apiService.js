@@ -92,6 +92,32 @@ export const unmuteParticipant = async (confId, phone_number) => {
   return response.json();
 };
 
+export const muteAll = async (confId) => {
+  const response = await fetch(API_ENDPOINTS.CONFERENCE.MUTE_ALL(confId), {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to mute all: ${response.status} ${response.statusText}`);
+  }
+  return response.json();
+};
+
+export const unmuteAll = async (confId) => {
+  const response = await fetch(API_ENDPOINTS.CONFERENCE.UNMUTE_ALL(confId), {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to unmute all: ${response.status} ${response.statusText}`);
+  }
+  return response.json();
+};
+
 export const playAudio = async (confId, url) => {
   const audioUrl =
     url ??

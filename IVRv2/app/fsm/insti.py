@@ -53,7 +53,7 @@ from app.fsm.ivr_constants import (
 )
 from app.fsm.ivr_utils import get_content
 from app.core.database import MongoDBCollection
-
+from app.settings import settings
 load_dotenv()
 
 input_action = InputAction(type_=["dtmf"], eventApi="/input")
@@ -89,6 +89,9 @@ def handle_language(filtered_content, speechRate, parent_selections):
     count_languages = {lang: languages.count(lang) for lang in unique_languages}
     sorted_languages = sorted(count_languages.items(), key=lambda x: x[1], reverse=True)
     sorted_langs = [lang for lang, _ in sorted_languages]
+
+    # Only include languages that have IVR dialog URLs (skip unsupported languages in content)
+    sorted_langs = [lang for lang in sorted_langs if lang in languageDialogUrls]
 
     values_to_urls = {}
     sorted_categories = []
@@ -242,7 +245,7 @@ attribute_handlers = {
     "title": handle_title,
 }
 
-welcomeToSEEDSKannadaUrl = "https://seedsstagingblob.blob.core.windows.net/pull-model-menus/welcomeDialog/kannada/welcome%20to%20SEEDS/1.0.mp3"
+welcomeToSEEDSKannadaUrl = f"https://{settings.storage_account_name}.blob.core.windows.net/pull-model-menus/welcomeDialog/kannada/welcome%20to%20SEEDS/1.0.mp3"
 
 
 def getKeyPressUrl(key, language, speechRate):
