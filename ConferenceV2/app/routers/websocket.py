@@ -1,6 +1,7 @@
 # routers/conference.py
 
 import asyncio
+import json
 import traceback
 import uuid
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
@@ -54,11 +55,18 @@ async def websocket_endpoint(websocket: WebSocket, conference_id: str):
                                 # duration = result["duration"]
                                 
                                 detect_result = await hold_detector.detect(text)
+                                
+                                # Log full analysis details
+                                analysis_log = {
+                                    "text": text,
+                                    "is_hold": detect_result["is_hold"],
+                                    "hold_score": float(f"{detect_result['score']:.4f}"),
+                                    "segments": segments
+                                }
+                                logger_instance.info(f"AUDIO ANALYSIS: {json.dumps(analysis_log)}")
+
                                 if detect_result["is_hold"]:
-                                    score = detect_result["score"]
-                                    logger_instance.warning(f"HOLD DETECTED for {conference_id} | Score: {score:.2f} | Text: {text}")
-                                else:
-                                    logger_instance.info(f"TRANSCRIPTION: {text} | Segments: {len(segments)}")
+                                    logger_instance.warning(f"HOLD DETECTED | Score: {detect_result['score']:.2f} | Text: {text}")
 
                     # Handle text messages
                     elif "text" in msg and msg["text"] is not None:

@@ -23,7 +23,7 @@ class WebsocketService:
         return cls._instance
 
     async def initialize(self):
-        self.connection_url = os.environ.get("WS_SERVER_EP", "") + f"?id={self.connection_id}"
+        self.connection_url = os.environ.get("INTERNAL_WS_EP", "ws://localhost:3000") + f"?id={self.connection_id}"
         self.is_connected = False
         self.reconnect_attempts = 0
         self.conference_manager = conference_manager

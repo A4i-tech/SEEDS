@@ -35,7 +35,7 @@ class ConferenceCallManager:
             conf_id=conf_id,
             communication_api=self.communication_api_factory.create(self.communication_api_type, 
                                                                     conf_id, 
-                                                                    ws_url=f"{self.ws_base_url}?id={conf_id}"),
+                                                                    ws_url=f"{self.ws_base_url.rstrip('/')}/websocket/{conf_id}"),
             connection_manager=self.smartphone_connection_manager_factory.create(self.smartphone_connection_manager_type, 
                                                                                  conf_id),
             storage_manager=self.storage_manager
