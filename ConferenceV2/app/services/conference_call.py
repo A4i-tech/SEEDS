@@ -79,6 +79,16 @@ class ConferenceCall:
             )
             self.state.participants[phone] = student
     
+    async def close_websocket(self):
+        if hasattr(self, '_websocket') and self._websocket:
+            try:
+                await self._websocket.close()
+                logger_instance.info(f"Closed WebSocket for conference {self.conf_id}")
+            except Exception as e:
+                logger_instance.warning(f"Error closing WebSocket for conference {self.conf_id}: {e}")
+            finally:
+                self._websocket = None
+
     def set_websocket(self, websocket: WebSocket):
         self._websocket = websocket
         # self.websocket_service.set_websocket(websocket)
