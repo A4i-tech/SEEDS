@@ -58,12 +58,24 @@ async function getCognitiveServicesToken(resource) {
 }
 
 async function createSpeechConfig() {
-  const token = await getCognitiveServicesToken("https://cognitiveservices.azure.com/.default");
+  const subscriptionKey = process.env.TTS_SUBSCRIPTION_KEY || process.env.SPEECH_KEY;
   const region = process.env.TTS_REGION;
-  const resourceId = process.env.TTS_RESOURCE_ID;
-  const authorizationToken = `aad#${resourceId}#${token}`;
+  let speechConfig;
 
-  const speechConfig = sdk.SpeechConfig.fromAuthorizationToken(authorizationToken, region);
+  if (subscriptionKey && region) {
+    speechConfig = sdk.SpeechConfig.fromSubscription(subscriptionKey, region);
+  } else {
+    const token = await getCognitiveServicesToken("https://cognitiveservices.azure.com/.default");
+    const resourceId = process.env.TTS_RESOURCE_ID;
+    if (!resourceId || !region) {
+      throw new Error(
+        "TTS requires either TTS_SUBSCRIPTION_KEY + TTS_REGION, or TTS_RESOURCE_ID + TTS_REGION with Azure credential."
+      );
+    }
+    const authorizationToken = `aad#${resourceId}#${token}`;
+    speechConfig = sdk.SpeechConfig.fromAuthorizationToken(authorizationToken, region);
+  }
+
   return speechConfig;
 }
 

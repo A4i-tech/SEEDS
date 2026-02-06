@@ -13,9 +13,10 @@ COPY . .
 # ---- Set build-time environment variables ----
 # These env vars will be baked into the React static build
 ARG REACT_APP_API_BASE_URL
+ARG REACT_APP_API_IVRV2_URL
 
 ENV REACT_APP_API_BASE_URL=$REACT_APP_API_BASE_URL
-
+ENV REACT_APP_API_IVRV2_URL=$REACT_APP_API_IVRV2_URL
 # Build React app
 RUN npm run build
 
