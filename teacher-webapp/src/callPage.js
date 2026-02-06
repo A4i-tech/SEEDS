@@ -1,5 +1,14 @@
-import React, { useState, useEffect, useRef } from "react";
-import { Box, Typography } from "@mui/material";
+import React, { useState, useEffect } from "react";
+import {
+  Box,
+  Typography,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Button,
+} from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { useConference } from "./context/ConferenceContext";
 import {
@@ -51,6 +60,7 @@ export function DetailsPage() {
   const [audioSelectionError, setAudioSelectionError] = useState(null);
   const [isMutingAll, setIsMutingAll] = useState(false);
   const [isUnmutingAll, setIsUnmutingAll] = useState(false);
+  const [removeConfirmParticipant, setRemoveConfirmParticipant] = useState(null);
 
   // Listen for conference notifications
   useEffect(() => {
@@ -297,40 +307,36 @@ export function DetailsPage() {
     }
   };
 
-  const handleRemoveParticipant = async (participant) => {
+  const handleRemoveParticipant = (participant) => {
     if (!confId) {
       showToast.error("Conference ID is missing");
       return;
     }
-
     if (!participant || !participant.phoneNumber) {
       showToast.error("Invalid participant");
       return;
     }
+    setRemoveConfirmParticipant(participant);
+  };
 
-    // Confirmation dialog
+  const handleRemoveConfirmClose = () => setRemoveConfirmParticipant(null);
+
+  const handleRemoveConfirm = async () => {
+    const participant = removeConfirmParticipant;
+    if (!participant || !confId) return;
+
     const participantName = participant.name || participant.phoneNumber;
-    const confirmed = window.confirm(
-      `Are you sure you want to remove ${participantName} from the conference?`
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
     const phoneNumber = participant.phoneNumber;
     setRemovingIds((prev) => [...prev, phoneNumber]);
+    setRemoveConfirmParticipant(null);
 
     try {
       const normalizedPhone = normalizePhoneNumber(phoneNumber);
       await removeParticipant(confId, normalizedPhone);
       showToast.success(`${participantName} removed successfully`);
-      // SSE will automatically update the UI by removing the participant from participantsMap
     } catch (error) {
       console.error("Error removing participant:", error);
-      showToast.error(
-        `Failed to remove ${participantName}: ${error.message || "Unknown error"}`
-      );
+      showToast.error(`Failed to remove ${participantName}: ${error.message || "Unknown error"}`);
     } finally {
       setRemovingIds((prev) => prev.filter((id) => id !== phoneNumber));
     }
@@ -453,6 +459,30 @@ export function DetailsPage() {
         onClose={handleCloseAudioModal}
         onSubmit={handlePlaySelectedTrack}
       />
+
+      <Dialog
+        open={Boolean(removeConfirmParticipant)}
+        onClose={handleRemoveConfirmClose}
+        maxWidth="xs"
+        fullWidth
+        aria-labelledby="remove-participant-dialog-title"
+        aria-describedby="remove-participant-dialog-description"
+      >
+        <DialogTitle id="remove-participant-dialog-title">Remove participant</DialogTitle>
+        <DialogContent>
+          <DialogContentText id="remove-participant-dialog-description">
+            {removeConfirmParticipant
+              ? `Are you sure you want to remove ${removeConfirmParticipant.name || removeConfirmParticipant.phoneNumber} from the conference?`
+              : ""}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleRemoveConfirmClose}>Cancel</Button>
+          <Button onClick={handleRemoveConfirm} color="error" variant="contained" autoFocus>
+            Remove
+          </Button>
+        </DialogActions>
+      </Dialog>
     </PageContainer>
   );
 }

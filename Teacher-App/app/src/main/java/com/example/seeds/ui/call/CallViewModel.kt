@@ -21,6 +21,7 @@ import com.example.seeds.model.Classroom
 import com.example.seeds.model.ConferenceCreateRequest
 import com.example.seeds.model.Content
 import com.example.seeds.model.Student
+import com.example.seeds.model.ParticipantTracker
 import com.example.seeds.model.StudentCallStatus
 import com.example.seeds.model.PlayerState
 import com.example.seeds.model.SessionHistoryItem
@@ -31,6 +32,7 @@ import com.example.seeds.repository.ContentRepository
 import com.example.seeds.repository.TeacherRepository
 import com.example.seeds.repository.UserPreferencesRepository
 import com.example.seeds.repository.TeacherStudentsDirectory
+import com.example.seeds.utils.CallUtils
 import com.example.seeds.utils.Constants
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -183,9 +185,8 @@ class CallViewModel @Inject constructor(
     val participantDropped: LiveData<String?>
         get() = _participantDropped
 
-    private val previousStudentStates = mutableMapOf<String, CallerState?>()
-    // Track participants that were in the call (for handling removals)
-    private val participantsInCall = mutableSetOf<String>()
+    
+    private val participantTrackers = mutableMapOf<String, ParticipantTracker>()
 
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
@@ -207,30 +208,11 @@ class CallViewModel @Inject constructor(
                 loadCorrectStudentNames()
             }
 
-            // Only create initial call statuses for selected students (phoneNumbers)
-            // Filter classroom students to only include those in phoneNumbers
             val selectedStudentPhones = phoneNumbers.toSet()
-            val initialCallStatuses = args.classroom.students
-                .filter { student -> 
-                    // Normalize phone number for comparison
-                    val normalizedPhone = if (student.phoneNumber.startsWith("91")) {
-                        student.phoneNumber
-                    } else {
-                        "91${student.phoneNumber}"
-                    }
-                    selectedStudentPhones.contains(normalizedPhone) || 
-                    selectedStudentPhones.contains(student.phoneNumber)
-                }
-                .map { student ->
-                    StudentCallStatus(
-                        name = student.name,
-                        phoneNumber = student.phoneNumber,
-                        callerState = CallerState.RINGING,
-                        isMuted = false,
-                        onHold = false,
-                        raiseHand = false
-                    )
-                }
+            val initialCallStatuses = CallUtils.buildInitialCallStatuses(
+                args.classroom.students,
+                selectedStudentPhones
+            )
             _callState.postValue(initialCallStatuses)
             updateStudentsNotOnCall(initialCallStatuses)
 
@@ -446,30 +428,19 @@ class CallViewModel @Inject constructor(
                                         
                                         // Track participants from server response
                                         val serverParticipantPhones = partialStateMap.keys.filter { it != teacherPhoneNumber }.toSet()
-                                        
-                                        // Add new participants to tracking set
-                                        serverParticipantPhones.forEach { phoneNumber ->
-                                            participantsInCall.add(phoneNumber)
-                                        }
-                                        
-                                        // Check for students transitioning from CONNECTED to DISCONNECTED
+
                                         partialStateMap
                                             .filter { it.key != teacherPhoneNumber }
                                             .forEach { (phoneNumber, partialUpdate) ->
-                                                val previousState = previousStudentStates[phoneNumber]
+                                                val previousState = updateTrackerFromServerState(phoneNumber, partialUpdate.callerState)
                                                 val currentState = partialUpdate.callerState
-                                                
                                                 Log.d("STUDENT_STATE", "Student $phoneNumber: $previousState -> $currentState")
-                                                
                                                 if (previousState == CallerState.CONNECTED && currentState == CallerState.DISCONNECTED) {
                                                     Log.d("STUDENT_DROP", "Student $phoneNumber disconnected, posting notification")
                                                     _participantDropped.postValue(phoneNumber)
                                                 }
-                                                
-                                                // Update previous state
-                                                previousStudentStates[phoneNumber] = currentState
                                             }
-                                        
+
                                         // Process participants from server response
                                         val serverParticipants = partialStateMap
                                             .filter { it.key != teacherPhoneNumber } 
@@ -486,28 +457,10 @@ class CallViewModel @Inject constructor(
                                                 )
                                             }
                                         
-                                        // Handle participants that are missing from server response (removed)
-                                        // Keep them as DISCONNECTED so they can be reconnected
-                                        val removedParticipants = currentStudentList
-                                            .filter { it.phoneNumber != null }
-                                            .filter { it.phoneNumber !in serverParticipantPhones }
-                                            .filter { it.phoneNumber in participantsInCall } // Only if was in call
-                                            .mapNotNull { participant ->
-                                                val phoneNumber = participant.phoneNumber ?: return@mapNotNull null
-                                                val previousState = previousStudentStates[phoneNumber]
-                                                
-                                                // If was connected, mark as disconnected and keep in list
-                                                if (previousState == CallerState.CONNECTED || 
-                                                    participant.callerState == CallerState.CONNECTED) {
-                                                    Log.d("PARTICIPANT_REMOVED", "Keeping removed participant $phoneNumber as DISCONNECTED")
-                                                    previousStudentStates[phoneNumber] = CallerState.DISCONNECTED
-                                                    participant.copy(callerState = CallerState.DISCONNECTED)
-                                                } else {
-                                                    // If already disconnected or never connected, remove from list
-                                                    null
-                                                }
-                                            }
-                                        
+                                        val removedParticipants = computeRemovedParticipantsAsDisconnected(
+                                            currentStudentList, serverParticipantPhones, fromRefresh = false
+                                        )
+
                                         // Combine server participants and removed participants (as disconnected)
                                         val combinedList = serverParticipants + removedParticipants
                                         val sortedList = combinedList.sortedByDescending { it.raiseHand }
@@ -625,6 +578,7 @@ class CallViewModel @Inject constructor(
 
     override fun onCleared() {
         closeSocket()
+        participantTrackers.clear()
     }
     
     fun rejoinTeacher() {
@@ -668,39 +622,18 @@ class CallViewModel @Inject constructor(
                     _playerState.postValue(newPlayerState)
                 }
 
-                // Track participants from server response
                 val serverParticipantPhones = networkCallState.mapNotNull { it.phoneNumber }.filter { it != teacherPhoneNumber }.toSet()
-                
-                // Add new participants to tracking set
-                serverParticipantPhones.forEach { phoneNumber ->
-                    participantsInCall.add(phoneNumber)
-                }
-                
-                // Get current state to check for removed participants
-                val currentStudentList = _callState.value ?: emptyList()
-                
-                // Handle participants that are missing from server response (removed)
-                // Keep them as DISCONNECTED so they can be reconnected
-                val removedParticipants = currentStudentList
-                    .filter { it.phoneNumber != null }
-                    .filter { it.phoneNumber !in serverParticipantPhones }
-                    .filter { it.phoneNumber in participantsInCall } // Only if was in call
-                    .mapNotNull { participant ->
-                        val phoneNumber = participant.phoneNumber ?: return@mapNotNull null
-                        val previousState = previousStudentStates[phoneNumber]
-                        
-                        // If was connected, mark as disconnected and keep in list
-                        if (previousState == CallerState.CONNECTED || 
-                            participant.callerState == CallerState.CONNECTED) {
-                            Log.d("PARTICIPANT_REMOVED", "Keeping removed participant $phoneNumber as DISCONNECTED in refresh")
-                            previousStudentStates[phoneNumber] = CallerState.DISCONNECTED
-                            participant.copy(callerState = CallerState.DISCONNECTED)
-                        } else {
-                            // If already disconnected or never connected, remove from list
-                            null
-                        }
+                networkCallState
+                    .filter { it.phoneNumber != null && it.phoneNumber != teacherPhoneNumber }
+                    .forEach { status ->
+                        status.phoneNumber?.let { updateTrackerFromServerState(it, status.callerState ?: CallerState.UNDEFINED) }
                     }
-                
+
+                val currentStudentList = _callState.value ?: emptyList()
+                val removedParticipants = computeRemovedParticipantsAsDisconnected(
+                    currentStudentList, serverParticipantPhones, fromRefresh = true
+                )
+
                 // Combine server participants and removed participants (as disconnected)
                 val combinedList = networkCallState + removedParticipants
                 val sortedList = combinedList.sortedByDescending { it.raiseHand }
@@ -713,6 +646,51 @@ class CallViewModel @Inject constructor(
                 Log.e(TAG, "Failed to refresh call state", e)
             }
         }
+    }
+
+    /**
+     * Updates [participantTrackers] with server state for [phoneNumber]. Returns the previous state for transition detection.
+     */
+    private fun updateTrackerFromServerState(phoneNumber: String, newState: CallerState): CallerState? {
+        val existing = participantTrackers[phoneNumber]
+        val previousState = existing?.currentState
+        participantTrackers[phoneNumber] = ParticipantTracker(
+            phoneNumber = phoneNumber,
+            currentState = newState,
+            previousState = previousState,
+            hasBeenInCall = true
+        )
+        return previousState
+    }
+
+    /**
+     * Participants that are in [currentStudentList] and were in the call but are no longer in [serverParticipantPhones].
+     * They are returned as DISCONNECTED so they can be reconnected. [participantTrackers] is updated as a side effect.
+     * [fromRefresh] only affects the log message (e.g. "in refresh").
+     */
+    private fun computeRemovedParticipantsAsDisconnected(
+        currentStudentList: List<StudentCallStatus>,
+        serverParticipantPhones: Set<String>,
+        fromRefresh: Boolean = false
+    ): List<StudentCallStatus> {
+        val logSuffix = if (fromRefresh) " in refresh" else ""
+        return currentStudentList
+            .filter { it.phoneNumber != null }
+            .filter { it.phoneNumber !in serverParticipantPhones }
+            .filter { participant -> participantTrackers[participant.phoneNumber]?.hasBeenInCall == true }
+            .mapNotNull { participant ->
+                val phoneNumber = participant.phoneNumber ?: return@mapNotNull null
+                val tracker = participantTrackers[phoneNumber] ?: return@mapNotNull null
+                val wasConnected = tracker.previousState == CallerState.CONNECTED || participant.callerState == CallerState.CONNECTED
+                if (wasConnected) {
+                    Log.d("PARTICIPANT_REMOVED", "Keeping removed participant $phoneNumber as DISCONNECTED$logSuffix")
+                    participantTrackers[phoneNumber] = tracker.copy(
+                        currentState = CallerState.DISCONNECTED,
+                        previousState = tracker.currentState
+                    )
+                    participant.copy(callerState = CallerState.DISCONNECTED)
+                } else null
+            }
     }
 
     private fun updateStudentsNotOnCall(currentState: List<StudentCallStatus>?) {
@@ -860,10 +838,15 @@ class CallViewModel @Inject constructor(
     fun connectParticipant(name: String, phoneNumber: String) {
         val confId = _callToken.value?.confId ?: return
         val currentList = _callState.value?.toMutableList() ?: return
-        
-        // Add to tracking set when attempting to connect
-        participantsInCall.add(phoneNumber)
-        
+
+        val existing = participantTrackers[phoneNumber]
+        participantTrackers[phoneNumber] = ParticipantTracker(
+            phoneNumber = phoneNumber,
+            currentState = CallerState.RINGING,
+            previousState = existing?.currentState,
+            hasBeenInCall = true
+        )
+
         val studentIndex = currentList.indexOfFirst { it.phoneNumber == phoneNumber }
         if (studentIndex != -1) {
             currentList[studentIndex] = currentList[studentIndex].copy(callerState = CallerState.RINGING)
@@ -886,15 +869,17 @@ class CallViewModel @Inject constructor(
         val confId = _callToken.value?.confId ?: return
         val currentList = _callState.value?.toMutableList() ?: return
         
-        // Optimistic update: Mark as DISCONNECTED (not TIMEOUT) so reconnect button appears
+        val tracker = participantTrackers[phoneNumber]
+        if (tracker != null) {
+            participantTrackers[phoneNumber] = tracker.copy(
+                currentState = CallerState.DISCONNECTED,
+                previousState = tracker.currentState
+            )
+        }
+
         val updatedList = currentList.map { participant ->
-            if (participant.phoneNumber == phoneNumber) {
-                // Update previous state tracking
-                previousStudentStates[phoneNumber] = CallerState.DISCONNECTED
-                participant.copy(callerState = CallerState.DISCONNECTED)
-            } else {
-                participant
-            }
+            if (participant.phoneNumber == phoneNumber) participant.copy(callerState = CallerState.DISCONNECTED)
+            else participant
         }.toMutableList()
         _callState.postValue(updatedList)
 
