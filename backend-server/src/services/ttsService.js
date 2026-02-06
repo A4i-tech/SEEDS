@@ -65,7 +65,6 @@ async function createSpeechConfig() {
   if (subscriptionKey && region) {
     speechConfig = sdk.SpeechConfig.fromSubscription(subscriptionKey, region);
   } else {
-    
     const resourceId = process.env.TTS_RESOURCE_ID;
     if (!resourceId || !region) {
       throw new Error(
