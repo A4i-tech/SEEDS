@@ -271,25 +271,17 @@ const AddStory = ({ content, contentType }) => {
     }
     delete newMetadata["audioFile"];
     delete newMetadata["answerAudioFile"];
-    if (content) {
-      newMetadata = { ...newMetadata, _id: content._id };
-      const seedsRes = await fetch(`${SEEDS_URL}/content?isAudioUploaded=${isAudioUploaded}`, {
-        method: "PATCH",
-        headers: getAuthHeaders(),
-        body: JSON.stringify(newMetadata),
-      });
-      await seedsRes.json();
-    } else {
-      const seedsRes = await fetch(`${SEEDS_URL}/content/`, {
-        method: "POST",
-        headers: getAuthHeaders(),
-        body: JSON.stringify(newMetadata),
-      });
-      await seedsRes.json();
-    }
+
+    // Get SAS tokens and populate audioContent with input-container URLs before sending to backend
+    const audioContentArray = [];
+    let sasUrl = null;
+    let sasUrlAnswer = null;
+    let filename = null;
+    let answerFilename = null;
+
     if (metadata.audioFile) {
       const extname = metadata.audioFile.split(".").pop();
-      var filename = `${_id}.${extname}`;
+      filename = `${_id}.${extname}`;
       if (contentType === "Riddle") {
         filename = `${_id}_question.${extname}`;
       }
@@ -303,7 +295,45 @@ const AddStory = ({ content, contentType }) => {
           headers: getAuthHeaders(),
         }
       );
-      const sasUrl = (await res.json()).sasToken;
+      sasUrl = (await res.json()).sasToken;
+      // Extract base URL (input-container URL) without SAS token
+      const inputContainerUrl = sasUrl.split("?")[0];
+      audioContentArray.push({
+        description: "",
+        audioUrl: inputContainerUrl,
+      });
+    }
+
+    if (metadata.answerAudioFile) {
+      const answerExtname = metadata.answerAudioFile.split(".").pop();
+      answerFilename = `${_id}_answer.${answerExtname}`;
+      const resAnswer = await fetch(
+        `${SEEDS_URL}/content/sasToken?` +
+          new URLSearchParams({
+            blobName: answerFilename,
+          }),
+        {
+          method: "GET",
+          headers: getAuthHeaders(),
+        }
+      );
+      sasUrlAnswer = (await resAnswer.json()).sasToken;
+      // Extract base URL (input-container URL) without SAS token
+      const inputContainerUrlAnswer = sasUrlAnswer.split("?")[0];
+      audioContentArray.push({
+        description: "",
+        audioUrl: inputContainerUrlAnswer,
+      });
+    }
+
+    // Populate audioContent array in metadata
+    if (audioContentArray.length > 0) {
+      newMetadata.audioContent = audioContentArray;
+    }
+
+    // Upload files to Azure Blob Storage FIRST, before sending metadata to backend
+    // This ensures files are available when the background job starts processing
+    if (metadata.audioFile && sasUrl) {
       const client = new BlockBlobClient(sasUrl);
       const metadataProperties = {
         experience: contentType,
@@ -320,20 +350,7 @@ const AddStory = ({ content, contentType }) => {
         metadata: metadataProperties,
       });
     }
-    if (metadata.answerAudioFile) {
-      const answerExtname = metadata.answerAudioFile.split(".").pop();
-      var answerFilename = `${_id}_answer.${answerExtname}`;
-      const resAnswer = await fetch(
-        `${SEEDS_URL}/content/sasToken?` +
-          new URLSearchParams({
-            blobName: answerFilename,
-          }),
-        {
-          method: "GET",
-          headers: getAuthHeaders(),
-        }
-      );
-      const sasUrlAnswer = (await resAnswer.json()).sasToken;
+    if (metadata.answerAudioFile && sasUrlAnswer) {
       const clientAnswer = new BlockBlobClient(sasUrlAnswer);
       await clientAnswer.uploadBrowserData(answerFile, {
         metadata: {
@@ -342,6 +359,24 @@ const AddStory = ({ content, contentType }) => {
           isfinalaudio: "true",
         },
       });
+    }
+
+    // Send metadata to backend with populated audioContent AFTER files are uploaded
+    if (content) {
+      newMetadata = { ...newMetadata, _id: content._id };
+      const seedsRes = await fetch(`${SEEDS_URL}/content?isAudioUploaded=${isAudioUploaded}`, {
+        method: "PATCH",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(newMetadata),
+      });
+      await seedsRes.json();
+    } else {
+      const seedsRes = await fetch(`${SEEDS_URL}/content/`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(newMetadata),
+      });
+      await seedsRes.json();
     }
     navigate("/content");
   };
