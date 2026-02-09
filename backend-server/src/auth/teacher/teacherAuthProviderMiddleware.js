@@ -48,15 +48,15 @@ module.exports = {
   },
   async register(req, res) {
     const { phoneNumber, password, name } = req.body;
-    name = name.trim();
-    if (name.length === 0) {
-      return res.status(STATUS.BAD_REQUEST).json({ message: "Name is required" });
-    }
     const tenantId = req.userId;
-    if (!phoneNumber || !password || !tenantId || !name) {
+    if (!phoneNumber || !password || !tenantId || typeof name !== "string") {
       return res.status(STATUS.BAD_REQUEST).json({
         message: "Phone number, password, name, and tenantName are required",
       });
+    }
+    const trimmedName = name.trim();
+    if (trimmedName.length === 0) {
+      return res.status(STATUS.BAD_REQUEST).json({ message: "Name is required" });
     }
     if (!validator.isMobilePhone(phoneNumber)) {
       return res.status(STATUS.BAD_REQUEST).json({ message: "Invalid phone number format" });
@@ -84,7 +84,7 @@ module.exports = {
         phoneNumber,
         password: hashedPassword,
         tenantId,
-        name,
+        name: trimmedName,
       });
       return res.status(STATUS.CREATED).json({ message: "Teacher registered successfully" });
     } catch (error) {
