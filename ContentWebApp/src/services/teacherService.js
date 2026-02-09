@@ -27,7 +27,7 @@ export const teacherService = {
    * @param {Object} headers - Auth headers
    * @returns {Promise<Object>}
    */
-  async registerTeacher(phoneNumber, password, headers = {}) {
+  async registerTeacher(phoneNumber, password, name, headers = {}) {
     const url = `${SEEDS_URL}/teacher/register`;
 
     return await apiFetch(url, {
@@ -36,6 +36,7 @@ export const teacherService = {
       body: JSON.stringify({
         phoneNumber,
         password,
+        name,
       }),
     });
   },

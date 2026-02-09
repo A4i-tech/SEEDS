@@ -61,11 +61,11 @@ module.exports = {
     const doc = snapshot.docs[0];
     return { id: doc.id, ...doc.data() };
   },
-  async insertTeacher({ phoneNumber, password, tenantId }) {
+  async insertTeacher({ phoneNumber, password, tenantId, name }) {
     const teachersRef = db.collection("Teacher");
     const newTeacherRef = teachersRef.doc();
-    await newTeacherRef.set({ phoneNumber, password, tenantId });
-    return { id: newTeacherRef.id, phoneNumber, password, tenantId };
+    await newTeacherRef.set({ phoneNumber, password, tenantId, name });
+    return { id: newTeacherRef.id, phoneNumber, password, tenantId, name };
   },
   async updateTenantPassword(tenantId, newPassword) {
     const tenantRef = db.collection("Tenants").doc(tenantId);
