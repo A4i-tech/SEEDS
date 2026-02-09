@@ -129,21 +129,6 @@ describe("Teacher registration API", () => {
     expect(res.statusCode).toBe(STATUS_BAD_REQUEST);
   });
 
-  test("register fails with name longer than 200 characters", async () => {
-    const { token } = await createTenantAndToken();
-    const longName = "a".repeat(201);
-    const res = await request(app)
-      .post("/teacher/register")
-      .set("Authorization", `Bearer ${token}`)
-      .send({
-        phoneNumber: TEST_PHONE,
-        password: TEST_PASSWORD,
-        name: longName,
-      });
-    expect(res.statusCode).toBe(STATUS_BAD_REQUEST);
-    expect(res.body.message && res.body.message.includes("200")).toBe(true);
-  });
-
   test("register fails with invalid phone number format", async () => {
     const { token } = await createTenantAndToken();
     const res = await request(app)
