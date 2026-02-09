@@ -12,14 +12,6 @@ class HoldDetector:
         self.client = AsyncOpenAI(api_key=api_key)
         self.threshold = threshold
         self.hold_phrases = [
-            "please hold",
-            "hold on a second",
-            "just a moment",
-            "wait a minute",
-            "can you hold",
-            "please wait",
-            "hang on",
-            "one moment please",
             "thank you for holding",
             "thank you for your patience",
             "please enjoy the music",

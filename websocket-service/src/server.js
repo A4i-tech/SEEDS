@@ -7,7 +7,7 @@ const appInsights = require("applicationinsights");
 const websocketService = require("./services/websocketService");
 const controlService = require("./services/controlService");
 const connectionManager = require("./services/connectionManager");
-const mlStreamService = require("./services/mlStreamService");
+// const mlStreamService = require("./services/mlStreamService"); // Removed as per team request
 
 const port = process.env.PORT || 3000;
 const MAXIMUM_CONFERENCE_TIME_ALLOWED_IN_MILLISECONDS = 60 * 60 * 1000; // 1 hour in milliseconds
@@ -72,13 +72,15 @@ wss.on("connection", (ws, req) => {
     console.log(`Control WebSocket connection established with id: ${id}`);
     controlService.handleControlConnection(ws);
   } else {
-    // Forward incoming messages (audio) to ML service
+    // Forward incoming messages (audio) to ML service - REMOVED
+    /* 
     ws.on("message", (message) => {
       // Check if message is binary (likely audio)
       if (Buffer.isBuffer(message)) {
           mlStreamService.streamAudio(id, message);
       }
     });
+    */
 
     // Start a timer to close the connection after 1 hour
     const maxConnectionTime = MAXIMUM_CONFERENCE_TIME_ALLOWED_IN_MILLISECONDS;
@@ -94,8 +96,8 @@ wss.on("connection", (ws, req) => {
       const { state } = connectionManager.getConnection(id);
       connectionManager.removeConnection(id);
       
-      // Close ML connection
-      mlStreamService.closeMLConnection(id);
+      // Close ML connection - REMOVED
+      // mlStreamService.closeMLConnection(id);
 
       if (!state.isClosed) {
         websocketService.handleAccidentalDisconnection(id);
