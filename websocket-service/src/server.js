@@ -7,7 +7,7 @@ const appInsights = require("applicationinsights");
 const websocketService = require("./services/websocketService");
 const controlService = require("./services/controlService");
 const connectionManager = require("./services/connectionManager");
-const mlStreamService = require("./services/mlStreamService");
+// const mlStreamService = require("./services/mlStreamService"); // Removed as per team request
 
 const port = process.env.PORT || 3000;
 const MAXIMUM_CONFERENCE_TIME_ALLOWED_IN_MILLISECONDS = 60 * 60 * 1000; // 1 hour in milliseconds
@@ -98,6 +98,7 @@ wss.on("connection", (ws, req) => {
         }));
       }
     });
+    */
 
     // Start a timer to close the connection after 1 hour
     const maxConnectionTime = MAXIMUM_CONFERENCE_TIME_ALLOWED_IN_MILLISECONDS;
