@@ -24,6 +24,7 @@ export const teacherService = {
    * Register a new teacher
    * @param {string} phoneNumber - Teacher phone number
    * @param {string} password - Teacher password
+   * @param {string} name - Teacher name
    * @param {Object} headers - Auth headers
    * @returns {Promise<Object>}
    */

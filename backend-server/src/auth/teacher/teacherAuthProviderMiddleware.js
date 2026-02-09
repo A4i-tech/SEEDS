@@ -48,6 +48,10 @@ module.exports = {
   },
   async register(req, res) {
     const { phoneNumber, password, name } = req.body;
+    name = name.trim();
+    if (name.length === 0) {
+      return res.status(STATUS.BAD_REQUEST).json({ message: "Name is required" });
+    }
     const tenantId = req.userId;
     if (!phoneNumber || !password || !tenantId || !name) {
       return res.status(STATUS.BAD_REQUEST).json({
@@ -80,6 +84,7 @@ module.exports = {
         phoneNumber,
         password: hashedPassword,
         tenantId,
+        name,
       });
       return res.status(STATUS.CREATED).json({ message: "Teacher registered successfully" });
     } catch (error) {
