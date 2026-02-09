@@ -132,7 +132,6 @@ const ClassroomList = () => {
       showToast.info(`Classroom "${sessionItem.groupName}" not found`);
     }
   };
-
   const handlePlayContent = () => {
     navigate(ROUTES.CONTENT);
   };
