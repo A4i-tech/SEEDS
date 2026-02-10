@@ -96,6 +96,38 @@ describe("apiService", () => {
         "PUT"
       );
     });
+
+    test("removes participant from conference", async () => {
+      fetch.mockResolvedValueOnce(mockEmptyResponse());
+      const result = await apiService.removeParticipant(confId, phoneNumber);
+      expect(fetch).toHaveBeenCalledWith(
+        `${baseUrl}/conference/removeparticipant/${confId}?phone_number=${"91" + phoneNumber}`,
+        { method: "PUT", headers: { "Content-Type": "application/json" } }
+      );
+      expect(result).toEqual({});
+    });
+
+    test("removeParticipant normalizes phone number", async () => {
+      fetch.mockResolvedValueOnce(mockEmptyResponse());
+      await apiService.removeParticipant(confId, "9876543210");
+      expect(fetch).toHaveBeenCalledWith(
+        `${baseUrl}/conference/removeparticipant/${confId}?phone_number=919876543210`,
+        { method: "PUT", headers: { "Content-Type": "application/json" } }
+      );
+    });
+
+    test("removeParticipant throws on HTTP error", async () => {
+      fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        statusText: "Forbidden",
+        json: jest.fn().mockResolvedValueOnce({}),
+        text: jest.fn().mockResolvedValueOnce("Forbidden"),
+      });
+      await expect(apiService.removeParticipant(confId, phoneNumber)).rejects.toThrow(
+        "Failed to remove participant: 403 Forbidden"
+      );
+    });
   });
 
   describe("Audio Control", () => {

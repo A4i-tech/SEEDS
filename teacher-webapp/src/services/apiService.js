@@ -172,6 +172,34 @@ export const addParticipant = async (confId, phone_number) => {
   });
 };
 
+export const removeParticipant = async (confId, phone_number) => {
+  // Normalize phone number to ensure consistent format (91XXXXXXXXXX)
+  const normalizedPhone = normalizePhoneNumber(phone_number);
+  const response = await fetch(
+    API_ENDPOINTS.CONFERENCE.REMOVE_PARTICIPANT(confId, normalizedPhone),
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("Participant removal failed:", {
+      status: response.status,
+      statusText: response.statusText,
+      error: errorText,
+    });
+    throw new Error(
+      `Failed to remove participant: ${response.status} ${response.statusText}`
+    );
+  }
+
+  return response.json();
+};
+
 export const fetchAudioContent = async () => {
   const token = localStorage.getItem("authToken");
   const response = await fetch(API_ENDPOINTS.GET_AUDIO_CONTENT, {
