@@ -131,6 +131,8 @@ const ClassroomList = () => {
     } else {
       showToast.info(`Classroom "${sessionItem.groupName}" not found`);
     }
+  const handlePlayContent = () => {
+    navigate(ROUTES.CONTENT);
   };
 
   if (loading) {
@@ -151,6 +153,14 @@ const ClassroomList = () => {
           My Classrooms
         </Typography>
         <Box sx={{ display: "flex", gap: 2 }}>
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<PlayArrowIcon />}
+            onClick={handlePlayContent}
+          >
+            Play Content
+          </Button>
           <Button
             variant="contained"
             color="primary"
