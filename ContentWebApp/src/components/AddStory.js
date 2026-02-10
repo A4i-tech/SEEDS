@@ -150,7 +150,7 @@ const AddStory = ({ content, contentType }) => {
         id: content.id,
         type: content.type || "Story",
         description: content.description || "",
-        language: content.language || "kannada",
+        language: (content.language || "kannada").toLowerCase(),
         title: {
           english: content.title?.english || "",
           local:
@@ -193,6 +193,7 @@ const AddStory = ({ content, contentType }) => {
 
   const isValid = () => {
     var valid = true;
+    const languageLower = (metadata.language || "").toLowerCase();
     const inputTitleLower = (metadata.title.english || "").toLowerCase();
     const inputLocalTitleLower = (metadata.title.local || "").toLowerCase();
     // Check if title is empty
@@ -212,7 +213,7 @@ const AddStory = ({ content, contentType }) => {
     }
     // When language is not English, local theme is also required
     else if (
-      metadata.language !== "english" &&
+      languageLower !== "english" &&
       (!metadata.theme.local || metadata.theme.local === "new-theme")
     ) {
       alert("Local theme cannot be empty");
@@ -227,7 +228,7 @@ const AddStory = ({ content, contentType }) => {
       valid = false;
     }
     //Check that localTitle is not empty if language is not english
-    else if (metadata.language !== "english" && !metadata.title.local) {
+    else if (languageLower !== "english" && !metadata.title.local) {
       alert("Local Title cannot be empty");
       valid = false;
     }
@@ -259,6 +260,7 @@ const AddStory = ({ content, contentType }) => {
 
   const sendStory = async () => {
     const _id = content ? content.id : uuidv4();
+    const languageLower = (metadata.language || "").toLowerCase();
     // Always send title and theme as objects
     var newMetadata = {
       ...metadata,
@@ -267,7 +269,7 @@ const AddStory = ({ content, contentType }) => {
       title: {
         english: metadata.title.english || "",
         local:
-          metadata.language === "english"
+          languageLower === "english"
             ? metadata.title.english || ""
             : metadata.title.local || "",
         audioUrl: metadata.title.audioUrl || "",
@@ -275,7 +277,7 @@ const AddStory = ({ content, contentType }) => {
       theme: {
         english: metadata.theme.english || "",
         local:
-          metadata.language === "english"
+          languageLower === "english"
             ? metadata.theme.english || ""
             : metadata.theme.local || "",
         audioUrl: metadata.theme.audioUrl || "",
