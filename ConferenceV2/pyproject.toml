@@ -25,7 +25,9 @@ dependencies = [
     "websockets",
     "opencensus-ext-azure",
     "pytz",
-    "httpx"
+    "httpx",
+    "motor",
+    "pymongo",
 ]
 
 

@@ -9,6 +9,7 @@ import {
   DialogActions,
   Button,
 } from "@mui/material";
+import { Box, Typography } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { useConference } from "./context/ConferenceContext";
 import {
@@ -34,8 +35,9 @@ import { ControlButtonGroup } from "./components/controls/ControlButtonGroup";
 import { PageContainer } from "./components/layout/PageContainer";
 import { showToast } from "./utils/toast";
 import { normalizePhoneNumber } from "./utils/phoneUtils";
+import { addSessionToHistory } from "./services/sessionHistoryService";
 
-export function DetailsPage() {
+export function DetailsPage({ classroomName = null, classroomId = null }) {
   const navigate = useNavigate();
   const {
     confId,
@@ -119,6 +121,20 @@ export function DetailsPage() {
     setIsLoadingCall(true);
     try {
       await endConferenceCall(confId);
+      
+      // Track conference session in history
+      if (classroomId && classroomName) {
+        const allParticipants = getAllParticipants();
+        const studentCount = allParticipants.filter((p) => p?.role === "Student").length;
+        
+        addSessionToHistory({
+          groupId: classroomId,
+          groupName: classroomName,
+          studentCount: studentCount > 0 ? studentCount : 0,
+          wasConference: true,
+        });
+      }
+      
       showToast.success("Call ended");
     } catch (error) {
       console.error("Error ending the call:", error);
@@ -132,6 +148,20 @@ export function DetailsPage() {
     setIsSinkingConf(true);
     try {
       await sinkConferenceCall(confId);
+      
+      // Track conference session in history
+      if (classroomId && classroomName) {
+        const allParticipants = getAllParticipants();
+        const studentCount = allParticipants.filter((p) => p?.role === "Student").length;
+        
+        addSessionToHistory({
+          groupId: classroomId,
+          groupName: classroomName,
+          studentCount: studentCount > 0 ? studentCount : 0,
+          wasConference: true,
+        });
+      }
+      
       showToast.success("Conference sunk successfully");
       setHasSunkConf(true);
     } catch (error) {
@@ -167,7 +197,10 @@ export function DetailsPage() {
     setIsAudioModalOpen(true);
   };
 
-  const handlePlaySelectedTrack = async (trackUrl) => {
+  const handlePlaySelectedTrack = async (contentData) => {
+    // Support both old API (just URL string) and new API (content object)
+    const trackUrl = typeof contentData === "string" ? contentData : contentData?.url;
+
     if (!confId) {
       setAudioSelectionError("Conference is not ready.");
       return;

@@ -135,7 +135,14 @@ export const AudioContentModal = ({ open, onClose, onSubmit }) => {
       return;
     }
 
-    onSubmit(selectedContent);
+    // Find the content object that matches the selected URL
+    const content = audioContent.find((c) => c.url === selectedContent);
+    if (content) {
+      onSubmit(content);
+    } else {
+      // Fallback: pass URL string for backward compatibility
+      onSubmit(selectedContent);
+    }
     onClose();
   };
 
