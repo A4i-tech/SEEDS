@@ -21,6 +21,7 @@ import {
   People as PeopleIcon,
   School as SchoolIcon,
   Logout as LogoutIcon,
+  History as HistoryIcon,
   PlayArrow as PlayArrowIcon,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
@@ -30,6 +31,7 @@ import { showToast } from "../utils/toast";
 import { LoadingSpinner } from "../components/common/LoadingSpinner";
 import { PageContainer } from "../components/layout/PageContainer";
 import { ROUTES } from "../constants/routes";
+import { getSessionHistory } from "../services/sessionHistoryService";
 const ClassroomList = () => {
   const navigate = useNavigate();
   const { logout } = useAuth();
@@ -38,9 +40,12 @@ const ClassroomList = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [classroomToDelete, setClassroomToDelete] = useState(null);
   const [errorMsg, setErrorMsg] = useState("");
+  const [recentSessions, setRecentSessions] = useState([]);
 
   useEffect(() => {
     fetchClassrooms();
+    // Load recent conference sessions
+    setRecentSessions(getSessionHistory());
   }, []);
 
   const fetchClassrooms = async () => {
@@ -95,6 +100,37 @@ const ClassroomList = () => {
     logout();
   };
 
+  const formatTimestamp = (timestamp) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? "s" : ""} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+    
+    // Format as date for older items
+    return date.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
+    });
+  };
+
+  const handleSessionClick = (sessionItem) => {
+    // Find classroom by ID or name and navigate to it
+    const matchingClassroom = classrooms.find(
+      (c) => c._id === sessionItem.groupId || c.name === sessionItem.groupName
+    );
+    if (matchingClassroom) {
+      navigate(ROUTES.CLASSROOM_DETAIL(matchingClassroom._id));
+    } else {
+      showToast.info(`Classroom "${sessionItem.groupName}" not found`);
+    }
   const handlePlayContent = () => {
     navigate(ROUTES.CONTENT);
   };
@@ -152,6 +188,73 @@ const ClassroomList = () => {
         <Alert severity="error" sx={{ mb: 3 }}>
           {errorMsg}
         </Alert>
+      )}
+
+      {/* Recent Conference Sessions Section */}
+      {recentSessions.length > 0 && (
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+              <HistoryIcon color="primary" />
+              <Typography variant="h6" fontWeight={600}>
+                Recent Conferences
+              </Typography>
+            </Box>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+              {recentSessions.map((sessionItem) => (
+                <Box
+                  key={`${sessionItem.groupId}-${sessionItem.timestamp}`}
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    p: 1.5,
+                    border: "1px solid",
+                    borderColor: "divider",
+                    borderRadius: 1,
+                    "&:hover": {
+                      bgcolor: "action.hover",
+                      cursor: "pointer",
+                    },
+                  }}
+                  onClick={() => handleSessionClick(sessionItem)}
+                >
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography variant="body1" fontWeight={500}>
+                      {sessionItem.groupName}
+                    </Typography>
+                    <Box sx={{ display: "flex", gap: 1, mt: 0.5, flexWrap: "wrap" }}>
+                      <Typography variant="caption" color="text.secondary">
+                        {formatTimestamp(sessionItem.timestamp)}
+                      </Typography>
+                      {sessionItem.studentCount !== null && sessionItem.studentCount !== undefined && (
+                        <>
+                          <Typography variant="caption" color="text.secondary">
+                            •
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {sessionItem.studentCount} student{sessionItem.studentCount !== 1 ? "s" : ""}
+                          </Typography>
+                        </>
+                      )}
+                    </Box>
+                  </Box>
+                  <IconButton
+                    size="small"
+                    color="primary"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSessionClick(sessionItem);
+                    }}
+                    sx={{ ml: 1 }}
+                  >
+                    <PlayArrowIcon />
+                  </IconButton>
+                </Box>
+              ))}
+            </Box>
+          </CardContent>
+        </Card>
       )}
 
       {classrooms.length === 0 ? (

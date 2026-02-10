@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { getCurrentTeacher as fetchCurrentTeacher } from "../services/teacherService";
 import { isAuthenticated, clearAuth as clearAuthHelper } from "../utils/authHelpers";
+import { clearSessionHistory } from "../services/sessionHistoryService";
 
 // Module-level cache to prevent redundant API calls
 let cachedTeacher = null;
@@ -43,7 +44,8 @@ export const useAuth = () => {
    * Logout user and clear all auth data
    */
   const logout = useCallback(() => {
-    clearAuthHelper(); // Clears both token AND phoneNumber
+    clearAuthHelper(); // Clears token 
+    clearSessionHistory(); // Clear session history
     resetTeacherCache();
     navigate("/");
   }, [navigate]);
