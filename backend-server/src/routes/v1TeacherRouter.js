@@ -190,39 +190,132 @@ router.get("/teachers", authenticateToken, async (req, res) => {
  *         description: Unauthorized - invalid or missing token
  */
 router.post("/add-students", authenticateToken, async (req, res) => {
-  if (!Array.isArray(req.body.students) || req.body.students.length === 0) {
-    return res.sendStatus(STATUS.BAD_REQUEST);
-  }
-  const teacher = await Teacher.findOne({ phoneNumber: req.body.phoneNumber });
-  if (!teacher) return res.sendStatus(STATUS.NOT_FOUND);
-  let results = [];
+  try {
+    const { students, phoneNumber } = req.body;
 
-  for (let i = 0; i < req.body.students.length; i++) {
-    const studentData = req.body.students[i];
-    if (!studentData.name || !studentData.phoneNumber) {
-      continue;
-    }
-    const studentExists = await Student.findOne({
-      phoneNumber: studentData.phoneNumber,
+    if (!Array.isArray(students) || !students.length)
+      return res.sendStatus(STATUS.BAD_REQUEST);
+
+    const teacher = await Teacher.findOne({ phoneNumber });
+    if (!teacher) return res.sendStatus(STATUS.NOT_FOUND);
+
+    const validStudents = students
+      .filter(s => s?.name && s?.phoneNumber)
+      .map(s => ({
+        ...s,
+        name: s.name.trim(),
+        phoneNumber: s.phoneNumber.trim()
+      }))
+      .filter(s => s.name && s.phoneNumber);
+
+    if (!validStudents.length)
+      return res.sendStatus(STATUS.BAD_REQUEST);
+
+    const phoneNumbers = validStudents.map(s => s.phoneNumber);
+
+    const existingStudents = await Student.find({
+      phoneNumber: { $in: phoneNumbers }
     });
-    if (studentExists) {
-      continue;
+
+    const existingMap = new Map(
+      existingStudents.map(s => [s.phoneNumber, s])
+    );
+
+    const duplicates = [];
+    const bulkUpdates = [];
+    const studentsToAdd = [];
+    const newStudentsData = [];
+
+    for (const s of validStudents) {
+      const existing = existingMap.get(s.phoneNumber);
+
+      if (existing) {
+        if (s.updateName && existing.name !== s.name) {
+          bulkUpdates.push({
+            updateOne: {
+              filter: { _id: existing._id },
+              update: { $set: { name: s.name } }
+            }
+          });
+          studentsToAdd.push({ ...existing.toObject(), name: s.name });
+        } else if (existing.name === s.name) {
+          studentsToAdd.push(existing);
+        } else {
+          duplicates.push({
+            phoneNumber: s.phoneNumber,
+            existingName: existing.name,
+            submittedName: s.name
+          });
+        }
+      } else {
+        newStudentsData.push(s);
+      }
     }
-    const student = await Student.create(req.body.students[i]);
-    const studentId = student._id.toString();
-    await Teacher.updateOne({ _id: teacher._id }, { $addToSet: { studentId: studentId } });
-    results.push({
-      name: student.name,
-      phoneNumber: student.phoneNumber,
-    });
+
+    if (bulkUpdates.length)
+      await Student.bulkWrite(bulkUpdates);
+
+    let newStudents = [];
+    if (newStudentsData.length) {
+      try {
+        newStudents = await Student.insertMany(newStudentsData, { ordered: false });
+      } catch (err) {
+        if (err.code === 11000) {
+          const attemptedPhones = newStudentsData.map(s => s.phoneNumber);
+          newStudents = await Student.find({ phoneNumber: { $in: attemptedPhones } }).lean();
+        } else {
+          throw err;
+        }
+      }
+    }
+
+    const allStudents = [...studentsToAdd, ...newStudents];
+    const allStudentIds = allStudents.map(s => s._id);
+
+    const teacherStudentIdSet = new Set(
+      (Array.isArray(teacher.studentId) ? teacher.studentId : [])
+        .map(id => String(id))
+    );
+    const newToTeacherIds = allStudentIds.filter(id => !teacherStudentIdSet.has(String(id)));
+    const alreadyLinkedToTeacher = allStudents.filter(s =>
+      teacherStudentIdSet.has(String(s._id))
+    );
+
+    if (newToTeacherIds.length) {
+      await Teacher.updateOne(
+        { _id: teacher._id },
+        { $addToSet: { studentId: { $each: newToTeacherIds } } }
+      );
+    }
+
+    const newlyAdded = allStudents.filter(s => !teacherStudentIdSet.has(String(s._id)));
+    const payload = {
+      students: newlyAdded.map(s => ({
+        name: s.name,
+        phoneNumber: s.phoneNumber
+      }))
+    };
+
+    if (duplicates.length)
+      payload.duplicates = duplicates;
+    if (alreadyLinkedToTeacher.length)
+      payload.alreadyLinked = alreadyLinkedToTeacher.map(s => ({
+        name: s.name,
+        phoneNumber: s.phoneNumber
+      }));
+
+    return res.status(STATUS.OK).json(payload);
+  } catch (error) {
+    console.error(error);
+    return res.sendStatus(STATUS.INTERNAL_ERROR);
   }
-  return res.status(STATUS.OK).json(results);
 });
+
 
 /**
  * @swagger
- * /teacher/students:
- *   post:
+ * /v1/teacher/students:
+ *   delete:
  *     summary: Remove students from teacher's list
  *     tags: [Teachers]
  *     security:
@@ -236,7 +329,6 @@ router.post("/add-students", authenticateToken, async (req, res) => {
  *             required:
  *               - phoneNumber
  *               - students
- *               - remove
  *             properties:
  *               phoneNumber:
  *                 type: string
@@ -248,10 +340,8 @@ router.post("/add-students", authenticateToken, async (req, res) => {
  *                   properties:
  *                     phoneNumber:
  *                       type: string
+ *                       description: Student phone number to remove
  *                 description: Array of student objects with phone numbers to remove
- *               remove:
- *                 type: boolean
- *                 description: Flag indicating removal operation
  *     responses:
  *       200:
  *         description: Students successfully removed
@@ -265,8 +355,9 @@ router.post("/add-students", authenticateToken, async (req, res) => {
  *                   example: Students removed successfully
  *                 removedCount:
  *                   type: number
+ *                   description: Number of students removed
  *       400:
- *         description: Invalid request body
+ *         description: Invalid request body (e.g. missing or empty students array)
  *       404:
  *         description: Teacher not found
  *       401:
@@ -300,6 +391,98 @@ router.delete("/students", authenticateToken, async (req, res) => {
     message: "Students removed successfully",
     removedCount: removedCount,
   });
+});
+
+/**
+ * @swagger
+ * /v1/teacher/students:
+ *   patch:
+ *     summary: Update a student's name and/or phone number
+ *     tags: [Teachers]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - phoneNumber
+ *               - currentPhoneNumber
+ *               - name
+ *               - studentPhoneNumber
+ *             properties:
+ *               phoneNumber:
+ *                 type: string
+ *                 description: Teacher's phone number
+ *               currentPhoneNumber:
+ *                 type: string
+ *                 description: Current phone number of the student to update
+ *               name:
+ *                 type: string
+ *                 description: New name
+ *               studentPhoneNumber:
+ *                 type: string
+ *                 description: New phone number for the student
+ *     responses:
+ *       200:
+ *         description: Student updated successfully
+ *       400:
+ *         description: Invalid request body
+ *       404:
+ *         description: Teacher or student not found
+ *       403:
+ *         description: Student does not belong to this teacher
+ *       409:
+ *         description: A student with that phone number already exists
+ *       401:
+ *         description: Unauthorized
+ */
+router.patch("/students", authenticateToken, async (req, res) => {
+  try {
+    const { phoneNumber: teacherPhoneNumber, currentPhoneNumber, name, studentPhoneNumber } = req.body;
+
+    if (!teacherPhoneNumber || !currentPhoneNumber || !name || !studentPhoneNumber) {
+      return res.sendStatus(STATUS.BAD_REQUEST);
+    }
+
+    const teacher = await Teacher.findOne({ phoneNumber: teacherPhoneNumber });
+    if (!teacher) return res.sendStatus(STATUS.NOT_FOUND);
+
+    const student = await Student.findOne({ phoneNumber: currentPhoneNumber });
+    if (!student) return res.sendStatus(STATUS.NOT_FOUND);
+
+    const ownsStudent = (teacher.studentId || []).some(id => String(id) === String(student._id));
+    if (!ownsStudent) return res.sendStatus(STATUS.FORBIDDEN);
+
+    const newPhone = studentPhoneNumber.trim();
+    const newName = name.trim();
+    if (!newName || !newPhone) {
+      return res.sendStatus(STATUS.BAD_REQUEST);
+    }
+
+    if (newPhone !== currentPhoneNumber) {
+      const existingWithPhone = await Student.findOne({ phoneNumber: newPhone });
+      if (existingWithPhone && String(existingWithPhone._id) !== String(student._id)) {
+        return res.status(STATUS.CONFLICT).json({
+          message: "A phone number already exists",
+        });
+      }
+    }
+
+    student.name = newName;
+    student.phoneNumber = newPhone;
+    await student.save();
+
+    return res.status(STATUS.OK).json({
+      name: student.name,
+      phoneNumber: student.phoneNumber,
+    });
+  } catch (error) {
+    console.error("PATCH /students error:", error);
+    return res.sendStatus(STATUS.INTERNAL_ERROR);
+  }
 });
 
 module.exports = router;
