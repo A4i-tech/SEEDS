@@ -6,11 +6,10 @@ import os
 
 from dotenv import load_dotenv
 from app.services.communication_api import CommunicationAPIFactory, CommunicationAPIType
-from app.services.storage_manager import StorageManager
+from app.services.storage_manager import StorageManager, create_storage_manager
 from app.services.smartphone_connection_manager import SmartphoneConnectionManagerType, SmartphoneConnectionManagerFactory
 from app.services.conference_call import ConferenceCall
 from app.conf_logger import logger_instance
-from app.services.storage_manager.in_memory_storage import InMemoryStorageManager
 
 load_dotenv()
 
@@ -69,5 +68,5 @@ class ConferenceCallManager:
 conference_manager = ConferenceCallManager(
     communication_api_type=CommunicationAPIType.VONAGE,
     smartphone_connection_manager_type=SmartphoneConnectionManagerType.SSE,
-    storage_manager=InMemoryStorageManager(),
+    storage_manager=create_storage_manager(),
 )

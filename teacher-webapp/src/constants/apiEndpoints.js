@@ -10,6 +10,8 @@ export const API_ENDPOINTS = {
   ADD_TEACHER_STUDENTS: `${BASE_URL}/v1/teacher/add-students`,
   GET_SCHOOLS: `${BASE_URL}/tenant/names`,
   GET_AUDIO_CONTENT: `${BASE_URL}/content`,
+  GET_CONTENT: `${BASE_URL}/content`,
+  GET_CONTENT_SAS_URL: `${BASE_URL}/content/sasUrl`,
   CLASSROOM: {
     GET_ALL: `${BASE_URL}/class`,
     GET_BY_ID: (classId) => `${BASE_URL}/class/${classId}`,
@@ -32,5 +34,7 @@ export const API_ENDPOINTS = {
     SEEK_AUDIO: (confId) => `${CONF_BASE}/seekaudio/${confId}`,
     ADD_PARTICIPANT: (confId, phone) =>
       `${CONF_BASE}/addparticipant/${confId}?phone_number=${phone}`,
+    REMOVE_PARTICIPANT: (confId, phone) =>
+      `${CONF_BASE}/removeparticipant/${confId}?phone_number=${phone}`,
   },
 };

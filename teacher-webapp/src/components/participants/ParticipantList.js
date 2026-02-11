@@ -9,8 +9,10 @@ export const ParticipantList = ({
   students,
   onMuteToggle,
   onReconnect,
+  onRemove,
   isLoading,
   isReconnecting,
+  isRemoving,
   canReconnect,
   loading = false,
 }) => {
@@ -71,8 +73,10 @@ export const ParticipantList = ({
                 isTeacher={true}
                 onMuteToggle={onMuteToggle}
                 onReconnect={onReconnect}
+                onRemove={onRemove}
                 isLoading={isLoading(teacher.phoneNumber)}
                 isReconnecting={isReconnecting(teacher.phoneNumber)}
+                isRemoving={isRemoving && isRemoving(teacher.phoneNumber)}
                 canReconnect={canReconnect(teacher)}
               />
             </Box>
@@ -93,8 +97,10 @@ export const ParticipantList = ({
                   isTeacher={false}
                   onMuteToggle={onMuteToggle}
                   onReconnect={onReconnect}
+                  onRemove={onRemove}
                   isLoading={isLoading(student.phoneNumber)}
                   isReconnecting={isReconnecting(student.phoneNumber)}
+                  isRemoving={isRemoving && isRemoving(student.phoneNumber)}
                   canReconnect={canReconnect(student)}
                 />
               ))}

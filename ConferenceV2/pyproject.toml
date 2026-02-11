@@ -28,7 +28,9 @@ dependencies = [
     "httpx",
     "openai",
     "numpy",
-    "scipy"
+    "scipy",
+    "motor",
+    "pymongo",
 ]
 
 

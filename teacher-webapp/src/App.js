@@ -15,6 +15,8 @@ import Register from "./pages/Register";
 import ClassroomList from "./pages/ClassroomList";
 import ClassroomForm from "./pages/ClassroomForm";
 import ClassroomDetail from "./pages/ClassroomDetail";
+import ContentPlayback from "./pages/ContentPlayback";
+import ContentDetails from "./pages/ContentDetails";
 
 function App() {
   return (
@@ -39,6 +41,18 @@ function App() {
           <Route
             path={ROUTES.CLASSROOM_DETAIL(":classroomId")}
             element={<ProtectedRoute element={<ClassroomDetail />} />}
+          />
+          <Route
+            path={ROUTES.CONTENT_PLAYBACK(":classroomId")}
+            element={<ProtectedRoute element={<ContentPlayback />} />}
+          />
+          <Route
+            path={ROUTES.CONTENT}
+            element={<ProtectedRoute element={<ContentPlayback />} />}
+          />
+          <Route
+            path={ROUTES.CONTENT_DETAILS(":contentId")}
+            element={<ProtectedRoute element={<ContentDetails />} />}
           />
         </Routes>
       </BrowserRouter>
