@@ -13,12 +13,12 @@ describe("sessionHistoryService", () => {
         delete store[key];
       }),
       clear: jest.fn(() => {
-        Object.keys(store).forEach(key => delete store[key]);
+        Object.keys(store).forEach((key) => delete store[key]);
       }),
       _store: store, // Expose store for testing
     };
   };
-  
+
   let localStorageMock;
 
   beforeEach(() => {
@@ -233,7 +233,7 @@ describe("sessionHistoryService", () => {
     });
 
     test("limits history to maxSize", () => {
-      // Add more than maxSize (default 10) sessions
+      // Add more than maxSize (default 5) sessions
       // Each call will read from store and write back, so state persists
       for (let i = 0; i < 15; i++) {
         sessionHistoryService.addSessionToHistory({
@@ -245,15 +245,16 @@ describe("sessionHistoryService", () => {
 
       // Verify we made 15 calls
       expect(localStorageMock.setItem).toHaveBeenCalledTimes(15);
-      
-      // The last call should have only 10 items (maxSize)
-      const lastCall = localStorageMock.setItem.mock.calls[localStorageMock.setItem.mock.calls.length - 1];
+
+      // The last call should have only 5 items (maxSize)
+      const lastCall =
+        localStorageMock.setItem.mock.calls[localStorageMock.setItem.mock.calls.length - 1];
       const savedData = JSON.parse(lastCall[1]);
-      expect(savedData).toHaveLength(10); // Limited to default maxSize
-      
+      expect(savedData).toHaveLength(5); // Limited to default maxSize
+
       // Verify the most recent items are kept
       expect(savedData[0].groupId).toBe("classroom-14"); // Most recent
-      expect(savedData[9].groupId).toBe("classroom-5"); // Oldest kept
+      expect(savedData[4].groupId).toBe("classroom-10"); // Oldest kept
     });
 
     test("respects custom maxSize option", () => {
@@ -270,12 +271,13 @@ describe("sessionHistoryService", () => {
 
       // Verify we made 5 calls
       expect(localStorageMock.setItem).toHaveBeenCalledTimes(5);
-      
+
       // The last call should have only 3 items (custom maxSize)
-      const lastCall = localStorageMock.setItem.mock.calls[localStorageMock.setItem.mock.calls.length - 1];
+      const lastCall =
+        localStorageMock.setItem.mock.calls[localStorageMock.setItem.mock.calls.length - 1];
       const savedData = JSON.parse(lastCall[1]);
       expect(savedData).toHaveLength(3);
-      
+
       // Verify the most recent items are kept
       expect(savedData[0].groupId).toBe("classroom-4"); // Most recent
       expect(savedData[2].groupId).toBe("classroom-2"); // Oldest kept
@@ -294,13 +296,13 @@ describe("sessionHistoryService", () => {
     test("handles errors gracefully", () => {
       // First, set up valid history so getSessionHistory doesn't error
       localStorageMock._store["seeds_session_history"] = "[]";
-      
+
       // Then make setItem throw
       const originalSetItem = localStorageMock.setItem;
       localStorageMock.setItem.mockImplementationOnce(() => {
         throw new Error("Storage quota exceeded");
       });
-      
+
       const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation();
 
       sessionHistoryService.addSessionToHistory({
@@ -357,7 +359,7 @@ describe("sessionHistoryService", () => {
 
   describe("getMaxHistorySize", () => {
     test("returns default history size", () => {
-      expect(sessionHistoryService.getMaxHistorySize()).toBe(10);
+      expect(sessionHistoryService.getMaxHistorySize()).toBe(5);
     });
   });
 });
