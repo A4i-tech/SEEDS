@@ -15,6 +15,7 @@ import {
   School as SchoolIcon,
   PhoneCallback as ReconnectIcon,
   WavingHand as RaisedHandIcon,
+  PersonRemove as PersonRemoveIcon,
 } from "@mui/icons-material";
 
 export const ParticipantCard = ({
@@ -22,8 +23,10 @@ export const ParticipantCard = ({
   isTeacher = false,
   onMuteToggle,
   onReconnect,
+  onRemove,
   isLoading,
   isReconnecting,
+  isRemoving,
   canReconnect,
 }) => {
   // Defensive check: return null if participant is not provided
@@ -113,6 +116,23 @@ export const ParticipantCard = ({
               aria-label="Reconnect participant"
             >
               {isReconnecting ? <CircularProgress size={20} /> : <ReconnectIcon />}
+            </IconButton>
+          </Tooltip>
+        )}
+        {/* Remove button - only for students when connected */}
+        {!isTeacher && participant.call_status === "connected" && onRemove && (
+          <Tooltip title="Remove participant">
+            <IconButton
+              onClick={() => onRemove && onRemove(participant)}
+              disabled={isRemoving}
+              sx={{ color: "#f44336" }}
+              aria-label="Remove participant"
+            >
+              {isRemoving ? (
+                <CircularProgress size={20} />
+              ) : (
+                <PersonRemoveIcon />
+              )}
             </IconButton>
           </Tooltip>
         )}

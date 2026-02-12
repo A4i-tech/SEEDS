@@ -412,3 +412,8 @@ htmlcov*/
 **/.env.*
 **/*.jks
 **/report.xml
+
+# cursor 
+.skills/*
+.github/skills/*
+.cursor/*

@@ -46,10 +46,12 @@ class BlobService {
 
   async getUploadSASToken(blobname, containerName) {
     const expiresOn = new Date(new Date().valueOf() + 3600 * 1000); // 1 hour from now
+    const clockSkewBuffer = 15 * 60 * 1000;
+    const startsOn = new Date(new Date().valueOf() - clockSkewBuffer);
     const sasOptions = {
       containerName: containerName,
       blobName: blobname,
-      startsOn: new Date(),
+      startsOn: startsOn,
       expiresOn: expiresOn,
       permissions: BlobSASPermissions.parse("rw"),
     };
@@ -66,7 +68,7 @@ class BlobService {
     } else {
       // 2. Azure AD SAS (User Delegation SAS)
       const userDelegationKey = await this.blobServiceClient.getUserDelegationKey(
-        new Date(),
+        startsOn,
         expiresOn
       );
       sasToken = generateBlobSASQueryParameters(

@@ -18,6 +18,7 @@ import { API_ENDPOINTS } from "../constants/apiEndpoints";
 import { STATUS_CODES } from "../constants/statusCodes";
 import { useNavigation } from "../hooks/useNavigation";
 import { showToast } from "../utils/toast";
+import { isLocalStorageAvailable } from "../utils/authHelpers";
 
 function Login() {
   const navigate = useNavigation();
@@ -52,6 +53,15 @@ function Login() {
   }, []);
 
   const handleLogin = async () => {
+    // Check localStorage availability before attempting login
+    if (!isLocalStorageAvailable()) {
+      setShowError(
+        "Local storage is not available. Please enable cookies/local storage in your browser settings or try a different browser."
+      );
+      showToast.error("Local storage is required for login");
+      return;
+    }
+
     if (!phoneNumber || !password || !schoolName) {
       setShowError("All fields are required.");
       return;

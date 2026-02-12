@@ -58,7 +58,6 @@ const ClassroomDetail = () => {
     handleSSEEvent,
     handleStudentToggle,
     handleTeacherSelect,
-    clearSelectedStudents,
     setConferenceStudents,
     setAllClassroomStudents,
   } = useConference();
@@ -308,7 +307,7 @@ const ClassroomDetail = () => {
   const isLeader = (phoneNumber) => classroom.leaders?.includes(phoneNumber);
 
   if (conferenceStarted) {
-    return <DetailsPage />;
+    return <DetailsPage classroomName={classroom?.name} classroomId={classroom?._id} />;
   }
 
   if (loading) {

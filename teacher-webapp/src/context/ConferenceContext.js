@@ -120,11 +120,13 @@ export const ConferenceProvider = ({ children }) => {
     // This directly updates the Map with the latest data from SSE events
     setParticipantsMap((prevMap) => {
       const newMap = new Map(prevMap);
+      const sseParticipantPhones = new Set();
 
-      // Check for students transitioning from connected to disconnected
+      // First, process all participants from SSE event
       for (let phoneNumber in event.participants) {
         const participantData = event.participants[phoneNumber];
         const normalizedPhone = normalizePhoneNumber(phoneNumber);
+        sseParticipantPhones.add(normalizedPhone);
         const previousStatus = previousParticipantStatusRef.current[normalizedPhone];
 
         // If it's a student transitioning from connected to disconnected, show notification
@@ -189,11 +191,40 @@ export const ConferenceProvider = ({ children }) => {
         newMap.set(normalizedPhone, participant);
       }
 
+      // Handle participants that are in our map but NOT in the SSE event
+      // This happens when a participant is removed - backend deletes them from state
+      // We mark them as disconnected so they can be reconnected
+      for (let [normalizedPhone, existingParticipant] of newMap.entries()) {
+        if (!sseParticipantPhones.has(normalizedPhone)) {
+          // Participant is missing from SSE event
+          // If it's a student (not teacher), mark as disconnected
+          if (existingParticipant.role === "Student") {
+            const previousStatus = previousParticipantStatusRef.current[normalizedPhone];
+            
+            // Only update if they were previously connected (to avoid overwriting already disconnected state)
+            if (previousStatus === "connected" || existingParticipant.call_status === "connected") {
+              const updatedParticipant = new Participant({
+                ...existingParticipant,
+                call_status: "disconnected",
+              });
+              newMap.set(normalizedPhone, updatedParticipant);
+            }
+          }
+          // Note: We keep the participant in the map even if removed, so they can be reconnected
+        }
+      }
+
       // Update previous status tracking
       const newStatusMap = {};
       for (let phoneNumber in event.participants) {
         const normalizedPhone = normalizePhoneNumber(phoneNumber);
         newStatusMap[normalizedPhone] = event.participants[phoneNumber].call_status;
+      }
+      // Also track status for participants that were removed (now disconnected)
+      for (let [normalizedPhone, participant] of newMap.entries()) {
+        if (!sseParticipantPhones.has(normalizedPhone) && participant.role === "Student") {
+          newStatusMap[normalizedPhone] = "disconnected";
+        }
       }
       previousParticipantStatusRef.current = newStatusMap;
 

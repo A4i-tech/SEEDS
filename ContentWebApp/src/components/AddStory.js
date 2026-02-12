@@ -4,8 +4,10 @@ import { useNavigate } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
 import { SEEDS_URL, AUDIO_BASE_URL } from "../Constants";
 import { getAuthHeaders } from "../utils/authHelpers";
+import { useAuth } from "../hooks/useAuth";
 
 const AddStory = ({ content, contentType }) => {
+  const { getCurrentUser } = useAuth();
   const [metadata, setMetadata] = useState({
     id: "",
     type: "Story",
@@ -148,15 +150,21 @@ const AddStory = ({ content, contentType }) => {
         id: content.id,
         type: content.type || "Story",
         description: content.description || "",
-        language: content.language || "kannada",
+        language: (content.language || "kannada").toLowerCase(),
         title: {
           english: content.title?.english || "",
-          local: content.title?.local || "",
+          local:
+            (content.language || "").toLowerCase() === "english"
+              ? content.title?.english || ""
+              : content.title?.local || "",
           audioUrl: content.title?.audioUrl || "",
         },
         theme: {
           english: content.theme?.english || "",
-          local: content.theme?.local || "",
+          local:
+            (content.language || "").toLowerCase() === "english"
+              ? content.theme?.english || ""
+              : content.theme?.local || "",
           audioUrl: content.theme?.audioUrl || "",
         },
         audioContent: content.audioContent || [],
@@ -185,6 +193,7 @@ const AddStory = ({ content, contentType }) => {
 
   const isValid = () => {
     var valid = true;
+    const languageLower = (metadata.language || "").toLowerCase();
     const inputTitleLower = (metadata.title.english || "").toLowerCase();
     const inputLocalTitleLower = (metadata.title.local || "").toLowerCase();
     // Check if title is empty
@@ -197,14 +206,17 @@ const AddStory = ({ content, contentType }) => {
       alert("Language cannot be empty");
       valid = false;
     }
-    // Check if theme or localTheme is empty or if new theme is being created
+    // Check if theme is empty or new-theme
+    else if (!metadata.theme.english || metadata.theme.english === "new-theme") {
+      alert("Theme cannot be empty");
+      valid = false;
+    }
+    // When language is not English, local theme is also required
     else if (
-      !metadata.theme.english ||
-      metadata.theme.english === "new-theme" ||
-      !metadata.theme.local ||
-      metadata.theme.local === "new-theme"
+      languageLower !== "english" &&
+      (!metadata.theme.local || metadata.theme.local === "new-theme")
     ) {
-      alert("Theme and local theme cannot be empty");
+      alert("Local theme cannot be empty");
       valid = false;
     }
     // Check for title duplication under the same theme and language, case insensitively
@@ -216,7 +228,7 @@ const AddStory = ({ content, contentType }) => {
       valid = false;
     }
     //Check that localTitle is not empty if language is not english
-    else if (metadata.language !== "english" && !metadata.title.local) {
+    else if (languageLower !== "english" && !metadata.title.local) {
       alert("Local Title cannot be empty");
       valid = false;
     }
@@ -248,6 +260,7 @@ const AddStory = ({ content, contentType }) => {
 
   const sendStory = async () => {
     const _id = content ? content.id : uuidv4();
+    const languageLower = (metadata.language || "").toLowerCase();
     // Always send title and theme as objects
     var newMetadata = {
       ...metadata,
@@ -255,12 +268,18 @@ const AddStory = ({ content, contentType }) => {
       type: contentType,
       title: {
         english: metadata.title.english || "",
-        local: metadata.title.local || "",
+        local:
+          languageLower === "english"
+            ? metadata.title.english || ""
+            : metadata.title.local || "",
         audioUrl: metadata.title.audioUrl || "",
       },
       theme: {
         english: metadata.theme.english || "",
-        local: metadata.theme.local || "",
+        local:
+          languageLower === "english"
+            ? metadata.theme.english || ""
+            : metadata.theme.local || "",
         audioUrl: metadata.theme.audioUrl || "",
       },
     };
@@ -330,6 +349,9 @@ const AddStory = ({ content, contentType }) => {
     if (audioContentArray.length > 0) {
       newMetadata.audioContent = audioContentArray;
     }
+
+    const tenantName = await getCurrentUser();
+    newMetadata.createdBy = tenantName || newMetadata.createdBy || "";
 
     // Upload files to Azure Blob Storage FIRST, before sending metadata to backend
     // This ensures files are available when the background job starts processing
@@ -651,9 +673,9 @@ const AddStory = ({ content, contentType }) => {
           >
             {Object.entries(titlesUnderTheme).map(
               ([englishTitle, localTitle], index) => (
-                <li key={index} style={{ marginBottom: "4px" }}>
-                  {englishTitle} - {localTitle}
-                </li>
+              <li key={index} style={{ marginBottom: "4px" }}>
+                {englishTitle} - {localTitle}
+              </li>
               ),
             )}
           </ul>
