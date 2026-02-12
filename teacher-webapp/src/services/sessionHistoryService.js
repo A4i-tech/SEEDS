@@ -1,9 +1,9 @@
 /**
  * Session History Service
- * 
+ *
  * Manages conference session history, matching Android app behavior.
  * Uses localStorage for persistence across browser sessions.
- * 
+ *
  * Architecture mirrors Android's UserPreferencesRepository.addSessionToHistory():
  * - Most recent first
  * - Limited to DEFAULT_SESSION_HISTORY_SIZE items
@@ -13,20 +13,14 @@
 import { isLocalStorageAvailable } from "../utils/authHelpers";
 
 const STORAGE_KEY = "seeds_session_history";
-const DEFAULT_SESSION_HISTORY_SIZE = 10; // Configurable, default 10 (Android uses 10)
+const DEFAULT_SESSION_HISTORY_SIZE = 5; 
 
 /**
  * Session History Item Model
  * Mirrors Android's SessionHistoryItem structure
  */
 export class SessionHistoryItem {
-  constructor({
-    groupId,
-    groupName,
-    timestamp,
-    studentCount,
-    wasConference = true,
-  }) {
+  constructor({ groupId, groupName, timestamp, studentCount, wasConference = true }) {
     this.groupId = groupId;
     this.groupName = groupName;
     this.timestamp = timestamp; // Unix timestamp in milliseconds
@@ -66,9 +60,9 @@ export function getSessionHistory() {
 
 /**
  * Add a conference session to history.
- * 
+ *
  * Mirrors Android's addSessionToHistory() behavior.
- * 
+ *
  * @param {Object} sessionData - Session data
  * @param {string} sessionData.groupId - Classroom/group ID
  * @param {string} sessionData.groupName - Classroom/group name
@@ -83,16 +77,9 @@ export function addSessionToHistory(sessionData, options = {}) {
   }
 
   try {
-    const {
-      maxSize = DEFAULT_SESSION_HISTORY_SIZE,
-    } = options;
+    const { maxSize = DEFAULT_SESSION_HISTORY_SIZE } = options;
 
-    const {
-      groupId,
-      groupName,
-      studentCount,
-      wasConference = true,
-    } = sessionData;
+    const { groupId, groupName, studentCount, wasConference = true } = sessionData;
 
     if (!groupId || !groupName) {
       console.warn("Cannot save session to history: missing groupId or groupName", sessionData);
@@ -111,8 +98,9 @@ export function addSessionToHistory(sessionData, options = {}) {
       wasConference,
     });
 
-    // Add new item at the top and limit to configured size
-    const newList = [newItem, ...currentHistory].slice(0, maxSize);
+    // Remove any prior entry for this group to avoid duplicates, then prepend
+    const deduplicated = currentHistory.filter((item) => item.groupId !== groupId);
+    const newList = [newItem, ...deduplicated].slice(0, maxSize);
 
     // Save to localStorage
     localStorage.setItem(STORAGE_KEY, JSON.stringify(newList));
