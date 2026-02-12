@@ -65,7 +65,7 @@ module.exports = {
     const teachersRef = db.collection("Teacher");
     const newTeacherRef = teachersRef.doc();
     await newTeacherRef.set({ phoneNumber, password, tenantId, name });
-    return { id: newTeacherRef.id, phoneNumber, password, tenantId, name };
+    return { id: newTeacherRef.id, phoneNumber, tenantId, name };
   },
   async updateTenantPassword(tenantId, newPassword) {
     const tenantRef = db.collection("Tenants").doc(tenantId);

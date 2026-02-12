@@ -28,6 +28,7 @@ const TeacherRegistrationForm = ({ onRegister, message }) => {
         value={teacherName}
         onChange={(e) => setTeacherName(e.target.value)}
         className="input-field"
+        required
       />
       <label className="label" htmlFor="teacher-phone">
         Phone Number

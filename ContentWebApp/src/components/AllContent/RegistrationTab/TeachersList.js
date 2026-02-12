@@ -16,7 +16,7 @@ const TeachersList = ({ teachers, selectedTeacherId, onSelectTeacher }) => {
                 String(teacher._id) === String(selectedTeacherId) ? "selected" : ""
               }`}
             >
-              {[teacher.name, teacher.phoneNumber].filter(Boolean).join(" — ")}
+              {`${teacher.name || "unknown"} — ${teacher.phoneNumber}`}
             </button>
           </li>
         ))}

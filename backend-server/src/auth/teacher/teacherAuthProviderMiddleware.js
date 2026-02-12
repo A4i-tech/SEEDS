@@ -49,15 +49,18 @@ module.exports = {
   async register(req, res) {
     const { phoneNumber, password, name } = req.body;
     const tenantId = req.userId;
-    if (!phoneNumber || !password || !tenantId || typeof name !== "string") {
+    if (
+      !phoneNumber ||
+      !password ||
+      !tenantId ||
+      typeof name !== "string" ||
+      name.trim().length === 0
+    ) {
       return res.status(STATUS.BAD_REQUEST).json({
-        message: "Phone number, password, name, and tenantName are required",
+        message: "Phone number, password, and name are required",
       });
     }
     const trimmedName = name.trim();
-    if (trimmedName.length === 0) {
-      return res.status(STATUS.BAD_REQUEST).json({ message: "Name is required" });
-    }
     if (!validator.isMobilePhone(phoneNumber)) {
       return res.status(STATUS.BAD_REQUEST).json({ message: "Invalid phone number format" });
     }
