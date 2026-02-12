@@ -16,7 +16,7 @@ class AudioTranscriber:
     BUFFER_DURATION_SEC = 8
 
     def __init__(self):
-        logger.info("Initializing AudioTranscriber (AsyncOpenAI API)...")
+        logger.debug("Initializing AudioTranscriber (AsyncOpenAI API)...")
         api_key = os.environ.get("OPENAI_API_KEY")
         if not api_key:
             logger.warning("OPENAI_API_KEY not found in environment variables.")
@@ -25,7 +25,7 @@ class AudioTranscriber:
         
         # Calculate buffer limit in bytes: rate * sample_width(2) * duration
         self.buffer_limit_bytes = self.INPUT_RATE * 2 * self.BUFFER_DURATION_SEC 
-        logger.info(f"AudioTranscriber initialized ({self.INPUT_RATE}Hz -> {self.PROCESS_RATE}Hz).")
+        logger.debug(f"AudioTranscriber initialized ({self.INPUT_RATE}Hz -> {self.PROCESS_RATE}Hz).")
 
     async def process_chunk(self, audio_data: bytes) -> Optional[dict]:
         self.buffer.extend(audio_data)

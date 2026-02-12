@@ -28,8 +28,12 @@ class WebsocketService:
         self.reconnect_attempts = 0
         self.conference_manager = conference_manager
         self.bg_tasks = []
-        await self._connect()
+        # Start connection in background to avoid blocking startup
+        self.bg_tasks.append(asyncio.create_task(self._connect_loop()))
         self._start_bg_processes()
+
+    async def _connect_loop(self):
+        await self._connect()
     
     def _start_bg_processes(self):
         if len(self.bg_tasks) > 0:
