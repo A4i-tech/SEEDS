@@ -35,9 +35,6 @@ class WebsocketService:
         self._connect_lock = asyncio.Lock()
         await self._connect()
         self._start_bg_processes()
-
-    async def _connect_loop(self):
-        await self._connect()
     
     def _start_bg_processes(self):
         if len(self.bg_tasks) > 0:
