@@ -1,9 +1,11 @@
 # config.py
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
     VONAGE_API_KEY: str
     VONAGE_API_SECRET: str
     COSMOS_ENDPOINT: str = ""
@@ -18,10 +20,6 @@ class Settings(BaseSettings):
     MONGO_DB_CONNECTION_STRING: str = ""
     MONGO_COLLECTION_NAME: str = "conferenceState"
     MONGO_MAX_POOL_SIZE: int = 50
-
-    class Config:
-        env_file = ".env"
-
 
 def get_settings():
     return Settings()

@@ -23,17 +23,18 @@ class WebsocketService:
         return cls._instance
 
     async def initialize(self):
-        self.connection_url = os.environ.get("INTERNAL_WS_EP", "ws://localhost:3000") + f"?id={self.connection_id}"
+        ws_base_url = (
+            os.environ.get("INTERNAL_WS_EP")
+            or os.environ.get("WS_SERVER_EP")
+            or "ws://localhost:3000"
+        )
+        self.connection_url = ws_base_url + f"?id={self.connection_id}"
         self.is_connected = False
         self.reconnect_attempts = 0
         self.conference_manager = conference_manager
         self.bg_tasks = []
-        # Start connection in background to avoid blocking startup
-        self.bg_tasks.append(asyncio.create_task(self._connect_loop()))
+        self._ws = None
         self._start_bg_processes()
-
-    async def _connect_loop(self):
-        await self._connect()
     
     def _start_bg_processes(self):
         if len(self.bg_tasks) > 0:

@@ -2,7 +2,7 @@ import logging
 import io
 import os
 import wave
-from typing import Optional
+from typing import Optional, Dict, Any
 import numpy as np
 from scipy import signal
 from openai import AsyncOpenAI
@@ -12,10 +12,13 @@ class AudioTranscriber:
     # Constants
     INPUT_RATE = 8000
     PROCESS_RATE = 16000
-    SILENCE_THRESHOLD = 300  # RMS threshold for silence (16-bit audio)
+    # RMS threshold for silence (16-bit audio, max 32768). 
+    # 300 is approx ~1% amplitude, sufficient for filtering background noise.
+    SILENCE_THRESHOLD = 300
     BUFFER_DURATION_SEC = 8
+    MAX_PENDING_WINDOWS = 4
 
-    def __init__(self):
+    def __init__(self) -> None:
         logger.debug("Initializing AudioTranscriber (AsyncOpenAI API)...")
         api_key = os.environ.get("OPENAI_API_KEY")
         if not api_key:
@@ -25,10 +28,25 @@ class AudioTranscriber:
         
         # Calculate buffer limit in bytes: rate * sample_width(2) * duration
         self.buffer_limit_bytes = self.INPUT_RATE * 2 * self.BUFFER_DURATION_SEC 
+        # Keep memory bounded under bursty traffic while still preserving recent context.
+        self.max_buffer_bytes = self.buffer_limit_bytes * self.MAX_PENDING_WINDOWS
         logger.debug(f"AudioTranscriber initialized ({self.INPUT_RATE}Hz -> {self.PROCESS_RATE}Hz).")
 
-    async def process_chunk(self, audio_data: bytes) -> Optional[dict]:
+    async def process_chunk(self, audio_data: bytes) -> Optional[Dict[str, Any]]:
+        if not audio_data:
+            return None
+        if not isinstance(audio_data, (bytes, bytearray)):
+            raise TypeError("audio_data must be bytes-like")
+
         self.buffer.extend(audio_data)
+        if len(self.buffer) > self.max_buffer_bytes:
+            overflow = len(self.buffer) - self.max_buffer_bytes
+            del self.buffer[:overflow]
+            logger.warning(
+                "Audio buffer overflow detected; dropped %s oldest bytes to maintain cap (%s bytes).",
+                overflow,
+                self.max_buffer_bytes,
+            )
         
         if len(self.buffer) >= self.buffer_limit_bytes:
             return await self._transcribe()
@@ -38,9 +56,10 @@ class AudioTranscriber:
         """Calculate Root Mean Square amplitude of the audio signal."""
         if len(audio_np) == 0:
             return 0.0
+        # Calculate RMS using float64 to prevent overflow during square
         return np.sqrt(np.mean(audio_np.astype(np.float64)**2))
 
-    async def _transcribe(self) -> Optional[dict]:
+    async def _transcribe(self) -> Optional[Dict[str, Any]]:
         if not self.buffer:
             return None
 
@@ -63,7 +82,7 @@ class AudioTranscriber:
             # Calculate number of samples for 16kHz (2x 8kHz)
             num_samples = int(len(audio_np) * (self.PROCESS_RATE / self.INPUT_RATE))
             
-            # Resample to 16kHz using float precision
+            # Resample to 16kHz using float precision (signal.resample uses FFT)
             resampled_float = signal.resample(audio_float, num_samples)
             
             # Convert back to int16 for WAV standard format
@@ -80,7 +99,7 @@ class AudioTranscriber:
             wav_buffer.seek(0)
             wav_buffer.name = "audio.wav"
 
-            logger.info(f"Sending audio to OpenAI Whisper API... (RMS: {rms:.2f})")
+            logger.debug(f"Sending audio to OpenAI Whisper API... (RMS: {rms:.2f})")
             transcript = await self.client.audio.transcriptions.create(
                 model="whisper-1", 
                 file=wav_buffer,
@@ -103,7 +122,7 @@ class AudioTranscriber:
             self.buffer = bytearray()
             
             if text:
-                logger.info(f"TRANSCRIPTION [Duration: {duration}s]: {text}")
+                logger.debug(f"TRANSCRIPTION [Duration: {duration}s]: {text}")
                 return {
                     "text": text,
                     "duration": duration,
@@ -112,6 +131,6 @@ class AudioTranscriber:
             return None
 
         except Exception as e:
-            logger.error(f"OpenAI API Error: {e}")
+            logger.exception(f"OpenAI API Error: {e}")
             self.buffer = bytearray() 
             return None

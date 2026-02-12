@@ -1,26 +1,27 @@
 import logging
 import os
+import asyncio
 from openai import AsyncOpenAI
 from scipy.spatial.distance import cosine
 
 from app.conf_logger import logger_instance as logger
 
 class HoldDetector:
+    EMBEDDING_MAX_RETRIES = 3
+    EMBEDDING_RETRY_DELAY_SEC = 0.3
+
     def __init__(self, threshold: float = 0.82):
         self.client = None
         self.threshold = threshold
         # Similarity threshold:
         # > 0.82 usually indicates a strong match for short phrases with 'text-embedding-3-small'
         self.hold_phrases = [
-            "thank you for holding",
-            "thank you for your patience",
-            "please enjoy the music",
-            "music",
-            "beeping",
-            "background music",
-            "stay on the line",
-            "the number you have called has currently put you on hold",
-            "he number you have called has currently put you on hold"
+            "the number you have called has currently put your call on hold. please stay on the line.",
+            "the number you have called has currently put your call on hold please stay on the line",
+            "the number you have called has currently put you on hold. please stay on the line.",
+            "the number you have called has currently put you on hold please stay on the line",
+            "thank you for holding. please stay on the line.",
+            "thank you for holding please stay on the line"
         ]
         self.hold_embeddings = [] 
 
@@ -49,20 +50,34 @@ class HoldDetector:
     async def _get_embeddings(self, texts):
         if not texts or not self.client:
             return []
-        try:
-            # Using 'text-embedding-3-small'
-            response = await self.client.embeddings.create(input=texts, model="text-embedding-3-small")
-            # Verify structure: response.data is a list of Embedding objects
-            return [data.embedding for data in response.data]
-        except Exception as e:
-            logger.error(f"Embedding API Error: {e}")
-            return []
+        last_error = None
+        for attempt in range(1, self.EMBEDDING_MAX_RETRIES + 1):
+            try:
+                # Using 'text-embedding-3-small'
+                response = await self.client.embeddings.create(input=texts, model="text-embedding-3-small")
+                # Verify structure: response.data is a list of Embedding objects
+                return [data.embedding for data in response.data]
+            except Exception as e:
+                last_error = e
+                if attempt < self.EMBEDDING_MAX_RETRIES:
+                    logger.warning(
+                        "Embedding API attempt %s/%s failed; retrying in %.1fs",
+                        attempt,
+                        self.EMBEDDING_MAX_RETRIES,
+                        self.EMBEDDING_RETRY_DELAY_SEC,
+                    )
+                    await asyncio.sleep(self.EMBEDDING_RETRY_DELAY_SEC)
+                else:
+                    logger.error(f"Embedding API Error after retries: {e}")
+        if last_error:
+            logger.debug("Embedding API terminal failure details: %s", last_error)
+        return []
 
     async def detect(self, text: str) -> dict:
         """
         Detects if the text matches any hold phrases.
         Returns:
-            dict: {"is_hold": bool, "score": float}
+            dict: {"is_hold": bool, "score": float, "matched_phrase": str, "threshold": float, "detection_method": str}
         """
         if not self.hold_embeddings:
             logger.warning("Hold embeddings not loaded. Attempting to load now.")
@@ -77,20 +92,35 @@ class HoldDetector:
             
         text_embedding = text_embedding_list[0]
         
-        # Compute max similarity
+        # Compute max similarity and retain the closest phrase for observability.
         max_sim = 0.0
-        for hold_emb in self.hold_embeddings:
+        matched_phrase = ""
+        for idx, hold_emb in enumerate(self.hold_embeddings):
             # Cosine similarity = 1 - cosine distance
             try:
                 # Ensure 1D arrays
                 sim = 1 - cosine(text_embedding, hold_emb)
                 if sim > max_sim:
                     max_sim = sim
+                    if idx < len(self.hold_phrases):
+                        matched_phrase = self.hold_phrases[idx]
             except ValueError:
                 continue
 
         # Debug log only if significant score to reduce noise
         if max_sim > 0.7:
-            logger.debug(f"Hold score: {max_sim:.2f} for text: '{text}'")
+            logger.debug(
+                "Hold score: %.3f (threshold: %.3f) matched_phrase='%s' text='%s'",
+                max_sim,
+                self.threshold,
+                matched_phrase,
+                text,
+            )
         
-        return {"is_hold": bool(max_sim >= self.threshold), "score": float(max_sim)}
+        return {
+            "is_hold": bool(max_sim >= self.threshold),
+            "score": float(max_sim),
+            "matched_phrase": matched_phrase,
+            "threshold": float(self.threshold),
+            "detection_method": "semantic_similarity",
+        }
