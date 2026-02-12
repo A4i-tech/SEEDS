@@ -7,18 +7,29 @@ import "../shared/utilities.css";
 const TeacherRegistrationForm = ({ onRegister, message }) => {
   const [teacherPhone, setTeacherPhone] = useState("");
   const [teacherPassword, setTeacherPassword] = useState("");
-
+  const [teacherName, setTeacherName] = useState("");
   const handleSubmit = async () => {
-    const success = await onRegister(teacherPhone, teacherPassword);
+    const success = await onRegister(teacherPhone, teacherPassword, teacherName);
     if (success) {
       setTeacherPhone("");
       setTeacherPassword("");
+      setTeacherName("");
     }
   };
 
   return (
     <div className="registration-card">
       <h3 className="registration-title">Register Teacher</h3>
+      <label className="label" htmlFor="teacher-name">Name</label>
+      <input
+        id="teacher-name"
+        type="text"
+        placeholder="Enter name"
+        value={teacherName}
+        onChange={(e) => setTeacherName(e.target.value)}
+        className="input-field"
+        required
+      />
       <label className="label" htmlFor="teacher-phone">
         Phone Number
       </label>

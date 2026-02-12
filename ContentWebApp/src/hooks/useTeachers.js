@@ -59,9 +59,9 @@ export const useTeachers = (activeTab) => {
    * Register a new teacher
    */
   const registerTeacher = useCallback(
-    async (phoneNumber, password) => {
-      if (!phoneNumber || !password) {
-        setMessage("Phone and password are required.");
+    async (phoneNumber, password, name) => {
+      if (!phoneNumber || !password || !name) {
+        setMessage("Phone number, password, and name are required.");
         return false;
       }
 
@@ -71,7 +71,7 @@ export const useTeachers = (activeTab) => {
       }
 
       try {
-        await teacherService.registerTeacher(phoneNumber, password, getAuthHeaders());
+        await teacherService.registerTeacher(phoneNumber, password, name, getAuthHeaders());
 
         setMessage("Teacher registered successfully!");
         await fetchTeachers();

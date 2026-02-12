@@ -22,8 +22,8 @@ module.exports = {
     }
     return Teacher.findOne({ tenantId, phoneNumber });
   },
-  async insertTeacher({ phoneNumber, password, tenantId }) {
-    return Teacher.create({ phoneNumber, password, tenantId });
+  async insertTeacher({ phoneNumber, password, tenantId, name }) {
+    return Teacher.create({ phoneNumber, password, tenantId, name });
   },
   async updateTenantPassword(tenantId, newPassword) {
     return Tenant.findByIdAndUpdate(tenantId, { password: newPassword });
