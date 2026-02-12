@@ -432,7 +432,7 @@ class CallViewModel @Inject constructor(
                                         partialStateMap
                                             .filter { it.key != teacherPhoneNumber }
                                             .forEach { (phoneNumber, partialUpdate) ->
-                                                val previousState = updateTrackerFromServerState(phoneNumber, partialUpdate.callerState)
+                                                val previousState = updateTrackerFromServerState(phoneNumber, partialUpdate.callerState ?: CallerState.UNDEFINED)
                                                 val currentState = partialUpdate.callerState
                                                 Log.d("STUDENT_STATE", "Student $phoneNumber: $previousState -> $currentState")
                                                 if (previousState == CallerState.CONNECTED && currentState == CallerState.DISCONNECTED) {
