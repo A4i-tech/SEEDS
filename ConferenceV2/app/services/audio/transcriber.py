@@ -16,6 +16,13 @@ except Exception:  # pragma: no cover - optional dependency at runtime
     webrtcvad = None
 
 
+
+try:
+    import webrtcvad  # type: ignore
+except Exception:  # pragma: no cover - optional dependency at runtime
+    webrtcvad = None
+
+
 class AudioTranscriber:
     # Audio constants
     INPUT_RATE = 8000
