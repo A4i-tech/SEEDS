@@ -2,7 +2,7 @@
 
 import asyncio
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from typing import Optional
+from typing import Any, Optional
 from app.conf_logger import logger_instance
 
 from app.routers.conference import conference_manager

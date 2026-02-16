@@ -252,7 +252,7 @@ class ConferenceCall:
 
             self._auto_end_monitor_task = asyncio.create_task(timer_event._monitor_timer())
 
-    async def start_conference(self):
+    async def start_conference(self) -> None:
         # Start the call via communication API
         await self.communication_api.start_conf(
             self.state.teacher_phone_number,
