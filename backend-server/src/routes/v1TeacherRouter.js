@@ -41,7 +41,8 @@ const router = express.Router();
  *         description: Unauthorized - invalid or missing token
  */
 router.post("/students", authenticateToken, async (req, res) => {
-  const teacher = await Teacher.findOne({ phoneNumber: req.body.phoneNumber });
+  const tenantId = req.userId;
+  const teacher = await Teacher.findOne({ phoneNumber: req.body.phoneNumber, tenantId });
   if (!teacher) return res.sendStatus(STATUS.NOT_FOUND);
   const studentIds = Array.isArray(teacher.studentId) ? teacher.studentId : [];
   const students =
@@ -196,7 +197,8 @@ router.post("/add-students", authenticateToken, async (req, res) => {
     if (!Array.isArray(students) || !students.length)
       return res.sendStatus(STATUS.BAD_REQUEST);
 
-    const teacher = await Teacher.findOne({ phoneNumber });
+    const tenantId = req.userId;
+    const teacher = await Teacher.findOne({ phoneNumber, tenantId });
     if (!teacher) return res.sendStatus(STATUS.NOT_FOUND);
 
     const validStudents = students
@@ -368,7 +370,8 @@ router.delete("/students", authenticateToken, async (req, res) => {
     return res.sendStatus(STATUS.BAD_REQUEST);
   }
 
-  const teacher = await Teacher.findOne({ phoneNumber: req.body.phoneNumber });
+  const tenantId = req.userId;
+  const teacher = await Teacher.findOne({ phoneNumber: req.body.phoneNumber, tenantId });
   if (!teacher) return res.sendStatus(STATUS.NOT_FOUND);
 
   let removedCount = 0;
@@ -447,7 +450,8 @@ router.patch("/students", authenticateToken, async (req, res) => {
       return res.sendStatus(STATUS.BAD_REQUEST);
     }
 
-    const teacher = await Teacher.findOne({ phoneNumber: teacherPhoneNumber });
+    const tenantId = req.userId;
+    const teacher = await Teacher.findOne({ phoneNumber: teacherPhoneNumber, tenantId });
     if (!teacher) return res.sendStatus(STATUS.NOT_FOUND);
 
     const student = await Student.findOne({ phoneNumber: currentPhoneNumber });

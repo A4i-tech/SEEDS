@@ -75,6 +75,7 @@ module.exports = {
       if (!existingTenant) {
         return res.status(STATUS.BAD_REQUEST).json({ message: "Tenant does not exist" });
       }
+
       const existingTeacher = await dbAdapter.getTeacherByTenantIdAndPhoneNumber(
         tenantId,
         phoneNumber
@@ -82,6 +83,12 @@ module.exports = {
       if (existingTeacher) {
         return res.status(STATUS.CONFLICT).json({ message: "Phone number already in use" });
       }
+
+      const teacherRegisteredWithOtherTenant = await dbAdapter.getTeacherByPhoneNumber(phoneNumber);
+      if (teacherRegisteredWithOtherTenant) {
+        return res.status(STATUS.CONFLICT).json({ message: "Phone number already in use by another tenant" });
+      }
+
       const hashedPassword = await bcrypt.hash(password, parseInt(passwordSaltRounds));
       await dbAdapter.insertTeacher({
         phoneNumber,
@@ -89,6 +96,7 @@ module.exports = {
         tenantId,
         name: trimmedName,
       });
+      
       return res.status(STATUS.CREATED).json({ message: "Teacher registered successfully" });
     } catch (error) {
       console.error("Registration error:", error);

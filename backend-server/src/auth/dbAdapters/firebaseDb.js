@@ -72,4 +72,12 @@ module.exports = {
     await tenantRef.update({ password: newPassword });
     return;
   },
+  async getTeacherByPhoneNumber(phoneNumber) {
+    const teachersRef = db.collection("Teacher");
+    const snapshot = await teachersRef.where("phoneNumber", "==", phoneNumber).get();
+    if (snapshot.empty) {
+      return null;
+    }
+    return snapshot.docs[0].data();
+  },
 };

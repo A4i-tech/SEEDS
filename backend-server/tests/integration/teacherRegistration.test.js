@@ -56,7 +56,7 @@ describe("Teacher registration API (integration)", () => {
   });
 
   test("register succeeds with valid name, phone, and password and stores name", async () => {
-    const { token } = await createTenantAndToken();
+    const { token, tenant } = await createTenantAndToken();
     const res = await request(app)
       .post("/teacher/register")
       .set("Authorization", `Bearer ${token}`)
@@ -70,6 +70,7 @@ describe("Teacher registration API (integration)", () => {
 
     const teacher = await Teacher.findOne({
       phoneNumber: TEST_PHONE,
+      tenantId: tenant._id.toString(),
     }).lean();
     expect(teacher).toBeDefined();
     expect(teacher.name).toBe(TEST_TEACHER_NAME);

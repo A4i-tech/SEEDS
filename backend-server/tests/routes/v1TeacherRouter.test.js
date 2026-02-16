@@ -23,13 +23,14 @@ const {
 const TENANT_ID = "tenant-v1-test";
 const TEACHER_PHONE = "919876543210";
 const TEACHER_PASSWORD = "TeacherPass1!";
+const TEACHER_NAME = "Test Teacher";
 
 let mongoServer;
 let authToken;
 
 function getAuthToken() {
   return jwt.sign(
-    { email: "teacher-test@example.com", id: "user-123" },
+    { email: "teacher-test@example.com", id: TENANT_ID },
     process.env.SECRET_KEY,
     { expiresIn: "1h" }
   );
@@ -44,7 +45,9 @@ describe("v1TeacherRouter", () => {
 
   afterAll(async () => {
     await mongoose.disconnect();
-    await mongoServer.stop();
+    if (mongoServer && typeof mongoServer.stop === 'function') {
+      await mongoServer.stop();
+    }
   });
 
   beforeEach(async () => {
@@ -61,7 +64,7 @@ describe("v1TeacherRouter", () => {
     });
 
     test("returns 400 when students is not an array", async () => {
-      await Teacher.create({ tenantId: TENANT_ID, phoneNumber: TEACHER_PHONE, password: TEACHER_PASSWORD, studentId: [] });
+      await Teacher.create({ tenantId: TENANT_ID, phoneNumber: TEACHER_PHONE, password: TEACHER_PASSWORD, name: TEACHER_NAME, studentId: [] });
       const res = await request(app)
         .post("/v1/teacher/add-students")
         .set("Authorization", `Bearer ${authToken}`)
@@ -70,7 +73,7 @@ describe("v1TeacherRouter", () => {
     });
 
     test("returns 400 when students array is empty", async () => {
-      await Teacher.create({ tenantId: TENANT_ID, phoneNumber: TEACHER_PHONE, password: TEACHER_PASSWORD, studentId: [] });
+      await Teacher.create({ tenantId: TENANT_ID, phoneNumber: TEACHER_PHONE, password: TEACHER_PASSWORD, name: TEACHER_NAME, studentId: [] });
       const res = await request(app)
         .post("/v1/teacher/add-students")
         .set("Authorization", `Bearer ${authToken}`)
@@ -79,6 +82,7 @@ describe("v1TeacherRouter", () => {
     });
 
     test("returns 404 when teacher not found", async () => {
+      await Teacher.create({ tenantId: TENANT_ID, phoneNumber: TEACHER_PHONE, password: TEACHER_PASSWORD, name: TEACHER_NAME, studentId: [] });
       const res = await request(app)
         .post("/v1/teacher/add-students")
         .set("Authorization", `Bearer ${authToken}`)
@@ -87,7 +91,7 @@ describe("v1TeacherRouter", () => {
     });
 
     test("returns 200 and creates new students", async () => {
-      await Teacher.create({ tenantId: TENANT_ID, phoneNumber: TEACHER_PHONE, password: TEACHER_PASSWORD, studentId: [] });
+      await Teacher.create({ tenantId: TENANT_ID, phoneNumber: TEACHER_PHONE, password: TEACHER_PASSWORD, name: TEACHER_NAME, studentId: [] });
       const res = await request(app)
         .post("/v1/teacher/add-students")
         .set("Authorization", `Bearer ${authToken}`)
@@ -103,13 +107,13 @@ describe("v1TeacherRouter", () => {
       expect(Array.isArray(res.body.students)).toBe(true);
       expect(res.body.students).toHaveLength(2);
       expect(res.body.students.map((s) => s.name).sort()).toEqual(["Alice", "Bob"]);
-      const teacher = await Teacher.findOne({ phoneNumber: TEACHER_PHONE });
+      const teacher = await Teacher.findOne({ phoneNumber: TEACHER_PHONE, tenantId: TENANT_ID });
       expect(Array.isArray(teacher.studentId)).toBe(true);
       expect(teacher.studentId).toHaveLength(2);
     });
 
     test("returns 200 with duplicates when same phone different name", async () => {
-      await Teacher.create({ tenantId: TENANT_ID, phoneNumber: TEACHER_PHONE, password: TEACHER_PASSWORD, studentId: [] });
+      await Teacher.create({ tenantId: TENANT_ID, phoneNumber: TEACHER_PHONE, password: TEACHER_PASSWORD, name: TEACHER_NAME, studentId: [] });
       await Student.create({ name: "Existing", phoneNumber: "913333333333" });
       const res = await request(app)
         .post("/v1/teacher/add-students")
@@ -135,6 +139,7 @@ describe("v1TeacherRouter", () => {
         tenantId: TENANT_ID,
         phoneNumber: TEACHER_PHONE,
         password: TEACHER_PASSWORD,
+        name: TEACHER_NAME,
         studentId: [String(existingStudent._id)],
       });
       const res = await request(app)
@@ -152,7 +157,7 @@ describe("v1TeacherRouter", () => {
     });
 
     test("filters out entries without name or phoneNumber", async () => {
-      await Teacher.create({ tenantId: TENANT_ID, phoneNumber: TEACHER_PHONE, password: TEACHER_PASSWORD, studentId: [] });
+      await Teacher.create({ tenantId: TENANT_ID, phoneNumber: TEACHER_PHONE, password: TEACHER_PASSWORD, name: TEACHER_NAME, studentId: [] });
       const res = await request(app)
         .post("/v1/teacher/add-students")
         .set("Authorization", `Bearer ${authToken}`)
@@ -206,7 +211,7 @@ describe("v1TeacherRouter", () => {
     });
 
     test("returns 404 when student not found", async () => {
-      await Teacher.create({ tenantId: TENANT_ID, phoneNumber: TEACHER_PHONE, password: TEACHER_PASSWORD, studentId: [] });
+      await Teacher.create({ tenantId: TENANT_ID, phoneNumber: TEACHER_PHONE, password: TEACHER_PASSWORD, name: TEACHER_NAME, studentId: [] });
       const res = await request(app)
         .patch("/v1/teacher/students")
         .set("Authorization", `Bearer ${authToken}`)
@@ -220,7 +225,7 @@ describe("v1TeacherRouter", () => {
     });
 
     test("returns 403 when student does not belong to teacher", async () => {
-      await Teacher.create({ tenantId: TENANT_ID, phoneNumber: TEACHER_PHONE, password: TEACHER_PASSWORD, studentId: [] });
+      await Teacher.create({ tenantId: TENANT_ID, phoneNumber: TEACHER_PHONE, password: TEACHER_PASSWORD, name: TEACHER_NAME, studentId: [] });
       await Student.create({ name: "Unlinked", phoneNumber: "917777777777" });
       const res = await request(app)
         .patch("/v1/teacher/students")
@@ -235,9 +240,9 @@ describe("v1TeacherRouter", () => {
     });
 
     test("returns 200 and updates student name and phone", async () => {
-      await Teacher.create({ tenantId: TENANT_ID, phoneNumber: TEACHER_PHONE, password: TEACHER_PASSWORD, studentId: [] });
+      await Teacher.create({ tenantId: TENANT_ID, phoneNumber: TEACHER_PHONE, password: TEACHER_PASSWORD, name: TEACHER_NAME, studentId: [] });
       const student = await Student.create({ name: "Old", phoneNumber: "918888888881" });
-      await Teacher.updateOne({ phoneNumber: TEACHER_PHONE }, { $addToSet: { studentId: String(student._id) } });
+      await Teacher.updateOne({ phoneNumber: TEACHER_PHONE, tenantId: TENANT_ID }, { $addToSet: { studentId: String(student._id) } });
       const res = await request(app)
         .patch("/v1/teacher/students")
         .set("Authorization", `Bearer ${authToken}`)
@@ -255,10 +260,10 @@ describe("v1TeacherRouter", () => {
     });
 
     test("returns 409 when new phone already exists for another student", async () => {
-      await Teacher.create({ tenantId: TENANT_ID, phoneNumber: TEACHER_PHONE, password: TEACHER_PASSWORD, studentId: [] });
+      await Teacher.create({ tenantId: TENANT_ID, phoneNumber: TEACHER_PHONE, password: TEACHER_PASSWORD, name: TEACHER_NAME, studentId: [] });
       const student1 = await Student.create({ name: "One", phoneNumber: "918888888883" });
       await Student.create({ name: "Other", phoneNumber: "918888888884" });
-      await Teacher.updateOne({ phoneNumber: TEACHER_PHONE }, { $addToSet: { studentId: String(student1._id) } });
+      await Teacher.updateOne({ phoneNumber: TEACHER_PHONE, tenantId: TENANT_ID }, { $addToSet: { studentId: String(student1._id) } });
       const res = await request(app)
         .patch("/v1/teacher/students")
         .set("Authorization", `Bearer ${authToken}`)
