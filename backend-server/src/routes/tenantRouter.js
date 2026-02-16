@@ -173,6 +173,12 @@ router.post("/register", tenantAuthProvider.register);
  */
 router.post("/analytics", authenticateToken, async (req, res) => {
   try {
+    if (req.userRole !== "tenant") {
+      return res
+        .status(STATUS.FORBIDDEN)
+        .json({ message: "Only tenant accounts can access analytics" });
+    }
+
     const { startDate, endDate } = req.body;
     const tenantId = req.tenantId;
     if (!startDate || !endDate) {
