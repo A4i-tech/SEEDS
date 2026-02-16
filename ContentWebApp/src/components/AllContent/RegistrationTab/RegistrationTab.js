@@ -1,5 +1,7 @@
 import React from "react";
 import TeacherRegistrationForm from "./TeacherRegistrationForm";
+import ContentCreatorRegistrationForm from "./ContentCreatorRegistrationForm";
+import ContentCreatorsList from "./ContentCreatorsList";
 import TeachersList from "./TeachersList";
 import TeacherDetails from "./TeacherDetails";
 import "./css/RegistrationTab.css";
@@ -20,15 +22,28 @@ const RegistrationTab = ({
   onSetNewStudentValue,
   onSubmitNewStudents,
   onRemoveStudent,
+  contentCreators,
+  onRegisterContentCreator,
+  creatorMessage,
 }) => {
   return (
     <div className="card registration-flex-card">
       <div>
         <div className="card-title">Registration Management</div>
-        <div className="card-description">Register teachers for your organization.</div>
+        <div className="card-description">
+          Manage teachers, students, and content creators for your tenant.
+        </div>
       </div>
 
-      <TeacherRegistrationForm onRegister={onRegisterTeacher} message={message} />
+      <div className="registration-forms-grid">
+        <TeacherRegistrationForm onRegister={onRegisterTeacher} message={message} />
+        <ContentCreatorRegistrationForm
+          onRegister={onRegisterContentCreator}
+          message={creatorMessage}
+        />
+      </div>
+
+      <ContentCreatorsList creators={contentCreators} />
 
       <div className="teachers-section">
         <h3 className="teachers-section-title">Teachers & Students</h3>

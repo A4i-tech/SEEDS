@@ -122,10 +122,28 @@ const Login = () => {
 
     try {
       setIsSubmitting(true);
-      const response = await axios.post(`${baseURL}/tenant/login`, {
-        email: formData.email,
-        password: formData.password,
-      });
+      const loginEndpoints = ["/tenant/login", "/content-creator/login"];
+      let response = null;
+
+      for (const endpoint of loginEndpoints) {
+        try {
+          response = await axios.post(`${baseURL}${endpoint}`, {
+            email: formData.email,
+            password: formData.password,
+          });
+          break;
+        } catch (endpointError) {
+          if (endpointError?.response?.status === 401) {
+            continue;
+          }
+          throw endpointError;
+        }
+      }
+
+      if (!response) {
+        setShowError("Invalid credentials. Please try again.");
+        return;
+      }
 
       if (response.status === 200) {
         const { tenantName, token } = response.data;
@@ -136,7 +154,8 @@ const Login = () => {
       }
     } catch (error) {
       console.error("Login error:", error);
-      setShowError("Login failed. Please verify your details.");
+      const message = error?.response?.data?.message;
+      setShowError(message || "Login failed. Please verify your details.");
     } finally {
       setIsSubmitting(false);
     }
@@ -147,7 +166,7 @@ const Login = () => {
       <div style={cardStyle}>
         <header style={headerStyle}>
           <h1 style={titleStyle}>SEEDS</h1>
-          <p style={descriptionStyle}>Educational App for Visually Impaired Students</p>
+          <p style={descriptionStyle}>Sign in with your registered email and password.</p>
         </header>
 
         <div style={tabsStyle}>

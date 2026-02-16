@@ -28,6 +28,8 @@ function authenticateToken(req, res, next) {
     if (err) return res.sendStatus(STATUS.FORBIDDEN);
     req.user = user;
     req.userId = user.id;
+    req.userRole = user.role || "tenant";
+    req.tenantId = user.tenantId || user.id;
     next();
   });
 }

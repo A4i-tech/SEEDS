@@ -72,4 +72,35 @@ module.exports = {
     await tenantRef.update({ password: newPassword });
     return;
   },
+  async getContentCreatorByEmail(email) {
+    const creatorsRef = db.collection("ContentCreators");
+    const snapshot = await creatorsRef.where("email", "==", email).get();
+    if (snapshot.empty) {
+      return null;
+    }
+    const doc = snapshot.docs[0];
+    return { id: doc.id, ...doc.data() };
+  },
+  async getContentCreatorById(id) {
+    const creatorRef = db.collection("ContentCreators").doc(id);
+    const doc = await creatorRef.get();
+    if (!doc.exists) {
+      return null;
+    }
+    return { id: doc.id, ...doc.data() };
+  },
+  async getContentCreatorsByTenantId(tenantId) {
+    const creatorsRef = db.collection("ContentCreators");
+    const snapshot = await creatorsRef.where("tenantId", "==", tenantId).get();
+    if (snapshot.empty) {
+      return [];
+    }
+    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  },
+  async insertContentCreator({ email, password, name, tenantId }) {
+    const creatorsRef = db.collection("ContentCreators");
+    const newCreatorRef = creatorsRef.doc();
+    await newCreatorRef.set({ email, password, name, tenantId });
+    return { id: newCreatorRef.id, email, password, name, tenantId };
+  },
 };
