@@ -3,26 +3,35 @@ import "./css/TeacherRegistrationForm.css";
 import "../shared/buttons.css";
 import "../shared/cards.css";
 import "../shared/utilities.css";
-import { PhoneNumberInput } from "../shared/PhoneNumberInput";
-import { isValidPhoneNumber } from "../../../utils/phoneUtils";
 
-const TeacherRegistrationForm = ({ onRegister, message }) => {
-  const [teacherPhone, setTeacherPhone] = useState("");
-  const [teacherPassword, setTeacherPassword] = useState("");
-  const [teacherName, setTeacherName] = useState("");
-  const [submitError, setSubmitError] = useState("");
+const TeacherRegistrationForm = ({
+  onRegisterTeacher,
+  onRegisterContentCreator,
+  teacherMessage,
+  creatorMessage,
+  role,
+  onRoleChange,
+}) => {
+  const [name, setName] = useState("");
+  const [contactValue, setContactValue] = useState("");
+  const [password, setPassword] = useState("");
+
+  const activeMessage = role === "content_creator" ? creatorMessage : teacherMessage;
 
   const handleSubmit = async () => {
-    setSubmitError("");
-    if (!isValidPhoneNumber(teacherPhone)) {
-      setSubmitError("Enter exactly 10 digits.");
-      return;
-    }
-    const success = await onRegister(teacherPhone, teacherPassword, teacherName);
+    const success =
+      role === "content_creator"
+        ? await onRegisterContentCreator({
+            name,
+            email: contactValue,
+            password,
+          })
+        : await onRegisterTeacher(contactValue, password, name);
+
     if (success) {
-      setTeacherPhone("");
-      setTeacherPassword("");
-      setTeacherName("");
+      setName("");
+      setContactValue("");
+      setPassword("");
     }
   };
 
@@ -35,14 +44,35 @@ const TeacherRegistrationForm = ({ onRegister, message }) => {
               <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 1c1.66 0 3-1.34 3-3S9.66 6 8 6 5 7.34 5 9s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V20h14v-2.5C15 15.17 10.33 14 8 14zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.98 1.97 3.45V20h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
             </svg>
           </span>
-          Register New Teacher
+          Register User
         </h3>
-        <p className="registration-subtitle">Create a teacher account for this tenant.</p>
+        <p className="registration-subtitle">
+          Create teacher and content creator accounts for this tenant.
+        </p>
       </div>
 
       <div className="registration-fields-grid">
         <div className="registration-field">
-          <label className="label" htmlFor="teacher-name">Full Name</label>
+          <label className="label" htmlFor="user-role">
+            Role
+          </label>
+          <div className="registration-input-wrap">
+            <select
+              id="user-role"
+              className="input-field registration-select"
+              value={role}
+              onChange={(e) => onRoleChange(e.target.value)}
+            >
+              <option value="teacher">Teacher</option>
+              <option value="content_creator">Content Creator</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="registration-field">
+          <label className="label" htmlFor="user-name">
+            Full Name
+          </label>
           <div className="registration-input-wrap">
             <span className="registration-input-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" focusable="false">
@@ -50,11 +80,11 @@ const TeacherRegistrationForm = ({ onRegister, message }) => {
               </svg>
             </span>
             <input
-              id="teacher-name"
+              id="user-name"
               type="text"
               placeholder="Enter full name"
-              value={teacherName}
-              onChange={(e) => setTeacherName(e.target.value)}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
               className="input-field registration-input-with-icon"
               required
             />
@@ -62,28 +92,50 @@ const TeacherRegistrationForm = ({ onRegister, message }) => {
         </div>
 
         <div className="registration-field">
-          <label className="label" htmlFor="teacher-phone">
+          <label className="label" htmlFor="user-contact">
             Contact Info
           </label>
           <div className="registration-input-wrap">
             <span className="registration-input-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" focusable="false">
-                <path d="M6.62 10.79a15.46 15.46 0 006.59 6.59l2.2-2.2a1 1 0 01.95-.27 11.72 11.72 0 003.68.59 1 1 0 011 1V20a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1 11.72 11.72 0 00.59 3.68 1 1 0 01-.27.95z" />
-              </svg>
+              {role === "content_creator" ? (
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <path d="M20 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V6a2 2 0 00-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <path d="M6.62 10.79a15.46 15.46 0 006.59 6.59l2.2-2.2a1 1 0 01.95-.27 11.72 11.72 0 003.68.59 1 1 0 011 1V20a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1 11.72 11.72 0 00.59 3.68 1 1 0 01-.27.95z" />
+                </svg>
+              )}
             </span>
-            <PhoneNumberInput
-              id="teacher-phone"
-              placeholder="Enter phone number"
-              value={teacherPhone}
-              onChange={setTeacherPhone}
+            <input
+              id="user-contact"
+              type={role === "content_creator" ? "email" : "tel"}
+              placeholder={role === "content_creator" ? "Enter email address" : "Enter phone number"}
+              value={contactValue}
+              onChange={(e) => {
+                if (role === "content_creator") {
+                  setContactValue(e.target.value);
+                  return;
+                }
+
+                const value = e.target.value.replace(/\D/g, "");
+                if (value.length <= 10) {
+                  setContactValue(value);
+                }
+              }}
+              maxLength={role === "content_creator" ? undefined : 10}
               className="input-field registration-input-with-icon"
             />
           </div>
-          <p className="registration-hint">Use a valid 10-digit mobile number.</p>
+          <p className="registration-hint">
+            {role === "content_creator"
+              ? "Use a valid email for sign in."
+              : "Use a valid 10-digit mobile number."}
+          </p>
         </div>
 
         <div className="registration-field registration-field-full">
-          <label className="label" htmlFor="teacher-password">
+          <label className="label" htmlFor="user-password">
             Password
           </label>
           <div className="registration-input-wrap">
@@ -93,11 +145,11 @@ const TeacherRegistrationForm = ({ onRegister, message }) => {
               </svg>
             </span>
             <input
-              id="teacher-password"
+              id="user-password"
               type="password"
               placeholder="Set a password"
-              value={teacherPassword}
-              onChange={(e) => setTeacherPassword(e.target.value)}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               className="input-field registration-input-with-icon"
             />
           </div>
@@ -106,15 +158,11 @@ const TeacherRegistrationForm = ({ onRegister, message }) => {
 
       <div className="registration-cta-row">
         <button type="button" className="primary-button full-width-button" onClick={handleSubmit}>
-          Add User
+          Add {role === "content_creator" ? "Content Creator" : "Teacher"}
         </button>
       </div>
 
-      {(submitError || message) && (
-        <p className={submitError ? "error-message" : "success-message"}>
-          {submitError || message}
-        </p>
-      )}
+      {activeMessage && <p className="success-message">{activeMessage}</p>}
     </div>
   );
 };

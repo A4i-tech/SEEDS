@@ -22,7 +22,10 @@ const ContentCreatorsList = ({ creators }) => {
                 {(creator.name || creator.email || "C").slice(0, 2).toUpperCase()}
               </div>
               <div className="creator-meta">
-                <div className="creator-name">{creator.name || "Unnamed Creator"}</div>
+                <div className="creator-name-row">
+                  <div className="creator-name">{creator.name || "Unnamed Creator"}</div>
+                  <span className="role-badge creator-role-badge">Creator</span>
+                </div>
                 <div className="creator-email">{creator.email}</div>
               </div>
             </li>
