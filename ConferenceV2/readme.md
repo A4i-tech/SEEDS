@@ -116,3 +116,8 @@ This documentation outlines the core components, interactions, and data flows wi
 3. Optional debug audio capture:
    - Set `AUDIO_CAPTURE_ENABLED=true` to store raw inbound websocket audio.
    - Set `AUDIO_CAPTURE_UPLOAD_TO_AZURE=true` and `AZURE_STORAGE_CONNECTION_STRING` to upload captures to `AUDIO_CAPTURE_CONTAINER`.
+4. WebRTC VAD tuning:
+   - `AUDIO_WEBRTC_VAD_AGGRESSIVENESS` (0-3), `AUDIO_VAD_FRAME_MS` (10/20/30)
+   - `AUDIO_VAD_START_SPEECH_FRAMES`, `AUDIO_VAD_PRE_SPEECH_MS` (leading context)
+   - `AUDIO_VAD_MIN_SPEECH_MS`, `AUDIO_VAD_SILENCE_FLUSH_MS`, `AUDIO_VAD_MAX_SEGMENT_SEC`
+   - `AUDIO_VAD_OVERLAP_MS` (segment boundary overlap), `AUDIO_VAD_METRICS_LOG_EVERY_SEGMENTS`

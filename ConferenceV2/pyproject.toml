@@ -30,7 +30,8 @@ dependencies = [
     "pymongo",
     "openai",
     "numpy",
-    "scipy"
+    "scipy",
+    "webrtcvad"
 ]
 
 
