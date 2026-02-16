@@ -493,10 +493,11 @@ router.get(
   "/sasToken",
   tryCatchWrapper(async (req, res) => {
     const containerName = "input-container";
-    const sasToken = await blobService.getUploadSASToken(
-      req.query.blobName,
-      containerName,
-    );
+    const blobName = req.query.blobName;
+    if (!blobName || !blobName.toLowerCase().endsWith(".mp3")) {
+      return res.status(400).json({ error: "Only .mp3 files are allowed." });
+    }
+    const sasToken = await blobService.getUploadSASToken(blobName, containerName);
     const container_client = blobService.getContainerClient(containerName);
 
     return res.json({
