@@ -1,6 +1,35 @@
 import { API_ENDPOINTS } from "../constants/apiEndpoints";
 import { APP_CONFIG } from "../config/appConfig";
 
+/** Timeout for conference/create request (ms)*/
+const CONFERENCE_CREATE_TIMEOUT_MS = 5000;
+/** Timeout for conference/end request (ms)*/
+const CONFERENCE_END_TIMEOUT_MS = 5000;
+
+/**
+ * Fetches with a timeout; aborts the request and throws with timeoutMessage on AbortError.
+ * @param {string} url
+ * @param {RequestInit} options
+ * @param {number} timeoutMs
+ * @param {string} timeoutMessage
+ * @returns {Promise<Response>}
+ */
+async function fetchWithTimeout(url, options, timeoutMs, timeoutMessage) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === "AbortError") {
+      throw new Error(timeoutMessage);
+    }
+    throw err;
+  }
+}
+
 export const createConference = async (teacherPhone, studentPhones) => {
   const requestBody = {
     teacher_phone: teacherPhone,
@@ -13,13 +42,16 @@ export const createConference = async (teacherPhone, studentPhones) => {
     student_count: studentPhones.length,
   });
 
-  const response = await fetch(API_ENDPOINTS.CONFERENCE.CREATE, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
+  const response = await fetchWithTimeout(
+    API_ENDPOINTS.CONFERENCE.CREATE,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody),
     },
-    body: JSON.stringify(requestBody),
-  });
+    CONFERENCE_CREATE_TIMEOUT_MS,
+    "Conference start timed out. Please try again."
+  );
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -46,12 +78,27 @@ export const startConferenceCall = async (confId) => {
 };
 
 export const endConferenceCall = async (confId) => {
-  return fetch(API_ENDPOINTS.CONFERENCE.END(confId), {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
+  const response = await fetchWithTimeout(
+    API_ENDPOINTS.CONFERENCE.END(confId),
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
     },
-  });
+    CONFERENCE_END_TIMEOUT_MS,
+    "End conference timed out. Please try again."
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("End conference failed:", {
+      status: response.status,
+      statusText: response.statusText,
+      error: errorText,
+    });
+    throw new Error(`Failed to end conference: ${response.status} ${response.statusText}`);
+  }
+
+  return response;
 };
 
 export const sinkConferenceCall = async (confId) => {

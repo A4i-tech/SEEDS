@@ -36,7 +36,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive 
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import okhttp3.Response
@@ -346,7 +346,8 @@ class CallViewModel @Inject constructor(
                 startCall(confId)
 
             } catch (e: Exception) {
-                Log.e("GET_ACCESS_TOKEN", "Error creating conference: ${e.message}", e)
+                Log.e("CONFERENCE_CREATE", "Error creating conference: ${e.message}", e)
+                _isErrorFromIVR.postValue("Failed to create conference: ${e.message ?: "Unknown error"}")
             }
         }
     }

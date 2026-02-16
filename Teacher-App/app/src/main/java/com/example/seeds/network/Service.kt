@@ -151,11 +151,20 @@ interface SeedsService {
 }
 
 const val TIMEOUT = 60L
+const val CONFERENCE_CREATE_TIMEOUT_SECONDS = 5L
 
 fun provideService(@ApplicationContext context: Context): SeedsService {
     //reference: https://proandroiddev.com/headers-in-retrofit-a8d71ede2f3e
 
     val httpClientBuilder = OkHttpClient.Builder().apply {
+
+        addInterceptor { chain ->
+            val request = chain.request()
+            if (request.url().encodedPath().endsWith("conference/create")) {
+                chain.call().timeout().timeout(CONFERENCE_CREATE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            }
+            chain.proceed(request)
+        }
 
         if (BuildConfig.DEBUG) {
             val loggingInterceptor = HttpLoggingInterceptor()

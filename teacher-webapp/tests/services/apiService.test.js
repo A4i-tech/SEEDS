@@ -27,7 +27,8 @@ describe("apiService", () => {
       headers: { "Content-Type": "application/json" },
     };
     if (body) config.body = JSON.stringify(body);
-    expect(fetch).toHaveBeenCalledWith(url, config);
+
+    expect(fetch).toHaveBeenCalledWith(url, expect.objectContaining(config));
   };
 
   beforeEach(() => {
