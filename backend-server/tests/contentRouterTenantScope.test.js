@@ -6,6 +6,7 @@ process.env.DB_CONNECTION = 'mongodb://example/test';
 
 const mockFind = jest.fn();
 const mockFindOne = jest.fn();
+const mockFindOneAndUpdate = jest.fn();
 const mockUpdateOne = jest.fn();
 const mockCollectionFind = jest.fn();
 const mockSave = jest.fn();
@@ -21,6 +22,7 @@ class MockContentV3 {
 }
 MockContentV3.find = mockFind;
 MockContentV3.findOne = mockFindOne;
+MockContentV3.findOneAndUpdate = mockFindOneAndUpdate;
 MockContentV3.updateOne = mockUpdateOne;
 MockContentV3.collection = {
   find: mockCollectionFind,
@@ -109,6 +111,7 @@ describe('contentRouter tenant scoping', () => {
     mockFind.mockReturnValue(makeFindChain([]));
     mockCollectionFind.mockReturnValue(makeCollectionFindChain([]));
     mockFindOne.mockReturnValue({ exec: jest.fn().mockResolvedValue(null) });
+    mockFindOneAndUpdate.mockReturnValue({ exec: jest.fn().mockResolvedValue(null) });
     mockUpdateOne.mockResolvedValue({ matchedCount: 1, modifiedCount: 1 });
     mockSave.mockImplementation(async (doc) => ({
       ...doc,
@@ -206,5 +209,30 @@ describe('contentRouter tenant scoping', () => {
     expect(res.statusCode).toBe(200);
     expect(mockSave).toHaveBeenCalledTimes(1);
     expect(mockSave.mock.calls[0][0].tenantId).toBe('tenant-abc');
+  });
+
+  test('PATCH / scopes updates by tenantId and content id', async () => {
+    const [handler] = getRouteHandlers('patch', '/');
+    const updatedDoc = { _id: 'content-1', tenantId: 'tenant-abc', title: { english: 'Updated' } };
+    mockFindOneAndUpdate.mockReturnValue({ exec: jest.fn().mockResolvedValue(updatedDoc) });
+
+    const req = {
+      tenantId: 'tenant-abc',
+      query: { isAudioUploaded: 'true' },
+      body: {
+        _id: 'content-1',
+        title: { english: 'Updated', local: '', audioUrl: '' },
+      },
+    };
+    const res = mockRes();
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(mockFindOneAndUpdate).toHaveBeenCalledWith(
+      { _id: 'content-1', tenantId: 'tenant-abc', isDeleted: { $ne: true } },
+      { $set: expect.objectContaining({ isProcessed: false }) },
+      { new: true },
+    );
   });
 });
