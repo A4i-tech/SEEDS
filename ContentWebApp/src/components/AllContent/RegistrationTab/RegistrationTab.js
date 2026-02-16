@@ -1,7 +1,5 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import TeacherRegistrationForm from "./TeacherRegistrationForm";
-import ContentCreatorRegistrationForm from "./ContentCreatorRegistrationForm";
-import ContentCreatorsList from "./ContentCreatorsList";
 import TeachersList from "./TeachersList";
 import TeacherDetails from "./TeacherDetails";
 import "./css/RegistrationTab.css";
@@ -26,7 +24,28 @@ const RegistrationTab = ({
   onRegisterContentCreator,
   creatorMessage,
 }) => {
-  const [actorTab, setActorTab] = useState("teacher");
+  const [registerRole, setRegisterRole] = useState("teacher");
+  const mergedDirectoryEntries = useMemo(
+    () => [
+      ...teachers.map((teacher) => ({
+        id: teacher._id,
+        role: "teacher",
+        name: teacher.name || "Unknown",
+        contact: teacher.phoneNumber || "-",
+      })),
+      ...contentCreators.map((creator) => ({
+        id: creator.id || creator._id,
+        role: "content_creator",
+        name: creator.name || "Unnamed Creator",
+        contact: creator.email || "-",
+      })),
+    ],
+    [teachers, contentCreators]
+  );
+
+  const selectedDirectoryEntry = mergedDirectoryEntries.find(
+    (entry) => String(entry.id) === String(selectedTeacherId)
+  );
 
   return (
     <div className="card registration-flex-card">
@@ -37,62 +56,42 @@ const RegistrationTab = ({
         </div>
       </div>
 
-      <div className="registration-segmented-switch">
-        <button
-          type="button"
-          className={`registration-segmented-btn ${actorTab === "teacher" ? "active" : ""}`}
-          onClick={() => setActorTab("teacher")}
-        >
-          Teacher
-        </button>
-        <button
-          type="button"
-          className={`registration-segmented-btn ${actorTab === "content_creator" ? "active" : ""}`}
-          onClick={() => setActorTab("content_creator")}
-        >
-          Creator
-        </button>
+      <div className="registration-form-panel">
+        <TeacherRegistrationForm
+          role={registerRole}
+          onRoleChange={(nextRole) => {
+            setRegisterRole(nextRole);
+          }}
+          onRegisterTeacher={onRegisterTeacher}
+          onRegisterContentCreator={onRegisterContentCreator}
+          teacherMessage={message}
+          creatorMessage={creatorMessage}
+        />
       </div>
 
-      <div className="registration-form-panel">
-        {actorTab === "teacher" ? (
-          <TeacherRegistrationForm onRegister={onRegisterTeacher} message={message} />
+      <div className="teachers-section">
+        <h3 className="teachers-section-title">Team Directory</h3>
+        {mergedDirectoryEntries.length === 0 ? (
+          <div className="no-teachers">No users available.</div>
         ) : (
-          <ContentCreatorRegistrationForm
-            onRegister={onRegisterContentCreator}
-            message={creatorMessage}
-          />
+          <div className="teachers-layout">
+            <TeachersList
+              entries={mergedDirectoryEntries}
+              selectedTeacherId={selectedTeacherId}
+              onSelectTeacher={onSelectTeacher}
+            />
+            <TeacherDetails
+              teacher={selectedTeacher}
+              selectedEntryRole={selectedDirectoryEntry?.role}
+              onAddStudentRow={onAddStudentRow}
+              onRemoveStudentRow={onRemoveStudentRow}
+              onSetNewStudentValue={onSetNewStudentValue}
+              onSubmitNewStudents={onSubmitNewStudents}
+              onRemoveStudent={onRemoveStudent}
+            />
+          </div>
         )}
       </div>
-
-      {actorTab === "teacher" ? (
-        <div className="teachers-section">
-          <h3 className="teachers-section-title">Teachers & Students</h3>
-          {teachers.length === 0 ? (
-            <div className="no-teachers">No teachers available.</div>
-          ) : (
-            <div className="teachers-layout">
-              <TeachersList
-                teachers={teachers}
-                selectedTeacherId={selectedTeacherId}
-                onSelectTeacher={onSelectTeacher}
-              />
-              <TeacherDetails
-                teacher={selectedTeacher}
-                onAddStudentRow={onAddStudentRow}
-                onRemoveStudentRow={onRemoveStudentRow}
-                onSetNewStudentValue={onSetNewStudentValue}
-                onSubmitNewStudents={onSubmitNewStudents}
-                onRemoveStudent={onRemoveStudent}
-              />
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="creator-section">
-          <ContentCreatorsList creators={contentCreators} />
-        </div>
-      )}
     </div>
   );
 };

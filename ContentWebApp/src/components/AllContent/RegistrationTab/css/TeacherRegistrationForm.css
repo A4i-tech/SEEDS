@@ -1,7 +1,7 @@
 /* Teacher registration card */
 .registration-card {
   margin-top: 0;
-  padding: 16px;
+  padding: 14px;
   border: 1px solid var(--reg-border, #dbe2ef);
   border-radius: 12px;
   background: #ffffff;
@@ -12,14 +12,14 @@
 
 @media (min-width: 768px) {
   .registration-card {
-    padding: 18px;
+    padding: 16px;
   }
 }
 
 .registration-title {
   margin: 0;
   color: var(--reg-text, #0f172a);
-  font-size: 20px;
+  font-size: 18px;
   letter-spacing: -0.01em;
 }
 
@@ -80,13 +80,13 @@
 .registration-card-modern .registration-fields-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 10px 12px;
+  gap: 8px 12px;
 }
 
 .registration-card-modern .registration-field {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .registration-card-modern .registration-field-full {
@@ -103,14 +103,14 @@
 .registration-subtitle {
   margin: 0;
   color: var(--reg-subtext, #64748b);
-  font-size: 13px;
+  font-size: 12px;
   text-align: left;
 }
 
 .registration-hint {
   margin: -2px 0 0;
   color: #94a3b8;
-  font-size: 12px;
+  font-size: 11px;
   text-align: left;
 }
 
@@ -122,6 +122,20 @@
   color: #16a34a;
   font-size: 14px;
   margin: 8px 0 0;
+}
+
+.registration-select {
+  height: 44px;
+  padding: 0 12px;
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #64748b 50%),
+    linear-gradient(135deg, #64748b 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) calc(50% - 3px),
+    calc(100% - 12px) calc(50% - 3px);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
 }
 
 @media (min-width: 900px) {
