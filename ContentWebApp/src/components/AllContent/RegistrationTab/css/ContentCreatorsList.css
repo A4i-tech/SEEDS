@@ -1,0 +1,37 @@
+.creator-list-pane {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+  background: #fff;
+}
+
+.creator-list-title {
+  margin: 0 0 12px;
+  color: #0f172a;
+}
+
+.creator-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.creator-list-item {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #f8fafc;
+}
+
+.creator-name {
+  color: #0f172a;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.creator-email {
+  color: #64748b;
+  font-size: 13px;
+}

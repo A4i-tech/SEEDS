@@ -1,9 +1,9 @@
 const express = require("express");
 const tenantAuthProvider = require("../auth/tenant/tenantAuthProviderMiddleware");
+const contentCreatorAuthProvider = require("../auth/contentCreator/contentCreatorAuthProviderMiddleware");
 const { STATUS } = require("../config/constants");
 const authenticateToken = require("../auth/authenticateToken");
 const IvrV2Log = require("../models/IvrV2Log");
-const { route } = require("..");
 /**
  *  @swagger
  * tags:
@@ -174,7 +174,7 @@ router.post("/register", tenantAuthProvider.register);
 router.post("/analytics", authenticateToken, async (req, res) => {
   try {
     const { startDate, endDate } = req.body;
-    const tenantId = req.userId;
+    const tenantId = req.tenantId;
     if (!startDate || !endDate) {
       return res.status(STATUS.BAD_REQUEST).json({
         message: "Both startDate and endDate are required",
@@ -254,7 +254,14 @@ router.post("/analytics", authenticateToken, async (req, res) => {
 router.post(
   "/change-password",
   authenticateToken,
-  tenantAuthProvider.changePassword,
+  (req, res, next) => {
+    if (req.userRole !== "tenant") {
+      return res
+        .status(STATUS.FORBIDDEN)
+        .json({ message: "Only tenant accounts can change tenant password" });
+    }
+    return tenantAuthProvider.changePassword(req, res, next);
+  },
 );
 
 /**
@@ -287,17 +294,37 @@ router.post(
  *         description: Internal server error
  */
 router.get("/me", authenticateToken, async (req, res) => {
-  const tenantId = req.userId;
   try {
+    const tenantId = req.tenantId;
     const tenant = await tenantAuthProvider.getTenantById(tenantId);
     if (!tenant) {
       return res.status(STATUS.NOT_FOUND).json({ message: "Tenant not found" });
     }
-    const tenantData = {
+
+    if (req.userRole === "content_creator") {
+      const creator = await contentCreatorAuthProvider.getContentCreatorById(req.userId);
+      if (!creator) {
+        return res
+          .status(STATUS.NOT_FOUND)
+          .json({ message: "Content creator not found" });
+      }
+
+      return res.status(STATUS.OK).json({
+        email: creator.email,
+        name: creator.name,
+        role: "content_creator",
+        tenantId,
+        tenantName: tenant.tenantName,
+      });
+    }
+
+    return res.status(STATUS.OK).json({
       email: tenant.email,
       tenantName: tenant.tenantName,
-    };
-    return res.status(STATUS.OK).json(tenantData);
+      role: "tenant",
+      tenantId,
+      name: tenant.tenantName,
+    });
   } catch (error) {
     console.error("Get tenant error:", error);
     return res

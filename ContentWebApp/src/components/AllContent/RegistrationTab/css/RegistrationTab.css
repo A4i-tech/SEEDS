@@ -5,6 +5,12 @@
   gap: 16px;
 }
 
+.registration-forms-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
 .teachers-section {
   margin-top: 24px;
 }
@@ -26,6 +32,11 @@
 }
 
 @media (min-width: 768px) {
+  .registration-forms-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
   .teachers-layout {
     flex-direction: row;
     gap: 14px;

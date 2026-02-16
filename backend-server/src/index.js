@@ -18,6 +18,7 @@ const logRouter = require("./routes/logRouter.js");
 const { constants } = require("zlib");
 const setupSwagger = require("./swagger");
 const tenantRouter = require("./routes/tenantRouter.js");
+const contentCreatorRouter = require("./routes/contentCreatorRouter.js");
 const mongo = require("./config/mongo");
 const app = express();
 
@@ -49,6 +50,7 @@ app.use("/user", authenticateToken, userRouter);
 app.use("/teacher", teacherRouter);
 app.use("/v1/teacher", v1TeacherRouter);
 app.use("/tenant", tenantRouter);
+app.use("/content-creator", contentCreatorRouter);
 if (require.main === module) {
   mongo()
     .then(() => {

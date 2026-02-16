@@ -1,5 +1,6 @@
 const Tenant = require("../../models/Tenant");
 const Teacher = require("../../models/Teacher");
+const ContentCreator = require("../../models/ContentCreator");
 
 module.exports = {
   async getAllTenants() {
@@ -27,5 +28,17 @@ module.exports = {
   },
   async updateTenantPassword(tenantId, newPassword) {
     return Tenant.findByIdAndUpdate(tenantId, { password: newPassword });
+  },
+  async getContentCreatorByEmail(email) {
+    return ContentCreator.findOne({ email });
+  },
+  async getContentCreatorById(id) {
+    return ContentCreator.findById(id);
+  },
+  async getContentCreatorsByTenantId(tenantId) {
+    return ContentCreator.find({ tenantId }).lean().exec();
+  },
+  async insertContentCreator({ email, password, name, tenantId }) {
+    return ContentCreator.create({ email, password, name, tenantId });
   },
 };

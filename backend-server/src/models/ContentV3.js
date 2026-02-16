@@ -35,6 +35,7 @@ const ContentSchema = new mongoose.Schema(
     isTeacherApp: { type: Boolean, default: false },
     isDeleted: { type: Boolean, default: false },
     creation_time: { type: Number, default: -1 },
+    tenantId: { type: String, required: true, index: true },
   },
   { collection: "contentsV3" }
 );
