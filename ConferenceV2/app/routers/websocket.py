@@ -3,14 +3,14 @@
 import asyncio
 import json
 import os
-import traceback
 from datetime import datetime
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from typing import Optional
+from typing import Any, Optional
 from app.conf_logger import logger_instance
 
 from app.routers.conference import conference_manager
 from app.models.action_history import ActionHistory, ActionType
+from app.services.conference_call import ConferenceCall
 from app.services.audio.capture import AudioCaptureSession
 from app.services.audio.transcriber import AudioTranscriber
 from app.services.audio.hold_detector import HoldDetector
@@ -31,12 +31,12 @@ async def get_hold_detector() -> HoldDetector:
 
 async def process_audio_message(
     audio_bytes: bytes,
-    conf,
+    conf: ConferenceCall,
     transcriber: AudioTranscriber,
     hold_detector: HoldDetector,
     conference_id: str,
     capture_session: Optional[AudioCaptureSession] = None,
-):
+) -> None:
     """
     Process audio chunk through transcriber and hold detector.
     """
@@ -67,29 +67,38 @@ async def process_audio_message(
             }
             logger_instance.info(f"AUDIO_ANALYSIS: {json.dumps(analysis_log)}")
 
-            # Persist hold detections for offline evaluation/debugging.
-            if os.getenv("AUDIO_ANALYSIS_DB_LOGGING_ENABLED", "false").lower() == "true":
-                if detect_result["is_hold"]:
-                    conf.state.action_history.append(
-                        ActionHistory(
-                            timestamp=datetime.utcnow().isoformat(),
-                            action_type=ActionType.SYSTEM_AUDIO_ANALYSIS,
-                            metadata=analysis_log,
-                            owner="system",
-                        )
-                    )
-                    await conf.storage_manager.save_state(
-                        conf.conf_id, conf.state.model_dump(by_alias=True)
-                    )
+            await persist_analysis_if_needed(conf, analysis_log, bool(detect_result["is_hold"]))
 
             if detect_result["is_hold"]:
                 logger_instance.warning(f"HOLD DETECTED | Score: {detect_result['score']:.2f} | Text: {text}")
     except Exception as e:
-        logger_instance.error(f"Error processing audio chunk: {e}")
+        logger_instance.exception("Error processing audio chunk: %s", e)
+
+
+async def persist_analysis_if_needed(
+    conf: ConferenceCall, analysis_log: dict[str, Any], is_hold: bool
+) -> None:
+    if not is_hold:
+        return
+
+    if os.getenv("AUDIO_ANALYSIS_DB_LOGGING_ENABLED", "false").lower() != "true":
+        return
+
+    conf.state.action_history.append(
+        ActionHistory(
+            timestamp=datetime.utcnow().isoformat(),
+            action_type=ActionType.SYSTEM_AUDIO_ANALYSIS,
+            metadata=analysis_log,
+            owner="system",
+        )
+    )
+    await conf.storage_manager.save_state(
+        conf.conf_id, conf.state.model_dump(by_alias=True)
+    )
 
 async def handle_incoming_message(
-    msg: dict,
-    conf,
+    msg: dict[str, Any],
+    conf: ConferenceCall,
     transcriber: Optional[AudioTranscriber],
     hold_detector: Optional[HoldDetector],
     conference_id: str,
@@ -98,7 +107,7 @@ async def handle_incoming_message(
     """
     Handle a single WebSocket message. Returns False if disconnection is requested.
     """
-    if msg['type'] == 'websocket.disconnect':
+    if msg.get("type") == "websocket.disconnect":
         logger_instance.info(f"WebSocket Client disconnected for {conference_id}")
         conf.set_websocket(None)
         return False
@@ -170,8 +179,7 @@ async def websocket_endpoint(websocket: WebSocket, conference_id: str):
         except WebSocketDisconnect:
             logger_instance.info(f"WebSocket Client disconnected (WebSocketDisconnect) for {conference_id}")
         except Exception as e:
-            logger_instance.error(f"An error occurred in websocket loop: {e}")
-            traceback.print_exc()
+            logger_instance.exception("An error occurred in websocket loop: %s", e)
         finally:
             if capture_session:
                 uploaded_url = await capture_session.finalize()

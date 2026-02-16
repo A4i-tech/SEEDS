@@ -2,7 +2,7 @@ import io
 import os
 import wave
 from collections import deque
-from typing import Optional, Dict, Any
+from typing import Any, Optional
 import numpy as np
 from scipy import signal
 from openai import AsyncOpenAI
@@ -130,14 +130,14 @@ class AudioTranscriber:
             self.silence_flush_ms,
         )
 
-    async def process_chunk(self, audio_data: bytes) -> Optional[Dict[str, Any]]:
+    async def process_chunk(self, audio_data: bytes) -> Optional[dict[str, Any]]:
         if not audio_data:
             return None
         if not isinstance(audio_data, (bytes, bytearray)):
             raise TypeError("audio_data must be bytes-like")
 
         self.pending_frame_buffer.extend(audio_data)
-        result = None
+        result: Optional[dict[str, Any]] = None
 
         while len(self.pending_frame_buffer) >= self.frame_bytes:
             frame = bytes(self.pending_frame_buffer[: self.frame_bytes])
@@ -165,7 +165,7 @@ class AudioTranscriber:
         rms = self._calculate_rms(audio_np)
         return rms >= self.silence_threshold
 
-    async def _consume_frame(self, frame: bytes) -> Optional[Dict[str, Any]]:
+    async def _consume_frame(self, frame: bytes) -> Optional[dict[str, Any]]:
         is_voiced = self._is_voiced_frame(frame)
         self.metrics["frames_total"] += 1
         if is_voiced:
@@ -198,8 +198,6 @@ class AudioTranscriber:
             self.trailing_silence_frames += 1
 
         speech_ms = self.speech_frames * self.frame_duration_ms
-        trailing_silence_ms = self.trailing_silence_frames * self.frame_duration_ms
-
         should_flush_for_silence = self.trailing_silence_frames >= self.end_silence_frames
         should_flush_for_size = len(self.segment_buffer) >= self.max_segment_bytes
 
@@ -226,7 +224,7 @@ class AudioTranscriber:
 
         return None
 
-    async def _transcribe_segment(self, segment_bytes: bytes) -> Optional[Dict[str, Any]]:
+    async def _transcribe_segment(self, segment_bytes: bytes) -> Optional[dict[str, Any]]:
         if not segment_bytes:
             return None
 

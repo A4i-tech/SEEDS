@@ -16,7 +16,6 @@ from app.services.storage_manager import StorageManager
 from app.services.smartphone_connection_manager import SmartphoneConnectionManager
 from app.conf_logger import logger_instance
 from app.services.stream_system_messages import StreamSystemMessages
-# from services.vanilla_websocket_service import VanillaWebSocketService
 
 
 class ConferenceCall:
@@ -33,31 +32,26 @@ class ConferenceCall:
         self.connection_manager = connection_manager
         self.state = ConferenceCallState()
         self._system_message_streaming_service = StreamSystemMessages(conf_id=conf_id)
-        # self.websocket_service = VanillaWebSocketService(
-        #         on_disconnect_callback=self.__on_websocket_disconnect_callback,
-        #         audio_content_state=self.state.audio_content_state,
-        #         on_state_update=self.update_state
-        #     )
         
         self.event_queue = asyncio.Queue()
-        self.event_queue_processing_task: asyncio.Task = None
+        self.event_queue_processing_task: asyncio.Task | None = None
     
-    async def stream_system_message(self, message: SystemAudioMessages):
+    async def stream_system_message(self, message: SystemAudioMessages) -> None:
         if self.state.is_running and self.communication_api.get_is_websocket_connected():
             await self._system_message_streaming_service.stream_message(message)
     
-    async def queue_event(self, event: ConferenceEvent):
+    async def queue_event(self, event: ConferenceEvent) -> None:
         await self.event_queue.put(event)
     
-    def end_processing_conf_events_from_queue(self):
-        if self.event_queue_processing_task != None:
+    def end_processing_conf_events_from_queue(self) -> None:
+        if self.event_queue_processing_task is not None:
             self.event_queue_processing_task.cancel()
     
-    def start_processing_conf_events_from_queue(self):
+    def start_processing_conf_events_from_queue(self) -> None:
         self.end_processing_conf_events_from_queue()
         self.event_queue_processing_task = asyncio.create_task(self.__process_conf_events_queue())
     
-    def set_participant_state(self, teacher_phone: str, student_phones: List[str]):
+    def set_participant_state(self, teacher_phone: str, student_phones: List[str]) -> None:
         self.state.participants = {}
         teacher = Participant(
             name="Teacher",
@@ -79,8 +73,8 @@ class ConferenceCall:
             )
             self.state.participants[phone] = student
     
-    async def close_websocket(self):
-        if hasattr(self, '_websocket') and self._websocket:
+    async def close_websocket(self) -> None:
+        if hasattr(self, "_websocket") and self._websocket:
             try:
                 await self._websocket.close()
                 logger_instance.info(f"Closed WebSocket for conference {self.conf_id}")
@@ -89,11 +83,10 @@ class ConferenceCall:
             finally:
                 self._websocket = None
 
-    def set_websocket(self, websocket: WebSocket):
+    def set_websocket(self, websocket: WebSocket | None) -> None:
         self._websocket = websocket
-        # self.websocket_service.set_websocket(websocket)
 
-    async def start_conference(self):
+    async def start_conference(self) -> None:
         # Start the call via communication API
         await self.communication_api.start_conf(
             self.state.teacher_phone_number, 
@@ -126,18 +119,18 @@ class ConferenceCall:
             return await self.connection_manager.disconnect(client=teacher)
         raise ValueError("No teacher participant in conf call " + self.conf_id)
         
-    async def update_state(self):
+    async def update_state(self) -> None:
         # Save state to storage
         await self.storage_manager.save_state(self.conf_id, self.state.model_dump(by_alias=True))
         # Notify clients
         await self.connection_manager.send_message_to_client(client=self.state.get_teacher(),
                                                              message=self.state.model_dump(by_alias=True))
     
-    async def on_websocket_disconnect_callback(self):
+    async def on_websocket_disconnect_callback(self) -> None:
         await self.communication_api.reconnect_websocket()
     
     # Dequeue function: runs continuously to process tasks
-    async def __process_conf_events_queue(self, timeout: float = 3.0):
+    async def __process_conf_events_queue(self, timeout: float = 3.0) -> None:
         while True:
             event: ConferenceEvent = await self.event_queue.get()
             try:
