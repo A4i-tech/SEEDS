@@ -108,3 +108,11 @@ The code in this folder is for the **Conf Server**, a FastAPI application respon
 ---
 
 This documentation outlines the core components, interactions, and data flows within the Conference Call System. The system ensures seamless management of telephony-based conference calls with real-time updates and audio playback capabilities.
+
+## Local Setup Notes
+
+1. Copy `ConferenceV2/.env.example` to `ConferenceV2/.env`.
+2. Fill required credentials (`VONAGE_*`, `OPENAI_API_KEY`, storage variables for selected backend).
+3. Optional debug audio capture:
+   - Set `AUDIO_CAPTURE_ENABLED=true` to store raw inbound websocket audio.
+   - Set `AUDIO_CAPTURE_UPLOAD_TO_AZURE=true` and `AZURE_STORAGE_CONNECTION_STRING` to upload captures to `AUDIO_CAPTURE_CONTAINER`.

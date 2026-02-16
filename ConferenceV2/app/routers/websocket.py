@@ -4,11 +4,13 @@ import asyncio
 import json
 import os
 import traceback
+from datetime import datetime
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from typing import Optional
 from app.conf_logger import logger_instance
 
 from app.routers.conference import conference_manager
+from app.models.action_history import ActionHistory, ActionType
 from app.services.audio.capture import AudioCaptureSession
 from app.services.audio.transcriber import AudioTranscriber
 from app.services.audio.hold_detector import HoldDetector
@@ -29,6 +31,7 @@ async def get_hold_detector() -> HoldDetector:
 
 async def process_audio_message(
     audio_bytes: bytes,
+    conf,
     transcriber: AudioTranscriber,
     hold_detector: HoldDetector,
     conference_id: str,
@@ -64,6 +67,21 @@ async def process_audio_message(
             }
             logger_instance.info(f"AUDIO_ANALYSIS: {json.dumps(analysis_log)}")
 
+            # Persist hold detections for offline evaluation/debugging.
+            if os.getenv("AUDIO_ANALYSIS_DB_LOGGING_ENABLED", "false").lower() == "true":
+                if detect_result["is_hold"]:
+                    conf.state.action_history.append(
+                        ActionHistory(
+                            timestamp=datetime.utcnow().isoformat(),
+                            action_type=ActionType.SYSTEM_AUDIO_ANALYSIS,
+                            metadata=analysis_log,
+                            owner="system",
+                        )
+                    )
+                    await conf.storage_manager.save_state(
+                        conf.conf_id, conf.state.model_dump(by_alias=True)
+                    )
+
             if detect_result["is_hold"]:
                 logger_instance.warning(f"HOLD DETECTED | Score: {detect_result['score']:.2f} | Text: {text}")
     except Exception as e:
@@ -90,7 +108,14 @@ async def handle_incoming_message(
         if transcriber and hold_detector:
             # Fire and forget audio processing to avoid blocking the loop? 
             # Or await to ensure order? Order matters for transcription context.
-            await process_audio_message(msg["bytes"], transcriber, hold_detector, conference_id, capture_session)
+            await process_audio_message(
+                msg["bytes"],
+                conf,
+                transcriber,
+                hold_detector,
+                conference_id,
+                capture_session,
+            )
 
     # Handle text messages
     elif "text" in msg and msg["text"] is not None:
@@ -149,5 +174,9 @@ async def websocket_endpoint(websocket: WebSocket, conference_id: str):
             traceback.print_exc()
         finally:
             if capture_session:
-                capture_session.close()
+                uploaded_url = await capture_session.finalize()
+                if uploaded_url:
+                    logger_instance.info(
+                        f"Captured audio uploaded for {conference_id}: {uploaded_url}"
+                    )
             conf.set_websocket(None)

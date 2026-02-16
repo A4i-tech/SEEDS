@@ -25,9 +25,11 @@ class AudioTranscriber:
             logger.warning("OPENAI_API_KEY not found in environment variables.")
         self.client = AsyncOpenAI(api_key=api_key)
         self.buffer = bytearray()
+        self.silence_threshold = int(os.getenv("AUDIO_SILENCE_THRESHOLD", str(self.SILENCE_THRESHOLD)))
+        self.buffer_duration_sec = float(os.getenv("AUDIO_TRANSCRIBE_WINDOW_SEC", str(self.BUFFER_DURATION_SEC)))
         
         # Calculate buffer limit in bytes: rate * sample_width(2) * duration
-        self.buffer_limit_bytes = self.INPUT_RATE * 2 * self.BUFFER_DURATION_SEC 
+        self.buffer_limit_bytes = int(self.INPUT_RATE * 2 * self.buffer_duration_sec)
         # Keep memory bounded under bursty traffic while still preserving recent context.
         self.max_buffer_bytes = self.buffer_limit_bytes * self.MAX_PENDING_WINDOWS
         logger.debug(f"AudioTranscriber initialized ({self.INPUT_RATE}Hz -> {self.PROCESS_RATE}Hz).")
@@ -70,20 +72,17 @@ class AudioTranscriber:
             # --- VAD / Silence Detection ---
             rms = self._calculate_rms(audio_np)
             
-            if rms < self.SILENCE_THRESHOLD:
-                logger.debug(f"Silence detected (RMS: {rms:.2f} < {self.SILENCE_THRESHOLD}). Skipping transcription.")
+            if rms < self.silence_threshold:
+                logger.debug(f"Silence detected (RMS: {rms:.2f} < {self.silence_threshold}). Skipping transcription.")
                 self.buffer = bytearray()
                 return None
             # -------------------------------
             
             # Optimization: Convert to float32 for high-quality resampling
             audio_float = audio_np.astype(np.float32)
-            
-            # Calculate number of samples for 16kHz (2x 8kHz)
-            num_samples = int(len(audio_np) * (self.PROCESS_RATE / self.INPUT_RATE))
-            
-            # Resample to 16kHz using float precision (signal.resample uses FFT)
-            resampled_float = signal.resample(audio_float, num_samples)
+
+            # Resample to 16kHz using polyphase filtering for better stability/quality.
+            resampled_float = signal.resample_poly(audio_float, self.PROCESS_RATE, self.INPUT_RATE)
             
             # Convert back to int16 for WAV standard format
             resampled_np = resampled_float.astype(np.int16)
