@@ -1,10 +1,10 @@
 /* Teacher details pane */
 .teacher-details-pane {
   flex: 1;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 12px;
-  background: #fff;
+  border: 1px solid var(--reg-border, #d7deea);
+  border-radius: 12px;
+  padding: 14px;
+  background: #ffffff;
   max-height: 400px;
   overflow-y: auto;
   width: 100%;
@@ -21,8 +21,7 @@
 
 @media (min-width: 768px) {
   .teacher-details-pane {
-    border-radius: 10px;
-    max-height: 480px;
+    max-height: 500px;
   }
 
   .teacher-details-header {
@@ -35,21 +34,21 @@
 
 @media (min-width: 1024px) {
   .teacher-details-pane {
-    border-radius: 12px;
     max-height: 560px;
   }
 }
 
 .students-title {
   font-weight: 700;
+  color: var(--reg-text, #0f172a);
 }
 
 .teacher-info-text {
-  color: #64748b;
+  color: var(--reg-subtext, #64748b);
   font-size: 13px;
 }
 
 .placeholder-text {
-  color: #94a3b8;
+  color: var(--reg-subtext, #94a3b8);
   font-size: 14px;
 }

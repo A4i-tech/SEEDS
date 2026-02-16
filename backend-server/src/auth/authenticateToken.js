@@ -29,7 +29,11 @@ function authenticateToken(req, res, next) {
     req.user = user;
     req.userId = user.id;
     req.userRole = user.role || "tenant";
-    req.tenantId = user.tenantId || user.id;
+    if (req.userRole === "tenant") {
+      req.tenantId = user.id;
+    } else {
+      req.tenantId = user.tenantId;
+    }
     next();
   });
 }
