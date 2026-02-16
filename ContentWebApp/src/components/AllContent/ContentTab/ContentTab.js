@@ -28,7 +28,7 @@ const ContentTab = ({
   const navigate = useNavigate();
 
   return (
-    <div className="card">
+    <div className="card content-tab-card">
       <div className="card-header">
         <div>
           <div className="card-title">Audio Content Library</div>

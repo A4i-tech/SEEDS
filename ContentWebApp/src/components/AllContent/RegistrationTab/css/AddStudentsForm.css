@@ -1,6 +1,8 @@
 /* Add students section */
 .add-students-section {
   margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--reg-border, #d7deea);
 }
 
 .add-students-row {
@@ -21,15 +23,15 @@
 .add-students-input {
   flex: 1;
   padding: 10px 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--reg-border, #d7deea);
   border-radius: 8px;
   font-size: 14px;
 }
 
 .add-students-input:focus {
-  outline: 2px solid #2563eb;
+  outline: 2px solid #bfdbfe;
   outline-offset: 1px;
-  border-color: #2563eb;
+  border-color: var(--reg-accent, #2563eb);
 }
 
 .add-students-buttons {
