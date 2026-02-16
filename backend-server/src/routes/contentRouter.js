@@ -608,6 +608,40 @@ router.post(
   }),
 );
 
+router.patch(
+  "/",
+  tryCatchWrapper(async (req, res) => {
+    const isAudioUploaded = req.query.isAudioUploaded === "true";
+    const contentId = req.body?._id;
+
+    if (!contentId) {
+      return res.status(400).json({ error: "Content _id is required" });
+    }
+
+    const updatePayload = { ...req.body };
+    delete updatePayload._id;
+    delete updatePayload.tenantId;
+    delete updatePayload.creation_time;
+
+    // If a new audio file was uploaded, force re-processing in the background job.
+    if (isAudioUploaded) {
+      updatePayload.isProcessed = false;
+    }
+
+    const updated = await ContentV3.findOneAndUpdate(
+      { _id: contentId, tenantId: req.tenantId, isDeleted: { $ne: true } },
+      { $set: updatePayload },
+      { new: true },
+    ).exec();
+
+    if (!updated) {
+      return res.status(404).json({ error: "Content not found" });
+    }
+
+    return res.json(updated);
+  }),
+);
+
 // router.patch("/",tryCatchWrapper(async (req,res) => {
 //     const isAudioUploaded = req.query.isAudioUploaded === "true"
 //     if(!req.body.isPullModel){
