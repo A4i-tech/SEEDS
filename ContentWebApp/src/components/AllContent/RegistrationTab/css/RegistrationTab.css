@@ -1,17 +1,56 @@
 /* Registration layout */
 .registration-flex-card {
+  --reg-primary: #0f172a;
+  --reg-accent: #2563eb;
+  --reg-border: #d7deea;
+  --reg-panel: #f8fafc;
+  --reg-text: #0f172a;
+  --reg-subtext: #64748b;
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
+.registration-segmented-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--reg-border);
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.registration-segmented-btn {
+  border: none;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-weight: 600;
+  color: var(--reg-subtext);
+  background: transparent;
+  cursor: pointer;
+}
+
+.registration-segmented-btn.active {
+  background: var(--reg-primary);
+  color: #ffffff;
+}
+
+.registration-form-panel {
+  margin-top: 4px;
+}
+
 .teachers-section {
-  margin-top: 24px;
+  margin-top: 4px;
+}
+
+.creator-section {
+  margin-top: 4px;
 }
 
 .teachers-section-title {
   margin-bottom: 12px;
-  color: #0f172a;
+  color: var(--reg-text);
 }
 
 .teachers-layout {
@@ -21,8 +60,45 @@
 }
 
 .no-teachers {
-  padding: 12px;
-  color: #94a3b8;
+  padding: 14px;
+  color: var(--reg-subtext);
+  border: 1px dashed var(--reg-border);
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.registration-flex-card .primary-button,
+.registration-flex-card .secondary-button {
+  background-color: var(--reg-primary);
+}
+
+.registration-flex-card .action-ghost-button {
+  border-color: var(--reg-border);
+  color: var(--reg-text);
+}
+
+.registration-flex-card .input-field {
+  border-color: var(--reg-border);
+  border-radius: 12px;
+  background: #ffffff;
+  font-size: 15px;
+}
+
+.registration-flex-card .input-field:focus,
+.registration-flex-card .add-students-input:focus {
+  outline: 2px solid #bfdbfe;
+  border-color: var(--reg-accent);
+}
+
+.registration-flex-card .label {
+  color: var(--reg-subtext);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.registration-form-panel .registration-card {
+  width: 100%;
+  max-width: 100%;
 }
 
 @media (min-width: 768px) {

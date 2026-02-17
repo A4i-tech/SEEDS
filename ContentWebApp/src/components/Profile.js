@@ -11,7 +11,7 @@ import "./Profile.css";
 
 const Profile = () => {
   const navigate = useNavigate();
-  const { getAuthHeaders, logout, getCurrentUser } = useAuth();
+  const { getAuthHeaders, logout, getCurrentUserProfile } = useAuth();
 
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -24,6 +24,7 @@ const Profile = () => {
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
   const [currentUser, setCurrentUser] = useState("User");
+  const [currentUserRole, setCurrentUserRole] = useState("tenant");
 
   const handleTabChange = (tab) => {
     navigate("/content", { state: { activeTab: tab } });
@@ -55,16 +56,18 @@ const Profile = () => {
   useEffect(() => {
     const loadUser = async () => {
       try {
-        const name = await getCurrentUser();
-        setCurrentUser(name);
+        const profile = await getCurrentUserProfile();
+        setCurrentUser(profile?.name || profile?.tenantName || "User");
+        setCurrentUserRole(profile?.role || "tenant");
       } catch (error) {
         console.error("Error fetching user:", error);
         setCurrentUser("User");
+        setCurrentUserRole("tenant");
       }
     };
 
     loadUser();
-  }, [getCurrentUser]);
+  }, [getCurrentUserProfile]);
 
   useEffect(() => {
     fetchProfile();
@@ -136,6 +139,7 @@ const Profile = () => {
           activeTab="profile"
           onTabChange={handleTabChange}
           currentUser={currentUser}
+          currentUserRole={currentUserRole}
           onLogout={logout}
         />
 
@@ -179,7 +183,12 @@ const Profile = () => {
                   <p className="card-description">Update your account password</p>
                 </div>
               </div>
-              <form onSubmit={handlePasswordChange} className="profile-form">
+              {currentUserRole !== "tenant" ? (
+                <div className="profile-hint">
+                  Password changes are currently available for tenant accounts only.
+                </div>
+              ) : (
+                <form onSubmit={handlePasswordChange} className="profile-form">
                 <div className="profile-field">
                   <label className="profile-label" htmlFor="current-password">
                     Current Password
@@ -247,7 +256,8 @@ const Profile = () => {
                     {isChangingPassword ? "Updating..." : "Update Password"}
                   </button>
                 </div>
-              </form>
+                </form>
+              )}
             </div>
           </div>
         )}
