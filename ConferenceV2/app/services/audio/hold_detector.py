@@ -12,7 +12,8 @@ class HoldDetector:
 
     def __init__(self, threshold: float = 0.82):
         self.client = None
-        self.threshold = threshold
+        self.threshold = float(os.getenv("AUDIO_HOLD_SIMILARITY_THRESHOLD", str(threshold)))
+        self.min_chars = int(os.getenv("AUDIO_HOLD_MIN_TEXT_CHARS", "6"))
         # Similarity threshold:
         # > 0.82 usually indicates a strong match for short phrases with 'text-embedding-3-small'
         self.hold_phrases = [
@@ -24,6 +25,7 @@ class HoldDetector:
             "thank you for holding please stay on the line"
         ]
         self.hold_embeddings = [] 
+        self.rule_based_phrases = [self._normalize_text(p) for p in self.hold_phrases]
 
     @classmethod
     async def create(cls, threshold: float = 0.82):
@@ -37,8 +39,47 @@ class HoldDetector:
         logger.info("Initializing HoldDetector (AsyncOpenAI API)...")
         api_key = os.environ.get("OPENAI_API_KEY")
         if not api_key:
-            logger.warning("OPENAI_API_KEY not found. Hold detection will fail.")
+            logger.warning(
+                "OPENAI_API_KEY not found. Hold detection will run in rule-based mode."
+            )
+            self.client = None
+            return
         self.client = AsyncOpenAI(api_key=api_key)
+
+    @staticmethod
+    def _normalize_text(text: str) -> str:
+        return " ".join((text or "").strip().lower().split())
+
+    def _rule_based_detect(self, text: str) -> dict | None:
+        normalized = self._normalize_text(text)
+        if not normalized:
+            return None
+
+        for phrase in self.rule_based_phrases:
+            if phrase and phrase in normalized:
+                return {
+                    "is_hold": True,
+                    "score": 1.0,
+                    "matched_phrase": phrase,
+                    "threshold": float(self.threshold),
+                    "detection_method": "rule_based_exact_phrase",
+                }
+
+        keyword_patterns = (
+            ("on hold", "stay on the line"),
+            ("thank you for holding", "stay on the line"),
+            ("currently put your call on hold",),
+        )
+        for pattern in keyword_patterns:
+            if all(part in normalized for part in pattern):
+                return {
+                    "is_hold": True,
+                    "score": 0.95,
+                    "matched_phrase": " / ".join(pattern),
+                    "threshold": float(self.threshold),
+                    "detection_method": "rule_based_keywords",
+                }
+        return None
 
     async def _load_embeddings(self):
         """Loads embeddings for hold phrases once."""
@@ -79,13 +120,17 @@ class HoldDetector:
         Returns:
             dict: {"is_hold": bool, "score": float, "matched_phrase": str, "threshold": float, "detection_method": str}
         """
+        if not text or len(text.strip()) < self.min_chars:
+            return {"is_hold": False, "score": 0.0}
+
+        rule_based = self._rule_based_detect(text)
+        if rule_based:
+            return rule_based
+
         if not self.hold_embeddings:
             logger.warning("Hold embeddings not loaded. Attempting to load now.")
             await self._load_embeddings()
-        
-        if not text or len(text.strip()) < 3:
-            return {"is_hold": False, "score": 0.0}
-            
+
         text_embedding_list = await self._get_embeddings([text])
         if not text_embedding_list:
             return {"is_hold": False, "score": 0.0}

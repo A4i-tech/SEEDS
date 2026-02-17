@@ -9,6 +9,7 @@ from app.services.audio.capture import AudioCaptureSession
 
 def test_audio_capture_session_writes_chunks(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("AUDIO_CAPTURE_DIR", str(tmp_path))
+    monkeypatch.setenv("AUDIO_CAPTURE_FORMAT", "pcm")
 
     session = AudioCaptureSession("conf-123")
     try:

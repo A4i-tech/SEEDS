@@ -14,11 +14,18 @@ class ConferenceLogger:
         # Create a logger instance
         self.logger = logging.getLogger("ConferenceLogger")
         self.logger.setLevel(logging.DEBUG)  # Capture all log levels
+        self.logger.propagate = False
         
         # Version number to be included in logs
         self.version = version
         
         environment = os.getenv('ENVIRONMENT', 'production')
+        log_to_file = os.getenv("LOG_TO_FILE", "false").lower() == "true"
+        log_file_path = os.getenv("LOG_FILE_PATH", "runtime.log")
+
+        # Prevent duplicate handlers when module reloads.
+        if self.logger.handlers:
+            self.logger.handlers.clear()
         
         # Check if the app is running locally or in production
         if environment == 'production':
@@ -28,6 +35,9 @@ class ConferenceLogger:
         else:
             # Locally, print logs to both stdout and stderr
             self.add_console_handler()
+
+        if log_to_file:
+            self.add_file_handler(log_file_path)
 
     def add_app_insights_handler(self, connection_string):
         # Azure App Insights handler
@@ -46,6 +56,12 @@ class ConferenceLogger:
 
         self.logger.addHandler(stdout_handler)
         self.logger.addHandler(stderr_handler)
+
+    def add_file_handler(self, file_path: str):
+        # Optional file logging for local diagnostics
+        file_handler = logging.FileHandler(file_path)
+        file_handler.setLevel(logging.DEBUG)
+        self.logger.addHandler(file_handler)
 
     def _format_message(self, *args):
         # Prepend timestamp in IST and version number to each log
@@ -69,6 +85,9 @@ class ConferenceLogger:
 
     def critical(self, *args):
         self.logger.critical(self._format_message(*args))
+
+    def exception(self, *args):
+        self.logger.exception(self._format_message(*args))
 
 
 # Read the version from the version file or use "Unknown" if not found

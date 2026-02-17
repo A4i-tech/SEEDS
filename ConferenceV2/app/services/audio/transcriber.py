@@ -37,9 +37,16 @@ class AudioTranscriber:
     def __init__(self) -> None:
         logger.debug("Initializing AudioTranscriber (AsyncOpenAI API)...")
         api_key = os.environ.get("OPENAI_API_KEY")
-        if not api_key:
-            logger.warning("OPENAI_API_KEY not found in environment variables.")
-        self.client = AsyncOpenAI(api_key=api_key)
+        self.client: Optional[AsyncOpenAI] = None
+        self.analysis_enabled = os.getenv("AUDIO_ANALYSIS_ENABLED", "true").lower() == "true"
+        if self.analysis_enabled and api_key:
+            self.client = AsyncOpenAI(api_key=api_key)
+        elif self.analysis_enabled:
+            logger.warning(
+                "OPENAI_API_KEY not found in environment variables. Transcription calls are disabled."
+            )
+        else:
+            logger.info("AUDIO_ANALYSIS_ENABLED=false. Transcription calls are disabled.")
 
         self.silence_threshold = int(
             os.getenv("AUDIO_SILENCE_THRESHOLD", str(self.SILENCE_THRESHOLD))
@@ -226,6 +233,8 @@ class AudioTranscriber:
 
     async def _transcribe_segment(self, segment_bytes: bytes) -> Optional[dict[str, Any]]:
         if not segment_bytes:
+            return None
+        if not self.client:
             return None
 
         try:

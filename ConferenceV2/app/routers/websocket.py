@@ -3,7 +3,7 @@
 import asyncio
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from typing import Any, Optional
 from app.conf_logger import logger_instance
@@ -41,9 +41,6 @@ async def process_audio_message(
     Process audio chunk through transcriber and hold detector.
     """
     try:
-        if capture_session:
-            capture_session.write_chunk(audio_bytes)
-
         result = await transcriber.process_chunk(audio_bytes)
         
         if result:
@@ -86,7 +83,7 @@ async def persist_analysis_if_needed(
 
     conf.state.action_history.append(
         ActionHistory(
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             action_type=ActionType.SYSTEM_AUDIO_ANALYSIS,
             metadata=analysis_log,
             owner="system",
@@ -114,6 +111,12 @@ async def handle_incoming_message(
 
     # Handle binary (audio) messages
     if "bytes" in msg and msg["bytes"] is not None:
+        if capture_session:
+            try:
+                capture_session.write_chunk(msg["bytes"])
+            except Exception as e:
+                logger_instance.exception("Error capturing audio chunk: %s", e)
+
         if transcriber and hold_detector:
             # Fire and forget audio processing to avoid blocking the loop? 
             # Or await to ensure order? Order matters for transcription context.
@@ -144,14 +147,26 @@ async def websocket_endpoint(websocket: WebSocket, conference_id: str):
         transcriber: Optional[AudioTranscriber] = None
         hold_detector: Optional[HoldDetector] = None
         capture_session: Optional[AudioCaptureSession] = None
+        audio_analysis_enabled = (
+            os.getenv("AUDIO_ANALYSIS_ENABLED", "true").lower() == "true"
+        )
         
         try:
             transcriber = AudioTranscriber()
-            hold_detector = await get_hold_detector()
-            logger_instance.info(f"Audio Services Initialized for {conference_id}")
+            logger_instance.info(f"Audio transcriber initialized for {conference_id}")
         except Exception as e:
-            logger_instance.error(f"Failed to initialize Audio Services: {e}")
-            # Continue without ML services
+            logger_instance.error(f"Failed to initialize AudioTranscriber: {e}")
+
+        if audio_analysis_enabled:
+            try:
+                hold_detector = await get_hold_detector()
+                logger_instance.info(f"Hold detector initialized for {conference_id}")
+            except Exception as e:
+                logger_instance.error(f"Failed to initialize HoldDetector: {e}")
+        else:
+            logger_instance.info(
+                f"AUDIO_ANALYSIS_ENABLED=false; skipping hold detector init for {conference_id}"
+            )
 
         if os.getenv("AUDIO_CAPTURE_ENABLED", "false").lower() == "true":
             try:
