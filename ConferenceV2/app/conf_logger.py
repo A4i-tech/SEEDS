@@ -96,6 +96,9 @@ class ConferenceLogger:
     def exception(self, *args, **kwargs):
         self.logger.exception(self._format_message(*args), **kwargs)
 
+    def exception(self, *args):
+        self.logger.exception(self._format_message(*args))
+
 
 # Read the version from the version file or use "Unknown" if not found
 version_file = Path("version.txt")
