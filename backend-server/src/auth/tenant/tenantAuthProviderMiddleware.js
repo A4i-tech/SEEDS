@@ -48,14 +48,11 @@ module.exports = {
         id: tenant._id || tenant.id,
         email: tenant.email,
         name: tenant.tenantName,
-        tenantId: tenant._id || tenant.id,
-        role: "tenant",
       });
       return res.status(STATUS.OK).json({
         token,
         id: tenant._id || tenant.id,
         tenantName: tenant.tenantName,
-        role: "tenant",
       });
     } catch (error) {
       console.error("Login error:", error);

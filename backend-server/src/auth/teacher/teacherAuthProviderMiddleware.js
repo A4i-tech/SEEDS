@@ -39,8 +39,6 @@ module.exports = {
         id: teacher._id || teacher.id,
         phoneNumber: teacher.phoneNumber,
         name: teacher.name,
-        tenantId: teacher.tenantId,
-        role: "teacher",
       });
       return res.status(STATUS.OK).json({ token, phoneNumber });
     } catch (error) {

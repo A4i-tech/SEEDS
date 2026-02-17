@@ -162,7 +162,12 @@ const Register = () => {
     event.preventDefault();
     setError("");
 
-    if (!formData.tenantName || !formData.email || !formData.password || !formData.confirmPassword) {
+    if (
+      !formData.email ||
+      !formData.password ||
+      !formData.tenantName ||
+      !formData.confirmPassword
+    ) {
       setError("All fields are required.");
       return;
     }
@@ -195,12 +200,7 @@ const Register = () => {
       }
     } catch (err) {
       console.error("Registration error:", err);
-      const responseData = err?.response?.data;
-      const message =
-        (typeof responseData === "string" && responseData) ||
-        responseData?.message ||
-        err?.message;
-      setError(message || "Failed to register. Please try again.");
+      setError("Failed to register. Please try again.");
     } finally {
       setIsSubmitting(false);
     }

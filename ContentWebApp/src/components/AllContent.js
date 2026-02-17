@@ -4,7 +4,6 @@ import { useAuth } from "../hooks/useAuth";
 import { useContent } from "../hooks/useContent";
 import { useContentFilters } from "../hooks/useContentFilters";
 import { useTeachers } from "../hooks/useTeachers";
-import { useContentCreators } from "../hooks/useContentCreators";
 import { ivrService } from "../services/ivrService";
 import AppHeader from "./AllContent/Header/AppHeader";
 import ContentTab from "./AllContent/ContentTab/ContentTab";
@@ -19,10 +18,9 @@ const AllContent = () => {
   const [updateIVRStatus, setUpdateIVRStatus] = useState("");
   const [isUpdatingIVR, setIsUpdatingIVR] = useState(false);
   const [currentUser, setCurrentUser] = useState("User");
-  const [currentUserRole, setCurrentUserRole] = useState("tenant");
 
   const navigate = useNavigate();
-  const { getAuthHeaders, logout, getCurrentUserProfile } = useAuth();
+  const { getAuthHeaders, logout, getCurrentUser } = useAuth();
   const {
     content,
     allContent,
@@ -56,11 +54,6 @@ const AllContent = () => {
     submitNewStudents,
     removeStudent,
   } = useTeachers(activeTab);
-  const {
-    contentCreators,
-    registerContentCreator,
-    creatorMessage,
-  } = useContentCreators(activeTab);
 
   const ivrURL = process.env.REACT_APP_API_IVRV2_URL;
 
@@ -70,24 +63,15 @@ const AllContent = () => {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const userProfile = await getCurrentUserProfile();
-        const userName = userProfile?.name || userProfile?.tenantName || "User";
+        const userName = await getCurrentUser();
         setCurrentUser(userName);
-        setCurrentUserRole(userProfile?.role || "tenant");
       } catch (error) {
         console.error("Error fetching user:", error);
         setCurrentUser("User");
-        setCurrentUserRole("tenant");
       }
     };
     fetchUser();
-  }, [getCurrentUserProfile]);
-
-  useEffect(() => {
-    if (currentUserRole === "content_creator" && ["registration", "analytics"].includes(activeTab)) {
-      setActiveTab("content");
-    }
-  }, [currentUserRole, activeTab]);
+  }, [getCurrentUser]);
 
   /**
    * Handle IVR update
@@ -135,7 +119,6 @@ const AllContent = () => {
           activeTab={activeTab}
           onTabChange={setActiveTab}
           currentUser={currentUser}
-          currentUserRole={currentUserRole}
           onLogout={logout}
         />
 
@@ -183,9 +166,9 @@ const AllContent = () => {
 
         {activeTab === "ivr" && <IVRTab />}
 
-        {activeTab === "analytics" && currentUserRole === "tenant" && <AnalyticsTab />}
+        {activeTab === "analytics" && <AnalyticsTab />}
 
-        {activeTab === "registration" && currentUserRole === "tenant" && (
+        {activeTab === "registration" && (
           <RegistrationTab
             teachers={teachers}
             selectedTeacher={selectedTeacher}
@@ -198,9 +181,6 @@ const AllContent = () => {
             onSetNewStudentValue={setNewStudentValue}
             onSubmitNewStudents={submitNewStudents}
             onRemoveStudent={removeStudent}
-            contentCreators={contentCreators}
-            onRegisterContentCreator={registerContentCreator}
-            creatorMessage={creatorMessage}
           />
         )}
       </div>
