@@ -1,10 +1,9 @@
 .tabs-container {
   display: flex;
-  gap: 8px;
-  background-color: #ffffff;
-  border: 1px solid #d7deea;
+  gap: 6px;
+  background-color: #e2e8f0;
   border-radius: 999px;
-  padding: 6px;
+  padding: 4px;
   align-self: stretch;
   flex-wrap: wrap;
   width: 100%;
@@ -13,127 +12,55 @@
 .tab-button {
   border: none;
   border-radius: 999px;
-  padding: 9px 16px;
+  padding: 8px 16px;
   font-size: 13px;
   font-weight: 600;
   background-color: transparent;
-  color: #64748b;
+  color: #475569;
   cursor: pointer;
   flex: 1 1 auto;
   min-width: fit-content;
   white-space: nowrap;
-  transition:
-    background-color 0.2s ease,
-    color 0.2s ease;
 }
 
 .tab-button.active {
-  background-color: #0f172a;
-  color: #ffffff;
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.18);
-  cursor: default;
-}
-
-/* Content tab styling consistency */
-.content-tab-card {
-  border: 1px solid #d7deea;
-  background: #ffffff;
-}
-
-.content-tab-card .card-header {
-  border-bottom: 1px solid #d7deea;
-  padding-bottom: 14px;
-  margin-bottom: 6px;
-}
-
-.content-tab-card .card-title {
-  letter-spacing: -0.01em;
-}
-
-.content-tab-card .button-group {
-  gap: 10px;
-}
-
-.content-tab-card .button-group .primary-button {
-  background-color: #0f172a;
-}
-
-.content-tab-card .button-group .button-add-content {
-  background-color: #059669;
-}
-
-.content-tab-card .filter-wrapper {
-  border-color: #d7deea;
-  background: #f8fafc;
-}
-
-.content-tab-card .filter-label {
+  background-color: #ffffff;
   color: #0f172a;
-  font-size: 16px;
-  font-weight: 700;
-  text-align: center;
-  margin-bottom: 10px;
-}
-
-.content-tab-card .table-wrapper {
-  border-color: #d7deea;
-  background: #ffffff;
-}
-
-.content-tab-card .no-content {
-  min-height: 96px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  font-weight: 600;
-  color: #64748b;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+  cursor: default;
 }
 
 @media (min-width: 768px) {
   .tabs-container {
-    gap: 8px;
-    padding: 6px;
+    gap: 6px;
+    padding: 5px;
     align-self: flex-start;
     width: auto;
   }
 
   .tab-button {
-    padding: 10px 24px;
-    font-size: 14px;
+    padding: 9px 20px;
+    font-size: 13px;
     flex: 0 1 auto;
   }
 
   .tab-button.active {
-    box-shadow: 0 10px 20px rgba(15, 23, 42, 0.2);
-  }
-
-  .content-tab-card .card-header {
-    padding-bottom: 16px;
-    margin-bottom: 10px;
-  }
-
-  .content-tab-card .filter-label {
-    font-size: 17px;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.07);
   }
 }
 
 @media (min-width: 1024px) {
   .tabs-container {
-    gap: 10px;
-    padding: 7px;
+    gap: 8px;
+    padding: 6px;
   }
 
   .tab-button {
-    padding: 11px 30px;
-    font-size: 15px;
+    padding: 10px 24px;
+    font-size: 14px;
   }
 
   .tab-button.active {
-    box-shadow: 0 12px 26px rgba(15, 23, 42, 0.22);
-  }
-
-  .content-tab-card .filter-label {
-    font-size: 18px;
+    box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
   }
 }

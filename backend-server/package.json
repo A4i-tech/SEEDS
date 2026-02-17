@@ -7,8 +7,6 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "lint": "npx eslint src/",
-    "migrate:content-tenantid:dry": "node scripts/backfillContentTenantId.js",
-    "migrate:content-tenantid:apply": "node scripts/backfillContentTenantId.js --apply",
     "lint:fix": "npx eslint src/ --fix && npx prettier src/ --write",
     "fix:file": "npx eslint --fix && npx prettier --write"
   },

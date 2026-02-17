@@ -1,16 +1,14 @@
-import { useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useCallback, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { SEEDS_URL } from "../Constants";
 import { getAuthHeaders, isAuthenticated, clearAuth } from "../utils/authHelpers";
 import { apiFetch } from "../services/api";
 
 let cachedTenantName = null;
-let cachedUserProfile = null;
 let cachedUserPromise = null;
 
 const resetUserCache = () => {
   cachedTenantName = null;
-  cachedUserProfile = null;
   cachedUserPromise = null;
 };
 
@@ -51,8 +49,7 @@ export const useAuth = () => {
     })
       .then((req) => {
         console.log("Current User Info:", req);
-        cachedUserProfile = req;
-        cachedTenantName = req.name || req.tenantName || "User";
+        cachedTenantName = req.tenantName || "User";
         cachedUserPromise = null;
         return cachedTenantName;
       })
@@ -64,19 +61,10 @@ export const useAuth = () => {
     return cachedUserPromise;
   }, []);
 
-  const getCurrentUserProfile = useCallback(async () => {
-    if (cachedUserProfile) {
-      return cachedUserProfile;
-    }
-    await getCurrentUser();
-    return cachedUserProfile;
-  }, [getCurrentUser]);
-
   return {
     getAuthHeaders: getHeaders,
     logout,
     getCurrentUser,
-    getCurrentUserProfile,
     isAuthenticated: isAuthenticated(),
   };
 };

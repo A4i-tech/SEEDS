@@ -96,7 +96,7 @@ router.get("/teachers", authenticateToken, async (req, res) => {
   if (!tenantId) return res.sendStatus(STATUS.BAD_REQUEST);
   console.log("Fetching teachers for tenantId:", tenantId);
   try {
-    const teachers = await Teacher.find({ tenantId }, "_id name phoneNumber studentId").lean();
+    const teachers = await Teacher.find({ tenantId }, "_id phoneNumber studentId").lean();
 
     if (!teachers || teachers.length === 0) return res.json([]);
 

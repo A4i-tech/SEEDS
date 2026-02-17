@@ -8,7 +8,6 @@ import "../shared/utilities.css";
 
 const TeacherDetails = ({
   teacher,
-  selectedEntryRole,
   onAddStudentRow,
   onRemoveStudentRow,
   onSetNewStudentValue,
@@ -18,11 +17,7 @@ const TeacherDetails = ({
   if (!teacher) {
     return (
       <div className="teacher-details-pane">
-        <div className="placeholder-text">
-          {selectedEntryRole === "content_creator"
-            ? "Content creators do not have student management."
-            : "Select a teacher to view details."}
-        </div>
+        <div className="placeholder-text">Select a teacher to view details.</div>
       </div>
     );
   }

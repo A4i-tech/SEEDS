@@ -18,7 +18,11 @@ const fetch = (...args) =>
 
 // Project modules
 const Content = require("../models/Content.js");
-const { ContentV3 } = require("../models/ContentV3.js");
+const {
+  ContentV3,
+  getContent,
+  getContentById,
+} = require("../models/ContentV3.js");
 const QuizCreateRequest = require("../models/QuizCreateRequest.js");
 const { QuizData, fromQuizCreateRequest } = require("../models/QuizData.js");
 const BlobService = require("../services/BlobService.js");
@@ -278,15 +282,10 @@ router.get(
 router.get(
   "/themes",
   tryCatchWrapper(async (req, res) => {
-    const tenantId = req.tenantId;
-    if (!tenantId) {
-      return res.status(400).json({ error: "tenantId not found in token" });
-    }
     const language = req.query.language;
     const content = await ContentV3.find({
       language: language,
       isPullModel: true,
-      tenantId,
     }).sort({ _id: -1 });
     const themeSet = new Set();
     const themes = [];
@@ -382,11 +381,6 @@ router.get(
 router.get(
   "/",
   tryCatchWrapper(async (req, res) => {
-    const tenantId = req.tenantId;
-    if (!tenantId) {
-      return res.status(400).json({ error: "tenantId not found in token" });
-    }
-
     const limit = parseInt(req.query.limit) || 15;
     const cursor = req.query.cursor;
 
@@ -396,14 +390,14 @@ router.get(
         ? req.query.ids
         : req.query.ids.split(",");
       const contents = await ContentV3.collection
-        .find({ _id: { $in: idsArray }, isDeleted: { $ne: true }, tenantId })
+        .find({ _id: { $in: idsArray }, isDeleted: { $ne: true } })
         .sort({ creation_time: -1 })
         .toArray();
       return res.json(contents);
     }
 
     // Base query always excludes deleted content
-    let query = { isDeleted: { $ne: true }, tenantId };
+    let query = { isDeleted: { $ne: true } };
 
     if (req.query.onlyTeacherApp) {
       query.isTeacherApp = true;
@@ -515,11 +509,7 @@ router.get(
 router.get(
   "/:contentId",
   tryCatchWrapper(async (req, res) => {
-    const content = await ContentV3.findOne({
-      _id: req.params.contentId,
-      tenantId: req.tenantId,
-      isDeleted: { $ne: true },
-    }).exec();
+    const content = await getContentById(req.params.contentId);
     if (!content) {
       return res.status(404).json({ error: "Content not found" });
     }
@@ -572,12 +562,9 @@ router.delete(
   "/:contentId",
   tryCatchWrapper(async (req, res) => {
     const result = await ContentV3.updateOne(
-      { _id: req.params.contentId, tenantId: req.tenantId },
+      { _id: req.params.contentId },
       { $set: { isDeleted: true } },
     );
-    if (!result.matchedCount) {
-      return res.status(404).json({ error: "Content not found" });
-    }
     return res.json(result);
   }),
 );
@@ -587,7 +574,6 @@ router.post(
   tryCatchWrapper(async (req, res) => {
     let content = new ContentV3(req.body);
     content.creation_time = Math.floor(Date.now() / 1000);
-    content.tenantId = req.tenantId;
 
     // Validate audioContent entries to ensure uploaded audio URLs reference .mp3 files.
     for (const item of content.audioContent || []) {
@@ -605,40 +591,6 @@ router.post(
       message: "Processing New Content job scheduled!",
       jobId: job.attrs._id,
     });
-  }),
-);
-
-router.patch(
-  "/",
-  tryCatchWrapper(async (req, res) => {
-    const isAudioUploaded = req.query.isAudioUploaded === "true";
-    const contentId = req.body?._id;
-
-    if (!contentId) {
-      return res.status(400).json({ error: "Content _id is required" });
-    }
-
-    const updatePayload = { ...req.body };
-    delete updatePayload._id;
-    delete updatePayload.tenantId;
-    delete updatePayload.creation_time;
-
-    // If a new audio file was uploaded, force re-processing in the background job.
-    if (isAudioUploaded) {
-      updatePayload.isProcessed = false;
-    }
-
-    const updated = await ContentV3.findOneAndUpdate(
-      { _id: contentId, tenantId: req.tenantId, isDeleted: { $ne: true } },
-      { $set: updatePayload },
-      { new: true },
-    ).exec();
-
-    if (!updated) {
-      return res.status(404).json({ error: "Content not found" });
-    }
-
-    return res.json(updated);
   }),
 );
 

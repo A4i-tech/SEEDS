@@ -1,155 +1,36 @@
 /* Teacher registration card */
 .registration-card {
-  margin-top: 0;
-  padding: 14px;
-  border: 1px solid var(--reg-border, #dbe2ef);
-  border-radius: 12px;
-  background: #ffffff;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 @media (min-width: 768px) {
   .registration-card {
+    border-radius: 10px;
+    padding: 14px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .registration-card {
+    border-radius: 12px;
     padding: 16px;
   }
 }
 
 .registration-title {
-  margin: 0;
-  color: var(--reg-text, #0f172a);
-  font-size: 18px;
-  letter-spacing: -0.01em;
-}
-
-.registration-title-with-icon {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.registration-title-icon {
-  width: 18px;
-  height: 18px;
-  color: var(--reg-accent, #2563eb);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: #dbeafe;
-  padding: 5px;
-  box-sizing: content-box;
-}
-
-.registration-title-icon svg {
-  width: 100%;
-  height: 100%;
-  fill: currentColor;
-}
-
-.registration-input-wrap {
-  position: relative;
-}
-
-.registration-input-icon {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 16px;
-  height: 16px;
-  color: #94a3b8;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-}
-
-.registration-input-icon svg {
-  width: 100%;
-  height: 100%;
-  fill: currentColor;
-}
-
-.registration-input-with-icon {
-  padding-left: 42px !important;
-  height: 44px;
-}
-
-.registration-card-modern .registration-fields-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 8px 12px;
-}
-
-.registration-card-modern .registration-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.registration-card-modern .registration-field-full {
-  grid-column: 1 / -1;
-}
-
-.registration-header-block {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  align-items: flex-start;
-}
-
-.registration-subtitle {
-  margin: 0;
-  color: var(--reg-subtext, #64748b);
-  font-size: 12px;
-  text-align: left;
-}
-
-.registration-hint {
-  margin: -2px 0 0;
-  color: #94a3b8;
-  font-size: 11px;
-  text-align: left;
-}
-
-.registration-cta-row {
-  padding-top: 4px;
+  margin: 0 0 4px;
+  color: #0f172a;
 }
 
 .success-message {
   color: #16a34a;
   font-size: 14px;
   margin: 8px 0 0;
-}
-
-.error-message {
-  color: #dc2626;
-  font-size: 14px;
-  margin: 8px 0 0;
-}
-
-.registration-select {
-  height: 44px;
-  padding: 0 12px;
-  appearance: none;
-  background-image:
-    linear-gradient(45deg, transparent 50%, #64748b 50%),
-    linear-gradient(135deg, #64748b 50%, transparent 50%);
-  background-position:
-    calc(100% - 18px) calc(50% - 3px),
-    calc(100% - 12px) calc(50% - 3px);
-  background-size: 6px 6px, 6px 6px;
-  background-repeat: no-repeat;
-}
-
-@media (min-width: 900px) {
-  .registration-card-modern .registration-fields-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .registration-card-modern .registration-field-full {
-    grid-column: 1 / -1;
-  }
 }
