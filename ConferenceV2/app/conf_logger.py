@@ -31,7 +31,9 @@ class ConferenceLogger:
         if environment == 'production':
             # In production, send logs to Azure App Insights
             app_insights_conn_str = os.getenv('APPLICATIONINSIGHTS_CONNECTION_STRING')
-            self.add_app_insights_handler(app_insights_conn_str)
+            if self.add_app_insights_handler(app_insights_conn_str) is False:
+                # Fall back to console logging when App Insights config is unavailable/invalid.
+                self.add_console_handler()
         else:
             # Locally, print logs to both stdout and stderr
             self.add_console_handler()
@@ -40,10 +42,30 @@ class ConferenceLogger:
             self.add_file_handler(log_file_path)
 
     def add_app_insights_handler(self, connection_string):
+        if not self._has_valid_app_insights_connection_string(connection_string):
+            return False
+
         # Azure App Insights handler
-        azure_handler = AzureLogHandler(connection_string=connection_string)
-        azure_handler.setLevel(logging.DEBUG)  # Set log level for production
-        self.logger.addHandler(azure_handler)
+        try:
+            azure_handler = AzureLogHandler(connection_string=connection_string)
+            azure_handler.setLevel(logging.DEBUG)  # Set log level for production
+            self.logger.addHandler(azure_handler)
+            return True
+        except (ValueError, TypeError):
+            return False
+
+    def _has_valid_app_insights_connection_string(self, connection_string):
+        if not connection_string or not connection_string.strip():
+            return False
+
+        parts = {}
+        for item in connection_string.split(";"):
+            if "=" not in item:
+                continue
+            key, value = item.split("=", 1)
+            parts[key.strip().lower()] = value.strip()
+
+        return bool(parts.get("instrumentationkey"))
 
     def add_console_handler(self):
         # Handler to log to stdout (normal log output)
