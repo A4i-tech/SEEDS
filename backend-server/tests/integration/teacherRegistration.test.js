@@ -1,12 +1,13 @@
 jest.mock("jsonwebtoken", () => ({
-  sign: (payload) => `mock-${payload.id || ""}`,
+  sign: (payload) => `mock-${Buffer.from(JSON.stringify(payload)).toString("base64url")}`,
   verify: (token, _secret, callback) => {
     if (typeof _secret === "function") {
       callback = _secret;
     }
     if (token && String(token).startsWith("mock-")) {
-      const id = String(token).slice(5);
-      return callback(null, { id });
+      const encodedPayload = String(token).slice(5);
+      const payload = JSON.parse(Buffer.from(encodedPayload, "base64url").toString("utf8"));
+      return callback(null, payload);
     }
     return callback(new Error("invalid token"));
   },
@@ -35,7 +36,7 @@ async function createTenantAndToken() {
     password: "hashedplaceholder",
     tenantName: TEST_TENANT_NAME,
   });
-  const token = jwt.sign({ id: tenant._id.toString() });
+  const token = jwt.sign({ id: tenant._id.toString(), role: "tenant" });
   return { tenant, token };
 }
 

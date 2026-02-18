@@ -25,9 +25,13 @@ function authenticateToken(req, res, next) {
   if (!token) return res.sendStatus(STATUS.UNAUTHORIZED);
 
   jwt.verify(token, secretKey, (err, user) => {
+    if (err?.name === "TokenExpiredError") {
+      return res.status(STATUS.UNAUTHORIZED).json({ message: "Token expired" });
+    }
     if (err) return res.sendStatus(STATUS.FORBIDDEN);
     req.user = user;
     req.userId = user.id;
+    req.userRole = user.role;
     next();
   });
 }
