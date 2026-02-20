@@ -67,6 +67,28 @@ describe("apiService", () => {
       await apiService.endConferenceCall(confId);
       expectFetchCall(`${baseUrl}/conference/end/${confId}`, "PUT");
     });
+    
+    test("endConferenceCall throws on timeout (AbortError)", async () => {
+      const abortErr = new Error("Aborted");
+      abortErr.name = "AbortError";
+      fetch.mockRejectedValueOnce(abortErr);
+      await expect(apiService.endConferenceCall(confId)).rejects.toThrow(
+        "End conference timed out. Please try again."
+      );
+    });
+
+    test("endConferenceCall throws when response.ok is false", async () => {
+      fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: "Internal Server Error",
+        json: jest.fn().mockResolvedValueOnce({}),
+        text: jest.fn().mockResolvedValueOnce("Error"),
+      });
+      await expect(apiService.endConferenceCall(confId)).rejects.toThrow(
+        "Failed to end conference: 500 Internal Server Error"
+      );
+    });
 
     test("sinks conference call", async () => {
       fetch.mockResolvedValueOnce(mockEmptyResponse());

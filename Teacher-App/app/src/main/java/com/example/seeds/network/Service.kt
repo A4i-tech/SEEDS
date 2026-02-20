@@ -158,14 +158,6 @@ fun provideService(@ApplicationContext context: Context): SeedsService {
 
     val httpClientBuilder = OkHttpClient.Builder().apply {
 
-        addInterceptor { chain ->
-            val request = chain.request()
-            if (request.url().encodedPath().endsWith("conference/create")) {
-                chain.call().timeout().timeout(CONFERENCE_CREATE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-            }
-            chain.proceed(request)
-        }
-
         if (BuildConfig.DEBUG) {
             val loggingInterceptor = HttpLoggingInterceptor()
             loggingInterceptor.setLevel(HttpLoggingInterceptor.Level.BODY)
