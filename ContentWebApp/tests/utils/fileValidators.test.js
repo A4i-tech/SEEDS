@@ -6,9 +6,9 @@ describe("isMp3File", () => {
     expect(isMp3File(mockFile)).toBe(true);
   });
 
-  test("returns true for audio/mpeg MIME type even without .mp3 extension", () => {
+  test("returns false for audio/mpeg MIME type without .mp3 extension", () => {
     const mockFile = { name: "audio.unknown", type: "audio/mpeg" };
-    expect(isMp3File(mockFile)).toBe(true);
+    expect(isMp3File(mockFile)).toBe(false);
   });
 
   test("returns false for non-mp3 extension and non-mpeg MIME type", () => {
