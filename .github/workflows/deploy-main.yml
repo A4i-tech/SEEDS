@@ -31,6 +31,7 @@ jobs:
                       needs_build_args: true
                       build_arg_api_url: CONTENT_WEBAPP_REACT_APP_API_BASE_URL
                       build_arg_ivr_api_url: CONTENT_WEBAPP_REACT_APP_API_IVRV2_URL
+                      build_arg_google_site_verification: CONTENT_WEBAPP_REACT_APP_GOOGLE_SITE_VERIFICATION
 
                     - name: teacher-webapp-service
                       context: teacher-webapp
@@ -41,7 +42,6 @@ jobs:
                       build_arg_conf_uri: TEACHER_WEBAPP_CONF_SERVER_BASE_URI
                       build_arg_storage: TEACHER_WEBAPP_STORAGE_ACCOUNT_NAME
                       build_arg_api_url: TEACHER_WEBAPP_API_BASE_URL
-                      build_arg_google_site_verification: TEACHER_WEBAPP_GOOGLE_SITE_VERIFICATION
 
                     - name: conference-v2-service
                       context: ConferenceV2
