@@ -39,6 +39,21 @@
     "prettier": "^3.7.4",
     "web-vitals": "^2.1.4"
   },
+  "jest": {
+    "coverageDirectory": "coverage",
+    "coverageReporters": [
+      "json-summary",
+      "text",
+      "lcov",
+      "html"
+    ]
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
   "browserslist": {
     "production": [
       ">0.2%",

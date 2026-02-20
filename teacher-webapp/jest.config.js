@@ -9,4 +9,6 @@ module.exports = {
   moduleNameMapper: {
     "\\.(css|less|scss|sass)$": "<rootDir>/tests/styleMock.js",
   },
+  coverageDirectory: "coverage",
+  coverageReporters: ["json-summary", "text", "lcov", "html"],
 };
