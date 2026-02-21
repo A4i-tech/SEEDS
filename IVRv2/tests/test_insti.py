@@ -42,6 +42,9 @@ class DummyMongoDBCollection:
             }
         ]
 
+    async def query_items(self, query):
+        return await self.find_all()
+
 
 # Patch fsm.print_states and open to avoid side effects
 def dummy_print_states(self):
