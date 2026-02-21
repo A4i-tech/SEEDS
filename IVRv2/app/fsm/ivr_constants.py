@@ -14,7 +14,10 @@ headers = {
 languageDialogUrls = {
   'english':'languageDialog/english/For%20English/{speechRate}.mp3',
   'kannada':'languageDialog/kannada/For%20Kannada/{speechRate}.mp3',
-  'bengali':'languageDialog/bengali/For%20Bengali/{speechRate}.mp3'
+  'bengali':'languageDialog/bengali/For%20Bengali/{speechRate}.mp3',
+  'hindi':'languageDialog/hindi/For%20Hindi/{speechRate}.mp3',
+  'tamil':'languageDialog/tamil/For%20Tamil/{speechRate}.mp3',
+  'odia':'languageDialog/odia/For%20Odia/{speechRate}.mp3',
 }
 
 speechRate = "1.0"
