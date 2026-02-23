@@ -111,7 +111,7 @@ async function processNewContent(job) {
         );
       } catch (err) {
         console.error(`Failed to process audio content item ${ip_url}:`, err);
-        continue;
+        throw err;
       }
     }
 

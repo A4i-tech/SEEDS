@@ -574,7 +574,7 @@ router.post(
   tryCatchWrapper(async (req, res) => {
     let content = new ContentV3(req.body);
     content.creation_time = Math.floor(Date.now() / 1000);
-    console.log(content.audioContent);
+
     // Validate audioContent entries to ensure uploaded audio URLs reference .mp3 files.
     for (const item of content.audioContent || []) {
       if (item.audioUrl && !item.audioUrl.toLowerCase().endsWith(".mp3")) {
