@@ -1,34 +1,11 @@
 import { API_ENDPOINTS } from "../constants/apiEndpoints";
 import { APP_CONFIG } from "../config/appConfig";
-
-/** Timeout for conference/create request (ms)*/
-const CONFERENCE_CREATE_TIMEOUT_MS = 5000;
-/** Timeout for conference/end request (ms)*/
-const CONFERENCE_END_TIMEOUT_MS = 5000;
+import axiosInstance from "./axiosInstance";
 
 /**
- * Fetches with a timeout; aborts the request and throws with timeoutMessage on AbortError.
- * @param {string} url
- * @param {RequestInit} options
- * @param {number} timeoutMs
- * @param {string} timeoutMessage
- * @returns {Promise<Response>}
+ * All network requests use the centralized axios instance with
+ * network-layer timeout (5 seconds) configured in axiosInstance.js
  */
-async function fetchWithTimeout(url, options, timeoutMs, timeoutMessage) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(url, { ...options, signal: controller.signal });
-    return response;
-  } catch (err) {
-    if (err.name === "AbortError") {
-      throw new Error(timeoutMessage);
-    }
-    throw err;
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}
 
 export const createConference = async (teacherPhone, studentPhones) => {
   const requestBody = {
@@ -42,122 +19,88 @@ export const createConference = async (teacherPhone, studentPhones) => {
     student_count: studentPhones.length,
   });
 
-  const response = await fetchWithTimeout(
-    API_ENDPOINTS.CONFERENCE.CREATE,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(requestBody),
-    },
-    CONFERENCE_CREATE_TIMEOUT_MS,
-    "Conference start timed out. Please try again."
-  );
-
-  if (!response.ok) {
-    const errorText = await response.text();
+  try {
+    const response = await axiosInstance.post(API_ENDPOINTS.CONFERENCE.CREATE, requestBody);
+    console.log("Conference created successfully:", response.data);
+    return response.data;
+  } catch (error) {
     console.error("Conference creation failed:", {
-      status: response.status,
-      statusText: response.statusText,
-      error: errorText,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      error: error.response?.data || error.message,
     });
-    throw new Error(`Failed to create conference: ${response.status} ${response.statusText}`);
-  }
 
-  const data = await response.json();
-  console.log("Conference created successfully:", data);
-  return data;
+    if (error.message === "Request timed out. Please try again.") {
+      throw new Error("Conference start timed out. Please try again.");
+    }
+
+    throw new Error(
+      `Failed to create conference: ${error.response?.status || "Network error"} ${
+        error.response?.statusText || error.message
+      }`
+    );
+  }
 };
 
 export const startConferenceCall = async (confId) => {
-  return fetch(API_ENDPOINTS.CONFERENCE.START(confId), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-};
-
-export const endConferenceCall = async (confId) => {
-  const response = await fetchWithTimeout(
-    API_ENDPOINTS.CONFERENCE.END(confId),
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-    },
-    CONFERENCE_END_TIMEOUT_MS,
-    "End conference timed out. Please try again."
-  );
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("End conference failed:", {
-      status: response.status,
-      statusText: response.statusText,
-      error: errorText,
-    });
-    throw new Error(`Failed to end conference: ${response.status} ${response.statusText}`);
-  }
-
+  const response = await axiosInstance.post(API_ENDPOINTS.CONFERENCE.START(confId));
   return response;
 };
 
+export const endConferenceCall = async (confId) => {
+  try {
+    const response = await axiosInstance.put(API_ENDPOINTS.CONFERENCE.END(confId));
+    return response;
+  } catch (error) {
+    console.error("End conference failed:", {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      error: error.response?.data || error.message,
+    });
+
+    if (error.message === "Request timed out. Please try again.") {
+      throw new Error("End conference timed out. Please try again.");
+    }
+
+    throw new Error(
+      `Failed to end conference: ${error.response?.status || "Network error"} ${
+        error.response?.statusText || error.message
+      }`
+    );
+  }
+};
+
 export const sinkConferenceCall = async (confId) => {
-  return fetch(API_ENDPOINTS.CONFERENCE.SINK(confId), {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
+  const response = await axiosInstance.put(API_ENDPOINTS.CONFERENCE.SINK(confId));
+  return response;
 };
 
 export const muteParticipant = async (confId, phone_number) => {
-  const response = await fetch(API_ENDPOINTS.CONFERENCE.MUTE(confId, phone_number), {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-  return response.json();
+  const response = await axiosInstance.put(API_ENDPOINTS.CONFERENCE.MUTE(confId, phone_number));
+  return response.data;
 };
 
 export const unmuteParticipant = async (confId, phone_number) => {
-  const response = await fetch(API_ENDPOINTS.CONFERENCE.UNMUTE(confId, phone_number), {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-  return response.json();
+  const response = await axiosInstance.put(API_ENDPOINTS.CONFERENCE.UNMUTE(confId, phone_number));
+  return response.data;
 };
 
 export const playAudio = async (confId, url) => {
   const audioUrl =
     url ??
     `https://${APP_CONFIG.STORAGE_ACCOUNT_NAME}.blob.core.windows.net/output-container/25/1.0.wav`;
-  return fetch(API_ENDPOINTS.CONFERENCE.PLAY_AUDIO(confId, audioUrl), {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
+  const response = await axiosInstance.put(API_ENDPOINTS.CONFERENCE.PLAY_AUDIO(confId, audioUrl));
+  return response;
 };
 
 export const pauseAudio = async (confId) => {
-  return fetch(API_ENDPOINTS.CONFERENCE.PAUSE_AUDIO(confId), {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
+  const response = await axiosInstance.put(API_ENDPOINTS.CONFERENCE.PAUSE_AUDIO(confId));
+  return response;
 };
 
 export const resumeAudio = async (confId) => {
-  return fetch(API_ENDPOINTS.CONFERENCE.RESUME_AUDIO(confId), {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
+  const response = await axiosInstance.put(API_ENDPOINTS.CONFERENCE.RESUME_AUDIO(confId));
+  return response;
 };
 
 export const seekAudio = async (confId, deltaSeconds) => {
@@ -165,36 +108,19 @@ export const seekAudio = async (confId, deltaSeconds) => {
   const url = `${API_ENDPOINTS.CONFERENCE.SEEK_AUDIO(
     confId
   )}?delta_seconds=${encodeURIComponent(deltaSeconds)}`;
-  return fetch(url, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
+  const response = await axiosInstance.put(url);
+  return response;
 };
 
 export const addParticipant = async (confId, phone_number) => {
-  return fetch(API_ENDPOINTS.CONFERENCE.ADD_PARTICIPANT(confId, phone_number), {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
+  const response = await axiosInstance.put(
+    API_ENDPOINTS.CONFERENCE.ADD_PARTICIPANT(confId, phone_number)
+  );
+  return response;
 };
 
 export const fetchAudioContent = async () => {
-  const token = localStorage.getItem("authToken");
-  const response = await fetch(API_ENDPOINTS.GET_AUDIO_CONTENT, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error("Failed to fetch audio content");
-  }
-
-  return response.json();
+  // Note: Auth token is automatically added by axios interceptor
+  const response = await axiosInstance.get(API_ENDPOINTS.GET_AUDIO_CONTENT);
+  return response.data;
 };
