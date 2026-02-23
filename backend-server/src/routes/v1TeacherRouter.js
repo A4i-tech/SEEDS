@@ -125,6 +125,7 @@ router.get("/teachers", authenticateToken, async (req, res) => {
 
     const results = teachers.map((t) => ({
       _id: t._id,
+      name: t.name,
       phoneNumber: t.phoneNumber,
       students: (t.studentId || [])
         .map((id) => {

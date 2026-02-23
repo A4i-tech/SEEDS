@@ -11,116 +11,225 @@ export const ConferenceProvider = ({ children }) => {
   const [audioContentState, setAudioContentState] = useState(new AudioContentState());
   const [selectedTeacher, setSelectedTeacher] = useState(null);
   const [selectedStudents, setSelectedStudents] = useState([]);
-  const [userList, setUserList] = useState([]);
   const [confId, setConfId] = useState("");
   const [loading, setLoading] = useState(false);
   const [conferenceStudents, setConferenceStudents] = useState([]);
+  const [allClassroomStudents, setAllClassroomStudents] = useState([]);
   const previousParticipantStatusRef = useRef({});
 
-  // Updates the `userList` whenever teacher or students are selected
-  useEffect(() => {
-    const allUsers = [selectedTeacher, ...selectedStudents].filter(Boolean); // Filter out null values
-    setUserList(allUsers);
-  }, [selectedTeacher, selectedStudents]);
+  // Single source of truth: Map of all participants keyed by normalized phone number
+  // This gets updated directly when SSE events arrive
+  const [participantsMap, setParticipantsMap] = useState(new Map());
 
   const handleTeacherSelect = (teacher) => {
     setSelectedTeacher((prev) => (prev?.phoneNumber === teacher.phoneNumber ? null : teacher));
   };
 
   const handleStudentToggle = (student) => {
-    setSelectedStudents((prevStudents) =>
-      prevStudents.some((s) => s.phoneNumber === student.phoneNumber)
-        ? prevStudents.filter((s) => s.phoneNumber !== student.phoneNumber)
-        : [...prevStudents, student]
+    // Normalize phone number to ensure consistent format
+    const normalizedPhone = normalizePhoneNumber(student.phoneNumber);
+    const normalizedStudent = {
+      ...student,
+      phoneNumber: normalizedPhone, // Always store normalized phone number
+    };
+
+    setSelectedStudents((prevStudents) => {
+      // `normalizedStudent.phoneNumber` is already normalized; assume stored students are too.
+      const exists = prevStudents.some((s) => s.phoneNumber === normalizedPhone);
+
+      if (exists) {
+        return prevStudents.filter((s) => s.phoneNumber !== normalizedPhone);
+      } else {
+        return [...prevStudents, normalizedStudent];
+      }
+    });
+  };
+
+  const clearSelectedStudents = () => {
+    setSelectedStudents([]);
+  };
+
+  // Initialize participantsMap when conference starts (teacher and students are selected)
+  useEffect(() => {
+    if (!selectedTeacher && selectedStudents.length === 0) {
+      // Clear map when no participants are selected
+      setParticipantsMap(new Map());
+      return;
+    }
+
+    setParticipantsMap((prevMap) => {
+      const newMap = new Map(prevMap);
+
+      // Add/update teacher
+      if (selectedTeacher) {
+        const normalizedPhone = normalizePhoneNumber(selectedTeacher.phoneNumber);
+        const existingParticipant = newMap.get(normalizedPhone);
+        newMap.set(
+          normalizedPhone,
+          new Participant({
+            ...existingParticipant,
+            ...selectedTeacher,
+            role: "Teacher",
+            phoneNumber: selectedTeacher.phoneNumber,
+          })
+        );
+      }
+
+      // Add/update students
+      selectedStudents.forEach((student) => {
+        const normalizedPhone = normalizePhoneNumber(student.phoneNumber);
+        const existingParticipant = newMap.get(normalizedPhone);
+        newMap.set(
+          normalizedPhone,
+          new Participant({
+            ...existingParticipant,
+            ...student,
+            role: "Student",
+            phoneNumber: student.phoneNumber,
+          })
+        );
+      });
+
+      return newMap;
+    });
+  }, [selectedTeacher, selectedStudents]);
+
+  // Helper functions to get teacher and students from the centralized participantsMap
+  const getTeacher = () => {
+    if (!selectedTeacher) return null;
+    const normalizedPhone = normalizePhoneNumber(selectedTeacher.phoneNumber);
+    return participantsMap.get(normalizedPhone) || selectedTeacher;
+  };
+
+  const getStudents = () => {
+    return Array.from(participantsMap.values()).filter(
+      (participant) => participant.role === "Student"
     );
+  };
+
+  // Get all participants as an array (for backward compatibility)
+  const getAllParticipants = () => {
+    return Array.from(participantsMap.values());
   };
 
   const handleSSEEvent = (event) => {
     setIsConfCallRunning(event.is_running);
     setAudioContentState(new AudioContentState(event.audio_content_state));
 
-    // Check for students transitioning from connected to disconnected
-    for (let phoneNumber in event.participants) {
-      const participant = event.participants[phoneNumber];
-      const previousStatus = previousParticipantStatusRef.current[phoneNumber];
+    // Update the single source of truth: participantsMap
+    // This directly updates the Map with the latest data from SSE events
+    setParticipantsMap((prevMap) => {
+      const newMap = new Map(prevMap);
+      const sseParticipantPhones = new Set();
 
-      console.log(
-        `[ConferenceContext] ${participant.name} (${phoneNumber}): ${previousStatus} -> ${participant.call_status}`
-      );
+      // First, process all participants from SSE event
+      for (let phoneNumber in event.participants) {
+        const participantData = event.participants[phoneNumber];
+        const normalizedPhone = normalizePhoneNumber(phoneNumber);
+        sseParticipantPhones.add(normalizedPhone);
+        const previousStatus = previousParticipantStatusRef.current[normalizedPhone];
 
-      // If it's a student transitioning from connected to disconnected, show notification
-      if (
-        participant.role === "Student" &&
-        previousStatus === "connected" &&
-        participant.call_status === "disconnected"
-      ) {
-        console.log(
-          `[ConferenceContext] Dispatching notification for ${participant.name} (${participant.phone_number})`
-        );
-        window.dispatchEvent(
-          new CustomEvent("conferenceNotification", {
-            detail: {
-              type: "participant_dropped",
-              participantName: participant.name,
-              participantPhone: participant.phone_number,
-              timestamp: new Date().toISOString(),
-            },
-          })
-        );
-      }
-    }
-
-    // Update previous status tracking
-    const newStatusMap = {};
-    for (let phoneNumber in event.participants) {
-      newStatusMap[phoneNumber] = event.participants[phoneNumber].call_status;
-    }
-    previousParticipantStatusRef.current = newStatusMap;
-
-    for (let phoneNumber in event.participants) {
-      const participant = new Participant({
-        ...event.participants[phoneNumber],
-      });
-      const normalizedEventPhone = normalizePhoneNumber(phoneNumber);
-
-      if (
-        selectedTeacher?.phoneNumber &&
-        normalizePhoneNumber(selectedTeacher.phoneNumber) === normalizedEventPhone
-      ) {
-        const newTeacher = new Participant({
-          ...selectedTeacher,
-          raised_at: participant.raised_at,
-          is_raised: participant.is_raised,
-          is_muted: participant.is_muted,
-          call_status: participant.call_status,
-        });
-        setSelectedTeacher(newTeacher);
-      } else {
-        setSelectedStudents((prevStudents) => {
-          const studentExists = prevStudents.some(
-            (student) => normalizePhoneNumber(student.phoneNumber) === normalizedEventPhone
+        // If it's a student transitioning from connected to disconnected, show notification
+        if (
+          participantData.role === "Student" &&
+          previousStatus === "connected" &&
+          participantData.call_status === "disconnected"
+        ) {
+          window.dispatchEvent(
+            new CustomEvent("conferenceNotification", {
+              detail: {
+                type: "participant_dropped",
+                participantName: participantData.name,
+                participantPhone: participantData.phone_number || phoneNumber,
+                timestamp: new Date().toISOString(),
+              },
+            })
           );
+        }
 
-          if (studentExists) {
-            // Update the existing student
-            return prevStudents.map((student) =>
-              normalizePhoneNumber(student.phoneNumber) === normalizedEventPhone
-                ? new Participant({
-                    ...student,
-                    raised_at: participant.raised_at,
-                    is_raised: participant.is_raised,
-                    is_muted: participant.is_muted,
-                    call_status: participant.call_status,
-                  })
-                : student
+        // Update participant with latest SSE data - only update dynamic state, ignore name from SSE
+        const existingParticipant = newMap.get(normalizedPhone);
+
+        // Resolve name: use existing name if available, otherwise lookup from allClassroomStudents for new participants
+        let name = existingParticipant?.name;
+        if (!existingParticipant) {
+          if (participantData.role === "Student") {
+            const student = allClassroomStudents.find(
+              (s) => s && normalizePhoneNumber(s.phoneNumber || s.phone_number) === normalizedPhone
             );
-          } else {
-            // Add the new student
-            return [...prevStudents, participant];
+            name = student?.name;
+          } else if (participantData.role === "Teacher" && selectedTeacher) {
+            if (normalizePhoneNumber(selectedTeacher.phoneNumber) === normalizedPhone) {
+              name = selectedTeacher.name;
+            }
           }
+        }
+
+        const participant = new Participant({
+          ...(existingParticipant || {}),
+          name: name,
+          phoneNumber: phoneNumber,
+          phone_number: participantData.phone_number || phoneNumber,
+          role: existingParticipant?.role || participantData.role || "Student",
+          // Only update dynamic state from SSE (ignore name)
+          call_status:
+            participantData.call_status || existingParticipant?.call_status || "disconnected",
+          is_muted:
+            participantData.is_muted !== undefined
+              ? Boolean(participantData.is_muted)
+              : (existingParticipant?.is_muted ?? false),
+          is_raised:
+            participantData.is_raised === true ||
+            participantData.is_raised === "true" ||
+            participantData.is_raised === 1,
+          raised_at:
+            participantData.raised_at !== undefined
+              ? Number(participantData.raised_at)
+              : (existingParticipant?.raised_at ?? -1),
         });
+
+        newMap.set(normalizedPhone, participant);
       }
-    }
+
+      // Handle participants that are in our map but NOT in the SSE event
+      // This happens when a participant is removed - backend deletes them from state
+      // We mark them as disconnected so they can be reconnected
+      for (let [normalizedPhone, existingParticipant] of newMap.entries()) {
+        if (!sseParticipantPhones.has(normalizedPhone)) {
+          // Participant is missing from SSE event
+          // If it's a student (not teacher), mark as disconnected
+          if (existingParticipant.role === "Student") {
+            const previousStatus = previousParticipantStatusRef.current[normalizedPhone];
+            
+            // Only update if they were previously connected (to avoid overwriting already disconnected state)
+            if (previousStatus === "connected" || existingParticipant.call_status === "connected") {
+              const updatedParticipant = new Participant({
+                ...existingParticipant,
+                call_status: "disconnected",
+              });
+              newMap.set(normalizedPhone, updatedParticipant);
+            }
+          }
+          // Note: We keep the participant in the map even if removed, so they can be reconnected
+        }
+      }
+
+      // Update previous status tracking
+      const newStatusMap = {};
+      for (let phoneNumber in event.participants) {
+        const normalizedPhone = normalizePhoneNumber(phoneNumber);
+        newStatusMap[normalizedPhone] = event.participants[phoneNumber].call_status;
+      }
+      // Also track status for participants that were removed (now disconnected)
+      for (let [normalizedPhone, participant] of newMap.entries()) {
+        if (!sseParticipantPhones.has(normalizedPhone) && participant.role === "Student") {
+          newStatusMap[normalizedPhone] = "disconnected";
+        }
+      }
+      previousParticipantStatusRef.current = newStatusMap;
+
+      return newMap;
+    });
   };
 
   return (
@@ -128,7 +237,13 @@ export const ConferenceProvider = ({ children }) => {
       value={{
         selectedTeacher,
         selectedStudents,
-        userList,
+        // Single source of truth for all participants
+        participantsMap,
+        getAllParticipants,
+        getTeacher,
+        getStudents,
+        // Backward compatibility - derived from participantsMap
+        userList: getAllParticipants(),
         confId,
         isConfCallRunning,
         audioContentState,
@@ -138,8 +253,11 @@ export const ConferenceProvider = ({ children }) => {
         handleSSEEvent,
         handleTeacherSelect,
         handleStudentToggle,
+        clearSelectedStudents,
         setConferenceStudents,
         conferenceStudents,
+        allClassroomStudents,
+        setAllClassroomStudents,
       }}
     >
       {children}

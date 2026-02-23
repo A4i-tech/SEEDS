@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     provider_type: str = ""
     azure_service_bus_max_retries: int = 3
     mongo_max_pool_size: int = 50
+    applicationinsights_connection_string: str = ""
 
     # Derived Queue names
     @property

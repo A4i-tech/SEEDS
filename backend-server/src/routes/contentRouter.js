@@ -561,7 +561,7 @@ router.delete(
   "/:contentId",
   tryCatchWrapper(async (req, res) => {
     const result = await ContentV3.updateOne(
-      { id: req.params.contentId },
+      { _id: req.params.contentId },
       { $set: { isDeleted: true } },
     );
     return res.json(result);

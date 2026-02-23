@@ -157,7 +157,7 @@ describe('TTS Service', () => {
             try {
                 mocks.synthesizer.speakSsmlAsync.mockImplementation((ssml, cb) => cb(mockResult(false)));
                 await expect(ttsService.textToSpeech(CONFIG.test.text, CONFIG.test.language, CONFIG.test.rate))
-                    .rejects.toThrow('Mock TTS error');
+                .rejects.toThrow(/TTS requires either TTS_SUBSCRIPTION_KEY \+ TTS_REGION, or TTS_RESOURCE_ID \+ TTS_REGION/);
             } finally {
                 if (originalRegion) process.env.TTS_REGION = originalRegion;
                 if (originalResourceId) process.env.TTS_RESOURCE_ID = originalResourceId;

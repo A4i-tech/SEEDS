@@ -104,6 +104,35 @@ class MockDatabase(IDatabase):
         top_item = max(items_with_attr, key=lambda x: x.get(attr, 0))
         return top_item.copy()
 
+    async def update_one(self, filter_query: dict, update_query: dict) -> Any:
+        """Update a single document with atomic operators.
+
+        Args:
+            filter_query: The filter to match documents (e.g., {"_id": "value"})
+            update_query: The update operations (e.g., {"$set": {"field": "value"}})
+
+        Returns:
+            A result object with modified_count, matched_count, etc.
+        """
+        for i, item in enumerate(self.data):
+            # Check if item matches filter query
+            if all(item.get(k) == v for k, v in filter_query.items()):
+                # Apply atomic operations
+                updated_item = item.copy()
+
+                # Handle $set operator
+                if "$set" in update_query:
+                    updated_item.update(update_query["$set"])
+
+                # Handle other operators as needed
+                # $inc, $push, etc. can be added here
+
+                self.data[i] = updated_item
+                return {"matched_count": 1, "modified_count": 1, "acknowledged": True}
+
+        # No match found
+        return {"matched_count": 0, "modified_count": 0, "acknowledged": True}
+
     def clear(self):
         """Clear all data (useful for test cleanup)"""
         self.data = []

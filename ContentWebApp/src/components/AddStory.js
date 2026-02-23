@@ -4,8 +4,10 @@ import { useNavigate } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
 import { SEEDS_URL, AUDIO_BASE_URL } from "../Constants";
 import { getAuthHeaders } from "../utils/authHelpers";
+import { useAuth } from "../hooks/useAuth";
 
 const AddStory = ({ content, contentType }) => {
+  const { getCurrentUser } = useAuth();
   const [metadata, setMetadata] = useState({
     id: "",
     type: "Story",
@@ -148,15 +150,21 @@ const AddStory = ({ content, contentType }) => {
         id: content.id,
         type: content.type || "Story",
         description: content.description || "",
-        language: content.language || "kannada",
+        language: (content.language || "kannada").toLowerCase(),
         title: {
           english: content.title?.english || "",
-          local: content.title?.local || "",
+          local:
+            (content.language || "").toLowerCase() === "english"
+              ? content.title?.english || ""
+              : content.title?.local || "",
           audioUrl: content.title?.audioUrl || "",
         },
         theme: {
           english: content.theme?.english || "",
-          local: content.theme?.local || "",
+          local:
+            (content.language || "").toLowerCase() === "english"
+              ? content.theme?.english || ""
+              : content.theme?.local || "",
           audioUrl: content.theme?.audioUrl || "",
         },
         audioContent: content.audioContent || [],
@@ -185,6 +193,7 @@ const AddStory = ({ content, contentType }) => {
 
   const isValid = () => {
     var valid = true;
+    const languageLower = (metadata.language || "").toLowerCase();
     const inputTitleLower = (metadata.title.english || "").toLowerCase();
     const inputLocalTitleLower = (metadata.title.local || "").toLowerCase();
     // Check if title is empty
@@ -197,14 +206,17 @@ const AddStory = ({ content, contentType }) => {
       alert("Language cannot be empty");
       valid = false;
     }
-    // Check if theme or localTheme is empty or if new theme is being created
+    // Check if theme is empty or new-theme
+    else if (!metadata.theme.english || metadata.theme.english === "new-theme") {
+      alert("Theme cannot be empty");
+      valid = false;
+    }
+    // When language is not English, local theme is also required
     else if (
-      !metadata.theme.english ||
-      metadata.theme.english === "new-theme" ||
-      !metadata.theme.local ||
-      metadata.theme.local === "new-theme"
+      languageLower !== "english" &&
+      (!metadata.theme.local || metadata.theme.local === "new-theme")
     ) {
-      alert("Theme and local theme cannot be empty");
+      alert("Local theme cannot be empty");
       valid = false;
     }
     // Check for title duplication under the same theme and language, case insensitively
@@ -216,7 +228,7 @@ const AddStory = ({ content, contentType }) => {
       valid = false;
     }
     //Check that localTitle is not empty if language is not english
-    else if (metadata.language !== "english" && !metadata.title.local) {
+    else if (languageLower !== "english" && !metadata.title.local) {
       alert("Local Title cannot be empty");
       valid = false;
     }
@@ -248,6 +260,7 @@ const AddStory = ({ content, contentType }) => {
 
   const sendStory = async () => {
     const _id = content ? content.id : uuidv4();
+    const languageLower = (metadata.language || "").toLowerCase();
     // Always send title and theme as objects
     var newMetadata = {
       ...metadata,
@@ -255,12 +268,18 @@ const AddStory = ({ content, contentType }) => {
       type: contentType,
       title: {
         english: metadata.title.english || "",
-        local: metadata.title.local || "",
+        local:
+          languageLower === "english"
+            ? metadata.title.english || ""
+            : metadata.title.local || "",
         audioUrl: metadata.title.audioUrl || "",
       },
       theme: {
         english: metadata.theme.english || "",
-        local: metadata.theme.local || "",
+        local:
+          languageLower === "english"
+            ? metadata.theme.english || ""
+            : metadata.theme.local || "",
         audioUrl: metadata.theme.audioUrl || "",
       },
     };
@@ -271,25 +290,17 @@ const AddStory = ({ content, contentType }) => {
     }
     delete newMetadata["audioFile"];
     delete newMetadata["answerAudioFile"];
-    if (content) {
-      newMetadata = { ...newMetadata, _id: content._id };
-      const seedsRes = await fetch(`${SEEDS_URL}/content?isAudioUploaded=${isAudioUploaded}`, {
-        method: "PATCH",
-        headers: getAuthHeaders(),
-        body: JSON.stringify(newMetadata),
-      });
-      await seedsRes.json();
-    } else {
-      const seedsRes = await fetch(`${SEEDS_URL}/content/`, {
-        method: "POST",
-        headers: getAuthHeaders(),
-        body: JSON.stringify(newMetadata),
-      });
-      await seedsRes.json();
-    }
+
+    // Get SAS tokens and populate audioContent with input-container URLs before sending to backend
+    const audioContentArray = [];
+    let sasUrl = null;
+    let sasUrlAnswer = null;
+    let filename = null;
+    let answerFilename = null;
+
     if (metadata.audioFile) {
       const extname = metadata.audioFile.split(".").pop();
-      var filename = `${_id}.${extname}`;
+      filename = `${_id}.${extname}`;
       if (contentType === "Riddle") {
         filename = `${_id}_question.${extname}`;
       }
@@ -303,7 +314,48 @@ const AddStory = ({ content, contentType }) => {
           headers: getAuthHeaders(),
         }
       );
-      const sasUrl = (await res.json()).sasToken;
+      sasUrl = (await res.json()).sasToken;
+      // Extract base URL (input-container URL) without SAS token
+      const inputContainerUrl = sasUrl.split("?")[0];
+      audioContentArray.push({
+        description: "",
+        audioUrl: inputContainerUrl,
+      });
+    }
+
+    if (metadata.answerAudioFile) {
+      const answerExtname = metadata.answerAudioFile.split(".").pop();
+      answerFilename = `${_id}_answer.${answerExtname}`;
+      const resAnswer = await fetch(
+        `${SEEDS_URL}/content/sasToken?` +
+          new URLSearchParams({
+            blobName: answerFilename,
+          }),
+        {
+          method: "GET",
+          headers: getAuthHeaders(),
+        }
+      );
+      sasUrlAnswer = (await resAnswer.json()).sasToken;
+      // Extract base URL (input-container URL) without SAS token
+      const inputContainerUrlAnswer = sasUrlAnswer.split("?")[0];
+      audioContentArray.push({
+        description: "",
+        audioUrl: inputContainerUrlAnswer,
+      });
+    }
+
+    // Populate audioContent array in metadata
+    if (audioContentArray.length > 0) {
+      newMetadata.audioContent = audioContentArray;
+    }
+
+    const tenantName = await getCurrentUser();
+    newMetadata.createdBy = tenantName || newMetadata.createdBy || "";
+
+    // Upload files to Azure Blob Storage FIRST, before sending metadata to backend
+    // This ensures files are available when the background job starts processing
+    if (metadata.audioFile && sasUrl) {
       const client = new BlockBlobClient(sasUrl);
       const metadataProperties = {
         experience: contentType,
@@ -320,20 +372,7 @@ const AddStory = ({ content, contentType }) => {
         metadata: metadataProperties,
       });
     }
-    if (metadata.answerAudioFile) {
-      const answerExtname = metadata.answerAudioFile.split(".").pop();
-      var answerFilename = `${_id}_answer.${answerExtname}`;
-      const resAnswer = await fetch(
-        `${SEEDS_URL}/content/sasToken?` +
-          new URLSearchParams({
-            blobName: answerFilename,
-          }),
-        {
-          method: "GET",
-          headers: getAuthHeaders(),
-        }
-      );
-      const sasUrlAnswer = (await resAnswer.json()).sasToken;
+    if (metadata.answerAudioFile && sasUrlAnswer) {
       const clientAnswer = new BlockBlobClient(sasUrlAnswer);
       await clientAnswer.uploadBrowserData(answerFile, {
         metadata: {
@@ -342,6 +381,24 @@ const AddStory = ({ content, contentType }) => {
           isfinalaudio: "true",
         },
       });
+    }
+
+    // Send metadata to backend with populated audioContent AFTER files are uploaded
+    if (content) {
+      newMetadata = { ...newMetadata, _id: content._id };
+      const seedsRes = await fetch(`${SEEDS_URL}/content?isAudioUploaded=${isAudioUploaded}`, {
+        method: "PATCH",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(newMetadata),
+      });
+      await seedsRes.json();
+    } else {
+      const seedsRes = await fetch(`${SEEDS_URL}/content/`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(newMetadata),
+      });
+      await seedsRes.json();
     }
     navigate("/content");
   };
@@ -616,9 +673,9 @@ const AddStory = ({ content, contentType }) => {
           >
             {Object.entries(titlesUnderTheme).map(
               ([englishTitle, localTitle], index) => (
-                <li key={index} style={{ marginBottom: "4px" }}>
-                  {englishTitle} - {localTitle}
-                </li>
+              <li key={index} style={{ marginBottom: "4px" }}>
+                {englishTitle} - {localTitle}
+              </li>
               ),
             )}
           </ul>

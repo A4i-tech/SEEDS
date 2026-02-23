@@ -6,17 +6,22 @@ import axiosInstance from "./axiosInstance";
  * All network requests use the centralized axios instance with
  * network-layer timeout (5 seconds) configured in axiosInstance.js
  */
+import { normalizePhoneNumber } from "../utils/phoneUtils";
 
 export const createConference = async (teacherPhone, studentPhones) => {
+  // Normalize phone numbers to ensure consistent format (91XXXXXXXXXX)
+  const normalizedTeacherPhone = normalizePhoneNumber(teacherPhone);
+  const normalizedStudentPhones = studentPhones.map((phone) => normalizePhoneNumber(phone));
+
   const requestBody = {
-    teacher_phone: teacherPhone,
-    student_phones: studentPhones,
+    teacher_phone: normalizedTeacherPhone,
+    student_phones: normalizedStudentPhones,
   };
 
   console.log("Creating conference with request:", {
-    teacher_phone: teacherPhone,
-    student_phones: studentPhones,
-    student_count: studentPhones.length,
+    teacher_phone: normalizedTeacherPhone,
+    student_phones: normalizedStudentPhones,
+    student_count: normalizedStudentPhones.length,
   });
 
   try {
@@ -76,13 +81,53 @@ export const sinkConferenceCall = async (confId) => {
 };
 
 export const muteParticipant = async (confId, phone_number) => {
-  const response = await axiosInstance.put(API_ENDPOINTS.CONFERENCE.MUTE(confId, phone_number));
-  return response.data;
+  // Normalize phone number to ensure consistent format (91XXXXXXXXXX)
+  const normalizedPhone = normalizePhoneNumber(phone_number);
+  const response = await fetch(API_ENDPOINTS.CONFERENCE.MUTE(confId, normalizedPhone), {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+  return response.json();
 };
 
 export const unmuteParticipant = async (confId, phone_number) => {
-  const response = await axiosInstance.put(API_ENDPOINTS.CONFERENCE.UNMUTE(confId, phone_number));
-  return response.data;
+  // Normalize phone number to ensure consistent format (91XXXXXXXXXX)
+  const normalizedPhone = normalizePhoneNumber(phone_number);
+  const response = await fetch(API_ENDPOINTS.CONFERENCE.UNMUTE(confId, normalizedPhone), {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+  return response.json();
+};
+
+export const muteAll = async (confId) => {
+  const response = await fetch(API_ENDPOINTS.CONFERENCE.MUTE_ALL(confId), {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to mute all: ${response.status} ${response.statusText}`);
+  }
+  return response.json();
+};
+
+export const unmuteAll = async (confId) => {
+  const response = await fetch(API_ENDPOINTS.CONFERENCE.UNMUTE_ALL(confId), {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to unmute all: ${response.status} ${response.statusText}`);
+  }
+  return response.json();
 };
 
 export const playAudio = async (confId, url) => {
@@ -113,10 +158,42 @@ export const seekAudio = async (confId, deltaSeconds) => {
 };
 
 export const addParticipant = async (confId, phone_number) => {
-  const response = await axiosInstance.put(
-    API_ENDPOINTS.CONFERENCE.ADD_PARTICIPANT(confId, phone_number)
+  // Normalize phone number to ensure consistent format (91XXXXXXXXXX)
+  const normalizedPhone = normalizePhoneNumber(phone_number);
+  return fetch(API_ENDPOINTS.CONFERENCE.ADD_PARTICIPANT(confId, normalizedPhone), {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+};
+
+export const removeParticipant = async (confId, phone_number) => {
+  // Normalize phone number to ensure consistent format (91XXXXXXXXXX)
+  const normalizedPhone = normalizePhoneNumber(phone_number);
+  const response = await fetch(
+    API_ENDPOINTS.CONFERENCE.REMOVE_PARTICIPANT(confId, normalizedPhone),
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }
   );
-  return response;
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("Participant removal failed:", {
+      status: response.status,
+      statusText: response.statusText,
+      error: errorText,
+    });
+    throw new Error(
+      `Failed to remove participant: ${response.status} ${response.statusText}`
+    );
+  }
+
+  return response.json();
 };
 
 export const fetchAudioContent = async () => {

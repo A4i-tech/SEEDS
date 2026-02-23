@@ -25,16 +25,12 @@ describe("apiService", () => {
       const mockResponse = { data: { id: "conf-123" } };
       axiosInstance.post.mockResolvedValueOnce(mockResponse);
 
-      const studentPhones = ["0987654321", "1122334455"];
       const result = await apiService.createConference(phoneNumber, studentPhones);
 
-      expect(axiosInstance.post).toHaveBeenCalledWith(
-        expect.stringContaining("/conference/create"),
-        {
-          teacher_phone: phoneNumber,
-          student_phones: studentPhones,
-        }
-      );
+      expectFetchCall(`${baseUrl}/conference/create`, "POST", {
+        teacher_phone: "91" + phoneNumber,
+        student_phones: studentPhones.map((phone) => "91" + phone),
+      });
       expect(result).toEqual({ id: "conf-123" });
     });
 
@@ -102,11 +98,9 @@ describe("apiService", () => {
       axiosInstance.put.mockResolvedValueOnce(mockResponse);
 
       await apiService.muteParticipant(confId, phoneNumber);
-
-      expect(axiosInstance.put).toHaveBeenCalledWith(
-        expect.stringContaining(
-          `/conference/muteparticipant/${confId}?phone_number=${phoneNumber}`
-        )
+      expectFetchCall(
+        `${baseUrl}/conference/muteparticipant/${confId}?phone_number=${"91" + phoneNumber}`,
+        "PUT"
       );
     });
 
@@ -115,11 +109,9 @@ describe("apiService", () => {
       axiosInstance.put.mockResolvedValueOnce(mockResponse);
 
       await apiService.unmuteParticipant(confId, phoneNumber);
-
-      expect(axiosInstance.put).toHaveBeenCalledWith(
-        expect.stringContaining(
-          `/conference/unmuteparticipant/${confId}?phone_number=${phoneNumber}`
-        )
+      expectFetchCall(
+        `${baseUrl}/conference/unmuteparticipant/${confId}?phone_number=${"91" + phoneNumber}`,
+        "PUT"
       );
     });
 
@@ -128,19 +120,48 @@ describe("apiService", () => {
       axiosInstance.put.mockResolvedValueOnce(mockResponse);
 
       await apiService.addParticipant(confId, phoneNumber);
+      expectFetchCall(
+        `${baseUrl}/conference/addparticipant/${confId}?phone_number=${"91" + phoneNumber}`,
+        "PUT"
+      );
+    });
 
-      expect(axiosInstance.put).toHaveBeenCalledWith(
-        expect.stringContaining(
-          `/conference/addparticipant/${confId}?phone_number=${phoneNumber}`
-        )
+    test("removes participant from conference", async () => {
+      fetch.mockResolvedValueOnce(mockEmptyResponse());
+      const result = await apiService.removeParticipant(confId, phoneNumber);
+      expect(fetch).toHaveBeenCalledWith(
+        `${baseUrl}/conference/removeparticipant/${confId}?phone_number=${"91" + phoneNumber}`,
+        { method: "PUT", headers: { "Content-Type": "application/json" } }
+      );
+      expect(result).toEqual({});
+    });
+
+    test("removeParticipant normalizes phone number", async () => {
+      fetch.mockResolvedValueOnce(mockEmptyResponse());
+      await apiService.removeParticipant(confId, "9876543210");
+      expect(fetch).toHaveBeenCalledWith(
+        `${baseUrl}/conference/removeparticipant/${confId}?phone_number=919876543210`,
+        { method: "PUT", headers: { "Content-Type": "application/json" } }
+      );
+    });
+
+    test("removeParticipant throws on HTTP error", async () => {
+      fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        statusText: "Forbidden",
+        json: jest.fn().mockResolvedValueOnce({}),
+        text: jest.fn().mockResolvedValueOnce("Forbidden"),
+      });
+      await expect(apiService.removeParticipant(confId, phoneNumber)).rejects.toThrow(
+        "Failed to remove participant: 403 Forbidden"
       );
     });
   });
 
   describe("Audio Control", () => {
-    test("plays audio with default URL", async () => {
-      const mockResponse = { data: {} };
-      axiosInstance.put.mockResolvedValueOnce(mockResponse);
+    test("plays, pauses, resumes, and seeks audio (each call uses correct request)", async () => {
+      const expectedUrl = "https://testaccount.blob.core.windows.net/output-container/25/1.0.wav";
 
       await apiService.playAudio(confId);
 
@@ -160,20 +181,15 @@ describe("apiService", () => {
       );
     });
 
-    test("resumes audio", async () => {
-      const mockResponse = { data: {} };
-      axiosInstance.put.mockResolvedValueOnce(mockResponse);
+      expect(fetch).toHaveBeenNthCalledWith(2, `${baseUrl}/conference/pauseaudio/${confId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+      });
 
-      await apiService.resumeAudio(confId);
-
-      expect(axiosInstance.put).toHaveBeenCalledWith(
-        expect.stringContaining(`/conference/resumeaudio/${confId}`)
-      );
-    });
-
-    test("seeks audio", async () => {
-      const mockResponse = { data: {} };
-      axiosInstance.put.mockResolvedValueOnce(mockResponse);
+      expect(fetch).toHaveBeenNthCalledWith(3, `${baseUrl}/conference/resumeaudio/${confId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+      });
 
       await apiService.seekAudio(confId, 15);
 
@@ -185,13 +201,8 @@ describe("apiService", () => {
 
   describe("Error Handling", () => {
     test("handles network errors", async () => {
-      const networkError = new Error("Network Error");
-      networkError.code = "ERR_NETWORK";
-      axiosInstance.post.mockRejectedValueOnce(networkError);
-
-      await expect(apiService.createConference("123", ["456"])).rejects.toThrow(
-        "Failed to create conference: Network error Network Error"
-      );
+      fetch.mockRejectedValueOnce(new Error("Network error"));
+      await expect(apiService.createConference("123", ["456"])).rejects.toThrow("Network error");
     });
 
     test("handles HTTP error responses", async () => {
@@ -208,14 +219,13 @@ describe("apiService", () => {
       );
     });
 
-    test("handles timeout errors for createConference", async () => {
-      const timeoutError = new Error("Request timed out. Please try again.");
-      timeoutError.code = "ECONNABORTED";
-      axiosInstance.post.mockRejectedValueOnce(timeoutError);
-
-      await expect(apiService.createConference("123", ["456"])).rejects.toThrow(
-        "Conference start timed out. Please try again."
-      );
+    test("handles JSON parsing errors", async () => {
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: jest.fn().mockRejectedValueOnce(new Error("Invalid JSON")),
+        text: jest.fn().mockResolvedValueOnce(""),
+      });
+      await expect(apiService.createConference("123", ["456"])).rejects.toThrow("Invalid JSON");
     });
   });
 });

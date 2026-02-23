@@ -90,6 +90,12 @@ interface SeedsService {
     ): Response<Any>
 
     @PUT
+    suspend fun muteAll(@Url url: String): Response<Any>
+
+    @PUT
+    suspend fun unmuteAll(@Url url: String): Response<Any>
+
+    @PUT
     suspend fun connectParticipant(
         @Url url: String, 
         @Query("phone_number") phoneNumber: String

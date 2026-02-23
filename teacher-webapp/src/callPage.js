@@ -1,5 +1,14 @@
-import React, { useState, useEffect, useRef } from "react";
-import { Box, Typography } from "@mui/material";
+import React, { useState, useEffect } from "react";
+import {
+  Box,
+  Typography,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Button,
+} from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { useConference } from "./context/ConferenceContext";
 import {
@@ -8,9 +17,12 @@ import {
   sinkConferenceCall,
   muteParticipant,
   unmuteParticipant,
+  muteAll,
+  unmuteAll,
   playAudio,
   pauseAudio,
   addParticipant,
+  removeParticipant,
   resumeAudio,
   seekAudio,
 } from "./services/apiService";
@@ -22,17 +34,23 @@ import { ControlButtonGroup } from "./components/controls/ControlButtonGroup";
 import { PageContainer } from "./components/layout/PageContainer";
 import { showToast } from "./utils/toast";
 import { normalizePhoneNumber } from "./utils/phoneUtils";
+import { addSessionToHistory } from "./services/sessionHistoryService";
 
-const getPhoneNumber = (user) => user?.phoneNumber;
-
-export function DetailsPage() {
+export function DetailsPage({ classroomName = null, classroomId = null }) {
   const navigate = useNavigate();
-  const { userList, confId, isConfCallRunning, audioContentState, conferenceStudents } =
-    useConference();
+  const {
+    confId,
+    isConfCallRunning,
+    audioContentState,
+    getTeacher,
+    getStudents,
+    allClassroomStudents,
+    getAllParticipants,
+  } = useConference();
 
-  const [users, setUsers] = useState(userList);
   const [loadingIds, setLoadingIds] = useState([]);
   const [reconnectingIds, setReconnectingIds] = useState([]);
+  const [removingIds, setRemovingIds] = useState([]);
   const [isLoadingCall, setIsLoadingCall] = useState(false);
   const [isSinkingConf, setIsSinkingConf] = useState(false);
   const [hasSunkConf, setHasSunkConf] = useState(false);
@@ -41,32 +59,9 @@ export function DetailsPage() {
   const [isAudioModalOpen, setIsAudioModalOpen] = useState(false);
   const [seekDirection, setSeekDirection] = useState(null);
   const [audioSelectionError, setAudioSelectionError] = useState(null);
-  const mutedStudentsRef = useRef(new Set());
-
-  useEffect(() => {
-    setUsers(userList);
-  }, [userList]);
-
-  // Auto-mute all students when they join the call
-  useEffect(() => {
-    if (isConfCallRunning && userList && userList.length > 0) {
-      userList.forEach((user) => {
-        const normalizedPhone = normalizePhoneNumber(user.phoneNumber);
-        if (
-          user.role === "Student" &&
-          user.call_status === "connected" &&
-          !user.is_muted &&
-          !mutedStudentsRef.current.has(normalizedPhone)
-        ) {
-          mutedStudentsRef.current.add(normalizedPhone);
-          muteParticipant(confId, normalizedPhone).catch((error) => {
-            console.error("Error auto-muting student:", error);
-            mutedStudentsRef.current.delete(normalizedPhone);
-          });
-        }
-      });
-    }
-  }, [isConfCallRunning, userList, confId]);
+  const [isMutingAll, setIsMutingAll] = useState(false);
+  const [isUnmutingAll, setIsUnmutingAll] = useState(false);
+  const [removeConfirmParticipant, setRemoveConfirmParticipant] = useState(null);
 
   // Listen for conference notifications
   useEffect(() => {
@@ -83,9 +78,9 @@ export function DetailsPage() {
     };
   }, []);
 
-  // Get teacher from userList (which is updated by SSE events)
-  const teacher = users.find((user) => user.role === "Teacher") || null;
-  const students = conferenceStudents;
+  // Get teacher and students from centralized state
+  const teacher = getTeacher();
+  const activeStudents = getStudents();
 
   const handleMuteToggle = async (userToUpdate) => {
     const phoneNumber = userToUpdate.phoneNumber;
@@ -125,6 +120,20 @@ export function DetailsPage() {
     setIsLoadingCall(true);
     try {
       await endConferenceCall(confId);
+      
+      // Track conference session in history
+      if (classroomId && classroomName) {
+        const allParticipants = getAllParticipants();
+        const studentCount = allParticipants.filter((p) => p?.role === "Student").length;
+        
+        addSessionToHistory({
+          groupId: classroomId,
+          groupName: classroomName,
+          studentCount: studentCount > 0 ? studentCount : 0,
+          wasConference: true,
+        });
+      }
+      
       showToast.success("Call ended");
     } catch (error) {
       console.error("Error ending the call:", error);
@@ -138,6 +147,20 @@ export function DetailsPage() {
     setIsSinkingConf(true);
     try {
       await sinkConferenceCall(confId);
+      
+      // Track conference session in history
+      if (classroomId && classroomName) {
+        const allParticipants = getAllParticipants();
+        const studentCount = allParticipants.filter((p) => p?.role === "Student").length;
+        
+        addSessionToHistory({
+          groupId: classroomId,
+          groupName: classroomName,
+          studentCount: studentCount > 0 ? studentCount : 0,
+          wasConference: true,
+        });
+      }
+      
       showToast.success("Conference sunk successfully");
       setHasSunkConf(true);
     } catch (error) {
@@ -173,7 +196,10 @@ export function DetailsPage() {
     setIsAudioModalOpen(true);
   };
 
-  const handlePlaySelectedTrack = async (trackUrl) => {
+  const handlePlaySelectedTrack = async (contentData) => {
+    // Support both old API (just URL string) and new API (content object)
+    const trackUrl = typeof contentData === "string" ? contentData : contentData?.url;
+
     if (!confId) {
       setAudioSelectionError("Conference is not ready.");
       return;
@@ -203,7 +229,9 @@ export function DetailsPage() {
     }
     setReconnectingIds((prev) => [...prev, phoneNumber]);
 
-    await addParticipant(confId, phoneNumber);
+    // Normalize phone number before sending to API
+    const normalizedPhone = normalizePhoneNumber(phoneNumber);
+    await addParticipant(confId, normalizedPhone);
 
     setReconnectingIds((prev) => prev.filter((id) => id !== phoneNumber));
   };
@@ -226,29 +254,143 @@ export function DetailsPage() {
   const handleCloseAudioModal = () => setIsAudioModalOpen(false);
 
   const handleAddParticipants = async (selectedPhoneNumbers) => {
+    if (!confId) {
+      showToast.error("Conference ID is missing");
+      return;
+    }
+
+    if (!Array.isArray(selectedPhoneNumbers) || selectedPhoneNumbers.length === 0) {
+      showToast.error("No participants selected");
+      return;
+    }
+
     try {
-      for (const phoneNumber of selectedPhoneNumbers) {
-        if (!phoneNumber) {
-          continue;
-        }
-        await addParticipant(confId, phoneNumber);
+      const normalizedPhones = selectedPhoneNumbers
+        .map((phoneNumber) => {
+          if (!phoneNumber) return null;
+          return normalizePhoneNumber(phoneNumber);
+        })
+        .filter(Boolean); // Remove null/empty values
+
+      if (normalizedPhones.length === 0) {
+        showToast.error("No valid phone numbers to add");
+        return;
       }
-      showToast.success(`Added ${selectedPhoneNumbers.length} participant(s)`);
+
+      // Add participants in parallel for better performance
+      const addPromises = normalizedPhones.map((normalizedPhone) =>
+        addParticipant(confId, normalizedPhone).catch((error) => {
+          console.error(`Failed to add participant ${normalizedPhone}:`, error);
+          return { error: true, phone: normalizedPhone };
+        })
+      );
+
+      const results = await Promise.all(addPromises);
+      const failed = results.filter((r) => r?.error).length;
+      const succeeded = results.length - failed;
+
+      if (succeeded > 0) {
+        showToast.success(`Added ${succeeded} participant(s) successfully`);
+      }
+      if (failed > 0) {
+        showToast.error(`Failed to add ${failed} participant(s)`);
+      }
     } catch (error) {
       console.error("Error adding participants:", error);
       showToast.error("Failed to add participants");
     }
   };
 
-  // Filter out students who are already in the userList
-  const availableStudents = conferenceStudents.filter(
-    (student) =>
-      !userList.some(
-        (user) =>
-          normalizePhoneNumber(getPhoneNumber(user)) ===
-          normalizePhoneNumber(getPhoneNumber(student))
-      )
-  );
+  const handleMuteAll = async () => {
+    if (!confId) {
+      showToast.error("Conference ID is missing");
+      return;
+    }
+
+    setIsMutingAll(true);
+    try {
+      await muteAll(confId);
+      showToast.success("Muting all students...");
+      // SSE will automatically update the UI with new mute states
+    } catch (error) {
+      console.error("Error muting all:", error);
+      showToast.error(`Failed to mute all: ${error.message || "Unknown error"}`);
+    } finally {
+      setIsMutingAll(false);
+    }
+  };
+
+  const handleUnmuteAll = async () => {
+    if (!confId) {
+      showToast.error("Conference ID is missing");
+      return;
+    }
+
+    setIsUnmutingAll(true);
+    try {
+      await unmuteAll(confId);
+      showToast.success("Unmuting all students...");
+      // SSE will automatically update the UI with new mute states
+    } catch (error) {
+      console.error("Error unmuting all:", error);
+      showToast.error(`Failed to unmute all: ${error.message || "Unknown error"}`);
+    } finally {
+      setIsUnmutingAll(false);
+    }
+  };
+
+  const handleRemoveParticipant = (participant) => {
+    if (!confId) {
+      showToast.error("Conference ID is missing");
+      return;
+    }
+    if (!participant || !participant.phoneNumber) {
+      showToast.error("Invalid participant");
+      return;
+    }
+    setRemoveConfirmParticipant(participant);
+  };
+
+  const handleRemoveConfirmClose = () => setRemoveConfirmParticipant(null);
+
+  const handleRemoveConfirm = async () => {
+    const participant = removeConfirmParticipant;
+    if (!participant || !confId) return;
+
+    const participantName = participant.name || participant.phoneNumber;
+    const phoneNumber = participant.phoneNumber;
+    setRemovingIds((prev) => [...prev, phoneNumber]);
+    setRemoveConfirmParticipant(null);
+
+    try {
+      const normalizedPhone = normalizePhoneNumber(phoneNumber);
+      await removeParticipant(confId, normalizedPhone);
+      showToast.success(`${participantName} removed successfully`);
+    } catch (error) {
+      console.error("Error removing participant:", error);
+      showToast.error(`Failed to remove ${participantName}: ${error.message || "Unknown error"}`);
+    } finally {
+      setRemovingIds((prev) => prev.filter((id) => id !== phoneNumber));
+    }
+  };
+
+  // Filter out students who are already in the call (using centralized participantsMap)
+  const allParticipants = getAllParticipants();
+  const availableStudents = (allClassroomStudents || []).filter((student) => {
+    if (!student) return false;
+
+    const studentPhone = normalizePhoneNumber(student.phoneNumber || student.phone_number);
+    if (!studentPhone) return false;
+
+    // Check if student is already in the call using centralized state
+    const isAlreadyInCall = allParticipants.some((participant) => {
+      if (!participant) return false;
+      const participantPhone = normalizePhoneNumber(participant.phoneNumber);
+      return participantPhone && participantPhone === studentPhone;
+    });
+
+    return !isAlreadyInCall;
+  });
 
   const isLoading = (phoneNumber) => phoneNumber && loadingIds.includes(phoneNumber);
   const isPlayingAudio = audioContentState.status === "Playing";
@@ -258,36 +400,7 @@ export function DetailsPage() {
 
   const canReconnect = (user) => user?.call_status === "disconnected" && isConfCallRunning;
   const isReconnecting = (phoneNumber) => phoneNumber && reconnectingIds.includes(phoneNumber);
-
-  // Merge conferenceStudents with userList data to get call status, mute status, etc.
-  // This preserves the original functionality: show all conferenceStudents
-  // but update them with real-time data from userList (SSE events)
-  // Use a Map with normalized phone numbers to avoid duplicates
-  const studentMap = new Map();
-  students.forEach((student) => {
-    const phoneNumber = getPhoneNumber(student);
-    if (phoneNumber) {
-      const normalizedPhone = normalizePhoneNumber(phoneNumber);
-      studentMap.set(normalizedPhone, student);
-    }
-  });
-
-  // Update with real-time data from userList
-  const activeStudents = Array.from(studentMap.entries()).map(([normalizedPhone, student]) => {
-    const userInCall = userList.find(
-      (user) => normalizePhoneNumber(getPhoneNumber(user)) === normalizedPhone
-    );
-    // If student is in the call (userList), merge the call status and mute status
-    // Otherwise, just use the student data as-is
-    return userInCall
-      ? {
-          ...student,
-          call_status: userInCall.call_status,
-          is_muted: userInCall.is_muted,
-          is_raised: userInCall.is_raised,
-        }
-      : student;
-  });
+  const isRemoving = (phoneNumber) => phoneNumber && removingIds.includes(phoneNumber);
 
   useEffect(() => {
     if (hasSunkConf) {
@@ -311,8 +424,10 @@ export function DetailsPage() {
           students={activeStudents}
           onMuteToggle={handleMuteToggle}
           onReconnect={handleReconnect}
+          onRemove={handleRemoveParticipant}
           isLoading={isLoading}
           isReconnecting={isReconnecting}
+          isRemoving={isRemoving}
           canReconnect={canReconnect}
         />
 
@@ -325,11 +440,16 @@ export function DetailsPage() {
           isPlayingAudio={isPlayingAudio}
           isPausedAudio={isPausedAudio}
           isStartingAudio={isStartingAudio}
+          isMutingAll={isMutingAll}
+          isUnmutingAll={isUnmutingAll}
+          activeStudents={activeStudents}
           onStartCall={handleStartCall}
           onEndCall={handleEndCall}
           onSinkConf={handleSinkConf}
           onAddParticipant={handleOpenModal}
           onMusicControl={handleMusicControl}
+          onMuteAll={handleMuteAll}
+          onUnmuteAll={handleUnmuteAll}
         />
 
         {/* Seek Controls */}
@@ -371,6 +491,30 @@ export function DetailsPage() {
         onClose={handleCloseAudioModal}
         onSubmit={handlePlaySelectedTrack}
       />
+
+      <Dialog
+        open={Boolean(removeConfirmParticipant)}
+        onClose={handleRemoveConfirmClose}
+        maxWidth="xs"
+        fullWidth
+        aria-labelledby="remove-participant-dialog-title"
+        aria-describedby="remove-participant-dialog-description"
+      >
+        <DialogTitle id="remove-participant-dialog-title">Remove participant</DialogTitle>
+        <DialogContent>
+          <DialogContentText id="remove-participant-dialog-description">
+            {removeConfirmParticipant
+              ? `Are you sure you want to remove ${removeConfirmParticipant.name || removeConfirmParticipant.phoneNumber} from the conference?`
+              : ""}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleRemoveConfirmClose}>Cancel</Button>
+          <Button onClick={handleRemoveConfirm} color="error" variant="contained" autoFocus>
+            Remove
+          </Button>
+        </DialogActions>
+      </Dialog>
     </PageContainer>
   );
 }

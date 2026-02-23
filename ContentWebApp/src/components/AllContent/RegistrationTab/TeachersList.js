@@ -16,7 +16,7 @@ const TeachersList = ({ teachers, selectedTeacherId, onSelectTeacher }) => {
                 String(teacher._id) === String(selectedTeacherId) ? "selected" : ""
               }`}
             >
-              {teacher.phoneNumber}
+              {`${teacher.name || "unknown"} — ${teacher.phoneNumber}`}
             </button>
           </li>
         ))}

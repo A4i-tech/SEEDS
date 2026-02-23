@@ -2,7 +2,7 @@ from functools import lru_cache
 from typing import Optional
 
 from app.interfaces.database import IDatabase
-from app.utils.mongodb import MongoDB
+from app.core.database import get_mongodb_manager
 from app.repositories.comprehension_repository import ComprehensionRepository
 from app.settings import settings
 
@@ -17,9 +17,10 @@ def get_database_service(
     """
     match datasource:
         case "mongodb":
-            return MongoDB(collection_name)
+            return get_mongodb_manager().get_collection(collection_name)
         case _:
             raise ValueError(f"Unsupported datasource: {datasource}")
+
 
 def get_comprehension_db() -> IDatabase:
     """Get MongoDB comprehension collection instance."""
@@ -28,7 +29,10 @@ def get_comprehension_db() -> IDatabase:
         collection_name="comprehension",
     )
 
-def get_comprehension_repository(db: IDatabase = None) -> ComprehensionRepository:
+
+def get_comprehension_repository(
+    db: Optional[IDatabase] = None,
+) -> ComprehensionRepository:
     """Get comprehension repository instance."""
     if db is None:
         db = get_comprehension_db()

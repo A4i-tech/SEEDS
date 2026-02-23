@@ -30,6 +30,7 @@ jobs:
                       azure_publish_profile: CONTENT_WEBAPP_AZURE_PUBLISH_PROFILE
                       needs_build_args: true
                       build_arg_api_url: CONTENT_WEBAPP_REACT_APP_API_BASE_URL
+                      build_arg_ivr_api_url: CONTENT_WEBAPP_REACT_APP_API_IVRV2_URL
 
                     - name: teacher-webapp-service
                       context: teacher-webapp
@@ -124,6 +125,7 @@ jobs:
                       ${{ matrix.service.build_arg_conf_uri && format('REACT_APP_CONF_SERVER_BASE_URI={0}', vars[matrix.service.build_arg_conf_uri]) || '' }}
                       ${{ matrix.service.build_arg_storage && format('REACT_APP_STORAGE_ACCOUNT_NAME={0}', vars[matrix.service.build_arg_storage]) || '' }}
                       ${{ matrix.service.build_arg_api_url && format('REACT_APP_API_BASE_URL={0}', vars[matrix.service.build_arg_api_url]) || '' }}
+                      ${{ matrix.service.build_arg_ivr_api_url && format('REACT_APP_API_IVRV2_URL={0}', vars[matrix.service.build_arg_ivr_api_url]) || '' }}
 
             - name: Normalize repo name to lowercase
               id: repo

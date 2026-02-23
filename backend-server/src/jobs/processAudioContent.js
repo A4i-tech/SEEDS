@@ -105,12 +105,10 @@ async function processNewContent(job) {
 
     if (contentDoc.isPullModel) {
       console.log("PROCESSING TITLE...");
-      // Generate TTS for title.
-      const titleAudioStream = await textToSpeech(
-        addForInOptionAudio(contentDoc.language, contentDoc.title.local),
-        contentDoc.language,
-        "1.0"
-      );
+      // Use local title.
+      const titleText = contentDoc.title.local?.trim() || "";
+      const titleTextForTts = addForInOptionAudio(contentDoc.language, titleText);
+      const titleAudioStream = await textToSpeech(titleTextForTts, contentDoc.language, "1.0");
       const titleBlobPath = `${contentDoc.id}/1.0.mp3`;
       const titleBlobClient = titleContainerClient.getBlockBlobClient(titleBlobPath);
       await titleBlobClient.uploadStream(titleAudioStream);
@@ -125,8 +123,9 @@ async function processNewContent(job) {
         console.log("Theme URL exists.");
       } else {
         console.log("Creating theme audio...");
+        const themeText = contentDoc.theme.local?.trim() || "";
         const themeAudioStream = await textToSpeech(
-          addForInOptionAudio(contentDoc.language, contentDoc.theme.local),
+          addForInOptionAudio(contentDoc.language, themeText),
           contentDoc.language,
           "1.0"
         );

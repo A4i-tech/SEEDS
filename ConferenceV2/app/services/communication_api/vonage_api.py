@@ -33,12 +33,21 @@ class VonageAPI(CommunicationAPI):
         self.teacher_phone_number = None
         self.is_websocket_connected = False
     
-    def _add_participant_to_call_with_system_message(self, phone_number: str, welcome_message: SystemAudioMessages):
+    def _add_participant_to_call_with_system_message(self, phone_number: str, welcome_message: SystemAudioMessages, start_muted: bool = False):
         call_payload = {"type": "phone", "number": phone_number}
+
+        # Build conversation action with optional mute parameter
+        conversation_action: Dict[str, Any] = {
+            "action": "conversation",
+            "name": self.conf_id
+        }
+        if start_muted:
+            conversation_action["mute"] = True
+
         call_data = {
             "to": [call_payload],
             "from": {
-                "type": "phone", 
+                "type": "phone",
                 "number": self.vonage_number
             },
             "event_url": [
@@ -49,10 +58,7 @@ class VonageAPI(CommunicationAPI):
                     "action": "stream",
                     "streamUrl": [sas_gen.get_url_with_sas(welcome_message.value)]
                 },
-                {
-                    "action": "conversation", 
-                    "name": self.conf_id
-                }
+                conversation_action
             ]
         }
         vonage_resp = self.client.voice.create_call(call_data)
@@ -147,12 +153,15 @@ class VonageAPI(CommunicationAPI):
     async def start_conf(self, teacher_phone: str, student_phones: List[str]):
         """
         Starts a conference call between a teacher and students using Vonage API.
+        Students are muted by default when they join.
         """
         self.teacher_phone_number = teacher_phone
-        self._add_participant_to_call_with_system_message(teacher_phone, SystemAudioMessages.WELCOME_TEACHER)
-        
+        # Teacher joins unmuted
+        self._add_participant_to_call_with_system_message(teacher_phone, SystemAudioMessages.WELCOME_TEACHER, start_muted=False)
+
+        # Students join muted by default
         for student_phone in student_phones:
-            self._add_participant_to_call_with_system_message(student_phone, SystemAudioMessages.WELCOME_STUDENT)
+            self._add_participant_to_call_with_system_message(student_phone, SystemAudioMessages.WELCOME_STUDENT, start_muted=True)
 
     # client.update_call()
     async def end_conf(self):
@@ -188,12 +197,16 @@ class VonageAPI(CommunicationAPI):
     async def add_participant(self, phone_number: str):
         """
         Adds a participant to an ongoing call.
+        Students are muted by default when they join.
         """
         welcome_message = SystemAudioMessages.WELCOME_STUDENT
+        start_muted = True  # Default to muted for students
+
         if self.teacher_phone_number == phone_number:
             welcome_message = SystemAudioMessages.WELCOME_TEACHER
-        
-        self._add_participant_to_call_with_system_message(phone_number, welcome_message)
+            start_muted = False  # Teacher is not muted
+
+        self._add_participant_to_call_with_system_message(phone_number, welcome_message, start_muted=start_muted)
 
     # client.update_call()
     async def remove_participant(self, phone_number: str):
