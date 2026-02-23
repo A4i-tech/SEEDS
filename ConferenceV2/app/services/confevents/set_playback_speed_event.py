@@ -1,6 +1,4 @@
 from datetime import datetime
-import json
-from typing import Optional
 
 from app.models.action_history import ActionHistory, ActionType
 from app.models.ws_service_message import MessageType, WebsocketServiceMessage
@@ -9,31 +7,18 @@ from app.services.confevents.base_event import ConferenceEvent
 from app.services.singletons.websocket_service import WebsocketService
 
 
-class SeekContentEvent(ConferenceEvent):
-    def __init__(
-        self,
-        conf_call: ConferenceCall,
-        delta_seconds: Optional[int] = None,
-        position_seconds: Optional[float] = None,
-    ):
+class SetPlaybackSpeedEvent(ConferenceEvent):
+    def __init__(self, conf_call: ConferenceCall, speed: float):
         self.conf_call = conf_call
-        self.delta_seconds = delta_seconds
-        self.position_seconds = position_seconds
+        self.speed = speed
 
     async def execute_event(self):
-        if self.position_seconds is not None:
-            seek_payload = {"positionSeconds": self.position_seconds}
-            metadata = {"seek_position_seconds": self.position_seconds}
-        else:
-            seek_payload = {"deltaSeconds": self.delta_seconds}
-            metadata = {"seek_delta_seconds": self.delta_seconds}
-
         ws = WebsocketService()
         await ws.send_message(
             WebsocketServiceMessage(
                 websocket_id=self.conf_call.conf_id,
-                type=MessageType.SEEK_AUDIO,
-                message=json.dumps(seek_payload),
+                type=MessageType.SET_SPEED,
+                message=str(self.speed),
             )
         )
 
@@ -41,11 +26,10 @@ class SeekContentEvent(ConferenceEvent):
             ActionHistory(
                 timestamp=datetime.now().isoformat(),
                 action_type=ActionType.TEACHER_AUDIO_PLAYBACK_STATUS_CHANGE,
-                metadata=metadata,
+                metadata={"playback_speed": self.speed},
                 owner=self.conf_call.state.teacher_phone_number,
             )
         )
 
-        # Leave audio_content_state untouched; websocket-service will send the
-        # authoritative playback-state update once the seek completes.
+        self.conf_call.state.audio_content_state.speed = self.speed
         await self.conf_call.update_state()

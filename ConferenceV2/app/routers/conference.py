@@ -1,5 +1,6 @@
 # routers/conference.py
 
+from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from app.services.conference_call import ConferenceCall
 from app.services.confevents.resume_content_event import ResumeContentEvent
@@ -12,6 +13,7 @@ from app.services.confevents.pause_content_event import PauseContentEvent
 from app.services.confevents.play_content_event import PlayContentEvent
 from app.services.confevents.remove_participant_event import RemoveParticipantEvent
 from app.services.confevents.seek_content_event import SeekContentEvent
+from app.services.confevents.set_playback_speed_event import SetPlaybackSpeedEvent
 from app.services.confevents.sink_conf_event import SinkConferenceEvent
 from app.services.confevents.unmute_participant_event import UnmuteParticipantEvent
 from app.services.confevents.unmute_all_event import UnmuteAllEvent
@@ -213,15 +215,47 @@ async def resume_audio(conference_id: str):
 @router.put("/seekaudio/{conference_id}")
 async def seek_audio(
     conference_id: str,
-    delta_seconds: int = Query(
-        ...,
+    delta_seconds: Optional[int] = Query(
+        None,
         description="Signed seek offset in seconds (negative rewinds, positive fast-forwards)",
+    ),
+    position_seconds: Optional[float] = Query(
+        None,
+        description="Absolute position to seek to in seconds",
+    ),
+):
+    if (delta_seconds is None) == (position_seconds is None):
+        raise HTTPException(
+            status_code=400,
+            detail="Exactly one of delta_seconds or position_seconds must be provided",
+        )
+    conference = conference_manager.get_conference(conference_id)
+    if not conference:
+        raise HTTPException(status_code=404, detail="Conference not found")
+    await conference.queue_event(
+        SeekContentEvent(
+            conf_call=conference,
+            delta_seconds=delta_seconds,
+            position_seconds=position_seconds,
+        )
+    )
+    return {"message": "Event Queued for execution"}
+
+
+@router.put("/setplaybackspeed/{conference_id}")
+async def set_playback_speed(
+    conference_id: str,
+    speed: float = Query(
+        ...,
+        description="Playback speed multiplier (e.g. 0.75, 1.0, 1.25, 1.5, 2.0)",
+        ge=0.5,
+        le=3.0,
     ),
 ):
     conference = conference_manager.get_conference(conference_id)
     if not conference:
         raise HTTPException(status_code=404, detail="Conference not found")
     await conference.queue_event(
-        SeekContentEvent(conf_call=conference, delta_seconds=delta_seconds)
+        SetPlaybackSpeedEvent(conf_call=conference, speed=speed)
     )
     return {"message": "Event Queued for execution"}

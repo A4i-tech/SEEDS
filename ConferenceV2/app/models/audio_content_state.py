@@ -17,6 +17,9 @@ class AudioContentState(BaseModel):
     current_url: Optional[str] = None
     status: ContentStatus = Field(default=ContentStatus.STOPPED)
     paused_at: Optional[str] = None
+    position_seconds: Optional[float] = None
+    duration_seconds: Optional[float] = None
+    speed: Optional[float] = 1.0
 
     class Config:
         use_enum_values = True  # Automatically use enum values instead of objects for serialization
