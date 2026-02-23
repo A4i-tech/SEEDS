@@ -3,7 +3,6 @@ import { v4 as uuidv4 } from "uuid";
 import { useNavigate } from "react-router-dom";
 import { contentService } from "../services/contentService";
 import { transformQuizItem, extractQuestionText, extractQuestionOptions, getCorrectOptionIndex } from "../utils/quizDataTransform";
-import "./AddQuiz.css";
 
 const AddQuiz = ({ quiz }) => {
   const navigate = useNavigate();
@@ -20,50 +19,31 @@ const AddQuiz = ({ quiz }) => {
 
   useEffect(() => {
     if (quiz && Object.keys(quiz).length > 0) {
-      // Transform quiz data to ensure consistent structure
       const transformedQuiz = transformQuizItem(quiz);
-      
-      // Handle title - already normalized by transformQuizItem
       const title = typeof transformedQuiz.title === "object" ? transformedQuiz.title.english : transformedQuiz.title;
-      
-      // Handle marks - already normalized by transformQuizItem
-      const positiveMark = transformedQuiz.positiveMarks ?? 1;
-      const negativeMark = transformedQuiz.negativeMarks ?? 0;
-
       const quizMetadata = {
         title: title,
         language: transformedQuiz.language,
-        positiveMark: positiveMark,
-        negativeMark: negativeMark,
+        positiveMark: transformedQuiz.positiveMarks ?? 1,
+        negativeMark: transformedQuiz.negativeMarks ?? 0,
       };
       setMetadata(quizMetadata);
-
-      // Handle questions - use utility functions to extract data
       const questions = transformedQuiz.questions || [];
       const inputFieldsData = questions.map((questionItem) => {
-        // Use utility functions to extract question and options
         const questionText = extractQuestionText(questionItem);
         const options = extractQuestionOptions(questionItem);
-
-        // Ensure we have at least 4 options
         const optionTexts = [...options];
-        while (optionTexts.length < 4) {
-          optionTexts.push("");
-        }
-
-        // Get correct answer index (for preserving when editing)
+        while (optionTexts.length < 4) optionTexts.push("");
         const correctIndex = getCorrectOptionIndex(questionItem, optionTexts);
-
         return {
           question: questionText,
           optionA: optionTexts[0] || "",
           optionB: optionTexts[1] || "",
           optionC: optionTexts[2] || "",
           optionD: optionTexts[3] || "",
-          correctAnswer: correctIndex, // Store correct answer index
+          correctAnswer: correctIndex,
         };
       });
-
       setInputFields(
         inputFieldsData.length > 0
           ? inputFieldsData
@@ -81,7 +61,6 @@ const AddQuiz = ({ quiz }) => {
   const createQuizJson = () => {
     metadata["questions"] = inputFields.map((mcq) => mcq.question);
     const options = inputFields.map((mcq) => [mcq.optionA, mcq.optionB, mcq.optionC, mcq.optionD]);
-    // Preserve correct answers from form (default to 0 if not set)
     const correctAnswers = inputFields.map((mcq) => mcq.correctAnswer !== undefined ? mcq.correctAnswer : 0);
     metadata["correctAnswers"] = correctAnswers;
     metadata["options"] = options;
@@ -135,14 +114,20 @@ const AddQuiz = ({ quiz }) => {
     }
 
     try {
-      const result = await contentService.createQuiz(metadata);
+      const isEditing = quiz && quiz.id;
+      let result;
+      if (isEditing) {
+        // PATCH existing quiz — backend requires _id in the body
+        result = await contentService.updateContent({ ...metadata, _id: quiz.id });
+      } else {
+        result = await contentService.createQuiz(metadata);
+      }
       console.log("Quiz saved successfully:", result);
-      alert("Quiz saved successfully.");
+      alert("Saved successfully.");
       navigate("/content");
     } catch (err) {
       console.error("Error saving quiz:", err);
-      const errorMessage = err.message || "Failed to save quiz";
-      alert(`Failed to save quiz: ${errorMessage}`);
+      alert(`Failed to save quiz: ${err.message || "Unknown error"}`);
     }
   };
 
@@ -153,7 +138,7 @@ const AddQuiz = ({ quiz }) => {
       optionB: "",
       optionC: "",
       optionD: "",
-      correctAnswer: 0, // Default to first option
+      correctAnswer: 0,
     };
     setInputFields([...inputFields, newfield]);
   };
@@ -171,32 +156,30 @@ const AddQuiz = ({ quiz }) => {
   };
 
   return (
-    <form className="add-quiz-form" onSubmit={onSubmit}>
-      <div className="form-section">
-        <div className="form-section-title">Quiz Information</div>
-        <div className="form-grid">
-          <div className="form-group">
-            <label className="form-label form-label-required">Title</label>
-            <input
-              className="form-input"
-              type="text"
-              name="title"
-              placeholder="Enter quiz title"
-              value={metadata.title || ""}
-              onChange={(event) =>
-                setMetadata({ ...metadata, title: event.target.value })
-              }
-            />
-          </div>
+    <form onSubmit={onSubmit}>
+      <div className="metadataGrid">
+        <div>
+          <label>Title</label>
+          <br />
+          <input
+            className="mintgreen"
+            type="text"
+            name="title"
+            placeholder=" Add Title"
+            value={metadata.title || ""}
+            onChange={(event) => setMetadata({ ...metadata, title: event.target.value })}
+          />
+        </div>
 
-          <div className="form-group">
-            <label className="form-label form-label-required">Language</label>
+        <div>
+          <label>
+            Language
+            <br />
             <select
               value={metadata.language || ""}
-              onChange={(event) =>
-                setMetadata({ ...metadata, language: event.target.value })
-              }
-              className="form-select"
+              onChange={(event) => setMetadata({ ...metadata, language: event.target.value })}
+              className="mintgreen"
+              style={{ width: "200px" }}
             >
               <option value="kannada">Kannada</option>
               <option value="hindi">Hindi</option>
@@ -205,118 +188,110 @@ const AddQuiz = ({ quiz }) => {
               <option value="tamil">Tamil</option>
               <option value="bengali">Bengali</option>
             </select>
-          </div>
+          </label>
+        </div>
 
-          <div className="form-group">
-            <label className="form-label form-label-required">Positive Marks</label>
-            <input
-              type="number"
-              className="form-input"
-              name="positiveMark"
-              placeholder="Enter positive marks"
-              value={metadata.positiveMark || 1}
-              onChange={(event) =>
-                setMetadata({ ...metadata, positiveMark: event.target.value })
-              }
-            />
-          </div>
+        <div>
+          <label>Positive Marks</label>
+          <br />
+          <input
+            type="number"
+            className="mintgreen"
+            name="positiveMark"
+            placeholder="Add Positive Marks"
+            value={metadata.positiveMark || 1}
+            onChange={(event) => setMetadata({ ...metadata, positiveMark: event.target.value })}
+          />
+        </div>
 
-          <div className="form-group">
-            <label className="form-label form-label-required">Negative Marks</label>
-            <input
-              type="number"
-              className="form-input"
-              name="negativeMark"
-              placeholder="Enter negative marks"
-              value={metadata.negativeMark || 0}
-              onChange={(event) =>
-                setMetadata({ ...metadata, negativeMark: event.target.value })
-              }
-            />
-          </div>
+        <div>
+          <label>Negative Marks</label>
+          <br />
+          <input
+            type="number"
+            className="mintgreen"
+            name="negativeMark"
+            placeholder="Add Negative Marks"
+            value={metadata.negativeMark || 0}
+            onChange={(event) => setMetadata({ ...metadata, negativeMark: event.target.value })}
+          />
         </div>
       </div>
-
-      <div className="form-section">
-        <div className="form-section-title">Questions</div>
-        {inputFields.map((input, index) => {
-          return (
-            <div key={index} className="question-card">
-              <div className="question-simple-header">
-                <span className="question-simple-title">Question {index + 1}</span>
-                {inputFields.length > 1 && (
-                  <button
-                    className="btn-remove"
-                    type="button"
-                    onClick={() => removeFields(index)}
-                  >
-                    Remove Question
-                  </button>
-                )}
-              </div>
-              <div className="form-group" style={{ marginBottom: "20px" }}>
-                <label className="form-label form-label-required">Question Text</label>
+      {inputFields.map((input, index) => {
+        return (
+          <div key={index} style={{ marginTop: "1%" }}>
+            <div className="optionsGrid">
+              <div>
+                <label>Question {index + 1}</label>
+                <br />
                 <input
                   type="text"
-                  className="form-input"
+                  className="mintgreen"
                   name="question"
-                  placeholder="Enter your question"
+                  placeholder=" Add Question"
                   value={input.question}
                   onChange={(event) => handleFormChange(index, event)}
                 />
               </div>
-              <div className="options-grid">
-                {["optionA", "optionB", "optionC", "optionD"].map((field, optionIdx) => {
-                  const labels = ["Option A", "Option B", "Option C", "Option D"];
-                  const isCorrect = input.correctAnswer === optionIdx;
-                  return (
-                    <div className={`option-group ${isCorrect ? "option-group-correct" : ""}`} key={field}>
-                      <div className="option-label-row">
-                        <label className={`option-label ${isCorrect ? "option-label-correct" : ""}`}>
-                          {labels[optionIdx]} {isCorrect ? "(Correct Answer)" : ""}
-                        </label>
-                        <label className="option-radio">
-                          <input
-                            type="radio"
-                            name={`correct-${index}`}
-                            checked={isCorrect}
-                            onChange={() => handleCorrectAnswerChange(index, optionIdx)}
-                          />
-                          <span>Select correct</span>
-                        </label>
-                      </div>
-                      <input
-                        type="text"
-                        name={field}
-                        className="form-input"
-                        placeholder={`Enter ${labels[optionIdx]}`}
-                        value={input[field]}
-                        onChange={(event) => handleFormChange(index, event)}
-                      />
-                    </div>
-                  );
-                })}
+              <div>
+                <button
+                  className="btn"
+                  type="button"
+                  style={{ backgroundColor: "#28574F", color: "white" }}
+                  onClick={() => removeFields(index)}
+                >
+                  Remove
+                </button>
               </div>
+              {[
+                { name: "optionA", label: "Option A", idx: 0 },
+                { name: "optionB", label: "Option B", idx: 1 },
+                { name: "optionC", label: "Option C", idx: 2 },
+                { name: "optionD", label: "Option D", idx: 3 },
+              ].map(({ name, label, idx }) => (
+                <div key={name}>
+                  <label>
+                    <input
+                      type="radio"
+                      name={`correctAnswer-${index}`}
+                      checked={input.correctAnswer === idx}
+                      onChange={() => handleCorrectAnswerChange(index, idx)}
+                      style={{ marginRight: "4px" }}
+                    />
+                    {label} {input.correctAnswer === idx ? "(Correct Answer)" : ""}
+                  </label>
+                  <br />
+                  <input
+                    type="text"
+                    name={name}
+                    className="mintgreen"
+                    placeholder={` Add ${label}`}
+                    value={input[name]}
+                    onChange={(event) => handleFormChange(index, event)}
+                  />
+                </div>
+              ))}
             </div>
-          );
-        })}
-        <button
-          type="button"
-          className="btn-add-question"
-          onClick={addFields}
-        >
-          ➕ Add Question
-        </button>
-      </div>
-
-      <div className="form-actions">
-        <button
-          type="submit"
-          className="btn-primary"
-        >
-          💾 Save Quiz
-        </button>
-      </div>
+            <br />
+          </div>
+        );
+      })}
+      <button
+        type="button"
+        className="btn"
+        style={{ backgroundColor: "#28574F", color: "white" }}
+        onClick={addFields}
+      >
+        + Question
+      </button>
+      <br />
+      <br />
+      <input
+        type="submit"
+        style={{ backgroundColor: "#E5A83B", color: "white" }}
+        value="Save"
+        className="btn btn-block"
+      />
     </form>
   );
 };

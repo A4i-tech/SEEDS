@@ -77,6 +77,27 @@ export const contentService = {
   },
 
   /**
+   * Update existing content (quiz or story) via PATCH
+   * @param {Object} contentData - Content with _id field required
+   * @param {boolean} isAudioUploaded - Whether a new audio file was uploaded
+   * @returns {Promise<Object>}
+   */
+  async updateContent(contentData, isAudioUploaded = false) {
+    const url = `${SEEDS_URL}/content?isAudioUploaded=${isAudioUploaded}`;
+
+    const response = await apiFetch(url, {
+      method: "PATCH",
+      headers: {
+        ...getAuthHeaders(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(contentData),
+    });
+
+    return response;
+  },
+
+  /**
    * Fetch all content (without pagination) - for bulk operations
    * @returns {Promise<Array>}
    */

@@ -744,6 +744,121 @@ router.post(
   }),
 );
 
+router.patch(
+  "/",
+  tryCatchWrapper(async (req, res) => {
+    const isAudioUploaded = req.query.isAudioUploaded === "true";
+    const contentId = req.body?._id || req.body?.id;
+
+    if (!contentId) {
+      return res.status(400).json({ error: "Content _id is required" });
+    }
+
+    const updatePayload = { ...req.body };
+    delete updatePayload._id;
+    delete updatePayload.id;
+    delete updatePayload.creation_time;
+
+    // Check if it is a quiz (stored in QuizData)
+    const existingQuiz = await QuizData.findOne({ _id: contentId }).lean().exec();
+    if (existingQuiz) {
+      const quizUpdate = {};
+
+      // Scalar fields
+      if (updatePayload.language !== undefined) quizUpdate.language = updatePayload.language;
+      if (updatePayload.isPullModel !== undefined) quizUpdate.isPullModel = updatePayload.isPullModel;
+      if (updatePayload.isTeacherApp !== undefined) quizUpdate.isTeacherApp = updatePayload.isTeacherApp;
+
+      // Normalize singular → plural mark field names from frontend
+      const posMarks = updatePayload.positiveMarks ?? updatePayload.positiveMark;
+      const negMarks = updatePayload.negativeMarks ?? updatePayload.negativeMark;
+      if (posMarks !== undefined) quizUpdate.positiveMarks = posMarks;
+      if (negMarks !== undefined) quizUpdate.negativeMarks = negMarks;
+
+      // title and theme are TextContentSchema objects {english, local, audioUrl}.
+      // The frontend sends them as plain strings, so merge with existing values to
+      // preserve local translation and audioUrl.
+      if (updatePayload.title !== undefined) {
+        const incoming = typeof updatePayload.title === "string" ? updatePayload.title : updatePayload.title.english;
+        quizUpdate.title = {
+          english: incoming,
+          local: existingQuiz.title?.local ?? "",
+          audioUrl: existingQuiz.title?.audioUrl ?? "",
+        };
+      }
+      if (updatePayload.theme !== undefined) {
+        const incoming = typeof updatePayload.theme === "string" ? updatePayload.theme : updatePayload.theme.english;
+        quizUpdate.theme = {
+          english: incoming,
+          local: existingQuiz.theme?.local ?? "",
+          audioUrl: existingQuiz.theme?.audioUrl ?? "",
+        };
+      }
+
+      // Convert frontend flat arrays into the QuizData embedded-document structure,
+      // preserving existing audio URLs where no new audio was uploaded.
+      const questionTexts = updatePayload.questions;
+      const optionArrays = updatePayload.options;
+      const correctAnswers = updatePayload.correctAnswers;
+      if (Array.isArray(questionTexts) && Array.isArray(optionArrays)) {
+        quizUpdate.questions = questionTexts.map((questionText, qIdx) => {
+          const existing = existingQuiz.questions?.[qIdx] || {};
+          const optTexts = optionArrays[qIdx] || [];
+          const correctIdx = Array.isArray(correctAnswers) ? (correctAnswers[qIdx] ?? 0) : 0;
+          return {
+            question: {
+              id: existing.question?.id || `${contentId}-q${qIdx + 1}`,
+              url: existing.question?.url || "<NOT CREATED>",
+              text: questionText,
+            },
+            options: optTexts.map((optText, oIdx) => ({
+              id: existing.options?.[oIdx]?.id || `${contentId}-q${qIdx + 1}-opt${oIdx + 1}`,
+              url: existing.options?.[oIdx]?.url || "<NOT CREATED>",
+              text: optText,
+            })),
+            correct_option_id:
+              existing.options?.[correctIdx]?.id ||
+              `${contentId}-q${qIdx + 1}-opt${correctIdx + 1}`,
+          };
+        });
+      }
+
+      const updated = await QuizData.findOneAndUpdate(
+        { _id: contentId },
+        { $set: quizUpdate },
+        { new: true },
+      ).exec();
+
+      if (!updated) {
+        return res.status(404).json({ error: "Quiz not found" });
+      }
+      return res.json({ ...updated.toObject(), id: updated._id, type: "quiz" });
+    }
+
+    // Otherwise update in ContentV3 (story, poem, song, riddle)
+    if (isAudioUploaded) {
+      updatePayload.isProcessed = false;
+    }
+
+    const updated = await ContentV3.findOneAndUpdate(
+      { _id: contentId, isDeleted: { $ne: true } },
+      { $set: updatePayload },
+      { new: true },
+    ).exec();
+
+    if (!updated) {
+      return res.status(404).json({ error: "Content not found" });
+    }
+
+    // If a new audio file was uploaded, trigger reprocessing
+    if (isAudioUploaded) {
+      await agenda.now("processNewContent", { content: updated.toObject() });
+    }
+
+    return res.json({ ...updated.toObject(), id: updated._id });
+  }),
+);
+
 // router.patch("/",tryCatchWrapper(async (req,res) => {
 //     const isAudioUploaded = req.query.isAudioUploaded === "true"
 //     if(!req.body.isPullModel){

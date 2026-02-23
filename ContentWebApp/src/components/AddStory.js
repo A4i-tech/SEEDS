@@ -23,11 +23,9 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
     isTeacherApp: true,
     isProcessed: false,
     isDeleted: false,
-    audioFile: "",       // for upload only (not sent to backend)
-    answerAudioFile: ""  // for upload only (not sent to backend)
+    audioFile: "", // for upload only (not sent to backend)
+    answerAudioFile: "", // for upload only (not sent to backend)
   });
-
-
 
   const [titlesUnderTheme, setTitlesUnderTheme] = useState([]);
   const [audioSrc, setAudioSrc] = useState();
@@ -37,21 +35,16 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
   const [themes, setThemes] = useState({});
   const [newTheme, setNewTheme] = useState(false);
 
-
   const getAllContent = async () => {
     try {
-      const seedsRes = await fetch(
-        `${SEEDS_URL}/content`,
-        {
-          method: "GET",
-          headers: getAuthHeaders(),
-        }
-      );
+      const seedsRes = await fetch(`${SEEDS_URL}/content`, {
+        method: "GET",
+        headers: getAuthHeaders(),
+      });
       if (!seedsRes.ok) {
         throw new Error(`Failed to fetch content: ${seedsRes.status}`);
       }
       const seedsData = await seedsRes.json();
-      // Handle both { data: [...] } and direct array responses
       const contentArray = Array.isArray(seedsData) ? seedsData : (seedsData.data || []);
       return contentArray;
     } catch (error) {
@@ -66,13 +59,10 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
       return;
     }
     const newThemes = {};
-    content.forEach(item => {
+    content.forEach((item) => {
       if (!item) return;
-      
-      // Handle both object and string formats for theme
       const themeEnglish = typeof item.theme === "object" ? item.theme.english : item.theme;
       const themeLocal = typeof item.theme === "object" ? item.theme.local : item.localTheme;
-      
       if (item.language && themeEnglish && themeLocal) {
         const lang = item.language.toLowerCase();
         newThemes[lang] = newThemes[lang] || {};
@@ -87,9 +77,13 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
     if (value === "new-theme") {
       setNewTheme(true);
       setTitlesUnderTheme([]);
-      setMetadata(prev => ({
+      setMetadata((prev) => ({
         ...prev,
-        theme: { english: name === "theme" ? "" : prev.theme.english, local: name === "localTheme" ? "" : prev.theme.local, audioUrl: "" },
+        theme: {
+          english: name === "theme" ? "" : prev.theme.english,
+          local: name === "localTheme" ? "" : prev.theme.local,
+          audioUrl: "",
+        },
         // Reset title as object
         title: { english: "", local: "", audioUrl: "" },
       }));
@@ -102,9 +96,11 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
         localTheme = themes[metadata.language][value];
       } else {
         localTheme = value;
-        englishTheme = Object.keys(themes[metadata.language]).find(key => themes[metadata.language][key] === value);
+        englishTheme = Object.keys(themes[metadata.language]).find(
+          (key) => themes[metadata.language][key] === value,
+        );
       }
-      setMetadata(prev => ({
+      setMetadata((prev) => ({
         ...prev,
         theme: {
           english: englishTheme || "",
@@ -118,39 +114,31 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
     }
   };
 
-  const fetchTitlesUnderTheme = useCallback((language, theme) => {
-    if (!Array.isArray(allContent)) {
-      console.warn("fetchTitlesUnderTheme: allContent is not an array", allContent);
-      setTitlesUnderTheme({});
-      return;
-    }
-    
-    const filteredContent = allContent.filter(item => {
-      if (!item || !item.language) return false;
-      
-      // Handle both object and string formats for theme
-      const itemTheme = typeof item.theme === "object" ? item.theme.english : item.theme;
-      
-      return item.language.toLowerCase() === language.toLowerCase() &&
-        itemTheme && itemTheme.toLowerCase() === theme.toLowerCase();
-    });
-    
-    const titleMap = {};
-    filteredContent.forEach(item => {
-      // Handle both object and string formats for title
-      const titleEnglish = typeof item.title === "object" ? item.title.english : item.title;
-      const titleLocal = typeof item.title === "object" ? item.title.local : item.localTitle;
-      
-      if (titleEnglish && titleLocal) {
-        titleMap[titleEnglish.toLowerCase()] = titleLocal;
-      }
-    });
-    setTitlesUnderTheme(titleMap);
-  }, [allContent]);
+  const fetchTitlesUnderTheme = useCallback(
+    (language, theme) => {
+      const filteredContent = allContent.filter((item) => {
+        const itemTheme = typeof item.theme === "object" ? item.theme.english : item.theme;
+        return (
+          item.language.toLowerCase() === language.toLowerCase() &&
+          itemTheme.toLowerCase() === theme.toLowerCase()
+        );
+      });
+      const titleMap = {};
+      filteredContent.forEach((item) => {
+        const titleEnglish = typeof item.title === "object" ? item.title.english : item.title;
+        const titleLocal = typeof item.title === "object" ? item.title.local : item.localTitle;
+        if (titleEnglish && titleLocal) {
+          titleMap[titleEnglish.toLowerCase()] = titleLocal;
+        }
+      });
+      setTitlesUnderTheme(titleMap);
+    },
+    [allContent],
+  );
 
   const handleLanguageChange = (event) => {
     const newLanguage = event.target.value;
-    setMetadata(prev => ({
+    setMetadata((prev) => ({
       ...prev,
       language: newLanguage,
       theme: { english: "", local: "", audioUrl: "" },
@@ -164,7 +152,6 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
     const getContent = async () => {
       try {
         const contentFromServer = await getAllContent();
-        // Ensure we always set an array
         const contentArray = Array.isArray(contentFromServer) ? contentFromServer : [];
         setAllContent(contentArray);
         populateThemes(contentArray);
@@ -207,33 +194,24 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
         isProcessed: content.isProcessed ?? false,
         isDeleted: content.isDeleted ?? false,
         audioFile: "",
-        answerAudioFile: ""
+        answerAudioFile: "",
       };
       setMetadata(quizMetadata);
       if (contentType !== "Riddle") {
-        setAudioSrc(
-          `${AUDIO_BASE_URL}/${content.id}.mp3`
-        );
+        setAudioSrc(`${AUDIO_BASE_URL}/${content.id}.mp3`);
       } else {
-        setAudioSrc(
-          `${AUDIO_BASE_URL}/${content.id}/question.mp3`
-        );
-        setAnswerAudioSrc(
-          `${AUDIO_BASE_URL}/${content.id}/answer.mp3`
-        );
+        setAudioSrc(`${AUDIO_BASE_URL}/${content.id}/question.mp3`);
+        setAnswerAudioSrc(`${AUDIO_BASE_URL}/${content.id}/answer.mp3`);
       }
       fetchTitlesUnderTheme(quizMetadata.language, quizMetadata.theme.english);
     }
   }, [content, contentType, fetchTitlesUnderTheme]);
-
-
 
   const [file, setFile] = useState();
   const [answerFile, setAnswerFile] = useState();
   const [uploadError, setUploadError] = useState("");
   const [answerUploadError, setAnswerUploadError] = useState("");
   const navigate = useNavigate();
-
 
   const isValid = () => {
     var valid = true;
@@ -293,7 +271,6 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
     return valid;
   };
 
-
   const onSubmit = (e) => {
     e.preventDefault();
     console.log("metadata", metadata);
@@ -304,13 +281,12 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
   };
 
   const sendStory = async () => {
-    // Get the correct ID - backend always provides id field
-    const contentId = content ? content.id : uuidv4();
+    const _id = content ? content.id : uuidv4();
     const languageLower = (metadata.language || "").toLowerCase();
     // Always send title and theme as objects
     var newMetadata = {
       ...metadata,
-      _id: contentId,
+      _id,
       type: contentType,
       title: {
         english: metadata.title.english || "",
@@ -329,8 +305,10 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
         audioUrl: metadata.theme.audioUrl || "",
       },
     };
+    var isAudioUploaded = "true";
     if (!metadata.audioFile && !metadata.answerAudioFile) {
       newMetadata["isProcessed"] = metadata.isProcessed;
+      isAudioUploaded = "false";
     }
     delete newMetadata["audioFile"];
     delete newMetadata["answerAudioFile"];
@@ -344,15 +322,15 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
 
     if (metadata.audioFile) {
       const extname = metadata.audioFile.split(".").pop();
-      filename = `${contentId}.${extname}`;
+      filename = `${_id}.${extname}`;
       if (contentType === "Riddle") {
-        filename = `${contentId}_question.${extname}`;
+        filename = `${_id}_question.${extname}`;
       }
       const res = await fetch(
         `${SEEDS_URL}/content/sasToken?` +
-        new URLSearchParams({
-          blobName: filename,
-        }),
+          new URLSearchParams({
+            blobName: filename,
+          }),
         {
           method: "GET",
           headers: getAuthHeaders(),
@@ -369,7 +347,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
 
     if (metadata.answerAudioFile) {
       const answerExtname = metadata.answerAudioFile.split(".").pop();
-      answerFilename = `${contentId}_answer.${answerExtname}`;
+      answerFilename = `${_id}_answer.${answerExtname}`;
       const resAnswer = await fetch(
         `${SEEDS_URL}/content/sasToken?` +
           new URLSearchParams({
@@ -486,81 +464,90 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
   };
 
   return (
-    <form className="add-story-form" onSubmit={onSubmit}>
-      {(contentType === "Story" || contentType === "Poem" || contentType === "Song" || contentType === "Riddle") && onContentTypeChange && (
-        <div className="form-section" style={{ marginBottom: "24px" }}>
-          <div className="form-group">
-            <label className="form-label">Content Type</label>
-            <select
-              value={contentType}
-              onChange={(event) => {
-                if (onContentTypeChange) {
-                  onContentTypeChange(event);
-                }
-                setMetadata(prev => ({ ...prev, type: event.target.value }));
-              }}
-              className="form-select"
-              style={{ maxWidth: "200px" }}
-            >
-              <option value="Story">Story</option>
-              <option value="Poem">Poem</option>
-              <option value="Song">Song</option>
-              <option value="Riddle">Riddle</option>
-            </select>
-          </div>
-        </div>
-      )}
-      <div className="form-section">
-        <div className="form-section-title">Basic Information</div>
-        <div className="form-grid">
-          <div className="form-group">
-            <label className="form-label form-label-required">Language</label>
-            <select
-              value={metadata.language || ""}
-              onChange={handleLanguageChange}
-              className="form-select"
-            >
-              <option value="kannada">Kannada</option>
-              <option value="hindi">Hindi</option>
-              <option value="marathi">Marathi</option>
-              <option value="english">English</option>
-              <option value="tamil">Tamil</option>
-              <option value="bengali">Bengali</option>
-            </select>
-          </div>
-        </div>
+    <form className="add-form" onSubmit={onSubmit}>
+      <div style={{ marginBottom: "30px" }}>
+        <label
+          style={{ display: "block", marginBottom: "8px", fontWeight: "500" }}
+        >
+          Language:
+        </label>
+        <select
+          value={metadata.language || ""}
+          onChange={handleLanguageChange}
+          className="mintgreen"
+          style={{ width: "100%", maxWidth: "300px", padding: "8px" }}
+        >
+          <option value="kannada">Kannada</option>
+          <option value="hindi">Hindi</option>
+          <option value="marathi">Marathi</option>
+          <option value="english">English</option>
+          <option value="tamil">Tamil</option>
+          <option value="bengali">Bengali</option>
+        </select>
       </div>
 
-      <div className="form-section">
-        <div className="form-section-title">Theme</div>
-        <div className="form-grid">
-          <div className="form-group">
-            <label className="form-label form-label-required">English Theme</label>
-            <select 
-              name="theme" 
-              value={metadata.theme.english || ""} 
-              onChange={handleThemeChange} 
-              className="form-select"
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            metadata.language === "english" ? "1fr" : "1fr 1fr",
+          gap: "20px",
+          marginBottom: "25px",
+        }}
+      >
+        <div>
+          <label
+            style={{ display: "block", marginBottom: "8px", fontWeight: "500" }}
+          >
+            English Theme
+          </label>
+          <select
+            name="theme"
+            value={metadata.theme.english}
+            onChange={handleThemeChange}
+            className="mintgreen"
+            style={{ width: "100%", padding: "8px" }}
+          >
+            <option value="">Choose Theme</option>
+            {themes[metadata.language] &&
+              Object.keys(themes[metadata.language]).map((theme) => (
+                <option key={theme} value={theme}>
+                  {theme}
+                </option>
+              ))}
+            <option
+              value="new-theme"
+              selected={metadata.theme.local === "new-theme"}
+            >
+              Choose New Theme
+            </option>
+          </select>
+        </div>
+        {metadata.language !== "english" && (
+          <div>
+            <label
+              style={{
+                display: "block",
+                marginBottom: "8px",
+                fontWeight: "500",
+                textTransform: "capitalize",
+              }}
+            >
+              {metadata.language} Theme
+            </label>
+            <select
+              name="localTheme"
+              value={metadata.theme.local}
+              onChange={handleThemeChange}
+              className="mintgreen"
+              style={{ width: "100%", padding: "8px" }}
             >
               <option value="">Choose Theme</option>
-              {themes[metadata.language] && Object.keys(themes[metadata.language]).map(theme => (
-                <option key={theme} value={theme}>{theme}</option>
-              ))}
-              <option value="new-theme">Create New Theme</option>
-            </select>
-          </div>
-          {metadata.language !== "english" && (
-            <div className="form-group">
-              <label className="form-label form-label-required">{metadata.language.charAt(0).toUpperCase() + metadata.language.slice(1)} Theme</label>
-              <select 
-                name="localTheme" 
-                value={metadata.theme.local || ""} 
-                onChange={handleThemeChange} 
-                className="form-select"
-              >
-                <option value="">Choose Theme</option>
-                {themes[metadata.language] && Object.values(themes[metadata.language]).map(localTheme => (
-                  <option key={localTheme} value={localTheme}>{localTheme}</option>
+              {themes[metadata.language] &&
+                Object.values(themes[metadata.language]).map((localTheme) => (
+                  <option key={localTheme} value={localTheme}>
+                    {localTheme}
+                  </option>
                 ))}
                 <option value="new-theme">Create New Theme</option>
               </select>
@@ -698,7 +685,6 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
           )}
         </div>
 
-=======
         {contentType === "Riddle" && (
           <div className="form-group" style={{ marginTop: "20px" }}>
             <label className="form-label">
@@ -761,7 +747,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
       <div className="form-actions">
         <button
           type="submit"
-          disabled={isSaveButtonDisabled}
+          disabled={isSaveButtonDisabled || Boolean(uploadError) || Boolean(answerUploadError)}
           className="btn-primary"
         >
           {isSaveButtonDisabled ? (

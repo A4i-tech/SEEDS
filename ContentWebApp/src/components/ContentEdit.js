@@ -1,33 +1,23 @@
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useLocation } from "react-router-dom";
 import AddQuiz from "./AddQuiz";
 import AddStory from "./AddStory";
 import { contentService } from "../services/contentService";
-import "./ContentDetails.css";
 
 const ContentEdit = () => {
   const { type, id } = useParams();
-  const navigate = useNavigate();
-  const [content, setContent] = useState(null);
-  const [experience, setExperience] = useState(type || "quiz");
+  const [content, setContent] = useState({});
+  const [experience, setExperience] = useState("quiz");
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   const contentById = useCallback(async () => {
     try {
-      setIsLoading(true);
-      setError(null);
-
-      const contentId = String(id || "").trim();
-      const data = await contentService.getContentById(contentId);
-      console.log("ContentEdit data", data);
+      const data = await contentService.getContentById(String(id || "").trim());
+      console.log("quizInEdit", data);
       return data;
     } catch (error) {
       console.error("Error fetching content for edit:", error);
-      setError(error.message || "Failed to load content");
       return null;
-    } finally {
-      setIsLoading(false);
     }
   }, [id]);
 
@@ -36,134 +26,82 @@ const ContentEdit = () => {
       const contentFromServer = await contentById();
       if (contentFromServer) {
         setContent(contentFromServer);
-        // Set experience based on content type, handling both object and string formats
-        const contentType = contentFromServer.type || type || "quiz";
-        // Normalize to handle case variations
-        const normalizedType = typeof contentType === "string" 
-          ? contentType.toLowerCase() 
-          : contentType;
-        setExperience(normalizedType);
-      } else {
-        // If content fetch fails, still set experience from URL param
-        if (type) {
-          setExperience(type.toLowerCase());
-        }
+        setExperience(contentFromServer.type || type || "quiz");
       }
+      setIsLoading(false);
     };
     getContentById();
   }, [contentById, type]);
 
+  const location = useLocation();
+  console.log("link props", location.state);
+
   const handleChange = (event) => {
     setExperience(event.target.value);
+    console.log(event.target.value);
   };
+
+  const experienceLower = (experience || "").toLowerCase();
+  const isQuiz = experienceLower === "quiz";
+  // Quiz content has no isProcessed/audioContent — treat it as always ready
+  const isProcessed = isQuiz
+    ? true
+    : (content?.isProcessed ?? Boolean(content?.audioContent?.length));
+  const titleText =
+    typeof content?.title === "object"
+      ? content.title.english || content.title.local || "Untitled"
+      : content?.title || "Untitled";
 
   if (isLoading) {
     return (
-      <div className="content-details-container">
-        <div className="content-details-wrapper">
-          <div className="content-details-loading">
-            <div className="loading-spinner"></div>
-            <p className="loading-text">Loading content for editing...</p>
-          </div>
-        </div>
+      <div style={{ margin: "20px" }}>
+        <p>Loading...</p>
       </div>
     );
   }
 
-  if (error) {
+  if (content && !isProcessed) {
     return (
-      <div className="content-details-container">
-        <div className="content-details-wrapper">
-          <div className="content-details-error">
-            <div className="error-icon">⚠️</div>
-            <h3 className="error-title">Error Loading Content</h3>
-            <p className="error-message">{error}</p>
-            <button
-              className="content-details-back-button"
-              onClick={() => navigate("/content")}
-            >
-              Back to Content
-            </button>
-          </div>
+      <>
+        <div style={{ margin: "20px" }}>
+          <h3>{titleText}</h3>
+          <p>Content is being processed, try again later!</p>
         </div>
-      </div>
+      </>
     );
-  }
-
-  if (!content || Object.keys(content).length === 0) {
+  } else {
     return (
-      <div className="content-details-container">
-        <div className="content-details-wrapper">
-          <div className="content-details-error">
-            <div className="error-icon">🔍</div>
-            <h3 className="error-title">Content Not Found</h3>
-            <p className="error-message">The requested content could not be found.</p>
-            <button
-              className="content-details-back-button"
-              onClick={() => navigate("/content")}
-            >
-              Back to Content
-            </button>
-          </div>
+      <>
+        <div style={{ margin: "20px" }}>
+          <h3>Edit Content</h3>
+          {content && !isQuiz && (
+            <form>
+              <label>
+                Experience:
+                <select
+                  value={experience}
+                  onChange={(event) => handleChange(event)}
+                  className="mintgreen"
+                  style={{ width: "150px" }}
+                >
+                  <option value="Story">Story</option>
+                  <option value="Poem">Poem</option>
+                  <option value="Song">Song</option>
+                </select>
+              </label>
+            </form>
+          )}
+          {content && isQuiz && (
+            <AddQuiz quiz={content} />
+          )}
+          {content && !isQuiz && isProcessed && (
+            <AddStory content={content} contentType={experience} />
+          )}
+          <div />
         </div>
-      </div>
+      </>
     );
   }
-
-  // Check if content is processed
-  // Quiz content doesn't have isProcessed field, so we check if it has questions
-  const isProcessed =
-    content.isProcessed !== false && (content.type === "quiz" ? content.questions?.length > 0 : true);
-
-  if (!isProcessed && content.type !== "quiz") {
-    const titleText = typeof content.title === "object" 
-      ? content.title.english || content.title.local 
-      : content.title || "Unknown Title";
-    
-    return (
-      <div className="content-details-container">
-        <div className="content-details-wrapper">
-          <div className="content-processing">
-            <div className="processing-icon">⏳</div>
-            <h3 className="processing-title">{titleText}</h3>
-            <p className="processing-message">Content is being processed and cannot be edited yet. Please try again later!</p>
-            <button
-              className="content-details-back-button"
-              onClick={() => navigate("/content")}
-            >
-              Back to Content
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Get content type - handle both object and string formats
-  const contentType = content.type || experience || type || "quiz";
-  const normalizedType = typeof contentType === "string" 
-    ? contentType.toLowerCase() 
-    : (contentType || "quiz");
-
-  return (
-    <div className="content-details-container">
-      <div className="content-details-wrapper">
-        <button
-          className="back-button"
-          onClick={() => navigate("/content")}
-        >
-          ← Back to Content
-        </button>
-
-        {/* Render appropriate edit component */}
-        {normalizedType === "quiz" ? (
-          <AddQuiz quiz={content} />
-        ) : (
-          <AddStory content={content} contentType={experience} onContentTypeChange={handleChange} />
-        )}
-      </div>
-    </div>
-  );
 };
 
 export default ContentEdit;
