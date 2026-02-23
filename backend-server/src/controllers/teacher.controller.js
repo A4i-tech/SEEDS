@@ -9,7 +9,7 @@ exports.addStudents = async (req, res) => {
     const result = await teacherService.addStudents({
       students: req.body.students,
       phoneNumber: req.body.phoneNumber,
-      tenantId: req.userId,
+      tenantId: req.tenantId,
     });
     res.status(STATUS.OK).json(result);
   } catch (err) {
@@ -21,7 +21,7 @@ exports.getStudents = async (req, res) => {
   try {
     const result = await teacherService.getStudents({
       phoneNumber: req.body.phoneNumber,
-      tenantId: req.userId,
+      tenantId: req.tenantId,
     });
     return res.json(result);
   } catch (err) {
@@ -47,7 +47,7 @@ exports.removeStudents = async (req, res) => {
     const result = await teacherService.removeStudents({
       phoneNumber: req.body.phoneNumber,
       students: req.body.students,
-      tenantId: req.userId,
+      tenantId: req.tenantId,
     });
     return res.status(STATUS.OK).json(result);
   } catch (err) {
@@ -73,7 +73,7 @@ exports.updateStudent = async (req, res) => {
       currentPhoneNumber,
       name,
       studentPhoneNumber,
-      tenantId: req.userId,
+      tenantId: req.tenantId,
     });
     return res.status(STATUS.OK).json(result);
   } catch (err) {

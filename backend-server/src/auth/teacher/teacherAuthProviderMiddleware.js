@@ -39,6 +39,7 @@ module.exports = {
         id: teacher._id || teacher.id,
         phoneNumber: teacher.phoneNumber,
         name: teacher.name,
+        tenantId: teacher.tenantId,
       });
       return res.status(STATUS.OK).json({ token, phoneNumber });
     } catch (error) {
@@ -48,7 +49,7 @@ module.exports = {
   },
   async register(req, res) {
     const { phoneNumber, password, name } = req.body;
-    const tenantId = req.userId;
+    const tenantId = req.tenantId;
     if (
       !phoneNumber ||
       !password ||

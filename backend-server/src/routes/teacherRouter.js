@@ -64,7 +64,7 @@ router.post("/add-students", authenticateToken, async (req, res) => {
   if (!Array.isArray(req.body.students) || req.body.students.length === 0) {
     return res.sendStatus(STATUS.BAD_REQUEST);
   }
-  const tenantId = req.userId;
+  const tenantId = req.tenantId;
   const teacher = await Teacher.findOne({ phoneNumber: req.body.phoneNumber, tenantId });
   if (!teacher) return res.sendStatus(STATUS.NOT_FOUND);
   let results = [];

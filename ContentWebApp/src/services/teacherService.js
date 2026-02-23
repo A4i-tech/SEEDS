@@ -109,7 +109,6 @@ export const teacherService = {
       body: JSON.stringify({
         phoneNumber: teacherPhoneNumber,
         students: [{ phoneNumber: studentPhoneNumber }],
-        remove: true,
       }),
     });
   },
