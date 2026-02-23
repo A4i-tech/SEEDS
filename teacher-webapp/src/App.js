@@ -1,6 +1,6 @@
 import React from "react";
 import "./App.css";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import { ToastContainer } from "react-toastify";
@@ -46,10 +46,7 @@ function App() {
             path={ROUTES.CONTENT_PLAYBACK(":classroomId")}
             element={<ProtectedRoute element={<ContentPlayback />} />}
           />
-          <Route
-            path={ROUTES.CONTENT}
-            element={<ProtectedRoute element={<ContentPlayback />} />}
-          />
+          <Route path={ROUTES.CONTENT} element={<ProtectedRoute element={<ContentPlayback />} />} />
           <Route
             path={ROUTES.CONTENT_DETAILS(":contentId")}
             element={<ProtectedRoute element={<ContentDetails />} />}
