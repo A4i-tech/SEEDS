@@ -34,7 +34,7 @@ class DummyMongoDBCollection:
                         "audioUrl": "https://seedsblob.blob.core.windows.net/output-container/20/1.0.wav",
                     }
                 ],
-                "isPullModel": False,
+                "isPullModel": True,
                 "isTeacherApp": True,
                 "createdBy": "default_user_ID",
                 "creation_time": 1668287376,
@@ -43,7 +43,27 @@ class DummyMongoDBCollection:
         ]
 
     async def query_items(self, query):
-        return await self.find_all()
+        all_items = await self.find_all()
+        if not query:
+            return all_items
+
+        def matches(doc, query_dict):
+            for key, cond in query_dict.items():
+                # simple operator object (e.g. {"isDeleted": {"$ne": True}})
+                if isinstance(cond, dict):
+                    if "$ne" in cond:
+                        if doc.get(key) == cond["$ne"]:
+                            return False
+                    else:
+                        # unsupported operator in this mock, assume no match
+                        return False
+                else:
+                    # direct equality
+                    if doc.get(key) != cond:
+                        return False
+            return True
+
+        return [d for d in all_items if matches(d, query)]
 
 
 # Patch fsm.print_states and open to avoid side effects
