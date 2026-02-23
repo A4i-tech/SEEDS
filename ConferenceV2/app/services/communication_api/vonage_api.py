@@ -328,7 +328,6 @@ class VonageAPI(CommunicationAPI):
             if not participant_info:
                 continue
             await self._play_tts_to_call_leg(participant_info.call_leg_id, text)
->>>>>>> f58ce37 (feat: Enhance participant management and announcements in conference calls)
 
     # client.update_call()
     async def remove_participant(self, phone_number: str):
