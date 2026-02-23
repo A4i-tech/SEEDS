@@ -46,6 +46,7 @@ const ClassroomDetail = () => {
   const [teacherStudentsList, setTeacherStudentsList] = useState([]);
   const [conferenceStarted, setConferenceStarted] = useState(false);
   const [teacherPhone, setTeacherPhone] = useState(null);
+  const [teacherName, setTeacherName] = useState(null);
   const [conferenceId, setConferenceId] = useState(null);
   const eventSourceRef = useRef(null);
   const isMountedRef = useRef(true);
@@ -58,6 +59,7 @@ const ClassroomDetail = () => {
     handleSSEEvent,
     handleStudentToggle,
     handleTeacherSelect,
+    selectTeacher,
     setConferenceStudents,
     setAllClassroomStudents,
   } = useConference();
@@ -75,6 +77,7 @@ const ClassroomDetail = () => {
           throw new Error("Teacher phone number not available");
         }
         setTeacherPhone(teacher.phoneNumber);
+        setTeacherName(teacher.name || "Teacher");
 
         // Step 2: Fetch classroom and students in parallel (both are independent)
         const [classroomData, studentData] = await Promise.all([
@@ -180,11 +183,24 @@ const ClassroomDetail = () => {
     console.log("Starting conference for:", teacherPhone, selectedStudents);
 
     const teacherObject = {
+<<<<<<< HEAD
       name: "Teacher",
       phoneNumber: teacherPhone,
       role: "Teacher",
     };
     handleTeacherSelect(teacherObject);
+=======
+      name: teacherName || "Teacher",
+      phoneNumber: teacherPhone,
+      role: "Teacher",
+    };
+    
+    if (typeof window !== "undefined" && typeof selectTeacher === "function") {
+      selectTeacher(teacherObject);
+    } else {
+      handleTeacherSelect(teacherObject);
+    }
+>>>>>>> 5f335fe (feat: enhance conference creation and participant management with names)
 
     try {
       const teacherPhoneFormatted = normalizePhoneNumber(teacherPhone);
@@ -214,7 +230,18 @@ const ClassroomDetail = () => {
         studentCount: studentPhonesFormatted.length,
       });
 
+<<<<<<< HEAD
       const data = await createConference(teacherPhoneFormatted, studentPhonesFormatted);
+=======
+      // Prepare student names aligned with selected students
+      const studentNames = selectedStudents.map((s) => s.name || null);
+      const data = await createConference(
+        teacherPhoneFormatted,
+        studentPhonesFormatted,
+        teacherName || null,
+        studentNames
+      );
+>>>>>>> 5f335fe (feat: enhance conference creation and participant management with names)
 
       if (!data || !data.id) {
         throw new Error("Conference creation failed: No conference ID returned");

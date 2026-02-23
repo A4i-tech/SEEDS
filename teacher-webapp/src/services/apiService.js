@@ -8,14 +8,16 @@ import { normalizePhoneNumber } from "../utils/phoneUtils";
  * network-layer timeout (5 seconds) configured in axiosInstance.js
  */
 
-export const createConference = async (teacherPhone, studentPhones) => {
+export const createConference = async (teacherPhone, studentPhones, teacherName = null, studentNames = null) => {
   // Normalize phone numbers to ensure consistent format (91XXXXXXXXXX)
   const normalizedTeacherPhone = normalizePhoneNumber(teacherPhone);
   const normalizedStudentPhones = studentPhones.map((phone) => normalizePhoneNumber(phone));
 
   const requestBody = {
     teacher_phone: normalizedTeacherPhone,
+    teacher_name: teacherName,
     student_phones: normalizedStudentPhones,
+    student_names: studentNames,
   };
 
   console.log("Creating conference with request:", {
@@ -182,22 +184,22 @@ export const setPlaybackSpeed = async (confId, speed) => {
   return response;
 };
 
-export const addParticipant = async (confId, phone_number) => {
+export const addParticipant = async (confId, phone_number, name = null) => {
   // Normalize phone number to ensure consistent format (91XXXXXXXXXX)
   const normalizedPhone = normalizePhoneNumber(phone_number);
   const response = await axiosInstance.put(
-    API_ENDPOINTS.CONFERENCE.ADD_PARTICIPANT(confId, normalizedPhone)
+    API_ENDPOINTS.CONFERENCE.ADD_PARTICIPANT(confId, normalizedPhone, name)
   );
   return response;
 };
 
-export const removeParticipant = async (confId, phone_number) => {
+export const removeParticipant = async (confId, phone_number, name = null) => {
   // Normalize phone number to ensure consistent format (91XXXXXXXXXX)
   const normalizedPhone = normalizePhoneNumber(phone_number);
 
   try {
     const response = await axiosInstance.put(
-      API_ENDPOINTS.CONFERENCE.REMOVE_PARTICIPANT(confId, normalizedPhone)
+      API_ENDPOINTS.CONFERENCE.REMOVE_PARTICIPANT(confId, normalizedPhone, name)
     );
     return response.data;
   } catch (error) {
