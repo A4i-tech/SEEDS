@@ -1,12 +1,12 @@
 import { API_ENDPOINTS } from "../constants/apiEndpoints";
 import { APP_CONFIG } from "../config/appConfig";
 import axiosInstance from "./axiosInstance";
+import { normalizePhoneNumber } from "../utils/phoneUtils";
 
 /**
  * All network requests use the centralized axios instance with
  * network-layer timeout (5 seconds) configured in axiosInstance.js
  */
-import { normalizePhoneNumber } from "../utils/phoneUtils";
 
 export const createConference = async (teacherPhone, studentPhones) => {
   // Normalize phone numbers to ensure consistent format (91XXXXXXXXXX)
@@ -83,51 +83,45 @@ export const sinkConferenceCall = async (confId) => {
 export const muteParticipant = async (confId, phone_number) => {
   // Normalize phone number to ensure consistent format (91XXXXXXXXXX)
   const normalizedPhone = normalizePhoneNumber(phone_number);
-  const response = await fetch(API_ENDPOINTS.CONFERENCE.MUTE(confId, normalizedPhone), {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-  return response.json();
+  const response = await axiosInstance.put(
+    API_ENDPOINTS.CONFERENCE.MUTE(confId, normalizedPhone)
+  );
+  return response.data;
 };
 
 export const unmuteParticipant = async (confId, phone_number) => {
   // Normalize phone number to ensure consistent format (91XXXXXXXXXX)
   const normalizedPhone = normalizePhoneNumber(phone_number);
-  const response = await fetch(API_ENDPOINTS.CONFERENCE.UNMUTE(confId, normalizedPhone), {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-  return response.json();
+  const response = await axiosInstance.put(
+    API_ENDPOINTS.CONFERENCE.UNMUTE(confId, normalizedPhone)
+  );
+  return response.data;
 };
 
 export const muteAll = async (confId) => {
-  const response = await fetch(API_ENDPOINTS.CONFERENCE.MUTE_ALL(confId), {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to mute all: ${response.status} ${response.statusText}`);
+  try {
+    const response = await axiosInstance.put(API_ENDPOINTS.CONFERENCE.MUTE_ALL(confId));
+    return response.data;
+  } catch (error) {
+    throw new Error(
+      `Failed to mute all: ${error.response?.status || "Network error"} ${
+        error.response?.statusText || error.message
+      }`
+    );
   }
-  return response.json();
 };
 
 export const unmuteAll = async (confId) => {
-  const response = await fetch(API_ENDPOINTS.CONFERENCE.UNMUTE_ALL(confId), {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to unmute all: ${response.status} ${response.statusText}`);
+  try {
+    const response = await axiosInstance.put(API_ENDPOINTS.CONFERENCE.UNMUTE_ALL(confId));
+    return response.data;
+  } catch (error) {
+    throw new Error(
+      `Failed to unmute all: ${error.response?.status || "Network error"} ${
+        error.response?.statusText || error.message
+      }`
+    );
   }
-  return response.json();
 };
 
 export const playAudio = async (confId, url) => {
@@ -160,40 +154,34 @@ export const seekAudio = async (confId, deltaSeconds) => {
 export const addParticipant = async (confId, phone_number) => {
   // Normalize phone number to ensure consistent format (91XXXXXXXXXX)
   const normalizedPhone = normalizePhoneNumber(phone_number);
-  return fetch(API_ENDPOINTS.CONFERENCE.ADD_PARTICIPANT(confId, normalizedPhone), {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
+  const response = await axiosInstance.put(
+    API_ENDPOINTS.CONFERENCE.ADD_PARTICIPANT(confId, normalizedPhone)
+  );
+  return response;
 };
 
 export const removeParticipant = async (confId, phone_number) => {
   // Normalize phone number to ensure consistent format (91XXXXXXXXXX)
   const normalizedPhone = normalizePhoneNumber(phone_number);
-  const response = await fetch(
-    API_ENDPOINTS.CONFERENCE.REMOVE_PARTICIPANT(confId, normalizedPhone),
-    {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    }
-  );
 
-  if (!response.ok) {
-    const errorText = await response.text();
+  try {
+    const response = await axiosInstance.put(
+      API_ENDPOINTS.CONFERENCE.REMOVE_PARTICIPANT(confId, normalizedPhone)
+    );
+    return response.data;
+  } catch (error) {
     console.error("Participant removal failed:", {
-      status: response.status,
-      statusText: response.statusText,
-      error: errorText,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      error: error.response?.data || error.message,
     });
+
     throw new Error(
-      `Failed to remove participant: ${response.status} ${response.statusText}`
+      `Failed to remove participant: ${error.response?.status || "Network error"} ${
+        error.response?.statusText || error.message
+      }`
     );
   }
-
-  return response.json();
 };
 
 export const fetchAudioContent = async () => {
