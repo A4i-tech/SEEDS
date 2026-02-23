@@ -5,6 +5,8 @@ import {
   Slider,
   Typography,
   CircularProgress,
+  Select,
+  MenuItem,
 } from "@mui/material";
 import {
   PlayArrow as PlayArrowIcon,
@@ -13,13 +15,17 @@ import {
   SkipNext as SkipNextIcon,
 } from "@mui/icons-material";
 
-const AudioPlayer = ({ audioUrl, onTimeUpdate, onEnded, autoPlay = false }) => {
+const SPEED_OPTIONS = [0.75, 1.0, 1.25, 1.5, 2.0];
+
+const AudioPlayer = ({ audioUrl, onTimeUpdate, onEnded, autoPlay = false, variant = "dark" }) => {
+  const isLight = variant === "light";
   const audioRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState(null);
+  const [playbackRate, setPlaybackRate] = useState(1.0);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -153,28 +159,39 @@ const AudioPlayer = ({ audioUrl, onTimeUpdate, onEnded, autoPlay = false }) => {
     audio.currentTime = Math.min(duration, audio.currentTime + 10);
   };
 
+  const handleSpeedChange = (event) => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const newRate = event.target.value;
+    audio.playbackRate = newRate;
+    setPlaybackRate(newRate);
+  };
+
   return (
     <Box
       sx={{
         width: "100%",
-        bgcolor: "grey.800",
-        p: 2,
-        borderRadius: 1,
+        bgcolor: isLight ? "transparent" : "grey.800",
+        border: isLight ? "1px solid" : "none",
+        borderColor: isLight ? "divider" : "transparent",
+        p: isLight ? 1.5 : 2,
+        borderRadius: 2,
+        mt: isLight ? 1 : 0,
       }}
     >
       <audio ref={audioRef} preload="metadata" />
-      
+
       {error && (
         <Typography variant="caption" color="error" sx={{ mb: 1, display: "block" }}>
           {error}
         </Typography>
       )}
 
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
         <IconButton
           onClick={handleRewind}
           disabled={!audioUrl || isLoading}
-          sx={{ color: "white" }}
+          sx={{ color: isLight ? "text.secondary" : "white" }}
           size="small"
         >
           <SkipPreviousIcon />
@@ -186,12 +203,8 @@ const AudioPlayer = ({ audioUrl, onTimeUpdate, onEnded, autoPlay = false }) => {
           sx={{
             color: "white",
             bgcolor: "primary.main",
-            "&:hover": {
-              bgcolor: "primary.dark",
-            },
-            "&:disabled": {
-              bgcolor: "grey.600",
-            },
+            "&:hover": { bgcolor: "primary.dark" },
+            "&:disabled": { bgcolor: isLight ? "grey.300" : "grey.600" },
           }}
           size="large"
         >
@@ -207,13 +220,16 @@ const AudioPlayer = ({ audioUrl, onTimeUpdate, onEnded, autoPlay = false }) => {
         <IconButton
           onClick={handleFastForward}
           disabled={!audioUrl || isLoading}
-          sx={{ color: "white" }}
+          sx={{ color: isLight ? "text.secondary" : "white" }}
           size="small"
         >
           <SkipNextIcon />
         </IconButton>
 
-        <Typography variant="body2" sx={{ color: "white", minWidth: "45px", ml: 1 }}>
+        <Typography
+          variant="body2"
+          sx={{ color: isLight ? "text.secondary" : "white", minWidth: "40px", ml: 0.5, fontSize: "0.75rem" }}
+        >
           {formatTime(currentTime)}
         </Typography>
 
@@ -225,21 +241,49 @@ const AudioPlayer = ({ audioUrl, onTimeUpdate, onEnded, autoPlay = false }) => {
           sx={{
             flex: 1,
             color: "primary.main",
-            "& .MuiSlider-thumb": {
-              color: "primary.main",
-            },
-            "& .MuiSlider-track": {
-              color: "primary.main",
-            },
-            "& .MuiSlider-rail": {
-              color: "grey.600",
-            },
+            "& .MuiSlider-thumb": { color: "primary.main" },
+            "& .MuiSlider-track": { color: "primary.main" },
+            "& .MuiSlider-rail": { color: isLight ? "grey.300" : "grey.600" },
           }}
         />
 
-        <Typography variant="body2" sx={{ color: "white", minWidth: "45px", mr: 1 }}>
+        <Typography
+          variant="body2"
+          sx={{ color: isLight ? "text.secondary" : "white", minWidth: "40px", ml: 0.5, fontSize: "0.75rem" }}
+        >
           {formatTime(duration)}
         </Typography>
+
+        <Select
+          value={playbackRate}
+          onChange={handleSpeedChange}
+          disabled={!audioUrl || isLoading}
+          size="small"
+          variant="outlined"
+          sx={{
+            ml: 0.5,
+            minWidth: 58,
+            height: 28,
+            fontWeight: 700,
+            fontSize: "0.7rem",
+            color: isLight ? "text.primary" : "white",
+            "& .MuiSelect-select": { py: 0.25, px: 1 },
+            "& .MuiOutlinedInput-notchedOutline": {
+              borderColor: isLight ? "grey.400" : "grey.600",
+            },
+            "&:hover .MuiOutlinedInput-notchedOutline": {
+              borderColor: isLight ? "primary.main" : "grey.400",
+            },
+            "& .MuiSelect-icon": { color: isLight ? "text.secondary" : "white" },
+          }}
+          aria-label="Playback speed"
+        >
+          {SPEED_OPTIONS.map((opt) => (
+            <MenuItem key={opt} value={opt} sx={{ fontSize: "0.8rem" }}>
+              {opt}x
+            </MenuItem>
+          ))}
+        </Select>
       </Box>
     </Box>
   );

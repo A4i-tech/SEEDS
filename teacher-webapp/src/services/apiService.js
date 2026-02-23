@@ -143,12 +143,35 @@ export const resumeAudio = async (confId) => {
 };
 
 export const seekAudio = async (confId, deltaSeconds) => {
-  // Send delta_seconds as a query parameter instead of in the request body
   const url = `${API_ENDPOINTS.CONFERENCE.SEEK_AUDIO(
     confId
   )}?delta_seconds=${encodeURIComponent(deltaSeconds)}`;
   const response = await axiosInstance.put(url);
   return response;
+};
+
+export const seekAudioAbsolute = async (confId, positionSeconds) => {
+  const url = `${API_ENDPOINTS.CONFERENCE.SEEK_AUDIO(
+    confId
+  )}?position_seconds=${encodeURIComponent(positionSeconds)}`;
+  return fetch(url, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+};
+
+export const setPlaybackSpeed = async (confId, speed) => {
+  const url = `${API_ENDPOINTS.CONFERENCE.SET_PLAYBACK_SPEED(
+    confId
+  )}?speed=${encodeURIComponent(speed)}`;
+  return fetch(url, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
 };
 
 export const addParticipant = async (confId, phone_number) => {

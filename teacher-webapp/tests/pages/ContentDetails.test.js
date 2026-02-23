@@ -185,7 +185,7 @@ describe("ContentDetails", () => {
     const backButton = screen.getByText("Back to Content");
     fireEvent.click(backButton);
 
-    expect(mockNavigate).toHaveBeenCalledWith("/content");
+    expect(mockNavigate).toHaveBeenCalledWith(-1);
   });
 
   test("navigates to next page when Next Page button is clicked", async () => {
