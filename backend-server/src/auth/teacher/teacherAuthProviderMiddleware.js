@@ -81,12 +81,7 @@ module.exports = {
         phoneNumber
       );
       if (existingTeacher) {
-        return res.status(STATUS.CONFLICT).json({ message: "Phone number already in use" });
-      }
-
-      const teacherRegisteredWithOtherTenant = await dbAdapter.getTeacherByPhoneNumber(phoneNumber);
-      if (teacherRegisteredWithOtherTenant) {
-        return res.status(STATUS.CONFLICT).json({ message: "Phone number already in use by another tenant" });
+        return res.status(STATUS.CONFLICT).json({ message: "Phone number already in use by current or another tenant" });
       }
 
       const hashedPassword = await bcrypt.hash(password, parseInt(passwordSaltRounds));

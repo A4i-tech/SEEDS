@@ -28,7 +28,4 @@ module.exports = {
   async updateTenantPassword(tenantId, newPassword) {
     return Tenant.findByIdAndUpdate(tenantId, { password: newPassword });
   },
-  async getTeacherByPhoneNumber(phoneNumber) {
-    return Teacher.findOne({ phoneNumber });
-  },
 };
