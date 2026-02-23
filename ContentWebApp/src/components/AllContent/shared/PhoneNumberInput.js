@@ -13,6 +13,7 @@ export const PhoneNumberInput = ({
   disabled = false,
   autoFocus = false,
   readOnly = false,
+  required = true,
 }) => {
   const handleChange = (e) => {
     onChange(sanitizePhoneInput(e.target.value));
@@ -31,6 +32,7 @@ export const PhoneNumberInput = ({
       disabled={disabled}
       autoFocus={autoFocus}
       readOnly={readOnly}
+      required={required}
     />
   );
 };
