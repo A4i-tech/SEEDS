@@ -28,7 +28,7 @@ class ConferenceCallManager:
         self.conferences: Dict[str, ConferenceCall] = {}
         self.ws_base_url = os.environ.get("WS_SERVER_EP", "")
 
-    def create_conference(self, teacher_phone: str, student_phones: List[str]) -> ConferenceCall:
+    def create_conference(self, teacher_phone: str, student_phones: List[str], teacher_name: str | None = None, student_names: List[str] | None = None) -> ConferenceCall:
         conf_id = str(uuid.uuid4())
         conference_call = ConferenceCall(
             conf_id=conf_id,
@@ -39,7 +39,7 @@ class ConferenceCallManager:
                                                                                  conf_id),
             storage_manager=self.storage_manager
         )
-        conference_call.set_participant_state(teacher_phone, student_phones)
+        conference_call.set_participant_state(teacher_phone, student_phones, teacher_name=teacher_name, student_names=student_names)
         self.conferences[conf_id] = conference_call
         return conference_call
    

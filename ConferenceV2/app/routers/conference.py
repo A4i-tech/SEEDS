@@ -36,7 +36,10 @@ router = APIRouter()
 @router.post("/test-createstart")
 async def create_start_conference(request: CreateConferenceRequest):
     conference_call = conference_manager.create_conference(
-        request.teacher_phone, request.student_phones
+        request.teacher_phone,
+        request.student_phones,
+        teacher_name=request.teacher_name,
+        student_names=request.student_names,
     )
     await conference_manager.start_conference_call(conference_call.conf_id)
     return {"status": "STARTED", "id": conference_call.conf_id}
@@ -45,7 +48,10 @@ async def create_start_conference(request: CreateConferenceRequest):
 @router.post("/create")
 async def create_conference(request: CreateConferenceRequest):
     conference_call = conference_manager.create_conference(
-        request.teacher_phone, request.student_phones
+        request.teacher_phone,
+        request.student_phones,
+        teacher_name=request.teacher_name,
+        student_names=request.student_names,
     )
     return {"status": "CREATED", "id": conference_call.conf_id}
 
@@ -98,12 +104,12 @@ async def sink_conference(conference_id: str):
 
 
 @router.put("/addparticipant/{conference_id}")
-async def add_participant(conference_id: str, phone_number: str):
+async def add_participant(conference_id: str, phone_number: str, name: str | None = Query(None)):
     conference = conference_manager.get_conference(conference_id)
     if not conference:
         raise HTTPException(status_code=404, detail="Conference not found")
     await conference.queue_event(
-        AddParticipantEvent(phone_number=phone_number, conf_call=conference)
+        AddParticipantEvent(phone_number=phone_number, name=name, conf_call=conference)
     )
     return {"message": "Event Queued for execution"}
 

@@ -1,16 +1,17 @@
 # schemas/conference_schemas.py
 
-import os
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, field_validator
-from typing import ClassVar, List
+from typing import ClassVar, List, Optional
 
 load_dotenv()
 
 
 class CreateConferenceRequest(BaseModel):
-    teacher_phone: str = os.environ.get("MY_NUMBER", "")
-    student_phones: List[str] = [os.environ.get("FEATURE_PH", "")]
+    teacher_phone: str
+    teacher_name: Optional[str] = None
+    student_phones: List[str]
+    student_names: Optional[List[str]] = None
 
 
 class SeekAudioRequest(BaseModel):
