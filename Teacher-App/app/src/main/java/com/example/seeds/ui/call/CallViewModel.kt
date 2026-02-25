@@ -38,8 +38,11 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive 
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import com.example.seeds.network.CONFERENCE_CREATE_TIMEOUT_SECONDS
+import java.util.concurrent.TimeoutException
 import okhttp3.OkHttpClient
 import okhttp3.Response
 import okhttp3.WebSocket
@@ -338,10 +341,12 @@ class CallViewModel @Inject constructor(
                     student_phones = studentPhonesWithPrefix
                 )
 
-                val response = network.getAccessToken(
-                    "$conferenceUrl/conference/create",
-                    payload
-                )
+                val response = withTimeoutOrNull(CONFERENCE_CREATE_TIMEOUT_SECONDS * 1000) {
+                    network.getAccessToken(
+                        "$conferenceUrl/conference/create",
+                        payload
+                    )
+                } ?: throw TimeoutException("Conference creation timed out")
 
                 val confId = response.id
                 Log.d("CONF_ID", "Created conference ID: $confId")
@@ -350,7 +355,8 @@ class CallViewModel @Inject constructor(
                 startCall(confId)
 
             } catch (e: Exception) {
-                Log.e("GET_ACCESS_TOKEN", "Error creating conference: ${e.message}", e)
+                Log.e("CONFERENCE_CREATE", "Error creating conference: ${e.message}", e)
+                _isErrorFromIVR.postValue("Unable to start conference. Please check your connection and try again.")
             }
         }
     }

@@ -1,72 +1,34 @@
 import { API_ENDPOINTS } from "../constants/apiEndpoints";
-import { getAuthHeaders } from "../utils/authHelpers";
+import axiosInstance from "./axiosInstance";
 
 export const getAllClassrooms = async () => {
-  const response = await fetch(API_ENDPOINTS.CLASSROOM.GET_ALL, {
-    method: "GET",
-    headers: getAuthHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error("Failed to fetch classrooms");
-  }
-
-  return response.json();
+  const response = await axiosInstance.get(API_ENDPOINTS.CLASSROOM.GET_ALL);
+  return response.data;
 };
 
 export const getClassroomById = async (classId) => {
-  const response = await fetch(API_ENDPOINTS.CLASSROOM.GET_BY_ID(classId), {
-    method: "GET",
-    headers: getAuthHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error("Failed to fetch classroom");
-  }
-
-  return response.json();
+  const response = await axiosInstance.get(API_ENDPOINTS.CLASSROOM.GET_BY_ID(classId));
+  return response.data;
 };
 
 export const createClassroom = async (classroomData) => {
-  const response = await fetch(API_ENDPOINTS.CLASSROOM.CREATE, {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(classroomData),
-  });
-
-  if (!response.ok) {
-    throw new Error("Failed to create classroom");
-  }
-
-  return response.json();
+  const response = await axiosInstance.post(API_ENDPOINTS.CLASSROOM.CREATE, classroomData);
+  return response.data;
 };
 
 export const updateClassroom = async (classroomData) => {
-  const response = await fetch(API_ENDPOINTS.CLASSROOM.UPDATE, {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(classroomData),
-  });
-
-  if (!response.ok) {
-    if (response.status === 403) {
+  try {
+    const response = await axiosInstance.post(API_ENDPOINTS.CLASSROOM.UPDATE, classroomData);
+    return response.data;
+  } catch (error) {
+    if (error.response?.status === 403) {
       throw new Error("Not authorized to update this classroom");
     }
     throw new Error("Failed to update classroom");
   }
-
-  return response.json();
 };
 
 export const deleteClassroom = async (classId) => {
-  const response = await fetch(API_ENDPOINTS.CLASSROOM.DELETE(classId), {
-    method: "DELETE",
-    headers: getAuthHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error("Failed to delete classroom");
-  }
-
+  const response = await axiosInstance.delete(API_ENDPOINTS.CLASSROOM.DELETE(classId));
   return response;
 };
