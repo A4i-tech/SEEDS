@@ -8,11 +8,13 @@ module.exports = {
 
   // Transform files with Babel
   transform: {
-    "^.+\\.(ts|tsx|jsx|js)$": "babel-jest",
+    "^.+\\.(ts|tsx|js|jsx)$": "babel-jest",
   },
   testEnvironment: "jsdom",
   setupFilesAfterEnv: ["<rootDir>/tests/setupTests.js"],
   moduleNameMapper: {
     "\\.(css|less|scss|sass)$": "<rootDir>/tests/styleMock.js",
   },
+  coverageDirectory: "coverage",
+  coverageReporters: ["json-summary", "text", "lcov", "html"],
 };
