@@ -34,6 +34,8 @@ class WebsocketService:
         self.conference_manager = conference_manager
         self.bg_tasks = []
         self._ws = None
+        self._connect_lock = asyncio.Lock()
+        await self._connect()
         self._start_bg_processes()
     
     def _start_bg_processes(self):
@@ -51,16 +53,23 @@ class WebsocketService:
             task.cancel()
 
     async def _connect(self):
-        while not self.is_connected:
-            try:
-                self._ws = await websockets.connect(self.connection_url)
-                self.is_connected = True
-                self.reconnect_attempts = 0  # Reset on successful connection
-                logger_instance.info(f"Connected to WebSocket: {self.connection_url}")
-            except Exception as e:
-                self.reconnect_attempts += 1
-                logger_instance.info(f"Connection failed (attempt {self.reconnect_attempts}): {e}")
-                await asyncio.sleep(2)  # Wait before retrying
+        if not hasattr(self, "_connect_lock"):
+            self._connect_lock = asyncio.Lock()
+
+        async with self._connect_lock:
+            if self.is_connected and self._ws:
+                return
+
+            while not self.is_connected:
+                try:
+                    self._ws = await websockets.connect(self.connection_url)
+                    self.is_connected = True
+                    self.reconnect_attempts = 0  # Reset on successful connection
+                    logger_instance.info(f"Connected to WebSocket: {self.connection_url}")
+                except Exception as e:
+                    self.reconnect_attempts += 1
+                    logger_instance.info(f"Connection failed (attempt {self.reconnect_attempts}): {e}")
+                    await asyncio.sleep(2)  # Wait before retrying
 
     async def _listen_messages(self):
         while True:

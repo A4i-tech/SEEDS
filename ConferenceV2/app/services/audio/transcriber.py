@@ -144,16 +144,50 @@ class AudioTranscriber:
             raise TypeError("audio_data must be bytes-like")
 
         self.pending_frame_buffer.extend(audio_data)
-        result: Optional[dict[str, Any]] = None
+        results: list[dict[str, Any]] = []
 
         while len(self.pending_frame_buffer) >= self.frame_bytes:
             frame = bytes(self.pending_frame_buffer[: self.frame_bytes])
             del self.pending_frame_buffer[: self.frame_bytes]
             maybe_result = await self._consume_frame(frame)
             if maybe_result:
-                result = maybe_result
+                results.append(maybe_result)
 
-        return result
+        if not results:
+            return None
+
+        if len(results) == 1:
+            return results[0]
+
+        merged_segments: list[dict[str, Any]] = []
+        merged_text_parts: list[str] = []
+        merged_duration = 0.0
+
+        for result in results:
+            text = (result.get("text") or "").strip()
+            if text:
+                merged_text_parts.append(text)
+            segments = result.get("segments") or []
+            if isinstance(segments, list):
+                merged_segments.extend(segments)
+            duration = result.get("duration")
+            if duration is not None:
+                try:
+                    merged_duration += float(duration)
+                except (TypeError, ValueError):
+                    pass
+
+        merged_text = " ".join(merged_text_parts).strip()
+        if not merged_text and merged_segments:
+            merged_text = " ".join(
+                (seg.get("text") or "").strip() for seg in merged_segments if isinstance(seg, dict)
+            ).strip()
+
+        return {
+            "text": merged_text,
+            "duration": merged_duration,
+            "segments": merged_segments,
+        }
 
     def _calculate_rms(self, audio_np: np.ndarray) -> float:
         # Root Mean Square amplitude on int16 PCM.
