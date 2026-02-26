@@ -108,7 +108,7 @@ function Login() {
     navigate.goToRegister();
   };
 
-  const handleKeyPress = (e) => {
+  const handleKeyDown = (e) => {
     if (e.key === "Enter") {
       handleLogin();
     }
@@ -133,7 +133,7 @@ function Login() {
             <PhoneNumberInput
               value={phoneNumber}
               onChange={setPhoneNumber}
-              onKeyPress={handleKeyPress}
+              onKeyDown={handleKeyDown}
               aria-label="Phone number input"
             />
 
@@ -154,7 +154,7 @@ function Login() {
               }}
               aria-label="Password input"
               aria-required="true"
-              onKeyPress={handleKeyPress}
+              onKeyDown={handleKeyDown}
             />
 
             <TextField
