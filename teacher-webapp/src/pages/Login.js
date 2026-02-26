@@ -13,8 +13,6 @@ import {
   InputAdornment,
 } from "@mui/material";
 import { Lock as LockIcon, School as SchoolIcon } from "@mui/icons-material";
-import axios from "axios";
-import { Phone as PhoneIcon, Lock as LockIcon, School as SchoolIcon } from "@mui/icons-material";
 import axiosInstance from "../services/axiosInstance";
 import { API_ENDPOINTS } from "../constants/apiEndpoints";
 import { STATUS_CODES } from "../constants/statusCodes";
