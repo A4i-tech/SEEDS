@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { teacherService } from "../services/teacherService";
 import { useAuth } from "./useAuth";
+import { isValidPhoneNumber } from "../utils/phoneUtils";
 
 export const useTeachers = (activeTab) => {
   const [teachers, setTeachers] = useState([]);
@@ -65,7 +66,7 @@ export const useTeachers = (activeTab) => {
         return false;
       }
 
-      if (phoneNumber.length !== 10) {
+      if (!isValidPhoneNumber(phoneNumber)) {
         setMessage("Phone number must be exactly 10 digits.");
         return false;
       }
@@ -154,10 +155,10 @@ export const useTeachers = (activeTab) => {
           name: (s.name || "").trim(),
           phoneNumber: (s.phoneNumber || "").trim(),
         }))
-        .filter((s) => s.name && s.phoneNumber);
+        .filter((s) => s.name && s.phoneNumber && isValidPhoneNumber(s.phoneNumber));
 
       if (payloadStudents.length === 0) {
-        setMessage("Please enter at least one student with name and phone number.");
+        setMessage("Please enter at least one student with name and valid phone number.");
         setTimeout(() => setMessage(""), 3000);
         return;
       }
@@ -205,7 +206,8 @@ export const useTeachers = (activeTab) => {
           students: (teacher.students || []).filter((st) => st.phoneNumber !== studentPhoneNumber),
         });
       } catch (error) {
-        console.error("Remove student error:", error);
+        setMessage(error.message || "Failed to remove student.");
+        setTimeout(() => setMessage(""), 3000);
       }
     },
     [getAuthHeaders, updateTeacherState]

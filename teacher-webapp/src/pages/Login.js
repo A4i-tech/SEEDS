@@ -12,7 +12,7 @@ import {
   Paper,
   InputAdornment,
 } from "@mui/material";
-import { Phone as PhoneIcon, Lock as LockIcon, School as SchoolIcon } from "@mui/icons-material";
+import { Lock as LockIcon, School as SchoolIcon } from "@mui/icons-material";
 import axiosInstance from "../services/axiosInstance";
 import { API_ENDPOINTS } from "../constants/apiEndpoints";
 import { STATUS_CODES } from "../constants/statusCodes";
@@ -20,6 +20,8 @@ import { useNavigation } from "../hooks/useNavigation";
 import { showToast } from "../utils/toast";
 import { useCancellableRequest, isCancelError } from "../hooks/useCancellableRequest";
 import { isLocalStorageAvailable } from "../utils/authHelpers";
+import { PhoneNumberInput } from "../components/common/PhoneNumberInput";
+import { isValidPhoneNumber } from "../utils/phoneUtils";
 
 function Login() {
   const navigate = useNavigation();
@@ -73,6 +75,11 @@ function Login() {
       return;
     }
 
+    if (!isValidPhoneNumber(phoneNumber)) {
+      setShowError("Phone number must be exactly 10 digits.");
+      return;
+    }
+
     setIsSubmitting(true);
     setShowError(null);
     try {
@@ -101,7 +108,7 @@ function Login() {
     navigate.goToRegister();
   };
 
-  const handleKeyPress = (e) => {
+  const handleKeyDown = (e) => {
     if (e.key === "Enter") {
       handleLogin();
     }
@@ -123,32 +130,11 @@ function Login() {
           </Typography>
 
           <Box component="form" sx={{ mt: 3 }}>
-            <TextField
-              fullWidth
-              label="Phone Number"
-              type="tel"
+            <PhoneNumberInput
               value={phoneNumber}
-              onChange={(e) => {
-                const digitsOnly = e.target.value.replace(/\D/g, "");
-                setPhoneNumber(digitsOnly);
-              }}
-              inputProps={{
-                minLength: 10,
-                maxLength: 10,
-                pattern: "\\d{10}",
-              }}
-              margin="normal"
-              required
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <PhoneIcon />
-                  </InputAdornment>
-                ),
-              }}
+              onChange={setPhoneNumber}
+              onKeyDown={handleKeyDown}
               aria-label="Phone number input"
-              aria-required="true"
-              onKeyPress={handleKeyPress}
             />
 
             <TextField
@@ -168,7 +154,7 @@ function Login() {
               }}
               aria-label="Password input"
               aria-required="true"
-              onKeyPress={handleKeyPress}
+              onKeyDown={handleKeyDown}
             />
 
             <TextField
