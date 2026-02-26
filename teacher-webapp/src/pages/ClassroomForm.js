@@ -54,14 +54,7 @@ const ClassroomForm = () => {
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
 
-  useEffect(() => {
-    fetchTeacherStudents();
-    if (isEditMode) {
-      fetchClassroom();
-    }
-  }, [classroomId]);
-
-  const fetchTeacherStudents = async () => {
+  const fetchTeacherStudents = useCallback(async () => {
     try {
       setIsLoadingStudents(true);
 
@@ -82,9 +75,9 @@ const ClassroomForm = () => {
     } finally {
       setIsLoadingStudents(false);
     }
-  };
+  }, [getCurrentTeacher]);
 
-  const fetchClassroom = async () => {
+  const fetchClassroom = useCallback(async () => {
     try {
       setLoading(true);
       setErrorMsg("");
@@ -102,7 +95,14 @@ const ClassroomForm = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [classroomId]);
+
+  useEffect(() => {
+    fetchTeacherStudents();
+    if (isEditMode) {
+      fetchClassroom();
+    }
+  }, [isEditMode, fetchClassroom, fetchTeacherStudents]);
 
   const validateForm = () => {
     const errors = {};
@@ -116,9 +116,7 @@ const ClassroomForm = () => {
       errors.students = "Duplicate students are not allowed";
     }
 
-    const invalidLeaders = formData.leaders.filter(
-      (leader) => !formData.students.includes(leader)
-    );
+    const invalidLeaders = formData.leaders.filter((leader) => !formData.students.includes(leader));
     if (invalidLeaders.length > 0) {
       errors.leaders = "All leaders must be selected from students";
     }

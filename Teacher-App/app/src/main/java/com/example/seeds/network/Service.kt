@@ -157,6 +157,7 @@ interface SeedsService {
 }
 
 const val TIMEOUT = 60L
+const val CONFERENCE_CREATE_TIMEOUT_SECONDS = 5L
 
 fun provideService(@ApplicationContext context: Context): SeedsService {
     //reference: https://proandroiddev.com/headers-in-retrofit-a8d71ede2f3e

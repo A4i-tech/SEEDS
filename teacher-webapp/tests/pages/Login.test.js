@@ -1,15 +1,19 @@
 import React from "react";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import axios from "axios";
 import Login from "../../src/pages/Login";
 import * as authHelpers from "../../src/utils/authHelpers";
 import { useNavigation } from "../../src/hooks/useNavigation";
+import axiosInstance from "../../src/services/axiosInstance";
 
 // Mock dependencies
-jest.mock("axios");
+jest.mock("../../src/services/axiosInstance");
 jest.mock("../../src/hooks/useNavigation");
 jest.mock("../../src/utils/authHelpers");
+jest.mock("../../src/hooks/useCancellableRequest", () => ({
+  useCancellableRequest: jest.fn(() => undefined),
+  isCancelError: jest.fn(() => false),
+}));
 
 describe("Login", () => {
   const mockNavigate = {
@@ -49,7 +53,7 @@ describe("Login", () => {
       authHelpers.isLocalStorageAvailable.mockReturnValueOnce(false);
 
       // Mock schools data
-      axios.get.mockResolvedValueOnce({
+      axiosInstance.get.mockResolvedValueOnce({
         status: 200,
         data: [{ id: "school-1", tenantName: "Test School" }],
       });
@@ -58,7 +62,7 @@ describe("Login", () => {
 
       // Wait for schools to load
       await waitFor(() => {
-        expect(axios.get).toHaveBeenCalled();
+        expect(axiosInstance.get).toHaveBeenCalled();
       });
 
       // Fill in form - use getByRole for inputs
@@ -83,7 +87,7 @@ describe("Login", () => {
       });
 
       // Verify login API was not called
-      expect(axios.post).not.toHaveBeenCalled();
+      expect(axiosInstance.post).not.toHaveBeenCalled();
       expect(localStorageMock.setItem).not.toHaveBeenCalled();
     });
 
@@ -91,7 +95,7 @@ describe("Login", () => {
       authHelpers.isLocalStorageAvailable.mockReturnValueOnce(false);
 
       // Mock schools data
-      axios.get.mockResolvedValueOnce({
+      axiosInstance.get.mockResolvedValueOnce({
         status: 200,
         data: [{ id: "school-1", tenantName: "Test School" }],
       });
@@ -100,7 +104,7 @@ describe("Login", () => {
 
       // Wait for schools to load
       await waitFor(() => {
-        expect(axios.get).toHaveBeenCalled();
+        expect(axiosInstance.get).toHaveBeenCalled();
       });
 
       // Fill in form - use getByRole for inputs
@@ -128,7 +132,7 @@ describe("Login", () => {
       authHelpers.isLocalStorageAvailable.mockReturnValueOnce(true);
 
       // Mock schools fetch
-      axios.get.mockResolvedValueOnce({
+      axiosInstance.get.mockResolvedValueOnce({
         status: 200,
         data: [{ id: "school-1", tenantName: "Test School" }],
       });
@@ -137,7 +141,7 @@ describe("Login", () => {
 
       // Wait for schools to load
       await waitFor(() => {
-        expect(axios.get).toHaveBeenCalled();
+        expect(axiosInstance.get).toHaveBeenCalled();
       });
 
       const loginButton = screen.getByRole("button", { name: /login/i });
@@ -157,7 +161,7 @@ describe("Login", () => {
 
   describe("form validation", () => {
     test("shows error when fields are empty", async () => {
-      axios.get.mockResolvedValueOnce({
+      axiosInstance.get.mockResolvedValueOnce({
         status: 200,
         data: [{ id: "school-1", tenantName: "Test School" }],
       });
@@ -166,7 +170,7 @@ describe("Login", () => {
 
       // Wait for schools to load
       await waitFor(() => {
-        expect(axios.get).toHaveBeenCalled();
+        expect(axiosInstance.get).toHaveBeenCalled();
       });
 
       const loginButton = screen.getByRole("button", { name: /login/i });
@@ -178,7 +182,7 @@ describe("Login", () => {
       const errorAlert = await screen.findByRole("alert");
       expect(errorAlert).toBeInTheDocument();
 
-      expect(axios.post).not.toHaveBeenCalled();
+      expect(axiosInstance.post).not.toHaveBeenCalled();
     });
   });
 });

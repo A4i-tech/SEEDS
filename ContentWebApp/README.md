@@ -1,6 +1,6 @@
 # SEEDS Content WebApp
 
-[![Content WebApp Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/farmanahmed888/a6d54a11428bf4a2e7abfbb8300d02c6/raw/content-webapp-coverage.json)](https://github.com/A4i-tech/SEEDS/actions/workflows/content-webapp-main.yml)
+[![Content WebApp Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/a4i-architect/dcc3788d90884aed5ef3bfc393978480/raw/ContentWebApp-coverage.json)](https://github.com/A4i-tech/SEEDS/actions/workflows/content-webapp-main.yml)
 
 Content management web application for the SEEDS (Student Engagement and Educational Development System) platform, providing an interface to upload, manage, and organize educational content.
 
