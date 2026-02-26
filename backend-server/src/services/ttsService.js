@@ -16,6 +16,7 @@ const translationLanguageCodeToAzureSpeechCode = {
   mr: "mr-IN",
   ta: "ta-IN",
   bn: "bn-IN",
+  or: "or-IN",
 };
 
 const humanLanguageCodeToTranslationLanguageCode = {
@@ -25,6 +26,7 @@ const humanLanguageCodeToTranslationLanguageCode = {
   marathi: "mr",
   tamil: "ta",
   bengali: "bn",
+  odia: "or",
 };
 
 const voiceName = {
@@ -34,6 +36,7 @@ const voiceName = {
   "ta-IN": "ta-IN-PallaviNeural",
   "mr-IN": "mr-IN-AarohiNeural",
   "bn-IN": "bn-IN-TanishaaNeural",
+  "or-IN": "or-IN-SubhasiniNeural",
 };
 
 function getTTSAttributes(language) {
