@@ -18,6 +18,7 @@ languageDialogUrls = {
   'hindi':'languageDialog/hindi/For%20Hindi/{speechRate}.mp3',
   'tamil':'languageDialog/tamil/For%20Tamil/{speechRate}.mp3',
   'odia':'languageDialog/odia/For%20Odia/{speechRate}.mp3',
+  'marathi':'languageDialog/marathi/For%20Marathi/{speechRate}.mp3',
 }
 
 speechRate = "1.0"

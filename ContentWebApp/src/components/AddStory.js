@@ -460,6 +460,7 @@ const AddStory = ({ content, contentType }) => {
         >
           <option value="kannada">Kannada</option>
           <option value="hindi">Hindi</option>
+          <option value="marathi">Marathi</option>
           <option value="odia">Odia</option>
           <option value="english">English</option>
           <option value="tamil">Tamil</option>
