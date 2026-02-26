@@ -150,6 +150,23 @@ class CallFragment : BaseFragment() {
                 viewModel.clearParticipantDroppedNotification()
             }
         }
+
+        viewModel.participantOnHold.observe(viewLifecycleOwner) { phoneNumber ->
+            if (phoneNumber != null) {
+                val student = viewModel.validatedStudents.value?.find { it.phoneNumber == phoneNumber }
+                val displayName = student?.name ?: phoneNumber
+                val message = "$displayName is on hold"
+
+                com.google.android.material.snackbar.Snackbar.make(
+                    binding.root,
+                    message,
+                    com.google.android.material.snackbar.Snackbar.LENGTH_LONG
+                ).show()
+
+                logMessage("Student on hold: $displayName ($phoneNumber)")
+                viewModel.clearParticipantOnHoldNotification()
+            }
+        }
     }
 
     private fun setupClickListeners() {

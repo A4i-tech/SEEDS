@@ -14,6 +14,8 @@ from app.services.conference_call import ConferenceCall
 from app.services.audio.capture import AudioCaptureSession
 from app.services.audio.transcriber import AudioTranscriber
 from app.services.audio.hold_detector import HoldDetector
+from app.services.confevents.hold_detected_event import HoldDetectedEvent
+from app.models.participant import CallStatus, Role
 
 router = APIRouter()
 
@@ -68,6 +70,14 @@ async def process_audio_message(
 
             if detect_result["is_hold"]:
                 logger_instance.warning(f"HOLD DETECTED | Score: {detect_result['score']:.2f} | Text: {text}")
+                phone_number = select_hold_participant(conf)
+                if phone_number:
+                    await conf.queue_event(HoldDetectedEvent(phone_number=phone_number, conf_call=conf))
+                else:
+                    logger_instance.warning(
+                        "HOLD DETECTED but no eligible student found for conference %s",
+                        conference_id,
+                    )
     except Exception as e:
         logger_instance.exception("Error processing audio chunk: %s", e)
 
@@ -92,6 +102,37 @@ async def persist_analysis_if_needed(
     await conf.storage_manager.save_state(
         conf.conf_id, conf.state.model_dump(by_alias=True)
     )
+
+
+def select_hold_participant(conf: ConferenceCall) -> str | None:
+    students = [
+        participant
+        for participant in conf.state.participants.values()
+        if participant.role == Role.STUDENT
+        and participant.call_status
+        in {CallStatus.CONNECTED, CallStatus.CONNECTING, CallStatus.ON_HOLD}
+    ]
+
+    if not students:
+        return None
+
+    existing_hold = next(
+        (participant for participant in students if participant.call_status == CallStatus.ON_HOLD),
+        None,
+    )
+    if existing_hold:
+        return existing_hold.phone_number
+
+    if len(students) == 1:
+        return students[0].phone_number
+
+    connected_students = [
+        participant for participant in students if participant.call_status == CallStatus.CONNECTED
+    ]
+    if len(connected_students) == 1:
+        return connected_students[0].phone_number
+
+    return None
 
 async def handle_incoming_message(
     msg: dict[str, Any],

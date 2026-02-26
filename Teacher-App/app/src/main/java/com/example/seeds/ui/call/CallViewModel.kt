@@ -184,6 +184,9 @@ class CallViewModel @Inject constructor(
     private val _participantDropped = MutableLiveData<String?>()
     val participantDropped: LiveData<String?>
         get() = _participantDropped
+    private val _participantOnHold = MutableLiveData<String?>()
+    val participantOnHold: LiveData<String?>
+        get() = _participantOnHold
 
     
     private val participantTrackers = mutableMapOf<String, ParticipantTracker>()
@@ -327,6 +330,10 @@ class CallViewModel @Inject constructor(
         _participantDropped.value = null
     }
 
+    fun clearParticipantOnHoldNotification() {
+        _participantOnHold.value = null
+    }
+
     private fun getAccessToken() {
         viewModelScope.launch {
             try {
@@ -438,6 +445,10 @@ class CallViewModel @Inject constructor(
                                                 if (previousState == CallerState.CONNECTED && currentState == CallerState.DISCONNECTED) {
                                                     Log.d("STUDENT_DROP", "Student $phoneNumber disconnected, posting notification")
                                                     _participantDropped.postValue(phoneNumber)
+                                                }
+                                                if (currentState == CallerState.ON_HOLD && previousState != CallerState.ON_HOLD) {
+                                                    Log.d("STUDENT_HOLD", "Student $phoneNumber is on hold, posting notification")
+                                                    _participantOnHold.postValue(phoneNumber)
                                                 }
                                             }
 
@@ -626,7 +637,12 @@ class CallViewModel @Inject constructor(
                 networkCallState
                     .filter { it.phoneNumber != null && it.phoneNumber != teacherPhoneNumber }
                     .forEach { status ->
-                        status.phoneNumber?.let { updateTrackerFromServerState(it, status.callerState ?: CallerState.UNDEFINED) }
+                        status.phoneNumber?.let {
+                            val previousState = updateTrackerFromServerState(it, status.callerState ?: CallerState.UNDEFINED)
+                            if (status.callerState == CallerState.ON_HOLD && previousState != CallerState.ON_HOLD) {
+                                _participantOnHold.postValue(it)
+                            }
+                        }
                     }
 
                 val currentStudentList = _callState.value ?: emptyList()

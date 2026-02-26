@@ -71,7 +71,10 @@ async def process_event(event_data: Dict, conference_id: str):
             logger_instance.info(f"Processing call status change event for {call_status_change_event.phone_number}: {call_status_change_event.status}")
             status_enum = call_status_change_event.status
 
-            new_state_update = {"call_status": status_enum.name}
+            new_state_update = {
+                "call_status": status_enum.name,
+                "onHold": status_enum == CallStatus.ON_HOLD,
+            }
 
             logger_instance.info(f"[TRIGGER] Firing update for conf {conference_id} with state: {new_state_update}")
             asyncio.create_task(
