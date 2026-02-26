@@ -19,9 +19,16 @@ import { STATUS_CODES } from "../constants/statusCodes";
 import { showToast } from "../utils/toast";
 import { PhoneNumberInput } from "../components/common/PhoneNumberInput";
 import { isValidPhoneNumber } from "../utils/phoneUtils";
+import { Phone as PhoneIcon, Lock as LockIcon, School as SchoolIcon } from "@mui/icons-material";
+import axiosInstance from "../services/axiosInstance";
+import { API_ENDPOINTS } from "../constants/apiEndpoints";
+import { STATUS_CODES } from "../constants/statusCodes";
+import { showToast } from "../utils/toast";
+import { useCancellableRequest, isCancelError } from "../hooks/useCancellableRequest";
 
 const Register = () => {
   const navigate = useNavigate();
+  const signal = useCancellableRequest();
   const [phoneNumber, setPhoneNumber] = useState("");
   const [schoolName, setSchoolName] = useState("");
   const [password, setPassword] = useState("");
@@ -34,7 +41,7 @@ const Register = () => {
     const fetchSchools = async () => {
       setLoadingSchools(true);
       try {
-        const response = await axios.get(`${API_ENDPOINTS.GET_SCHOOLS}`);
+        const response = await axiosInstance.get(`${API_ENDPOINTS.GET_SCHOOLS}`, { signal });
         if (response.status === STATUS_CODES.SUCCESS) {
           setSchool(response.data);
         } else {
@@ -42,6 +49,10 @@ const Register = () => {
           showToast.error("Failed to load schools");
         }
       } catch (error) {
+        if (isCancelError(error)) {
+          showToast.info("Request canceled");
+          return;
+        }
         console.error("Error fetching schools:", error);
         showToast.error("Failed to load schools");
       } finally {
@@ -50,7 +61,7 @@ const Register = () => {
     };
 
     fetchSchools();
-  }, []);
+  }, [signal]);
 
   const handleRegister = async () => {
     if (!phoneNumber || !password || !schoolName) {
@@ -66,7 +77,7 @@ const Register = () => {
     setIsSubmitting(true);
     setError(null);
     try {
-      const response = await axios.post(`${API_ENDPOINTS.REGISTER}`, {
+      const response = await axiosInstance.post(`${API_ENDPOINTS.REGISTER}`, {
         phoneNumber,
         password,
         tenantId: schoolName,
