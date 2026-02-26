@@ -27,6 +27,7 @@ fun List<StudentCallStatusDto>.asDomainModel(studentsByPhone: Map<String, Studen
                 "completed" -> CallerState.COMPLETED
                 "rejected" -> CallerState.REJECTED
                 "failed" -> CallerState.FAILED
+                "on_hold" -> CallerState.ON_HOLD
                 else -> CallerState.UNDEFINED
             },
             it.isMuted?: true,

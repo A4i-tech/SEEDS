@@ -200,6 +200,9 @@ class CallViewModel @Inject constructor(
     private val _participantDropped = MutableLiveData<String?>()
     val participantDropped: LiveData<String?>
         get() = _participantDropped
+    private val _participantOnHold = MutableLiveData<String?>()
+    val participantOnHold: LiveData<String?>
+        get() = _participantOnHold
 
     private val _conferenceHoldDetected = MutableLiveData(false)
     val conferenceHoldDetected: LiveData<Boolean>
@@ -350,6 +353,10 @@ class CallViewModel @Inject constructor(
 
     fun clearParticipantDroppedNotification() {
         _participantDropped.value = null
+    }
+
+    fun clearParticipantOnHoldNotification() {
+        _participantOnHold.value = null
     }
 
     private fun getAccessToken() {
@@ -703,7 +710,12 @@ class CallViewModel @Inject constructor(
                 networkCallState
                     .filter { it.phoneNumber != null && it.phoneNumber != teacherPhoneNumber }
                     .forEach { status ->
-                        status.phoneNumber?.let { updateTrackerFromServerState(it, status.callerState ?: CallerState.UNDEFINED) }
+                        status.phoneNumber?.let {
+                            val previousState = updateTrackerFromServerState(it, status.callerState ?: CallerState.UNDEFINED)
+                            if (status.callerState == CallerState.ON_HOLD && previousState != CallerState.ON_HOLD) {
+                                _participantOnHold.postValue(it)
+                            }
+                        }
                     }
 
                 val currentStudentList = _callState.value ?: emptyList()
