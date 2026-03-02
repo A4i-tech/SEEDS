@@ -11,7 +11,7 @@ os.environ["APPLICATIONINSIGHTS_CONNECTION_STRING"] = (
     "InstrumentationKey=test-key;IngestionEndpoint=https://test.com/"
 )
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 
 from app.models.action_history import ActionType
 from app.models.participant import CallStatus, Participant, Role

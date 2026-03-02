@@ -25,7 +25,7 @@ class HoldDetectedEvent(ConferenceEvent):
                 caller_state_manager.update_state(
                     conference_id=self.conf_call.conf_id,
                     participant_id=self.phone_number,
-                    new_state={"call_status": CallStatus.ON_HOLD.name, "onHold": True},
+                    new_state={"call_status": CallStatus.ON_HOLD.value, "onHold": True},
                 )
             )
 

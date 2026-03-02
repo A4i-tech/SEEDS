@@ -3,14 +3,12 @@ from datetime import datetime, timezone
 import re
 from typing import Optional
 import wave
-from azure.storage.blob.aio import BlobServiceClient
-from azure.core.exceptions import ResourceExistsError
-from azure.storage.blob import ContentSettings
 from app.conf_logger import logger_instance as logger
+from app.services.audio.capture_uploader import AzureAudioCaptureUploader
 
 
 class AudioCaptureSession:
-    def __init__(self, conference_id: str):
+    def __init__(self, conference_id: str, uploader: Optional[AzureAudioCaptureUploader] = None):
         self.conference_id = conference_id
         self.safe_conf_id = re.sub(r"[^A-Za-z0-9_.-]+", "_", conference_id)
         capture_dir = os.getenv("AUDIO_CAPTURE_DIR", "/tmp/conference-audio-capture")
@@ -43,6 +41,7 @@ class AudioCaptureSession:
         self.total_bytes = 0
         self.max_bytes = int(os.getenv("AUDIO_CAPTURE_MAX_BYTES", str(100 * 1024 * 1024)))
         self.truncated = False
+        self.uploader = uploader or AzureAudioCaptureUploader.from_env()
 
     def write_chunk(self, audio_bytes: bytes) -> None:
         if not audio_bytes:
@@ -81,57 +80,22 @@ class AudioCaptureSession:
             self._file.close()
 
     async def upload_to_azure(self) -> Optional[str]:
-        if os.getenv("AUDIO_CAPTURE_UPLOAD_TO_AZURE", "false").lower() != "true":
-            return None
-
-        connection_string = os.getenv("AZURE_STORAGE_CONNECTION_STRING", "")
-        if not connection_string:
-            return None
-
-        container_name = os.getenv("AUDIO_CAPTURE_CONTAINER", "seedsstagingblob")
-        blob_prefix = os.getenv("AUDIO_CAPTURE_BLOB_PREFIX", "audio-recording").strip("/")
-        ext = "wav" if self.format == "wav" else "pcm"
-        capture_end_ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        blob_filename = f"{self.safe_conf_id}-{self.capture_start_ts}-{capture_end_ts}.{ext}"
-        blob_name = (
-            f"{blob_prefix}/{blob_filename}"
-            if blob_prefix
-            else blob_filename
+        return await self.uploader.upload(
+            local_file_path=self.file_path,
+            safe_conf_id=self.safe_conf_id,
+            capture_start_ts=self.capture_start_ts,
+            audio_format=self.format,
+            metadata={
+                "conference_id": self.conference_id,
+                "captured_bytes": str(self.total_bytes),
+                "truncated": str(self.truncated).lower(),
+                "capture_start_utc": self.capture_start_ts,
+                "audio_format": self.format,
+                "sample_rate_hz": str(self.sample_rate_hz),
+                "channels": str(self.channels),
+                "sample_width_bytes": str(self.sample_width_bytes),
+            },
         )
-
-        service_client = BlobServiceClient.from_connection_string(connection_string)
-        try:
-            container_client = service_client.get_container_client(container_name)
-            try:
-                await container_client.create_container()
-            except ResourceExistsError:
-                pass
-            blob_client = container_client.get_blob_client(blob_name)
-
-            content_type = "audio/wav" if self.format == "wav" else "audio/L16"
-            with open(self.file_path, "rb") as f:
-                await blob_client.upload_blob(
-                    f,
-                    overwrite=True,
-                    content_settings=ContentSettings(content_type=content_type),
-                    metadata={
-                        "conference_id": self.conference_id,
-                        "captured_bytes": str(self.total_bytes),
-                        "truncated": str(self.truncated).lower(),
-                        "capture_start_utc": self.capture_start_ts,
-                        "capture_end_utc": capture_end_ts,
-                        "audio_format": self.format,
-                        "sample_rate_hz": str(self.sample_rate_hz),
-                        "channels": str(self.channels),
-                        "sample_width_bytes": str(self.sample_width_bytes),
-                    },
-                )
-            return blob_client.url
-        except Exception as exc:
-            logger.exception("Failed to upload captured audio to Azure: %s", exc)
-            return None
-        finally:
-            await service_client.close()
 
     async def finalize(self) -> Optional[str]:
         try:

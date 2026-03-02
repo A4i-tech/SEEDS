@@ -42,7 +42,7 @@ class ConferenceLogger:
             self.add_file_handler(log_file_path)
 
     def add_app_insights_handler(self, connection_string):
-        if not self._has_valid_app_insights_connection_string(connection_string):
+        if not connection_string or "InstrumentationKey=" not in connection_string:
             return False
 
         # Azure App Insights handler
@@ -53,19 +53,6 @@ class ConferenceLogger:
             return True
         except (ValueError, TypeError):
             return False
-
-    def _has_valid_app_insights_connection_string(self, connection_string):
-        if not connection_string or not connection_string.strip():
-            return False
-
-        parts = {}
-        for item in connection_string.split(";"):
-            if "=" not in item:
-                continue
-            key, value = item.split("=", 1)
-            parts[key.strip().lower()] = value.strip()
-
-        return bool(parts.get("instrumentationkey"))
 
     def add_console_handler(self):
         # Handler to log to stdout (normal log output)

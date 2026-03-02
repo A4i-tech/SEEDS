@@ -23,11 +23,9 @@ class WebsocketService:
         return cls._instance
 
     async def initialize(self):
-        ws_base_url = (
-            os.environ.get("INTERNAL_WS_EP")
-            or os.environ.get("WS_SERVER_EP")
-            or "ws://localhost:3000"
-        )
+        ws_base_url = os.environ.get("INTERNAL_WS_EP") or os.environ.get("WS_SERVER_EP")
+        if not ws_base_url:
+            raise ValueError("WS_SERVER_EP (or INTERNAL_WS_EP) must be set")
         self.connection_url = ws_base_url + f"?id={self.connection_id}"
         self.is_connected = False
         self.reconnect_attempts = 0

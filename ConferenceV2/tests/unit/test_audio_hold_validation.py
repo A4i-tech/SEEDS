@@ -6,7 +6,7 @@ import sys
 import numpy as np
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from app.services.audio.hold_detector import HoldDetector
 from app.services.audio.transcriber import AudioTranscriber

@@ -34,6 +34,8 @@ class ConferenceCallManager:
             conf_id=conf_id,
             communication_api=self.communication_api_factory.create(self.communication_api_type, 
                                                                     conf_id, 
+                                                                    # Keep conference WS route explicit so Vonage callbacks
+                                                                    # connect to the correct per-conference endpoint.
                                                                     ws_url=f"{self.ws_base_url.rstrip('/')}/websocket/{conf_id}"),
             connection_manager=self.smartphone_connection_manager_factory.create(self.smartphone_connection_manager_type, 
                                                                                  conf_id),
