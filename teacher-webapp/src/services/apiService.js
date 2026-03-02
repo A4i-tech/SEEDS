@@ -152,6 +152,7 @@ export const seekAudio = async (confId, deltaSeconds) => {
   return response;
 };
 
+<<<<<<< HEAD
 export const seekAudioAbsolute = async (confId, positionSeconds) => {
   const url = `${API_ENDPOINTS.CONFERENCE.SEEK_AUDIO(
     confId
@@ -184,6 +185,8 @@ export const setPlaybackSpeed = async (confId, speed) => {
   return response;
 };
 
+=======
+>>>>>>> 7cc89e9 (refactor: Replace fetch with axios for conference and participant management)
 export const addParticipant = async (confId, phone_number, name = null) => {
   // Normalize phone number to ensure consistent format (91XXXXXXXXXX)
   const normalizedPhone = normalizePhoneNumber(phone_number);
