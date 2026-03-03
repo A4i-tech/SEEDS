@@ -6,7 +6,6 @@ import { SEEDS_URL, AUDIO_BASE_URL } from "../Constants";
 import { getAuthHeaders } from "../utils/authHelpers";
 import { useAuth } from "../hooks/useAuth";
 import { isMp3File } from "../utils/fileValidators";
-import "./AddStory.css";
 
 const AddStory = ({ content, contentType, onContentTypeChange }) => {
   const { getCurrentUser } = useAuth();
@@ -554,7 +553,6 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
             </div>
           )}
         </div>
-      </div>
 
       {newTheme && (
         <div className="new-theme-section">

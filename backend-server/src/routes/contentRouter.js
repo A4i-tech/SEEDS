@@ -30,7 +30,7 @@ const processNewContent = require("../jobs/processAudioContent.js");
 const processQuizContent = require("../jobs/processQuizContent.js");
 const { tryCatchWrapper } = require(path.join("..", "util.js"));
 const { Binary } = require("mongodb");
-const { parse: uuidParse, validate: uuidValidate } = require("uuid");
+const { parse: uuidParse } = require("uuid");
 // Initialize instances
 const blobService = new BlobService();
 const router = express.Router();
@@ -48,6 +48,16 @@ agenda.define("processQuizContent", async (job) => {
 (async function () {
   await agenda.start();
 })();
+
+/** Sort merged content/quizzes by creation_time descending, then by _id descending as tie-breaker. */
+function sortByCreationTimeThenId(a, b) {
+  const timeA = a.creation_time || 0;
+  const timeB = b.creation_time || 0;
+  if (timeB !== timeA) return timeB - timeA;
+  const idA = a._id?.toString() || "";
+  const idB = b._id?.toString() || "";
+  return idB.localeCompare(idA);
+}
 
 /**
  * @swagger
@@ -389,10 +399,10 @@ router.get(
 
     // If specific IDs are requested, return non-deleted content sorted by creation time (newest first)
     if (req.query.ids) {
-      if (!req.query.ids || (typeof req.query.ids === "string" && req.query.ids.trim() === "")) {
-        return res.status(400).json({ error: "ids query parameter is required" });
+      if (!Array.isArray(req.query.ids) || req.query.ids.length === 0) {
+        return res.status(400).json({ error: "ids query parameter must be a non-empty array" });
       }
-      const idsArray = Array.isArray(req.query.ids) ? req.query.ids : req.query.ids.split(",");
+      const idsArray = req.query.ids;
       
       // Fetch both content and quiz data for the requested IDs (lean for read-only)
       const [contents, quizzes] = await Promise.all([
@@ -417,10 +427,8 @@ router.get(
         type: "quiz",
       }));
       
-      // Merge and sort
-      const allContent = [...transformedContents, ...transformedQuizzes].sort(
-        (a, b) => (b.creation_time || 0) - (a.creation_time || 0)
-      );
+      // Merge and sort once (shared with list path via sortByCreationTimeThenId)
+      const allContent = [...transformedContents, ...transformedQuizzes].sort(sortByCreationTimeThenId);
       
       return res.json(allContent);
     }
@@ -457,23 +465,19 @@ router.get(
     // Fetch more items to account for merging and pagination
     const fetchLimit = limit * 2; // Fetch more to ensure we have enough after merging
 
-    // Fetch both content and quizzes concurrently using Promise.all
-    // Use .lean() for faster reads (returns plain objects instead of Mongoose documents)
-    // Note: No sorting at DB level - we sort once after merging
-    const [contents, quizzes] = await Promise.all([
-      shouldFetchContent
-        ? ContentV3.find(contentQuery)
-            .limit(fetchLimit)
-            .lean()
-            .exec()
-        : Promise.resolve([]),
-      shouldFetchQuizzes
-        ? QuizData.find(quizQuery)
-            .limit(fetchLimit)
-            .lean()
-            .exec()
-        : Promise.resolve([]),
-    ]);
+    // Fetch content and/or quizzes only when needed (no empty Promise fallbacks)
+    let contents = [];
+    let quizzes = [];
+    if (shouldFetchContent && shouldFetchQuizzes) {
+      [contents, quizzes] = await Promise.all([
+        ContentV3.find(contentQuery).limit(fetchLimit).lean().exec(),
+        QuizData.find(quizQuery).limit(fetchLimit).lean().exec(),
+      ]);
+    } else if (shouldFetchContent) {
+      contents = await ContentV3.find(contentQuery).limit(fetchLimit).lean().exec();
+    } else if (shouldFetchQuizzes) {
+      quizzes = await QuizData.find(quizQuery).limit(fetchLimit).lean().exec();
+    }
 
     // Transform content to ensure id field exists (standardize: always use id from _id)
     // Note: .lean() returns plain objects, so no need for .toObject()
@@ -494,35 +498,23 @@ router.get(
       };
     });
 
-    // Merge content and quizzes
+    // Merge content and quizzes, then sort once by creation_time and _id
     let allContent = [...transformedContents, ...transformedQuizzes];
-
-    // Sort by creation_time (descending), then by _id (descending) as tie-breaker
-    allContent.sort((a, b) => {
-      const timeA = a.creation_time || 0;
-      const timeB = b.creation_time || 0;
-      if (timeB !== timeA) {
-        return timeB - timeA;
-      }
-      // If creation_time is equal, compare _id as string
-      const idA = a._id?.toString() || "";
-      const idB = b._id?.toString() || "";
-      return idB.localeCompare(idA);
-    });
+    allContent.sort(sortByCreationTimeThenId);
 
     // Apply cursor-based pagination if cursor is provided
     if (cursor) {
       const [lastCreationTimeStr, lastId] = cursor.split("_");
       const lastCreationTime = parseInt(lastCreationTimeStr, 10);
-      
+
+      // Keep only items after the cursor: (creation_time, _id) > (lastCreationTime, lastId)
+      // so we return the next page in the same order as the single sort above
       allContent = allContent.filter((item) => {
         const itemTime = item.creation_time || 0;
-        if (itemTime < lastCreationTime) {
-          return true;
-        }
+        if (itemTime < lastCreationTime) return true;   // older → include (we sort desc, so "after" cursor)
         if (itemTime === lastCreationTime) {
           const itemId = item._id?.toString() || "";
-          return itemId < lastId;
+          return itemId < lastId; // same time: include if _id is before lastId in sort order
         }
         return false;
       });
@@ -636,7 +628,7 @@ router.get(
         };
       }
     } else {
-      // Transform ContentV3 to ensure id field exists (standardize: always use id from _id)
+      // Frontend expects a top-level `id`; ContentV3 uses `_id`. Add `id` so response shape is consistent.
       content = {
         ...content,
         id: content._id || content.id,
@@ -698,20 +690,22 @@ router.delete(
     const contentId = req.params.contentId;
 
     // Try to delete from ContentV3 first (uses _id as String)
-    let result = await ContentV3.updateOne(
+    let result = await ContentV3.findOneAndUpdate(
       { _id: contentId },
-      { $set: { isDeleted: true } }
+      { $set: { isDeleted: true } },
+      { new: true }
     );
 
     // If not found in ContentV3, try QuizData (also uses _id as String)
-    if (result.matchedCount === 0) {
-      result = await QuizData.updateOne(
+    if (!result) {
+      result = await QuizData.findOneAndUpdate(
         { _id: contentId },
-        { $set: { isDeleted: true } }
+        { $set: { isDeleted: true } },
+        { new: true }
       );
     }
 
-    if (result.matchedCount === 0) {
+    if (!result) {
       return res.status(404).json({ error: "Content not found" });
     }
 
@@ -776,10 +770,13 @@ router.patch(
       if (negMarks !== undefined) quizUpdate.negativeMarks = negMarks;
 
       // title and theme are TextContentSchema objects {english, local, audioUrl}.
-      // The frontend sends them as plain strings, so merge with existing values to
-      // preserve local translation and audioUrl.
+      // The frontend sends them as plain strings; invalidate non-string values (e.g. number).
       if (updatePayload.title !== undefined) {
-        const incoming = typeof updatePayload.title === "string" ? updatePayload.title : updatePayload.title.english;
+        const raw = updatePayload.title;
+        const incoming = typeof raw === "string" ? raw : (raw && typeof raw.english === "string" ? raw.english : null);
+        if (incoming === null) {
+          return res.status(400).json({ error: "title must be a string or an object with english string" });
+        }
         quizUpdate.title = {
           english: incoming,
           local: existingQuiz.title?.local ?? "",
@@ -787,7 +784,11 @@ router.patch(
         };
       }
       if (updatePayload.theme !== undefined) {
-        const incoming = typeof updatePayload.theme === "string" ? updatePayload.theme : updatePayload.theme.english;
+        const raw = updatePayload.theme;
+        const incoming = typeof raw === "string" ? raw : (raw && typeof raw.english === "string" ? raw.english : null);
+        if (incoming === null) {
+          return res.status(400).json({ error: "theme must be a string or an object with english string" });
+        }
         quizUpdate.theme = {
           english: incoming,
           local: existingQuiz.theme?.local ?? "",
@@ -807,7 +808,7 @@ router.patch(
           const correctIdx = Array.isArray(correctAnswers) ? (correctAnswers[qIdx] ?? 0) : 0;
           return {
             question: {
-              id: existing.question?.id || `${contentId}-q${qIdx + 1}`,
+              id: (existing.question && existing.question.id) || `${contentId}-q${qIdx + 1}`,
               url: existing.question?.url || "<NOT CREATED>",
               text: questionText,
             },
