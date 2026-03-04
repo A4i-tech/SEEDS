@@ -422,10 +422,10 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
         {/* Conference Audio Player */}
         {hasActiveAudio && (
           <ConferenceAudioPlayer
-            trackTitle={currentTrack.title}
-            trackLocal={currentTrack.trackLocal}
-            trackType={currentTrack.type}
-            durationStr={currentTrack.durationStr}
+            trackTitle={currentTrack?.title || "Playing Audio"}
+            trackLocal={currentTrack?.trackLocal || ""}
+            trackType={currentTrack?.type || ""}
+            durationStr={currentTrack?.durationStr || ""}
             audioContentState={audioContentState}
             confId={confId}
             isLoadingMusic={isLoadingMusic}
