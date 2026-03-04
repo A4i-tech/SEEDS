@@ -359,10 +359,6 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
   });
 
   const isLoading = (phoneNumber) => phoneNumber && loadingIds.includes(phoneNumber);
-  const isPlayingAudio = audioContentState.status === "Playing";
-  const isPausedAudio = audioContentState.status === "Paused";
-  const isStartingAudio = audioContentState.status === "Starting";
-  const hasActiveAudio = isPlayingAudio || isPausedAudio || isStartingAudio;
 
   const canReconnect = (user) => user?.call_status === "disconnected" && isConfCallRunning;
   const isReconnecting = (phoneNumber) => phoneNumber && reconnectingIds.includes(phoneNumber);
@@ -420,12 +416,12 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
         />
 
         {/* Conference Audio Player */}
-        {hasActiveAudio && (
+        {currentTrack && (
           <ConferenceAudioPlayer
-            trackTitle={currentTrack?.title || "Playing Audio"}
-            trackLocal={currentTrack?.trackLocal || ""}
-            trackType={currentTrack?.type || ""}
-            durationStr={currentTrack?.durationStr || ""}
+            trackTitle={currentTrack.title}
+            trackLocal={currentTrack.trackLocal}
+            trackType={currentTrack.type}
+            durationStr={currentTrack.durationStr}
             audioContentState={audioContentState}
             confId={confId}
             isLoadingMusic={isLoadingMusic}
