@@ -11,7 +11,7 @@ class CreateConferenceRequest(BaseModel):
     teacher_phone: str
     teacher_name: Optional[str] = None
     student_phones: List[str]
-    student_names: Optional[List[str]] = None
+    student_names: Optional[List[Optional[str]]] = None
 
 
 class SeekAudioRequest(BaseModel):

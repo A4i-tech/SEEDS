@@ -949,43 +949,6 @@ class CallViewModel @Inject constructor(
 
         // Optimistic update: Mark all students as unmuted
         val currentList = _callState.value?.toMutableList() ?: return
-        
-        val tracker = participantTrackers[phoneNumber]
-        if (tracker != null) {
-            participantTrackers[phoneNumber] = tracker.copy(
-                currentState = CallerState.DISCONNECTED,
-                previousState = tracker.currentState
-            )
-        }
-
-        val updatedList = currentList.map { participant ->
-            if (participant.phoneNumber == phoneNumber) participant.copy(callerState = CallerState.DISCONNECTED)
-            else participant
-        }.toMutableList()
-        _callState.postValue(updatedList)
-
-        viewModelScope.launch {
-            try {
-                val fullUrl = "$conferenceUrl/conference/removeparticipant/$confId"
-                val response = network.disconnectParticipant(fullUrl, phoneNumber)
-                if (!response.isSuccessful) {
-                    // On failure, refresh to get server state
-                    refreshCallState()
-                }
-                // On success, next polling cycle will handle the state correctly
-                // The participant will be kept as DISCONNECTED by the polling logic
-            } catch (e: Exception) {
-                // On exception, refresh to get server state
-                refreshCallState()
-            }
-        }
-    }
-    
-    fun unmuteAll() {
-        val confId = _callToken.value?.confId ?: return
-        
-        // Optimistic update: Mark all students as unmuted
-        val currentList = _callState.value?.toMutableList() ?: return
         val updatedList = currentList.map { participant ->
             if (participant.phoneNumber != teacherPhoneNumber) {
                 participant.copy(isMuted = false)
