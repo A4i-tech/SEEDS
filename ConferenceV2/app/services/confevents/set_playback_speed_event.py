@@ -9,6 +9,8 @@ from app.services.singletons.websocket_service import WebsocketService
 
 class SetPlaybackSpeedEvent(ConferenceEvent):
     def __init__(self, conf_call: ConferenceCall, speed: float):
+        if not (0.5 <= speed <= 2.0):
+            raise ValueError(f"speed must be between 0.5 and 2.0, got {speed}")
         self.conf_call = conf_call
         self.speed = speed
 

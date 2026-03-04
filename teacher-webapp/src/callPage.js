@@ -420,7 +420,7 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
         />
 
         {/* Conference Audio Player */}
-        {hasActiveAudio && currentTrack && (
+        {hasActiveAudio && (
           <ConferenceAudioPlayer
             trackTitle={currentTrack.title}
             trackLocal={currentTrack.trackLocal}

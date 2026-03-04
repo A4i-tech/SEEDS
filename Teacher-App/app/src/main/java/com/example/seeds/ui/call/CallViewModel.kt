@@ -414,7 +414,9 @@ class CallViewModel @Inject constructor(
         } else null
 
         if (authToken == null) {
+            val errorMsg = "Unable to start live updates: Authentication token unavailable. Relogin may be required."
             Log.e(TAG, "SSE: Cannot start — no auth token available")
+            _isErrorFromIVR.postValue(errorMsg)
             return
         }
 

@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class MessageType(str, Enum):
@@ -22,6 +22,6 @@ class WebsocketServiceMessage(BaseModel):
     websocket_id: str
     type: MessageType
     message: str = ""
-    position_seconds: Optional[float] = None
-    duration_seconds: Optional[float] = None
-    speed: Optional[float] = None
+    position_seconds: Optional[float] = Field(default=None, ge=0)
+    duration_seconds: Optional[float] = Field(default=None, ge=0)
+    speed: Optional[float] = Field(default=None, ge=0.5, le=2.0)

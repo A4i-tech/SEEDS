@@ -4,29 +4,22 @@ import {
   Drawer,
   Typography,
   IconButton,
-  InputBase,
-  Paper,
-  Chip,
   Divider,
   Alert,
   CircularProgress,
   Button,
-  LinearProgress,
 } from "@mui/material";
 import {
   Close as CloseIcon,
-  Search as SearchIcon,
-  MusicNote as MusicNoteIcon,
-  MenuBook as MenuBookIcon,
-  PlayArrow as PlayArrowIcon,
-  Pause as PauseIcon,
   VolumeUp as VolumeUpIcon,
-  GraphicEq as GraphicEqIcon,
 } from "@mui/icons-material";
 import { getContent, getContentById, getContentSasUrl } from "../services/contentService";
-import AudioPlayer from "./audio/AudioPlayer";
 import { showToast } from "../utils/toast";
 import { saveContentToHistory } from "../services/contentHistoryService";
+import ContentSearchBar from "./ContentSearchBar";
+import ContentListItem from "./ContentListItem";
+import NowPlayingBanner from "./NowPlayingBanner";
+import NowPlayingFooter from "./NowPlayingFooter";
 
 const DRAWER_WIDTH = 440;
 
@@ -197,14 +190,6 @@ const ContentDrawer = ({
 
   const getItemColor = (index) => ITEM_COLORS[index % ITEM_COLORS.length];
 
-  const isStory = (item) => item.type?.toLowerCase() === "story";
-
-  // Determine playback status from conference state
-  const isPlaying = audioContentState?.status === "Playing";
-  const isPaused = audioContentState?.status === "Paused";
-  const isStarting = audioContentState?.status === "Starting";
-  const isStreaming = isPlaying || isPaused || isStarting;
-
   return (
     <Drawer
       anchor="right"
@@ -249,97 +234,18 @@ const ContentDrawer = ({
       </Box>
 
       {/* Conference streaming banner */}
-      {conferenceActive && isStreaming && (
-        <Box
-          sx={{
-            px: 2,
-            py: 1.25,
-            display: "flex",
-            alignItems: "center",
-            gap: 1.5,
-            bgcolor: isPlaying ? "#e8f5e9" : isPaused ? "#fff3e0" : "#e3f2fd",
-            borderBottom: "1px solid",
-            borderColor: "divider",
-          }}
-        >
-          {isPlaying ? (
-            <GraphicEqIcon sx={{ color: "#2e7d32", fontSize: 22 }} />
-          ) : isPaused ? (
-            <PauseIcon sx={{ color: "#e65100", fontSize: 22 }} />
-          ) : (
-            <CircularProgress size={18} />
-          )}
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="body2" sx={{ fontWeight: 600, fontSize: "0.8rem" }}>
-              {isPlaying
-                ? "Streaming to participants"
-                : isPaused
-                  ? "Paused"
-                  : "Starting playback..."}
-            </Typography>
-            {audioContentState?.position_seconds != null && (
-              <Typography variant="caption" color="text.secondary">
-                {formatSeconds(audioContentState.position_seconds)} elapsed
-              </Typography>
-            )}
-          </Box>
-          <VolumeUpIcon
-            sx={{
-              color: isPlaying ? "#2e7d32" : "text.disabled",
-              fontSize: 20,
-              animation: isPlaying ? "pulse 1.5s infinite" : "none",
-              "@keyframes pulse": {
-                "0%, 100%": { opacity: 1 },
-                "50%": { opacity: 0.4 },
-              },
-            }}
-          />
-        </Box>
+      {conferenceActive && (
+        <NowPlayingBanner audioContentState={audioContentState} />
       )}
 
-      {/* Search */}
-      <Box sx={{ px: 2, py: 1.5 }}>
-        <Paper
-          variant="outlined"
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            px: 1.5,
-            py: 0.75,
-            borderRadius: 3,
-            backgroundColor: "grey.50",
-          }}
-        >
-          <SearchIcon sx={{ color: "text.disabled", mr: 1, fontSize: 20 }} />
-          <InputBase
-            placeholder="Search songs, stories..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            sx={{ flex: 1, fontSize: "0.875rem" }}
-          />
-        </Paper>
-      </Box>
-
-      {/* Filter tabs */}
-      <Box sx={{ px: 2, pb: 1.5, display: "flex", gap: 1, flexWrap: "wrap" }}>
-        {availableTabs.map((tab) => (
-          <Chip
-            key={tab}
-            label={tab.charAt(0).toUpperCase() + tab.slice(1)}
-            onClick={() => setActiveTab(tab)}
-            variant={activeTab === tab ? "filled" : "outlined"}
-            color={activeTab === tab ? "primary" : "default"}
-            icon={
-              tab === "song" ? (
-                <MusicNoteIcon style={{ fontSize: 14 }} />
-              ) : tab === "story" ? (
-                <MenuBookIcon style={{ fontSize: 14 }} />
-              ) : undefined
-            }
-            sx={{ borderRadius: 3, fontWeight: activeTab === tab ? 600 : 400 }}
-          />
-        ))}
-      </Box>
+      {/* Search and filters */}
+      <ContentSearchBar
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        availableTabs={availableTabs}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+      />
 
       <Divider />
 
@@ -367,155 +273,17 @@ const ContentDrawer = ({
           </Box>
         )}
 
-        {filteredContent.map((item, index) => {
-          const isItemLoading = loadingItemId === item._id;
-          const color = getItemColor(index);
-
-          return (
-            <Box
-              key={item._id || index}
-              onClick={() => !isItemLoading && handleItemPlay(item)}
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 1.5,
-                px: 2,
-                py: 1.5,
-                cursor: isItemLoading ? "wait" : "pointer",
-                borderBottom: "1px solid",
-                borderColor: "divider",
-                position: "relative",
-                transition: "background-color 0.15s",
-                "&:hover": {
-                  backgroundColor: "action.hover",
-                },
-                opacity: isItemLoading ? 0.7 : 1,
-              }}
-            >
-              {/* Color icon */}
-              <Box
-                sx={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: "12px",
-                  bgcolor: color,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                  position: "relative",
-                }}
-              >
-                {isItemLoading ? (
-                  <CircularProgress size={22} sx={{ color: "#fff" }} />
-                ) : isStory(item) ? (
-                  <MenuBookIcon sx={{ color: "#fff", fontSize: 22 }} />
-                ) : (
-                  <MusicNoteIcon sx={{ color: "#fff", fontSize: 22 }} />
-                )}
-              </Box>
-
-              {/* Content info */}
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography
-                  variant="body2"
-                  sx={{
-                    fontWeight: 600,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {item.title?.english || item.title?.local || "Untitled"}
-                </Typography>
-                {item.title?.local && item.title?.english !== item.title?.local && (
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    sx={{
-                      display: "block",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {item.title.local}
-                  </Typography>
-                )}
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 0.5,
-                    mt: 0.25,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  {item.type && (
-                    <Chip
-                      label={item.type.toUpperCase()}
-                      size="small"
-                      sx={{
-                        height: 18,
-                        fontSize: "0.65rem",
-                        fontWeight: 700,
-                        borderRadius: 1,
-                        bgcolor: color,
-                        color: "#fff",
-                      }}
-                    />
-                  )}
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    sx={{ fontSize: "0.7rem" }}
-                  >
-                    {[item.language, typeof item.theme === "string" ? item.theme : item.theme?.english]
-                      .filter(Boolean)
-                      .join(" \u00B7 ")}
-                  </Typography>
-                </Box>
-              </Box>
-
-              {/* Duration + play indicator */}
-              <Box
-                sx={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "flex-end",
-                  gap: 0.25,
-                  flexShrink: 0,
-                }}
-              >
-                {item.duration && (
-                  <Typography
-                    variant="body2"
-                    color="text.secondary"
-                    sx={{ fontSize: "0.8rem" }}
-                  >
-                    {item.duration}
-                  </Typography>
-                )}
-                {conferenceActive && !isItemLoading && (
-                  <PlayArrowIcon sx={{ color: "#2e7d32", fontSize: 20 }} />
-                )}
-              </Box>
-
-              {/* Loading bar on the item */}
-              {isItemLoading && (
-                <LinearProgress
-                  sx={{
-                    position: "absolute",
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    height: 2,
-                  }}
-                />
-              )}
-            </Box>
-          );
-        })}
+        {filteredContent.map((item, index) => (
+          <ContentListItem
+            key={item._id || index}
+            item={item}
+            index={index}
+            isLoading={loadingItemId === item._id}
+            conferenceActive={conferenceActive}
+            onPlay={handleItemPlay}
+            color={getItemColor(index)}
+          />
+        ))}
 
         {/* Load more */}
         {pagination.hasMore && (
@@ -534,37 +302,12 @@ const ContentDrawer = ({
       </Box>
 
       {/* Local preview: Now Playing footer */}
-      {!onPlay && selectedItem && (
-        <>
-          <Divider />
-          <Box sx={{ px: 2, pt: 1.5, pb: 2, backgroundColor: "grey.50" }}>
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              sx={{ fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}
-            >
-              Now Playing
-            </Typography>
-            <Typography
-              variant="body2"
-              sx={{ fontWeight: 600, mt: 0.25, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-            >
-              {selectedItem.title?.english || selectedItem.title?.local || "Untitled"}
-            </Typography>
-
-            {loadingAudio ? (
-              <Box sx={{ display: "flex", justifyContent: "center", py: 1.5 }}>
-                <CircularProgress size={24} />
-              </Box>
-            ) : audioUrl ? (
-              <AudioPlayer audioUrl={audioUrl} autoPlay variant="light" />
-            ) : (
-              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
-                No audio available for this content.
-              </Typography>
-            )}
-          </Box>
-        </>
+      {!onPlay && (
+        <NowPlayingFooter
+          selectedItem={selectedItem}
+          audioUrl={audioUrl}
+          loadingAudio={loadingAudio}
+        />
       )}
 
       {/* Conference mode footer */}
@@ -591,12 +334,5 @@ const ContentDrawer = ({
     </Drawer>
   );
 };
-
-function formatSeconds(totalSeconds) {
-  if (totalSeconds == null || !isFinite(totalSeconds)) return "0:00";
-  const mins = Math.floor(totalSeconds / 60);
-  const secs = Math.floor(totalSeconds % 60);
-  return `${mins}:${secs.toString().padStart(2, "0")}`;
-}
 
 export default ContentDrawer;

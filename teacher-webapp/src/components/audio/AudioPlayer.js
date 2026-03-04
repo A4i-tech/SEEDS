@@ -1,21 +1,12 @@
 import React, { useState, useRef, useEffect } from "react";
 import {
   Box,
-  IconButton,
   Slider,
   Typography,
-  CircularProgress,
-  Select,
-  MenuItem,
 } from "@mui/material";
-import {
-  PlayArrow as PlayArrowIcon,
-  Pause as PauseIcon,
-  SkipPrevious as SkipPreviousIcon,
-  SkipNext as SkipNextIcon,
-} from "@mui/icons-material";
-
-const SPEED_OPTIONS = [0.75, 1.0, 1.25, 1.5, 2.0];
+import { formatTimeWithLeadingZero } from "../../utils/formatTime";
+import SpeedSelector from "./SpeedSelector";
+import TransportControls from "./TransportControls";
 
 const AudioPlayer = ({ audioUrl, onTimeUpdate, onEnded, autoPlay = false, variant = "dark" }) => {
   const isLight = variant === "light";
@@ -140,13 +131,6 @@ const AudioPlayer = ({ audioUrl, onTimeUpdate, onEnded, autoPlay = false, varian
     setCurrentTime(newValue);
   };
 
-  const formatTime = (seconds) => {
-    if (!isFinite(seconds) || isNaN(seconds)) return "00:00";
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-  };
-
   const handleRewind = () => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -188,49 +172,22 @@ const AudioPlayer = ({ audioUrl, onTimeUpdate, onEnded, autoPlay = false, varian
       )}
 
       <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-        <IconButton
-          onClick={handleRewind}
+        <TransportControls
+          isPlaying={isPlaying}
+          isLoading={isLoading}
           disabled={!audioUrl || isLoading}
-          sx={{ color: isLight ? "text.secondary" : "white" }}
-          size="small"
-        >
-          <SkipPreviousIcon />
-        </IconButton>
-
-        <IconButton
-          onClick={togglePlayPause}
-          disabled={!audioUrl || isLoading}
-          sx={{
-            color: "white",
-            bgcolor: "primary.main",
-            "&:hover": { bgcolor: "primary.dark" },
-            "&:disabled": { bgcolor: isLight ? "grey.300" : "grey.600" },
-          }}
-          size="large"
-        >
-          {isLoading ? (
-            <CircularProgress size={24} sx={{ color: "white" }} />
-          ) : isPlaying ? (
-            <PauseIcon />
-          ) : (
-            <PlayArrowIcon />
-          )}
-        </IconButton>
-
-        <IconButton
-          onClick={handleFastForward}
-          disabled={!audioUrl || isLoading}
-          sx={{ color: isLight ? "text.secondary" : "white" }}
-          size="small"
-        >
-          <SkipNextIcon />
-        </IconButton>
+          onPlayPause={togglePlayPause}
+          onSeekBackward={handleRewind}
+          onSeekForward={handleFastForward}
+          variant={variant}
+          size="medium"
+        />
 
         <Typography
           variant="body2"
           sx={{ color: isLight ? "text.secondary" : "white", minWidth: "40px", ml: 0.5, fontSize: "0.75rem" }}
         >
-          {formatTime(currentTime)}
+          {formatTimeWithLeadingZero(currentTime)}
         </Typography>
 
         <Slider
@@ -251,39 +208,15 @@ const AudioPlayer = ({ audioUrl, onTimeUpdate, onEnded, autoPlay = false, varian
           variant="body2"
           sx={{ color: isLight ? "text.secondary" : "white", minWidth: "40px", ml: 0.5, fontSize: "0.75rem" }}
         >
-          {formatTime(duration)}
+          {formatTimeWithLeadingZero(duration)}
         </Typography>
 
-        <Select
+        <SpeedSelector
           value={playbackRate}
           onChange={handleSpeedChange}
           disabled={!audioUrl || isLoading}
-          size="small"
-          variant="outlined"
-          sx={{
-            ml: 0.5,
-            minWidth: 58,
-            height: 28,
-            fontWeight: 700,
-            fontSize: "0.7rem",
-            color: isLight ? "text.primary" : "white",
-            "& .MuiSelect-select": { py: 0.25, px: 1 },
-            "& .MuiOutlinedInput-notchedOutline": {
-              borderColor: isLight ? "grey.400" : "grey.600",
-            },
-            "&:hover .MuiOutlinedInput-notchedOutline": {
-              borderColor: isLight ? "primary.main" : "grey.400",
-            },
-            "& .MuiSelect-icon": { color: isLight ? "text.secondary" : "white" },
-          }}
-          aria-label="Playback speed"
-        >
-          {SPEED_OPTIONS.map((opt) => (
-            <MenuItem key={opt} value={opt} sx={{ fontSize: "0.8rem" }}>
-              {opt}x
-            </MenuItem>
-          ))}
-        </Select>
+          variant={variant}
+        />
       </Box>
     </Box>
   );

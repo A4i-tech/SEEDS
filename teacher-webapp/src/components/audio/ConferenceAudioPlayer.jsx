@@ -1,19 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Box,
-  IconButton,
   Slider,
   Typography,
-  CircularProgress,
   Chip,
-  Select,
-  MenuItem,
 } from "@mui/material";
 import {
-  PlayArrow as PlayArrowIcon,
-  Pause as PauseIcon,
-  SkipPrevious as SkipPreviousIcon,
-  SkipNext as SkipNextIcon,
   MusicNote as MusicNoteIcon,
 } from "@mui/icons-material";
 import {
@@ -23,23 +15,20 @@ import {
   seekAudioAbsolute,
   setPlaybackSpeed as setPlaybackSpeedApi,
 } from "../../services/apiService";
-
-const SPEED_OPTIONS = [0.75, 1.0, 1.25, 1.5, 2.0];
+import { formatTime } from "../../utils/formatTime";
+import SpeedSelector from "./SpeedSelector";
+import TransportControls from "./TransportControls";
 
 function parseDurationStr(str) {
   if (!str) return 0;
-  const parts = str.split(":").map(Number);
+  // Handle numeric durations (already in seconds)
+  if (typeof str === "number") return str;
+  // Handle string durations (M:SS or H:MM:SS format)
+  const parts = String(str).split(":").map(Number);
   if (parts.length === 2) return (parts[0] || 0) * 60 + (parts[1] || 0);
   if (parts.length === 3)
     return (parts[0] || 0) * 3600 + (parts[1] || 0) * 60 + (parts[2] || 0);
   return 0;
-}
-
-function formatTime(seconds) {
-  if (!isFinite(seconds) || isNaN(seconds) || seconds < 0) return "0:00";
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
 /**
@@ -273,76 +262,24 @@ const ConferenceAudioPlayer = ({
 
       {/* Controls row */}
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1.5, mt: 0.5 }}>
-        <IconButton
-          onClick={() => handleSkip(-10)}
-          disabled={!canControl}
-          size="small"
-          sx={{ color: "text.secondary" }}
-          aria-label="Rewind 10 seconds"
-        >
-          <SkipPreviousIcon />
-        </IconButton>
-
-        <IconButton
-          onClick={handlePlayPause}
+        <TransportControls
+          isPlaying={isPlaying}
+          isLoading={actionLoading || isLoadingMusic || isStarting}
           disabled={!canControl || actionLoading || isLoadingMusic}
-          sx={{
-            width: 48,
-            height: 48,
-            color: "#fff",
-            bgcolor: "#2e7d32",
-            "&:hover": { bgcolor: "#1b5e20" },
-            "&:disabled": { bgcolor: "grey.300", color: "grey.500" },
-          }}
-          aria-label={isPlaying ? "Pause" : "Resume"}
-        >
-          {actionLoading || isLoadingMusic || isStarting ? (
-            <CircularProgress size={24} sx={{ color: "#fff" }} />
-          ) : isPlaying ? (
-            <PauseIcon sx={{ fontSize: 28 }} />
-          ) : (
-            <PlayArrowIcon sx={{ fontSize: 28 }} />
-          )}
-        </IconButton>
+          onPlayPause={handlePlayPause}
+          onSeekBackward={() => handleSkip(-10)}
+          onSeekForward={() => handleSkip(10)}
+          variant="light"
+          size="large"
+        />
 
-        <IconButton
-          onClick={() => handleSkip(10)}
-          disabled={!canControl}
-          size="small"
-          sx={{ color: "text.secondary" }}
-          aria-label="Forward 10 seconds"
-        >
-          <SkipNextIcon />
-        </IconButton>
-
-        <Select
+        <SpeedSelector
           value={currentSpeed}
           onChange={handleSpeedChange}
           disabled={!canControl}
-          size="small"
-          variant="outlined"
-          sx={{
-            ml: 1,
-            minWidth: 64,
-            height: 32,
-            fontWeight: 700,
-            fontSize: "0.75rem",
-            "& .MuiSelect-select": { py: 0.5, px: 1 },
-            "& .MuiOutlinedInput-notchedOutline": {
-              borderColor: currentSpeed !== 1.0 ? "#2e7d32" : "grey.400",
-            },
-            "&:hover .MuiOutlinedInput-notchedOutline": {
-              borderColor: "#2e7d32",
-            },
-          }}
-          aria-label="Playback speed"
-        >
-          {SPEED_OPTIONS.map((opt) => (
-            <MenuItem key={opt} value={opt} sx={{ fontSize: "0.8rem" }}>
-              {opt}x
-            </MenuItem>
-          ))}
-        </Select>
+          variant="light"
+          size="medium"
+        />
       </Box>
     </Box>
   );
