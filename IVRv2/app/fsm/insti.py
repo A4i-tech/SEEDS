@@ -640,7 +640,19 @@ async def instantiate_from_latest_content(
 
         contents_v3_collection = get_app_state().contents_v3_mongo
 
-    content = await contents_v3_collection.find_all()
+    # Fetch only pull-model, and not-deleted content.
+    # If content_ids provided, restrict to those IDs as well.
+    if content_ids:
+        query = {
+            "_id": {"$in": content_ids},
+            "isPullModel": True,
+            "isDeleted": {"$ne": True},
+        }
+    else:
+        query = {"isPullModel": True, "isDeleted": {"$ne": True}}
+
+    # Use the collection helper to run the query (returns list)
+    content = await contents_v3_collection.query_items(query)
 
     fsm = FSM(fsm_id=str(uuid.uuid4()))
     fsm.set_end_state(
