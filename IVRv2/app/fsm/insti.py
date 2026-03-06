@@ -75,7 +75,9 @@ def handle_language(filtered_content, speechRate, parent_selections):
     Parameters:
       filtered_content (list): List of content dictionaries filtered based on previous selections.
       speechRate (str): The speech rate string (e.g., "1.0").
-      parent_selections (dict): Dictionary of prior selections (used to determine the language; defaults to "kannada").
+            parent_selections (dict): Dictionary of prior selections.
+                Included for handler signature consistency; this function derives language options
+                from filtered_content and does not apply a default language fallback.
 
     Returns:
       sorted_categories (list): A list of complete audio URLs corresponding to each language.
@@ -151,13 +153,15 @@ Extracts experience type options from the filtered content.
 Parameters:
   filtered_content (list): List of content dictionaries.
   speechRate (str): The speech rate string (not used directly for type).
-  parent_selections (dict): Dictionary of prior selections (not used here, but included for uniformity).
+    parent_selections (dict): Dictionary of prior selections.
+        Uses parent_selections["language"] when present; otherwise falls back to
+        settings.default_welcome_language.
 
 Returns:
   sorted_categories (list): A list of audio URLs corresponding to each experience type.
-    Example: ["https://seedsstagingblob.blob.core.windows.net/pull-model-menus/experiencesDialog/kannada/music/For%20Songs/1.0.mp3"]
+        Example: ["https://seedsstagingblob.blob.core.windows.net/pull-model-menus/experiencesDialog/{language}/music/For%20Songs/1.0.mp3"]
   values_to_urls (dict): A mapping from the type (in lowercase) to its audio URL.
-    Example: {"song": "https://seedsstagingblob.blob.core.windows.net/pull-model-menus/experiencesDialog/kannada/music/For%20Songs/1.0.mp3"}
+        Example: {"song": "https://seedsstagingblob.blob.core.windows.net/pull-model-menus/experiencesDialog/{language}/music/For%20Songs/1.0.mp3"}
 """
 
 
