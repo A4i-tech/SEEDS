@@ -145,27 +145,28 @@ def handle_theme(filtered_content, speechRate, parent_selections):
     return sorted_categories, values_to_urls, sorted_keys
 
 
-"""
-handle_type(filtered_content, speechRate, parent_selections)
-------------------------------------------------------------
-Extracts experience type options from the filtered content.
 
-Parameters:
-  filtered_content (list): List of content dictionaries.
-  speechRate (str): The speech rate string (not used directly for type).
-    parent_selections (dict): Dictionary of prior selections.
-        Uses parent_selections["language"] when present; otherwise falls back to
-        settings.default_welcome_language.
-
-Returns:
-  sorted_categories (list): A list of audio URLs corresponding to each experience type.
-        Example: ["https://seedsstagingblob.blob.core.windows.net/pull-model-menus/experiencesDialog/{language}/music/For%20Songs/1.0.mp3"]
-  values_to_urls (dict): A mapping from the type (in lowercase) to its audio URL.
-        Example: {"song": "https://seedsstagingblob.blob.core.windows.net/pull-model-menus/experiencesDialog/{language}/music/For%20Songs/1.0.mp3"}
-"""
 
 
 def handle_type(filtered_content, speechRate, parent_selections):
+    """
+    handle_type(filtered_content, speechRate, parent_selections)
+    ------------------------------------------------------------
+    Extracts experience type options from the filtered content.
+
+    Parameters:
+    filtered_content (list): List of content dictionaries.
+    speechRate (str): The speech rate string (not used directly for type).
+        parent_selections (dict): Dictionary of prior selections.
+            Uses parent_selections["language"] when present; otherwise falls back to
+            settings.default_welcome_language.
+
+    Returns:
+    sorted_categories (list): A list of audio URLs corresponding to each experience type.
+            Example: ["https://seedsstagingblob.blob.core.windows.net/pull-model-menus/experiencesDialog/{language}/music/For%20Songs/1.0.mp3"]
+    values_to_urls (dict): A mapping from the type (in lowercase) to its audio URL.
+            Example: {"song": "https://seedsstagingblob.blob.core.windows.net/pull-model-menus/experiencesDialog/{language}/music/For%20Songs/1.0.mp3"}
+    """
     # Extract and sort experience types (converted to lowercase).
     experiences = sorted({item["type"].lower() for item in filtered_content})
     values_to_urls = {}
