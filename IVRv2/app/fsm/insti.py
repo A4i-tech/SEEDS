@@ -167,7 +167,7 @@ def handle_type(filtered_content, speechRate, parent_selections):
     values_to_urls = {}
     sorted_categories = []
     sorted_keys = []
-    language = parent_selections.get("language", "kannada")
+    language = parent_selections.get("language", settings.default_welcome_language)
     for exp in experiences:
         # Retrieve the URL template from the global mapping.
         template_url = experienceDialogAudioUrls[exp]
@@ -308,7 +308,7 @@ def getStreamActions(items_list, sorted_keys, level, state, parent_selections={}
     key_to_value_mapping = {}
     description = f"{category.capitalize()} menu"
 
-    language = parent_selections.get("language", "kannada")
+    language = parent_selections.get("language", settings.default_welcome_language)
 
     if level == 0 and state == 0:
         actions.append(StreamAction(welcomeToSEEDSUrl))
