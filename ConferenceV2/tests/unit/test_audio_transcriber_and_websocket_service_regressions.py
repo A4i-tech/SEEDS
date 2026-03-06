@@ -51,9 +51,9 @@ async def test_websocket_initialize_connects_before_starting_background_tasks():
     connect_mock = AsyncMock(side_effect=lambda: call_order.append("connect"))
     start_mock = Mock(side_effect=lambda: call_order.append("start"))
 
-    with patch.object(ws_service, "_connect", new=connect_mock), patch.object(
-        ws_service, "_start_bg_processes", new=start_mock
-    ):
+    with patch.dict(os.environ, {"WS_SERVER_EP": "ws://localhost:3000"}), patch.object(
+        ws_service, "_connect", new=connect_mock
+    ), patch.object(ws_service, "_start_bg_processes", new=start_mock):
         await ws_service.initialize()
 
     connect_mock.assert_awaited_once()
