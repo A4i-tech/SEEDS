@@ -245,7 +245,7 @@ attribute_handlers = {
     "title": handle_title,
 }
 
-welcomeToSEEDSKannadaUrl = f"https://{settings.storage_account_name}.blob.core.windows.net/pull-model-menus/welcomeDialog/kannada/welcome%20to%20SEEDS/1.0.mp3"
+welcomeToSEEDSUrl = f"https://{settings.storage_account_name}.blob.core.windows.net/pull-model-menus/welcomeDialog/{settings.default_welcome_language}/welcome%20to%20SEEDS/1.0.mp3"
 
 
 def getKeyPressUrl(key, language, speechRate):
@@ -311,7 +311,7 @@ def getStreamActions(items_list, sorted_keys, level, state, parent_selections={}
     language = parent_selections.get("language", "kannada")
 
     if level == 0 and state == 0:
-        actions.append(StreamAction(welcomeToSEEDSKannadaUrl))
+        actions.append(StreamAction(welcomeToSEEDSUrl))
 
     # Optionally, play an initial dialog specific to the attribute.
     # (For example, for "theme" or "title", an initial prompt may be defined.)
