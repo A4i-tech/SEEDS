@@ -1,7 +1,7 @@
 package com.example.seeds.model
 
 import android.os.Parcelable
-import com.example.seeds.network.ClassroomDto
+import com.example.seeds.network.ClassroomSaveDto
 import com.squareup.moshi.JsonClass
 import kotlinx.parcelize.Parcelize
 import se.ansman.kotshi.JsonSerializable
@@ -36,17 +36,13 @@ data class Classroom(
     }
 }
 
-fun Classroom.asDto(): ClassroomDto {
-    return ClassroomDto(
+fun Classroom.asDto(): ClassroomSaveDto {
+    return ClassroomSaveDto(
         _id,
         name,
         teacher,
-        students.map{
-            it.phoneNumber
-        },
-        leaders.map{
-            it.phoneNumber
-        },
+        students.map{ it._id ?: it.phoneNumber },
+        leaders.map{ it._id ?: it.phoneNumber },
         contentIds
     )
 }

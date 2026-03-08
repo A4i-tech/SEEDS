@@ -8,6 +8,7 @@ import com.example.seeds.database.LogEntity
 import com.example.seeds.model.CallDetails
 import com.example.seeds.network.CallStatusDto
 import com.example.seeds.network.ClassroomDto
+import com.example.seeds.network.ClassroomSaveDto
 import com.example.seeds.model.ConferenceCreateRequest
 import com.example.seeds.model.ConferenceCreateResponse
 import com.example.seeds.model.Content
@@ -145,8 +146,11 @@ interface SeedsService {
     @GET("class/{classId}")
     suspend fun getClassroomById(@Path("classId") classId: String): ClassroomDto
 
+    @GET("student")
+    suspend fun getSchoolStudents(): List<Student>
+
     @POST("class")
-    suspend fun saveClassroom(@Body classroom: ClassroomDto): ClassroomDto
+    suspend fun saveClassroom(@Body classroom: ClassroomSaveDto): ClassroomDto
 
     @DELETE("class/{classId}")
     suspend fun deleteClassroom(@Path("classId") classId: String)
