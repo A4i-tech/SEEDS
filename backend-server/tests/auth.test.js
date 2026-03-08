@@ -1,6 +1,6 @@
 process.env.SECRET_KEY = 'test_secret';
 
-const authenticateToken = require('../src/auth/authenticateToken');
+const { authenticateToken } = require('../src/auth/authenticateToken');
 const jwt = require('jsonwebtoken');
 
 const STATUS_UNAUTHORIZED = 401;
