@@ -1,85 +1,76 @@
 import { SEEDS_URL } from "../Constants";
 import { apiFetch } from "./api";
+import { getAuthHeaders } from "../utils/authHelpers";
 
 export const teacherService = {
-  /**
-   * Fetch all teachers for a tenant
-   * @param {Object} headers - Auth headers
-   * @param {AbortSignal} signal - Abort signal for cancellation
-   * @returns {Promise<Array>}
-   */
-  async getTeachers(headers = {}, signal = null) {
-    const url = `${SEEDS_URL}/v1/teacher/teachers`;
-
-    const response = await apiFetch(url, {
+  async getTeachers(signal = null) {
+    return apiFetch(`${SEEDS_URL}/school/teachers`, {
       method: "GET",
-      headers,
+      headers: getAuthHeaders(),
       signal,
     });
-
-    return response.data || response || [];
   },
 
-  /**
-   * Register a new teacher
-   * @param {string} phoneNumber - Teacher phone number
-   * @param {string} password - Teacher password
-   * @param {string} name - Teacher name
-   * @param {Object} headers - Auth headers
-   * @returns {Promise<Object>}
-   */
-  async registerTeacher(phoneNumber, password, name, headers = {}) {
-    const url = `${SEEDS_URL}/teacher/register`;
-
-    return await apiFetch(url, {
+  async registerTeacher(phoneNumber, password, name) {
+    return apiFetch(`${SEEDS_URL}/teacher/register`, {
       method: "POST",
-      headers,
-      body: JSON.stringify({
-        phoneNumber,
-        password,
-        name,
-      }),
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ phoneNumber, password, name }),
     });
   },
 
-  /**
-   * Add students to a teacher
-   * @param {string} teacherPhoneNumber - Teacher's phone number
-   * @param {Array} students - Array of {name, phoneNumber}
-   * @param {Object} headers - Auth headers
-   * @returns {Promise<Array>}
-   */
-  async addStudents(teacherPhoneNumber, students, headers = {}) {
-    const url = `${SEEDS_URL}/v1/teacher/add-students`;
-
-    return await apiFetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        phoneNumber: teacherPhoneNumber,
-        students,
-      }),
+  async getStudents() {
+    return apiFetch(`${SEEDS_URL}/student`, {
+      method: "GET",
+      headers: getAuthHeaders(),
     });
   },
 
-  /**
-   * Remove student from teacher
-   * @param {string} teacherPhoneNumber - Teacher's phone number
-   * @param {string} studentPhoneNumber - Student's phone number
-   * @param {Object} headers - Auth headers
-   * @returns {Promise<void>}
-   */
-  async removeStudent(teacherPhoneNumber, studentPhoneNumber, headers = {}) {
-    const url = `${SEEDS_URL}/v1/teacher/students`;
+  async createStudent(name, phoneNumber) {
+    return apiFetch(`${SEEDS_URL}/student`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ name, phoneNumber }),
+    });
+  },
 
-    await apiFetch(url, {
+  async updateStudent(studentId, name, phoneNumber) {
+    return apiFetch(`${SEEDS_URL}/student/${studentId}`, {
+      method: "PATCH",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ name, phoneNumber }),
+    });
+  },
+
+  async deleteStudent(studentId) {
+    return apiFetch(`${SEEDS_URL}/student/${studentId}`, {
       method: "DELETE",
-      headers,
-      body: JSON.stringify({
-        phoneNumber: teacherPhoneNumber,
-        students: [{ phoneNumber: studentPhoneNumber }],
-        remove: true,
-      }),
+      headers: getAuthHeaders(),
+    });
+  },
+
+  async updateTeacher(teacherId, name, phoneNumber, password) {
+    const body = { name, phoneNumber };
+    if (password) body.password = password;
+    return apiFetch(`${SEEDS_URL}/teacher/${teacherId}`, {
+      method: "PATCH",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(body),
+    });
+  },
+
+  async deleteTeacher(teacherId) {
+    return apiFetch(`${SEEDS_URL}/teacher/${teacherId}`, {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+    });
+  },
+
+  async transferTeacher(teacherId, targetSchoolId) {
+    return apiFetch(`${SEEDS_URL}/school/transfer`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ teacherId, targetSchoolId }),
     });
   },
 };

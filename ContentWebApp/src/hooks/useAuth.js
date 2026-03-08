@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { SEEDS_URL } from "../Constants";
-import { getAuthHeaders, isAuthenticated, clearAuth } from "../utils/authHelpers";
+import { getAuthHeaders, isAuthenticated, clearAuth, getRole } from "../utils/authHelpers";
 import { apiFetch } from "../services/api";
 
 let cachedTenantName = null;
@@ -43,13 +43,18 @@ export const useAuth = () => {
       return cachedUserPromise;
     }
 
-    cachedUserPromise = apiFetch(`${SEEDS_URL}/tenant/me`, {
+    const meUrl =
+      getRole() === "school_admin"
+        ? `${SEEDS_URL}/school/admin/me`
+        : `${SEEDS_URL}/tenant/me`;
+
+    cachedUserPromise = apiFetch(meUrl, {
       method: "GET",
       headers: getAuthHeaders(),
     })
       .then((req) => {
         console.log("Current User Info:", req);
-        cachedTenantName = req.tenantName || "User";
+        cachedTenantName = req.name || req.tenantName || "User";
         cachedUserPromise = null;
         return cachedTenantName;
       })

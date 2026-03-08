@@ -22,8 +22,34 @@ export const isAuthenticated = () => {
 };
 
 /**
+ * Persist auth data after login
+ * @param {string} token - JWT token
+ * @param {string} role - "tenant" | "school_admin"
+ * @param {string|null} schoolId - Required for school_admin
+ */
+export const setAuth = (token, role, schoolId = null) => {
+  localStorage.setItem("authToken", token);
+  localStorage.setItem("userRole", role);
+  if (schoolId) localStorage.setItem("schoolId", schoolId);
+};
+
+/**
+ * Get stored user role
+ * @returns {"tenant"|"school_admin"|null}
+ */
+export const getRole = () => localStorage.getItem("userRole");
+
+/**
+ * Get stored school ID (school_admin only)
+ * @returns {string|null}
+ */
+export const getSchoolId = () => localStorage.getItem("schoolId");
+
+/**
  * Clear all authentication data
  */
 export const clearAuth = () => {
   localStorage.removeItem("authToken");
+  localStorage.removeItem("userRole");
+  localStorage.removeItem("schoolId");
 };

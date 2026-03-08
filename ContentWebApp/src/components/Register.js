@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { SEEDS_URL } from "../Constants";
+import PasswordInput, { getPasswordPolicyStatus } from "./PasswordInput";
 
 const pageStyle = {
   minHeight: "100vh",
@@ -78,22 +79,6 @@ const inputStyle = {
   transition: "border-color 0.2s ease, box-shadow 0.2s ease",
 };
 
-const passwordHintsContainerStyle = {
-  marginTop: "8px",
-  fontSize: "12px",
-  color: "#94a3b8",
-};
-
-const passwordHintsListStyle = {
-  margin: "4px 0 0",
-  paddingLeft: "18px",
-};
-
-const passwordHintItemStyle = (isValid) => ({
-  margin: "2px 0",
-  color: isValid ? "#16a34a" : "#94a3b8",
-});
-
 const buttonStyle = {
   width: "100%",
   border: "none",
@@ -111,26 +96,6 @@ const footerStyle = {
   textAlign: "center",
   fontSize: "13px",
   color: "#94a3b8",
-};
-
-const PASSWORD_POLICY = {
-  minLength: 8,
-  minLowercase: 1,
-  minUppercase: 1,
-  minNumbers: 1,
-  minSymbols: 1,
-};
-
-const getPasswordPolicyStatus = (password) => {
-  const length = password.length >= PASSWORD_POLICY.minLength;
-  const lower = (password.match(/[a-z]/g) || []).length >= PASSWORD_POLICY.minLowercase;
-  const upper = (password.match(/[A-Z]/g) || []).length >= PASSWORD_POLICY.minUppercase;
-  const numbers = (password.match(/[0-9]/g) || []).length >= PASSWORD_POLICY.minNumbers;
-  const symbols = (password.match(/[^A-Za-z0-9]/g) || []).length >= PASSWORD_POLICY.minSymbols;
-
-  const isValid = length && lower && upper && numbers && symbols;
-
-  return { length, lower, upper, numbers, symbols, isValid };
 };
 
 const isValidEmail = (email) => {
@@ -272,39 +237,12 @@ const Register = () => {
             )}
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            <label htmlFor="password" style={labelStyle}>
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              placeholder="Enter your password"
-              value={formData.password}
-              onChange={handleChange("password")}
-              style={inputStyle}
-            />
-            <div style={passwordHintsContainerStyle}>
-              <span>Password must include:</span>
-              <ul style={passwordHintsListStyle}>
-                <li style={passwordHintItemStyle(passwordStatus.length)}>
-                  At least {PASSWORD_POLICY.minLength} characters
-                </li>
-                <li style={passwordHintItemStyle(passwordStatus.lower)}>
-                  At least {PASSWORD_POLICY.minLowercase} lowercase letter
-                </li>
-                <li style={passwordHintItemStyle(passwordStatus.upper)}>
-                  At least {PASSWORD_POLICY.minUppercase} uppercase letter
-                </li>
-                <li style={passwordHintItemStyle(passwordStatus.numbers)}>
-                  At least {PASSWORD_POLICY.minNumbers} number
-                </li>
-                <li style={passwordHintItemStyle(passwordStatus.symbols)}>
-                  At least {PASSWORD_POLICY.minSymbols} symbol (e.g. !@#$)
-                </li>
-              </ul>
-            </div>
-          </div>
+          <PasswordInput
+            id="password"
+            label="Password"
+            value={formData.password}
+            onChange={handleChange("password")}
+          />
 
           <div style={{ display: "flex", flexDirection: "column" }}>
             <label htmlFor="confirm-password" style={labelStyle}>

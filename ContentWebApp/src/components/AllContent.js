@@ -4,6 +4,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useContent } from "../hooks/useContent";
 import { useContentFilters } from "../hooks/useContentFilters";
 import { useTeachers } from "../hooks/useTeachers";
+import { useSchools } from "../hooks/useSchools";
 import { ivrService } from "../services/ivrService";
 import AppHeader from "./AllContent/Header/AppHeader";
 import ContentTab from "./AllContent/ContentTab/ContentTab";
@@ -41,19 +42,10 @@ const AllContent = () => {
     multiselectRef,
   } = useContentFilters(allContent, setContent, setIsFiltered);
 
-  const {
-    teachers,
-    selectedTeacher,
-    selectedTeacherId,
-    setSelectedTeacherId,
-    message,
-    registerTeacher,
-    addStudentRow,
-    removeStudentRow,
-    setNewStudentValue,
-    submitNewStudents,
-    removeStudent,
-  } = useTeachers(activeTab);
+  const { teachers, students, message, registerTeacher, addStudent, updateStudent, deleteStudent, updateTeacher, deleteTeacher, transferTeacher } =
+    useTeachers(activeTab);
+
+  const { schools, message: schoolMessage, createSchool, updateSchool, deleteSchool } = useSchools(activeTab);
 
   const ivrURL = process.env.REACT_APP_API_IVRV2_URL;
 
@@ -171,16 +163,20 @@ const AllContent = () => {
         {activeTab === "registration" && (
           <RegistrationTab
             teachers={teachers}
-            selectedTeacher={selectedTeacher}
-            selectedTeacherId={selectedTeacherId}
-            onSelectTeacher={setSelectedTeacherId}
+            students={students}
             onRegisterTeacher={registerTeacher}
+            onAddStudent={addStudent}
+            onUpdateStudent={updateStudent}
+            onDeleteStudent={deleteStudent}
+            onUpdateTeacher={updateTeacher}
+            onDeleteTeacher={deleteTeacher}
+            onTransferTeacher={transferTeacher}
             message={message}
-            onAddStudentRow={addStudentRow}
-            onRemoveStudentRow={removeStudentRow}
-            onSetNewStudentValue={setNewStudentValue}
-            onSubmitNewStudents={submitNewStudents}
-            onRemoveStudent={removeStudent}
+            schools={schools}
+            onCreateSchool={createSchool}
+            onUpdateSchool={updateSchool}
+            onDeleteSchool={deleteSchool}
+            schoolMessage={schoolMessage}
           />
         )}
       </div>
