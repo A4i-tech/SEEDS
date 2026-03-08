@@ -21,27 +21,37 @@ export const getCurrentTeacher = async () => {
 };
 
 /**
- * Fetch teacher's students list
+ * Fetch all students belonging to the teacher's school from /student
  *
- * @param {string} phoneNumber - Teacher's phone number
- * @returns {Promise<Array>} List of students
+ * @returns {Promise<Array>} List of students: [{ _id, name, phoneNumber, schoolId }]
  * @throws {Error} If API call fails
  */
-export const getTeacherStudents = async (phoneNumber) => {
-  const token = localStorage.getItem("authToken");
-
-  const response = await fetch(API_ENDPOINTS.GET_TEACHER_STUDENTS, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify({ phoneNumber }),
+export const getSchoolStudents = async () => {
+  const response = await fetch(API_ENDPOINTS.GET_STUDENTS, {
+    method: "GET",
+    headers: getAuthHeaders(),
   });
 
   if (!response.ok) {
-    throw new Error("Failed to fetch teacher students");
+    throw new Error("Failed to fetch school students");
   }
 
   return response.json();
 };
+
+// TODO: teacher-student direct relation removed — student management moves to school layer
+// export const getTeacherStudents = async (phoneNumber) => {
+//   const token = localStorage.getItem("authToken");
+//   const response = await fetch(API_ENDPOINTS.GET_TEACHER_STUDENTS, {
+//     method: "POST",
+//     headers: {
+//       "Content-Type": "application/json",
+//       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+//     },
+//     body: JSON.stringify({ phoneNumber }),
+//   });
+//   if (!response.ok) {
+//     throw new Error("Failed to fetch teacher students");
+//   }
+//   return response.json();
+// };

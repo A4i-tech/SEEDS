@@ -11,7 +11,6 @@ import PublicRoute from "./components/PublicRoute";
 import theme from "./theme/theme";
 
 import Login from "./pages/Login";
-import Register from "./pages/Register";
 import ClassroomList from "./pages/ClassroomList";
 import ClassroomForm from "./pages/ClassroomForm";
 import ClassroomDetail from "./pages/ClassroomDetail";
@@ -25,7 +24,6 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path={ROUTES.LOGIN} element={<PublicRoute element={<Login />} />} />
-          <Route path={ROUTES.REGISTER} element={<PublicRoute element={<Register />} />} />
           <Route
             path={ROUTES.CLASSROOMS}
             element={<ProtectedRoute element={<ClassroomList />} />}

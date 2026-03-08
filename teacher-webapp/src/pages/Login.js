@@ -1,18 +1,16 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   Box,
   Container,
   TextField,
   Button,
-  MenuItem,
   Typography,
   Alert,
   CircularProgress,
-  Link,
   Paper,
   InputAdornment,
 } from "@mui/material";
-import { Phone as PhoneIcon, Lock as LockIcon, School as SchoolIcon } from "@mui/icons-material";
+import { Phone as PhoneIcon, Lock as LockIcon } from "@mui/icons-material";
 import axios from "axios";
 import { API_ENDPOINTS } from "../constants/apiEndpoints";
 import { STATUS_CODES } from "../constants/statusCodes";
@@ -25,32 +23,7 @@ function Login() {
   const [showError, setShowError] = useState(null);
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
-  const [schoolName, setSchoolName] = useState("");
-  const [loadingSchools, setLoadingSchools] = useState(false);
-  const [schools, setSchools] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  useEffect(() => {
-    const fetchSchools = async () => {
-      setLoadingSchools(true);
-      try {
-        const response = await axios.get(`${API_ENDPOINTS.GET_SCHOOLS}`);
-        if (response.status === STATUS_CODES.SUCCESS) {
-          setSchools(response.data);
-        } else {
-          console.error("Failed to fetch schools");
-          showToast.error("Failed to load schools");
-        }
-      } catch (error) {
-        console.error("Error fetching schools:", error);
-        showToast.error("Failed to load schools");
-      } finally {
-        setLoadingSchools(false);
-      }
-    };
-
-    fetchSchools();
-  }, []);
 
   const handleLogin = async () => {
     // Check localStorage availability before attempting login
@@ -62,7 +35,7 @@ function Login() {
       return;
     }
 
-    if (!phoneNumber || !password || !schoolName) {
+    if (!phoneNumber || !password) {
       setShowError("All fields are required.");
       return;
     }
@@ -73,7 +46,6 @@ function Login() {
       const response = await axios.post(`${API_ENDPOINTS.LOGIN}`, {
         phoneNumber,
         password,
-        tenantId: schoolName,
       });
       if (response.status === STATUS_CODES.SUCCESS) {
         localStorage.setItem("authToken", response.data.token);
@@ -83,16 +55,12 @@ function Login() {
     } catch (error) {
       console.error("Login error:", error);
       const errorMessage =
-        error.response?.data?.message || "Username or password or tenant name incorrect";
+        error.response?.data?.message || "Username or password incorrect";
       setShowError(errorMessage);
       showToast.error("Login failed");
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handleRegister = () => {
-    navigate.goToRegister();
   };
 
   const handleKeyPress = (e) => {
@@ -165,38 +133,6 @@ function Login() {
               onKeyPress={handleKeyPress}
             />
 
-            <TextField
-              fullWidth
-              select
-              label="School"
-              value={schoolName}
-              onChange={(e) => setSchoolName(e.target.value)}
-              margin="normal"
-              required
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    {loadingSchools ? <CircularProgress size={20} /> : <SchoolIcon />}
-                  </InputAdornment>
-                ),
-              }}
-              aria-label="School selection"
-              aria-required="true"
-            >
-              <MenuItem value="" disabled={loadingSchools}>
-                {loadingSchools ? "Select School" : "Select School"}
-              </MenuItem>
-              {schools.map((sch, idx) => {
-                const value = sch.id;
-                const label = sch.tenantName;
-                return (
-                  <MenuItem key={idx} value={value}>
-                    {label}
-                  </MenuItem>
-                );
-              })}
-            </TextField>
-
             {showError && (
               <Alert severity="error" sx={{ mt: 2 }}>
                 {showError}
@@ -209,22 +145,11 @@ function Login() {
               variant="contained"
               sx={{ mt: 3, mb: 2 }}
               onClick={handleLogin}
-              disabled={isSubmitting || loadingSchools}
+              disabled={isSubmitting}
             >
               {isSubmitting ? <CircularProgress size={24} color="inherit" /> : "Login"}
             </Button>
 
-            <Box textAlign="center">
-              <Link
-                component="button"
-                variant="body2"
-                onClick={handleRegister}
-                sx={{ cursor: "pointer" }}
-                aria-label="Navigate to registration page"
-              >
-                Don&apos;t have an account? Sign up
-              </Link>
-            </Box>
           </Box>
         </Paper>
       </Box>

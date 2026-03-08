@@ -24,7 +24,8 @@ import {
 } from "@mui/icons-material";
 import { useNavigate, useParams } from "react-router-dom";
 import { getClassroomById } from "../services/classroomService";
-import { getTeacherStudents } from "../services/teacherService";
+// TODO: teacher-student direct relation removed — student management moves to school layer
+// import { getTeacherStudents } from "../services/teacherService";
 import { useAuth } from "../hooks/useAuth";
 import { showToast } from "../utils/toast";
 import { LoadingSpinner } from "../components/common/LoadingSpinner";
@@ -43,7 +44,6 @@ const ClassroomDetail = () => {
   const [classroom, setClassroom] = useState(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
-  const [teacherStudentsList, setTeacherStudentsList] = useState([]);
   const [conferenceStarted, setConferenceStarted] = useState(false);
   const [teacherPhone, setTeacherPhone] = useState(null);
   const [conferenceId, setConferenceId] = useState(null);
@@ -76,14 +76,15 @@ const ClassroomDetail = () => {
         }
         setTeacherPhone(teacher.phoneNumber);
 
-        // Step 2: Fetch classroom and students in parallel (both are independent)
-        const [classroomData, studentData] = await Promise.all([
+        // Step 2: Fetch classroom data
+        // TODO: teacher-student direct relation removed — student management moves to school layer
+        const [classroomData] = await Promise.all([
           getClassroomById(classroomId),
-          getTeacherStudents(teacher.phoneNumber),
+          // getTeacherStudents(teacher.phoneNumber),
         ]);
 
         setClassroom(classroomData);
-        setTeacherStudentsList(Array.isArray(studentData) ? studentData : []);
+        // setTeacherStudentsList(Array.isArray(studentData) ? studentData : []);
       } catch (err) {
         console.error("Error loading classroom data:", err);
         setErrorMsg("Failed to load classroom details. Please try again.");
@@ -237,7 +238,7 @@ const ClassroomDetail = () => {
       // Pass ALL students with both property name formats for "Add Participant" modal
       // This allows adding unselected students later
       // Normalize phone numbers to ensure consistent format (91XXXXXXXXXX)
-      const allStudentsFormatted = teacherStudentsList.map((student) => {
+      const allStudentsFormatted = (classroom?.students || []).map((student) => {
         const normalizedPhone = normalizePhoneNumber(student.phoneNumber);
         return {
           name: student.name,
@@ -260,11 +261,6 @@ const ClassroomDetail = () => {
     }
   };
 
-  // Get student object by phone number
-  const getStudentByPhone = (phoneNumber) => {
-    return teacherStudentsList.find((s) => s.phoneNumber === phoneNumber);
-  };
-
   // Check if student phone is selected (using normalized comparison)
   const isStudentSelected = (phoneNumber) => {
     const normalizedPhone = normalizePhoneNumber(phoneNumber);
@@ -278,33 +274,23 @@ const ClassroomDetail = () => {
   const handleToggleStudent = (phoneNumber) => {
     if (!phoneNumber) return;
 
-    // Normalize phone number first to ensure consistent format
     const normalizedPhone = normalizePhoneNumber(phoneNumber);
 
-    // Try to get student from teacher's list first (using normalized comparison)
-    let student = teacherStudentsList.find(
+    let student = classroom?.students?.find(
       (s) => normalizePhoneNumber(s.phoneNumber) === normalizedPhone
     );
 
-    // If not found, create a student object with normalized phone number
     if (!student) {
-      student = {
-        name: phoneNumber, // Use original phone as name if no student data
-        phoneNumber: normalizedPhone, // Always store normalized phone number
-      };
+      student = { name: phoneNumber, phoneNumber: normalizedPhone };
     } else {
-      // Ensure the student object has normalized phone number
-      student = {
-        ...student,
-        phoneNumber: normalizedPhone,
-      };
+      student = { ...student, phoneNumber: normalizedPhone };
     }
 
     handleStudentToggle(student);
   };
 
-  // Check if phone is a leader
-  const isLeader = (phoneNumber) => classroom.leaders?.includes(phoneNumber);
+  // Check if student is a leader (leaders are populated objects with _id)
+  const isLeader = (studentId) => classroom.leaders?.some((l) => l._id === studentId);
 
   if (conferenceStarted) {
     return <DetailsPage classroomName={classroom?.name} classroomId={classroom?._id} />;
@@ -373,7 +359,7 @@ const ClassroomDetail = () => {
       {(() => {
         // Count only students that are actually in the current classroom
         const selectedInClassroom =
-          classroom?.students?.filter((phoneNumber) => isStudentSelected(phoneNumber)) || [];
+          classroom?.students?.filter((student) => isStudentSelected(student.phoneNumber)) || [];
         return selectedInClassroom.length > 0 ? (
           <Alert severity="info" sx={{ mb: 3 }}>
             {selectedInClassroom.length} student{selectedInClassroom.length !== 1 ? "s" : ""}{" "}
@@ -439,13 +425,12 @@ const ClassroomDetail = () => {
             </Paper>
           ) : (
             <List sx={{ mt: 2 }}>
-              {classroom.students.map((phoneNumber, index) => {
-                const student = getStudentByPhone(phoneNumber);
-                const selected = isStudentSelected(phoneNumber);
-                const studentIsLeader = isLeader(phoneNumber);
+              {classroom.students.map((student, index) => {
+                const selected = isStudentSelected(student.phoneNumber);
+                const studentIsLeader = isLeader(student._id);
 
                 return (
-                  <React.Fragment key={phoneNumber}>
+                  <React.Fragment key={student._id}>
                     {index > 0 && <Divider />}
                     <ListItem
                       sx={{
@@ -456,12 +441,12 @@ const ClassroomDetail = () => {
                           bgcolor: selected ? "action.selected" : "action.hover",
                         },
                       }}
-                      onClick={() => handleToggleStudent(phoneNumber)}
+                      onClick={() => handleToggleStudent(student.phoneNumber)}
                     >
                       <Checkbox checked={selected} sx={{ mr: 1 }} />
                       <ListItemText
-                        primary={student ? student.name : phoneNumber}
-                        secondary={phoneNumber}
+                        primary={student.name}
+                        secondary={student.phoneNumber}
                         primaryTypographyProps={{
                           fontWeight: studentIsLeader ? 600 : 400,
                         }}
@@ -485,17 +470,14 @@ const ClassroomDetail = () => {
               Classroom Leaders
             </Typography>
             <Box sx={{ mt: 2, display: "flex", flexWrap: "wrap", gap: 1 }}>
-              {classroom.leaders.map((leaderPhone) => {
-                const student = getStudentByPhone(leaderPhone);
-                return (
-                  <Chip
-                    key={leaderPhone}
-                    label={student ? student.name : leaderPhone}
-                    color="secondary"
-                    icon={<SchoolIcon />}
-                  />
-                );
-              })}
+              {classroom.leaders.map((leader) => (
+                <Chip
+                  key={leader._id}
+                  label={leader.name}
+                  color="secondary"
+                  icon={<SchoolIcon />}
+                />
+              ))}
             </Box>
           </CardContent>
         </Card>
