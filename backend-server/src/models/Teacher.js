@@ -2,12 +2,12 @@
 const mongoose = require("mongoose");
 
 const TeacherSchema = new mongoose.Schema({
-  tenantId: { type: String, required: true, index: true },
+  schoolId: { type: String, required: true, index: true, ref: "School" },
   name: { type: String, required: true },
   phoneNumber: { type: String, required: true, index: true, unique: true },
   password: { type: String, required: true },
-  studentId: { type: [String], default: [] },
-});
+  role: { type: String, enum: ["content_creator", "teacher"], default: "teacher" },
+}, { timestamps: true });
 
 const Teacher = mongoose.model("Teacher", TeacherSchema);
 
