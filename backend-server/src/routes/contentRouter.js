@@ -18,11 +18,7 @@ const fetch = (...args) =>
 
 // Project modules
 const Content = require("../models/Content.js");
-const {
-  ContentV3,
-  getContent,
-  getContentById,
-} = require("../models/ContentV3.js");
+const { ContentV3 } = require("../models/ContentV3.js");
 const QuizCreateRequest = require("../models/QuizCreateRequest.js");
 const { QuizData, fromQuizCreateRequest } = require("../models/QuizData.js");
 const BlobService = require("../services/BlobService.js");
@@ -31,6 +27,10 @@ const processQuizContent = require("../jobs/processQuizContent.js");
 const { tryCatchWrapper } = require(path.join("..", "util.js"));
 const { Binary } = require("mongodb");
 const { parse: uuidParse } = require("uuid");
+const { authenticateToken, authorizeRole } = require("../auth/authenticateToken");
+
+const TENANT_ROLE = "tenant";
+
 // Initialize instances
 const blobService = new BlobService();
 const router = express.Router();
@@ -74,7 +74,7 @@ agenda.define("processQuizContent", async (job) => {
  *       404:
  *         description: Job not found
  */
-router.get("/job/:jobId", async (req, res) => {
+router.get("/job/:jobId", authenticateToken, authorizeRole(TENANT_ROLE), async (req, res) => {
   const job = await agenda.jobs({ _id: new ObjectId(req.params.jobId) });
 
   if (!job.length) {
@@ -108,7 +108,7 @@ router.get("/job/:jobId", async (req, res) => {
  *                   items:
  *                     $ref: '#/components/schemas/Job'
  */
-router.get("/jobs", async (req, res) => {
+router.get("/jobs", authenticateToken, authorizeRole(TENANT_ROLE), async (req, res) => {
   try {
     // Fetch jobs that are either "In Progress" or "Failed"
     const jobs = await agenda.jobs({
@@ -187,6 +187,8 @@ router.get("/jobs", async (req, res) => {
  */
 router.post(
   "/quiz",
+  authenticateToken,
+  authorizeRole(TENANT_ROLE),
   tryCatchWrapper(async (req, res) => {
     const quizCreateRequest = new QuizCreateRequest(req.body);
     if (quizCreateRequest.id === "default-id") {
@@ -236,6 +238,8 @@ router.post(
  */
 router.get(
   "/sasUrl",
+  authenticateToken,
+  authorizeRole(TENANT_ROLE),
   tryCatchWrapper(async (req, res) => {
     const url = req.query.url; // URL is now obtained from query string
     if (!url) {
@@ -281,9 +285,11 @@ router.get(
  */
 router.get(
   "/themes",
+  authenticateToken,
   tryCatchWrapper(async (req, res) => {
     const language = req.query.language;
     const content = await ContentV3.find({
+      tenantId: req.tenantId,
       language: language,
       isPullModel: true,
     }).sort({ _id: -1 });
@@ -380,6 +386,7 @@ router.get(
 
 router.get(
   "/",
+  authenticateToken,
   tryCatchWrapper(async (req, res) => {
     const limit = parseInt(req.query.limit) || 15;
     const cursor = req.query.cursor;
@@ -390,14 +397,14 @@ router.get(
         ? req.query.ids
         : req.query.ids.split(",");
       const contents = await ContentV3.collection
-        .find({ _id: { $in: idsArray }, isDeleted: { $ne: true } })
+        .find({ _id: { $in: idsArray }, tenantId: req.tenantId, isDeleted: { $ne: true } })
         .sort({ creation_time: -1 })
         .toArray();
       return res.json(contents);
     }
 
-    // Base query always excludes deleted content
-    let query = { isDeleted: { $ne: true } };
+    // Base query always excludes deleted content, scoped to tenant
+    let query = { isDeleted: { $ne: true }, tenantId: req.tenantId };
 
     if (req.query.onlyTeacherApp) {
       query.isTeacherApp = true;
@@ -491,6 +498,8 @@ router.get(
 
 router.get(
   "/sasToken",
+  authenticateToken,
+  authorizeRole(TENANT_ROLE),
   tryCatchWrapper(async (req, res) => {
     const containerName = "input-container";
     const sasToken = await blobService.getUploadSASToken(
@@ -507,11 +516,40 @@ router.get(
 
 router.get(
   "/:contentId",
+  authenticateToken,
   tryCatchWrapper(async (req, res) => {
-    const content = await getContentById(req.params.contentId);
+    const content = await ContentV3.findOne({
+      _id: req.params.contentId,
+      tenantId: req.tenantId,
+      isDeleted: { $ne: true },
+    });
     if (!content) {
       return res.status(404).json({ error: "Content not found" });
     }
+    return res.json(content);
+  }),
+);
+
+router.patch(
+  "/:contentId",
+  authenticateToken,
+  authorizeRole(TENANT_ROLE),
+  tryCatchWrapper(async (req, res) => {
+    const { title, theme, description, isPullModel, isTeacherApp } = req.body;
+    const content = await ContentV3.findOne({
+      _id: req.params.contentId,
+      tenantId: req.tenantId,
+      isDeleted: false,
+    });
+    if (!content) {
+      return res.status(404).json({ error: "Content not found" });
+    }
+    if (title !== undefined) content.title = title;
+    if (theme !== undefined) content.theme = theme;
+    if (description !== undefined) content.description = description;
+    if (isPullModel !== undefined) content.isPullModel = isPullModel;
+    if (isTeacherApp !== undefined) content.isTeacherApp = isTeacherApp;
+    await content.save();
     return res.json(content);
   }),
 );
@@ -559,9 +597,11 @@ router.get(
 
 router.delete(
   "/:contentId",
+  authenticateToken,
+  authorizeRole(TENANT_ROLE),
   tryCatchWrapper(async (req, res) => {
     const result = await ContentV3.updateOne(
-      { _id: req.params.contentId },
+      { _id: req.params.contentId, tenantId: req.tenantId },
       { $set: { isDeleted: true } },
     );
     return res.json(result);
@@ -570,8 +610,12 @@ router.delete(
 
 router.post(
   "/",
+  authenticateToken,
+  authorizeRole(TENANT_ROLE),
   tryCatchWrapper(async (req, res) => {
     let content = new ContentV3(req.body);
+    content.tenantId = req.tenantId;
+    content.createdBy = req.userId;
     content.creation_time = Math.floor(Date.now() / 1000);
 
     const savedContent = await content.save();

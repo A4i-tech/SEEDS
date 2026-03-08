@@ -13,7 +13,7 @@ const nativeDb = require("../dbAdapters/nativeDb");
 const firebaseDb = require("../dbAdapters/firebaseDb");
 
 const dbAdapter = authType === "firebase" ? firebaseDb : nativeDb;
-
+const TENANT_ROLE = "tenant";
 function generateToken(payload) {
   return jwt.sign(payload, secretKey, {
     expiresIn: jwtExpiresIn,
@@ -48,6 +48,7 @@ module.exports = {
         id: tenant._id || tenant.id,
         email: tenant.email,
         name: tenant.tenantName,
+        role: tenant.role,
       });
       return res.status(STATUS.OK).json({
         token,
@@ -94,6 +95,7 @@ module.exports = {
         email,
         password: hashedPassword,
         tenantName,
+        role: TENANT_ROLE,
       });
       return res
         .status(STATUS.CREATED)

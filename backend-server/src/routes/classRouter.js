@@ -98,6 +98,7 @@ router.post(
   "/",
   tryCatchWrapper(async (req, res) => {
     req.body.teacher = req.userId;
+    req.body.schoolId = req.schoolId;
     var classRoom;
 
     if (req.body._id) {
@@ -110,6 +111,8 @@ router.post(
       classRoom = new ClassRoom(req.body);
     }
     await classRoom.save();
+    await classRoom.populate("students", "name phoneNumber");
+    await classRoom.populate("leaders", "name phoneNumber");
     return res.json(classRoom);
   })
 );
