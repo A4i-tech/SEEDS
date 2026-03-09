@@ -208,13 +208,18 @@ const ClassroomDetail = () => {
         );
       }
 
+      const leaderPhone = classroom.leaders
+        ?.map((phone) => normalizePhoneNumber(phone))
+        .find((phone) => studentPhonesFormatted.includes(phone)) ?? null;
+
       console.log("Creating conference with:", {
         teacher: teacherPhoneFormatted,
         students: studentPhonesFormatted,
         studentCount: studentPhonesFormatted.length,
+        leader: leaderPhone,
       });
 
-      const data = await createConference(teacherPhoneFormatted, studentPhonesFormatted);
+      const data = await createConference(teacherPhoneFormatted, studentPhonesFormatted, leaderPhone);
 
       if (!data || !data.id) {
         throw new Error("Conference creation failed: No conference ID returned");
