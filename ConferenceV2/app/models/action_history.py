@@ -17,6 +17,8 @@ class ActionType(str, Enum):
     TEACHER_MUTE_ALL = "Teacher-MuteAll"
     TEACHER_UNMUTE_ALL = "Teacher-UnmuteAll"
     TEACHER_AUDIO_PLAYBACK_STATUS_CHANGE = "Teacher-AudioPlaybackStatusChange"
+    LEADER_MUTE_ALL_VIA_DTMF = "Leader-MuteAllViaDTMF"
+    LEADER_UNMUTE_ALL_VIA_DTMF = "Leader-UnmuteAllViaDTMF"
     
 
 class ActionHistory(BaseModel):

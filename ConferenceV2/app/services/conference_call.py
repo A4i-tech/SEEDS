@@ -57,7 +57,7 @@ class ConferenceCall:
         self.end_processing_conf_events_from_queue()
         self.event_queue_processing_task = asyncio.create_task(self.__process_conf_events_queue())
     
-    def set_participant_state(self, teacher_phone: str, student_phones: List[str]):
+    def set_participant_state(self, teacher_phone: str, student_phones: List[str], leader_phone: str = None):
         self.state.participants = {}
         teacher = Participant(
             name="Teacher",
@@ -67,6 +67,7 @@ class ConferenceCall:
         )
         self.state.participants[teacher_phone] = teacher
         self.state.teacher_phone_number = teacher_phone
+        self.state.leader_phone_number = leader_phone
 
         # Create student participants (muted by default via Vonage startMuted)
         for phone in student_phones:
