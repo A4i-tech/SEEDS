@@ -9,6 +9,10 @@ from app.conf_logger import logger_instance
 from app.services.singletons.websocket_service import WebsocketService
 from app.services.confevents.mute_all_event import MuteAllEvent
 from app.services.confevents.unmute_all_event import UnmuteAllEvent
+from app.services.confevents.pause_content_event import PauseContentEvent
+from app.services.confevents.resume_content_event import ResumeContentEvent
+from app.services.confevents.seek_content_event import SeekContentEvent
+from app.models.audio_content_state import ContentStatus
 
 
 class DTMFInputEvent(ConferenceEvent):
@@ -63,6 +67,42 @@ class DTMFInputEvent(ConferenceEvent):
                         timestamp=datetime.now().isoformat(),
                         action_type=ActionType.LEADER_UNMUTE_ALL_VIA_DTMF,
                         metadata={"leader_phone": self.phone_number},
+                        owner=self.phone_number
+                    ))
+                    await self.conf_call.update_state()
+                elif self.digit == "6":
+                    # Toggle play/pause for streaming content
+                    audio_state = self.conf_call.state.audio_content_state
+                    if audio_state.status in (ContentStatus.PLAYING, ContentStatus.STARTING):
+                        await PauseContentEvent(conf_call=self.conf_call).execute_event()
+                        action = "paused"
+                    else:
+                        await ResumeContentEvent(conf_call=self.conf_call).execute_event()
+                        action = "resumed"
+                    self.conf_call.state.action_history.append(ActionHistory(
+                        timestamp=datetime.now().isoformat(),
+                        action_type=ActionType.LEADER_TOGGLE_CONTENT_VIA_DTMF,
+                        metadata={"leader_phone": self.phone_number, "action": action},
+                        owner=self.phone_number
+                    ))
+                    await self.conf_call.update_state()
+                elif self.digit == "*":
+                    # Seek content back 10 seconds
+                    await SeekContentEvent(conf_call=self.conf_call, delta_seconds=-10).execute_event()
+                    self.conf_call.state.action_history.append(ActionHistory(
+                        timestamp=datetime.now().isoformat(),
+                        action_type=ActionType.LEADER_SEEK_CONTENT_VIA_DTMF,
+                        metadata={"leader_phone": self.phone_number, "delta_seconds": -10},
+                        owner=self.phone_number
+                    ))
+                    await self.conf_call.update_state()
+                elif self.digit == "#":
+                    # Seek content forward 10 seconds
+                    await SeekContentEvent(conf_call=self.conf_call, delta_seconds=10).execute_event()
+                    self.conf_call.state.action_history.append(ActionHistory(
+                        timestamp=datetime.now().isoformat(),
+                        action_type=ActionType.LEADER_SEEK_CONTENT_VIA_DTMF,
+                        metadata={"leader_phone": self.phone_number, "delta_seconds": 10},
                         owner=self.phone_number
                     ))
                     await self.conf_call.update_state()
