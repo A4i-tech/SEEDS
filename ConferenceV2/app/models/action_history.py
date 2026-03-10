@@ -21,6 +21,7 @@ class ActionType(str, Enum):
     LEADER_UNMUTE_ALL_VIA_DTMF = "Leader-UnmuteAllViaDTMF"
     LEADER_TOGGLE_CONTENT_VIA_DTMF = "Leader-ToggleContentViaDTMF"
     LEADER_SEEK_CONTENT_VIA_DTMF = "Leader-SeekContentViaDTMF"
+    LEADER_SET_SPEED_VIA_DTMF = "Leader-SetSpeedViaDTMF"
     
 
 class ActionHistory(BaseModel):

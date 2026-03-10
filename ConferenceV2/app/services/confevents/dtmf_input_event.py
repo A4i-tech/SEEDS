@@ -12,6 +12,7 @@ from app.services.confevents.unmute_all_event import UnmuteAllEvent
 from app.services.confevents.pause_content_event import PauseContentEvent
 from app.services.confevents.resume_content_event import ResumeContentEvent
 from app.services.confevents.seek_content_event import SeekContentEvent
+from app.services.confevents.set_playback_speed_event import SetPlaybackSpeedEvent
 from app.models.audio_content_state import ContentStatus
 
 
@@ -86,7 +87,7 @@ class DTMFInputEvent(ConferenceEvent):
                         owner=self.phone_number
                     ))
                     await self.conf_call.update_state()
-                elif self.digit == "*":
+                elif self.digit == "7":
                     # Seek content back 10 seconds
                     await SeekContentEvent(conf_call=self.conf_call, delta_seconds=-10).execute_event()
                     self.conf_call.state.action_history.append(ActionHistory(
@@ -96,13 +97,37 @@ class DTMFInputEvent(ConferenceEvent):
                         owner=self.phone_number
                     ))
                     await self.conf_call.update_state()
-                elif self.digit == "#":
+                elif self.digit == "9":
                     # Seek content forward 10 seconds
                     await SeekContentEvent(conf_call=self.conf_call, delta_seconds=10).execute_event()
                     self.conf_call.state.action_history.append(ActionHistory(
                         timestamp=datetime.now().isoformat(),
                         action_type=ActionType.LEADER_SEEK_CONTENT_VIA_DTMF,
                         metadata={"leader_phone": self.phone_number, "delta_seconds": 10},
+                        owner=self.phone_number
+                    ))
+                    await self.conf_call.update_state()
+                elif self.digit == "*":
+                    # Decrease playback speed by 0.25 (min 0.5)
+                    current_speed = self.conf_call.state.audio_content_state.speed
+                    new_speed = max(0.5, round(current_speed - 0.25, 2))
+                    await SetPlaybackSpeedEvent(conf_call=self.conf_call, speed=new_speed).execute_event()
+                    self.conf_call.state.action_history.append(ActionHistory(
+                        timestamp=datetime.now().isoformat(),
+                        action_type=ActionType.LEADER_SET_SPEED_VIA_DTMF,
+                        metadata={"leader_phone": self.phone_number, "speed": new_speed},
+                        owner=self.phone_number
+                    ))
+                    await self.conf_call.update_state()
+                elif self.digit == "#":
+                    # Increase playback speed by 0.25 (max 2.0)
+                    current_speed = self.conf_call.state.audio_content_state.speed
+                    new_speed = min(2.0, round(current_speed + 0.25, 2))
+                    await SetPlaybackSpeedEvent(conf_call=self.conf_call, speed=new_speed).execute_event()
+                    self.conf_call.state.action_history.append(ActionHistory(
+                        timestamp=datetime.now().isoformat(),
+                        action_type=ActionType.LEADER_SET_SPEED_VIA_DTMF,
+                        metadata={"leader_phone": self.phone_number, "speed": new_speed},
                         owner=self.phone_number
                     ))
                     await self.conf_call.update_state()
