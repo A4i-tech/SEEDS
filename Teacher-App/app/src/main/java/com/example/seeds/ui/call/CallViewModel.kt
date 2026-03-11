@@ -132,9 +132,13 @@ class CallViewModel @Inject constructor(
     val isMuteOrUnmuteAllDone: LiveData<Boolean>
         get() = _isMuteOrUnmuteAllDone
 
-    val _isAudioControlDone = MutableLiveData<Boolean>(true)
+    private val _isAudioControlDone = MutableLiveData<Boolean>(true)
     val isAudioControlDone: LiveData<Boolean>
         get() = _isAudioControlDone
+
+    fun notifyAudioControlStarted() {
+        _isAudioControlDone.postValue(false)
+    }
 
     private val _students = MutableLiveData<List<Student>>(emptyList())
     val students: LiveData<List<Student>>
@@ -429,7 +433,7 @@ class CallViewModel @Inject constructor(
 
     private fun handleSSEUpdate(data: String) {
         try {
-            val json = Gson().fromJson(data, com.google.gson.JsonObject::class.java)
+            val json = gson.fromJson(data, com.google.gson.JsonObject::class.java)
 
             // --- Participants ---
             val participantsObj = json.getAsJsonObject("participants") ?: return
@@ -1126,11 +1130,6 @@ class CallViewModel @Inject constructor(
                 val response = network.setPlaybackSpeed(fullUrl, speed)
                 if (!response.isSuccessful) {
                     _isErrorFromIVR.postValue("Failed to set playback speed")
-                } else {
-                    // optimistic local update
-                    _audioDurationSeconds.value?.let { dur ->
-                        // no change to duration here, only speed persisted on server and SSE will reflect
-                    }
                 }
             } catch (e: Exception) {
                 _isErrorFromIVR.postValue("Error: ${e.message}")

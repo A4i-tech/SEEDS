@@ -16,6 +16,8 @@ class SeekContentEvent(ConferenceEvent):
         delta_seconds: Optional[int] = None,
         position_seconds: Optional[float] = None,
     ):
+        if delta_seconds is None and position_seconds is None:
+            raise ValueError("Exactly one of delta_seconds or position_seconds must be provided")
         self.conf_call = conf_call
         self.delta_seconds = delta_seconds
         self.position_seconds = position_seconds

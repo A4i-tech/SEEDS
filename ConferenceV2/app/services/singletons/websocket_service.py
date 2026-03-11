@@ -64,7 +64,7 @@ class WebsocketService:
                 try:
                     logger_instance.info("Listening for messages from WebSocket service...")
                     async for message in self._ws:
-                        logger_instance.info(f"Received message: {message}")
+                        logger_instance.debug(f"Received message: {message}")
                         websocket_message = WebsocketServiceMessage(**json.loads(message))
                         if websocket_message.type == MessageType.PLAYBACK_STATE_UPDATES:
                             conf_call = conference_manager.get_conference(websocket_message.websocket_id)

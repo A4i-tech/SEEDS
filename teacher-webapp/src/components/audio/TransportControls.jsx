@@ -27,7 +27,7 @@ const TransportControls = ({
       <IconButton
         onClick={onSeekBackward}
         disabled={disabled}
-        size={size === "large" ? "small" : "small"}
+        size="small"
         sx={{ color: isLight ? "text.secondary" : "white" }}
         aria-label="Rewind 10 seconds"
       >
@@ -59,7 +59,7 @@ const TransportControls = ({
       <IconButton
         onClick={onSeekForward}
         disabled={disabled}
-        size={size === "large" ? "small" : "small"}
+        size="small"
         sx={{ color: isLight ? "text.secondary" : "white" }}
         aria-label="Forward 10 seconds"
       >

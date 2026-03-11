@@ -186,13 +186,13 @@ class CallFragment : BaseFragment() {
         }
 
         binding.forwardButton.setOnClickListener {
-            viewModel._isAudioControlDone.postValue(false)
+            viewModel.notifyAudioControlStarted()
             viewModel.forwardAudio()
             logMessage("Audio forward clicked")
         }
 
         binding.backwardButton.setOnClickListener {
-            viewModel._isAudioControlDone.postValue(false)
+            viewModel.notifyAudioControlStarted()
             viewModel.backwardAudio()
             logMessage("Audio backward clicked")
         }
@@ -208,14 +208,14 @@ class CallFragment : BaseFragment() {
 
             override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) {
                 userSeeking = true
-                viewModel._isAudioControlDone.postValue(false)
+                viewModel.notifyAudioControlStarted()
             }
 
             override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {
                 userSeeking = false
                 val sec = seekBar?.progress ?: 0
                 viewModel.seekTo(sec.toFloat())
-                viewModel._isAudioControlDone.postValue(true)
+                // seekTo's finally block posts true — no explicit call needed here
             }
         })
 

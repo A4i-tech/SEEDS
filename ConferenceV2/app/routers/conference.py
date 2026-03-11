@@ -249,7 +249,7 @@ async def set_playback_speed(
         ...,
         description="Playback speed multiplier (e.g. 0.75, 1.0, 1.25, 1.5, 2.0)",
         ge=0.5,
-        le=3.0,
+        le=2.0,
     ),
 ):
     conference = conference_manager.get_conference(conference_id)

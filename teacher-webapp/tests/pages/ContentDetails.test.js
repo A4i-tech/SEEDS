@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import "@testing-library/jest-dom";
 import ContentDetails from "../../src/pages/ContentDetails";
 import * as contentService from "../../src/services/contentService";
+import { ROUTES } from "../../src/constants/routes";
 
 // Mock dependencies
 jest.mock("../../src/services/contentService");
@@ -185,7 +186,7 @@ describe("ContentDetails", () => {
     const backButton = screen.getByText("Back to Content");
     fireEvent.click(backButton);
 
-    expect(mockNavigate).toHaveBeenCalledWith(-1);
+    expect(mockNavigate).toHaveBeenCalledWith(ROUTES.CONTENT);
   });
 
   test("navigates to next page when Next Page button is clicked", async () => {

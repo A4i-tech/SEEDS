@@ -6,6 +6,7 @@ import com.launchdarkly.eventsource.EventSource
 import com.launchdarkly.eventsource.MessageEvent
 import okhttp3.Headers
 import java.net.URI
+import java.time.Duration
 
 class ConferenceSSEClient {
 
@@ -47,6 +48,7 @@ class ConferenceSSEClient {
                     .add("Authorization", "Bearer $authToken")
                     .build()
             )
+            .reconnectTime(Duration.ofSeconds(3))
             .build()
 
         eventSource?.start()

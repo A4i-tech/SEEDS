@@ -154,24 +154,32 @@ export const seekAudioAbsolute = async (confId, positionSeconds) => {
   const url = `${API_ENDPOINTS.CONFERENCE.SEEK_AUDIO(
     confId
   )}?position_seconds=${encodeURIComponent(positionSeconds)}`;
-  return fetch(url, {
+  const response = await fetch(url, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
     },
   });
+  if (!response.ok) {
+    throw new Error(`Failed to seek audio: ${response.status} ${response.statusText}`);
+  }
+  return response;
 };
 
 export const setPlaybackSpeed = async (confId, speed) => {
   const url = `${API_ENDPOINTS.CONFERENCE.SET_PLAYBACK_SPEED(
     confId
   )}?speed=${encodeURIComponent(speed)}`;
-  return fetch(url, {
+  const response = await fetch(url, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
     },
   });
+  if (!response.ok) {
+    throw new Error(`Failed to set playback speed: ${response.status} ${response.statusText}`);
+  }
+  return response;
 };
 
 export const addParticipant = async (confId, phone_number) => {

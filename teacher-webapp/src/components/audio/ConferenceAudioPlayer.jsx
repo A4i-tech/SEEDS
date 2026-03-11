@@ -22,12 +22,13 @@ import TransportControls from "./TransportControls";
 function parseDurationStr(str) {
   if (!str) return 0;
   // Handle numeric durations (already in seconds)
-  if (typeof str === "number") return str;
+  if (typeof str === "number") return Number.isFinite(str) ? str : 0;
   // Handle string durations (M:SS or H:MM:SS format)
   const parts = String(str).split(":").map(Number);
-  if (parts.length === 2) return (parts[0] || 0) * 60 + (parts[1] || 0);
-  if (parts.length === 3)
-    return (parts[0] || 0) * 3600 + (parts[1] || 0) * 60 + (parts[2] || 0);
+  
+  if (!parts.every(Number.isFinite)) return 0;
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
   return 0;
 }
 
@@ -50,7 +51,7 @@ const ConferenceAudioPlayer = ({
   const status = audioContentState?.status;
   const serverPosition = audioContentState?.position_seconds;
   const serverDuration = audioContentState?.duration_seconds;
-  const currentSpeed = audioContentState?.speed || 1.0;
+  const serverSpeed = audioContentState?.speed || 1.0;
 
   const totalDuration =
     serverDuration != null && serverDuration > 0
@@ -60,9 +61,19 @@ const ConferenceAudioPlayer = ({
   const [estimatedPosition, setEstimatedPosition] = useState(0);
   const [isSeeking, setIsSeeking] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [pendingSpeed, setPendingSpeed] = useState(null);
   const timerRef = useRef(null);
   const prevStatusRef = useRef(status);
   const lastServerPosRef = useRef(null);
+
+  // Clear optimistic speed once server confirms the new value via SSE
+  useEffect(() => {
+    if (pendingSpeed !== null && serverSpeed === pendingSpeed) {
+      setPendingSpeed(null);
+    }
+  }, [serverSpeed, pendingSpeed]);
+
+  const currentSpeed = pendingSpeed ?? serverSpeed;
 
   // Sync position from server whenever it changes
   useEffect(() => {
@@ -152,10 +163,12 @@ const ConferenceAudioPlayer = ({
   const handleSpeedChange = useCallback(async (event) => {
     if (!confId) return;
     const newSpeed = event.target.value;
+    setPendingSpeed(newSpeed);
     try {
       await setPlaybackSpeedApi(confId, newSpeed);
     } catch (err) {
       console.error("Error setting playback speed:", err);
+      setPendingSpeed(null);
     }
   }, [confId]);
 

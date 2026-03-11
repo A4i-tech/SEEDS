@@ -92,7 +92,7 @@ const ContentDetails = () => {
   };
 
   const handleBack = () => {
-    navigate(-1);
+    navigate(ROUTES.CONTENT);
   };
 
   const handleNextPage = () => {
