@@ -1,5 +1,5 @@
 jest.mock("jsonwebtoken", () => ({
-  sign: (payload) => `mock-${Buffer.from(JSON.stringify(payload)).toString("base64url")}`,
+  sign: (payload) => `mock-${payload.id || ""}`,
   verify: (token, _secret, callback) => {
     if (typeof _secret === "function") {
       callback = _secret;

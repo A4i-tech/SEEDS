@@ -28,12 +28,6 @@ const outputContainerClient = blobService.getContainerClient("output-container")
 const titleContainerClient = blobService.getContainerClient("experience-titles");
 const themeContainerClient = blobService.getContainerClient("theme-titles");
 
-function assertNonEmptyTtsText(text, fieldName) {
-  if (typeof text !== "string" || text.trim().length === 0) {
-    throw new Error(`${fieldName} text is empty. Aborting TTS generation.`);
-  }
-}
-
 /**
  * Converts an audio blob to WAV using ffmpeg, uploads it to Azure Blob Storage,
  * and returns the uploaded file URL and duration.
@@ -145,7 +139,6 @@ async function processNewContent(job) {
       console.log("PROCESSING TITLE...");
       // Use local title.
       const titleText = contentDoc.title.local?.trim() || "";
-      assertNonEmptyTtsText(titleText, "Title");
       const titleTextForTts = addForInOptionAudio(contentDoc.language, titleText);
       const titleAudioStream = await textToSpeech(titleTextForTts, contentDoc.language, "1.0");
       const titleBlobPath = `${contentDoc.id}/1.0.mp3`;
@@ -163,7 +156,6 @@ async function processNewContent(job) {
       } else {
         console.log("Creating theme audio...");
         const themeText = contentDoc.theme.local?.trim() || "";
-        assertNonEmptyTtsText(themeText, "Theme");
         const themeAudioStream = await textToSpeech(
           addForInOptionAudio(contentDoc.language, themeText),
           contentDoc.language,

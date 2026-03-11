@@ -1,4 +1,3 @@
-import os
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -7,6 +6,7 @@ from azure.storage.blob import ContentSettings
 from azure.storage.blob.aio import BlobServiceClient
 
 from app.conf_logger import logger_instance as logger
+from config import Settings, get_settings
 
 
 class AzureAudioCaptureUploader:
@@ -23,13 +23,17 @@ class AzureAudioCaptureUploader:
         self.enabled = enabled
 
     @classmethod
-    def from_env(cls) -> "AzureAudioCaptureUploader":
+    def from_settings(cls, settings: Settings) -> "AzureAudioCaptureUploader":
         return cls(
-            connection_string=os.getenv("AZURE_STORAGE_CONNECTION_STRING", ""),
-            container_name=os.getenv("AUDIO_CAPTURE_CONTAINER", "seedsstagingblob"),
-            blob_prefix=os.getenv("AUDIO_CAPTURE_BLOB_PREFIX", "audio-recording"),
-            enabled=os.getenv("AUDIO_CAPTURE_UPLOAD_TO_AZURE", "false").lower() == "true",
+            connection_string=settings.AZURE_STORAGE_CONNECTION_STRING,
+            container_name=settings.AUDIO_CAPTURE_CONTAINER,
+            blob_prefix=settings.AUDIO_CAPTURE_BLOB_PREFIX,
+            enabled=settings.AUDIO_CAPTURE_UPLOAD_TO_AZURE,
         )
+
+    @classmethod
+    def from_env(cls) -> "AzureAudioCaptureUploader":
+        return cls.from_settings(get_settings())
 
     async def upload(
         self,

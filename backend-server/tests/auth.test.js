@@ -69,7 +69,7 @@ describe('authenticateToken middleware', () => {
         expect(nextCalled).toBe(false);
     });
 
-    test('should return 401 if token is expired', () => {
+    test('should return 403 if token is expired', () => {
         const token = jwt.sign({ email: TEST_EMAIL, id: TEST_ID }, SECRET_KEY, {expiresIn: '-1s'});
         const req = getMockReq(token);
         const res = getMockRes();
@@ -77,7 +77,7 @@ describe('authenticateToken middleware', () => {
         authenticateToken(req, res, () => {
             nextCalled = true;
         });
-        expect(res.statusCode).toBe(STATUS_UNAUTHORIZED);
+        expect(res.statusCode).toBe(STATUS_FORBIDDEN);
         expect(nextCalled).toBe(false);
     });
 
