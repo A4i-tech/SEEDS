@@ -66,11 +66,22 @@ class StartTeacherDisconnectTimerEvent(ConferenceEvent):
             f"expires at {expires_at.isoformat()}"
         )
 
-        # Start background monitoring task
-        asyncio.create_task(self._monitor_timer())
+        # Cancel existing task to prevent multiple monitors
+        if hasattr(self.conf_call, '_auto_end_monitor_task'):
+            if self.conf_call._auto_end_monitor_task and not self.conf_call._auto_end_monitor_task.done():
+                try:
+                    logger_instance.info(f"Cancelling existing monitor task for {self.conf_call.conf_id}")
+                    self.conf_call._auto_end_monitor_task.cancel()
+                except Exception as e:
+                    logger_instance.error(f"Error cancelling monitor task: {e}")
+
+        self.conf_call._auto_end_monitor_task = asyncio.create_task(self._monitor_timer())
 
     async def _monitor_timer(self):
         """Background task: monitors timer and ends conference when expired"""
+        error_count = 0
+        max_errors = 10
+
         while self.conf_call.state.auto_end_state.is_active:
             try:
                 # Calculate time remaining
@@ -85,19 +96,56 @@ class StartTeacherDisconnectTimerEvent(ConferenceEvent):
                     await self._handle_timer_expired()
                     break
 
-                # Sleep until expiry time (or max 30 seconds)
                 sleep_duration = min(time_remaining, 30)
                 await asyncio.sleep(sleep_duration)
+                error_count = 0
 
+            except asyncio.CancelledError:
+                logger_instance.info(f"Monitor task cancelled for {self.conf_call.conf_id}")
+                break
             except Exception as e:
-                logger_instance.error(f"Error in timer monitor: {e}")
+                error_count += 1
+                logger_instance.error(
+                    f"Error in timer monitor (attempt {error_count}/{max_errors}): {e}"
+                )
+
+                if error_count >= max_errors:
+                    logger_instance.error(
+                        f"Max errors reached in monitor for {self.conf_call.conf_id}, stopping timer"
+                    )
+                    self.conf_call.state.auto_end_state.is_active = False
+                    try:
+                        await self.conf_call.update_state()
+                    except:
+                        pass
+                    break
+
                 await asyncio.sleep(30)
 
     async def _handle_timer_expired(self):
         """End conference when timer expires"""
+
+        # Guard: Re-check timer still active
+        if not self.conf_call.state.auto_end_state.is_active:
+            logger_instance.info(
+                f"Timer was cancelled before expiry, not ending conference {self.conf_call.conf_id}"
+            )
+            return
+
+        # Guard: Verify teacher still disconnected
+        teacher = self.conf_call.state.get_teacher()
+        if teacher and teacher.call_status == CallStatus.CONNECTED:
+            logger_instance.info(
+                f"Teacher reconnected just before expiry, not ending conference {self.conf_call.conf_id}"
+            )
+            self.conf_call.state.auto_end_state.is_active = False
+            self.conf_call.state.auto_end_state.started_at = None
+            self.conf_call.state.auto_end_state.expires_at = None
+            await self.conf_call.update_state()
+            return
+
         logger_instance.info(f"Auto-end timer expired for {self.conf_call.conf_id}")
 
-        # Log expiration
         self.conf_call.state.action_history.append(
             ActionHistory(
                 timestamp=datetime.utcnow().isoformat(),
@@ -107,7 +155,15 @@ class StartTeacherDisconnectTimerEvent(ConferenceEvent):
             )
         )
 
-        # End the conference
+        # Mark inactive to prevent race with reconnection
+        self.conf_call.state.auto_end_state.is_active = False
+        self.conf_call.state.auto_end_state.started_at = None
+        self.conf_call.state.auto_end_state.expires_at = None
+        await self.conf_call.update_state()
+
+        if hasattr(self.conf_call, '_auto_end_monitor_task'):
+            self.conf_call._auto_end_monitor_task = None
+
         end_event = EndConferenceEvent(self.conf_call)
         await self.conf_call.queue_event(end_event)
 
@@ -119,17 +175,22 @@ class CancelTeacherDisconnectTimerEvent(ConferenceEvent):
         self.conf_call = conf_call
 
     async def execute_event(self):
-        # Check if there's an active timer
         if not self.conf_call.state.auto_end_state.is_active:
             logger_instance.info(f"No active timer to cancel for {self.conf_call.conf_id}")
             return
 
-        # Clear timer state
         self.conf_call.state.auto_end_state.is_active = False
         self.conf_call.state.auto_end_state.started_at = None
         self.conf_call.state.auto_end_state.expires_at = None
 
-        # Log cancellation
+        if hasattr(self.conf_call, '_auto_end_monitor_task'):
+            if self.conf_call._auto_end_monitor_task and not self.conf_call._auto_end_monitor_task.done():
+                try:
+                    logger_instance.info(f"Cancelling monitor task for {self.conf_call.conf_id}")
+                    self.conf_call._auto_end_monitor_task.cancel()
+                except Exception as e:
+                    logger_instance.error(f"Error cancelling monitor task: {e}")
+
         self.conf_call.state.action_history.append(
             ActionHistory(
                 timestamp=datetime.utcnow().isoformat(),
