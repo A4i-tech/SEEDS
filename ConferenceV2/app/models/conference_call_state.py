@@ -13,6 +13,7 @@ class ConferenceCallState(BaseModel):
     is_running: bool = Field(default=False)
     teacher_phone_number: str = None
     participants: Dict[str, Participant] = Field(default_factory=dict)
+    hold_detected: bool = Field(default=False)
     audio_content_state: AudioContentState = AudioContentState()
     action_history: List[ActionHistory] = Field(default_factory=list)
 

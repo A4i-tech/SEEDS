@@ -93,6 +93,7 @@ class ConferenceCall:
             [student.phone_number for student in self.state.get_students()]
         )
         self.state.is_running = True
+        self.state.hold_detected = False
         # TODO: Set CONNECTED CALL STATUS WHEN ATLEAST ONE OF THE PARTICIPANTS HAVE PICKED UP
         self.state.action_history.append(ActionHistory(
                                                     timestamp=datetime.now().isoformat(), 

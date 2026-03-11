@@ -1,16 +1,30 @@
 import json
-import os
+from collections import deque
 from datetime import datetime, timezone
 from typing import Any, Optional
 
 from app.conf_logger import logger_instance
 from app.models.action_history import ActionHistory, ActionType
-from app.models.participant import CallStatus, Role
 from app.services.audio.capture import AudioCaptureSession
 from app.services.audio.hold_detector import HoldDetector
 from app.services.audio.transcriber import AudioTranscriber
 from app.services.conference_call import ConferenceCall
-from app.services.confevents.hold_detected_event import HoldDetectedEvent
+
+TRANSCRIPT_WINDOW_SIZE = 3
+
+
+def _remember_transcript(conf: ConferenceCall, text: str) -> str:
+    normalized = " ".join((text or "").split())
+    if not normalized:
+        return ""
+
+    window = getattr(conf, "_hold_transcript_window", None)
+    if window is None:
+        window = deque(maxlen=TRANSCRIPT_WINDOW_SIZE)
+        setattr(conf, "_hold_transcript_window", window)
+
+    window.append(normalized)
+    return " ".join(window)
 
 
 async def process_audio_message(
@@ -28,12 +42,14 @@ async def process_audio_message(
 
         text = result["text"]
         segments = result.get("segments", [])
-        detect_result = await hold_detector.detect(text)
+        analysis_text = _remember_transcript(conf, text)
+        detect_result = await hold_detector.detect(analysis_text)
 
         analysis_log = {
             "event": "audio_analysis",
             "conference_id": conference_id,
             "text": text,
+            "analysis_text": analysis_text,
             "is_hold": detect_result["is_hold"],
             "hold_score": float(f"{detect_result['score']:.4f}"),
             "hold_threshold": detect_result.get("threshold"),
@@ -45,7 +61,8 @@ async def process_audio_message(
         logger_instance.info(f"AUDIO_ANALYSIS: {json.dumps(analysis_log)}")
 
         if detect_result["is_hold"]:
-            # Conference-level hold indication for later analytics/debugging.
+            # Conference-level hold indication for later analytics/debugging/UI.
+            conf.state.hold_detected = True
             conf.state.action_history.append(
                 ActionHistory(
                     timestamp=datetime.now(timezone.utc).isoformat(),
@@ -54,51 +71,25 @@ async def process_audio_message(
                     owner="system",
                 )
             )
-            await conf.storage_manager.save_state(conf.conf_id, conf.state.model_dump(by_alias=True))
+            conf.state.action_history.append(
+                ActionHistory(
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    action_type=ActionType.SYSTEM_HOLD_DETECTED,
+                    metadata={
+                        "conference_id": conference_id,
+                        "status": "hold_detected",
+                        "scope": "conference",
+                    },
+                    owner="system",
+                )
+            )
+            await conf.update_state()
 
             logger_instance.warning(
-                f"HOLD DETECTED | Score: {detect_result['score']:.2f} | Text: {text}"
+                f"HOLD DETECTED | Score: {detect_result['score']:.2f} | Text: {analysis_text}"
             )
-            phone_number = select_hold_participant(conf)
-            if phone_number:
-                await conf.queue_event(HoldDetectedEvent(phone_number=phone_number, conf_call=conf))
-            else:
-                logger_instance.warning(
-                    "HOLD DETECTED but no eligible student found for conference %s",
-                    conference_id,
-                )
     except Exception as e:
         logger_instance.exception("Error processing audio chunk: %s", e)
-
-
-def select_hold_participant(conf: ConferenceCall) -> str | None:
-    students = [
-        participant
-        for participant in conf.state.participants.values()
-        if participant.role == Role.STUDENT
-        and participant.call_status in {CallStatus.CONNECTED, CallStatus.CONNECTING, CallStatus.ON_HOLD}
-    ]
-
-    if not students:
-        return None
-
-    existing_hold = next(
-        (participant for participant in students if participant.call_status == CallStatus.ON_HOLD),
-        None,
-    )
-    if existing_hold:
-        return existing_hold.phone_number
-
-    if len(students) == 1:
-        return students[0].phone_number
-
-    connected_students = [
-        participant for participant in students if participant.call_status == CallStatus.CONNECTED
-    ]
-    if len(connected_students) == 1:
-        return connected_students[0].phone_number
-
-    return None
 
 
 async def handle_incoming_message(

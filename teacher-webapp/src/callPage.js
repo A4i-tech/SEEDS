@@ -8,6 +8,7 @@ import {
   DialogContentText,
   DialogActions,
   Button,
+  Alert,
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { useConference } from "./context/ConferenceContext";
@@ -41,6 +42,7 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
   const {
     confId,
     isConfCallRunning,
+    conferenceHoldDetected,
     audioContentState,
     getTeacher,
     getStudents,
@@ -69,8 +71,8 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
       const { detail } = event;
       if (detail.type === "participant_dropped") {
         showToast.info(`${detail.participantPhone} has left the call`);
-      } else if (detail.type === "participant_on_hold") {
-        showToast.warning(`${detail.participantPhone} is on hold`);
+      } else if (detail.type === "conference_hold_detected") {
+        showToast.warning("Hold detected on conference audio");
       }
     };
 
@@ -421,6 +423,11 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
         }}
       >
         {/* Participant List */}
+        {conferenceHoldDetected && (
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            Hold detected on conference audio
+          </Alert>
+        )}
         <ParticipantList
           teacher={teacher}
           students={activeStudents}
