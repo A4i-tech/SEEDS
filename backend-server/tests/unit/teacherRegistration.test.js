@@ -83,12 +83,10 @@ describe("Teacher registration - input validation (unit)", () => {
       name: nameWithSpaces,
     });
 
-    const dbAdapter = require("../../src/auth/dbAdapters/nativeDb");
-
+    const teacherRepo = require("../../src/repositories/teacher.repository");
     let capturedInsertData;
-    jest.spyOn(dbAdapter, "getTenantById").mockResolvedValue({ _id: TEST_TENANT_ID });
-    jest.spyOn(dbAdapter, "getTeacherByTenantIdAndPhoneNumber").mockResolvedValue(null);
-    jest.spyOn(dbAdapter, "insertTeacher").mockImplementation((data) => {
+    jest.spyOn(teacherRepo, "getTeacherBySchoolIdAndPhoneNumber").mockResolvedValue(null);
+    jest.spyOn(teacherRepo, "insertTeacher").mockImplementation((data) => {
       capturedInsertData = data;
       return Promise.resolve(data);
     });
