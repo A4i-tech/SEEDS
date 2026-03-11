@@ -161,23 +161,6 @@ export const ConferenceProvider = ({ children }) => {
             })
           );
         }
-        if (
-          participantData.role === "Student" &&
-          participantData.call_status === "on_hold" &&
-          previousStatus !== "on_hold"
-        ) {
-          window.dispatchEvent(
-            new CustomEvent("conferenceNotification", {
-              detail: {
-                type: "participant_on_hold",
-                participantName: participantData.name,
-                participantPhone: participantData.phone_number || phoneNumber,
-                timestamp: new Date().toISOString(),
-              },
-            })
-          );
-        }
-
         // Update participant with latest SSE data - only update dynamic state, ignore name from SSE
         const existingParticipant = newMap.get(normalizedPhone);
 
