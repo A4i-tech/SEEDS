@@ -10,8 +10,8 @@ const TEST_PASSWORD = "TestPassword123!";
 const TEST_TEACHER_NAME = "Test Teacher";
 const TEST_TENANT_ID = "tenant123";
 
-function getMockReq(body, userId = TEST_TENANT_ID) {
-  return { body, userId };
+function getMockReq(body, tenantId = TEST_TENANT_ID) {
+  return { body, tenantId };
 }
 
 function getMockRes() {
