@@ -33,7 +33,6 @@ const IvrV2LogSchema = new mongoose.Schema(
     experience_data: { type: mongoose.Schema.Types.Mixed, default: {} },
     call_status_updates: { type: mongoose.Schema.Types.Mixed, default: {} },
     tenant_id: { type: String, required: true },
-    school_id: { type: String, default: null },
   },
   { collection: "ivrv2logs" }
 );
