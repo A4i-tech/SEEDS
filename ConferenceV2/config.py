@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     MONGO_COLLECTION_NAME: str = "conferenceState"
     MONGO_MAX_POOL_SIZE: int = 50
 
+    # AUTO-END CONFIGURATION
+    AUTO_END_TIMEOUT_MINUTES: int = 15
+    AUTO_END_ENABLED: bool = True
+
     class Config:
         env_file = ".env"
 

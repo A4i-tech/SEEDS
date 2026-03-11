@@ -2,11 +2,19 @@
 
 from enum import Enum
 from pydantic import BaseModel, Field
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from app.models.action_history import ActionHistory
 from app.models.audio_content_state import AudioContentState
 from app.models.participant import Participant, Role
+
+
+class AutoEndState(BaseModel):
+    """State for auto-end conference timer"""
+    is_active: bool = False
+    started_at: Optional[str] = None  # ISO timestamp
+    expires_at: Optional[str] = None  # ISO timestamp
+    timeout_minutes: Optional[int] = None
 
 
 class ConferenceCallState(BaseModel):
@@ -15,6 +23,7 @@ class ConferenceCallState(BaseModel):
     participants: Dict[str, Participant] = Field(default_factory=dict)
     audio_content_state: AudioContentState = AudioContentState()
     action_history: List[ActionHistory] = Field(default_factory=list)
+    auto_end_state: AutoEndState = Field(default_factory=AutoEndState)
 
     def get_teacher(self):
         if self.teacher_phone_number and self.teacher_phone_number in self.participants:
