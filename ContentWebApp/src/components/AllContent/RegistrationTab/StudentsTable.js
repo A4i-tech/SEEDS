@@ -104,7 +104,7 @@ const StudentsTable = ({ students, teacher, onRemoveStudent, onUpdateStudent }) 
       </div>
 
       {editing && (
-        <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="edit-student-title" onClick={closeEdit}>
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="edit-student-title">
           <div className="edit-student-modal" onClick={(e) => e.stopPropagation()}>
             <h2 id="edit-student-title" className="edit-student-title">Edit student</h2>
             {editError && (
