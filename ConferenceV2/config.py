@@ -4,8 +4,8 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    VONAGE_API_KEY: str
-    VONAGE_API_SECRET: str
+    VONAGE_API_KEY: str = ""
+    VONAGE_API_SECRET: str = ""
     COSMOS_ENDPOINT: str = ""
     COSMOS_KEY: str = ""
     COSMOS_DATABASE: str = ""
