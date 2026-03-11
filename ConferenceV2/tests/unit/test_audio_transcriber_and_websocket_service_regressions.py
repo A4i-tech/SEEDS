@@ -40,6 +40,9 @@ async def test_process_chunk_merges_multiple_transcriptions_from_single_payload(
     assert result["text"] == "first phrase second phrase"
     assert result["duration"] == pytest.approx(1.4)
     assert len(result["segments"]) == 2
+    assert len(result["transcript_chunks"]) == 2
+    assert result["transcript_chunks"][0]["text"] == "first phrase"
+    assert result["transcript_chunks"][1]["text"] == "second phrase"
 
 
 @pytest.mark.asyncio

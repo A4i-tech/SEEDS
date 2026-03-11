@@ -161,6 +161,7 @@ class AudioTranscriber:
 
         merged_segments: list[dict[str, Any]] = []
         merged_text_parts: list[str] = []
+        merged_transcript_chunks: list[dict[str, Any]] = []
         merged_duration = 0.0
 
         for result in results:
@@ -176,6 +177,17 @@ class AudioTranscriber:
                     merged_duration += float(duration)
                 except (TypeError, ValueError):
                     pass
+            transcript_chunks = result.get("transcript_chunks")
+            if isinstance(transcript_chunks, list) and transcript_chunks:
+                merged_transcript_chunks.extend(transcript_chunks)
+            else:
+                merged_transcript_chunks.append(
+                    {
+                        "text": text,
+                        "duration": duration,
+                        "segments": segments if isinstance(segments, list) else [],
+                    }
+                )
 
         merged_text = " ".join(merged_text_parts).strip()
         if not merged_text and merged_segments:
@@ -187,6 +199,7 @@ class AudioTranscriber:
             "text": merged_text,
             "duration": merged_duration,
             "segments": merged_segments,
+            "transcript_chunks": merged_transcript_chunks,
         }
 
     def _calculate_rms(self, audio_np: np.ndarray) -> float:
@@ -338,6 +351,13 @@ class AudioTranscriber:
                     "text": text,
                     "duration": duration,
                     "segments": segments,
+                    "transcript_chunks": [
+                        {
+                            "text": text,
+                            "duration": duration,
+                            "segments": segments,
+                        }
+                    ],
                 }
             return None
 

@@ -1,7 +1,6 @@
 # routers/conference.py
 
 import asyncio
-import os
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from typing import Optional
 from app.conf_logger import logger_instance
@@ -11,6 +10,7 @@ from app.services.audio.capture import AudioCaptureSession
 from app.services.audio.transcriber import AudioTranscriber
 from app.services.audio.hold_detector import HoldDetector
 from app.services.audio.websocket_audio_processor import handle_incoming_message
+from config import get_settings
 
 router = APIRouter()
 
@@ -30,6 +30,7 @@ async def get_hold_detector() -> HoldDetector:
 async def websocket_endpoint(websocket: WebSocket, conference_id: str):
     conf = conference_manager.get_conference(conference_id)
     if conf:
+        settings = get_settings()
         await websocket.accept()
         conf.set_websocket(websocket)
         logger_instance.info(f"WEBSOCKET ACCEPTED FOR CONF: {conference_id}")
@@ -38,9 +39,7 @@ async def websocket_endpoint(websocket: WebSocket, conference_id: str):
         transcriber: Optional[AudioTranscriber] = None
         hold_detector: Optional[HoldDetector] = None
         capture_session: Optional[AudioCaptureSession] = None
-        audio_analysis_enabled = (
-            os.getenv("AUDIO_ANALYSIS_ENABLED", "true").lower() == "true"
-        )
+        audio_analysis_enabled = settings.AUDIO_ANALYSIS_ENABLED
         
         try:
             transcriber = AudioTranscriber()
@@ -59,9 +58,9 @@ async def websocket_endpoint(websocket: WebSocket, conference_id: str):
                 f"AUDIO_ANALYSIS_ENABLED=false; skipping hold detector init for {conference_id}"
             )
 
-        if os.getenv("AUDIO_CAPTURE_ENABLED", "false").lower() == "true":
+        if settings.AUDIO_CAPTURE_ENABLED:
             try:
-                capture_session = AudioCaptureSession(conference_id)
+                capture_session = AudioCaptureSession(conference_id, settings=settings)
                 logger_instance.info(
                     f"Audio capture enabled for {conference_id}. Output: {capture_session.file_path}"
                 )

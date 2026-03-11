@@ -1,6 +1,5 @@
 import asyncio
 import json
-import os
 from dotenv import load_dotenv
 import websockets
 from app.models.audio_content_state import ContentStatus
@@ -9,6 +8,7 @@ from app.services.confevents.playback_state_update_event import PlaybackStateUpd
 from app.services.confevents.reconnect_comm_api_websocket_event import ReconnectCommApiWebsocketEvent
 from app.services.singletons.conference_call_manager import conference_manager
 from app.conf_logger import logger_instance
+from config import get_settings
 
 load_dotenv()
 
@@ -23,7 +23,8 @@ class WebsocketService:
         return cls._instance
 
     async def initialize(self):
-        ws_base_url = os.environ.get("INTERNAL_WS_EP") or os.environ.get("WS_SERVER_EP")
+        settings = get_settings()
+        ws_base_url = settings.INTERNAL_WS_EP or settings.WS_SERVER_EP
         if not ws_base_url:
             raise ValueError("WS_SERVER_EP (or INTERNAL_WS_EP) must be set")
         self.connection_url = ws_base_url + f"?id={self.connection_id}"

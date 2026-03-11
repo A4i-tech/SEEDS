@@ -5,17 +5,24 @@ from typing import Optional
 import wave
 from app.conf_logger import logger_instance as logger
 from app.services.audio.capture_uploader import AzureAudioCaptureUploader
+from config import Settings, get_settings
 
 
 class AudioCaptureSession:
-    def __init__(self, conference_id: str, uploader: Optional[AzureAudioCaptureUploader] = None):
+    def __init__(
+        self,
+        conference_id: str,
+        uploader: Optional[AzureAudioCaptureUploader] = None,
+        settings: Optional[Settings] = None,
+    ):
+        self.settings = settings or get_settings()
         self.conference_id = conference_id
         self.safe_conf_id = re.sub(r"[^A-Za-z0-9_.-]+", "_", conference_id)
-        capture_dir = os.getenv("AUDIO_CAPTURE_DIR", "/tmp/conference-audio-capture")
+        capture_dir = self.settings.AUDIO_CAPTURE_DIR
         os.makedirs(capture_dir, exist_ok=True)
         self.capture_started_at_utc = datetime.now(timezone.utc)
         self.capture_start_ts = self.capture_started_at_utc.strftime("%Y%m%dT%H%M%SZ")
-        self.format = os.getenv("AUDIO_CAPTURE_FORMAT", "pcm").strip().lower()
+        self.format = self.settings.AUDIO_CAPTURE_FORMAT.strip().lower()
         if self.format not in {"pcm", "wav"}:
             self.format = "pcm"
         ext = "wav" if self.format == "wav" else "pcm"
@@ -26,10 +33,10 @@ class AudioCaptureSession:
         except OSError:
             pass
 
-        self.sample_rate_hz = int(os.getenv("AUDIO_CAPTURE_SAMPLE_RATE_HZ", "8000"))
-        self.channels = int(os.getenv("AUDIO_CAPTURE_CHANNELS", "1"))
-        self.sample_width_bytes = int(os.getenv("AUDIO_CAPTURE_SAMPLE_WIDTH_BYTES", "2"))
-        self.flush_every_bytes = int(os.getenv("AUDIO_CAPTURE_FLUSH_EVERY_BYTES", "32768"))
+        self.sample_rate_hz = self.settings.AUDIO_CAPTURE_SAMPLE_RATE_HZ
+        self.channels = self.settings.AUDIO_CAPTURE_CHANNELS
+        self.sample_width_bytes = self.settings.AUDIO_CAPTURE_SAMPLE_WIDTH_BYTES
+        self.flush_every_bytes = self.settings.AUDIO_CAPTURE_FLUSH_EVERY_BYTES
         self._unflushed_bytes = 0
         self._wave_writer: Optional[wave.Wave_write] = None
         if self.format == "wav":
@@ -39,9 +46,9 @@ class AudioCaptureSession:
             self._wave_writer.setframerate(self.sample_rate_hz)
 
         self.total_bytes = 0
-        self.max_bytes = int(os.getenv("AUDIO_CAPTURE_MAX_BYTES", str(100 * 1024 * 1024)))
+        self.max_bytes = self.settings.AUDIO_CAPTURE_MAX_BYTES
         self.truncated = False
-        self.uploader = uploader or AzureAudioCaptureUploader.from_env()
+        self.uploader = uploader or AzureAudioCaptureUploader.from_settings(self.settings)
 
     def write_chunk(self, audio_bytes: bytes) -> None:
         if not audio_bytes:
@@ -101,7 +108,7 @@ class AudioCaptureSession:
         try:
             self.close()
             uploaded_url = await self.upload_to_azure()
-            delete_local = os.getenv("AUDIO_CAPTURE_DELETE_LOCAL_AFTER_UPLOAD", "false").lower() == "true"
+            delete_local = self.settings.AUDIO_CAPTURE_DELETE_LOCAL_AFTER_UPLOAD
             if delete_local and uploaded_url and os.path.exists(self.file_path):
                 os.remove(self.file_path)
             return uploaded_url

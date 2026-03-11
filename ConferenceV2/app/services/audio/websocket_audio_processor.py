@@ -14,6 +14,8 @@ TRANSCRIPT_WINDOW_SIZE = 3
 
 
 def _remember_transcript(conf: ConferenceCall, text: str) -> str:
+    # Keep a short rolling transcript so hold detection has enough context
+    # without coupling stateful logic back into the websocket router.
     normalized = " ".join((text or "").split())
     if not normalized:
         return ""
@@ -35,6 +37,7 @@ async def process_audio_message(
     conference_id: str,
     capture_session: Optional[AudioCaptureSession] = None,
 ) -> None:
+    # Run transcription/hold detection for a single binary websocket frame.
     try:
         result = await transcriber.process_chunk(audio_bytes)
         if not result:
@@ -100,6 +103,7 @@ async def handle_incoming_message(
     conference_id: str,
     capture_session: Optional[AudioCaptureSession] = None,
 ) -> bool:
+    # Return False when the caller should stop the websocket receive loop.
     if msg.get("type") == "websocket.disconnect":
         logger_instance.info(f"WebSocket Client disconnected for {conference_id}")
         conf.set_websocket(None)

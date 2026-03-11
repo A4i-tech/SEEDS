@@ -20,8 +20,8 @@ const config = {
   authType: process.env.AUTH_TYPE,
   firebaseApiKey: process.env.FIREBASE_API_KEY,
   firebaseServiceAccount: process.env.FIREBASE_SERVICE_ACCOUNT,
-  jwtExpiresIn: process.env.JWT_EXPIRES_IN || "1h",
-  passwordSaltRounds: process.env.PASSWORD_SALT_ROUNDS || "10",
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN,
+  passwordSaltRounds: process.env.PASSWORD_SALT_ROUNDS,
 };
 if (config.authType === "firebase") {
   if (!config.firebaseApiKey || !config.firebaseServiceAccount) {

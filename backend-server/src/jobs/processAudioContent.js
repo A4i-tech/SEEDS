@@ -25,12 +25,6 @@ const outputContainerClient = blobService.getContainerClient("output-container")
 const titleContainerClient = blobService.getContainerClient("experience-titles");
 const themeContainerClient = blobService.getContainerClient("theme-titles");
 
-function assertNonEmptyTtsText(text, fieldName) {
-  if (typeof text !== "string" || text.trim().length === 0) {
-    throw new Error(`${fieldName} text is empty. Aborting TTS generation.`);
-  }
-}
-
 /**
  * Converts an audio blob to WAV using ffmpeg, uploads it to Azure Blob Storage,
  * and returns the uploaded file URL.
@@ -103,17 +97,28 @@ async function processNewContent(job) {
     // Process each audio content item.
     for (const audioContentItem of contentDoc.audioContent) {
       const ip_url = audioContentItem.audioUrl;
-      audioContentItem.audioUrl = await generateWAVFileAndUploadToOutputContainer(
-        ip_url,
-        contentDoc.id
-      );
+      try {
+        const parsedUrl = new URL(ip_url);
+        const blobName = parsedUrl.pathname.split("/").filter(Boolean).pop();
+        if (!blobName || !blobName.toLowerCase().endsWith(".mp3")) {
+          console.error(`Skipping non-mp3 file during processing: ${ip_url}`);
+          continue;
+        }
+
+        audioContentItem.audioUrl = await generateWAVFileAndUploadToOutputContainer(
+          ip_url,
+          contentDoc.id
+        );
+      } catch (err) {
+        console.error(`Failed to process audio content item ${ip_url}:`, err);
+        throw err;
+      }
     }
 
     if (contentDoc.isPullModel) {
       console.log("PROCESSING TITLE...");
       // Use local title.
       const titleText = contentDoc.title.local?.trim() || "";
-      assertNonEmptyTtsText(titleText, "Title");
       const titleTextForTts = addForInOptionAudio(contentDoc.language, titleText);
       const titleAudioStream = await textToSpeech(titleTextForTts, contentDoc.language, "1.0");
       const titleBlobPath = `${contentDoc.id}/1.0.mp3`;
@@ -131,7 +136,6 @@ async function processNewContent(job) {
       } else {
         console.log("Creating theme audio...");
         const themeText = contentDoc.theme.local?.trim() || "";
-        assertNonEmptyTtsText(themeText, "Theme");
         const themeAudioStream = await textToSpeech(
           addForInOptionAudio(contentDoc.language, themeText),
           contentDoc.language,

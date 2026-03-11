@@ -20,6 +20,7 @@ class HoldDetectedEvent(ConferenceEvent):
                 return
 
             participant.call_status = CallStatus.ON_HOLD
+            self.conf_call.state.hold_detected = True
 
             asyncio.create_task(
                 caller_state_manager.update_state(

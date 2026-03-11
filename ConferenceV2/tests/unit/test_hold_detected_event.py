@@ -29,7 +29,11 @@ async def test_hold_detected_event_marks_student_on_hold_and_logs_action():
     )
     conf_call = SimpleNamespace(
         conf_id="conf-1",
-        state=SimpleNamespace(participants={phone_number: participant}, action_history=[]),
+        state=SimpleNamespace(
+            participants={phone_number: participant},
+            action_history=[],
+            hold_detected=False,
+        ),
         update_state=AsyncMock(),
     )
 
@@ -42,6 +46,7 @@ async def test_hold_detected_event_marks_student_on_hold_and_logs_action():
         await event.execute_event()
 
     assert participant.call_status == CallStatus.ON_HOLD
+    assert conf_call.state.hold_detected is True
     assert len(conf_call.state.action_history) == 1
     assert conf_call.state.action_history[0].action_type == ActionType.SYSTEM_HOLD_DETECTED
     conf_call.update_state.assert_awaited_once()
@@ -59,7 +64,11 @@ async def test_hold_detected_event_is_noop_if_student_already_on_hold():
     )
     conf_call = SimpleNamespace(
         conf_id="conf-2",
-        state=SimpleNamespace(participants={phone_number: participant}, action_history=[]),
+        state=SimpleNamespace(
+            participants={phone_number: participant},
+            action_history=[],
+            hold_detected=False,
+        ),
         update_state=AsyncMock(),
     )
 
@@ -72,5 +81,6 @@ async def test_hold_detected_event_is_noop_if_student_already_on_hold():
         await event.execute_event()
 
     assert len(conf_call.state.action_history) == 0
+    assert conf_call.state.hold_detected is False
     conf_call.update_state.assert_not_called()
     mock_create_task.assert_not_called()

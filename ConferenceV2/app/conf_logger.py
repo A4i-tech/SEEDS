@@ -1,11 +1,11 @@
 import logging
-import os
 from pathlib import Path
 import sys
 from dotenv import load_dotenv
 from opencensus.ext.azure.log_exporter import AzureLogHandler
 from datetime import datetime
 import pytz  # For timezone handling
+from config import get_settings
 
 load_dotenv()
 
@@ -18,10 +18,10 @@ class ConferenceLogger:
         
         # Version number to be included in logs
         self.version = version
-        
-        environment = os.getenv('ENVIRONMENT', 'production')
-        log_to_file = os.getenv("LOG_TO_FILE", "false").lower() == "true"
-        log_file_path = os.getenv("LOG_FILE_PATH", "runtime.log")
+        settings = get_settings()
+        environment = settings.ENVIRONMENT
+        log_to_file = settings.LOG_TO_FILE
+        log_file_path = settings.LOG_FILE_PATH
 
         # Prevent duplicate handlers when module reloads.
         if self.logger.handlers:
@@ -30,7 +30,7 @@ class ConferenceLogger:
         # Check if the app is running locally or in production
         if environment == 'production':
             # In production, send logs to Azure App Insights
-            app_insights_conn_str = os.getenv('APPLICATIONINSIGHTS_CONNECTION_STRING')
+            app_insights_conn_str = settings.APPLICATIONINSIGHTS_CONNECTION_STRING
             if self.add_app_insights_handler(app_insights_conn_str) is False:
                 # Fall back to console logging when App Insights config is unavailable/invalid.
                 self.add_console_handler()
