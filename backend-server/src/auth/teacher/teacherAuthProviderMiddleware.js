@@ -1,10 +1,13 @@
-const { secretKey, jwtExpiresIn, passwordSaltRounds } = require("../../config/env");
+const { authType, secretKey, jwtExpiresIn, passwordSaltRounds } = require("../../config/env");
 const { STATUS, PASSWORD_POLICY } = require("../../config/constants");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const validator = require("validator");
 
-const teacherRepo = require("../../repositories/teacher.repository");
+const nativeDb = require("../dbAdapters/nativeDb");
+const firebaseDb = require("../dbAdapters/firebaseDb");
+
+const dbAdapter = authType === "firebase" ? firebaseDb : nativeDb;
 
 function generateToken(payload) {
   return jwt.sign(payload, secretKey, {
@@ -15,25 +18,25 @@ function generateToken(payload) {
 
 module.exports = {
   async login(req, res) {
-    const { phoneNumber, password, schoolId } = req.body;
-    if (!phoneNumber || !password || !schoolId) {
+    const { phoneNumber, password, tenantId } = req.body;
+    if (!phoneNumber || !password || !tenantId) {
       return res
         .status(STATUS.BAD_REQUEST)
-        .json({ message: "Phone number, password, and schoolId are required" });
+        .json({ message: "Phone number, password, and tenantId are required" });
     }
     try {
-      const teacher = await teacherRepo.getTeacherBySchoolIdAndPhoneNumber(schoolId, phoneNumber);
+      const teacher = await dbAdapter.getTeacherByTenantIdAndPhoneNumber(tenantId, phoneNumber);
       if (!teacher) {
         return res
           .status(STATUS.UNAUTHORIZED)
-          .json({ message: "Teacher is not registered with this school" });
+          .json({ message: "Teacher is not registered with this tenant" });
       }
       const passwordMatch = await bcrypt.compare(password, teacher.password);
       if (!passwordMatch) {
         return res.status(STATUS.UNAUTHORIZED).json({ message: "Invalid credentials" });
       }
       const token = generateToken({
-        id: teacher._id,
+        id: teacher._id || teacher.id,
         phoneNumber: teacher.phoneNumber,
         name: teacher.name,
       });
@@ -45,11 +48,11 @@ module.exports = {
   },
   async register(req, res) {
     const { phoneNumber, password, name } = req.body;
-    const schoolId = req.userId;
+    const tenantId = req.userId;
     if (
       !phoneNumber ||
       !password ||
-      !schoolId ||
+      !tenantId ||
       typeof name !== "string" ||
       name.trim().length === 0
     ) {
@@ -68,18 +71,22 @@ module.exports = {
       });
     }
     try {
-      const existingTeacher = await teacherRepo.getTeacherBySchoolIdAndPhoneNumber(
-        schoolId,
+      const existingTenant = await dbAdapter.getTenantById(tenantId);
+      if (!existingTenant) {
+        return res.status(STATUS.BAD_REQUEST).json({ message: "Tenant does not exist" });
+      }
+      const existingTeacher = await dbAdapter.getTeacherByTenantIdAndPhoneNumber(
+        tenantId,
         phoneNumber
       );
       if (existingTeacher) {
         return res.status(STATUS.CONFLICT).json({ message: "Phone number already in use" });
       }
       const hashedPassword = await bcrypt.hash(password, parseInt(passwordSaltRounds));
-      await teacherRepo.insertTeacher({
+      await dbAdapter.insertTeacher({
         phoneNumber,
         password: hashedPassword,
-        schoolId,
+        tenantId,
         name: trimmedName,
       });
       return res.status(STATUS.CREATED).json({ message: "Teacher registered successfully" });

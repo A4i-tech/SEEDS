@@ -29,7 +29,6 @@ const BlobService = require("../services/BlobService.js");
 const processNewContent = require("../jobs/processAudioContent.js");
 const processQuizContent = require("../jobs/processQuizContent.js");
 const { tryCatchWrapper } = require(path.join("..", "util.js"));
-const authenticateTenant = require("../auth/authenticateTenant");
 const { Binary } = require("mongodb");
 const { parse: uuidParse } = require("uuid");
 // Initialize instances
@@ -572,13 +571,9 @@ router.delete(
 
 router.post(
   "/",
-  authenticateTenant,
   tryCatchWrapper(async (req, res) => {
-    let content = new ContentV3({
-      ...req.body,
-      tenantId: req.tenantId,
-      creation_time: Math.floor(Date.now() / 1000),
-    });
+    let content = new ContentV3(req.body);
+    content.creation_time = Math.floor(Date.now() / 1000);
 
     // Validate audioContent entries to ensure uploaded audio URLs reference .mp3 files.
     for (const item of content.audioContent || []) {
