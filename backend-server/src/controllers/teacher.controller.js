@@ -31,7 +31,7 @@ exports.getStudents = async (req, res) => {
 
 exports.getTeachers = async (req, res) => {
   try {
-    const result = await teacherService.getTeachers({ tenantId: req.userId });
+    const result = await teacherService.getTeachers({ tenantId: req.tenantId });
     return res.json(result);
   } catch (err) {
     return res.status(err.status || STATUS.INTERNAL_ERROR).json({ message: err.message });
