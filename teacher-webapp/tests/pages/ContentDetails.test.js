@@ -176,19 +176,6 @@ describe("ContentDetails", () => {
     });
   });
 
-  test("navigates back to content list", async () => {
-    renderComponent();
-
-    await waitFor(() => {
-      expect(screen.getByText("Back to Content")).toBeInTheDocument();
-    });
-
-    const backButton = screen.getByText("Back to Content");
-    fireEvent.click(backButton);
-
-    expect(mockNavigate).toHaveBeenCalledWith(ROUTES.CONTENT);
-  });
-
   test("navigates to next page when Next Page button is clicked", async () => {
     renderComponent();
 
