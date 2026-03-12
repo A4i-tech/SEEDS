@@ -15,12 +15,14 @@ class SeekContentEvent(ConferenceEvent):
         conf_call: ConferenceCall,
         delta_seconds: Optional[int] = None,
         position_seconds: Optional[float] = None,
+        initiator_phone: Optional[str] = None,
     ):
         if delta_seconds is None and position_seconds is None:
             raise ValueError("Exactly one of delta_seconds or position_seconds must be provided")
         self.conf_call = conf_call
         self.delta_seconds = delta_seconds
         self.position_seconds = position_seconds
+        self.initiator_phone = initiator_phone
 
     async def execute_event(self):
         if self.position_seconds is not None:
@@ -42,9 +44,9 @@ class SeekContentEvent(ConferenceEvent):
         self.conf_call.state.action_history.append(
             ActionHistory(
                 timestamp=datetime.now().isoformat(),
-                action_type=ActionType.TEACHER_AUDIO_PLAYBACK_STATUS_CHANGE,
+                action_type=ActionType.LEADER_SEEK_CONTENT_VIA_DTMF if self.initiator_phone else ActionType.TEACHER_AUDIO_PLAYBACK_STATUS_CHANGE,
                 metadata=metadata,
-                owner=self.conf_call.state.teacher_phone_number,
+                owner=self.initiator_phone or self.conf_call.state.teacher_phone_number,
             )
         )
 

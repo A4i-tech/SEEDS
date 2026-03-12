@@ -54,80 +54,29 @@ class DTMFInputEvent(ConferenceEvent):
             # Leader DTMF: "1" → mute all, "3" → unmute all
             elif leader_phone and self.phone_number == leader_phone:
                 if self.digit == "1":
-                    await MuteAllEvent(conf_call=self.conf_call).execute_event()
-                    self.conf_call.state.action_history.append(ActionHistory(
-                        timestamp=datetime.now().isoformat(),
-                        action_type=ActionType.LEADER_MUTE_ALL_VIA_DTMF,
-                        metadata={"leader_phone": self.phone_number},
-                        owner=self.phone_number
-                    ))
-                    await self.conf_call.update_state()
+                    await MuteAllEvent(conf_call=self.conf_call, initiator_phone=self.phone_number).execute_event()
                 elif self.digit == "3":
-                    await UnmuteAllEvent(conf_call=self.conf_call).execute_event()
-                    self.conf_call.state.action_history.append(ActionHistory(
-                        timestamp=datetime.now().isoformat(),
-                        action_type=ActionType.LEADER_UNMUTE_ALL_VIA_DTMF,
-                        metadata={"leader_phone": self.phone_number},
-                        owner=self.phone_number
-                    ))
-                    await self.conf_call.update_state()
+                    await UnmuteAllEvent(conf_call=self.conf_call, initiator_phone=self.phone_number).execute_event()
                 elif self.digit == "6":
                     # Toggle play/pause for streaming content
                     audio_state = self.conf_call.state.audio_content_state
                     if audio_state.status in (ContentStatus.PLAYING, ContentStatus.STARTING):
-                        await PauseContentEvent(conf_call=self.conf_call).execute_event()
-                        action = "paused"
+                        await PauseContentEvent(conf_call=self.conf_call, initiator_phone=self.phone_number).execute_event()
                     else:
-                        await ResumeContentEvent(conf_call=self.conf_call).execute_event()
-                        action = "resumed"
-                    self.conf_call.state.action_history.append(ActionHistory(
-                        timestamp=datetime.now().isoformat(),
-                        action_type=ActionType.LEADER_TOGGLE_CONTENT_VIA_DTMF,
-                        metadata={"leader_phone": self.phone_number, "action": action},
-                        owner=self.phone_number
-                    ))
-                    await self.conf_call.update_state()
+                        await ResumeContentEvent(conf_call=self.conf_call, initiator_phone=self.phone_number).execute_event()
                 elif self.digit == "7":
                     # Seek content back 10 seconds
-                    await SeekContentEvent(conf_call=self.conf_call, delta_seconds=-10).execute_event()
-                    self.conf_call.state.action_history.append(ActionHistory(
-                        timestamp=datetime.now().isoformat(),
-                        action_type=ActionType.LEADER_SEEK_CONTENT_VIA_DTMF,
-                        metadata={"leader_phone": self.phone_number, "delta_seconds": -10},
-                        owner=self.phone_number
-                    ))
-                    await self.conf_call.update_state()
+                    await SeekContentEvent(conf_call=self.conf_call, delta_seconds=-10, initiator_phone=self.phone_number).execute_event()
                 elif self.digit == "9":
                     # Seek content forward 10 seconds
-                    await SeekContentEvent(conf_call=self.conf_call, delta_seconds=10).execute_event()
-                    self.conf_call.state.action_history.append(ActionHistory(
-                        timestamp=datetime.now().isoformat(),
-                        action_type=ActionType.LEADER_SEEK_CONTENT_VIA_DTMF,
-                        metadata={"leader_phone": self.phone_number, "delta_seconds": 10},
-                        owner=self.phone_number
-                    ))
-                    await self.conf_call.update_state()
+                    await SeekContentEvent(conf_call=self.conf_call, delta_seconds=10, initiator_phone=self.phone_number).execute_event()
                 elif self.digit == "*":
                     # Decrease playback speed by 0.25 (min 0.5)
                     current_speed = self.conf_call.state.audio_content_state.speed
                     new_speed = max(0.5, round(current_speed - 0.25, 2))
-                    await SetPlaybackSpeedEvent(conf_call=self.conf_call, speed=new_speed).execute_event()
-                    self.conf_call.state.action_history.append(ActionHistory(
-                        timestamp=datetime.now().isoformat(),
-                        action_type=ActionType.LEADER_SET_SPEED_VIA_DTMF,
-                        metadata={"leader_phone": self.phone_number, "speed": new_speed},
-                        owner=self.phone_number
-                    ))
-                    await self.conf_call.update_state()
+                    await SetPlaybackSpeedEvent(conf_call=self.conf_call, speed=new_speed, initiator_phone=self.phone_number).execute_event()
                 elif self.digit == "#":
                     # Increase playback speed by 0.25 (max 2.0)
                     current_speed = self.conf_call.state.audio_content_state.speed
                     new_speed = min(2.0, round(current_speed + 0.25, 2))
-                    await SetPlaybackSpeedEvent(conf_call=self.conf_call, speed=new_speed).execute_event()
-                    self.conf_call.state.action_history.append(ActionHistory(
-                        timestamp=datetime.now().isoformat(),
-                        action_type=ActionType.LEADER_SET_SPEED_VIA_DTMF,
-                        metadata={"leader_phone": self.phone_number, "speed": new_speed},
-                        owner=self.phone_number
-                    ))
-                    await self.conf_call.update_state()
+                    await SetPlaybackSpeedEvent(conf_call=self.conf_call, speed=new_speed, initiator_phone=self.phone_number).execute_event()
