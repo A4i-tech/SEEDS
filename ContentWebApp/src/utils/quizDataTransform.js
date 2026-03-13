@@ -16,7 +16,7 @@ export const transformQuizItem = (quiz) => {
   }
 
   // Ensure id field exists (backend always provides id field)
-  const id = quiz.id || null;
+  const id = quiz.id;
 
   // Handle title - can be string or object
   let title = quiz.title;
@@ -24,22 +24,15 @@ export const transformQuizItem = (quiz) => {
     // If title is string, create object structure
     title = {
       english: title,
-      local: quiz.localTitle || "",
-      audioUrl: quiz.titleAudio || "",
+      local: quiz.localTitle,
+      audioUrl: quiz.titleAudio,
     };
   } else if (title && typeof title === "object") {
     // Ensure all fields exist from the title object only (no quiz fallbacks)
     title = {
-      english: title.english || "",
-      local: title.local || "",
-      audioUrl: title.audioUrl || "",
-    };
-  } else {
-    // Fallback
-    title = {
-      english: "",
-      local: "",
-      audioUrl: "",
+      english: title.english,
+      local: title.local,
+      audioUrl: title.audioUrl,
     };
   }
 
@@ -49,28 +42,21 @@ export const transformQuizItem = (quiz) => {
     // If theme is string, create object structure
     theme = {
       english: theme,
-      local: quiz.localTheme || "",
-      audioUrl: quiz.themeAudio || "",
+      local: quiz.localTheme,
+      audioUrl: quiz.themeAudio,
     };
   } else if (theme && typeof theme === "object") {
     // Ensure all fields exist from the theme object only (no quiz fallbacks)
     theme = {
-      english: theme.english || "",
-      local: theme.local || "",
-      audioUrl: theme.audioUrl || "",
-    };
-  } else {
-    // Fallback
-    theme = {
-      english: "",
-      local: "",
-      audioUrl: "",
+      english: theme.english,
+      local: theme.local,
+      audioUrl: theme.audioUrl,
     };
   }
 
   // Handle marks - check for both singular and plural field names
-  const positiveMarks = quiz.positiveMarks ?? quiz.positiveMark ?? 0;
-  const negativeMarks = quiz.negativeMarks ?? quiz.negativeMark ?? 0;
+  const positiveMarks = quiz.positiveMarks ?? quiz.positiveMark;
+  const negativeMarks = quiz.negativeMarks ?? quiz.negativeMark;
 
   // Build transformed quiz object
   const transformed = {
@@ -82,7 +68,7 @@ export const transformQuizItem = (quiz) => {
     theme,
     positiveMarks,
     negativeMarks,
-    language: quiz.language || "",
+    language: quiz.language,
     isPullModel: quiz.isPullModel ?? false,
     isTeacherApp: quiz.isTeacherApp ?? false,
     isDeleted: quiz.isDeleted ?? false,
@@ -148,12 +134,10 @@ export const extractQuestionText = (questionItem) => {
   }
 
   if (typeof questionItem === "object") {
-    return (
-      questionItem.question?.text ||
-      questionItem.question ||
-      questionItem.text ||
-      ""
-    );
+    const question = questionItem.question && questionItem.question.text
+      ? questionItem.question.text
+      : questionItem.question || questionItem.text;
+    return question || "";
   }
 
   return "";
@@ -170,7 +154,11 @@ export const extractQuestionOptions = (questionItem) => {
     return [];
   }
 
-  const options = questionItem.options || [];
+  if (!Array.isArray(questionItem.options)) {
+    return [];
+  }
+
+  const options = questionItem.options;
 
   // Transform options to array of strings
   return options.map((opt) => {
@@ -203,7 +191,10 @@ export const getCorrectOptionIndex = (questionItem, options = []) => {
   }
 
   // Find index by matching option ID
-  const optionIds = questionItem.options || [];
+  if (!Array.isArray(questionItem.options)) {
+    return 0;
+  }
+  const optionIds = questionItem.options;
   const index = optionIds.findIndex(
     (opt) =>
       (typeof opt === "object" ? opt.id : null) === correctOptionId
@@ -230,9 +221,9 @@ export const normalizeQuizForTable = (quiz) => {
     ...transformed,
     id: transformed.id,
     type: "quiz",
-    title: transformed.title || { english: "", local: "" },
-    theme: transformed.theme || { english: "", local: "" },
-    language: transformed.language || "",
+    title: transformed.title,
+    theme: transformed.theme,
+    language: transformed.language,
   };
 };
 

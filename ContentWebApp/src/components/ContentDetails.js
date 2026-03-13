@@ -3,6 +3,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import QuizDetails from "./QuizDetails";
 import StoryDetails from "./StoryDetails";
 import { contentService } from "../services/contentService";
+import "./ContentDetails.css";
+import "./AllContent/shared/buttons.css";
 
 const ContentDetails = () => {
   const { type, id } = useParams();
@@ -16,12 +18,11 @@ const ContentDetails = () => {
       setIsLoading(true);
       setError(null);
       const data = await contentService.getContentById(id);
-      console.log("ContentDetailsData", data);
       setContent(data);
       return data;
     } catch (err) {
       console.error("Error fetching content:", err);
-      setError(err.message || "Failed to load content");
+      setError(err.message);
       return null;
     } finally {
       setIsLoading(false);
@@ -34,7 +35,7 @@ const ContentDetails = () => {
 
   if (isLoading) {
     return (
-      <div style={{ margin: "20px" }}>
+      <div className="content-details-message">
         <p>Loading content...</p>
       </div>
     );
@@ -42,10 +43,10 @@ const ContentDetails = () => {
 
   if (error) {
     return (
-      <div style={{ margin: "20px" }}>
-        <p>Error: {error}</p>
-        <button onClick={() => navigate("/content")} className="btn" style={{ backgroundColor: "#28574F", color: "white" }}>
-          Back to Content
+      <div className="content-details-message">
+        <p className="content-details-error">Error: {error}</p>
+        <button onClick={() => navigate("/content")} className="primary-button">
+          ← Back to Content
         </button>
       </div>
     );
@@ -53,10 +54,10 @@ const ContentDetails = () => {
 
   if (!content) {
     return (
-      <div style={{ margin: "20px" }}>
+      <div className="content-details-message">
         <p>Content not found.</p>
-        <button onClick={() => navigate("/content")} className="btn" style={{ backgroundColor: "#28574F", color: "white" }}>
-          Back to Content
+        <button onClick={() => navigate("/content")} className="primary-button">
+          ← Back to Content
         </button>
       </div>
     );
@@ -70,12 +71,8 @@ const ContentDetails = () => {
     const titleEnglish = content.title?.english ?? content.title;
     const titleLocal = content.title?.local ?? content.localTitle;
     return (
-      <div style={{ margin: "20px" }}>
-        <button
-          onClick={() => navigate("/content")}
-          className="btn"
-          style={{ backgroundColor: "#28574F", color: "white", marginBottom: "12px" }}
-        >
+      <div className="content-details-message">
+        <button onClick={() => navigate("/content")} className="primary-button">
           ← Back
         </button>
         <h3>
@@ -88,19 +85,14 @@ const ContentDetails = () => {
   }
 
   return (
-    <div style={{ margin: "20px" }}>
-      <div style={{ display: "flex", gap: "10px", marginBottom: "16px" }}>
-        <button
-          onClick={() => navigate("/content")}
-          className="btn"
-          style={{ backgroundColor: "#28574F", color: "white" }}
-        >
+    <div className="content-details-page">
+      <div className="content-details-actions">
+        <button onClick={() => navigate("/content")} className="primary-button">
           ← Back
         </button>
         <button
           onClick={() => navigate(`/content/edit/${type}/${id}`)}
-          className="btn"
-          style={{ backgroundColor: "#E5A83B", color: "white" }}
+          className="secondary-button"
         >
           ✏️ Edit
         </button>

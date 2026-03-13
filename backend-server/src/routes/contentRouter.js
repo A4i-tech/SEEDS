@@ -51,11 +51,11 @@ agenda.define("processQuizContent", async (job) => {
 
 /** Sort merged content/quizzes by creation_time descending, then by _id descending as tie-breaker. */
 function sortByCreationTimeThenId(a, b) {
-  const timeA = a.creation_time || 0;
-  const timeB = b.creation_time || 0;
+  const timeA = a.creation_time;
+  const timeB = b.creation_time;
   if (timeB !== timeA) return timeB - timeA;
-  const idA = a._id?.toString() || "";
-  const idB = b._id?.toString() || "";
+  const idA = a._id.toString();
+  const idB = b._id.toString();
   return idB.localeCompare(idA);
 }
 
@@ -417,13 +417,13 @@ router.get(
       // Transform content to ensure id field exists (standardize: always use id from _id)
       const transformedContents = contents.map((content) => ({
         ...content,
-        id: content._id || content.id,
+        id: content._id,
       }));
       
       // Transform quiz data to match content format (standardize: always use id from _id)
       const transformedQuizzes = quizzes.map((quiz) => ({
         ...quiz,
-        id: quiz._id || quiz.id,
+        id: quiz._id,
         type: "quiz",
       }));
       
@@ -484,7 +484,7 @@ router.get(
     const transformedContents = contents.map((contentObj) => {
       return {
         ...contentObj,
-        id: contentObj._id || contentObj.id,
+        id: contentObj._id,
       };
     });
 
@@ -493,7 +493,7 @@ router.get(
     const transformedQuizzes = quizzes.map((quizObj) => {
       return {
         ...quizObj,
-        id: quizObj._id || quizObj.id,
+        id: quizObj._id,
         type: "quiz",
       };
     });
@@ -510,10 +510,10 @@ router.get(
       // Keep only items after the cursor: (creation_time, _id) > (lastCreationTime, lastId)
       // so we return the next page in the same order as the single sort above
       allContent = allContent.filter((item) => {
-        const itemTime = item.creation_time || 0;
+        const itemTime = item.creation_time;
         if (itemTime < lastCreationTime) return true;   // older → include (we sort desc, so "after" cursor)
         if (itemTime === lastCreationTime) {
-          const itemId = item._id?.toString() || "";
+          const itemId = item._id.toString();
           return itemId < lastId; // same time: include if _id is before lastId in sort order
         }
         return false;
@@ -528,8 +528,8 @@ router.get(
     const lastItem = hasMore ? data[data.length - 1] : null;
     let nextCursor = null;
     if (lastItem) {
-      const lastId = lastItem.id?.toString() || lastItem._id?.toString() || "";
-      nextCursor = `${lastItem.creation_time || 0}_${lastId}`;
+      const lastId = lastItem._id.toString();
+      nextCursor = `${lastItem.creation_time}_${lastId}`;
     }
 
     // Send the final response
@@ -619,7 +619,7 @@ router.get(
         // QuizData stores theme, localTheme, title, localTitle as top-level strings
         content = {
           ...content,
-          id: content._id || content.id,
+          id: content._id,
           type: "quiz",
           title: content.title,
           localTitle: content.localTitle,
@@ -631,7 +631,7 @@ router.get(
       // Frontend expects a top-level `id`; ContentV3 uses `_id`. Add `id` so response shape is consistent.
       content = {
         ...content,
-        id: content._id || content.id,
+        id: content._id,
       };
     }
 
@@ -742,7 +742,7 @@ router.patch(
   "/",
   tryCatchWrapper(async (req, res) => {
     const isAudioUploaded = req.query.isAudioUploaded === "true";
-    const contentId = req.body?._id || req.body?.id;
+    const contentId = req.body?._id;
 
     if (!contentId) {
       return res.status(400).json({ error: "Content _id is required" });
@@ -772,27 +772,49 @@ router.patch(
       // title and theme are TextContentSchema objects {english, local, audioUrl}.
       // The frontend sends them as plain strings; invalidate non-string values (e.g. number).
       if (updatePayload.title !== undefined) {
-        const raw = updatePayload.title;
-        const incoming = typeof raw === "string" ? raw : (raw && typeof raw.english === "string" ? raw.english : null);
-        if (incoming === null) {
-          return res.status(400).json({ error: "title must be a string or an object with english string" });
+        const rawTitle = updatePayload.title;
+        const englishTitle =
+          typeof rawTitle === "string"
+            ? rawTitle
+            : rawTitle && typeof rawTitle.english === "string"
+              ? rawTitle.english
+              : null;
+        if (englishTitle === null) {
+          return res
+            .status(400)
+            .json({ error: "title must be a string or an object with english string" });
         }
+        const localTitle =
+          typeof updatePayload.localTitle === "string"
+            ? updatePayload.localTitle
+            : existingQuiz.title?.local;
         quizUpdate.title = {
-          english: incoming,
-          local: existingQuiz.title?.local ?? "",
-          audioUrl: existingQuiz.title?.audioUrl ?? "",
+          english: englishTitle,
+          local: localTitle,
+          audioUrl: existingQuiz.title?.audioUrl,
         };
       }
       if (updatePayload.theme !== undefined) {
-        const raw = updatePayload.theme;
-        const incoming = typeof raw === "string" ? raw : (raw && typeof raw.english === "string" ? raw.english : null);
-        if (incoming === null) {
-          return res.status(400).json({ error: "theme must be a string or an object with english string" });
+        const rawTheme = updatePayload.theme;
+        const englishTheme =
+          typeof rawTheme === "string"
+            ? rawTheme
+            : rawTheme && typeof rawTheme.english === "string"
+              ? rawTheme.english
+              : null;
+        if (englishTheme === null) {
+          return res
+            .status(400)
+            .json({ error: "theme must be a string or an object with english string" });
         }
+        const localTheme =
+          typeof updatePayload.localTheme === "string"
+            ? updatePayload.localTheme
+            : existingQuiz.theme?.local;
         quizUpdate.theme = {
-          english: incoming,
-          local: existingQuiz.theme?.local ?? "",
-          audioUrl: existingQuiz.theme?.audioUrl ?? "",
+          english: englishTheme,
+          local: localTheme,
+          audioUrl: existingQuiz.theme?.audioUrl,
         };
       }
 
@@ -803,23 +825,21 @@ router.patch(
       const correctAnswers = updatePayload.correctAnswers;
       if (Array.isArray(questionTexts) && Array.isArray(optionArrays)) {
         quizUpdate.questions = questionTexts.map((questionText, qIdx) => {
-          const existing = existingQuiz.questions?.[qIdx] || {};
-          const optTexts = optionArrays[qIdx] || [];
+          const existing = existingQuiz.questions?.[qIdx];
+          const optTexts = optionArrays[qIdx];
           const correctIdx = Array.isArray(correctAnswers) ? (correctAnswers[qIdx] ?? 0) : 0;
           return {
             question: {
-              id: (existing.question && existing.question.id) || `${contentId}-q${qIdx + 1}`,
-              url: existing.question?.url || "<NOT CREATED>",
+              id: existing?.question?.id,
+              url: existing?.question?.url,
               text: questionText,
             },
-            options: optTexts.map((optText, oIdx) => ({
-              id: existing.options?.[oIdx]?.id || `${contentId}-q${qIdx + 1}-opt${oIdx + 1}`,
-              url: existing.options?.[oIdx]?.url || "<NOT CREATED>",
+            options: (optTexts ?? []).map((optText, oIdx) => ({
+              id: existing?.options?.[oIdx]?.id,
+              url: existing?.options?.[oIdx]?.url,
               text: optText,
             })),
-            correct_option_id:
-              existing.options?.[correctIdx]?.id ||
-              `${contentId}-q${qIdx + 1}-opt${correctIdx + 1}`,
+            correct_option_id: existing?.options?.[correctIdx]?.id,
           };
         });
       }

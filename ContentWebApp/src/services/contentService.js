@@ -25,9 +25,8 @@ export const contentService = {
       signal,
     });
 
-    // Normalize data: ensure all items have "id" field (backend should always provide id, but keep as safety check)
-    const normalizedData = (response.data || []).map((item) => {
-      // Safety fallback: if item has _id but no id, use _id as id (should not happen with standardized backend)
+    // Normalize data: ensure all items have "id" field
+    const normalizedData = response.data.map((item) => {
       if (!item.id && item._id) {
         return { ...item, id: item._id };
       }
@@ -36,7 +35,7 @@ export const contentService = {
 
     return {
       data: normalizedData,
-      pagination: response.pagination || {},
+      pagination: response.pagination,
     };
   },
 

@@ -16,22 +16,15 @@ export const useContent = () => {
 
   /**
    * Fetch content with optional cursor for pagination
+   * Error handling is delegated to contentService
    */
-  const fetchContent = useCallback(async (cursor = null, signal = null) => {
-    try {
-      const { data, pagination } = await contentService.getContent(
-        cursor,
-        PAGE_SIZE,
-        signal
-      );
+  const fetchContent = useCallback(
+    async (cursor = null, signal = null) => {
+      const { data, pagination } = await contentService.getContent(cursor, PAGE_SIZE, signal);
       return { data, pagination };
-    } catch (error) {
-      if (error.name !== "AbortError") {
-        console.error("Error fetching content:", error);
-      }
-      throw error;
-    }
-  }, []);
+    },
+    [],
+  );
 
   /**
    * Load initial content

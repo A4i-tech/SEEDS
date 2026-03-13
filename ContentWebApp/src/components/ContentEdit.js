@@ -12,8 +12,7 @@ const ContentEdit = () => {
 
   const contentById = useCallback(async () => {
     try {
-      const data = await contentService.getContentById(String(id || "").trim());
-      console.log("quizInEdit", data);
+      const data = await contentService.getContentById(id);
       return data;
     } catch (error) {
       console.error("Error fetching content for edit:", error);
@@ -26,7 +25,7 @@ const ContentEdit = () => {
       const contentFromServer = await contentById();
       if (contentFromServer) {
         setContent(contentFromServer);
-        setExperience(contentFromServer.type || type || "quiz");
+        setExperience(contentFromServer.type || type);
       }
       setIsLoading(false);
     };
@@ -34,11 +33,9 @@ const ContentEdit = () => {
   }, [contentById, type]);
 
   const location = useLocation();
-  console.log("link props", location.state);
 
   const handleChange = (event) => {
     setExperience(event.target.value);
-    console.log(event.target.value);
   };
 
   const experienceLower = (experience || "").toLowerCase();
@@ -54,7 +51,7 @@ const ContentEdit = () => {
 
   if (isLoading) {
     return (
-      <div style={{ margin: "20px" }}>
+      <div className="content-details-message">
         <p>Loading...</p>
       </div>
     );
@@ -63,7 +60,7 @@ const ContentEdit = () => {
   if (content && !isProcessed) {
     return (
       <>
-        <div style={{ margin: "20px" }}>
+        <div className="content-details-message">
           <h3>{titleText}</h3>
           <p>Content is being processed, try again later!</p>
         </div>
@@ -72,7 +69,7 @@ const ContentEdit = () => {
   } else {
     return (
       <>
-        <div style={{ margin: "20px" }}>
+        <div className="content-details-page">
           <h3>Edit Content</h3>
           {content && !isQuiz && (
             <form>
@@ -82,7 +79,6 @@ const ContentEdit = () => {
                   value={experience}
                   onChange={(event) => handleChange(event)}
                   className="mintgreen"
-                  style={{ width: "150px" }}
                 >
                   <option value="Story">Story</option>
                   <option value="Poem">Poem</option>

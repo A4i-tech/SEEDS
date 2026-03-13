@@ -43,9 +43,9 @@ const ContentTable = ({ content, isLoading, onEdit, onView, onDelete }) => {
           <tbody>
             {content.map((item) => {
               // Get ID - standardized to use id field (backend always provides id)
-              const itemId = (item.id || "").toString();
+              const itemId = item.id.toString();
               // Get type and normalize to lowercase
-              const itemType = (item.type || "story").toLowerCase();
+              const itemType = item.type.toLowerCase();
               return (
                 <tr key={itemId} className="table-row-white">
                   <td className="table-cell">
@@ -77,20 +77,10 @@ const ContentTable = ({ content, isLoading, onEdit, onView, onDelete }) => {
                   </td>
                   <td className="table-cell">{item.language}</td>
                   <td className="table-cell">
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                    <span className="content-type">
                       {itemType}
                       {itemType === "quiz" && (
-                        <span
-                          style={{
-                            backgroundColor: "#007bff",
-                            color: "white",
-                            fontSize: "10px",
-                            padding: "2px 6px",
-                            borderRadius: "10px",
-                            fontWeight: "bold",
-                          }}
-                          title="Quiz Content"
-                        >
+                        <span className="content-type-badge-quiz" title="Quiz Content">
                           Q
                         </span>
                       )}

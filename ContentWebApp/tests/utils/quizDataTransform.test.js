@@ -43,7 +43,7 @@ describe("quizDataTransform", () => {
       expect(transformed.language).toBe("kannada");
     });
 
-    it("should handle missing language field", () => {
+    it("should not invent language when missing", () => {
       const quiz = {
         _id: "quiz-1",
         type: "quiz",
@@ -52,16 +52,18 @@ describe("quizDataTransform", () => {
 
       const transformed = transformQuizItem(quiz);
 
-      expect(transformed.language).toBe("");
+      expect(transformed.language).toBeUndefined();
     });
   });
 
   describe("normalizeQuizForTable", () => {
-    it("should ensure quiz has all required fields for table display", () => {
+    it("should preserve all required fields for table display", () => {
       const quiz = {
         _id: "quiz-1",
+        id: "quiz-1",
         title: "Test Quiz",
         language: "kannada",
+        theme: { english: "Math" },
       };
 
       const normalized = normalizeQuizForTable(quiz);
@@ -99,7 +101,7 @@ describe("quizDataTransform", () => {
       expect(normalized.language).toBe("english");
     });
 
-    it("should handle quiz items missing language field", () => {
+    it("should not invent language when missing in table normalization", () => {
       const quiz = {
         _id: "quiz-1",
         type: "quiz",
@@ -109,7 +111,7 @@ describe("quizDataTransform", () => {
       const normalized = normalizeQuizForTable(quiz);
 
       expect(normalized.type).toBe("quiz");
-      expect(normalized.language).toBe(""); // Defaults to empty string
+      expect(normalized.language).toBeUndefined();
     });
   });
 });

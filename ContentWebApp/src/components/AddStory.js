@@ -6,6 +6,7 @@ import { SEEDS_URL, AUDIO_BASE_URL } from "../Constants";
 import { getAuthHeaders } from "../utils/authHelpers";
 import { useAuth } from "../hooks/useAuth";
 import { isMp3File } from "../utils/fileValidators";
+import { contentService } from "../services/contentService";
 
 const AddStory = ({ content, contentType, onContentTypeChange }) => {
   const { getCurrentUser } = useAuth();
@@ -33,24 +34,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
   const [allContent, setAllContent] = useState([]);
   const [themes, setThemes] = useState({});
   const [newTheme, setNewTheme] = useState(false);
-
-  const getAllContent = async () => {
-    try {
-      const seedsRes = await fetch(`${SEEDS_URL}/content`, {
-        method: "GET",
-        headers: getAuthHeaders(),
-      });
-      if (!seedsRes.ok) {
-        throw new Error(`Failed to fetch content: ${seedsRes.status}`);
-      }
-      const seedsData = await seedsRes.json();
-      const contentArray = Array.isArray(seedsData) ? seedsData : (seedsData.data || []);
-      return contentArray;
-    } catch (error) {
-      console.error("Error fetching content:", error);
-      return [];
-    }
-  };
+  const [loadError, setLoadError] = useState(null);
 
   const populateThemes = (content) => {
     if (!Array.isArray(content)) {
@@ -59,9 +43,9 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
     }
     const newThemes = {};
     content.forEach((item) => {
-      if (!item) return;
-      const themeEnglish = typeof item.theme === "object" ? item.theme.english : item.theme;
-      const themeLocal = typeof item.theme === "object" ? item.theme.local : item.localTheme;
+      if (!item || !item.theme) return;
+      const themeEnglish = item.theme.english;
+      const themeLocal = item.theme.local;
       if (item.language && themeEnglish && themeLocal) {
         const lang = item.language.toLowerCase();
         newThemes[lang] = newThemes[lang] || {};
@@ -116,7 +100,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
   const fetchTitlesUnderTheme = useCallback(
     (language, theme) => {
       const filteredContent = allContent.filter((item) => {
-        const itemTheme = typeof item.theme === "object" ? item.theme.english : item.theme;
+        const itemTheme = item.theme?.english;
         return (
           item.language.toLowerCase() === language.toLowerCase() &&
           itemTheme.toLowerCase() === theme.toLowerCase()
@@ -124,8 +108,8 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
       });
       const titleMap = {};
       filteredContent.forEach((item) => {
-        const titleEnglish = typeof item.title === "object" ? item.title.english : item.title;
-        const titleLocal = typeof item.title === "object" ? item.title.local : item.localTitle;
+        const titleEnglish = item.title?.english;
+        const titleLocal = item.title?.local;
         if (titleEnglish && titleLocal) {
           titleMap[titleEnglish.toLowerCase()] = titleLocal;
         }
@@ -150,14 +134,12 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
   useEffect(() => {
     const getContent = async () => {
       try {
-        const contentFromServer = await getAllContent();
-        const contentArray = Array.isArray(contentFromServer) ? contentFromServer : [];
-        setAllContent(contentArray);
-        populateThemes(contentArray);
-        console.log("Content loaded:", contentArray.length, "items");
+        const contentFromServer = await contentService.getAllContent();
+        setAllContent(contentFromServer);
+        populateThemes(contentFromServer);
+        setLoadError(null);
       } catch (error) {
-        console.error("Error loading content:", error);
-        setAllContent([]);
+        setLoadError(error.message);
       }
     };
     getContent();
@@ -272,7 +254,6 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
 
   const onSubmit = (e) => {
     e.preventDefault();
-    console.log("metadata", metadata);
     if (isValid()) {
       setIsSaveButtonDisabled(true);
       sendStory(e);
@@ -288,20 +269,14 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
       _id,
       type: contentType,
       title: {
-        english: metadata.title.english || "",
-        local:
-          languageLower === "english"
-            ? metadata.title.english || ""
-            : metadata.title.local || "",
-        audioUrl: metadata.title.audioUrl || "",
+        english: metadata.title.english,
+        local: languageLower === "english" ? metadata.title.english : metadata.title.local,
+        audioUrl: metadata.title.audioUrl,
       },
       theme: {
-        english: metadata.theme.english || "",
-        local:
-          languageLower === "english"
-            ? metadata.theme.english || ""
-            : metadata.theme.local || "",
-        audioUrl: metadata.theme.audioUrl || "",
+        english: metadata.theme.english,
+        local: languageLower === "english" ? metadata.theme.english : metadata.theme.local,
+        audioUrl: metadata.theme.audioUrl,
       },
     };
     var isAudioUploaded = "true";
@@ -372,7 +347,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
     }
 
     const tenantName = await getCurrentUser();
-    newMetadata.createdBy = tenantName || newMetadata.createdBy || "";
+    newMetadata.createdBy = tenantName || newMetadata.createdBy;
 
     // Upload files to Azure Blob Storage FIRST, before sending metadata to backend
     // This ensures files are available when the background job starts processing
@@ -471,7 +446,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
           Language:
         </label>
         <select
-          value={metadata.language || ""}
+          value={metadata.language}
           onChange={handleLanguageChange}
           className="mintgreen"
           style={{ width: "100%", maxWidth: "300px", padding: "8px" }}
@@ -560,23 +535,33 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
           <div className="form-grid">
             <div className="form-group">
               <label className="form-label form-label-required">New English Theme</label>
-              <input 
-                type="text" 
-                value={metadata.theme.english || ""} 
-                onChange={(event) => setMetadata({ ...metadata, theme: { ...metadata.theme, english: event.target.value } })} 
-                className="form-input" 
-                placeholder="Enter new theme in English" 
+              <input
+                type="text"
+                value={metadata.theme.english}
+                onChange={(event) =>
+                  setMetadata({
+                    ...metadata,
+                    theme: { ...metadata.theme, english: event.target.value },
+                  })
+                }
+                className="form-input"
+                placeholder="Enter new theme in English"
               />
             </div>
             {metadata.language !== "english" && (
               <div className="form-group">
                 <label className="form-label form-label-required">New {metadata.language.charAt(0).toUpperCase() + metadata.language.slice(1)} Theme</label>
-                <input 
-                  type="text" 
-                  value={metadata.theme.local || ""} 
-                  onChange={(event) => setMetadata({ ...metadata, theme: { ...metadata.theme, local: event.target.value } })} 
-                  className="form-input" 
-                  placeholder={`Enter new theme in ${metadata.language}`} 
+                <input
+                  type="text"
+                  value={metadata.theme.local}
+                  onChange={(event) =>
+                    setMetadata({
+                      ...metadata,
+                      theme: { ...metadata.theme, local: event.target.value },
+                    })
+                  }
+                  className="form-input"
+                  placeholder={`Enter new theme in ${metadata.language}`}
                 />
               </div>
             )}
@@ -594,7 +579,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
               name="titleEnglish"
               className="form-input"
               placeholder="Enter title in English"
-              value={metadata.title.english || ""}
+              value={metadata.title.english}
               onChange={(event) =>
                 setMetadata({ ...metadata, title: { ...metadata.title, english: event.target.value } })
               }
@@ -608,7 +593,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
                 name="titleLocal"
                 className="form-input"
                 placeholder={`Enter title in ${metadata.language}`}
-                value={metadata.title.local || ""}
+                value={metadata.title.local}
                 onChange={(event) =>
                   setMetadata({ ...metadata, title: { ...metadata.title, local: event.target.value } })
                 }
@@ -743,6 +728,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
       </div>
 
       <div className="form-actions">
+        {loadError && <div className="form-error">Failed to load content: {loadError}</div>}
         <button
           type="submit"
           disabled={isSaveButtonDisabled || Boolean(uploadError) || Boolean(answerUploadError)}

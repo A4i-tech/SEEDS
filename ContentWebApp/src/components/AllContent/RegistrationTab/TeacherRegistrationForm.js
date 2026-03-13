@@ -3,6 +3,7 @@ import "./css/TeacherRegistrationForm.css";
 import "../shared/buttons.css";
 import "../shared/cards.css";
 import "../shared/utilities.css";
+import { PhoneNumberInput } from "../shared/PhoneNumberInput";
 
 const TeacherRegistrationForm = ({ onRegister, message }) => {
   const [teacherPhone, setTeacherPhone] = useState("");
@@ -33,18 +34,11 @@ const TeacherRegistrationForm = ({ onRegister, message }) => {
       <label className="label" htmlFor="teacher-phone">
         Phone Number
       </label>
-      <input
+      <PhoneNumberInput
         id="teacher-phone"
-        type="tel"
         placeholder="Enter phone number"
         value={teacherPhone}
-        onChange={(e) => {
-          const value = e.target.value.replace(/\D/g, "");
-          if (value.length <= 10) {
-            setTeacherPhone(value);
-          }
-        }}
-        maxLength={10}
+        onChange={setTeacherPhone}
         className="input-field"
       />
       <label className="label" htmlFor="teacher-password">

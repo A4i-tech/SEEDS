@@ -3,7 +3,10 @@ import { transformQuizItem, extractQuestionText, extractQuestionOptions, getCorr
 
 const QuizDetails = ({ quiz }) => {
   const transformed = transformQuizItem(quiz);
-  const title = typeof transformed.title === "object" ? transformed.title.english : transformed.title;
+  const titleEnglish = transformed.title?.english ?? transformed.title;
+  const titleLocal = transformed.title?.local ?? quiz.localTitle;
+  const themeEnglish = transformed.theme?.english ?? transformed.theme;
+  const themeLocal = transformed.theme?.local ?? quiz.localTheme;
   const questions = transformed.questions || [];
 
   return (
@@ -13,7 +16,13 @@ const QuizDetails = ({ quiz }) => {
         <div>
           <div>Title</div>
           <p>
-            <b>{title}</b>
+            <b>{titleEnglish}</b>
+            {titleLocal && (
+              <>
+                <br />
+                <b>{titleLocal}</b>
+              </>
+            )}
           </p>
         </div>
 
@@ -25,19 +34,28 @@ const QuizDetails = ({ quiz }) => {
         </div>
 
         <div>
+          <div>Theme</div>
+          <p>
+            <b>{themeEnglish}</b>
+            {themeLocal && (
+              <>
+                <br />
+                <b>{themeLocal}</b>
+              </>
+            )}
+          </p>
+        </div>
+
+        <div>
           <label>Positive Marks</label>
           <br />
-          <p className="mintgreen" style={{ width: "100px", textAlign: "center" }}>
-            {transformed.positiveMarks ?? transformed.positiveMark}
-          </p>
+          <p className="mintgreen marks-badge">{transformed.positiveMarks}</p>
         </div>
 
         <div>
           <label>Negative Marks</label>
           <br />
-          <p className="mintgreen" style={{ width: "100px", textAlign: "center" }}>
-            {transformed.negativeMarks ?? transformed.negativeMark}
-          </p>
+          <p className="mintgreen marks-badge">{transformed.negativeMarks}</p>
         </div>
       </div>
       {questions.map((questionItem, index) => {
@@ -46,11 +64,11 @@ const QuizDetails = ({ quiz }) => {
         const correctIndex = getCorrectOptionIndex(questionItem, options);
         const optionLabels = ["A", "B", "C", "D"];
         return (
-          <div key={index} style={{ marginTop: "1%" }}>
+          <div key={index} className="quiz-question-block">
             <div>
               <label>Question {index + 1}</label>
               <br />
-              <p style={{ fontWeight: "700" }}>{questionText}</p>
+              <p className="quiz-question-text">{questionText}</p>
             </div>
             <div className="optionsDetailsGrid">
               {options.map((opt, optIdx) => (
