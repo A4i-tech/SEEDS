@@ -5,8 +5,7 @@
  */
 export const generateFilterOptions = (contentList) => {
   if (!Array.isArray(contentList)) {
-    console.warn("generateFilterOptions: contentList is not an array", contentList);
-    return [];
+    throw new Error("generateFilterOptions: contentList must be an array");
   }
   
   const languageSet = new Set();
@@ -46,8 +45,7 @@ export const generateFilterOptions = (contentList) => {
  */
 export const applyFilters = (allContent, selectedFilters, allOptions) => {
   if (!Array.isArray(allContent)) {
-    console.warn("applyFilters: allContent is not an array", allContent);
-    return [];
+    throw new Error("applyFilters: allContent must be an array");
   }
   
   if (!Array.isArray(selectedFilters)) {
