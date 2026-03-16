@@ -233,7 +233,7 @@ export const normalizeQuizForTable = (quiz) => {
  * @returns {Boolean} True if item is a quiz
  */
 export const isQuiz = (item) => {
-  return item && (item.type === "quiz" || item.id);
+  return Boolean(item && item.type === "quiz");
 };
 
 /**

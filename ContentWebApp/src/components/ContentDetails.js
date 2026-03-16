@@ -63,7 +63,7 @@ const ContentDetails = () => {
     );
   }
 
-  const contentType = typeof content.type === "string" ? content.type.toLowerCase() : (content.type || "");
+  const contentType = content.type.toLowerCase();
   const isQuiz = contentType === "quiz";
   const isProcessed = content.isProcessed !== false && (isQuiz ? (content.questions?.length > 0) : true);
 
@@ -100,7 +100,7 @@ const ContentDetails = () => {
       {isQuiz ? (
         <QuizDetails quiz={content} />
       ) : (
-        <StoryDetails type={content.type || contentType} story={content} />
+        <StoryDetails type={contentType} story={content} />
       )}
     </div>
   );

@@ -100,26 +100,35 @@ const AddQuiz = ({ quiz }) => {
   const createQuizJson = () => {
     const languageLower = (metadata.language || "").toLowerCase();
 
-    metadata["questions"] = inputFields.map((mcq) => mcq.question);
-    const options = inputFields.map((mcq) => [mcq.optionA, mcq.optionB, mcq.optionC, mcq.optionD]);
-    const correctAnswers = inputFields.map((mcq) => mcq.correctAnswer !== undefined ? mcq.correctAnswer : 0);
-    metadata["correctAnswers"] = correctAnswers;
-    metadata["options"] = options;
-    // Theme fields expected by backend quiz creation (mirror AddStory behavior)
-    metadata["theme"] = metadata.theme;
-    metadata["localTheme"] =
-      languageLower === "english" ? metadata.theme : metadata.localTheme;
+    const questions = inputFields.map((mcq) => mcq.question);
+    const options = inputFields.map((mcq) => [
+      mcq.optionA,
+      mcq.optionB,
+      mcq.optionC,
+      mcq.optionD,
+    ]);
+    const correctAnswers = inputFields.map((mcq) =>
+      mcq.correctAnswer !== undefined ? mcq.correctAnswer : 0
+    );
 
-    // Title fields expected by backend quiz creation (mirror AddStory behavior)
-    metadata["title"] = metadata.title;
-    metadata["localTitle"] =
-      languageLower === "english" ? metadata.title : metadata.localTitle;
-    metadata["type"] = "quiz";
-    if (quiz) {
-      metadata["id"] = quiz.id;
-    } else {
-      metadata["id"] = uuidv4();
-    }
+    const payload = {
+      ...metadata,
+      questions,
+      options,
+      correctAnswers,
+      // Theme fields expected by backend quiz creation (mirror AddStory behavior)
+      theme: metadata.theme,
+      localTheme:
+        languageLower === "english" ? metadata.theme : metadata.localTheme,
+      // Title fields expected by backend quiz creation (mirror AddStory behavior)
+      title: metadata.title,
+      localTitle:
+        languageLower === "english" ? metadata.title : metadata.localTitle,
+      type: "quiz",
+      id: quiz ? quiz.id : uuidv4(),
+    };
+
+    return payload;
   };
 
   const isValid = () => {
@@ -174,7 +183,7 @@ const AddQuiz = ({ quiz }) => {
     e.preventDefault();
     console.log("inputFields", inputFields);
     console.log("metadata", metadata);
-    createQuizJson();
+    const payload = createQuizJson();
 
     if (!isValid()) {
       return;
@@ -185,9 +194,9 @@ const AddQuiz = ({ quiz }) => {
       let result;
       if (isEditing) {
         // PATCH existing quiz — backend requires _id in the body
-        result = await contentService.updateContent({ ...metadata, _id: quiz.id });
+        result = await contentService.updateContent({ ...payload, _id: quiz.id });
       } else {
-        result = await contentService.createQuiz(metadata);
+        result = await contentService.createQuiz(payload);
       }
       console.log("Quiz saved successfully:", result);
       alert("Saved successfully.");

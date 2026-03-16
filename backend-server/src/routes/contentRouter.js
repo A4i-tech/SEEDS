@@ -461,6 +461,23 @@ router.get(
       }
     }
 
+    // When using cursor-based pagination, apply the cursor window at the DB level
+    // so that .limit() operates on a deterministic, correctly ordered slice.
+    let cursorCondition = null;
+    if (cursor) {
+      const [lastCreationTimeStr, lastId] = cursor.split("_");
+      const lastCreationTime = parseInt(lastCreationTimeStr, 10);
+      cursorCondition = {
+        $or: [
+          { creation_time: { $lt: lastCreationTime } },
+          { creation_time: lastCreationTime, _id: { $lt: lastId } },
+        ],
+      };
+    }
+
+    const applyCursorCondition = (baseQuery) =>
+      cursorCondition ? { $and: [baseQuery, cursorCondition] } : baseQuery;
+
     // Fetch content and quizzes separately
     // Fetch more items to account for merging and pagination
     const fetchLimit = limit * 2; // Fetch more to ensure we have enough after merging
@@ -470,13 +487,29 @@ router.get(
     let quizzes = [];
     if (shouldFetchContent && shouldFetchQuizzes) {
       [contents, quizzes] = await Promise.all([
-        ContentV3.find(contentQuery).limit(fetchLimit).lean().exec(),
-        QuizData.find(quizQuery).limit(fetchLimit).lean().exec(),
+        ContentV3.find(applyCursorCondition(contentQuery))
+          .sort({ creation_time: -1, _id: -1 })
+          .limit(fetchLimit)
+          .lean()
+          .exec(),
+        QuizData.find(applyCursorCondition(quizQuery))
+          .sort({ creation_time: -1, _id: -1 })
+          .limit(fetchLimit)
+          .lean()
+          .exec(),
       ]);
     } else if (shouldFetchContent) {
-      contents = await ContentV3.find(contentQuery).limit(fetchLimit).lean().exec();
+      contents = await ContentV3.find(applyCursorCondition(contentQuery))
+        .sort({ creation_time: -1, _id: -1 })
+        .limit(fetchLimit)
+        .lean()
+        .exec();
     } else if (shouldFetchQuizzes) {
-      quizzes = await QuizData.find(quizQuery).limit(fetchLimit).lean().exec();
+      quizzes = await QuizData.find(applyCursorCondition(quizQuery))
+        .sort({ creation_time: -1, _id: -1 })
+        .limit(fetchLimit)
+        .lean()
+        .exec();
     }
 
     // Transform content to ensure id field exists (standardize: always use id from _id)
@@ -501,24 +534,6 @@ router.get(
     // Merge content and quizzes, then sort once by creation_time and _id
     let allContent = [...transformedContents, ...transformedQuizzes];
     allContent.sort(sortByCreationTimeThenId);
-
-    // Apply cursor-based pagination if cursor is provided
-    if (cursor) {
-      const [lastCreationTimeStr, lastId] = cursor.split("_");
-      const lastCreationTime = parseInt(lastCreationTimeStr, 10);
-
-      // Keep only items after the cursor: (creation_time, _id) > (lastCreationTime, lastId)
-      // so we return the next page in the same order as the single sort above
-      allContent = allContent.filter((item) => {
-        const itemTime = item.creation_time;
-        if (itemTime < lastCreationTime) return true;   // older → include (we sort desc, so "after" cursor)
-        if (itemTime === lastCreationTime) {
-          const itemId = item._id.toString();
-          return itemId < lastId; // same time: include if _id is before lastId in sort order
-        }
-        return false;
-      });
-    }
 
     // Apply limit and check if there are more items
     const hasMore = allContent.length > limit;

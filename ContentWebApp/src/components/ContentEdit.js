@@ -25,7 +25,7 @@ const ContentEdit = () => {
       const contentFromServer = await contentById();
       if (contentFromServer) {
         setContent(contentFromServer);
-        setExperience(contentFromServer.type || type);
+        setExperience(contentFromServer.type);
       }
       setIsLoading(false);
     };
