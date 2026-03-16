@@ -50,6 +50,19 @@ const server = http.createServer((req, res) => {
 // Create WebSocket server
 const wss = new WebSocket.Server({ server });
 
+/**
+ * Extract connection ID from the request URL.
+ * Supports two conventions:
+ *   - Query param:  wss://host?id=confv2server    (ConferenceV2 control channel)
+ *   - Path segment: wss://host/websocket/{confId}  (Vonage audio connections)
+ */
+function extractConnectionId(reqUrl) {
+  const parsed = url.parse(reqUrl, true);
+  if (parsed.query.id) return parsed.query.id;
+  const match = parsed.pathname.match(/^\/websocket\/(.+)$/);
+  return match ? match[1] : null;
+}
+
 // Handle WebSocket connections
 wss.on("connection", (ws, req) => {
   const parameters = url.parse(req.url, true);
