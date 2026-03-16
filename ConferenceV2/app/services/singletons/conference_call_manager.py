@@ -51,6 +51,7 @@ class ConferenceCallManager:
             raise ValueError(f"No such conference has been created; ID: {conf_id}")
         
         conf.start_processing_conf_events_from_queue()
+        conf.start_remote_audio_relay()
         await conf.start_conference()
         
     def get_conference(self, conference_id: str) -> ConferenceCall | None:

@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 from dotenv import load_dotenv
 import websockets
@@ -86,6 +87,11 @@ class WebsocketService:
                                     conf_call=conf_call, 
                                     content_state=ContentStatus(websocket_message.message)
                                 ))
+                        elif websocket_message.type == MessageType.AUDIO_DATA:
+                            conf_call = conference_manager.get_conference(websocket_message.websocket_id)
+                            if conf_call and conf_call._remote_audio_queue is not None:
+                                audio_bytes = base64.b64decode(websocket_message.message)
+                                await conf_call._remote_audio_queue.put(audio_bytes)
                         elif websocket_message.type == MessageType.RECONNECT:
                             conf_call = conference_manager.get_conference(websocket_message.websocket_id)
                             if conf_call:

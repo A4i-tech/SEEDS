@@ -14,6 +14,7 @@ class MessageType(str, Enum):
     SEEK_AUDIO = "seek"
     DISCONNECT = "disconnect"
     RECONNECT = "reconnect"
+    AUDIO_DATA = "AUDIO_DATA"
 
 
 class WebsocketServiceMessage(BaseModel):

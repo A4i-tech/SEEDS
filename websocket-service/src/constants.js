@@ -12,6 +12,7 @@ const MessageType = {
   DISCONNECT: "disconnect",
   RECONNECT: "reconnect",
   PLAYBACK_STATE_UPDATES: "playback-state-update",
+  AUDIO_DATA: "AUDIO_DATA",
 };
 
 /**

@@ -72,6 +72,18 @@ wss.on("connection", (ws, req) => {
     controlService.handleControlConnection(ws);
   } else {
 
+    // Forward incoming audio to the ConferenceV2 control connection
+    ws.on("message", (data) => {
+      const controlConn = connectionManager.getConnection("confv2server");
+      if (controlConn && controlConn.ws.readyState === WebSocket.OPEN) {
+        controlConn.ws.send(JSON.stringify({
+          websocket_id: id,
+          type: "AUDIO_DATA",
+          message: Buffer.from(data).toString("base64"),
+        }));
+      }
+    });
+
     // Start a timer to close the connection after 1 hour
     const maxConnectionTime = MAXIMUM_CONFERENCE_TIME_ALLOWED_IN_MILLISECONDS;
     const connectionTimeout = setTimeout(() => {

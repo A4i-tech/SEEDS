@@ -22,6 +22,7 @@ class EndConferenceEvent(ConferenceEvent):
                                                  )
                                     )
         # self.event_queue_processing_task.cancel() # Not ending processing tasks because call disconnect status events will be received from vonage
+        self.conf_call.stop_remote_audio_relay()
         await self.conf_call.close_websocket()
         
         ws = WebsocketService()

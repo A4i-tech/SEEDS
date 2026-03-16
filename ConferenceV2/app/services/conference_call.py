@@ -16,6 +16,7 @@ from app.services.storage_manager import StorageManager
 from app.services.smartphone_connection_manager import SmartphoneConnectionManager
 from app.conf_logger import logger_instance
 from app.services.stream_system_messages import StreamSystemMessages
+from config import get_settings
 
 
 class ConferenceCall:
@@ -35,6 +36,10 @@ class ConferenceCall:
         
         self.event_queue = asyncio.Queue()
         self.event_queue_processing_task: asyncio.Task | None = None
+
+        # Remote audio relay (websocket-service → hold detection pipeline)
+        self._remote_audio_queue: asyncio.Queue | None = None
+        self._remote_audio_task: asyncio.Task | None = None
     
     async def stream_system_message(self, message: SystemAudioMessages) -> None:
         if self.state.is_running and self.communication_api.get_is_websocket_connected():
@@ -85,6 +90,51 @@ class ConferenceCall:
 
     def set_websocket(self, websocket: WebSocket | None) -> None:
         self._websocket = websocket
+
+    def start_remote_audio_relay(self) -> None:
+        """Start consuming audio from the remote relay queue (websocket-service)."""
+        settings = get_settings()
+        if not settings.AUDIO_ANALYSIS_ENABLED:
+            logger_instance.info(
+                f"AUDIO_ANALYSIS_ENABLED=false; skipping remote audio relay for {self.conf_id}"
+            )
+            return
+        self.stop_remote_audio_relay()
+        self._remote_audio_queue = asyncio.Queue()
+        self._remote_audio_task = asyncio.create_task(self._consume_remote_audio())
+
+    def stop_remote_audio_relay(self) -> None:
+        if self._remote_audio_task is not None:
+            self._remote_audio_task.cancel()
+            self._remote_audio_task = None
+        self._remote_audio_queue = None
+
+    async def _consume_remote_audio(self) -> None:
+        """Background task: pull audio bytes from the relay queue and run hold detection."""
+        from app.services.audio.hold_detector import HoldDetector
+        from app.services.audio.transcriber import AudioTranscriber
+        from app.services.audio.websocket_audio_processor import process_audio_message
+
+        transcriber: AudioTranscriber | None = None
+        hold_detector: HoldDetector | None = None
+        try:
+            transcriber = AudioTranscriber()
+            hold_detector = await HoldDetector.create()
+            logger_instance.info(f"Remote audio relay started for {self.conf_id}")
+        except Exception as e:
+            logger_instance.error(f"Failed to init audio pipeline for remote relay ({self.conf_id}): {e}")
+            return
+
+        try:
+            while True:
+                audio_bytes = await self._remote_audio_queue.get()
+                await process_audio_message(
+                    audio_bytes, self, transcriber, hold_detector, self.conf_id
+                )
+        except asyncio.CancelledError:
+            logger_instance.info(f"Remote audio relay stopped for {self.conf_id}")
+        except Exception as e:
+            logger_instance.exception(f"Remote audio relay error for {self.conf_id}: {e}")
 
     async def start_conference(self) -> None:
         # Start the call via communication API
