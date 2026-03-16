@@ -102,6 +102,7 @@ class ConferenceCall:
         self.stop_remote_audio_relay()
         self._remote_audio_queue = asyncio.Queue()
         self._remote_audio_task = asyncio.create_task(self._consume_remote_audio())
+        logger_instance.info(f"Remote audio relay queue created for {self.conf_id}")
 
     def stop_remote_audio_relay(self) -> None:
         if self._remote_audio_task is not None:
@@ -118,7 +119,9 @@ class ConferenceCall:
         transcriber: AudioTranscriber | None = None
         hold_detector: HoldDetector | None = None
         try:
+            logger_instance.info(f"Initializing remote audio pipeline for {self.conf_id}...")
             transcriber = AudioTranscriber()
+            logger_instance.info(f"AudioTranscriber initialized for remote relay ({self.conf_id})")
             hold_detector = await HoldDetector.create()
             logger_instance.info(f"Remote audio relay started for {self.conf_id}")
         except Exception as e:
