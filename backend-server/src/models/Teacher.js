@@ -14,6 +14,8 @@ const TeacherSchema = new mongoose.Schema(
 
 TeacherSchema.index({ schoolId: 1, phoneNumber: 1 }, { unique: true });
 
+TeacherSchema.index({ tenantId: 1, phoneNumber: 1 }, { unique: true });
+
 const Teacher = mongoose.model("Teacher", TeacherSchema);
 
 module.exports = Teacher;
