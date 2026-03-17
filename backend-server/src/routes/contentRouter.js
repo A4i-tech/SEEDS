@@ -493,10 +493,11 @@ router.get(
   "/sasToken",
   tryCatchWrapper(async (req, res) => {
     const containerName = "input-container";
-    const sasToken = await blobService.getUploadSASToken(
-      req.query.blobName,
-      containerName,
-    );
+    const blobName = req.query.blobName;
+    if (!blobName || !blobName.toLowerCase().endsWith(".mp3")) {
+      return res.status(400).json({ error: "Only .mp3 files are allowed." });
+    }
+    const sasToken = await blobService.getUploadSASToken(blobName, containerName);
     const container_client = blobService.getContainerClient(containerName);
 
     return res.json({
@@ -573,6 +574,13 @@ router.post(
   tryCatchWrapper(async (req, res) => {
     let content = new ContentV3(req.body);
     content.creation_time = Math.floor(Date.now() / 1000);
+
+    // Validate audioContent entries to ensure uploaded audio URLs reference .mp3 files.
+    for (const item of content.audioContent || []) {
+      if (item.audioUrl && !item.audioUrl.toLowerCase().endsWith(".mp3")) {
+        return res.status(400).json({ error: "Only .mp3 audio files are allowed." });
+      }
+    }
 
     const savedContent = await content.save();
 

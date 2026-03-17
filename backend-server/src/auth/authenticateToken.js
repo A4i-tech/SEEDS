@@ -32,6 +32,7 @@ function authenticateToken(req, res, next) {
     req.user = user;
     req.userId = user.id;
     req.userRole = user.role;
+    req.tenantId = user.tenantId || user.id;
     next();
   });
 }

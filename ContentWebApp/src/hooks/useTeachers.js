@@ -1,12 +1,14 @@
 import { useState, useCallback, useEffect } from "react";
 import { teacherService } from "../services/teacherService";
 import { useAuth } from "./useAuth";
+import { isValidPhoneNumber } from "../utils/phoneUtils";
+import { useFlashMessage } from "./useFlashMessage";
 
 export const useTeachers = (activeTab) => {
   const [teachers, setTeachers] = useState([]);
   const [selectedTeacherId, setSelectedTeacherId] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [message, setMessage] = useState("");
+  const { message, messageType, flashMessage } = useFlashMessage();
 
   const { getAuthHeaders } = useAuth();
 
@@ -61,32 +63,27 @@ export const useTeachers = (activeTab) => {
   const registerTeacher = useCallback(
     async (phoneNumber, password, name) => {
       if (!phoneNumber || !password || !name) {
-        setMessage("Phone number, password, and name are required.");
+        flashMessage("Phone number, password, and name are required.", "error");
         return false;
       }
 
-      if (phoneNumber.length !== 10) {
-        setMessage("Phone number must be exactly 10 digits.");
+      if (!isValidPhoneNumber(phoneNumber)) {
+        flashMessage("Phone number must be exactly 10 digits.", "error");
         return false;
       }
 
       try {
         await teacherService.registerTeacher(phoneNumber, password, name, getAuthHeaders());
-
-        setMessage("Teacher registered successfully!");
+        flashMessage("Teacher registered successfully!", "success");
         await fetchTeachers();
-
-        // Clear message after 3 seconds
-        setTimeout(() => setMessage(""), 3000);
         return true;
       } catch (error) {
         console.error("Teacher registration error:", error);
-        setMessage(error.message || "Failed to register teacher.");
-        setTimeout(() => setMessage(""), 3000);
+        flashMessage(error.message || "Failed to register teacher.", "error");
         return false;
       }
     },
-    [getAuthHeaders, fetchTeachers]
+    [getAuthHeaders, fetchTeachers, flashMessage]
   );
 
   /**
@@ -154,11 +151,10 @@ export const useTeachers = (activeTab) => {
           name: (s.name || "").trim(),
           phoneNumber: (s.phoneNumber || "").trim(),
         }))
-        .filter((s) => s.name && s.phoneNumber);
+        .filter((s) => s.name && s.phoneNumber && isValidPhoneNumber(s.phoneNumber));
 
       if (payloadStudents.length === 0) {
-        setMessage("Please enter at least one student with name and phone number.");
-        setTimeout(() => setMessage(""), 3000);
+        flashMessage("Please enter at least one student with name and valid phone number.", "error");
         return;
       }
 
@@ -176,17 +172,15 @@ export const useTeachers = (activeTab) => {
           newStudents: [{ name: "", phoneNumber: "" }],
         });
 
-        setMessage("Students added successfully.");
-        setTimeout(() => setMessage(""), 3000);
+        flashMessage("Students added successfully.", "success");
       } catch (error) {
         console.error("Add students error:", error);
-        setMessage(error.message || "Failed to add students.");
-        setTimeout(() => setMessage(""), 3000);
+        flashMessage(error.message || "Failed to add students.", "error");
       } finally {
         updateTeacherState(teacher._id, { submitting: false });
       }
     },
-    [getAuthHeaders, updateTeacherState]
+    [getAuthHeaders, updateTeacherState, flashMessage]
   );
 
   /**
@@ -205,10 +199,10 @@ export const useTeachers = (activeTab) => {
           students: (teacher.students || []).filter((st) => st.phoneNumber !== studentPhoneNumber),
         });
       } catch (error) {
-        console.error("Remove student error:", error);
+        flashMessage(error.message || "Failed to remove student.", "error");
       }
     },
-    [getAuthHeaders, updateTeacherState]
+    [getAuthHeaders, updateTeacherState, flashMessage]
   );
 
   /**
@@ -223,12 +217,12 @@ export const useTeachers = (activeTab) => {
     setSelectedTeacherId,
     isLoading,
     message,
+    messageType,
     registerTeacher,
     addStudentRow,
     removeStudentRow,
     setNewStudentValue,
     submitNewStudents,
     removeStudent,
-    setMessage,
   };
 };

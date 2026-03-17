@@ -2,9 +2,9 @@
 const { STATUS } = require("../config/constants");
 const express = require("express");
 const Teacher = require("../models/Teacher.js");
-const Student = require("../models/Student.js");
 const authenticateToken = require("../auth/authenticateToken");
 const teacherAuthProvider = require("../auth/teacher/teacherAuthProviderMiddleware");
+const teacherController = require("../controllers/teacher.controller");
 /**
  * @swagger
  * tags:
@@ -60,35 +60,7 @@ const router = express.Router();
  *       401:
  *         description: Unauthorized - invalid or missing token
  */
-router.post("/add-students", authenticateToken, async (req, res) => {
-  if (!Array.isArray(req.body.students) || req.body.students.length === 0) {
-    return res.sendStatus(STATUS.BAD_REQUEST);
-  }
-  const teacher = await Teacher.findOne({ phoneNumber: req.body.phoneNumber });
-  if (!teacher) return res.sendStatus(STATUS.NOT_FOUND);
-  let results = [];
-
-  for (let i = 0; i < req.body.students.length; i++) {
-    const studentData = req.body.students[i];
-    if (!studentData.name || !studentData.phoneNumber) {
-      continue;
-    }
-    const studentExists = await Student.findOne({
-      phoneNumber: studentData.phoneNumber,
-    });
-    if (studentExists) {
-      continue;
-    }
-    const student = await Student.create(req.body.students[i]);
-    const studentId = student._id.toString();
-    await Teacher.updateOne({ _id: teacher._id }, { $addToSet: { studentId: studentId } });
-    results.push({
-      name: student.name,
-      phoneNumber: student.phoneNumber,
-    });
-  }
-  return res.status(STATUS.OK).json(results);
-});
+router.post("/add-students", authenticateToken, teacherController.addStudents);
 
 /**
  *  @swagger

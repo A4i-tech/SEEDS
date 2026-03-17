@@ -13,6 +13,7 @@ const TeacherDetails = ({
   onSetNewStudentValue,
   onSubmitNewStudents,
   onRemoveStudent,
+  onUpdateStudent = () => {},
 }) => {
   if (!teacher) {
     return (
@@ -31,7 +32,9 @@ const TeacherDetails = ({
 
       <StudentsTable
         students={teacher.students || []}
+        teacher={teacher}
         onRemoveStudent={(studentPhone) => onRemoveStudent(teacher, studentPhone)}
+        onUpdateStudent={onUpdateStudent}
       />
 
       <AddStudentsForm

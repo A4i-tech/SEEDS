@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from "uuid";
 import { SEEDS_URL, AUDIO_BASE_URL } from "../Constants";
 import { getAuthHeaders } from "../utils/authHelpers";
 import { useAuth } from "../hooks/useAuth";
+import { isMp3File } from "../utils/fileValidators";
 
 const AddStory = ({ content, contentType }) => {
   const { getCurrentUser } = useAuth();
@@ -189,6 +190,8 @@ const AddStory = ({ content, contentType }) => {
 
   const [file, setFile] = useState();
   const [answerFile, setAnswerFile] = useState();
+  const [uploadError, setUploadError] = useState("");
+  const [answerUploadError, setAnswerUploadError] = useState("");
   const navigate = useNavigate();
 
   const isValid = () => {
@@ -404,17 +407,41 @@ const AddStory = ({ content, contentType }) => {
   };
 
   const handleUploadFile = (event) => {
-    //setMetadata({...metadata, audioFile: event.target.value})
-    // cloneElement.log(typeof(event.target.files[0]))
-    setMetadata({ ...metadata, audioFile: event.target.value });
-    setFile(event.target.files[0]);
+    const selected = event.target.files && event.target.files[0];
+    if (!selected) {
+      setMetadata({ ...metadata, audioFile: "" });
+      setFile(null);
+      setUploadError("");
+      return;
+    }
+    if (!isMp3File(selected)) {
+      setUploadError("Only .mp3 files are allowed.");
+      setMetadata({ ...metadata, audioFile: "" });
+      setFile(null);
+      return;
+    }
+    setUploadError("");
+    setMetadata({ ...metadata, audioFile: selected.name });
+    setFile(selected);
   };
 
   const handleUploadAnswerFile = (event) => {
-    //setMetadata({...metadata, audioFile: event.target.value})
-    // cloneElement.log(typeof(event.target.files[0]))
-    setMetadata({ ...metadata, answerAudioFile: event.target.value });
-    setAnswerFile(event.target.files[0]);
+    const selected = event.target.files && event.target.files[0];
+    if (!selected) {
+      setMetadata({ ...metadata, answerAudioFile: "" });
+      setAnswerFile(null);
+      setAnswerUploadError("");
+      return;
+    }
+    if (!isMp3File(selected)) {
+      setAnswerUploadError("Only .mp3 files are allowed.");
+      setMetadata({ ...metadata, answerAudioFile: "" });
+      setAnswerFile(null);
+      return;
+    }
+    setAnswerUploadError("");
+    setMetadata({ ...metadata, answerAudioFile: selected.name });
+    setAnswerFile(selected);
   };
 
   return (
@@ -434,6 +461,7 @@ const AddStory = ({ content, contentType }) => {
           <option value="kannada">Kannada</option>
           <option value="hindi">Hindi</option>
           <option value="marathi">Marathi</option>
+          <option value="odia">Odia</option>
           <option value="english">English</option>
           <option value="tamil">Tamil</option>
           <option value="bengali">Bengali</option>
@@ -748,12 +776,15 @@ const AddStory = ({ content, contentType }) => {
         <input
           type="file"
           name="audioFile"
+          accept="audio/mpeg,audio/mp3,.mp3"
           className="mintgreen"
           placeholder="Add Audio File"
-          value={metadata.audioFile || ""}
           onChange={(event) => handleUploadFile(event)}
           style={{ width: "100%", maxWidth: "500px", padding: "8px" }}
         />
+        {uploadError && (
+          <div style={{ color: "red", marginTop: "8px" }}>{uploadError}</div>
+        )}
       </div>
 
       {contentType === "Riddle" && (
@@ -766,12 +797,17 @@ const AddStory = ({ content, contentType }) => {
           <input
             type="file"
             name="audioFile"
+            accept="audio/mpeg,audio/mp3,.mp3"
             className="mintgreen"
             placeholder="Add Answer Audio File"
-            value={metadata.answerAudioFile || ""}
             onChange={(event) => handleUploadAnswerFile(event)}
             style={{ width: "100%", maxWidth: "500px", padding: "8px" }}
           />
+          {answerUploadError && (
+            <div style={{ color: "red", marginTop: "8px" }}>
+              {answerUploadError}
+            </div>
+          )}
         </div>
       )}
 
@@ -830,7 +866,9 @@ const AddStory = ({ content, contentType }) => {
 
       <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
         <input
-          disabled={isSaveButtonDisabled}
+          disabled={
+            isSaveButtonDisabled || Boolean(uploadError) || Boolean(answerUploadError)
+          }
           type="submit"
           className="btn"
           style={{

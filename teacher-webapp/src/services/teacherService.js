@@ -1,5 +1,5 @@
 import { API_ENDPOINTS } from "../constants/apiEndpoints";
-import { getAuthHeaders } from "../utils/authHelpers";
+import axiosInstance from "./axiosInstance";
 
 /**
  * Fetch current teacher information from /teacher/me
@@ -8,16 +8,8 @@ import { getAuthHeaders } from "../utils/authHelpers";
  * @throws {Error} If API call fails
  */
 export const getCurrentTeacher = async () => {
-  const response = await fetch(API_ENDPOINTS.GET_TEACHER_ME, {
-    method: "GET",
-    headers: getAuthHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error("Failed to fetch teacher information");
-  }
-
-  return response.json();
+  const response = await axiosInstance.get(API_ENDPOINTS.GET_TEACHER_ME);
+  return response.data;
 };
 
 /**
@@ -28,20 +20,8 @@ export const getCurrentTeacher = async () => {
  * @throws {Error} If API call fails
  */
 export const getTeacherStudents = async (phoneNumber) => {
-  const token = localStorage.getItem("authToken");
-
-  const response = await fetch(API_ENDPOINTS.GET_TEACHER_STUDENTS, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify({ phoneNumber }),
+  const response = await axiosInstance.post(API_ENDPOINTS.GET_TEACHER_STUDENTS, {
+    phoneNumber,
   });
-
-  if (!response.ok) {
-    throw new Error("Failed to fetch teacher students");
-  }
-
-  return response.json();
+  return response.data;
 };
