@@ -8,6 +8,7 @@ export const useTeachers = (activeTab) => {
   const [teachers, setTeachers] = useState([]);
   const [selectedTeacherId, setSelectedTeacherId] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [pendingDuplicates, setPendingDuplicates] = useState(null);
   const { message, messageType, flashMessage } = useFlashMessage();
 
   const { getAuthHeaders } = useAuth();
@@ -168,7 +169,23 @@ export const useTeachers = (activeTab) => {
 
         const newStudents = result.students || [];
 
-        flashMessage("Students added successfully.", "success");
+        // Append successfully added students to local list and reset form
+        if (newStudents.length > 0) {
+          updateTeacherState(teacher._id, {
+            students: [...(teacher.students || []), ...newStudents],
+            newStudents: [{ name: "", phoneNumber: "" }],
+          });
+        }
+
+        // Show duplicate modal when backend reports name conflicts
+        if (result.duplicates && result.duplicates.length > 0) {
+          setPendingDuplicates({ duplicates: result.duplicates, teacher });
+        } else {
+          updateTeacherState(teacher._id, {
+            newStudents: [{ name: "", phoneNumber: "" }],
+          });
+          flashMessage("Students added successfully.", "success");
+        }
       } catch (error) {
         console.error("Add students error:", error);
         flashMessage(error.message || "Failed to add students.", "error");
@@ -177,6 +194,35 @@ export const useTeachers = (activeTab) => {
       }
     },
     [getAuthHeaders, updateTeacherState, flashMessage]
+  );
+
+  /**
+   * Update student name/phone
+   */
+  const updateStudent = useCallback(
+    async (teacher, currentPhoneNumber, name, studentPhoneNumber) => {
+      try {
+        const updated = await teacherService.updateStudent(
+          teacher.phoneNumber,
+          currentPhoneNumber,
+          name,
+          studentPhoneNumber,
+          getAuthHeaders()
+        );
+
+        updateTeacherState(teacher._id, {
+          students: (teacher.students || []).map((st) =>
+            st.phoneNumber === currentPhoneNumber
+              ? { ...st, name: updated.name, phoneNumber: updated.phoneNumber }
+              : st
+          ),
+        });
+        return true;
+      } catch (error) {
+        return error.message || "Failed to update student.";
+      }
+    },
+    [getAuthHeaders, updateTeacherState]
   );
 
   /**
@@ -202,6 +248,54 @@ export const useTeachers = (activeTab) => {
   );
 
   /**
+   * Resolve duplicate students from the modal.
+   * Re-submits with updateName flag for students the user chose to update.
+   */
+  const resolveDuplicates = useCallback(
+    async (resolution, pending) => {
+      const teacher = pending?.teacher;
+      if (!teacher || !resolution?.length) {
+        setPendingDuplicates(null);
+        return;
+      }
+
+      const resubmit = resolution.map((r) => ({
+        phoneNumber: r.phoneNumber,
+        name: r.keepName ? r.existingName : r.submittedName,
+        updateName: !r.keepName,
+      }));
+
+      try {
+        const result = await teacherService.addStudents(
+          teacher.phoneNumber,
+          resubmit,
+          getAuthHeaders()
+        );
+
+        const newStudents = result.students || [];
+        if (newStudents.length > 0) {
+          updateTeacherState(teacher._id, {
+            students: [...(teacher.students || []), ...newStudents],
+          });
+        }
+        flashMessage("Students updated successfully.", "success");
+      } catch (error) {
+        flashMessage(error.message || "Failed to resolve duplicates.", "error");
+      } finally {
+        setPendingDuplicates(null);
+      }
+    },
+    [getAuthHeaders, updateTeacherState, flashMessage]
+  );
+
+  /**
+   * Dismiss the duplicate modal without resolving
+   */
+  const dismissDuplicateModal = useCallback(() => {
+    setPendingDuplicates(null);
+  }, []);
+
+  /**
    * Get selected teacher object
    */
   const selectedTeacher = teachers.find((t) => String(t._id) === String(selectedTeacherId));
@@ -220,5 +314,9 @@ export const useTeachers = (activeTab) => {
     setNewStudentValue,
     submitNewStudents,
     removeStudent,
+    updateStudent,
+    pendingDuplicates,
+    resolveDuplicates,
+    dismissDuplicateModal,
   };
 };
