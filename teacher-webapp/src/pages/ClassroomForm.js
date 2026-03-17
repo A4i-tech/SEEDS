@@ -24,11 +24,7 @@ import {
   School as SchoolIcon,
 } from "@mui/icons-material";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-  getClassroomById,
-  createClassroom,
-  updateClassroom,
-} from "../services/classroomService";
+import { getClassroomById, createClassroom, updateClassroom } from "../services/classroomService";
 import { getTeacherStudents } from "../services/teacherService";
 import { useAuth } from "../hooks/useAuth";
 import { showToast } from "../utils/toast";
@@ -102,7 +98,7 @@ const ClassroomForm = () => {
     if (isEditMode) {
       fetchClassroom();
     }
-  }, [isEditMode, fetchClassroom, fetchTeacherStudents]);
+  }, [classroomId, isEditMode, fetchClassroom, fetchTeacherStudents]);
 
   const validateForm = () => {
     const errors = {};
@@ -210,9 +206,12 @@ const ClassroomForm = () => {
     navigate("/classrooms");
   };
 
-  const getStudentByPhone = useCallback((phoneNumber) => {
-    return teacherStudentsList.find((s) => s.phoneNumber === phoneNumber);
-  }, [teacherStudentsList]);
+  const getStudentByPhone = useCallback(
+    (phoneNumber) => {
+      return teacherStudentsList.find((s) => s.phoneNumber === phoneNumber);
+    },
+    [teacherStudentsList]
+  );
 
   if (loading || isLoadingStudents) {
     return <LoadingSpinner />;
@@ -221,11 +220,7 @@ const ClassroomForm = () => {
   return (
     <PageContainer>
       <Box sx={{ mb: 3 }}>
-        <Button
-          startIcon={<ArrowBackIcon />}
-          onClick={handleBack}
-          sx={{ mb: 2 }}
-        >
+        <Button startIcon={<ArrowBackIcon />} onClick={handleBack} sx={{ mb: 2 }}>
           Back to Classrooms
         </Button>
         <Typography variant="h4" component="h1" sx={{ fontWeight: 600 }}>
@@ -306,9 +301,7 @@ const ClassroomForm = () => {
                   />
                 )}
                 value={null}
-                isOptionEqualToValue={(option, value) =>
-                  option.phoneNumber === value?.phoneNumber
-                }
+                isOptionEqualToValue={(option, value) => option.phoneNumber === value?.phoneNumber}
               />
             </Box>
 
@@ -421,12 +414,7 @@ const ClassroomForm = () => {
           <Button variant="outlined" onClick={handleBack}>
             Cancel
           </Button>
-          <Button
-            type="submit"
-            variant="contained"
-            color="primary"
-            disabled={saving}
-          >
+          <Button type="submit" variant="contained" color="primary" disabled={saving}>
             {saving ? "Saving..." : isEditMode ? "Update Classroom" : "Create Classroom"}
           </Button>
         </Box>
