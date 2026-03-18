@@ -4,7 +4,6 @@ import "../shared/buttons.css";
 import "../shared/cards.css";
 import "../shared/utilities.css";
 import { PhoneNumberInput } from "../shared/PhoneNumberInput";
-import { isValidPhoneNumber } from "../../../utils/phoneUtils";
 
 const TeacherRegistrationForm = ({ onRegister, message, messageType }) => {
   const [teacherPhone, setTeacherPhone] = useState("");
@@ -14,11 +13,6 @@ const TeacherRegistrationForm = ({ onRegister, message, messageType }) => {
   const isError = Boolean(submitError) || messageType === "error";
 
   const handleSubmit = async () => {
-    setSubmitError("");
-    if (!isValidPhoneNumber(teacherPhone)) {
-      setSubmitError("Enter exactly 10 digits.");
-      return;
-    }
     const success = await onRegister(teacherPhone, teacherPassword, teacherName);
     if (success) {
       setTeacherPhone("");

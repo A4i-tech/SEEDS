@@ -147,6 +147,21 @@
   flex-wrap: wrap;
 }
 
+/* Quiz details badges */
+.marks-badge {
+  width: 100px;
+  text-align: center;
+  display: inline-block;
+}
+
+.quiz-question-block {
+  margin-top: 1%;
+}
+
+.quiz-question-text {
+  font-weight: 700;
+}
+
 @media (min-width: 768px) {
   .button-group {
     gap: 10px;
