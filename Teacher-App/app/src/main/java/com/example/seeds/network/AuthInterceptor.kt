@@ -20,7 +20,7 @@ class AuthInterceptor(private val context: Context) : Interceptor {
         val response = chain.proceed(chain.request())
 
         // Check the response code
-         if (response.code() == FORBIDDEN_CODE) {
+         if (response.code == FORBIDDEN_CODE) {
             // If we receive a 403 Forbidden response, clear the session...
             sessionManager.clearSession()
 

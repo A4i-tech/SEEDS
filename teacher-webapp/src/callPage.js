@@ -20,15 +20,12 @@ import {
   muteAll,
   unmuteAll,
   playAudio,
-  pauseAudio,
   addParticipant,
   removeParticipant,
-  resumeAudio,
-  seekAudio,
 } from "./services/apiService";
 import { AddParticipantModal } from "./components/AddParticipantModal";
-import { AudioContentModal } from "./components/AudioContentModal";
-import { SeekControls } from "./components/SeekControls";
+import ContentDrawer from "./components/ContentDrawer";
+import ConferenceAudioPlayer from "./components/audio/ConferenceAudioPlayer";
 import { ParticipantList } from "./components/participants/ParticipantList";
 import { ControlButtonGroup } from "./components/controls/ControlButtonGroup";
 import { PageContainer } from "./components/layout/PageContainer";
@@ -56,8 +53,8 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
   const [hasSunkConf, setHasSunkConf] = useState(false);
   const [isLoadingMusic, setIsLoadingMusic] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isAudioModalOpen, setIsAudioModalOpen] = useState(false);
-  const [seekDirection, setSeekDirection] = useState(null);
+  const [isContentDrawerOpen, setIsContentDrawerOpen] = useState(false);
+  const [currentTrack, setCurrentTrack] = useState(null);
   const [audioSelectionError, setAudioSelectionError] = useState(null);
   const [isMutingAll, setIsMutingAll] = useState(false);
   const [isUnmutingAll, setIsUnmutingAll] = useState(false);
@@ -171,33 +168,12 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
     }
   };
 
-  const handleMusicControl = async () => {
-    if (audioContentState.status === "Playing") {
-      setIsLoadingMusic(true);
-      try {
-        await pauseAudio(confId);
-      } finally {
-        setIsLoadingMusic(false);
-      }
-      return;
-    }
-
-    if (audioContentState.status === "Paused") {
-      setIsLoadingMusic(true);
-      try {
-        await resumeAudio(confId);
-      } finally {
-        setIsLoadingMusic(false);
-      }
-      return;
-    }
-
+  const handleMusicControl = () => {
     setAudioSelectionError(null);
-    setIsAudioModalOpen(true);
+    setIsContentDrawerOpen(true);
   };
 
   const handlePlaySelectedTrack = async (contentData) => {
-    // Support both old API (just URL string) and new API (content object)
     const trackUrl = typeof contentData === "string" ? contentData : contentData?.url;
 
     if (!confId) {
@@ -210,6 +186,10 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
       return;
     }
 
+    if (typeof contentData === "object") {
+      setCurrentTrack(contentData);
+    }
+
     setIsLoadingMusic(true);
     setAudioSelectionError(null);
     try {
@@ -219,7 +199,7 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
       setAudioSelectionError("Unable to start the selected track.");
     } finally {
       setIsLoadingMusic(false);
-      setIsAudioModalOpen(false);
+      setIsContentDrawerOpen(false);
     }
   };
 
@@ -236,22 +216,8 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
     setReconnectingIds((prev) => prev.filter((id) => id !== phoneNumber));
   };
 
-  const handleSeek = async (deltaSeconds) => {
-    if (!confId) return;
-    const direction = deltaSeconds < 0 ? "backward" : "forward";
-    setSeekDirection(direction);
-    try {
-      await seekAudio(confId, deltaSeconds);
-    } catch (error) {
-      console.error("Error seeking audio:", error);
-    } finally {
-      setSeekDirection(null);
-    }
-  };
-
   const handleOpenModal = () => setIsModalOpen(true);
   const handleCloseModal = () => setIsModalOpen(false);
-  const handleCloseAudioModal = () => setIsAudioModalOpen(false);
 
   const handleAddParticipants = async (selectedPhoneNumbers) => {
     if (!confId) {
@@ -393,10 +359,6 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
   });
 
   const isLoading = (phoneNumber) => phoneNumber && loadingIds.includes(phoneNumber);
-  const isPlayingAudio = audioContentState.status === "Playing";
-  const isPausedAudio = audioContentState.status === "Paused";
-  const isStartingAudio = audioContentState.status === "Starting";
-  const canSeekAudio = isConfCallRunning && !isStartingAudio && Boolean(confId);
 
   const canReconnect = (user) => user?.call_status === "disconnected" && isConfCallRunning;
   const isReconnecting = (phoneNumber) => phoneNumber && reconnectingIds.includes(phoneNumber);
@@ -404,10 +366,15 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
 
   useEffect(() => {
     if (hasSunkConf) {
-      // Navigate back to classrooms list after sinking conference
       navigate("/classrooms");
     }
   }, [hasSunkConf, navigate]);
+
+  useEffect(() => {
+    if (audioContentState.status === "Stopped") {
+      setCurrentTrack(null);
+    }
+  }, [audioContentState.status]);
 
   return (
     <PageContainer maxWidth="md">
@@ -436,10 +403,6 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
           isConfCallRunning={isConfCallRunning}
           isLoadingCall={isLoadingCall}
           isSinkingConf={isSinkingConf}
-          isLoadingMusic={isLoadingMusic}
-          isPlayingAudio={isPlayingAudio}
-          isPausedAudio={isPausedAudio}
-          isStartingAudio={isStartingAudio}
           isMutingAll={isMutingAll}
           isUnmutingAll={isUnmutingAll}
           activeStudents={activeStudents}
@@ -452,22 +415,18 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
           onUnmuteAll={handleUnmuteAll}
         />
 
-        {/* Seek Controls */}
-        <Box
-          sx={{
-            display: "flex",
-            gap: 2,
-            justifyContent: "center",
-            mt: 2,
-          }}
-        >
-          <SeekControls
-            disabled={!canSeekAudio}
-            seekingDirection={seekDirection}
-            onSeekBackward={() => handleSeek(-10)}
-            onSeekForward={() => handleSeek(10)}
+        {/* Conference Audio Player */}
+        {(currentTrack || ["Playing", "Paused", "Starting"].includes(audioContentState.status)) && (
+          <ConferenceAudioPlayer
+            trackTitle={currentTrack?.title}
+            trackLocal={currentTrack?.trackLocal}
+            trackType={currentTrack?.type}
+            durationStr={currentTrack?.durationStr}
+            audioContentState={audioContentState}
+            confId={confId}
+            isLoadingMusic={isLoadingMusic}
           />
-        </Box>
+        )}
 
         {/* Error Message */}
         {audioSelectionError && (
@@ -486,10 +445,12 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
         availableStudents={availableStudents}
         onSubmit={handleAddParticipants}
       />
-      <AudioContentModal
-        open={isAudioModalOpen}
-        onClose={handleCloseAudioModal}
-        onSubmit={handlePlaySelectedTrack}
+      <ContentDrawer
+        open={isContentDrawerOpen}
+        onClose={() => setIsContentDrawerOpen(false)}
+        onPlay={handlePlaySelectedTrack}
+        audioContentState={audioContentState}
+        conferenceActive={isConfCallRunning}
       />
 
       <Dialog

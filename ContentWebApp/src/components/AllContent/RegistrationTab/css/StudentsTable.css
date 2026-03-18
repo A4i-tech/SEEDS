@@ -2,3 +2,73 @@
 .students-section {
   margin-top: 12px;
 }
+
+.students-actions-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.students-edit-btn {
+  margin-right: 0;
+}
+
+/* Edit student modal */
+.edit-student-modal {
+  width: min(400px, 100%);
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.2);
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+}
+
+.edit-student-title {
+  margin: 0;
+  padding: 20px 20px 12px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.edit-student-error {
+  margin: 0 20px;
+  padding: 12px 14px;
+  background-color: #fef2f2;
+  color: #b91c1c;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 8px;
+  border: 1px solid #fecaca;
+}
+
+.edit-student-form {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.edit-student-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #334155;
+}
+
+.edit-student-input {
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.edit-student-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}

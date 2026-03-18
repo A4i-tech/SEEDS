@@ -1,13 +1,5 @@
-import React, { useState, useEffect } from "react";
-import {
-  Box,
-  Card,
-  CardContent,
-  Typography,
-  Button,
-  Alert,
-  CircularProgress,
-} from "@mui/material";
+import React, { useState, useEffect, useCallback } from "react";
+import { Box, Card, CardContent, Typography, Button, Alert, CircularProgress } from "@mui/material";
 import {
   ArrowBack as ArrowBackIcon,
   MenuBook as MenuBookIcon,
@@ -30,22 +22,19 @@ const ContentDetails = () => {
   const [loading, setLoading] = useState(true);
   const [loadingAudio, setLoadingAudio] = useState(false);
   const [error, setError] = useState(null);
-  
+
   // Content list and navigation state (passed from ContentPlayback)
   const [contentList, setContentList] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(-1);
 
   useEffect(() => {
-    // Get content list and current index from location state if available
     if (location.state?.contentList && location.state?.currentIndex !== undefined) {
       setContentList(location.state.contentList);
       setCurrentIndex(location.state.currentIndex);
     }
+  }, [location.state]);
 
-    fetchContent();
-  }, [contentId]);
-
-  const fetchContent = async () => {
+  const fetchContent = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -68,7 +57,11 @@ const ContentDetails = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [contentId]);
+
+  useEffect(() => {
+    fetchContent();
+  }, [fetchContent]);
 
   const getAudioSource = (contentData) => {
     // Priority: audioContent[0] > title.audioUrl > theme.audioUrl
@@ -115,7 +108,7 @@ const ContentDetails = () => {
 
     const nextIndex = currentIndex + 1;
     const nextContent = contentList[nextIndex];
-    
+
     // Navigate to next content
     navigate(ROUTES.CONTENT_DETAILS(nextContent._id), {
       state: {
@@ -127,7 +120,7 @@ const ContentDetails = () => {
 
   const getContentIcon = () => {
     if (!content) return <MenuBookIcon />;
-    
+
     const type = content.type?.toLowerCase() || "";
     if (type === "song" || type === "rhyme" || type === "poem") {
       return <LibraryMusicIcon />;

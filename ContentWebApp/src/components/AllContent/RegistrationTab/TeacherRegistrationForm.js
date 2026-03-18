@@ -5,10 +5,13 @@ import "../shared/cards.css";
 import "../shared/utilities.css";
 import { PhoneNumberInput } from "../shared/PhoneNumberInput";
 
-const TeacherRegistrationForm = ({ onRegister, message }) => {
+const TeacherRegistrationForm = ({ onRegister, message, messageType }) => {
   const [teacherPhone, setTeacherPhone] = useState("");
   const [teacherPassword, setTeacherPassword] = useState("");
   const [teacherName, setTeacherName] = useState("");
+  const [submitError, setSubmitError] = useState("");
+  const isError = Boolean(submitError) || messageType === "error";
+
   const handleSubmit = async () => {
     const success = await onRegister(teacherPhone, teacherPassword, teacherName);
     if (success) {
@@ -55,7 +58,11 @@ const TeacherRegistrationForm = ({ onRegister, message }) => {
       <button type="button" className="primary-button full-width-button" onClick={handleSubmit}>
         Save Teacher
       </button>
-      {message && <p className="success-message">{message}</p>}
+      {(submitError || message) && (
+        <p className={isError ? "error-message" : "success-message"}>
+          {submitError || message}
+        </p>
+      )}
     </div>
   );
 };
