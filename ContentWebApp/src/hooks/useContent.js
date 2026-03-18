@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
 import { contentService } from "../services/contentService";
-import { useAuth } from "./useAuth";
 
 const PAGE_SIZE = 50;
 
@@ -15,29 +14,16 @@ export const useContent = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isFiltered, setIsFiltered] = useState(false);
 
-  const { getAuthHeaders } = useAuth();
-
   /**
    * Fetch content with optional cursor for pagination
+   * Error handling is delegated to contentService
    */
   const fetchContent = useCallback(
     async (cursor = null, signal = null) => {
-      try {
-        const { data, pagination } = await contentService.getContent(
-          cursor,
-          getAuthHeaders(),
-          PAGE_SIZE,
-          signal
-        );
-        return { data, pagination };
-      } catch (error) {
-        if (error.name !== "AbortError") {
-          console.error("Error fetching content:", error);
-        }
-        throw error;
-      }
+      const { data, pagination } = await contentService.getContent(cursor, PAGE_SIZE, signal);
+      return { data, pagination };
     },
-    [getAuthHeaders]
+    [],
   );
 
   /**
@@ -126,20 +112,28 @@ export const useContent = () => {
    */
   const deleteContent = useCallback(
     async (type, id) => {
-      if (!window.confirm("Are you sure?")) {
+      const contentType = type === "quiz" ? "quiz" : "content";
+      const confirmMessage = `Are you sure you want to delete this ${contentType}? This action cannot be undone.`;
+      
+      if (!window.confirm(confirmMessage)) {
         return;
       }
 
       try {
-        await contentService.deleteContent(type, id, getAuthHeaders());
+        await contentService.deleteContent(type, id);
+        // Remove from both content and allContent (backend always provides id field)
         setContent((prev) => prev.filter((item) => item.id !== id));
         setAllContent((prev) => prev.filter((item) => item.id !== id));
+        // Show success message
+        alert(`${contentType.charAt(0).toUpperCase() + contentType.slice(1)} deleted successfully.`);
       } catch (error) {
         console.error("Error deleting content:", error);
+        const errorMessage = error.response?.data?.error || error.message || "Failed to delete content";
+        alert(`Error deleting ${contentType}: ${errorMessage}`);
         throw error;
       }
     },
-    [getAuthHeaders]
+    []
   );
 
   /**

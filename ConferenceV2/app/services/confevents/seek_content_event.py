@@ -1,5 +1,6 @@
 from datetime import datetime
 import json
+from typing import Optional
 
 from app.models.action_history import ActionHistory, ActionType
 from app.models.ws_service_message import MessageType, WebsocketServiceMessage
@@ -9,19 +10,32 @@ from app.services.singletons.websocket_service import WebsocketService
 
 
 class SeekContentEvent(ConferenceEvent):
-    def __init__(self, conf_call: ConferenceCall, delta_seconds: int):
+    def __init__(
+        self,
+        conf_call: ConferenceCall,
+        delta_seconds: Optional[int] = None,
+        position_seconds: Optional[float] = None,
+    ):
+        if delta_seconds is None and position_seconds is None:
+            raise ValueError("Exactly one of delta_seconds or position_seconds must be provided")
         self.conf_call = conf_call
         self.delta_seconds = delta_seconds
+        self.position_seconds = position_seconds
 
     async def execute_event(self):
+        if self.position_seconds is not None:
+            seek_payload = {"positionSeconds": self.position_seconds}
+            metadata = {"seek_position_seconds": self.position_seconds}
+        else:
+            seek_payload = {"deltaSeconds": self.delta_seconds}
+            metadata = {"seek_delta_seconds": self.delta_seconds}
+
         ws = WebsocketService()
         await ws.send_message(
             WebsocketServiceMessage(
                 websocket_id=self.conf_call.conf_id,
                 type=MessageType.SEEK_AUDIO,
-                # Send the payload as a JSON-encoded string so the
-                # `message` field remains a `str` across services.
-                message=json.dumps({"deltaSeconds": self.delta_seconds}),
+                message=json.dumps(seek_payload),
             )
         )
 
@@ -29,7 +43,7 @@ class SeekContentEvent(ConferenceEvent):
             ActionHistory(
                 timestamp=datetime.now().isoformat(),
                 action_type=ActionType.TEACHER_AUDIO_PLAYBACK_STATUS_CHANGE,
-                metadata={"seek_delta_seconds": self.delta_seconds},
+                metadata=metadata,
                 owner=self.conf_call.state.teacher_phone_number,
             )
         )

@@ -174,7 +174,7 @@ router.post("/register", tenantAuthProvider.register);
 router.post("/analytics", authenticateToken, async (req, res) => {
   try {
     const { startDate, endDate } = req.body;
-    const tenantId = req.userId;
+    const tenantId = req.tenantId;
     if (!startDate || !endDate) {
       return res.status(STATUS.BAD_REQUEST).json({
         message: "Both startDate and endDate are required",

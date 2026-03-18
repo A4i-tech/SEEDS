@@ -47,12 +47,17 @@ const AllContent = () => {
     selectedTeacherId,
     setSelectedTeacherId,
     message,
+    messageType,
     registerTeacher,
     addStudentRow,
     removeStudentRow,
     setNewStudentValue,
     submitNewStudents,
     removeStudent,
+    updateStudent,
+    pendingDuplicates,
+    resolveDuplicates,
+    dismissDuplicateModal,
   } = useTeachers(activeTab);
 
   const ivrURL = process.env.REACT_APP_API_IVRV2_URL;
@@ -176,11 +181,16 @@ const AllContent = () => {
             onSelectTeacher={setSelectedTeacherId}
             onRegisterTeacher={registerTeacher}
             message={message}
+            messageType={messageType}
             onAddStudentRow={addStudentRow}
             onRemoveStudentRow={removeStudentRow}
             onSetNewStudentValue={setNewStudentValue}
             onSubmitNewStudents={submitNewStudents}
             onRemoveStudent={removeStudent}
+            onUpdateStudent={updateStudent}
+            pendingDuplicates={pendingDuplicates}
+            onResolveDuplicates={resolveDuplicates}
+            onDismissDuplicateModal={dismissDuplicateModal}
           />
         )}
       </div>

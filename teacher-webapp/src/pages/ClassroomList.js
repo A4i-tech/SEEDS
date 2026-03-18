@@ -32,6 +32,7 @@ import { LoadingSpinner } from "../components/common/LoadingSpinner";
 import { PageContainer } from "../components/layout/PageContainer";
 import { ROUTES } from "../constants/routes";
 import { getSessionHistory } from "../services/sessionHistoryService";
+import ContentDrawer from "../components/ContentDrawer";
 const ClassroomList = () => {
   const navigate = useNavigate();
   const { logout } = useAuth();
@@ -41,6 +42,7 @@ const ClassroomList = () => {
   const [classroomToDelete, setClassroomToDelete] = useState(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [recentSessions, setRecentSessions] = useState([]);
+  const [contentDrawerOpen, setContentDrawerOpen] = useState(false);
 
   useEffect(() => {
     fetchClassrooms();
@@ -112,7 +114,7 @@ const ClassroomList = () => {
     if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? "s" : ""} ago`;
     if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
     if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
-    
+
     // Format as date for older items
     return date.toLocaleDateString(undefined, {
       month: "short",
@@ -134,7 +136,7 @@ const ClassroomList = () => {
   };
 
   const handlePlayContent = () => {
-    navigate(ROUTES.CONTENT);
+    setContentDrawerOpen(true);
   };
 
   if (loading) {
@@ -363,6 +365,11 @@ const ClassroomList = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <ContentDrawer
+        open={contentDrawerOpen}
+        onClose={() => setContentDrawerOpen(false)}
+      />
     </PageContainer>
   );
 };

@@ -4,8 +4,7 @@ import {
   Phone as PhoneIcon,
   PhoneDisabled as PhoneDisabledIcon,
   PersonAdd as PersonAddIcon,
-  MusicNote as MusicNoteIcon,
-  Pause as PauseIcon,
+  PlayArrow as PlayArrowIcon,
   MicOff as MicOffIcon,
   Mic as MicIcon,
 } from "@mui/icons-material";
@@ -14,10 +13,6 @@ export const ControlButtonGroup = ({
   isConfCallRunning,
   isLoadingCall,
   isSinkingConf,
-  isLoadingMusic,
-  isPlayingAudio,
-  isPausedAudio,
-  isStartingAudio,
   isMutingAll,
   isUnmutingAll,
   activeStudents = [],
@@ -125,17 +120,9 @@ export const ControlButtonGroup = ({
 
       <Button
         variant="outlined"
-        startIcon={
-          isLoadingMusic ? (
-            <CircularProgress size={20} />
-          ) : isPlayingAudio ? (
-            <PauseIcon />
-          ) : (
-            <MusicNoteIcon />
-          )
-        }
+        startIcon={<PlayArrowIcon />}
         onClick={onMusicControl}
-        disabled={isLoadingMusic || !isConfCallRunning || isStartingAudio}
+        disabled={!isConfCallRunning}
         sx={{
           borderColor: "#2e7d32",
           color: "#2e7d32",
@@ -149,9 +136,9 @@ export const ControlButtonGroup = ({
             color: "#cccccc",
           },
         }}
-        aria-label={isPlayingAudio ? "Pause music" : isPausedAudio ? "Resume music" : "Play music"}
+        aria-label="Play content"
       >
-        {isPlayingAudio ? "Pause Music" : isPausedAudio ? "Resume Music" : "Play Music"}
+        Play
       </Button>
 
       {showBulkMuteControls && (

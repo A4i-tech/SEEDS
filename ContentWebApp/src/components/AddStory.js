@@ -6,8 +6,9 @@ import { SEEDS_URL, AUDIO_BASE_URL } from "../Constants";
 import { getAuthHeaders } from "../utils/authHelpers";
 import { useAuth } from "../hooks/useAuth";
 import { isMp3File } from "../utils/fileValidators";
+import { contentService } from "../services/contentService";
 
-const AddStory = ({ content, contentType }) => {
+const AddStory = ({ content, contentType, onContentTypeChange }) => {
   const { getCurrentUser } = useAuth();
   const [metadata, setMetadata] = useState({
     id: "",
@@ -33,22 +34,18 @@ const AddStory = ({ content, contentType }) => {
   const [allContent, setAllContent] = useState([]);
   const [themes, setThemes] = useState({});
   const [newTheme, setNewTheme] = useState(false);
-
-  const getAllContent = async () => {
-    const seedsRes = await fetch(`${SEEDS_URL}/content`, {
-      method: "GET",
-      headers: getAuthHeaders(),
-    });
-    const seedsData = await seedsRes.json();
-    // Handle paginated response
-    return seedsData.data || seedsData || [];
-  };
+  const [loadError, setLoadError] = useState(null);
 
   const populateThemes = (content) => {
+    if (!Array.isArray(content)) {
+      console.warn("populateThemes: content is not an array", content);
+      return;
+    }
     const newThemes = {};
     content.forEach((item) => {
-      const themeEnglish = item.theme?.english || item.theme;
-      const themeLocal = item.theme?.local || item.localTheme;
+      if (!item || !item.theme) return;
+      const themeEnglish = item.theme.english;
+      const themeLocal = item.theme.local;
       if (item.language && themeEnglish && themeLocal) {
         const lang = item.language.toLowerCase();
         newThemes[lang] = newThemes[lang] || {};
@@ -103,7 +100,7 @@ const AddStory = ({ content, contentType }) => {
   const fetchTitlesUnderTheme = useCallback(
     (language, theme) => {
       const filteredContent = allContent.filter((item) => {
-        const itemTheme = item.theme?.english || item.theme;
+        const itemTheme = item.theme?.english;
         return (
           item.language.toLowerCase() === language.toLowerCase() &&
           itemTheme.toLowerCase() === theme.toLowerCase()
@@ -111,9 +108,11 @@ const AddStory = ({ content, contentType }) => {
       });
       const titleMap = {};
       filteredContent.forEach((item) => {
-        const titleEnglish = item.title?.english || item.title;
-        const titleLocal = item.title?.local || item.localTitle;
-        titleMap[titleEnglish.toLowerCase()] = titleLocal;
+        const titleEnglish = item.title?.english;
+        const titleLocal = item.title?.local;
+        if (titleEnglish && titleLocal) {
+          titleMap[titleEnglish.toLowerCase()] = titleLocal;
+        }
       });
       setTitlesUnderTheme(titleMap);
     },
@@ -134,13 +133,14 @@ const AddStory = ({ content, contentType }) => {
 
   useEffect(() => {
     const getContent = async () => {
-      console.log("FUNCTION CALLED");
-      const contentFromServer = await getAllContent();
-      setAllContent(contentFromServer);
-      populateThemes(contentFromServer);
-      console.log("contentFromServer", contentFromServer.length);
-
-      // filterContent();
+      try {
+        const contentFromServer = await contentService.getAllContent();
+        setAllContent(contentFromServer);
+        populateThemes(contentFromServer);
+        setLoadError(null);
+      } catch (error) {
+        setLoadError(error.message);
+      }
     };
     getContent();
   }, []);
@@ -254,7 +254,6 @@ const AddStory = ({ content, contentType }) => {
 
   const onSubmit = (e) => {
     e.preventDefault();
-    console.log("metadata", metadata);
     if (isValid()) {
       setIsSaveButtonDisabled(true);
       sendStory(e);
@@ -270,20 +269,14 @@ const AddStory = ({ content, contentType }) => {
       _id,
       type: contentType,
       title: {
-        english: metadata.title.english || "",
-        local:
-          languageLower === "english"
-            ? metadata.title.english || ""
-            : metadata.title.local || "",
-        audioUrl: metadata.title.audioUrl || "",
+        english: metadata.title.english,
+        local: languageLower === "english" ? metadata.title.english : metadata.title.local,
+        audioUrl: metadata.title.audioUrl,
       },
       theme: {
-        english: metadata.theme.english || "",
-        local:
-          languageLower === "english"
-            ? metadata.theme.english || ""
-            : metadata.theme.local || "",
-        audioUrl: metadata.theme.audioUrl || "",
+        english: metadata.theme.english,
+        local: languageLower === "english" ? metadata.theme.english : metadata.theme.local,
+        audioUrl: metadata.theme.audioUrl,
       },
     };
     var isAudioUploaded = "true";
@@ -354,7 +347,7 @@ const AddStory = ({ content, contentType }) => {
     }
 
     const tenantName = await getCurrentUser();
-    newMetadata.createdBy = tenantName || newMetadata.createdBy || "";
+    newMetadata.createdBy = tenantName || newMetadata.createdBy;
 
     // Upload files to Azure Blob Storage FIRST, before sending metadata to backend
     // This ensures files are available when the background job starts processing
@@ -453,7 +446,7 @@ const AddStory = ({ content, contentType }) => {
           Language:
         </label>
         <select
-          value={metadata.language || ""}
+          value={metadata.language}
           onChange={handleLanguageChange}
           className="mintgreen"
           style={{ width: "100%", maxWidth: "300px", padding: "8px" }}
@@ -531,368 +524,226 @@ const AddStory = ({ content, contentType }) => {
                     {localTheme}
                   </option>
                 ))}
-              <option
-                value="new-theme"
-                selected={metadata.theme.local === "new-theme"}
-              >
-                Choose New Theme
-              </option>
-            </select>
-          </div>
-        )}
-      </div>
+                <option value="new-theme">Create New Theme</option>
+              </select>
+            </div>
+          )}
+        </div>
 
       {newTheme && (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns:
-              metadata.language === "english" ? "1fr" : "1fr 1fr",
-            gap: "20px",
-            marginBottom: "25px",
-            padding: "15px",
-            backgroundColor: "#f8f9fa",
-            borderRadius: "8px",
-          }}
-        >
-          <div>
-            <label
-              style={{
-                display: "block",
-                marginBottom: "8px",
-                fontWeight: "500",
-              }}
-            >
-              Add New English Theme
-            </label>
-            <input
-              type="text"
-              value={metadata.theme.english}
-              onChange={(event) =>
-                setMetadata({
-                  ...metadata,
-                  theme: { ...metadata.theme, english: event.target.value },
-                })
-              }
-              className="mintgreen"
-              placeholder="Enter new theme"
-              style={{ width: "100%", padding: "8px" }}
-            />
-          </div>
-          {metadata.language !== "english" && (
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: "8px",
-                  fontWeight: "500",
-                  textTransform: "capitalize",
-                }}
-              >
-                Add New {metadata.language} Theme
-              </label>
+        <div className="new-theme-section">
+          <div className="form-section-title">New Theme Details</div>
+          <div className="form-grid">
+            <div className="form-group">
+              <label className="form-label form-label-required">New English Theme</label>
               <input
                 type="text"
-                value={metadata.theme.local}
+                value={metadata.theme.english}
                 onChange={(event) =>
                   setMetadata({
                     ...metadata,
-                    theme: { ...metadata.theme, local: event.target.value },
+                    theme: { ...metadata.theme, english: event.target.value },
                   })
                 }
-                className="mintgreen"
-                placeholder={`Enter new theme in ${metadata.language}`}
-                style={{ width: "100%", padding: "8px" }}
+                className="form-input"
+                placeholder="Enter new theme in English"
+              />
+            </div>
+            {metadata.language !== "english" && (
+              <div className="form-group">
+                <label className="form-label form-label-required">New {metadata.language.charAt(0).toUpperCase() + metadata.language.slice(1)} Theme</label>
+                <input
+                  type="text"
+                  value={metadata.theme.local}
+                  onChange={(event) =>
+                    setMetadata({
+                      ...metadata,
+                      theme: { ...metadata.theme, local: event.target.value },
+                    })
+                  }
+                  className="form-input"
+                  placeholder={`Enter new theme in ${metadata.language}`}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="form-section">
+        <div className="form-section-title">Title</div>
+        <div className="form-grid">
+          <div className="form-group">
+            <label className="form-label form-label-required">English Title</label>
+            <input
+              type="text"
+              name="titleEnglish"
+              className="form-input"
+              placeholder="Enter title in English"
+              value={metadata.title.english}
+              onChange={(event) =>
+                setMetadata({ ...metadata, title: { ...metadata.title, english: event.target.value } })
+              }
+            />
+          </div>
+          {metadata.language !== "english" && (
+            <div className="form-group">
+              <label className="form-label form-label-required">{metadata.language.charAt(0).toUpperCase() + metadata.language.slice(1)} Title</label>
+              <input
+                type="text"
+                name="titleLocal"
+                className="form-input"
+                placeholder={`Enter title in ${metadata.language}`}
+                value={metadata.title.local}
+                onChange={(event) =>
+                  setMetadata({ ...metadata, title: { ...metadata.title, local: event.target.value } })
+                }
               />
             </div>
           )}
         </div>
-      )}
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns:
-            metadata.language === "english" ? "1fr" : "1fr 1fr",
-          gap: "20px",
-          marginBottom: "25px",
-        }}
-      >
-        <div>
-          <label
-            style={{ display: "block", marginBottom: "8px", fontWeight: "500" }}
-          >
-            English Title
-          </label>
-          <input
-            type="text"
-            name="titleEnglish"
-            className="mintgreen"
-            placeholder="Add Title"
-            value={metadata.title.english || ""}
-            onChange={(event) =>
-              setMetadata({
-                ...metadata,
-                title: { ...metadata.title, english: event.target.value },
-              })
-            }
-            style={{ width: "100%", padding: "8px" }}
-          />
-        </div>
-
-        {metadata.language !== "english" && (
-          <div>
-            <label
-              style={{
-                display: "block",
-                marginBottom: "8px",
-                fontWeight: "500",
-                textTransform: "capitalize",
-              }}
-            >
-              {metadata.language} Title
-            </label>
-            <input
-              type="text"
-              name="titleLocal"
-              className="mintgreen"
-              placeholder="Add Title"
-              value={metadata.title.local || ""}
-              onChange={(event) =>
-                setMetadata({
-                  ...metadata,
-                  title: { ...metadata.title, local: event.target.value },
-                })
-              }
-              style={{ width: "100%", padding: "8px" }}
-            />
-          </div>
-        )}
       </div>
 
       {Object.keys(titlesUnderTheme).length > 0 && !newTheme && (
-        <div
-          style={{
-            marginBottom: "25px",
-            padding: "15px",
-            backgroundColor: "#f8f9fa",
-            borderRadius: "8px",
-            border: "1px solid #dee2e6",
-          }}
-        >
-          <label
-            style={{
-              display: "block",
-              marginBottom: "12px",
-              fontWeight: "500",
-              fontSize: "14px",
-            }}
-          >
-            Existing Titles under "{metadata.theme.english}" in{" "}
-            {metadata.language}:
+        <div className="existing-titles">
+          <label className="existing-titles-label">
+            Existing Titles under "{metadata.theme.english}" in {metadata.language}:
           </label>
-          <ul
-            style={{
-              margin: 0,
-              paddingLeft: "20px",
-              lineHeight: "1.8",
-              color: "#495057",
-            }}
-          >
-            {Object.entries(titlesUnderTheme).map(
-              ([englishTitle, localTitle], index) => (
-              <li key={index} style={{ marginBottom: "4px" }}>
-                {englishTitle} - {localTitle}
-              </li>
-              ),
-            )}
+          <ul className="existing-titles-list">
+            {Object.entries(titlesUnderTheme).map(([englishTitle, localTitle], index) => (
+              <li key={index} className="existing-titles-item">{`${englishTitle} - ${localTitle}`}</li>
+            ))}
           </ul>
         </div>
       )}
 
-      {/* {themes.length > 0 && (
-          <div>
-            <label>Available {metadata.language} Themes:</label>
-            <ul>
-              {themes.map((theme, index) => (
-                <li key={index}>{theme}</li>
-              ))}
-            </ul>
-          </div>
-        )} */}
-
-      {metadata.isProcessed && audioSrc && (
-        <div style={{ marginBottom: "20px" }}>
-          <label
-            style={{ display: "block", marginBottom: "8px", fontWeight: "500" }}
-          >
-            Current {contentType === "Riddle" && "Question "}Audio File:
-          </label>
-          <audio
-            controls
-            src={audioSrc}
-            style={{ width: "100%", maxWidth: "500px" }}
-          />
-        </div>
-      )}
-
-      {metadata.isProcessed && answerAudioSrc && (
-        <div style={{ marginBottom: "20px" }}>
-          <label
-            style={{ display: "block", marginBottom: "8px", fontWeight: "500" }}
-          >
-            Current {contentType === "Riddle" && "Answer "}Audio File:
-          </label>
-          <audio
-            controls
-            src={answerAudioSrc}
-            style={{ width: "100%", maxWidth: "500px" }}
-          />
-        </div>
-      )}
-
-      {!metadata.isProcessed && audioSrc && (
-        <div
-          style={{
-            padding: "12px",
-            backgroundColor: "#fff3cd",
-            borderRadius: "6px",
-            marginBottom: "20px",
-            color: "#856404",
-            border: "1px solid #ffeaa7",
-          }}
-        >
-          <strong>Audio is being processed</strong>
-        </div>
-      )}
-
-      <div style={{ marginBottom: "20px" }}>
-        <label
-          style={{ display: "block", marginBottom: "8px", fontWeight: "500" }}
-        >
-          {audioSrc ? "Change" : ""} {contentType}{" "}
-          {contentType === "Riddle" && "Question "}Audio File
-        </label>
-        <input
-          type="file"
-          name="audioFile"
-          accept="audio/mpeg,audio/mp3,.mp3"
-          className="mintgreen"
-          placeholder="Add Audio File"
-          onChange={(event) => handleUploadFile(event)}
-          style={{ width: "100%", maxWidth: "500px", padding: "8px" }}
-        />
-        {uploadError && (
-          <div style={{ color: "red", marginTop: "8px" }}>{uploadError}</div>
-        )}
-      </div>
-
-      {contentType === "Riddle" && (
-        <div style={{ marginBottom: "20px" }}>
-          <label
-            style={{ display: "block", marginBottom: "8px", fontWeight: "500" }}
-          >
-            {answerAudioSrc ? "Change" : ""} {contentType} Answer Audio File
-          </label>
-          <input
-            type="file"
-            name="audioFile"
-            accept="audio/mpeg,audio/mp3,.mp3"
-            className="mintgreen"
-            placeholder="Add Answer Audio File"
-            onChange={(event) => handleUploadAnswerFile(event)}
-            style={{ width: "100%", maxWidth: "500px", padding: "8px" }}
-          />
-          {answerUploadError && (
-            <div style={{ color: "red", marginTop: "8px" }}>
-              {answerUploadError}
+      {(metadata.isProcessed && audioSrc) || (metadata.isProcessed && answerAudioSrc) || (!metadata.isProcessed && audioSrc) ? (
+        <div className="audio-section">
+          {metadata.isProcessed && audioSrc && (
+            <div>
+              <label className="audio-section-label">
+                Current {contentType === "Riddle" ? "Question " : ""}Audio File
+              </label>
+              <audio controls src={audioSrc} className="audio-player" />
             </div>
           )}
+          {metadata.isProcessed && answerAudioSrc && (
+            <div style={{ marginTop: "16px" }}>
+              <label className="audio-section-label">
+                Current Answer Audio File
+              </label>
+              <audio controls src={answerAudioSrc} className="audio-player" />
+            </div>
+          )}
+          {!metadata.isProcessed && audioSrc && (
+            <div className="audio-processing">Audio is being processed</div>
+          )}
         </div>
-      )}
+      ) : null}
 
-      <div
-        style={{
-          display: "flex",
-          gap: "30px",
-          marginBottom: "30px",
-          padding: "15px",
-          backgroundColor: "#f8f9fa",
-          borderRadius: "8px",
-        }}
-      >
-        <label
-          style={{
-            display: "flex",
-            alignItems: "center",
-            cursor: "pointer",
-            gap: "8px",
-          }}
-        >
-          <input
-            type="checkbox"
-            name="isPullModel"
-            className="mintgreen check"
-            checked={metadata.isPullModel || false}
-            onChange={(event) =>
-              setMetadata({ ...metadata, isPullModel: !metadata.isPullModel })
-            }
-            style={{ width: "18px", height: "18px", cursor: "pointer" }}
-          />
-          <span style={{ fontWeight: "500" }}>Add to IVR</span>
-        </label>
+      <div className="form-section">
+        <div className="form-section-title">Audio Files</div>
+        <div className="form-group">
+          <label className="form-label">
+            {audioSrc ? `Change ${contentType} ${contentType === "Riddle" ? "Question " : ""}Audio File` : `${contentType} ${contentType === "Riddle" ? "Question " : ""}Audio File`}
+            <span className="form-label-required"> *</span>
+          </label>
+          <div className="form-file-wrapper">
+            <input
+              type="file"
+              name="audioFile"
+              id="audioFile"
+              accept="audio/*"
+              className="form-file-input"
+              onChange={(event) => handleUploadFile(event)}
+            />
+            <label htmlFor="audioFile" className="form-file-label">
+              📁 Choose Audio File
+            </label>
+          </div>
+          {file && (
+            <div className="form-file-name">Selected: {file.name}</div>
+          )}
+          {uploadError && (
+            <div className="form-error">{uploadError}</div>
+          )}
+        </div>
 
-        <label
-          style={{
-            display: "flex",
-            alignItems: "center",
-            cursor: "pointer",
-            gap: "8px",
-          }}
-        >
-          <input
-            type="checkbox"
-            name="isTeacherApp"
-            className="mintgreen check"
-            checked={metadata.isTeacherApp || false}
-            onChange={(event) =>
-              setMetadata({ ...metadata, isTeacherApp: !metadata.isTeacherApp })
-            }
-            style={{ width: "18px", height: "18px", cursor: "pointer" }}
-          />
-          <span style={{ fontWeight: "500" }}>Add to Teacher App</span>
-        </label>
+        {contentType === "Riddle" && (
+          <div className="form-group" style={{ marginTop: "20px" }}>
+            <label className="form-label">
+              {answerAudioSrc ? `Change ${contentType} Answer Audio File` : `${contentType} Answer Audio File`}
+              <span className="form-label-required"> *</span>
+            </label>
+            <div className="form-file-wrapper">
+              <input
+                type="file"
+                name="answerAudioFile"
+                id="answerAudioFile"
+                accept="audio/*"
+                className="form-file-input"
+                onChange={(event) => handleUploadAnswerFile(event)}
+              />
+              <label htmlFor="answerAudioFile" className="form-file-label">
+                📁 Choose Answer Audio File
+              </label>
+            </div>
+            {answerFile && (
+              <div className="form-file-name">Selected: {answerFile.name}</div>
+            )}
+            {answerUploadError && (
+              <div className="form-error">{answerUploadError}</div>
+            )}
+          </div>
+        )}
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
-        <input
-          disabled={
-            isSaveButtonDisabled || Boolean(uploadError) || Boolean(answerUploadError)
-          }
+      <div className="form-section">
+        <div className="form-section-title">Platform Integration</div>
+        <div className="checkbox-group">
+          <div className="checkbox-item">
+            <input
+              type="checkbox"
+              name="isPullModel"
+              id="isPullModel"
+              checked={metadata.isPullModel || false}
+              onChange={(event) =>
+                setMetadata({ ...metadata, isPullModel: !metadata.isPullModel })
+              }
+            />
+            <label htmlFor="isPullModel">Add to IVR</label>
+          </div>
+          <div className="checkbox-item">
+            <input
+              type="checkbox"
+              name="isTeacherApp"
+              id="isTeacherApp"
+              checked={metadata.isTeacherApp || false}
+              onChange={(event) =>
+                setMetadata({ ...metadata, isTeacherApp: !metadata.isTeacherApp })
+              }
+            />
+            <label htmlFor="isTeacherApp">Add to Teacher App</label>
+          </div>
+        </div>
+      </div>
+
+      <div className="form-actions">
+        {loadError && <div className="form-error">Failed to load content: {loadError}</div>}
+        <button
           type="submit"
-          className="btn"
-          style={{
-            backgroundColor: isSaveButtonDisabled ? "#ccc" : "#E5A83B",
-            color: "white",
-            padding: "12px 40px",
-            fontSize: "16px",
-            fontWeight: "600",
-            border: "none",
-            borderRadius: "6px",
-            cursor: isSaveButtonDisabled ? "not-allowed" : "pointer",
-            transition: "background-color 0.2s",
-          }}
-          value="Save"
-        />
-        {isSaveButtonDisabled && (
-          <img
-            src="https://cdn.dribbble.com/users/255512/screenshots/2215917/animation.gif"
-            alt="Saving..."
-            width={40}
-            height={40}
-            style={{ opacity: 1 }}
-          />
-        )}
+          disabled={isSaveButtonDisabled || Boolean(uploadError) || Boolean(answerUploadError)}
+          className="btn-primary"
+        >
+          {isSaveButtonDisabled ? (
+            <>
+              <div className="loading-spinner" style={{ width: "20px", height: "20px", borderWidth: "2px" }}></div>
+              Saving...
+            </>
+          ) : (
+            "💾 Save Content"
+          )}
+        </button>
       </div>
     </form>
   );

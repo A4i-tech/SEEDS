@@ -39,6 +39,7 @@ module.exports = {
         id: teacher._id || teacher.id,
         phoneNumber: teacher.phoneNumber,
         name: teacher.name,
+        tenantId: teacher.tenantId,
       });
       return res.status(STATUS.OK).json({ token, phoneNumber });
     } catch (error) {
@@ -48,7 +49,7 @@ module.exports = {
   },
   async register(req, res) {
     const { phoneNumber, password, name } = req.body;
-    const tenantId = req.userId;
+    const tenantId = req.tenantId;
     if (
       !phoneNumber ||
       !password ||
@@ -75,13 +76,15 @@ module.exports = {
       if (!existingTenant) {
         return res.status(STATUS.BAD_REQUEST).json({ message: "Tenant does not exist" });
       }
+
       const existingTeacher = await dbAdapter.getTeacherByTenantIdAndPhoneNumber(
         tenantId,
         phoneNumber
       );
       if (existingTeacher) {
-        return res.status(STATUS.CONFLICT).json({ message: "Phone number already in use" });
+        return res.status(STATUS.CONFLICT).json({ message: "Phone number already in use by current or another tenant" });
       }
+
       const hashedPassword = await bcrypt.hash(password, parseInt(passwordSaltRounds));
       await dbAdapter.insertTeacher({
         phoneNumber,
@@ -89,6 +92,7 @@ module.exports = {
         tenantId,
         name: trimmedName,
       });
+      
       return res.status(STATUS.CREATED).json({ message: "Teacher registered successfully" });
     } catch (error) {
       console.error("Registration error:", error);

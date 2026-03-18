@@ -126,7 +126,7 @@ module.exports = {
         .json({ message: "New password is required" });
     }
 
-    const tenantId = req.userId;
+    const tenantId = req.tenantId;
 
     if (!validator.isStrongPassword(newPassword, PASSWORD_POLICY)) {
       return res.status(STATUS.BAD_REQUEST).json({

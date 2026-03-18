@@ -2,6 +2,7 @@ import React from "react";
 import TeacherRegistrationForm from "./TeacherRegistrationForm";
 import TeachersList from "./TeachersList";
 import TeacherDetails from "./TeacherDetails";
+import DuplicateStudentModal from "./DuplicateStudentModal";
 import "./css/RegistrationTab.css";
 import "../shared/buttons.css";
 import "../shared/cards.css";
@@ -15,11 +16,16 @@ const RegistrationTab = ({
   onSelectTeacher,
   onRegisterTeacher,
   message,
+  messageType,
   onAddStudentRow,
   onRemoveStudentRow,
   onSetNewStudentValue,
   onSubmitNewStudents,
   onRemoveStudent,
+  onUpdateStudent,
+  pendingDuplicates,
+  onResolveDuplicates,
+  onDismissDuplicateModal,
 }) => {
   return (
     <div className="card registration-flex-card">
@@ -28,7 +34,7 @@ const RegistrationTab = ({
         <div className="card-description">Register teachers for your organization.</div>
       </div>
 
-      <TeacherRegistrationForm onRegister={onRegisterTeacher} message={message} />
+      <TeacherRegistrationForm onRegister={onRegisterTeacher} message={message} messageType={messageType} />
 
       <div className="teachers-section">
         <h3 className="teachers-section-title">Teachers & Students</h3>
@@ -48,10 +54,18 @@ const RegistrationTab = ({
               onSetNewStudentValue={onSetNewStudentValue}
               onSubmitNewStudents={onSubmitNewStudents}
               onRemoveStudent={onRemoveStudent}
+              onUpdateStudent={onUpdateStudent}
             />
           </div>
         )}
       </div>
+
+      <DuplicateStudentModal
+        open={Boolean(pendingDuplicates?.duplicates?.length)}
+        duplicates={pendingDuplicates?.duplicates ?? []}
+        onResolve={(resolution) => onResolveDuplicates(resolution, pendingDuplicates)}
+        onCancel={onDismissDuplicateModal}
+      />
     </div>
   );
 };
