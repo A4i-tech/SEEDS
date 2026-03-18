@@ -127,7 +127,7 @@ class ConferenceCall:
         await self.communication_api.reconnect_websocket()
     
     # Dequeue function: runs continuously to process tasks
-    async def __process_conf_events_queue(self, timeout: float = 3.0):
+    async def __process_conf_events_queue(self, timeout: float = 15.0):
         while True:
             event: ConferenceEvent = await self.event_queue.get()
             try:
