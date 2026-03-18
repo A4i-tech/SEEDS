@@ -28,7 +28,7 @@ class MockEvent(ConferenceEvent):
     
     async def execute_event(self):
         if self.should_timeout:
-            await asyncio.sleep(5)  # Longer than default timeout of 3 seconds
+            await asyncio.sleep(60)
         if self.should_raise_exception:
             raise Exception("Test exception")
         self.executed = True
@@ -238,10 +238,16 @@ class TestConferenceCall:
         await conf_call.event_queue.put(event)
         
         with patch('app.services.conference_call.logger_instance') as mock_logger:
-            conf_call.start_processing_conf_events_from_queue()
-            
-            # Wait appropriate time based on event type
-            wait_time = 3.5 if event_type == "timeout" else 0.1
+            # For timeout test, use a short timeout to make the test run fast
+            if event_type == "timeout":
+                conf_call.event_queue_processing_task = asyncio.create_task(
+                    conf_call._ConferenceCall__process_conf_events_queue(timeout=1.0)
+                )
+                wait_time = 1.5
+            else:
+                conf_call.start_processing_conf_events_from_queue()
+                wait_time = 0.1
+
             await asyncio.sleep(wait_time)
             
             conf_call.end_processing_conf_events_from_queue()
