@@ -1,25 +1,22 @@
 import React, { useState, useRef, useEffect } from "react";
 import {
   Box,
-  IconButton,
   Slider,
   Typography,
-  CircularProgress,
 } from "@mui/material";
-import {
-  PlayArrow as PlayArrowIcon,
-  Pause as PauseIcon,
-  SkipPrevious as SkipPreviousIcon,
-  SkipNext as SkipNextIcon,
-} from "@mui/icons-material";
+import { formatTimeWithLeadingZero } from "../../utils/formatTime";
+import SpeedSelector from "./SpeedSelector";
+import TransportControls from "./TransportControls";
 
-const AudioPlayer = ({ audioUrl, onTimeUpdate, onEnded, autoPlay = false }) => {
+const AudioPlayer = ({ audioUrl, onTimeUpdate, onEnded, autoPlay = false, variant = "dark" }) => {
+  const isLight = variant === "light";
   const audioRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState(null);
+  const [playbackRate, setPlaybackRate] = useState(1.0);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -134,13 +131,6 @@ const AudioPlayer = ({ audioUrl, onTimeUpdate, onEnded, autoPlay = false }) => {
     setCurrentTime(newValue);
   };
 
-  const formatTime = (seconds) => {
-    if (!isFinite(seconds) || isNaN(seconds)) return "00:00";
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-  };
-
   const handleRewind = () => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -153,68 +143,51 @@ const AudioPlayer = ({ audioUrl, onTimeUpdate, onEnded, autoPlay = false }) => {
     audio.currentTime = Math.min(duration, audio.currentTime + 10);
   };
 
+  const handleSpeedChange = (event) => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const newRate = event.target.value;
+    audio.playbackRate = newRate;
+    setPlaybackRate(newRate);
+  };
+
   return (
     <Box
       sx={{
         width: "100%",
-        bgcolor: "grey.800",
-        p: 2,
-        borderRadius: 1,
+        bgcolor: isLight ? "transparent" : "grey.800",
+        border: isLight ? "1px solid" : "none",
+        borderColor: isLight ? "divider" : "transparent",
+        p: isLight ? 1.5 : 2,
+        borderRadius: 2,
+        mt: isLight ? 1 : 0,
       }}
     >
       <audio ref={audioRef} preload="metadata" />
-      
+
       {error && (
         <Typography variant="caption" color="error" sx={{ mb: 1, display: "block" }}>
           {error}
         </Typography>
       )}
 
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-        <IconButton
-          onClick={handleRewind}
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        <TransportControls
+          isPlaying={isPlaying}
+          isLoading={isLoading}
           disabled={!audioUrl || isLoading}
-          sx={{ color: "white" }}
-          size="small"
-        >
-          <SkipPreviousIcon />
-        </IconButton>
+          onPlayPause={togglePlayPause}
+          onSeekBackward={handleRewind}
+          onSeekForward={handleFastForward}
+          variant={variant}
+          size="medium"
+        />
 
-        <IconButton
-          onClick={togglePlayPause}
-          disabled={!audioUrl || isLoading}
-          sx={{
-            color: "white",
-            bgcolor: "primary.main",
-            "&:hover": {
-              bgcolor: "primary.dark",
-            },
-            "&:disabled": {
-              bgcolor: "grey.600",
-            },
-          }}
-          size="large"
+        <Typography
+          variant="body2"
+          sx={{ color: isLight ? "text.secondary" : "white", minWidth: "40px", ml: 0.5, fontSize: "0.75rem" }}
         >
-          {isLoading ? (
-            <CircularProgress size={24} sx={{ color: "white" }} />
-          ) : isPlaying ? (
-            <PauseIcon />
-          ) : (
-            <PlayArrowIcon />
-          )}
-        </IconButton>
-
-        <IconButton
-          onClick={handleFastForward}
-          disabled={!audioUrl || isLoading}
-          sx={{ color: "white" }}
-          size="small"
-        >
-          <SkipNextIcon />
-        </IconButton>
-
-        <Typography variant="body2" sx={{ color: "white", minWidth: "45px", ml: 1 }}>
-          {formatTime(currentTime)}
+          {formatTimeWithLeadingZero(currentTime)}
         </Typography>
 
         <Slider
@@ -225,21 +198,25 @@ const AudioPlayer = ({ audioUrl, onTimeUpdate, onEnded, autoPlay = false }) => {
           sx={{
             flex: 1,
             color: "primary.main",
-            "& .MuiSlider-thumb": {
-              color: "primary.main",
-            },
-            "& .MuiSlider-track": {
-              color: "primary.main",
-            },
-            "& .MuiSlider-rail": {
-              color: "grey.600",
-            },
+            "& .MuiSlider-thumb": { color: "primary.main" },
+            "& .MuiSlider-track": { color: "primary.main" },
+            "& .MuiSlider-rail": { color: isLight ? "grey.300" : "grey.600" },
           }}
         />
 
-        <Typography variant="body2" sx={{ color: "white", minWidth: "45px", mr: 1 }}>
-          {formatTime(duration)}
+        <Typography
+          variant="body2"
+          sx={{ color: isLight ? "text.secondary" : "white", minWidth: "40px", ml: 0.5, fontSize: "0.75rem" }}
+        >
+          {formatTimeWithLeadingZero(duration)}
         </Typography>
+
+        <SpeedSelector
+          value={playbackRate}
+          onChange={handleSpeedChange}
+          disabled={!audioUrl || isLoading}
+          variant={variant}
+        />
       </Box>
     </Box>
   );

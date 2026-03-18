@@ -150,6 +150,9 @@ describe("WebSocketService", () => {
           websocket_id: "test-client",
           type: "playback-state-update",
           message: PlaybackStatus.PAUSED,
+          position_seconds: 0,
+          duration_seconds: 0,
+          speed: 1,
         }),
         expect.any(Function)
       );
@@ -183,6 +186,9 @@ describe("WebSocketService", () => {
           websocket_id: "test-client",
           type: "playback-state-update",
           message: PlaybackStatus.PAUSED,
+          position_seconds: 0,
+          duration_seconds: 0,
+          speed: 1,
         }),
         expect.any(Function)
       );
@@ -257,6 +263,9 @@ describe("WebSocketService", () => {
           websocket_id: "test-client",
           type: "playback-state-update",
           message: PlaybackStatus.PLAYING,
+          position_seconds: 2.2,
+          duration_seconds: 4,
+          speed: 1,
         }),
         expect.any(Function)
       );
@@ -353,7 +362,7 @@ describe("WebSocketService", () => {
       mockState.audioContentState = { playing: true };
       websocketService.pauseAudioContent("test-client");
       expect(consoleSpy).toHaveBeenCalledWith(
-        "Error sending data over WebSocket for ID: test-client",
+        "Error sending playback status over WebSocket for ID: test-client",
         controlError
       );
       mockControlWebSocket.send.mockImplementation(
