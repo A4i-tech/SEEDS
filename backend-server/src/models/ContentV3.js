@@ -14,6 +14,7 @@ const AudioContentSchema = new mongoose.Schema(
   {
     description: { type: String, default: "" },
     audioUrl: { type: String, required: true },
+    durationSeconds: { type: Number, default: null },
   },
   { _id: false }
 );
