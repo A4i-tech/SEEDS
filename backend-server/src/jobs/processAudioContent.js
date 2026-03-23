@@ -13,6 +13,7 @@ const {
   processAudioWithFfmpeg,
   cleanupTempFiles,
   generateTempPaths,
+  extractAudioDuration,
   addForInOptionAudio,
 } = require("./jobsUtils.js");
 
@@ -27,10 +28,10 @@ const themeContainerClient = blobService.getContainerClient("theme-titles");
 
 /**
  * Converts an audio blob to WAV using ffmpeg, uploads it to Azure Blob Storage,
- * and returns the uploaded file URL.
+ * and returns the uploaded file URL and duration.
  * @param {string} ip_url - The input blob URL.
  * @param {string} contentId - The content identifier.
- * @returns {Promise<string>} - URL of the processed blob.
+ * @returns {Promise<{url: string, duration: number|null}>} - Object with URL and duration.
  */
 async function generateWAVFileAndUploadToOutputContainer(ip_url, contentId) {
   console.log(`Starting processing for: ${ip_url}`);
@@ -53,6 +54,15 @@ async function generateWAVFileAndUploadToOutputContainer(ip_url, contentId) {
     const processedBuffer = fs.readFileSync(tempOutputPath);
     console.log(`Processed file size: ${processedBuffer.length} bytes`);
 
+    // Extract audio duration
+    console.log("Extracting audio duration...");
+    const duration = await extractAudioDuration(tempOutputPath);
+    if (duration !== null) {
+      console.log(`Audio duration: ${duration} seconds`);
+    } else {
+      console.warn("Failed to extract audio duration");
+    }
+
     const outputBlobName = `${blobService.extractBlobPathWithoutExtension(ip_url)}.wav`;
     console.log(`Uploading processed file as: ${outputBlobName}`);
     const outputBlockBlobClient = outputContainerClient.getBlockBlobClient(outputBlobName);
@@ -60,7 +70,7 @@ async function generateWAVFileAndUploadToOutputContainer(ip_url, contentId) {
       blobHTTPHeaders: { blobContentType: "audio/wav" },
     });
     console.log(`Processed blob uploaded: ${outputBlobName}`);
-    return outputBlockBlobClient.url;
+    return { url: outputBlockBlobClient.url, duration };
   } catch (err) {
     console.error(`Error processing ${ip_url}:`, err);
     throw err;
@@ -105,10 +115,12 @@ async function processNewContent(job) {
           continue;
         }
 
-        audioContentItem.audioUrl = await generateWAVFileAndUploadToOutputContainer(
+        const { url, duration } = await generateWAVFileAndUploadToOutputContainer(
           ip_url,
           contentDoc.id
         );
+        audioContentItem.audioUrl = url;
+        audioContentItem.durationSeconds = duration;
       } catch (err) {
         console.error(`Failed to process audio content item ${ip_url}:`, err);
         throw err;
