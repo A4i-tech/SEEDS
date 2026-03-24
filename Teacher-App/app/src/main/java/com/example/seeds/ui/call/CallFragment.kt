@@ -114,7 +114,7 @@ class CallFragment : BaseFragment() {
             if (it != null) {
                 Log.d("CallFragment", "Call token: $it")
                 logMessage("Call token: $it")
-                viewModel.startPollingForCallerState(it.confId)
+                viewModel.startSSE(it.confId)
             }
         }
 
@@ -203,15 +203,63 @@ class CallFragment : BaseFragment() {
         }
 
         binding.forwardButton.setOnClickListener {
-            viewModel._isAudioControlDone.postValue(false)
+            viewModel.notifyAudioControlStarted()
             viewModel.forwardAudio()
             logMessage("Audio forward clicked")
         }
 
         binding.backwardButton.setOnClickListener {
-            viewModel._isAudioControlDone.postValue(false)
+            viewModel.notifyAudioControlStarted()
             viewModel.backwardAudio()
             logMessage("Audio backward clicked")
+        }
+        // Seek bar handling
+        binding.audioSeekbar.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+            var userSeeking = false
+            override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    val sec = progress
+                    binding.audioCurrentTime.text = String.format("%d:%02d", sec / 60, sec % 60)
+                }
+            }
+
+            override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) {
+                userSeeking = true
+                viewModel.notifyAudioControlStarted()
+            }
+
+            override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {
+                userSeeking = false
+                val sec = seekBar?.progress ?: 0
+                viewModel.seekTo(sec.toFloat())
+                // seekTo's finally block posts true — no explicit call needed here
+            }
+        })
+
+        // Playback speed spinner — default to 1.0x (index 1) before attaching listener
+        val spinner = binding.speedSpinner
+        spinner.setSelection(1)
+        spinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>, view: View?, position: Int, id: Long) {
+                val text = parent.getItemAtPosition(position) as String
+                val speed = text.removeSuffix("x").toDoubleOrNull() ?: 1.0
+                viewModel.setPlaybackSpeed(speed)
+            }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>) {}
+        }
+
+        // Observe position/duration to update seekbar
+        viewModel.audioPositionSeconds.observe(viewLifecycleOwner) { pos ->
+            val sec = pos?.toInt() ?: 0
+            if (!binding.audioSeekbar.isPressed) {
+                binding.audioSeekbar.progress = sec
+                binding.audioCurrentTime.text = String.format("%d:%02d", sec / 60, sec % 60)
+            }
+        }
+        viewModel.audioDurationSeconds.observe(viewLifecycleOwner) { dur ->
+            val sec = dur?.toInt() ?: 0
+            binding.audioSeekbar.max = if (sec > 0) sec else 0
+            binding.audioTotalTime.text = if (sec > 0) String.format("%d:%02d", sec / 60, sec % 60) else "--:--"
         }
         
         binding.addStudentsButton.setOnClickListener {

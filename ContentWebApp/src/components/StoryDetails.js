@@ -7,7 +7,7 @@ const StoryDetails = ({ type, story }) => {
   const [audioSrc, setAudioSrc] = useState("");
   const [answerAudioSrc, setAnswerAudioSrc] = useState("");
 
-  const storyId = story.id || story._id; // ContentV3 uses _id
+  const storyId = story.id;
   const titleEnglish = story.title?.english ?? story.title;
   const titleLocal = story.title?.local ?? story.localTitle;
   const themeEnglish = story.theme?.english ?? story.theme;

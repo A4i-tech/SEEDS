@@ -49,6 +49,16 @@ agenda.define("processQuizContent", async (job) => {
   await agenda.start();
 })();
 
+/** Sort merged content/quizzes by creation_time descending, then by _id descending as tie-breaker. */
+function sortByCreationTimeThenId(a, b) {
+  const timeA = a.creation_time;
+  const timeB = b.creation_time;
+  if (timeB !== timeA) return timeB - timeA;
+  const idA = a._id.toString();
+  const idB = b._id.toString();
+  return idB.localeCompare(idA);
+}
+
 /**
  * @swagger
  * /content/job/{jobId}:
@@ -286,7 +296,10 @@ router.get(
     const content = await ContentV3.find({
       language: language,
       isPullModel: true,
-    }).sort({ _id: -1 });
+    })
+      .sort({ _id: -1 })
+      .lean()
+      .exec();
     const themeSet = new Set();
     const themes = [];
     console.log(content.length);
@@ -386,55 +399,153 @@ router.get(
 
     // If specific IDs are requested, return non-deleted content sorted by creation time (newest first)
     if (req.query.ids) {
-      const idsArray = Array.isArray(req.query.ids)
-        ? req.query.ids
-        : req.query.ids.split(",");
-      const contents = await ContentV3.collection
-        .find({ _id: { $in: idsArray }, isDeleted: { $ne: true } })
-        .sort({ creation_time: -1 })
-        .toArray();
-      return res.json(contents);
+      if (!Array.isArray(req.query.ids) || req.query.ids.length === 0) {
+        return res.status(400).json({ error: "ids query parameter must be a non-empty array" });
+      }
+      const idsArray = req.query.ids;
+      
+      // Fetch both content and quiz data for the requested IDs (lean for read-only)
+      const [contents, quizzes] = await Promise.all([
+        ContentV3.find({ _id: { $in: idsArray }, isDeleted: { $ne: true } })
+          .lean()
+          .exec(),
+        QuizData.find({ _id: { $in: idsArray }, isDeleted: { $ne: true } })
+          .lean()
+          .exec(),
+      ]);
+      
+      // Transform content to ensure id field exists (standardize: always use id from _id)
+      const transformedContents = contents.map((content) => ({
+        ...content,
+        id: content._id,
+      }));
+      
+      // Transform quiz data to match content format (standardize: always use id from _id)
+      const transformedQuizzes = quizzes.map((quiz) => ({
+        ...quiz,
+        id: quiz._id,
+        type: "quiz",
+      }));
+      
+      // Merge and sort once (shared with list path via sortByCreationTimeThenId)
+      const allContent = [...transformedContents, ...transformedQuizzes].sort(sortByCreationTimeThenId);
+      
+      return res.json(allContent);
     }
 
     // Base query always excludes deleted content
-    let query = { isDeleted: { $ne: true } };
+    let contentQuery = { isDeleted: { $ne: true } };
+    let quizQuery = { isDeleted: { $ne: true } };
+    let shouldFetchContent = true;
+    let shouldFetchQuizzes = true;
 
     if (req.query.onlyTeacherApp) {
-      query.isTeacherApp = true;
+      contentQuery.isTeacherApp = true;
+      quizQuery.isTeacherApp = true;
     } else if (req.query.language && req.query.theme && req.query.expName) {
-      query.isPullModel = true;
-      query.language = req.query.language;
-      query["theme.english"] = decodeURIComponent(req.query.theme).toString();
-      query.type = req.query.expName.toLowerCase();
+      const expName = req.query.expName.toLowerCase();
+      
+      if (expName === "quiz") {
+        // If filtering for quiz, only query QuizData
+        shouldFetchContent = false;
+        quizQuery.isPullModel = true;
+        quizQuery.language = req.query.language;
+        quizQuery["theme.english"] = decodeURIComponent(req.query.theme).toString();
+      } else {
+        // If filtering for other types, only query ContentV3
+        shouldFetchQuizzes = false;
+        contentQuery.isPullModel = true;
+        contentQuery.language = req.query.language;
+        contentQuery["theme.english"] = decodeURIComponent(req.query.theme).toString();
+        contentQuery.type = expName;
+      }
     }
 
-    // Cursor-based pagination using creation_time (descending) and _id as a tie-breaker
+    // When using cursor-based pagination, apply the cursor window at the DB level
+    // so that .limit() operates on a deterministic, correctly ordered slice.
+    let cursorCondition = null;
     if (cursor) {
       const [lastCreationTimeStr, lastId] = cursor.split("_");
       const lastCreationTime = parseInt(lastCreationTimeStr, 10);
-      const lastIdBinary = new Binary(Buffer.from(uuidParse(lastId)), 4);
-
-      query.$or = [
-        { creation_time: { $lt: lastCreationTime } },
-        {
-          creation_time: lastCreationTime,
-          _id: { $lt: lastIdBinary },
-        },
-      ];
+      cursorCondition = {
+        $or: [
+          { creation_time: { $lt: lastCreationTime } },
+          { creation_time: lastCreationTime, _id: { $lt: lastId } },
+        ],
+      };
     }
 
-    const contents = await ContentV3.find(query)
-      .sort({ creation_time: -1, _id: -1 })
-      .limit(limit + 1)
-      .exec();
+    const applyCursorCondition = (baseQuery) =>
+      cursorCondition ? { $and: [baseQuery, cursorCondition] } : baseQuery;
 
-    const hasMore = contents.length > limit;
-    const data = hasMore ? contents.slice(0, limit) : contents;
+    // Fetch content and quizzes separately
+    // Fetch more items to account for merging and pagination
+    const fetchLimit = limit * 2; // Fetch more to ensure we have enough after merging
 
+    // Fetch content and/or quizzes only when needed (no empty Promise fallbacks)
+    let contents = [];
+    let quizzes = [];
+    if (shouldFetchContent && shouldFetchQuizzes) {
+      [contents, quizzes] = await Promise.all([
+        ContentV3.find(applyCursorCondition(contentQuery))
+          .sort({ creation_time: -1, _id: -1 })
+          .limit(fetchLimit)
+          .lean()
+          .exec(),
+        QuizData.find(applyCursorCondition(quizQuery))
+          .sort({ creation_time: -1, _id: -1 })
+          .limit(fetchLimit)
+          .lean()
+          .exec(),
+      ]);
+    } else if (shouldFetchContent) {
+      contents = await ContentV3.find(applyCursorCondition(contentQuery))
+        .sort({ creation_time: -1, _id: -1 })
+        .limit(fetchLimit)
+        .lean()
+        .exec();
+    } else if (shouldFetchQuizzes) {
+      quizzes = await QuizData.find(applyCursorCondition(quizQuery))
+        .sort({ creation_time: -1, _id: -1 })
+        .limit(fetchLimit)
+        .lean()
+        .exec();
+    }
+
+    // Transform content to ensure id field exists (standardize: always use id from _id)
+    // Note: .lean() returns plain objects, so no need for .toObject()
+    const transformedContents = contents.map((contentObj) => {
+      return {
+        ...contentObj,
+        id: contentObj._id,
+      };
+    });
+
+    // Transform quiz data to match content format (standardize: always use id from _id)
+    // Note: .lean() returns plain objects, so no need for .toObject()
+    const transformedQuizzes = quizzes.map((quizObj) => {
+      return {
+        ...quizObj,
+        id: quizObj._id,
+        type: "quiz",
+      };
+    });
+
+    // Merge content and quizzes, then sort once by creation_time and _id
+    let allContent = [...transformedContents, ...transformedQuizzes];
+    allContent.sort(sortByCreationTimeThenId);
+
+    // Apply limit and check if there are more items
+    const hasMore = allContent.length > limit;
+    const data = hasMore ? allContent.slice(0, limit) : allContent;
+
+    // Generate next cursor from last item (standardized: use id field)
     const lastItem = hasMore ? data[data.length - 1] : null;
-    const nextCursor = lastItem
-      ? `${lastItem.creation_time}_${lastItem._id.toString()}`
-      : null;
+    let nextCursor = null;
+    if (lastItem) {
+      const lastId = lastItem._id.toString();
+      nextCursor = `${lastItem.creation_time}_${lastId}`;
+    }
 
     // Send the final response
     return res.json({
@@ -509,12 +620,42 @@ router.get(
 router.get(
   "/:contentId",
   tryCatchWrapper(async (req, res) => {
-    const content = await getContentById(req.params.contentId);
+    const contentId = req.params.contentId;
+    let content = null;
+
+    // Try to find in ContentV3 first (uses _id as String) (lean for read-only)
+    content = await ContentV3.findOne({ _id: contentId }).lean().exec();
+
+    // If not found in ContentV3, try QuizData (also uses _id as String)
+    if (!content) {
+      content = await QuizData.findOne({ _id: contentId }).lean().exec();
+      if (content) {
+        // Transform quiz data to match expected frontend structure (standardize: always use id from _id)
+        // QuizData stores theme, localTheme, title, localTitle as top-level strings
+        content = {
+          ...content,
+          id: content._id,
+          type: "quiz",
+          title: content.title,
+          localTitle: content.localTitle,
+          theme: content.theme,
+          localTheme: content.localTheme,
+        };
+      }
+    } else {
+      // Frontend expects a top-level `id`; ContentV3 uses `_id`. Add `id` so response shape is consistent.
+      content = {
+        ...content,
+        id: content._id,
+      };
+    }
+
     if (!content) {
       return res.status(404).json({ error: "Content not found" });
     }
+
     return res.json(content);
-  }),
+  })
 );
 
 // router.get("/:contentId/processed", tryCatchWrapper(async (req, res) => {
@@ -561,10 +702,28 @@ router.get(
 router.delete(
   "/:contentId",
   tryCatchWrapper(async (req, res) => {
-    const result = await ContentV3.updateOne(
-      { _id: req.params.contentId },
+    const contentId = req.params.contentId;
+
+    // Try to delete from ContentV3 first (uses _id as String)
+    let result = await ContentV3.findOneAndUpdate(
+      { _id: contentId },
       { $set: { isDeleted: true } },
+      { new: true }
     );
+
+    // If not found in ContentV3, try QuizData (also uses _id as String)
+    if (!result) {
+      result = await QuizData.findOneAndUpdate(
+        { _id: contentId },
+        { $set: { isDeleted: true } },
+        { new: true }
+      );
+    }
+
+    if (!result) {
+      return res.status(404).json({ error: "Content not found" });
+    }
+
     return res.json(result);
   }),
 );
@@ -591,6 +750,148 @@ router.post(
       message: "Processing New Content job scheduled!",
       jobId: job.attrs._id,
     });
+  }),
+);
+
+router.patch(
+  "/",
+  tryCatchWrapper(async (req, res) => {
+    const isAudioUploaded = req.query.isAudioUploaded === "true";
+    const contentId = req.body?._id;
+
+    if (!contentId) {
+      return res.status(400).json({ error: "Content _id is required" });
+    }
+
+    const updatePayload = { ...req.body };
+    delete updatePayload._id;
+    delete updatePayload.id;
+    delete updatePayload.creation_time;
+
+    // Check if it is a quiz (stored in QuizData)
+    const existingQuiz = await QuizData.findOne({ _id: contentId }).lean().exec();
+    if (existingQuiz) {
+      const quizUpdate = {};
+
+      // Scalar fields
+      if (updatePayload.language !== undefined) quizUpdate.language = updatePayload.language;
+      if (updatePayload.isPullModel !== undefined) quizUpdate.isPullModel = updatePayload.isPullModel;
+      if (updatePayload.isTeacherApp !== undefined) quizUpdate.isTeacherApp = updatePayload.isTeacherApp;
+
+      // Normalize singular → plural mark field names from frontend
+      const posMarks = updatePayload.positiveMarks ?? updatePayload.positiveMark;
+      const negMarks = updatePayload.negativeMarks ?? updatePayload.negativeMark;
+      if (posMarks !== undefined) quizUpdate.positiveMarks = posMarks;
+      if (negMarks !== undefined) quizUpdate.negativeMarks = negMarks;
+
+      // title and theme are TextContentSchema objects {english, local, audioUrl}.
+      // The frontend sends them as plain strings; invalidate non-string values (e.g. number).
+      if (updatePayload.title !== undefined) {
+        const rawTitle = updatePayload.title;
+        const englishTitle =
+          typeof rawTitle === "string"
+            ? rawTitle
+            : rawTitle && typeof rawTitle.english === "string"
+              ? rawTitle.english
+              : null;
+        if (englishTitle === null) {
+          return res
+            .status(400)
+            .json({ error: "title must be a string or an object with english string" });
+        }
+        const localTitle =
+          typeof updatePayload.localTitle === "string"
+            ? updatePayload.localTitle
+            : existingQuiz.title?.local;
+        quizUpdate.title = {
+          english: englishTitle,
+          local: localTitle,
+          audioUrl: existingQuiz.title?.audioUrl,
+        };
+      }
+      if (updatePayload.theme !== undefined) {
+        const rawTheme = updatePayload.theme;
+        const englishTheme =
+          typeof rawTheme === "string"
+            ? rawTheme
+            : rawTheme && typeof rawTheme.english === "string"
+              ? rawTheme.english
+              : null;
+        if (englishTheme === null) {
+          return res
+            .status(400)
+            .json({ error: "theme must be a string or an object with english string" });
+        }
+        const localTheme =
+          typeof updatePayload.localTheme === "string"
+            ? updatePayload.localTheme
+            : existingQuiz.theme?.local;
+        quizUpdate.theme = {
+          english: englishTheme,
+          local: localTheme,
+          audioUrl: existingQuiz.theme?.audioUrl,
+        };
+      }
+
+      // Convert frontend flat arrays into the QuizData embedded-document structure,
+      // preserving existing audio URLs where no new audio was uploaded.
+      const questionTexts = updatePayload.questions;
+      const optionArrays = updatePayload.options;
+      const correctAnswers = updatePayload.correctAnswers;
+      if (Array.isArray(questionTexts) && Array.isArray(optionArrays)) {
+        quizUpdate.questions = questionTexts.map((questionText, qIdx) => {
+          const existing = existingQuiz.questions?.[qIdx];
+          const optTexts = optionArrays[qIdx];
+          const correctIdx = Array.isArray(correctAnswers) ? (correctAnswers[qIdx] ?? 0) : 0;
+          return {
+            question: {
+              id: existing?.question?.id,
+              url: existing?.question?.url,
+              text: questionText,
+            },
+            options: (optTexts ?? []).map((optText, oIdx) => ({
+              id: existing?.options?.[oIdx]?.id,
+              url: existing?.options?.[oIdx]?.url,
+              text: optText,
+            })),
+            correct_option_id: existing?.options?.[correctIdx]?.id,
+          };
+        });
+      }
+
+      const updated = await QuizData.findOneAndUpdate(
+        { _id: contentId },
+        { $set: quizUpdate },
+        { new: true },
+      ).exec();
+
+      if (!updated) {
+        return res.status(404).json({ error: "Quiz not found" });
+      }
+      return res.json({ ...updated.toObject(), id: updated._id, type: "quiz" });
+    }
+
+    // Otherwise update in ContentV3 (story, poem, song, riddle)
+    if (isAudioUploaded) {
+      updatePayload.isProcessed = false;
+    }
+
+    const updated = await ContentV3.findOneAndUpdate(
+      { _id: contentId, isDeleted: { $ne: true } },
+      { $set: updatePayload },
+      { new: true },
+    ).exec();
+
+    if (!updated) {
+      return res.status(404).json({ error: "Content not found" });
+    }
+
+    // If a new audio file was uploaded, trigger reprocessing
+    if (isAudioUploaded) {
+      await agenda.now("processNewContent", { content: updated.toObject() });
+    }
+
+    return res.json({ ...updated.toObject(), id: updated._id });
   }),
 );
 
@@ -734,7 +1035,7 @@ async function deleteAudioBlobs(audioId) {
 }
 
 async function deleteUnnecessaryStorage() {
-  const docs = await Content.find({});
+  const docs = await Content.find({}).lean().exec();
   const containerName = "output-container";
   const containerClient = blobService.getContainerClient(containerName);
   for (const doc of docs) {

@@ -15,7 +15,6 @@ import Register from "./pages/Register";
 import ClassroomList from "./pages/ClassroomList";
 import ClassroomForm from "./pages/ClassroomForm";
 import ClassroomDetail from "./pages/ClassroomDetail";
-import ContentPlayback from "./pages/ContentPlayback";
 import ContentDetails from "./pages/ContentDetails";
 
 function App() {

@@ -1,7 +1,14 @@
 import React from "react";
+import { transformQuizItem, extractQuestionText, extractQuestionOptions, getCorrectOptionIndex } from "../utils/quizDataTransform";
 
 const QuizDetails = ({ quiz }) => {
-  console.log(quiz);
+  const transformed = transformQuizItem(quiz);
+  const titleEnglish = transformed.title?.english ?? transformed.title;
+  const titleLocal = transformed.title?.local ?? quiz.localTitle;
+  const themeEnglish = transformed.theme?.english ?? transformed.theme;
+  const themeLocal = transformed.theme?.local ?? quiz.localTheme;
+  const questions = transformed.questions || [];
+
   return (
     <>
       <h2>Quiz</h2>
@@ -9,62 +16,68 @@ const QuizDetails = ({ quiz }) => {
         <div>
           <div>Title</div>
           <p>
-            <b>{quiz.title}</b>
+            <b>{titleEnglish}</b>
+            {titleLocal && (
+              <>
+                <br />
+                <b>{titleLocal}</b>
+              </>
+            )}
           </p>
         </div>
 
         <div>
           <div>Language</div>
           <p>
-            <b>{quiz.language}</b>
+            <b>{transformed.language}</b>
+          </p>
+        </div>
+
+        <div>
+          <div>Theme</div>
+          <p>
+            <b>{themeEnglish}</b>
+            {themeLocal && (
+              <>
+                <br />
+                <b>{themeLocal}</b>
+              </>
+            )}
           </p>
         </div>
 
         <div>
           <label>Positive Marks</label>
           <br />
-          <p className="mintgreen" style={{ width: "100px", textAlign: "center" }}>
-            {quiz.positiveMark}
-          </p>
+          <p className="mintgreen marks-badge">{transformed.positiveMarks}</p>
         </div>
 
         <div>
           <label>Negative Marks</label>
           <br />
-          <p className="mintgreen" style={{ width: "100px", textAlign: "center" }}>
-            {quiz.negativeMark}
-          </p>
+          <p className="mintgreen marks-badge">{transformed.negativeMarks}</p>
         </div>
       </div>
-      {quiz.questions.map((question, index) => {
+      {questions.map((questionItem, index) => {
+        const questionText = extractQuestionText(questionItem);
+        const options = extractQuestionOptions(questionItem);
+        const correctIndex = getCorrectOptionIndex(questionItem, options);
+        const optionLabels = ["A", "B", "C", "D"];
         return (
-          <div key={index} style={{ marginTop: "1%" }}>
+          <div key={index} className="quiz-question-block">
             <div>
               <label>Question {index + 1}</label>
               <br />
-              <p style={{ fontWeight: "700" }}>{question}</p>
+              <p className="quiz-question-text">{questionText}</p>
             </div>
             <div className="optionsDetailsGrid">
-              <div>
-                <label>Option A (Correct Answer) </label>
-                <br />
-                <p className="mintgreen">{quiz.options[index][0]}</p>
-              </div>
-              <div>
-                <label>Option B</label>
-                <br />
-                <p className="mintgreen">{quiz.options[index][1]}</p>
-              </div>
-              <div>
-                <label>Option C</label>
-                <br />
-                <p className="mintgreen">{quiz.options[index][2]}</p>
-              </div>
-              <div>
-                <label>Option D</label>
-                <br />
-                <p className="mintgreen">{quiz.options[index][3]}</p>
-              </div>
+              {options.map((opt, optIdx) => (
+                <div key={optIdx}>
+                  <label>Option {optionLabels[optIdx]}{optIdx === correctIndex ? " (Correct Answer)" : ""}</label>
+                  <br />
+                  <p className="mintgreen">{opt}</p>
+                </div>
+              ))}
             </div>
             <br />
           </div>

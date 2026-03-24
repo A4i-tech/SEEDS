@@ -27,6 +27,7 @@ async function processQuizData(job) {
     if (!content || !content._id) {
       throw new Error("Invalid content data received.");
     }
+    // Use a document instance for transformation, but upsert on save to allow edits.
     const quizDoc = new QuizData(content);
     console.log("Processing Quiz content:", quizDoc);
 
@@ -129,8 +130,16 @@ async function processQuizData(job) {
     job.attrs.completedAt = new Date();
     job.attrs.data.processedContent = quizDoc.toObject();
     await job.save();
-    await quizDoc.save();
-    console.log("SAVED QUIZ DOC");
+
+    // Use atomic upsert operation to avoid race conditions
+    // This handles both insert (new quiz) and update (existing quiz) cases atomically
+    const processedContent = job.attrs.data.processedContent;
+    await QuizData.findOneAndUpdate(
+      { _id: processedContent._id },
+      processedContent,
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    console.log("SAVED/UPDATED QUIZ DOC (atomic upsert)");
     console.log(`Processed JOB: ${quizDoc}`);
   } catch (error) {
     console.error("Job failed due to error:", error);

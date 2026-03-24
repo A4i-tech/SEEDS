@@ -1,40 +1,82 @@
 import { useState, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { useNavigate } from "react-router-dom";
-import { getAuthHeaders } from "../utils/authHelpers";
+import { contentService } from "../services/contentService";
+import {
+  transformQuizItem,
+  extractQuestionText,
+  extractQuestionOptions,
+  getCorrectOptionIndex,
+} from "../utils/quizDataTransform";
+
+const ANSWER_OPTION_CONFIG = [
+  { name: "optionA", label: "Option A", idx: 0 },
+  { name: "optionB", label: "Option B", idx: 1 },
+  { name: "optionC", label: "Option C", idx: 2 },
+  { name: "optionD", label: "Option D", idx: 3 },
+];
 
 const AddQuiz = ({ quiz }) => {
   const navigate = useNavigate();
   const [inputFields, setInputFields] = useState([
-    { question: "", optionA: "", optionB: "", optionC: "", optionD: "" },
+    { question: "", optionA: "", optionB: "", optionC: "", optionD: "", correctAnswer: 0 },
   ]);
 
   const [metadata, setMetadata] = useState({
     title: "",
-    language: "Kannada",
+    localTitle: "",
+    theme: "",
+    localTheme: "",
+    language: "kannada",
     positiveMark: 1,
     negativeMark: 0,
   });
 
   useEffect(() => {
     if (quiz && Object.keys(quiz).length > 0) {
+      const transformedQuiz = transformQuizItem(quiz);
+      const titleSource = transformedQuiz.title;
+      const themeSource = transformedQuiz.theme;
+
+      const title =
+        typeof titleSource === "object" ? titleSource.english : titleSource;
+      const localTitle =
+        typeof titleSource === "object" ? titleSource.local : undefined;
+      const theme =
+        typeof themeSource === "object" ? themeSource.english : themeSource;
+      const localTheme =
+        typeof themeSource === "object" ? themeSource.local : undefined;
       const quizMetadata = {
-        title: quiz.title,
-        language: quiz.language,
-        positiveMark: quiz.positiveMark,
-        negativeMark: quiz.negativeMark,
+        title: title,
+        localTitle: localTitle,
+        theme: theme,
+        localTheme: localTheme,
+        language: transformedQuiz.language,
+        positiveMark: transformedQuiz.positiveMarks ?? 1,
+        negativeMark: transformedQuiz.negativeMarks ?? 0,
       };
       setMetadata(quizMetadata);
-      // var a = []
-      const a = quiz.options.map((option, index) => ({
-        question: quiz.questions[index],
-        optionA: option[0],
-        optionB: option[1],
-        optionC: option[2],
-        optionD: option[3],
-      }));
-      setInputFields(a);
-    } else {
+      const questions = transformedQuiz.questions;
+      const inputFieldsData = questions.map((questionItem) => {
+        const questionText = extractQuestionText(questionItem);
+        const options = extractQuestionOptions(questionItem);
+        const optionTexts = [...options];
+        while (optionTexts.length < 4) optionTexts.push("");
+        const correctIndex = getCorrectOptionIndex(questionItem, optionTexts);
+        return {
+          question: questionText,
+          optionA: optionTexts[0],
+          optionB: optionTexts[1],
+          optionC: optionTexts[2],
+          optionD: optionTexts[3],
+          correctAnswer: correctIndex,
+        };
+      });
+      setInputFields(
+        inputFieldsData.length > 0
+          ? inputFieldsData
+          : [{ question: "", optionA: "", optionB: "", optionC: "", optionD: "", correctAnswer: 0 }]
+      );
     }
   }, [quiz]);
 
@@ -44,29 +86,76 @@ const AddQuiz = ({ quiz }) => {
     setInputFields(data);
   };
 
+  const handleLanguageChange = (event) => {
+    const newLanguage = event.target.value;
+    setMetadata((prev) => ({
+      ...prev,
+      language: newLanguage,
+      // When language changes, clear local-specific fields so the user re-enters them if needed
+      localTitle: "",
+      localTheme: "",
+    }));
+  };
+
   const createQuizJson = () => {
-    // const newMetadata = {...metadata[0]}
-    metadata["questions"] = inputFields.map((mcq) => mcq.question);
-    const options = inputFields.map((mcq) => [mcq.optionA, mcq.optionB, mcq.optionC, mcq.optionD]);
-    const correctAnswers = Array(options.length).fill(0);
-    metadata["correctAnswers"] = correctAnswers;
-    metadata["options"] = options;
-    metadata["type"] = "quiz";
-    if (quiz) {
-      metadata["id"] = quiz.id;
-    } else {
-      metadata["id"] = uuidv4();
-    }
+    const languageLower = (metadata.language || "").toLowerCase();
+
+    const questions = inputFields.map((mcq) => mcq.question);
+    const options = inputFields.map((mcq) => [
+      mcq.optionA,
+      mcq.optionB,
+      mcq.optionC,
+      mcq.optionD,
+    ]);
+    const correctAnswers = inputFields.map((mcq) =>
+      mcq.correctAnswer !== undefined ? mcq.correctAnswer : 0
+    );
+
+    const payload = {
+      ...metadata,
+      questions,
+      options,
+      correctAnswers,
+      // Theme fields expected by backend quiz creation (mirror AddStory behavior)
+      theme: metadata.theme,
+      localTheme:
+        languageLower === "english" ? metadata.theme : metadata.localTheme,
+      // Title fields expected by backend quiz creation (mirror AddStory behavior)
+      title: metadata.title,
+      localTitle:
+        languageLower === "english" ? metadata.title : metadata.localTitle,
+      type: "quiz",
+      id: quiz ? quiz.id : uuidv4(),
+    };
+
+    return payload;
   };
 
   const isValid = () => {
     var valid = true;
+    const languageLower = (metadata.language || "").toLowerCase();
+
     if (metadata.title.length === 0) {
       valid = false;
       alert("Title cannot be empty");
+    } else if (
+      languageLower !== "english" &&
+      metadata.localTitle.length === 0
+    ) {
+      valid = false;
+      alert("Local title cannot be empty for non-English languages");
+    } else if (metadata.theme.length === 0) {
+      valid = false;
+      alert("Theme cannot be empty");
     } else if (metadata.language.length === 0) {
       valid = false;
       alert("Language cannot be empty");
+    } else if (
+      languageLower !== "english" &&
+      metadata.localTheme.length === 0
+    ) {
+      valid = false;
+      alert("Local theme cannot be empty for non-English languages");
     } else if (metadata.positiveMark.length === 0) {
       valid = false;
       alert("Positive marks cannot be empty");
@@ -90,26 +179,31 @@ const AddQuiz = ({ quiz }) => {
     return valid;
   };
 
-  const onSubmit = (e) => {
+  const onSubmit = async (e) => {
     e.preventDefault();
     console.log("inputFields", inputFields);
-    console.log("metatdata", metadata);
-    createQuizJson();
+    console.log("metadata", metadata);
+    const payload = createQuizJson();
 
-    if (isValid()) {
-      console.log(JSON.stringify(metadata));
-      fetch(`${process.env.REACT_APP_SEEDS_URL}/content/quiz`, {
-        method: "POST",
-        headers: getAuthHeaders(),
-        body: JSON.stringify(metadata),
-      })
-        .then((res) => {
-          alert("Saved successfully.");
-          navigate("/content");
-        })
-        .catch((err) => {
-          console.log(err.message);
-        });
+    if (!isValid()) {
+      return;
+    }
+
+    try {
+      const isEditing = quiz && quiz.id;
+      let result;
+      if (isEditing) {
+        // PATCH existing quiz — backend requires _id in the body
+        result = await contentService.updateContent({ ...payload, _id: quiz.id });
+      } else {
+        result = await contentService.createQuiz(payload);
+      }
+      console.log("Quiz saved successfully:", result);
+      alert("Saved successfully.");
+      navigate("/content");
+    } catch (err) {
+      console.error("Error saving quiz:", err);
+      alert(`Failed to save quiz: ${err.message || "Unknown error"}`);
     }
   };
 
@@ -120,8 +214,15 @@ const AddQuiz = ({ quiz }) => {
       optionB: "",
       optionC: "",
       optionD: "",
+      correctAnswer: 0,
     };
     setInputFields([...inputFields, newfield]);
+  };
+
+  const handleCorrectAnswerChange = (questionIndex, optionIndex) => {
+    const updated = [...inputFields];
+    updated[questionIndex].correctAnswer = optionIndex;
+    setInputFields(updated);
   };
   //     "positiveMark" : 1,    "negativeMark" : 0,    "id" : "Ramayana quiz 2",    "language" : "Kannada",
   const removeFields = (index) => {
@@ -130,9 +231,49 @@ const AddQuiz = ({ quiz }) => {
     setInputFields(data);
   };
 
+  const getLocalizedLabelPrefix = () => {
+    const language = (metadata.language || "").toLowerCase();
+    switch (language) {
+      case "kannada":
+        return "Kannada";
+      case "hindi":
+        return "Hindi";
+      case "marathi":
+        return "Marathi";
+      case "tamil":
+        return "Tamil";
+      case "bengali":
+        return "Bengali";
+      case "english":
+      default:
+        return "Local";
+    }
+  };
+
   return (
     <form onSubmit={onSubmit}>
       <div className="metadataGrid">
+        <div>
+          <label>
+            Language
+            <br />
+            <select
+              value={metadata.language || ""}
+              onChange={handleLanguageChange}
+              className="mintgreen"
+              style={{ width: "200px" }}
+            >
+              <option value="kannada">Kannada</option>
+              <option value="hindi">Hindi</option>
+              <option value="marathi">Marathi</option>
+              <option value="odia">Odia</option>
+              <option value="english">English</option>
+              <option value="tamil">Tamil</option>
+              <option value="bengali">Bengali</option>
+            </select>
+          </label>
+        </div>
+
         <div>
           <label>Title</label>
           <br />
@@ -147,25 +288,47 @@ const AddQuiz = ({ quiz }) => {
         </div>
 
         <div>
-          <label>
-            Language
-            <br />
-            <select
-              value={metadata.language || ""}
-              onChange={(event) => setMetadata({ ...metadata, language: event.target.value })}
-              className="mintgreen"
-              style={{ width: "200px" }}
-            >
-              <option value="kannada">Kannada</option>
-              <option value="hindi">Hindi</option>
-              <option value="marathi">Marathi</option>
-              <option value="odia">Odia</option>
-              <option value="english">English</option>
-              <option value="tamil">Tamil</option>
-              <option value="bengali">Bengali</option>
-            </select>
-          </label>
+          <label>Theme</label>
+          <br />
+          <input
+            className="mintgreen"
+            type="text"
+            name="theme"
+            placeholder=" Add Theme"
+            value={metadata.theme || ""}
+            onChange={(event) => setMetadata({ ...metadata, theme: event.target.value })}
+          />
         </div>
+
+        {metadata.language.toLowerCase() !== "english" && (
+          <>
+            <div>
+              <label>{`${getLocalizedLabelPrefix()} Title`}</label>
+              <br />
+              <input
+                className="mintgreen"
+                type="text"
+                name="localTitle"
+                placeholder=" Add Local Title"
+                value={metadata.localTitle || ""}
+                onChange={(event) => setMetadata({ ...metadata, localTitle: event.target.value })}
+              />
+            </div>
+
+            <div>
+              <label>{`${getLocalizedLabelPrefix()} Theme`}</label>
+              <br />
+              <input
+                className="mintgreen"
+                type="text"
+                name="localTheme"
+                placeholder=" Add Local Theme"
+                value={metadata.localTheme || ""}
+                onChange={(event) => setMetadata({ ...metadata, localTheme: event.target.value })}
+              />
+            </div>
+          </>
+        )}
 
         <div>
           <label>Positive Marks</label>
@@ -219,54 +382,29 @@ const AddQuiz = ({ quiz }) => {
                   Remove
                 </button>
               </div>
-              <div>
-                <label>Option A (Correct Answer) </label>
-                <br />
-                <input
-                  type="text"
-                  name="optionA"
-                  className="mintgreen"
-                  placeholder=" Add Option A"
-                  value={input.optionA}
-                  onChange={(event) => handleFormChange(index, event)}
-                />
-              </div>
-              <div>
-                <label>Option B</label>
-                <br />
-                <input
-                  type="text"
-                  className="mintgreen"
-                  placeholder=" Add Option B"
-                  name="optionB"
-                  value={input.optionB}
-                  onChange={(event) => handleFormChange(index, event)}
-                />
-              </div>
-              <div>
-                <label>Option C</label>
-                <br />
-                <input
-                  type="text"
-                  className="mintgreen"
-                  name="optionC"
-                  placeholder=" Add Option C"
-                  value={input.optionC}
-                  onChange={(event) => handleFormChange(index, event)}
-                />
-              </div>
-              <div>
-                <label>Option D</label>
-                <br />
-                <input
-                  type="text"
-                  className="mintgreen"
-                  name="optionD"
-                  placeholder=" Add Option D"
-                  value={input.optionD}
-                  onChange={(event) => handleFormChange(index, event)}
-                />
-              </div>
+              {ANSWER_OPTION_CONFIG.map(({ name, label, idx }) => (
+                <div key={name}>
+                  <label>
+                    <input
+                      type="radio"
+                      name={`correctAnswer-${index}`}
+                      checked={input.correctAnswer === idx}
+                      onChange={() => handleCorrectAnswerChange(index, idx)}
+                      style={{ marginRight: "4px" }}
+                    />
+                    {label} {input.correctAnswer === idx ? "(Correct Answer)" : ""}
+                  </label>
+                  <br />
+                  <input
+                    type="text"
+                    name={name}
+                    className="mintgreen"
+                    placeholder={` Add ${label}`}
+                    value={input[name]}
+                    onChange={(event) => handleFormChange(index, event)}
+                  />
+                </div>
+              ))}
             </div>
             <br />
           </div>

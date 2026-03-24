@@ -26,11 +26,15 @@ export class AudioContentState {
     status = "Paused",
     paused_at = "",
     position_seconds = null,
+    duration_seconds = null,
+    speed = 1.0,
   } = {}) {
     this.current_url = current_url;
     this.status = status;
     this.paused_at = paused_at;
     this.position_seconds = position_seconds;
+    this.duration_seconds = duration_seconds;
+    this.speed = speed;
   }
 }
 

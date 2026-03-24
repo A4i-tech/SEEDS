@@ -1,69 +1,66 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useParams, useLocation } from "react-router-dom";
 import AddQuiz from "./AddQuiz";
 import AddStory from "./AddStory";
-import { useEffect } from "react";
-import { useParams, useLocation } from "react-router-dom";
-import { SEEDS_URL } from "../Constants";
-import { getAuthHeaders } from "../utils/authHelpers";
+import { contentService } from "../services/contentService";
 
 const ContentEdit = () => {
   const { type, id } = useParams();
-  // console.log(type, id);
   const [content, setContent] = useState({});
   const [experience, setExperience] = useState("quiz");
+  const [isLoading, setIsLoading] = useState(true);
+
+  const contentById = useCallback(async () => {
+    try {
+      const data = await contentService.getContentById(id);
+      return data;
+    } catch (error) {
+      console.error("Error fetching content for edit:", error);
+      return null;
+    }
+  }, [id]);
 
   useEffect(() => {
-    const contentById = async () => {
-      // const res = await fetch("http://localhost:5001/content");
-
-      if (type === "quiz") {
-        const placeRes = await fetch(
-          "https://place-seeds.azurewebsites.net/rawDataById?" +
-            new URLSearchParams({
-              id: id,
-            })
-        );
-        const data = await placeRes.json();
-        console.log(data);
-        return data;
-      } else {
-        const seedsRes = await fetch(`${SEEDS_URL}/content/${id}`, {
-          method: "GET",
-          headers: getAuthHeaders(),
-        });
-        const seedsData = await seedsRes.json();
-        return seedsData;
-      }
-    };
-
     const getContentById = async () => {
       const contentFromServer = await contentById();
-      setContent(contentFromServer);
-      console.log("quizInEdit", contentFromServer);
-      setExperience(contentFromServer.type);
+      if (contentFromServer) {
+        setContent(contentFromServer);
+        setExperience(contentFromServer.type);
+      }
+      setIsLoading(false);
     };
     getContentById();
-  }, [type, id]);
+  }, [contentById, type]);
 
   const location = useLocation();
-  console.log("link props", location.state);
 
   const handleChange = (event) => {
     setExperience(event.target.value);
-    console.log(event.target.value);
   };
 
-  const isProcessed =
-    content?.isProcessed ?? Boolean(content?.audioContent?.length);
+  const experienceLower = (experience || "").toLowerCase();
+  const isQuiz = experienceLower === "quiz";
+  // Quiz content has no isProcessed/audioContent — treat it as always ready
+  const isProcessed = isQuiz
+    ? true
+    : (content?.isProcessed ?? Boolean(content?.audioContent?.length));
   const titleText =
     typeof content?.title === "object"
       ? content.title.english || content.title.local || "Untitled"
       : content?.title || "Untitled";
 
+  if (isLoading) {
+    return (
+      <div className="content-details-message">
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
   if (content && !isProcessed) {
     return (
       <>
-        <div style={{ margin: "20px" }}>
+        <div className="content-details-message">
           <h3>{titleText}</h3>
           <p>Content is being processed, try again later!</p>
         </div>
@@ -72,30 +69,28 @@ const ContentEdit = () => {
   } else {
     return (
       <>
-        <div style={{ margin: "20px" }}>
+        <div className="content-details-page">
           <h3>Edit Content</h3>
-          {content &&
-            (experience === "Story" || experience === "Poem" || experience === "Song") && (
-              <form>
-                <label>
-                  Experience:
-                  <select
-                    value={experience}
-                    onChange={(event) => handleChange(event)}
-                    className="mintgreen"
-                    style={{ width: "150px" }}
-                  >
-                    <option value="Story">Story</option>
-                    <option value="Poem">Poem</option>
-                    <option value="Song">Song</option>
-                  </select>
-                </label>
-              </form>
-            )}
-          {content && experience === "quiz" && isProcessed && (
+          {content && !isQuiz && (
+            <form>
+              <label>
+                Experience:
+                <select
+                  value={experience}
+                  onChange={(event) => handleChange(event)}
+                  className="mintgreen"
+                >
+                  <option value="Story">Story</option>
+                  <option value="Poem">Poem</option>
+                  <option value="Song">Song</option>
+                </select>
+              </label>
+            </form>
+          )}
+          {content && isQuiz && (
             <AddQuiz quiz={content} />
           )}
-          {content && experience !== "quiz" && isProcessed && (
+          {content && !isQuiz && isProcessed && (
             <AddStory content={content} contentType={experience} />
           )}
           <div />
