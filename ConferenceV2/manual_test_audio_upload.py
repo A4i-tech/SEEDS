@@ -38,10 +38,10 @@ async def main():
     for i in range(0, len(raw_bytes), chunk_size):
         capture.append_chunk(raw_bytes[i : i + chunk_size])
 
-    print(f"Buffered {len(capture.buffer)} bytes ({duration_sec}s of audio)")
-    print("Uploading to Azure...")
+    print(f"Wrote {capture.total_bytes} bytes ({duration_sec}s of audio) to {capture.file_path}")
+    print("Finalizing and uploading to Azure...")
 
-    blob_url = await capture.flush_and_upload()
+    blob_url = await capture.finalize()
     if blob_url:
         print(f"SUCCESS - blob URL: {blob_url}")
     else:
