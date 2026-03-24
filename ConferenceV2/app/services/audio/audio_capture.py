@@ -1,3 +1,4 @@
+import asyncio
 import io
 import os
 import wave
@@ -36,6 +37,8 @@ class AudioCaptureService:
             connection_string = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
             capture_dir = os.getenv("AUDIO_CAPTURE_DIR", tempfile.gettempdir())
 
+        self.upload_timeout = float(os.getenv("AUDIO_BLOB_UPLOAD_TIMEOUT_SECONDS", "30.0"))
+        self.upload_max_retries = int(os.getenv("AUDIO_BLOB_UPLOAD_MAX_RETRIES", "3"))
         self.start_time = datetime.utcnow()
         self.blob_service_client = None
         self._wav_writer: Optional[wave.Wave_write] = None
@@ -75,11 +78,13 @@ class AudioCaptureService:
     append_chunk = write_chunk
 
     def _close_file(self):
-        """Close the WAV writer and underlying file."""
+        """Close the WAV writer and underlying file, ensuring data is flushed to disk."""
         if self._wav_writer:
             self._wav_writer.close()
             self._wav_writer = None
         if self._file and not self._file.closed:
+            self._file.flush()
+            os.fsync(self._file.fileno())
             self._file.close()
 
     async def finalize(self) -> Optional[str]:
@@ -107,28 +112,51 @@ class AudioCaptureService:
     async def flush_and_upload(self) -> Optional[str]:
         return await self.finalize()
 
+    def _do_upload(self, blob_name: str) -> str:
+        """Synchronous upload to Azure Blob Storage (runs in a thread)."""
+        container_client = self.blob_service_client.get_container_client(self.container_name)
+        try:
+            container_client.get_container_properties()
+        except Exception:
+            container_client.create_container()
+            logger.info(f"Created container: {self.container_name}")
+
+        blob_client = container_client.get_blob_client(blob_name)
+        with open(self.file_path, "rb") as f:
+            blob_client.upload_blob(
+                f,
+                overwrite=True,
+                content_settings=ContentSettings(content_type="audio/wav"),
+            )
+        return blob_client.url
+
     async def _upload_to_azure(self) -> Optional[str]:
         blob_name = self._build_blob_name()
-        try:
-            container_client = self.blob_service_client.get_container_client(self.container_name)
+        last_error = None
+        for attempt in range(1, self.upload_max_retries + 1):
             try:
-                container_client.get_container_properties()
-            except Exception:
-                container_client.create_container()
-                logger.info(f"Created container: {self.container_name}")
-
-            blob_client = container_client.get_blob_client(blob_name)
-            with open(self.file_path, "rb") as f:
-                blob_client.upload_blob(
-                    f,
-                    overwrite=True,
-                    content_settings=ContentSettings(content_type="audio/wav"),
+                url = await asyncio.wait_for(
+                    asyncio.to_thread(self._do_upload, blob_name),
+                    timeout=self.upload_timeout,
                 )
-            logger.info(f"Uploaded recording to {blob_client.url}")
-            return blob_client.url
-        except Exception as e:
-            logger.error(f"Failed to upload recording to Azure: {e}")
-            return None
+                logger.info(f"Uploaded recording to {url}")
+                return url
+            except asyncio.TimeoutError:
+                last_error = "timeout"
+                logger.warning(
+                    "Azure upload attempt %s/%s timed out after %.0fs",
+                    attempt, self.upload_max_retries, self.upload_timeout,
+                )
+            except Exception as e:
+                last_error = e
+                logger.warning(
+                    "Azure upload attempt %s/%s failed: %s",
+                    attempt, self.upload_max_retries, e,
+                )
+            if attempt < self.upload_max_retries:
+                await asyncio.sleep(min(1.0 * 2 ** (attempt - 1), 8.0))
+        logger.error(f"Failed to upload recording to Azure after {self.upload_max_retries} attempts: {last_error}")
+        return None
 
     def _cleanup_local(self):
         if self.file_path and os.path.exists(self.file_path):

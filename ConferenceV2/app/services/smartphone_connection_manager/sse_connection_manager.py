@@ -16,12 +16,17 @@ class SSEConnectionManager(SmartphoneConnectionManager):
     async def connect(self, client: Participant):
         """Create a StreamingResponse to handle SSE connection."""
         existing_connection = self.active_connections.get(client.phone_number)
-        if existing_connection is None or existing_connection.get("disconnected"):
-            self.active_connections[client.phone_number] = {
-                "queue": asyncio.Queue(),
-                "disconnected": False
-            }
-            logger_instance.info(f"SSE Client {client.phone_number} connected")
+        if existing_connection is not None and not existing_connection.get("disconnected"):
+            # Terminate the prior SSE stream before creating a new one
+            existing_connection["disconnected"] = True
+            await existing_connection["queue"].put(self.DISCONNECT_SENTINEL)
+            logger_instance.info(f"SSE Client {client.phone_number} prior connection terminated on reconnect")
+
+        self.active_connections[client.phone_number] = {
+            "queue": asyncio.Queue(),
+            "disconnected": False
+        }
+        logger_instance.info(f"SSE Client {client.phone_number} connected")
 
         async def event_stream():
             connection = self.active_connections.get(client.phone_number)

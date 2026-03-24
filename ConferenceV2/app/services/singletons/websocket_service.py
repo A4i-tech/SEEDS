@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import json
+import random
 from dotenv import load_dotenv
 import websockets
 from app.models.audio_content_state import ContentStatus
@@ -68,8 +69,9 @@ class WebsocketService:
                     logger_instance.info(f"Connected to WebSocket: {self.connection_url}")
                 except Exception as e:
                     self.reconnect_attempts += 1
-                    logger_instance.info(f"Connection failed (attempt {self.reconnect_attempts}): {e}")
-                    await asyncio.sleep(2)  # Wait before retrying
+                    delay = min(1.0 * 2 ** self.reconnect_attempts, 30.0) + random.uniform(0, 1)
+                    logger_instance.info(f"Connection failed (attempt {self.reconnect_attempts}), retrying in {delay:.1f}s: {e}")
+                    await asyncio.sleep(delay)
 
     async def _listen_messages(self):
         while True:
@@ -94,7 +96,13 @@ class WebsocketService:
                             conf_call = conference_manager.get_conference(websocket_message.websocket_id)
                             if conf_call and conf_call._remote_audio_queue is not None:
                                 audio_bytes = base64.b64decode(websocket_message.message)
-                                await conf_call._remote_audio_queue.put(audio_bytes)
+                                try:
+                                    conf_call._remote_audio_queue.put_nowait(audio_bytes)
+                                except asyncio.QueueFull:
+                                    logger_instance.warning(
+                                        "Audio relay queue full for %s, dropping chunk",
+                                        websocket_message.websocket_id,
+                                    )
                         elif websocket_message.type == MessageType.RECONNECT:
                             conf_call = conference_manager.get_conference(websocket_message.websocket_id)
                             if conf_call:
@@ -133,8 +141,9 @@ class WebsocketService:
 
     async def _attempt_reconnect(self):
         self.reconnect_attempts += 1
-        logger_instance.info(f"Reconnection attempt {self.reconnect_attempts}")
-        await asyncio.sleep(2)  # Wait before reconnecting
+        delay = min(1.0 * 2 ** self.reconnect_attempts, 30.0) + random.uniform(0, 1)
+        logger_instance.info(f"Reconnection attempt {self.reconnect_attempts}, waiting {delay:.1f}s")
+        await asyncio.sleep(delay)
         await self._connect()
 
     async def send_message(self, message: WebsocketServiceMessage):

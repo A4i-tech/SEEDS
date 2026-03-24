@@ -1,4 +1,5 @@
 import json
+import os
 from collections import deque
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -11,6 +12,15 @@ from app.services.audio.transcriber import AudioTranscriber
 from app.services.conference_call import ConferenceCall
 
 TRANSCRIPT_WINDOW_SIZE = 3
+
+_transcript_logging = os.getenv("AUDIO_TRANSCRIPT_LOGGING_ENABLED", "false").lower() == "true"
+
+
+def _mask_audio_text(text: str | None) -> str:
+    """Redact transcript/speech text for safe logging."""
+    if not text:
+        return "<empty>"
+    return f"<redacted len={len(text)}>"
 
 
 def _remember_transcript(conf: ConferenceCall, text: str) -> str:
@@ -48,15 +58,19 @@ async def process_audio_message(
         analysis_text = _remember_transcript(conf, text)
         detect_result = await hold_detector.detect(analysis_text)
 
+        _safe_text = text if _transcript_logging else _mask_audio_text(text)
+        _safe_analysis = analysis_text if _transcript_logging else _mask_audio_text(analysis_text)
+        _safe_matched = detect_result.get("matched_phrase") if _transcript_logging else _mask_audio_text(detect_result.get("matched_phrase"))
+
         analysis_log = {
             "event": "audio_analysis",
             "conference_id": conference_id,
-            "text": text,
-            "analysis_text": analysis_text,
+            "text": _safe_text,
+            "analysis_text": _safe_analysis,
             "is_hold": detect_result["is_hold"],
             "hold_score": float(f"{detect_result['score']:.4f}"),
             "hold_threshold": detect_result.get("threshold"),
-            "matched_phrase": detect_result.get("matched_phrase"),
+            "matched_phrase": _safe_matched,
             "detection_method": detect_result.get("detection_method"),
             "segments_count": len(segments),
             "captured_bytes": capture_session.total_bytes if capture_session else None,
@@ -89,7 +103,7 @@ async def process_audio_message(
             await conf.update_state()
 
             logger_instance.warning(
-                f"HOLD DETECTED | Score: {detect_result['score']:.2f} | Text: {analysis_text}"
+                f"HOLD DETECTED | Score: {detect_result['score']:.2f} | Text: {_safe_analysis}"
             )
     except Exception as e:
         logger_instance.exception("Error processing audio chunk: %s", e)

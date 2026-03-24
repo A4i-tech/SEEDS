@@ -1,3 +1,4 @@
+import asyncio
 import io
 import os
 import wave
@@ -47,6 +48,9 @@ class AudioTranscriber:
             )
         else:
             logger.info("AUDIO_ANALYSIS_ENABLED=false. Transcription calls are disabled.")
+
+        self.transcript_logging = os.getenv("AUDIO_TRANSCRIPT_LOGGING_ENABLED", "false").lower() == "true"
+        self.api_timeout = float(os.getenv("AUDIO_API_TIMEOUT_SECONDS", "8.0"))
 
         self.silence_threshold = int(
             os.getenv("AUDIO_SILENCE_THRESHOLD", str(self.SILENCE_THRESHOLD))
@@ -114,6 +118,11 @@ class AudioTranscriber:
             "segments_dropped_short": 0,
             "segments_transcribed": 0,
         }
+
+        # Rolling RMS calibration for energy-based VAD fallback
+        self._rms_window: deque[float] = deque(maxlen=50)
+        self._rms_calibration_factor = 1.5
+        self._rms_calibrated = False
 
         self.use_webrtc_vad = webrtcvad is not None
         self.vad = None
@@ -217,6 +226,17 @@ class AudioTranscriber:
 
         audio_np = np.frombuffer(frame, dtype=np.int16)
         rms = self._calculate_rms(audio_np)
+
+        # Rolling RMS calibration: adapt threshold after enough samples
+        self._rms_window.append(rms)
+        if len(self._rms_window) >= self._rms_window.maxlen:
+            if not self._rms_calibrated:
+                self._rms_calibrated = True
+                logger.info("Energy-based VAD: RMS calibration active (window=%d)", self._rms_window.maxlen)
+            mean_rms = sum(self._rms_window) / len(self._rms_window)
+            adaptive_threshold = mean_rms * self._rms_calibration_factor
+            return rms >= adaptive_threshold
+
         return rms >= self.silence_threshold
 
     async def _consume_frame(self, frame: bytes) -> Optional[dict[str, Any]]:
@@ -309,11 +329,14 @@ class AudioTranscriber:
                 len(segment_bytes),
                 len(audio_np),
             )
-            transcript = await self.client.audio.transcriptions.create(
-                model="whisper-1",
-                file=wav_buffer,
-                language="en",
-                response_format="verbose_json",
+            transcript = await asyncio.wait_for(
+                self.client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=wav_buffer,
+                    language="en",
+                    response_format="verbose_json",
+                ),
+                timeout=self.api_timeout,
             )
 
             text = transcript.text.strip()
@@ -328,7 +351,10 @@ class AudioTranscriber:
                     })
 
             if text:
-                logger.debug("TRANSCRIPTION [Duration: %ss]: %s", duration, text)
+                if self.transcript_logging:
+                    logger.debug("TRANSCRIPTION [Duration: %ss]: %s", duration, text)
+                else:
+                    logger.debug("TRANSCRIPTION [Duration: %ss]: <redacted len=%d>", duration, len(text))
                 self.metrics["segments_transcribed"] += 1
                 if (
                     self.metrics["segments_emitted"] > 0

@@ -14,6 +14,7 @@ class HoldDetector:
         self.client = None
         self.threshold = float(os.getenv("AUDIO_HOLD_SIMILARITY_THRESHOLD", str(threshold)))
         self.min_chars = int(os.getenv("AUDIO_HOLD_MIN_TEXT_CHARS", "6"))
+        self.api_timeout = float(os.getenv("AUDIO_API_TIMEOUT_SECONDS", "8.0"))
         # Similarity threshold:
         # > 0.82 usually indicates a strong match for short phrases with 'text-embedding-3-small'
         self.hold_phrases = [
@@ -95,7 +96,10 @@ class HoldDetector:
         for attempt in range(1, self.EMBEDDING_MAX_RETRIES + 1):
             try:
                 # Using 'text-embedding-3-small'
-                response = await self.client.embeddings.create(input=texts, model="text-embedding-3-small")
+                response = await asyncio.wait_for(
+                    self.client.embeddings.create(input=texts, model="text-embedding-3-small"),
+                    timeout=self.api_timeout,
+                )
                 # Verify structure: response.data is a list of Embedding objects
                 return [data.embedding for data in response.data]
             except Exception as e:
@@ -155,11 +159,10 @@ class HoldDetector:
         # Debug log only if significant score to reduce noise
         if max_sim > 0.7:
             logger.debug(
-                "Hold score: %.3f (threshold: %.3f) matched_phrase='%s' text='%s'",
+                "Hold score: %.3f (threshold: %.3f) matched_phrase='%s'",
                 max_sim,
                 self.threshold,
                 matched_phrase,
-                text,
             )
         
         return {

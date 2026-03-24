@@ -100,7 +100,7 @@ class ConferenceCall:
             )
             return
         self.stop_remote_audio_relay()
-        self._remote_audio_queue = asyncio.Queue()
+        self._remote_audio_queue = asyncio.Queue(maxsize=settings.AUDIO_RELAY_MAX_QUEUE)
         self._remote_audio_task = asyncio.create_task(self._consume_remote_audio())
         logger_instance.info(f"Remote audio relay queue created for {self.conf_id}")
 
