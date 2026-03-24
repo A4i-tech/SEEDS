@@ -2,6 +2,7 @@ import React from "react";
 import "./css/AddStudentsForm.css";
 import "../shared/buttons.css";
 import "../shared/utilities.css";
+import { PhoneNumberInput } from "../shared/PhoneNumberInput";
 
 const AddStudentsForm = ({
   teacher,
@@ -21,11 +22,11 @@ const AddStudentsForm = ({
             onChange={(e) => onSetNewStudentValue(teacher._id, index, "name", e.target.value)}
             className="add-students-input"
           />
-          <input
+          <PhoneNumberInput
             placeholder="Phone number"
             value={student.phoneNumber}
-            onChange={(e) =>
-              onSetNewStudentValue(teacher._id, index, "phoneNumber", e.target.value)
+            onChange={(value) =>
+              onSetNewStudentValue(teacher._id, index, "phoneNumber", value)
             }
             className="add-students-input"
           />

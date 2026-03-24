@@ -97,10 +97,22 @@ async function processNewContent(job) {
     // Process each audio content item.
     for (const audioContentItem of contentDoc.audioContent) {
       const ip_url = audioContentItem.audioUrl;
-      audioContentItem.audioUrl = await generateWAVFileAndUploadToOutputContainer(
-        ip_url,
-        contentDoc.id
-      );
+      try {
+        const parsedUrl = new URL(ip_url);
+        const blobName = parsedUrl.pathname.split("/").filter(Boolean).pop();
+        if (!blobName || !blobName.toLowerCase().endsWith(".mp3")) {
+          console.error(`Skipping non-mp3 file during processing: ${ip_url}`);
+          continue;
+        }
+
+        audioContentItem.audioUrl = await generateWAVFileAndUploadToOutputContainer(
+          ip_url,
+          contentDoc.id
+        );
+      } catch (err) {
+        console.error(`Failed to process audio content item ${ip_url}:`, err);
+        throw err;
+      }
     }
 
     if (contentDoc.isPullModel) {

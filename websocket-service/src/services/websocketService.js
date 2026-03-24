@@ -5,6 +5,38 @@ const connectionManager = require("./connectionManager");
 const { PlaybackStatus } = require("../constants");
 
 const AUDIO_BYTES_PER_SECOND = 16000; // 320 bytes * 50 chunks per second
+const CHUNK_BYTES = 320;
+
+/**
+ * Resamples 16-bit LE PCM audio from sourceSamples to targetSamples using
+ * linear interpolation. Used to implement playback speed changes: reading
+ * more source samples and resampling down speeds up, fewer and resampling
+ * up slows down.
+ */
+function resampleChunk(sourceBuffer, targetBytes) {
+  const sourceSamples = sourceBuffer.length / 2;
+  const targetSamples = targetBytes / 2;
+  if (sourceSamples === targetSamples) return sourceBuffer;
+
+  const out = Buffer.alloc(targetBytes);
+  const ratio = sourceSamples / targetSamples;
+
+  for (let i = 0; i < targetSamples; i++) {
+    const srcPos = i * ratio;
+    const srcIdx = Math.floor(srcPos);
+    const frac = srcPos - srcIdx;
+
+    const s0 = sourceBuffer.readInt16LE(srcIdx * 2);
+    const s1 =
+      srcIdx + 1 < sourceSamples
+        ? sourceBuffer.readInt16LE((srcIdx + 1) * 2)
+        : s0;
+
+    const val = Math.round(s0 + frac * (s1 - s0));
+    out.writeInt16LE(Math.max(-32768, Math.min(32767, val)), i * 2);
+  }
+  return out;
+}
 
 /**
  * Handles play action for audio content (teacher's choice).
@@ -35,6 +67,7 @@ async function playAudioContent(id, blobUrl) {
       blobUrl,
       position: 0,
       playing: true,
+      speed: 1.0,
     };
 
     // Discard old audio content blobData
@@ -47,7 +80,9 @@ async function playAudioContent(id, blobUrl) {
       state.currentAudioType = "audioContent";
       const { containerName, blobName } = parseBlobUrl(blobUrl);
       const blobData = await azureBlobService.getBlobData(containerName, blobName);
+      console.log(`Blob downloaded for ID: ${id}, size: ${blobData ? blobData.length : 'null'} bytes`);
       state.audioContentState.blobData = blobData;
+      state.audioContentState.durationSeconds = blobData ? blobData.length / AUDIO_BYTES_PER_SECOND : 0;
 
       sendPlaybackStatus(id, PlaybackStatus.PLAYING);
       console.log(`Starting audio content playback for ID: ${id}`);
@@ -146,6 +181,8 @@ async function playNextSystemAudioContent(ws, id, state) {
 function sendAudioContentChunks(ws, id, blobData, state, playbackId) {
   let position = state.audioContentState.position || 0;
   const totalLength = blobData.length;
+  let chunksSinceLastReport = 0;
+  const REPORT_INTERVAL_CHUNKS = 250; // ~5 seconds at 20ms/chunk
 
   function sendNextChunk() {
     // Check if playbackId matches and playback is still active
@@ -169,10 +206,36 @@ function sendAudioContentChunks(ws, id, blobData, state, playbackId) {
       return;
     }
 
-    const end = Math.min(position + 320, totalLength);
-    const chunk = blobData.slice(position, end);
-    position = end;
-    state.audioContentState.position = position; // Update position in state
+    const speed = state.audioContentState.speed || 1.0;
+    const sourceBytes = Math.min(
+      Math.round(CHUNK_BYTES * speed),
+      totalLength - position
+    );
+    // Ensure sourceBytes is even (16-bit samples = 2 bytes each)
+    const alignedSourceBytes = sourceBytes & ~1;
+    if (alignedSourceBytes === 0) {
+      // Remaining data too small to form a sample; treat as end of file
+      console.log(`Audio content streaming completed for ID: ${id}`);
+      state.audioContentState.playing = false;
+      state.currentAudioType = null;
+      sendPlaybackStatus(id, PlaybackStatus.STOPPED);
+      return;
+    }
+
+    const sourceSlice = blobData.slice(position, position + alignedSourceBytes);
+    const chunk =
+      speed === 1.0 && alignedSourceBytes === CHUNK_BYTES
+        ? sourceSlice
+        : resampleChunk(sourceSlice, CHUNK_BYTES);
+    position += alignedSourceBytes;
+    state.audioContentState.position = position;
+    chunksSinceLastReport++;
+
+    // Send periodic position/duration updates (~every 5 seconds)
+    if (chunksSinceLastReport >= REPORT_INTERVAL_CHUNKS) {
+      chunksSinceLastReport = 0;
+      sendPlaybackStatus(id, PlaybackStatus.PLAYING);
+    }
 
     ws.send(chunk, { binary: true }, (error) => {
       if (error) {
@@ -182,7 +245,6 @@ function sendAudioContentChunks(ws, id, blobData, state, playbackId) {
         return;
       }
 
-      // Schedule the next chunk after 20ms
       setTimeout(sendNextChunk, 20);
     });
   }
@@ -312,17 +374,19 @@ async function seekAudioContent(id, seekPayload) {
   if (!audioState || !audioState.blobData) {
     throw new Error("No audio content data to seek");
   }
-  console.log(`this is current audio state ${JSON.stringify(audioState)}`);
-  const deltaSeconds = extractDeltaSeconds(seekPayload);
+  const seekTarget = extractSeekTarget(seekPayload);
   console.log(
-    `Seek request received for ID: ${id}; deltaSeconds: ${deltaSeconds}; currentPosition: ${audioState.position}`
+    `Seek request received for ID: ${id}; ${seekTarget.type}: ${seekTarget.value}; currentPosition: ${audioState.position}`
   );
   const totalLength = audioState.blobData.length;
   const currentPosition = audioState.position || 0;
-  const targetPosition = clampPosition(
-    Math.trunc(currentPosition + deltaSeconds * AUDIO_BYTES_PER_SECOND),
-    totalLength
-  );
+  const targetPosition =
+    seekTarget.type === "absolute"
+      ? clampPosition(Math.trunc(seekTarget.value * AUDIO_BYTES_PER_SECOND), totalLength)
+      : clampPosition(
+          Math.trunc(currentPosition + seekTarget.value * AUDIO_BYTES_PER_SECOND),
+          totalLength
+        );
 
   audioState.position = targetPosition;
 
@@ -345,6 +409,37 @@ async function seekAudioContent(id, seekPayload) {
     `Restarting audio stream after seek for ID: ${id}; playbackId: ${currentPlaybackId}; startByte: ${targetPosition}`
   );
   sendAudioContentChunks(ws, id, audioState.blobData, state, currentPlaybackId);
+}
+
+/**
+ * Changes the playback speed and restarts streaming from the current position.
+ * @param {string} id - Unique identifier for the connection.
+ * @param {number} speed - Playback speed multiplier (e.g. 0.75, 1.0, 1.5, 2.0).
+ */
+function setPlaybackSpeed(id, speed) {
+  const connection = connectionManager.getConnection(id);
+  if (!connection) throw new Error("WebSocket connection not found");
+
+  const { ws, state } = connection;
+  const audioState = state.audioContentState;
+
+  if (!audioState || !audioState.blobData) {
+    throw new Error("No audio content data to change speed");
+  }
+
+  const clampedSpeed = Math.max(0.5, Math.min(3.0, speed));
+  audioState.speed = clampedSpeed;
+  console.log(`Playback speed set to ${clampedSpeed}x for ID: ${id}`);
+
+  if (state.currentAudioType === "audioContent" && audioState.playing) {
+    state.playbackId = (state.playbackId || 0) + 1;
+    const currentPlaybackId = state.playbackId;
+
+    sendPlaybackStatus(id, PlaybackStatus.PLAYING);
+    sendAudioContentChunks(ws, id, audioState.blobData, state, currentPlaybackId);
+  } else {
+    sendPlaybackStatus(id, audioState.playing ? PlaybackStatus.PLAYING : PlaybackStatus.PAUSED);
+  }
 }
 
 /**
@@ -406,21 +501,44 @@ function parseBlobUrl(blobUrl) {
 }
 
 function sendPlaybackStatus(id, status) {
-  const { ws } = connectionManager.getConnection("confv2server");
-  ws.send(
-    JSON.stringify({
+  try {
+    const confv2Conn = connectionManager.getConnection("confv2server");
+    if (!confv2Conn || !confv2Conn.ws) {
+      console.error(`sendPlaybackStatus [${id}]: No confv2server connection available`);
+      return;
+    }
+    const { ws } = confv2Conn;
+    const conn = connectionManager.getConnection(id);
+    const audioState = conn?.state?.audioContentState;
+
+    const positionSec = audioState
+      ? parseFloat(((audioState.position || 0) / AUDIO_BYTES_PER_SECOND).toFixed(2))
+      : 0;
+    const durationSec = audioState?.blobData
+      ? parseFloat((audioState.blobData.length / AUDIO_BYTES_PER_SECOND).toFixed(2))
+      : (audioState?.durationSeconds || 0);
+
+    const payload = {
       websocket_id: id,
       type: "playback-state-update",
       message: status,
-    }),
-    (error) => {
-      if (error) {
-        console.error(`Error sending data over WebSocket for ID: ${id}`, error);
-        ws.close();
-        return;
+      position_seconds: positionSec,
+      duration_seconds: durationSec,
+      speed: audioState?.speed || 1.0,
+    };
+    console.log(`sendPlaybackStatus [${id}]: status=${status}, position=${payload.position_seconds}, duration=${payload.duration_seconds}, speed=${payload.speed}, blobData=${audioState?.blobData ? audioState.blobData.length + ' bytes' : 'null'}`);
+
+    ws.send(
+      JSON.stringify(payload),
+      (error) => {
+        if (error) {
+          console.error(`Error sending playback status over WebSocket for ID: ${id}`, error);
+        }
       }
-    }
-  );
+    );
+  } catch (err) {
+    console.error(`sendPlaybackStatus [${id}] CRASHED:`, err);
+  }
 }
 
 function sendReconnectionMessage(id) {
@@ -440,15 +558,26 @@ function sendReconnectionMessage(id) {
   );
 }
 
-function extractDeltaSeconds(payload) {
-  if (!payload || (payload.deltaSeconds ?? payload.delta_seconds) === undefined) {
-    throw new Error("Seek payload must include deltaSeconds");
+function extractSeekTarget(payload) {
+  if (!payload) {
+    throw new Error("Seek payload is required");
   }
-  const delta = Number(payload.deltaSeconds ?? payload.delta_seconds);
-  if (!Number.isFinite(delta)) {
-    throw new Error("Seek payload deltaSeconds must be a finite number");
+  const parsed = typeof payload === "string" ? JSON.parse(payload) : payload;
+  if (parsed.positionSeconds !== undefined || parsed.position_seconds !== undefined) {
+    const pos = Number(parsed.positionSeconds ?? parsed.position_seconds);
+    if (!Number.isFinite(pos) || pos < 0) {
+      throw new Error("Seek payload positionSeconds must be a non-negative finite number");
+    }
+    return { type: "absolute", value: pos };
   }
-  return delta;
+  if ((parsed.deltaSeconds ?? parsed.delta_seconds) !== undefined) {
+    const delta = Number(parsed.deltaSeconds ?? parsed.delta_seconds);
+    if (!Number.isFinite(delta)) {
+      throw new Error("Seek payload deltaSeconds must be a finite number");
+    }
+    return { type: "relative", value: delta };
+  }
+  throw new Error("Seek payload must include deltaSeconds or positionSeconds");
 }
 
 function clampPosition(position, totalLength) {
@@ -471,6 +600,7 @@ module.exports = {
   pauseAudioContent,
   resumeAudioContent,
   seekAudioContent,
+  setPlaybackSpeed,
   stopAudioContent,
   closeConnection,
   handleAccidentalDisconnection,

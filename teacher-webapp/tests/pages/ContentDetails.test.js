@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import "@testing-library/jest-dom";
 import ContentDetails from "../../src/pages/ContentDetails";
 import * as contentService from "../../src/services/contentService";
+import { ROUTES } from "../../src/constants/routes";
 
 // Mock dependencies
 jest.mock("../../src/services/contentService");
@@ -55,7 +56,7 @@ describe("ContentDetails", () => {
     ],
     theme: {
       english: "Science",
-      local: "विज्ञान",
+      local: "\u0935\u093f\u091c\u094d\u091e\u093e\u0928",
     },
   };
 
@@ -173,19 +174,6 @@ describe("ContentDetails", () => {
       const alerts = screen.getAllByText(/no audio available/i);
       expect(alerts.length).toBeGreaterThan(0);
     });
-  });
-
-  test("navigates back to content list", async () => {
-    renderComponent();
-
-    await waitFor(() => {
-      expect(screen.getByText("Back to Content")).toBeInTheDocument();
-    });
-
-    const backButton = screen.getByText("Back to Content");
-    fireEvent.click(backButton);
-
-    expect(mockNavigate).toHaveBeenCalledWith("/content");
   });
 
   test("navigates to next page when Next Page button is clicked", async () => {

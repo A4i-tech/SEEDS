@@ -107,11 +107,6 @@ interface SeedsService {
         @Query("phone_number") phoneNumber: String
     ): Response<Any>
 
-    @GET
-    suspend fun getCallerState(
-        @Url url: String,
-    ): Response<Map<String, StudentCallStatus>>
-
     @GET("call/{confId}/status")
     suspend fun getCallStatus(@Path("confId") confId: String): CallStatusDto
 
@@ -139,6 +134,12 @@ interface SeedsService {
     @GET("content/sasUrl")
     suspend fun getSasUrl(@Query("url") url: String): SasUrlResponse
 
+    @PUT
+    suspend fun setPlaybackSpeed(
+        @Url url: String,
+        @Query("speed") speed: Double
+    ): Response<Any>
+
     @GET("class")
     suspend fun getAllClassrooms(): List<ClassroomDto>
 
@@ -157,6 +158,7 @@ interface SeedsService {
 }
 
 const val TIMEOUT = 60L
+const val CONFERENCE_CREATE_TIMEOUT_SECONDS = 5L
 
 fun provideService(@ApplicationContext context: Context): SeedsService {
     //reference: https://proandroiddev.com/headers-in-retrofit-a8d71ede2f3e

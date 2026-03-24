@@ -75,7 +75,9 @@ def handle_language(filtered_content, speechRate, parent_selections):
     Parameters:
       filtered_content (list): List of content dictionaries filtered based on previous selections.
       speechRate (str): The speech rate string (e.g., "1.0").
-      parent_selections (dict): Dictionary of prior selections (used to determine the language; defaults to "kannada").
+            parent_selections (dict): Dictionary of prior selections.
+                Included for handler signature consistency; this function derives language options
+                from filtered_content and does not apply a default language fallback.
 
     Returns:
       sorted_categories (list): A list of complete audio URLs corresponding to each language.
@@ -143,31 +145,34 @@ def handle_theme(filtered_content, speechRate, parent_selections):
     return sorted_categories, values_to_urls, sorted_keys
 
 
-"""
-handle_type(filtered_content, speechRate, parent_selections)
-------------------------------------------------------------
-Extracts experience type options from the filtered content.
 
-Parameters:
-  filtered_content (list): List of content dictionaries.
-  speechRate (str): The speech rate string (not used directly for type).
-  parent_selections (dict): Dictionary of prior selections (not used here, but included for uniformity).
-
-Returns:
-  sorted_categories (list): A list of audio URLs corresponding to each experience type.
-    Example: ["https://seedsstagingblob.blob.core.windows.net/pull-model-menus/experiencesDialog/kannada/music/For%20Songs/1.0.mp3"]
-  values_to_urls (dict): A mapping from the type (in lowercase) to its audio URL.
-    Example: {"song": "https://seedsstagingblob.blob.core.windows.net/pull-model-menus/experiencesDialog/kannada/music/For%20Songs/1.0.mp3"}
-"""
 
 
 def handle_type(filtered_content, speechRate, parent_selections):
+    """
+    handle_type(filtered_content, speechRate, parent_selections)
+    ------------------------------------------------------------
+    Extracts experience type options from the filtered content.
+
+    Parameters:
+    filtered_content (list): List of content dictionaries.
+    speechRate (str): The speech rate string (not used directly for type).
+        parent_selections (dict): Dictionary of prior selections.
+            Uses parent_selections["language"] when present; otherwise falls back to
+            settings.default_welcome_language.
+
+    Returns:
+    sorted_categories (list): A list of audio URLs corresponding to each experience type.
+            Example: ["https://seedsstagingblob.blob.core.windows.net/pull-model-menus/experiencesDialog/{language}/music/For%20Songs/1.0.mp3"]
+    values_to_urls (dict): A mapping from the type (in lowercase) to its audio URL.
+            Example: {"song": "https://seedsstagingblob.blob.core.windows.net/pull-model-menus/experiencesDialog/{language}/music/For%20Songs/1.0.mp3"}
+    """
     # Extract and sort experience types (converted to lowercase).
     experiences = sorted({item["type"].lower() for item in filtered_content})
     values_to_urls = {}
     sorted_categories = []
     sorted_keys = []
-    language = parent_selections.get("language", "kannada")
+    language = parent_selections.get("language", settings.default_welcome_language)
     for exp in experiences:
         # Retrieve the URL template from the global mapping.
         template_url = experienceDialogAudioUrls[exp]
@@ -245,7 +250,7 @@ attribute_handlers = {
     "title": handle_title,
 }
 
-welcomeToSEEDSKannadaUrl = f"https://{settings.storage_account_name}.blob.core.windows.net/pull-model-menus/welcomeDialog/kannada/welcome%20to%20SEEDS/1.0.mp3"
+welcomeToSEEDSUrl = f"https://{settings.storage_account_name}.blob.core.windows.net/pull-model-menus/welcomeDialog/{settings.default_welcome_language}/welcome%20to%20SEEDS/1.0.mp3"
 
 
 def getKeyPressUrl(key, language, speechRate):
@@ -308,10 +313,10 @@ def getStreamActions(items_list, sorted_keys, level, state, parent_selections={}
     key_to_value_mapping = {}
     description = f"{category.capitalize()} menu"
 
-    language = parent_selections.get("language", "kannada")
+    language = parent_selections.get("language", settings.default_welcome_language)
 
     if level == 0 and state == 0:
-        actions.append(StreamAction(welcomeToSEEDSKannadaUrl))
+        actions.append(StreamAction(welcomeToSEEDSUrl))
 
     # Optionally, play an initial dialog specific to the attribute.
     # (For example, for "theme" or "title", an initial prompt may be defined.)
@@ -640,7 +645,19 @@ async def instantiate_from_latest_content(
 
         contents_v3_collection = get_app_state().contents_v3_mongo
 
-    content = await contents_v3_collection.find_all()
+    # Fetch only pull-model, and not-deleted content.
+    # If content_ids provided, restrict to those IDs as well.
+    if content_ids:
+        query = {
+            "_id": {"$in": content_ids},
+            "isPullModel": True,
+            "isDeleted": {"$ne": True},
+        }
+    else:
+        query = {"isPullModel": True, "isDeleted": {"$ne": True}}
+
+    # Use the collection helper to run the query (returns list)
+    content = await contents_v3_collection.query_items(query)
 
     fsm = FSM(fsm_id=str(uuid.uuid4()))
     fsm.set_end_state(

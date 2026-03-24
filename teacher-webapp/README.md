@@ -1,6 +1,6 @@
 # SEEDS Teacher WebApp
 
-[![Teacher WebApp Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/farmanahmed888/a6d54a11428bf4a2e7abfbb8300d02c6/raw/teacher-webapp-coverage.json)](https://github.com/A4i-tech/SEEDS/actions/workflows/teacher-webapp-main.yml)
+[![Teacher WebApp Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/a4i-architect/dcc3788d90884aed5ef3bfc393978480/raw/teacher-webapp-coverage.json)](https://github.com/A4i-tech/SEEDS/actions/workflows/teacher-webapp-main.yml)
 
 Teacher web application for the SEEDS (Student Engagement and Educational Development System) platform, providing an interface for teachers to manage classes, content, and conference calls.
 

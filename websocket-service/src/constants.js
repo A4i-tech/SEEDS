@@ -9,6 +9,7 @@ const MessageType = {
   RESUME_AUDIO: "resume",
   STOP_AUDIO: "stop",
   SEEK_AUDIO: "seek",
+  SET_SPEED: "set-speed",
   DISCONNECT: "disconnect",
   RECONNECT: "reconnect",
   PLAYBACK_STATE_UPDATES: "playback-state-update",

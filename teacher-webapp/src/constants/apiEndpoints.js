@@ -32,6 +32,7 @@ export const API_ENDPOINTS = {
     PAUSE_AUDIO: (confId) => `${CONF_BASE}/pauseaudio/${confId}`,
     RESUME_AUDIO: (confId) => `${CONF_BASE}/resumeaudio/${confId}`,
     SEEK_AUDIO: (confId) => `${CONF_BASE}/seekaudio/${confId}`,
+    SET_PLAYBACK_SPEED: (confId) => `${CONF_BASE}/setplaybackspeed/${confId}`,
     ADD_PARTICIPANT: (confId, phone) =>
       `${CONF_BASE}/addparticipant/${confId}?phone_number=${phone}`,
     REMOVE_PARTICIPANT: (confId, phone) =>

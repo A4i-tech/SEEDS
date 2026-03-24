@@ -24,10 +24,11 @@ export const teacherService = {
    * Register a new teacher
    * @param {string} phoneNumber - Teacher phone number
    * @param {string} password - Teacher password
+   * @param {string} name - Teacher name
    * @param {Object} headers - Auth headers
    * @returns {Promise<Object>}
    */
-  async registerTeacher(phoneNumber, password, headers = {}) {
+  async registerTeacher(phoneNumber, password, name, headers = {}) {
     const url = `${SEEDS_URL}/teacher/register`;
 
     return await apiFetch(url, {
@@ -36,6 +37,7 @@ export const teacherService = {
       body: JSON.stringify({
         phoneNumber,
         password,
+        name,
       }),
     });
   },
@@ -45,7 +47,7 @@ export const teacherService = {
    * @param {string} teacherPhoneNumber - Teacher's phone number
    * @param {Array} students - Array of {name, phoneNumber}
    * @param {Object} headers - Auth headers
-   * @returns {Promise<Array>}
+   * @returns {Promise<{students: Array, duplicates?: Array, alreadyLinked?: Array}>} Newly added in students; duplicates (same phone, different name) and alreadyLinked (already on this teacher) when present.
    */
   async addStudents(teacherPhoneNumber, students, headers = {}) {
     const url = `${SEEDS_URL}/v1/teacher/add-students`;
@@ -56,6 +58,37 @@ export const teacherService = {
       body: JSON.stringify({
         phoneNumber: teacherPhoneNumber,
         students,
+      }),
+    });
+  },
+
+  /**
+   * Update a student's name and/or phone number
+   * @param {string} teacherPhoneNumber - Teacher's phone number
+   * @param {string} currentPhoneNumber - Current phone number of the student
+   * @param {string} name - New name
+   * @param {string} studentPhoneNumber - New phone number
+   * @param {Object} headers - Auth headers
+   * @returns {Promise<{name, phoneNumber}>}
+   * @throws {ApiError} 409 if new phone number already exists for another student
+   */
+  async updateStudent(
+    teacherPhoneNumber,
+    currentPhoneNumber,
+    name,
+    studentPhoneNumber,
+    headers = {}
+  ) {
+    const url = `${SEEDS_URL}/v1/teacher/students`;
+
+    return await apiFetch(url, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({
+        phoneNumber: teacherPhoneNumber,
+        currentPhoneNumber,
+        name: (name || "").trim(),
+        studentPhoneNumber: (studentPhoneNumber || "").trim(),
       }),
     });
   },
@@ -76,7 +109,6 @@ export const teacherService = {
       body: JSON.stringify({
         phoneNumber: teacherPhoneNumber,
         students: [{ phoneNumber: studentPhoneNumber }],
-        remove: true,
       }),
     });
   },

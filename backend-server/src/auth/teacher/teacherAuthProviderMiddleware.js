@@ -39,6 +39,7 @@ module.exports = {
         id: teacher._id || teacher.id,
         phoneNumber: teacher.phoneNumber,
         name: teacher.name,
+        tenantId: teacher.tenantId,
       });
       return res.status(STATUS.OK).json({ token, phoneNumber });
     } catch (error) {
@@ -47,13 +48,20 @@ module.exports = {
     }
   },
   async register(req, res) {
-    const { phoneNumber, password } = req.body;
-    const tenantId = req.userId;
-    if (!phoneNumber || !password || !tenantId) {
+    const { phoneNumber, password, name } = req.body;
+    const tenantId = req.tenantId;
+    if (
+      !phoneNumber ||
+      !password ||
+      !tenantId ||
+      typeof name !== "string" ||
+      name.trim().length === 0
+    ) {
       return res.status(STATUS.BAD_REQUEST).json({
-        message: "Phone number, password, and tenantName are required",
+        message: "Phone number, password, and name are required",
       });
     }
+    const trimmedName = name.trim();
     if (!validator.isMobilePhone(phoneNumber)) {
       return res.status(STATUS.BAD_REQUEST).json({ message: "Invalid phone number format" });
     }
@@ -68,19 +76,23 @@ module.exports = {
       if (!existingTenant) {
         return res.status(STATUS.BAD_REQUEST).json({ message: "Tenant does not exist" });
       }
+
       const existingTeacher = await dbAdapter.getTeacherByTenantIdAndPhoneNumber(
         tenantId,
         phoneNumber
       );
       if (existingTeacher) {
-        return res.status(STATUS.CONFLICT).json({ message: "Phone number already in use" });
+        return res.status(STATUS.CONFLICT).json({ message: "Phone number already in use by current or another tenant" });
       }
+
       const hashedPassword = await bcrypt.hash(password, parseInt(passwordSaltRounds));
       await dbAdapter.insertTeacher({
         phoneNumber,
         password: hashedPassword,
         tenantId,
+        name: trimmedName,
       });
+      
       return res.status(STATUS.CREATED).json({ message: "Teacher registered successfully" });
     } catch (error) {
       console.error("Registration error:", error);

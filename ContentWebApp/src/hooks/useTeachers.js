@@ -1,12 +1,15 @@
 import { useState, useCallback, useEffect } from "react";
 import { teacherService } from "../services/teacherService";
 import { useAuth } from "./useAuth";
+import { isValidPhoneNumber } from "../utils/phoneUtils";
+import { useFlashMessage } from "./useFlashMessage";
 
 export const useTeachers = (activeTab) => {
   const [teachers, setTeachers] = useState([]);
   const [selectedTeacherId, setSelectedTeacherId] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [message, setMessage] = useState("");
+  const [pendingDuplicates, setPendingDuplicates] = useState(null);
+  const { message, messageType, flashMessage } = useFlashMessage();
 
   const { getAuthHeaders } = useAuth();
 
@@ -59,34 +62,29 @@ export const useTeachers = (activeTab) => {
    * Register a new teacher
    */
   const registerTeacher = useCallback(
-    async (phoneNumber, password) => {
-      if (!phoneNumber || !password) {
-        setMessage("Phone and password are required.");
+    async (phoneNumber, password, name) => {
+      if (!phoneNumber || !password || !name) {
+        flashMessage("Phone number, password, and name are required.", "error");
         return false;
       }
 
-      if (phoneNumber.length !== 10) {
-        setMessage("Phone number must be exactly 10 digits.");
+      if (!isValidPhoneNumber(phoneNumber)) {
+        flashMessage("Phone number must be exactly 10 digits.", "error");
         return false;
       }
 
       try {
-        await teacherService.registerTeacher(phoneNumber, password, getAuthHeaders());
-
-        setMessage("Teacher registered successfully!");
+        await teacherService.registerTeacher(phoneNumber, password, name, getAuthHeaders());
+        flashMessage("Teacher registered successfully!", "success");
         await fetchTeachers();
-
-        // Clear message after 3 seconds
-        setTimeout(() => setMessage(""), 3000);
         return true;
       } catch (error) {
         console.error("Teacher registration error:", error);
-        setMessage(error.message || "Failed to register teacher.");
-        setTimeout(() => setMessage(""), 3000);
+        flashMessage(error.message || "Failed to register teacher.", "error");
         return false;
       }
     },
-    [getAuthHeaders, fetchTeachers]
+    [getAuthHeaders, fetchTeachers, flashMessage]
   );
 
   /**
@@ -154,36 +152,74 @@ export const useTeachers = (activeTab) => {
           name: (s.name || "").trim(),
           phoneNumber: (s.phoneNumber || "").trim(),
         }))
-        .filter((s) => s.name && s.phoneNumber);
+        .filter((s) => s.name && s.phoneNumber && isValidPhoneNumber(s.phoneNumber));
 
       if (payloadStudents.length === 0) {
-        setMessage("Please enter at least one student with name and phone number.");
-        setTimeout(() => setMessage(""), 3000);
+        flashMessage("Please enter at least one student with name and valid phone number.", "error");
         return;
       }
 
       updateTeacherState(teacher._id, { submitting: true });
       try {
-        const added = await teacherService.addStudents(
+        const result = await teacherService.addStudents(
           teacher.phoneNumber,
           payloadStudents,
           getAuthHeaders()
         );
 
-        // Append returned students to local list and reset form
-        updateTeacherState(teacher._id, {
-          students: [...(teacher.students || []), ...added],
-          newStudents: [{ name: "", phoneNumber: "" }],
-        });
+        const newStudents = result.students || [];
 
-        setMessage("Students added successfully.");
-        setTimeout(() => setMessage(""), 3000);
+        // Append successfully added students to local list and reset form
+        if (newStudents.length > 0) {
+          updateTeacherState(teacher._id, {
+            students: [...(teacher.students || []), ...newStudents],
+            newStudents: [{ name: "", phoneNumber: "" }],
+          });
+        }
+
+        // Show duplicate modal when backend reports name conflicts
+        if (result.duplicates && result.duplicates.length > 0) {
+          setPendingDuplicates({ duplicates: result.duplicates, teacher });
+        } else {
+          updateTeacherState(teacher._id, {
+            newStudents: [{ name: "", phoneNumber: "" }],
+          });
+          flashMessage("Students added successfully.", "success");
+        }
       } catch (error) {
         console.error("Add students error:", error);
-        setMessage(error.message || "Failed to add students.");
-        setTimeout(() => setMessage(""), 3000);
+        flashMessage(error.message || "Failed to add students.", "error");
       } finally {
         updateTeacherState(teacher._id, { submitting: false });
+      }
+    },
+    [getAuthHeaders, updateTeacherState, flashMessage]
+  );
+
+  /**
+   * Update student name/phone
+   */
+  const updateStudent = useCallback(
+    async (teacher, currentPhoneNumber, name, studentPhoneNumber) => {
+      try {
+        const updated = await teacherService.updateStudent(
+          teacher.phoneNumber,
+          currentPhoneNumber,
+          name,
+          studentPhoneNumber,
+          getAuthHeaders()
+        );
+
+        updateTeacherState(teacher._id, {
+          students: (teacher.students || []).map((st) =>
+            st.phoneNumber === currentPhoneNumber
+              ? { ...st, name: updated.name, phoneNumber: updated.phoneNumber }
+              : st
+          ),
+        });
+        return true;
+      } catch (error) {
+        return error.message || "Failed to update student.";
       }
     },
     [getAuthHeaders, updateTeacherState]
@@ -205,11 +241,59 @@ export const useTeachers = (activeTab) => {
           students: (teacher.students || []).filter((st) => st.phoneNumber !== studentPhoneNumber),
         });
       } catch (error) {
-        console.error("Remove student error:", error);
+        flashMessage(error.message || "Failed to remove student.", "error");
       }
     },
-    [getAuthHeaders, updateTeacherState]
+    [getAuthHeaders, updateTeacherState, flashMessage]
   );
+
+  /**
+   * Resolve duplicate students from the modal.
+   * Re-submits with updateName flag for students the user chose to update.
+   */
+  const resolveDuplicates = useCallback(
+    async (resolution, pending) => {
+      const teacher = pending?.teacher;
+      if (!teacher || !resolution?.length) {
+        setPendingDuplicates(null);
+        return;
+      }
+
+      const resubmit = resolution.map((r) => ({
+        phoneNumber: r.phoneNumber,
+        name: r.keepName ? r.existingName : r.submittedName,
+        updateName: !r.keepName,
+      }));
+
+      try {
+        const result = await teacherService.addStudents(
+          teacher.phoneNumber,
+          resubmit,
+          getAuthHeaders()
+        );
+
+        const newStudents = result.students || [];
+        if (newStudents.length > 0) {
+          updateTeacherState(teacher._id, {
+            students: [...(teacher.students || []), ...newStudents],
+          });
+        }
+        flashMessage("Students updated successfully.", "success");
+      } catch (error) {
+        flashMessage(error.message || "Failed to resolve duplicates.", "error");
+      } finally {
+        setPendingDuplicates(null);
+      }
+    },
+    [getAuthHeaders, updateTeacherState, flashMessage]
+  );
+
+  /**
+   * Dismiss the duplicate modal without resolving
+   */
+  const dismissDuplicateModal = useCallback(() => {
+    setPendingDuplicates(null);
+  }, []);
 
   /**
    * Get selected teacher object
@@ -223,12 +307,16 @@ export const useTeachers = (activeTab) => {
     setSelectedTeacherId,
     isLoading,
     message,
+    messageType,
     registerTeacher,
     addStudentRow,
     removeStudentRow,
     setNewStudentValue,
     submitNewStudents,
     removeStudent,
-    setMessage,
+    updateStudent,
+    pendingDuplicates,
+    resolveDuplicates,
+    dismissDuplicateModal,
   };
 };
