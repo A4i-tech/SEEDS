@@ -6,7 +6,7 @@ from typing import Optional
 from app.conf_logger import logger_instance
 
 from app.routers.conference import conference_manager
-from app.services.audio.capture import AudioCaptureSession
+from app.services.audio.audio_capture import AudioCaptureService
 from app.services.audio.transcriber import AudioTranscriber
 from app.services.audio.hold_detector import HoldDetector
 from app.services.audio.websocket_audio_processor import handle_incoming_message
@@ -38,7 +38,7 @@ async def websocket_endpoint(websocket: WebSocket, conference_id: str):
         # Initialize Audio Services
         transcriber: Optional[AudioTranscriber] = None
         hold_detector: Optional[HoldDetector] = None
-        capture_session: Optional[AudioCaptureSession] = None
+        capture_session: Optional[AudioCaptureService] = None
         audio_analysis_enabled = settings.AUDIO_ANALYSIS_ENABLED
         
         try:
@@ -60,10 +60,8 @@ async def websocket_endpoint(websocket: WebSocket, conference_id: str):
 
         if settings.AUDIO_CAPTURE_ENABLED:
             try:
-                capture_session = AudioCaptureSession(conference_id, settings=settings)
-                logger_instance.info(
-                    f"Audio capture enabled for {conference_id}. Output: {capture_session.file_path}"
-                )
+                capture_session = AudioCaptureService(conference_id, settings=settings)
+                logger_instance.info(f"Audio capture enabled for {conference_id}")
             except Exception as e:
                 logger_instance.error(f"Failed to initialize audio capture for {conference_id}: {e}")
 

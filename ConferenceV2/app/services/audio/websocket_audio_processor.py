@@ -5,7 +5,7 @@ from typing import Any, Optional
 
 from app.conf_logger import logger_instance
 from app.models.action_history import ActionHistory, ActionType
-from app.services.audio.capture import AudioCaptureSession
+from app.services.audio.audio_capture import AudioCaptureService
 from app.services.audio.hold_detector import HoldDetector
 from app.services.audio.transcriber import AudioTranscriber
 from app.services.conference_call import ConferenceCall
@@ -35,7 +35,7 @@ async def process_audio_message(
     transcriber: AudioTranscriber,
     hold_detector: HoldDetector,
     conference_id: str,
-    capture_session: Optional[AudioCaptureSession] = None,
+    capture_session: Optional[AudioCaptureService] = None,
 ) -> None:
     # Run transcription/hold detection for a single binary websocket frame.
     try:
@@ -101,7 +101,7 @@ async def handle_incoming_message(
     transcriber: Optional[AudioTranscriber],
     hold_detector: Optional[HoldDetector],
     conference_id: str,
-    capture_session: Optional[AudioCaptureSession] = None,
+    capture_session: Optional[AudioCaptureService] = None,
 ) -> bool:
     # Return False when the caller should stop the websocket receive loop.
     if msg.get("type") == "websocket.disconnect":
