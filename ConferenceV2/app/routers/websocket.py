@@ -26,13 +26,16 @@ async def websocket_endpoint(websocket: WebSocket, conference_id: str):
         try:
             from app.services.audio.transcriber import AudioTranscriber
             from app.services.audio.hold_detector import HoldDetector
+            from app.services.audio.audio_capture import AudioCaptureService
             transcriber = AudioTranscriber()
             hold_detector = HoldDetector()
+            audio_capture = AudioCaptureService(conference_id)
             logger_instance.info("Audio Services Initialized for ", conference_id)
         except Exception as e:
             logger_instance.error(f"Failed to initialize Audio Services: {e}")
             transcriber = None
             hold_detector = None
+            audio_capture = None
 
         try:
             while True:
@@ -46,6 +49,10 @@ async def websocket_endpoint(websocket: WebSocket, conference_id: str):
 
                     # Handle binary (audio) messages
                     if "bytes" in msg and msg["bytes"] is not None:
+                        # Capture raw audio for recording
+                        if audio_capture:
+                            audio_capture.append_chunk(msg["bytes"])
+
                         if transcriber and hold_detector:
                             result = await transcriber.process_chunk(msg["bytes"])
                             
@@ -85,4 +92,13 @@ async def websocket_endpoint(websocket: WebSocket, conference_id: str):
             logger_instance.info(f"An error occurred in websocket router: {e}")
             traceback.print_exc()
             conf.set_websocket(None)
-    
+        finally:
+            # Flush captured audio to Azure Blob Storage on disconnect
+            if audio_capture:
+                try:
+                    blob_url = await audio_capture.flush_and_upload()
+                    if blob_url:
+                        logger_instance.info(f"Conference {conference_id} recording saved: {blob_url}")
+                except Exception as e:
+                    logger_instance.error(f"Failed to save conference recording for {conference_id}: {e}")
+
