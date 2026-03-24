@@ -11,7 +11,6 @@ def test_audio_capture_service_writes_chunks(tmp_path, monkeypatch):
     monkeypatch.setenv("AUDIO_CAPTURE_ENABLED", "true")
     monkeypatch.setenv("AUDIO_CAPTURE_UPLOAD_TO_AZURE", "false")
     monkeypatch.setenv("AUDIO_CAPTURE_DIR", str(tmp_path))
-    monkeypatch.setenv("AUDIO_CAPTURE_FORMAT", "pcm")
 
     service = AudioCaptureService("conf-123")
     # 16-bit samples (2 bytes each)
