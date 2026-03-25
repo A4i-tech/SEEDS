@@ -178,6 +178,34 @@ class WebsocketService:
             )
         )
 
+    async def pause_audio(self, websocket_id: str):
+        """
+        Pause audio playback for a specific WebSocket connection.
+
+        Args:
+            websocket_id: ID of the WebSocket connection
+        """
+        await self.send_message(
+            WebsocketServiceMessage(
+                websocket_id=websocket_id,
+                type=MessageType.PAUSE_AUDIO
+            )
+        )
+
+    async def resume_audio(self, websocket_id: str):
+        """
+        Resume audio playback for a specific WebSocket connection.
+
+        Args:
+            websocket_id: ID of the WebSocket connection
+        """
+        await self.send_message(
+            WebsocketServiceMessage(
+                websocket_id=websocket_id,
+                type=MessageType.RESUME_AUDIO
+            )
+        )
+
     async def disconnect(self, websocket_id: str):
         """
         Disconnect a specific WebSocket connection.
