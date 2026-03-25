@@ -494,6 +494,14 @@ class CallEventProcessor(BaseProcessor):
                                 ivr_state_final.id, ivr_state_final.dict(by_alias=True)
                             )
 
+                            try:
+                                from app.services.websocket_service import get_websocket_service
+                                ws_service = await get_websocket_service()
+                                await ws_service.disconnect(conversation_uuid)
+                                logging.info(f"✓ WebSocket disconnected: {conversation_uuid}")
+                            except Exception as ws_error:
+                                logging.warning(f"Failed to disconnect WebSocket for {conversation_uuid}: {ws_error}")
+
                         await ongoing_fsm_mongo.delete(conversation_uuid)
                         logging.info(f"✓ Call ended and logged: {conversation_uuid}")
                     except Exception as e:

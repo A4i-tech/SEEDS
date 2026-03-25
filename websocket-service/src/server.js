@@ -21,6 +21,7 @@ const server = http.createServer((req, res) => {
   // Parse the request URL
   const parsedUrl = url.parse(req.url, true);
 
+
   // Check if the request is a GET request to the root path '/'
   if (req.method === "GET" && parsedUrl.pathname === "/") {
     // Get the list of IDs of existing WebSocket connections
@@ -53,6 +54,7 @@ const wss = new WebSocket.Server({ server });
 wss.on("connection", (ws, req) => {
   const parameters = url.parse(req.url, true);
   const id = parameters.query.id;
+  const audioUrl = parameters.query.audio_url;
 
   if (!id) {
     ws.close();
@@ -66,7 +68,19 @@ wss.on("connection", (ws, req) => {
   });
   console.log(`Client WebSocket connection opened for ID: ${id}`);
 
-  if (id === "confv2server") {
+  // Check if this is a control connection (confv2server or ivrv2server)
+  const isControlConnection = id === "confv2server" || id === "ivrv2server";
+
+  if (!isControlConnection && audioUrl) {
+    console.log(`Auto-play requested for ID: ${id} with audio_url`);
+    websocketService
+      .playAudioContent(id, audioUrl)
+      .catch((error) =>
+        console.error(`Auto-play failed for ID: ${id}, URL: ${audioUrl}`, error)
+      );
+  }
+
+  if (isControlConnection) {
     // Control WebSocket connection
     console.log(`Control WebSocket connection established with id: ${id}`);
     controlService.handleControlConnection(ws);

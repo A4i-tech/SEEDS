@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     mongo_max_pool_size: int = 50
     applicationinsights_connection_string: str = ""
     default_welcome_language: str = "kannada"
+    websocket_service_url: str = ""
 
     # Derived Queue names
     @property

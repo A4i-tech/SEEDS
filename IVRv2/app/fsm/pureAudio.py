@@ -1,7 +1,8 @@
 from app.actions.base_actions.talk_action import TalkAction
 from app.actions.base_actions.stream_action import StreamAction
 from app.actions.base_actions.input_action import InputAction
-from app.fsm.ivr_constants import audioGoingTobePlayedDialogUrl, pullMenuMainUrl, content_url, audioFinishedMessageUrl, \
+from app.actions.vonage_actions.vonage_connect_action import VonageConnectAction
+from app.fsm.ivr_constants import audioGoingTobePlayedDialogUrl, pullMenuMainUrl, \
     repeat_current_categories_key, previous_category_level_key
 
 from app.fsm.state import State
@@ -12,6 +13,10 @@ from dotenv import load_dotenv
 from app.utils.model_classes import Menu
 from app.utils.model_classes import Option
 from app.utils.pure_audio_model_classes import PureAudioData
+from app.utils.duration_announcement import format_duration_announcement
+from app.utils.ivr_utils import get_vonage_language_code
+from app.settings import settings
+from urllib.parse import urlencode
 
 load_dotenv()
 
@@ -47,17 +52,22 @@ class PureAudio:
         going_to_play_url = audioGoingTobePlayedDialogUrl.replace("{language}", self.language).replace("{speechRate}", self.speechRate)
         actions.append(StreamAction(pullMenuMainUrl + going_to_play_url))
 
-        # Construct the content audio URL.
-        # Here we use the content's _id and assume that the actual audio is a WAV file.
-        # music_url = content_url + self.content_data.id + f"/{self.speechRate}.wav"
-        music_url = self.content_data.audioContent[0].audioUrl
-        actions.append(StreamAction(music_url, record_playback_time=True))
+        # Add duration announcement if available
+        if self.content_data.audioContent:
+            duration = self.content_data.audioContent[0].durationSeconds
+            if duration:
+                duration_text = format_duration_announcement(duration, self.language)
+                if duration_text:
+                    vonage_language = get_vonage_language_code(self.language)
+                    actions.append(TalkAction(text=duration_text, level=1.0, bargeIn=True, loop=1, language=vonage_language))
 
-        # Add the "audio finished" dialog action.
-        finished_url = audioFinishedMessageUrl.replace("{language}", self.language).replace("{speechRate}", self.speechRate)
-        actions.append(StreamAction(pullMenuMainUrl + finished_url))
+            # Connect to WebSocket for audio streaming
+            audio_url = self.content_data.audioContent[0].audioUrl
+            query_params = urlencode({"id": state_id, "audio_url": audio_url, "speed": "1.0"})
+            websocket_url = f"{settings.websocket_service_url}/?{query_params}"
+            actions.append(VonageConnectAction(websocket_uri=websocket_url, content_type="audio/l16;rate=8000"))
 
-        # Add an input action to capture DTMF.
+        # Keep DTMF capture available after websocket leg so users can navigate (e.g. 9 -> previous menu).
         actions.append(InputAction(type_=["dtmf"], eventApi="/input", timeOut=10))
 
         # Build a simple menu with options.
@@ -76,19 +86,5 @@ class PureAudio:
         fsm.add_transition(Transition(source_state_id=parent_block_state_id, dest_state_id=state_id, input=str(key_chosen), actions=[]))
         fsm.add_transition(Transition(source_state_id=state_id, dest_state_id=parent_block_state_id, input=previous_category_level_key, actions=[]))
         fsm.add_transition(Transition(source_state_id=state_id, dest_state_id=state_id, input=repeat_current_categories_key, actions=[]))
-
-        # Create a final state.
-        final_state_id = f"{state_id}-LastMenu"
-        final_actions = []
-        final_actions.append(StreamAction(pullMenuMainUrl + finished_url))
-        final_actions.append(InputAction(type_=["dtmf"], eventApi="/input"))
-        final_state = State(state_id=final_state_id, actions=final_actions)
-        fsm.add_state(final_state)
-
-        # Set up transitions for the final state.
-        fsm.add_transition(Transition(source_state_id=state_id, dest_state_id=final_state_id, input="empty", actions=[]))
-        fsm.add_transition(Transition(source_state_id=final_state_id, dest_state_id=fsm.end_state.id, input="empty", actions=[]))
-        fsm.add_transition(Transition(source_state_id=final_state_id, dest_state_id=parent_block_state_id, input=previous_category_level_key, actions=[]))
-        fsm.add_transition(Transition(source_state_id=final_state_id, dest_state_id=state_id, input=repeat_current_categories_key, actions=[]))
 
         return fsm

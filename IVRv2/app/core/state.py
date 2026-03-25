@@ -39,6 +39,9 @@ class AppState:
     dtmf_input_processor: Optional[Any] = None
     call_event_processor: Optional[Any] = None
 
+    # WebSocket service for control connection
+    websocket_service: Optional[Any] = None
+
     def initialize_collections(self) -> None:
         """Initialize MongoDB collections from the manager.
 

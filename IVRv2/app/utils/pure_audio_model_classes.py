@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel, Field
 
 class Title(BaseModel):
@@ -16,6 +16,7 @@ class Theme(BaseModel):
 class AudioContent(BaseModel):
     description: str
     audioUrl: str
+    durationSeconds: Optional[float] = None
 
 
 class PureAudioData(BaseModel):
