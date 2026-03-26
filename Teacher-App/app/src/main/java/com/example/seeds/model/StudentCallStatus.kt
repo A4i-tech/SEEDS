@@ -5,7 +5,7 @@ import se.ansman.kotshi.JsonSerializable
 
 enum class CallerState {
     STARTED, RINGING, ANSWERED, UNANSWERED, BUSY, CANCELLED, COMPLETED, REJECTED, FAILED, UNDEFINED, TIMEOUT,
-    CONNECTING, CONNECTED, DISCONNECTED, ON_HOLD
+    CONNECTING, CONNECTED, DISCONNECTED
 }
 
 @JsonSerializable // Tells Kotshi to process this class

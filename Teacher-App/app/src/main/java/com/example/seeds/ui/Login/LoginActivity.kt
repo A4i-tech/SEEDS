@@ -17,7 +17,7 @@ import java.io.IOException
 import javax.inject.Inject
 import okhttp3.Call
 import okhttp3.Callback
-import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
@@ -126,7 +126,7 @@ class LoginActivity : AppCompatActivity() {
         }
 
         val body = RequestBody.create(
-            "application/json; charset=utf-8".toMediaType(),
+            MediaType.parse("application/json; charset=utf-8"),
             json.toString()
         )
 
@@ -152,7 +152,7 @@ class LoginActivity : AppCompatActivity() {
                     return
                 }
 
-                val responseBody = response.body?.string() ?: "{}"
+                val responseBody = response.body()?.string() ?: "{}"
                 val json = JSONObject(responseBody)
                 val token = json.optString("token", "")
 

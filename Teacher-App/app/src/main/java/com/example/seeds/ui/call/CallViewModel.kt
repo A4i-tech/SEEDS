@@ -25,10 +25,8 @@ import com.example.seeds.model.ParticipantTracker
 import com.example.seeds.model.StudentCallStatus
 import com.example.seeds.model.PlayerState
 import com.example.seeds.model.SessionHistoryItem
-import com.example.seeds.network.ConferenceSSEClient
 import com.example.seeds.network.SeedsService
 import com.example.seeds.network.asDomainModel
-import com.example.seeds.utils.Encryptor
 import com.example.seeds.repository.ClassroomRepository
 import com.example.seeds.repository.ContentRepository
 import com.example.seeds.repository.TeacherRepository
@@ -54,9 +52,11 @@ import okio.ByteString
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 
-const val SOCKET_CLOSE = 1000
+const val SOCKET_CLOSE = 1000   
 const val THREAD_SLEEP_TIME = 5000L
 const val DELAY_FOR_VIEW_MODEL = 180000L
+const val DELAY_FOR_LAUNCH = 120000L
+const val POLLING_INTERVAL_MS = 5000L 
 
 @HiltViewModel
 class CallViewModel @Inject constructor(
@@ -85,11 +85,8 @@ class CallViewModel @Inject constructor(
     
     private lateinit var token: AccessToken
     private var cancelCallOnFailure: Job? = null
-    private val sseClient = ConferenceSSEClient()
-
-    // Timestamp of the last play command. Used to ignore spurious "Stopped" SSE events
-    // that arrive right after the teacher taps play (e.g., staging confv2server lag).
-    private var lastPlayCommandMs = 0L
+    private var knownStateVersion = 0
+    private var isPollingStarted = false
 
     val teacherPhoneNumber = "91${teacherRepository.getTeacherPhoneNumber()}"
     
@@ -134,13 +131,9 @@ class CallViewModel @Inject constructor(
     val isMuteOrUnmuteAllDone: LiveData<Boolean>
         get() = _isMuteOrUnmuteAllDone
 
-    private val _isAudioControlDone = MutableLiveData<Boolean>(true)
+    val _isAudioControlDone = MutableLiveData<Boolean>(true)
     val isAudioControlDone: LiveData<Boolean>
         get() = _isAudioControlDone
-
-    fun notifyAudioControlStarted() {
-        _isAudioControlDone.postValue(false)
-    }
 
     private val _students = MutableLiveData<List<Student>>(emptyList())
     val students: LiveData<List<Student>>
@@ -184,10 +177,6 @@ class CallViewModel @Inject constructor(
     val audioPlaying: LiveData<Boolean> = Transformations.map(_playerState) { state ->
         state == PlayerState.PLAYING
     }
-    private val _audioPositionSeconds = MutableLiveData<Float?>(null)
-    val audioPositionSeconds: LiveData<Float?> = _audioPositionSeconds
-    private val _audioDurationSeconds = MutableLiveData<Float?>(null)
-    val audioDurationSeconds: LiveData<Float?> = _audioDurationSeconds
 
     private val _navigateBack = MutableLiveData(false)
     val navigateBack: LiveData<Boolean>
@@ -439,35 +428,40 @@ class CallViewModel @Inject constructor(
         _allContent.value = content
     }
 
-    fun startSSE(confId: String) {
-        val encryptedToken = sharedPreferences.getString("auth_token", null)
-        val iv = sharedPreferences.getString("auth_iv", null)
-        val authToken = if (encryptedToken != null && iv != null) {
-            try {
-                Encryptor.decrypt(encryptedToken, iv)
-            } catch (e: Exception) {
-                Log.e(TAG, "SSE: Failed to decrypt auth token", e)
-                null
-            }
-        } else null
+    fun startPollingForCallerState(confId: String) {
+        if (isPollingStarted) return
+        isPollingStarted = true
+        Log.i(TAG, ">>>> POLLING STARTED for conference ID: $confId <<<<")
 
-        if (authToken == null) {
-            val errorMsg = "Unable to start live updates: Authentication token unavailable. Relogin may be required."
-            Log.e(TAG, "SSE: Cannot start — no auth token available")
-            _isErrorFromIVR.postValue(errorMsg)
-            return
-        }
+        viewModelScope.launch(Dispatchers.IO) {
+            while (isActive) {
+                try {
+                    val fullUrl = "$conferenceUrl/callerstate/$confId"
+                    val response = network.getCallerState(fullUrl)
 
-        val url = "$conferenceUrl/conference/teacherappconnect/$confId"
-        sseClient.connect(url, authToken) { data ->
-            Log.d(TAG, "SSE raw payload in ViewModel: $data")
-            handleSSEUpdate(data)
-        }
-    }
+                    if (response.isSuccessful) {
+                        when (response.code()) {
+                            200 -> {
+                                val partialStateMap = response.body()
+                                val newVersion = response.headers()["X-State-Version"]?.toIntOrNull()
 
-    private fun handleSSEUpdate(data: String) {
-        try {
-            val json = gson.fromJson(data, com.google.gson.JsonObject::class.java)
+                                if (partialStateMap != null && newVersion != null) {
+                                    if (newVersion > knownStateVersion) {
+                                        knownStateVersion = newVersion
+                                        
+                                        val teacherPartialUpdate = partialStateMap[teacherPhoneNumber]
+                                        if (teacherPartialUpdate != null) {
+                                            val currentTeacherStatus = _teacherCallStatus.value
+                                            if(currentTeacherStatus != null) {
+                                                val newTeacherStatus = currentTeacherStatus.copy(
+                                                    callerState = teacherPartialUpdate.callerState,
+                                                    isMuted = teacherPartialUpdate.isMuted,
+                                                    onHold = teacherPartialUpdate.onHold,
+                                                    raiseHand = teacherPartialUpdate.raiseHand
+                                                )
+                                                _teacherCallStatus.postValue(newTeacherStatus)
+                                            }
+                                        }
 
             // --- Check if conference is still running ---
             val isRunning = json.get("is_running")?.asBoolean
@@ -504,11 +498,17 @@ class CallViewModel @Inject constructor(
             val students = mutableListOf<StudentCallStatus>()
             var teacherStatus: StudentCallStatus? = null
 
-            for ((phone, el) in participantsObj.entrySet()) {
-                val p = el.asJsonObject
-                val callerState = try {
-                    CallerState.valueOf(p.get("call_status")?.asString?.uppercase() ?: "UNDEFINED")
-                } catch (e: IllegalArgumentException) { CallerState.UNDEFINED }
+                                        partialStateMap
+                                            .filter { it.key != teacherPhoneNumber }
+                                            .forEach { (phoneNumber, partialUpdate) ->
+                                                val previousState = updateTrackerFromServerState(phoneNumber, partialUpdate.callerState ?: CallerState.UNDEFINED)
+                                                val currentState = partialUpdate.callerState
+                                                Log.d("STUDENT_STATE", "Student $phoneNumber: $previousState -> $currentState")
+                                                if (previousState == CallerState.CONNECTED && currentState == CallerState.DISCONNECTED) {
+                                                    Log.d("STUDENT_DROP", "Student $phoneNumber disconnected, posting notification")
+                                                    _participantDropped.postValue(phoneNumber)
+                                                }
+                                            }
 
                 val status = StudentCallStatus(
                     callerState = callerState,
@@ -659,7 +659,6 @@ class CallViewModel @Inject constructor(
 
     override fun onCleared() {
         closeSocket()
-        sseClient.disconnect()
         participantTrackers.clear()
     }
     
@@ -1091,37 +1090,32 @@ class CallViewModel @Inject constructor(
 
     fun playAudio(audioId: String) {
         val selectedContentObj = selectedContent.value
-
+        
         if (selectedContentObj == null) {
             _isErrorFromIVR.postValue("No content selected")
+            _isAudioControlDone.postValue(true)
             return
         }
-
-        // Optimistic update: switch to PLAYING immediately so the pause icon
-        // appears on tap without waiting for the network round-trip.
-        _isAudioControlDone.postValue(false)
-        _playerState.postValue(PlayerState.PLAYING)
-        lastPlayCommandMs = System.currentTimeMillis()
-
+        
         viewModelScope.launch {
             try {
                 val confId = _callToken.value?.confId
                 if (confId == null) {
                     _isErrorFromIVR.postValue("Conference not initialized")
-                    _playerState.postValue(PlayerState.STOPPED)
+                    _isAudioControlDone.postValue(true)
                     return@launch
                 }
-
+                
                 val audioUrl = when {
                     selectedContentObj.audioContent.isNotEmpty() -> selectedContentObj.audioContent.first().audioUrl
                     selectedContentObj.title?.audioUrl != null -> selectedContentObj.title.audioUrl
                     selectedContentObj.theme?.audioUrl != null -> selectedContentObj.theme.audioUrl
                     else -> null
                 }
-
+                
                 if (audioUrl.isNullOrEmpty()) {
                     _isErrorFromIVR.postValue("No audio available")
-                    _playerState.postValue(PlayerState.STOPPED)
+                    _isAudioControlDone.postValue(true)
                     return@launch
                 }
 
@@ -1136,17 +1130,18 @@ class CallViewModel @Inject constructor(
 
                 val fullUrl = "$conferenceUrl/conference/playaudio/$confId"
                 val response = network.playAudio(fullUrl, audioUrl)
-
-                if (!response.isSuccessful) {
+                
+                if (response.isSuccessful) {
+                    _playerState.postValue(PlayerState.PLAYING)
+                } else {
                     _isErrorFromIVR.postValue("Failed to play audio: ${response.code()}")
                     _playerState.postValue(PlayerState.STOPPED)
                 }
-                // On success: state is already PLAYING from the optimistic update above.
             } catch (e: Exception) {
                 _isErrorFromIVR.postValue("Error: ${e.message}")
                 _playerState.postValue(PlayerState.STOPPED)
             } finally {
-                _isAudioControlDone.postValue(true)
+                _isAudioControlDone.postValue(true) 
             }
         }
     }
@@ -1180,42 +1175,6 @@ class CallViewModel @Inject constructor(
 
     fun backwardAudio() {
         seekAudio(-10)
-    }
-
-    // Seek to absolute position (seconds)
-    fun seekTo(positionSeconds: Float) {
-        val confId = _callToken.value?.confId ?: return
-        viewModelScope.launch {
-            try {
-                val fullUrl = "$conferenceUrl/conference/seekaudio/$confId?position_seconds=$positionSeconds"
-                val response = network.seekAudio(fullUrl)
-                if (!response.isSuccessful) {
-                    _isErrorFromIVR.postValue("Failed to seek audio")
-                }
-            } catch (e: Exception) {
-                _isErrorFromIVR.postValue("Error: ${e.message}")
-            } finally {
-                _isAudioControlDone.postValue(true)
-            }
-        }
-    }
-
-    // Set playback speed
-    fun setPlaybackSpeed(speed: Double) {
-        val confId = _callToken.value?.confId ?: return
-        viewModelScope.launch {
-            try {
-                val fullUrl = "$conferenceUrl/conference/setplaybackspeed/$confId"
-                val response = network.setPlaybackSpeed(fullUrl, speed)
-                if (!response.isSuccessful) {
-                    _isErrorFromIVR.postValue("Failed to set playback speed")
-                }
-            } catch (e: Exception) {
-                _isErrorFromIVR.postValue("Error: ${e.message}")
-            } finally {
-                _isAudioControlDone.postValue(true)
-            }
-        }
     }
 
     fun prepareStudentListForAdding() {
