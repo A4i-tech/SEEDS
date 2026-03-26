@@ -1,6 +1,5 @@
 import asyncio
 import io
-import os
 import wave
 from collections import deque
 from typing import Any, Optional
@@ -8,6 +7,7 @@ import numpy as np
 from scipy import signal
 from openai import AsyncOpenAI
 from app.conf_logger import logger_instance as logger
+from config import get_settings
 
 
 try:
@@ -37,9 +37,11 @@ class AudioTranscriber:
 
     def __init__(self) -> None:
         logger.debug("Initializing AudioTranscriber (AsyncOpenAI API)...")
-        api_key = os.environ.get("OPENAI_API_KEY")
+        settings = get_settings()
+
+        api_key = settings.OPENAI_API_KEY
         self.client: Optional[AsyncOpenAI] = None
-        self.analysis_enabled = os.getenv("AUDIO_ANALYSIS_ENABLED", "true").lower() == "true"
+        self.analysis_enabled = settings.AUDIO_ANALYSIS_ENABLED
         if self.analysis_enabled and api_key:
             self.client = AsyncOpenAI(api_key=api_key)
         elif self.analysis_enabled:
@@ -49,16 +51,12 @@ class AudioTranscriber:
         else:
             logger.info("AUDIO_ANALYSIS_ENABLED=false. Transcription calls are disabled.")
 
-        self.transcript_logging = os.getenv("AUDIO_TRANSCRIPT_LOGGING_ENABLED", "false").lower() == "true"
-        self.api_timeout = float(os.getenv("AUDIO_API_TIMEOUT_SECONDS", "8.0"))
+        self.transcript_logging = settings.AUDIO_TRANSCRIPT_LOGGING_ENABLED
+        self.api_timeout = settings.AUDIO_API_TIMEOUT_SECONDS
 
-        self.silence_threshold = int(
-            os.getenv("AUDIO_SILENCE_THRESHOLD", str(self.SILENCE_THRESHOLD))
-        )
+        self.silence_threshold = settings.AUDIO_SILENCE_THRESHOLD
 
-        self.frame_duration_ms = int(
-            os.getenv("AUDIO_VAD_FRAME_MS", str(self.FRAME_DURATION_MS))
-        )
+        self.frame_duration_ms = settings.AUDIO_VAD_FRAME_MS
         if self.frame_duration_ms not in (10, 20, 30):
             logger.warning(
                 "Invalid AUDIO_VAD_FRAME_MS=%s; falling back to 20ms.",
@@ -66,40 +64,25 @@ class AudioTranscriber:
             )
             self.frame_duration_ms = 20
 
-        self.vad_aggressiveness = int(
-            os.getenv(
-                "AUDIO_WEBRTC_VAD_AGGRESSIVENESS",
-                str(self.WEBRTC_AGGRESSIVENESS),
-            )
-        )
+        self.vad_aggressiveness = settings.AUDIO_WEBRTC_VAD_AGGRESSIVENESS
         self.vad_aggressiveness = max(0, min(3, self.vad_aggressiveness))
 
-        self.min_speech_ms = int(
-            os.getenv("AUDIO_VAD_MIN_SPEECH_MS", str(self.MIN_SPEECH_MS))
-        )
-        self.silence_flush_ms = int(
-            os.getenv("AUDIO_VAD_SILENCE_FLUSH_MS", str(self.SILENCE_FLUSH_MS))
-        )
-        self.max_segment_sec = float(
-            os.getenv("AUDIO_VAD_MAX_SEGMENT_SEC", str(self.MAX_SEGMENT_SEC))
-        )
-        self.start_speech_frames = int(
-            os.getenv("AUDIO_VAD_START_SPEECH_FRAMES", str(self.START_SPEECH_FRAMES))
-        )
+        self.min_speech_ms = settings.AUDIO_VAD_MIN_SPEECH_MS
+        self.silence_flush_ms = settings.AUDIO_VAD_SILENCE_FLUSH_MS
+        self.max_segment_sec = settings.AUDIO_VAD_MAX_SEGMENT_SEC
+        self.start_speech_frames = settings.AUDIO_VAD_START_SPEECH_FRAMES
         self.start_speech_frames = max(1, self.start_speech_frames)
 
         self.frame_bytes = int(self.INPUT_RATE * 2 * self.frame_duration_ms / 1000)
         self.max_segment_bytes = int(self.INPUT_RATE * 2 * self.max_segment_sec)
         self.pre_speech_frames_count = max(
-            1, int(os.getenv("AUDIO_VAD_PRE_SPEECH_MS", str(self.PRE_SPEECH_MS))) // self.frame_duration_ms
+            1, settings.AUDIO_VAD_PRE_SPEECH_MS // self.frame_duration_ms
         )
         self.overlap_bytes = int(
-            self.INPUT_RATE * 2 * int(os.getenv("AUDIO_VAD_OVERLAP_MS", str(self.OVERLAP_MS))) / 1000
+            self.INPUT_RATE * 2 * settings.AUDIO_VAD_OVERLAP_MS / 1000
         )
         self.end_silence_frames = max(1, self.silence_flush_ms // self.frame_duration_ms)
-        self.metrics_log_every_segments = int(
-            os.getenv("AUDIO_VAD_METRICS_LOG_EVERY_SEGMENTS", str(self.METRICS_LOG_EVERY_SEGMENTS))
-        )
+        self.metrics_log_every_segments = settings.AUDIO_VAD_METRICS_LOG_EVERY_SEGMENTS
         self.metrics_log_every_segments = max(1, self.metrics_log_every_segments)
 
         self.pending_frame_buffer = bytearray()

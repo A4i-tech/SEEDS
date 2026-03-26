@@ -26,10 +26,7 @@ class WebsocketService:
 
     async def initialize(self):
         settings = get_settings()
-        ws_base_url = settings.INTERNAL_WS_EP or settings.WS_SERVER_EP
-        if not ws_base_url:
-            raise ValueError("WS_SERVER_EP (or INTERNAL_WS_EP) must be set")
-        self.connection_url = ws_base_url + f"?id={self.connection_id}"
+        self.connection_url = settings.WS_SERVER_EP + f"?id={self.connection_id}"
         self.is_connected = False
         self.reconnect_attempts = 0
         self.conference_manager = conference_manager
