@@ -53,30 +53,44 @@ class DTMFInputEvent(ConferenceEvent):
 
             # Leader DTMF: "1" → mute all, "3" → unmute all
             elif leader_phone and self.phone_number == leader_phone:
+                CONTENT_ACTIVE_STATUSES = (ContentStatus.PLAYING, ContentStatus.STARTING, ContentStatus.PAUSED)
+
                 if self.digit == "1":
                     await MuteAllEvent(conf_call=self.conf_call, initiator_phone=self.phone_number).execute_event()
                 elif self.digit == "3":
                     await UnmuteAllEvent(conf_call=self.conf_call, initiator_phone=self.phone_number).execute_event()
                 elif self.digit == "6":
-                    # Toggle play/pause for streaming content
                     audio_state = self.conf_call.state.audio_content_state
+                    if audio_state.status not in CONTENT_ACTIVE_STATUSES:
+                        logger_instance.info("Leader pressed '6' but no content is loaded — ignoring")
+                        return
                     if audio_state.status in (ContentStatus.PLAYING, ContentStatus.STARTING):
                         await PauseContentEvent(conf_call=self.conf_call, initiator_phone=self.phone_number).execute_event()
                     else:
                         await ResumeContentEvent(conf_call=self.conf_call, initiator_phone=self.phone_number).execute_event()
                 elif self.digit == "7":
-                    # Seek content back 10 seconds
+                    audio_state = self.conf_call.state.audio_content_state
+                    if audio_state.status not in CONTENT_ACTIVE_STATUSES:
+                        logger_instance.info("Leader pressed '7' but no content is loaded — ignoring")
+                        return
                     await SeekContentEvent(conf_call=self.conf_call, delta_seconds=-10, initiator_phone=self.phone_number).execute_event()
                 elif self.digit == "9":
-                    # Seek content forward 10 seconds
+                    audio_state = self.conf_call.state.audio_content_state
+                    if audio_state.status not in CONTENT_ACTIVE_STATUSES:
+                        logger_instance.info("Leader pressed '9' but no content is loaded — ignoring")
+                        return
                     await SeekContentEvent(conf_call=self.conf_call, delta_seconds=10, initiator_phone=self.phone_number).execute_event()
                 elif self.digit == "*":
-                    # Decrease playback speed by 0.25 (min 0.5)
-                    current_speed = self.conf_call.state.audio_content_state.speed
-                    new_speed = max(0.5, round(current_speed - 0.25, 2))
+                    audio_state = self.conf_call.state.audio_content_state
+                    if audio_state.status not in CONTENT_ACTIVE_STATUSES:
+                        logger_instance.info("Leader pressed '*' but no content is loaded — ignoring")
+                        return
+                    new_speed = max(0.5, round(audio_state.speed - 0.25, 2))
                     await SetPlaybackSpeedEvent(conf_call=self.conf_call, speed=new_speed, initiator_phone=self.phone_number).execute_event()
                 elif self.digit == "#":
-                    # Increase playback speed by 0.25 (max 2.0)
-                    current_speed = self.conf_call.state.audio_content_state.speed
-                    new_speed = min(2.0, round(current_speed + 0.25, 2))
+                    audio_state = self.conf_call.state.audio_content_state
+                    if audio_state.status not in CONTENT_ACTIVE_STATUSES:
+                        logger_instance.info("Leader pressed '#' but no content is loaded — ignoring")
+                        return
+                    new_speed = min(2.0, round(audio_state.speed + 0.25, 2))
                     await SetPlaybackSpeedEvent(conf_call=self.conf_call, speed=new_speed, initiator_phone=self.phone_number).execute_event()

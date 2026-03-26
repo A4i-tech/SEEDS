@@ -67,6 +67,11 @@ class ConferenceCall:
         )
         self.state.participants[teacher_phone] = teacher
         self.state.teacher_phone_number = teacher_phone
+        if leader_phone and leader_phone not in student_phones:
+            logger_instance.warning(
+                f"leader_phone {leader_phone} is not in student_phones — ignoring"
+            )
+            leader_phone = None
         self.state.leader_phone_number = leader_phone
 
         # Create student participants (muted by default via Vonage startMuted)

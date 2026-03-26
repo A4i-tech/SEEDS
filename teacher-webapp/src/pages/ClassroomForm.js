@@ -159,11 +159,13 @@ const ClassroomForm = () => {
       setSaving(true);
       setErrorMsg("");
 
-      const payload = { ...formData, leaders: [] };
       if (isEditMode) {
+        const existing = await getClassroomById(classroomId);
+        const payload = { ...formData, leaders: existing.leaders ?? [] };
         await updateClassroom(payload);
         showToast.success("Classroom updated successfully");
       } else {
+        const payload = { ...formData, leaders: [] };
         await createClassroom(payload);
         showToast.success("Classroom created successfully");
       }
