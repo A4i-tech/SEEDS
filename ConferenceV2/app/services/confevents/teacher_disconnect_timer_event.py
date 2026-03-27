@@ -78,7 +78,7 @@ class StartTeacherDisconnectTimerEvent(ConferenceEvent):
         self.conf_call._auto_end_monitor_task = asyncio.create_task(self._monitor_timer())
 
     async def _monitor_timer(self):
-        """Background task: monitors timer and ends conference when expired"""
+        """Background task: only watches the clock and queues events through the event queue"""
         error_count = 0
         max_errors = 10
 
@@ -91,9 +91,11 @@ class StartTeacherDisconnectTimerEvent(ConferenceEvent):
                 )
                 time_remaining = (expires_at - now).total_seconds()
 
-                # Check if timer expired
+                # Check if timer expired — queue event through the event queue
                 if time_remaining <= 0:
-                    await self._handle_timer_expired()
+                    await self.conf_call.queue_event(
+                        AutoEndTimerExpiredEvent(self.conf_call, self.timeout_minutes)
+                    )
                     break
 
                 sleep_duration = min(time_remaining, 30)
@@ -113,21 +115,23 @@ class StartTeacherDisconnectTimerEvent(ConferenceEvent):
                     logger_instance.error(
                         f"Max errors reached in monitor for {self.conf_call.conf_id}, stopping timer"
                     )
-                    self.conf_call.state.auto_end_state.is_active = False
-                    try:
-                        await self.conf_call.update_state()
-                    except Exception as e:
-                        logger_instance.error(
-                            f"Failed to persist timer cancellation after max errors for "
-                            f"{self.conf_call.conf_id}: {e}"
-                        )
+                    # Queue cleanup through the event queue instead of mutating state directly
+                    await self.conf_call.queue_event(
+                        AutoEndTimerFailedEvent(self.conf_call)
+                    )
                     break
 
                 await asyncio.sleep(30)
 
-    async def _handle_timer_expired(self):
-        """End conference when timer expires"""
 
+class AutoEndTimerExpiredEvent(ConferenceEvent):
+    """Handles timer expiry — runs inside the event queue for safe state mutation"""
+
+    def __init__(self, conf_call: ConferenceCall, timeout_minutes: int):
+        self.conf_call = conf_call
+        self.timeout_minutes = timeout_minutes
+
+    async def execute_event(self):
         # Guard: Re-check timer still active
         if not self.conf_call.state.auto_end_state.is_active:
             logger_instance.info(
@@ -169,6 +173,23 @@ class StartTeacherDisconnectTimerEvent(ConferenceEvent):
 
         end_event = EndConferenceEvent(self.conf_call)
         await self.conf_call.queue_event(end_event)
+
+
+class AutoEndTimerFailedEvent(ConferenceEvent):
+    """Handles monitor max-errors cleanup — runs inside the event queue for safe state mutation"""
+
+    def __init__(self, conf_call: ConferenceCall):
+        self.conf_call = conf_call
+
+    async def execute_event(self):
+        self.conf_call.state.auto_end_state.is_active = False
+        try:
+            await self.conf_call.update_state()
+        except Exception as e:
+            logger_instance.error(
+                f"Failed to persist timer cancellation after max errors for "
+                f"{self.conf_call.conf_id}: {e}"
+            )
 
 
 class CancelTeacherDisconnectTimerEvent(ConferenceEvent):
