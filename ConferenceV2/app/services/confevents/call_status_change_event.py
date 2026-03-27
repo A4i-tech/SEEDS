@@ -61,7 +61,7 @@ class CallStatusChangeEvent(ConferenceEvent):
                                 and teacher.phone_number != participant.phone_number
                             ):
                                 await self.conf_call.communication_api.play_announcement_to_conference(
-                                    "Teacher has joined", [participant.phone_number]
+                                    "Teacher is in the conference", [participant.phone_number]
                                 )
                     except Exception as e:
                         logger_instance.error("Failed to play join TTS announcement", e)

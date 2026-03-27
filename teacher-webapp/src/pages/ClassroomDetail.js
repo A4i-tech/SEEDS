@@ -183,24 +183,11 @@ const ClassroomDetail = () => {
     console.log("Starting conference for:", teacherPhone, selectedStudents);
 
     const teacherObject = {
-<<<<<<< HEAD
-      name: "Teacher",
-      phoneNumber: teacherPhone,
-      role: "Teacher",
-    };
-    handleTeacherSelect(teacherObject);
-=======
       name: teacherName || "Teacher",
       phoneNumber: teacherPhone,
       role: "Teacher",
     };
-    
-    if (typeof window !== "undefined" && typeof selectTeacher === "function") {
-      selectTeacher(teacherObject);
-    } else {
-      handleTeacherSelect(teacherObject);
-    }
->>>>>>> 5f335fe (feat: enhance conference creation and participant management with names)
+    handleTeacherSelect(teacherObject);
 
     try {
       const teacherPhoneFormatted = normalizePhoneNumber(teacherPhone);

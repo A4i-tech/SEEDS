@@ -76,9 +76,10 @@ class VonageAPI(CommunicationAPI):
             else:
                 ncco.append({"action": "talk", "text": "Teacher has joined"})
         else:
-            # Student: announce by name if provided
             if announce_text:
-                ncco.append({"action": "talk", "text": f"{announce_text} has joined"})
+                ncco.append({"action": "talk", "text": f"{announce_text} has joined the conference."})
+            else:
+                ncco.append({"action": "talk", "text": "You have joined the conference."})
         # Finally add conversation action
         ncco.append(conversation_action)
         call_data_tts = {
