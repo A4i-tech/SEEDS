@@ -82,6 +82,7 @@ const ClassroomForm = () => {
         name: data.name || "",
         students: data.students || [],
         contentIds: data.contentIds || [],
+        leaders: data.leaders || [],
       });
     } catch (err) {
       setErrorMsg("Failed to load classroom. Please try again.");
@@ -160,8 +161,7 @@ const ClassroomForm = () => {
       setErrorMsg("");
 
       if (isEditMode) {
-        const existing = await getClassroomById(classroomId);
-        const payload = { ...formData, leaders: existing.leaders ?? [] };
+        const payload = { ...formData };
         await updateClassroom(payload);
         showToast.success("Classroom updated successfully");
       } else {
