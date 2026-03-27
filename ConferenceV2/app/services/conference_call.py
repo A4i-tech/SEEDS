@@ -98,8 +98,10 @@ class ConferenceCall:
                 if self._auto_end_monitor_task and not self._auto_end_monitor_task.done():
                     try:
                         self._auto_end_monitor_task.cancel()
-                    except:
-                        pass
+                    except Exception as e:
+                        logger_instance.error(
+                            f"Failed to cancel existing monitor task for {self.conf_id}: {e}"
+                        )
 
             self._auto_end_monitor_task = asyncio.create_task(timer_event._monitor_timer())
 

@@ -116,8 +116,11 @@ class StartTeacherDisconnectTimerEvent(ConferenceEvent):
                     self.conf_call.state.auto_end_state.is_active = False
                     try:
                         await self.conf_call.update_state()
-                    except:
-                        pass
+                    except Exception as e:
+                        logger_instance.error(
+                            f"Failed to persist timer cancellation after max errors for "
+                            f"{self.conf_call.conf_id}: {e}"
+                        )
                     break
 
                 await asyncio.sleep(30)
