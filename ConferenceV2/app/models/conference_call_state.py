@@ -13,6 +13,7 @@ class ConferenceCallState(BaseModel):
     is_running: bool = Field(default=False)
     teacher_phone_number: str = None
     participants: Dict[str, Participant] = Field(default_factory=dict)
+    hold_detected: bool = Field(default=False)
     audio_content_state: AudioContentState = AudioContentState()
     action_history: List[ActionHistory] = Field(default_factory=list)
 
@@ -27,7 +28,12 @@ class ConferenceCallState(BaseModel):
     class Config:
         use_enum_values = True  # Automatically use enum values instead of objects for serialization
 
-    
+    def _get_user_action_history(self, action_history: List[Any]) -> List[Any]:
+        return [
+            action
+            for action in action_history
+            if not (isinstance(action, dict) and action.get("owner") == "system")
+        ]
 
     def model_dump(self, **kwargs):
         def convert_enums_to_strings(data: Any) -> Any:
@@ -41,4 +47,5 @@ class ConferenceCallState(BaseModel):
                 return data  # Return the value as is if it's not a dict, list, or Enum
         # Override the model_dump to ensure proper serialization of Enums as strings
         data = super().model_dump(**kwargs)
+        data["action_history"] = self._get_user_action_history(data.get("action_history", []))
         return convert_enums_to_strings(data)
