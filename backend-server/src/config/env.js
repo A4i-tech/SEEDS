@@ -23,6 +23,10 @@ const config = {
   firebaseServiceAccount: process.env.FIREBASE_SERVICE_ACCOUNT,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN,
   passwordSaltRounds: process.env.PASSWORD_SALT_ROUNDS,
+  groqApiKey: process.env.GROQ_API_KEY,
+  sttModel: process.env.STT_MODEL,
+  llm: process.env.LLM,
+  murfApiKey: process.env.MURF_API_KEY,
 };
 
 if (config.authType === "firebase") {

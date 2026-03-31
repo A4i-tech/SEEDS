@@ -1,20 +1,105 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import "./App.css";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
+import { Box, Tooltip, Typography } from "@mui/material";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { ROUTES } from "./constants/routes";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PublicRoute from "./components/PublicRoute";
+import VoiceCommandButton from "./components/VoiceCommandButton";
 import theme from "./theme/theme";
+import { AuthProvider, useAuthState } from "./context/AuthContext";
+import { fetchTTSPrompt } from "./services/voiceCommandService";
 
 import Login from "./pages/Login";
 import ClassroomList from "./pages/ClassroomList";
 import ClassroomForm from "./pages/ClassroomForm";
 import ClassroomDetail from "./pages/ClassroomDetail";
 import ContentDetails from "./pages/ContentDetails";
+import ContentPlayback from "./pages/ContentPlayback";
+
+function AppContent() {
+  const { isLoggedIn } = useAuthState();
+  const [welcomeAudio, setWelcomeAudio] = useState(null);
+
+  // Pre-fetch welcome audio on app load (whether logged in or not)
+  useEffect(() => {
+    (async () => {
+      try {
+        const { audioBase64 } = await fetchTTSPrompt("welcome");
+        if (audioBase64) {
+          setWelcomeAudio(new Audio(`data:audio/mp3;base64,${audioBase64}`));
+        }
+      } catch (_) { /* ignore */ }
+    })();
+  }, []);
+
+  // Clear welcome flag on logout so it plays again on next login
+  useEffect(() => {
+    if (!isLoggedIn) {
+      sessionStorage.removeItem("seeds_welcomed");
+    }
+  }, [isLoggedIn]);
+
+  // Play welcome audio once per session when logged in
+  useEffect(() => {
+    if (!isLoggedIn || !welcomeAudio) return;
+    if (sessionStorage.getItem("seeds_welcomed")) return;
+    
+    sessionStorage.setItem("seeds_welcomed", "1");
+    
+    // Slight delay to ensure UI has rendered and user interaction has registered
+    setTimeout(() => {
+      welcomeAudio.currentTime = 0; // Reset just in case it was played before
+      welcomeAudio.play().catch(() => {});
+    }, 300);
+  }, [isLoggedIn, welcomeAudio]);
+
+  return (
+    <>
+      <Routes>
+        <Route path={ROUTES.LOGIN} element={<PublicRoute element={<Login />} />} />
+        <Route path={ROUTES.REGISTER} element={<PublicRoute element={<Register />} />} />
+        <Route
+          path={ROUTES.CLASSROOMS}
+          element={<ProtectedRoute element={<ClassroomList />} />}
+        />
+        <Route
+          path={ROUTES.CLASSROOM_NEW}
+          element={<ProtectedRoute element={<ClassroomForm />} />}
+        />
+        <Route
+          path={ROUTES.CLASSROOM_EDIT(":classroomId")}
+          element={<ProtectedRoute element={<ClassroomForm />} />}
+        />
+        <Route
+          path={ROUTES.CLASSROOM_DETAIL(":classroomId")}
+          element={<ProtectedRoute element={<ClassroomDetail />} />}
+        />
+        <Route
+          path={ROUTES.CONTENT_PLAYBACK(":classroomId")}
+          element={<ProtectedRoute element={<ContentPlayback />} />}
+        />
+        <Route path={ROUTES.CONTENT} element={<ProtectedRoute element={<ContentPlayback />} />} />
+        <Route
+          path={ROUTES.CONTENT_DETAILS(":contentId")}
+          element={<ProtectedRoute element={<ContentDetails />} />}
+        />
+      </Routes>
+      {/* Floating Seeds AI button — visible when logged in */}
+      {isLoggedIn && (
+        <Tooltip title={<Typography variant="caption">Press <b>R</b> to talk to Seeds AI</Typography>} arrow placement="left">
+          <Box sx={{ position: "fixed", bottom: 24, right: 24, zIndex: 1300 }}>
+            <VoiceCommandButton />
+          </Box>
+        </Tooltip>
+      )}
+    </>
+  );
+}
 
 function App() {
   return (

@@ -123,6 +123,20 @@ const ClassroomDetail = () => {
     };
   }, []);
 
+  // Re-fetch after voice command mutations
+  useEffect(() => {
+    const handler = async () => {
+      try {
+        const data = await getClassroomById(classroomId);
+        setClassroom(data);
+      } catch (err) {
+        console.error("Error refreshing classroom after voice command:", err);
+      }
+    };
+    window.addEventListener("voice-command-complete", handler);
+    return () => window.removeEventListener("voice-command-complete", handler);
+  }, [classroomId]);
+
   // Handle SSE connection when conference starts
   useEffect(() => {
     if (!conferenceStarted || !conferenceId) {

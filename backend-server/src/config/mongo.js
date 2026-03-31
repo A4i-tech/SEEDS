@@ -10,7 +10,7 @@ async function mongo() {
   if (!dbConnection) {
     throw new Error("MongoDB connection string is not defined in environment variables.");
   }
-  await mongoose.connect(dbConnection);
+  await mongoose.connect(dbConnection, { dbName: "SEEDS-Teacher-Backend" });
   connected = true;
   return mongoose.connection.db;
 }

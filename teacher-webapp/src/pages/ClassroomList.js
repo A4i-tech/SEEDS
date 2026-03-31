@@ -50,6 +50,16 @@ const ClassroomList = () => {
     setRecentSessions(getSessionHistory());
   }, []);
 
+  // Re-fetch after voice command mutations
+  useEffect(() => {
+    const handler = () => {
+      fetchClassrooms();
+      setRecentSessions(getSessionHistory());
+    };
+    window.addEventListener("voice-command-complete", handler);
+    return () => window.removeEventListener("voice-command-complete", handler);
+  }, []);
+
   const fetchClassrooms = async () => {
     try {
       setLoading(true);

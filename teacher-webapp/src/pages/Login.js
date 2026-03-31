@@ -18,6 +18,7 @@ import { useNavigation } from "../hooks/useNavigation";
 import { showToast } from "../utils/toast";
 import { isLocalStorageAvailable } from "../utils/authHelpers";
 import { isValidPhoneNumber } from "../utils/phoneUtils";
+import { useAuthState } from "../context/AuthContext";
 
 function Login() {
   const navigate = useNavigation();
@@ -55,6 +56,7 @@ function Login() {
       });
       if (response.status === STATUS_CODES.SUCCESS) {
         localStorage.setItem("authToken", response.data.token);
+        setLoggedIn(true);
         showToast.success("Login successful!");
         navigate.goToClassroom();
       }

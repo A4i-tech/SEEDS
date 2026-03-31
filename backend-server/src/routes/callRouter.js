@@ -9,6 +9,12 @@ const { tryCatchWrapper, tryCatchWrapperLog } = require(path.join("..", "util.js
 
 const axios = require("axios").default;
 
+// Ensure IVR base URL always ends with a slash
+function ivrUrl(path) {
+  const base = process.env.IVR_SERVER_URL || "";
+  return base.endsWith("/") ? `${base}${path}` : `${base}/${path}`;
+}
+
 /**
  * @swagger
  * tags:
@@ -43,7 +49,7 @@ router.get(
   tryCatchWrapper(async (req, res) => {
     console.log(process.env.IVR_SERVER_URL);
     console.log("HERE");
-    const response = await axios.get(`${process.env.IVR_SERVER_URL}conference_call/accessToken`);
+    const response = await axios.get(ivrUrl("conference_call/accessToken"));
     console.log(response.data);
     return res.json(response.data);
   })
@@ -91,7 +97,7 @@ router.post(
   "/start",
   tryCatchWrapperLog(async (req, res) => {
     console.log("START CALL BOD", req.body);
-    const response = await axios.post(`${process.env.IVR_SERVER_URL}conference_call`, req.body);
+    const response = await axios.post(ivrUrl("conference_call"), req.body);
     console.log("START CALL RESPONSE", response.data);
     return res.json(response.data);
   })
@@ -139,7 +145,7 @@ router.get(
   "/:confId/status",
   tryCatchWrapper(async (req, res) => {
     const response = await axios.get(
-      `${process.env.IVR_SERVER_URL}conference_call/${req.params.confId}/status`
+      ivrUrl(`conference_call/${req.params.confId}/status`)
     );
     return res.json(response.data);
   })
