@@ -353,6 +353,11 @@ class CallViewModel @Inject constructor(
                 val teacherPhoneWithPrefix = "$teacherPhoneNumber"
                 val studentPhonesWithPrefix = phoneNumbers.map { "$it" }
                 val teacherDisplayName = teacherName?.takeIf { it.isNotBlank() }
+                    ?: userPreferencesRepository.userPrefs.first().userName.takeIf { it.isNotBlank() }
+
+                if (teacherName == null && teacherDisplayName != null) {
+                    teacherName = teacherDisplayName
+                }
 
                 val directoryMap = teacherStudentsDirectory.studentsByPhone()
                 val studentNames = studentPhonesWithPrefix.map { phone ->
@@ -931,7 +936,6 @@ class CallViewModel @Inject constructor(
                     Log.e("API_ACTION", "Server failed to connect $phoneNumber. Reverting UI.")
                     refreshCallState()
                 }
->>>>>>> 5f335fe (feat: enhance conference creation and participant management with names)
             } catch (e: Exception) {
                 refreshCallState() 
             }

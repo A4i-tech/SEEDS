@@ -217,9 +217,6 @@ const ClassroomDetail = () => {
         studentCount: studentPhonesFormatted.length,
       });
 
-<<<<<<< HEAD
-      const data = await createConference(teacherPhoneFormatted, studentPhonesFormatted);
-=======
       // Prepare student names aligned with selected students
       const studentNames = selectedStudents.map((s) => s.name || null);
       const data = await createConference(
@@ -228,7 +225,6 @@ const ClassroomDetail = () => {
         teacherName || null,
         studentNames
       );
->>>>>>> 5f335fe (feat: enhance conference creation and participant management with names)
 
       if (!data || !data.id) {
         throw new Error("Conference creation failed: No conference ID returned");
