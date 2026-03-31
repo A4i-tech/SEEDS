@@ -16,7 +16,7 @@ from app.services.storage_manager import StorageManager
 from app.services.smartphone_connection_manager import SmartphoneConnectionManager
 from app.conf_logger import logger_instance
 from app.services.stream_system_messages import StreamSystemMessages
-# from services.vanilla_websocket_service import VanillaWebSocketService
+from config import get_settings
 
 
 class ConferenceCall:
@@ -33,27 +33,26 @@ class ConferenceCall:
         self.connection_manager = connection_manager
         self.state = ConferenceCallState()
         self._system_message_streaming_service = StreamSystemMessages(conf_id=conf_id)
-        # self.websocket_service = VanillaWebSocketService(
-        #         on_disconnect_callback=self.__on_websocket_disconnect_callback,
-        #         audio_content_state=self.state.audio_content_state,
-        #         on_state_update=self.update_state
-        #     )
         
         self.event_queue = asyncio.Queue()
-        self.event_queue_processing_task: asyncio.Task = None
+        self.event_queue_processing_task: asyncio.Task | None = None
+
+        # Remote audio relay (websocket-service → hold detection pipeline)
+        self._remote_audio_queue: asyncio.Queue | None = None
+        self._remote_audio_task: asyncio.Task | None = None
     
-    async def stream_system_message(self, message: SystemAudioMessages):
+    async def stream_system_message(self, message: SystemAudioMessages) -> None:
         if self.state.is_running and self.communication_api.get_is_websocket_connected():
             await self._system_message_streaming_service.stream_message(message)
     
-    async def queue_event(self, event: ConferenceEvent):
+    async def queue_event(self, event: ConferenceEvent) -> None:
         await self.event_queue.put(event)
     
-    def end_processing_conf_events_from_queue(self):
-        if self.event_queue_processing_task != None:
+    def end_processing_conf_events_from_queue(self) -> None:
+        if self.event_queue_processing_task is not None:
             self.event_queue_processing_task.cancel()
     
-    def start_processing_conf_events_from_queue(self):
+    def start_processing_conf_events_from_queue(self) -> None:
         self.end_processing_conf_events_from_queue()
         self.event_queue_processing_task = asyncio.create_task(self.__process_conf_events_queue())
     
@@ -82,16 +81,75 @@ class ConferenceCall:
             )
             self.state.participants[phone] = student
     
-    # def set_websocket(self, websocket: WebSocket):
-    #     self.websocket_service.set_websocket(websocket)
+    async def close_websocket(self) -> None:
+        if hasattr(self, "_websocket") and self._websocket:
+            try:
+                await self._websocket.close()
+                logger_instance.info(f"Closed WebSocket for conference {self.conf_id}")
+            except Exception as e:
+                logger_instance.warning(f"Error closing WebSocket for conference {self.conf_id}: {e}")
+            finally:
+                self._websocket = None
 
-    async def start_conference(self):
+    def set_websocket(self, websocket: WebSocket | None) -> None:
+        self._websocket = websocket
+
+    def start_remote_audio_relay(self) -> None:
+        """Start consuming audio from the remote relay queue (websocket-service)."""
+        settings = get_settings()
+        if not settings.AUDIO_ANALYSIS_ENABLED:
+            logger_instance.info(
+                f"AUDIO_ANALYSIS_ENABLED=false; skipping remote audio relay for {self.conf_id}"
+            )
+            return
+        self.stop_remote_audio_relay()
+        self._remote_audio_queue = asyncio.Queue(maxsize=settings.AUDIO_RELAY_MAX_QUEUE)
+        self._remote_audio_task = asyncio.create_task(self._consume_remote_audio())
+        logger_instance.info(f"Remote audio relay queue created for {self.conf_id}")
+
+    def stop_remote_audio_relay(self) -> None:
+        if self._remote_audio_task is not None:
+            self._remote_audio_task.cancel()
+            self._remote_audio_task = None
+        self._remote_audio_queue = None
+
+    async def _consume_remote_audio(self) -> None:
+        """Background task: pull audio bytes from the relay queue and run hold detection."""
+        from app.services.audio.hold_detector import HoldDetector
+        from app.services.audio.transcriber import AudioTranscriber
+        from app.services.audio.websocket_audio_processor import process_audio_message
+
+        transcriber: AudioTranscriber | None = None
+        hold_detector: HoldDetector | None = None
+        try:
+            logger_instance.info(f"Initializing remote audio pipeline for {self.conf_id}...")
+            transcriber = AudioTranscriber()
+            logger_instance.info(f"AudioTranscriber initialized for remote relay ({self.conf_id})")
+            hold_detector = await HoldDetector.create()
+            logger_instance.info(f"Remote audio relay started for {self.conf_id}")
+        except Exception as e:
+            logger_instance.error(f"Failed to init audio pipeline for remote relay ({self.conf_id}): {e}")
+            return
+
+        try:
+            while True:
+                audio_bytes = await self._remote_audio_queue.get()
+                await process_audio_message(
+                    audio_bytes, self, transcriber, hold_detector, self.conf_id
+                )
+        except asyncio.CancelledError:
+            logger_instance.info(f"Remote audio relay stopped for {self.conf_id}")
+        except Exception as e:
+            logger_instance.exception(f"Remote audio relay error for {self.conf_id}: {e}")
+
+    async def start_conference(self) -> None:
         # Start the call via communication API
         await self.communication_api.start_conf(
             self.state.teacher_phone_number, 
             [student.phone_number for student in self.state.get_students()]
         )
         self.state.is_running = True
+        self.state.hold_detected = False
         # TODO: Set CONNECTED CALL STATUS WHEN ATLEAST ONE OF THE PARTICIPANTS HAVE PICKED UP
         self.state.action_history.append(ActionHistory(
                                                     timestamp=datetime.now().isoformat(), 
@@ -117,18 +175,18 @@ class ConferenceCall:
             return await self.connection_manager.disconnect(client=teacher)
         raise ValueError("No teacher participant in conf call " + self.conf_id)
         
-    async def update_state(self):
+    async def update_state(self) -> None:
         # Save state to storage
         await self.storage_manager.save_state(self.conf_id, self.state.model_dump(by_alias=True))
         # Notify clients
         await self.connection_manager.send_message_to_client(client=self.state.get_teacher(),
                                                              message=self.state.model_dump(by_alias=True))
     
-    async def on_websocket_disconnect_callback(self):
+    async def on_websocket_disconnect_callback(self) -> None:
         await self.communication_api.reconnect_websocket()
     
     # Dequeue function: runs continuously to process tasks
-    async def __process_conf_events_queue(self, timeout: float = 3.0):
+    async def __process_conf_events_queue(self, timeout: float = 3.0) -> None:
         while True:
             event: ConferenceEvent = await self.event_queue.get()
             try:

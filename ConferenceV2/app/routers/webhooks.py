@@ -1,26 +1,20 @@
 # routers/webhooks.py
 
 import json
-from fastapi import APIRouter, Request, BackgroundTasks, HTTPException, Response
-from fastapi.responses import JSONResponse
+import re
+import asyncio
+from fastapi import APIRouter, Request, BackgroundTasks
 from pydantic import ValidationError
 from app.models.participant import CallStatus
-from app.services.confevents.mute_participant_event import MuteParticipantEvent
 from app.services.confevents.vonage.vonage_call_leg_transfer_event import VonageCallTransferEvent
 from app.services.confevents.vonage.vonage_call_status_change_event import VonageCallStatusChangeEvent
 from app.services.confevents.vonage.vonage_dtmf_input_event import VonageDTMFInputEvent, VonageRTCEventType
-from app.services.singletons.conference_call_manager import ConferenceCallManager
 from typing import Dict
 from app.conf_logger import logger_instance
 from app.services.caller_state_manager import caller_state_manager
-import asyncio
-
-router = APIRouter()
 
 # Import the conference_manager instance
 from app.services.singletons.conference_call_manager import conference_manager
-
-from fastapi import APIRouter, Request, Response
 
 router = APIRouter()
 
@@ -41,7 +35,6 @@ async def websocket_event_webhook(request: Request, background_tasks: Background
     to_url = query_params.get('to', '')
     if 'id=' in to_url:
         # Extract conference ID from URL like: wss://...?id=conf-id
-        import re
         match = re.search(r'id=([^&?]+)', to_url)
         if match:
             conference_id = match.group(1)
@@ -71,7 +64,10 @@ async def process_event(event_data: Dict, conference_id: str):
             logger_instance.info(f"Processing call status change event for {call_status_change_event.phone_number}: {call_status_change_event.status}")
             status_enum = call_status_change_event.status
 
-            new_state_update = {"call_status": status_enum.name}
+            new_state_update = {
+                "call_status": status_enum.value,
+                "onHold": status_enum == CallStatus.ON_HOLD,
+            }
 
             logger_instance.info(f"[TRIGGER] Firing update for conf {conference_id} with state: {new_state_update}")
             asyncio.create_task(
@@ -108,5 +104,5 @@ async def process_conversation_event(event_data: Dict):
                 logger_instance.info(json.dumps(event_data, indent=2))
                 await conf.queue_event(dtmf_input_event)
     
-    except:
+    except Exception:
         logger_instance.info("NOT a dtmf_input_event")

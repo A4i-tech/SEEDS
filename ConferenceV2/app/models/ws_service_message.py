@@ -16,6 +16,7 @@ class MessageType(str, Enum):
     SET_SPEED = "set-speed"
     DISCONNECT = "disconnect"
     RECONNECT = "reconnect"
+    AUDIO_DATA = "AUDIO_DATA"
 
 
 class WebsocketServiceMessage(BaseModel):
