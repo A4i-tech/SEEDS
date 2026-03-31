@@ -28,9 +28,14 @@ class CallStatusChangeEvent(ConferenceEvent):
                     self.conf_call.state.get_teacher().phone_number == participant.phone_number
                 )
 
-                # Teacher disconnected → start timer
+                # Teacher disconnected → play audio and optionally start timer
                 if self.status == CallStatus.DISCONNECTED and is_teacher:
                     logger_instance.info(f"Teacher disconnected from {self.conf_call.conf_id}")
+                    # Always notify that teacher has dropped (independent of auto-end feature)
+                    await self.conf_call.stream_system_message(
+                        SystemAudioMessages.TEACHER_HAS_DROPPED
+                    )
+                    
                     timer_event = StartTeacherDisconnectTimerEvent(self.conf_call)
                     await self.conf_call.queue_event(timer_event)
 

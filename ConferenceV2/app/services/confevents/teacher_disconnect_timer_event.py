@@ -56,11 +56,6 @@ class StartTeacherDisconnectTimerEvent(ConferenceEvent):
         # Persist to database
         await self.conf_call.update_state()
 
-        # Play audio notification (reusing existing audio file)
-        await self.conf_call.stream_system_message(
-            SystemAudioMessages.TEACHER_HAS_DROPPED
-        )
-
         logger_instance.info(
             f"Started auto-end timer for {self.conf_call.conf_id}, "
             f"expires at {expires_at.isoformat()}"
