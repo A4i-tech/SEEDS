@@ -15,6 +15,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 
 from app.services.audio.transcriber import AudioTranscriber
 from app.services.singletons.websocket_service import WebsocketService
+import websockets
 
 
 @pytest.mark.asyncio
@@ -23,8 +24,16 @@ async def test_process_chunk_merges_multiple_transcriptions_from_single_payload(
     transcriber.frame_bytes = 2
 
     emitted = [
-        {"text": "first phrase", "duration": 0.8, "segments": [{"text": "first phrase"}]},
-        {"text": "second phrase", "duration": 0.6, "segments": [{"text": "second phrase"}]},
+        {
+            "text": "first phrase",
+            "duration": 0.8,
+            "segments": [{"text": "first phrase"}],
+        },
+        {
+            "text": "second phrase",
+            "duration": 0.6,
+            "segments": [{"text": "second phrase"}],
+        },
         None,
         None,
     ]
@@ -51,10 +60,19 @@ async def test_websocket_initialize_connects_before_starting_background_tasks():
     ws_service = WebsocketService()
     call_order: list[str] = []
 
-    connect_mock = AsyncMock(side_effect=lambda: call_order.append("connect"))
-    start_mock = Mock(side_effect=lambda: call_order.append("start"))
+    async def fake_connect():
+        call_order.append("connect")
 
-    with patch.dict(os.environ, {"WS_SERVER_EP": "ws://localhost:3000"}), patch.object(
+    def fake_start():
+        call_order.append("start")
+
+    connect_mock = AsyncMock(side_effect=fake_connect)
+    start_mock = Mock(side_effect=fake_start)
+
+    fake_settings = Mock()
+    fake_settings.WS_SERVER_EP = "ws://localhost:3000"
+
+    with patch("config.get_settings", return_value=fake_settings), patch.object(
         ws_service, "_connect", new=connect_mock
     ), patch.object(ws_service, "_start_bg_processes", new=start_mock):
         await ws_service.initialize()
