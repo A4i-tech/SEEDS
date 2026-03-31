@@ -28,6 +28,10 @@ dependencies = [
     "httpx",
     "motor",
     "pymongo",
+    "openai",
+    "numpy",
+    "scipy",
+    "webrtcvad"
 ]
 
 
@@ -41,4 +45,3 @@ pytest-asyncio = "*"
 pytest-cov = "*"
 [tool.poetry.group.dev.dependencies]
 pytest-cov = "^7.0.0"
-

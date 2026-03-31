@@ -42,6 +42,11 @@ function App() {
             element={<ProtectedRoute element={<ClassroomDetail />} />}
           />
           <Route
+            path={ROUTES.CONTENT_PLAYBACK(":classroomId")}
+            element={<ProtectedRoute element={<ContentPlayback />} />}
+          />
+          <Route path={ROUTES.CONTENT} element={<ProtectedRoute element={<ContentPlayback />} />} />
+          <Route
             path={ROUTES.CONTENT_DETAILS(":contentId")}
             element={<ProtectedRoute element={<ContentDetails />} />}
           />

@@ -13,6 +13,7 @@ class CallStatus(str, Enum):
     CONNECTED = "connected"
     DISCONNECTED = "disconnected"
     CONNECTING = "connecting"
+    ON_HOLD = "on_hold"
 
 
 class Participant(BaseModel):

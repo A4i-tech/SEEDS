@@ -20,6 +20,8 @@ class ActionType(str, Enum):
     AUTO_END_TIMER_START = "AUTO_END_TIMER_START"
     AUTO_END_TIMER_CANCEL = "AUTO_END_TIMER_CANCEL"
     AUTO_END_TIMER_EXPIRED = "AUTO_END_TIMER_EXPIRED"
+    SYSTEM_AUDIO_ANALYSIS = "System-AudioAnalysis"
+    SYSTEM_HOLD_DETECTED = "System-HoldDetected"
     
 
 class ActionHistory(BaseModel):
