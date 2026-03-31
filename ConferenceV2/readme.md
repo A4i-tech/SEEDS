@@ -108,3 +108,25 @@ The code in this folder is for the **Conf Server**, a FastAPI application respon
 ---
 
 This documentation outlines the core components, interactions, and data flows within the Conference Call System. The system ensures seamless management of telephony-based conference calls with real-time updates and audio playback capabilities.
+
+## Local Setup Notes
+
+1. Copy `ConferenceV2/.env.example` to `ConferenceV2/.env`.
+2. Fill required credentials (`VONAGE_*`, `OPENAI_API_KEY`, storage variables for selected backend).
+3. Optional local file logging:
+   - Set `LOG_TO_FILE=true` and `LOG_FILE_PATH` (for example `runtime.log`) to persist `ConferenceV2` logs to disk.
+4. Optional debug audio capture:
+   - Set `AUDIO_CAPTURE_ENABLED=true` to store raw inbound websocket audio.
+   - Prefer `AUDIO_CAPTURE_FORMAT=wav` in production for self-describing audio files.
+   - Keep capture bounded with `AUDIO_CAPTURE_MAX_BYTES` and `AUDIO_CAPTURE_FLUSH_EVERY_BYTES`.
+   - Set `AUDIO_CAPTURE_UPLOAD_TO_AZURE=true` and `AZURE_STORAGE_CONNECTION_STRING` to upload captures to `AUDIO_CAPTURE_CONTAINER`.
+   - Use `AUDIO_CAPTURE_BLOB_PREFIX` (for example `audio-recording`) to place uploads under a folder-like path.
+   - Blob naming is `<conference_id>-<capture_start_utc>-<capture_end_utc>.<ext>` for easy filtering by conference and time.
+5. WebRTC VAD tuning:
+   - `AUDIO_WEBRTC_VAD_AGGRESSIVENESS` (0-3), `AUDIO_VAD_FRAME_MS` (10/20/30)
+   - `AUDIO_VAD_START_SPEECH_FRAMES`, `AUDIO_VAD_PRE_SPEECH_MS` (leading context)
+   - `AUDIO_VAD_MIN_SPEECH_MS`, `AUDIO_VAD_SILENCE_FLUSH_MS`, `AUDIO_VAD_MAX_SEGMENT_SEC`
+   - `AUDIO_VAD_OVERLAP_MS` (segment boundary overlap), `AUDIO_VAD_METRICS_LOG_EVERY_SEGMENTS`
+6. Hold detection controls:
+   - `AUDIO_HOLD_SIMILARITY_THRESHOLD` controls embedding similarity sensitivity.
+   - `AUDIO_HOLD_MIN_TEXT_CHARS` ignores extremely short transcripts to reduce noise.

@@ -3,6 +3,10 @@ FROM python:3.13-slim-bookworm AS builder
 
 WORKDIR /app
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN pip install poetry
 
 ENV POETRY_VENV_IN_PROJECT=false
