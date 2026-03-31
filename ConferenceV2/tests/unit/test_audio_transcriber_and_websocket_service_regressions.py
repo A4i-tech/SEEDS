@@ -62,11 +62,12 @@ async def test_websocket_initialize_connects_before_starting_background_tasks():
 
     async def fake_connect():
         call_order.append("connect")
+        return None
 
     def fake_start():
         call_order.append("start")
 
-    connect_mock = AsyncMock(side_effect=fake_connect)
+    connect_mock = AsyncMock(wraps=fake_connect)
     start_mock = Mock(side_effect=fake_start)
 
     fake_settings = Mock()
@@ -97,8 +98,8 @@ async def test_websocket_connect_is_serialized_to_single_socket_creation():
         return object()
 
     with patch(
-        "app.services.singletons.websocket_service.websockets.connect",
-        new=AsyncMock(side_effect=fake_connect),
+        "websockets.connect",
+        new=AsyncMock(wraps=fake_connect),
     ) as mock_connect:
         await asyncio.gather(ws_service._connect(), ws_service._connect())
 
