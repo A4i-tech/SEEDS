@@ -16,6 +16,7 @@ from app.utils.pure_audio_model_classes import PureAudioData
 from app.utils.duration_announcement import format_duration_announcement
 from app.utils.ivr_utils import get_vonage_language_code
 from app.settings import settings
+from app.fsm.operations.daily_limit_pre_operation import DailyLimitPreOperation
 from urllib.parse import urlencode
 
 load_dotenv()
@@ -79,7 +80,16 @@ class PureAudio:
         description = f"{self.content_data.title.local} - {self.content_data.title.english} Audio Playing"
         menu = Menu(description=description, options=options, level=level)
 
-        playback_state = State(state_id=state_id, actions=actions, menu=menu)
+        # Attach daily limit pre-operation if content has duration
+        daily_limit_pre_op = None
+        if self.content_data.audioContent and self.content_data.audioContent[0].durationSeconds:
+            daily_limit_pre_op = DailyLimitPreOperation(
+                duration_seconds=self.content_data.audioContent[0].durationSeconds,
+                language=self.language,
+                school_id=getattr(self.content_data, 'school_id', ''),
+            )
+
+        playback_state = State(state_id=state_id, actions=actions, menu=menu, pre_operation=daily_limit_pre_op)
         fsm.add_state(playback_state)
 
         # Add transitions from the parent block to the playback state.

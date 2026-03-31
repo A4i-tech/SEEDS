@@ -1,4 +1,7 @@
 from app.settings import settings
+from app.utils.daily_limit import get_daily_usage, increment_daily_usage, get_ist_date_string
+from app.utils.duration_announcement import get_daily_limit_announcement
+from app.utils.ivr_utils import get_vonage_language_code
 from datetime import datetime
 from typing import List, Tuple
 from app.actions.base_actions.stream_action import StreamAction
@@ -157,6 +160,52 @@ class FSM:
             )
         return self.states[self.init_state_id].actions
 
+    async def _check_daily_limit(
+        self, dest_state, ivr_state_doc: IVRCallStateMongoDoc
+    ):
+        """Check daily listening limit after pre-operation has flagged a check.
+
+        Returns:
+            Tuple of (limit_exceeded: bool, limit_actions: List[Action] or None)
+        """
+        limit_check = ivr_state_doc.experience_data.pop("_daily_limit_check", None)
+        if limit_check is None:
+            return False, None
+
+        from app.core.state import get_app_state
+        app_state = get_app_state()
+        collection = app_state.daily_listening_usage_mongo
+
+        if collection is None:
+            return False, None
+
+        today = get_ist_date_string()
+        limit = settings.ivr_daily_listening_limit_seconds
+        duration = limit_check["duration_seconds"]
+        language = limit_check["language"]
+
+        current_usage = await get_daily_usage(collection, ivr_state_doc.phone_number, today)
+
+        if current_usage + duration > limit or current_usage >= limit:
+            # Limit exceeded - return announcement + hangup
+            announcement_text = get_daily_limit_announcement(language)
+            vonage_lang = get_vonage_language_code(language)
+            limit_actions = [
+                TalkAction(text=announcement_text, level=1.0, bargeIn=False, loop=1, language=vonage_lang)
+            ]
+            return True, limit_actions
+
+        # Within limit - increment usage
+        await increment_daily_usage(
+            collection,
+            ivr_state_doc.phone_number,
+            today,
+            int(duration),
+            tenant_id=ivr_state_doc.tenant_id,
+            school_id=limit_check.get("school_id", ""),
+        )
+        return False, None
+
     async def get_next_actions(
         self, input_: str, ivr_state_doc: IVRCallStateMongoDoc
     ) -> Tuple[List[Action], str]:
@@ -217,6 +266,16 @@ class FSM:
 
         dest_state = self.states[dest_state_id]
         dest_state.pre_operation.execute(self, ivr_state_doc)
+
+        # Check daily listening limit if pre-operation flagged a check
+        limit_exceeded, limit_actions = await self._check_daily_limit(
+            dest_state, ivr_state_doc
+        )
+        if limit_exceeded:
+            return (
+                self._prepare_actions_for_call(limit_actions, ivr_state_doc.id),
+                dest_state_id,
+            )
 
         transition_actions = current_state.transition_map[input_].actions
         return (

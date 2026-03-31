@@ -29,6 +29,7 @@ class AppState:
     calls_log_mongo: Optional[MongoDBCollection] = None
     contents_v3_mongo: Optional[MongoDBCollection] = None
     comprehension_mongo: Optional[MongoDBCollection] = None
+    daily_listening_usage_mongo: Optional[MongoDBCollection] = None
 
     # FSM state
     fsm: Dict[str, Any] = field(default_factory=dict)
@@ -60,6 +61,7 @@ class AppState:
         self.calls_log_mongo = self.mongodb_manager.get_collection("callsLogs")
         self.contents_v3_mongo = self.mongodb_manager.get_collection("contentsV3")
         self.comprehension_mongo = self.mongodb_manager.get_collection("comprehension")
+        self.daily_listening_usage_mongo = self.mongodb_manager.get_collection("dailyListeningUsage")
 
 
 # Global app state instance - set during lifespan
