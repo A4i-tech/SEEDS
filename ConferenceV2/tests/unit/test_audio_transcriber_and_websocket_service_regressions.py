@@ -57,29 +57,23 @@ async def test_process_chunk_merges_multiple_transcriptions_from_single_payload(
 @pytest.mark.asyncio
 async def test_websocket_initialize_connects_before_starting_background_tasks():
     WebsocketService._instance = None
-    ws_service = WebsocketService()
     call_order: list[str] = []
 
-    async def fake_connect():
+    async def fake_connect(self):
         call_order.append("connect")
-        return None
 
-    def fake_start():
+    def fake_start(self):
         call_order.append("start")
-
-    connect_mock = AsyncMock(wraps=fake_connect)
-    start_mock = Mock(side_effect=fake_start)
 
     fake_settings = Mock()
     fake_settings.WS_SERVER_EP = "ws://localhost:3000"
 
     with patch("config.get_settings", return_value=fake_settings), patch.object(
-        ws_service, "_connect", new=connect_mock
-    ), patch.object(ws_service, "_start_bg_processes", new=start_mock):
+        WebsocketService, "_connect", new=fake_connect
+    ), patch.object(WebsocketService, "_start_bg_processes", new=fake_start):
+        ws_service = WebsocketService()
         await ws_service.initialize()
 
-    connect_mock.assert_awaited_once()
-    start_mock.assert_called_once()
     assert call_order == ["connect", "start"]
 
 
@@ -97,12 +91,16 @@ async def test_websocket_connect_is_serialized_to_single_socket_creation():
         await asyncio.sleep(0.01)
         return object()
 
-    with patch(
-        "websockets.connect",
-        new=AsyncMock(wraps=fake_connect),
-    ) as mock_connect:
+    connect_call_count = 0
+
+    async def counting_fake_connect(url: str):
+        nonlocal connect_call_count
+        connect_call_count += 1
+        return await fake_connect(url)
+
+    with patch("websockets.connect", side_effect=counting_fake_connect) as mock_connect:
         await asyncio.gather(ws_service._connect(), ws_service._connect())
 
-    assert mock_connect.await_count == 1
+    assert connect_call_count == 1
     assert ws_service.is_connected is True
     assert ws_service._ws is not None
