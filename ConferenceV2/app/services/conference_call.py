@@ -116,6 +116,29 @@ class ConferenceCall:
         from app.services.audio.transcriber import AudioTranscriber
         from app.services.audio.websocket_audio_processor import process_audio_message
 
+        transcriber: AudioTranscriber | None = None
+        hold_detector: HoldDetector | None = None
+        try:
+            logger_instance.info(f"Initializing remote audio pipeline for {self.conf_id}...")
+            transcriber = AudioTranscriber()
+            logger_instance.info(f"AudioTranscriber initialized for remote relay ({self.conf_id})")
+            hold_detector = await HoldDetector.create()
+            logger_instance.info(f"Remote audio relay started for {self.conf_id}")
+        except Exception as e:
+            logger_instance.error(f"Failed to init audio pipeline for remote relay ({self.conf_id}): {e}")
+            return
+
+        try:
+            while True:
+                audio_bytes = await self._remote_audio_queue.get()
+                await process_audio_message(
+                    audio_bytes, self, transcriber, hold_detector, self.conf_id
+                )
+        except asyncio.CancelledError:
+            logger_instance.info(f"Remote audio relay stopped for {self.conf_id}")
+        except Exception as e:
+            logger_instance.exception(f"Remote audio relay error for {self.conf_id}: {e}")
+
     def restore_auto_end_timer(self):
         """Restore auto-end monitoring task if timer is active (e.g., after server restart)"""
         if self.state.auto_end_state.is_active:
@@ -140,30 +163,6 @@ class ConferenceCall:
             self._auto_end_monitor_task = asyncio.create_task(timer_event._monitor_timer())
 
     async def start_conference(self):
-        transcriber: AudioTranscriber | None = None
-        hold_detector: HoldDetector | None = None
-        try:
-            logger_instance.info(f"Initializing remote audio pipeline for {self.conf_id}...")
-            transcriber = AudioTranscriber()
-            logger_instance.info(f"AudioTranscriber initialized for remote relay ({self.conf_id})")
-            hold_detector = await HoldDetector.create()
-            logger_instance.info(f"Remote audio relay started for {self.conf_id}")
-        except Exception as e:
-            logger_instance.error(f"Failed to init audio pipeline for remote relay ({self.conf_id}): {e}")
-            return
-
-        try:
-            while True:
-                audio_bytes = await self._remote_audio_queue.get()
-                await process_audio_message(
-                    audio_bytes, self, transcriber, hold_detector, self.conf_id
-                )
-        except asyncio.CancelledError:
-            logger_instance.info(f"Remote audio relay stopped for {self.conf_id}")
-        except Exception as e:
-            logger_instance.exception(f"Remote audio relay error for {self.conf_id}: {e}")
-
-    async def start_conference(self) -> None:
         # Start the call via communication API
         await self.communication_api.start_conf(
             self.state.teacher_phone_number,

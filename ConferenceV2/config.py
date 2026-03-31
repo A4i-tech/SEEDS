@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     # AUTO-END CONFIGURATION
     AUTO_END_TIMEOUT_MINUTES: int = 15
     AUTO_END_ENABLED: bool = True
+
+    # AUTO-END CONFIGURATION
+    AUTO_END_TIMEOUT_MINUTES: int = 15
+    AUTO_END_ENABLED: bool = True
     # Existing deployment/runtime env keys used by the service ecosystem.
     APPLICATIONINSIGHTS_CONNECTION_STRING: str = ""
     ENVIRONMENT: str = "development"

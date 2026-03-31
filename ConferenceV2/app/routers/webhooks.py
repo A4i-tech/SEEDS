@@ -11,9 +11,6 @@ from app.services.confevents.vonage.vonage_call_status_change_event import Vonag
 from app.services.confevents.vonage.vonage_dtmf_input_event import VonageDTMFInputEvent, VonageRTCEventType
 from typing import Dict
 from app.conf_logger import logger_instance
-import asyncio
-
-router = APIRouter()
 from app.services.caller_state_manager import caller_state_manager
 
 # Import the conference_manager instance
