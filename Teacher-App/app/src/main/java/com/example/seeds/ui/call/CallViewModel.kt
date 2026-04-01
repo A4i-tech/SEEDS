@@ -205,10 +205,9 @@ class CallViewModel @Inject constructor(
     val conferenceHoldDetected: LiveData<Boolean>
         get() = _conferenceHoldDetected
 
-    private val holdState = AtomicBoolean(false)
-    private val _holdDetectedEvent = MutableLiveData<Event<Unit>>()
-    val holdDetectedEvent: LiveData<Event<Unit>>
-        get() = _holdDetectedEvent
+    private val _holdDetectedNotification = MutableLiveData<Boolean?>(null)
+    val holdDetectedNotification: LiveData<Boolean?>
+        get() = _holdDetectedNotification
 
     private val participantTrackers = mutableMapOf<String, ParticipantTracker>()
 
@@ -352,6 +351,10 @@ class CallViewModel @Inject constructor(
         _participantDropped.value = null
     }
 
+    fun clearHoldDetectedNotification() {
+        _holdDetectedNotification.value = null
+    }
+
     private fun getAccessToken() {
         viewModelScope.launch {
             try {
@@ -471,20 +474,12 @@ class CallViewModel @Inject constructor(
             }
 
             // --- Hold detection (parsed early, before participants guard) ---
-            val holdDetected = json.get("hold_detected")
-                ?.takeUnless { it.isJsonNull }
-                ?.asBoolean
-                ?: false
-            val firstHold = if (holdDetected) {
-                holdState.compareAndSet(false, true)
-            } else {
-                holdState.set(false)
-                false
-            }
-            Log.d(TAG, "handleSSEUpdate: hold_detected=$holdDetected, firstHold=$firstHold")
+            val holdDetected = json.get("hold_detected")?.asBoolean ?: false
+            val previousHold = _conferenceHoldDetected.value ?: false
+            Log.d(TAG, "SSE: hold_detected=$holdDetected, previousHold=$previousHold")
             _conferenceHoldDetected.postValue(holdDetected)
-            if (firstHold) {
-                _holdDetectedEvent.postValue(Event(Unit))
+            if (holdDetected && !previousHold) {
+                _holdDetectedNotification.postValue(true)
             }
 
             // --- Participants ---

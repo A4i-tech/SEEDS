@@ -153,14 +153,15 @@ class CallFragment : BaseFragment() {
             }
         }
 
-        viewModel.holdDetectedEvent.observe(viewLifecycleOwner) { event ->
-            event.getContentIfNotHandled()?.let {
-                Snackbar.make(
+        viewModel.holdDetectedNotification.observe(viewLifecycleOwner) { detected ->
+            if (detected == true) {
+                com.google.android.material.snackbar.Snackbar.make(
                     binding.root,
                     "Hold detected on conference audio",
-                    Snackbar.LENGTH_LONG
+                    com.google.android.material.snackbar.Snackbar.LENGTH_LONG
                 ).show()
                 logMessage("Hold detected on conference audio")
+                viewModel.clearHoldDetectedNotification()
             }
         }
     }
