@@ -9,6 +9,14 @@ from app.models.audio_content_state import AudioContentState
 from app.models.participant import Participant, Role
 
 
+class AutoEndState(BaseModel):
+    """State for auto-end conference timer"""
+    is_active: bool = False
+    started_at: Optional[str] = None  # ISO timestamp
+    expires_at: Optional[str] = None  # ISO timestamp
+    timeout_minutes: Optional[int] = None
+
+
 class ConferenceCallState(BaseModel):
     is_running: bool = Field(default=False)
     teacher_phone_number: str = None
@@ -17,6 +25,7 @@ class ConferenceCallState(BaseModel):
     hold_detected: bool = Field(default=False)
     audio_content_state: AudioContentState = AudioContentState()
     action_history: List[ActionHistory] = Field(default_factory=list)
+    auto_end_state: AutoEndState = Field(default_factory=AutoEndState)
 
     def get_teacher(self):
         if self.teacher_phone_number and self.teacher_phone_number in self.participants:
