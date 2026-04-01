@@ -1,7 +1,7 @@
 # services/conference_call.py
 
 import traceback
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 import asyncio
 
@@ -56,10 +56,10 @@ class ConferenceCall:
         self.end_processing_conf_events_from_queue()
         self.event_queue_processing_task = asyncio.create_task(self.__process_conf_events_queue())
     
-    def set_participant_state(self, teacher_phone: str, student_phones: List[str], leader_phone: str = None):
+    def set_participant_state(self, teacher_phone: str, student_phones: List[str], leader_phone: str = None, teacher_name: Optional[str] = None, student_names: Optional[List[str]] = None):
         self.state.participants = {}
         teacher = Participant(
-            name="Teacher",
+            name=teacher_name or "Teacher",
             phone_number=teacher_phone,
             role=Role.TEACHER,
             call_status=CallStatus.DISCONNECTED,
@@ -74,9 +74,12 @@ class ConferenceCall:
         self.state.leader_phone_number = leader_phone
 
         # Create student participants (muted by default via Vonage startMuted)
-        for phone in student_phones:
+        for idx, phone in enumerate(student_phones):
+            name = None
+            if student_names and idx < len(student_names):
+                name = student_names[idx]
             student = Participant(
-                name="Student",
+                name=name or "Student",
                 phone_number=phone,
                 role=Role.STUDENT,
                 call_status=CallStatus.DISCONNECTED,
@@ -189,7 +192,7 @@ class ConferenceCall:
                                     )
         await self.update_state()
         self.restore_auto_end_timer()
-    
+
     async def connect_smartphone(self):
         teacher = self.state.get_teacher()
         if teacher:

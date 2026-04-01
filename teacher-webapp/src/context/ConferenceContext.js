@@ -27,6 +27,10 @@ export const ConferenceProvider = ({ children }) => {
     setSelectedTeacher((prev) => (prev?.phoneNumber === teacher.phoneNumber ? null : teacher));
   };
 
+  const selectTeacher = (teacher) => {
+    setSelectedTeacher(teacher);
+  };
+
   const handleStudentToggle = (student) => {
     // Normalize phone number to ensure consistent format
     const normalizedPhone = normalizePhoneNumber(student.phoneNumber);
@@ -267,6 +271,7 @@ export const ConferenceProvider = ({ children }) => {
         setLoading,
         handleSSEEvent,
         handleTeacherSelect,
+        selectTeacher,
         handleStudentToggle,
         clearSelectedStudents,
         setConferenceStudents,

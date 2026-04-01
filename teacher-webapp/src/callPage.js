@@ -215,7 +215,12 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
 
     // Normalize phone number before sending to API
     const normalizedPhone = normalizePhoneNumber(phoneNumber);
-    await addParticipant(confId, normalizedPhone);
+    // Try to find name for this phone in available students or existing participants
+    const studentObj =
+      allClassroomStudents?.find((s) => normalizePhoneNumber(s.phone_number || s.phoneNumber) === normalizedPhone) ||
+      getAllParticipants()?.find((p) => normalizePhoneNumber(p.phoneNumber) === normalizedPhone);
+    const name = studentObj?.name || null;
+    await addParticipant(confId, normalizedPhone, name);
 
     setReconnectingIds((prev) => prev.filter((id) => id !== phoneNumber));
   };
@@ -235,23 +240,27 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
     }
 
     try {
-      const normalizedPhones = selectedPhoneNumbers
+      const normalizedEntries = selectedPhoneNumbers
         .map((phoneNumber) => {
           if (!phoneNumber) return null;
-          return normalizePhoneNumber(phoneNumber);
+          const normalized = normalizePhoneNumber(phoneNumber);
+          const studentObj = allClassroomStudents?.find(
+            (s) => normalizePhoneNumber(s.phone_number || s.phoneNumber) === normalized
+          );
+          return { phone: normalized, name: studentObj?.name || null };
         })
         .filter(Boolean); // Remove null/empty values
 
-      if (normalizedPhones.length === 0) {
+      if (normalizedEntries.length === 0) {
         showToast.error("No valid phone numbers to add");
         return;
       }
 
       // Add participants in parallel for better performance
-      const addPromises = normalizedPhones.map((normalizedPhone) =>
-        addParticipant(confId, normalizedPhone).catch((error) => {
-          console.error(`Failed to add participant ${normalizedPhone}:`, error);
-          return { error: true, phone: normalizedPhone };
+      const addPromises = normalizedEntries.map(({ phone, name }) =>
+        addParticipant(confId, phone, name).catch((error) => {
+          console.error(`Failed to add participant ${phone}:`, error);
+          return { error: true, phone };
         })
       );
 
@@ -334,7 +343,7 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
 
     try {
       const normalizedPhone = normalizePhoneNumber(phoneNumber);
-      await removeParticipant(confId, normalizedPhone);
+      await removeParticipant(confId, normalizedPhone, participantName);
       showToast.success(`${participantName} removed successfully`);
     } catch (error) {
       console.error("Error removing participant:", error);

@@ -186,10 +186,10 @@ class TestConferenceCall:
         
         with patch.object(conf_call._system_message_streaming_service, 'stream_message', 
                          new_callable=AsyncMock) as mock_stream:
-            await conf_call.stream_system_message(SystemAudioMessages.WELCOME_TEACHER)
+            await conf_call.stream_system_message(SystemAudioMessages.TEACHER_HAS_JOINED)
             
             if should_stream:
-                mock_stream.assert_called_once_with(SystemAudioMessages.WELCOME_TEACHER)
+                mock_stream.assert_called_once_with(SystemAudioMessages.TEACHER_HAS_JOINED)
             else:
                 mock_stream.assert_not_called()
     
@@ -332,8 +332,8 @@ class TestConferenceCallIntegration:
         # Test system message streaming with mock
         with patch.object(conference_call._system_message_streaming_service, 'stream_message', 
                          new_callable=AsyncMock) as mock_stream:
-            await conference_call.stream_system_message(SystemAudioMessages.WELCOME_TEACHER)
-            mock_stream.assert_called_once_with(SystemAudioMessages.WELCOME_TEACHER)
+            await conference_call.stream_system_message(SystemAudioMessages.TEACHER_HAS_JOINED)
+            mock_stream.assert_called_once_with(SystemAudioMessages.TEACHER_HAS_JOINED)
         
         # Test event processing
         event = MockEvent()

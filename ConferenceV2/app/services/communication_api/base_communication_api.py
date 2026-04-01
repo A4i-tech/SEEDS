@@ -26,7 +26,16 @@ class CommunicationAPI(ABC):
 
     # ADD PARTICIPANT TO THE CONF
     @abstractmethod
-    async def add_participant(self, phone_number: str):
+    async def add_participant(
+        self, phone_number: str, announce_text: str | None = None
+    ):
+        pass
+
+    # Play a text announcement to conference participants
+    @abstractmethod
+    async def play_announcement_to_conference(
+        self, text: str, phone_numbers: Optional[List[str]] = None
+    ):
         pass
 
     # REMOVE PARTICIPANT TO THE CONF
