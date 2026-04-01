@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Box,
   Typography,
@@ -379,6 +379,20 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
       setCurrentTrack(null);
     }
   }, [audioContentState.status]);
+
+  // Auto-navigate back to classrooms when conference ends (teacher not present)
+  const previousRunningState = useRef(isConfCallRunning);
+  useEffect(() => {
+    // Detect when conference stops running
+    if (previousRunningState.current && !isConfCallRunning && confId) {
+      // Conference has ended, navigate back to classrooms
+      showToast.info("Conference has ended");
+      setTimeout(() => {
+        navigate("/classrooms");
+      }, 1500); // Give time for toast to show
+    }
+    previousRunningState.current = isConfCallRunning;
+  }, [isConfCallRunning, confId, navigate]);
 
   return (
     <PageContainer maxWidth="md">

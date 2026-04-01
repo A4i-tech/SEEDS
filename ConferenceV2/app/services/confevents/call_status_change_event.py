@@ -2,6 +2,10 @@ from app.models.participant import CallStatus, Participant
 from app.models.system_audio_messages import SystemAudioMessages
 from app.services.conference_call import ConferenceCall
 from app.services.confevents.base_event import ConferenceEvent
+from app.services.confevents.teacher_disconnect_timer_event import (
+    StartTeacherDisconnectTimerEvent,
+    CancelTeacherDisconnectTimerEvent
+)
 from app.conf_logger import logger_instance
 
 
@@ -17,11 +21,29 @@ class CallStatusChangeEvent(ConferenceEvent):
             if participant.call_status != self.status:
                 logger_instance.info("EXECUTING CALL STATUS CHANGE EVENT FOR NUMBER", self.phone_number, "STATUS:", self.status.value)
                 participant.call_status = self.status
-                
-                # Stream participant disconnected message
-                if self.status == CallStatus.DISCONNECTED:
-                    is_teacher = self.conf_call.state.get_teacher().phone_number == participant.phone_number
-                    if is_teacher:
-                        await self.conf_call.stream_system_message(SystemAudioMessages.TEACHER_HAS_DROPPED)
+
+                # Check if this is the teacher
+                is_teacher = (
+                    self.conf_call.state.get_teacher() and
+                    self.conf_call.state.get_teacher().phone_number == participant.phone_number
+                )
+
+                # Teacher disconnected → play audio and optionally start timer
+                if self.status == CallStatus.DISCONNECTED and is_teacher:
+                    logger_instance.info(f"Teacher disconnected from {self.conf_call.conf_id}")
+                    # Always notify that teacher has dropped (independent of auto-end feature)
+                    await self.conf_call.stream_system_message(
+                        SystemAudioMessages.TEACHER_HAS_DROPPED
+                    )
                     
+                    timer_event = StartTeacherDisconnectTimerEvent(self.conf_call)
+                    await self.conf_call.queue_event(timer_event)
+
+                # Teacher reconnected → cancel timer
+                elif self.status == CallStatus.CONNECTED and is_teacher:
+                    logger_instance.info(f"Teacher reconnected to {self.conf_call.conf_id}")
+                    if self.conf_call.state.auto_end_state.is_active:
+                        cancel_event = CancelTeacherDisconnectTimerEvent(self.conf_call)
+                        await self.conf_call.queue_event(cancel_event)
+
                 await self.conf_call.update_state()

@@ -5,7 +5,6 @@ from app.services.conference_call import ConferenceCall
 from app.services.confevents.base_event import ConferenceEvent
 from app.services.confevents.unmute_participant_event import UnmuteParticipantEvent
 from app.conf_logger import logger_instance
-from app.services.caller_state_manager import caller_state_manager
 import asyncio
 
 

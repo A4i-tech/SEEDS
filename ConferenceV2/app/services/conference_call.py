@@ -139,10 +139,33 @@ class ConferenceCall:
         except Exception as e:
             logger_instance.exception(f"Remote audio relay error for {self.conf_id}: {e}")
 
-    async def start_conference(self) -> None:
+    def restore_auto_end_timer(self):
+        """Restore auto-end monitoring task if timer is active (e.g., after server restart)"""
+        if self.state.auto_end_state.is_active:
+            from app.services.confevents.teacher_disconnect_timer_event import StartTeacherDisconnectTimerEvent
+            from app.conf_logger import logger_instance
+
+            logger_instance.info(
+                f"Restoring auto-end timer for {self.conf_id}, expires at {self.state.auto_end_state.expires_at}"
+            )
+
+            timer_event = StartTeacherDisconnectTimerEvent(self)
+
+            if hasattr(self, '_auto_end_monitor_task'):
+                if self._auto_end_monitor_task and not self._auto_end_monitor_task.done():
+                    try:
+                        self._auto_end_monitor_task.cancel()
+                    except Exception as e:
+                        logger_instance.error(
+                            f"Failed to cancel existing monitor task for {self.conf_id}: {e}"
+                        )
+
+            self._auto_end_monitor_task = asyncio.create_task(timer_event._monitor_timer())
+
+    async def start_conference(self):
         # Start the call via communication API
         await self.communication_api.start_conf(
-            self.state.teacher_phone_number, 
+            self.state.teacher_phone_number,
             [student.phone_number for student in self.state.get_students()]
         )
         self.state.is_running = True
@@ -158,8 +181,8 @@ class ConferenceCall:
                                                     owner=self.state.teacher_phone_number
                                                  )
                                     )
-        # Update state and save
         await self.update_state()
+        self.restore_auto_end_timer()
     
     async def connect_smartphone(self):
         teacher = self.state.get_teacher()
