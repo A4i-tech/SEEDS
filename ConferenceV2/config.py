@@ -27,7 +27,6 @@ class Settings(BaseSettings):
     APPLICATIONINSIGHTS_CONNECTION_STRING: str = ""
     ENVIRONMENT: str = "development"
     EVENTS_WEBHOOK_EP: str = ""
-    INTERNAL_WS_EP: str = ""
     STORAGE_ACCOUNT_NAME: str = ""
     VONAGE_APPLICATION_ID: str = ""
     VONAGE_NUMBER: str = ""
