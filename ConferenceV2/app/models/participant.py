@@ -13,12 +13,14 @@ class CallStatus(str, Enum):
     CONNECTED = "connected"
     DISCONNECTED = "disconnected"
     CONNECTING = "connecting"
+    ON_HOLD = "on_hold"
 
 
 class Participant(BaseModel):
     name: str
     phone_number: str
     role: Role
+    added_after_start: bool = Field(default=False)
     raised_at: int = Field(default=-1)
     is_raised: bool = Field(default=False)
     is_muted: bool = Field(default=False)

@@ -15,6 +15,7 @@ import com.example.seeds.model.PaginatedResponse
 import com.example.seeds.model.SasUrlResponse
 import com.example.seeds.model.Student
 import com.example.seeds.model.StudentCallStatus
+import com.example.seeds.model.CallerStateResponse
 import com.example.seeds.model.StudentListContainer
 import com.example.seeds.utils.Constants
 import com.example.seeds.utils.Encryptor
@@ -98,13 +99,15 @@ interface SeedsService {
     @PUT
     suspend fun connectParticipant(
         @Url url: String, 
-        @Query("phone_number") phoneNumber: String
+        @Query("phone_number") phoneNumber: String,
+        @Query("name") name: String? = null
     ): Response<Any>
 
     @PUT
     suspend fun disconnectParticipant(
-        @Url url: String, 
-        @Query("phone_number") phoneNumber: String
+        @Url url: String,
+        @Query("phone_number") phoneNumber: String,
+        @Query("name") name: String? = null
     ): Response<Any>
 
     @GET("call/{confId}/status")

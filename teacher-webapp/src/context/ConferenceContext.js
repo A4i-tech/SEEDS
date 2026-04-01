@@ -8,6 +8,7 @@ export const useConference = () => useContext(ConferenceContext);
 
 export const ConferenceProvider = ({ children }) => {
   const [isConfCallRunning, setIsConfCallRunning] = useState(false);
+  const [conferenceHoldDetected, setConferenceHoldDetected] = useState(false);
   const [audioContentState, setAudioContentState] = useState(new AudioContentState());
   const [selectedTeacher, setSelectedTeacher] = useState(null);
   const [selectedStudents, setSelectedStudents] = useState([]);
@@ -16,6 +17,7 @@ export const ConferenceProvider = ({ children }) => {
   const [conferenceStudents, setConferenceStudents] = useState([]);
   const [allClassroomStudents, setAllClassroomStudents] = useState([]);
   const previousParticipantStatusRef = useRef({});
+  const previousConferenceHoldDetectedRef = useRef(false);
 
   // Single source of truth: Map of all participants keyed by normalized phone number
   // This gets updated directly when SSE events arrive
@@ -23,6 +25,10 @@ export const ConferenceProvider = ({ children }) => {
 
   const handleTeacherSelect = (teacher) => {
     setSelectedTeacher((prev) => (prev?.phoneNumber === teacher.phoneNumber ? null : teacher));
+  };
+
+  const selectTeacher = (teacher) => {
+    setSelectedTeacher(teacher);
   };
 
   const handleStudentToggle = (student) => {
@@ -114,7 +120,20 @@ export const ConferenceProvider = ({ children }) => {
 
   const handleSSEEvent = (event) => {
     setIsConfCallRunning(event.is_running);
+    setConferenceHoldDetected(Boolean(event.hold_detected));
     setAudioContentState(new AudioContentState(event.audio_content_state));
+
+    if (event.hold_detected && !previousConferenceHoldDetectedRef.current) {
+      window.dispatchEvent(
+        new CustomEvent("conferenceNotification", {
+          detail: {
+            type: "conference_hold_detected",
+            timestamp: new Date().toISOString(),
+          },
+        })
+      );
+    }
+    previousConferenceHoldDetectedRef.current = Boolean(event.hold_detected);
 
     // Update the single source of truth: participantsMap
     // This directly updates the Map with the latest data from SSE events
@@ -146,7 +165,6 @@ export const ConferenceProvider = ({ children }) => {
             })
           );
         }
-
         // Update participant with latest SSE data - only update dynamic state, ignore name from SSE
         const existingParticipant = newMap.get(normalizedPhone);
 
@@ -246,12 +264,14 @@ export const ConferenceProvider = ({ children }) => {
         userList: getAllParticipants(),
         confId,
         isConfCallRunning,
+        conferenceHoldDetected,
         audioContentState,
         setConfId,
         loading,
         setLoading,
         handleSSEEvent,
         handleTeacherSelect,
+        selectTeacher,
         handleStudentToggle,
         clearSelectedStudents,
         setConferenceStudents,
