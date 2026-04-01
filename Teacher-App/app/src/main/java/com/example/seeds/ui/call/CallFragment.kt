@@ -155,10 +155,10 @@ class CallFragment : BaseFragment() {
 
         viewModel.holdDetectedNotification.observe(viewLifecycleOwner) { detected ->
             if (detected == true) {
-                com.google.android.material.snackbar.Snackbar.make(
+                Snackbar.make(
                     binding.root,
                     "Hold detected on conference audio",
-                    com.google.android.material.snackbar.Snackbar.LENGTH_LONG
+                    Snackbar.LENGTH_LONG
                 ).show()
                 logMessage("Hold detected on conference audio")
                 viewModel.clearHoldDetectedNotification()
