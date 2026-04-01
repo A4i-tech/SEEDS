@@ -1,8 +1,9 @@
 import pytest
 import asyncio
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, patch, MagicMock
 import sys
 import os
+import types
 
 # Set environment variables before any imports that might need them
 os.environ['STORAGE_ACCOUNT_NAME'] = 'test'
@@ -11,12 +12,23 @@ os.environ['APPLICATIONINSIGHTS_CONNECTION_STRING'] = 'InstrumentationKey=test-k
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 
+# Mock the singletons module to avoid Settings() validation errors during DTMFInputEvent import
+_mock_ws_service = types.ModuleType('app.services.singletons.websocket_service')
+_mock_ws_service.WebsocketService = MagicMock()
+sys.modules['app.services.singletons.websocket_service'] = _mock_ws_service
+
+_mock_conf_manager = types.ModuleType('app.services.singletons.conference_call_manager')
+_mock_conf_manager.conference_manager = MagicMock()
+sys.modules['app.services.singletons.conference_call_manager'] = _mock_conf_manager
+
 from app.services.conference_call import ConferenceCall
 from app.models.conference_call_state import ConferenceCallState
 from app.models.participant import Role, CallStatus
 from app.models.system_audio_messages import SystemAudioMessages
 from app.models.action_history import ActionType
 from app.services.confevents.base_event import ConferenceEvent
+from app.services.confevents.dtmf_input_event import DTMFInputEvent
+from app.models.audio_content_state import ContentStatus
 
 
 class MockEvent(ConferenceEvent):
@@ -28,7 +40,7 @@ class MockEvent(ConferenceEvent):
     
     async def execute_event(self):
         if self.should_timeout:
-            await asyncio.sleep(5)  # Longer than default timeout of 3 seconds
+            await asyncio.sleep(60)
         if self.should_raise_exception:
             raise Exception("Test exception")
         self.executed = True
@@ -238,10 +250,16 @@ class TestConferenceCall:
         await conf_call.event_queue.put(event)
         
         with patch('app.services.conference_call.logger_instance') as mock_logger:
-            conf_call.start_processing_conf_events_from_queue()
-            
-            # Wait appropriate time based on event type
-            wait_time = 3.5 if event_type == "timeout" else 0.1
+            # For timeout test, use a short timeout to make the test run fast
+            if event_type == "timeout":
+                conf_call.event_queue_processing_task = asyncio.create_task(
+                    conf_call._ConferenceCall__process_conf_events_queue(timeout=1.0)
+                )
+                wait_time = 1.5
+            else:
+                conf_call.start_processing_conf_events_from_queue()
+                wait_time = 0.1
+
             await asyncio.sleep(wait_time)
             
             conf_call.end_processing_conf_events_from_queue()
@@ -334,6 +352,188 @@ class TestConferenceCallIntegration:
         storage_manager.save_state.assert_called()
         connection_manager.connect.assert_called_once()
         connection_manager.disconnect.assert_called_once()
+
+
+class TestLeaderDTMF:
+    """Tests for leader DTMF input handling"""
+
+    @pytest.fixture
+    def dtmf_conf_call(self, mock_services):
+        """Conference call configured with a leader for DTMF tests"""
+        communication_api, storage_manager, connection_manager = mock_services
+        conf_call = ConferenceCall(
+            conf_id="dtmf-test-conf",
+            communication_api=communication_api,
+            storage_manager=storage_manager,
+            connection_manager=connection_manager
+        )
+        teacher_phone = "91000000001"
+        student_phones = ["91000000002", "91000000003"]
+        leader_phone = "91000000002"
+        conf_call.set_participant_state(teacher_phone, student_phones, leader_phone)
+        return conf_call
+
+    @pytest.mark.asyncio
+    async def test_leader_mute_all_via_dtmf(self, dtmf_conf_call):
+        """Leader pressing '1' should trigger MuteAllEvent."""
+        conf_call = dtmf_conf_call
+        with patch.object(conf_call, 'update_state', new_callable=AsyncMock):
+            event = DTMFInputEvent(phone_number="91000000002", digit="1", conf_call=conf_call)
+            with patch('app.services.confevents.dtmf_input_event.MuteAllEvent') as MockMute:
+                mock_instance = AsyncMock()
+                MockMute.return_value = mock_instance
+                await event.execute_event()
+                MockMute.assert_called_once_with(conf_call=conf_call, initiator_phone="91000000002")
+                mock_instance.execute_event.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_leader_unmute_all_via_dtmf(self, dtmf_conf_call):
+        """Leader pressing '3' should trigger UnmuteAllEvent."""
+        conf_call = dtmf_conf_call
+        with patch.object(conf_call, 'update_state', new_callable=AsyncMock):
+            event = DTMFInputEvent(phone_number="91000000002", digit="3", conf_call=conf_call)
+            with patch('app.services.confevents.dtmf_input_event.UnmuteAllEvent') as MockUnmute:
+                mock_instance = AsyncMock()
+                MockUnmute.return_value = mock_instance
+                await event.execute_event()
+                MockUnmute.assert_called_once_with(conf_call=conf_call, initiator_phone="91000000002")
+                mock_instance.execute_event.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_leader_pause_via_dtmf(self, dtmf_conf_call):
+        """Leader pressing '6' while playing should trigger PauseContentEvent."""
+        conf_call = dtmf_conf_call
+        conf_call.state.audio_content_state.status = ContentStatus.PLAYING
+        with patch.object(conf_call, 'update_state', new_callable=AsyncMock):
+            event = DTMFInputEvent(phone_number="91000000002", digit="6", conf_call=conf_call)
+            with patch('app.services.confevents.dtmf_input_event.PauseContentEvent') as MockPause:
+                mock_instance = AsyncMock()
+                MockPause.return_value = mock_instance
+                await event.execute_event()
+                MockPause.assert_called_once_with(conf_call=conf_call, initiator_phone="91000000002")
+                mock_instance.execute_event.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_leader_resume_via_dtmf(self, dtmf_conf_call):
+        """Leader pressing '6' while paused should trigger ResumeContentEvent."""
+        conf_call = dtmf_conf_call
+        conf_call.state.audio_content_state.status = ContentStatus.PAUSED
+        with patch.object(conf_call, 'update_state', new_callable=AsyncMock):
+            event = DTMFInputEvent(phone_number="91000000002", digit="6", conf_call=conf_call)
+            with patch('app.services.confevents.dtmf_input_event.ResumeContentEvent') as MockResume:
+                mock_instance = AsyncMock()
+                MockResume.return_value = mock_instance
+                await event.execute_event()
+                MockResume.assert_called_once_with(conf_call=conf_call, initiator_phone="91000000002")
+                mock_instance.execute_event.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_leader_seek_backward_via_dtmf(self, dtmf_conf_call):
+        """Leader pressing '7' should trigger SeekContentEvent with -10s."""
+        conf_call = dtmf_conf_call
+        conf_call.state.audio_content_state.status = ContentStatus.PLAYING
+        with patch.object(conf_call, 'update_state', new_callable=AsyncMock):
+            event = DTMFInputEvent(phone_number="91000000002", digit="7", conf_call=conf_call)
+            with patch('app.services.confevents.dtmf_input_event.SeekContentEvent') as MockSeek:
+                mock_instance = AsyncMock()
+                MockSeek.return_value = mock_instance
+                await event.execute_event()
+                MockSeek.assert_called_once_with(conf_call=conf_call, delta_seconds=-10, initiator_phone="91000000002")
+                mock_instance.execute_event.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_leader_seek_forward_via_dtmf(self, dtmf_conf_call):
+        """Leader pressing '9' should trigger SeekContentEvent with +10s."""
+        conf_call = dtmf_conf_call
+        conf_call.state.audio_content_state.status = ContentStatus.PLAYING
+        with patch.object(conf_call, 'update_state', new_callable=AsyncMock):
+            event = DTMFInputEvent(phone_number="91000000002", digit="9", conf_call=conf_call)
+            with patch('app.services.confevents.dtmf_input_event.SeekContentEvent') as MockSeek:
+                mock_instance = AsyncMock()
+                MockSeek.return_value = mock_instance
+                await event.execute_event()
+                MockSeek.assert_called_once_with(conf_call=conf_call, delta_seconds=10, initiator_phone="91000000002")
+                mock_instance.execute_event.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_leader_speed_decrease_via_dtmf(self, dtmf_conf_call):
+        """Leader pressing '*' should decrease playback speed."""
+        conf_call = dtmf_conf_call
+        conf_call.state.audio_content_state.status = ContentStatus.PLAYING
+        conf_call.state.audio_content_state.speed = 1.0
+        with patch.object(conf_call, 'update_state', new_callable=AsyncMock):
+            event = DTMFInputEvent(phone_number="91000000002", digit="*", conf_call=conf_call)
+            with patch('app.services.confevents.dtmf_input_event.SetPlaybackSpeedEvent') as MockSpeed:
+                mock_instance = AsyncMock()
+                MockSpeed.return_value = mock_instance
+                await event.execute_event()
+                MockSpeed.assert_called_once_with(conf_call=conf_call, speed=0.75, initiator_phone="91000000002")
+                mock_instance.execute_event.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_leader_speed_increase_via_dtmf(self, dtmf_conf_call):
+        """Leader pressing '#' should increase playback speed."""
+        conf_call = dtmf_conf_call
+        conf_call.state.audio_content_state.status = ContentStatus.PLAYING
+        conf_call.state.audio_content_state.speed = 1.0
+        with patch.object(conf_call, 'update_state', new_callable=AsyncMock):
+            event = DTMFInputEvent(phone_number="91000000002", digit="#", conf_call=conf_call)
+            with patch('app.services.confevents.dtmf_input_event.SetPlaybackSpeedEvent') as MockSpeed:
+                mock_instance = AsyncMock()
+                MockSpeed.return_value = mock_instance
+                await event.execute_event()
+                MockSpeed.assert_called_once_with(conf_call=conf_call, speed=1.25, initiator_phone="91000000002")
+                mock_instance.execute_event.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_non_leader_dtmf_1_ignored(self, dtmf_conf_call):
+        """Non-leader student pressing '1' should not trigger mute."""
+        conf_call = dtmf_conf_call
+        with patch.object(conf_call, 'update_state', new_callable=AsyncMock):
+            event = DTMFInputEvent(phone_number="91000000003", digit="1", conf_call=conf_call)
+            with patch('app.services.confevents.dtmf_input_event.MuteAllEvent') as MockMute:
+                await event.execute_event()
+                MockMute.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_leader_dtmf_ignored_when_no_content(self, dtmf_conf_call):
+        """Leader pressing '6', '7', '9', '*', '#' with no content loaded should be ignored."""
+        conf_call = dtmf_conf_call
+        conf_call.state.audio_content_state.status = ContentStatus.STOPPED
+        with patch.object(conf_call, 'update_state', new_callable=AsyncMock):
+            for digit in ["6", "7", "9", "*", "#"]:
+                event = DTMFInputEvent(phone_number="91000000002", digit=digit, conf_call=conf_call)
+                with patch('app.services.confevents.dtmf_input_event.PauseContentEvent') as MockPause, \
+                     patch('app.services.confevents.dtmf_input_event.SeekContentEvent') as MockSeek, \
+                     patch('app.services.confevents.dtmf_input_event.SetPlaybackSpeedEvent') as MockSpeed:
+                    await event.execute_event()
+                    MockPause.assert_not_called()
+                    MockSeek.assert_not_called()
+                    MockSpeed.assert_not_called()
+
+    def test_leader_phone_validation(self, mock_services):
+        """Leader phone not in student_phones should be ignored."""
+        communication_api, storage_manager, connection_manager = mock_services
+        conf_call = ConferenceCall(
+            conf_id="validation-test",
+            communication_api=communication_api,
+            storage_manager=storage_manager,
+            connection_manager=connection_manager
+        )
+        conf_call.set_participant_state("91000000001", ["91000000002"], leader_phone="91000000099")
+        assert conf_call.state.leader_phone_number is None
+
+    def test_leader_phone_valid(self, mock_services):
+        """Leader phone in student_phones should be accepted."""
+        communication_api, storage_manager, connection_manager = mock_services
+        conf_call = ConferenceCall(
+            conf_id="validation-test",
+            communication_api=communication_api,
+            storage_manager=storage_manager,
+            connection_manager=connection_manager
+        )
+        conf_call.set_participant_state("91000000001", ["91000000002"], leader_phone="91000000002")
+        assert conf_call.state.leader_phone_number == "91000000002"
 
 
 if __name__ == "__main__":

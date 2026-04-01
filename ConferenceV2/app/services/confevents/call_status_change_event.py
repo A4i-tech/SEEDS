@@ -1,6 +1,11 @@
 from app.models.participant import CallStatus, Participant
+from app.models.system_audio_messages import SystemAudioMessages
 from app.services.conference_call import ConferenceCall
 from app.services.confevents.base_event import ConferenceEvent
+from app.services.confevents.teacher_disconnect_timer_event import (
+    StartTeacherDisconnectTimerEvent,
+    CancelTeacherDisconnectTimerEvent
+)
 from app.conf_logger import logger_instance
 
 
@@ -26,6 +31,12 @@ class CallStatusChangeEvent(ConferenceEvent):
                 )
                 participant.call_status = self.status
 
+                # Check if this is the teacher
+                is_teacher = (
+                    self.conf_call.state.get_teacher() and
+                    self.conf_call.state.get_teacher().phone_number == participant.phone_number
+                )
+
                 connected_numbers = [
                     number
                     for number, current_participant in self.conf_call.state.participants.items()
@@ -33,10 +44,6 @@ class CallStatusChangeEvent(ConferenceEvent):
                 ]
 
                 if self.status == CallStatus.CONNECTED:
-                    is_teacher = (
-                        self.conf_call.state.get_teacher().phone_number
-                        == participant.phone_number
-                    )
                     recipients = [
                         number
                         for number in connected_numbers
@@ -66,12 +73,15 @@ class CallStatusChangeEvent(ConferenceEvent):
                     except Exception as e:
                         logger_instance.error("Failed to play join TTS announcement", e)
 
+                    # Teacher reconnected → cancel auto-end timer
+                    if is_teacher:
+                        logger_instance.info(f"Teacher reconnected to {self.conf_call.conf_id}")
+                        if self.conf_call.state.auto_end_state.is_active:
+                            cancel_event = CancelTeacherDisconnectTimerEvent(self.conf_call)
+                            await self.conf_call.queue_event(cancel_event)
+
                 # Stream participant disconnected message
                 if self.status == CallStatus.DISCONNECTED:
-                    is_teacher = (
-                        self.conf_call.state.get_teacher().phone_number
-                        == participant.phone_number
-                    )
                     recipients = [
                         number
                         for number in connected_numbers
@@ -91,5 +101,14 @@ class CallStatusChangeEvent(ConferenceEvent):
                         logger_instance.error(
                             "Failed to play disconnect TTS announcement", e
                         )
+
+                    # Teacher disconnected → play system audio and start auto-end timer
+                    if is_teacher:
+                        logger_instance.info(f"Teacher disconnected from {self.conf_call.conf_id}")
+                        await self.conf_call.stream_system_message(
+                            SystemAudioMessages.TEACHER_HAS_DROPPED
+                        )
+                        timer_event = StartTeacherDisconnectTimerEvent(self.conf_call)
+                        await self.conf_call.queue_event(timer_event)
 
                 await self.conf_call.update_state()

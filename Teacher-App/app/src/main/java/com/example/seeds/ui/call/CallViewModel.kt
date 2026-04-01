@@ -456,8 +456,22 @@ class CallViewModel @Inject constructor(
         try {
             val json = gson.fromJson(data, com.google.gson.JsonObject::class.java)
 
+            // --- Check if conference is still running ---
+            val isRunning = json.get("is_running")?.asBoolean
+            if (isRunning == false) {
+                Log.i(TAG, "Conference has ended (is_running=false), navigating back")
+                _navigateBack.postValue(true)
+                return
+            }
+
             // --- Participants ---
-            val participantsObj = json.getAsJsonObject("participants") ?: return
+            val participantsObj = json.getAsJsonObject("participants")
+            if (participantsObj == null || participantsObj.entrySet().isEmpty()) {
+                Log.i(TAG, "Conference has ended (empty participants), navigating back")
+                _navigateBack.postValue(true)
+                return
+            }
+
             val students = mutableListOf<StudentCallStatus>()
             var teacherStatus: StudentCallStatus? = null
 
@@ -531,8 +545,9 @@ class CallViewModel @Inject constructor(
                 }
 
                 val fullUrl = "$conferenceUrl/conference/start/$confId"
+                val leaderPhone = leader.takeIf { it.isNotEmpty() }
                 // Use phoneNumbers which only contains selected students (teacher phone already filtered out)
-                val response = network.startCall(fullUrl, CallDetails(confId, phoneNumbers, names))
+                val response = network.startCall(fullUrl, CallDetails(confId, phoneNumbers, names, leaderPhone))
 
                 if (response.isSuccessful) {
                     _callToken.postValue(AccessToken(confId = confId, accessToken = ""))

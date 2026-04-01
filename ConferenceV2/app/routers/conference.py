@@ -38,6 +38,7 @@ async def create_start_conference(request: CreateConferenceRequest):
     conference_call = conference_manager.create_conference(
         request.teacher_phone,
         request.student_phones,
+        request.leader_phone,
         teacher_name=request.teacher_name,
         student_names=request.student_names,
     )
@@ -50,6 +51,7 @@ async def create_conference(request: CreateConferenceRequest):
     conference_call = conference_manager.create_conference(
         request.teacher_phone,
         request.student_phones,
+        request.leader_phone,
         teacher_name=request.teacher_name,
         student_names=request.student_names,
     )

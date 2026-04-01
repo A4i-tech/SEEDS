@@ -1,5 +1,6 @@
 from datetime import datetime
 from pydantic import BaseModel
+from typing import Optional
 
 from app.models.action_history import ActionHistory, ActionType
 from app.models.audio_content_state import ContentStatus
@@ -9,8 +10,9 @@ from app.services.confevents.base_event import ConferenceEvent
 from app.services.singletons.websocket_service import WebsocketService
 
 class ResumeContentEvent(ConferenceEvent):
-    def __init__(self, conf_call: ConferenceCall):
+    def __init__(self, conf_call: ConferenceCall, initiator_phone: Optional[str] = None):
         self.conf_call = conf_call
+        self.initiator_phone = initiator_phone
 
     async def execute_event(self):
         # Update the audio content state with the current URL and status
@@ -27,11 +29,11 @@ class ResumeContentEvent(ConferenceEvent):
         self.conf_call.state.action_history.append(
             ActionHistory(
                 timestamp=datetime.now().isoformat(),
-                action_type=ActionType.TEACHER_AUDIO_PLAYBACK_STATUS_CHANGE,
+                action_type=ActionType.LEADER_TOGGLE_CONTENT_VIA_DTMF if self.initiator_phone else ActionType.TEACHER_AUDIO_PLAYBACK_STATUS_CHANGE,
                 metadata={
                     "playback_status": self.conf_call.state.audio_content_state.__dict__  # Using __dict__ to mimic model_dump
                 },
-                owner=self.conf_call.state.teacher_phone_number
+                owner=self.initiator_phone or self.conf_call.state.teacher_phone_number
             )
         )
         

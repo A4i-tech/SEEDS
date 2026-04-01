@@ -56,7 +56,7 @@ class ConferenceCall:
         self.end_processing_conf_events_from_queue()
         self.event_queue_processing_task = asyncio.create_task(self.__process_conf_events_queue())
     
-    def set_participant_state(self, teacher_phone: str, student_phones: List[str], teacher_name: Optional[str] = None, student_names: Optional[List[str]] = None):
+    def set_participant_state(self, teacher_phone: str, student_phones: List[str], leader_phone: str = None, teacher_name: Optional[str] = None, student_names: Optional[List[str]] = None):
         self.state.participants = {}
         teacher = Participant(
             name=teacher_name or "Teacher",
@@ -66,6 +66,12 @@ class ConferenceCall:
         )
         self.state.participants[teacher_phone] = teacher
         self.state.teacher_phone_number = teacher_phone
+        if leader_phone and leader_phone not in student_phones:
+            logger_instance.warning(
+                f"leader_phone {leader_phone} is not in student_phones — ignoring"
+            )
+            leader_phone = None
+        self.state.leader_phone_number = leader_phone
 
         # Create student participants (muted by default via Vonage startMuted)
         for idx, phone in enumerate(student_phones):
@@ -142,10 +148,33 @@ class ConferenceCall:
         except Exception as e:
             logger_instance.exception(f"Remote audio relay error for {self.conf_id}: {e}")
 
-    async def start_conference(self) -> None:
+    def restore_auto_end_timer(self):
+        """Restore auto-end monitoring task if timer is active (e.g., after server restart)"""
+        if self.state.auto_end_state.is_active:
+            from app.services.confevents.teacher_disconnect_timer_event import StartTeacherDisconnectTimerEvent
+            from app.conf_logger import logger_instance
+
+            logger_instance.info(
+                f"Restoring auto-end timer for {self.conf_id}, expires at {self.state.auto_end_state.expires_at}"
+            )
+
+            timer_event = StartTeacherDisconnectTimerEvent(self)
+
+            if hasattr(self, '_auto_end_monitor_task'):
+                if self._auto_end_monitor_task and not self._auto_end_monitor_task.done():
+                    try:
+                        self._auto_end_monitor_task.cancel()
+                    except Exception as e:
+                        logger_instance.error(
+                            f"Failed to cancel existing monitor task for {self.conf_id}: {e}"
+                        )
+
+            self._auto_end_monitor_task = asyncio.create_task(timer_event._monitor_timer())
+
+    async def start_conference(self):
         # Start the call via communication API
         await self.communication_api.start_conf(
-            self.state.teacher_phone_number, 
+            self.state.teacher_phone_number,
             [student.phone_number for student in self.state.get_students()]
         )
         self.state.is_running = True
@@ -161,8 +190,9 @@ class ConferenceCall:
                                                     owner=self.state.teacher_phone_number
                                                  )
                                     )
-        # Update state and save
         await self.update_state()
+        self.restore_auto_end_timer()
+
     async def connect_smartphone(self):
         teacher = self.state.get_teacher()
         if teacher:
@@ -186,7 +216,7 @@ class ConferenceCall:
         await self.communication_api.reconnect_websocket()
     
     # Dequeue function: runs continuously to process tasks
-    async def __process_conf_events_queue(self, timeout: float = 3.0) -> None:
+    async def __process_conf_events_queue(self, timeout: float = 15.0):
         while True:
             event: ConferenceEvent = await self.event_queue.get()
             try:
