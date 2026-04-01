@@ -20,6 +20,7 @@ class AutoEndState(BaseModel):
 class ConferenceCallState(BaseModel):
     is_running: bool = Field(default=False)
     teacher_phone_number: str = None
+    leader_phone_number: Optional[str] = None
     participants: Dict[str, Participant] = Field(default_factory=dict)
     hold_detected: bool = Field(default=False)
     audio_content_state: AudioContentState = AudioContentState()
@@ -30,7 +31,12 @@ class ConferenceCallState(BaseModel):
         if self.teacher_phone_number and self.teacher_phone_number in self.participants:
             return self.participants[self.teacher_phone_number]
         return None
-    
+
+    def get_leader(self):
+        if self.leader_phone_number and self.leader_phone_number in self.participants:
+            return self.participants[self.leader_phone_number]
+        return None
+
     def get_students(self):
         return [partipant for partipant in self.participants.values() if partipant.role != Role.TEACHER]
 

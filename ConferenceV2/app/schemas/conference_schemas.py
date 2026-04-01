@@ -3,7 +3,7 @@
 import os
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, field_validator
-from typing import ClassVar, List
+from typing import ClassVar, List, Optional
 
 load_dotenv()
 
@@ -11,6 +11,7 @@ load_dotenv()
 class CreateConferenceRequest(BaseModel):
     teacher_phone: str = os.environ.get("MY_NUMBER", "")
     student_phones: List[str] = [os.environ.get("FEATURE_PH", "")]
+    leader_phone: Optional[str] = None
 
 
 class SeekAudioRequest(BaseModel):

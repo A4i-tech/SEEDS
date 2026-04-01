@@ -56,7 +56,7 @@ class ConferenceCall:
         self.end_processing_conf_events_from_queue()
         self.event_queue_processing_task = asyncio.create_task(self.__process_conf_events_queue())
     
-    def set_participant_state(self, teacher_phone: str, student_phones: List[str]) -> None:
+    def set_participant_state(self, teacher_phone: str, student_phones: List[str], leader_phone: str = None):
         self.state.participants = {}
         teacher = Participant(
             name="Teacher",
@@ -66,6 +66,12 @@ class ConferenceCall:
         )
         self.state.participants[teacher_phone] = teacher
         self.state.teacher_phone_number = teacher_phone
+        if leader_phone and leader_phone not in student_phones:
+            logger_instance.warning(
+                f"leader_phone {leader_phone} is not in student_phones — ignoring"
+            )
+            leader_phone = None
+        self.state.leader_phone_number = leader_phone
 
         # Create student participants (muted by default via Vonage startMuted)
         for phone in student_phones:
@@ -207,7 +213,7 @@ class ConferenceCall:
         await self.communication_api.reconnect_websocket()
     
     # Dequeue function: runs continuously to process tasks
-    async def __process_conf_events_queue(self, timeout: float = 3.0) -> None:
+    async def __process_conf_events_queue(self, timeout: float = 15.0):
         while True:
             event: ConferenceEvent = await self.event_queue.get()
             try:

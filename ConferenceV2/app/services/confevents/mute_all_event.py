@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 from app.models.action_history import ActionHistory, ActionType
 from app.models.system_audio_messages import SystemAudioMessages
 from app.services.conference_call import ConferenceCall
@@ -14,9 +15,10 @@ class MuteAllEvent(ConferenceEvent):
     Only applies to students, not the teacher.
     """
 
-    def __init__(self, conf_call: ConferenceCall, stream_system_message: bool = True):
+    def __init__(self, conf_call: ConferenceCall, stream_system_message: bool = True, initiator_phone: Optional[str] = None):
         self.conf_call = conf_call
         self.stream_system_message = stream_system_message
+        self.initiator_phone = initiator_phone
 
     async def execute_event(self):
         logger_instance.info("EXECUTING MUTE ALL EVENT", self.conf_call.conf_id)
@@ -68,13 +70,13 @@ class MuteAllEvent(ConferenceEvent):
         self.conf_call.state.action_history.append(
             ActionHistory(
                 timestamp=datetime.now().isoformat(),
-                action_type=ActionType.TEACHER_MUTE_ALL,
+                action_type=ActionType.LEADER_MUTE_ALL_VIA_DTMF if self.initiator_phone else ActionType.TEACHER_MUTE_ALL,
                 metadata={
                     "muted_count": muted_count,
                     "total_students": len(students),
                     "failed_phones": failed_phones,
                 },
-                owner=self.conf_call.state.teacher_phone_number,
+                owner=self.initiator_phone or self.conf_call.state.teacher_phone_number,
             )
         )
 
