@@ -18,6 +18,7 @@ import com.example.seeds.connectivity.ConnectivityRepository
 import com.example.seeds.connectivity.ConnectivityStatus
 import com.example.seeds.databinding.FragmentCallBinding
 import com.example.seeds.ui.BaseFragment
+import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
@@ -141,10 +142,10 @@ class CallFragment : BaseFragment() {
                 val displayName = student?.name ?: phoneNumber
                 val message = "$displayName has left the call"
                 
-                com.google.android.material.snackbar.Snackbar.make(
+                Snackbar.make(
                     binding.root,
                     message,
-                    com.google.android.material.snackbar.Snackbar.LENGTH_LONG
+                    Snackbar.LENGTH_LONG
                 ).show()
                 
                 logMessage("Student disconnected: $displayName ($phoneNumber)")
@@ -154,10 +155,10 @@ class CallFragment : BaseFragment() {
 
         viewModel.holdDetectedNotification.observe(viewLifecycleOwner) { detected ->
             if (detected == true) {
-                com.google.android.material.snackbar.Snackbar.make(
+                Snackbar.make(
                     binding.root,
                     "Hold detected on conference audio",
-                    com.google.android.material.snackbar.Snackbar.LENGTH_LONG
+                    Snackbar.LENGTH_LONG
                 ).show()
                 logMessage("Hold detected on conference audio")
                 viewModel.clearHoldDetectedNotification()
