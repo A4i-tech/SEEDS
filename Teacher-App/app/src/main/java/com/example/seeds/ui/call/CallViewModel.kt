@@ -199,7 +199,14 @@ class CallViewModel @Inject constructor(
     val participantDropped: LiveData<String?>
         get() = _participantDropped
 
-    
+    private val _conferenceHoldDetected = MutableLiveData(false)
+    val conferenceHoldDetected: LiveData<Boolean>
+        get() = _conferenceHoldDetected
+
+    private val _holdDetectedNotification = MutableLiveData<Boolean?>(null)
+    val holdDetectedNotification: LiveData<Boolean?>
+        get() = _holdDetectedNotification
+
     private val participantTrackers = mutableMapOf<String, ParticipantTracker>()
 
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
@@ -239,6 +246,7 @@ class CallViewModel @Inject constructor(
             )
 
             getAccessToken()
+
 
             viewModelScope.launch {
                 val allContentList = mutableListOf<Content>()
@@ -339,6 +347,10 @@ class CallViewModel @Inject constructor(
 
     fun clearParticipantDroppedNotification() {
         _participantDropped.value = null
+    }
+
+    fun clearHoldDetectedNotification() {
+        _holdDetectedNotification.value = null
     }
 
     private fun getAccessToken() {
@@ -459,6 +471,15 @@ class CallViewModel @Inject constructor(
                 return
             }
 
+            // --- Hold detection (parsed early, before participants guard) ---
+            val holdDetected = json.get("hold_detected")?.asBoolean ?: false
+            val previousHold = _conferenceHoldDetected.value ?: false
+            Log.d(TAG, "SSE: hold_detected=$holdDetected, previousHold=$previousHold")
+            _conferenceHoldDetected.postValue(holdDetected)
+            if (holdDetected && !previousHold) {
+                _holdDetectedNotification.postValue(true)
+            }
+
             // --- Participants ---
             val participantsObj = json.getAsJsonObject("participants")
             if (participantsObj == null || participantsObj.entrySet().isEmpty()) {
@@ -506,14 +527,13 @@ class CallViewModel @Inject constructor(
                 _playerState.postValue(newPlayerState)
             }
             // publish position/duration if present
-            try {
-                val pos = audioStateObj?.get("position_seconds")?.asDouble
-                val dur = audioStateObj?.get("duration_seconds")?.asDouble
-                _audioPositionSeconds.postValue(pos?.toFloat())
-                _audioDurationSeconds.postValue(dur?.toFloat())
-            } catch (e: Exception) {
-                Log.d(TAG, "SSE: failed to parse position/duration", e)
-            }
+            val posEl = audioStateObj?.get("position_seconds")
+            val durEl = audioStateObj?.get("duration_seconds")
+            val pos = if (posEl != null && !posEl.isJsonNull) posEl.asDouble.toFloat() else null
+            val dur = if (durEl != null && !durEl.isJsonNull) durEl.asDouble.toFloat() else null
+            _audioPositionSeconds.postValue(pos)
+            _audioDurationSeconds.postValue(dur)
+
 
         } catch (e: Exception) {
             Log.e(TAG, "SSE: Failed to parse update", e)
