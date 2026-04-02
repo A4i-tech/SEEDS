@@ -1,6 +1,11 @@
 const request = require("supertest");
 const express = require("express");
 
+jest.mock("../src/auth/authenticateToken", () => ({
+  authenticateToken: (_req, _res, next) => next(),
+  authorizeRole: () => (_req, _res, next) => next(),
+}));
+
 jest.mock("../src/services/BlobService.js", () => {
   return jest.fn().mockImplementation(() => {
     return {
