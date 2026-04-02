@@ -8,10 +8,10 @@ const STATUS_BAD_REQUEST = 400;
 const TEST_PHONE = "1234567890";
 const TEST_PASSWORD = "TestPassword123!";
 const TEST_TEACHER_NAME = "Test Teacher";
-const TEST_TENANT_ID = "tenant123";
+const TEST_SCHOOL_ID = "school123";
 
-function getMockReq(body, tenantId = TEST_TENANT_ID) {
-  return { body, tenantId };
+function getMockReq(body, userId = TEST_SCHOOL_ID) {
+  return { body, userId };
 }
 
 function getMockRes() {
@@ -83,12 +83,10 @@ describe("Teacher registration - input validation (unit)", () => {
       name: nameWithSpaces,
     });
 
-    const dbAdapter = require("../../src/auth/dbAdapters/nativeDb");
-
+    const teacherRepo = require("../../src/repositories/teacher.repository");
     let capturedInsertData;
-    jest.spyOn(dbAdapter, "getTenantById").mockResolvedValue({ _id: TEST_TENANT_ID });
-    jest.spyOn(dbAdapter, "getTeacherByTenantIdAndPhoneNumber").mockResolvedValue(null);
-    jest.spyOn(dbAdapter, "insertTeacher").mockImplementation((data) => {
+    jest.spyOn(teacherRepo, "getTeacherBySchoolIdAndPhoneNumber").mockResolvedValue(null);
+    jest.spyOn(teacherRepo, "insertTeacher").mockImplementation((data) => {
       capturedInsertData = data;
       return Promise.resolve(data);
     });

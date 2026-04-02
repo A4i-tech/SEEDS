@@ -58,6 +58,39 @@ class ITeacherDao {
   async removeStudentIds(teacherId, studentIds) {
     throw new Error("ITeacherDao.removeStudentIds() not implemented");
   }
+
+  // School-based methods
+  async getTeacherById(teacherId) {
+    throw new Error("ITeacherDao.getTeacherById() not implemented");
+  }
+
+  async getTeacherByPhoneNumber(phoneNumber) {
+    throw new Error("ITeacherDao.getTeacherByPhoneNumber() not implemented");
+  }
+
+  async getTeachersBySchoolId(schoolId) {
+    throw new Error("ITeacherDao.getTeachersBySchoolId() not implemented");
+  }
+
+  async transferTeacher(teacherId, targetSchoolId) {
+    throw new Error("ITeacherDao.transferTeacher() not implemented");
+  }
+
+  async getTeacherCountBySchoolId(schoolId) {
+    throw new Error("ITeacherDao.getTeacherCountBySchoolId() not implemented");
+  }
+
+  async getTeacherBySchoolIdAndPhoneNumber(schoolId, phoneNumber) {
+    throw new Error("ITeacherDao.getTeacherBySchoolIdAndPhoneNumber() not implemented");
+  }
+
+  async insertTeacher(data) {
+    throw new Error("ITeacherDao.insertTeacher() not implemented");
+  }
+
+  async updateTeacher(teacherId, schoolId, updates) {
+    throw new Error("ITeacherDao.updateTeacher() not implemented");
+  }
 }
 
 module.exports = ITeacherDao;
