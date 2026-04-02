@@ -10,23 +10,13 @@ import {
   Cell,
 } from "recharts";
 import { exportToCSV, exportToJSON } from "../../../utils/exportHelpers";
+import { colorPalette } from "../../../utils/analyticsHelpers";
 import "../shared/tables.css";
 import "../shared/utilities.css";
 import "./css/AnalyticsStats.css";
 import "./css/AnalyticsCharts.css";
 import CallsByDateChart from "./CallsByDateChart";
 import StepDepthChart from "./StepDepthChart";
-
-const colorPalette = [
-  "#4CAF50",
-  "#2196F3",
-  "#FF9800",
-  "#9C27B0",
-  "#f44336",
-  "#00BCD4",
-  "#8BC34A",
-  "#FFC107",
-];
 
 const AnalyticsStats = ({ stats, teacherMap }) => {
   const statCards = [
@@ -45,13 +35,13 @@ const AnalyticsStats = ({ stats, teacherMap }) => {
   const hasCallsByDate = Object.keys(stats.callsByDate).length > 0;
   const hasStepDepth = stats.stepDepthData && stats.stepDepthData.length > 0;
   const hasContentUsage = stats.contentUsage && stats.contentUsage.length > 0;
-  const hasCallsByTeacher =
-    stats.callsByTeacher && Object.keys(stats.callsByTeacher).length > 0;
+  const hasCallsByPhone =
+    stats.callsByPhone && Object.keys(stats.callsByPhone).length > 0;
 
-  const callsByTeacherData = hasCallsByTeacher
-    ? Object.entries(stats.callsByTeacher)
+  const callsByPhoneData = hasCallsByPhone
+    ? Object.entries(stats.callsByPhone)
         .map(([phone, count]) => ({
-          teacher: (teacherMap && teacherMap[phone]) || phone,
+          caller: (teacherMap && teacherMap[phone]) || phone,
           count,
         }))
         .sort((a, b) => b.count - a.count)
@@ -121,45 +111,45 @@ const AnalyticsStats = ({ stats, teacherMap }) => {
         </div>
       )}
 
-      {callsByTeacherData.length > 0 && (
+      {callsByPhoneData.length > 0 && (
         <div className="chart-block">
           <div className="chart-header">
-            <h4 className="chart-title">Calls by Teacher</h4>
+            <h4 className="chart-title">Calls by Caller</h4>
             <div className="export-buttons">
               <button
                 className="export-button"
                 onClick={() =>
-                  exportToCSV(callsByTeacherData, ["teacher", "count"], "calls-by-teacher")
+                  exportToCSV(callsByPhoneData, ["caller", "count"], "calls-by-caller")
                 }
               >
                 CSV
               </button>
               <button
                 className="export-button"
-                onClick={() => exportToJSON(callsByTeacherData, "calls-by-teacher")}
+                onClick={() => exportToJSON(callsByPhoneData, "calls-by-caller")}
               >
                 JSON
               </button>
             </div>
           </div>
           <div className="chart-card">
-            <ResponsiveContainer width="100%" height={Math.max(300, callsByTeacherData.length * 40)}>
+            <ResponsiveContainer width="100%" height={Math.max(300, callsByPhoneData.length * 40)}>
               <BarChart
-                data={callsByTeacherData}
+                data={callsByPhoneData}
                 layout="vertical"
                 margin={{ top: 5, right: 30, left: 100, bottom: 5 }}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis type="number" tick={{ fontSize: 12, fill: "#666" }} />
                 <YAxis
-                  dataKey="teacher"
+                  dataKey="caller"
                   type="category"
                   width={90}
                   tick={{ fontSize: 12, fill: "#666" }}
                 />
                 <Tooltip />
                 <Bar dataKey="count" isAnimationActive={true}>
-                  {callsByTeacherData.map((_, index) => (
+                  {callsByPhoneData.map((_, index) => (
                     <Cell key={`cell-${index}`} fill={colorPalette[index % colorPalette.length]} />
                   ))}
                 </Bar>

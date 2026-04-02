@@ -12,21 +12,11 @@ import {
   Cell,
 } from "recharts";
 import { exportToCSV, exportToJSON } from "../../../utils/exportHelpers";
+import { colorPalette } from "../../../utils/analyticsHelpers";
 import "../shared/tables.css";
 import "../shared/utilities.css";
 import "./css/AnalyticsStats.css";
 import "./css/AnalyticsCharts.css";
-
-const colorPalette = [
-  "#4CAF50",
-  "#2196F3",
-  "#FF9800",
-  "#9C27B0",
-  "#f44336",
-  "#00BCD4",
-  "#8BC34A",
-  "#FFC107",
-];
 
 const ChartTooltip = ({ active, payload, labelKey, valueKey, valueLabel }) => {
   if (active && payload && payload[0]) {

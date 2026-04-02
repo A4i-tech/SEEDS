@@ -21,6 +21,7 @@ const AnalyticsTab = () => {
     error: ivrError,
     stats: ivrStats,
     fetchAnalytics,
+    setFilterPhone: setIvrFilterPhone,
   } = useAnalytics();
 
   const {
@@ -30,6 +31,7 @@ const AnalyticsTab = () => {
     error: confError,
     stats: confStats,
     fetchConferenceAnalytics,
+    setFilterPhone: setConfFilterPhone,
   } = useConferenceAnalytics();
 
   const isLoading = subTab === "ivr" ? ivrLoading : confLoading;
@@ -42,6 +44,15 @@ const AnalyticsTab = () => {
       .map(([phone, name]) => ({ phone, name }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [ivrTeacherMap, confTeacherMap]);
+
+  const handleTeacherChange = useCallback(
+    (phone) => {
+      setSelectedTeacher(phone);
+      setIvrFilterPhone(phone);
+      setConfFilterPhone(phone);
+    },
+    [setIvrFilterPhone, setConfFilterPhone]
+  );
 
   const getLastNDaysRange = useCallback((days) => {
     const end = new Date();
@@ -73,53 +84,6 @@ const AnalyticsTab = () => {
     }
     return "Last 7 days";
   }, [startDate, endDate]);
-
-  // Filter stats by selected teacher (client-side)
-  const filteredIvrStats = useMemo(() => {
-    if (!selectedTeacher) return ivrStats;
-
-    // Re-filter analyticsData by selected teacher phone
-    const filtered = analyticsData.filter(
-      (log) => log.phone_number === selectedTeacher
-    );
-    if (filtered.length === 0) {
-      return {
-        ...ivrStats,
-        totalCalls: 0,
-        uniqueUsers: 0,
-        avgDuration: "0m 0s",
-        medianDuration: "0m 0s",
-        totalDuration: "0m 0s",
-        callsByDate: {},
-        stepDepthData: [],
-        contentUsage: [],
-        dropRate: "0.0",
-        droppedCalls: 0,
-        callsByTeacher: {},
-      };
-    }
-    return ivrStats;
-  }, [ivrStats, selectedTeacher, analyticsData]);
-
-  const filteredConfStats = useMemo(() => {
-    if (!selectedTeacher) return confStats;
-
-    const filtered = conferenceData.filter(
-      (conf) => conf.teacher_phone_number === selectedTeacher
-    );
-    if (filtered.length === 0) {
-      return {
-        ...confStats,
-        totalConferences: 0,
-        conferencesByTeacher: [],
-        conferencesByDate: {},
-        classSizeDistribution: [],
-        raisedHandsPerSession: [],
-        totalRaisedHands: 0,
-      };
-    }
-    return confStats;
-  }, [confStats, selectedTeacher, conferenceData]);
 
   return (
     <div className="card">
@@ -181,7 +145,7 @@ const AnalyticsTab = () => {
                   id="teacher-select"
                   className="teacher-filter-select"
                   value={selectedTeacher}
-                  onChange={(e) => setSelectedTeacher(e.target.value)}
+                  onChange={(e) => handleTeacherChange(e.target.value)}
                 >
                   <option value="">All Teachers</option>
                   {allTeachers.map((t) => (
@@ -208,11 +172,11 @@ const AnalyticsTab = () => {
       {error && <div className="error-message">{error}</div>}
 
       {!error && subTab === "ivr" && analyticsData && analyticsData.length > 0 && (
-        <AnalyticsStats stats={filteredIvrStats} teacherMap={ivrTeacherMap} />
+        <AnalyticsStats stats={ivrStats} teacherMap={ivrTeacherMap} />
       )}
 
       {!error && subTab === "conference" && conferenceData && conferenceData.length > 0 && (
-        <ConferenceAnalyticsStats stats={filteredConfStats} />
+        <ConferenceAnalyticsStats stats={confStats} />
       )}
 
       {!error &&
