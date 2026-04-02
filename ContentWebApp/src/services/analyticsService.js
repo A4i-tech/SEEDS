@@ -27,4 +27,23 @@ export const analyticsService = {
 
     return response;
   },
+
+  async getConferenceAnalytics(startDate, endDate, headers = {}) {
+    if (!startDate || !endDate) {
+      throw new Error("Both startDate and endDate are required");
+    }
+
+    const url = `${SEEDS_URL}/tenant/analytics/conference`;
+
+    const response = await apiFetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+      }),
+    });
+
+    return response;
+  },
 };

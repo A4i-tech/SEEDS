@@ -79,6 +79,67 @@
   color: #64748b;
 }
 
+/* Sub-tab navigation */
+.analytics-sub-tabs {
+  display: flex;
+  gap: 0;
+  padding: 0 20px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.sub-tab-button {
+  padding: 12px 20px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: 14px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sub-tab-button:hover {
+  color: #0f172a;
+  background-color: #f8fafc;
+}
+
+.sub-tab-active {
+  color: #0f172a;
+  border-bottom-color: #0f172a;
+}
+
+/* Teacher filter in modal */
+.teacher-filter {
+  padding: 16px 20px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.teacher-filter-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  margin-bottom: 6px;
+}
+
+.teacher-filter-select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #0f172a;
+  background-color: #ffffff;
+  cursor: pointer;
+}
+
+.teacher-filter-select:focus {
+  outline: none;
+  border-color: #0f172a;
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.1);
+}
+
 @media (max-width: 768px) {
   .filters-inline {
     flex-direction: column;

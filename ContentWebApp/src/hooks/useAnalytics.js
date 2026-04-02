@@ -4,6 +4,7 @@ import { useAuth } from "./useAuth";
 
 export const useAnalytics = () => {
   const [analyticsData, setAnalyticsData] = useState([]);
+  const [teacherMap, setTeacherMap] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [dateRange, setDateRange] = useState({
@@ -31,6 +32,7 @@ export const useAnalytics = () => {
         const response = await analyticsService.getAnalytics(startDate, endDate, getAuthHeaders());
 
         setAnalyticsData(response.data || []);
+        setTeacherMap(response.teacherMap || {});
         setDateRange({ startDate, endDate });
       } catch (err) {
         if (err.name !== "AbortError") {
@@ -56,9 +58,14 @@ export const useAnalytics = () => {
         totalCalls: 0,
         uniqueUsers: 0,
         avgDuration: "0m 0s",
+        medianDuration: "0m 0s",
         totalDuration: "0m 0s",
         callsByDate: {},
         stepDepthData: [],
+        contentUsage: [],
+        dropRate: "0.0",
+        droppedCalls: 0,
+        callsByTeacher: {},
       };
     }
 
@@ -90,7 +97,18 @@ export const useAnalytics = () => {
     const avgDurationSeconds =
       durations.length > 0 ? Math.floor(totalDurationSeconds / durations.length) : 0;
 
+    const sortedDurations = [...durations].sort((a, b) => a - b);
+    const medianDurationSeconds =
+      sortedDurations.length > 0
+        ? sortedDurations.length % 2 === 0
+          ? (sortedDurations[sortedDurations.length / 2 - 1] +
+              sortedDurations[sortedDurations.length / 2]) /
+            2
+          : sortedDurations[Math.floor(sortedDurations.length / 2)]
+        : 0;
+
     const avgDuration = formatDuration(avgDurationSeconds);
+    const medianDuration = formatDuration(medianDurationSeconds);
     const totalDuration = formatDuration(totalDurationSeconds);
 
     // Group calls by date
@@ -117,18 +135,55 @@ export const useAnalytics = () => {
         count,
       }));
 
+    // Content usage frequency from stream_playback
+    const contentUsageCounts = {};
+    analyticsData.forEach((log) => {
+      if (log.stream_playback) {
+        log.stream_playback.forEach((sp) => {
+          const url = sp.stream_url || sp.stream_id || "Unknown";
+          // Extract filename or last path segment for readability
+          const label = url.split("/").pop() || url;
+          contentUsageCounts[label] = (contentUsageCounts[label] || 0) + 1;
+        });
+      }
+    });
+    const contentUsage = Object.entries(contentUsageCounts)
+      .map(([content, count]) => ({ content, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 15);
+
+    // Call drop/failure rate
+    const droppedCalls = analyticsData.filter(
+      (log) => !log.stopped_at || log.duration === "" || log.duration === "0"
+    ).length;
+    const dropRate =
+      totalCalls > 0 ? ((droppedCalls / totalCalls) * 100).toFixed(1) : "0.0";
+
+    // Calls by teacher
+    const callsByTeacherCounts = {};
+    analyticsData.forEach((log) => {
+      const phone = log.phone_number;
+      callsByTeacherCounts[phone] = (callsByTeacherCounts[phone] || 0) + 1;
+    });
+
     return {
       totalCalls,
       uniqueUsers,
       avgDuration,
+      medianDuration,
       totalDuration,
       callsByDate,
       stepDepthData,
+      contentUsage,
+      dropRate,
+      droppedCalls,
+      callsByTeacher: callsByTeacherCounts,
     };
   }, [analyticsData]);
 
   return {
     analyticsData,
+    teacherMap,
     isLoading,
     error,
     dateRange,

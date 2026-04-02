@@ -3,6 +3,8 @@ const tenantAuthProvider = require("../auth/tenant/tenantAuthProviderMiddleware"
 const { STATUS } = require("../config/constants");
 const authenticateToken = require("../auth/authenticateToken");
 const IvrV2Log = require("../models/IvrV2Log");
+const ConferenceState = require("../models/ConferenceState");
+const Teacher = require("../models/Teacher");
 const { route } = require("..");
 /**
  *  @swagger
@@ -199,24 +201,145 @@ router.post("/analytics", authenticateToken, async (req, res) => {
     const startStr = start.toISOString();
     const endStr = end.toISOString();
 
-    const analyticsData = await IvrV2Log.find({
-      tenant_id: tenantId,
-      created_at: {
-        $gte: startStr,
-        $lte: endStr,
-      },
-    }).exec();
+    const [analyticsData, teachers] = await Promise.all([
+      IvrV2Log.find({
+        tenant_id: tenantId,
+        created_at: {
+          $gte: startStr,
+          $lte: endStr,
+        },
+      }).exec(),
+      Teacher.find({ tenantId }).select("name phoneNumber").lean(),
+    ]);
+
+    const teacherMap = {};
+    teachers.forEach((t) => {
+      teacherMap[t.phoneNumber] = t.name;
+    });
 
     res.status(STATUS.OK).json({
       startDate,
       endDate,
       count: analyticsData.length,
       data: analyticsData,
+      teacherMap,
     });
   } catch (error) {
     console.error("Analytics error:", error);
     res.status(STATUS.INTERNAL_ERROR).json({
       message: "Error retrieving analytics data",
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /tenant/analytics/conference:
+ *   post:
+ *     summary: Get conference analytics data for a date range
+ *     tags: [Tenant]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               startDate:
+ *                 type: string
+ *                 format: date-time
+ *               endDate:
+ *                 type: string
+ *                 format: date-time
+ *             required:
+ *               - startDate
+ *               - endDate
+ *     responses:
+ *       200:
+ *         description: Conference analytics data for the specified date range
+ *       400:
+ *         description: Missing or invalid date range
+ *       401:
+ *         description: Unauthorized
+ */
+router.post("/analytics/conference", authenticateToken, async (req, res) => {
+  try {
+    const { startDate, endDate } = req.body;
+    const tenantId = req.tenantId;
+
+    if (!startDate || !endDate) {
+      return res.status(STATUS.BAD_REQUEST).json({
+        message: "Both startDate and endDate are required",
+      });
+    }
+
+    if (!tenantId) {
+      return res.status(STATUS.BAD_REQUEST).json({
+        message: "Tenant ID is required",
+      });
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return res.status(STATUS.BAD_REQUEST).json({
+        message: "Invalid date format",
+      });
+    }
+
+    const startStr = start.toISOString();
+    const endStr = end.toISOString();
+
+    const teachers = await Teacher.find({ tenantId })
+      .select("name phoneNumber")
+      .lean();
+    const teacherPhones = teachers.map((t) => t.phoneNumber);
+
+    const teacherMap = {};
+    teachers.forEach((t) => {
+      teacherMap[t.phoneNumber] = t.name;
+    });
+
+    if (teacherPhones.length === 0) {
+      return res.status(STATUS.OK).json({
+        startDate,
+        endDate,
+        count: 0,
+        data: [],
+        teacherMap,
+      });
+    }
+
+    const allConferences = await ConferenceState.find({
+      teacher_phone_number: { $in: teacherPhones },
+    }).lean();
+
+    // Filter conferences that have a Conference-Start action within the date range
+    const filteredConferences = allConferences.filter((conf) => {
+      if (!conf.action_history || conf.action_history.length === 0)
+        return false;
+
+      return conf.action_history.some((action) => {
+        if (action.action_type !== "Conference-Start") return false;
+        const actionTime = action.timestamp;
+        return actionTime >= startStr && actionTime <= endStr;
+      });
+    });
+
+    res.status(STATUS.OK).json({
+      startDate,
+      endDate,
+      count: filteredConferences.length,
+      data: filteredConferences,
+      teacherMap,
+    });
+  } catch (error) {
+    console.error("Conference analytics error:", error);
+    res.status(STATUS.INTERNAL_ERROR).json({
+      message: "Error retrieving conference analytics data",
     });
   }
 });
