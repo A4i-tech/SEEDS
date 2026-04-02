@@ -4,6 +4,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useContent } from "../hooks/useContent";
 import { useContentFilters } from "../hooks/useContentFilters";
 import { useTeachers } from "../hooks/useTeachers";
+import { useSchools } from "../hooks/useSchools";
 import { ivrService } from "../services/ivrService";
 import AppHeader from "./AllContent/Header/AppHeader";
 import ContentTab from "./AllContent/ContentTab/ContentTab";
@@ -41,24 +42,10 @@ const AllContent = () => {
     multiselectRef,
   } = useContentFilters(allContent, setContent, setIsFiltered);
 
-  const {
-    teachers,
-    selectedTeacher,
-    selectedTeacherId,
-    setSelectedTeacherId,
-    message,
-    messageType,
-    registerTeacher,
-    addStudentRow,
-    removeStudentRow,
-    setNewStudentValue,
-    submitNewStudents,
-    removeStudent,
-    updateStudent,
-    pendingDuplicates,
-    resolveDuplicates,
-    dismissDuplicateModal,
-  } = useTeachers(activeTab);
+  const { teachers, students, message, registerTeacher, addStudent, updateStudent, deleteStudent, updateTeacher, deleteTeacher, transferTeacher } =
+    useTeachers(activeTab);
+
+  const { schools, message: schoolMessage, createSchool, updateSchool, deleteSchool } = useSchools(activeTab);
 
   const ivrURL = process.env.REACT_APP_API_IVRV2_URL;
 
@@ -176,21 +163,20 @@ const AllContent = () => {
         {activeTab === "registration" && (
           <RegistrationTab
             teachers={teachers}
-            selectedTeacher={selectedTeacher}
-            selectedTeacherId={selectedTeacherId}
-            onSelectTeacher={setSelectedTeacherId}
+            students={students}
             onRegisterTeacher={registerTeacher}
-            message={message}
-            messageType={messageType}
-            onAddStudentRow={addStudentRow}
-            onRemoveStudentRow={removeStudentRow}
-            onSetNewStudentValue={setNewStudentValue}
-            onSubmitNewStudents={submitNewStudents}
-            onRemoveStudent={removeStudent}
+            onAddStudent={addStudent}
             onUpdateStudent={updateStudent}
-            pendingDuplicates={pendingDuplicates}
-            onResolveDuplicates={resolveDuplicates}
-            onDismissDuplicateModal={dismissDuplicateModal}
+            onDeleteStudent={deleteStudent}
+            onUpdateTeacher={updateTeacher}
+            onDeleteTeacher={deleteTeacher}
+            onTransferTeacher={transferTeacher}
+            message={message}
+            schools={schools}
+            onCreateSchool={createSchool}
+            onUpdateSchool={updateSchool}
+            onDeleteSchool={deleteSchool}
+            schoolMessage={schoolMessage}
           />
         )}
       </div>

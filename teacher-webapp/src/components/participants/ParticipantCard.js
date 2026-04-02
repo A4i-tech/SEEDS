@@ -16,7 +16,6 @@ import {
   PhoneCallback as ReconnectIcon,
   WavingHand as RaisedHandIcon,
   PersonRemove as PersonRemoveIcon,
-  PhonePaused as HoldIcon,
 } from "@mui/icons-material";
 
 export const ParticipantCard = ({
@@ -41,8 +40,6 @@ export const ParticipantCard = ({
         return "#4caf50"; // Green
       case "disconnected":
         return "#f44336"; // Red
-      case "on_hold":
-        return "#ff9800"; // Orange
       default:
         return "#9e9e9e"; // Grey
     }
@@ -102,11 +99,6 @@ export const ParticipantCard = ({
         {participant?.is_raised && (
           <Tooltip title="Raised hand">
             <RaisedHandIcon sx={{ color: "#ff9800", fontSize: 24 }} />
-          </Tooltip>
-        )}
-        {participant?.call_status === "on_hold" && (
-          <Tooltip title="Student is on hold">
-            <HoldIcon sx={{ color: "#ef6c00", fontSize: 22 }} aria-label="On hold" />
           </Tooltip>
         )}
       </Box>
