@@ -1,64 +1,29 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   Box,
   Container,
   TextField,
   Button,
-  MenuItem,
   Typography,
   Alert,
   CircularProgress,
-  Link,
   Paper,
   InputAdornment,
 } from "@mui/material";
-import { Lock as LockIcon, School as SchoolIcon } from "@mui/icons-material";
-import axiosInstance from "../services/axiosInstance";
+import { Phone as PhoneIcon, Lock as LockIcon } from "@mui/icons-material";
+import axios from "axios";
 import { API_ENDPOINTS } from "../constants/apiEndpoints";
 import { STATUS_CODES } from "../constants/statusCodes";
 import { useNavigation } from "../hooks/useNavigation";
 import { showToast } from "../utils/toast";
-import { useCancellableRequest, isCancelError } from "../hooks/useCancellableRequest";
 import { isLocalStorageAvailable } from "../utils/authHelpers";
-import { PhoneNumberInput } from "../components/common/PhoneNumberInput";
-import { isValidPhoneNumber } from "../utils/phoneUtils";
 
 function Login() {
   const navigate = useNavigation();
-  const signal = useCancellableRequest();
   const [showError, setShowError] = useState(null);
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
-  const [schoolName, setSchoolName] = useState("");
-  const [loadingSchools, setLoadingSchools] = useState(false);
-  const [schools, setSchools] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  useEffect(() => {
-    const fetchSchools = async () => {
-      setLoadingSchools(true);
-      try {
-        const response = await axiosInstance.get(`${API_ENDPOINTS.GET_SCHOOLS}`, { signal });
-        if (response.status === STATUS_CODES.SUCCESS) {
-          setSchools(response.data);
-        } else {
-          console.error("Failed to fetch schools");
-          showToast.error("Failed to load schools");
-        }
-      } catch (error) {
-        if (isCancelError(error)) {
-          showToast.info("Request canceled");
-          return;
-        }
-        console.error("Error fetching schools:", error);
-        showToast.error("Failed to load schools");
-      } finally {
-        setLoadingSchools(false);
-      }
-    };
-
-    fetchSchools();
-  }, [signal]);
 
   const handleLogin = async () => {
     // Check localStorage availability before attempting login
@@ -70,23 +35,17 @@ function Login() {
       return;
     }
 
-    if (!phoneNumber || !password || !schoolName) {
+    if (!phoneNumber || !password) {
       setShowError("All fields are required.");
-      return;
-    }
-
-    if (!isValidPhoneNumber(phoneNumber)) {
-      setShowError("Phone number must be exactly 10 digits.");
       return;
     }
 
     setIsSubmitting(true);
     setShowError(null);
     try {
-      const response = await axiosInstance.post(`${API_ENDPOINTS.LOGIN}`, {
+      const response = await axios.post(`${API_ENDPOINTS.LOGIN}`, {
         phoneNumber,
         password,
-        tenantId: schoolName,
       });
       if (response.status === STATUS_CODES.SUCCESS) {
         localStorage.setItem("authToken", response.data.token);
@@ -96,7 +55,7 @@ function Login() {
     } catch (error) {
       console.error("Login error:", error);
       const errorMessage =
-        error.response?.data?.message || "Username or password or tenant name incorrect";
+        error.response?.data?.message || "Username or password incorrect";
       setShowError(errorMessage);
       showToast.error("Login failed");
     } finally {
@@ -104,11 +63,7 @@ function Login() {
     }
   };
 
-  const handleRegister = () => {
-    navigate.goToRegister();
-  };
-
-  const handleKeyDown = (e) => {
+  const handleKeyPress = (e) => {
     if (e.key === "Enter") {
       handleLogin();
     }
@@ -130,11 +85,32 @@ function Login() {
           </Typography>
 
           <Box component="form" sx={{ mt: 3 }}>
-            <PhoneNumberInput
+            <TextField
+              fullWidth
+              label="Phone Number"
+              type="tel"
               value={phoneNumber}
-              onChange={setPhoneNumber}
-              onKeyDown={handleKeyDown}
+              onChange={(e) => {
+                const digitsOnly = e.target.value.replace(/\D/g, "");
+                setPhoneNumber(digitsOnly);
+              }}
+              inputProps={{
+                minLength: 10,
+                maxLength: 10,
+                pattern: "\\d{10}",
+              }}
+              margin="normal"
+              required
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <PhoneIcon />
+                  </InputAdornment>
+                ),
+              }}
               aria-label="Phone number input"
+              aria-required="true"
+              onKeyPress={handleKeyPress}
             />
 
             <TextField
@@ -154,40 +130,8 @@ function Login() {
               }}
               aria-label="Password input"
               aria-required="true"
-              onKeyDown={handleKeyDown}
+              onKeyPress={handleKeyPress}
             />
-
-            <TextField
-              fullWidth
-              select
-              label="School"
-              value={schoolName}
-              onChange={(e) => setSchoolName(e.target.value)}
-              margin="normal"
-              required
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    {loadingSchools ? <CircularProgress size={20} /> : <SchoolIcon />}
-                  </InputAdornment>
-                ),
-              }}
-              aria-label="School selection"
-              aria-required="true"
-            >
-              <MenuItem value="" disabled={loadingSchools}>
-                {loadingSchools ? "Select School" : "Select School"}
-              </MenuItem>
-              {schools.map((sch, idx) => {
-                const value = sch.id;
-                const label = sch.tenantName;
-                return (
-                  <MenuItem key={idx} value={value}>
-                    {label}
-                  </MenuItem>
-                );
-              })}
-            </TextField>
 
             {showError && (
               <Alert severity="error" sx={{ mt: 2 }}>
@@ -201,22 +145,11 @@ function Login() {
               variant="contained"
               sx={{ mt: 3, mb: 2 }}
               onClick={handleLogin}
-              disabled={isSubmitting || loadingSchools}
+              disabled={isSubmitting}
             >
               {isSubmitting ? <CircularProgress size={24} color="inherit" /> : "Login"}
             </Button>
 
-            <Box textAlign="center">
-              <Link
-                component="button"
-                variant="body2"
-                onClick={handleRegister}
-                sx={{ cursor: "pointer" }}
-                aria-label="Navigate to registration page"
-              >
-                Don&apos;t have an account? Sign up
-              </Link>
-            </Box>
           </Box>
         </Paper>
       </Box>

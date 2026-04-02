@@ -4,11 +4,8 @@ const BASE_URL = APP_CONFIG.BASE_URL;
 const CONF_BASE = `${APP_CONFIG.CONF_SERVER_BASE_URI}/conference`;
 export const API_ENDPOINTS = {
   LOGIN: `${BASE_URL}/teacher/login`,
-  REGISTER: `${BASE_URL}/teacher/register`,
   GET_TEACHER_ME: `${BASE_URL}/teacher/me`,
-  GET_TEACHER_STUDENTS: `${BASE_URL}/v1/teacher/students`,
-  ADD_TEACHER_STUDENTS: `${BASE_URL}/v1/teacher/add-students`,
-  GET_SCHOOLS: `${BASE_URL}/tenant/names`,
+  GET_STUDENTS: `${BASE_URL}/student`,
   GET_AUDIO_CONTENT: `${BASE_URL}/content`,
   GET_CONTENT: `${BASE_URL}/content`,
   GET_CONTENT_SAS_URL: `${BASE_URL}/content/sasUrl`,
@@ -33,13 +30,9 @@ export const API_ENDPOINTS = {
     RESUME_AUDIO: (confId) => `${CONF_BASE}/resumeaudio/${confId}`,
     SEEK_AUDIO: (confId) => `${CONF_BASE}/seekaudio/${confId}`,
     SET_PLAYBACK_SPEED: (confId) => `${CONF_BASE}/setplaybackspeed/${confId}`,
-    ADD_PARTICIPANT: (confId, phone, name) =>
-      `${CONF_BASE}/addparticipant/${confId}?phone_number=${phone}${
-        name ? `&name=${encodeURIComponent(name)}` : ""
-      }`,
-    REMOVE_PARTICIPANT: (confId, phone, name) =>
-      `${CONF_BASE}/removeparticipant/${confId}?phone_number=${phone}${
-        name ? `&name=${encodeURIComponent(name)}` : ""
-      }`,
+    ADD_PARTICIPANT: (confId, phone) =>
+      `${CONF_BASE}/addparticipant/${confId}?phone_number=${phone}`,
+    REMOVE_PARTICIPANT: (confId, phone) =>
+      `${CONF_BASE}/removeparticipant/${confId}?phone_number=${phone}`,
   },
 };

@@ -24,9 +24,12 @@ import {
   School as SchoolIcon,
 } from "@mui/icons-material";
 import { useNavigate, useParams } from "react-router-dom";
-import { getClassroomById, createClassroom, updateClassroom } from "../services/classroomService";
-import { getTeacherStudents } from "../services/teacherService";
-import { useAuth } from "../hooks/useAuth";
+import {
+  getClassroomById,
+  createClassroom,
+  updateClassroom,
+} from "../services/classroomService";
+import { getSchoolStudents } from "../services/teacherService";
 import { showToast } from "../utils/toast";
 import { LoadingSpinner } from "../components/common/LoadingSpinner";
 import { PageContainer } from "../components/layout/PageContainer";
@@ -34,7 +37,6 @@ import { PageContainer } from "../components/layout/PageContainer";
 const ClassroomForm = () => {
   const navigate = useNavigate();
   const { classroomId } = useParams();
-  const { getCurrentTeacher } = useAuth();
   const isEditMode = !!classroomId;
 
   const [loading, setLoading] = useState(false);
@@ -43,36 +45,34 @@ const ClassroomForm = () => {
   const [formData, setFormData] = useState({
     name: "",
     students: [],
+    leaders: [],
     contentIds: [],
   });
   const [teacherStudentsList, setTeacherStudentsList] = useState([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
 
-  const fetchTeacherStudents = useCallback(async () => {
+  useEffect(() => {
+    fetchStudents();
+    if (isEditMode) {
+      fetchClassroom();
+    }
+  }, [classroomId]);
+
+  const fetchStudents = async () => {
     try {
       setIsLoadingStudents(true);
-
-      const teacher = await getCurrentTeacher();
-      const teacherPhone = teacher.phoneNumber;
-
-      if (!teacherPhone) {
-        console.warn("No teacher phone found");
-        showToast.error("Unable to fetch teacher information");
-        return;
-      }
-
-      const data = await getTeacherStudents(teacherPhone);
+      const data = await getSchoolStudents();
       setTeacherStudentsList(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error("Error fetching teacher students:", err);
-      showToast.error("Failed to fetch your student list");
+      console.error("Error fetching students:", err);
+      showToast.error("Failed to fetch student list");
     } finally {
       setIsLoadingStudents(false);
     }
-  }, [getCurrentTeacher]);
+  };
 
-  const fetchClassroom = useCallback(async () => {
+  const fetchClassroom = async () => {
     try {
       setLoading(true);
       setErrorMsg("");
@@ -80,9 +80,9 @@ const ClassroomForm = () => {
       setFormData({
         _id: data._id,
         name: data.name || "",
-        students: data.students || [],
+        students: (data.students || []).map((s) => (typeof s === "object" ? s._id : s)),
+        leaders: (data.leaders || []).map((l) => (typeof l === "object" ? l._id : l)),
         contentIds: data.contentIds || [],
-        leaders: data.leaders || [],
       });
     } catch (err) {
       setErrorMsg("Failed to load classroom. Please try again.");
@@ -90,14 +90,7 @@ const ClassroomForm = () => {
     } finally {
       setLoading(false);
     }
-  }, [classroomId]);
-
-  useEffect(() => {
-    fetchTeacherStudents();
-    if (isEditMode) {
-      fetchClassroom();
-    }
-  }, [classroomId, isEditMode, fetchClassroom, fetchTeacherStudents]);
+  };
 
   const validateForm = () => {
     const errors = {};
@@ -109,6 +102,13 @@ const ClassroomForm = () => {
     const studentSet = new Set(formData.students);
     if (studentSet.size !== formData.students.length) {
       errors.students = "Duplicate students are not allowed";
+    }
+
+    const invalidLeaders = formData.leaders.filter(
+      (leader) => !formData.students.includes(leader)
+    );
+    if (invalidLeaders.length > 0) {
+      errors.leaders = "All leaders must be selected from students";
     }
 
     setValidationErrors(errors);
@@ -125,16 +125,16 @@ const ClassroomForm = () => {
   const handleAddStudent = (event, value) => {
     if (!value) return;
 
-    const studentPhone = value.phoneNumber;
+    const studentId = value._id;
 
-    if (formData.students.includes(studentPhone)) {
+    if (formData.students.includes(studentId)) {
       showToast.error("Student already added to classroom");
       return;
     }
 
     setFormData({
       ...formData,
-      students: [...formData.students, studentPhone],
+      students: [...formData.students, studentId],
     });
     if (validationErrors.students) {
       setValidationErrors({ ...validationErrors, students: "" });
@@ -145,7 +145,26 @@ const ClassroomForm = () => {
     setFormData({
       ...formData,
       students: formData.students.filter((s) => s !== studentPhone),
+      leaders: formData.leaders.filter((l) => l !== studentPhone),
     });
+  };
+
+  const handleToggleLeader = (studentPhone) => {
+    const isLeader = formData.leaders.includes(studentPhone);
+    if (isLeader) {
+      setFormData({
+        ...formData,
+        leaders: formData.leaders.filter((l) => l !== studentPhone),
+      });
+    } else {
+      setFormData({
+        ...formData,
+        leaders: [...formData.leaders, studentPhone],
+      });
+    }
+    if (validationErrors.leaders) {
+      setValidationErrors({ ...validationErrors, leaders: "" });
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -161,12 +180,10 @@ const ClassroomForm = () => {
       setErrorMsg("");
 
       if (isEditMode) {
-        const payload = { ...formData };
-        await updateClassroom(payload);
+        await updateClassroom(formData);
         showToast.success("Classroom updated successfully");
       } else {
-        const payload = { ...formData, leaders: [] };
-        await createClassroom(payload);
+        await createClassroom(formData);
         showToast.success("Classroom created successfully");
       }
 
@@ -183,12 +200,9 @@ const ClassroomForm = () => {
     navigate("/classrooms");
   };
 
-  const getStudentByPhone = useCallback(
-    (phoneNumber) => {
-      return teacherStudentsList.find((s) => s.phoneNumber === phoneNumber);
-    },
-    [teacherStudentsList]
-  );
+  const getStudentById = useCallback((id) => {
+    return teacherStudentsList.find((s) => s._id === id);
+  }, [teacherStudentsList]);
 
   if (loading || isLoadingStudents) {
     return <LoadingSpinner />;
@@ -255,7 +269,7 @@ const ClassroomForm = () => {
             <Box sx={{ mb: 3 }}>
               <Autocomplete
                 options={teacherStudentsList.filter(
-                  (s) => !formData.students.includes(s.phoneNumber)
+                  (s) => !formData.students.includes(s._id)
                 )}
                 getOptionLabel={(option) => `${option.name} - ${option.phoneNumber}`}
                 onChange={handleAddStudent}
@@ -298,16 +312,16 @@ const ClassroomForm = () => {
               </Paper>
             ) : (
               <List sx={{ bgcolor: "background.paper", borderRadius: 1 }}>
-                {formData.students.map((phoneNumber, index) => {
-                  const student = getStudentByPhone(phoneNumber);
+                {formData.students.map((id, index) => {
+                  const student = getStudentById(id);
                   return (
-                    <React.Fragment key={phoneNumber}>
+                    <React.Fragment key={id}>
                       {index > 0 && <Divider />}
                       <ListItem
                         secondaryAction={
                           <IconButton
                             edge="end"
-                            onClick={() => handleRemoveStudent(phoneNumber)}
+                            onClick={() => handleRemoveStudent(id)}
                             sx={{ color: "error.main" }}
                           >
                             <DeleteIcon />
@@ -315,9 +329,69 @@ const ClassroomForm = () => {
                         }
                       >
                         <ListItemText
-                          primary={student ? student.name : phoneNumber}
-                          secondary={phoneNumber}
+                          primary={student ? student.name : id}
+                          secondary={student ? student.phoneNumber : id}
                           primaryTypographyProps={{ fontWeight: 500 }}
+                        />
+                      </ListItem>
+                    </React.Fragment>
+                  );
+                })}
+              </List>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+              Leaders
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Select students to assign as classroom leaders
+            </Typography>
+
+            {validationErrors.leaders && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {validationErrors.leaders}
+              </Alert>
+            )}
+
+            {formData.students.length === 0 ? (
+              <Paper
+                variant="outlined"
+                sx={{
+                  p: 3,
+                  textAlign: "center",
+                  bgcolor: "background.default",
+                }}
+              >
+                <SchoolIcon sx={{ fontSize: 48, color: "text.secondary", mb: 1 }} />
+                <Typography variant="body2" color="text.secondary">
+                  Add students first to assign leaders
+                </Typography>
+              </Paper>
+            ) : (
+              <List sx={{ bgcolor: "background.paper", borderRadius: 1 }}>
+                {formData.students.map((id, index) => {
+                  const isLeader = formData.leaders.includes(id);
+                  const student = getStudentById(id);
+                  const displayPhone = student ? student.phoneNumber : id;
+                  return (
+                    <React.Fragment key={id}>
+                      {index > 0 && <Divider />}
+                      <ListItem>
+                        <Checkbox
+                          checked={isLeader}
+                          onChange={() => handleToggleLeader(id)}
+                          sx={{ mr: 1 }}
+                        />
+                        <ListItemText
+                          primary={student ? student.name : id}
+                          secondary={isLeader ? `Leader - ${displayPhone}` : displayPhone}
+                          primaryTypographyProps={{
+                            fontWeight: isLeader ? 600 : 400,
+                          }}
                         />
                       </ListItem>
                     </React.Fragment>
