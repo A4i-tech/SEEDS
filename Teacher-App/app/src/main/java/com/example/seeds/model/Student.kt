@@ -15,7 +15,8 @@ data class Student(
     @PrimaryKey
     var phoneNumber: String,
     var name: String,
-    var isLeader: Boolean = false): Parcelable
+    var isLeader: Boolean = false,
+    var _id: String? = null): Parcelable
 
 @JsonSerializable
 @JsonClass(generateAdapter = true)

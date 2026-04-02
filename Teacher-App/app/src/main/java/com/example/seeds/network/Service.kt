@@ -8,6 +8,7 @@ import com.example.seeds.database.LogEntity
 import com.example.seeds.model.CallDetails
 import com.example.seeds.network.CallStatusDto
 import com.example.seeds.network.ClassroomDto
+import com.example.seeds.network.ClassroomSaveDto
 import com.example.seeds.model.ConferenceCreateRequest
 import com.example.seeds.model.ConferenceCreateResponse
 import com.example.seeds.model.Content
@@ -15,7 +16,6 @@ import com.example.seeds.model.PaginatedResponse
 import com.example.seeds.model.SasUrlResponse
 import com.example.seeds.model.Student
 import com.example.seeds.model.StudentCallStatus
-import com.example.seeds.model.CallerStateResponse
 import com.example.seeds.model.StudentListContainer
 import com.example.seeds.utils.Constants
 import com.example.seeds.utils.Encryptor
@@ -99,15 +99,13 @@ interface SeedsService {
     @PUT
     suspend fun connectParticipant(
         @Url url: String, 
-        @Query("phone_number") phoneNumber: String,
-        @Query("name") name: String? = null
+        @Query("phone_number") phoneNumber: String
     ): Response<Any>
 
     @PUT
     suspend fun disconnectParticipant(
-        @Url url: String,
-        @Query("phone_number") phoneNumber: String,
-        @Query("name") name: String? = null
+        @Url url: String, 
+        @Query("phone_number") phoneNumber: String
     ): Response<Any>
 
     @GET("call/{confId}/status")
@@ -149,8 +147,11 @@ interface SeedsService {
     @GET("class/{classId}")
     suspend fun getClassroomById(@Path("classId") classId: String): ClassroomDto
 
+    @GET("student")
+    suspend fun getSchoolStudents(): List<Student>
+
     @POST("class")
-    suspend fun saveClassroom(@Body classroom: ClassroomDto): ClassroomDto
+    suspend fun saveClassroom(@Body classroom: ClassroomSaveDto): ClassroomDto
 
     @DELETE("class/{classId}")
     suspend fun deleteClassroom(@Path("classId") classId: String)

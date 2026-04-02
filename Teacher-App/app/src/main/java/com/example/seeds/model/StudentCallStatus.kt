@@ -22,12 +22,3 @@ data class StudentCallStatus (
     val raiseHand: Boolean = false,
     var isMuteUnmuteDone: Boolean = true
 )
-
-@JsonSerializable
-data class CallerStateResponse(
-    @Json(name = "is_running")
-    val isRunning: Boolean,
-
-    @Json(name = "participants")
-    val participants: Map<String, StudentCallStatus>
-)
