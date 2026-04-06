@@ -398,39 +398,40 @@ router.get(
     const limit = parseInt(req.query.limit) || 15;
     const cursor = req.query.cursor;
 
+    const tenantId = req.query.tenantId;
     // If specific IDs are requested, return non-deleted content sorted by creation time (newest first)
     if (req.query.ids) {
       if (!Array.isArray(req.query.ids) || req.query.ids.length === 0) {
         return res.status(400).json({ error: "ids query parameter must be a non-empty array" });
       }
       const idsArray = req.query.ids;
-      
+
       // Fetch both content and quiz data for the requested IDs (lean for read-only)
       const [contents, quizzes] = await Promise.all([
-        ContentV3.find({ _id: { $in: idsArray }, isDeleted: { $ne: true } })
+        ContentV3.find({ _id: { $in: idsArray }, tenantId, isDeleted: { $ne: true } })
           .lean()
           .exec(),
-        QuizData.find({ _id: { $in: idsArray }, isDeleted: { $ne: true } })
+        QuizData.find({ _id: { $in: idsArray }, tenantId, isDeleted: { $ne: true } })
           .lean()
           .exec(),
       ]);
-      
+
       // Transform content to ensure id field exists (standardize: always use id from _id)
       const transformedContents = contents.map((content) => ({
         ...content,
         id: content._id,
       }));
-      
+
       // Transform quiz data to match content format (standardize: always use id from _id)
       const transformedQuizzes = quizzes.map((quiz) => ({
         ...quiz,
         id: quiz._id,
         type: "quiz",
       }));
-      
+
       // Merge and sort once (shared with list path via sortByCreationTimeThenId)
       const allContent = [...transformedContents, ...transformedQuizzes].sort(sortByCreationTimeThenId);
-      
+
       return res.json(allContent);
     }
 
@@ -445,7 +446,7 @@ router.get(
       quizQuery.isTeacherApp = true;
     } else if (req.query.language && req.query.theme && req.query.expName) {
       const expName = req.query.expName.toLowerCase();
-      
+
       if (expName === "quiz") {
         // If filtering for quiz, only query QuizData
         shouldFetchContent = false;
