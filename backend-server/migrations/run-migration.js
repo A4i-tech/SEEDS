@@ -100,6 +100,16 @@ async function run() {
 
         const ctx = {};
 
+        // Rebuild schoolMap from DB if phase 1 was already completed (resume scenario)
+        if (state.completedPhases.includes("createDefaultSchools")) {
+            const School = require("../src/models/School");
+            const schools = await School.find({}).lean();
+            ctx.schoolMap = {};
+            for (const s of schools) {
+                ctx.schoolMap[s.tenantId.toString()] = s._id.toString();
+            }
+        }
+
         // Run each phase, skipping already-completed ones
         for (const phase of phases) {
             if (state.completedPhases.includes(phase.name)) {

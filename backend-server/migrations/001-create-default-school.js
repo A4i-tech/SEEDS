@@ -10,6 +10,7 @@
  * Result: one School document per tenant, returned as { tenantId -> schoolId } map.
  */
 
+const mongoose = require("mongoose");
 const Tenant = require("../src/models/Tenant");
 const School = require("../src/models/School");
 
@@ -24,7 +25,7 @@ async function createDefaultSchools() {
     const schoolMap = {};
 
     for (const tenant of tenants) {
-        const tenantId = tenant._id.toString();
+        const tenantId = new mongoose.Types.ObjectId(tenant._id);
 
         // Idempotent: skip if a school already exists for this tenant
         const existing = await School.findOne({ tenantId });

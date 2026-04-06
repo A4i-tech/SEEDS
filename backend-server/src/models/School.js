@@ -2,7 +2,7 @@
 const mongoose = require("mongoose");
 
 const SchoolSchema = new mongoose.Schema({
-    tenantId: { type: String, required: true, index: true, ref: "Tenant" },
+    tenantId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true, ref: "Tenant" },
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     password: { type: String },

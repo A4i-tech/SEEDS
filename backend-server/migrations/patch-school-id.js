@@ -8,8 +8,8 @@ async function run() {
     await mongoose.connect(uri);
     const db = mongoose.connection;
 
-    const schoolId = "69a92b526d7b0a801b42675c";
-    const tenantId = "69660fae7fccd4ee129e58ae";
+    const schoolId = new mongoose.Types.ObjectId("69a92b526d7b0a801b42675c");
+    const tenantId = new mongoose.Types.ObjectId("69660fae7fccd4ee129e58ae");
 
     // Patch ivrv2logs: set school_id on all docs that belong to this tenant
     const ivr = await db.collection("ivrv2logs").updateMany(

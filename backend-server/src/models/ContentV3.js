@@ -24,7 +24,7 @@ const ContentSchema = new mongoose.Schema(
       type: String,
       default: () => require("uuid").v4(),
     },
-    tenantId: { type: String, required: true, index: true, ref: "Tenant" },
+    tenantId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true, ref: "Tenant" },
     description: { type: String, default: "" },
     type: { type: String, required: true },
     language: { type: String, required: true },

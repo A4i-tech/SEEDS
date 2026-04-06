@@ -28,7 +28,7 @@ async function migrateContent() {
         console.warn("  Review and re-assign content manually if needed.");
     }
 
-    const tenantId = tenants[0]._id.toString();
+    const tenantId = new mongoose.Types.ObjectId(tenants[0]._id);
 
     const result = await mongoose.connection.collection("contentsV3").updateMany(
         { tenantId: { $exists: false } },
