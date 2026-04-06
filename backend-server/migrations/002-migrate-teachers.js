@@ -22,7 +22,7 @@ async function migrateTeachers(schoolMap) {
         // Use raw collection to bypass model schema (tenantId no longer in schema)
         const result = await mongoose.connection.collection("teachers").updateMany(
             { tenantId, schoolId: { $exists: false } },
-            { $set: { schoolId } }
+            { $set: { schoolId: new mongoose.Types.ObjectId(schoolId) } }
         );
         console.log(`  Tenant ${tenantId}: set schoolId on ${result.modifiedCount} teacher(s).`);
     }

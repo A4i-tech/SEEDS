@@ -40,7 +40,7 @@ async function migrateStudents() {
 
         const result = await mongoose.connection.collection("students").updateMany(
             { _id: { $in: studentObjectIds }, schoolId: { $exists: false } },
-            { $set: { schoolId: teacher.schoolId } }
+            { $set: { schoolId: new mongoose.Types.ObjectId(teacher.schoolId) } }
         );
         linked += result.modifiedCount;
         console.log(`  Teacher ${teacher._id}: linked ${result.modifiedCount} student(s) to school ${teacher.schoolId}.`);
@@ -59,7 +59,7 @@ async function migrateStudents() {
 
         const result = await mongoose.connection.collection("students").updateMany(
             { schoolId: { $exists: false } },
-            { $set: { schoolId: firstSchool._id.toString() } }
+            { $set: { schoolId: firstSchool._id } }
         );
         console.log(`  Assigned ${result.modifiedCount} orphaned student(s) to school ${firstSchool._id}.`);
     }

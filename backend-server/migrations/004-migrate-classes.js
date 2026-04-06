@@ -29,6 +29,13 @@ async function migrateClasses() {
 
     console.log(`  Found ${classes.length} class(es) without schoolId.`);
 
+    // Idempotent: if no classes need migration, skip
+    if (classes.length === 0) {
+        console.log("  No classes to migrate — all already have schoolId.");
+        console.log("Phase 4 complete.");
+        return;
+    }
+
     const firstSchool = await School.findOne({}).lean();
     if (!firstSchool) throw new Error("No school found.");
     const fallbackSchoolId = firstSchool._id.toString();

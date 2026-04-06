@@ -72,17 +72,80 @@ async function run() {
     await mongoose.connect(uri);
     console.log("Connected.\n");
 
+    const db = mongoose.connection;
+    const stateCol = db.collection("_migration_state");
+    const MIGRATION_ID = "v1-school-migration";
+
+    // Define migration phases in order
+    const phases = [
+        { name: "createDefaultSchools", fn: () => createDefaultSchools() },
+        { name: "migrateTeachers", fn: (ctx) => migrateTeachers(ctx.schoolMap) },
+        { name: "migrateStudents", fn: () => migrateStudents() },
+        { name: "migrateClasses", fn: () => migrateClasses() },
+        { name: "migrateContent", fn: () => migrateContent() },
+        { name: "migrateClassStudentRefs", fn: () => migrateClassStudentRefs() },
+    ];
+
     try {
-        const schoolMap = await createDefaultSchools();
-        await migrateTeachers(schoolMap);
-        await migrateStudents();
-        await migrateClasses();
-        await migrateContent();
-        await migrateClassStudentRefs();
+        // Get or create migration state
+        let state = await stateCol.findOne({ migrationId: MIGRATION_ID });
+        if (!state) {
+            state = {
+                migrationId: MIGRATION_ID,
+                completedPhases: [],
+                startedAt: new Date(),
+            };
+            await stateCol.insertOne(state);
+        }
+
+        const ctx = {};
+
+        // Run each phase, skipping already-completed ones
+        for (const phase of phases) {
+            if (state.completedPhases.includes(phase.name)) {
+                console.log(`✓ Skipping already-completed phase: ${phase.name}`);
+                continue;
+            }
+
+            console.log(`\n→ Running phase: ${phase.name}...`);
+            const result = await phase.fn(ctx);
+
+            // Store schoolMap context for next phase
+            if (phase.name === "createDefaultSchools") {
+                ctx.schoolMap = result;
+            }
+
+            // Mark this phase as completed atomically
+            await stateCol.updateOne(
+                { migrationId: MIGRATION_ID },
+                {
+                    $addToSet: { completedPhases: phase.name },
+                    $set: { lastRun: new Date() },
+                },
+                { upsert: true }
+            );
+
+            console.log(`✓ Phase completed: ${phase.name}`);
+        }
+
+        // All phases complete — verify and finalize
+        console.log("\n=== Running verification ===");
         await verify();
-        console.log("\nMigration completed successfully.");
+
+        await stateCol.updateOne(
+            { migrationId: MIGRATION_ID },
+            {
+                $set: {
+                    status: "completed",
+                    completedAt: new Date(),
+                },
+            }
+        );
+
+        console.log("\n✓ Migration completed successfully.");
     } catch (err) {
-        console.error("\nMigration FAILED:", err.message);
+        console.error("\n✗ Migration FAILED:", err.message);
+        console.error("\nTo resume, re-run this script. It will skip completed phases and resume from the failure point.\n");
         process.exitCode = 1;
     } finally {
         await mongoose.disconnect();
