@@ -93,7 +93,12 @@ router.post("/login", teacherAuthProvider.login);
  *       409:
  *         description: Phone number already in use
  */
-router.post("/register", authenticateToken, authorizeRole(SCHOOL_ADMIN_ROLE), teacherController.register);
+router.post(
+  "/register",
+  authenticateToken,
+  authorizeRole(SCHOOL_ADMIN_ROLE),
+  teacherController.register
+);
 
 /**
  * @swagger
@@ -118,7 +123,7 @@ router.post("/register", authenticateToken, authorizeRole(SCHOOL_ADMIN_ROLE), te
  *         description: Unauthorized, token is missing or invalid
  */
 router.post("/logout", authenticateToken, authorizeRole(TEACHER_ROLE), (req, res) => {
-    res.status(STATUS.OK).json({ message: "Logout successful" });
+  res.status(STATUS.OK).json({ message: "Logout successful" });
 });
 
 /**
@@ -145,6 +150,29 @@ router.post("/logout", authenticateToken, authorizeRole(TEACHER_ROLE), (req, res
  *         description: Teacher not found
  */
 router.get("/me", authenticateToken, authorizeRole(TEACHER_ROLE), teacherController.getMe);
+
+/**
+ * @swagger
+ * /teacher/teachers:
+ *   get:
+ *     summary: Get all teachers in the admin's school (School Admin only)
+ *     tags: [Teachers]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of teachers in the school
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: School not found
+ */
+router.get(
+  "/teachers",
+  authenticateToken,
+  authorizeRole(SCHOOL_ADMIN_ROLE),
+  teacherController.getTeachersBySchool
+);
 
 /**
  * @swagger
@@ -185,6 +213,40 @@ router.get("/me", authenticateToken, authorizeRole(TEACHER_ROLE), teacherControl
  *       409:
  *         description: Phone number already in use in this school
  */
-router.patch("/:teacherId", authenticateToken, authorizeRole(SCHOOL_ADMIN_ROLE), teacherController.update);
+router.patch(
+  "/:teacherId",
+  authenticateToken,
+  authorizeRole(SCHOOL_ADMIN_ROLE),
+  teacherController.update
+);
+
+/**
+ * @swagger
+ * /teacher/{teacherId}:
+ *   delete:
+ *     summary: Delete a teacher from the admin's school (School Admin only)
+ *     tags: [Teachers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: teacherId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Teacher deleted successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Teacher not found
+ */
+router.delete(
+  "/:teacherId",
+  authenticateToken,
+  authorizeRole(SCHOOL_ADMIN_ROLE),
+  teacherController.delete
+);
 
 module.exports = router;

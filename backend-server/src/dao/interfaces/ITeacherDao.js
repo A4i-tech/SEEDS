@@ -91,6 +91,10 @@ class ITeacherDao {
   async updateTeacher(teacherId, schoolId, updates) {
     throw new Error("ITeacherDao.updateTeacher() not implemented");
   }
+
+  async deleteTeacher(teacherId, schoolId) {
+    throw new Error("ITeacherDao.deleteTeacher() not implemented");
+  }
 }
 
 module.exports = ITeacherDao;

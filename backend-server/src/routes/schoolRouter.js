@@ -154,7 +154,7 @@ router.post("/", authenticateToken, authorizeRole(TENANT_ROLE), schoolController
  *       500:
  *         description: Internal server error
  */
-router.get("/", authenticateToken, authorizeRole(TENANT_ROLE), schoolController.getSchools);
+router.get("/", authenticateToken, authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE), schoolController.getSchools);
 
 /**
  * @swagger

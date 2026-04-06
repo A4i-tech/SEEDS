@@ -13,7 +13,7 @@ exports.createSchool = async (req, res) => {
         .json({ message: "Name, email, and password are required" });
     }
 
-    const tenantId = req.userId;
+    const tenantId = req.tenantId;
     const trimmedName = name.trim();
     const trimmedEmail = email.trim();
 
@@ -41,7 +41,8 @@ exports.createSchool = async (req, res) => {
 
 exports.getSchools = async (req, res) => {
     try {
-        const tenantId = req.userId;
+        const tenantId = req.tenantId;
+        console.log("tenantId", tenantId);
         const schools = await schoolService.getSchools(tenantId);
         return res.status(STATUS.OK).json(schools);
     } catch (error) {
@@ -52,14 +53,14 @@ exports.getSchools = async (req, res) => {
 exports.getSchoolById = async (req, res) => {
     try {
         const schoolId = req.params.schoolId;
-        const tenantId = req.userId;
+        const tenantId = req.tenantId;
 
         if (!schoolId || !tenantId) {
             return res.status(STATUS.BAD_REQUEST).json({ message: "School ID and tenant ID are required" });
         }
 
         const school = await schoolService.getSchoolById(schoolId, tenantId);
-        
+
         return res.status(STATUS.OK).json(school);
     } catch (error) {
         return res.status(STATUS.INTERNAL_ERROR).json({ message: "Internal server error" });
@@ -70,7 +71,7 @@ exports.getSchoolById = async (req, res) => {
 exports.deleteSchool = async (req, res) => {
     try {
         const schoolId = req.params.schoolId;
-        const tenantId = req.userId;
+        const tenantId = req.tenantId;
         const result = await schoolService.deleteSchool(schoolId, tenantId);
         return res.status(STATUS.OK).json(result);
     } catch (error) {
@@ -108,7 +109,7 @@ exports.getSchoolDashboard = async (req, res) => {
         const tenantId = req.tenantId;
 
         const result = await schoolService.getSchoolDashboard(schoolId, tenantId);
-        
+
         return res.status(STATUS.OK).json(result);
     } catch (error) {
         return res.status(STATUS.INTERNAL_ERROR).json({ message: "Internal server error" });

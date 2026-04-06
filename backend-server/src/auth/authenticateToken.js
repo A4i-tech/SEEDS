@@ -35,9 +35,11 @@ async function authenticateToken(req, res, next) {
   if (!token) return res.sendStatus(STATUS.UNAUTHORIZED);
   try {
     const user = jwt.verify(token, secretKey);
+
     req.user = user;
     req.userId = user.id;
-    req.role = user.role;
+    req.role = user.role || user.iss;
+
     if (user.schoolId) req.schoolId = user.schoolId;
     if (user.tenantId) req.tenantId = user.tenantId;
     if (user.iss === TENANT_ROLE) req.tenantId = user.id;
