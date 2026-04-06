@@ -59,7 +59,6 @@ module.exports = {
 
   async getMe(req, res) {
     try {
-      // After School/SchoolAdmin merge: req.userId === req.schoolId === school._id
       const school = await schoolRepository.getSchoolById(req.userId, req.tenantId);
       if (!school) {
         return res.status(STATUS.NOT_FOUND).json({ message: "School not found" });
@@ -72,7 +71,7 @@ module.exports = {
   },
 
   async update(req, res) {
-    const { schoolId } = req.params;
+    const schoolId = req.schoolId;
     const tenantId = req.tenantId;
     const { name, email, password } = req.body;
 

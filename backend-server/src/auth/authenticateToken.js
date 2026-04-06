@@ -29,13 +29,12 @@ const SCHOOL_ADMIN_ROLE = "school_admin";
  * @param {Object} res - The response object
  * @param {Function} next - The next function
  */
-function authenticateToken(req, res, next) {
+async function authenticateToken(req, res, next) {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
   if (!token) return res.sendStatus(STATUS.UNAUTHORIZED);
-
-  jwt.verify(token, secretKey, async (err, user) => {
-    if (err) return res.sendStatus(STATUS.FORBIDDEN);
+  try {
+    const user = jwt.verify(token, secretKey);
     req.user = user;
     req.userId = user.id;
     req.role = user.role;
@@ -47,11 +46,14 @@ function authenticateToken(req, res, next) {
     // Teacher tokens carry only schoolId — resolve tenantId from the school
     if (user.schoolId && !user.tenantId && user.iss !== TENANT_ROLE) {
       const school = await School.findById(user.schoolId).select("tenantId").lean();
-      if (school) req.tenantId = school.tenantId;
+      if (!school) return res.sendStatus(STATUS.UNAUTHORIZED);
+      req.tenantId = school.tenantId;
     }
 
     next();
-  });
+  } catch (err) {
+    return res.sendStatus(STATUS.FORBIDDEN);
+  }
 }
 
 /**
