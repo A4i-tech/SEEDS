@@ -313,12 +313,19 @@ router.get("/:schoolId", authenticateToken, authorizeRole(TENANT_ROLE), schoolCo
 
 /**
  * @swagger
- * /school:
+ * /school/{schoolId}:
  *   patch:
  *     summary: Update a school
  *     tags: [School]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: schoolId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: School ID
  *     requestBody:
  *       required: true
  *       content:
@@ -346,7 +353,7 @@ router.get("/:schoolId", authenticateToken, authorizeRole(TENANT_ROLE), schoolCo
  *       500:
  *         description: Internal server error
  */
-router.patch("/", authenticateToken, authorizeRole(SCHOOL_ADMIN_ROLE), schoolAdminAuthProvider.update);
+router.patch("/:schoolId", authenticateToken, authorizeRole(SCHOOL_ADMIN_ROLE), schoolAdminAuthProvider.update);
 
 /**
  * @swagger
