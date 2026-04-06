@@ -346,10 +346,23 @@ class CallViewModel @Inject constructor(
             try {
                 val teacherPhoneWithPrefix = "$teacherPhoneNumber"
                 val studentPhonesWithPrefix = phoneNumbers.map { "$it" }
+                val teacherDisplayName = userPreferencesRepository.userPrefs.first().userName
+                    .takeIf { it.isNotBlank() } ?: "Teacher"
+
+                val directoryMap = teacherStudentsDirectory.studentsByPhone()
+                val studentNames = studentPhonesWithPrefix.map { phone ->
+                    directoryMap[phone]?.name
+                        ?: args.classroom.students.find {
+                            val normalizedPhone = if (it.phoneNumber.startsWith("91")) it.phoneNumber else "91${it.phoneNumber}"
+                            it.phoneNumber == phone || normalizedPhone == phone
+                        }?.name
+                }
 
                 val payload = ConferenceCreateRequest(
                     teacher_phone = teacherPhoneWithPrefix,
-                    student_phones = studentPhonesWithPrefix
+                    student_phones = studentPhonesWithPrefix,
+                    teacher_name = teacherDisplayName,
+                    student_names = studentNames
                 )
 
                 val response = withTimeoutOrNull(CONFERENCE_CREATE_TIMEOUT_SECONDS * 1000) {
@@ -524,7 +537,8 @@ class CallViewModel @Inject constructor(
 
                 val fullUrl = "$conferenceUrl/conference/start/$confId"
                 // Use phoneNumbers which only contains selected students (teacher phone already filtered out)
-                val response = network.startCall(fullUrl, CallDetails(confId, phoneNumbers, names))
+                val leaderPhone = args.leader.takeIf { it.isNotBlank() }
+                val response = network.startCall(fullUrl, CallDetails(confId, phoneNumbers, names, leaderPhone))
 
                 if (response.isSuccessful) {
                     _callToken.postValue(AccessToken(confId = confId, accessToken = ""))
@@ -614,8 +628,10 @@ class CallViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val fullUrl = "$conferenceUrl/conference/addparticipant/$confId"
+                val teacherDisplayName = userPreferencesRepository.userPrefs.first().userName
+                    .takeIf { it.isNotBlank() } ?: "Teacher"
                 
-                val response = network.connectParticipant(fullUrl, teacherPhoneNumber)
+                val response = network.connectParticipant(fullUrl, teacherPhoneNumber, teacherDisplayName)
                 
                 if (!response.isSuccessful) {
                     Log.e(TAG, "Failed to rejoin teacher: ${response.code()}")
@@ -881,7 +897,8 @@ class CallViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val fullUrl = "$conferenceUrl/conference/addparticipant/$confId"
-                val response = network.connectParticipant(fullUrl, phoneNumber)
+                val participantName = name.takeIf { it.isNotBlank() }
+                val response = network.connectParticipant(fullUrl, phoneNumber, participantName)
                 if (!response.isSuccessful) refreshCallState() 
             } catch (e: Exception) {
                 refreshCallState() 
@@ -893,6 +910,7 @@ class CallViewModel @Inject constructor(
     fun disconnectParticipant(phoneNumber: String) {
         val confId = _callToken.value?.confId ?: return
         val currentList = _callState.value?.toMutableList() ?: return
+        val participantName = getStudentName(phoneNumber).takeIf { it.isNotBlank() }
         
         val tracker = participantTrackers[phoneNumber]
         if (tracker != null) {
@@ -911,7 +929,7 @@ class CallViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val fullUrl = "$conferenceUrl/conference/removeparticipant/$confId"
-                val response = network.disconnectParticipant(fullUrl, phoneNumber)
+                val response = network.disconnectParticipant(fullUrl, phoneNumber, participantName)
                 if (!response.isSuccessful) {
                     // On failure, refresh to get server state
                     refreshCallState()
