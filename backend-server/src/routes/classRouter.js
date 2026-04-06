@@ -103,7 +103,7 @@ router.post(
 
     if (req.body._id) {
       classRoom = await ClassRoom.getClassById(req.body._id);
-      if (classRoom.teacher != req.userId) return res.json(403);
+      if (classRoom.teacher !== req.userId) return res.json(403);
       ["name", "students", "leaders", "contentIds"].forEach(
         (prop) => (classRoom[prop] = req.body[prop])
       );
