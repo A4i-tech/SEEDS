@@ -98,14 +98,16 @@ interface SeedsService {
 
     @PUT
     suspend fun connectParticipant(
-        @Url url: String, 
-        @Query("phone_number") phoneNumber: String
+        @Url url: String,
+        @Query("phone_number") phoneNumber: String,
+        @Query("name") name: String? = null
     ): Response<Any>
 
     @PUT
     suspend fun disconnectParticipant(
-        @Url url: String, 
-        @Query("phone_number") phoneNumber: String
+        @Url url: String,
+        @Query("phone_number") phoneNumber: String,
+        @Query("name") name: String? = null
     ): Response<Any>
 
     @GET("call/{confId}/status")

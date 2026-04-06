@@ -201,10 +201,24 @@ class CallSettingsFragment : BaseFragment() {
             false
         )
         dialogBinding.viewModel = viewModel
-        dialogBinding.callMyPotentialLeadersList.adapter = CheckboxNameListAdapter(maximumSelections = 2)
 
         val phoneNumbersForCall =
             (binding.myStudentsList.adapter as CheckboxNameListAdapter).usersInGroup
+
+        val classroomLeaderPhones = args.classroom.leaders.map { it.phoneNumber }.toMutableSet()
+        val initialSelection = if (!leaderForCall.isNullOrEmpty()) mutableSetOf(leaderForCall!!) else mutableSetOf()
+
+        dialogBinding.callMyPotentialLeadersList.adapter = CheckboxNameListAdapter(
+            maximumSelections = 1,
+            showCrown = true,
+            leaders = classroomLeaderPhones,
+            usersInGroup = initialSelection
+        )
+
+        val callStudents = viewModel.classroom.value?.students?.filter {
+            phoneNumbersForCall.contains(it.phoneNumber)
+        }
+        (dialogBinding.callMyPotentialLeadersList.adapter as CheckboxNameListAdapter).submitList(callStudents)
 
         val dialogBuilder: AlertDialog.Builder = AlertDialog.Builder(requireContext())
         dialogBuilder.setOnDismissListener { }

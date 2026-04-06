@@ -435,8 +435,21 @@ class CallViewModel @Inject constructor(
         try {
             val json = gson.fromJson(data, com.google.gson.JsonObject::class.java)
 
+            // --- Check if conference is still running ---
+            val isRunning = json.get("is_running")?.asBoolean
+            if (isRunning == false) {
+                Log.i(TAG, "Conference has ended (is_running=false), navigating back")
+                _navigateBack.postValue(true)
+                return
+            }
+
             // --- Participants ---
-            val participantsObj = json.getAsJsonObject("participants") ?: return
+            val participantsObj = json.getAsJsonObject("participants")
+            if (participantsObj == null || participantsObj.entrySet().isEmpty()) {
+                Log.i(TAG, "Conference has ended (empty participants), navigating back")
+                _navigateBack.postValue(true)
+                return
+            }
             val students = mutableListOf<StudentCallStatus>()
             var teacherStatus: StudentCallStatus? = null
 
