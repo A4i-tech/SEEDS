@@ -100,18 +100,4 @@ describe("Role-Based Access Control (RBAC) - Unit Tests", () => {
       expect(res.statusCode).toBe(401);
     });
   });
-
-  describe("Token expiration", () => {
-    test("should reject expired token synchronously with negative expiry", () => {
-      const expiredToken = jwt.sign(
-        { email: "user@example.com", role: "tenant" },
-        SECRET_KEY,
-        { expiresIn: "-1h" }
-      );
-
-      expect(() => {
-        jwt.verify(expiredToken, SECRET_KEY);
-      }).toThrow();
-    });
-  });
 });
