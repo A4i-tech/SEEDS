@@ -5,7 +5,7 @@ import "../shared/buttons.css";
 import "../shared/tables.css";
 import "../shared/utilities.css";
 
-const TeachersList = ({ teachers, onUpdateTeacher, onDeleteTeacher, onTransferTeacher }) => {
+const TeachersList = ({ teachers, schools = [], onUpdateTeacher, onDeleteTeacher, onTransferTeacher }) => {
   const [editingTeacher, setEditingTeacher] = useState(null);
   const [editName, setEditName] = useState("");
   const [editPhone, setEditPhone] = useState("");
@@ -111,15 +111,18 @@ const TeachersList = ({ teachers, onUpdateTeacher, onDeleteTeacher, onTransferTe
           <p style={{ margin: "0 0 12px", fontSize: "14px", color: "#475569" }}>
             Transfer <strong>{transferringTeacher.name || transferringTeacher.phoneNumber}</strong> to another school.
           </p>
-          <label className="label" htmlFor="transfer-school-id">Target School ID</label>
-          <input
+          <label className="label" htmlFor="transfer-school-id">Target School</label>
+          <select
             id="transfer-school-id"
-            type="text"
             value={targetSchoolId}
-            onChange={(e) => setTargetSchoolId(e.target.value.trim())}
+            onChange={(e) => setTargetSchoolId(e.target.value)}
             className="input-field"
-            placeholder="Enter target school ID"
-          />
+          >
+            <option value="">Select a school</option>
+            {schools.map((s) => (
+              <option key={s._id} value={s._id}>{s.name}</option>
+            ))}
+          </select>
           <div className="modal-actions">
             <button type="button" className="primary-button" onClick={saveTransfer}>Transfer</button>
             <button type="button" className="action-ghost-button" onClick={closeTransfer}>Cancel</button>

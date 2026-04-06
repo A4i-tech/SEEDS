@@ -8,20 +8,25 @@ import { normalizePhoneNumber } from "../utils/phoneUtils";
  * network-layer timeout (5 seconds) configured in axiosInstance.js
  */
 
-export const createConference = async (teacherPhone, studentPhones) => {
+export const createConference = async (teacherPhone, studentPhones, leaderPhone = null, teacherName = null, studentNames = null) => {
   // Normalize phone numbers to ensure consistent format (91XXXXXXXXXX)
   const normalizedTeacherPhone = normalizePhoneNumber(teacherPhone);
   const normalizedStudentPhones = studentPhones.map((phone) => normalizePhoneNumber(phone));
+  const normalizedLeaderPhone = leaderPhone ? normalizePhoneNumber(leaderPhone) : null;
 
   const requestBody = {
     teacher_phone: normalizedTeacherPhone,
+    teacher_name: teacherName,
     student_phones: normalizedStudentPhones,
+    student_names: studentNames,
+    ...(normalizedLeaderPhone && { leader_phone: normalizedLeaderPhone }),
   };
 
   console.log("Creating conference with request:", {
     teacher_phone: normalizedTeacherPhone,
     student_phones: normalizedStudentPhones,
     student_count: normalizedStudentPhones.length,
+    leader_phone: normalizedLeaderPhone,
   });
 
   try {
@@ -154,15 +159,7 @@ export const seekAudioAbsolute = async (confId, positionSeconds) => {
   const url = `${API_ENDPOINTS.CONFERENCE.SEEK_AUDIO(
     confId
   )}?position_seconds=${encodeURIComponent(positionSeconds)}`;
-  const response = await fetch(url, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to seek audio: ${response.status} ${response.statusText}`);
-  }
+  const response = await axiosInstance.put(url);
   return response;
 };
 
@@ -170,34 +167,26 @@ export const setPlaybackSpeed = async (confId, speed) => {
   const url = `${API_ENDPOINTS.CONFERENCE.SET_PLAYBACK_SPEED(
     confId
   )}?speed=${encodeURIComponent(speed)}`;
-  const response = await fetch(url, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to set playback speed: ${response.status} ${response.statusText}`);
-  }
+  const response = await axiosInstance.put(url);
   return response;
 };
 
-export const addParticipant = async (confId, phone_number) => {
+export const addParticipant = async (confId, phone_number, name = null) => {
   // Normalize phone number to ensure consistent format (91XXXXXXXXXX)
   const normalizedPhone = normalizePhoneNumber(phone_number);
   const response = await axiosInstance.put(
-    API_ENDPOINTS.CONFERENCE.ADD_PARTICIPANT(confId, normalizedPhone)
+    API_ENDPOINTS.CONFERENCE.ADD_PARTICIPANT(confId, normalizedPhone, name)
   );
   return response;
 };
 
-export const removeParticipant = async (confId, phone_number) => {
+export const removeParticipant = async (confId, phone_number, name = null) => {
   // Normalize phone number to ensure consistent format (91XXXXXXXXXX)
   const normalizedPhone = normalizePhoneNumber(phone_number);
 
   try {
     const response = await axiosInstance.put(
-      API_ENDPOINTS.CONFERENCE.REMOVE_PARTICIPANT(confId, normalizedPhone)
+      API_ENDPOINTS.CONFERENCE.REMOVE_PARTICIPANT(confId, normalizedPhone, name)
     );
     return response.data;
   } catch (error) {

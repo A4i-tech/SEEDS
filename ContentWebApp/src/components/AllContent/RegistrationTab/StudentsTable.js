@@ -2,7 +2,7 @@ import React from "react";
 import "../shared/buttons.css";
 import "../shared/tables.css";
 
-const StudentsTable = ({ students, onEditStudent, onRemoveStudent }) => {
+const StudentsTable = ({ students = [], onEditStudent, onRemoveStudent }) => {
   return (
     <div className="table-scroll">
       <table className="students-table">

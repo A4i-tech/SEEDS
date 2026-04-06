@@ -66,6 +66,8 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
       const { detail } = event;
       if (detail.type === "participant_dropped") {
         showToast.info(`${detail.participantPhone} has left the call`);
+      } else if (detail.type === "conference_hold_detected") {
+        showToast.warning("Hold detected on conference audio");
       }
     };
 

@@ -42,10 +42,28 @@ const AllContent = () => {
     multiselectRef,
   } = useContentFilters(allContent, setContent, setIsFiltered);
 
-  const { teachers, students, message, registerTeacher, addStudent, updateStudent, deleteStudent, updateTeacher, deleteTeacher, transferTeacher } =
-    useTeachers(activeTab);
+  const {
+    teachers,
+    students,
+    message,
+    messageType,
+    registerTeacher,
+    addStudent,
+    updateStudentById,
+    deleteStudentById,
+    updateTeacher,
+    deleteTeacher,
+    transferTeacher,
+  } = useTeachers(activeTab);
 
-  const { schools, message: schoolMessage, createSchool, updateSchool, deleteSchool } = useSchools(activeTab);
+  const {
+    schools,
+    message: schoolMessage,
+    messageType: schoolMessageType,
+    createSchool,
+    updateSchool,
+    deleteSchool,
+  } = useSchools(activeTab);
 
   const ivrURL = process.env.REACT_APP_API_IVRV2_URL;
 
@@ -166,17 +184,19 @@ const AllContent = () => {
             students={students}
             onRegisterTeacher={registerTeacher}
             onAddStudent={addStudent}
-            onUpdateStudent={updateStudent}
-            onDeleteStudent={deleteStudent}
+            onUpdateStudent={updateStudentById}
+            onDeleteStudent={deleteStudentById}
             onUpdateTeacher={updateTeacher}
             onDeleteTeacher={deleteTeacher}
             onTransferTeacher={transferTeacher}
             message={message}
+            messageType={messageType}
             schools={schools}
             onCreateSchool={createSchool}
             onUpdateSchool={updateSchool}
             onDeleteSchool={deleteSchool}
             schoolMessage={schoolMessage}
+            schoolMessageType={schoolMessageType}
           />
         )}
       </div>

@@ -10,27 +10,6 @@ import "../shared/cards.css";
 import "../shared/tables.css";
 import "../shared/utilities.css";
 
-const tabsStyle = {
-  display: "grid",
-  gridTemplateColumns: "1fr 1fr",
-  borderRadius: "999px",
-  backgroundColor: "#f1f5f9",
-  padding: "4px",
-  gap: "4px",
-};
-
-const tabButtonStyle = (active) => ({
-  border: "none",
-  borderRadius: "999px",
-  padding: "10px 0",
-  fontSize: "14px",
-  fontWeight: 600,
-  cursor: active ? "default" : "pointer",
-  backgroundColor: active ? "#0f172a" : "transparent",
-  color: active ? "#fff" : "#475569",
-  transition: "background-color 0.2s ease",
-});
-
 const RegistrationTab = ({
   teachers,
   students,
@@ -42,11 +21,13 @@ const RegistrationTab = ({
   onDeleteTeacher,
   onTransferTeacher,
   message,
+  messageType,
   schools,
   onCreateSchool,
   onUpdateSchool,
   onDeleteSchool,
   schoolMessage,
+  schoolMessageType,
 }) => {
   const [activeSection, setActiveSection] = useState("teachers");
 
@@ -58,6 +39,7 @@ const RegistrationTab = ({
         onUpdateSchool={onUpdateSchool}
         onDeleteSchool={onDeleteSchool}
         message={schoolMessage}
+        messageType={schoolMessageType}
       />
     );
   }
@@ -69,17 +51,17 @@ const RegistrationTab = ({
         <div className="card-description">Manage teachers and students for your school.</div>
       </div>
 
-      <div style={tabsStyle}>
+      <div className="pill-tabs">
         <button
           type="button"
-          style={tabButtonStyle(activeSection === "teachers")}
+          className={`pill-tab ${activeSection === "teachers" ? "pill-tab--active" : ""}`}
           onClick={() => setActiveSection("teachers")}
         >
           Teachers
         </button>
         <button
           type="button"
-          style={tabButtonStyle(activeSection === "students")}
+          className={`pill-tab ${activeSection === "students" ? "pill-tab--active" : ""}`}
           onClick={() => setActiveSection("students")}
         >
           Students
@@ -88,11 +70,16 @@ const RegistrationTab = ({
 
       {activeSection === "teachers" && (
         <>
-          <TeacherRegistrationForm onRegister={onRegisterTeacher} message={message} />
+          <TeacherRegistrationForm
+            onRegister={onRegisterTeacher}
+            message={message}
+            messageType={messageType}
+          />
           <div className="teachers-section">
             <h3 className="teachers-section-title">Teachers</h3>
             <TeachersList
               teachers={teachers}
+              schools={schools}
               onUpdateTeacher={onUpdateTeacher}
               onDeleteTeacher={onDeleteTeacher}
               onTransferTeacher={onTransferTeacher}

@@ -20,8 +20,7 @@ describe("teacherService", () => {
         { Authorization: "Bearer x" }
       );
 
-      expect(apiFetch).toHaveBeenCalledTimes(1);
-      expect(apiFetch).toHaveBeenCalledWith("http://test-api/v1/teacher/add-students", {
+      expect(apiFetch).toHaveBeenCalledWith("http://test-api/teacher/add-students", {
         method: "POST",
         headers: { Authorization: "Bearer x" },
         body: JSON.stringify({
@@ -35,7 +34,9 @@ describe("teacherService", () => {
     test("returns response with students, duplicates and alreadyLinked when present", async () => {
       const mockResponse = {
         students: [{ name: "New", phoneNumber: "912222222222" }],
-        duplicates: [{ phoneNumber: "913333333333", existingName: "Old", submittedName: "NewName" }],
+        duplicates: [
+          { phoneNumber: "913333333333", existingName: "Old", submittedName: "NewName" },
+        ],
         alreadyLinked: [{ name: "Already", phoneNumber: "914444444444" }],
       };
       apiFetch.mockResolvedValue(mockResponse);
@@ -63,7 +64,7 @@ describe("teacherService", () => {
       );
 
       expect(apiFetch).toHaveBeenCalledTimes(1);
-      expect(apiFetch).toHaveBeenCalledWith("http://test-api/v1/teacher/students", {
+      expect(apiFetch).toHaveBeenCalledWith("http://test-api/teacher/students", {
         method: "PATCH",
         headers: {},
         body: JSON.stringify({

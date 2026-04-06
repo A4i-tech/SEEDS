@@ -40,6 +40,8 @@ export const ParticipantCard = ({
         return "#4caf50"; // Green
       case "disconnected":
         return "#f44336"; // Red
+      case "on_hold":
+        return "#ff9800"; // Orange
       default:
         return "#9e9e9e"; // Grey
     }

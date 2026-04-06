@@ -8,7 +8,14 @@ import "../shared/cards.css";
 import "../shared/tables.css";
 import "../shared/utilities.css";
 
-const SchoolsPanel = ({ schools, onCreateSchool, onUpdateSchool, onDeleteSchool, message }) => {
+const SchoolsPanel = ({
+  schools,
+  onCreateSchool,
+  onUpdateSchool,
+  onDeleteSchool,
+  message,
+  messageType = "success",
+}) => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -55,7 +62,9 @@ const SchoolsPanel = ({ schools, onCreateSchool, onUpdateSchool, onDeleteSchool,
 
       <div className="registration-card">
         <h3 className="registration-title">Create School</h3>
-        <label className="label" htmlFor="school-name">Name</label>
+        <label className="label" htmlFor="school-name">
+          Name
+        </label>
         <input
           id="school-name"
           type="text"
@@ -64,7 +73,9 @@ const SchoolsPanel = ({ schools, onCreateSchool, onUpdateSchool, onDeleteSchool,
           onChange={(e) => setName(e.target.value)}
           className="input-field"
         />
-        <label className="label" htmlFor="school-email">Email</label>
+        <label className="label" htmlFor="school-email">
+          Email
+        </label>
         <input
           id="school-email"
           type="email"
@@ -82,7 +93,9 @@ const SchoolsPanel = ({ schools, onCreateSchool, onUpdateSchool, onDeleteSchool,
         <button type="button" className="primary-button full-width-button" onClick={handleSubmit}>
           Create School
         </button>
-        {message && <p className="success-message">{message}</p>}
+        {message && (
+          <p className={messageType === "error" ? "error-message" : "success-message"}>{message}</p>
+        )}
       </div>
 
       <div className="teachers-section">
@@ -105,8 +118,20 @@ const SchoolsPanel = ({ schools, onCreateSchool, onUpdateSchool, onDeleteSchool,
                     <td>{school.name}</td>
                     <td>{school.email}</td>
                     <td>
-                      <button type="button" className="action-ghost-button" onClick={() => openEdit(school)}>Edit</button>
-                      <button type="button" className="action-ghost-button" onClick={() => onDeleteSchool(school._id)}>Delete</button>
+                      <button
+                        type="button"
+                        className="action-ghost-button"
+                        onClick={() => openEdit(school)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="action-ghost-button"
+                        onClick={() => onDeleteSchool(school._id)}
+                      >
+                        Delete
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -118,7 +143,9 @@ const SchoolsPanel = ({ schools, onCreateSchool, onUpdateSchool, onDeleteSchool,
 
       {editingSchool && (
         <Modal title="Edit School" onClose={closeEdit}>
-          <label className="label" htmlFor="edit-school-name">Name</label>
+          <label className="label" htmlFor="edit-school-name">
+            Name
+          </label>
           <input
             id="edit-school-name"
             type="text"
@@ -126,7 +153,9 @@ const SchoolsPanel = ({ schools, onCreateSchool, onUpdateSchool, onDeleteSchool,
             onChange={(e) => setEditName(e.target.value)}
             className="input-field"
           />
-          <label className="label" htmlFor="edit-school-email">Email</label>
+          <label className="label" htmlFor="edit-school-email">
+            Email
+          </label>
           <input
             id="edit-school-email"
             type="email"
@@ -141,8 +170,12 @@ const SchoolsPanel = ({ schools, onCreateSchool, onUpdateSchool, onDeleteSchool,
             onChange={(e) => setEditPassword(e.target.value)}
           />
           <div className="modal-actions">
-            <button type="button" className="primary-button" onClick={saveEdit}>Save</button>
-            <button type="button" className="action-ghost-button" onClick={closeEdit}>Cancel</button>
+            <button type="button" className="primary-button" onClick={saveEdit}>
+              Save
+            </button>
+            <button type="button" className="action-ghost-button" onClick={closeEdit}>
+              Cancel
+            </button>
           </div>
         </Modal>
       )}
