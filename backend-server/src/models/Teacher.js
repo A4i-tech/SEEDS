@@ -4,7 +4,7 @@ const mongoose = require("mongoose");
 const TeacherSchema = new mongoose.Schema({
   schoolId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true, ref: "School" },
   name: { type: String, required: true },
-  phoneNumber: { type: String, required: true },
+  phoneNumber: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   role: { type: String, enum: ["content_creator", "teacher"], default: "teacher" },
 }, { timestamps: true });
