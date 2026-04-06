@@ -8,6 +8,7 @@ import {
   DialogContentText,
   DialogActions,
   Button,
+  Alert,
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { useConference } from "./context/ConferenceContext";
@@ -38,6 +39,7 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
   const {
     confId,
     isConfCallRunning,
+    conferenceHoldDetected,
     audioContentState,
     getTeacher,
     getStudents,
@@ -66,6 +68,8 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
       const { detail } = event;
       if (detail.type === "participant_dropped") {
         showToast.info(`${detail.participantPhone} has left the call`);
+      } else if (detail.type === "conference_hold_detected") {
+        showToast.warning("Hold detected on conference audio");
       }
     };
 
@@ -117,12 +121,12 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
     setIsLoadingCall(true);
     try {
       await endConferenceCall(confId);
-      
+
       // Track conference session in history
       if (classroomId && classroomName) {
         const allParticipants = getAllParticipants();
         const studentCount = allParticipants.filter((p) => p?.role === "Student").length;
-        
+
         addSessionToHistory({
           groupId: classroomId,
           groupName: classroomName,
@@ -130,7 +134,7 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
           wasConference: true,
         });
       }
-      
+
       showToast.success("Call ended");
     } catch (error) {
       console.error("Error ending the call:", error);
@@ -144,12 +148,12 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
     setIsSinkingConf(true);
     try {
       await sinkConferenceCall(confId);
-      
+
       // Track conference session in history
       if (classroomId && classroomName) {
         const allParticipants = getAllParticipants();
         const studentCount = allParticipants.filter((p) => p?.role === "Student").length;
-        
+
         addSessionToHistory({
           groupId: classroomId,
           groupName: classroomName,
@@ -157,7 +161,7 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
           wasConference: true,
         });
       }
-      
+
       showToast.success("Conference sunk successfully");
       setHasSunkConf(true);
     } catch (error) {
@@ -386,6 +390,11 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
         }}
       >
         {/* Participant List */}
+        {conferenceHoldDetected && (
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            Hold detected on conference audio
+          </Alert>
+        )}
         <ParticipantList
           teacher={teacher}
           students={activeStudents}

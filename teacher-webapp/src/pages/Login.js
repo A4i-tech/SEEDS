@@ -11,12 +11,13 @@ import {
   InputAdornment,
 } from "@mui/material";
 import { Phone as PhoneIcon, Lock as LockIcon } from "@mui/icons-material";
-import axios from "axios";
+import axiosInstance from "../services/axiosInstance";
 import { API_ENDPOINTS } from "../constants/apiEndpoints";
 import { STATUS_CODES } from "../constants/statusCodes";
 import { useNavigation } from "../hooks/useNavigation";
 import { showToast } from "../utils/toast";
 import { isLocalStorageAvailable } from "../utils/authHelpers";
+import { isValidPhoneNumber } from "../utils/phoneUtils";
 
 function Login() {
   const navigate = useNavigation();
@@ -40,10 +41,15 @@ function Login() {
       return;
     }
 
+    if (!isValidPhoneNumber(phoneNumber)) {
+      setShowError("Phone number must be exactly 10 digits.");
+      return;
+    }
+
     setIsSubmitting(true);
     setShowError(null);
     try {
-      const response = await axios.post(`${API_ENDPOINTS.LOGIN}`, {
+      const response = await axiosInstance.post(API_ENDPOINTS.LOGIN, {
         phoneNumber,
         password,
       });

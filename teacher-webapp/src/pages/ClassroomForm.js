@@ -52,14 +52,7 @@ const ClassroomForm = () => {
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
 
-  useEffect(() => {
-    fetchStudents();
-    if (isEditMode) {
-      fetchClassroom();
-    }
-  }, [classroomId]);
-
-  const fetchStudents = async () => {
+  const fetchStudents = useCallback(async () => {
     try {
       setIsLoadingStudents(true);
       const data = await getSchoolStudents();
@@ -70,9 +63,9 @@ const ClassroomForm = () => {
     } finally {
       setIsLoadingStudents(false);
     }
-  };
+  }, []);
 
-  const fetchClassroom = async () => {
+  const fetchClassroom = useCallback(async () => {
     try {
       setLoading(true);
       setErrorMsg("");
@@ -90,7 +83,14 @@ const ClassroomForm = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [classroomId]);
+
+  useEffect(() => {
+    fetchStudents();
+    if (isEditMode) {
+      fetchClassroom();
+    }
+  }, [classroomId, isEditMode, fetchStudents, fetchClassroom]);
 
   const validateForm = () => {
     const errors = {};
