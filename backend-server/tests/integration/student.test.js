@@ -1,37 +1,59 @@
 const request = require("supertest");
 const mongoose = require("mongoose");
 const jwt = require("jsonwebtoken");
+const { setup, teardown, clearDatabase } = require("./integrationSetup");
 
 const app = require("../../src/index");
 
+const SECRET_KEY = process.env.SECRET_KEY;
+
 describe("Student Management - Integration Tests", () => {
-  const SECRET_KEY = "test-secret-key-for-testing-purposes-123";
+  beforeAll(setup);
+  afterAll(teardown);
+  beforeEach(clearDatabase);
 
-  test("Student endpoints are accessible", async () => {
-    expect(app).toBeDefined();
-  });
-
-  test("POST /student requires school_admin role", async () => {
+  test("POST /student returns 401 without token", async () => {
     const res = await request(app)
       .post("/student")
-      .send({
-        name: "Student",
-        email: "student@example.com",
-        classId: new mongoose.Types.ObjectId(),
-      });
+      .send({ name: "Student", phoneNumber: "1234567890" });
 
-    expect([401, 403]).toContain(res.status);
+    expect(res.status).toBe(401);
   });
 
-  test("GET /student requires authentication", async () => {
+  test("POST /student returns 403 with teacher token (requires school_admin)", async () => {
     const token = jwt.sign(
-      { email: "admin@school.com", role: "school_admin", schoolId: new mongoose.Types.ObjectId() },
+      { email: "teacher@school.com", role: "teacher", schoolId: new mongoose.Types.ObjectId() },
       SECRET_KEY,
       { expiresIn: "1h" }
     );
 
-    const res = await request(app).get("/student").set("Authorization", `Bearer ${token}`);
+    const res = await request(app)
+      .post("/student")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "Student", phoneNumber: "1234567890" });
 
-    expect([200, 403, 500]).toContain(res.status);
+    expect(res.status).toBe(403);
+  });
+
+  test("POST /student returns 201 with school_admin token and valid data", async () => {
+    const schoolId = new mongoose.Types.ObjectId();
+    const token = jwt.sign(
+      { id: schoolId.toString(), email: "admin@school.com", role: "school_admin", schoolId: schoolId.toString(), iss: "school_admin" },
+      SECRET_KEY,
+      { expiresIn: "1h" }
+    );
+
+    const res = await request(app)
+      .post("/student")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "Test Student", phoneNumber: "1234567890" });
+
+    expect(res.status).toBe(201);
+    expect(res.body.name).toBe("Test Student");
+  });
+
+  test("GET /student returns 401 without token", async () => {
+    const res = await request(app).get("/student");
+    expect(res.status).toBe(401);
   });
 });

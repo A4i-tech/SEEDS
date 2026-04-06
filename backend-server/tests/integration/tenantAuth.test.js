@@ -5,52 +5,56 @@ const bcryptjs = require("bcryptjs");
 const { setup, teardown, clearDatabase } = require("./integrationSetup");
 
 const app = require("../../src/index");
+const Tenant = require("../../src/models/Tenant");
+
+const SECRET_KEY = process.env.SECRET_KEY;
 
 describe("Tenant Authentication - Integration Tests", () => {
-  const SECRET_KEY = "test-secret-key-for-testing-purposes-123";
   const TEST_TENANT = {
     email: "tenant@example.com",
     tenantName: "Test Tenant",
     password: "SecurePassword123!",
   };
 
-  beforeAll(async () => {
-    await setup();
-  });
+  beforeAll(setup);
+  afterAll(teardown);
+  beforeEach(clearDatabase);
 
-  afterAll(async () => {
-    await teardown();
-  });
-
-  beforeEach(async () => {
-    await clearDatabase();
-  });
-
-  // TC1.1.1 - Tenant login placeholder
-  test("Tenant authentication endpoints are accessible", async () => {
-    // This is a placeholder test to verify endpoints exist
-    expect(app).toBeDefined();
-  });
-
-  // TC1.1.4 - Valid bearer token
-  test("GET /tenant/me should require authentication", async () => {
+  test("GET /tenant/me returns 401 without token", async () => {
     const res = await request(app).get("/tenant/me");
-
-    // Without token, should get 401
-    expect([401, 403]).toContain(res.status);
+    expect(res.status).toBe(401);
   });
 
-  // TC1.1.5/6 - Token validation
-  test("GET /tenant/me with token should decode JWT", async () => {
+  test("GET /tenant/me returns 404 when tenant does not exist in DB", async () => {
     const token = jwt.sign(
-      { email: TEST_TENANT.email, role: "tenant", id: new mongoose.Types.ObjectId() },
+      { email: TEST_TENANT.email, role: "tenant", id: new mongoose.Types.ObjectId(), iss: "tenant" },
       SECRET_KEY,
       { expiresIn: "1h" }
     );
 
     const res = await request(app).get("/tenant/me").set("Authorization", `Bearer ${token}`);
 
-    // Should get either 200 (success) or error due to missing user in DB
-    expect([200, 403, 500]).toContain(res.status);
+    expect(res.status).toBe(404);
+  });
+
+  test("GET /tenant/me returns 200 when tenant exists", async () => {
+    const hashedPassword = await bcryptjs.hash(TEST_TENANT.password, 10);
+    const tenant = await Tenant.create({
+      email: TEST_TENANT.email,
+      password: hashedPassword,
+      tenantName: TEST_TENANT.tenantName,
+    });
+
+    const token = jwt.sign(
+      { email: TEST_TENANT.email, role: "tenant", id: tenant._id.toString(), iss: "tenant" },
+      SECRET_KEY,
+      { expiresIn: "1h" }
+    );
+
+    const res = await request(app).get("/tenant/me").set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.email).toBe(TEST_TENANT.email);
+    expect(res.body.tenantName).toBe(TEST_TENANT.tenantName);
   });
 });

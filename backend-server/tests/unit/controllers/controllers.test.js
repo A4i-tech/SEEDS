@@ -1,385 +1,382 @@
 const mongoose = require("mongoose");
-const { setup, teardown, clearDatabase } = require("../../integration/integrationSetup");
-const jwt = require("jsonwebtoken");
+
+function getMockReq({ body = {}, params = {}, user = null, headers = {} } = {}) {
+  return { body, params, headers, user, userId: user?.id, role: user?.role, schoolId: user?.schoolId, tenantId: user?.tenantId };
+}
+
+function getMockRes() {
+  const res = {};
+  res.statusCode = null;
+  res.body = null;
+  res.status = function (code) {
+    this.statusCode = code;
+    return this;
+  };
+  res.json = function (obj) {
+    this.body = obj;
+    return this;
+  };
+  res.send = function (data) {
+    this.body = data;
+    return this;
+  };
+  return res;
+}
+
+// --- School Controller ---
+
+jest.mock("../../../src/services/school.service");
+const schoolService = require("../../../src/services/school.service");
+const schoolController = require("../../../src/controllers/school.controller");
 
 describe("School Controller - Unit Tests", () => {
-  beforeAll(async () => {
-    await setup();
-  });
+  afterEach(() => jest.restoreAllMocks());
 
-  afterAll(async () => {
-    await teardown();
-  });
-
-  beforeEach(async () => {
-    await clearDatabase();
-  });
-
-  function getMockReq(data = {}, token = null) {
-    return {
-      body: data,
-      params: {},
-      headers: token ? { authorization: `Bearer ${token}` } : {},
-      user: token ? jwt.decode(token) : null,
-      ...data,
-    };
-  }
-
-  function getMockRes() {
-    const res = {};
-    res.statusCode = null;
-    res.body = null;
-    res.status = function (code) {
-      this.statusCode = code;
-      return this;
-    };
-    res.json = function (obj) {
-      this.body = obj;
-      return this;
-    };
-    res.send = function (data) {
-      this.body = data;
-      return this;
-    };
-    return res;
-  }
-
-  // TC9.1.1 - Create school (POST /school) - validation and response
-  test("should validate request and return created school", (done) => {
-    const schoolData = {
-      name: "New School",
-      email: "newschool@example.com",
-      password: "ValidPass123",
-    };
-
-    const req = getMockReq(schoolData);
+  test("createSchool returns 400 when name is missing", async () => {
+    const req = getMockReq({ body: { email: "s@example.com", password: "Valid1!" }, user: { id: "t1" } });
     const res = getMockRes();
 
-    // In real implementation, controller would call service
-    expect(schoolData).toHaveProperty("name");
-    expect(schoolData).toHaveProperty("email");
-    expect(schoolData).toHaveProperty("password");
+    await schoolController.createSchool(req, res);
 
-    done();
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toMatch(/required/i);
   });
 
-  // TC9.1.2 - Get school dashboard (GET /school/dashboard)
-  test("should return school dashboard from service", (done) => {
-    const req = getMockReq();
-    req.user = { schoolId: new mongoose.Types.ObjectId().toString(), role: "school_admin" };
+  test("createSchool returns 400 for invalid email", async () => {
+    const req = getMockReq({ body: { name: "School", email: "not-an-email", password: "ValidPass1!" }, user: { id: "t1" } });
     const res = getMockRes();
 
-    // In real implementation, controller would call service with schoolId
-    expect(req.user).toHaveProperty("schoolId");
-    expect(req.user.role).toBe("school_admin");
+    await schoolController.createSchool(req, res);
 
-    done();
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toMatch(/email/i);
   });
 
-  // TC9.1.3 - Transfer teacher (POST /school/transfer)
-  test("should validate teacher transfer request", (done) => {
-    const transferData = {
-      teacherId: new mongoose.Types.ObjectId().toString(),
-      targetSchoolId: new mongoose.Types.ObjectId().toString(),
-    };
-
-    const req = getMockReq(transferData);
+  test("createSchool returns 400 for weak password", async () => {
+    const req = getMockReq({ body: { name: "School", email: "s@example.com", password: "weak" }, user: { id: "t1" } });
     const res = getMockRes();
 
-    expect(transferData).toHaveProperty("teacherId");
-    expect(transferData).toHaveProperty("targetSchoolId");
+    await schoolController.createSchool(req, res);
 
-    done();
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toMatch(/password/i);
+  });
+
+  test("createSchool returns 201 with valid input", async () => {
+    const school = { _id: "s1", name: "School", email: "s@example.com" };
+    schoolService.createSchool.mockResolvedValue(school);
+
+    const req = getMockReq({ body: { name: "School", email: "s@example.com", password: "ValidPass1!" }, user: { id: "t1" } });
+    const res = getMockRes();
+
+    await schoolController.createSchool(req, res);
+
+    expect(res.statusCode).toBe(201);
+    expect(res.body).toEqual(school);
+    expect(schoolService.createSchool).toHaveBeenCalledWith("School", "s@example.com", "t1", "ValidPass1!");
+  });
+
+  test("getSchools returns 200 with list of schools", async () => {
+    const schools = [{ name: "A" }, { name: "B" }];
+    schoolService.getSchools.mockResolvedValue(schools);
+
+    const req = getMockReq({ user: { id: "t1" } });
+    const res = getMockRes();
+
+    await schoolController.getSchools(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual(schools);
+  });
+
+  test("getSchoolAnalytics returns 400 when dates are missing", async () => {
+    const req = getMockReq({ body: {}, user: { schoolId: "s1" } });
+    req.schoolId = "s1";
+    const res = getMockRes();
+
+    await schoolController.getSchoolAnalytics(req, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toMatch(/required/i);
+  });
+
+  test("getSchoolAnalytics returns 400 for invalid date format", async () => {
+    const req = getMockReq({ body: { startDate: "not-a-date", endDate: "also-bad" }, user: { schoolId: "s1" } });
+    req.schoolId = "s1";
+    const res = getMockRes();
+
+    await schoolController.getSchoolAnalytics(req, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toMatch(/invalid date/i);
+  });
+
+  test("getSchoolAnalytics returns 200 with valid dates", async () => {
+    schoolService.getSchoolAnalytics.mockResolvedValue([]);
+
+    const req = getMockReq({ body: { startDate: "2025-01-01T00:00:00Z", endDate: "2025-12-31T23:59:59Z" }, user: { schoolId: "s1" } });
+    req.schoolId = "s1";
+    const res = getMockRes();
+
+    await schoolController.getSchoolAnalytics(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.count).toBe(0);
   });
 });
 
-describe("Teacher Controller - Unit Tests", () => {
-  beforeAll(async () => {
-    await setup();
-  });
+// --- Student Controller ---
 
-  afterAll(async () => {
-    await teardown();
-  });
-
-  beforeEach(async () => {
-    await clearDatabase();
-  });
-
-  function getMockReq(data = {}, token = null) {
-    return {
-      body: data,
-      params: {},
-      headers: token ? { authorization: `Bearer ${token}` } : {},
-      user: token ? jwt.decode(token) : null,
-      ...data,
-    };
-  }
-
-  function getMockRes() {
-    const res = {};
-    res.statusCode = null;
-    res.body = null;
-    res.status = function (code) {
-      this.statusCode = code;
-      return this;
-    };
-    res.json = function (obj) {
-      this.body = obj;
-      return this;
-    };
-    return res;
-  }
-
-  // TC9.3.1 - Register teacher (POST /teacher/register) - role validation
-  test("should enforce school_admin role for registration", (done) => {
-    const teacherData = {
-      name: "John Teacher",
-      email: "teacher@school.com",
-      phoneNumber: "1234567890",
-    };
-
-    const token = jwt.sign(
-      { role: "school_admin", schoolId: new mongoose.Types.ObjectId().toString() },
-      process.env.SECRET_KEY,
-      { expiresIn: "1h" }
-    );
-
-    const req = getMockReq(teacherData, token);
-    const res = getMockRes();
-
-    expect(req.user).toBeDefined();
-    expect(req.user.role).toBe("school_admin");
-
-    done();
-  });
-
-  // TC9.3.2 - Get teacher profile (GET /teacher/me)
-  test("should return teacher profile from token", (done) => {
-    const token = jwt.sign(
-      { teacherId: new mongoose.Types.ObjectId().toString(), role: "teacher" },
-      process.env.SECRET_KEY,
-      { expiresIn: "1h" }
-    );
-
-    const req = getMockReq({}, token);
-    const res = getMockRes();
-
-    expect(req.user).toBeDefined();
-    expect(req.user.role).toBe("teacher");
-    expect(req.user.teacherId).toBeDefined();
-
-    done();
-  });
-
-  // TC9.3.3 - Logout teacher (POST /teacher/logout) - role validation
-  test("should verify teacher role for logout", (done) => {
-    const token = jwt.sign(
-      { teacherId: new mongoose.Types.ObjectId().toString(), role: "teacher" },
-      process.env.SECRET_KEY,
-      { expiresIn: "1h" }
-    );
-
-    const req = getMockReq({}, token);
-    const res = getMockRes();
-
-    expect(req.user.role).toBe("teacher");
-
-    done();
-  });
-});
+jest.mock("../../../src/services/student.service");
+const studentService = require("../../../src/services/student.service");
+const studentController = require("../../../src/controllers/student.controller");
 
 describe("Student Controller - Unit Tests", () => {
-  beforeAll(async () => {
-    await setup();
-  });
+  afterEach(() => jest.restoreAllMocks());
 
-  afterAll(async () => {
-    await teardown();
-  });
-
-  beforeEach(async () => {
-    await clearDatabase();
-  });
-
-  function getMockReq(data = {}, token = null) {
-    return {
-      body: data,
-      params: {},
-      headers: token ? { authorization: `Bearer ${token}` } : {},
-      user: token ? jwt.decode(token) : null,
-      ...data,
-    };
-  }
-
-  function getMockRes() {
-    const res = {};
-    res.statusCode = null;
-    res.body = null;
-    res.status = function (code) {
-      this.statusCode = code;
-      return this;
-    };
-    res.json = function (obj) {
-      this.body = obj;
-      return this;
-    };
-    return res;
-  }
-
-  // TC9.4.1 - Create student (POST /student) - role validation
-  test("should validate school_admin role for student creation", (done) => {
-    const studentData = {
-      name: "John Student",
-      email: "student@school.com",
-      classId: new mongoose.Types.ObjectId().toString(),
-    };
-
-    const token = jwt.sign(
-      { role: "school_admin", schoolId: new mongoose.Types.ObjectId().toString() },
-      process.env.SECRET_KEY,
-      { expiresIn: "1h" }
-    );
-
-    const req = getMockReq(studentData, token);
+  test("createStudent returns 400 when name is missing", async () => {
+    const req = getMockReq({ body: { phoneNumber: "1234567890" }, user: { schoolId: "s1" } });
+    req.schoolId = "s1";
     const res = getMockRes();
 
-    expect(req.user.role).toBe("school_admin");
+    await studentController.createStudent(req, res);
 
-    done();
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toMatch(/required/i);
   });
 
-  // TC9.4.2 - Get students (GET /student) - list operation
-  test("should return students list with proper authorization", (done) => {
-    const token = jwt.sign(
-      { role: "school_admin", schoolId: new mongoose.Types.ObjectId().toString() },
-      process.env.SECRET_KEY,
-      { expiresIn: "1h" }
-    );
-
-    const req = getMockReq({}, token);
+  test("createStudent returns 400 when phoneNumber is missing", async () => {
+    const req = getMockReq({ body: { name: "Student" }, user: { schoolId: "s1" } });
+    req.schoolId = "s1";
     const res = getMockRes();
 
-    expect(req.user).toBeDefined();
-    expect(req.user.role).toBe("school_admin");
+    await studentController.createStudent(req, res);
 
-    done();
+    expect(res.statusCode).toBe(400);
   });
 
-  // TC9.4.3 - Update student (PATCH /student/:studentId)
-  test("should validate update request with school_admin role", (done) => {
-    const updateData = { name: "Updated Name" };
+  test("createStudent returns 201 with valid input", async () => {
+    const student = { _id: "st1", name: "Student", phoneNumber: "1234567890" };
+    studentService.createStudent.mockResolvedValue(student);
 
-    const token = jwt.sign(
-      { role: "school_admin", schoolId: new mongoose.Types.ObjectId().toString() },
-      process.env.SECRET_KEY,
-      { expiresIn: "1h" }
-    );
-
-    const req = getMockReq(updateData, token);
-    req.params = { studentId: new mongoose.Types.ObjectId().toString() };
+    const req = getMockReq({ body: { name: "Student", phoneNumber: "1234567890" }, user: { schoolId: "s1" } });
+    req.schoolId = "s1";
     const res = getMockRes();
 
-    expect(req.user.role).toBe("school_admin");
-    expect(req.params.studentId).toBeDefined();
+    await studentController.createStudent(req, res);
 
-    done();
+    expect(res.statusCode).toBe(201);
+    expect(res.body).toEqual(student);
+    expect(studentService.createStudent).toHaveBeenCalledWith("Student", "1234567890", "s1");
   });
 
-  // TC9.4.4 - Delete student (DELETE /student/:studentId)
-  test("should validate delete request with school_admin role", (done) => {
-    const token = jwt.sign(
-      { role: "school_admin", schoolId: new mongoose.Types.ObjectId().toString() },
-      process.env.SECRET_KEY,
-      { expiresIn: "1h" }
-    );
+  test("createStudent returns 409 on duplicate phone number", async () => {
+    studentService.createStudent.mockRejectedValue({ code: 11000 });
 
-    const req = getMockReq({}, token);
-    req.params = { studentId: new mongoose.Types.ObjectId().toString() };
+    const req = getMockReq({ body: { name: "Student", phoneNumber: "1234567890" }, user: { schoolId: "s1" } });
+    req.schoolId = "s1";
     const res = getMockRes();
 
-    expect(req.user.role).toBe("school_admin");
-    expect(req.params.studentId).toBeDefined();
+    await studentController.createStudent(req, res);
 
-    done();
+    expect(res.statusCode).toBe(409);
+    expect(res.body.message).toMatch(/phone/i);
+  });
+
+  test("getStudents returns 200 with list", async () => {
+    studentService.getStudentsBySchoolId.mockResolvedValue([{ name: "A" }]);
+
+    const req = getMockReq({ user: { schoolId: "s1" } });
+    req.schoolId = "s1";
+    const res = getMockRes();
+
+    await studentController.getStudents(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toHaveLength(1);
+  });
+
+  test("updateStudent returns 400 when no fields provided", async () => {
+    const req = getMockReq({ body: {}, params: { studentId: "st1" }, user: { schoolId: "s1" } });
+    req.schoolId = "s1";
+    const res = getMockRes();
+
+    await studentController.updateStudent(req, res);
+
+    expect(res.statusCode).toBe(400);
+  });
+
+  test("deleteStudent returns 200 on success", async () => {
+    studentService.deleteStudent.mockResolvedValue();
+
+    const req = getMockReq({ params: { studentId: "st1" }, user: { schoolId: "s1" } });
+    req.schoolId = "s1";
+    const res = getMockRes();
+
+    await studentController.deleteStudent(req, res);
+
+    expect(res.statusCode).toBe(200);
+  });
+
+  test("deleteStudent returns 404 when student not found", async () => {
+    studentService.deleteStudent.mockRejectedValue({ status: 404, message: "Student not found" });
+
+    const req = getMockReq({ params: { studentId: "st1" }, user: { schoolId: "s1" } });
+    req.schoolId = "s1";
+    const res = getMockRes();
+
+    await studentController.deleteStudent(req, res);
+
+    expect(res.statusCode).toBe(404);
   });
 });
 
+// --- Teacher Controller ---
+
+jest.mock("../../../src/services/teacher.service");
+const teacherService = require("../../../src/services/teacher.service");
+const teacherController = require("../../../src/controllers/teacher.controller");
+
+describe("Teacher Controller - Unit Tests", () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  test("register returns 400 when required fields are missing", async () => {
+    const req = getMockReq({ body: { phoneNumber: "1234567890" }, user: { schoolId: "s1", tenantId: "t1" } });
+    req.schoolId = "s1";
+    req.tenantId = "t1";
+    const res = getMockRes();
+
+    await teacherController.register(req, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toMatch(/required/i);
+  });
+
+  test("register returns 400 for invalid phone number", async () => {
+    const req = getMockReq({
+      body: { phoneNumber: "abc", password: "ValidPass1!", name: "Teacher", role: "teacher" },
+      user: { schoolId: "s1", tenantId: "t1" },
+    });
+    req.schoolId = "s1";
+    req.tenantId = "t1";
+    const res = getMockRes();
+
+    await teacherController.register(req, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toMatch(/phone/i);
+  });
+
+  test("register returns 400 for weak password", async () => {
+    const req = getMockReq({
+      body: { phoneNumber: "1234567890", password: "weak", name: "Teacher", role: "teacher" },
+      user: { schoolId: "s1", tenantId: "t1" },
+    });
+    req.schoolId = "s1";
+    req.tenantId = "t1";
+    const res = getMockRes();
+
+    await teacherController.register(req, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toMatch(/password/i);
+  });
+
+  test("register returns 201 with valid input", async () => {
+    teacherService.registerTeacher.mockResolvedValue();
+
+    const req = getMockReq({
+      body: { phoneNumber: "1234567890", password: "ValidPass1!", name: "Teacher", role: "teacher" },
+      user: { schoolId: "s1", tenantId: "t1" },
+    });
+    req.schoolId = "s1";
+    req.tenantId = "t1";
+    const res = getMockRes();
+
+    await teacherController.register(req, res);
+
+    expect(res.statusCode).toBe(201);
+    expect(teacherService.registerTeacher).toHaveBeenCalled();
+  });
+
+  test("transferTeacher returns 400 when teacherId is missing", async () => {
+    const req = getMockReq({ body: { targetSchoolId: "s2" }, user: { schoolId: "s1", tenantId: "t1" } });
+    req.schoolId = "s1";
+    req.tenantId = "t1";
+    const res = getMockRes();
+
+    await teacherController.transferTeacher(req, res);
+
+    expect(res.statusCode).toBe(400);
+  });
+
+  test("update returns 400 when no fields provided", async () => {
+    const req = getMockReq({ body: {}, params: { teacherId: "t1" }, user: { schoolId: "s1" } });
+    req.schoolId = "s1";
+    const res = getMockRes();
+
+    await teacherController.update(req, res);
+
+    expect(res.statusCode).toBe(400);
+  });
+});
+
+// --- Tenant Controller ---
+
+jest.mock("../../../src/services/tenant.service");
+const tenantService = require("../../../src/services/tenant.service");
+const tenantController = require("../../../src/controllers/tenant.controller");
+
 describe("Tenant Controller - Unit Tests", () => {
-  beforeAll(async () => {
-    await setup();
-  });
+  afterEach(() => jest.restoreAllMocks());
 
-  afterAll(async () => {
-    await teardown();
-  });
+  test("getMe returns 200 with tenant data", async () => {
+    tenantService.getTenantById.mockResolvedValue({ email: "t@example.com", tenantName: "T1" });
 
-  beforeEach(async () => {
-    await clearDatabase();
-  });
-
-  function getMockReq(data = {}, token = null) {
-    return {
-      body: data,
-      params: {},
-      headers: token ? { authorization: `Bearer ${token}` } : {},
-      user: token ? jwt.decode(token) : null,
-      ...data,
-    };
-  }
-
-  function getMockRes() {
-    const res = {};
-    res.statusCode = null;
-    res.body = null;
-    res.status = function (code) {
-      this.statusCode = code;
-      return this;
-    };
-    res.json = function (obj) {
-      this.body = obj;
-      return this;
-    };
-    return res;
-  }
-
-  // TC9.5.1 - Tenant analytics (POST /tenant/analytics) - controller handling
-  test("should handle tenant analytics request with date range", (done) => {
-    const analyticsData = {
-      startDate: "2025-01-01T00:00:00Z",
-      endDate: "2026-12-31T23:59:59Z",
-    };
-
-    const token = jwt.sign(
-      { email: "tenant@example.com", role: "tenant", id: new mongoose.Types.ObjectId().toString() },
-      process.env.SECRET_KEY,
-      { expiresIn: "1h" }
-    );
-
-    const req = getMockReq(analyticsData, token);
+    const req = getMockReq({ user: { id: "t1" } });
+    req.userId = "t1";
     const res = getMockRes();
 
-    expect(req.user.role).toBe("tenant");
-    expect(req.body).toHaveProperty("startDate");
-    expect(req.body).toHaveProperty("endDate");
+    await tenantController.getMe(req, res);
 
-    done();
+    expect(res.statusCode).toBe(200);
+    expect(res.body.email).toBe("t@example.com");
+    expect(res.body.tenantName).toBe("T1");
   });
 
-  // TC9.5.2 - Tenant dashboard (GET /tenant/dashboard)
-  test("should return tenant dashboard from controller", (done) => {
-    const token = jwt.sign(
-      { email: "tenant@example.com", role: "tenant", id: new mongoose.Types.ObjectId().toString() },
-      process.env.SECRET_KEY,
-      { expiresIn: "1h" }
-    );
+  test("getMe returns 404 when tenant not found", async () => {
+    tenantService.getTenantById.mockResolvedValue(null);
 
-    const req = getMockReq({}, token);
+    const req = getMockReq({ user: { id: "t1" } });
+    req.userId = "t1";
     const res = getMockRes();
 
-    expect(req.user).toBeDefined();
-    expect(req.user.role).toBe("tenant");
+    await tenantController.getMe(req, res);
 
-    done();
+    expect(res.statusCode).toBe(404);
+  });
+
+  test("getAnalytics returns 400 when dates are missing", async () => {
+    const req = getMockReq({ body: {}, user: { id: "t1" } });
+    req.userId = "t1";
+    const res = getMockRes();
+
+    await tenantController.getAnalytics(req, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toMatch(/required/i);
+  });
+
+  test("getAnalytics returns 200 with valid dates", async () => {
+    tenantService.getTenantAnalytics.mockResolvedValue([]);
+
+    const req = getMockReq({ body: { startDate: "2025-01-01T00:00:00Z", endDate: "2025-12-31T23:59:59Z" }, user: { id: "t1" } });
+    req.userId = "t1";
+    const res = getMockRes();
+
+    await tenantController.getAnalytics(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.count).toBe(0);
   });
 });

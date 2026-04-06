@@ -1,30 +1,35 @@
 const request = require("supertest");
 const mongoose = require("mongoose");
 const jwt = require("jsonwebtoken");
+const { setup, teardown, clearDatabase } = require("./integrationSetup");
 
 const app = require("../../src/index");
 
+const SECRET_KEY = process.env.SECRET_KEY;
+
 describe("Teacher Authentication - Integration Tests", () => {
-  const SECRET_KEY = "test-secret-key-for-testing-purposes-123";
+  beforeAll(setup);
+  afterAll(teardown);
+  beforeEach(clearDatabase);
 
-  test("Teacher endpoints are accessible", async () => {
-    expect(app).toBeDefined();
-  });
-
-  test("GET /teacher/me requires authentication", async () => {
+  test("GET /teacher/me returns 401 without token", async () => {
     const res = await request(app).get("/teacher/me");
-    expect([401, 403]).toContain(res.status);
+    expect(res.status).toBe(401);
   });
 
-  test("POST /teacher/logout can be called with teacher token", async () => {
+  test("GET /teacher/me returns 403 with non-teacher token", async () => {
     const token = jwt.sign(
-      { email: "teacher@example.com", role: "teacher", schoolId: new mongoose.Types.ObjectId() },
+      { email: "tenant@example.com", role: "tenant", id: new mongoose.Types.ObjectId(), iss: "tenant" },
       SECRET_KEY,
       { expiresIn: "1h" }
     );
 
-    const res = await request(app).post("/teacher/logout").set("Authorization", `Bearer ${token}`);
+    const res = await request(app).get("/teacher/me").set("Authorization", `Bearer ${token}`);
+    expect(res.status).toBe(403);
+  });
 
-    expect([200, 403, 500]).toContain(res.status);
+  test("POST /teacher/logout returns 401 without token", async () => {
+    const res = await request(app).post("/teacher/logout");
+    expect(res.status).toBe(401);
   });
 });

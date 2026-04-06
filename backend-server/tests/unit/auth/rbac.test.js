@@ -1,86 +1,117 @@
 const jwt = require("jsonwebtoken");
+const { authorizeRole } = require("../../../src/auth/authenticateToken");
+
+const SECRET_KEY = process.env.SECRET_KEY;
+
+function getMockRes() {
+  const res = {};
+  res.statusCode = null;
+  res.body = null;
+  res.status = function (code) {
+    this.statusCode = code;
+    return this;
+  };
+  res.json = function (obj) {
+    this.body = obj;
+    return this;
+  };
+  return res;
+}
 
 describe("Role-Based Access Control (RBAC) - Unit Tests", () => {
-  const SECRET_KEY = process.env.SECRET_KEY || "test_secret_key_for_testing_only";
+  describe("authorizeRole middleware", () => {
+    test("should allow tenant role when tenant is permitted", () => {
+      const middleware = authorizeRole("tenant");
+      const req = { user: { role: "tenant" }, role: "tenant" };
+      const res = getMockRes();
+      let nextCalled = false;
 
-  describe("Role verification", () => {
-    test("should create token with tenant role", () => {
-      const token = jwt.sign({ email: "tenant@example.com", role: "tenant" }, SECRET_KEY, {
-        expiresIn: "1h",
-      });
-      const decoded = jwt.verify(token, SECRET_KEY);
+      middleware(req, res, () => { nextCalled = true; });
 
-      expect(decoded.role).toBe("tenant");
-      expect(decoded.email).toBe("tenant@example.com");
+      expect(nextCalled).toBe(true);
     });
 
-    test("should create token with school_admin role", () => {
-      const token = jwt.sign(
-        { email: "admin@school.com", role: "school_admin", schoolId: "school123" },
+    test("should allow school_admin role when school_admin is permitted", () => {
+      const middleware = authorizeRole("school_admin");
+      const req = { user: { role: "school_admin" }, role: "school_admin" };
+      const res = getMockRes();
+      let nextCalled = false;
+
+      middleware(req, res, () => { nextCalled = true; });
+
+      expect(nextCalled).toBe(true);
+    });
+
+    test("should allow teacher role when teacher is permitted", () => {
+      const middleware = authorizeRole("teacher");
+      const req = { user: { role: "teacher" }, role: "teacher" };
+      const res = getMockRes();
+      let nextCalled = false;
+
+      middleware(req, res, () => { nextCalled = true; });
+
+      expect(nextCalled).toBe(true);
+    });
+
+    test("should reject tenant when only school_admin is permitted", () => {
+      const middleware = authorizeRole("school_admin");
+      const req = { user: { role: "tenant" }, role: "tenant" };
+      const res = getMockRes();
+      let nextCalled = false;
+
+      middleware(req, res, () => { nextCalled = true; });
+
+      expect(nextCalled).toBe(false);
+      expect(res.statusCode).toBe(403);
+    });
+
+    test("should reject teacher when only tenant is permitted", () => {
+      const middleware = authorizeRole("tenant");
+      const req = { user: { role: "teacher" }, role: "teacher" };
+      const res = getMockRes();
+      let nextCalled = false;
+
+      middleware(req, res, () => { nextCalled = true; });
+
+      expect(nextCalled).toBe(false);
+      expect(res.statusCode).toBe(403);
+    });
+
+    test("should allow when role is one of multiple permitted roles", () => {
+      const middleware = authorizeRole("school_admin", "teacher");
+      const req = { user: { role: "teacher" }, role: "teacher" };
+      const res = getMockRes();
+      let nextCalled = false;
+
+      middleware(req, res, () => { nextCalled = true; });
+
+      expect(nextCalled).toBe(true);
+    });
+
+    test("should return 401 when req.user is missing", () => {
+      const middleware = authorizeRole("tenant");
+      const req = { role: "tenant" };
+      const res = getMockRes();
+      let nextCalled = false;
+
+      middleware(req, res, () => { nextCalled = true; });
+
+      expect(nextCalled).toBe(false);
+      expect(res.statusCode).toBe(401);
+    });
+  });
+
+  describe("Token expiration", () => {
+    test("should reject expired token synchronously with negative expiry", () => {
+      const expiredToken = jwt.sign(
+        { email: "user@example.com", role: "tenant" },
         SECRET_KEY,
-        { expiresIn: "1h" }
+        { expiresIn: "-1h" }
       );
-      const decoded = jwt.verify(token, SECRET_KEY);
-
-      expect(decoded.role).toBe("school_admin");
-      expect(decoded.schoolId).toBe("school123");
-    });
-
-    test("should create token with teacher role", () => {
-      const token = jwt.sign(
-        { email: "teacher@school.com", role: "teacher", schoolId: "school123" },
-        SECRET_KEY,
-        { expiresIn: "1h" }
-      );
-      const decoded = jwt.verify(token, SECRET_KEY);
-
-      expect(decoded.role).toBe("teacher");
-      expect(decoded.schoolId).toBe("school123");
-    });
-
-    test("should reject invalid token", () => {
-      const invalidToken = "invalid.token.here";
 
       expect(() => {
-        jwt.verify(invalidToken, SECRET_KEY);
+        jwt.verify(expiredToken, SECRET_KEY);
       }).toThrow();
-    });
-
-    test("should handle expired token", () => {
-      const expiredToken = jwt.sign({ email: "user@example.com", role: "tenant" }, SECRET_KEY, {
-        expiresIn: "0s",
-      });
-
-      // Wait for token to expire
-      setTimeout(() => {
-        expect(() => {
-          jwt.verify(expiredToken, SECRET_KEY);
-        }).toThrow();
-      }, 100);
-    });
-
-    test("should extract role from valid token", () => {
-      const roles = ["tenant", "school_admin", "teacher"];
-
-      roles.forEach((roleType) => {
-        const token = jwt.sign({ role: roleType }, SECRET_KEY);
-        const decoded = jwt.verify(token, SECRET_KEY);
-        expect(decoded.role).toBe(roleType);
-      });
-    });
-
-    test("should preserve additional claims in token", () => {
-      const claims = {
-        email: "test@example.com",
-        role: "teacher",
-        schoolId: "school123",
-        customClaim: { nested: "value" },
-      };
-
-      const token = jwt.sign(claims, SECRET_KEY);
-      const decoded = jwt.verify(token, SECRET_KEY);
-
-      expect(decoded.customClaim.nested).toBe("value");
     });
   });
 });

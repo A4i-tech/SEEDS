@@ -1,24 +1,25 @@
 const request = require("supertest");
 const mongoose = require("mongoose");
 const jwt = require("jsonwebtoken");
+const { setup, teardown, clearDatabase } = require("./integrationSetup");
 
 const app = require("../../src/index");
 
+const SECRET_KEY = process.env.SECRET_KEY;
+
 describe("Analytics & Dashboard - Integration Tests", () => {
-  const SECRET_KEY = "test-secret-key-for-testing-purposes-123";
+  beforeAll(setup);
+  afterAll(teardown);
+  beforeEach(clearDatabase);
 
-  test("Analytics endpoints are accessible", async () => {
-    expect(app).toBeDefined();
-  });
-
-  test("GET /tenant/dashboard requires tenant authentication", async () => {
+  test("GET /tenant/dashboard returns 401 without token", async () => {
     const res = await request(app).get("/tenant/dashboard");
-    expect([401, 403]).toContain(res.status);
+    expect(res.status).toBe(401);
   });
 
-  test("POST /tenant/analytics requires tenant role", async () => {
+  test("POST /tenant/analytics returns 200 with valid tenant token and dates", async () => {
     const token = jwt.sign(
-      { email: "tenant@example.com", role: "tenant", id: new mongoose.Types.ObjectId() },
+      { email: "tenant@example.com", role: "tenant", id: new mongoose.Types.ObjectId(), iss: "tenant" },
       SECRET_KEY,
       { expiresIn: "1h" }
     );
@@ -28,18 +29,38 @@ describe("Analytics & Dashboard - Integration Tests", () => {
       .set("Authorization", `Bearer ${token}`)
       .send({ startDate: "2025-01-01T00:00:00Z", endDate: "2026-12-31T23:59:59Z" });
 
-    expect([200, 400, 403, 500]).toContain(res.status);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("startDate", "2025-01-01T00:00:00Z");
+    expect(res.body).toHaveProperty("endDate", "2026-12-31T23:59:59Z");
+    expect(res.body).toHaveProperty("count");
+    expect(res.body).toHaveProperty("data");
+    expect(Array.isArray(res.body.data)).toBe(true);
   });
 
-  test("GET /school/dashboard requires school_admin role", async () => {
+  test("POST /tenant/analytics returns 403 with school_admin token", async () => {
     const token = jwt.sign(
-      { email: "admin@school.com", role: "school_admin", schoolId: new mongoose.Types.ObjectId() },
+      { email: "admin@school.com", role: "school_admin", schoolId: new mongoose.Types.ObjectId(), iss: "school_admin" },
+      SECRET_KEY,
+      { expiresIn: "1h" }
+    );
+
+    const res = await request(app)
+      .post("/tenant/analytics")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ startDate: "2025-01-01T00:00:00Z", endDate: "2026-12-31T23:59:59Z" });
+
+    expect(res.status).toBe(403);
+  });
+
+  test("GET /school/dashboard returns 403 with tenant token", async () => {
+    const token = jwt.sign(
+      { email: "tenant@example.com", role: "tenant", id: new mongoose.Types.ObjectId(), iss: "tenant" },
       SECRET_KEY,
       { expiresIn: "1h" }
     );
 
     const res = await request(app).get("/school/dashboard").set("Authorization", `Bearer ${token}`);
 
-    expect([200, 403, 500]).toContain(res.status);
+    expect(res.status).toBe(403);
   });
 });
