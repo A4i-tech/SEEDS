@@ -10,7 +10,6 @@ export const useTeachers = (activeTab) => {
   const [students, setStudents] = useState([]);
   const [selectedTeacherId, setSelectedTeacherId] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [pendingDuplicates, setPendingDuplicates] = useState(null);
   const { message, messageType, flashMessage } = useFlashMessage();
 
   const { getAuthHeaders } = useAuth();
@@ -24,19 +23,11 @@ export const useTeachers = (activeTab) => {
       try {
         const data = await teacherService.getTeachers(getAuthHeaders(), signal);
 
-        // Augment teachers with local UI state for adding students
-        const withState = data.map((t) => ({
-          ...t,
-          newStudents: [{ name: "", phoneNumber: "" }],
-          submitting: false,
-        }));
-
         setTeachers((prevTeachers) => {
-          // Set default selection to first teacher if none selected and we have teachers
-          if (prevTeachers.length === 0 && withState.length > 0) {
-            setSelectedTeacherId(withState[0]._id || withState[0].id);
+          if (prevTeachers.length === 0 && data.length > 0) {
+            setSelectedTeacherId(data[0]._id || data[0].id);
           }
-          return withState;
+          return data;
         });
       } catch (error) {
         if (error.name !== "AbortError") {
@@ -128,238 +119,6 @@ export const useTeachers = (activeTab) => {
     [updateTeacherState]
   );
 
-  /**
-   * Add student row to form
-   */
-  const addStudentRow = useCallback((teacherId) => {
-    setTeachers((prev) =>
-      prev.map((t) =>
-        String(t._id) !== String(teacherId)
-          ? t
-          : {
-              ...t,
-              newStudents: [...(t.newStudents || []), { name: "", phoneNumber: "" }],
-            }
-      )
-    );
-  }, []);
-
-  /**
-   * Remove student row from form
-   */
-  const removeStudentRow = useCallback((teacherId, index) => {
-    setTeachers((prev) =>
-      prev.map((t) => {
-        if (String(t._id) !== String(teacherId)) return t;
-        const arr = [...(t.newStudents || [])];
-        arr.splice(index, 1);
-        return {
-          ...t,
-          newStudents: arr.length ? arr : [{ name: "", phoneNumber: "" }],
-        };
-      })
-    );
-  }, []);
-
-  /**
-   * Update student form field value
-   */
-  const setNewStudentValue = useCallback((teacherId, index, field, value) => {
-    setTeachers((prev) =>
-      prev.map((t) => {
-        if (String(t._id) !== String(teacherId)) return t;
-        const arr = (t.newStudents || []).map((s, i) =>
-          i === index ? { ...s, [field]: value } : s
-        );
-        return { ...t, newStudents: arr };
-      })
-    );
-  }, []);
-
-  /**
-   * Submit new students
-   */
-  const submitNewStudents = useCallback(
-    async (teacher) => {
-      if (isTeacherSubmitting(teacher._id)) {
-        return;
-      }
-
-      const payloadStudents = (teacher.newStudents || [])
-        .map((s) => ({
-          name: (s.name || "").trim(),
-          phoneNumber: (s.phoneNumber || "").trim(),
-        }))
-        .filter((s) => s.name && s.phoneNumber && isValidPhoneNumber(s.phoneNumber));
-
-      if (payloadStudents.length === 0) {
-        flashMessage(
-          "Please enter at least one student with name and valid phone number.",
-          "error"
-        );
-        return;
-      }
-
-      setTeacherSubmitting(teacher._id, true);
-      try {
-        const result = await teacherService.addStudents(
-          teacher.phoneNumber,
-          payloadStudents,
-          getAuthHeaders()
-        );
-
-        const newStudents = result.students || [];
-
-        // Append successfully added students to local list and reset form
-        if (newStudents.length > 0) {
-          updateTeacherState(teacher._id, {
-            students: [...(teacher.students || []), ...newStudents],
-            newStudents: [{ name: "", phoneNumber: "" }],
-          });
-        }
-
-        // Show duplicate modal when backend reports name conflicts
-        if (result.duplicates && result.duplicates.length > 0) {
-          setPendingDuplicates({ duplicates: result.duplicates, teacher });
-        } else {
-          updateTeacherState(teacher._id, {
-            newStudents: [{ name: "", phoneNumber: "" }],
-          });
-          flashMessage("Students added successfully.", "success");
-        }
-      } catch (error) {
-        console.error("Add students error:", error);
-        flashMessage(error.message || "Failed to add students.", "error");
-      } finally {
-        setTeacherSubmitting(teacher._id, false);
-      }
-    },
-    [getAuthHeaders, updateTeacherState, flashMessage, isTeacherSubmitting, setTeacherSubmitting]
-  );
-
-  /**
-   * Update student name/phone
-   */
-  const updateStudent = useCallback(
-    async (teacher, currentPhoneNumber, name, studentPhoneNumber) => {
-      if (isTeacherSubmitting(teacher._id)) {
-        return false;
-      }
-
-      setTeacherSubmitting(teacher._id, true);
-      try {
-        const updated = await teacherService.updateStudent(
-          teacher.phoneNumber,
-          currentPhoneNumber,
-          name,
-          studentPhoneNumber,
-          getAuthHeaders()
-        );
-
-        updateTeacherState(teacher._id, {
-          students: (teacher.students || []).map((st) =>
-            st.phoneNumber === currentPhoneNumber
-              ? { ...st, name: updated.name, phoneNumber: updated.phoneNumber }
-              : st
-          ),
-        });
-        return true;
-      } catch (error) {
-        return error.message || "Failed to update student.";
-      } finally {
-        setTeacherSubmitting(teacher._id, false);
-      }
-    },
-    [getAuthHeaders, updateTeacherState, isTeacherSubmitting, setTeacherSubmitting]
-  );
-
-  /**
-   * Remove student
-   */
-  const removeStudent = useCallback(
-    async (teacher, studentPhoneNumber) => {
-      if (!window.confirm("Remove this student?")) return;
-
-      if (isTeacherSubmitting(teacher._id)) {
-        return;
-      }
-
-      setTeacherSubmitting(teacher._id, true);
-
-      try {
-        await teacherService.removeStudent(
-          teacher.phoneNumber,
-          studentPhoneNumber,
-          getAuthHeaders()
-        );
-
-        updateTeacherState(teacher._id, {
-          students: (teacher.students || []).filter((st) => st.phoneNumber !== studentPhoneNumber),
-        });
-      } catch (error) {
-        flashMessage(error.message || "Failed to remove student.", "error");
-      } finally {
-        setTeacherSubmitting(teacher._id, false);
-      }
-    },
-    [getAuthHeaders, updateTeacherState, flashMessage, isTeacherSubmitting, setTeacherSubmitting]
-  );
-
-  /**
-   * Resolve duplicate students from the modal.
-   * Re-submits with updateName flag for students the user chose to update.
-   */
-  const resolveDuplicates = useCallback(
-    async (resolution, pending) => {
-      const teacher = pending?.teacher;
-      if (!teacher || !resolution?.length) {
-        setPendingDuplicates(null);
-        return;
-      }
-
-      if (isTeacherSubmitting(teacher._id)) {
-        return;
-      }
-
-      setTeacherSubmitting(teacher._id, true);
-
-      const resubmit = resolution.map((r) => ({
-        phoneNumber: r.phoneNumber,
-        name: r.keepName ? r.existingName : r.submittedName,
-        updateName: !r.keepName,
-      }));
-
-      try {
-        const result = await teacherService.addStudents(
-          teacher.phoneNumber,
-          resubmit,
-          getAuthHeaders()
-        );
-
-        const newStudents = result.students || [];
-        if (newStudents.length > 0) {
-          updateTeacherState(teacher._id, {
-            students: [...(teacher.students || []), ...newStudents],
-          });
-        }
-        flashMessage("Students updated successfully.", "success");
-      } catch (error) {
-        flashMessage(error.message || "Failed to resolve duplicates.", "error");
-      } finally {
-        setTeacherSubmitting(teacher._id, false);
-        setPendingDuplicates(null);
-      }
-    },
-    [getAuthHeaders, updateTeacherState, flashMessage, isTeacherSubmitting, setTeacherSubmitting]
-  );
-
-  /**
-   * Dismiss the duplicate modal without resolving
-   */
-  const dismissDuplicateModal = useCallback(() => {
-    setPendingDuplicates(null);
-  }, []);
-
   const updateTeacher = useCallback(
     async (teacherId, name, phoneNumber, password) => {
       if (isTeacherSubmitting(teacherId)) {
@@ -385,13 +144,7 @@ export const useTeachers = (activeTab) => {
         setTeachers((prev) =>
           prev.map((t) =>
             String(t._id) === String(teacherId)
-              ? {
-                  ...t,
-                  ...updated,
-                  // Preserve local UI fields added in this hook
-                  newStudents: t.newStudents || [{ name: "", phoneNumber: "" }],
-                  submitting: !!t.submitting,
-                }
+              ? { ...t, ...updated }
               : t
           )
         );
@@ -536,17 +289,8 @@ export const useTeachers = (activeTab) => {
     addStudent,
     updateStudentById,
     deleteStudentById,
-    addStudentRow,
-    removeStudentRow,
-    setNewStudentValue,
-    submitNewStudents,
-    removeStudent,
-    updateStudent,
     updateTeacher,
     deleteTeacher,
     transferTeacher,
-    pendingDuplicates,
-    resolveDuplicates,
-    dismissDuplicateModal,
   };
 };
