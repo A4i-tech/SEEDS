@@ -7,6 +7,7 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import com.example.seeds.MainActivity
 import com.example.seeds.databinding.ActivityLoginBinding
+import com.example.seeds.network.TIMEOUT
 import com.example.seeds.repository.TeacherRepository
 import com.example.seeds.ui.call.CallViewModel
 import com.example.seeds.utils.Constants
@@ -28,6 +29,7 @@ import com.google.android.gms.auth.api.credentials.Credential
 import com.google.android.gms.auth.api.credentials.Credentials
 import com.google.android.gms.auth.api.credentials.HintRequest
 import android.util.Log
+import java.util.concurrent.TimeUnit
 
 class LoginActivity : AppCompatActivity() {
 
@@ -37,6 +39,7 @@ class LoginActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityLoginBinding
     private lateinit var phoneHintLauncher: ActivityResultLauncher<IntentSenderRequest>
+    private var isLoginInProgress = false
 
     @Inject
     lateinit var teacherRepository: TeacherRepository
@@ -75,14 +78,24 @@ class LoginActivity : AppCompatActivity() {
 
         // Login click listener
         loginBtn.setOnClickListener {
+            if (isLoginInProgress) {
+                return@setOnClickListener
+            }
+
             val phoneNumber = phoneNumberField.text.toString().trim()
             val password = passwordField.text.toString().trim()
             if (phoneNumber.isEmpty() || password.isEmpty()) {
                 Toast.makeText(this, "Please fill phone number and password", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
+            setLoginLoadingState(true)
             loginWithPhoneNumber(phoneNumber, password)
         }
+    }
+
+    private fun setLoginLoadingState(isLoading: Boolean) {
+        isLoginInProgress = isLoading
+        binding.phoneNumberLoginBtn.isEnabled = !isLoading
     }
 
     private fun requestPhoneNumberHint() {
@@ -102,7 +115,11 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun loginWithPhoneNumber(phoneNumber: String, password: String) {
-        val client = OkHttpClient()
+        val client = OkHttpClient.Builder()
+            .connectTimeout(TIMEOUT, TimeUnit.SECONDS)
+            .readTimeout(TIMEOUT, TimeUnit.SECONDS)
+            .writeTimeout(TIMEOUT, TimeUnit.SECONDS)
+            .build()
         val json = JSONObject().apply {
             put("phoneNumber", phoneNumber)
             put("password", password)
@@ -121,6 +138,7 @@ class LoginActivity : AppCompatActivity() {
         client.newCall(loginRequest).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 runOnUiThread {
+                    setLoginLoadingState(false)
                     Toast.makeText(this@LoginActivity, "Network error", Toast.LENGTH_SHORT).show()
                 }
             }
@@ -128,6 +146,7 @@ class LoginActivity : AppCompatActivity() {
             override fun onResponse(call: Call, response: Response) {
                 if (!response.isSuccessful) {
                     runOnUiThread {
+                        setLoginLoadingState(false)
                         Toast.makeText(this@LoginActivity, "Invalid credentials", Toast.LENGTH_SHORT).show()
                     }
                     return
@@ -139,6 +158,7 @@ class LoginActivity : AppCompatActivity() {
 
                 if (token.isEmpty()) {
                     runOnUiThread {
+                        setLoginLoadingState(false)
                         Toast.makeText(this@LoginActivity, "Failed to retrieve token", Toast.LENGTH_SHORT).show()
                     }
                     return
@@ -158,12 +178,16 @@ class LoginActivity : AppCompatActivity() {
                 } catch (e: Exception) {
                     e.printStackTrace()
                     runOnUiThread {
+                        setLoginLoadingState(false)
                         Toast.makeText(this@LoginActivity, "Could not save token", Toast.LENGTH_SHORT).show()
                     }
                     return
                 }
-                startActivity(Intent(this@LoginActivity, MainActivity::class.java))
-                finish()
+                runOnUiThread {
+                    setLoginLoadingState(false)
+                    startActivity(Intent(this@LoginActivity, MainActivity::class.java))
+                    finish()
+                }
             }
         })
     }

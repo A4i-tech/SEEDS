@@ -21,10 +21,10 @@ class TeacherRepository @Inject constructor(
             try {
                 network.getSchoolStudents()
             } catch (e: HttpException) {
-                if (e.code() == 404) {
-                    emptyList()
-                } else {
-                    throw e
+                when (e.code()) {
+                    404 -> emptyList()
+                    401, 403 -> throw e
+                    else -> throw e
                 }
             }
         }

@@ -537,7 +537,7 @@ class CallViewModel @Inject constructor(
 
                 val fullUrl = "$conferenceUrl/conference/start/$confId"
                 // Use phoneNumbers which only contains selected students (teacher phone already filtered out)
-                val leaderPhone = args.leader.takeIf { it.isNotBlank() }
+                val leaderPhone = args.leader?.trim()?.takeIf { it.isNotBlank() }
                 val response = network.startCall(fullUrl, CallDetails(confId, phoneNumbers, names, leaderPhone))
 
                 if (response.isSuccessful) {

@@ -41,9 +41,8 @@ fun Classroom.asDto(): ClassroomSaveDto {
         _id,
         name,
         teacher,
-        students.map{ it._id ?: it.phoneNumber },
-        leaders.map{ it._id ?: it.phoneNumber },
+        students.map { requireNotNull(it._id) { "Student ${it.name} missing _id" } },
+        leaders.map { requireNotNull(it._id) { "Leader ${it.name} missing _id" } },
         contentIds
     )
 }
-

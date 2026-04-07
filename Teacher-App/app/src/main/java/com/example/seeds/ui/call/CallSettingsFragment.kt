@@ -215,7 +215,7 @@ class CallSettingsFragment : BaseFragment() {
             usersInGroup = initialSelection
         )
 
-        val callStudents = viewModel.classroom.value?.students?.filter {
+        val callStudents = (viewModel.classroom.value?.students ?: args.classroom.students).filter {
             phoneNumbersForCall.contains(it.phoneNumber)
         }
         (dialogBinding.callMyPotentialLeadersList.adapter as CheckboxNameListAdapter).submitList(callStudents)
