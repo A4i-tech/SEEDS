@@ -353,7 +353,7 @@ router.get("/:schoolId", authenticateToken, authorizeRole(TENANT_ROLE), schoolCo
  *       500:
  *         description: Internal server error
  */
-router.patch("/:schoolId", authenticateToken, authorizeRole(SCHOOL_ADMIN_ROLE), schoolAdminAuthProvider.update);
+router.patch("/:schoolId", authenticateToken, authorizeRole(SCHOOL_ADMIN_ROLE, TENANT_ROLE), schoolAdminAuthProvider.update);
 
 /**
  * @swagger

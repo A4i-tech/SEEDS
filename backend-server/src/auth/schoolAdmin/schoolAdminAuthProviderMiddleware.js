@@ -71,7 +71,7 @@ module.exports = {
   },
 
   async update(req, res) {
-    const schoolId = req.schoolId;
+    const schoolId = req.params.schoolId;
     const tenantId = req.tenantId;
     const { name, email, password } = req.body;
 

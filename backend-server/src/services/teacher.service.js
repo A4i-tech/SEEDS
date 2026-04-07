@@ -51,7 +51,7 @@ exports.getTeachersBySchoolId = async (schoolId, tenantId) => {
  */
 exports.transferTeacher = async (teacherId, currentSchoolId, targetSchoolId, tenantId) => {
   const teacherInSource = await teacherRepository.getTeacherById(teacherId);
-  if (!teacherInSource || teacherInSource.schoolId !== currentSchoolId) {
+  if (!teacherInSource || teacherInSource.schoolId.toString() !== currentSchoolId) {
     const err = new Error("Teacher not found in your school");
     err.status = STATUS.NOT_FOUND;
     throw err;
@@ -143,7 +143,7 @@ exports.updateTeacher = async (teacherId, schoolId, { name, phoneNumber, passwor
  */
 exports.deleteTeacher = async (teacherId, schoolId) => {
   const teacher = await teacherRepository.getTeacherById(teacherId);
-  if (!teacher || teacher.schoolId !== schoolId) {
+  if (!teacher || teacher.schoolId.toString() !== schoolId) {
     const err = new Error("Teacher not found");
     err.status = STATUS.NOT_FOUND;
     throw err;
