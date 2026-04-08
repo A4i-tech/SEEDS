@@ -9,6 +9,7 @@ import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.RadioButton
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
@@ -27,6 +28,7 @@ import com.example.seeds.databinding.AssignLeaderBinding
 import com.example.seeds.databinding.FragmentCallSettingsBinding
 import com.example.seeds.model.Content
 import com.example.seeds.ui.BaseFragment
+import com.example.seeds.utils.CallUtils
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 
@@ -173,24 +175,8 @@ class CallSettingsFragment : BaseFragment() {
     }
 
     private fun startCallAfterPhoneHint() {
-        val phoneNumbersForCall =
-            (binding.myStudentsList.adapter as CheckboxNameListAdapter).usersInGroup
-
-        leaderForCall = getLeader()
-        if (leaderForCall.isNullOrEmpty()) {
-            showAssignLeaderDialog()
-        } else {
-            Log.d("PAYLOAD_DEBUG","Call Settings - leader selected for call (no popup): $leaderForCall")
-            Log.d("PAYLOAD_DEBUG","Call Settings - students for call: $phoneNumbersForCall")
-            Log.d("PAYLOAD_DEBUG","Call Settings - teacher phone: $teacherPhoneNumber")
-
-            findNavController().navigate(
-                CallSettingsFragmentDirections.actionCallSettingsFragmentToCallNav(
-                    phoneNumbersForCall.toTypedArray(),  // Only students
-                    viewModel.classroom.value!!
-                ).setLeader(leaderForCall)
-            )
-        }
+        leaderForCall = null
+        showAssignLeaderDialog()
     }
 
     private fun showAssignLeaderDialog() {
@@ -205,20 +191,44 @@ class CallSettingsFragment : BaseFragment() {
         val phoneNumbersForCall =
             (binding.myStudentsList.adapter as CheckboxNameListAdapter).usersInGroup
 
-        val classroomLeaderPhones = args.classroom.leaders.map { it.phoneNumber }.toMutableSet()
-        val initialSelection = if (!leaderForCall.isNullOrEmpty()) mutableSetOf(leaderForCall!!) else mutableSetOf()
+        val classroomLeaderPhones = (viewModel.classroom.value?.leaders ?: args.classroom.leaders)
+            .flatMap { leader ->
+                listOf(leader.phoneNumber, CallUtils.normalizePhoneNumber(leader.phoneNumber))
+            }
+            .toSet()
 
-        dialogBinding.callMyPotentialLeadersList.adapter = CheckboxNameListAdapter(
-            maximumSelections = 1,
-            showCrown = true,
-            leaders = classroomLeaderPhones,
-            usersInGroup = initialSelection
-        )
-
+        val selectedPhonesNormalized = phoneNumbersForCall
+            .map { CallUtils.normalizePhoneNumber(it) }
+            .toSet()
         val callStudents = (viewModel.classroom.value?.students ?: args.classroom.students).filter {
-            phoneNumbersForCall.contains(it.phoneNumber)
+            selectedPhonesNormalized.contains(CallUtils.normalizePhoneNumber(it.phoneNumber))
         }
-        (dialogBinding.callMyPotentialLeadersList.adapter as CheckboxNameListAdapter).submitList(callStudents)
+
+        dialogBinding.leaderRadioGroup.removeAllViews()
+        val noLeaderOption = RadioButton(requireContext()).apply {
+            id = View.generateViewId()
+            text = "No leader"
+            tag = null
+            isChecked = true
+        }
+        dialogBinding.leaderRadioGroup.addView(noLeaderOption)
+
+        callStudents.forEach { student ->
+            val normalizedPhone = CallUtils.normalizePhoneNumber(student.phoneNumber)
+            val isClassroomLeader = classroomLeaderPhones.contains(normalizedPhone)
+            val optionText = if (isClassroomLeader) {
+                "${student.name} (${student.phoneNumber}) - Classroom leader"
+            } else {
+                "${student.name} (${student.phoneNumber})"
+            }
+
+            val studentOption = RadioButton(requireContext()).apply {
+                id = View.generateViewId()
+                text = optionText
+                tag = normalizedPhone
+            }
+            dialogBinding.leaderRadioGroup.addView(studentOption)
+        }
 
         val dialogBuilder: AlertDialog.Builder = AlertDialog.Builder(requireContext())
         dialogBuilder.setOnDismissListener { }
@@ -229,12 +239,10 @@ class CallSettingsFragment : BaseFragment() {
         window?.setGravity(Gravity.CENTER)
 
         dialogBinding.assignLeadersBtn.setOnClickListener {
-            val leadersListChosen =
-                (dialogBinding.callMyPotentialLeadersList.adapter as CheckboxNameListAdapter).usersInGroup
-            if (leadersListChosen.isNotEmpty()) {
-                leaderForCall = leadersListChosen.first()
-                logMessage("Leader selected for call: $leaderForCall")
-            }
+            val selectedOptionId = dialogBinding.leaderRadioGroup.checkedRadioButtonId
+            val selectedOption = dialogBinding.leaderRadioGroup.findViewById<RadioButton>(selectedOptionId)
+            leaderForCall = selectedOption?.tag as? String
+            logMessage("Leader selected for call: $leaderForCall")
             alertDialog.dismiss()
             findNavController().navigate(
                 CallSettingsFragmentDirections.actionCallSettingsFragmentToCallNav(
@@ -246,12 +254,6 @@ class CallSettingsFragment : BaseFragment() {
 
         dialogBinding.cancelLeadersBtn.setOnClickListener {
             alertDialog.dismiss()
-            findNavController().navigate(
-                CallSettingsFragmentDirections.actionCallSettingsFragmentToCallNav(
-                    phoneNumbersForCall.toTypedArray(),
-                    viewModel.classroom.value!!
-                ).setLeader(leaderForCall)
-            )
         }
 
         alertDialog.show()
@@ -269,14 +271,6 @@ class CallSettingsFragment : BaseFragment() {
             }
             .setNegativeButton("No", null)
             .show()
-    }
-
-    private fun getLeader(): String? {
-        val phoneNumbersForCall =
-            (binding.myStudentsList.adapter as CheckboxNameListAdapter).usersInGroup
-        val leadersOfGroups = args.classroom.leaders.map { it.phoneNumber }
-        val leadersSelectedForCall = phoneNumbersForCall.filter { leadersOfGroups.contains(it) }
-        return leadersSelectedForCall.firstOrNull()
     }
 
     override fun onStart() {

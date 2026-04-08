@@ -15,7 +15,9 @@ object CallUtils {
      */
     fun normalizePhoneNumber(phoneNumber: String?): String {
         if (phoneNumber.isNullOrBlank()) return ""
-        val normalized = if (phoneNumber.startsWith("91")) phoneNumber else "91$phoneNumber"
+        val digitsOnly = phoneNumber.filter { it.isDigit() }
+        if (digitsOnly.isBlank()) return ""
+        val normalized = if (digitsOnly.startsWith("91")) digitsOnly else "91$digitsOnly"
         return normalized
     }
 
