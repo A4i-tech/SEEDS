@@ -8,13 +8,13 @@ class TeacherMongoDao extends ITeacherDao {
     return Teacher.findById(teacherId).select("-password").lean();
   }
 
-    async getTeacherByPhoneNumber(phoneNumber) {
-        return Teacher.findOne({ phoneNumber }).lean();
-    }
+  async getTeacherByPhoneNumber(phoneNumber) {
+    return Teacher.findOne({ phoneNumber }).lean();
+  }
 
-    async insertTeacher({ phoneNumber, password, schoolId, name, role }) {
-        return Teacher.create({ phoneNumber, password, schoolId, name, role });
-    }
+  async insertTeacher({ phoneNumber, password, schoolId, name, role }) {
+    return Teacher.create({ phoneNumber, password, schoolId, name, role });
+  }
 
   async getTeachersBySchoolId(schoolId) {
     return Teacher.find({ schoolId }, "_id name phoneNumber role").sort({ name: 1 }).lean();
