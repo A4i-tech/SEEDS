@@ -236,7 +236,7 @@ const ClassroomDetail = () => {
         return {
           name: student.name,
           phoneNumber: normalizedPhone,
-          phone_number: normalizedPhone, // For AddParticipantModal compatibility
+          phone_number: normalizedPhone,
         };
       });
       setAllClassroomStudents(allStudentsFormatted);

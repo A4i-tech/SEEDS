@@ -166,22 +166,22 @@ export const setPlaybackSpeed = async (confId, speed) => {
   return response;
 };
 
-export const addParticipant = async (confId, phone_number) => {
+export const addParticipant = async (confId, phone_number, name = null) => {
   // Normalize phone number to ensure consistent format (91XXXXXXXXXX)
   const normalizedPhone = normalizePhoneNumber(phone_number);
   const response = await axiosInstance.put(
-    API_ENDPOINTS.CONFERENCE.ADD_PARTICIPANT(confId, normalizedPhone)
+    API_ENDPOINTS.CONFERENCE.ADD_PARTICIPANT(confId, normalizedPhone, name)
   );
   return response;
 };
 
-export const removeParticipant = async (confId, phone_number) => {
+export const removeParticipant = async (confId, phone_number, name = null) => {
   // Normalize phone number to ensure consistent format (91XXXXXXXXXX)
   const normalizedPhone = normalizePhoneNumber(phone_number);
 
   try {
     const response = await axiosInstance.put(
-      API_ENDPOINTS.CONFERENCE.REMOVE_PARTICIPANT(confId, normalizedPhone)
+      API_ENDPOINTS.CONFERENCE.REMOVE_PARTICIPANT(confId, normalizedPhone, name)
     );
     return response.data;
   } catch (error) {

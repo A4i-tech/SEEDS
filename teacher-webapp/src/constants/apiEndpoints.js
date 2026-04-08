@@ -30,9 +30,9 @@ export const API_ENDPOINTS = {
     RESUME_AUDIO: (confId) => `${CONF_BASE}/resumeaudio/${confId}`,
     SEEK_AUDIO: (confId) => `${CONF_BASE}/seekaudio/${confId}`,
     SET_PLAYBACK_SPEED: (confId) => `${CONF_BASE}/setplaybackspeed/${confId}`,
-    ADD_PARTICIPANT: (confId, phone) =>
-      `${CONF_BASE}/addparticipant/${confId}?phone_number=${phone}`,
-    REMOVE_PARTICIPANT: (confId, phone) =>
-      `${CONF_BASE}/removeparticipant/${confId}?phone_number=${phone}`,
+    ADD_PARTICIPANT: (confId, phone, name) =>
+      `${CONF_BASE}/addparticipant/${confId}?phone_number=${phone}${name ? `&name=${encodeURIComponent(name)}` : ""}`,
+    REMOVE_PARTICIPANT: (confId, phone, name) =>
+      `${CONF_BASE}/removeparticipant/${confId}?phone_number=${phone}${name ? `&name=${encodeURIComponent(name)}` : ""}`,
   },
 };
