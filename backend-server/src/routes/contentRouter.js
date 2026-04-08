@@ -31,10 +31,14 @@ const { authenticateToken, authorizeRole } = require("../auth/authenticateToken"
 
 const TENANT_ROLE = "tenant";
 const SCHOOL_ADMIN_ROLE = "school_admin";
+const TEACHER_ROLE = "teacher";
 
-// For reads — school admins see their own school's content + tenant content (schoolId: null)
+// For reads — school-scoped users see their own school's content + tenant content (schoolId: null)
 function getReadSchoolIdFilter(req) {
-  return req.role === SCHOOL_ADMIN_ROLE ? { $in: [req.schoolId, null] } : null;
+  if (req.schoolId && (req.role === SCHOOL_ADMIN_ROLE || req.role === TEACHER_ROLE)) {
+    return { $in: [req.schoolId, null] };
+  }
+  return null;
 }
 
 // For writes (modify/delete) — strict ownership only
@@ -402,6 +406,7 @@ router.get(
 router.get(
   "/",
   authenticateToken,
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE),
   tryCatchWrapper(async (req, res) => {
     const limit = parseInt(req.query.limit) || 15;
     const cursor = req.query.cursor;
@@ -571,6 +576,7 @@ router.get(
 router.get(
   "/:contentId",
   authenticateToken,
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE),
   tryCatchWrapper(async (req, res) => {
     const content = await ContentV3.findOne({
       _id: req.params.contentId,
