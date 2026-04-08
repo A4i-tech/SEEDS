@@ -30,6 +30,17 @@ const { parse: uuidParse } = require("uuid");
 const { authenticateToken, authorizeRole } = require("../auth/authenticateToken");
 
 const TENANT_ROLE = "tenant";
+const SCHOOL_ADMIN_ROLE = "school_admin";
+
+// For reads — school admins see their own school's content + tenant content (schoolId: null)
+function getReadSchoolIdFilter(req) {
+  return req.role === SCHOOL_ADMIN_ROLE ? { $in: [req.schoolId, null] } : null;
+}
+
+// For writes (modify/delete) — strict ownership only
+function getWriteSchoolIdFilter(req) {
+  return req.role === SCHOOL_ADMIN_ROLE ? req.schoolId : null;
+}
 
 // Initialize instances
 const blobService = new BlobService();
@@ -74,7 +85,7 @@ agenda.define("processQuizContent", async (job) => {
  *       404:
  *         description: Job not found
  */
-router.get("/job/:jobId", authenticateToken, authorizeRole(TENANT_ROLE), async (req, res) => {
+router.get("/job/:jobId", authenticateToken, authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE), async (req, res) => {
   const job = await agenda.jobs({ _id: new ObjectId(req.params.jobId) });
 
   if (!job.length) {
@@ -108,7 +119,7 @@ router.get("/job/:jobId", authenticateToken, authorizeRole(TENANT_ROLE), async (
  *                   items:
  *                     $ref: '#/components/schemas/Job'
  */
-router.get("/jobs", authenticateToken, authorizeRole(TENANT_ROLE), async (req, res) => {
+router.get("/jobs", authenticateToken, authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE), async (req, res) => {
   try {
     // Fetch jobs that are either "In Progress" or "Failed"
     const jobs = await agenda.jobs({
@@ -188,7 +199,7 @@ router.get("/jobs", authenticateToken, authorizeRole(TENANT_ROLE), async (req, r
 router.post(
   "/quiz",
   authenticateToken,
-  authorizeRole(TENANT_ROLE),
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE),
   tryCatchWrapper(async (req, res) => {
     const quizCreateRequest = new QuizCreateRequest(req.body);
     if (quizCreateRequest.id === "default-id") {
@@ -196,6 +207,9 @@ router.post(
     }
     const quizData = fromQuizCreateRequest(quizCreateRequest);
     quizData.creation_time = Math.floor(Date.now() / 1000);
+    quizData.tenantId = req.tenantId;
+    quizData.schoolId = req.schoolId || null;
+    quizData.createdBy = req.userId;
     const quizDataDoc = quizData.toObject();
     const job = await agenda.now("processQuizContent", {
       content: quizDataDoc,
@@ -290,6 +304,7 @@ router.get(
     const language = req.query.language;
     const content = await ContentV3.find({
       tenantId: req.tenantId,
+      schoolId: getReadSchoolIdFilter(req),
       language: language,
       isPullModel: true,
     }).sort({ _id: -1 });
@@ -400,11 +415,12 @@ router.get(
       const idsArray = req.query.ids;
 
       // Fetch both content and quiz data for the requested IDs (lean for read-only)
+      const schoolIdFilter = getReadSchoolIdFilter(req);
       const [contents, quizzes] = await Promise.all([
-        ContentV3.find({ _id: { $in: idsArray }, tenantId, isDeleted: { $ne: true } })
+        ContentV3.find({ _id: { $in: idsArray }, tenantId, isDeleted: { $ne: true }, schoolId: schoolIdFilter })
           .lean()
           .exec(),
-        QuizData.find({ _id: { $in: idsArray }, tenantId, isDeleted: { $ne: true } })
+        QuizData.find({ _id: { $in: idsArray }, tenantId, isDeleted: { $ne: true }, schoolId: schoolIdFilter })
           .lean()
           .exec(),
       ]);
@@ -429,7 +445,7 @@ router.get(
     }
 
     // Base query always excludes deleted content, scoped to tenant
-    let query = { isDeleted: { $ne: true }, tenantId: req.tenantId };
+    let query = { isDeleted: { $ne: true }, tenantId: req.tenantId, schoolId: getReadSchoolIdFilter(req) };
 
     if (req.query.onlyTeacherApp) {
       query.isTeacherApp = true;
@@ -536,7 +552,7 @@ router.get(
 router.get(
   "/sasToken",
   authenticateToken,
-  authorizeRole(TENANT_ROLE),
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE),
   tryCatchWrapper(async (req, res) => {
     const containerName = "input-container";
     const blobName = req.query.blobName;
@@ -559,6 +575,7 @@ router.get(
     const content = await ContentV3.findOne({
       _id: req.params.contentId,
       tenantId: req.tenantId,
+      schoolId: getReadSchoolIdFilter(req),
       isDeleted: { $ne: true },
     });
     if (!content) {
@@ -571,12 +588,13 @@ router.get(
 router.patch(
   "/:contentId",
   authenticateToken,
-  authorizeRole(TENANT_ROLE),
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE),
   tryCatchWrapper(async (req, res) => {
     const { title, theme, description, isPullModel, isTeacherApp } = req.body;
     const content = await ContentV3.findOne({
       _id: req.params.contentId,
       tenantId: req.tenantId,
+      schoolId: getWriteSchoolIdFilter(req),
       isDeleted: false,
     });
     if (!content) {
@@ -636,12 +654,15 @@ router.patch(
 router.delete(
   "/:contentId",
   authenticateToken,
-  authorizeRole(TENANT_ROLE),
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE),
   tryCatchWrapper(async (req, res) => {
     const result = await ContentV3.updateOne(
-      { _id: req.params.contentId, tenantId: req.tenantId },
+      { _id: req.params.contentId, tenantId: req.tenantId, schoolId: getWriteSchoolIdFilter(req) },
       { $set: { isDeleted: true } },
     );
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ error: "Content not found" });
+    }
     return res.json(result);
   }),
 );
@@ -649,12 +670,13 @@ router.delete(
 router.post(
   "/",
   authenticateToken,
-  authorizeRole(TENANT_ROLE),
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE),
   tryCatchWrapper(async (req, res) => {
     let content = new ContentV3(req.body);
     content.tenantId = req.tenantId;
     content.createdBy = req.userId;
     content.creation_time = Math.floor(Date.now() / 1000);
+    content.schoolId = req.schoolId || null;
 
     // Validate audioContent entries to ensure uploaded audio URLs reference .mp3 files.
     for (const item of content.audioContent || []) {
