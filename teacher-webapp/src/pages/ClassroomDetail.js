@@ -14,6 +14,15 @@ import {
   Paper,
   Checkbox,
   CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Radio,
+  RadioGroup,
+  FormControlLabel,
+  FormControl,
 } from "@mui/material";
 import {
   ArrowBack as ArrowBackIcon,
@@ -44,7 +53,10 @@ const ClassroomDetail = () => {
   const [errorMsg, setErrorMsg] = useState("");
   const [conferenceStarted, setConferenceStarted] = useState(false);
   const [teacherPhone, setTeacherPhone] = useState(null);
+  const [teacherName, setTeacherName] = useState(null);
   const [conferenceId, setConferenceId] = useState(null);
+  const [assignLeaderDialogOpen, setAssignLeaderDialogOpen] = useState(false);
+  const [selectedLeaderForCall, setSelectedLeaderForCall] = useState(null);
   const eventSourceRef = useRef(null);
   const isMountedRef = useRef(true);
 
@@ -72,6 +84,7 @@ const ClassroomDetail = () => {
           throw new Error("Teacher phone number not available");
         }
         setTeacherPhone(teacher.phoneNumber);
+        setTeacherName(teacher.name || "Teacher");
 
         const [classroomData] = await Promise.all([
           getClassroomById(classroomId),
@@ -159,22 +172,37 @@ const ClassroomDetail = () => {
     navigate(`/classrooms/edit/${classroomId}`);
   };
 
-  const handleStartConference = async () => {
+  const handleStartConference = () => {
     if (selectedStudents.length === 0) {
       showToast.error("Please select at least one student");
       return;
     }
-
     if (!teacherPhone) {
       showToast.error("Teacher phone number is missing");
       return;
     }
 
+    // Pre-select a default leader if one of the classroom leaders is in the selected students
+    const studentPhonesFormatted = formatStudentPhones(selectedStudents);
+    const leaderPhones = (classroom?.leaders || [])
+      .map((leader) =>
+        normalizePhoneNumber(
+          typeof leader === "string" ? leader : leader?.phoneNumber || leader?.phone_number
+        )
+      )
+      .filter(Boolean);
+    const defaultLeader =
+      leaderPhones.find((phone) => studentPhonesFormatted.includes(phone)) ?? null;
+    setSelectedLeaderForCall(defaultLeader);
+    setAssignLeaderDialogOpen(true);
+  };
+
+  const handleStartConferenceWithLeader = async (leaderPhone) => {
     setConferenceLoading(true);
-    console.log("Starting conference for:", teacherPhone, selectedStudents);
+    console.log("Starting conference for:", teacherPhone, selectedStudents, "leader:", leaderPhone);
 
     const teacherObject = {
-      name: "Teacher",
+      name: teacherName || "Teacher",
       phoneNumber: teacherPhone,
       role: "Teacher",
     };
@@ -206,9 +234,17 @@ const ClassroomDetail = () => {
         teacher: teacherPhoneFormatted,
         students: studentPhonesFormatted,
         studentCount: studentPhonesFormatted.length,
+        leader: leaderPhone,
       });
 
-      const data = await createConference(teacherPhoneFormatted, studentPhonesFormatted);
+      const studentNames = selectedStudents.map((s) => s.name || null);
+      const data = await createConference(
+        teacherPhoneFormatted,
+        studentPhonesFormatted,
+        leaderPhone,
+        teacherName || null,
+        studentNames
+      );
 
       if (!data || !data.id) {
         throw new Error("Conference creation failed: No conference ID returned");
@@ -229,8 +265,6 @@ const ClassroomDetail = () => {
       setConferenceStudents(normalizedSelectedStudents);
 
       // Pass ALL students with both property name formats for "Add Participant" modal
-      // This allows adding unselected students later
-      // Normalize phone numbers to ensure consistent format (91XXXXXXXXXX)
       const allStudentsFormatted = (classroom?.students || []).map((student) => {
         const normalizedPhone = normalizePhoneNumber(student.phoneNumber);
         return {
@@ -242,8 +276,6 @@ const ClassroomDetail = () => {
       setAllClassroomStudents(allStudentsFormatted);
 
       console.log("Conference created successfully. Conf ID:", conferenceId);
-      console.log("Student phones sent:", studentPhonesFormatted);
-
       setConferenceStarted(true);
       showToast.success("Conference started successfully");
     } catch (error) {
@@ -282,8 +314,22 @@ const ClassroomDetail = () => {
     handleStudentToggle(student);
   };
 
-  // Check if student is a leader (leaders are populated objects with _id)
-  const isLeader = (studentId) => classroom.leaders?.some((l) => l._id === studentId);
+  // Check if student is a leader for both populated-object and phone-string leader formats
+  const isLeader = (student) => {
+    if (!student) return false;
+    const studentId = student._id;
+    const studentPhone = normalizePhoneNumber(student.phoneNumber || student.phone_number);
+
+    return (classroom?.leaders || []).some((leader) => {
+      if (typeof leader === "string") {
+        return normalizePhoneNumber(leader) === studentPhone;
+      }
+
+      const leaderId = leader?._id;
+      const leaderPhone = normalizePhoneNumber(leader?.phoneNumber || leader?.phone_number);
+      return (studentId && leaderId === studentId) || (studentPhone && leaderPhone === studentPhone);
+    });
+  };
 
   if (conferenceStarted) {
     return <DetailsPage classroomName={classroom?.name} classroomId={classroom?._id} />;
@@ -420,7 +466,7 @@ const ClassroomDetail = () => {
             <List sx={{ mt: 2 }}>
               {classroom.students.map((student, index) => {
                 const selected = isStudentSelected(student.phoneNumber);
-                const studentIsLeader = isLeader(student._id);
+                const studentIsLeader = isLeader(student);
 
                 return (
                   <React.Fragment key={student._id}>
@@ -475,6 +521,79 @@ const ClassroomDetail = () => {
           </CardContent>
         </Card>
       )}
+
+      <Dialog
+        open={assignLeaderDialogOpen}
+        onClose={() => setAssignLeaderDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        aria-labelledby="assign-leader-dialog-title"
+      >
+        <DialogTitle id="assign-leader-dialog-title">Assign leader for this call</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>
+            Choose who will be the leader for this conference, or start without a leader.
+          </DialogContentText>
+          {classroom?.leaders?.length > 0 &&
+            !(classroom?.leaders || [])
+              .map((leader) =>
+                normalizePhoneNumber(
+                  typeof leader === "string"
+                    ? leader
+                    : leader?.phoneNumber || leader?.phone_number
+                )
+              )
+              .filter(Boolean)
+              .some((p) => formatStudentPhones(selectedStudents).includes(p)) && (
+              <Alert severity="warning" sx={{ mb: 2 }}>
+                None of the classroom leaders are in this call. Choose a leader below or start
+                without one.
+              </Alert>
+            )}
+          <FormControl component="fieldset" fullWidth>
+            <RadioGroup
+              value={selectedLeaderForCall ?? ""}
+              onChange={(e) => setSelectedLeaderForCall(e.target.value || null)}
+            >
+              <FormControlLabel value="" control={<Radio />} label="No leader" />
+              {selectedStudents.map((student) => {
+                const normalizedPhone = normalizePhoneNumber(student.phoneNumber);
+                const studentIsLeader = isLeader(student);
+                return (
+                  <FormControlLabel
+                    key={normalizedPhone}
+                    value={normalizedPhone}
+                    control={<Radio />}
+                    label={
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <Typography component="span">
+                          {student.name || student.phoneNumber}
+                        </Typography>
+                        {studentIsLeader && (
+                          <Chip label="Classroom leader" size="small" color="secondary" />
+                        )}
+                      </Box>
+                    }
+                  />
+                );
+              })}
+            </RadioGroup>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAssignLeaderDialogOpen(false)}>Cancel</Button>
+          <Button
+            onClick={() => {
+              setAssignLeaderDialogOpen(false);
+              handleStartConferenceWithLeader(selectedLeaderForCall);
+            }}
+            variant="contained"
+            color="primary"
+          >
+            Start conference
+          </Button>
+        </DialogActions>
+      </Dialog>
     </PageContainer>
   );
 };

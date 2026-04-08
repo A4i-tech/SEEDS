@@ -10,7 +10,6 @@ import {
   List,
   ListItem,
   ListItemText,
-  Checkbox,
   Alert,
   Divider,
   Paper,
@@ -104,13 +103,6 @@ const ClassroomForm = () => {
       errors.students = "Duplicate students are not allowed";
     }
 
-    const invalidLeaders = formData.leaders.filter(
-      (leader) => !formData.students.includes(leader)
-    );
-    if (invalidLeaders.length > 0) {
-      errors.leaders = "All leaders must be selected from students";
-    }
-
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -145,26 +137,7 @@ const ClassroomForm = () => {
     setFormData({
       ...formData,
       students: formData.students.filter((s) => s !== studentPhone),
-      leaders: formData.leaders.filter((l) => l !== studentPhone),
     });
-  };
-
-  const handleToggleLeader = (studentPhone) => {
-    const isLeader = formData.leaders.includes(studentPhone);
-    if (isLeader) {
-      setFormData({
-        ...formData,
-        leaders: formData.leaders.filter((l) => l !== studentPhone),
-      });
-    } else {
-      setFormData({
-        ...formData,
-        leaders: [...formData.leaders, studentPhone],
-      });
-    }
-    if (validationErrors.leaders) {
-      setValidationErrors({ ...validationErrors, leaders: "" });
-    }
   };
 
   const handleSubmit = async (e) => {
@@ -332,66 +305,6 @@ const ClassroomForm = () => {
                           primary={student ? student.name : id}
                           secondary={student ? student.phoneNumber : id}
                           primaryTypographyProps={{ fontWeight: 500 }}
-                        />
-                      </ListItem>
-                    </React.Fragment>
-                  );
-                })}
-              </List>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
-              Leaders
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Select students to assign as classroom leaders
-            </Typography>
-
-            {validationErrors.leaders && (
-              <Alert severity="error" sx={{ mb: 2 }}>
-                {validationErrors.leaders}
-              </Alert>
-            )}
-
-            {formData.students.length === 0 ? (
-              <Paper
-                variant="outlined"
-                sx={{
-                  p: 3,
-                  textAlign: "center",
-                  bgcolor: "background.default",
-                }}
-              >
-                <SchoolIcon sx={{ fontSize: 48, color: "text.secondary", mb: 1 }} />
-                <Typography variant="body2" color="text.secondary">
-                  Add students first to assign leaders
-                </Typography>
-              </Paper>
-            ) : (
-              <List sx={{ bgcolor: "background.paper", borderRadius: 1 }}>
-                {formData.students.map((id, index) => {
-                  const isLeader = formData.leaders.includes(id);
-                  const student = getStudentById(id);
-                  const displayPhone = student ? student.phoneNumber : id;
-                  return (
-                    <React.Fragment key={id}>
-                      {index > 0 && <Divider />}
-                      <ListItem>
-                        <Checkbox
-                          checked={isLeader}
-                          onChange={() => handleToggleLeader(id)}
-                          sx={{ mr: 1 }}
-                        />
-                        <ListItemText
-                          primary={student ? student.name : id}
-                          secondary={isLeader ? `Leader - ${displayPhone}` : displayPhone}
-                          primaryTypographyProps={{
-                            fontWeight: isLeader ? 600 : 400,
-                          }}
                         />
                       </ListItem>
                     </React.Fragment>
