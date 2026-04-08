@@ -86,9 +86,7 @@ const ClassroomDetail = () => {
         setTeacherPhone(teacher.phoneNumber);
         setTeacherName(teacher.name || "Teacher");
 
-        const [classroomData] = await Promise.all([
-          getClassroomById(classroomId),
-        ]);
+        const [classroomData] = await Promise.all([getClassroomById(classroomId)]);
 
         setClassroom(classroomData);
       } catch (err) {
@@ -314,22 +312,8 @@ const ClassroomDetail = () => {
     handleStudentToggle(student);
   };
 
-  // Check if student is a leader for both populated-object and phone-string leader formats
-  const isLeader = (student) => {
-    if (!student) return false;
-    const studentId = student._id;
-    const studentPhone = normalizePhoneNumber(student.phoneNumber || student.phone_number);
 
-    return (classroom?.leaders || []).some((leader) => {
-      if (typeof leader === "string") {
-        return normalizePhoneNumber(leader) === studentPhone;
-      }
-
-      const leaderId = leader?._id;
-      const leaderPhone = normalizePhoneNumber(leader?.phoneNumber || leader?.phone_number);
-      return (studentId && leaderId === studentId) || (studentPhone && leaderPhone === studentPhone);
-    });
-  };
+  const isLeader = (studentId) => classroom.leaders?.some((l) => l._id === studentId);
 
   if (conferenceStarted) {
     return <DetailsPage classroomName={classroom?.name} classroomId={classroom?._id} />;
@@ -466,7 +450,7 @@ const ClassroomDetail = () => {
             <List sx={{ mt: 2 }}>
               {classroom.students.map((student, index) => {
                 const selected = isStudentSelected(student.phoneNumber);
-                const studentIsLeader = isLeader(student);
+                const studentIsLeader = isLeader(student._id);
 
                 return (
                   <React.Fragment key={student._id}>
@@ -538,9 +522,7 @@ const ClassroomDetail = () => {
             !(classroom?.leaders || [])
               .map((leader) =>
                 normalizePhoneNumber(
-                  typeof leader === "string"
-                    ? leader
-                    : leader?.phoneNumber || leader?.phone_number
+                  typeof leader === "string" ? leader : leader?.phoneNumber || leader?.phone_number
                 )
               )
               .filter(Boolean)
@@ -558,7 +540,7 @@ const ClassroomDetail = () => {
               <FormControlLabel value="" control={<Radio />} label="No leader" />
               {selectedStudents.map((student) => {
                 const normalizedPhone = normalizePhoneNumber(student.phoneNumber);
-                const studentIsLeader = isLeader(student);
+                const studentIsLeader = isLeader(student._id);
                 return (
                   <FormControlLabel
                     key={normalizedPhone}
