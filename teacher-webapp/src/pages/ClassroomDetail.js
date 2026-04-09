@@ -70,7 +70,14 @@ const ClassroomDetail = () => {
     handleTeacherSelect,
     setConferenceStudents,
     setAllClassroomStudents,
+    clearSelectedStudents,
   } = useConference();
+
+  // Clear stale selections when entering a different classroom
+  useEffect(() => {
+    clearSelectedStudents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [classroomId]);
 
   // Main data loading effect - handles sequential and parallel fetching
   useEffect(() => {

@@ -1,7 +1,11 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useAnalytics } from "../../../hooks/useAnalytics";
+import { useDashboard } from "../../../hooks/useDashboard";
+import { getRole } from "../../../utils/authHelpers";
 import DateRangeSelector from "./DateRangeSelector";
 import AnalyticsStats from "./AnalyticsStats";
+import DashboardStats from "./DashboardStats";
+import SchoolDashboardStats from "./SchoolDashboardStats";
 import "./css/AnalyticsTab.css";
 import "../shared/cards.css";
 
@@ -11,6 +15,10 @@ const AnalyticsTab = () => {
   const [showFilters, setShowFilters] = useState(false);
 
   const { analyticsData, isLoading, error, stats, fetchAnalytics } = useAnalytics();
+  const { dashboard, schoolDashboard, fetchDashboard, fetchSchoolDashboard } = useDashboard();
+  const role = getRole();
+  const isTenant = role === "tenant";
+  const isSchoolAdmin = role === "school_admin";
 
   const getLastNDaysRange = useCallback((days) => {
     const end = new Date();
@@ -32,7 +40,9 @@ const AnalyticsTab = () => {
     setStartDate(start);
     setEndDate(end);
     fetchAnalytics(start, end);
-  }, [fetchAnalytics, getLastNDaysRange]);
+    if (isTenant) fetchDashboard();
+    if (isSchoolAdmin) fetchSchoolDashboard();
+  }, [fetchAnalytics, fetchDashboard, fetchSchoolDashboard, getLastNDaysRange, isTenant, isSchoolAdmin]);
 
   const selectedRangeLabel = useMemo(() => {
     if (startDate && endDate) {
@@ -87,6 +97,9 @@ const AnalyticsTab = () => {
           </div>
         </div>
       )}
+
+      {isTenant && dashboard && <DashboardStats dashboard={dashboard} />}
+      {isSchoolAdmin && schoolDashboard && <SchoolDashboardStats dashboard={schoolDashboard} />}
 
       {error && <div className="error-message">{error}</div>}
 

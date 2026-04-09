@@ -37,3 +37,31 @@
     gap: 16px;
   }
 }
+
+/* Pill tabs */
+.pill-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-radius: 999px;
+  background-color: #f1f5f9;
+  padding: 4px;
+  gap: 4px;
+}
+
+.pill-tab {
+  border: none;
+  border-radius: 999px;
+  padding: 10px 0;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  background-color: transparent;
+  color: #475569;
+  transition: background-color 0.2s ease;
+}
+
+.pill-tab--active {
+  background-color: #0f172a;
+  color: #fff;
+  cursor: default;
+}
