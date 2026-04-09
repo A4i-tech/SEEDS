@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useState } from "react";
 import TeacherRegistrationForm from "./TeacherRegistrationForm";
 import TeachersList from "./TeachersList";
-import TeacherDetails from "./TeacherDetails";
-import DuplicateStudentModal from "./DuplicateStudentModal";
+import StudentsSection from "./StudentsSection";
+import SchoolsPanel from "./SchoolsPanel";
+import { getRole } from "../../../utils/authHelpers";
 import "./css/RegistrationTab.css";
 import "../shared/buttons.css";
 import "../shared/cards.css";
@@ -11,61 +12,90 @@ import "../shared/utilities.css";
 
 const RegistrationTab = ({
   teachers,
-  selectedTeacher,
-  selectedTeacherId,
-  onSelectTeacher,
+  students,
   onRegisterTeacher,
+  onAddStudent,
+  onUpdateStudent,
+  onDeleteStudent,
+  onUpdateTeacher,
+  onDeleteTeacher,
+  onTransferTeacher,
   message,
   messageType,
-  onAddStudentRow,
-  onRemoveStudentRow,
-  onSetNewStudentValue,
-  onSubmitNewStudents,
-  onRemoveStudent,
-  onUpdateStudent,
-  pendingDuplicates,
-  onResolveDuplicates,
-  onDismissDuplicateModal,
+  schools,
+  onCreateSchool,
+  onUpdateSchool,
+  onDeleteSchool,
+  schoolMessage,
+  schoolMessageType,
 }) => {
+  const [activeSection, setActiveSection] = useState("teachers");
+
+  if (getRole() === "tenant") {
+    return (
+      <SchoolsPanel
+        schools={schools}
+        onCreateSchool={onCreateSchool}
+        onUpdateSchool={onUpdateSchool}
+        onDeleteSchool={onDeleteSchool}
+        message={schoolMessage}
+        messageType={schoolMessageType}
+      />
+    );
+  }
+
   return (
     <div className="card registration-flex-card">
       <div>
         <div className="card-title">Registration Management</div>
-        <div className="card-description">Register teachers for your organization.</div>
+        <div className="card-description">Manage teachers and students for your school.</div>
       </div>
 
-      <TeacherRegistrationForm onRegister={onRegisterTeacher} message={message} messageType={messageType} />
+      <div className="pill-tabs">
+        <button
+          type="button"
+          className={`pill-tab ${activeSection === "teachers" ? "pill-tab--active" : ""}`}
+          onClick={() => setActiveSection("teachers")}
+        >
+          Teachers
+        </button>
+        <button
+          type="button"
+          className={`pill-tab ${activeSection === "students" ? "pill-tab--active" : ""}`}
+          onClick={() => setActiveSection("students")}
+        >
+          Students
+        </button>
+      </div>
 
-      <div className="teachers-section">
-        <h3 className="teachers-section-title">Teachers & Students</h3>
-        {teachers.length === 0 ? (
-          <div className="no-teachers">No teachers available.</div>
-        ) : (
-          <div className="teachers-layout">
+      {activeSection === "teachers" && (
+        <>
+          <TeacherRegistrationForm
+            onRegister={onRegisterTeacher}
+            message={message}
+            messageType={messageType}
+          />
+          <div className="teachers-section">
+            <h3 className="teachers-section-title">Teachers</h3>
             <TeachersList
               teachers={teachers}
-              selectedTeacherId={selectedTeacherId}
-              onSelectTeacher={onSelectTeacher}
-            />
-            <TeacherDetails
-              teacher={selectedTeacher}
-              onAddStudentRow={onAddStudentRow}
-              onRemoveStudentRow={onRemoveStudentRow}
-              onSetNewStudentValue={onSetNewStudentValue}
-              onSubmitNewStudents={onSubmitNewStudents}
-              onRemoveStudent={onRemoveStudent}
-              onUpdateStudent={onUpdateStudent}
+              schools={schools}
+              onUpdateTeacher={onUpdateTeacher}
+              onDeleteTeacher={onDeleteTeacher}
+              onTransferTeacher={onTransferTeacher}
             />
           </div>
-        )}
-      </div>
+        </>
+      )}
 
-      <DuplicateStudentModal
-        open={Boolean(pendingDuplicates?.duplicates?.length)}
-        duplicates={pendingDuplicates?.duplicates ?? []}
-        onResolve={(resolution) => onResolveDuplicates(resolution, pendingDuplicates)}
-        onCancel={onDismissDuplicateModal}
-      />
+      {activeSection === "students" && (
+        <StudentsSection
+          students={students}
+          onAddStudent={onAddStudent}
+          onUpdateStudent={onUpdateStudent}
+          onDeleteStudent={onDeleteStudent}
+        />
+      )}
     </div>
   );
 };

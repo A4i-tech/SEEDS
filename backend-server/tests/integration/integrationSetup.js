@@ -4,21 +4,11 @@ const { MongoMemoryServer } = require("mongodb-memory-server");
 let mongoServer;
 
 /**
- * Set shared environment variables needed by the app during integration tests.
- */
-function configureTestEnv() {
-  process.env.AUTH_TYPE = "native";
-  process.env.SECRET_KEY = "test-secret-key-for-testing-purposes-123";
-  process.env.AZURE_STORAGE_ACCOUNT_NAME = "mockaccountname";
-  process.env.AZURE_STORAGE_ACCOUNT_KEY = "mockkeymockkeymockkeymockkeymockkeymockkeymockkeymockkey";
-}
-
-/**
  * Start an in-memory MongoDB instance and connect mongoose.
+ * Environment variables (SECRET_KEY, AUTH_TYPE, etc.) are set by jest.setup.js.
  * Call this inside beforeAll().
  */
 async function setup() {
-  configureTestEnv();
   mongoServer = await MongoMemoryServer.create();
   await mongoose.connect(mongoServer.getUri());
 }

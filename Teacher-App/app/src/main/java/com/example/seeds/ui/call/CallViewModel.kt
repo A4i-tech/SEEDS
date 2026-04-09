@@ -90,8 +90,7 @@ class CallViewModel @Inject constructor(
     private var lastPlayCommandMs = 0L
 
     val teacherPhoneNumber = "91${teacherRepository.getTeacherPhoneNumber()}"
-    private var teacherName: String? = null
-
+    
     // Filter out teacher phone
     // args.phoneNumbers should only contain selected students from CallSettingsFragment
     private var phoneNumbers: List<String> = args.phoneNumbers
@@ -223,11 +222,6 @@ class CallViewModel @Inject constructor(
                 loadCorrectStudentNames()
             }
 
-            viewModelScope.launch {
-                val prefs = userPreferencesRepository.userPrefs.first()
-                teacherName = prefs.userName.takeIf { it.isNotBlank() }
-            }
-
             val selectedStudentPhones = phoneNumbers.toSet()
             val initialCallStatuses = CallUtils.buildInitialCallStatuses(
                 args.classroom.students,
@@ -351,19 +345,20 @@ class CallViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val teacherPhoneWithPrefix = "$teacherPhoneNumber"
-                val studentPhonesWithPrefix = phoneNumbers.map { "$it" }
-                val teacherDisplayName = teacherName?.takeIf { it.isNotBlank() }
-                    ?: userPreferencesRepository.userPrefs.first().userName.takeIf { it.isNotBlank() }
-
-                if (teacherName == null && teacherDisplayName != null) {
-                    teacherName = teacherDisplayName
-                }
+                val studentPhonesWithPrefix = phoneNumbers
+                    .map { CallUtils.normalizePhoneNumber(it) }
+                    .filter { it.isNotBlank() }
+                    .distinct()
+                val teacherDisplayName = userPreferencesRepository.userPrefs.first().userName
+                    .takeIf { it.isNotBlank() } ?: "Teacher"
 
                 val directoryMap = teacherStudentsDirectory.studentsByPhone()
                 val studentNames = studentPhonesWithPrefix.map { phone ->
-                    val name = directoryMap[phone]?.name
-                        ?: args.classroom.students.find { it.phoneNumber == phone }?.name
-                    name?.takeIf { it.isNotBlank() }
+                    directoryMap[phone]?.name
+                        ?: args.classroom.students.find {
+                            val normalizedPhone = if (it.phoneNumber.startsWith("91")) it.phoneNumber else "91${it.phoneNumber}"
+                            it.phoneNumber == phone || normalizedPhone == phone
+                        }?.name
                 }
 
                 val payload = ConferenceCreateRequest(
@@ -471,7 +466,6 @@ class CallViewModel @Inject constructor(
                 _navigateBack.postValue(true)
                 return
             }
-
             val students = mutableListOf<StudentCallStatus>()
             var teacherStatus: StudentCallStatus? = null
 
@@ -545,9 +539,15 @@ class CallViewModel @Inject constructor(
                 }
 
                 val fullUrl = "$conferenceUrl/conference/start/$confId"
-                val leaderPhone = leader.takeIf { it.isNotEmpty() }
                 // Use phoneNumbers which only contains selected students (teacher phone already filtered out)
-                val response = network.startCall(fullUrl, CallDetails(confId, phoneNumbers, names, leaderPhone))
+                val normalizedPhoneNumbers = phoneNumbers
+                    .map { CallUtils.normalizePhoneNumber(it) }
+                    .filter { it.isNotBlank() }
+                    .distinct()
+                val leaderPhone = args.leader
+                    ?.let { CallUtils.normalizePhoneNumber(it) }
+                    ?.takeIf { it.isNotBlank() }
+                val response = network.startCall(fullUrl, CallDetails(confId, normalizedPhoneNumbers, names, leaderPhone))
 
                 if (response.isSuccessful) {
                     _callToken.postValue(AccessToken(confId = confId, accessToken = ""))
@@ -637,12 +637,11 @@ class CallViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val fullUrl = "$conferenceUrl/conference/addparticipant/$confId"
-                val response = network.connectParticipant(
-                    fullUrl,
-                    teacherPhoneNumber,
-                    teacherName?.takeIf { it.isNotBlank() }
-                )
-
+                val teacherDisplayName = userPreferencesRepository.userPrefs.first().userName
+                    .takeIf { it.isNotBlank() } ?: "Teacher"
+                
+                val response = network.connectParticipant(fullUrl, teacherPhoneNumber, teacherDisplayName)
+                
                 if (!response.isSuccessful) {
                     Log.e(TAG, "Failed to rejoin teacher: ${response.code()}")
                     refreshCallState() 
@@ -907,14 +906,11 @@ class CallViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val fullUrl = "$conferenceUrl/conference/addparticipant/$confId"
-                val response = network.connectParticipant(
-                    fullUrl,
-                    phoneNumber,
-                    name.takeIf { it.isNotBlank() }
-                )
-                if (!response.isSuccessful) refreshCallState()
+                val participantName = name.takeIf { it.isNotBlank() }
+                val response = network.connectParticipant(fullUrl, phoneNumber, participantName)
+                if (!response.isSuccessful) refreshCallState() 
             } catch (e: Exception) {
-                refreshCallState()
+                refreshCallState() 
             }
         }
     }
@@ -923,7 +919,7 @@ class CallViewModel @Inject constructor(
     fun disconnectParticipant(phoneNumber: String) {
         val confId = _callToken.value?.confId ?: return
         val currentList = _callState.value?.toMutableList() ?: return
-        val participantName = resolveParticipantName(phoneNumber)
+        val participantName = getStudentName(phoneNumber).takeIf { it.isNotBlank() }
         
         val tracker = participantTrackers[phoneNumber]
         if (tracker != null) {
@@ -942,30 +938,23 @@ class CallViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val fullUrl = "$conferenceUrl/conference/removeparticipant/$confId"
-                val response = network.disconnectParticipant(
-                    fullUrl,
-                    phoneNumber,
-                    participantName
-                )
+                val response = network.disconnectParticipant(fullUrl, phoneNumber, participantName)
                 if (!response.isSuccessful) {
-                    Log.e("API_ACTION", "Server failed to connect $phoneNumber. Reverting UI.")
+                    // On failure, refresh to get server state
                     refreshCallState()
                 }
+                // On success, next polling cycle will handle the state correctly
+                // The participant will be kept as DISCONNECTED by the polling logic
             } catch (e: Exception) {
-                refreshCallState() 
+                // On exception, refresh to get server state
+                refreshCallState()
             }
         }
     }
-
-    private fun resolveParticipantName(phoneNumber: String): String? {
-        val name = teacherStudentsMap[phoneNumber]?.name
-            ?: args.classroom.students.find { it.phoneNumber == phoneNumber }?.name
-        return name?.takeIf { it.isNotBlank() }
-    }
-
+    
     fun unmuteAll() {
         val confId = _callToken.value?.confId ?: return
-
+        
         // Optimistic update: Mark all students as unmuted
         val currentList = _callState.value?.toMutableList() ?: return
         val updatedList = currentList.map { participant ->

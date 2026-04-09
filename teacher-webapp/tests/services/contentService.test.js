@@ -1,39 +1,17 @@
 import * as contentService from "../../src/services/contentService";
 import { API_ENDPOINTS } from "../../src/constants/apiEndpoints";
+import axiosInstance from "../../src/services/axiosInstance";
 
-// Mock fetch globally
-global.fetch = jest.fn();
-
-// Mock getAuthHeaders
-jest.mock("../../src/utils/authHelpers", () => ({
-  getAuthHeaders: jest.fn(() => ({
-    "Content-Type": "application/json",
-    Authorization: "Bearer test-token",
-  })),
+jest.mock("../../src/services/axiosInstance", () => ({
+  __esModule: true,
+  default: {
+    get: jest.fn(),
+  },
 }));
 
-// Mock environment variables
-process.env.REACT_APP_API_BASE_URL = "http://localhost:3000";
-
 describe("contentService", () => {
-  const mockSuccessResponse = (data) => ({
-    ok: true,
-    json: jest.fn().mockResolvedValueOnce(data),
-  });
-
-  const mockErrorResponse = (status = 400, message = "Error") => ({
-    ok: false,
-    status,
-    statusText: message,
-    json: jest.fn().mockResolvedValueOnce({ error: message }),
-  });
-
   beforeEach(() => {
-    fetch.mockClear();
-  });
-
-  afterEach(() => {
-    jest.restoreAllMocks();
+    jest.clearAllMocks();
   });
 
   describe("getContent", () => {
@@ -54,25 +32,16 @@ describe("contentService", () => {
     };
 
     test("fetches content with default parameters", async () => {
-      fetch.mockResolvedValueOnce(mockSuccessResponse(mockContentResponse));
+      axiosInstance.get.mockResolvedValueOnce({ data: mockContentResponse });
 
       const result = await contentService.getContent();
 
-      expect(fetch).toHaveBeenCalledWith(
-        `${API_ENDPOINTS.GET_CONTENT}?limit=15`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: "Bearer test-token",
-          },
-        }
-      );
+      expect(axiosInstance.get).toHaveBeenCalledWith(`${API_ENDPOINTS.GET_CONTENT}?limit=15`);
       expect(result).toEqual(mockContentResponse);
     });
 
     test("fetches content with query parameters", async () => {
-      fetch.mockResolvedValueOnce(mockSuccessResponse(mockContentResponse));
+      axiosInstance.get.mockResolvedValueOnce({ data: mockContentResponse });
 
       const result = await contentService.getContent({
         language: "en",
@@ -82,41 +51,33 @@ describe("contentService", () => {
         cursor: "cursor-123",
       });
 
-      const expectedUrl = `${API_ENDPOINTS.GET_CONTENT}?language=en&theme=${encodeURIComponent("Science")}&expName=Story&limit=20&cursor=cursor-123`;
-      expect(fetch).toHaveBeenCalledWith(expectedUrl, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer test-token",
-        },
-      });
+      const expectedUrl = `${API_ENDPOINTS.GET_CONTENT}?language=en&theme=Science&expName=Story&limit=20&cursor=cursor-123`;
+      expect(axiosInstance.get).toHaveBeenCalledWith(expectedUrl);
       expect(result).toEqual(mockContentResponse);
     });
 
     test("fetches content with onlyTeacherApp flag", async () => {
-      fetch.mockResolvedValueOnce(mockSuccessResponse(mockContentResponse));
+      axiosInstance.get.mockResolvedValueOnce({ data: mockContentResponse });
 
       await contentService.getContent({ onlyTeacherApp: true });
 
       const expectedUrl = `${API_ENDPOINTS.GET_CONTENT}?onlyTeacherApp=true&limit=15`;
-      expect(fetch).toHaveBeenCalledWith(expectedUrl, expect.any(Object));
+      expect(axiosInstance.get).toHaveBeenCalledWith(expectedUrl);
     });
 
     test("fetches content with ids array", async () => {
-      fetch.mockResolvedValueOnce(mockSuccessResponse(mockContentResponse));
+      axiosInstance.get.mockResolvedValueOnce({ data: mockContentResponse });
 
       await contentService.getContent({ ids: ["id1", "id2", "id3"] });
 
       const expectedUrl = `${API_ENDPOINTS.GET_CONTENT}?ids=id1%2Cid2%2Cid3&limit=15`;
-      expect(fetch).toHaveBeenCalledWith(expectedUrl, expect.any(Object));
+      expect(axiosInstance.get).toHaveBeenCalledWith(expectedUrl);
     });
 
-    test("handles fetch errors", async () => {
-      fetch.mockResolvedValueOnce(mockErrorResponse(500, "Server Error"));
+    test("propagates fetch errors", async () => {
+      axiosInstance.get.mockRejectedValueOnce(new Error("Network Error"));
 
-      await expect(contentService.getContent()).rejects.toThrow(
-        "Failed to fetch content"
-      );
+      await expect(contentService.getContent()).rejects.toThrow("Network Error");
     });
   });
 
@@ -127,37 +88,25 @@ describe("contentService", () => {
 
     test("fetches SAS URL for audio URL", async () => {
       const audioUrl = "https://storage.blob.core.windows.net/container/blob.mp3";
-      fetch.mockResolvedValueOnce(mockSuccessResponse(mockSasResponse));
+      axiosInstance.get.mockResolvedValueOnce({ data: mockSasResponse });
 
       const result = await contentService.getContentSasUrl(audioUrl);
 
       const expectedUrl = `${API_ENDPOINTS.GET_CONTENT_SAS_URL}?url=${encodeURIComponent(audioUrl)}`;
-      expect(fetch).toHaveBeenCalledWith(expectedUrl, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer test-token",
-        },
-      });
+      expect(axiosInstance.get).toHaveBeenCalledWith(expectedUrl);
       expect(result).toBe(mockSasResponse.url);
     });
 
     test("throws error when audioUrl is missing", async () => {
-      await expect(contentService.getContentSasUrl(null)).rejects.toThrow(
-        "Audio URL is required"
-      );
-      await expect(contentService.getContentSasUrl("")).rejects.toThrow(
-        "Audio URL is required"
-      );
+      await expect(contentService.getContentSasUrl(null)).rejects.toThrow("Audio URL is required");
+      await expect(contentService.getContentSasUrl("")).rejects.toThrow("Audio URL is required");
     });
 
-    test("handles fetch errors", async () => {
+    test("propagates fetch errors", async () => {
       const audioUrl = "https://storage.blob.core.windows.net/container/blob.mp3";
-      fetch.mockResolvedValueOnce(mockErrorResponse(500, "Server Error"));
+      axiosInstance.get.mockRejectedValueOnce(new Error("Network Error"));
 
-      await expect(contentService.getContentSasUrl(audioUrl)).rejects.toThrow(
-        "Failed to fetch SAS URL"
-      );
+      await expect(contentService.getContentSasUrl(audioUrl)).rejects.toThrow("Network Error");
     });
   });
 
@@ -171,46 +120,23 @@ describe("contentService", () => {
     };
 
     test("fetches content by ID", async () => {
-      fetch.mockResolvedValueOnce(mockSuccessResponse(mockContent));
+      axiosInstance.get.mockResolvedValueOnce({ data: mockContent });
 
       const result = await contentService.getContentById("content-123");
 
-      expect(fetch).toHaveBeenCalledWith(
-        `${API_ENDPOINTS.GET_CONTENT}/content-123`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: "Bearer test-token",
-          },
-        }
-      );
+      expect(axiosInstance.get).toHaveBeenCalledWith(`${API_ENDPOINTS.GET_CONTENT}/content-123`);
       expect(result).toEqual(mockContent);
     });
 
     test("throws error when contentId is missing", async () => {
-      await expect(contentService.getContentById(null)).rejects.toThrow(
-        "Content ID is required"
-      );
-      await expect(contentService.getContentById("")).rejects.toThrow(
-        "Content ID is required"
-      );
+      await expect(contentService.getContentById(null)).rejects.toThrow("Content ID is required");
+      await expect(contentService.getContentById("")).rejects.toThrow("Content ID is required");
     });
 
-    test("handles 404 error", async () => {
-      fetch.mockResolvedValueOnce(mockErrorResponse(404, "Not Found"));
+    test("propagates fetch errors", async () => {
+      axiosInstance.get.mockRejectedValueOnce(new Error("Network Error"));
 
-      await expect(contentService.getContentById("invalid-id")).rejects.toThrow(
-        "Content not found"
-      );
-    });
-
-    test("handles other fetch errors", async () => {
-      fetch.mockResolvedValueOnce(mockErrorResponse(500, "Server Error"));
-
-      await expect(contentService.getContentById("content-123")).rejects.toThrow(
-        "Failed to fetch content"
-      );
+      await expect(contentService.getContentById("content-123")).rejects.toThrow("Network Error");
     });
   });
 });

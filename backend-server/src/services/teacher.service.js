@@ -1,227 +1,161 @@
-const teacherRepo = require("../repositories/teacher.repository");
-const studentRepo = require("../repositories/student.repository");
-const { STATUS } = require("../config/constants");
+"use strict";
 
-exports.addStudents = async ({ students = [], phoneNumber, tenantId }) => {
-  // Validate input
-  if (!Array.isArray(students) || !students.length) {
-    const err = new Error("Students array is required and cannot be empty");
-    err.status = STATUS.BAD_REQUEST;
-    throw err;
-  }
+const bcrypt = require("bcryptjs");
+const validator = require("validator");
 
-  // Load Teacher
-  const teacher = await teacherRepo.findByPhoneAndTenant(phoneNumber, tenantId);
+const teacherRepository = require("../repositories/teacher.repository");
+const schoolRepository = require("../repositories/school.repository");
+const classRepository = require("../repositories/class.repository");
+const { STATUS, PASSWORD_POLICY } = require("../config/constants");
+const { passwordSaltRounds } = require("../config/env");
 
-  if (!teacher) {
-    const err = new Error("Teacher not found with the provided phone number");
-    err.status = STATUS.NOT_FOUND;
-    throw err;
-  }
-
-  // Normalize and prepare student data
-  const normalized = normalizeStudents(students);
-  if (!normalized.length) {
-    const err = new Error("No valid student entries provided");
-    err.status = STATUS.BAD_REQUEST;
-    throw err;
-  }
-
-  // fetch existing students
-  const existingStudents = await studentRepo.findByPhones(normalized.map((s) => s.phoneNumber));
-
-  const existingMap = new Map(existingStudents.map((s) => [s.phoneNumber, s]));
-
-  const toInsert = [];
-  const toUpdate = [];
-  const duplicates = [];
-  const resolved = [];
-
-  for (const s of normalized) {
-    const existing = existingMap.get(s.phoneNumber);
-    if (!existing) {
-      toInsert.push({ name: s.name, phoneNumber: s.phoneNumber });
-      continue;
-    }
-
-    if (existing.name === s.name) {
-      resolved.push(existing);
-      continue;
-    }
-
-    if (s.updateName) {
-      toUpdate.push({ _id: existing._id, name: s.name });
-      resolved.push({ ...existing, name: s.name });
-      continue;
-    }
-
-    duplicates.push({
-      phoneNumber: s.phoneNumber,
-      existingName: existing.name,
-      submittedName: s.name,
-    });
-  }
-
-  // apply updates
-  if (toUpdate.length) {
-    await studentRepo.bulkUpdateNames(toUpdate);
-  }
-
-  // insert new
-  const inserted = toInsert.length ? await studentRepo.insertManySafe(toInsert) : [];
-
-  const allStudents = [...resolved, ...inserted];
-
-  // link to teacher
-  const { newlyAdded, alreadyLinked } = await teacherRepo.linkStudents(teacher._id, allStudents);
-
-  // Return result
-  return {
-    students: newlyAdded.map((s) => ({ name: s.name, phoneNumber: s.phoneNumber })),
-    ...(duplicates.length && { duplicates }),
-    ...(alreadyLinked.length && {
-      alreadyLinked: alreadyLinked.map((s) => ({ name: s.name, phoneNumber: s.phoneNumber })),
-    }),
-  };
-};
-
-exports.getStudents = async ({ phoneNumber, tenantId }) => {
-  const teacher = await teacherRepo.findByPhoneAndTenant(phoneNumber, tenantId);
+/**
+ * Get a teacher by ID
+ * @param {string} teacherId - The teacher id
+ * @returns {Promise<Object>} - The teacher (without password)
+ */
+exports.getTeacherById = async (teacherId) => {
+  const teacher = await teacherRepository.getTeacherById(teacherId);
   if (!teacher) {
     const err = new Error("Teacher not found");
     err.status = STATUS.NOT_FOUND;
     throw err;
   }
-
-  const studentIds = Array.isArray(teacher.studentId) ? teacher.studentId : [];
-  if (studentIds.length === 0) return [];
-
-  const students = await studentRepo.findManyByIds(studentIds);
-  return students.map((s) => ({ name: s.name, phoneNumber: s.phoneNumber }));
+  return teacher;
 };
 
-exports.getTeachers = async ({ tenantId }) => {
-  const teachers = await teacherRepo.findByTenant(tenantId);
-  if (!teachers || teachers.length === 0) return [];
-
-  const studentIdSet = new Set();
-  for (const t of teachers) {
-    if (Array.isArray(t.studentId)) {
-      for (const sid of t.studentId) {
-        if (sid) studentIdSet.add(String(sid));
-      }
-    }
-  }
-
-  const studentIds = Array.from(studentIdSet);
-  const students = studentIds.length > 0 ? await studentRepo.findManyByIds(studentIds) : [];
-
-  const studentMap = {};
-  for (const s of students) {
-    studentMap[String(s._id)] = s;
-  }
-
-  return teachers.map((t) => ({
-    _id: t._id,
-    name: t.name,
-    phoneNumber: t.phoneNumber,
-    students: (t.studentId || [])
-      .map((id) => {
-        const s = studentMap[String(id)];
-        return s ? { name: s.name, phoneNumber: s.phoneNumber } : null;
-      })
-      .filter(Boolean),
-  }));
-};
-
-exports.removeStudents = async ({ phoneNumber, students, tenantId }) => {
-  if (!Array.isArray(students) || students.length === 0) {
-    const err = new Error("Students array is required and cannot be empty");
-    err.status = STATUS.BAD_REQUEST;
+/**
+ * Get all teachers in a school (validates school belongs to tenant)
+ * @param {string} schoolId - The school id
+ * @param {string} tenantId - The tenant id
+ * @returns {Promise<Object[]>} - The teachers
+ */
+exports.getTeachersBySchoolId = async (schoolId, tenantId) => {
+  const school = await schoolRepository.getSchoolById(schoolId, tenantId);
+  if (!school) {
+    const err = new Error("School not found");
+    err.status = STATUS.NOT_FOUND;
     throw err;
   }
+  const teachers = await teacherRepository.getTeachersBySchoolId(schoolId);
+  return teachers;
+};
 
-  const teacher = await teacherRepo.findByPhoneAndTenant(phoneNumber, tenantId);
+/**
+ * Transfer a teacher to another school within the same tenant
+ * @param {string} teacherId - The teacher id
+ * @param {string} currentSchoolId - The school the admin is acting on behalf of
+ * @param {string} targetSchoolId - The target school id
+ * @param {string} tenantId - The tenant id
+ * @returns {Promise<Object>} - The updated teacher
+ */
+exports.transferTeacher = async (teacherId, currentSchoolId, targetSchoolId, tenantId) => {
+  const teacherInSource = await teacherRepository.getTeacherById(teacherId);
+  if (!teacherInSource || teacherInSource.schoolId.toString() !== currentSchoolId) {
+    const err = new Error("Teacher not found in your school");
+    err.status = STATUS.NOT_FOUND;
+    throw err;
+  }
+  const targetSchool = await schoolRepository.getSchoolById(targetSchoolId, tenantId);
+  if (!targetSchool) {
+    const err = new Error("Target school not found");
+    err.status = STATUS.NOT_FOUND;
+    throw err;
+  }
+  await classRepository.deleteClassesByTeacherAndSchool(teacherId, currentSchoolId);
+  const teacher = await teacherRepository.transferTeacher(
+    teacherId,
+    currentSchoolId,
+    targetSchoolId
+  );
   if (!teacher) {
     const err = new Error("Teacher not found");
     err.status = STATUS.NOT_FOUND;
     throw err;
   }
-
-  const phoneNumbers = students.map((s) => s.phoneNumber).filter(Boolean);
-  const foundStudents = await studentRepo.findByPhones(phoneNumbers);
-
-  if (foundStudents.length > 0) {
-    await teacherRepo.removeStudentLinks(
-      teacher._id,
-      foundStudents.map((s) => s._id)
-    );
-  }
-
-  return { message: "Students removed successfully", removedCount: foundStudents.length };
+  return teacher;
 };
 
-exports.updateStudent = async ({
-  teacherPhoneNumber,
-  currentPhoneNumber,
-  name,
-  studentPhoneNumber,
-  tenantId,
-}) => {
-  const teacher = await teacherRepo.findByPhoneAndTenant(teacherPhoneNumber, tenantId);
-  if (!teacher) {
-    const err = new Error("Teacher not found");
-    err.status = STATUS.NOT_FOUND;
-    throw err;
-  }
-
-  const student = await studentRepo.findOneByPhone(currentPhoneNumber);
-  if (!student) {
-    const err = new Error("Student not found");
-    err.status = STATUS.NOT_FOUND;
-    throw err;
-  }
-
-  const ownsStudent = (teacher.studentId || []).some((id) => String(id) === String(student._id));
-  if (!ownsStudent) {
-    const err = new Error("Student does not belong to this teacher");
-    err.status = STATUS.FORBIDDEN;
-    throw err;
-  }
-
-  const newPhone = studentPhoneNumber.trim();
-  const newName = name.trim();
-
-  if (!newName || !newPhone) {
-    const err = new Error("Name and phone number are required");
+/**
+ * Register a new teacher in a school
+ */
+exports.registerTeacher = async (phoneNumber, password, schoolId, name, role, tenantId) => {
+  const school = await schoolRepository.getSchoolById(schoolId, tenantId);
+  if (!school) {
+    const err = new Error("Invalid school");
     err.status = STATUS.BAD_REQUEST;
     throw err;
   }
+  const existing = await teacherRepository.getTeacherBySchoolIdAndPhoneNumber(
+    schoolId,
+    phoneNumber
+  );
+  if (existing) {
+    const err = new Error("Phone number already in use in this school");
+    err.status = STATUS.CONFLICT;
+    throw err;
+  }
+  const hashedPassword = await bcrypt.hash(password, parseInt(passwordSaltRounds));
+  return teacherRepository.insertTeacher({
+    phoneNumber,
+    password: hashedPassword,
+    schoolId,
+    name,
+    role,
+  });
+};
 
-  if (newPhone !== currentPhoneNumber) {
-    const existing = await studentRepo.findOneByPhone(newPhone);
-    if (existing && String(existing._id) !== String(student._id)) {
-      const err = new Error("A phone number already exists");
-      err.status = STATUS.CONFLICT;
+/**
+ * Update a teacher's name, phone number, and/or password
+ */
+exports.updateTeacher = async (teacherId, schoolId, { name, phoneNumber, password }) => {
+  const updates = {};
+  if (name) updates.name = name.trim();
+  if (phoneNumber) {
+    if (!validator.isMobilePhone(phoneNumber)) {
+      const err = new Error("Invalid phone number format");
+      err.status = STATUS.BAD_REQUEST;
       throw err;
     }
+    updates.phoneNumber = phoneNumber;
   }
-
-  const updated = await studentRepo.updateById(student._id, {
-    name: newName,
-    phoneNumber: newPhone,
-  });
-  return { name: updated.name, phoneNumber: updated.phoneNumber };
+  if (password) {
+    if (!validator.isStrongPassword(password, PASSWORD_POLICY)) {
+      const err = new Error(
+        "Password must be at least 8 characters, and include uppercase, lowercase, number, and special character"
+      );
+      err.status = STATUS.BAD_REQUEST;
+      throw err;
+    }
+    updates.password = await bcrypt.hash(password, parseInt(passwordSaltRounds));
+  }
+  const teacher = await teacherRepository.updateTeacher(teacherId, schoolId, updates);
+  if (!teacher) {
+    const err = new Error("Teacher not found");
+    err.status = STATUS.NOT_FOUND;
+    throw err;
+  }
+  return teacher;
 };
 
-function normalizeStudents(students) {
-  const result = [];
-  for (const s of students) {
-    if (!s?.name || !s?.phoneNumber) continue; // Skip invalid entries
-    const name = s.name.trim();
-    const phone = s.phoneNumber.trim();
-    if (!name || !phone) continue; // Skip if name or phone is empty after trimming
-    result.push({ name, phoneNumber: phone, updateName: !!s.updateName });
+/**
+ * Delete a teacher from a school
+ */
+exports.deleteTeacher = async (teacherId, schoolId) => {
+  const teacher = await teacherRepository.getTeacherById(teacherId);
+  if (!teacher || teacher.schoolId.toString() !== schoolId) {
+    const err = new Error("Teacher not found");
+    err.status = STATUS.NOT_FOUND;
+    throw err;
   }
-  return result;
-}
+
+  await classRepository.deleteClassesByTeacherAndSchool(teacherId, schoolId);
+  const deleted = await teacherRepository.deleteTeacher(teacherId, schoolId);
+  if (!deleted) {
+    const err = new Error("Teacher not found");
+    err.status = STATUS.NOT_FOUND;
+    throw err;
+  }
+
+  return deleted;
+};

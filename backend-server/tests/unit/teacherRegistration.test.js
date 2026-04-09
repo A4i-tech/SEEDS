@@ -1,17 +1,15 @@
-process.env.AUTH_TYPE = "native";
-process.env.SECRET_KEY = "test-secret-key-for-testing-purposes-123";
-
-const teacherAuth = require("../../src/auth/teacher/teacherAuthProviderMiddleware");
+const teacherController = require("../../src/controllers/teacher.controller");
 
 const STATUS_BAD_REQUEST = 400;
 
 const TEST_PHONE = "1234567890";
 const TEST_PASSWORD = "TestPassword123!";
 const TEST_TEACHER_NAME = "Test Teacher";
+const TEST_SCHOOL_ID = "school123";
 const TEST_TENANT_ID = "tenant123";
 
-function getMockReq(body, tenantId = TEST_TENANT_ID) {
-  return { body, tenantId };
+function getMockReq(body) {
+  return { body, schoolId: TEST_SCHOOL_ID, tenantId: TEST_TENANT_ID };
 }
 
 function getMockRes() {
@@ -32,7 +30,7 @@ describe("Teacher registration - input validation (unit)", () => {
   test("register fails with missing name", async () => {
     const req = getMockReq({ phoneNumber: TEST_PHONE, password: TEST_PASSWORD });
     const res = getMockRes();
-    await teacherAuth.register(req, res);
+    await teacherController.register(req, res);
     expect(res.statusCode).toBe(STATUS_BAD_REQUEST);
     expect(res.body.message.toLowerCase()).toContain("name");
   });
@@ -40,14 +38,14 @@ describe("Teacher registration - input validation (unit)", () => {
   test("register fails with empty string name", async () => {
     const req = getMockReq({ phoneNumber: TEST_PHONE, password: TEST_PASSWORD, name: "" });
     const res = getMockRes();
-    await teacherAuth.register(req, res);
+    await teacherController.register(req, res);
     expect(res.statusCode).toBe(STATUS_BAD_REQUEST);
   });
 
   test("register fails with whitespace-only name", async () => {
     const req = getMockReq({ phoneNumber: TEST_PHONE, password: TEST_PASSWORD, name: "   \t  " });
     const res = getMockRes();
-    await teacherAuth.register(req, res);
+    await teacherController.register(req, res);
     expect(res.statusCode).toBe(STATUS_BAD_REQUEST);
   });
 
@@ -58,7 +56,7 @@ describe("Teacher registration - input validation (unit)", () => {
       name: TEST_TEACHER_NAME,
     });
     const res = getMockRes();
-    await teacherAuth.register(req, res);
+    await teacherController.register(req, res);
     expect(res.statusCode).toBe(STATUS_BAD_REQUEST);
     expect(res.body.message.toLowerCase()).toContain("phone");
   });
@@ -70,7 +68,7 @@ describe("Teacher registration - input validation (unit)", () => {
       name: TEST_TEACHER_NAME,
     });
     const res = getMockRes();
-    await teacherAuth.register(req, res);
+    await teacherController.register(req, res);
     expect(res.statusCode).toBe(STATUS_BAD_REQUEST);
     expect(res.body.message.toLowerCase()).toContain("password");
   });
@@ -81,21 +79,20 @@ describe("Teacher registration - input validation (unit)", () => {
       phoneNumber: TEST_PHONE,
       password: TEST_PASSWORD,
       name: nameWithSpaces,
+      role: "teacher",
     });
 
-    const dbAdapter = require("../../src/auth/dbAdapters/nativeDb");
+    const teacherService = require("../../src/services/teacher.service");
 
-    let capturedInsertData;
-    jest.spyOn(dbAdapter, "getTenantById").mockResolvedValue({ _id: TEST_TENANT_ID });
-    jest.spyOn(dbAdapter, "getTeacherByTenantIdAndPhoneNumber").mockResolvedValue(null);
-    jest.spyOn(dbAdapter, "insertTeacher").mockImplementation((data) => {
-      capturedInsertData = data;
-      return Promise.resolve(data);
+    let capturedName;
+    jest.spyOn(teacherService, "registerTeacher").mockImplementation((_phone, _pass, _schoolId, name) => {
+      capturedName = name;
+      return Promise.resolve({});
     });
 
     const res = getMockRes();
-    await teacherAuth.register(req, res);
-    expect(capturedInsertData.name).toBe("Trimmed Teacher");
+    await teacherController.register(req, res);
+    expect(capturedName).toBe("Trimmed Teacher");
   });
 
   afterEach(() => {

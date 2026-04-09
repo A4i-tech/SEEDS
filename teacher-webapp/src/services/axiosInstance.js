@@ -41,6 +41,16 @@ axiosInstance.interceptors.response.use(
       return Promise.reject(new Error("Request timed out. Please try again."));
     }
 
+    // Handle 401 Unauthorized errors
+    if (error.response?.status === 401) {
+      console.error("Unauthorized (401): Clearing auth token and redirecting to login");
+      // Clear auth token
+      localStorage.removeItem("authToken");
+      // Redirect to login page
+      window.location.href = "/";
+      return Promise.reject(new Error("Session expired. Please login again."));
+    }
+
     // Handle other axios errors
     if (error.response) {
       // Server responded with error status

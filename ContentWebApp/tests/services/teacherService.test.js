@@ -9,68 +9,55 @@ describe("teacherService", () => {
     jest.clearAllMocks();
   });
 
-  describe("addStudents", () => {
-    test("calls apiFetch with POST to add-students and correct body", async () => {
-      const mockResponse = { students: [{ name: "A", phoneNumber: "911111111111" }] };
+  describe("createStudent", () => {
+    test("calls apiFetch with POST to /student and correct body", async () => {
+      const mockResponse = { _id: "s1", name: "A", phoneNumber: "911111111111" };
       apiFetch.mockResolvedValue(mockResponse);
 
-      const result = await teacherService.addStudents(
-        "919876543210",
-        [{ name: "A", phoneNumber: "911111111111" }],
-        { Authorization: "Bearer x" }
-      );
+      const result = await teacherService.createStudent("A", "911111111111", {
+        Authorization: "Bearer x",
+      });
 
-      expect(apiFetch).toHaveBeenCalledTimes(1);
-      expect(apiFetch).toHaveBeenCalledWith("http://test-api/v1/teacher/add-students", {
+      expect(apiFetch).toHaveBeenCalledWith("http://test-api/student", {
         method: "POST",
         headers: { Authorization: "Bearer x" },
         body: JSON.stringify({
-          phoneNumber: "919876543210",
-          students: [{ name: "A", phoneNumber: "911111111111" }],
+          name: "A",
+          phoneNumber: "911111111111",
         }),
       });
       expect(result).toEqual(mockResponse);
     });
 
-    test("returns response with students, duplicates and alreadyLinked when present", async () => {
-      const mockResponse = {
-        students: [{ name: "New", phoneNumber: "912222222222" }],
-        duplicates: [{ phoneNumber: "913333333333", existingName: "Old", submittedName: "NewName" }],
-        alreadyLinked: [{ name: "Already", phoneNumber: "914444444444" }],
-      };
+    test("returns created student on success", async () => {
+      const mockResponse = { _id: "s2", name: "New", phoneNumber: "912222222222" };
       apiFetch.mockResolvedValue(mockResponse);
 
-      const result = await teacherService.addStudents("919876543210", [], {});
+      const result = await teacherService.createStudent("New", "912222222222", {});
 
       expect(result).toEqual(mockResponse);
-      expect(result.students).toHaveLength(1);
-      expect(result.duplicates).toHaveLength(1);
-      expect(result.alreadyLinked).toHaveLength(1);
     });
   });
 
-  describe("updateStudent", () => {
-    test("calls apiFetch with PATCH and correct body with trimmed name and phone", async () => {
+  describe("updateStudentById", () => {
+    test("calls apiFetch with PATCH and correct body", async () => {
       const mockResponse = { name: "Updated", phoneNumber: "918888888882" };
       apiFetch.mockResolvedValue(mockResponse);
 
-      const result = await teacherService.updateStudent(
-        "919876543210",
+      const result = await teacherService.updateStudentById(
         "918888888881",
-        "  Updated  ",
-        "  918888888882  ",
+        "Updated",
+        "918888888882",
         {}
       );
 
       expect(apiFetch).toHaveBeenCalledTimes(1);
-      expect(apiFetch).toHaveBeenCalledWith("http://test-api/v1/teacher/students", {
+      expect(apiFetch).toHaveBeenCalledWith("http://test-api/student/918888888881", {
         method: "PATCH",
         headers: {},
         body: JSON.stringify({
-          phoneNumber: "919876543210",
-          currentPhoneNumber: "918888888881",
           name: "Updated",
-          studentPhoneNumber: "918888888882",
+          phoneNumber: "918888888882",
         }),
       });
       expect(result).toEqual(mockResponse);
@@ -79,8 +66,7 @@ describe("teacherService", () => {
     test("returns updated student on success", async () => {
       apiFetch.mockResolvedValue({ name: "NewName", phoneNumber: "917777777777" });
 
-      const result = await teacherService.updateStudent(
-        "919876543210",
+      const result = await teacherService.updateStudentById(
         "916666666666",
         "NewName",
         "917777777777",
@@ -95,8 +81,33 @@ describe("teacherService", () => {
       apiFetch.mockRejectedValue(conflictError);
 
       await expect(
-        teacherService.updateStudent("919876543210", "916666666666", "Name", "917777777777", {})
+        teacherService.updateStudentById("916666666666", "Name", "917777777777", {})
       ).rejects.toMatchObject({ status: 409, message: "Conflict" });
+    });
+  });
+
+  describe("updateTeacher", () => {
+    test("trims name and phone in PATCH body", async () => {
+      const mockResponse = { name: "Updated", phoneNumber: "918888888882" };
+      apiFetch.mockResolvedValue(mockResponse);
+
+      const result = await teacherService.updateTeacher(
+        "teacher-1",
+        "  Updated  ",
+        "  918888888882  ",
+        "",
+        {}
+      );
+
+      expect(apiFetch).toHaveBeenCalledWith("http://test-api/teacher/teacher-1", {
+        method: "PATCH",
+        headers: {},
+        body: JSON.stringify({
+          name: "Updated",
+          phoneNumber: "918888888882",
+        }),
+      });
+      expect(result).toEqual(mockResponse);
     });
   });
 });

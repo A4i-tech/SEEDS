@@ -66,6 +66,31 @@ class IStudentDao {
   async insertMany(data) {
     throw new Error("IStudentDao.insertMany() not implemented");
   }
+
+  // School-based methods
+  async createStudent({ name, phoneNumber, schoolId }) {
+    throw new Error("IStudentDao.createStudent() not implemented");
+  }
+
+  async getStudentsBySchoolId(schoolId) {
+    throw new Error("IStudentDao.getStudentsBySchoolId() not implemented");
+  }
+
+  async getStudentById(studentId) {
+    throw new Error("IStudentDao.getStudentById() not implemented");
+  }
+
+  async updateStudent(studentId, schoolId, updates) {
+    throw new Error("IStudentDao.updateStudent() not implemented");
+  }
+
+  async deleteStudent(studentId, schoolId) {
+    throw new Error("IStudentDao.deleteStudent() not implemented");
+  }
+
+  async getStudentCountBySchoolId(schoolId) {
+    throw new Error("IStudentDao.getStudentCountBySchoolId() not implemented");
+  }
 }
 
 module.exports = IStudentDao;

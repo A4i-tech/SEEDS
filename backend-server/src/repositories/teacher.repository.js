@@ -1,38 +1,39 @@
 "use strict";
+
 const teacherDao = require("../dao/mongodb/TeacherMongoDao");
 
-exports.findByPhoneAndTenant = (phoneNumber, tenantId) =>
-  teacherDao.findByPhoneAndTenant(phoneNumber, tenantId);
+exports.getTeacherById = async (teacherId) => {
+    return teacherDao.getTeacherById(teacherId);
+};
 
-exports.findByTenant = (tenantId) => teacherDao.findByTenant(tenantId);
+exports.getTeacherByPhoneNumber = async (phoneNumber) => {
+    return teacherDao.getTeacherByPhoneNumber(phoneNumber);
+};
 
-exports.removeStudentLinks = (teacherId, studentIds) =>
-  teacherDao.removeStudentIds(teacherId, studentIds.map(String));
+exports.getTeachersBySchoolId = async (schoolId) => {
+    return teacherDao.getTeachersBySchoolId(schoolId);
+};
 
-exports.linkStudents = async (teacherId, students) => {
-  const teacher = await teacherDao.findById(teacherId);
-  if (!teacher) {
-    throw new Error("Teacher not found");
-  }
-  const existingSet = new Set((teacher.studentId || []).map(String));
+exports.transferTeacher = async (teacherId, currentSchoolId, targetSchoolId) => {
+  return teacherDao.transferTeacher(teacherId, currentSchoolId, targetSchoolId);
+};
 
-  const newIds = [];
-  const newlyAdded = [];
-  const alreadyLinked = [];
+exports.getTeacherCountBySchoolId = async (schoolId) => {
+    return teacherDao.getTeacherCountBySchoolId(schoolId);
+};
 
-  for (const s of students) {
-    const idStr = String(s._id || s.id);
-    if (existingSet.has(idStr)) {
-      alreadyLinked.push(s);
-    } else {
-      newIds.push(idStr);
-      newlyAdded.push(s);
-    }
-  }
+exports.getTeacherBySchoolIdAndPhoneNumber = async (schoolId, phoneNumber) => {
+    return teacherDao.getTeacherBySchoolIdAndPhoneNumber(schoolId, phoneNumber);
+};
 
-  if (newIds.length > 0) {
-    await teacherDao.addStudentIds(teacherId, newIds);
-  }
+exports.insertTeacher = async (data) => {
+    return teacherDao.insertTeacher(data);
+};
 
-  return { newlyAdded, alreadyLinked };
+exports.updateTeacher = async (teacherId, schoolId, updates) => {
+    return teacherDao.updateTeacher(teacherId, schoolId, updates);
+};
+
+exports.deleteTeacher = async (teacherId, schoolId) => {
+  return teacherDao.deleteTeacher(teacherId, schoolId);
 };
