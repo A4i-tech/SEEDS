@@ -19,10 +19,10 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
-  FormControl,
-  FormControlLabel,
   Radio,
   RadioGroup,
+  FormControlLabel,
+  FormControl,
 } from "@mui/material";
 import {
   ArrowBack as ArrowBackIcon,
@@ -177,12 +177,11 @@ const ClassroomDetail = () => {
     navigate(`/classrooms/edit/${classroomId}`);
   };
 
-  const handleStartConference = async () => {
+  const handleStartConference = () => {
     if (selectedStudents.length === 0) {
       showToast.error("Please select at least one student");
       return;
     }
-
     if (!teacherPhone) {
       showToast.error("Teacher phone number is missing");
       return;
@@ -204,7 +203,6 @@ const ClassroomDetail = () => {
   };
 
   const handleStartConferenceWithLeader = async (leaderPhone) => {
-    setAssignLeaderDialogOpen(false);
     setConferenceLoading(true);
     console.log("Starting conference for:", teacherPhone, selectedStudents, "leader:", leaderPhone);
 
@@ -277,14 +275,12 @@ const ClassroomDetail = () => {
         return {
           name: student.name,
           phoneNumber: normalizedPhone,
-          phone_number: normalizedPhone, // For AddParticipantModal compatibility
+          phone_number: normalizedPhone,
         };
       });
       setAllClassroomStudents(allStudentsFormatted);
 
       console.log("Conference created successfully. Conf ID:", conferenceId);
-      console.log("Student phones sent:", studentPhonesFormatted);
-
       setConferenceStarted(true);
       showToast.success("Conference started successfully");
     } catch (error) {
@@ -576,10 +572,14 @@ const ClassroomDetail = () => {
         <DialogActions>
           <Button onClick={() => setAssignLeaderDialogOpen(false)}>Cancel</Button>
           <Button
+            onClick={() => {
+              setAssignLeaderDialogOpen(false);
+              handleStartConferenceWithLeader(selectedLeaderForCall);
+            }}
             variant="contained"
-            onClick={() => handleStartConferenceWithLeader(selectedLeaderForCall)}
+            color="primary"
           >
-            Start Conference
+            Start conference
           </Button>
         </DialogActions>
       </Dialog>

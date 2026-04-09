@@ -103,11 +103,6 @@ const ClassroomForm = () => {
       errors.students = "Duplicate students are not allowed";
     }
 
-    const invalidLeaders = formData.leaders.filter((leader) => !formData.students.includes(leader));
-    if (invalidLeaders.length > 0) {
-      errors.leaders = "All leaders must be selected from students";
-    }
-
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -142,7 +137,6 @@ const ClassroomForm = () => {
     setFormData({
       ...formData,
       students: formData.students.filter((s) => s !== studentPhone),
-      leaders: formData.leaders.filter((l) => l !== studentPhone),
     });
   };
 
