@@ -96,6 +96,13 @@ exports.updateSchool = async (schoolId, tenantId, name, email, password) => {
  * @returns {Promise<Object>} - The deleted school
  */
 exports.deleteSchool = async (schoolId, tenantId) => {
+    const school = await schoolRepository.getSchoolById(schoolId, tenantId);
+    if (!school) {
+        const err = new Error("School not found");
+        err.status = STATUS.NOT_FOUND;
+        throw err;
+    }
+
     const teacherCount = await teacherRepository.getTeacherCountBySchoolId(schoolId);
     if (teacherCount > 0) {
         const err = new Error("School has teachers");

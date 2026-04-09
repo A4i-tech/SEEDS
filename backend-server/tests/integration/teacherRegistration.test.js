@@ -1,18 +1,5 @@
-jest.mock("jsonwebtoken", () => ({
-  sign: (payload) => `mock-${payload.id || ""}`,
-  verify: (token, _secret, callback) => {
-    if (typeof _secret === "function") {
-      callback = _secret;
-    }
-    if (token && String(token).startsWith("mock-")) {
-      const id = String(token).slice(5);
-      return callback(null, { id });
-    }
-    return callback(new Error("invalid token"));
-  },
-}));
-
 const request = require("supertest");
+const mongoose = require("mongoose");
 const jwt = require("jsonwebtoken");
 const app = require("../../src/index");
 const Tenant = require("../../src/models/Tenant");
@@ -20,8 +7,9 @@ const School = require("../../src/models/School");
 const Teacher = require("../../src/models/Teacher");
 const { setup, teardown, clearDatabase } = require("./integrationSetup");
 
+const SECRET_KEY = process.env.SECRET_KEY;
+
 const STATUS_CREATED = 201;
-const STATUS_UNAUTHORIZED = 401;
 const STATUS_CONFLICT = 409;
 
 const TEST_TENANT_EMAIL = "testtenant@example.com";
@@ -44,24 +32,43 @@ async function createSchoolAndToken() {
     email: TEST_SCHOOL_EMAIL,
     password: "hashedplaceholder",
   });
-  const token = jwt.sign({ id: school._id.toString() });
+  const token = jwt.sign(
+    { id: school._id.toString(), role: "school_admin", schoolId: school._id.toString(), tenantId: tenant._id.toString(), iss: "school_admin" },
+    SECRET_KEY,
+    { expiresIn: "1h" }
+  );
   return { tenant, school, token };
 }
 
 describe("Teacher registration API (integration)", () => {
-  beforeAll(setup, 30000);
+  beforeAll(setup);
   afterAll(teardown);
-  beforeEach(async () => {
-    await clearDatabase();
+  beforeEach(clearDatabase);
+
+  test("POST /teacher/register returns 401 without token", async () => {
+    const res = await request(app).post("/teacher/register").send({
+      name: "John Teacher",
+      phoneNumber: "1234567890",
+      password: TEST_PASSWORD,
+      role: "teacher",
+    });
+
+    expect(res.status).toBe(401);
   });
 
-  test("register fails without Authorization token", async () => {
-    const res = await request(app).post("/teacher/register").send({
-      phoneNumber: TEST_PHONE,
-      password: TEST_PASSWORD,
-      name: TEST_TEACHER_NAME,
-    });
-    expect(res.statusCode).toBe(STATUS_UNAUTHORIZED);
+  test("POST /teacher/register returns 403 with teacher token", async () => {
+    const token = jwt.sign(
+      { email: "teacher@example.com", role: "teacher", schoolId: new mongoose.Types.ObjectId() },
+      SECRET_KEY,
+      { expiresIn: "1h" }
+    );
+
+    const res = await request(app)
+      .post("/teacher/register")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "Teacher", phoneNumber: "1234567890", password: TEST_PASSWORD, role: "teacher" });
+
+    expect(res.status).toBe(403);
   });
 
   test("register succeeds with valid name, phone, and password and stores name", async () => {
@@ -73,7 +80,9 @@ describe("Teacher registration API (integration)", () => {
         phoneNumber: TEST_PHONE,
         password: TEST_PASSWORD,
         name: TEST_TEACHER_NAME,
+        role: "teacher",
       });
+
     expect(res.statusCode).toBe(STATUS_CREATED);
     expect(res.body.message).toBeDefined();
 
@@ -101,8 +110,10 @@ describe("Teacher registration API (integration)", () => {
         phoneNumber: TEST_PHONE,
         password: TEST_PASSWORD,
         name: "Another Teacher",
+        role: "teacher",
       });
+
     expect(res.statusCode).toBe(STATUS_CONFLICT);
-    expect(res.body.message && res.body.message.toLowerCase().includes("phone")).toBe(true);
+    expect(res.body.message.toLowerCase()).toContain("phone");
   });
 });
