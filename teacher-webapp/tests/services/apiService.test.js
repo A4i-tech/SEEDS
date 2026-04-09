@@ -37,7 +37,9 @@ describe("apiService", () => {
         expect.stringContaining("/conference/create"),
         {
           teacher_phone: `91${phoneNumber}`,
+          teacher_name: null,
           student_phones: studentPhones.map((phone) => `91${phone}`),
+          student_names: null,
         }
       );
       expect(result).toEqual({ id: "conf-123" });
@@ -109,7 +111,9 @@ describe("apiService", () => {
       await apiService.muteParticipant(confId, phoneNumber);
 
       expect(axiosInstance.put).toHaveBeenCalledWith(
-        expect.stringContaining(`/conference/muteparticipant/${confId}?phone_number=91${phoneNumber}`)
+        expect.stringContaining(
+          `/conference/muteparticipant/${confId}?phone_number=91${phoneNumber}`
+        )
       );
     });
 
@@ -120,7 +124,9 @@ describe("apiService", () => {
       await apiService.unmuteParticipant(confId, phoneNumber);
 
       expect(axiosInstance.put).toHaveBeenCalledWith(
-        expect.stringContaining(`/conference/unmuteparticipant/${confId}?phone_number=91${phoneNumber}`)
+        expect.stringContaining(
+          `/conference/unmuteparticipant/${confId}?phone_number=91${phoneNumber}`
+        )
       );
     });
 
@@ -153,7 +159,9 @@ describe("apiService", () => {
       await apiService.addParticipant(confId, phoneNumber);
 
       expect(axiosInstance.put).toHaveBeenCalledWith(
-        expect.stringContaining(`/conference/addparticipant/${confId}?phone_number=91${phoneNumber}`)
+        expect.stringContaining(
+          `/conference/addparticipant/${confId}?phone_number=91${phoneNumber}`
+        )
       );
     });
 
@@ -164,7 +172,9 @@ describe("apiService", () => {
       const result = await apiService.removeParticipant(confId, phoneNumber);
 
       expect(axiosInstance.put).toHaveBeenCalledWith(
-        expect.stringContaining(`/conference/removeparticipant/${confId}?phone_number=91${phoneNumber}`)
+        expect.stringContaining(
+          `/conference/removeparticipant/${confId}?phone_number=91${phoneNumber}`
+        )
       );
       expect(result).toEqual({});
     });

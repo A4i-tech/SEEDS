@@ -1,13 +1,18 @@
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import axios from "axios";
+import axiosInstance from "../../src/services/axiosInstance";
 import Login from "../../src/pages/Login";
 import * as authHelpers from "../../src/utils/authHelpers";
 import { useNavigation } from "../../src/hooks/useNavigation";
 
 // Mock dependencies
-jest.mock("axios");
+jest.mock("../../src/services/axiosInstance", () => ({
+  __esModule: true,
+  default: {
+    post: jest.fn(),
+  },
+}));
 jest.mock("../../src/hooks/useNavigation");
 jest.mock("../../src/utils/authHelpers");
 
@@ -60,12 +65,10 @@ describe("Login", () => {
       fireEvent.click(loginButton);
 
       await waitFor(() => {
-        expect(
-          screen.getByText(/local storage is not available/i)
-        ).toBeInTheDocument();
+        expect(screen.getByText(/local storage is not available/i)).toBeInTheDocument();
       });
 
-      expect(axios.post).not.toHaveBeenCalled();
+      expect(axiosInstance.post).not.toHaveBeenCalled();
       expect(localStorageMock.setItem).not.toHaveBeenCalled();
     });
 
@@ -84,9 +87,7 @@ describe("Login", () => {
       fireEvent.click(loginButton);
 
       await waitFor(() => {
-        const errorMessage = screen.getByText(
-          /local storage is not available.*enable cookies/i
-        );
+        const errorMessage = screen.getByText(/local storage is not available.*enable cookies/i);
         expect(errorMessage).toBeInTheDocument();
       });
     });
@@ -100,9 +101,7 @@ describe("Login", () => {
       fireEvent.click(loginButton);
 
       await waitFor(() => {
-        expect(
-          screen.queryByText(/local storage is not available/i)
-        ).toBeNull();
+        expect(screen.queryByText(/local storage is not available/i)).toBeNull();
       });
     });
   });
@@ -118,7 +117,7 @@ describe("Login", () => {
       expect(errorAlert).toBeInTheDocument();
       expect(errorAlert).toHaveTextContent(/all fields are required/i);
 
-      expect(axios.post).not.toHaveBeenCalled();
+      expect(axiosInstance.post).not.toHaveBeenCalled();
     });
   });
 });
