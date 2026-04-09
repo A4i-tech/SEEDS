@@ -345,7 +345,10 @@ class CallViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val teacherPhoneWithPrefix = "$teacherPhoneNumber"
-                val studentPhonesWithPrefix = phoneNumbers.map { "$it" }
+                val studentPhonesWithPrefix = phoneNumbers
+                    .map { CallUtils.normalizePhoneNumber(it) }
+                    .filter { it.isNotBlank() }
+                    .distinct()
                 val teacherDisplayName = userPreferencesRepository.userPrefs.first().userName
                     .takeIf { it.isNotBlank() } ?: "Teacher"
 
@@ -537,8 +540,14 @@ class CallViewModel @Inject constructor(
 
                 val fullUrl = "$conferenceUrl/conference/start/$confId"
                 // Use phoneNumbers which only contains selected students (teacher phone already filtered out)
-                val leaderPhone = args.leader?.trim()?.takeIf { it.isNotBlank() }
-                val response = network.startCall(fullUrl, CallDetails(confId, phoneNumbers, names, leaderPhone))
+                val normalizedPhoneNumbers = phoneNumbers
+                    .map { CallUtils.normalizePhoneNumber(it) }
+                    .filter { it.isNotBlank() }
+                    .distinct()
+                val leaderPhone = args.leader
+                    ?.let { CallUtils.normalizePhoneNumber(it) }
+                    ?.takeIf { it.isNotBlank() }
+                val response = network.startCall(fullUrl, CallDetails(confId, normalizedPhoneNumbers, names, leaderPhone))
 
                 if (response.isSuccessful) {
                     _callToken.postValue(AccessToken(confId = confId, accessToken = ""))
