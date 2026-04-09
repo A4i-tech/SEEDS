@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { setAuth } from "../utils/authHelpers";
 
 const baseURL = process.env.REACT_APP_API_BASE_URL;
 
@@ -102,6 +103,7 @@ const Login = () => {
   const navigate = useNavigate();
   const [showError, setShowError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [role, setRole] = useState("tenant");
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -122,15 +124,27 @@ const Login = () => {
 
     try {
       setIsSubmitting(true);
-      const response = await axios.post(`${baseURL}/tenant/login`, {
+
+      const endpoint =
+        role === "school_admin"
+          ? `${baseURL}/school/admin/login`
+          : `${baseURL}/tenant/login`;
+
+      const response = await axios.post(endpoint, {
         email: formData.email,
         password: formData.password,
       });
 
       if (response.status === 200) {
-        const { tenantName, token } = response.data;
-        localStorage.setItem("authToken", token);
-        navigate("/content", { state: { name: tenantName } });
+        if (role === "school_admin") {
+          const { token, schoolId, schoolName } = response.data;
+          setAuth(token, "school_admin", schoolId);
+          navigate("/content", { state: { name: schoolName } });
+        } else {
+          const { token, tenantName } = response.data;
+          setAuth(token, "tenant");
+          navigate("/content", { state: { name: tenantName } });
+        }
       } else {
         setShowError("Invalid credentials. Please try again.");
       }
@@ -156,6 +170,15 @@ const Login = () => {
           </button>
           <button type="button" style={tabButtonStyle(false)} onClick={() => navigate("/register")}>
             Sign Up
+          </button>
+        </div>
+
+        <div style={tabsStyle}>
+          <button type="button" style={tabButtonStyle(role === "tenant")} onClick={() => setRole("tenant")}>
+            Tenant
+          </button>
+          <button type="button" style={tabButtonStyle(role === "school_admin")} onClick={() => setRole("school_admin")}>
+            School Admin
           </button>
         </div>
 

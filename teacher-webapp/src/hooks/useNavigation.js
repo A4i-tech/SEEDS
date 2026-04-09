@@ -9,6 +9,5 @@ export const useNavigation = () => {
     // Redirect to classrooms instead of home
     goToClassroom: (phoneNumber) =>
       navigate(ROUTES.CLASSROOMS, { state: phoneNumber ? { phoneNumber } : undefined }),
-    goToRegister: () => navigate(ROUTES.REGISTER),
   };
 };

@@ -35,6 +35,9 @@ const questionSchema = new Schema(
 const quizSchema = new Schema(
   {
     _id: { type: String, required: true },
+    tenantId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true, ref: "Tenant" },
+    schoolId: { type: String, default: null, index: true },
+    createdBy: { type: String, default: "" },
     creation_time: { type: Number, default: -1 },
     isPullModel: { type: Boolean, default: false },
     isTeacherApp: { type: Boolean, default: false },

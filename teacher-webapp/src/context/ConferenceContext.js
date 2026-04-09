@@ -27,10 +27,6 @@ export const ConferenceProvider = ({ children }) => {
     setSelectedTeacher((prev) => (prev?.phoneNumber === teacher.phoneNumber ? null : teacher));
   };
 
-  const selectTeacher = (teacher) => {
-    setSelectedTeacher(teacher);
-  };
-
   const handleStudentToggle = (student) => {
     // Normalize phone number to ensure consistent format
     const normalizedPhone = normalizePhoneNumber(student.phoneNumber);
@@ -165,6 +161,7 @@ export const ConferenceProvider = ({ children }) => {
             })
           );
         }
+
         // Update participant with latest SSE data - only update dynamic state, ignore name from SSE
         const existingParticipant = newMap.get(normalizedPhone);
 
@@ -218,7 +215,7 @@ export const ConferenceProvider = ({ children }) => {
           // If it's a student (not teacher), mark as disconnected
           if (existingParticipant.role === "Student") {
             const previousStatus = previousParticipantStatusRef.current[normalizedPhone];
-            
+
             // Only update if they were previously connected (to avoid overwriting already disconnected state)
             if (previousStatus === "connected" || existingParticipant.call_status === "connected") {
               const updatedParticipant = new Participant({
@@ -271,7 +268,6 @@ export const ConferenceProvider = ({ children }) => {
         setLoading,
         handleSSEEvent,
         handleTeacherSelect,
-        selectTeacher,
         handleStudentToggle,
         clearSelectedStudents,
         setConferenceStudents,
