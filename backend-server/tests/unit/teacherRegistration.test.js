@@ -1,6 +1,3 @@
-process.env.AUTH_TYPE = "native";
-process.env.SECRET_KEY = "test-secret-key-for-testing-purposes-123";
-
 const teacherController = require("../../src/controllers/teacher.controller");
 
 const STATUS_BAD_REQUEST = 400;

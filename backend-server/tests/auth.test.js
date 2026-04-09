@@ -1,14 +1,10 @@
-process.env.SECRET_KEY = 'test_secret';
-
 const { authenticateToken } = require('../src/auth/authenticateToken');
 const jwt = require('jsonwebtoken');
 
 const STATUS_UNAUTHORIZED = 401;
 const STATUS_FORBIDDEN = 403;
-const STATUS_BAD_REQUEST = 400;
-const STATUS_INTERNAL_SERVER_ERROR = 500;
 
-const SECRET_KEY = process.env.SECRET_KEY || 'test_secret';
+const SECRET_KEY = process.env.SECRET_KEY;
 const TEST_EMAIL = 'authtest@example.com';
 const TEST_ID = '1234567890abcdef';
 

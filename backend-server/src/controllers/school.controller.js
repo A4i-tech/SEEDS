@@ -62,6 +62,9 @@ exports.getSchoolById = async (req, res) => {
         const school = await schoolService.getSchoolById(schoolId, tenantId);
         return res.status(STATUS.OK).json(school);
     } catch (error) {
+        if (error.status === STATUS.NOT_FOUND) {
+            return res.status(STATUS.NOT_FOUND).json({ message: error.message });
+        }
         return res.status(STATUS.INTERNAL_ERROR).json({ message: "Internal server error" });
     }
 };
@@ -74,6 +77,12 @@ exports.deleteSchool = async (req, res) => {
         const result = await schoolService.deleteSchool(schoolId, tenantId);
         return res.status(STATUS.OK).json(result);
     } catch (error) {
+        if (error.status === STATUS.NOT_FOUND) {
+            return res.status(STATUS.NOT_FOUND).json({ message: error.message });
+        }
+        if (error.status === STATUS.BAD_REQUEST) {
+            return res.status(STATUS.BAD_REQUEST).json({ message: error.message });
+        }
         return res.status(STATUS.INTERNAL_ERROR).json({ message: "Internal server error" });
     }
 };

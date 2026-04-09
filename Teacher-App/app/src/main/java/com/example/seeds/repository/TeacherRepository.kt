@@ -2,7 +2,6 @@ package com.example.seeds.repository
 
 import android.content.SharedPreferences
 import com.example.seeds.model.Student
-import com.example.seeds.network.GetStudentsRequest
 import com.example.seeds.network.SeedsService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -20,20 +19,12 @@ class TeacherRepository @Inject constructor(
     suspend fun getMyStudents(): List<Student> {
         return withContext(Dispatchers.IO) {
             try {
-                val teacherPhone = getTeacherPhoneNumber()
-                if (teacherPhone.isBlank()) {
-                    return@withContext emptyList()
-                }
-
-                val requestBody = GetStudentsRequest(phoneNumber = teacherPhone)
-
-                network.getTeacherStudents(requestBody)
-
+                network.getSchoolStudents()
             } catch (e: HttpException) {
-                if (e.code() == 404) {
-                    emptyList()
-                } else {
-                    throw e
+                when (e.code()) {
+                    404 -> emptyList()
+                    401, 403 -> throw e
+                    else -> throw e
                 }
             }
         }

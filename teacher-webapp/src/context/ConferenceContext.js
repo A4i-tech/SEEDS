@@ -215,7 +215,7 @@ export const ConferenceProvider = ({ children }) => {
           // If it's a student (not teacher), mark as disconnected
           if (existingParticipant.role === "Student") {
             const previousStatus = previousParticipantStatusRef.current[normalizedPhone];
-            
+
             // Only update if they were previously connected (to avoid overwriting already disconnected state)
             if (previousStatus === "connected" || existingParticipant.call_status === "connected") {
               const updatedParticipant = new Participant({

@@ -10,7 +10,6 @@ import {
   List,
   ListItem,
   ListItemText,
-  Checkbox,
   Alert,
   Divider,
   Paper,
@@ -24,9 +23,12 @@ import {
   School as SchoolIcon,
 } from "@mui/icons-material";
 import { useNavigate, useParams } from "react-router-dom";
-import { getClassroomById, createClassroom, updateClassroom } from "../services/classroomService";
-import { getTeacherStudents } from "../services/teacherService";
-import { useAuth } from "../hooks/useAuth";
+import {
+  getClassroomById,
+  createClassroom,
+  updateClassroom,
+} from "../services/classroomService";
+import { getSchoolStudents } from "../services/teacherService";
 import { showToast } from "../utils/toast";
 import { LoadingSpinner } from "../components/common/LoadingSpinner";
 import { PageContainer } from "../components/layout/PageContainer";
@@ -34,7 +36,6 @@ import { PageContainer } from "../components/layout/PageContainer";
 const ClassroomForm = () => {
   const navigate = useNavigate();
   const { classroomId } = useParams();
-  const { getCurrentTeacher } = useAuth();
   const isEditMode = !!classroomId;
 
   const [loading, setLoading] = useState(false);
@@ -50,28 +51,18 @@ const ClassroomForm = () => {
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
 
-  const fetchTeacherStudents = useCallback(async () => {
+  const fetchStudents = useCallback(async () => {
     try {
       setIsLoadingStudents(true);
-
-      const teacher = await getCurrentTeacher();
-      const teacherPhone = teacher.phoneNumber;
-
-      if (!teacherPhone) {
-        console.warn("No teacher phone found");
-        showToast.error("Unable to fetch teacher information");
-        return;
-      }
-
-      const data = await getTeacherStudents(teacherPhone);
+      const data = await getSchoolStudents();
       setTeacherStudentsList(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error("Error fetching teacher students:", err);
-      showToast.error("Failed to fetch your student list");
+      console.error("Error fetching students:", err);
+      showToast.error("Failed to fetch student list");
     } finally {
       setIsLoadingStudents(false);
     }
-  }, [getCurrentTeacher]);
+  }, []);
 
   const fetchClassroom = useCallback(async () => {
     try {
@@ -81,8 +72,8 @@ const ClassroomForm = () => {
       setFormData({
         _id: data._id,
         name: data.name || "",
-        students: data.students || [],
-        leaders: data.leaders || [],
+        students: (data.students || []).map((s) => (typeof s === "object" ? s._id : s)),
+        leaders: (data.leaders || []).map((l) => (typeof l === "object" ? l._id : l)),
         contentIds: data.contentIds || [],
       });
     } catch (err) {
@@ -94,11 +85,11 @@ const ClassroomForm = () => {
   }, [classroomId]);
 
   useEffect(() => {
-    fetchTeacherStudents();
+    fetchStudents();
     if (isEditMode) {
       fetchClassroom();
     }
-  }, [classroomId, isEditMode, fetchClassroom, fetchTeacherStudents]);
+  }, [classroomId, isEditMode, fetchStudents, fetchClassroom]);
 
   const validateForm = () => {
     const errors = {};
@@ -131,16 +122,16 @@ const ClassroomForm = () => {
   const handleAddStudent = (event, value) => {
     if (!value) return;
 
-    const studentPhone = value.phoneNumber;
+    const studentId = value._id;
 
-    if (formData.students.includes(studentPhone)) {
+    if (formData.students.includes(studentId)) {
       showToast.error("Student already added to classroom");
       return;
     }
 
     setFormData({
       ...formData,
-      students: [...formData.students, studentPhone],
+      students: [...formData.students, studentId],
     });
     if (validationErrors.students) {
       setValidationErrors({ ...validationErrors, students: "" });
@@ -206,12 +197,9 @@ const ClassroomForm = () => {
     navigate("/classrooms");
   };
 
-  const getStudentByPhone = useCallback(
-    (phoneNumber) => {
-      return teacherStudentsList.find((s) => s.phoneNumber === phoneNumber);
-    },
-    [teacherStudentsList]
-  );
+  const getStudentById = useCallback((id) => {
+    return teacherStudentsList.find((s) => s._id === id);
+  }, [teacherStudentsList]);
 
   if (loading || isLoadingStudents) {
     return <LoadingSpinner />;
@@ -278,7 +266,7 @@ const ClassroomForm = () => {
             <Box sx={{ mb: 3 }}>
               <Autocomplete
                 options={teacherStudentsList.filter(
-                  (s) => !formData.students.includes(s.phoneNumber)
+                  (s) => !formData.students.includes(s._id)
                 )}
                 getOptionLabel={(option) => `${option.name} - ${option.phoneNumber}`}
                 onChange={handleAddStudent}
@@ -321,16 +309,16 @@ const ClassroomForm = () => {
               </Paper>
             ) : (
               <List sx={{ bgcolor: "background.paper", borderRadius: 1 }}>
-                {formData.students.map((phoneNumber, index) => {
-                  const student = getStudentByPhone(phoneNumber);
+                {formData.students.map((id, index) => {
+                  const student = getStudentById(id);
                   return (
-                    <React.Fragment key={phoneNumber}>
+                    <React.Fragment key={id}>
                       {index > 0 && <Divider />}
                       <ListItem
                         secondaryAction={
                           <IconButton
                             edge="end"
-                            onClick={() => handleRemoveStudent(phoneNumber)}
+                            onClick={() => handleRemoveStudent(id)}
                             sx={{ color: "error.main" }}
                           >
                             <DeleteIcon />
@@ -338,8 +326,8 @@ const ClassroomForm = () => {
                         }
                       >
                         <ListItemText
-                          primary={student ? student.name : phoneNumber}
-                          secondary={phoneNumber}
+                          primary={student ? student.name : id}
+                          secondary={student ? student.phoneNumber : id}
                           primaryTypographyProps={{ fontWeight: 500 }}
                         />
                       </ListItem>

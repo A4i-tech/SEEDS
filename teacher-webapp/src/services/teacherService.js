@@ -13,15 +13,12 @@ export const getCurrentTeacher = async () => {
 };
 
 /**
- * Fetch teacher's students list
+ * Fetch all students belonging to the teacher's school from /student
  *
- * @param {string} phoneNumber - Teacher's phone number
- * @returns {Promise<Array>} List of students
+ * @returns {Promise<Array>} List of students: [{ _id, name, phoneNumber, schoolId }]
  * @throws {Error} If API call fails
  */
-export const getTeacherStudents = async (phoneNumber) => {
-  const response = await axiosInstance.post(API_ENDPOINTS.GET_TEACHER_STUDENTS, {
-    phoneNumber,
-  });
+export const getSchoolStudents = async () => {
+  const response = await axiosInstance.get(API_ENDPOINTS.GET_STUDENTS);
   return response.data;
 };
