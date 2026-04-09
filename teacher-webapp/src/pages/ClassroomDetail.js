@@ -14,6 +14,15 @@ import {
   Paper,
   Checkbox,
   CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  FormControl,
+  FormControlLabel,
+  Radio,
+  RadioGroup,
 } from "@mui/material";
 import {
   ArrowBack as ArrowBackIcon,
@@ -46,6 +55,8 @@ const ClassroomDetail = () => {
   const [teacherPhone, setTeacherPhone] = useState(null);
   const [teacherName, setTeacherName] = useState(null);
   const [conferenceId, setConferenceId] = useState(null);
+  const [assignLeaderDialogOpen, setAssignLeaderDialogOpen] = useState(false);
+  const [selectedLeaderForCall, setSelectedLeaderForCall] = useState(null);
   const eventSourceRef = useRef(null);
   const isMountedRef = useRef(true);
 
@@ -185,6 +196,8 @@ const ClassroomDetail = () => {
     setAssignLeaderDialogOpen(true);
   };
 
+  const handleConfirmStartConference = async () => {
+    setAssignLeaderDialogOpen(false);
     setConferenceLoading(true);
     console.log("Starting conference for:", teacherPhone, selectedStudents);
 
@@ -227,7 +240,7 @@ const ClassroomDetail = () => {
       const data = await createConference(
         teacherPhoneFormatted,
         studentPhonesFormatted,
-        null,
+        selectedLeaderForCall || null,
         teacherName || null,
         studentNames
       );
@@ -549,10 +562,16 @@ const ClassroomDetail = () => {
                   />
                 );
               })}
-            </Box>
-          </CardContent>
-        </Card>
-      )}
+            </RadioGroup>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAssignLeaderDialogOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleConfirmStartConference}>
+            Start Conference
+          </Button>
+        </DialogActions>
+      </Dialog>
     </PageContainer>
   );
 };

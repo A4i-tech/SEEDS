@@ -15,6 +15,7 @@ import {
   Paper,
   InputAdornment,
   Autocomplete,
+  Checkbox,
 } from "@mui/material";
 import {
   ArrowBack as ArrowBackIcon,
@@ -370,21 +371,21 @@ const ClassroomForm = () => {
               </Paper>
             ) : (
               <List sx={{ bgcolor: "background.paper", borderRadius: 1 }}>
-                {formData.students.map((phoneNumber, index) => {
-                  const isLeader = formData.leaders.includes(phoneNumber);
-                  const student = getStudentByPhone(phoneNumber);
+                {formData.students.map((id, index) => {
+                  const isLeader = formData.leaders.includes(id);
+                  const student = getStudentById(id);
                   return (
-                    <React.Fragment key={phoneNumber}>
+                    <React.Fragment key={id}>
                       {index > 0 && <Divider />}
                       <ListItem>
                         <Checkbox
                           checked={isLeader}
-                          onChange={() => handleToggleLeader(phoneNumber)}
+                          onChange={() => handleToggleLeader(id)}
                           sx={{ mr: 1 }}
                         />
                         <ListItemText
-                          primary={student ? student.name : phoneNumber}
-                          secondary={isLeader ? `Leader - ${phoneNumber}` : phoneNumber}
+                          primary={student ? student.name : id}
+                          secondary={isLeader ? `Leader - ${student?.phoneNumber || id}` : (student?.phoneNumber || id)}
                           primaryTypographyProps={{
                             fontWeight: isLeader ? 600 : 400,
                           }}
