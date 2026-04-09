@@ -70,7 +70,14 @@ const ClassroomDetail = () => {
     handleTeacherSelect,
     setConferenceStudents,
     setAllClassroomStudents,
+    clearSelectedStudents,
   } = useConference();
+
+  // Clear stale selections when entering a different classroom
+  useEffect(() => {
+    clearSelectedStudents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [classroomId]);
 
   // Main data loading effect - handles sequential and parallel fetching
   useEffect(() => {
@@ -196,10 +203,10 @@ const ClassroomDetail = () => {
     setAssignLeaderDialogOpen(true);
   };
 
-  const handleConfirmStartConference = async () => {
+  const handleStartConferenceWithLeader = async (leaderPhone) => {
     setAssignLeaderDialogOpen(false);
     setConferenceLoading(true);
-    console.log("Starting conference for:", teacherPhone, selectedStudents);
+    console.log("Starting conference for:", teacherPhone, selectedStudents, "leader:", leaderPhone);
 
     const teacherObject = {
       name: teacherName || "Teacher",
@@ -234,13 +241,14 @@ const ClassroomDetail = () => {
         teacher: teacherPhoneFormatted,
         students: studentPhonesFormatted,
         studentCount: studentPhonesFormatted.length,
+        leader: leaderPhone,
       });
 
       const studentNames = selectedStudents.map((s) => s.name || null);
       const data = await createConference(
         teacherPhoneFormatted,
         studentPhonesFormatted,
-        selectedLeaderForCall || null,
+        leaderPhone,
         teacherName || null,
         studentNames
       );
@@ -567,7 +575,10 @@ const ClassroomDetail = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setAssignLeaderDialogOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handleConfirmStartConference}>
+          <Button
+            variant="contained"
+            onClick={() => handleStartConferenceWithLeader(selectedLeaderForCall)}
+          >
             Start Conference
           </Button>
         </DialogActions>
