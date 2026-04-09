@@ -1,5 +1,5 @@
 import { API_ENDPOINTS } from "../constants/apiEndpoints";
-import { getAuthHeaders } from "../utils/authHelpers";
+import axiosInstance from "./axiosInstance";
 
 /**
  * Build query string from parameters object
@@ -8,20 +8,20 @@ import { getAuthHeaders } from "../utils/authHelpers";
  */
 const buildQueryString = (params) => {
   const queryParams = new URLSearchParams();
-  
+
   Object.keys(params).forEach((key) => {
     const value = params[key];
     if (value !== undefined && value !== null && value !== "") {
       queryParams.append(key, value);
     }
   });
-  
+
   return queryParams.toString();
 };
 
 /**
  * Fetch content from the backend API with support for query parameters and cursor-based pagination
- * 
+ *
  * @param {Object} options - Query options
  * @param {string} options.language - Language code (e.g., 'en', 'hi')
  * @param {string} options.theme - Theme name in English (URL encoded)
@@ -45,13 +45,12 @@ export const getContent = async (options = {}) => {
   } = options;
 
   const params = {};
-  
+
   if (language) params.language = language;
   if (theme) params.theme = encodeURIComponent(theme);
   if (expName) params.expName = expName;
   if (onlyTeacherApp !== undefined) params.onlyTeacherApp = onlyTeacherApp;
   if (ids) {
-    // Handle both string (comma-separated) and array formats
     params.ids = Array.isArray(ids) ? ids.join(",") : ids;
   }
   if (limit) params.limit = limit;
@@ -62,21 +61,13 @@ export const getContent = async (options = {}) => {
     ? `${API_ENDPOINTS.GET_CONTENT}?${queryString}`
     : API_ENDPOINTS.GET_CONTENT;
 
-  const response = await fetch(url, {
-    method: "GET",
-    headers: getAuthHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error("Failed to fetch content");
-  }
-
-  return response.json();
+  const response = await axiosInstance.get(url);
+  return response.data;
 };
 
 /**
  * Get SAS URL for a content audio URL
- * 
+ *
  * @param {string} audioUrl - The blob URL to generate a SAS token for
  * @returns {Promise<string>} SAS URL with authentication token
  * @throws {Error} If API call fails
@@ -89,22 +80,13 @@ export const getContentSasUrl = async (audioUrl) => {
   const queryString = `url=${encodeURIComponent(audioUrl)}`;
   const url = `${API_ENDPOINTS.GET_CONTENT_SAS_URL}?${queryString}`;
 
-  const response = await fetch(url, {
-    method: "GET",
-    headers: getAuthHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error("Failed to fetch SAS URL");
-  }
-
-  const data = await response.json();
-  return data.url;
+  const response = await axiosInstance.get(url);
+  return response.data.url;
 };
 
 /**
  * Fetch a single content item by ID
- * 
+ *
  * @param {string} contentId - The content ID (_id)
  * @returns {Promise<Object>} Content object
  * @throws {Error} If API call fails
@@ -114,17 +96,6 @@ export const getContentById = async (contentId) => {
     throw new Error("Content ID is required");
   }
 
-  const response = await fetch(`${API_ENDPOINTS.GET_CONTENT}/${contentId}`, {
-    method: "GET",
-    headers: getAuthHeaders(),
-  });
-
-  if (!response.ok) {
-    if (response.status === 404) {
-      throw new Error("Content not found");
-    }
-    throw new Error("Failed to fetch content");
-  }
-
-  return response.json();
+  const response = await axiosInstance.get(`${API_ENDPOINTS.GET_CONTENT}/${contentId}`);
+  return response.data;
 };

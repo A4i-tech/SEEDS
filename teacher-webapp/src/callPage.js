@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -121,12 +121,12 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
     setIsLoadingCall(true);
     try {
       await endConferenceCall(confId);
-      
+
       // Track conference session in history
       if (classroomId && classroomName) {
         const allParticipants = getAllParticipants();
         const studentCount = allParticipants.filter((p) => p?.role === "Student").length;
-        
+
         addSessionToHistory({
           groupId: classroomId,
           groupName: classroomName,
@@ -134,7 +134,7 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
           wasConference: true,
         });
       }
-      
+
       showToast.success("Call ended");
     } catch (error) {
       console.error("Error ending the call:", error);
@@ -148,12 +148,12 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
     setIsSinkingConf(true);
     try {
       await sinkConferenceCall(confId);
-      
+
       // Track conference session in history
       if (classroomId && classroomName) {
         const allParticipants = getAllParticipants();
         const studentCount = allParticipants.filter((p) => p?.role === "Student").length;
-        
+
         addSessionToHistory({
           groupId: classroomId,
           groupName: classroomName,
@@ -161,7 +161,7 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
           wasConference: true,
         });
       }
-      
+
       showToast.success("Conference sunk successfully");
       setHasSunkConf(true);
     } catch (error) {
@@ -215,12 +215,7 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
 
     // Normalize phone number before sending to API
     const normalizedPhone = normalizePhoneNumber(phoneNumber);
-    // Try to find name for this phone in available students or existing participants
-    const studentObj =
-      allClassroomStudents?.find((s) => normalizePhoneNumber(s.phone_number || s.phoneNumber) === normalizedPhone) ||
-      getAllParticipants()?.find((p) => normalizePhoneNumber(p.phoneNumber) === normalizedPhone);
-    const name = studentObj?.name || null;
-    await addParticipant(confId, normalizedPhone, name);
+    await addParticipant(confId, normalizedPhone);
 
     setReconnectingIds((prev) => prev.filter((id) => id !== phoneNumber));
   };
@@ -240,27 +235,23 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
     }
 
     try {
-      const normalizedEntries = selectedPhoneNumbers
+      const normalizedPhones = selectedPhoneNumbers
         .map((phoneNumber) => {
           if (!phoneNumber) return null;
-          const normalized = normalizePhoneNumber(phoneNumber);
-          const studentObj = allClassroomStudents?.find(
-            (s) => normalizePhoneNumber(s.phone_number || s.phoneNumber) === normalized
-          );
-          return { phone: normalized, name: studentObj?.name || null };
+          return normalizePhoneNumber(phoneNumber);
         })
         .filter(Boolean); // Remove null/empty values
 
-      if (normalizedEntries.length === 0) {
+      if (normalizedPhones.length === 0) {
         showToast.error("No valid phone numbers to add");
         return;
       }
 
       // Add participants in parallel for better performance
-      const addPromises = normalizedEntries.map(({ phone, name }) =>
-        addParticipant(confId, phone, name).catch((error) => {
-          console.error(`Failed to add participant ${phone}:`, error);
-          return { error: true, phone };
+      const addPromises = normalizedPhones.map((normalizedPhone) =>
+        addParticipant(confId, normalizedPhone).catch((error) => {
+          console.error(`Failed to add participant ${normalizedPhone}:`, error);
+          return { error: true, phone: normalizedPhone };
         })
       );
 
@@ -343,7 +334,7 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
 
     try {
       const normalizedPhone = normalizePhoneNumber(phoneNumber);
-      await removeParticipant(confId, normalizedPhone, participantName);
+      await removeParticipant(confId, normalizedPhone);
       showToast.success(`${participantName} removed successfully`);
     } catch (error) {
       console.error("Error removing participant:", error);
@@ -388,20 +379,6 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
       setCurrentTrack(null);
     }
   }, [audioContentState.status]);
-
-  // Auto-navigate back to classrooms when conference ends (teacher not present)
-  const previousRunningState = useRef(isConfCallRunning);
-  useEffect(() => {
-    // Detect when conference stops running
-    if (previousRunningState.current && !isConfCallRunning && confId) {
-      // Conference has ended, navigate back to classrooms
-      showToast.info("Conference has ended");
-      setTimeout(() => {
-        navigate("/classrooms");
-      }, 1500); // Give time for toast to show
-    }
-    previousRunningState.current = isConfCallRunning;
-  }, [isConfCallRunning, confId, navigate]);
 
   return (
     <PageContainer maxWidth="md">

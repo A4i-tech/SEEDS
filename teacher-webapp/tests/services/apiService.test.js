@@ -37,9 +37,7 @@ describe("apiService", () => {
         expect.stringContaining("/conference/create"),
         {
           teacher_phone: `91${phoneNumber}`,
-          teacher_name: null,
           student_phones: studentPhones.map((phone) => `91${phone}`),
-          student_names: null,
         }
       );
       expect(result).toEqual({ id: "conf-123" });
