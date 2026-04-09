@@ -49,6 +49,7 @@
   },
   "jest": {
     "testEnvironment": "node",
+    "setupFiles": ["./jest.setup.js"],
     "collectCoverageFrom": [
       "**/*.js",
       "!node_modules/**",

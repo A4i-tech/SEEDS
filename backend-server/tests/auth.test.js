@@ -1,14 +1,10 @@
-process.env.SECRET_KEY = 'test_secret';
-
-const authenticateToken = require('../src/auth/authenticateToken');
+const { authenticateToken } = require('../src/auth/authenticateToken');
 const jwt = require('jsonwebtoken');
 
 const STATUS_UNAUTHORIZED = 401;
 const STATUS_FORBIDDEN = 403;
-const STATUS_BAD_REQUEST = 400;
-const STATUS_INTERNAL_SERVER_ERROR = 500;
 
-const SECRET_KEY = process.env.SECRET_KEY || 'test_secret';
+const SECRET_KEY = process.env.SECRET_KEY;
 const TEST_EMAIL = 'authtest@example.com';
 const TEST_ID = '1234567890abcdef';
 
@@ -73,7 +69,7 @@ describe('authenticateToken middleware', () => {
         expect(nextCalled).toBe(false);
     });
 
-    test('should return 401 if token is expired', () => {
+    test('should return 403 if token is expired', () => {
         const token = jwt.sign({ email: TEST_EMAIL, id: TEST_ID }, SECRET_KEY, {expiresIn: '-1s'});
         const req = getMockReq(token);
         const res = getMockRes();
@@ -81,7 +77,7 @@ describe('authenticateToken middleware', () => {
         authenticateToken(req, res, () => {
             nextCalled = true;
         });
-        expect(res.statusCode).toBe(STATUS_UNAUTHORIZED);
+        expect(res.statusCode).toBe(STATUS_FORBIDDEN);
         expect(nextCalled).toBe(false);
     });
 

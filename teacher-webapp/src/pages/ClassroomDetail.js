@@ -33,7 +33,6 @@ import {
 } from "@mui/icons-material";
 import { useNavigate, useParams } from "react-router-dom";
 import { getClassroomById } from "../services/classroomService";
-import { getTeacherStudents } from "../services/teacherService";
 import { useAuth } from "../hooks/useAuth";
 import { showToast } from "../utils/toast";
 import { LoadingSpinner } from "../components/common/LoadingSpinner";
@@ -52,7 +51,6 @@ const ClassroomDetail = () => {
   const [classroom, setClassroom] = useState(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
-  const [teacherStudentsList, setTeacherStudentsList] = useState([]);
   const [conferenceStarted, setConferenceStarted] = useState(false);
   const [teacherPhone, setTeacherPhone] = useState(null);
   const [teacherName, setTeacherName] = useState(null);
@@ -70,10 +68,16 @@ const ClassroomDetail = () => {
     handleSSEEvent,
     handleStudentToggle,
     handleTeacherSelect,
-    selectTeacher,
     setConferenceStudents,
     setAllClassroomStudents,
+    clearSelectedStudents,
   } = useConference();
+
+  // Clear stale selections when entering a different classroom
+  useEffect(() => {
+    clearSelectedStudents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [classroomId]);
 
   // Main data loading effect - handles sequential and parallel fetching
   useEffect(() => {
@@ -82,7 +86,6 @@ const ClassroomDetail = () => {
         setLoading(true);
         setErrorMsg("");
 
-        // Step 1: Fetch teacher info first (required for students and validation)
         const teacher = await getCurrentTeacher();
         if (!teacher?.phoneNumber) {
           throw new Error("Teacher phone number not available");
@@ -90,14 +93,9 @@ const ClassroomDetail = () => {
         setTeacherPhone(teacher.phoneNumber);
         setTeacherName(teacher.name || "Teacher");
 
-        // Step 2: Fetch classroom and students in parallel (both are independent)
-        const [classroomData, studentData] = await Promise.all([
-          getClassroomById(classroomId),
-          getTeacherStudents(teacher.phoneNumber),
-        ]);
+        const [classroomData] = await Promise.all([getClassroomById(classroomId)]);
 
         setClassroom(classroomData);
-        setTeacherStudentsList(Array.isArray(studentData) ? studentData : []);
       } catch (err) {
         console.error("Error loading classroom data:", err);
         setErrorMsg("Failed to load classroom details. Please try again.");
@@ -179,7 +177,7 @@ const ClassroomDetail = () => {
     navigate(`/classrooms/edit/${classroomId}`);
   };
 
-  const handleOpenAssignLeaderDialog = () => {
+  const handleStartConference = () => {
     if (selectedStudents.length === 0) {
       showToast.error("Please select at least one student");
       return;
@@ -188,11 +186,18 @@ const ClassroomDetail = () => {
       showToast.error("Teacher phone number is missing");
       return;
     }
+
+    // Pre-select a default leader if one of the classroom leaders is in the selected students
     const studentPhonesFormatted = formatStudentPhones(selectedStudents);
+    const leaderPhones = (classroom?.leaders || [])
+      .map((leader) =>
+        normalizePhoneNumber(
+          typeof leader === "string" ? leader : leader?.phoneNumber || leader?.phone_number
+        )
+      )
+      .filter(Boolean);
     const defaultLeader =
-      classroom.leaders
-        ?.map((p) => normalizePhoneNumber(p))
-        .find((p) => studentPhonesFormatted.includes(p)) ?? null;
+      leaderPhones.find((phone) => studentPhonesFormatted.includes(phone)) ?? null;
     setSelectedLeaderForCall(defaultLeader);
     setAssignLeaderDialogOpen(true);
   };
@@ -237,7 +242,6 @@ const ClassroomDetail = () => {
         leader: leaderPhone,
       });
 
-      // Prepare student names aligned with selected students
       const studentNames = selectedStudents.map((s) => s.name || null);
       const data = await createConference(
         teacherPhoneFormatted,
@@ -266,7 +270,7 @@ const ClassroomDetail = () => {
       setConferenceStudents(normalizedSelectedStudents);
 
       // Pass ALL students with both property name formats for "Add Participant" modal
-      const allStudentsFormatted = teacherStudentsList.map((student) => {
+      const allStudentsFormatted = (classroom?.students || []).map((student) => {
         const normalizedPhone = normalizePhoneNumber(student.phoneNumber);
         return {
           name: student.name,
@@ -287,23 +291,6 @@ const ClassroomDetail = () => {
     }
   };
 
-  const handleStartConference = () => {
-    if (!selectedStudents.length) {
-      showToast.error("Please select at least one student");
-      return;
-    }
-    if (!teacherPhone) {
-      showToast.error("Teacher phone number is missing");
-      return;
-    }
-    handleOpenAssignLeaderDialog();
-  };
-
-  // Get student object by phone number
-  const getStudentByPhone = (phoneNumber) => {
-    return teacherStudentsList.find((s) => s.phoneNumber === phoneNumber);
-  };
-
   // Check if student phone is selected (using normalized comparison)
   const isStudentSelected = (phoneNumber) => {
     const normalizedPhone = normalizePhoneNumber(phoneNumber);
@@ -317,35 +304,23 @@ const ClassroomDetail = () => {
   const handleToggleStudent = (phoneNumber) => {
     if (!phoneNumber) return;
 
-    // Normalize phone number first to ensure consistent format
     const normalizedPhone = normalizePhoneNumber(phoneNumber);
 
-    // Try to get student from teacher's list first (using normalized comparison)
-    let student = teacherStudentsList.find(
+    let student = classroom?.students?.find(
       (s) => normalizePhoneNumber(s.phoneNumber) === normalizedPhone
     );
 
-    // If not found, create a student object with normalized phone number
     if (!student) {
-      student = {
-        name: phoneNumber, // Use original phone as name if no student data
-        phoneNumber: normalizedPhone, // Always store normalized phone number
-      };
+      student = { name: phoneNumber, phoneNumber: normalizedPhone };
     } else {
-      // Ensure the student object has normalized phone number
-      student = {
-        ...student,
-        phoneNumber: normalizedPhone,
-      };
+      student = { ...student, phoneNumber: normalizedPhone };
     }
 
     handleStudentToggle(student);
   };
 
-  const isLeader = (phoneNumber) =>
-    classroom.leaders?.some(
-      (leaderPhone) => normalizePhoneNumber(leaderPhone) === normalizePhoneNumber(phoneNumber)
-    );
+
+  const isLeader = (studentId) => classroom.leaders?.some((l) => l._id === studentId);
 
   if (conferenceStarted) {
     return <DetailsPage classroomName={classroom?.name} classroomId={classroom?._id} />;
@@ -414,7 +389,7 @@ const ClassroomDetail = () => {
       {(() => {
         // Count only students that are actually in the current classroom
         const selectedInClassroom =
-          classroom?.students?.filter((phoneNumber) => isStudentSelected(phoneNumber)) || [];
+          classroom?.students?.filter((student) => isStudentSelected(student.phoneNumber)) || [];
         return selectedInClassroom.length > 0 ? (
           <Alert severity="info" sx={{ mb: 3 }}>
             {selectedInClassroom.length} student{selectedInClassroom.length !== 1 ? "s" : ""}{" "}
@@ -480,13 +455,12 @@ const ClassroomDetail = () => {
             </Paper>
           ) : (
             <List sx={{ mt: 2 }}>
-              {classroom.students.map((phoneNumber, index) => {
-                const student = getStudentByPhone(phoneNumber);
-                const selected = isStudentSelected(phoneNumber);
-                const studentIsLeader = isLeader(phoneNumber);
+              {classroom.students.map((student, index) => {
+                const selected = isStudentSelected(student.phoneNumber);
+                const studentIsLeader = isLeader(student._id);
 
                 return (
-                  <React.Fragment key={phoneNumber}>
+                  <React.Fragment key={student._id}>
                     {index > 0 && <Divider />}
                     <ListItem
                       sx={{
@@ -497,12 +471,12 @@ const ClassroomDetail = () => {
                           bgcolor: selected ? "action.selected" : "action.hover",
                         },
                       }}
-                      onClick={() => handleToggleStudent(phoneNumber)}
+                      onClick={() => handleToggleStudent(student.phoneNumber)}
                     >
                       <Checkbox checked={selected} sx={{ mr: 1 }} />
                       <ListItemText
-                        primary={student ? student.name : phoneNumber}
-                        secondary={phoneNumber}
+                        primary={student.name}
+                        secondary={student.phoneNumber}
                         primaryTypographyProps={{
                           fontWeight: studentIsLeader ? 600 : 400,
                         }}
@@ -519,6 +493,26 @@ const ClassroomDetail = () => {
         </CardContent>
       </Card>
 
+      {classroom.leaders && classroom.leaders.length > 0 && (
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+              Classroom Leaders
+            </Typography>
+            <Box sx={{ mt: 2, display: "flex", flexWrap: "wrap", gap: 1 }}>
+              {classroom.leaders.map((leader) => (
+                <Chip
+                  key={leader._id}
+                  label={leader.name}
+                  color="secondary"
+                  icon={<SchoolIcon />}
+                />
+              ))}
+            </Box>
+          </CardContent>
+        </Card>
+      )}
+
       <Dialog
         open={assignLeaderDialogOpen}
         onClose={() => setAssignLeaderDialogOpen(false)}
@@ -531,9 +525,14 @@ const ClassroomDetail = () => {
           <DialogContentText sx={{ mb: 2 }}>
             Choose who will be the leader for this conference, or start without a leader.
           </DialogContentText>
-          {classroom.leaders?.length > 0 &&
-            !classroom.leaders
-              ?.map((p) => normalizePhoneNumber(p))
+          {classroom?.leaders?.length > 0 &&
+            !(classroom?.leaders || [])
+              .map((leader) =>
+                normalizePhoneNumber(
+                  typeof leader === "string" ? leader : leader?.phoneNumber || leader?.phone_number
+                )
+              )
+              .filter(Boolean)
               .some((p) => formatStudentPhones(selectedStudents).includes(p)) && (
               <Alert severity="warning" sx={{ mb: 2 }}>
                 None of the classroom leaders are in this call. Choose a leader below or start
@@ -548,7 +547,7 @@ const ClassroomDetail = () => {
               <FormControlLabel value="" control={<Radio />} label="No leader" />
               {selectedStudents.map((student) => {
                 const normalizedPhone = normalizePhoneNumber(student.phoneNumber);
-                const isLeaderStudent = isLeader(student.phoneNumber);
+                const studentIsLeader = isLeader(student._id);
                 return (
                   <FormControlLabel
                     key={normalizedPhone}
@@ -559,7 +558,7 @@ const ClassroomDetail = () => {
                         <Typography component="span">
                           {student.name || student.phoneNumber}
                         </Typography>
-                        {isLeaderStudent && (
+                        {studentIsLeader && (
                           <Chip label="Classroom leader" size="small" color="secondary" />
                         )}
                       </Box>

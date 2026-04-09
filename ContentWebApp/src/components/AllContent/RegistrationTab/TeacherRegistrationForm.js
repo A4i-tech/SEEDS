@@ -9,15 +9,17 @@ const TeacherRegistrationForm = ({ onRegister, message, messageType }) => {
   const [teacherPhone, setTeacherPhone] = useState("");
   const [teacherPassword, setTeacherPassword] = useState("");
   const [teacherName, setTeacherName] = useState("");
+  const [teacherRole, setTeacherRole] = useState("teacher");
   const [submitError, setSubmitError] = useState("");
   const isError = Boolean(submitError) || messageType === "error";
 
   const handleSubmit = async () => {
-    const success = await onRegister(teacherPhone, teacherPassword, teacherName);
+    const success = await onRegister(teacherPhone, teacherPassword, teacherName, teacherRole);
     if (success) {
       setTeacherPhone("");
       setTeacherPassword("");
       setTeacherName("");
+      setTeacherRole("teacher");
     }
   };
 
@@ -55,6 +57,15 @@ const TeacherRegistrationForm = ({ onRegister, message, messageType }) => {
         onChange={(e) => setTeacherPassword(e.target.value)}
         className="input-field"
       />
+      <label className="label" htmlFor="teacher-role">Role</label>
+      <select
+        id="teacher-role"
+        value={teacherRole}
+        onChange={(e) => setTeacherRole(e.target.value)}
+        className="input-field"
+      >
+        <option value="teacher">Teacher</option>
+      </select>
       <button type="button" className="primary-button full-width-button" onClick={handleSubmit}>
         Save Teacher
       </button>
