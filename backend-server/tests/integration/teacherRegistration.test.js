@@ -33,7 +33,13 @@ async function createSchoolAndToken() {
     password: "hashedplaceholder",
   });
   const token = jwt.sign(
-    { id: school._id.toString(), role: "school_admin", schoolId: school._id.toString(), tenantId: tenant._id.toString(), iss: "school_admin" },
+    {
+      id: school._id.toString(),
+      role: "school_admin",
+      schoolId: school._id.toString(),
+      tenantId: tenant._id.toString(),
+      iss: "school_admin",
+    },
     SECRET_KEY,
     { expiresIn: "1h" }
   );
@@ -58,7 +64,13 @@ describe("Teacher registration API (integration)", () => {
 
   test("POST /teacher/register returns 403 with teacher token", async () => {
     const token = jwt.sign(
-      { email: "teacher@example.com", role: "teacher", schoolId: new mongoose.Types.ObjectId() },
+      {
+        email: "teacher@example.com",
+        role: "teacher",
+        schoolId: new mongoose.Types.ObjectId(),
+        tenantId: new mongoose.Types.ObjectId(),
+        iss: "teacher",
+      },
       SECRET_KEY,
       { expiresIn: "1h" }
     );
@@ -66,7 +78,12 @@ describe("Teacher registration API (integration)", () => {
     const res = await request(app)
       .post("/teacher/register")
       .set("Authorization", `Bearer ${token}`)
-      .send({ name: "Teacher", phoneNumber: "1234567890", password: TEST_PASSWORD, role: "teacher" });
+      .send({
+        name: "Teacher",
+        phoneNumber: "1234567890",
+        password: TEST_PASSWORD,
+        role: "teacher",
+      });
 
     expect(res.status).toBe(403);
   });

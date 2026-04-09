@@ -19,7 +19,12 @@ describe("Analytics & Dashboard - Integration Tests", () => {
 
   test("POST /tenant/analytics returns 200 with valid tenant token and dates", async () => {
     const token = jwt.sign(
-      { email: "tenant@example.com", role: "tenant", id: new mongoose.Types.ObjectId(), iss: "tenant" },
+      {
+        email: "tenant@example.com",
+        role: "tenant",
+        id: new mongoose.Types.ObjectId(),
+        iss: "tenant",
+      },
       SECRET_KEY,
       { expiresIn: "1h" }
     );
@@ -39,7 +44,13 @@ describe("Analytics & Dashboard - Integration Tests", () => {
 
   test("POST /tenant/analytics returns 403 with school_admin token", async () => {
     const token = jwt.sign(
-      { email: "admin@school.com", role: "school_admin", schoolId: new mongoose.Types.ObjectId(), iss: "school_admin" },
+      {
+        email: "admin@school.com",
+        role: "school_admin",
+        schoolId: new mongoose.Types.ObjectId(),
+        tenantId: new mongoose.Types.ObjectId(),
+        iss: "school_admin",
+      },
       SECRET_KEY,
       { expiresIn: "1h" }
     );
@@ -54,7 +65,12 @@ describe("Analytics & Dashboard - Integration Tests", () => {
 
   test("GET /school/dashboard returns 403 with tenant token", async () => {
     const token = jwt.sign(
-      { email: "tenant@example.com", role: "tenant", id: new mongoose.Types.ObjectId(), iss: "tenant" },
+      {
+        email: "tenant@example.com",
+        role: "tenant",
+        id: new mongoose.Types.ObjectId(),
+        iss: "tenant",
+      },
       SECRET_KEY,
       { expiresIn: "1h" }
     );

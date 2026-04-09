@@ -1,7 +1,16 @@
 const mongoose = require("mongoose");
 
 function getMockReq({ body = {}, params = {}, user = null, headers = {} } = {}) {
-  return { body, params, headers, user, userId: user?.id, role: user?.role, schoolId: user?.schoolId, tenantId: user?.tenantId };
+  return {
+    body,
+    params,
+    headers,
+    user,
+    userId: user?.id,
+    role: user?.role,
+    schoolId: user?.schoolId,
+    tenantId: user?.tenantId,
+  };
 }
 
 function getMockRes() {
@@ -33,7 +42,10 @@ describe("School Controller - Unit Tests", () => {
   afterEach(() => jest.restoreAllMocks());
 
   test("createSchool returns 400 when name is missing", async () => {
-    const req = getMockReq({ body: { email: "s@example.com", password: "Valid1!" }, user: { id: "t1" } });
+    const req = getMockReq({
+      body: { email: "s@example.com", password: "Valid1!" },
+      user: { id: "t1" },
+    });
     const res = getMockRes();
 
     await schoolController.createSchool(req, res);
@@ -43,7 +55,10 @@ describe("School Controller - Unit Tests", () => {
   });
 
   test("createSchool returns 400 for invalid email", async () => {
-    const req = getMockReq({ body: { name: "School", email: "not-an-email", password: "ValidPass1!" }, user: { id: "t1" } });
+    const req = getMockReq({
+      body: { name: "School", email: "not-an-email", password: "ValidPass1!" },
+      user: { id: "t1" },
+    });
     const res = getMockRes();
 
     await schoolController.createSchool(req, res);
@@ -53,7 +68,10 @@ describe("School Controller - Unit Tests", () => {
   });
 
   test("createSchool returns 400 for weak password", async () => {
-    const req = getMockReq({ body: { name: "School", email: "s@example.com", password: "weak" }, user: { id: "t1" } });
+    const req = getMockReq({
+      body: { name: "School", email: "s@example.com", password: "weak" },
+      user: { id: "t1" },
+    });
     const res = getMockRes();
 
     await schoolController.createSchool(req, res);
@@ -66,14 +84,22 @@ describe("School Controller - Unit Tests", () => {
     const school = { _id: "s1", name: "School", email: "s@example.com" };
     schoolService.createSchool.mockResolvedValue(school);
 
-    const req = getMockReq({ body: { name: "School", email: "s@example.com", password: "ValidPass1!" }, user: { id: "t1" } });
+    const req = getMockReq({
+      body: { name: "School", email: "s@example.com", password: "ValidPass1!" },
+      user: { id: "t1", tenantId: "t1" },
+    });
     const res = getMockRes();
 
     await schoolController.createSchool(req, res);
 
     expect(res.statusCode).toBe(201);
     expect(res.body).toEqual(school);
-    expect(schoolService.createSchool).toHaveBeenCalledWith("School", "s@example.com", "t1", "ValidPass1!");
+    expect(schoolService.createSchool).toHaveBeenCalledWith(
+      "School",
+      "s@example.com",
+      "t1",
+      "ValidPass1!"
+    );
   });
 
   test("getSchools returns 200 with list of schools", async () => {
@@ -101,7 +127,10 @@ describe("School Controller - Unit Tests", () => {
   });
 
   test("getSchoolAnalytics returns 400 for invalid date format", async () => {
-    const req = getMockReq({ body: { startDate: "not-a-date", endDate: "also-bad" }, user: { schoolId: "s1" } });
+    const req = getMockReq({
+      body: { startDate: "not-a-date", endDate: "also-bad" },
+      user: { schoolId: "s1" },
+    });
     req.schoolId = "s1";
     const res = getMockRes();
 
@@ -114,7 +143,10 @@ describe("School Controller - Unit Tests", () => {
   test("getSchoolAnalytics returns 200 with valid dates", async () => {
     schoolService.getSchoolAnalytics.mockResolvedValue([]);
 
-    const req = getMockReq({ body: { startDate: "2025-01-01T00:00:00Z", endDate: "2025-12-31T23:59:59Z" }, user: { schoolId: "s1" } });
+    const req = getMockReq({
+      body: { startDate: "2025-01-01T00:00:00Z", endDate: "2025-12-31T23:59:59Z" },
+      user: { schoolId: "s1" },
+    });
     req.schoolId = "s1";
     const res = getMockRes();
 
@@ -159,7 +191,10 @@ describe("Student Controller - Unit Tests", () => {
     const student = { _id: "st1", name: "Student", phoneNumber: "1234567890" };
     studentService.createStudent.mockResolvedValue(student);
 
-    const req = getMockReq({ body: { name: "Student", phoneNumber: "1234567890" }, user: { schoolId: "s1" } });
+    const req = getMockReq({
+      body: { name: "Student", phoneNumber: "1234567890" },
+      user: { schoolId: "s1" },
+    });
     req.schoolId = "s1";
     const res = getMockRes();
 
@@ -173,7 +208,10 @@ describe("Student Controller - Unit Tests", () => {
   test("createStudent returns 409 on duplicate phone number", async () => {
     studentService.createStudent.mockRejectedValue({ code: 11000 });
 
-    const req = getMockReq({ body: { name: "Student", phoneNumber: "1234567890" }, user: { schoolId: "s1" } });
+    const req = getMockReq({
+      body: { name: "Student", phoneNumber: "1234567890" },
+      user: { schoolId: "s1" },
+    });
     req.schoolId = "s1";
     const res = getMockRes();
 
@@ -241,7 +279,10 @@ describe("Teacher Controller - Unit Tests", () => {
   afterEach(() => jest.restoreAllMocks());
 
   test("register returns 400 when required fields are missing", async () => {
-    const req = getMockReq({ body: { phoneNumber: "1234567890" }, user: { schoolId: "s1", tenantId: "t1" } });
+    const req = getMockReq({
+      body: { phoneNumber: "1234567890" },
+      user: { schoolId: "s1", tenantId: "t1" },
+    });
     req.schoolId = "s1";
     req.tenantId = "t1";
     const res = getMockRes();
@@ -286,7 +327,12 @@ describe("Teacher Controller - Unit Tests", () => {
     teacherService.registerTeacher.mockResolvedValue();
 
     const req = getMockReq({
-      body: { phoneNumber: "1234567890", password: "ValidPass1!", name: "Teacher", role: "teacher" },
+      body: {
+        phoneNumber: "1234567890",
+        password: "ValidPass1!",
+        name: "Teacher",
+        role: "teacher",
+      },
       user: { schoolId: "s1", tenantId: "t1" },
     });
     req.schoolId = "s1";
@@ -300,7 +346,10 @@ describe("Teacher Controller - Unit Tests", () => {
   });
 
   test("transferTeacher returns 400 when teacherId is missing", async () => {
-    const req = getMockReq({ body: { targetSchoolId: "s2" }, user: { schoolId: "s1", tenantId: "t1" } });
+    const req = getMockReq({
+      body: { targetSchoolId: "s2" },
+      user: { schoolId: "s1", tenantId: "t1" },
+    });
     req.schoolId = "s1";
     req.tenantId = "t1";
     const res = getMockRes();
@@ -370,7 +419,10 @@ describe("Tenant Controller - Unit Tests", () => {
   test("getAnalytics returns 200 with valid dates", async () => {
     tenantService.getTenantAnalytics.mockResolvedValue([]);
 
-    const req = getMockReq({ body: { startDate: "2025-01-01T00:00:00Z", endDate: "2025-12-31T23:59:59Z" }, user: { id: "t1" } });
+    const req = getMockReq({
+      body: { startDate: "2025-01-01T00:00:00Z", endDate: "2025-12-31T23:59:59Z" },
+      user: { id: "t1" },
+    });
     req.userId = "t1";
     const res = getMockRes();
 

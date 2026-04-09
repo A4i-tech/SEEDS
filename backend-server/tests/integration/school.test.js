@@ -22,7 +22,13 @@ describe("School Management - Integration Tests", () => {
 
   test("POST /school returns 403 with school_admin token (requires tenant)", async () => {
     const token = jwt.sign(
-      { email: "admin@school.com", role: "school_admin", schoolId: new mongoose.Types.ObjectId(), iss: "school_admin" },
+      {
+        email: "admin@school.com",
+        role: "school_admin",
+        schoolId: new mongoose.Types.ObjectId(),
+        tenantId: new mongoose.Types.ObjectId(),
+        iss: "school_admin",
+      },
       SECRET_KEY,
       { expiresIn: "1h" }
     );
@@ -37,7 +43,12 @@ describe("School Management - Integration Tests", () => {
 
   test("POST /school returns 201 with valid tenant token and data", async () => {
     const token = jwt.sign(
-      { email: "tenant@example.com", role: "tenant", id: new mongoose.Types.ObjectId(), iss: "tenant" },
+      {
+        email: "tenant@example.com",
+        role: "tenant",
+        id: new mongoose.Types.ObjectId(),
+        iss: "tenant",
+      },
       SECRET_KEY,
       { expiresIn: "1h" }
     );
@@ -61,18 +72,23 @@ describe("School Management - Integration Tests", () => {
     expect(res.status).toBe(401);
   });
 
-  test("GET /school returns 403 with school_admin token (requires tenant)", async () => {
+  test("GET /school returns 200 with school_admin token", async () => {
     const token = jwt.sign(
-      { email: "admin@school.com", role: "school_admin", schoolId: new mongoose.Types.ObjectId(), iss: "school_admin" },
+      {
+        email: "admin@school.com",
+        role: "school_admin",
+        schoolId: new mongoose.Types.ObjectId(),
+        tenantId: new mongoose.Types.ObjectId(),
+        iss: "school_admin",
+      },
       SECRET_KEY,
       { expiresIn: "1h" }
     );
 
-    const res = await request(app)
-      .get("/school")
-      .set("Authorization", `Bearer ${token}`);
+    const res = await request(app).get("/school").set("Authorization", `Bearer ${token}`);
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
   });
 
   test("GET /school returns 200 with valid tenant token", async () => {
@@ -83,9 +99,7 @@ describe("School Management - Integration Tests", () => {
       { expiresIn: "1h" }
     );
 
-    const res = await request(app)
-      .get("/school")
-      .set("Authorization", `Bearer ${token}`);
+    const res = await request(app).get("/school").set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
@@ -100,7 +114,13 @@ describe("School Management - Integration Tests", () => {
   test("GET /school/:schoolId returns 403 with school_admin token (requires tenant)", async () => {
     const schoolId = new mongoose.Types.ObjectId();
     const token = jwt.sign(
-      { email: "admin@school.com", role: "school_admin", schoolId, iss: "school_admin" },
+      {
+        email: "admin@school.com",
+        role: "school_admin",
+        schoolId,
+        tenantId: new mongoose.Types.ObjectId(),
+        iss: "school_admin",
+      },
       SECRET_KEY,
       { expiresIn: "1h" }
     );
@@ -137,7 +157,13 @@ describe("School Management - Integration Tests", () => {
   test("DELETE /school/:schoolId returns 403 with school_admin token (requires tenant)", async () => {
     const schoolId = new mongoose.Types.ObjectId();
     const token = jwt.sign(
-      { email: "admin@school.com", role: "school_admin", schoolId, iss: "school_admin" },
+      {
+        email: "admin@school.com",
+        role: "school_admin",
+        schoolId,
+        tenantId: new mongoose.Types.ObjectId(),
+        iss: "school_admin",
+      },
       SECRET_KEY,
       { expiresIn: "1h" }
     );
@@ -192,7 +218,13 @@ describe("School Management - Integration Tests", () => {
   test("POST /school/analytics returns 200 with valid school_admin token", async () => {
     const schoolId = new mongoose.Types.ObjectId();
     const token = jwt.sign(
-      { email: "admin@school.com", role: "school_admin", schoolId, iss: "school_admin" },
+      {
+        email: "admin@school.com",
+        role: "school_admin",
+        schoolId,
+        tenantId: new mongoose.Types.ObjectId(),
+        iss: "school_admin",
+      },
       SECRET_KEY,
       { expiresIn: "1h" }
     );
@@ -210,7 +242,10 @@ describe("School Management - Integration Tests", () => {
   test("POST /school/transfer returns 401 without token", async () => {
     const res = await request(app)
       .post("/school/transfer")
-      .send({ teacherId: new mongoose.Types.ObjectId(), targetSchoolId: new mongoose.Types.ObjectId() });
+      .send({
+        teacherId: new mongoose.Types.ObjectId(),
+        targetSchoolId: new mongoose.Types.ObjectId(),
+      });
 
     expect(res.status).toBe(401);
   });
@@ -226,7 +261,10 @@ describe("School Management - Integration Tests", () => {
     const res = await request(app)
       .post("/school/transfer")
       .set("Authorization", `Bearer ${token}`)
-      .send({ teacherId: new mongoose.Types.ObjectId(), targetSchoolId: new mongoose.Types.ObjectId() });
+      .send({
+        teacherId: new mongoose.Types.ObjectId(),
+        targetSchoolId: new mongoose.Types.ObjectId(),
+      });
 
     expect(res.status).toBe(403);
   });
@@ -234,7 +272,13 @@ describe("School Management - Integration Tests", () => {
   test("POST /school/transfer returns 400 with school_admin token but missing required fields", async () => {
     const schoolId = new mongoose.Types.ObjectId();
     const token = jwt.sign(
-      { email: "admin@school.com", role: "school_admin", schoolId, iss: "school_admin" },
+      {
+        email: "admin@school.com",
+        role: "school_admin",
+        schoolId,
+        tenantId: new mongoose.Types.ObjectId(),
+        iss: "school_admin",
+      },
       SECRET_KEY,
       { expiresIn: "1h" }
     );

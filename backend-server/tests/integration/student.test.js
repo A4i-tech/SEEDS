@@ -22,7 +22,13 @@ describe("Student Management - Integration Tests", () => {
 
   test("POST /student returns 403 with teacher token (requires school_admin)", async () => {
     const token = jwt.sign(
-      { email: "teacher@school.com", role: "teacher", schoolId: new mongoose.Types.ObjectId() },
+      {
+        email: "teacher@school.com",
+        role: "teacher",
+        schoolId: new mongoose.Types.ObjectId(),
+        tenantId: new mongoose.Types.ObjectId(),
+        iss: "teacher",
+      },
       SECRET_KEY,
       { expiresIn: "1h" }
     );
@@ -38,7 +44,14 @@ describe("Student Management - Integration Tests", () => {
   test("POST /student returns 201 with school_admin token and valid data", async () => {
     const schoolId = new mongoose.Types.ObjectId();
     const token = jwt.sign(
-      { id: schoolId.toString(), email: "admin@school.com", role: "school_admin", schoolId: schoolId.toString(), iss: "school_admin" },
+      {
+        id: schoolId.toString(),
+        email: "admin@school.com",
+        role: "school_admin",
+        schoolId: schoolId.toString(),
+        tenantId: new mongoose.Types.ObjectId().toString(),
+        iss: "school_admin",
+      },
       SECRET_KEY,
       { expiresIn: "1h" }
     );
