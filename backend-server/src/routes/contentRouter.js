@@ -257,7 +257,7 @@ router.post(
 router.get(
   "/sasUrl",
   authenticateToken,
-  authorizeRole(TENANT_ROLE),
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE),
   tryCatchWrapper(async (req, res) => {
     const url = req.query.url; // URL is now obtained from query string
     if (!url) {
