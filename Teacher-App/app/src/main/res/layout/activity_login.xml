@@ -53,27 +53,6 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
 
-        <!-- Organization Dropdown -->
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/organization_layout"
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:layout_marginHorizontal="50dp"
-            android:hint="Select Organization"
-            app:layout_constraintTop_toBottomOf="@id/editTextPassword"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent">
-
-            <AutoCompleteTextView
-                android:id="@+id/organization_dropdown"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="text"
-                android:textColor="@color/seeds_green" />
-        </com.google.android.material.textfield.TextInputLayout>
-
         <!-- Login Button -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/phone_number_login_btn"
@@ -83,7 +62,7 @@
             android:text="Login"
             android:textAllCaps="false"
             app:cornerRadius="12dp"
-            app:layout_constraintTop_toBottomOf="@id/organization_layout"
+            app:layout_constraintTop_toBottomOf="@id/editTextPassword"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
 
