@@ -3,6 +3,7 @@ const express = require("express");
 const multer = require("multer");
 const { tryCatchWrapper } = require("../util");
 const metaController = require("../controllers/meta.controller");
+const { authenticateToken } = require("../auth/authenticateToken");
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
@@ -84,7 +85,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 
  *       401:
  *         description: Unauthorized
  */
-router.post("/voice-command", upload.single("audio"), tryCatchWrapper(metaController.voiceCommand));
+router.post("/voice-command", authenticateToken, upload.single("audio"), tryCatchWrapper(metaController.voiceCommand));
 
 /**
  * @swagger
@@ -116,7 +117,7 @@ router.post("/voice-command", upload.single("audio"), tryCatchWrapper(metaContro
  *                 transcript:
  *                   type: string
  */
-router.post("/transcribe", upload.single("audio"), tryCatchWrapper(metaController.transcribe));
+router.post("/transcribe", authenticateToken, upload.single("audio"), tryCatchWrapper(metaController.transcribe));
 
 /**
  * @swagger
@@ -156,7 +157,8 @@ router.post("/transcribe", upload.single("audio"), tryCatchWrapper(metaControlle
  *       200:
  *         description: Command executed
  */
-router.post("/text-command", tryCatchWrapper(metaController.textCommand));
+router.post("/text-command", authenticateToken, tryCatchWrapper(metaController.textCommand));
+
 
 /**
  * @swagger

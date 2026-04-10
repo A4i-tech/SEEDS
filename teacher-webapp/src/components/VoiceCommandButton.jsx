@@ -29,8 +29,9 @@ import {
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import useVoiceRecorder from "../hooks/useVoiceRecorder";
-import { sendVoiceCommand, sendTextCommand, fetchTTSPrompt } from "../services/voiceCommandService";
+import { sendVoiceCommand, sendTextCommand, fetchTTSPrompt, executeClientCommands } from "../services/voiceCommandService";
 import { formatResult, getNavigationTarget } from "../utils/commandResultFormatter";
+import { useConference } from "../context/ConferenceContext";
 
 const STATUS = {
   IDLE: "idle",
@@ -59,6 +60,7 @@ export default function VoiceCommandButton() {
   const [textInput, setTextInput] = useState("");
   const { isRecording, startRecording, stopRecording, audioBlob, error: recorderError } =
     useVoiceRecorder();
+  const { confId: activeConferenceId, setConfId } = useConference();
   const thinkingAudioRef = useRef(null);
   const thinkingPlayerRef = useRef(null);
 
@@ -68,10 +70,10 @@ export default function VoiceCommandButton() {
     setTextInput("");
   }, []);
 
-  const handleOpen = () => {
+  const handleOpen = useCallback(() => {
     reset();
     setOpen(true);
-  };
+  }, [reset]);
 
   const handleClose = () => {
     if (isRecording) stopRecording();
@@ -144,6 +146,20 @@ export default function VoiceCommandButton() {
     }
   }, []);
 
+  // Extract and store conference ID from results so it persists for future commands (e.g. "end call")
+  const storeConferenceIdFromResults = useCallback((data) => {
+    if (!data?.results || !data?.commands) return;
+    for (let i = 0; i < data.commands.length; i++) {
+      const cmd = data.commands[i];
+      const res = data.results?.[i];
+      if (cmd.path?.match(/\/call\/conference\/create/) && res?.status < 300 && res?.data?.id) {
+        console.log("[seeds] Storing active conference ID:", res.data.id);
+        setConfId(res.data.id);
+        return;
+      }
+    }
+  }, [setConfId]);
+
   // Handle text command submission
   const handleSendText = useCallback(async () => {
     const text = textInput.trim();
@@ -151,15 +167,23 @@ export default function VoiceCommandButton() {
 
     try {
       setStatus(STATUS.PLANNING);
-      const data = await sendTextCommand(text);
+      let data = await sendTextCommand(text, { activeConferenceId });
+      // Execute any conference steps client-side (ConferenceV2 is only reachable from frontend)
+      if (data.results?.some((r) => r.requiresClientExecution)) {
+        setStatus(STATUS.EXECUTING);
+        data = { ...data, results: await executeClientCommands([...data.results]) };
+      }
       setResult(data);
       setStatus(data.error ? STATUS.ERROR : STATUS.DONE);
-      if (!data.error) dispatchCommandComplete(data);
+      if (!data.error) {
+        storeConferenceIdFromResults(data);
+        dispatchCommandComplete(data);
+      }
     } catch (err) {
       setResult({ error: err.message || "Request failed" });
       setStatus(STATUS.ERROR);
     }
-  }, [textInput, dispatchCommandComplete]);
+  }, [textInput, dispatchCommandComplete, storeConferenceIdFromResults, activeConferenceId]);
 
   const handleTextKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -176,13 +200,23 @@ export default function VoiceCommandButton() {
     (async () => {
       try {
         setStatus(STATUS.PLANNING);
-        const data = await sendVoiceCommand(audioBlob);
+        let data = await sendVoiceCommand(audioBlob, { activeConferenceId });
 
         if (cancelled) return;
 
+        // Execute any conference steps directly from the browser (ConferenceV2 only reachable from frontend)
+        if (data.results?.some((r) => r.requiresClientExecution)) {
+          setStatus(STATUS.EXECUTING);
+          data = { ...data, results: await executeClientCommands([...data.results]) };
+        }
+
+        if (cancelled) return;
         setResult(data);
         setStatus(data.error ? STATUS.ERROR : STATUS.DONE);
-        if (!data.error) dispatchCommandComplete(data);
+        if (!data.error) {
+          storeConferenceIdFromResults(data);
+          dispatchCommandComplete(data);
+        }
       } catch (err) {
         if (!cancelled) {
           setResult({ error: err.message || "Request failed" });
@@ -194,7 +228,7 @@ export default function VoiceCommandButton() {
     return () => {
       cancelled = true;
     };
-  }, [audioBlob, dispatchCommandComplete]);
+  }, [audioBlob, dispatchCommandComplete, storeConferenceIdFromResults, activeConferenceId]);
 
   const isBusy = status === STATUS.PLANNING || status === STATUS.EXECUTING || status === STATUS.TRANSCRIBING;
   const navTarget = result?.commands ? getNavigationTarget(result.commands, result.results) : null;

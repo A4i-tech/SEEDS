@@ -77,10 +77,36 @@ export function formatResult(command, result) {
 export function getNavigationTarget(commands, results) {
   if (!commands || commands.length === 0) return null;
 
+  let confIdSearchResult = null;
+  let classIdSearchResult = null;
+
   for (let i = 0; i < commands.length; i++) {
     const cmd = commands[i];
     const res = results?.[i];
     const path = cmd.path || "";
+
+    // Track classroom ID if fetched
+    if (path.match(/^\/class\/([^/]+)$/) && cmd.method === "GET" && res?.status < 300) {
+      classIdSearchResult = res?.data?._id;
+    }
+
+    // Track conference ID if created
+    if (path.match(/\/call\/conference\/create/) && res?.status < 300) {
+      confIdSearchResult = res?.data?.id;
+    }
+
+    // Conference started -> Navigate to Classroom Detail with autoStart state
+    if (path.match(/\/call\/conference\/start/) && res?.status < 300) {
+      const targetConfId = confIdSearchResult || path.split("/").pop(); // Fallback to path param
+      if (classIdSearchResult) {
+         return {
+           label: "Go to Conference Call",
+           path: ROUTES.CLASSROOM_DETAIL(classIdSearchResult),
+           autoNavigate: true,
+           state: { confId: targetConfId, autoStart: true },
+         };
+      }
+    }
 
     // Content command — navigate directly to the content detail page for auto-play
     if (path.match(/\/content/) && cmd.method === "GET" && res?.status < 300) {

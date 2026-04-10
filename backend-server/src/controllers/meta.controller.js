@@ -5,11 +5,14 @@ function getBaseUrl(req) {
   return `${req.protocol}://${req.get("host")}`;
 }
 
-function getUserInfo(req) {
+function getUserInfo(req, context = {}) {
   return {
     phoneNumber: req.user?.phoneNumber,
     tenantId: req.tenantId,
     userId: req.userId,
+    schoolId: req.schoolId,
+    name: req.user?.name || "Teacher",
+    ...context,
   };
 }
 
@@ -18,13 +21,38 @@ function getAuthToken(req) {
 }
 
 // ── Shared logic: reason → plan → execute ────────────────────────────────────
-async function processCommand(transcript, req) {
-  const userInfo = getUserInfo(req);
+async function processCommand(transcript, req, context = {}) {
+  const userInfo = getUserInfo(req, context);
 
   // Phase 1: Reason about the command
   console.log("[meta] Phase 1: Reasoning about command...");
   const reasoning = await metaService.reasonAboutCommand(transcript, userInfo);
   console.log("[meta] Reasoning:", JSON.stringify(reasoning, null, 2));
+
+  // If the command is conversational/explanatory (no API calls needed), skip planning
+  if (reasoning.canAutoResolve === false) {
+    console.log("[meta] canAutoResolve=false — skipping planning, generating spoken response from reasoning.");
+    let spokenSummary = null;
+    let audioBase64 = null;
+    try {
+      // Build a human-friendly explanation from reasoning steps
+      const explanation = reasoning.unresolvedNote ||
+        (reasoning.steps?.map((s) => s.description).join(" Then ")) ||
+        reasoning.reasoning ||
+        "I understand your question but cannot execute it automatically.";
+      const ttsResult = await metaService.generateSpokenSummary(transcript, [
+        { step: "explanation", status: 200, data: { explanation } },
+      ]);
+      spokenSummary = ttsResult?.spokenText || explanation;
+      console.log("[meta] Spoken summary:", spokenSummary);
+      if (spokenSummary) {
+        audioBase64 = await metaService.synthesizeSpeech(spokenSummary);
+      }
+    } catch (ttsErr) {
+      console.error("[meta] TTS phase failed (non-blocking):", ttsErr.message);
+    }
+    return { transcript, reasoning, commands: [], results: [], spokenSummary, audioBase64 };
+  }
 
   // Phase 2: Plan (informed by reasoning)
   console.log("[meta] Phase 2: Planning commands...");
@@ -85,7 +113,8 @@ exports.voiceCommand = async (req, res) => {
   const transcript = await metaService.transcribeAudio(req.file.buffer, req.file.mimetype);
   console.log("[meta] Transcript:", transcript);
 
-  const result = await processCommand(transcript, req);
+  const context = req.body.context ? JSON.parse(req.body.context) : {};
+  const result = await processCommand(transcript, req, context);
   return res.json(result);
 };
 
@@ -101,14 +130,14 @@ exports.transcribe = async (req, res) => {
 
 // POST /meta/text-command
 exports.textCommand = async (req, res) => {
-  const { command } = req.body;
+  const { command, context = {} } = req.body;
   if (!command) {
     return res.status(400).json({ error: "No command provided" });
   }
 
   console.log("[meta:text] Command:", command);
 
-  const result = await processCommand(command, req);
+  const result = await processCommand(command, req, context);
   return res.json(result);
 };
 

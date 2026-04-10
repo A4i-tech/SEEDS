@@ -21,11 +21,13 @@ import ClassroomDetail from "./pages/ClassroomDetail";
 import ContentDetails from "./pages/ContentDetails";
 import ContentPlayback from "./pages/ContentPlayback";
 
+// Inner component — must live inside <BrowserRouter> and <AuthProvider>
+// so it can access auth state and router context.
 function AppContent() {
   const { isLoggedIn } = useAuthState();
   const [welcomeAudio, setWelcomeAudio] = useState(null);
 
-  // Pre-fetch welcome audio on app load (whether logged in or not)
+  // Pre-fetch welcome audio on app load
   useEffect(() => {
     (async () => {
       try {
@@ -33,7 +35,7 @@ function AppContent() {
         if (audioBase64) {
           setWelcomeAudio(new Audio(`data:audio/mp3;base64,${audioBase64}`));
         }
-      } catch (_) { /* ignore */ }
+      } catch (_) { /* ignore — TTS is non-blocking */ }
     })();
   }, []);
 
@@ -48,12 +50,12 @@ function AppContent() {
   useEffect(() => {
     if (!isLoggedIn || !welcomeAudio) return;
     if (sessionStorage.getItem("seeds_welcomed")) return;
-    
+
     sessionStorage.setItem("seeds_welcomed", "1");
-    
-    // Slight delay to ensure UI has rendered and user interaction has registered
+
+    // Slight delay to ensure UI has rendered and user interaction registered
     setTimeout(() => {
-      welcomeAudio.currentTime = 0; // Reset just in case it was played before
+      welcomeAudio.currentTime = 0;
       welcomeAudio.play().catch(() => {});
     }, 300);
   }, [isLoggedIn, welcomeAudio]);
@@ -62,7 +64,6 @@ function AppContent() {
     <>
       <Routes>
         <Route path={ROUTES.LOGIN} element={<PublicRoute element={<Login />} />} />
-        <Route path={ROUTES.REGISTER} element={<PublicRoute element={<Register />} />} />
         <Route
           path={ROUTES.CLASSROOMS}
           element={<ProtectedRoute element={<ClassroomList />} />}
@@ -83,15 +84,23 @@ function AppContent() {
           path={ROUTES.CONTENT_PLAYBACK(":classroomId")}
           element={<ProtectedRoute element={<ContentPlayback />} />}
         />
-        <Route path={ROUTES.CONTENT} element={<ProtectedRoute element={<ContentPlayback />} />} />
+        <Route
+          path={ROUTES.CONTENT}
+          element={<ProtectedRoute element={<ContentPlayback />} />}
+        />
         <Route
           path={ROUTES.CONTENT_DETAILS(":contentId")}
           element={<ProtectedRoute element={<ContentDetails />} />}
         />
       </Routes>
-      {/* Floating Seeds AI button — visible when logged in */}
+
+      {/* Floating Seeds AI button — only visible when logged in */}
       {isLoggedIn && (
-        <Tooltip title={<Typography variant="caption">Press <b>R</b> to talk to Seeds AI</Typography>} arrow placement="left">
+        <Tooltip
+          title={<Typography variant="caption">Press <b>R</b> to talk to Seeds AI</Typography>}
+          arrow
+          placement="left"
+        >
           <Box sx={{ position: "fixed", bottom: 24, right: 24, zIndex: 1300 }}>
             <VoiceCommandButton />
           </Box>
@@ -105,42 +114,22 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <BrowserRouter>
-        <Routes>
-          <Route path={ROUTES.LOGIN} element={<PublicRoute element={<Login />} />} />
-          <Route
-            path={ROUTES.CLASSROOMS}
-            element={<ProtectedRoute element={<ClassroomList />} />}
-          />
-          <Route
-            path={ROUTES.CLASSROOM_NEW}
-            element={<ProtectedRoute element={<ClassroomForm />} />}
-          />
-          <Route
-            path={ROUTES.CLASSROOM_EDIT(":classroomId")}
-            element={<ProtectedRoute element={<ClassroomForm />} />}
-          />
-          <Route
-            path={ROUTES.CLASSROOM_DETAIL(":classroomId")}
-            element={<ProtectedRoute element={<ClassroomDetail />} />}
-          />
-          <Route
-            path={ROUTES.CONTENT_DETAILS(":contentId")}
-            element={<ProtectedRoute element={<ContentDetails />} />}
-          />
-        </Routes>
-      </BrowserRouter>
-      <ToastContainer
-        position="top-right"
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop={false}
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-      />
+      <AuthProvider>
+        <BrowserRouter>
+          <AppContent />
+        </BrowserRouter>
+        <ToastContainer
+          position="top-right"
+          autoClose={3000}
+          hideProgressBar={false}
+          newestOnTop={false}
+          closeOnClick
+          rtl={false}
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
+        />
+      </AuthProvider>
     </ThemeProvider>
   );
 }

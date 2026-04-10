@@ -3,7 +3,7 @@ const axios = require("axios");
 const FormData = require("form-data");
 const { ContentV3 } = require("../models/ContentV3");
 const ClassRoom = require("../models/Class");
-const teacherService = require("./teacher.service");
+const Student = require("../models/Student");
 const { murfApiKey, groqApiKey, sttModel, llm } = require("../config/env");
 
 const GROQ_API_KEY = groqApiKey;
@@ -53,9 +53,14 @@ async function fetchContextFromDB(transcript, userInfo) {
       .exec(),
     ClassRoom.find({ teacher: userInfo.userId })
       .select("_id name students leaders")
+      .populate("students", "name phoneNumber")
+      .populate("leaders", "name phoneNumber")
       .lean()
       .exec(),
-    teacherService.getStudents({ phoneNumber: userInfo.phoneNumber, tenantId: userInfo.tenantId }).catch(() => [])
+    Student.find({ schoolId: userInfo.schoolId })
+      .select("name phoneNumber")
+      .lean()
+      .exec().catch(() => [])
   ]);
 
   return {
@@ -69,8 +74,8 @@ async function fetchContextFromDB(transcript, userInfo) {
     classes: classResults.map((c) => ({
       _id: c._id,
       name: c.name,
-      studentCount: c.students?.length || 0,
-      leaders: c.leaders || [],
+      students: (c.students || []).map(s => ({ name: s.name, phone: s.phoneNumber })),
+      leaders: (c.leaders || []).map(l => ({ name: l.name, phone: l.phoneNumber })),
     })),
     students: studentResults.map(s => ({
       name: s.name,
@@ -94,15 +99,19 @@ Think about:
 
 CURRENT USER CONTEXT:
 - Phone number: {{phoneNumber}}
+- Teacher name: {{teacherName}}
 - Tenant ID: {{tenantId}}
 - User ID: {{userId}}
 
 ═══ CRITICAL: CONTENT PLAYBACK vs CONFERENCE CALLS ═══
-- "play", "show", "find", "get" content → Just fetch it with GET /content/?expName=... 
+- "play", "show", "find", "get" content → Just fetch it with GET /content/?expName=...
   The FRONTEND handles playback. You only need to return the content data.
   This is ALWAYS a single GET request. canAutoResolve is ALWAYS true.
-- "start a call", "start a conference" → Use POST /call/start (this is different!)
-Do NOT confuse these. "Play keats poem" = GET /content/?expName=keats poem. That's it.
+- "start a call", "start a conference" → Use POST /call/conference/create then POST /call/conference/start/{id}
+  This is a 2-step flow: first create the conference, then start it using the returned conference ID.
+- "end the call", "end conference" → Use PUT /call/conference/end/{confId}
+- "mute all", "unmute all" → Use PUT /call/conference/muteall or /call/conference/unmuteall
+Do NOT confuse content playback with conference calls. "Play keats poem" = GET /content/?expName=keats poem. That's it.
 ═══ END CRITICAL ═══
 
 AVAILABLE API ROUTES (summary):
@@ -124,8 +133,17 @@ AVAILABLE API ROUTES (summary):
 
 - GET /teacher/me → current teacher info
 
-- POST /call/start → body: {from, to, callId} → start conference (ONLY for "start call/conference" commands)
-- GET /call/accessToken → conference access token
+- POST /call/conference/create → body: {teacher_phone, teacher_name, student_phones: [...], student_names: [...]}
+  Creates a conference. Returns {status: "CREATED", id: "<confId>"}. student_phones and student_names are parallel arrays.
+  Use teacher's phone number for teacher_phone and student phones/names from the class data in DB context.
+- POST /call/conference/start/:confId → starts a created conference (no body needed). Returns {status: "STARTED", id}
+- PUT /call/conference/end/:confId → ends an active conference
+- PUT /call/conference/muteall/:confId → mutes all participants in a conference
+- PUT /call/conference/unmuteall/:confId → unmutes all participants
+- PUT /call/conference/addparticipant/:confId → body: {phone_number, name} → add participant to conference
+- PUT /call/conference/removeparticipant/:confId → body: {phone_number} → remove participant
+- PUT /call/conference/playaudio/:confId → body: {url} → play audio URL in conference
+- PUT /call/conference/pauseaudio/:confId → pause audio playback in conference
 
 - GET /tenant/names → list tenants
 
@@ -139,10 +157,13 @@ RESPOND WITH JSON:
     { "description": "what this step does", "resolves": "what data this provides for later steps" }
   ],
   "canAutoResolve": true/false,
-  "unresolvedNote": "if canAutoResolve is false, explain what can't be resolved"
+  "unresolvedNote": "if canAutoResolve is false, explain what can't be resolved in simple, non-technical terms"
 }
 
-IMPORTANT: Only return valid JSON. No markdown.
+IMPORTANT RULES:
+1. Only return valid JSON. No markdown.
+2. If the user wants to start a conference, you MUST clarify which specific students to include and who should be the leader. If they haven't explicitly mentioned this, set canAutoResolve to false and set unresolvedNote to ask them "Who would you like to select? And who would you like to assign as a leader?"
+3. If the user wants to end a conference, but the 'Active Conference ID' in CURRENT USER CONTEXT is 'none', set canAutoResolve to false and explain that there is no active conference to end.
 `;
 
 // ── Planning prompt — produces executable API calls, informed by reasoning ───
@@ -152,8 +173,10 @@ You have already reasoned about the user's command. Now produce the exact API ca
 
 CURRENT USER CONTEXT:
 - Phone number: {{phoneNumber}}
+- Teacher name: {{teacherName}}
 - Tenant ID: {{tenantId}}
 - User ID: {{userId}}
+- Active Conference ID: {{activeConferenceId}}
 
 REASONING FROM PREVIOUS STEP:
 {{reasoning}}
@@ -163,7 +186,7 @@ REASONING FROM PREVIOUS STEP:
 Now produce a JSON array of API calls to execute IN ORDER.
 
 Each element must have:
-  - "method": HTTP method (GET, POST, PATCH, DELETE)
+  - "method": HTTP method (GET, POST, PUT, PATCH, DELETE)
   - "path": the full API path
   - "body": request body object (null if not needed)
   - "description": short description of what this step does
@@ -174,23 +197,28 @@ CRITICAL RULES:
    - {{step1.data}} = the full response data from step 1
    - {{step1.data[name=Grade 7]._id}} = find item named "Grade 7" in array, get _id
    - {{step1.data._id}} = get _id from step 1 result
-3. For conference calls, use "<CALL_ID>" for callId (auto-generated).
-4. SCHEMA RULES for /class/ POST:
-   - students: [String] — array of existing student PHONE NUMBERS. e.g. ["9717503152"]. MUST NOT use names!
-   - leaders: [String] — array of existing student PHONE NUMBERS. e.g. ["9717503152"]. MUST NOT use names!
+3. SCHEMA RULES for /class/ POST:
+   - students: [String] — array of existing student PHONE NUMBERS. e.g. ["1234567890"]. MUST NOT use names!
+   - leaders: [String] — array of existing student PHONE NUMBERS. e.g. ["1234567890"]. MUST NOT use names!
    - contentIds: [String] — array of content ID strings
    - To UPDATE an existing class, include _id in the body.
-5. When the user says "delete all classrooms", plan to GET /class/ first, then output a single DELETE step
+4. When the user says "delete all classrooms", plan to GET /class/ first, then output a single DELETE step
    with path "/class/{{step1.data[]}}" and set "forEach": true. The system will loop over each item.
-6. For /v1/teacher/students and /v1/teacher/add-students, phoneNumber in body is REQUIRED — use current user's phone.
-7. If the command truly cannot be mapped to any route, return:
+5. For /v1/teacher/students and /v1/teacher/add-students, phoneNumber in body is REQUIRED — use current user's phone.
+6. If the command truly cannot be mapped to any route, return:
    { "error": "I could not understand that command. Please try again." }
-8. NEVER set "needsInput": true if the data can be resolved from a previous step. Always chain steps.
-9. CONTENT PLAYBACK: "play X", "find X", "show X content" → The frontend handles audio playback.
+7. NEVER set "needsInput": true if the data can be resolved from a previous step. Always chain steps.
+8. CONTENT PLAYBACK: "play X", "find X", "show X content" → The frontend handles audio playback.
    - If the MATCHING CONTENT FROM DATABASE section has a real _id, use GET /content/<real_id>
    - If no DB match, use GET /content/?expName=X as fallback.
-   - Do NOT use /call/start for content playback. Conference calls are ONLY for "start a call/conference".
-10. When TEACHER'S CLASSES FROM DATABASE provides real class _ids, use them directly instead of chaining a GET /class/ step.
+   - Do NOT use /call/conference/create for content playback. Conference calls are ONLY for "start a call/conference".
+9. For general commands, when TEACHER'S CLASSES FROM DATABASE provides real class _ids, use them directly instead of chaining a GET /class/ step.
+10. CONFERENCE CALLS use a 3-step fetch-create-start flow:
+    - Step 1: ALWAYS fetch the classroom first via GET /class/<id> (this is mandatory so the frontend UI can auto-navigate to the classroom).
+    - Step 2: POST /call/conference/create
+    - Step 3: POST /call/conference/start/{{step2.data.id}}
+    The DB context includes student names and phone numbers for each class — use them directly to build student_phones and student_names arrays.
+    Phone numbers do NOT need "91" prefix — the backend normalizes them automatically.
 
 ═══ COMMON MULTI-STEP EXAMPLES ═══
 
@@ -200,32 +228,46 @@ Example 1: "Delete all classrooms"
   { "method": "DELETE", "path": "/class/{{step1.data[]._id}}", "body": null, "description": "Delete each class", "forEach": true }
 ]
 
-Example 2: "Add student studentA to Grade 10" (assuming studentA's phone is 9876543210)
+Example 2: "Add student studentA to Grade 10" (assuming studentA's phone is 9112233445)
 [
   { "method": "GET", "path": "/class/", "body": null, "description": "Fetch all classes to find Grade 10" },
   { "method": "GET", "path": "/class/{{step1.data[name=Grade 10]._id}}", "body": null, "description": "Get full details of Grade 10 class" },
-  { "method": "POST", "path": "/class/", "body": { "_id": "{{step2.data._id}}", "name": "{{step2.data.name}}", "students": "{{step2.data.students+9876543210}}", "leaders": "{{step2.data.leaders}}", "contentIds": "{{step2.data.contentIds}}" }, "description": "Update Grade 10 to add student studentA" }
+  { "method": "POST", "path": "/class/", "body": { "_id": "{{step2.data._id}}", "name": "{{step2.data.name}}", "students": "{{step2.data.students+9112233445}}", "leaders": "{{step2.data.leaders}}", "contentIds": "{{step2.data.contentIds}}" }, "description": "Update Grade 10 to add student studentA" }
 ]
 
-Example 3: "Assign studentA as leader for Grade 7" (assuming studentA's phone is 9876543210)
+Example 3: "Assign studentA as leader for Grade 7" (assuming studentA's phone is 9112233445)
 [
   { "method": "GET", "path": "/class/", "body": null, "description": "Fetch all classes to find Grade 7" },
   { "method": "GET", "path": "/class/{{step1.data[name=Grade 7]._id}}", "body": null, "description": "Get full details of Grade 7 class" },
-  { "method": "POST", "path": "/class/", "body": { "_id": "{{step2.data._id}}", "name": "{{step2.data.name}}", "students": "{{step2.data.students}}", "leaders": "{{step2.data.leaders+9876543210}}", "contentIds": "{{step2.data.contentIds}}" }, "description": "Update Grade 7 to assign studentA as leader" }
+  { "method": "POST", "path": "/class/", "body": { "_id": "{{step2.data._id}}", "name": "{{step2.data.name}}", "students": "{{step2.data.students}}", "leaders": "{{step2.data.leaders+9112233445}}", "contentIds": "{{step2.data.contentIds}}" }, "description": "Update Grade 7 to assign studentA as leader" }
 ]
 
-Example 4: "Start a conference for Grade 7"
+Example 4: "Start a conference for Grade 7" (DB context has class with students: [{name: "Ananya", phone: "9112233445"}, {name: "Balaji", phone: "9887766554"}])
 [
-  { "method": "GET", "path": "/class/", "body": null, "description": "Fetch all classes to find Grade 7" },
-  { "method": "POST", "path": "/call/start", "body": { "from": "{{phoneNumber}}", "to": "{{step1.data[name=Grade 7]._id}}", "callId": "<CALL_ID>" }, "description": "Start conference call for Grade 7" }
+  { "method": "GET", "path": "/class/{{step1.data[name=Grade 7]._id}}", "body": null, "description": "Fetch classroom details" },
+  { "method": "POST", "path": "/call/conference/create", "body": { "teacher_phone": "{{phoneNumber}}", "teacher_name": "{{teacherName}}", "student_phones": ["9112233445", "9887766554"], "student_names": ["Ananya", "Balaji"] }, "description": "Create conference for Grade 7 students" },
+  { "method": "POST", "path": "/call/conference/start/{{step2.data.id}}", "body": null, "description": "Start the conference call" }
 ]
 
-Example 5: "Create classroom Grade 10 and add student studentA" (assuming studentA's phone is 9876543210)
+Example 5: "Start a call for Grade 7 and then mute everyone" (chained: create → start → mute)
 [
-  { "method": "POST", "path": "/class/", "body": { "name": "Grade 10", "students": ["9876543210"], "leaders": [], "contentIds": [] }, "description": "Create classroom Grade 10 with student studentA" }
+  { "method": "GET", "path": "/class/{{step1.data[name=Grade 7]._id}}", "body": null, "description": "Fetch classroom details" },
+  { "method": "POST", "path": "/call/conference/create", "body": { "teacher_phone": "{{phoneNumber}}", "teacher_name": "{{teacherName}}", "student_phones": ["9112233445"], "student_names": ["Ananya"] }, "description": "Create conference for Grade 7" },
+  { "method": "POST", "path": "/call/conference/start/{{step2.data.id}}", "body": null, "description": "Start the conference" },
+  { "method": "PUT", "path": "/call/conference/muteall/{{step2.data.id}}", "body": null, "description": "Mute all participants" }
 ]
 
-Example 6: "Play keats poem" (content playback — just fetch, frontend plays)
+Example 6: "Create classroom Grade 10 and add student studentA" (assuming studentA's phone is 9112233445)
+[
+  { "method": "POST", "path": "/class/", "body": { "name": "Grade 10", "students": ["9112233445"], "leaders": [], "contentIds": [] }, "description": "Create classroom Grade 10 with student studentA" }
+]
+
+Example 7: "End the active conference" (assuming activeConferenceId is conf-1234)
+[
+  { "method": "PUT", "path": "/call/conference/end/conf-1234", "body": null, "description": "End the currently active conference call" }
+]
+
+Example 8: "Play keats poem" (content playback — just fetch, frontend plays)
 [
   { "method": "GET", "path": "/content/?expName=keats%20poem", "body": null, "description": "Fetch keats poem content for playback" }
 ]
@@ -259,8 +301,10 @@ exports.transcribeAudio = async function transcribeAudio(audioBuffer, mimetype) 
 function buildPrompt(template, userInfo, extras = {}) {
   let prompt = template
     .replace(/{{phoneNumber}}/g, userInfo.phoneNumber || "unknown")
+    .replace(/{{teacherName}}/g, userInfo.name || "Teacher")
     .replace(/{{tenantId}}/g, userInfo.tenantId || "unknown")
-    .replace(/{{userId}}/g, userInfo.userId || "unknown");
+    .replace(/{{userId}}/g, userInfo.userId || "unknown")
+    .replace(/{{activeConferenceId}}/g, userInfo.activeConferenceId || "none");
 
   for (const [key, value] of Object.entries(extras)) {
     prompt = prompt.replace(`{{${key}}}`, typeof value === "string" ? value : JSON.stringify(value, null, 2));
@@ -271,27 +315,39 @@ function buildPrompt(template, userInfo, extras = {}) {
 
 // ── Call LLM helper ──────────────────────────────────────────────────────────
 async function callLLM(systemPrompt, userMessage) {
-  const { data } = await axios.post(
-    `${GROQ_BASE}/chat/completions`,
-    {
-      model: LLM,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userMessage },
-      ],
-      temperature: 0,
-      response_format: { type: "json_object" },
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${GROQ_API_KEY}`,
-        "Content-Type": "application/json",
+  try {
+    const { data } = await axios.post(
+      `${GROQ_BASE}/chat/completions`,
+      {
+        model: LLM,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userMessage },
+        ],
+        temperature: 0,
+        response_format: { type: "json_object" },
       },
-    }
-  );
+      {
+        headers: {
+          Authorization: `Bearer ${GROQ_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
 
-  const raw = data.choices[0].message.content;
-  return JSON.parse(raw);
+    const raw = data.choices[0].message.content;
+    return JSON.parse(raw);
+  } catch (err) {
+    if (err.response?.status === 429) {
+      const retryAfter = parseFloat(err.response?.data?.error?.message?.match(/(\d+\.?\d*)s/)?.[1] || "5");
+      console.log(`[meta] Rate limited, retrying in ${retryAfter}s...`);
+      await new Promise((r) => setTimeout(r, retryAfter * 1000));
+      return callLLM(systemPrompt, userMessage);
+    }
+    const groqError = err.response?.data;
+    console.error("[meta] Groq API error:", groqError ? JSON.stringify(groqError) : err.message);
+    throw err;
+  }
 }
 
 // ── Phase 1: Reason about the command ────────────────────────────────────────
@@ -336,8 +392,9 @@ function formatDBContext(dbResults) {
   if (dbResults.classes.length > 0) {
     sections.push(
       "═══ TEACHER'S CLASSES FROM DATABASE ═══\n" +
+      "Each class includes populated student/leader details (name + phone) for conference calls.\n" +
       dbResults.classes.map((c) =>
-        `  - _id: "${c._id}" | name: "${c.name}" | students: ${c.studentCount} | leaders: [${c.leaders.join(", ")}]`
+        `  - _id: "${c._id}" | name: "${c.name}" | students: ${JSON.stringify(c.students)} | leaders: ${JSON.stringify(c.leaders)}`
       ).join("\n") +
       "\n═══ END CLASSES ═══"
     );
@@ -378,6 +435,8 @@ exports.executeCommands = async function executeCommands(commands, authToken, ba
       // Resolve placeholders in path and body
       const resolvedPath = resolvePlaceholders(cmd.path, context);
       const resolvedBody = resolvePlaceholders(cmd.body, context);
+
+
 
       // Handle forEach — repeat this step for each item in the referenced array
       if (cmd.forEach) {
@@ -561,10 +620,11 @@ RULES:
 1. Be conversational and natural — as if speaking to a teacher.
 2. Keep it to 1-2 sentences maximum.
 3. Mention specific names, counts, or key data from the results.
-4. If the command failed, briefly explain what went wrong.
-5. Do NOT use markdown, bullet points, or any formatting — just plain spoken text.
-6. Do NOT say "Here are your results" or similar generic phrases. Be specific.
-7. CRITICAL: For content playback commands ("play X", "show X"), if the step was SUCCESS, the system is ALREADY playing it for the user! Do NOT claim you cannot play it or check for media fields. Simply say you are playing it now.
+4. If the command failed, briefly explain what went wrong using simple, non-technical terms (e.g., say "I couldn't find the class" instead of "Status 404" or "API error").
+5. Explain successes in simple terms as well. Avoid using technical jargon like "JSON", "payload", "Server", or "Database".
+6. Do NOT use markdown, bullet points, or any formatting — just plain spoken text.
+7. Do NOT say "Here are your results" or similar generic phrases. Be specific.
+8. CRITICAL: For content playback commands ("play X", "show X"), if the step was SUCCESS, the system is ALREADY playing it for the user! Do NOT claim you cannot play it or check for media fields. Simply say you are playing it now.
 
 RESPOND WITH JSON:
 {

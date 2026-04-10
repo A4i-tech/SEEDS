@@ -31,7 +31,7 @@ import {
   School as SchoolIcon,
   Call as CallIcon,
 } from "@mui/icons-material";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { getClassroomById } from "../services/classroomService";
 import { useAuth } from "../hooks/useAuth";
 import { showToast } from "../utils/toast";
@@ -46,6 +46,7 @@ import { normalizePhoneNumber, formatStudentPhones } from "../utils/phoneUtils";
 
 const ClassroomDetail = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { classroomId } = useParams();
   const { getCurrentTeacher } = useAuth();
   const [classroom, setClassroom] = useState(null);
@@ -78,6 +79,17 @@ const ClassroomDetail = () => {
     clearSelectedStudents();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classroomId]);
+
+  // Handle auto-starting conference from navigation state (e.g. from VoiceCommand)
+  useEffect(() => {
+    if (location.state?.autoStart && location.state?.confId && !conferenceStarted) {
+      setConferenceStarted(true);
+      setConferenceId(location.state.confId);
+      setConfId(location.state.confId);
+      // Clean up location state so refresh doesn't trigger again
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state, conferenceStarted, setConfId, navigate, location.pathname]);
 
   // Main data loading effect - handles sequential and parallel fetching
   useEffect(() => {

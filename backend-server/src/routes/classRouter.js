@@ -2,7 +2,20 @@
 const express = require("express");
 const path = require("path");
 const ClassRoom = require("../models/Class.js");
+const Student = require("../models/Student.js");
 const { tryCatchWrapper } = require(path.join("..", "util.js"));
+
+/**
+ * Given an array of phone number strings, resolve them to Student _id ObjectIds.
+ * Values with no matching student are dropped.
+ */
+async function resolveStudentIds(phones, schoolId) {
+  if (!phones || phones.length === 0) return [];
+  const found = await Student.find({ phoneNumber: { $in: phones }, schoolId }).select("_id phoneNumber").lean();
+  const phoneToId = {};
+  found.forEach((s) => { phoneToId[s.phoneNumber] = s._id; });
+  return phones.map((p) => phoneToId[p]).filter(Boolean);
+}
 
 /**
  * @swagger
@@ -99,8 +112,16 @@ router.post(
   tryCatchWrapper(async (req, res) => {
     req.body.teacher = req.userId;
     req.body.schoolId = req.schoolId;
-    var classRoom;
 
+    // Resolve phone number strings → Student ObjectIds (AI sends phone numbers)
+    if (Array.isArray(req.body.students)) {
+      req.body.students = await resolveStudentIds(req.body.students, req.schoolId);
+    }
+    if (Array.isArray(req.body.leaders)) {
+      req.body.leaders = await resolveStudentIds(req.body.leaders, req.schoolId);
+    }
+
+    var classRoom;
     if (req.body._id) {
       classRoom = await ClassRoom.getClassById(req.body._id);
       if (classRoom.teacher !== req.userId) return res.json(403);

@@ -22,6 +22,7 @@ import { useAuthState } from "../context/AuthContext";
 
 function Login() {
   const navigate = useNavigation();
+  const { setLoggedIn } = useAuthState();
   const [showError, setShowError] = useState(null);
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");

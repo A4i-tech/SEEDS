@@ -6,6 +6,7 @@ const CallLog = require("../models/CallLog.js");
 const FsmContext = require("../models/FsmContext.js");
 const path = require("path");
 const { tryCatchWrapper, tryCatchWrapperLog } = require(path.join("..", "util.js"));
+const { confServerUrl } = require("../config/env");
 
 const axios = require("axios").default;
 
@@ -13,6 +14,21 @@ const axios = require("axios").default;
 function ivrUrl(path) {
   const base = process.env.IVR_SERVER_URL || "";
   return base.endsWith("/") ? `${base}${path}` : `${base}/${path}`;
+}
+
+// Build ConferenceV2 URL
+function confUrl(path) {
+  const base = confServerUrl || "";
+  return base.endsWith("/") ? `${base}${path}` : `${base}/${path}`;
+}
+
+// Normalize phone number to 91XXXXXXXXXX format (matching frontend behavior)
+function normalizePhone(phone) {
+  if (!phone) return phone;
+  const digits = String(phone).replace(/\D/g, "");
+  if (digits.startsWith("91") && digits.length === 12) return digits;
+  const cleaned = digits.startsWith("91") ? digits.substring(2) : digits;
+  return cleaned.length === 10 ? `91${cleaned}` : `91${digits}`;
 }
 
 /**
@@ -274,6 +290,108 @@ router.get(
   "/logCall/:callId",
   tryCatchWrapper(async (req, res) => {
     return res.json(await CallLog.getCallLogById(req.params.callId));
+  })
+);
+
+// ── ConferenceV2 proxy routes ────────────────────────────────────────────────
+
+router.post(
+  "/conference/create",
+  tryCatchWrapper(async (req, res) => {
+    const body = {
+      teacher_phone: normalizePhone(req.body.teacher_phone),
+      teacher_name: req.body.teacher_name || null,
+      student_phones: (req.body.student_phones || []).map(normalizePhone),
+      student_names: req.body.student_names || [],
+      leader_phone: req.body.leader_phone ? normalizePhone(req.body.leader_phone) : null,
+    };
+    console.log("[confV2] Creating conference:", JSON.stringify(body));
+    const response = await axios.post(confUrl("conference/create"), body, { timeout: 15000 });
+    console.log("[confV2] Create response:", response.data);
+    return res.json(response.data);
+  })
+);
+
+router.post(
+  "/conference/start/:confId",
+  tryCatchWrapper(async (req, res) => {
+    console.log("[confV2] Starting conference:", req.params.confId);
+    const response = await axios.post(confUrl(`conference/start/${req.params.confId}`), {}, { timeout: 30000 });
+    console.log("[confV2] Start response:", response.data);
+    return res.json(response.data);
+  })
+);
+
+router.put(
+  "/conference/end/:confId",
+  tryCatchWrapper(async (req, res) => {
+    const response = await axios.put(confUrl(`conference/end/${req.params.confId}`), {}, { timeout: 15000 });
+    return res.json(response.data);
+  })
+);
+
+router.put(
+  "/conference/muteall/:confId",
+  tryCatchWrapper(async (req, res) => {
+    const response = await axios.put(confUrl(`conference/muteall/${req.params.confId}`), {}, { timeout: 15000 });
+    return res.json(response.data);
+  })
+);
+
+router.put(
+  "/conference/unmuteall/:confId",
+  tryCatchWrapper(async (req, res) => {
+    const response = await axios.put(confUrl(`conference/unmuteall/${req.params.confId}`), {}, { timeout: 15000 });
+    return res.json(response.data);
+  })
+);
+
+router.put(
+  "/conference/addparticipant/:confId",
+  tryCatchWrapper(async (req, res) => {
+    const phone = normalizePhone(req.body.phone_number || req.query.phone_number);
+    const name = req.body.name || req.query.name || "";
+    const response = await axios.put(
+      confUrl(`conference/addparticipant/${req.params.confId}?phone_number=${phone}&name=${encodeURIComponent(name)}`),
+      {},
+      { timeout: 15000 }
+    );
+    return res.json(response.data);
+  })
+);
+
+router.put(
+  "/conference/removeparticipant/:confId",
+  tryCatchWrapper(async (req, res) => {
+    const phone = normalizePhone(req.body.phone_number || req.query.phone_number);
+    const response = await axios.put(
+      confUrl(`conference/removeparticipant/${req.params.confId}?phone_number=${phone}`),
+      {},
+      { timeout: 15000 }
+    );
+    return res.json(response.data);
+  })
+);
+
+router.put(
+  "/conference/playaudio/:confId",
+  tryCatchWrapper(async (req, res) => {
+    const url = req.body.url || req.query.url;
+    if (!url) return res.status(400).json({ error: "url parameter is required" });
+    const response = await axios.put(
+      confUrl(`conference/playaudio/${req.params.confId}?url=${encodeURIComponent(url)}`),
+      {},
+      { timeout: 15000 }
+    );
+    return res.json(response.data);
+  })
+);
+
+router.put(
+  "/conference/pauseaudio/:confId",
+  tryCatchWrapper(async (req, res) => {
+    const response = await axios.put(confUrl(`conference/pauseaudio/${req.params.confId}`), {}, { timeout: 15000 });
+    return res.json(response.data);
   })
 );
 

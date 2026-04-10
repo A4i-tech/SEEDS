@@ -18,6 +18,7 @@ const setupSwagger = require("./swagger");
 const tenantRouter = require("./routes/tenantRouter.js");
 const schoolRouter = require("./routes/schoolRouter.js");
 const studentRouter = require("./routes/studentRouter.js");
+const metaCallerRouter = require("./routes/metaCaller.js");
 const mongo = require("./config/mongo");
 const healthRouter = require("./routes/healthRouter");
 const app = express();
