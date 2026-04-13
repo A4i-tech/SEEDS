@@ -907,7 +907,7 @@ async def dtmf(input: Request):
         }])
 
     # Handle pause/resume toggle (key 0) - intercept before FSM processing
-    if digits == "0":
+    if digits == "0" and is_streaming:
         # Get current pause state from call state (default False = playing)
         is_paused = ivr_state.experience_data.get('is_paused', False) if ivr_state.experience_data else False
 
@@ -915,7 +915,7 @@ async def dtmf(input: Request):
         new_pause_state = not is_paused
 
         # Get language for announcements (from current state or default to kannada)
-        language = "kannada"  # Default language
+        language = settings.default_welcome_language  # Default language
         current_state = fsm_in_progress.get_state(ivr_state.current_state_id)
         if hasattr(current_state, 'menu') and hasattr(current_state.menu, 'language'):
             language = current_state.menu.language
