@@ -26,6 +26,9 @@ const TEACHER_ROLE = "teacher";
 // Initialize Swagger
 setupSwagger(app);
 
+const healthRouter = require("./routes/healthRouter");
+app.use("/health", healthRouter);
+
 // Define the rate limiter options
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes - The time window for which requests are counted.
