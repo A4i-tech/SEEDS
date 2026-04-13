@@ -862,7 +862,10 @@ async def dtmf(input: Request):
     next_actions, next_state_id = None, None
 
     # Handle speed control keys (* and #) - intercept before FSM processing
-    if digits in ["*", "#"]:
+    current_state = fsm_in_progress.states.get(ivr_state.current_state_id)
+    is_streaming = current_state and any(isinstance(a, VonageConnectAction) for a in current_state.actions)
+
+    if digits in ["*", "#"] and is_streaming:
         # Get current speed from call state (default 1.0)
         current_speed = ivr_state.experience_data.get('playback_speed', 1.0) if ivr_state.experience_data else 1.0
 
