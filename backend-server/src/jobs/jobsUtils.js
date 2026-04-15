@@ -81,23 +81,35 @@ function generateTempPaths(contentId, ip_url) {
   return { tempInputPath, tempOutputPath };
 }
 
+const FFPROBE_TIMEOUT_MS = 5 * 60 * 1000;
+
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} timed out`)), ms)),
+  ]);
+}
+
 /**
  * Extracts the duration of an audio file using ffprobe.
  * @param {string} filePath - Path to the audio file.
  * @returns {Promise<number|null>} - Duration in seconds, or null on failure.
  */
 function extractAudioDuration(filePath) {
-  return new Promise((resolve) => {
-    ffmpeg.ffprobe(filePath, (err, metadata) => {
-      if (err) {
-        console.error("Error extracting audio duration:", err);
-        resolve(null);
-      } else {
-        const duration = metadata?.format?.duration;
-        resolve(duration ? parseFloat(duration) : null);
-      }
-    });
-  });
+  return withTimeout(
+    new Promise((resolve, reject) => {
+      ffmpeg.ffprobe(filePath, (err, metadata) => {
+        if (err) {
+          reject(err);
+        } else {
+          const parsed = parseFloat(metadata?.format?.duration);
+          resolve(Number.isFinite(parsed) ? parsed : null);
+        }
+      });
+    }),
+    FFPROBE_TIMEOUT_MS,
+    "ffprobe"
+  );
 }
 
 /**
@@ -138,4 +150,5 @@ module.exports = {
   generateTempPaths,
   extractAudioDuration,
   addForInOptionAudio,
+  withTimeout,
 };
