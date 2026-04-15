@@ -92,24 +92,30 @@ function withTimeout(promise, ms, label) {
 
 /**
  * Extracts the duration of an audio file using ffprobe.
+ * Uses a `cancelled` flag so that if the timeout fires first, the ffprobe
+ * callback becomes a no-op (prevents zombie callbacks from resolving/rejecting
+ * an already-settled promise race).
  * @param {string} filePath - Path to the audio file.
  * @returns {Promise<number|null>} - Duration in seconds, or null on failure.
  */
 function extractAudioDuration(filePath) {
-  return withTimeout(
-    new Promise((resolve, reject) => {
-      ffmpeg.ffprobe(filePath, (err, metadata) => {
-        if (err) {
-          reject(err);
-        } else {
-          const parsed = parseFloat(metadata?.format?.duration);
-          resolve(Number.isFinite(parsed) ? parsed : null);
-        }
-      });
-    }),
-    FFPROBE_TIMEOUT_MS,
-    "ffprobe"
-  );
+  let cancelled = false;
+  const ffprobePromise = new Promise((resolve, reject) => {
+    ffmpeg.ffprobe(filePath, (err, metadata) => {
+      if (cancelled) return;
+      if (err) {
+        reject(err);
+      } else {
+        const parsed = parseFloat(metadata?.format?.duration);
+        resolve(Number.isFinite(parsed) ? parsed : null);
+      }
+    });
+  });
+
+  return withTimeout(ffprobePromise, FFPROBE_TIMEOUT_MS, "ffprobe").catch((err) => {
+    cancelled = true;
+    throw err;
+  });
 }
 
 /**
