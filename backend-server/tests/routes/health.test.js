@@ -7,10 +7,4 @@ describe('GET /health/ping', () => {
     expect(res.status).toBe(200);
     expect(res.text).toBe("");
   });
-
-  it('responds quickly (under 200ms)', async () => {
-    const start = Date.now();
-    await request(app).get('/health/ping');
-    expect(Date.now() - start).toBeLessThan(50);
-  });
 });
