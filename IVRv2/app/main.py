@@ -885,6 +885,7 @@ async def dtmf(input: Request):
             logging.info(f"Speed changed from {current_speed}x to {new_speed}x for websocket_id: {conv_id}")
         except Exception as e:
             logging.error(f"Failed to send speed change to WebSocket service: {e}", exc_info=True)
+            new_speed = current_speed  # Revert to current speed on failure
 
         # Update call state
         if not ivr_state.experience_data:

@@ -15,10 +15,12 @@ const {
   generateTempPaths,
   extractAudioDuration,
   addForInOptionAudio,
+  withTimeout,
 } = require("./jobsUtils.js");
 
 // Maximum job runtime: 5 minutes.
 const JOB_TIMEOUT_MS = 5 * 60 * 1000;
+const BLOB_TIMEOUT_MS = 5 * 60 * 1000;
 
 // Instantiate BlobService and get container clients.
 const blobService = new BlobService();
@@ -38,7 +40,11 @@ async function generateWAVFileAndUploadToOutputContainer(ip_url, contentId) {
   const { tempInputPath, tempOutputPath } = generateTempPaths(contentId, ip_url);
   try {
     console.log(`Downloading blob from: ${ip_url}`);
-    const inputBuffer = await blobService.downloadBlobToBuffer(ip_url);
+    const inputBuffer = await withTimeout(
+      blobService.downloadBlobToBuffer(ip_url),
+      BLOB_TIMEOUT_MS,
+      "blobDownload"
+    );
     if (!inputBuffer || inputBuffer.length === 0) {
       throw new Error("Input buffer is empty!");
     }
@@ -51,24 +57,26 @@ async function generateWAVFileAndUploadToOutputContainer(ip_url, contentId) {
     await processAudioWithFfmpeg(tempInputPath, tempOutputPath);
     console.log("ffmpeg processing completed.");
 
-    const processedBuffer = fs.readFileSync(tempOutputPath);
+    const processedBuffer = await fs.promises.readFile(tempOutputPath);
     console.log(`Processed file size: ${processedBuffer.length} bytes`);
 
     // Extract audio duration
     console.log("Extracting audio duration...");
-    const duration = await extractAudioDuration(tempOutputPath);
-    if (duration !== null) {
-      console.log(`Audio duration: ${duration} seconds`);
-    } else {
-      console.warn("Failed to extract audio duration");
+    let duration = null;
+    try {
+      duration = await extractAudioDuration(tempOutputPath);
+    } catch (err) {
+      console.warn("Failed to extract audio duration:", err);
     }
 
     const outputBlobName = `${blobService.extractBlobPathWithoutExtension(ip_url)}.wav`;
     console.log(`Uploading processed file as: ${outputBlobName}`);
     const outputBlockBlobClient = outputContainerClient.getBlockBlobClient(outputBlobName);
-    await outputBlockBlobClient.uploadData(processedBuffer, {
-      blobHTTPHeaders: { blobContentType: "audio/wav" },
-    });
+    await withTimeout(
+      outputBlockBlobClient.uploadData(processedBuffer, { blobHTTPHeaders: { blobContentType: "audio/wav" } }),
+      BLOB_TIMEOUT_MS,
+      "blobUpload"
+    );
     console.log(`Processed blob uploaded: ${outputBlobName}`);
     return { url: outputBlockBlobClient.url, duration };
   } catch (err) {

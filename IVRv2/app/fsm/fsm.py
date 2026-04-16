@@ -266,6 +266,7 @@ class FSM:
 
         return prepared_actions
 
+
     async def _stop_websocket_audio_for_state(
         self, current_state, conversation_id: str
     ) -> None:
