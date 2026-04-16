@@ -27,6 +27,12 @@ const processQuizContent = require("../jobs/processQuizContent.js");
 const { tryCatchWrapper } = require(path.join("..", "util.js"));
 const { Binary } = require("mongodb");
 const { parse: uuidParse } = require("uuid");
+const { authorizeRole } = require("../auth/authenticateToken");
+
+const TENANT_ROLE = "tenant";
+const SCHOOL_ADMIN_ROLE = "school_admin";
+const TEACHER_ROLE = "teacher";
+const CONTENT_CREATOR_ROLE = "content_creator";
 
 const PATCHABLE_CONTENT_FIELDS = [
   "description",
@@ -103,7 +109,7 @@ function sortByCreationTimeThenId(a, b) {
  *       404:
  *         description: Job not found
  */
-router.get("/job/:jobId", async (req, res) => {
+router.get("/job/:jobId", authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE), async (req, res) => {
   const job = await agenda.jobs({ _id: new ObjectId(req.params.jobId) });
 
   if (!job.length) {
@@ -137,7 +143,7 @@ router.get("/job/:jobId", async (req, res) => {
  *                   items:
  *                     $ref: '#/components/schemas/Job'
  */
-router.get("/jobs", async (req, res) => {
+router.get("/jobs", authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE), async (req, res) => {
   try {
     // Fetch jobs that are either "In Progress" or "Failed"
     const jobs = await agenda.jobs({
@@ -216,6 +222,7 @@ router.get("/jobs", async (req, res) => {
  */
 router.post(
   "/quiz",
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     const quizCreateRequest = new QuizCreateRequest(req.body);
     if (quizCreateRequest.id === "default-id") {
@@ -265,6 +272,7 @@ router.post(
  */
 router.get(
   "/sasUrl",
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     const url = req.query.url; // URL is now obtained from query string
     if (!url) {
@@ -310,6 +318,7 @@ router.get(
  */
 router.get(
   "/themes",
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     const tenantId = req.tenantId;
     if (!tenantId) {
@@ -415,6 +424,7 @@ router.get(
 
 router.get(
   "/",
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     const tenantId = req.tenantId;
     if (!tenantId) {
@@ -625,6 +635,7 @@ router.get(
 
 router.get(
   "/sasToken",
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     const containerName = "input-container";
     const blobName = req.query.blobName;
@@ -642,6 +653,7 @@ router.get(
 
 router.get(
   "/:contentId",
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     const content = await findTenantContentById(req.params.contentId, req.tenantId);
     if (!content) {
@@ -695,6 +707,7 @@ router.get(
 
 router.delete(
   "/:contentId",
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     const contentId = req.params.contentId;
     const tenantId = req.tenantId;
@@ -725,6 +738,7 @@ router.delete(
 
 router.post(
   "/",
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     let content = new ContentV3(req.body);
     content.creation_time = Math.floor(Date.now() / 1000);
@@ -779,6 +793,7 @@ router.post(
  */
 router.patch(
   "/",
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     const isAudioUploaded = req.query.isAudioUploaded === "true";
     const body = req.body;
@@ -1087,7 +1102,7 @@ async function deleteUnnecessaryStorage() {
     }
   }
 }
-router.post("/delete-unnecessary-storage", async (req, res) => {
+router.post("/delete-unnecessary-storage", authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE), async (req, res) => {
   await deleteUnnecessaryStorage();
   return res.send("Deleted Successfully");
 });
