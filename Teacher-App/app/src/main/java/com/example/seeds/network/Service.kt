@@ -44,8 +44,11 @@ const val CONTENT_LIMIT = 100
 
 interface SeedsService {
 
-    @POST("tenant/logout") 
+    @POST("tenant/logout")
     suspend fun logout(@Header("Authorization") token: String): Response<Unit>
+
+    @GET("health/ping")
+    suspend fun healthPing(): Response<Unit>
 
     @POST
     suspend fun getAccessToken(
