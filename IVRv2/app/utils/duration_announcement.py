@@ -94,8 +94,8 @@ def format_duration_announcement(duration_seconds: Optional[float], language: st
     minutes = int(duration_seconds // 60)
     seconds = int(duration_seconds % 60)
 
-    # Get templates for language (default to English)
-    lang_templates = _DURATION_TEMPLATES.get(language, _DURATION_TEMPLATES[settings.default_welcome_language])
+    # Get templates for language (fallback to English for unsupported languages)
+    lang_templates = _DURATION_TEMPLATES.get(language, _DURATION_TEMPLATES["english"])
 
     # Select appropriate template based on duration
     if minutes > 0 and seconds > 0:
