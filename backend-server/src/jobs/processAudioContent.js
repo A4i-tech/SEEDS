@@ -68,7 +68,6 @@ async function generateWAVFileAndUploadToOutputContainer(ip_url, contentId) {
     } catch (err) {
       console.warn("Failed to extract audio duration:", err);
     }
-    if (duration !== null) console.log(`Audio duration: ${duration} seconds`);
 
     const outputBlobName = `${blobService.extractBlobPathWithoutExtension(ip_url)}.wav`;
     console.log(`Uploading processed file as: ${outputBlobName}`);
