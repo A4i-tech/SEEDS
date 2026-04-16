@@ -119,25 +119,6 @@ function extractAudioDuration(filePath) {
 }
 
 /**
- * Extracts the duration of an audio file using ffprobe.
- * @param {string} filePath - Path to the audio file.
- * @returns {Promise<number|null>} - Duration in seconds, or null on failure.
- */
-function extractAudioDuration(filePath) {
-  return new Promise((resolve) => {
-    ffmpeg.ffprobe(filePath, (err, metadata) => {
-      if (err) {
-        console.error("Error extracting audio duration:", err);
-        resolve(null);
-      } else {
-        const duration = metadata?.format?.duration;
-        resolve(duration ? parseFloat(duration) : null);
-      }
-    });
-  });
-}
-
-/**
  * Adjusts an option string based on language.
  * For example, for Kannada, "option" becomes "optionಗಾಗಿ".
  * @param {string} lang - The language (e.g., "kannada", "english").
