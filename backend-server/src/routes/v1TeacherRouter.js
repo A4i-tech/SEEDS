@@ -1,10 +1,9 @@
 "use strict";
-const { STATUS, ROLES } = require("../config/constants");
+const { STATUS } = require("../config/constants");
 const express = require("express");
 const Teacher = require("../models/Teacher.js");
 const Student = require("../models/Student.js");
-const authenticateToken = require("../auth/authenticateToken");
-const authorizeRoles = require("../auth/authorizeRoles");
+const { authenticateToken, authorizeRole } = require("../auth/authenticateToken");
 const teacherController = require("../controllers/teacher.controller");
 /**
  * @swagger
@@ -13,8 +12,9 @@ const teacherController = require("../controllers/teacher.controller");
  *   description: Teacher management endpoints
  */
 const router = express.Router();
-const TENANT_ROLE = ROLES.TENANT;
-const TEACHER_ROUTE_ROLES = [ROLES.TEACHER, ROLES.CONTENT_CREATOR];
+const TENANT_ROLE = "tenant";
+const TEACHER_ROLE = "teacher";
+const CONTENT_CREATOR_ROLE = "content_creator";
 
 /**
  * @swagger
@@ -47,11 +47,11 @@ const TEACHER_ROUTE_ROLES = [ROLES.TEACHER, ROLES.CONTENT_CREATOR];
 router.post(
   "/students",
   authenticateToken,
-  authorizeRoles(...TEACHER_ROUTE_ROLES),
+  authorizeRole(TEACHER_ROLE, CONTENT_CREATOR_ROLE),
   async (req, res) => {
     try {
-      const teacherId = req.authUser.id;
-      const tenantId = req.authUser.tenantId;
+      const teacherId = req.userId;
+      const tenantId = req.tenantId;
       const teacher = await Teacher.findOne({ _id: teacherId, tenantId });
       if (!teacher) return res.sendStatus(STATUS.NOT_FOUND);
       const studentIds = Array.isArray(teacher.studentId) ? teacher.studentId : [];
@@ -107,8 +107,8 @@ router.post(
  *       500:
  *         description: Internal server error
  */
-router.get("/teachers", authenticateToken, authorizeRoles(TENANT_ROLE), async (req, res) => {
-  const tenantId = req.authUser.tenantId;
+router.get("/teachers", authenticateToken, authorizeRole(TENANT_ROLE), async (req, res) => {
+  const tenantId = req.tenantId;
   if (!tenantId) return res.sendStatus(STATUS.BAD_REQUEST);
   try {
     const teachers = await Teacher.find(
@@ -212,7 +212,7 @@ router.get("/teachers", authenticateToken, authorizeRoles(TENANT_ROLE), async (r
  *       401:
  *         description: Unauthorized - invalid or missing token
  */
-router.post("/add-students", authenticateToken, authorizeRoles(TENANT_ROLE), teacherController.addStudents);
+router.post("/add-students", authenticateToken, authorizeRole(TENANT_ROLE), teacherController.addStudents);
 
 /**
  * @swagger
@@ -267,8 +267,8 @@ router.post("/add-students", authenticateToken, authorizeRoles(TENANT_ROLE), tea
  *       401:
  *         description: Unauthorized - invalid or missing token
  */
-router.delete("/students", authenticateToken, authorizeRoles(TENANT_ROLE), teacherController.removeStudents);
+router.delete("/students", authenticateToken, authorizeRole(TENANT_ROLE), teacherController.removeStudents);
 
-router.patch("/students", authenticateToken, authorizeRoles(TENANT_ROLE), teacherController.updateStudent);
+router.patch("/students", authenticateToken, authorizeRole(TENANT_ROLE), teacherController.updateStudent);
 
 module.exports = router;

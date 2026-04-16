@@ -1,44 +1,42 @@
 const Tenant = require("../../models/Tenant");
 const Teacher = require("../../models/Teacher");
-
-function toTeacherRecord(doc) {
-  if (!doc) {
-    return null;
-  }
-
-  const record = typeof doc.toObject === "function" ? doc.toObject() : doc;
-  return {
-    ...record,
-    id: String(record._id),
-  };
-}
+const School = require("../../models/School");
 
 module.exports = {
   async getAllTenants() {
-    const docs = await Tenant.find({});
+    const docs = await Tenant.find({}).lean().exec();
     return docs.map((d) => ({ id: d._id, tenantName: d.tenantName }));
   },
   async getTenantById(tenantId) {
     return Tenant.findById(tenantId);
   },
   async getTenantByEmail(email) {
-    return Tenant.findOne({ email });
+    return Tenant.findOne({ email: email });
   },
-  async insertTenant({ email, password, tenantName }) {
-    return Tenant.create({ email, password, tenantName });
-  },
-  async getTeacherByTenantIdAndPhoneNumber(tenantId, phoneNumber) {
-    const doc = await Teacher.findOne({ tenantId, phoneNumber });
-    return toTeacherRecord(doc);
+  async insertTenant({ email, password, tenantName, role }) {
+    return Tenant.create({ email, password, tenantName, role });
   },
   async getTeacherByPhoneNumber(phoneNumber) {
-    const doc = await Teacher.findOne({ phoneNumber });
-    return toTeacherRecord(doc);
+    return Teacher.findOne({ phoneNumber });
   },
-  async insertTeacher({ phoneNumber, password, tenantId, name, role }) {
-    return Teacher.create({ phoneNumber, password, tenantId, name, role });
+  async getTeacherBySchoolIdAndPhoneNumber(schoolId, phoneNumber) {
+    const school = await School.findById(schoolId);
+    if (!school) {
+      return null;
+    }
+    return Teacher.findOne({ schoolId, phoneNumber });
+  },
+  async insertTeacher({ phoneNumber, password, schoolId, name, role }) {
+    return Teacher.create({ phoneNumber, password, schoolId, name, role });
   },
   async updateTenantPassword(tenantId, newPassword) {
     return Tenant.findByIdAndUpdate(tenantId, { password: newPassword });
+  },
+  async updateTeacher(teacherId, schoolId, updates) {
+    return Teacher.findOneAndUpdate(
+      { _id: teacherId, schoolId },
+      updates,
+      { new: true }
+    ).select("-password").lean();
   },
 };
