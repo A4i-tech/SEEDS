@@ -2,6 +2,7 @@ const jwt = require("jsonwebtoken");
 const admin = require("firebase-admin");
 const { secretKey, authType, firebaseServiceAccount } = require("../config/env");
 const { STATUS, ROLES } = require("../config/constants");
+const School = require("../models/School");
 
 // Ensure secretKey is defined for native auth
 if (
@@ -23,41 +24,82 @@ function authenticateToken(req, res, next) {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
   if (!token) return res.sendStatus(STATUS.UNAUTHORIZED);
+  let user;
+  try {
+    user = jwt.verify(token, secretKey);
+  } catch (error) {
+    return res.sendStatus(STATUS.FORBIDDEN);
+  }
 
-  jwt.verify(token, secretKey, (err, user) => {
-    if (err && err.name === "TokenExpiredError") {
-      return res.status(STATUS.UNAUTHORIZED).json({ message: "Token expired" });
-    }
-    if (err) return res.sendStatus(STATUS.FORBIDDEN);
-    // Backward compatibility: older tenant tokens may only carry email + id.
-    const normalizedRoles = Array.isArray(user.roles)
-      ? user.roles
-      : user.role
-        ? [user.role]
+  const normalizedRoles = Array.isArray(user.roles)
+    ? user.roles
+    : user.role
+      ? [user.role]
+      : user.iss
+        ? [user.iss]
         : user.email
           ? [ROLES.TENANT]
           : [];
-    const primaryRole = normalizedRoles[0];
-    const tenantId = primaryRole === ROLES.TENANT ? user.id : user.tenantId;
+  const primaryRole = normalizedRoles[0];
+  const resolvedUserId = user.id || user.teacherId || user.schoolId;
 
-    if (!user.id || !primaryRole || !tenantId) {
-      return res.sendStatus(STATUS.FORBIDDEN);
+  if (!resolvedUserId || !primaryRole) {
+    return res.sendStatus(STATUS.FORBIDDEN);
+  }
+
+  req.user = user;
+  req.userId = resolvedUserId;
+  req.role = user.role || user.iss || primaryRole;
+
+  if (user.schoolId) req.schoolId = user.schoolId;
+  if (user.tenantId) req.tenantId = user.tenantId;
+  if (req.role === ROLES.TENANT) req.tenantId = user.tenantId || user.id;
+  if (req.role === "school_admin") req.schoolId = user.schoolId || user.id;
+
+  const finalize = () => {
+    req.authUser = {
+      id: req.userId,
+      tenantId: req.tenantId || null,
+      schoolId: req.schoolId || null,
+      roles: normalizedRoles.length ? normalizedRoles : [req.role],
+      primaryRole: req.role,
+    };
+    req.userRole = req.role;
+    return next();
+  };
+
+  if (req.schoolId && !req.tenantId && req.role !== ROLES.TENANT) {
+    return School.findById(req.schoolId)
+      .select("tenantId")
+      .lean()
+      .then((school) => {
+        if (!school) {
+          return res.sendStatus(STATUS.UNAUTHORIZED);
+        }
+        req.tenantId = school.tenantId;
+        return finalize();
+      })
+      .catch(() => res.sendStatus(STATUS.FORBIDDEN));
+  }
+
+  return finalize();
+}
+
+function authorizeRole(...allowedRoles) {
+  return (req, res, next) => {
+    const requestRole = req.role || req.userRole || req.authUser?.primaryRole;
+    if (!req.user) {
+      return res.status(STATUS.UNAUTHORIZED).json({ message: "Authentication required" });
     }
 
-    req.user = user;
-    req.authUser = {
-      id: user.id,
-      tenantId,
-      roles: normalizedRoles,
-      primaryRole,
-    };
+    if (!allowedRoles.includes(requestRole)) {
+      return res.status(STATUS.FORBIDDEN).json({ message: "Unauthorized" });
+    }
 
-    // Backward-compatible aliases used by older route handlers.
-    req.userId = req.authUser.id;
-    req.userRole = req.authUser.primaryRole;
-    req.tenantId = req.authUser.tenantId;
     next();
-  });
+  };
 }
 
 module.exports = authenticateToken;
+module.exports.authenticateToken = authenticateToken;
+module.exports.authorizeRole = authorizeRole;

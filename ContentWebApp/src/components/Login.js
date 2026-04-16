@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import validator from "validator";
 import { isValidPhoneNumber, sanitizePhoneInput } from "../utils/phoneUtils";
+import { setAuth } from "../utils/authHelpers";
 import "./Login.css";
 
 const baseURL = process.env.REACT_APP_API_BASE_URL;
@@ -23,7 +24,6 @@ const getLoginPayload = (identifier, password) => {
 
     return {
       type: "email",
-      endpoint: "/tenant/login",
       payload: { email: value.toLowerCase(), password },
     };
   }
@@ -35,7 +35,6 @@ const getLoginPayload = (identifier, password) => {
 
   return {
     type: "phone",
-    endpoint: "/teacher/login",
     payload: { phoneNumber, password },
   };
 };
@@ -80,19 +79,36 @@ const Login = () => {
 
     try {
       setIsSubmitting(true);
-      const response = await axios.post(
-        `${baseURL}${requestConfig.endpoint}`,
-        requestConfig.payload
-      );
+      let response = null;
 
-      if (response.status !== 200) {
+      if (requestConfig.type === "email") {
+        const emailEndpoints = ["/tenant/login", "/school/admin/login"];
+
+        for (const endpoint of emailEndpoints) {
+          try {
+            response = await axios.post(`${baseURL}${endpoint}`, requestConfig.payload);
+            break;
+          } catch (error) {
+            if (error?.response?.status === 401) {
+              continue;
+            }
+            throw error;
+          }
+        }
+      } else {
+        response = await axios.post(`${baseURL}/teacher/login`, requestConfig.payload);
+      }
+
+      if (!response || response.status !== 200) {
         setShowError(INVALID_CREDENTIALS_MESSAGE);
         return;
       }
 
-      const { tenantName, token } = response.data;
-      localStorage.setItem("authToken", token);
-      navigate("/content", { state: { name: tenantName } });
+      const { token, tenantName, schoolName, name, schoolId, role } = response.data;
+      const storedRole = role || (schoolId ? "school_admin" : "tenant");
+
+      setAuth(token, storedRole, schoolId || null);
+      navigate("/content", { state: { name: tenantName || schoolName || name || "User" } });
     } catch (error) {
       console.error("Login error:", error);
       setShowError(INVALID_CREDENTIALS_MESSAGE);

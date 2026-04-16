@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { SEEDS_URL } from "../Constants";
-import { getAuthHeaders, isAuthenticated, clearAuth } from "../utils/authHelpers";
+import { getAuthHeaders, isAuthenticated, clearAuth, getRole } from "../utils/authHelpers";
 import { apiFetch } from "../services/api";
 
 let cachedTenantName = null;
@@ -17,25 +17,16 @@ const resetUserCache = () => {
 export const useAuth = () => {
   const navigate = useNavigate();
 
-  /**
-   * Get authentication headers
-   */
   const getHeaders = useCallback(() => {
     return getAuthHeaders();
   }, []);
 
-  /**
-   * Logout user and clear all auth data
-   */
   const logout = useCallback(() => {
     clearAuth();
     resetUserCache();
     navigate("/");
   }, [navigate]);
 
-  /**
-   * Get current user info
-   */
   const getCurrentUser = useCallback(async () => {
     if (cachedUserProfile) {
       return cachedUserProfile;
@@ -44,13 +35,26 @@ export const useAuth = () => {
       return cachedUserPromise;
     }
 
-    cachedUserPromise = apiFetch(`${SEEDS_URL}/tenant/me`, {
+    const role = getRole();
+    const meUrl =
+      role === "school_admin"
+        ? `${SEEDS_URL}/school/admin/me`
+        : role === "teacher" || role === "content_creator"
+          ? `${SEEDS_URL}/teacher/me`
+          : `${SEEDS_URL}/tenant/me`;
+
+    cachedUserPromise = apiFetch(meUrl, {
       method: "GET",
       headers: getAuthHeaders(),
     })
       .then((req) => {
-        cachedUserProfile = req;
-        cachedTenantName = req.name;
+        const profile = {
+          ...req,
+          role: req.role || role || "tenant",
+          name: req.name || req.tenantName || req.schoolName || "User",
+        };
+        cachedUserProfile = profile;
+        cachedTenantName = profile.name;
         cachedUserPromise = null;
         return cachedUserProfile;
       })
@@ -62,20 +66,10 @@ export const useAuth = () => {
     return cachedUserPromise;
   }, []);
 
-  const getCurrentUserName = useCallback(async () => {
-    if (cachedTenantName) {
-      return cachedTenantName;
-    }
-    const profile = await getCurrentUser();
-    cachedTenantName = profile.name;
-    return cachedTenantName;
-  }, [getCurrentUser]);
-
   return {
     getAuthHeaders: getHeaders,
     logout,
     getCurrentUser,
-    getCurrentUserName,
     isAuthenticated: isAuthenticated(),
   };
 };
