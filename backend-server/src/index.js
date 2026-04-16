@@ -6,23 +6,24 @@ const bodyParser = require("body-parser");
 const rateLimit = require("express-rate-limit");
 
 const morgan = require(path.join(__dirname, "morganConfig.js"));
+const { ROLES } = require("./config/constants");
 const { port } = require("./config/env");
-const { authenticateToken, authorizeRole } = require("./auth/authenticateToken");
+const authenticateToken = require("./auth/authenticateToken");
+const authorizeRoles = require("./auth/authorizeRoles");
 const callRouter = require("./routes/callRouter.js");
 const teacherRouter = require("./routes/teacherRouter.js");
+const v1TeacherRouter = require("./routes/v1TeacherRouter.js");
 const contentRouter = require("./routes/contentRouter");
 const classRoomRouter = require("./routes/classRouter.js");
 const userRouter = require("./routes/userRouter.js");
 const logRouter = require("./routes/logRouter.js");
-const { constants } = require("zlib");
 const setupSwagger = require("./swagger");
 const tenantRouter = require("./routes/tenantRouter.js");
-const schoolRouter = require("./routes/schoolRouter.js");
-const studentRouter = require("./routes/studentRouter.js");
 const mongo = require("./config/mongo");
 const app = express();
+const CONTENT_API_ROLES = [ROLES.TENANT, ROLES.TEACHER, ROLES.CONTENT_CREATOR];
+const NON_TENANT_API_ROLES = [ROLES.TEACHER, ROLES.CONTENT_CREATOR];
 
-const TEACHER_ROLE = "teacher";
 // Initialize Swagger
 setupSwagger(app);
 
@@ -42,16 +43,40 @@ app.use(bodyParser.json());
 // Existing code remains unchanged
 app.use(morgan("dev"));
 app.use(cors());
-app.use("/call", authenticateToken, callRouter);
-app.use("/content", authenticateToken, contentRouter);
-app.use("/class", authenticateToken, authorizeRole(TEACHER_ROLE), classRoomRouter);
-app.use("/log", authenticateToken, logRouter);
-app.use("/user", authenticateToken, userRouter);
+app.use(
+  "/call",
+  authenticateToken,
+  authorizeRoles(...NON_TENANT_API_ROLES),
+  callRouter
+);
+app.use(
+  "/content",
+  authenticateToken,
+  authorizeRoles(...CONTENT_API_ROLES),
+  contentRouter
+);
+app.use(
+  "/class",
+  authenticateToken,
+  authorizeRoles(...NON_TENANT_API_ROLES),
+  classRoomRouter
+);
+app.use(
+  "/log",
+  authenticateToken,
+  authorizeRoles(...NON_TENANT_API_ROLES),
+  logRouter
+);
+app.use(
+  "/user",
+  authenticateToken,
+  authorizeRoles(...NON_TENANT_API_ROLES),
+  userRouter
+);
 
 app.use("/teacher", teacherRouter);
+app.use("/v1/teacher", v1TeacherRouter);
 app.use("/tenant", tenantRouter);
-app.use("/school", schoolRouter);
-app.use("/student", authenticateToken, studentRouter);
 if (require.main === module) {
   mongo()
     .then(() => {

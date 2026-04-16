@@ -4,13 +4,13 @@ import { useAuth } from "../hooks/useAuth";
 import { useContent } from "../hooks/useContent";
 import { useContentFilters } from "../hooks/useContentFilters";
 import { useTeachers } from "../hooks/useTeachers";
-import { useSchools } from "../hooks/useSchools";
 import { ivrService } from "../services/ivrService";
 import AppHeader from "./AllContent/Header/AppHeader";
 import ContentTab from "./AllContent/ContentTab/ContentTab";
 import IVRTab from "./AllContent/IVRTab/IVRTab";
 import RegistrationTab from "./AllContent/RegistrationTab/RegistrationTab";
 import AnalyticsTab from "./AllContent/AnalyticsTab/AnalyticsTab";
+import { USER_ROLES } from "../Constants";
 import "./AllContent/AllContent.css";
 import "./AllContent/shared/responsive.css";
 
@@ -18,7 +18,8 @@ const AllContent = () => {
   const [activeTab, setActiveTab] = useState("content");
   const [updateIVRStatus, setUpdateIVRStatus] = useState("");
   const [isUpdatingIVR, setIsUpdatingIVR] = useState(false);
-  const [currentUser, setCurrentUser] = useState("User");
+  const [currentUser, setCurrentUser] = useState("");
+  const [currentUserRole, setCurrentUserRole] = useState(null);
 
   const navigate = useNavigate();
   const { getAuthHeaders, logout, getCurrentUser } = useAuth();
@@ -44,28 +45,22 @@ const AllContent = () => {
 
   const {
     teachers,
-    students,
+    selectedTeacher,
+    selectedTeacherId,
+    setSelectedTeacherId,
     message,
-    messageType,
-    registerTeacher,
-    addStudent,
-    updateStudentById,
-    deleteStudentById,
-    updateTeacher,
-    deleteTeacher,
-    transferTeacher,
+    registerUser,
+    addStudentRow,
+    removeStudentRow,
+    setNewStudentValue,
+    submitNewStudents,
+    removeStudent,
   } = useTeachers(activeTab);
 
-  const {
-    schools,
-    message: schoolMessage,
-    messageType: schoolMessageType,
-    createSchool,
-    updateSchool,
-    deleteSchool,
-  } = useSchools(activeTab);
-
   const ivrURL = process.env.REACT_APP_API_IVRV2_URL;
+  const isContentCreator = currentUserRole === USER_ROLES.CONTENT_CREATOR;
+  const canViewRegistration = !isContentCreator;
+  const canViewAnalytics = !isContentCreator;
 
   /**
    * Fetch current user on mount
@@ -73,15 +68,23 @@ const AllContent = () => {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const userName = await getCurrentUser();
-        setCurrentUser(userName);
+        const profile = await getCurrentUser();
+        setCurrentUser(profile.name);
+        setCurrentUserRole(profile.role);
       } catch (error) {
         console.error("Error fetching user:", error);
-        setCurrentUser("User");
+        setCurrentUser("");
+        setCurrentUserRole(null);
       }
     };
     fetchUser();
   }, [getCurrentUser]);
+
+  useEffect(() => {
+    if ((!canViewRegistration && activeTab === "registration") || (!canViewAnalytics && activeTab === "analytics")) {
+      setActiveTab("content");
+    }
+  }, [activeTab, canViewAnalytics, canViewRegistration]);
 
   /**
    * Handle IVR update
@@ -130,6 +133,8 @@ const AllContent = () => {
           onTabChange={setActiveTab}
           currentUser={currentUser}
           onLogout={logout}
+          showRegistration={canViewRegistration}
+          showAnalytics={canViewAnalytics}
         />
 
         {updateIVRStatus && <div className="status-message">{updateIVRStatus}</div>}
@@ -176,27 +181,21 @@ const AllContent = () => {
 
         {activeTab === "ivr" && <IVRTab />}
 
-        {activeTab === "analytics" && <AnalyticsTab />}
+        {canViewAnalytics && activeTab === "analytics" && <AnalyticsTab />}
 
-        {activeTab === "registration" && (
+        {canViewRegistration && activeTab === "registration" && (
           <RegistrationTab
             teachers={teachers}
-            students={students}
-            onRegisterTeacher={registerTeacher}
-            onAddStudent={addStudent}
-            onUpdateStudent={updateStudentById}
-            onDeleteStudent={deleteStudentById}
-            onUpdateTeacher={updateTeacher}
-            onDeleteTeacher={deleteTeacher}
-            onTransferTeacher={transferTeacher}
+            selectedTeacher={selectedTeacher}
+            selectedTeacherId={selectedTeacherId}
+            onSelectTeacher={setSelectedTeacherId}
+            onRegisterUser={registerUser}
             message={message}
-            messageType={messageType}
-            schools={schools}
-            onCreateSchool={createSchool}
-            onUpdateSchool={updateSchool}
-            onDeleteSchool={deleteSchool}
-            schoolMessage={schoolMessage}
-            schoolMessageType={schoolMessageType}
+            onAddStudentRow={addStudentRow}
+            onRemoveStudentRow={removeStudentRow}
+            onSetNewStudentValue={setNewStudentValue}
+            onSubmitNewStudents={submitNewStudents}
+            onRemoveStudent={removeStudent}
           />
         )}
       </div>

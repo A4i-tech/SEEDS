@@ -239,16 +239,20 @@ const options = {
               description: "Unique identifier for the teacher",
               example: "507f1f77bcf86cd799439011",
             },
-            email: {
+            phoneNumber: {
               type: "string",
-              format: "email",
-              description: "Email address of the teacher",
-              example: "teacher@example.com",
+              description: "Phone number of the teacher/content creator account",
+              example: "9876543210",
             },
             name: {
               type: "string",
               description: "Full name of the teacher",
               example: "John Doe",
+            },
+            role: {
+              type: "string",
+              enum: ["teacher", "content_creator"],
+              description: "Role attached to this user record",
             },
             students: {
               type: "array",
@@ -269,7 +273,7 @@ const options = {
               description: "When the teacher record was last updated",
             },
           },
-          required: ["email"],
+          required: ["phoneNumber", "name", "role"],
         },
         LogEntry: {
           type: "object",

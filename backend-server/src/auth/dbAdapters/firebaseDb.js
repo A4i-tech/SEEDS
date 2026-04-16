@@ -12,6 +12,10 @@ if (authType === "firebase") {
   db = admin.firestore();
 }
 
+function toTeacherRecord(doc) {
+  return { id: doc.id, ...doc.data() };
+}
+
 module.exports = {
   async getAllTenants(req, res) {
     const tenantsRef = db.collection("Tenants");
@@ -20,7 +24,6 @@ module.exports = {
     snapshot.forEach((doc) => {
       tenants.push({ id: doc.id, tenantName: doc.data().tenantName });
     });
-    console.log(tenants);
     return tenants;
   },
   async getTenantById(tenantId) {
@@ -39,52 +42,44 @@ module.exports = {
     }
     return snapshot.docs[0].data();
   },
-  async insertTenant({ email, password, tenantName, role }) {
+  async insertTenant({ email, password, tenantName }) {
     const tenantsRef = db.collection("Tenants");
     const newTenantRef = tenantsRef.doc();
-    await newTenantRef.set({ email, password, tenantName, role });
-    return { id: newTenantRef.id, email, password, tenantName, role };
+    await newTenantRef.set({ email, password, tenantName });
+    return { id: newTenantRef.id, email, password, tenantName };
   },
-  async getTeacherByPhoneNumber(phoneNumber) {
-    const snapshot = await db.collection("Teacher")
+  async getTeacherByTenantIdAndPhoneNumber(tenantId, phoneNumber) {
+    const snapshot = await db
+      .collection("Teacher")
+      .where("tenantId", "==", tenantId)
       .where("phoneNumber", "==", phoneNumber)
       .limit(1)
-      .get();
-    if (snapshot.empty) return null;
-    const doc = snapshot.docs[0];
-    return { id: doc.id, ...doc.data() };
-  },
-  async getTeacherBySchoolIdAndPhoneNumber(schoolId, phoneNumber) {
-    const schoolsRef = db.collection("Schools").doc(schoolId);
-    const schoolDoc = await schoolsRef.get();
-    if (!schoolDoc.exists) {
-      return null;
-    }
-    const teachersRef = db.collection("Teacher");
-    const snapshot = await teachersRef
-      .where("phoneNumber", "==", phoneNumber)
-      .where("schoolId", "==", schoolId)
       .get();
     if (snapshot.empty) {
       return null;
     }
-    const doc = snapshot.docs[0];
-    return { id: doc.id, ...doc.data() };
+    return toTeacherRecord(snapshot.docs[0]);
   },
-  async insertTeacher({ phoneNumber, password, schoolId, name, role }) {
+  async getTeacherByPhoneNumber(phoneNumber) {
+    const snapshot = await db
+      .collection("Teacher")
+      .where("phoneNumber", "==", phoneNumber)
+      .limit(1)
+      .get();
+    if (snapshot.empty) {
+      return null;
+    }
+    return toTeacherRecord(snapshot.docs[0]);
+  },
+  async insertTeacher({ phoneNumber, password, tenantId, name, role }) {
     const teachersRef = db.collection("Teacher");
     const newTeacherRef = teachersRef.doc();
-    await newTeacherRef.set({ phoneNumber, password, schoolId, name, role });
-    return { id: newTeacherRef.id, phoneNumber, schoolId, name, role };
+    await newTeacherRef.set({ phoneNumber, password, tenantId, name, role });
+    return { id: newTeacherRef.id, phoneNumber, tenantId, name, role };
   },
   async updateTenantPassword(tenantId, newPassword) {
     const tenantRef = db.collection("Tenants").doc(tenantId);
     await tenantRef.update({ password: newPassword });
     return;
-  },
-  async updateTeacher(teacherId, schoolId, updates) {
-    const teacherRef = db.collection("Teacher").doc(teacherId);
-    await teacherRef.update(updates);
-    return { id: teacherRef.id, ...updates };
   },
 };

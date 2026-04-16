@@ -4,7 +4,7 @@ const {
   jwtExpiresIn,
   passwordSaltRounds,
 } = require("../../config/env");
-const { STATUS, PASSWORD_POLICY } = require("../../config/constants");
+const { STATUS, PASSWORD_POLICY, ROLES } = require("../../config/constants");
 const validator = require("validator");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
@@ -13,7 +13,7 @@ const nativeDb = require("../dbAdapters/nativeDb");
 const firebaseDb = require("../dbAdapters/firebaseDb");
 
 const dbAdapter = authType === "firebase" ? firebaseDb : nativeDb;
-const TENANT_ROLE = "tenant";
+
 function generateToken(payload) {
   return jwt.sign(payload, secretKey, {
     expiresIn: jwtExpiresIn,
@@ -48,12 +48,14 @@ module.exports = {
         id: tenant._id || tenant.id,
         email: tenant.email,
         name: tenant.tenantName,
-        role: tenant.role,
+        tenantId: tenant._id || tenant.id,
+        role: ROLES.TENANT,
       });
       return res.status(STATUS.OK).json({
         token,
         id: tenant._id || tenant.id,
         tenantName: tenant.tenantName,
+        role: ROLES.TENANT,
       });
     } catch (error) {
       console.error("Login error:", error);
@@ -89,13 +91,12 @@ module.exports = {
       }
       const hashedPassword = await bcrypt.hash(
         password,
-        parseInt(passwordSaltRounds),
+        Number(passwordSaltRounds),
       );
       await dbAdapter.insertTenant({
         email,
         password: hashedPassword,
         tenantName,
-        role: TENANT_ROLE,
       });
       return res
         .status(STATUS.CREATED)
@@ -128,7 +129,7 @@ module.exports = {
         .json({ message: "New password is required" });
     }
 
-    const tenantId = req.tenantId;
+    const tenantId = req.authUser.tenantId;
 
     if (!validator.isStrongPassword(newPassword, PASSWORD_POLICY)) {
       return res.status(STATUS.BAD_REQUEST).json({
@@ -168,7 +169,7 @@ module.exports = {
 
       const hashedPassword = await bcrypt.hash(
         newPassword,
-        parseInt(passwordSaltRounds),
+        Number(passwordSaltRounds),
       );
       await dbAdapter.updateTenantPassword(tenantId, hashedPassword);
       return res

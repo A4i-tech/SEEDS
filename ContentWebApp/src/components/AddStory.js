@@ -9,7 +9,7 @@ import { isMp3File } from "../utils/fileValidators";
 import { contentService } from "../services/contentService";
 
 const AddStory = ({ content, contentType, onContentTypeChange }) => {
-  const { getCurrentUser } = useAuth();
+  const { getCurrentUserName } = useAuth();
   const [metadata, setMetadata] = useState({
     id: "",
     type: "Story",
@@ -346,8 +346,8 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
       newMetadata.audioContent = audioContentArray;
     }
 
-    const tenantName = await getCurrentUser();
-    newMetadata.createdBy = tenantName || newMetadata.createdBy;
+    const tenantName = await getCurrentUserName();
+    newMetadata.createdBy = tenantName || newMetadata.createdBy || "";
 
     // Upload files to Azure Blob Storage FIRST, before sending metadata to backend
     // This ensures files are available when the background job starts processing

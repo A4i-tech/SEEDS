@@ -6,7 +6,14 @@ import "../shared/buttons.css";
 import "../shared/cards.css";
 import "../shared/utilities.css";
 
-const AppHeader = ({ activeTab, onTabChange, currentUser, onLogout }) => {
+const AppHeader = ({
+  activeTab,
+  onTabChange,
+  currentUser,
+  onLogout,
+  showRegistration = true,
+  showAnalytics = true,
+}) => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const navigate = useNavigate();
 
@@ -34,18 +41,22 @@ const AppHeader = ({ activeTab, onTabChange, currentUser, onLogout }) => {
           >
             Content
           </button>
-          <button
-            className={`nav-link ${activeTab === "registration" ? "active" : ""}`}
-            onClick={() => onTabChange("registration")}
-          >
-            Registration
-          </button>
-          <button
-            className={`nav-link ${activeTab === "analytics" ? "active" : ""}`}
-            onClick={() => onTabChange("analytics")}
-          >
-            Analytics
-          </button>
+          {showRegistration && (
+            <button
+              className={`nav-link ${activeTab === "registration" ? "active" : ""}`}
+              onClick={() => onTabChange("registration")}
+            >
+              Registration
+            </button>
+          )}
+          {showAnalytics && (
+            <button
+              className={`nav-link ${activeTab === "analytics" ? "active" : ""}`}
+              onClick={() => onTabChange("analytics")}
+            >
+              Analytics
+            </button>
+          )}
         </div>
       </div>
       <div className="user-dropdown-container">

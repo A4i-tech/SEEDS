@@ -27,23 +27,27 @@ const processQuizContent = require("../jobs/processQuizContent.js");
 const { tryCatchWrapper } = require(path.join("..", "util.js"));
 const { Binary } = require("mongodb");
 const { parse: uuidParse } = require("uuid");
-const { authenticateToken, authorizeRole } = require("../auth/authenticateToken");
 
-const TENANT_ROLE = "tenant";
-const SCHOOL_ADMIN_ROLE = "school_admin";
-const TEACHER_ROLE = "teacher";
+const PATCHABLE_CONTENT_FIELDS = [
+  "description",
+  "type",
+  "language",
+  "title",
+  "theme",
+  "audioContent",
+  "createdBy",
+  "isPullModel",
+  "isTeacherApp",
+  "isDeleted",
+  "isProcessed",
+];
 
-// For reads — school-scoped users see their own school's content + tenant content (schoolId: null)
-function getReadSchoolIdFilter(req) {
-  if (req.schoolId && (req.role === SCHOOL_ADMIN_ROLE || req.role === TEACHER_ROLE)) {
-    return { $in: [req.schoolId, null] };
-  }
-  return null;
-}
-
-// For writes (modify/delete) — strict ownership only
-function getWriteSchoolIdFilter(req) {
-  return req.role === SCHOOL_ADMIN_ROLE ? req.schoolId : null;
+function findTenantContentById(contentId, tenantId) {
+  return ContentV3.findOne({
+    _id: contentId,
+    tenantId,
+    isDeleted: { $ne: true },
+  }).exec();
 }
 
 // Initialize instances
@@ -63,6 +67,16 @@ agenda.define("processQuizContent", async (job) => {
 (async function () {
   await agenda.start();
 })();
+
+/** Sort merged content/quizzes by creation_time descending, then by _id descending as tie-breaker. */
+function sortByCreationTimeThenId(a, b) {
+  const timeA = a.creation_time;
+  const timeB = b.creation_time;
+  if (timeB !== timeA) return timeB - timeA;
+  const idA = a._id.toString();
+  const idB = b._id.toString();
+  return idB.localeCompare(idA);
+}
 
 /**
  * @swagger
@@ -89,7 +103,7 @@ agenda.define("processQuizContent", async (job) => {
  *       404:
  *         description: Job not found
  */
-router.get("/job/:jobId", authenticateToken, authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE), async (req, res) => {
+router.get("/job/:jobId", async (req, res) => {
   const job = await agenda.jobs({ _id: new ObjectId(req.params.jobId) });
 
   if (!job.length) {
@@ -123,7 +137,7 @@ router.get("/job/:jobId", authenticateToken, authorizeRole(TENANT_ROLE, SCHOOL_A
  *                   items:
  *                     $ref: '#/components/schemas/Job'
  */
-router.get("/jobs", authenticateToken, authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE), async (req, res) => {
+router.get("/jobs", async (req, res) => {
   try {
     // Fetch jobs that are either "In Progress" or "Failed"
     const jobs = await agenda.jobs({
@@ -202,8 +216,6 @@ router.get("/jobs", authenticateToken, authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_R
  */
 router.post(
   "/quiz",
-  authenticateToken,
-  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE),
   tryCatchWrapper(async (req, res) => {
     const quizCreateRequest = new QuizCreateRequest(req.body);
     if (quizCreateRequest.id === "default-id") {
@@ -211,9 +223,6 @@ router.post(
     }
     const quizData = fromQuizCreateRequest(quizCreateRequest);
     quizData.creation_time = Math.floor(Date.now() / 1000);
-    quizData.tenantId = req.tenantId;
-    quizData.schoolId = req.schoolId || null;
-    quizData.createdBy = req.userId;
     const quizDataDoc = quizData.toObject();
     const job = await agenda.now("processQuizContent", {
       content: quizDataDoc,
@@ -256,8 +265,6 @@ router.post(
  */
 router.get(
   "/sasUrl",
-  authenticateToken,
-  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE),
   tryCatchWrapper(async (req, res) => {
     const url = req.query.url; // URL is now obtained from query string
     if (!url) {
@@ -303,19 +310,22 @@ router.get(
  */
 router.get(
   "/themes",
-  authenticateToken,
   tryCatchWrapper(async (req, res) => {
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(400).json({ error: "tenantId not found in token" });
+    }
     const language = req.query.language;
     const content = await ContentV3.find({
-      tenantId: req.tenantId,
-      schoolId: getReadSchoolIdFilter(req),
       language: language,
       isPullModel: true,
-    }).sort({ _id: -1 });
+      tenantId,
+    })
+      .sort({ _id: -1 })
+      .lean()
+      .exec();
     const themeSet = new Set();
     const themes = [];
-    console.log(content.length);
-    console.log(language);
     for (const cont of content) {
       const theme = cont.theme.english;
       if (!themeSet.has(theme)) {
@@ -405,13 +415,15 @@ router.get(
 
 router.get(
   "/",
-  authenticateToken,
-  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE),
   tryCatchWrapper(async (req, res) => {
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(400).json({ error: "tenantId not found in token" });
+    }
+
     const limit = parseInt(req.query.limit) || 15;
     const cursor = req.query.cursor;
 
-    const tenantId = req.query.tenantId;
     // If specific IDs are requested, return non-deleted content sorted by creation time (newest first)
     if (req.query.ids) {
       if (!Array.isArray(req.query.ids) || req.query.ids.length === 0) {
@@ -420,12 +432,11 @@ router.get(
       const idsArray = req.query.ids;
 
       // Fetch both content and quiz data for the requested IDs (lean for read-only)
-      const schoolIdFilter = getReadSchoolIdFilter(req);
       const [contents, quizzes] = await Promise.all([
-        ContentV3.find({ _id: { $in: idsArray }, tenantId, isDeleted: { $ne: true }, schoolId: schoolIdFilter })
+        ContentV3.find({ _id: { $in: idsArray }, isDeleted: { $ne: true }, tenantId: req.tenantId })
           .lean()
           .exec(),
-        QuizData.find({ _id: { $in: idsArray }, tenantId, isDeleted: { $ne: true }, schoolId: schoolIdFilter })
+        QuizData.find({ _id: { $in: idsArray }, isDeleted: { $ne: true }, tenantId: req.tenantId })
           .lean()
           .exec(),
       ]);
@@ -449,14 +460,18 @@ router.get(
       return res.json(allContent);
     }
 
-    // Base query always excludes deleted content, scoped to tenant
-    let query = { isDeleted: { $ne: true }, tenantId: req.tenantId, schoolId: getReadSchoolIdFilter(req) };
+    // Base query always excludes deleted content
+    let contentQuery = { isDeleted: { $ne: true }, tenantId: req.tenantId };
+    let quizQuery = { isDeleted: { $ne: true }, tenantId: req.tenantId };
+    let shouldFetchContent = true;
+    let shouldFetchQuizzes = true;
 
     if (req.query.onlyTeacherApp) {
-      query.isTeacherApp = true;
+      contentQuery.isTeacherApp = true;
+      quizQuery.isTeacherApp = true;
     } else if (req.query.language && req.query.theme && req.query.expName) {
       const expName = req.query.expName.toLowerCase();
-
+      
       if (expName === "quiz") {
         // If filtering for quiz, only query QuizData
         shouldFetchContent = false;
@@ -473,33 +488,91 @@ router.get(
       }
     }
 
-    // Cursor-based pagination using creation_time (descending) and _id as a tie-breaker
+    // When using cursor-based pagination, apply the cursor window at the DB level
+    // so that .limit() operates on a deterministic, correctly ordered slice.
+    let cursorCondition = null;
     if (cursor) {
       const [lastCreationTimeStr, lastId] = cursor.split("_");
       const lastCreationTime = parseInt(lastCreationTimeStr, 10);
-      const lastIdBinary = new Binary(Buffer.from(uuidParse(lastId)), 4);
-
-      query.$or = [
-        { creation_time: { $lt: lastCreationTime } },
-        {
-          creation_time: lastCreationTime,
-          _id: { $lt: lastIdBinary },
-        },
-      ];
+      cursorCondition = {
+        $or: [
+          { creation_time: { $lt: lastCreationTime } },
+          { creation_time: lastCreationTime, _id: { $lt: lastId } },
+        ],
+      };
     }
 
-    const contents = await ContentV3.find(query)
-      .sort({ creation_time: -1, _id: -1 })
-      .limit(limit + 1)
-      .exec();
+    const applyCursorCondition = (baseQuery) =>
+      cursorCondition ? { $and: [baseQuery, cursorCondition] } : baseQuery;
 
-    const hasMore = contents.length > limit;
-    const data = hasMore ? contents.slice(0, limit) : contents;
+    // Fetch content and quizzes separately
+    // Fetch more items to account for merging and pagination
+    const fetchLimit = limit * 2; // Fetch more to ensure we have enough after merging
 
+    // Fetch content and/or quizzes only when needed (no empty Promise fallbacks)
+    let contents = [];
+    let quizzes = [];
+    if (shouldFetchContent && shouldFetchQuizzes) {
+      [contents, quizzes] = await Promise.all([
+        ContentV3.find(applyCursorCondition(contentQuery))
+          .sort({ creation_time: -1, _id: -1 })
+          .limit(fetchLimit)
+          .lean()
+          .exec(),
+        QuizData.find(applyCursorCondition(quizQuery))
+          .sort({ creation_time: -1, _id: -1 })
+          .limit(fetchLimit)
+          .lean()
+          .exec(),
+      ]);
+    } else if (shouldFetchContent) {
+      contents = await ContentV3.find(applyCursorCondition(contentQuery))
+        .sort({ creation_time: -1, _id: -1 })
+        .limit(fetchLimit)
+        .lean()
+        .exec();
+    } else if (shouldFetchQuizzes) {
+      quizzes = await QuizData.find(applyCursorCondition(quizQuery))
+        .sort({ creation_time: -1, _id: -1 })
+        .limit(fetchLimit)
+        .lean()
+        .exec();
+    }
+
+    // Transform content to ensure id field exists (standardize: always use id from _id)
+    // Note: .lean() returns plain objects, so no need for .toObject()
+    const transformedContents = contents.map((contentObj) => {
+      return {
+        ...contentObj,
+        id: contentObj._id,
+      };
+    });
+
+    // Transform quiz data to match content format (standardize: always use id from _id)
+    // Note: .lean() returns plain objects, so no need for .toObject()
+    const transformedQuizzes = quizzes.map((quizObj) => {
+      return {
+        ...quizObj,
+        id: quizObj._id,
+        type: "quiz",
+      };
+    });
+
+    // Merge content and quizzes, then sort once by creation_time and _id
+    let allContent = [...transformedContents, ...transformedQuizzes];
+    allContent.sort(sortByCreationTimeThenId);
+
+    // Apply limit and check if there are more items
+    const hasMore = allContent.length > limit;
+    const data = hasMore ? allContent.slice(0, limit) : allContent;
+
+    // Generate next cursor from last item (standardized: use id field)
     const lastItem = hasMore ? data[data.length - 1] : null;
-    const nextCursor = lastItem
-      ? `${lastItem.creation_time}_${lastItem._id.toString()}`
-      : null;
+    let nextCursor = null;
+    if (lastItem) {
+      const lastId = lastItem._id.toString();
+      nextCursor = `${lastItem.creation_time}_${lastId}`;
+    }
 
     // Send the final response
     return res.json({
@@ -516,7 +589,6 @@ router.get(
 // async function regenerateAllTitleAudios(){
 //     const contents = await Content.find({isProcessed: true, isPullModel: true})
 //     for(const content of contents){
-//         console.log(`started working for content id=${content.id}`)
 //         const response = await fetch(
 //             'https://seedscontent.azurewebsites.net/api/acs',
 //             {
@@ -543,9 +615,6 @@ router.get(
 //             { new: true }
 //         ).exec()
 
-//         console.log(`id = ${content.id}`)
-//         console.log(`titleAudio = ${titleAudio}`)
-//         console.log(`ThemeAudio = ${themeAudio}`)
 //     }
 // }
 
@@ -556,8 +625,6 @@ router.get(
 
 router.get(
   "/sasToken",
-  authenticateToken,
-  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE),
   tryCatchWrapper(async (req, res) => {
     const containerName = "input-container";
     const blobName = req.query.blobName;
@@ -575,45 +642,14 @@ router.get(
 
 router.get(
   "/:contentId",
-  authenticateToken,
-  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE),
   tryCatchWrapper(async (req, res) => {
-    const content = await ContentV3.findOne({
-      _id: req.params.contentId,
-      tenantId: req.tenantId,
-      schoolId: getReadSchoolIdFilter(req),
-      isDeleted: { $ne: true },
-    });
+    const content = await findTenantContentById(req.params.contentId, req.tenantId);
     if (!content) {
       return res.status(404).json({ error: "Content not found" });
     }
-    return res.json(content);
-  }),
-);
 
-router.patch(
-  "/:contentId",
-  authenticateToken,
-  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE),
-  tryCatchWrapper(async (req, res) => {
-    const { title, theme, description, isPullModel, isTeacherApp } = req.body;
-    const content = await ContentV3.findOne({
-      _id: req.params.contentId,
-      tenantId: req.tenantId,
-      schoolId: getWriteSchoolIdFilter(req),
-      isDeleted: false,
-    });
-    if (!content) {
-      return res.status(404).json({ error: "Content not found" });
-    }
-    if (title !== undefined) content.title = title;
-    if (theme !== undefined) content.theme = theme;
-    if (description !== undefined) content.description = description;
-    if (isPullModel !== undefined) content.isPullModel = isPullModel;
-    if (isTeacherApp !== undefined) content.isTeacherApp = isTeacherApp;
-    await content.save();
     return res.json(content);
-  }),
+  })
 );
 
 // router.get("/:contentId/processed", tryCatchWrapper(async (req, res) => {
@@ -659,30 +695,40 @@ router.patch(
 
 router.delete(
   "/:contentId",
-  authenticateToken,
-  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE),
   tryCatchWrapper(async (req, res) => {
-    const result = await ContentV3.updateOne(
-      { _id: req.params.contentId, tenantId: req.tenantId, schoolId: getWriteSchoolIdFilter(req) },
+    const contentId = req.params.contentId;
+    const tenantId = req.tenantId;
+
+    // Try to delete from ContentV3 first (uses _id as String)
+    let result = await ContentV3.findOneAndUpdate(
+      { _id: contentId, tenantId },
       { $set: { isDeleted: true } },
+      { new: true }
     );
-    if (result.matchedCount === 0) {
+
+    // If not found in ContentV3, try QuizData (also uses _id as String)
+    if (!result) {
+      result = await QuizData.findOneAndUpdate(
+        { _id: contentId, tenantId },
+        { $set: { isDeleted: true } },
+        { new: true }
+      );
+    }
+
+    if (!result) {
       return res.status(404).json({ error: "Content not found" });
     }
+
     return res.json(result);
   }),
 );
 
 router.post(
   "/",
-  authenticateToken,
-  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE),
   tryCatchWrapper(async (req, res) => {
     let content = new ContentV3(req.body);
-    content.tenantId = req.tenantId;
-    content.createdBy = req.userId;
     content.creation_time = Math.floor(Date.now() / 1000);
-    content.schoolId = req.schoolId || null;
+    content.tenantId = req.tenantId;
 
     // Validate audioContent entries to ensure uploaded audio URLs reference .mp3 files.
     for (const item of content.audioContent || []) {
@@ -700,6 +746,183 @@ router.post(
       message: "Processing New Content job scheduled!",
       jobId: job.attrs._id,
     });
+  }),
+);
+
+/**
+ * @swagger
+ * /content:
+ *   patch:
+ *     summary: Update content while retaining immutable identifiers
+ *     tags: [Content]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: isAudioUploaded
+ *         schema:
+ *           type: boolean
+ *         description: If true, marks content for re-processing
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ContentV3'
+ *     responses:
+ *       200:
+ *         description: Updated content document
+ *       400:
+ *         description: Missing or mismatched content id
+ *       404:
+ *         description: Content not found for tenant
+ */
+router.patch(
+  "/",
+  tryCatchWrapper(async (req, res) => {
+    const isAudioUploaded = req.query.isAudioUploaded === "true";
+    const body = req.body;
+    if (!body || typeof body !== "object") {
+      return res.status(400).json({ error: "Request body is required" });
+    }
+    const contentId = body._id;
+
+    if (!contentId) {
+      return res.status(400).json({ error: "Content _id is required" });
+    }
+
+    const updatePayload = {};
+    PATCHABLE_CONTENT_FIELDS.forEach((key) => {
+      if (Object.prototype.hasOwnProperty.call(body, key)) {
+        updatePayload[key] = body[key];
+      }
+    });
+
+    // Check if it is a quiz (stored in QuizData)
+    const existingQuiz = await QuizData.findOne({ _id: contentId, tenantId: req.tenantId }).lean().exec();
+    if (existingQuiz) {
+      const quizUpdate = {};
+
+      // Scalar fields
+      if (updatePayload.language !== undefined) quizUpdate.language = updatePayload.language;
+      if (updatePayload.isPullModel !== undefined) quizUpdate.isPullModel = updatePayload.isPullModel;
+      if (updatePayload.isTeacherApp !== undefined) quizUpdate.isTeacherApp = updatePayload.isTeacherApp;
+
+      // Normalize singular → plural mark field names from frontend
+      const posMarks = updatePayload.positiveMarks ?? updatePayload.positiveMark;
+      const negMarks = updatePayload.negativeMarks ?? updatePayload.negativeMark;
+      if (posMarks !== undefined) quizUpdate.positiveMarks = posMarks;
+      if (negMarks !== undefined) quizUpdate.negativeMarks = negMarks;
+
+      if (updatePayload.title !== undefined) {
+        const rawTitle = updatePayload.title;
+        const englishTitle =
+          typeof rawTitle === "string"
+            ? rawTitle
+            : rawTitle && typeof rawTitle.english === "string"
+              ? rawTitle.english
+              : null;
+        if (englishTitle === null) {
+          return res
+            .status(400)
+            .json({ error: "title must be a string or an object with english string" });
+        }
+        const localTitle =
+          typeof updatePayload.localTitle === "string"
+            ? updatePayload.localTitle
+            : existingQuiz.title?.local;
+        quizUpdate.title = {
+          english: englishTitle,
+          local: localTitle,
+          audioUrl: existingQuiz.title?.audioUrl,
+        };
+      }
+      if (updatePayload.theme !== undefined) {
+        const rawTheme = updatePayload.theme;
+        const englishTheme =
+          typeof rawTheme === "string"
+            ? rawTheme
+            : rawTheme && typeof rawTheme.english === "string"
+              ? rawTheme.english
+              : null;
+        if (englishTheme === null) {
+          return res
+            .status(400)
+            .json({ error: "theme must be a string or an object with english string" });
+        }
+        const localTheme =
+          typeof updatePayload.localTheme === "string"
+            ? updatePayload.localTheme
+            : existingQuiz.theme?.local;
+        quizUpdate.theme = {
+          english: englishTheme,
+          local: localTheme,
+          audioUrl: existingQuiz.theme?.audioUrl,
+        };
+      }
+
+      const questionTexts = updatePayload.questions;
+      const optionArrays = updatePayload.options;
+      const correctAnswers = updatePayload.correctAnswers;
+      if (Array.isArray(questionTexts) && Array.isArray(optionArrays)) {
+        quizUpdate.questions = questionTexts.map((questionText, qIdx) => {
+          const existing = existingQuiz.questions?.[qIdx];
+          const optTexts = optionArrays[qIdx];
+          const correctIdx = Array.isArray(correctAnswers) ? (correctAnswers[qIdx] ?? 0) : 0;
+          return {
+            question: {
+              id: existing?.question?.id,
+              url: existing?.question?.url,
+              text: questionText,
+            },
+            options: (optTexts ?? []).map((optText, oIdx) => ({
+              id: existing?.options?.[oIdx]?.id,
+              url: existing?.options?.[oIdx]?.url,
+              text: optText,
+            })),
+            correct_option_id: existing?.options?.[correctIdx]?.id,
+          };
+        });
+      }
+
+      const updated = await QuizData.findOneAndUpdate(
+        { _id: contentId, tenantId: req.tenantId },
+        { $set: quizUpdate },
+        { new: true },
+      ).exec();
+
+      if (!updated) {
+        return res.status(404).json({ error: "Quiz not found" });
+      }
+      return res.json({ ...updated.toObject(), id: updated._id, type: "quiz" });
+    }
+
+    // Otherwise update in ContentV3 (story, poem, song, riddle)
+    if (isAudioUploaded) {
+      updatePayload.isProcessed = false;
+    }
+
+    const existingContent = await findTenantContentById(contentId, req.tenantId);
+    if (!existingContent) {
+      return res.status(404).json({ error: "Content not found" });
+    }
+
+    const updated = await ContentV3.findByIdAndUpdate(
+      contentId,
+      { $set: updatePayload },
+      { new: true },
+    ).exec();
+
+    if (!updated) {
+      return res.status(404).json({ error: "Content not found" });
+    }
+
+    // If a new audio file was uploaded, trigger reprocessing
+    if (isAudioUploaded) {
+      await agenda.now("processNewContent", { content: updated.toObject() });
+    }
+
+    return res.json({ ...updated.toObject(), id: updated._id });
   }),
 );
 
@@ -803,10 +1026,8 @@ router.post(
 //                 { $set: { titleAudio, themeAudio } },
 //                 { new: true }
 //             ).exec()
-//             console.log(`Processed for id = ${content.id} and title = ${content.title}`)
 //         }
 //         catch(err){
-//             console.log(`Error occured while handling content id = ${content.id} and Title = ${content.title}`)
 //             console.error(err)
 //         }
 
@@ -825,7 +1046,6 @@ async function deleteBlobFromAContainer(containerName, blobNamePrefix) {
   const blobList = containerClient.listBlobsFlat({ prefix: blobNamePrefix });
   for await (const blob of blobList) {
     await containerClient.deleteBlob(blob.name, options);
-    console.log(`Deleted blob with name = ${blob.name}`);
   }
 }
 
@@ -843,7 +1063,7 @@ async function deleteAudioBlobs(audioId) {
 }
 
 async function deleteUnnecessaryStorage() {
-  const docs = await Content.find({});
+  const docs = await Content.find({}).lean().exec();
   const containerName = "output-container";
   const containerClient = blobService.getContainerClient(containerName);
   for (const doc of docs) {
@@ -861,11 +1081,9 @@ async function deleteUnnecessaryStorage() {
     }
     if (deleteDoc) {
       await Content.deleteOne({ id: doc.id });
-      console.log(`Deleted doc with id = ${doc.id}`);
     }
     if (deleteBlob) {
       await deleteAudioBlobs(doc.id);
-      console.log(`Deleted blob with id = ${doc.id}`);
     }
   }
 }

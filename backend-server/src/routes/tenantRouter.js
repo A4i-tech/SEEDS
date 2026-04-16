@@ -1,10 +1,10 @@
 const express = require("express");
 const tenantAuthProvider = require("../auth/tenant/tenantAuthProviderMiddleware");
-const { authenticateToken, authorizeRole } = require("../auth/authenticateToken");
-const tenantController = require("../controllers/tenant.controller");
-const tenantService = require("../services/tenant.service");
-const { STATUS } = require("../config/constants");
-const TENANT_ROLE = "tenant";
+const { STATUS, ROLES } = require("../config/constants");
+const authenticateToken = require("../auth/authenticateToken");
+const authorizeRoles = require("../auth/authorizeRoles");
+const IvrV2Log = require("../models/IvrV2Log");
+const Teacher = require("../models/Teacher");
 /**
  *  @swagger
  * tags:
@@ -12,6 +12,8 @@ const TENANT_ROLE = "tenant";
  *   description: Tenant authentication and registration endpoints
  */
 const router = express.Router();
+const TENANT_ROLE = ROLES.TENANT;
+const CONTENT_CREATOR_ROLE = ROLES.CONTENT_CREATOR;
 
 /**
  * @swagger
@@ -166,7 +168,59 @@ router.post("/register", tenantAuthProvider.register);
  *       401:
  *         description: Unauthorized
  */
-router.post("/analytics", authenticateToken, authorizeRole(TENANT_ROLE), tenantController.getAnalytics);
+router.post(
+  "/analytics",
+  authenticateToken,
+  authorizeRoles(TENANT_ROLE),
+  async (req, res) => {
+  try {
+    const { startDate, endDate } = req.body;
+    const tenantId = req.authUser.tenantId;
+    if (!startDate || !endDate) {
+      return res.status(STATUS.BAD_REQUEST).json({
+        message: "Both startDate and endDate are required",
+      });
+    }
+
+    if (!tenantId) {
+      return res.status(STATUS.BAD_REQUEST).json({
+        message: "Tenant ID is required",
+      });
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return res.status(STATUS.BAD_REQUEST).json({
+        message: "Invalid date format",
+      });
+    }
+
+    const startStr = start.toISOString();
+    const endStr = end.toISOString();
+
+    const analyticsData = await IvrV2Log.find({
+      tenant_id: tenantId,
+      created_at: {
+        $gte: startStr,
+        $lte: endStr,
+      },
+    }).lean().exec();
+
+    res.status(STATUS.OK).json({
+      startDate,
+      endDate,
+      count: analyticsData.length,
+      data: analyticsData,
+    });
+  } catch (error) {
+    console.error("Analytics error:", error);
+    res.status(STATUS.INTERNAL_ERROR).json({
+      message: "Error retrieving analytics data",
+    });
+  }
+});
 
 /**
  * @swagger
@@ -183,10 +237,14 @@ router.post("/analytics", authenticateToken, authorizeRole(TENANT_ROLE), tenantC
  *           schema:
  *             type: object
  *             properties:
+ *               currentPassword:
+ *                 type: string
+ *                 description: Existing password for verification
  *               newPassword:
  *                 type: string
  *                 description: New password (must meet policy)
  *             required:
+ *               - currentPassword
  *               - newPassword
  *     responses:
  *       200:
@@ -201,7 +259,7 @@ router.post("/analytics", authenticateToken, authorizeRole(TENANT_ROLE), tenantC
 router.post(
   "/change-password",
   authenticateToken,
-  authorizeRole(TENANT_ROLE),
+  authorizeRoles(TENANT_ROLE),
   tenantAuthProvider.changePassword,
 );
 
@@ -223,55 +281,80 @@ router.post(
  *               properties:
  *                 id:
  *                   type: string
+ *                 phoneNumber:
+ *                   type: string
  *                 email:
+ *                   type: string
+ *                 name:
+ *                   type: string
+ *                 role:
  *                   type: string
  *                 tenantName:
  *                   type: string
+ *                 tenantId:
+ *                   type: string
  *       401:
  *         description: Unauthorized
+ *       403:
+ *         description: Forbidden for unsupported roles
  *       404:
  *         description: Tenant not found
  *       500:
  *         description: Internal server error
  */
-router.get("/me", authenticateToken, authorizeRole(TENANT_ROLE), tenantController.getMe);
+router.get(
+  "/me",
+  authenticateToken,
+  authorizeRoles(TENANT_ROLE, CONTENT_CREATOR_ROLE),
+  async (req, res) => {
+  try {
+    const tenantId = req.authUser.tenantId;
+    const isContentCreator = req.authUser.primaryRole === CONTENT_CREATOR_ROLE;
+    const tenant = await tenantAuthProvider.getTenantById(tenantId);
+    if (!tenant) {
+      return res.status(STATUS.NOT_FOUND).json({ message: "Tenant not found" });
+    }
 
-/**
- * @swagger
- * /tenant/dashboard:
- *   get:
- *     summary: Get tenant dashboard statistics
- *     tags: [Tenant]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Dashboard statistics with per-school breakdown
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 statistics:
- *                   type: object
- *                   properties:
- *                     totalSchools:
- *                       type: integer
- *                     totalTeachers:
- *                       type: integer
- *                     totalStudents:
- *                       type: integer
- *                     totalClasses:
- *                       type: integer
- *                 schools:
- *                   type: array
- *                   items:
- *                     type: object
- *       401:
- *         description: Unauthorized
- *       500:
- *         description: Internal server error
- */
-router.get("/dashboard", authenticateToken, authorizeRole(TENANT_ROLE), tenantService.getDashboard);
+    // Content creators and tenants share the same endpoint shape but derive identity differently.
+    const roleBasedTeacher = isContentCreator
+      ? await Teacher.findOne({
+        _id: req.authUser.id,
+        tenantId,
+        role: CONTENT_CREATOR_ROLE,
+      })
+        .select("phoneNumber name role")
+        .lean()
+      : null;
+
+    if (isContentCreator && !roleBasedTeacher) {
+      return res
+        .status(STATUS.NOT_FOUND)
+        .json({ message: "Content creator not found" });
+    }
+
+    const responseBody = roleBasedTeacher
+      ? {
+          phoneNumber: roleBasedTeacher.phoneNumber,
+          name: roleBasedTeacher.name,
+          role: roleBasedTeacher.role,
+          tenantId,
+          tenantName: tenant.tenantName,
+        }
+      : {
+          email: tenant.email,
+          tenantName: tenant.tenantName,
+          role: req.authUser.primaryRole,
+          tenantId,
+          name: tenant.tenantName,
+        };
+
+    return res.status(STATUS.OK).json(responseBody);
+  } catch (error) {
+    console.error("Get tenant error:", error);
+    return res
+      .status(STATUS.INTERNAL_ERROR)
+      .json({ message: "Internal server error" });
+  }
+});
 
 module.exports = router;

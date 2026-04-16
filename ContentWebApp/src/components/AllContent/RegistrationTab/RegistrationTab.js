@@ -1,101 +1,77 @@
 import React, { useState } from "react";
 import TeacherRegistrationForm from "./TeacherRegistrationForm";
 import TeachersList from "./TeachersList";
-import StudentsSection from "./StudentsSection";
-import SchoolsPanel from "./SchoolsPanel";
-import { getRole } from "../../../utils/authHelpers";
+import TeacherDetails from "./TeacherDetails";
 import "./css/RegistrationTab.css";
 import "../shared/buttons.css";
 import "../shared/cards.css";
 import "../shared/tables.css";
 import "../shared/utilities.css";
+import { USER_ROLES } from "../../../Constants";
 
 const RegistrationTab = ({
   teachers,
-  students,
-  onRegisterTeacher,
-  onAddStudent,
-  onUpdateStudent,
-  onDeleteStudent,
-  onUpdateTeacher,
-  onDeleteTeacher,
-  onTransferTeacher,
+  selectedTeacher,
+  selectedTeacherId,
+  onSelectTeacher,
+  onRegisterUser,
   message,
-  messageType,
-  schools,
-  onCreateSchool,
-  onUpdateSchool,
-  onDeleteSchool,
-  schoolMessage,
-  schoolMessageType,
+  onAddStudentRow,
+  onRemoveStudentRow,
+  onSetNewStudentValue,
+  onSubmitNewStudents,
+  onRemoveStudent,
 }) => {
-  const [activeSection, setActiveSection] = useState("teachers");
-
-  if (getRole() === "tenant") {
-    return (
-      <SchoolsPanel
-        schools={schools}
-        onCreateSchool={onCreateSchool}
-        onUpdateSchool={onUpdateSchool}
-        onDeleteSchool={onDeleteSchool}
-        message={schoolMessage}
-        messageType={schoolMessageType}
-      />
-    );
-  }
+  const [registerRole, setRegisterRole] = useState("teacher");
+  const teacherList = Array.isArray(teachers) ? teachers : [];
+  const normalizedSelectedRole =
+    selectedTeacher?.role === USER_ROLES.CONTENT_CREATOR
+      ? USER_ROLES.CONTENT_CREATOR
+      : USER_ROLES.TEACHER;
 
   return (
     <div className="card registration-flex-card">
       <div>
         <div className="card-title">Registration Management</div>
-        <div className="card-description">Manage teachers and students for your school.</div>
+        <div className="card-description">
+          Manage teachers, students, and content creators for your tenant.
+        </div>
       </div>
 
-      <div className="pill-tabs">
-        <button
-          type="button"
-          className={`pill-tab ${activeSection === "teachers" ? "pill-tab--active" : ""}`}
-          onClick={() => setActiveSection("teachers")}
-        >
-          Teachers
-        </button>
-        <button
-          type="button"
-          className={`pill-tab ${activeSection === "students" ? "pill-tab--active" : ""}`}
-          onClick={() => setActiveSection("students")}
-        >
-          Students
-        </button>
+      <div className="registration-form-panel">
+        <TeacherRegistrationForm
+          role={registerRole}
+          onRoleChange={(nextRole) => {
+            setRegisterRole(nextRole);
+          }}
+          onRegisterUser={onRegisterUser}
+          message={message}
+        />
       </div>
 
-      {activeSection === "teachers" && (
-        <>
-          <TeacherRegistrationForm
-            onRegister={onRegisterTeacher}
-            message={message}
-            messageType={messageType}
-          />
-          <div className="teachers-section">
-            <h3 className="teachers-section-title">Teachers</h3>
+      <div className="teachers-section">
+        <h3 className="teachers-section-title">Team Directory</h3>
+        {teacherList.length === 0 ? (
+          <div className="no-teachers">No users available.</div>
+        ) : (
+          <div className="teachers-layout">
             <TeachersList
-              teachers={teachers}
-              schools={schools}
-              onUpdateTeacher={onUpdateTeacher}
-              onDeleteTeacher={onDeleteTeacher}
-              onTransferTeacher={onTransferTeacher}
+              teachers={teacherList}
+              selectedTeacherId={selectedTeacherId}
+              onSelectTeacher={onSelectTeacher}
+            />
+            <TeacherDetails
+              teacher={selectedTeacher}
+              selectedEntryRole={normalizedSelectedRole}
+              onAddStudentRow={onAddStudentRow}
+              onRemoveStudentRow={onRemoveStudentRow}
+              onSetNewStudentValue={onSetNewStudentValue}
+              onSubmitNewStudents={onSubmitNewStudents}
+              onRemoveStudent={onRemoveStudent}
             />
           </div>
-        </>
-      )}
-
-      {activeSection === "students" && (
-        <StudentsSection
-          students={students}
-          onAddStudent={onAddStudent}
-          onUpdateStudent={onUpdateStudent}
-          onDeleteStudent={onDeleteStudent}
-        />
-      )}
+        )}
+      </div>
     </div>
   );
 };

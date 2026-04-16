@@ -1,14 +1,16 @@
 import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { SEEDS_URL } from "../Constants";
-import { getAuthHeaders, isAuthenticated, clearAuth, getRole } from "../utils/authHelpers";
+import { getAuthHeaders, isAuthenticated, clearAuth } from "../utils/authHelpers";
 import { apiFetch } from "../services/api";
 
 let cachedTenantName = null;
+let cachedUserProfile = null;
 let cachedUserPromise = null;
 
 const resetUserCache = () => {
   cachedTenantName = null;
+  cachedUserProfile = null;
   cachedUserPromise = null;
 };
 
@@ -35,28 +37,22 @@ export const useAuth = () => {
    * Get current user info
    */
   const getCurrentUser = useCallback(async () => {
-    if (cachedTenantName) {
-      return cachedTenantName;
+    if (cachedUserProfile) {
+      return cachedUserProfile;
     }
-
     if (cachedUserPromise) {
       return cachedUserPromise;
     }
 
-    const meUrl =
-      getRole() === "school_admin"
-        ? `${SEEDS_URL}/school/admin/me`
-        : `${SEEDS_URL}/tenant/me`;
-
-    cachedUserPromise = apiFetch(meUrl, {
+    cachedUserPromise = apiFetch(`${SEEDS_URL}/tenant/me`, {
       method: "GET",
       headers: getAuthHeaders(),
     })
       .then((req) => {
-        console.log("Current User Info:", req);
-        cachedTenantName = req.name || req.tenantName || "User";
+        cachedUserProfile = req;
+        cachedTenantName = req.name;
         cachedUserPromise = null;
-        return cachedTenantName;
+        return cachedUserProfile;
       })
       .catch((err) => {
         cachedUserPromise = null;
@@ -66,10 +62,20 @@ export const useAuth = () => {
     return cachedUserPromise;
   }, []);
 
+  const getCurrentUserName = useCallback(async () => {
+    if (cachedTenantName) {
+      return cachedTenantName;
+    }
+    const profile = await getCurrentUser();
+    cachedTenantName = profile.name;
+    return cachedTenantName;
+  }, [getCurrentUser]);
+
   return {
     getAuthHeaders: getHeaders,
     logout,
     getCurrentUser,
+    getCurrentUserName,
     isAuthenticated: isAuthenticated(),
   };
 };

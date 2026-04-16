@@ -24,15 +24,14 @@ const ContentSchema = new mongoose.Schema(
       type: String,
       default: () => require("uuid").v4(),
     },
-    tenantId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true, ref: "Tenant" },
     description: { type: String, default: "" },
     type: { type: String, required: true },
     language: { type: String, required: true },
     title: { type: TextContentSchema, required: true },
     theme: { type: TextContentSchema, required: true },
     audioContent: { type: [AudioContentSchema], default: [] },
-    schoolId: { type: String, default: null, index: true },
     createdBy: { type: String, default: "" },
+    tenantId: { type: String, required: true, trim: true, index: true },
     isPullModel: { type: Boolean, default: false },
     isTeacherApp: { type: Boolean, default: false },
     isDeleted: { type: Boolean, default: false },
@@ -40,10 +39,6 @@ const ContentSchema = new mongoose.Schema(
   },
   { collection: "contentsV3" }
 );
-
-ContentSchema.index({ tenantId: 1, isDeleted: 1, creation_time: -1 });
-ContentSchema.index({ tenantId: 1, language: 1});
-
 
 const ContentV3 = mongoose.model("ContentV3", ContentSchema);
 

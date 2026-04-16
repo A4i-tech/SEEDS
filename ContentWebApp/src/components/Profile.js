@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AppHeader from "./AllContent/Header/AppHeader";
 import { useAuth } from "../hooks/useAuth";
-import { SEEDS_URL } from "../Constants";
+import { SEEDS_URL, USER_ROLES } from "../Constants";
 import "./AllContent/AllContent.css";
 import "./AllContent/shared/cards.css";
 import "./AllContent/shared/buttons.css";
@@ -11,7 +11,7 @@ import "./Profile.css";
 
 const Profile = () => {
   const navigate = useNavigate();
-  const { getAuthHeaders, logout, getCurrentUser } = useAuth();
+  const { getAuthHeaders, logout, getCurrentUserName } = useAuth();
 
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -23,7 +23,7 @@ const Profile = () => {
   });
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
-  const [currentUser, setCurrentUser] = useState("User");
+  const [currentUser, setCurrentUser] = useState("");
 
   const handleTabChange = (tab) => {
     navigate("/content", { state: { activeTab: tab } });
@@ -55,16 +55,16 @@ const Profile = () => {
   useEffect(() => {
     const loadUser = async () => {
       try {
-        const name = await getCurrentUser();
+        const name = await getCurrentUserName();
         setCurrentUser(name);
       } catch (error) {
         console.error("Error fetching user:", error);
-        setCurrentUser("User");
+        setCurrentUser("");
       }
     };
 
     loadUser();
-  }, [getCurrentUser]);
+  }, [getCurrentUserName]);
 
   useEffect(() => {
     fetchProfile();
@@ -137,6 +137,8 @@ const Profile = () => {
           onTabChange={handleTabChange}
           currentUser={currentUser}
           onLogout={logout}
+          showRegistration={profile?.role !== USER_ROLES.CONTENT_CREATOR}
+          showAnalytics={profile?.role !== USER_ROLES.CONTENT_CREATOR}
         />
 
         {loading ? (

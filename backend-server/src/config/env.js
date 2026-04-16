@@ -11,6 +11,7 @@ if (fs.existsSync(envPath)) {
 } else {
   console.log("Using system environment variables");
 }
+
 const config = {
   port: process.env.PORT,
   dbConnection: process.env.DB_CONNECTION,
@@ -23,6 +24,7 @@ const config = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN,
   passwordSaltRounds: process.env.PASSWORD_SALT_ROUNDS,
 };
+
 if (config.authType === "firebase") {
   if (!config.firebaseApiKey || !config.firebaseServiceAccount) {
     throw new Error(

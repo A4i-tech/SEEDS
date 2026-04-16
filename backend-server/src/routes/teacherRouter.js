@@ -1,25 +1,104 @@
 "use strict";
-
+const { STATUS, ROLES } = require("../config/constants");
 const express = require("express");
-const { authenticateToken, authorizeRole } = require("../auth/authenticateToken");
+const Teacher = require("../models/Teacher.js");
+const Student = require("../models/Student.js");
+const authenticateToken = require("../auth/authenticateToken");
+const authorizeRoles = require("../auth/authorizeRoles");
 const teacherAuthProvider = require("../auth/teacher/teacherAuthProviderMiddleware");
-const teacherController = require("../controllers/teacher.controller");
-const { STATUS } = require("../config/constants");
-
 /**
  * @swagger
  * tags:
  *   name: Teachers
  *   description: Teacher management endpoints
  */
-
 const router = express.Router();
-
-const TEACHER_ROLE = "teacher";
-const SCHOOL_ADMIN_ROLE = "school_admin";
+const TENANT_ROLE = ROLES.TENANT;
 
 /**
  * @swagger
+ * /teacher/add-students:
+ *   post:
+ *     summary: Update teacher's students list
+ *     tags: [Teachers]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - phoneNumber
+ *               - students
+ *             properties:
+ *               phoneNumber:
+ *                 type: string
+ *                 description: Teacher's phone number
+ *               students:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     name:
+ *                       type: string
+ *                     phoneNumber:
+ *                       type: string
+ *                 description: Array of student objects
+ *     responses:
+ *       200:
+ *         description: Updated list of students
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   name:
+ *                     type: string
+ *                   phoneNumber:
+ *                     type: string
+ *                 description: Student object
+ *       400:
+ *         description: Invalid request body
+ *       401:
+ *         description: Unauthorized - invalid or missing token
+ */
+router.post("/add-students", authenticateToken, authorizeRoles(TENANT_ROLE), async (req, res) => {
+  if (!req.body.phoneNumber || !Array.isArray(req.body.students) || req.body.students.length === 0) {
+    return res.sendStatus(STATUS.BAD_REQUEST);
+  }
+  const tenantId = req.authUser.tenantId;
+  const teacher = await Teacher.findOne({ phoneNumber: req.body.phoneNumber, tenantId });
+  if (!teacher) return res.sendStatus(STATUS.NOT_FOUND);
+  let results = [];
+
+  for (let i = 0; i < req.body.students.length; i++) {
+    const studentData = req.body.students[i];
+    if (!studentData.name || !studentData.phoneNumber) {
+      continue;
+    }
+    const studentExists = await Student.findOne({
+      phoneNumber: studentData.phoneNumber,
+    });
+    if (studentExists) {
+      continue;
+    }
+    const student = await Student.create(req.body.students[i]);
+    const studentId = student._id.toString();
+    await Teacher.updateOne({ _id: teacher._id }, { $addToSet: { studentId: studentId } });
+    results.push({
+      name: student.name,
+      phoneNumber: student.phoneNumber,
+    });
+  }
+  return res.status(STATUS.OK).json(results);
+});
+
+/**
+ *  @swagger
  * /teacher/login:
  *   post:
  *     summary: Teacher login
@@ -30,17 +109,17 @@ const SCHOOL_ADMIN_ROLE = "school_admin";
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - phoneNumber
- *               - password
- *               - schoolId
  *             properties:
  *               phoneNumber:
  *                 type: string
  *               password:
  *                 type: string
- *               schoolId:
+ *               tenantId:
  *                 type: string
+ *                 description: Optional tenant identifier to scope login
+ *             required:
+ *               - phoneNumber
+ *               - password
  *     responses:
  *       200:
  *         description: Successful login, returns JWT token
@@ -62,7 +141,7 @@ router.post("/login", teacherAuthProvider.login);
  * @swagger
  * /teacher/register:
  *   post:
- *     summary: Register a new teacher
+ *     summary: Register or retrieve teacher information
  *     tags: [Teachers]
  *     security:
  *       - bearerAuth: []
@@ -72,33 +151,28 @@ router.post("/login", teacherAuthProvider.login);
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - phoneNumber
- *               - password
- *               - name
+ *             required: [name, phoneNumber, password, role]
  *             properties:
+ *               name:
+ *                 type: string
  *               phoneNumber:
  *                 type: string
  *               password:
  *                 type: string
- *               name:
+ *               role:
  *                 type: string
+ *                 enum: [teacher, content_creator]
  *     responses:
- *       201:
- *         description: Teacher registered successfully
- *       400:
- *         description: Invalid request body
+ *       200:
+ *         description: Teacher information retrieved or created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Teacher'
  *       401:
  *         description: Unauthorized - invalid or missing token
- *       409:
- *         description: Phone number already in use
  */
-router.post(
-  "/register",
-  authenticateToken,
-  authorizeRole(SCHOOL_ADMIN_ROLE),
-  teacherController.register
-);
+router.post("/register", authenticateToken, authorizeRoles(TENANT_ROLE), teacherAuthProvider.register);
 
 /**
  * @swagger
@@ -122,10 +196,9 @@ router.post(
  *       401:
  *         description: Unauthorized, token is missing or invalid
  */
-router.post("/logout", authenticateToken, authorizeRole(TEACHER_ROLE), (req, res) => {
+router.post("/logout", authenticateToken, (req, res) => {
   res.status(STATUS.OK).json({ message: "Logout successful" });
 });
-
 /**
  * @swagger
  * /teacher/me:
@@ -149,104 +222,27 @@ router.post("/logout", authenticateToken, authorizeRole(TEACHER_ROLE), (req, res
  *       404:
  *         description: Teacher not found
  */
-router.get("/me", authenticateToken, authorizeRole(TEACHER_ROLE), teacherController.getMe);
 
-/**
- * @swagger
- * /teacher/teachers:
- *   get:
- *     summary: Get all teachers in the admin's school (School Admin only)
- *     tags: [Teachers]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: List of teachers in the school
- *       401:
- *         description: Unauthorized
- *       404:
- *         description: School not found
- */
 router.get(
-  "/teachers",
+  "/me",
   authenticateToken,
-  authorizeRole(SCHOOL_ADMIN_ROLE),
-  teacherController.getTeachersBySchool
-);
-
-/**
- * @swagger
- * /teacher/{teacherId}:
- *   patch:
- *     summary: Update a teacher's name, phone number, or password (School Admin only)
- *     tags: [Teachers]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: teacherId
- *         required: true
- *         schema:
- *           type: string
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               name:
- *                 type: string
- *               phoneNumber:
- *                 type: string
- *               password:
- *                 type: string
- *     responses:
- *       200:
- *         description: Teacher updated successfully
- *       400:
- *         description: Invalid request body
- *       401:
- *         description: Unauthorized
- *       404:
- *         description: Teacher not found
- *       409:
- *         description: Phone number already in use in this school
- */
-router.patch(
-  "/:teacherId",
-  authenticateToken,
-  authorizeRole(SCHOOL_ADMIN_ROLE),
-  teacherController.update
-);
-
-/**
- * @swagger
- * /teacher/{teacherId}:
- *   delete:
- *     summary: Delete a teacher from the admin's school (School Admin only)
- *     tags: [Teachers]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: teacherId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Teacher deleted successfully
- *       401:
- *         description: Unauthorized
- *       404:
- *         description: Teacher not found
- */
-router.delete(
-  "/:teacherId",
-  authenticateToken,
-  authorizeRole(SCHOOL_ADMIN_ROLE),
-  teacherController.delete
+  authorizeRoles(ROLES.TEACHER, ROLES.CONTENT_CREATOR),
+  async (req, res) => {
+  try {
+    const teacherId = req.authUser.id;
+    const teacher = await Teacher.findById(teacherId).select("phoneNumber role").lean();
+    if (!teacher) {
+      return res.sendStatus(STATUS.NOT_FOUND);
+    }
+    res.status(STATUS.OK).json({
+      phoneNumber: teacher.phoneNumber,
+      role: teacher.role,
+    });
+  } catch (err) {
+    console.error("Error fetching teacher profile", err);
+    res.sendStatus(STATUS.INTERNAL_ERROR);
+  }
+},
 );
 
 module.exports = router;
