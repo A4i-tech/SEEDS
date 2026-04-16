@@ -19,6 +19,7 @@ import com.example.seeds.connectivity.ConnectivityStatus
 import com.example.seeds.databinding.FragmentCallBinding
 import com.example.seeds.ui.BaseFragment
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
