@@ -14,7 +14,10 @@ from dotenv import load_dotenv
 import os
 import asyncio
 from app.actions.base_actions.talk_action import TalkAction
+from app.actions.vonage_actions.vonage_connect_action import VonageConnectAction
+from app.utils.speed_control import increase_speed, decrease_speed
 from app.services.service_bus_manager import service_bus_manager
+from app.services.websocket_service import get_websocket_service
 from app.workers.call_processor import (
     CallWebhookProcessor,
     DtmfInputProcessor,
@@ -857,6 +860,68 @@ async def dtmf(input: Request):
     logging.info(f"CURRENT STATE ID: {ivr_state.current_state_id}")
     logging.info(f"INPUT DIGITS: {digits}")
     next_actions, next_state_id = None, None
+
+    # Handle speed control keys (* and #) - intercept before FSM processing
+    current_state = fsm_in_progress.states.get(ivr_state.current_state_id)
+    is_streaming = current_state and any(isinstance(a, VonageConnectAction) for a in current_state.actions)
+
+    if digits in ["*", "#"] and is_streaming:
+        # Get current speed from call state (default 1.0)
+        current_speed = ivr_state.experience_data.get('playback_speed', 1.0) if ivr_state.experience_data else 1.0
+
+        # Calculate new speed
+        if digits == "#":
+            new_speed, _ = increase_speed(current_speed)
+        else:  # digits == "*"
+            new_speed, _ = decrease_speed(current_speed)
+
+        # Send speed change to WebSocket service via control connection
+        try:
+            # Get WebSocket service and send set-speed command
+            ws_service = await get_websocket_service()
+            await ws_service.set_playback_speed(conv_id, new_speed)
+
+            logging.info(f"Speed changed from {current_speed}x to {new_speed}x for websocket_id: {conv_id}")
+        except Exception as e:
+            logging.error(f"Failed to send speed change to WebSocket service: {e}", exc_info=True)
+            new_speed = current_speed  # Revert to current speed on failure
+
+        # Update call state
+        if not ivr_state.experience_data:
+            ivr_state.experience_data = {}
+        ivr_state.experience_data['playback_speed'] = new_speed
+        await ongoing_fsm_mongo.update_document(ivr_state.id, ivr_state.dict(by_alias=True))
+
+        # Return InputAction NCCO to continue listening for more DTMF without interrupting playback
+        # Speed change happens in real-time via WebSocket service
+        logging.info(f"Speed control: returning InputAction NCCO to continue playback at {new_speed}x")
+        return JSONResponse([{
+            "type": ["dtmf"],
+            "action": "input",
+            "eventUrl": [settings.base_url + "/input"],
+            "dtmf": {
+                "maxDigits": 1,
+                "submitOnHash": False,
+                "timeOut": 10
+            }
+        }])
+
+    # Handle timeout during WebSocket playback - keep listening without interrupting
+    if digits == "" and dtmf_input.dtmf.timed_out:
+        # Check if current state has WebSocket connection (VonageConnectAction)
+        current_state = fsm_in_progress.states.get(ivr_state.current_state_id)
+        if current_state and any(isinstance(action, VonageConnectAction) for action in current_state.actions):
+            logging.info(f"Input timeout during WebSocket playback - returning InputAction to continue listening")
+            return JSONResponse([{
+                "type": ["dtmf"],
+                "action": "input",
+                "eventUrl": [settings.base_url + "/input"],
+                "dtmf": {
+                    "maxDigits": 1,
+                    "submitOnHash": False,
+                    "timeOut": 10
+                }
+            }])
 
     if digits == "":
         pre_state_id = ivr_state.current_state_id
