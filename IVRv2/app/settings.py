@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     azure_service_bus_connection_string: str = ""
     azure_service_bus_queue_name: str = ""
     call_duration_limit: int = 0
+    ivr_daily_listening_limit_seconds: int = 7200
     provider_type: str = ""
     azure_service_bus_max_retries: int = 3
     mongo_max_pool_size: int = 50

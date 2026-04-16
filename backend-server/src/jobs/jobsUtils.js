@@ -118,6 +118,7 @@ function extractAudioDuration(filePath) {
   });
 }
 
+
 /**
  * Adjusts an option string based on language.
  * For example, for Kannada, "option" becomes "optionಗಾಗಿ".

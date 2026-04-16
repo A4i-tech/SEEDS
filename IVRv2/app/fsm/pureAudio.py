@@ -15,6 +15,7 @@ from app.utils.model_classes import Option
 from app.utils.pure_audio_model_classes import PureAudioData
 from app.utils.duration_announcement import format_duration_announcement
 from app.utils.ivr_utils import get_vonage_language_code
+from app.fsm.operations.daily_limit_pre_operation import DailyLimitPreOperation
 from app.utils.speed_control import get_speed_instruction
 from app.utils.pause_announcement import get_pause_instruction
 from app.settings import settings
@@ -54,23 +55,23 @@ class PureAudio:
         going_to_play_url = audioGoingTobePlayedDialogUrl.replace("{language}", self.language).replace("{speechRate}", self.speechRate)
         actions.append(StreamAction(pullMenuMainUrl + going_to_play_url))
 
-        # Add duration announcement if available
+        # Add combined announcement (duration + controls) as single TalkAction to avoid superimposition
         if self.content_data.audioContent:
             vonage_language = get_vonage_language_code(self.language)
+            announcement_parts = []
 
             duration = self.content_data.audioContent[0].durationSeconds
             if duration:
                 duration_text = format_duration_announcement(duration, self.language)
                 if duration_text:
-                    actions.append(TalkAction(text=duration_text, level=1.0, bargeIn=True, loop=1, language=vonage_language))
+                    announcement_parts.append(duration_text)
 
-            # Add speed controls announcement
-            speed_instruction = get_speed_instruction(self.language)
-            actions.append(TalkAction(text=speed_instruction, level=1.0, bargeIn=True, loop=1, language=vonage_language))
+            announcement_parts.append(get_speed_instruction(self.language))
+            announcement_parts.append(get_pause_instruction(self.language))
 
-            # Add pause/resume controls announcement
-            pause_instruction = get_pause_instruction(self.language)
-            actions.append(TalkAction(text=pause_instruction, level=1.0, bargeIn=True, loop=1, language=vonage_language))
+            if announcement_parts:
+                combined_text = ". ".join(announcement_parts)
+                actions.append(TalkAction(text=combined_text, level=1.0, bargeIn=True, loop=1, language=vonage_language))
 
             # Connect to WebSocket for audio streaming
             audio_url = self.content_data.audioContent[0].audioUrl
@@ -90,7 +91,16 @@ class PureAudio:
         description = f"{self.content_data.title.local} - {self.content_data.title.english} Audio Playing"
         menu = Menu(description=description, options=options, level=level)
 
-        playback_state = State(state_id=state_id, actions=actions, menu=menu)
+        # Attach daily limit pre-operation if content has duration
+        daily_limit_pre_op = None
+        if self.content_data.audioContent and self.content_data.audioContent[0].durationSeconds:
+            daily_limit_pre_op = DailyLimitPreOperation(
+                duration_seconds=self.content_data.audioContent[0].durationSeconds,
+                language=self.language,
+                school_id=getattr(self.content_data, 'school_id', ''),
+            )
+
+        playback_state = State(state_id=state_id, actions=actions, menu=menu, pre_operation=daily_limit_pre_op)
         fsm.add_state(playback_state)
 
         # Add transitions from the parent block to the playback state.

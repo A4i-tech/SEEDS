@@ -6,6 +6,8 @@ Formats audio duration into human-readable announcements in multiple languages.
 
 from typing import Optional, Dict
 
+from app.settings import settings
+
 
 # Duration templates for each language (module-level constant for performance)
 _DURATION_TEMPLATES: Dict[str, Dict[str, str]] = {
@@ -41,6 +43,27 @@ _DURATION_TEMPLATES: Dict[str, Dict[str, str]] = {
     }
 }
 
+_DAILY_LIMIT_TEMPLATES: Dict[str, str] = {
+    "kannada": "ನೀವು ಇಂದಿನ ದೈನಂದಿನ ಆಲಿಸುವ ಮಿತಿಯನ್ನು ತಲುಪಿದ್ದೀರಿ. ದಯವಿಟ್ಟು ನಾಳೆ ಮತ್ತೆ ಕರೆ ಮಾಡಿ.",
+    "english": "You have reached your daily listening limit. Please call back tomorrow.",
+    "hindi": "आपने अपनी दैनिक सुनने की सीमा पूरी कर ली है। कृपया कल फिर से कॉल करें।",
+    "bengali": "আপনি আজকের শোনার সীমায় পৌঁছে গেছেন। দয়া করে আগামীকাল আবার কল করুন।",
+    "tamil": "நீங்கள் இன்றைய கேட்கும் வரம்பை எட்டிவிட்டீர்கள். தயவுசெய்து நாளை மீண்டும் அழைக்கவும்.",
+    "marathi": "तुम्ही आजची ऐकण्याची मर्यादा गाठली आहे. कृपया उद्या पुन्हा कॉल करा."
+}
+
+
+def get_daily_limit_announcement(language: str) -> str:
+    """Get the daily limit reached announcement in the specified language.
+
+    Args:
+        language: Language code (kannada, english, hindi, bengali, tamil, marathi)
+
+    Returns:
+        Limit announcement text in the specified language, falls back to default language.
+    """
+    return _DAILY_LIMIT_TEMPLATES.get(language, _DAILY_LIMIT_TEMPLATES[settings.default_welcome_language])
+
 
 def format_duration_announcement(duration_seconds: Optional[float], language: str) -> str:
     """
@@ -71,7 +94,7 @@ def format_duration_announcement(duration_seconds: Optional[float], language: st
     minutes = int(duration_seconds // 60)
     seconds = int(duration_seconds % 60)
 
-    # Get templates for language (default to English)
+    # Get templates for language (fallback to English for unsupported languages)
     lang_templates = _DURATION_TEMPLATES.get(language, _DURATION_TEMPLATES["english"])
 
     # Select appropriate template based on duration

@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 import os
 import asyncio
 from app.actions.base_actions.talk_action import TalkAction
+from app.actions.base_actions.input_action import InputAction
 from app.actions.vonage_actions.vonage_connect_action import VonageConnectAction
 from app.utils.speed_control import increase_speed, decrease_speed
 from app.utils.pause_announcement import get_paused_announcement, get_resuming_announcement
@@ -1031,10 +1032,17 @@ async def dtmf(input: Request):
 
     await ongoing_fsm_mongo.update_document(ivr_state.id, ivr_state.dict(by_alias=True))
 
+    # Check if this is a terminal action (limit reached or end state - no InputAction)
+    is_terminal = not any(
+        isinstance(a, InputAction) for a in (next_actions or [])
+    )
+
     start = time.time()
     ncco = accumulator.combine(
         [action_factory.get_action_implmentation(x) for x in next_actions]
     )
+    if is_terminal:
+        ncco.append({"action": "hangup"})
     logging.info(f"TIME TAKEN TO CREATE NCCO: {time.time() - start}")
     logging.info(f"NCCO RETURNED FROM INPUT API: {json.dumps(ncco, indent=2)}")
     return JSONResponse(ncco)
