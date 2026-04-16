@@ -55,26 +55,23 @@ class PureAudio:
         going_to_play_url = audioGoingTobePlayedDialogUrl.replace("{language}", self.language).replace("{speechRate}", self.speechRate)
         actions.append(StreamAction(pullMenuMainUrl + going_to_play_url))
 
-        # Add duration announcement if available
+        # Add combined announcement (duration + controls) as single TalkAction to avoid superimposition
         if self.content_data.audioContent:
             vonage_language = get_vonage_language_code(self.language)
+            announcement_parts = []
 
             duration = self.content_data.audioContent[0].durationSeconds
             if duration:
                 duration_text = format_duration_announcement(duration, self.language)
                 if duration_text:
-                    vonage_language = get_vonage_language_code(self.language)
-                    actions.append(TalkAction(text=duration_text, level=1.0, bargeIn=True, loop=1, language=vonage_language))
+                    announcement_parts.append(duration_text)
 
-                    actions.append(TalkAction(text=duration_text, level=1.0, bargeIn=True, loop=1, language=vonage_language))
+            announcement_parts.append(get_speed_instruction(self.language))
+            announcement_parts.append(get_pause_instruction(self.language))
 
-            # Add speed controls announcement
-            speed_instruction = get_speed_instruction(self.language)
-            actions.append(TalkAction(text=speed_instruction, level=1.0, bargeIn=True, loop=1, language=vonage_language))
-
-            # Add pause/resume controls announcement
-            pause_instruction = get_pause_instruction(self.language)
-            actions.append(TalkAction(text=pause_instruction, level=1.0, bargeIn=True, loop=1, language=vonage_language))
+            if announcement_parts:
+                combined_text = ". ".join(announcement_parts)
+                actions.append(TalkAction(text=combined_text, level=1.0, bargeIn=True, loop=1, language=vonage_language))
 
             # Connect to WebSocket for audio streaming
             audio_url = self.content_data.audioContent[0].audioUrl
