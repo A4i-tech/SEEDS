@@ -21,6 +21,7 @@ const server = http.createServer((req, res) => {
   // Parse the request URL
   const parsedUrl = url.parse(req.url, true);
 
+
   // Check if the request is a GET request to the root path '/'
   if (req.method === "GET" && parsedUrl.pathname === "/") {
     // Get the list of IDs of existing WebSocket connections
