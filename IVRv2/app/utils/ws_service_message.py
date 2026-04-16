@@ -16,6 +16,8 @@ class MessageType(str, Enum):
     HEARTBEAT = "ping"
     SET_SPEED = "set-speed"
     STOP_AUDIO = "stop"
+    PAUSE_AUDIO = "pause"
+    RESUME_AUDIO = "resume"
     DISCONNECT = "disconnect"
 
 
