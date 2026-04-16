@@ -39,7 +39,7 @@ class TeacherMongoDao extends ITeacherDao {
   }
 
   async getTeachersBySchoolId(schoolId) {
-    return Teacher.find({ schoolId }, "_id name phoneNumber role").sort({ name: 1 }).lean();
+    return Teacher.find({ schoolId }, "_id name phoneNumber role studentId").sort({ name: 1 }).lean();
   }
 
   async transferTeacher(teacherId, currentSchoolId, targetSchoolId) {

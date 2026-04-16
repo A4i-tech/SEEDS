@@ -105,7 +105,8 @@ const Login = () => {
       }
 
       const { token, tenantName, schoolName, name, schoolId, role } = response.data;
-      const storedRole = role || (schoolId ? "school_admin" : "tenant");
+      const storedRole =
+        role || (requestConfig.type === "phone" ? "teacher" : schoolId ? "school_admin" : "tenant");
 
       setAuth(token, storedRole, schoolId || null);
       navigate("/content", { state: { name: tenantName || schoolName || name || "User" } });

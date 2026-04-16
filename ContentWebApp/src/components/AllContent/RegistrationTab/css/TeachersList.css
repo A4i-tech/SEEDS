@@ -2,18 +2,18 @@
 .teachers-list-pane {
   width: 100%;
   border: 1px solid var(--reg-border, #d7deea);
-  border-radius: 12px;
-  padding: 14px;
+  border-radius: 8px;
+  padding: 10px;
   background: #ffffff;
-  max-height: 300px;
+  max-height: 420px;
   overflow-y: auto;
   margin-left: auto;
 }
 
 @media (min-width: 768px) {
   .teachers-list-pane {
-    width: 300px;
-    max-height: 500px;
+    width: 320px;
+    max-height: 540px;
   }
 }
 
@@ -45,7 +45,7 @@
   text-align: left;
   border: 1px solid var(--reg-border, #d7deea);
   background: var(--reg-panel, #f8fafc);
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 10px 12px;
   color: var(--reg-text, #0f172a);
   transition:

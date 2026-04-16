@@ -13,6 +13,7 @@ const teacherController = require("../controllers/teacher.controller");
  */
 const router = express.Router();
 const TENANT_ROLE = "tenant";
+const SCHOOL_ADMIN_ROLE = "school_admin";
 const TEACHER_ROLE = "teacher";
 const CONTENT_CREATOR_ROLE = "content_creator";
 
@@ -212,7 +213,12 @@ router.get("/teachers", authenticateToken, authorizeRole(TENANT_ROLE), async (re
  *       401:
  *         description: Unauthorized - invalid or missing token
  */
-router.post("/add-students", authenticateToken, authorizeRole(TENANT_ROLE), teacherController.addStudents);
+router.post(
+  "/add-students",
+  authenticateToken,
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE),
+  teacherController.addStudents
+);
 
 /**
  * @swagger
@@ -267,8 +273,18 @@ router.post("/add-students", authenticateToken, authorizeRole(TENANT_ROLE), teac
  *       401:
  *         description: Unauthorized - invalid or missing token
  */
-router.delete("/students", authenticateToken, authorizeRole(TENANT_ROLE), teacherController.removeStudents);
+router.delete(
+  "/students",
+  authenticateToken,
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE),
+  teacherController.removeStudents
+);
 
-router.patch("/students", authenticateToken, authorizeRole(TENANT_ROLE), teacherController.updateStudent);
+router.patch(
+  "/students",
+  authenticateToken,
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE),
+  teacherController.updateStudent
+);
 
 module.exports = router;

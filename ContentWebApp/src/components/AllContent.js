@@ -47,6 +47,9 @@ const AllContent = () => {
   const {
     teachers,
     students,
+    selectedTeacher,
+    selectedTeacherId,
+    setSelectedTeacherId,
     message,
     messageType,
     registerTeacher,
@@ -56,6 +59,11 @@ const AllContent = () => {
     updateTeacher,
     deleteTeacher,
     transferTeacher,
+    addStudentRow,
+    removeStudentRow,
+    setNewStudentValue,
+    submitNewStudents,
+    removeStudentFromTeacher,
   } = useTeachers(activeTab);
 
   const {
@@ -69,8 +77,9 @@ const AllContent = () => {
 
   const ivrURL = process.env.REACT_APP_API_IVRV2_URL;
   const isContentCreator = currentUserRole === USER_ROLES.CONTENT_CREATOR;
-  const canViewRegistration = !isContentCreator;
-  const canViewAnalytics = !isContentCreator;
+  const canViewRegistration =
+    currentUserRole === USER_ROLES.TENANT || currentUserRole === "school_admin";
+  const canViewAnalytics = canViewRegistration;
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -186,6 +195,9 @@ const AllContent = () => {
           <RegistrationTab
             teachers={teachers}
             students={students}
+            selectedTeacher={selectedTeacher}
+            selectedTeacherId={selectedTeacherId}
+            onSelectTeacher={setSelectedTeacherId}
             onRegisterTeacher={registerTeacher}
             onAddStudent={addStudent}
             onUpdateStudent={updateStudentById}
@@ -193,6 +205,11 @@ const AllContent = () => {
             onUpdateTeacher={updateTeacher}
             onDeleteTeacher={deleteTeacher}
             onTransferTeacher={transferTeacher}
+            onAddStudentRow={addStudentRow}
+            onRemoveStudentRow={removeStudentRow}
+            onSetNewStudentValue={setNewStudentValue}
+            onSubmitNewStudents={submitNewStudents}
+            onRemoveStudentFromTeacher={removeStudentFromTeacher}
             message={message}
             messageType={messageType}
             schools={schools}

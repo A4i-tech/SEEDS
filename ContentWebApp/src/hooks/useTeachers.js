@@ -5,6 +5,17 @@ import { getRole } from "../utils/authHelpers";
 import { isValidPhoneNumber } from "../utils/phoneUtils";
 import { useFlashMessage } from "./useFlashMessage";
 
+const emptyStudentRow = () => ({ name: "", phoneNumber: "" });
+
+const prepareTeacher = (teacher) => ({
+  ...teacher,
+  students: Array.isArray(teacher.students) ? teacher.students : [],
+  newStudents:
+    Array.isArray(teacher.newStudents) && teacher.newStudents.length > 0
+      ? teacher.newStudents
+      : [emptyStudentRow()],
+});
+
 export const useTeachers = (activeTab) => {
   const [teachers, setTeachers] = useState([]);
   const [students, setStudents] = useState([]);
@@ -20,11 +31,20 @@ export const useTeachers = (activeTab) => {
       try {
         const data = await teacherService.getTeachers(getAuthHeaders(), signal);
 
+        const preparedTeachers = (Array.isArray(data) ? data : []).map(prepareTeacher);
+
         setTeachers((prevTeachers) => {
-          if (prevTeachers.length === 0 && data.length > 0) {
-            setSelectedTeacherId(data[0]._id || data[0].id);
-          }
-          return data;
+          setSelectedTeacherId((currentId) => {
+            const activeId = currentId || selectedTeacherId;
+            if (preparedTeachers.some((teacher) => String(teacher._id) === String(activeId))) {
+              return activeId;
+            }
+            if (prevTeachers.length === 0 && preparedTeachers.length > 0) {
+              return preparedTeachers[0]._id || preparedTeachers[0].id;
+            }
+            return preparedTeachers[0]?._id || preparedTeachers[0]?.id || null;
+          });
+          return preparedTeachers;
         });
       } catch (error) {
         if (error.name !== "AbortError") {
@@ -34,7 +54,7 @@ export const useTeachers = (activeTab) => {
         setIsLoading(false);
       }
     },
-    [getAuthHeaders]
+    [getAuthHeaders, selectedTeacherId]
   );
 
   const fetchStudents = useCallback(async (signal = null) => {
@@ -98,6 +118,14 @@ export const useTeachers = (activeTab) => {
   const updateTeacherState = useCallback((id, patch) => {
     setTeachers((prev) =>
       prev.map((t) => (String(t._id) === String(id) ? { ...t, ...patch } : t))
+    );
+  }, []);
+
+  const updateTeacherWith = useCallback((id, updater) => {
+    setTeachers((prev) =>
+      prev.map((teacher) =>
+        String(teacher._id) === String(id) ? updater(prepareTeacher(teacher)) : teacher
+      )
     );
   }, []);
 
@@ -271,6 +299,112 @@ export const useTeachers = (activeTab) => {
     [getAuthHeaders, flashMessage]
   );
 
+  const addStudentRow = useCallback(
+    (teacherId) => {
+      updateTeacherWith(teacherId, (teacher) => ({
+        ...teacher,
+        newStudents: [...teacher.newStudents, emptyStudentRow()],
+      }));
+    },
+    [updateTeacherWith]
+  );
+
+  const removeStudentRow = useCallback(
+    (teacherId, rowIndex) => {
+      updateTeacherWith(teacherId, (teacher) => {
+        const nextRows = teacher.newStudents.filter((_, index) => index !== rowIndex);
+        return {
+          ...teacher,
+          newStudents: nextRows.length > 0 ? nextRows : [emptyStudentRow()],
+        };
+      });
+    },
+    [updateTeacherWith]
+  );
+
+  const setNewStudentValue = useCallback(
+    (teacherId, rowIndex, field, value) => {
+      updateTeacherWith(teacherId, (teacher) => ({
+        ...teacher,
+        newStudents: teacher.newStudents.map((student, index) =>
+          index === rowIndex ? { ...student, [field]: value } : student
+        ),
+      }));
+    },
+    [updateTeacherWith]
+  );
+
+  const submitNewStudents = useCallback(
+    async (teacher) => {
+      const validRows = (teacher.newStudents || [])
+        .map((student) => ({
+          name: student.name.trim(),
+          phoneNumber: student.phoneNumber.trim(),
+        }))
+        .filter((student) => student.name || student.phoneNumber);
+
+      if (validRows.length === 0) {
+        flashMessage("Add at least one student.", "error");
+        return false;
+      }
+
+      const invalidPhone = validRows.some((student) => !isValidPhoneNumber(student.phoneNumber));
+      const missingName = validRows.some((student) => !student.name);
+      if (missingName || invalidPhone) {
+        flashMessage("Each student needs a name and a valid 10-digit phone number.", "error");
+        return false;
+      }
+
+      updateTeacherState(teacher._id, { submitting: true });
+
+      try {
+        const result = await teacherService.addStudentsToTeacher(
+          teacher.phoneNumber,
+          validRows,
+          getAuthHeaders()
+        );
+        await fetchTeachers();
+        updateTeacherState(teacher._id, { newStudents: [emptyStudentRow()] });
+
+        if (Array.isArray(result.duplicates) && result.duplicates.length > 0) {
+          flashMessage("Some students already exist with different names.", "error");
+          return false;
+        }
+
+        flashMessage("Students added successfully.", "success");
+        return true;
+      } catch (error) {
+        flashMessage(error.message || "Failed to add students.", "error");
+        return false;
+      } finally {
+        updateTeacherState(teacher._id, { submitting: false });
+      }
+    },
+    [fetchTeachers, flashMessage, getAuthHeaders, updateTeacherState]
+  );
+
+  const removeStudentFromTeacher = useCallback(
+    async (teacher, studentPhoneNumber) => {
+      try {
+        await teacherService.removeStudentsFromTeacher(
+          teacher.phoneNumber,
+          [{ phoneNumber: studentPhoneNumber }],
+          getAuthHeaders()
+        );
+        updateTeacherWith(teacher._id, (currentTeacher) => ({
+          ...currentTeacher,
+          students: currentTeacher.students.filter(
+            (student) => student.phoneNumber !== studentPhoneNumber
+          ),
+        }));
+        flashMessage("Student removed successfully.", "success");
+      } catch (error) {
+        flashMessage(error.message || "Failed to remove student.", "error");
+      }
+    },
+    [flashMessage, getAuthHeaders, updateTeacherWith]
+  );
+
   const selectedTeacher = teachers.find((t) => String(t._id) === String(selectedTeacherId));
 
   return {
@@ -289,5 +423,10 @@ export const useTeachers = (activeTab) => {
     updateTeacher,
     deleteTeacher,
     transferTeacher,
+    addStudentRow,
+    removeStudentRow,
+    setNewStudentValue,
+    submitNewStudents,
+    removeStudentFromTeacher,
   };
 };

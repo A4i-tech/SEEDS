@@ -162,6 +162,7 @@ exports.addStudents = async (req, res) => {
       students: req.body.students,
       phoneNumber: req.body.phoneNumber,
       tenantId: req.tenantId,
+      schoolId: req.schoolId,
     });
     return res.status(STATUS.OK).json(result);
   } catch (error) {
@@ -202,6 +203,7 @@ exports.removeStudents = async (req, res) => {
       phoneNumber: req.body.phoneNumber,
       students: req.body.students,
       tenantId: req.tenantId,
+      schoolId: req.schoolId,
     });
     return res.status(STATUS.OK).json(result);
   } catch (error) {
@@ -231,6 +233,7 @@ exports.updateStudent = async (req, res) => {
       name,
       studentPhoneNumber,
       tenantId: req.tenantId,
+      schoolId: req.schoolId,
     });
     return res.status(STATUS.OK).json(result);
   } catch (error) {

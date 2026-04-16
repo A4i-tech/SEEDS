@@ -1,9 +1,9 @@
 /* Teacher registration card */
 .registration-card {
   margin-top: 0;
-  padding: 14px;
+  padding: 14px 16px;
   border: 1px solid var(--reg-border, #dbe2ef);
-  border-radius: 12px;
+  border-radius: 8px;
   background: #ffffff;
   display: flex;
   flex-direction: column;
@@ -19,8 +19,8 @@
 .registration-title {
   margin: 0;
   color: var(--reg-text, #0f172a);
-  font-size: 18px;
-  letter-spacing: -0.01em;
+  font-size: 15px;
+  letter-spacing: 0;
 }
 
 .registration-title-with-icon {
@@ -30,8 +30,8 @@
 }
 
 .registration-title-icon {
-  width: 18px;
-  height: 18px;
+  width: 14px;
+  height: 14px;
   color: var(--reg-accent, #2563eb);
   display: inline-flex;
   align-items: center;
@@ -75,7 +75,7 @@
 }
 
 .registration-password-input {
-  padding-right: 64px !important;
+  padding-right: 44px !important;
 }
 
 .registration-password-toggle {
@@ -103,7 +103,7 @@
 
 .registration-input-with-icon {
   padding-left: 42px !important;
-  height: 44px;
+  height: 38px;
 }
 
 .registration-card-modern .registration-fields-grid {
@@ -132,7 +132,7 @@
 .registration-subtitle {
   margin: 0;
   color: var(--reg-subtext, #64748b);
-  font-size: 12px;
+  font-size: 11px;
   text-align: left;
 }
 
@@ -154,7 +154,7 @@
 }
 
 .registration-select {
-  height: 44px;
+  height: 38px;
   padding: 0 44px 0 12px;
   appearance: none;
   cursor: pointer;

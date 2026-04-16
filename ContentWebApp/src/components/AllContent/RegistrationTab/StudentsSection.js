@@ -72,7 +72,7 @@ const StudentsSection = ({ students, onAddStudent, onUpdateStudent, onDeleteStud
       <StudentsTable
         students={students}
         onEditStudent={openEdit}
-        onRemoveStudent={onDeleteStudent}
+        onRemoveStudent={(student) => onDeleteStudent(student._id)}
       />
 
       {editingStudent && (

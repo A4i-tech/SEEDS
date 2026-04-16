@@ -25,8 +25,6 @@ const BlobService = require("../services/BlobService.js");
 const processNewContent = require("../jobs/processAudioContent.js");
 const processQuizContent = require("../jobs/processQuizContent.js");
 const { tryCatchWrapper } = require(path.join("..", "util.js"));
-const { Binary } = require("mongodb");
-const { parse: uuidParse } = require("uuid");
 const { authorizeRole } = require("../auth/authenticateToken");
 
 const TENANT_ROLE = "tenant";
@@ -46,14 +44,82 @@ const PATCHABLE_CONTENT_FIELDS = [
   "isTeacherApp",
   "isDeleted",
   "isProcessed",
+  "localTitle",
+  "localTheme",
+  "positiveMark",
+  "positiveMarks",
+  "negativeMark",
+  "negativeMarks",
+  "questions",
+  "options",
+  "correctAnswers",
 ];
 
-function findTenantContentById(contentId, tenantId) {
-  return ContentV3.findOne({
+const SCHOOL_SCOPED_CONTENT_ROLES = new Set([
+  SCHOOL_ADMIN_ROLE,
+  TEACHER_ROLE,
+  CONTENT_CREATOR_ROLE,
+]);
+
+const CONTENT_WRITE_ROLES = new Set([
+  SCHOOL_ADMIN_ROLE,
+  CONTENT_CREATOR_ROLE,
+]);
+
+function getRequestSchoolId(req) {
+  return req.schoolId ? req.schoolId.toString() : null;
+}
+
+function normalizeSchoolObjectId(schoolId) {
+  return schoolId && ObjectId.isValid(schoolId) ? new ObjectId(schoolId) : schoolId;
+}
+
+// Tenant reads all tenant content. School-scoped users read their school plus tenant-level content.
+function getReadSchoolScope(req) {
+  const schoolId = getRequestSchoolId(req);
+  if (schoolId && SCHOOL_SCOPED_CONTENT_ROLES.has(req.role)) {
+    return {
+      $or: [
+        { schoolId: { $in: [normalizeSchoolObjectId(schoolId), null] } },
+        { schoolId: { $exists: false } },
+      ],
+    };
+  }
+  return null;
+}
+
+function applyReadSchoolScope(query, req) {
+  const schoolScope = getReadSchoolScope(req);
+  return schoolScope ? { $and: [query, schoolScope] } : query;
+}
+
+// Writes are strict: tenant writes tenant-level content, school users write only their school content.
+function getWriteSchoolIdFilter(req) {
+  const schoolId = getRequestSchoolId(req);
+  if (schoolId && CONTENT_WRITE_ROLES.has(req.role)) {
+    return normalizeSchoolObjectId(schoolId);
+  }
+  return null;
+}
+
+function findTenantContentById(contentId, tenantId, req) {
+  return ContentV3.findOne(applyReadSchoolScope({
     _id: contentId,
     tenantId,
     isDeleted: { $ne: true },
-  }).exec();
+  }, req))
+    .lean()
+    .exec();
+}
+
+function normalizeIdsQuery(ids) {
+  if (Array.isArray(ids)) {
+    return ids.filter(Boolean);
+  }
+  return String(ids)
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
 }
 
 // Initialize instances
@@ -230,6 +296,9 @@ router.post(
     }
     const quizData = fromQuizCreateRequest(quizCreateRequest);
     quizData.creation_time = Math.floor(Date.now() / 1000);
+    quizData.tenantId = req.tenantId;
+    quizData.schoolId = getWriteSchoolIdFilter(req);
+    quizData.createdBy = req.userId;
     const quizDataDoc = quizData.toObject();
     const job = await agenda.now("processQuizContent", {
       content: quizDataDoc,
@@ -325,11 +394,11 @@ router.get(
       return res.status(400).json({ error: "tenantId not found in token" });
     }
     const language = req.query.language;
-    const content = await ContentV3.find({
+    const content = await ContentV3.find(applyReadSchoolScope({
       language: language,
       isPullModel: true,
       tenantId,
-    })
+    }, req))
       .sort({ _id: -1 })
       .lean()
       .exec();
@@ -436,17 +505,17 @@ router.get(
 
     // If specific IDs are requested, return non-deleted content sorted by creation time (newest first)
     if (req.query.ids) {
-      if (!Array.isArray(req.query.ids) || req.query.ids.length === 0) {
-        return res.status(400).json({ error: "ids query parameter must be a non-empty array" });
+      const idsArray = normalizeIdsQuery(req.query.ids);
+      if (idsArray.length === 0) {
+        return res.status(400).json({ error: "ids query parameter must be a non-empty array or comma-separated string" });
       }
-      const idsArray = req.query.ids;
 
       // Fetch both content and quiz data for the requested IDs (lean for read-only)
       const [contents, quizzes] = await Promise.all([
-        ContentV3.find({ _id: { $in: idsArray }, isDeleted: { $ne: true }, tenantId: req.tenantId })
+        ContentV3.find(applyReadSchoolScope({ _id: { $in: idsArray }, isDeleted: { $ne: true }, tenantId }, req))
           .lean()
           .exec(),
-        QuizData.find({ _id: { $in: idsArray }, isDeleted: { $ne: true }, tenantId: req.tenantId })
+        QuizData.find(applyReadSchoolScope({ _id: { $in: idsArray }, isDeleted: { $ne: true }, tenantId }, req))
           .lean()
           .exec(),
       ]);
@@ -471,8 +540,8 @@ router.get(
     }
 
     // Base query always excludes deleted content
-    let contentQuery = { isDeleted: { $ne: true }, tenantId: req.tenantId };
-    let quizQuery = { isDeleted: { $ne: true }, tenantId: req.tenantId };
+    let contentQuery = applyReadSchoolScope({ isDeleted: { $ne: true }, tenantId }, req);
+    let quizQuery = applyReadSchoolScope({ isDeleted: { $ne: true }, tenantId }, req);
     let shouldFetchContent = true;
     let shouldFetchQuizzes = true;
 
@@ -481,7 +550,7 @@ router.get(
       quizQuery.isTeacherApp = true;
     } else if (req.query.language && req.query.theme && req.query.expName) {
       const expName = req.query.expName.toLowerCase();
-      
+
       if (expName === "quiz") {
         // If filtering for quiz, only query QuizData
         shouldFetchContent = false;
@@ -655,12 +724,25 @@ router.get(
   "/:contentId",
   authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
-    const content = await findTenantContentById(req.params.contentId, req.tenantId);
+    const content = await findTenantContentById(req.params.contentId, req.tenantId, req);
+    if (content) {
+      return res.json({ ...content, id: content._id });
+    }
+
+    const quiz = await QuizData.findOne(applyReadSchoolScope({
+      _id: req.params.contentId,
+      tenantId: req.tenantId,
+      isDeleted: { $ne: true },
+    }, req))
+      .lean()
+      .exec();
+    if (quiz) {
+      return res.json({ ...quiz, id: quiz._id, type: "quiz" });
+    }
+
     if (!content) {
       return res.status(404).json({ error: "Content not found" });
     }
-
-    return res.json(content);
   })
 );
 
@@ -711,10 +793,11 @@ router.delete(
   tryCatchWrapper(async (req, res) => {
     const contentId = req.params.contentId;
     const tenantId = req.tenantId;
+    const schoolId = getWriteSchoolIdFilter(req);
 
     // Try to delete from ContentV3 first (uses _id as String)
     let result = await ContentV3.findOneAndUpdate(
-      { _id: contentId, tenantId },
+      { _id: contentId, tenantId, schoolId },
       { $set: { isDeleted: true } },
       { new: true }
     );
@@ -722,7 +805,7 @@ router.delete(
     // If not found in ContentV3, try QuizData (also uses _id as String)
     if (!result) {
       result = await QuizData.findOneAndUpdate(
-        { _id: contentId, tenantId },
+        { _id: contentId, tenantId, schoolId },
         { $set: { isDeleted: true } },
         { new: true }
       );
@@ -743,6 +826,8 @@ router.post(
     let content = new ContentV3(req.body);
     content.creation_time = Math.floor(Date.now() / 1000);
     content.tenantId = req.tenantId;
+    content.schoolId = getWriteSchoolIdFilter(req);
+    content.createdBy = req.userId;
 
     // Validate audioContent entries to ensure uploaded audio URLs reference .mp3 files.
     for (const item of content.audioContent || []) {
@@ -814,7 +899,8 @@ router.patch(
     });
 
     // Check if it is a quiz (stored in QuizData)
-    const existingQuiz = await QuizData.findOne({ _id: contentId, tenantId: req.tenantId }).lean().exec();
+    const schoolId = getWriteSchoolIdFilter(req);
+    const existingQuiz = await QuizData.findOne({ _id: contentId, tenantId: req.tenantId, schoolId }).lean().exec();
     if (existingQuiz) {
       const quizUpdate = {};
 
@@ -901,7 +987,7 @@ router.patch(
       }
 
       const updated = await QuizData.findOneAndUpdate(
-        { _id: contentId, tenantId: req.tenantId },
+        { _id: contentId, tenantId: req.tenantId, schoolId },
         { $set: quizUpdate },
         { new: true },
       ).exec();
@@ -917,13 +1003,20 @@ router.patch(
       updatePayload.isProcessed = false;
     }
 
-    const existingContent = await findTenantContentById(contentId, req.tenantId);
+    const existingContent = await ContentV3.findOne({
+      _id: contentId,
+      tenantId: req.tenantId,
+      schoolId,
+      isDeleted: { $ne: true },
+    })
+      .lean()
+      .exec();
     if (!existingContent) {
       return res.status(404).json({ error: "Content not found" });
     }
 
-    const updated = await ContentV3.findByIdAndUpdate(
-      contentId,
+    const updated = await ContentV3.findOneAndUpdate(
+      { _id: contentId, tenantId: req.tenantId, schoolId },
       { $set: updatePayload },
       { new: true },
     ).exec();

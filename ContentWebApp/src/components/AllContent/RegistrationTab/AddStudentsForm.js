@@ -51,10 +51,10 @@ const AddStudentsForm = ({
         <button
           type="button"
           onClick={() => onSubmitNewStudents(teacher)}
-          className="primary-button button-ml-8"
+          className="primary-button"
           disabled={teacher.submitting}
         >
-          {teacher.submitting ? "Adding…" : "Submit students"}
+          {teacher.submitting ? "Adding..." : "Submit students"}
         </button>
       </div>
     </div>

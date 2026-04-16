@@ -34,7 +34,7 @@ function normalizeStudents(students) {
   return normalized;
 }
 
-exports.addStudents = async ({ students = [], phoneNumber, tenantId }) => {
+exports.addStudents = async ({ students = [], phoneNumber, tenantId, schoolId }) => {
   if (!Array.isArray(students) || students.length === 0) {
     const err = new Error("Students array is required and cannot be empty");
     err.status = STATUS.BAD_REQUEST;
@@ -43,6 +43,11 @@ exports.addStudents = async ({ students = [], phoneNumber, tenantId }) => {
 
   const teacher = await teacherRepository.findByPhoneAndTenant(phoneNumber, tenantId);
   if (!teacher) {
+    const err = new Error("Teacher not found with the provided phone number");
+    err.status = STATUS.NOT_FOUND;
+    throw err;
+  }
+  if (schoolId && String(teacher.schoolId) !== String(schoolId)) {
     const err = new Error("Teacher not found with the provided phone number");
     err.status = STATUS.NOT_FOUND;
     throw err;
@@ -184,7 +189,7 @@ exports.getTeachers = async ({ tenantId }) => {
   }));
 };
 
-exports.removeStudents = async ({ phoneNumber, students, tenantId }) => {
+exports.removeStudents = async ({ phoneNumber, students, tenantId, schoolId }) => {
   if (!Array.isArray(students) || students.length === 0) {
     const err = new Error("Students array is required and cannot be empty");
     err.status = STATUS.BAD_REQUEST;
@@ -193,6 +198,11 @@ exports.removeStudents = async ({ phoneNumber, students, tenantId }) => {
 
   const teacher = await teacherRepository.findByPhoneAndTenant(phoneNumber, tenantId);
   if (!teacher) {
+    const err = new Error("Teacher not found");
+    err.status = STATUS.NOT_FOUND;
+    throw err;
+  }
+  if (schoolId && String(teacher.schoolId) !== String(schoolId)) {
     const err = new Error("Teacher not found");
     err.status = STATUS.NOT_FOUND;
     throw err;
@@ -220,12 +230,18 @@ exports.updateStudent = async ({
   name,
   studentPhoneNumber,
   tenantId,
+  schoolId,
 }) => {
   const teacher = await teacherRepository.findByPhoneAndTenant(
     teacherPhoneNumber,
     tenantId
   );
   if (!teacher) {
+    const err = new Error("Teacher not found");
+    err.status = STATUS.NOT_FOUND;
+    throw err;
+  }
+  if (schoolId && String(teacher.schoolId) !== String(schoolId)) {
     const err = new Error("Teacher not found");
     err.status = STATUS.NOT_FOUND;
     throw err;
@@ -304,7 +320,40 @@ exports.getTeachersBySchoolId = async (schoolId, tenantId) => {
     throw err;
   }
   const teachers = await teacherRepository.getTeachersBySchoolId(schoolId);
-  return teachers;
+  const studentIdSet = new Set();
+
+  for (const teacher of teachers) {
+    for (const studentId of teacher.studentId || []) {
+      if (studentId) {
+        studentIdSet.add(String(studentId));
+      }
+    }
+  }
+
+  const students =
+    studentIdSet.size > 0
+      ? await studentRepository.findManyByIds(Array.from(studentIdSet))
+      : [];
+  const studentById = {};
+
+  for (const student of students) {
+    studentById[String(student._id)] = student;
+  }
+
+  return teachers.map((teacher) => ({
+    _id: teacher._id,
+    name: teacher.name,
+    phoneNumber: teacher.phoneNumber,
+    role: teacher.role,
+    students: (teacher.studentId || [])
+      .map((studentId) => {
+        const student = studentById[String(studentId)];
+        return student
+          ? { _id: student._id, name: student.name, phoneNumber: student.phoneNumber }
+          : null;
+      })
+      .filter(Boolean),
+  }));
 };
 
 /**

@@ -1,6 +1,7 @@
 /* Add students section */
 .add-students-section {
   margin-top: 12px;
+  text-align: center;
 }
 
 .add-students-row {
@@ -37,6 +38,7 @@
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  align-items: center;
 }
 
 @media (min-width: 1024px) {

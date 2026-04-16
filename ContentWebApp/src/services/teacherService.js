@@ -87,4 +87,39 @@ export const teacherService = {
       body: JSON.stringify({ teacherId, targetSchoolId }),
     });
   },
+
+  async addStudentsToTeacher(phoneNumber, students, headers = {}) {
+    return apiFetch(`${SEEDS_URL}/v1/teacher/add-students`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ phoneNumber, students }),
+    });
+  },
+
+  async removeStudentsFromTeacher(phoneNumber, students, headers = {}) {
+    return apiFetch(`${SEEDS_URL}/v1/teacher/students`, {
+      method: "DELETE",
+      headers,
+      body: JSON.stringify({ phoneNumber, students }),
+    });
+  },
+
+  async updateTeacherStudent(
+    phoneNumber,
+    currentPhoneNumber,
+    name,
+    studentPhoneNumber,
+    headers = {}
+  ) {
+    return apiFetch(`${SEEDS_URL}/v1/teacher/students`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({
+        phoneNumber,
+        currentPhoneNumber,
+        name,
+        studentPhoneNumber,
+      }),
+    });
+  },
 };
