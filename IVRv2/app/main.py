@@ -836,7 +836,7 @@ async def dtmf(input: Request):
         logging.info(
             f"INFO: NO ONGOING IVR STATE FOUND FOR CONV ID: {conv_id} after {max_retries} retries"
         )
-        # Talk Action of server error bye bye
+        # Return terminal NCCO to disconnect the call when IVR state is missing
         ncco = accumulator.combine(
             [
                 action_factory.get_action_implmentation(x)
@@ -845,6 +845,7 @@ async def dtmf(input: Request):
                 ]
             ]
         )
+        ncco.append({"action": "hangup"})
         return JSONResponse(ncco)
 
     ivr_state = IVRCallStateMongoDoc(**doc)
