@@ -72,17 +72,12 @@ wss.on("connection", (ws, req) => {
   const isControlConnection = id === "confv2server" || id === "ivrv2server";
 
   if (!isControlConnection && audioUrl) {
-    // Defer auto-play until first audio frame from Vonage arrives.
-    // This ensures TTS announcements finish before content audio starts,
-    // since Vonage only bridges audio after preceding NCCO actions complete.
-    ws.once("message", () => {
-      console.log(`Bridge active for ID: ${id}, starting audio playback`);
-      websocketService
-        .playAudioContent(id, audioUrl)
-        .catch((error) =>
-          console.error(`Auto-play failed for ID: ${id}, URL: ${audioUrl}`, error)
-        );
-    });
+    console.log(`Auto-play requested for ID: ${id} with audio_url`);
+    websocketService
+      .playAudioContent(id, audioUrl)
+      .catch((error) =>
+        console.error(`Auto-play failed for ID: ${id}, URL: ${audioUrl}`, error)
+      );
   }
 
   if (isControlConnection) {
