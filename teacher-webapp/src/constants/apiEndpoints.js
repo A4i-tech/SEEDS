@@ -9,6 +9,7 @@ export const API_ENDPOINTS = {
   GET_AUDIO_CONTENT: `${BASE_URL}/content`,
   GET_CONTENT: `${BASE_URL}/content`,
   GET_CONTENT_SAS_URL: `${BASE_URL}/content/sasUrl`,
+  HEALTH_PING: `${BASE_URL}/health/ping`,
   CLASSROOM: {
     GET_ALL: `${BASE_URL}/class`,
     GET_BY_ID: (classId) => `${BASE_URL}/class/${classId}`,

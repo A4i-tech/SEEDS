@@ -16,6 +16,28 @@
         android:background="?android:colorBackground"
         tools:context=".ui.call.CallFragment">
 
+        <!-- CONNECTIVITY BANNER -->
+        <LinearLayout
+            android:id="@+id/connectivityBannerContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:visibility="gone"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent">
+
+            <TextView
+                android:id="@+id/connectivityBannerText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:padding="8dp"
+                android:textColor="@android:color/white"
+                android:textSize="14sp" />
+
+        </LinearLayout>
+
         <!-- TEACHER CARD (Top) -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/teacher_call_status"
@@ -28,7 +50,7 @@
             app:cardCornerRadius="20dp"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent">
+            app:layout_constraintTop_toBottomOf="@+id/connectivityBannerContainer">
 
             <androidx.constraintlayout.widget.ConstraintLayout
                 android:id="@+id/teacher_container"
@@ -264,7 +286,7 @@
             android:text="@{viewModel.callState.size() == 0 ? `Initiating Call` : ``}"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/connectivityBannerContainer"
             tools:text="Initiating Call!" />
 
         <!-- BOTTOM BUTTONS (CHAINED) -->

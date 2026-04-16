@@ -15,7 +15,11 @@ import os
 import asyncio
 from app.actions.base_actions.talk_action import TalkAction
 from app.actions.base_actions.input_action import InputAction
+from app.actions.vonage_actions.vonage_connect_action import VonageConnectAction
+from app.utils.speed_control import increase_speed, decrease_speed
+from app.utils.pause_announcement import get_paused_announcement, get_resuming_announcement
 from app.services.service_bus_manager import service_bus_manager
+from app.services.websocket_service import get_websocket_service
 from app.workers.call_processor import (
     CallWebhookProcessor,
     DtmfInputProcessor,
@@ -858,6 +862,142 @@ async def dtmf(input: Request):
     logging.info(f"CURRENT STATE ID: {ivr_state.current_state_id}")
     logging.info(f"INPUT DIGITS: {digits}")
     next_actions, next_state_id = None, None
+
+    # Handle speed control keys (* and #) - intercept before FSM processing
+    current_state = fsm_in_progress.states.get(ivr_state.current_state_id)
+    is_streaming = current_state and any(isinstance(a, VonageConnectAction) for a in current_state.actions)
+
+    if digits in ["*", "#"] and is_streaming:
+        # Get current speed from call state (default 1.0)
+        current_speed = ivr_state.experience_data.get('playback_speed', 1.0) if ivr_state.experience_data else 1.0
+
+        # Calculate new speed
+        if digits == "#":
+            new_speed, _ = increase_speed(current_speed)
+        else:  # digits == "*"
+            new_speed, _ = decrease_speed(current_speed)
+
+        # Send speed change to WebSocket service via control connection
+        try:
+            # Get WebSocket service and send set-speed command
+            ws_service = await get_websocket_service()
+            await ws_service.set_playback_speed(conv_id, new_speed)
+
+            logging.info(f"Speed changed from {current_speed}x to {new_speed}x for websocket_id: {conv_id}")
+        except Exception as e:
+            logging.error(f"Failed to send speed change to WebSocket service: {e}", exc_info=True)
+            new_speed = current_speed  # Revert to current speed on failure
+
+        # Update call state
+        if not ivr_state.experience_data:
+            ivr_state.experience_data = {}
+        ivr_state.experience_data['playback_speed'] = new_speed
+        await ongoing_fsm_mongo.update_document(ivr_state.id, ivr_state.dict(by_alias=True))
+
+        # Return InputAction NCCO to continue listening for more DTMF without interrupting playback
+        # Speed change happens in real-time via WebSocket service
+        logging.info(f"Speed control: returning InputAction NCCO to continue playback at {new_speed}x")
+        return JSONResponse([{
+            "type": ["dtmf"],
+            "action": "input",
+            "eventUrl": [settings.base_url + "/input"],
+            "dtmf": {
+                "maxDigits": 1,
+                "submitOnHash": False,
+                "timeOut": 10
+            }
+        }])
+
+    # Handle pause/resume toggle (key 0) - intercept before FSM processing
+    if digits == "0" and is_streaming:
+        # Get current pause state from call state (default False = playing)
+        is_paused = ivr_state.experience_data.get('is_paused', False) if ivr_state.experience_data else False
+
+        # Toggle pause state
+        new_pause_state = not is_paused
+
+        # Get language for announcements (from current state or default to kannada)
+        language = settings.default_welcome_language  # Default language
+        current_state = fsm_in_progress.get_state(ivr_state.current_state_id)
+        if hasattr(current_state, 'menu') and hasattr(current_state.menu, 'language'):
+            language = current_state.menu.language
+
+        # Send pause or resume command to WebSocket service
+        try:
+            ws_service = await get_websocket_service()
+
+            if new_pause_state:
+                # Pausing - send pause command
+                await ws_service.pause_audio(conv_id)
+                announcement_text = get_paused_announcement(language)
+                logging.info(f"Audio paused for websocket_id: {conv_id}")
+            else:
+                # Resuming - send resume command
+                await ws_service.resume_audio(conv_id)
+                announcement_text = get_resuming_announcement(language)
+                logging.info(f"Audio resumed for websocket_id: {conv_id}")
+
+            # Build announcement NCCO with InputAction to continue listening
+            from app.utils.ivr_utils import get_vonage_language_code
+            vonage_language = get_vonage_language_code(language)
+
+            # Update call state
+            if not ivr_state.experience_data:
+                ivr_state.experience_data = {}
+            ivr_state.experience_data['is_paused'] = new_pause_state
+            await ongoing_fsm_mongo.update_document(ivr_state.id, ivr_state.dict(by_alias=True))
+
+            # Return announcement + InputAction to continue listening
+            return JSONResponse([
+                {
+                    "action": "talk",
+                    "text": announcement_text,
+                    "language": vonage_language,
+                    "level": 1.0,
+                    "bargeIn": True
+                },
+                {
+                    "type": ["dtmf"],
+                    "action": "input",
+                    "eventUrl": [settings.base_url + "/input"],
+                    "dtmf": {
+                        "maxDigits": 1,
+                        "submitOnHash": False,
+                        "timeOut": 10
+                    }
+                }
+            ])
+
+        except Exception as e:
+            logging.error(f"Failed to toggle pause/resume for WebSocket service: {e}", exc_info=True)
+            # Return InputAction NCCO on error
+            return JSONResponse([{
+                "type": ["dtmf"],
+                "action": "input",
+                "eventUrl": [settings.base_url + "/input"],
+                "dtmf": {
+                    "maxDigits": 1,
+                    "submitOnHash": False,
+                    "timeOut": 10
+                }
+            }])
+
+    # Handle timeout during WebSocket playback - keep listening without interrupting
+    if digits == "" and dtmf_input.dtmf.timed_out:
+        # Check if current state has WebSocket connection (VonageConnectAction)
+        current_state = fsm_in_progress.states.get(ivr_state.current_state_id)
+        if current_state and any(isinstance(action, VonageConnectAction) for action in current_state.actions):
+            logging.info(f"Input timeout during WebSocket playback - returning InputAction to continue listening")
+            return JSONResponse([{
+                "type": ["dtmf"],
+                "action": "input",
+                "eventUrl": [settings.base_url + "/input"],
+                "dtmf": {
+                    "maxDigits": 1,
+                    "submitOnHash": False,
+                    "timeOut": 10
+                }
+            }])
 
     if digits == "":
         pre_state_id = ivr_state.current_state_id

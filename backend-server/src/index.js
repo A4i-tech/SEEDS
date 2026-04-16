@@ -20,11 +20,13 @@ const tenantRouter = require("./routes/tenantRouter.js");
 const schoolRouter = require("./routes/schoolRouter.js");
 const studentRouter = require("./routes/studentRouter.js");
 const mongo = require("./config/mongo");
+const healthRouter = require("./routes/healthRouter");
 const app = express();
 
 const TEACHER_ROLE = "teacher";
 // Initialize Swagger
 setupSwagger(app);
+
 
 // Define the rate limiter options
 const limiter = rateLimit({
@@ -42,6 +44,7 @@ app.use(bodyParser.json());
 // Existing code remains unchanged
 app.use(morgan("dev"));
 app.use(cors());
+app.use("/health", healthRouter);
 app.use("/call", authenticateToken, callRouter);
 app.use("/content", authenticateToken, contentRouter);
 app.use("/class", authenticateToken, authorizeRole(TEACHER_ROLE), classRoomRouter);

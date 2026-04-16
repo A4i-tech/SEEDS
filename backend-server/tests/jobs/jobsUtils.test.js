@@ -5,7 +5,11 @@ const ffmpeg = require('fluent-ffmpeg');
 
 // Mock the dependencies
 jest.mock('fs');
-jest.mock('fluent-ffmpeg');
+jest.mock('fluent-ffmpeg', () => {
+    const mockFn = jest.fn();
+    mockFn.ffprobe = jest.fn();
+    return mockFn;
+});
 jest.mock('ffmpeg-static', () => '/mocked/path/to/ffmpeg');
 
 const {
@@ -14,6 +18,8 @@ const {
     cleanupTempFiles,
     generateTempPaths,
     addForInOptionAudio,
+    withTimeout,
+    extractAudioDuration,
 } = require('../../src/jobs/jobsUtils');
 
 describe('jobsUtils', () => {
@@ -258,6 +264,70 @@ describe('jobsUtils', () => {
         test('should handle undefined language gracefully', () => {
             // This test reveals that the function doesn't handle undefined properly
             expect(() => addForInOptionAudio(undefined, 'option1')).toThrow();
+        });
+    });
+
+    describe('withTimeout', () => {
+        test('resolves with value when inner promise resolves before timeout', async () => {
+            const result = await withTimeout(Promise.resolve(42), 1000, 'test');
+            expect(result).toBe(42);
+        });
+
+        test('rejects with inner error when inner promise rejects before timeout', async () => {
+            await expect(
+                withTimeout(Promise.reject(new Error('inner error')), 1000, 'test')
+            ).rejects.toThrow('inner error');
+        });
+
+        test('rejects with "<label> timed out" when timeout fires first', async () => {
+            jest.useFakeTimers();
+            const never = new Promise(() => {});
+            const p = withTimeout(never, 100, 'ffprobe');
+            jest.runAllTimers();
+            await expect(p).rejects.toThrow('ffprobe timed out');
+            jest.useRealTimers();
+        });
+    });
+
+    describe('extractAudioDuration', () => {
+        test('returns parsed duration when ffprobe succeeds', async () => {
+            ffmpeg.ffprobe.mockImplementation((_, cb) =>
+                cb(null, { format: { duration: '123.456' } })
+            );
+            await expect(extractAudioDuration('/tmp/audio.wav')).resolves.toBe(123.456);
+        });
+
+        test('returns null when duration is non-finite (NaN)', async () => {
+            ffmpeg.ffprobe.mockImplementation((_, cb) =>
+                cb(null, { format: { duration: 'not-a-number' } })
+            );
+            await expect(extractAudioDuration('/tmp/audio.wav')).resolves.toBeNull();
+        });
+
+        test('returns null when format metadata is absent', async () => {
+            ffmpeg.ffprobe.mockImplementation((_, cb) => cb(null, {}));
+            await expect(extractAudioDuration('/tmp/audio.wav')).resolves.toBeNull();
+        });
+
+        test('rejects when ffprobe returns an error', async () => {
+            ffmpeg.ffprobe.mockImplementation((_, cb) =>
+                cb(new Error('probe failed'), null)
+            );
+            await expect(extractAudioDuration('/tmp/audio.wav')).rejects.toThrow('probe failed');
+        });
+
+        test('rejects on timeout and late ffprobe callback is silently ignored', async () => {
+            jest.useFakeTimers();
+            let lateCb;
+            ffmpeg.ffprobe.mockImplementation((_, cb) => { lateCb = cb; });
+
+            const p = extractAudioDuration('/tmp/audio.wav');
+            jest.runAllTimers();
+            await expect(p).rejects.toThrow('ffprobe timed out');
+
+            // Zombie callback fires after timeout — must not throw
+            expect(() => lateCb(null, { format: { duration: '60' } })).not.toThrow();
+            jest.useRealTimers();
         });
     });
 
