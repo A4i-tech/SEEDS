@@ -1,6 +1,6 @@
 package com.example.seeds.ui.call
 
-import NetworkConnectivityLiveData
+import android.graphics.Color
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -14,10 +14,13 @@ import androidx.navigation.fragment.navArgs
 import androidx.navigation.navGraphViewModels
 import com.example.seeds.R
 import com.example.seeds.adapters.StudentCallStatusAdapter
+import com.example.seeds.connectivity.ConnectivityRepository
+import com.example.seeds.connectivity.ConnectivityStatus
 import com.example.seeds.databinding.FragmentCallBinding
 import com.example.seeds.ui.BaseFragment
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class CallFragment : BaseFragment() {
@@ -30,7 +33,8 @@ class CallFragment : BaseFragment() {
     private lateinit var binding: FragmentCallBinding
     private val viewModel: CallViewModel by navGraphViewModels(R.id.call_nav) { defaultViewModelProviderFactory }
     private val args: CallFragmentArgs by navArgs()
-    private lateinit var networkConnectivityLiveData: NetworkConnectivityLiveData
+
+    @Inject lateinit var connectivityRepository: ConnectivityRepository
 
     private var studentAdapter: StudentCallStatusAdapter? = null
 
@@ -47,7 +51,6 @@ class CallFragment : BaseFragment() {
 
         binding.viewModel = viewModel
         binding.lifecycleOwner = viewLifecycleOwner
-        networkConnectivityLiveData = NetworkConnectivityLiveData(requireActivity().applicationContext)
 
         setupObservers()
         setupClickListeners()
@@ -72,12 +75,9 @@ class CallFragment : BaseFragment() {
     }
 
     private fun setupObservers() {
-        networkConnectivityLiveData.observe(viewLifecycleOwner) { isConnected ->
-            if (isConnected) {
-                Log.d("CallFragment", "Network is connected")
-            } else {
-                findNavController().navigate(CallFragmentDirections.actionCallFragmentToCallNoInternetFragment())
-                Log.d("CallFragment", "Network is not connected")
+        viewLifecycleOwner.lifecycleScope.launch {
+            connectivityRepository.status.collect { status ->
+                updateConnectivityBanner(status)
             }
         }
         viewModel.validatedStudents.observe(viewLifecycleOwner) { fixedStudents ->
@@ -271,6 +271,26 @@ class CallFragment : BaseFragment() {
         }
     }
 
+    private fun updateConnectivityBanner(status: ConnectivityStatus) {
+        val container = binding.connectivityBannerContainer
+        val text = binding.connectivityBannerText
+        when (status) {
+            ConnectivityStatus.OFFLINE -> {
+                container.setBackgroundColor(Color.parseColor("#B00020"))
+                text.text = getString(R.string.connectivity_offline)
+                container.visibility = View.VISIBLE
+            }
+            ConnectivityStatus.DEGRADED -> {
+                container.setBackgroundColor(Color.parseColor("#E65100"))
+                text.text = getString(R.string.connectivity_degraded)
+                container.visibility = View.VISIBLE
+            }
+            ConnectivityStatus.ONLINE -> {
+                container.visibility = View.GONE
+            }
+        }
+    }
+
     private fun removeUser(phoneNumber: String) {
         AlertDialog.Builder(requireContext())
             .setMessage("Are you sure?")
@@ -286,10 +306,12 @@ class CallFragment : BaseFragment() {
     override fun onStart() {
         super.onStart()
         logMessage("onStart")
+        connectivityRepository.startSessionMonitoring()
     }
 
     override fun onStop() {
         super.onStop()
         logMessage("onStop")
+        connectivityRepository.stopSessionMonitoring()
     }
 }

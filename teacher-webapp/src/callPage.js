@@ -33,6 +33,8 @@ import { PageContainer } from "./components/layout/PageContainer";
 import { showToast } from "./utils/toast";
 import { normalizePhoneNumber } from "./utils/phoneUtils";
 import { addSessionToHistory } from "./services/sessionHistoryService";
+import { useConnectivity } from "./hooks/useConnectivity";
+import { ConnectionBanner } from "./components/ConnectionBanner";
 
 export function DetailsPage({ classroomName = null, classroomId = null }) {
   const navigate = useNavigate();
@@ -46,6 +48,9 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
     allClassroomStudents,
     getAllParticipants,
   } = useConference();
+
+  const { status: connectivityStatus, prevStatus: prevConnectivityStatus } =
+    useConnectivity({ isSessionActive: isConfCallRunning });
 
   const [loadingIds, setLoadingIds] = useState([]);
   const [reconnectingIds, setReconnectingIds] = useState([]);
@@ -382,6 +387,10 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
 
   return (
     <PageContainer maxWidth="md">
+      <ConnectionBanner
+        status={connectivityStatus}
+        prevStatus={prevConnectivityStatus}
+      />
       <Box
         sx={{
           bgcolor: "#f5f5f5",
