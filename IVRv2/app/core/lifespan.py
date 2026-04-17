@@ -109,6 +109,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await close_mongodb_manager()
         raise RuntimeError(f"Failed to initialize Service Bus: {e}") from e
 
+    # Initialize WebSocket Service for control connection
+    logger.info("[LIFESPAN] Initializing WebSocket Service...")
+    try:
+        from app.services.websocket_service import get_websocket_service
+        state.websocket_service = await get_websocket_service()
+        logger.info("[LIFESPAN] ✓ WebSocket Service initialized (control connection established)")
+    except Exception as e:
+        logger.error(
+            f"[LIFESPAN] ✗ WebSocket Service initialization failed: {type(e).__name__}: {e}"
+        )
+        logger.error(
+            "[LIFESPAN] Application startup aborted due to WebSocket Service initialization failure"
+        )
+        # Clean up MongoDB and Service Bus before re-raising
+        await service_bus_manager.close()
+        await close_mongodb_manager()
+        raise RuntimeError(f"Failed to initialize WebSocket Service: {e}") from e
+
     # Create processors with state reference
     logger.info("[LIFESPAN] Creating processors...")
     state.call_webhook_processor = CallWebhookProcessor(state.fsm)
@@ -159,6 +177,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await state.dtmf_input_processor.shutdown(timeout=30)
     if state.call_event_processor:
         await state.call_event_processor.shutdown(timeout=30)
+
+    # Close WebSocket Service
+    if state.websocket_service:
+        logger.info("[LIFESPAN] Closing WebSocket Service...")
+        await state.websocket_service.close()
+        logger.info("[LIFESPAN] ✓ WebSocket Service closed")
 
     # Close Service Bus
     await service_bus_manager.close()

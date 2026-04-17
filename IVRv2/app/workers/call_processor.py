@@ -25,6 +25,10 @@ from app.core.state import get_app_state
 from app.settings import settings
 from app.core.telemetry import get_tracer
 from app.application_logger.azure_app_insights import AppInsightsLogHandler
+from app.utils.daily_limit import is_limit_exceeded, get_ist_date_string
+from app.utils.duration_announcement import get_daily_limit_announcement
+from app.actions.base_actions.talk_action import TalkAction
+from app.utils.ivr_utils import get_vonage_language_code
 
 action_factory = VonageActionFactory()
 accumulator = action_factory.get_action_accumulator_implmentation()
@@ -127,6 +131,50 @@ class CallWebhookProcessor(BaseProcessor):
                         "status_code": 400,
                         "message": f"IVR already in progress{phone_number}",
                     }
+            # Check daily listening limit before starting call
+            today = get_ist_date_string()
+            limit = settings.ivr_daily_listening_limit_seconds
+            if limit > 0 and app_state.daily_listening_usage_mongo:
+                exceeded = await is_limit_exceeded(
+                    app_state.daily_listening_usage_mongo,
+                    phone_number, today, limit
+                )
+                if exceeded:
+                    logging.info(
+                        f"[START_IVR] Daily limit reached for {phone_number} (limit: {limit}s)"
+                    )
+                    # Create Vonage client to make the call with limit message
+                    raw_key = base64.b64decode(
+                        settings.vonage_application_private_key64
+                    ).decode("utf-8")
+                    client = vonage.Client(
+                        application_id=settings.vonage_application_id,
+                        private_key=raw_key,
+                    )
+                    # Build NCCO with limit announcement and hangup
+                    language = settings.default_welcome_language
+                    announcement = get_daily_limit_announcement(language)
+                    vonage_lang = get_vonage_language_code(language)
+                    limit_ncco = accumulator.combine([
+                        action_factory.get_action_implmentation(
+                            TalkAction(text=announcement, level=1.0, bargeIn=False, loop=1, language=vonage_lang)
+                        )
+                    ])
+                    limit_ncco.append({"action": "hangup"})
+
+                    vonage_response = client.voice.create_call({
+                        "to": [{"type": "phone", "number": phone_number}],
+                        "from": {"type": "phone", "number": settings.vonage_number},
+                        "ncco": limit_ncco,
+                    })
+                    logging.info(
+                        f"[START_IVR] Limit-reached call created for {phone_number}: {vonage_response}"
+                    )
+                    return {
+                        "status_code": 200,
+                        "message": f"Daily limit reached for {phone_number}, notification sent",
+                    }
+
             # create Vonage client and initiate call
             logging.info(f"[START_IVR] Creating Vonage client...")
             raw_key = base64.b64decode(
@@ -493,6 +541,14 @@ class CallEventProcessor(BaseProcessor):
                             await ivrv2_logs_mongo.update_document(
                                 ivr_state_final.id, ivr_state_final.dict(by_alias=True)
                             )
+
+                            try:
+                                from app.services.websocket_service import get_websocket_service
+                                ws_service = await get_websocket_service()
+                                await ws_service.disconnect(conversation_uuid)
+                                logging.info(f"✓ WebSocket disconnected: {conversation_uuid}")
+                            except Exception as ws_error:
+                                logging.warning(f"Failed to disconnect WebSocket for {conversation_uuid}: {ws_error}")
 
                         await ongoing_fsm_mongo.delete(conversation_uuid)
                         logging.info(f"✓ Call ended and logged: {conversation_uuid}")
