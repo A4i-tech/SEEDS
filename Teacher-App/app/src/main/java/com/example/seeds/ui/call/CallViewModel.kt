@@ -36,6 +36,7 @@ import com.example.seeds.repository.UserPreferencesRepository
 import com.example.seeds.repository.TeacherStudentsDirectory
 import com.example.seeds.utils.CallUtils
 import com.example.seeds.utils.Constants
+import com.example.seeds.utils.Event
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -50,6 +51,7 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 
 const val SOCKET_CLOSE = 1000
@@ -203,9 +205,10 @@ class CallViewModel @Inject constructor(
     val conferenceHoldDetected: LiveData<Boolean>
         get() = _conferenceHoldDetected
 
-    private val _holdDetectedNotification = MutableLiveData<Boolean?>(null)
-    val holdDetectedNotification: LiveData<Boolean?>
-        get() = _holdDetectedNotification
+    private val holdState = AtomicBoolean(false)
+    private val _holdDetectedEvent = MutableLiveData<Event<Unit>>()
+    val holdDetectedEvent: LiveData<Event<Unit>>
+        get() = _holdDetectedEvent
 
     private val participantTrackers = mutableMapOf<String, ParticipantTracker>()
 
@@ -349,10 +352,6 @@ class CallViewModel @Inject constructor(
         _participantDropped.value = null
     }
 
-    fun clearHoldDetectedNotification() {
-        _holdDetectedNotification.value = null
-    }
-
     private fun getAccessToken() {
         viewModelScope.launch {
             try {
@@ -472,12 +471,20 @@ class CallViewModel @Inject constructor(
             }
 
             // --- Hold detection (parsed early, before participants guard) ---
-            val holdDetected = json.get("hold_detected")?.asBoolean ?: false
-            val previousHold = _conferenceHoldDetected.value ?: false
-            Log.d(TAG, "SSE: hold_detected=$holdDetected, previousHold=$previousHold")
+            val holdDetected = json.get("hold_detected")
+                ?.takeUnless { it.isJsonNull }
+                ?.asBoolean
+                ?: false
+            val firstHold = if (holdDetected) {
+                holdState.compareAndSet(false, true)
+            } else {
+                holdState.set(false)
+                false
+            }
+            Log.d(TAG, "handleSSEUpdate: hold_detected=$holdDetected, firstHold=$firstHold")
             _conferenceHoldDetected.postValue(holdDetected)
-            if (holdDetected && !previousHold) {
-                _holdDetectedNotification.postValue(true)
+            if (firstHold) {
+                _holdDetectedEvent.postValue(Event(Unit))
             }
 
             // --- Participants ---

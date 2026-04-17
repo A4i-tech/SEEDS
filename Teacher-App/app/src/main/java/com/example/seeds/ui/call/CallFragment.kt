@@ -153,15 +153,14 @@ class CallFragment : BaseFragment() {
             }
         }
 
-        viewModel.holdDetectedNotification.observe(viewLifecycleOwner) { detected ->
-            if (detected == true) {
+        viewModel.holdDetectedEvent.observe(viewLifecycleOwner) { event ->
+            event.getContentIfNotHandled()?.let {
                 Snackbar.make(
                     binding.root,
                     "Hold detected on conference audio",
                     Snackbar.LENGTH_LONG
                 ).show()
                 logMessage("Hold detected on conference audio")
-                viewModel.clearHoldDetectedNotification()
             }
         }
     }
