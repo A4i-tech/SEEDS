@@ -66,10 +66,21 @@ export const useAuth = () => {
     return cachedUserPromise;
   }, []);
 
+  const getCurrentUserName = useCallback(async () => {
+    if (cachedTenantName) return cachedTenantName;
+    try {
+      const profile = await getCurrentUser();
+      return profile?.name || "";
+    } catch (err) {
+      return "";
+    }
+  }, [getCurrentUser]);
+
   return {
     getAuthHeaders: getHeaders,
     logout,
     getCurrentUser,
+    getCurrentUserName,
     isAuthenticated: isAuthenticated(),
   };
 };

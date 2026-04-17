@@ -24,8 +24,8 @@ export const isAuthenticated = () => {
 /**
  * Persist auth data after login
  * @param {string} token - JWT token
- * @param {string} role - "tenant" | "school_admin"
- * @param {string|null} schoolId - Required for school_admin
+ * @param {string} role - "tenant" | "school_admin" | "content_creator" | "teacher"
+ * @param {string|null} schoolId - Required for school_admin, content_creator, and teacher
  */
 export const setAuth = (token, role, schoolId = null) => {
   localStorage.setItem("authToken", token);
@@ -35,12 +35,12 @@ export const setAuth = (token, role, schoolId = null) => {
 
 /**
  * Get stored user role
- * @returns {"tenant"|"school_admin"|null}
+ * @returns {"tenant"|"school_admin"|"content_creator"|"teacher"|null}
  */
 export const getRole = () => localStorage.getItem("userRole");
 
 /**
- * Get stored school ID (school_admin only)
+ * Get stored school ID (school_admin, content_creator, teacher)
  * @returns {string|null}
  */
 export const getSchoolId = () => localStorage.getItem("schoolId");

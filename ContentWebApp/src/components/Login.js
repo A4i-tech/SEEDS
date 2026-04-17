@@ -99,58 +99,87 @@ const footerStyle = {
   color: "#94a3b8",
 };
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_PATTERN = /^[0-9]{10}$/;
+
+const isUnauthorized = (error) =>
+  error?.response?.status === 401 || error?.response?.status === 404;
+
 const Login = () => {
   const navigate = useNavigate();
   const [showError, setShowError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [role, setRole] = useState("tenant");
   const [formData, setFormData] = useState({
-    email: "",
+    identifier: "",
     password: "",
   });
 
   const handleChange = (field) => (event) => {
-    setFormData((prev) => ({ ...prev, [field]: event.target.value }));
+    const { value } = event.target;
+    const next = field === "identifier" && /^[0-9]+$/.test(value) ? value.slice(0, 10) : value;
+    setFormData((prev) => ({ ...prev, [field]: next }));
+  };
+
+  const loginAsTenant = async (email, password) => {
+    const { data } = await axios.post(`${baseURL}/tenant/login`, { email, password });
+    setAuth(data.token, "tenant");
+    navigate("/content", { state: { name: data.tenantName } });
+  };
+
+  const loginAsSchoolAdmin = async (email, password) => {
+    const { data } = await axios.post(`${baseURL}/school/admin/login`, { email, password });
+    setAuth(data.token, "school_admin", data.schoolId);
+    navigate("/content", { state: { name: data.schoolName } });
+  };
+
+  const loginAsTeacher = async (phoneNumber, password) => {
+    const { data } = await axios.post(`${baseURL}/teacher/login`, { phoneNumber, password });
+    setAuth(data.token, data.role, data.schoolId);
+    navigate("/content", { state: { name: data.name } });
   };
 
   const handleLogin = async (event) => {
     event.preventDefault();
     setShowError("");
 
-    if (!formData.email || !formData.password) {
+    const identifier = formData.identifier.trim();
+    const { password } = formData;
+
+    if (!identifier || !password) {
       setShowError("Please fill in all fields.");
+      return;
+    }
+
+    const looksLikeEmail = EMAIL_PATTERN.test(identifier);
+    const looksLikePhone = PHONE_PATTERN.test(identifier);
+
+    if (!looksLikeEmail && !looksLikePhone) {
+      setShowError("Enter a valid email or a 10-digit phone number.");
       return;
     }
 
     try {
       setIsSubmitting(true);
 
-      const endpoint =
-        role === "school_admin"
-          ? `${baseURL}/school/admin/login`
-          : `${baseURL}/tenant/login`;
-
-      const response = await axios.post(endpoint, {
-        email: formData.email,
-        password: formData.password,
-      });
-
-      if (response.status === 200) {
-        if (role === "school_admin") {
-          const { token, schoolId, schoolName } = response.data;
-          setAuth(token, "school_admin", schoolId);
-          navigate("/content", { state: { name: schoolName } });
-        } else {
-          const { token, tenantName } = response.data;
-          setAuth(token, "tenant");
-          navigate("/content", { state: { name: tenantName } });
+      if (looksLikeEmail) {
+        try {
+          await loginAsTenant(identifier, password);
+          return;
+        } catch (error) {
+          if (!isUnauthorized(error)) throw error;
         }
-      } else {
-        setShowError("Invalid credentials. Please try again.");
+        await loginAsSchoolAdmin(identifier, password);
+        return;
       }
+
+      await loginAsTeacher(identifier, password);
     } catch (error) {
       console.error("Login error:", error);
-      setShowError("Login failed. Please verify your details.");
+      if (isUnauthorized(error)) {
+        setShowError("Invalid credentials. Please try again.");
+      } else {
+        setShowError("Login failed. Please verify your details.");
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -173,29 +202,21 @@ const Login = () => {
           </button>
         </div>
 
-        <div style={tabsStyle}>
-          <button type="button" style={tabButtonStyle(role === "tenant")} onClick={() => setRole("tenant")}>
-            Tenant
-          </button>
-          <button type="button" style={tabButtonStyle(role === "school_admin")} onClick={() => setRole("school_admin")}>
-            School Admin
-          </button>
-        </div>
-
         <form
           onSubmit={handleLogin}
           style={{ display: "flex", flexDirection: "column", gap: "18px" }}
         >
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <label htmlFor="login-email" style={labelStyle}>
-              Email
+            <label htmlFor="login-identifier" style={labelStyle}>
+              Email or phone number
             </label>
             <input
-              id="login-email"
-              type="email"
-              placeholder="Enter your email"
-              value={formData.email}
-              onChange={handleChange("email")}
+              id="login-identifier"
+              type="text"
+              autoComplete="username"
+              placeholder="you@example.com or 10-digit mobile"
+              value={formData.identifier}
+              onChange={handleChange("identifier")}
               style={inputStyle}
             />
           </div>
