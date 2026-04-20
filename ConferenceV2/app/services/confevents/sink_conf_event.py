@@ -23,6 +23,7 @@ class SinkConferenceEvent(ConferenceEvent):
         )
         
         self.conf_call.stop_remote_audio_relay()
+        await self.conf_call.finalize_capture_session()
         self.conf_call.end_processing_conf_events_from_queue()
         await self.conf_call.connection_manager.disconnect(self.conf_call.state.get_teacher())
         if self.on_sink_callback:
