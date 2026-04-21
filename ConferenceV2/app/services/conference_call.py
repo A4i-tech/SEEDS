@@ -46,7 +46,8 @@ class ConferenceCall:
         # Remote audio relay (websocket-service → hold detection pipeline)
         self._remote_audio_queue: asyncio.Queue | None = None
         self._remote_audio_task: asyncio.Task | None = None
-        self._capture_session = None
+        self._capture_session: AudioCaptureService | None = None
+        self._capture_finalize_task: asyncio.Task[Optional[str]] | None = None
     
     async def stream_system_message(self, message: SystemAudioMessages) -> None:
         if self.state.is_running and self.communication_api.get_is_websocket_connected():
@@ -166,13 +167,6 @@ class ConferenceCall:
             )
             return
 
-        if settings.AUDIO_CAPTURE_ENABLED and self._capture_session is None:
-            try:
-                self._capture_session = AudioCaptureService(self.conf_id, settings=settings)
-                logger_instance.info(f"Audio capture enabled (relay path) for {self.conf_id}")
-            except Exception as e:
-                logger_instance.error(f"Failed to initialize audio capture for {self.conf_id}: {e}")
-
         try:
             while True:
                 audio_bytes = await self._remote_audio_queue.get()
@@ -181,18 +175,36 @@ class ConferenceCall:
                         self._capture_session.write_chunk(audio_bytes)
                     except Exception as e:
                         logger_instance.exception("Error capturing relay audio chunk: %s", e)
-                await process_audio_message(
-                    audio_bytes,
-                    self,
-                    transcriber,
-                    hold_detector,
-                    self.conf_id,
-                    self._capture_session,
-                )
+                if transcriber and hold_detector:
+                    await process_audio_message(
+                        audio_bytes,
+                        self,
+                        transcriber,
+                        hold_detector,
+                        self.conf_id,
+                        self._capture_session,
+                    )
         except asyncio.CancelledError:
             logger_instance.info(f"Remote audio relay stopped for {self.conf_id}")
         except Exception as e:
             logger_instance.exception(f"Remote audio relay error for {self.conf_id}: {e}")
+
+    def schedule_capture_finalize(self) -> asyncio.Task[Optional[str]] | None:
+        if self._capture_finalize_task is not None and not self._capture_finalize_task.done():
+            return self._capture_finalize_task
+        if self._capture_session is None:
+            return None
+        self._capture_finalize_task = asyncio.create_task(self.finalize_capture_session())
+        self._capture_finalize_task.add_done_callback(self._log_capture_finalize_result)
+        return self._capture_finalize_task
+
+    def _log_capture_finalize_result(self, task: asyncio.Task[Optional[str]]) -> None:
+        try:
+            task.result()
+        except Exception:
+            logger_instance.exception(
+                f"Background capture finalization failed for {self.conf_id}"
+            )
 
     async def finalize_capture_session(self) -> Optional[str]:
         """Close capture file and upload to blob storage. Safe to call multiple times."""
