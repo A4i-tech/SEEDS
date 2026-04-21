@@ -36,6 +36,7 @@ import com.example.seeds.repository.UserPreferencesRepository
 import com.example.seeds.repository.TeacherStudentsDirectory
 import com.example.seeds.utils.CallUtils
 import com.example.seeds.utils.Constants
+import com.example.seeds.utils.Event
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -50,6 +51,7 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 
 const val SOCKET_CLOSE = 1000
@@ -199,7 +201,15 @@ class CallViewModel @Inject constructor(
     val participantDropped: LiveData<String?>
         get() = _participantDropped
 
-    
+    private val _conferenceHoldDetected = MutableLiveData(false)
+    val conferenceHoldDetected: LiveData<Boolean>
+        get() = _conferenceHoldDetected
+
+    private val holdState = AtomicBoolean(false)
+    private val _holdDetectedEvent = MutableLiveData<Event<Unit>>()
+    val holdDetectedEvent: LiveData<Event<Unit>>
+        get() = _holdDetectedEvent
+
     private val participantTrackers = mutableMapOf<String, ParticipantTracker>()
 
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
@@ -239,6 +249,7 @@ class CallViewModel @Inject constructor(
             )
 
             getAccessToken()
+
 
             viewModelScope.launch {
                 val allContentList = mutableListOf<Content>()
@@ -459,6 +470,23 @@ class CallViewModel @Inject constructor(
                 return
             }
 
+            // --- Hold detection (parsed early, before participants guard) ---
+            val holdDetected = json.get("hold_detected")
+                ?.takeUnless { it.isJsonNull }
+                ?.asBoolean
+                ?: false
+            val firstHold = if (holdDetected) {
+                holdState.compareAndSet(false, true)
+            } else {
+                holdState.set(false)
+                false
+            }
+            Log.d(TAG, "handleSSEUpdate: hold_detected=$holdDetected, firstHold=$firstHold")
+            _conferenceHoldDetected.postValue(holdDetected)
+            if (firstHold) {
+                _holdDetectedEvent.postValue(Event(Unit))
+            }
+
             // --- Participants ---
             val participantsObj = json.getAsJsonObject("participants")
             if (participantsObj == null || participantsObj.entrySet().isEmpty()) {
@@ -506,14 +534,13 @@ class CallViewModel @Inject constructor(
                 _playerState.postValue(newPlayerState)
             }
             // publish position/duration if present
-            try {
-                val pos = audioStateObj?.get("position_seconds")?.asDouble
-                val dur = audioStateObj?.get("duration_seconds")?.asDouble
-                _audioPositionSeconds.postValue(pos?.toFloat())
-                _audioDurationSeconds.postValue(dur?.toFloat())
-            } catch (e: Exception) {
-                Log.d(TAG, "SSE: failed to parse position/duration", e)
-            }
+            val posEl = audioStateObj?.get("position_seconds")
+            val durEl = audioStateObj?.get("duration_seconds")
+            val pos = if (posEl != null && !posEl.isJsonNull) posEl.asDouble.toFloat() else null
+            val dur = if (durEl != null && !durEl.isJsonNull) durEl.asDouble.toFloat() else null
+            _audioPositionSeconds.postValue(pos)
+            _audioDurationSeconds.postValue(dur)
+
 
         } catch (e: Exception) {
             Log.e(TAG, "SSE: Failed to parse update", e)
