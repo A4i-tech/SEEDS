@@ -66,7 +66,7 @@ export const teacherService = {
       body.password = password;
     }
 
-    return apiFetch(`${SEEDS_URL}/teacher/${teacherId}`, {
+    return await apiFetch(`${SEEDS_URL}/teacher/${teacherId}`, {
       method: "PATCH",
       headers,
       body: JSON.stringify(body),
@@ -74,14 +74,14 @@ export const teacherService = {
   },
 
   async deleteTeacher(teacherId, headers = {}) {
-    return apiFetch(`${SEEDS_URL}/teacher/${teacherId}`, {
+    return await apiFetch(`${SEEDS_URL}/teacher/${teacherId}`, {
       method: "DELETE",
       headers,
     });
   },
 
   async transferTeacher(teacherId, targetSchoolId, headers = {}) {
-    return apiFetch(`${SEEDS_URL}/school/transfer`, {
+    return await apiFetch(`${SEEDS_URL}/school/transfer`, {
       method: "POST",
       headers,
       body: JSON.stringify({ teacherId, targetSchoolId }),

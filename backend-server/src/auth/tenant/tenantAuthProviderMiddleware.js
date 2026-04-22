@@ -49,13 +49,13 @@ module.exports = {
         email: tenant.email,
         name: tenant.tenantName,
         tenantId: tenant._id || tenant.id,
-        role: ROLES.TENANT,
+        role: tenant.role,
       });
       return res.status(STATUS.OK).json({
         token,
         id: tenant._id || tenant.id,
         tenantName: tenant.tenantName,
-        role: ROLES.TENANT,
+        role: tenant.role,
       });
     } catch (error) {
       console.error("Login error:", error);
@@ -91,12 +91,13 @@ module.exports = {
       }
       const hashedPassword = await bcrypt.hash(
         password,
-        Number(passwordSaltRounds),
+        parseInt(passwordSaltRounds),
       );
       await dbAdapter.insertTenant({
         email,
         password: hashedPassword,
         tenantName,
+        role: ROLES.TENANT,
       });
       return res
         .status(STATUS.CREATED)
@@ -129,7 +130,7 @@ module.exports = {
         .json({ message: "New password is required" });
     }
 
-    const tenantId = req.authUser.tenantId;
+    const tenantId = req.tenantId;
 
     if (!validator.isStrongPassword(newPassword, PASSWORD_POLICY)) {
       return res.status(STATUS.BAD_REQUEST).json({
@@ -169,7 +170,7 @@ module.exports = {
 
       const hashedPassword = await bcrypt.hash(
         newPassword,
-        Number(passwordSaltRounds),
+        parseInt(passwordSaltRounds),
       );
       await dbAdapter.updateTenantPassword(tenantId, hashedPassword);
       return res

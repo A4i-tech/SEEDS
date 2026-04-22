@@ -70,17 +70,13 @@ function getRequestSchoolId(req) {
   return req.schoolId ? req.schoolId.toString() : null;
 }
 
-function normalizeSchoolObjectId(schoolId) {
-  return schoolId && ObjectId.isValid(schoolId) ? new ObjectId(schoolId) : schoolId;
-}
-
 // Tenant reads all tenant content. School-scoped users read their school plus tenant-level content.
 function getReadSchoolScope(req) {
   const schoolId = getRequestSchoolId(req);
   if (schoolId && SCHOOL_SCOPED_CONTENT_ROLES.has(req.role)) {
     return {
       $or: [
-        { schoolId: { $in: [normalizeSchoolObjectId(schoolId), null] } },
+        { schoolId: { $in: [schoolId, null] } },
         { schoolId: { $exists: false } },
       ],
     };
@@ -97,7 +93,7 @@ function applyReadSchoolScope(query, req) {
 function getWriteSchoolIdFilter(req) {
   const schoolId = getRequestSchoolId(req);
   if (schoolId && CONTENT_WRITE_ROLES.has(req.role)) {
-    return normalizeSchoolObjectId(schoolId);
+    return schoolId;
   }
   return null;
 }

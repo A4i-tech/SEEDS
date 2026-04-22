@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AppHeader from "./AllContent/Header/AppHeader";
 import { useAuth } from "../hooks/useAuth";
@@ -11,7 +11,7 @@ import "./Profile.css";
 
 const Profile = () => {
   const navigate = useNavigate();
-  const { getAuthHeaders, logout, getCurrentUserName, getCurrentUser } = useAuth();
+  const { getAuthHeaders, logout, getCurrentUser } = useAuth();
 
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -23,42 +23,28 @@ const Profile = () => {
   });
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
-  const [currentUser, setCurrentUser] = useState("");
+  const [currentUser, setCurrentUser] = useState("User");
 
   const handleTabChange = (tab) => {
     navigate("/content", { state: { activeTab: tab } });
   };
 
-  const fetchProfile = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await getCurrentUser();
-      setProfile(data);
-    } catch (error) {
-      console.error("Error fetching profile:", error);
-      setProfile(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [getCurrentUser]);
-
   useEffect(() => {
-    const loadUser = async () => {
+    const loadProfile = async () => {
+      setLoading(true);
       try {
-        const name = await getCurrentUserName();
-        setCurrentUser(name);
+        const data = await getCurrentUser();
+        setProfile(data);
+        setCurrentUser(data.name);
       } catch (error) {
-        console.error("Error fetching user:", error);
-        setCurrentUser("");
+        console.error("Error fetching profile:", error);
+        setProfile(null);
+      } finally {
+        setLoading(false);
       }
     };
-
-    loadUser();
-  }, [getCurrentUserName]);
-
-  useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
+    loadProfile();
+  }, [getCurrentUser]);
 
   const handlePasswordChange = async (e) => {
     e.preventDefault();
@@ -127,30 +113,28 @@ const Profile = () => {
           onTabChange={handleTabChange}
           currentUser={currentUser}
           onLogout={logout}
-          showRegistration={profile?.role !== USER_ROLES.CONTENT_CREATOR}
-          showAnalytics={profile?.role !== USER_ROLES.CONTENT_CREATOR}
+          showRegistration={profile && profile.role !== USER_ROLES.CONTENT_CREATOR}
+          showAnalytics={profile && profile.role !== USER_ROLES.CONTENT_CREATOR}
         />
 
-        {loading ? (
+        {loading || !profile ? (
           <div className="card loading-card">Loading profile...</div>
         ) : (
           <div className="profile-grid">
             {(() => {
-              const role = profile?.role;
+              const { role } = profile;
               const isPersonRole =
                 role === USER_ROLES.TEACHER || role === USER_ROLES.CONTENT_CREATOR;
               const primaryLabel = isPersonRole ? "Name" : "Organization Name";
               const primaryValue = isPersonRole
-                ? profile?.name || ""
-                : profile?.tenantName || profile?.name || "";
+                ? profile.name
+                : profile.tenantName || profile.name;
               const secondaryLabel = isPersonRole ? "Phone Number" : "Email";
-              const secondaryValue = isPersonRole
-                ? profile?.phoneNumber || ""
-                : profile?.email || "";
+              const secondaryValue = isPersonRole ? profile.phoneNumber : profile.email;
               const secondaryType = isPersonRole ? "tel" : "email";
               const description = isPersonRole
                 ? "Your account details (read-only)"
-                : role === "school_admin"
+                : role === USER_ROLES.SCHOOL_ADMIN
                   ? "Your school details (read-only)"
                   : "Your tenant details (read-only)";
               return (
@@ -185,6 +169,8 @@ const Profile = () => {
               );
             })()}
 
+            {profile.role !== USER_ROLES.TEACHER &&
+              profile.role !== USER_ROLES.CONTENT_CREATOR && (
             <div className="card">
               <div className="card-header">
                 <div>
@@ -262,6 +248,7 @@ const Profile = () => {
                 </div>
               </form>
             </div>
+              )}
           </div>
         )}
       </div>

@@ -9,7 +9,7 @@ import { isMp3File } from "../utils/fileValidators";
 import { contentService } from "../services/contentService";
 
 const AddStory = ({ content, contentType, onContentTypeChange }) => {
-  const { getCurrentUserName } = useAuth();
+  const { getCurrentUser } = useAuth();
   const [metadata, setMetadata] = useState({
     id: "",
     type: "Story",
@@ -287,71 +287,88 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
     delete newMetadata["audioFile"];
     delete newMetadata["answerAudioFile"];
 
-    const tenantName = await getCurrentUserName();
-    newMetadata.createdBy = tenantName || newMetadata.createdBy || "";
+    // Get SAS tokens and populate audioContent with input-container URLs before sending to backend
+    const audioContentArray = [];
+    let sasUrl = null;
+    let sasUrlAnswer = null;
+    let filename = null;
+    let answerFilename = null;
 
-    if (content) {
-      newMetadata = { ...newMetadata, _id: content._id };
-      const seedsRes = await fetch(
-        `${SEEDS_URL}/content?isAudioUploaded=${isAudioUploaded}`,
-        {
-          method: "PATCH",
-          headers: getAuthHeaders(),
-          body: JSON.stringify(newMetadata),
-        }
-      );
-      await seedsRes.json();
-    } else {
-      const seedsRes = await fetch(`${SEEDS_URL}/content/`, {
-        method: "POST",
-        headers: getAuthHeaders(),
-        body: JSON.stringify(newMetadata),
-      });
-      await seedsRes.json();
-    }
-
-    if (metadata.audioFile && file) {
-      const extname = (file.name || metadata.audioFile).split(".").pop();
-      let filename = `${_id}.${extname}`;
+    if (metadata.audioFile) {
+      const extname = metadata.audioFile.split(".").pop();
+      filename = `${_id}.${extname}`;
       if (contentType === "Riddle") {
         filename = `${_id}_question.${extname}`;
       }
       const res = await fetch(
         `${SEEDS_URL}/content/sasToken?` +
-          new URLSearchParams({ blobName: filename }),
+          new URLSearchParams({
+            blobName: filename,
+          }),
         {
           method: "GET",
           headers: getAuthHeaders(),
         }
       );
-      const sasUrl = (await res.json()).sasToken;
-      if (!sasUrl) {
-        throw new Error("Failed to get SAS token for audio upload");
-      }
+      sasUrl = (await res.json()).sasToken;
+      // Extract base URL (input-container URL) without SAS token
+      const inputContainerUrl = sasUrl.split("?")[0];
+      audioContentArray.push({
+        description: "",
+        audioUrl: inputContainerUrl,
+      });
+    }
+
+    if (metadata.answerAudioFile) {
+      const answerExtname = metadata.answerAudioFile.split(".").pop();
+      answerFilename = `${_id}_answer.${answerExtname}`;
+      const resAnswer = await fetch(
+        `${SEEDS_URL}/content/sasToken?` +
+          new URLSearchParams({
+            blobName: answerFilename,
+          }),
+        {
+          method: "GET",
+          headers: getAuthHeaders(),
+        }
+      );
+      sasUrlAnswer = (await resAnswer.json()).sasToken;
+      // Extract base URL (input-container URL) without SAS token
+      const inputContainerUrlAnswer = sasUrlAnswer.split("?")[0];
+      audioContentArray.push({
+        description: "",
+        audioUrl: inputContainerUrlAnswer,
+      });
+    }
+
+    // Populate audioContent array in metadata
+    if (audioContentArray.length > 0) {
+      newMetadata.audioContent = audioContentArray;
+    }
+
+    const tenantName = await getCurrentUser();
+    newMetadata.createdBy = tenantName || newMetadata.createdBy;
+
+    // Upload files to Azure Blob Storage FIRST, before sending metadata to backend
+    // This ensures files are available when the background job starts processing
+    if (metadata.audioFile && sasUrl) {
       const client = new BlockBlobClient(sasUrl);
-      const metadataProperties = { experience: contentType };
-      metadataProperties["isfinalaudio"] = metadata.answerAudioFile ? "false" : "true";
+      const metadataProperties = {
+        experience: contentType,
+      };
+      if (!metadata.answerAudioFile) {
+        metadataProperties["isfinalaudio"] = "true";
+      } else {
+        metadataProperties["isfinalaudio"] = "false";
+      }
       if (contentType === "Riddle") {
         metadataProperties["Question"] = "true";
       }
-      await client.uploadBrowserData(file, { metadata: metadataProperties });
+      await client.uploadBrowserData(file, {
+        metadata: metadataProperties,
+      });
     }
-
-    if (metadata.answerAudioFile && answerFile) {
-      const answerExtname = (answerFile.name || metadata.answerAudioFile).split(".").pop();
-      const answerFilename = `${_id}_answer.${answerExtname}`;
-      const resAnswer = await fetch(
-        `${SEEDS_URL}/content/sasToken?` +
-          new URLSearchParams({ blobName: answerFilename }),
-        {
-          method: "GET",
-          headers: getAuthHeaders(),
-        }
-      );
-      const sasUrlAnswer = (await resAnswer.json()).sasToken;
-      if (!sasUrlAnswer) {
-        throw new Error("Failed to get SAS token for answer audio upload");
-      }
+    if (metadata.answerAudioFile && sasUrlAnswer) {
       const clientAnswer = new BlockBlobClient(sasUrlAnswer);
       await clientAnswer.uploadBrowserData(answerFile, {
         metadata: {
@@ -362,6 +379,23 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
       });
     }
 
+    // Send metadata to backend with populated audioContent AFTER files are uploaded
+    if (content) {
+      newMetadata = { ...newMetadata, _id: content._id };
+      const seedsRes = await fetch(`${SEEDS_URL}/content?isAudioUploaded=${isAudioUploaded}`, {
+        method: "PATCH",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(newMetadata),
+      });
+      await seedsRes.json();
+    } else {
+      const seedsRes = await fetch(`${SEEDS_URL}/content/`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(newMetadata),
+      });
+      await seedsRes.json();
+    }
     navigate("/content");
   };
 

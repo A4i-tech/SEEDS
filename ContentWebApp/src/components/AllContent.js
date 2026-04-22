@@ -76,22 +76,18 @@ const AllContent = () => {
   } = useSchools(activeTab);
 
   const ivrURL = process.env.REACT_APP_API_IVRV2_URL;
-  const isContentCreator = currentUserRole === USER_ROLES.CONTENT_CREATOR;
   const canViewRegistration =
-    currentUserRole === USER_ROLES.TENANT || currentUserRole === "school_admin";
+    currentUserRole === USER_ROLES.TENANT || currentUserRole === USER_ROLES.SCHOOL_ADMIN;
   const canViewAnalytics = canViewRegistration;
 
   useEffect(() => {
     const fetchUser = async () => {
       try {
         const profile = await getCurrentUser();
-        const userName = profile?.name || profile?.tenantName || "User";
-        setCurrentUser(userName);
-        setCurrentUserRole(profile?.role || null);
+        setCurrentUser(profile.name);
+        setCurrentUserRole(profile.role);
       } catch (error) {
         console.error("Error fetching user:", error);
-        setCurrentUser("User");
-        setCurrentUserRole(null);
       }
     };
     fetchUser();
@@ -108,8 +104,8 @@ const AllContent = () => {
     setUpdateIVRStatus("");
 
     try {
-      const { message: nextMessage } = await ivrService.updateIVR(ivrURL, getAuthHeaders());
-      setUpdateIVRStatus(nextMessage);
+      const { message } = await ivrService.updateIVR(ivrURL, getAuthHeaders());
+      setUpdateIVRStatus(message);
     } catch (error) {
       console.error("Update IVR error:", error);
       setUpdateIVRStatus(error.message || "Unable to update IVR right now.");

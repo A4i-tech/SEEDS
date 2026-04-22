@@ -146,6 +146,13 @@ router.post(
  *     responses:
  *       200:
  *         description: Current teacher information
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 phoneNumber:
+ *                   type: string
  *       401:
  *         description: Unauthorized - invalid or missing token
  *       404:
@@ -158,6 +165,22 @@ router.get(
   teacherController.getMe
 );
 
+/**
+ * @swagger
+ * /teacher/teachers:
+ *   get:
+ *     summary: Get all teachers in the admin's school (School Admin only)
+ *     tags: [Teachers]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of teachers in the school
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: School not found
+ */
 router.get(
   "/teachers",
   authenticateToken,
@@ -165,6 +188,45 @@ router.get(
   teacherController.getTeachersBySchool
 );
 
+/**
+ * @swagger
+ * /teacher/{teacherId}:
+ *   patch:
+ *     summary: Update a teacher's name, phone number, or password (School Admin only)
+ *     tags: [Teachers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: teacherId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               phoneNumber:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Teacher updated successfully
+ *       400:
+ *         description: Invalid request body
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Teacher not found
+ *       409:
+ *         description: Phone number already in use in this school
+ */
 router.patch(
   "/:teacherId",
   authenticateToken,
@@ -172,6 +234,28 @@ router.patch(
   teacherController.update
 );
 
+/**
+ * @swagger
+ * /teacher/{teacherId}:
+ *   delete:
+ *     summary: Delete a teacher from the admin's school (School Admin only)
+ *     tags: [Teachers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: teacherId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Teacher deleted successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Teacher not found
+ */
 router.delete(
   "/:teacherId",
   authenticateToken,

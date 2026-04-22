@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import validator from "validator";
 import { setAuth } from "../utils/authHelpers";
 
 const baseURL = process.env.REACT_APP_API_BASE_URL;
@@ -99,7 +100,6 @@ const footerStyle = {
   color: "#94a3b8",
 };
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_PATTERN = /^[0-9]{10}$/;
 
 const isUnauthorized = (error) =>
@@ -150,7 +150,7 @@ const Login = () => {
       return;
     }
 
-    const looksLikeEmail = EMAIL_PATTERN.test(identifier);
+    const looksLikeEmail = validator.isEmail(identifier);
     const looksLikePhone = PHONE_PATTERN.test(identifier);
 
     if (!looksLikeEmail && !looksLikePhone) {

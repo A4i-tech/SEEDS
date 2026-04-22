@@ -5,4 +5,5 @@ export const USER_ROLES = {
   TEACHER: "teacher",
   CONTENT_CREATOR: "content_creator",
   TENANT: "tenant",
+  SCHOOL_ADMIN: "school_admin",
 };

@@ -50,8 +50,8 @@ export const useAuth = () => {
       .then((req) => {
         const profile = {
           ...req,
-          role: req.role || role || "tenant",
-          name: req.name || req.tenantName || req.schoolName || "User",
+          role: req.role || role,
+          name: req.name || req.tenantName || req.schoolName,
         };
         cachedUserProfile = profile;
         cachedTenantName = profile.name;

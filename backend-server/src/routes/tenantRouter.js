@@ -215,6 +215,17 @@ router.post(
  *     responses:
  *       200:
  *         description: Tenant details retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 id:
+ *                   type: string
+ *                 email:
+ *                   type: string
+ *                 tenantName:
+ *                   type: string
  *       401:
  *         description: Unauthorized
  *       404:
@@ -224,6 +235,42 @@ router.post(
  */
 router.get("/me", authenticateToken, authorizeRole(TENANT_ROLE), tenantController.getMe);
 
+/**
+ * @swagger
+ * /tenant/dashboard:
+ *   get:
+ *     summary: Get tenant dashboard statistics
+ *     tags: [Tenant]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Dashboard statistics with per-school breakdown
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 statistics:
+ *                   type: object
+ *                   properties:
+ *                     totalSchools:
+ *                       type: integer
+ *                     totalTeachers:
+ *                       type: integer
+ *                     totalStudents:
+ *                       type: integer
+ *                     totalClasses:
+ *                       type: integer
+ *                 schools:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
+ */
 router.get("/dashboard", authenticateToken, authorizeRole(TENANT_ROLE), tenantService.getDashboard);
 
 module.exports = router;
