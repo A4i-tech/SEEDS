@@ -11,7 +11,7 @@ import "./Profile.css";
 
 const Profile = () => {
   const navigate = useNavigate();
-  const { getAuthHeaders, logout, getCurrentUserName } = useAuth();
+  const { getAuthHeaders, logout, getCurrentUserName, getCurrentUser } = useAuth();
 
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -32,25 +32,15 @@ const Profile = () => {
   const fetchProfile = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${SEEDS_URL}/tenant/me`, {
-        method: "GET",
-        headers: getAuthHeaders(),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setProfile(data);
-      } else {
-        console.error("Failed to fetch profile");
-        setProfile(null);
-      }
+      const data = await getCurrentUser();
+      setProfile(data);
     } catch (error) {
       console.error("Error fetching profile:", error);
       setProfile(null);
     } finally {
       setLoading(false);
     }
-  }, [getAuthHeaders]);
+  }, [getCurrentUser]);
 
   useEffect(() => {
     const loadUser = async () => {
@@ -145,34 +135,55 @@ const Profile = () => {
           <div className="card loading-card">Loading profile...</div>
         ) : (
           <div className="profile-grid">
-            <div className="card">
-              <div className="card-header">
-                <div>
-                  <h2 className="card-title">Account Information</h2>
-                  <p className="card-description">Your tenant details (read-only)</p>
+            {(() => {
+              const role = profile?.role;
+              const isPersonRole =
+                role === USER_ROLES.TEACHER || role === USER_ROLES.CONTENT_CREATOR;
+              const primaryLabel = isPersonRole ? "Name" : "Organization Name";
+              const primaryValue = isPersonRole
+                ? profile?.name || ""
+                : profile?.tenantName || profile?.name || "";
+              const secondaryLabel = isPersonRole ? "Phone Number" : "Email";
+              const secondaryValue = isPersonRole
+                ? profile?.phoneNumber || ""
+                : profile?.email || "";
+              const secondaryType = isPersonRole ? "tel" : "email";
+              const description = isPersonRole
+                ? "Your account details (read-only)"
+                : role === "school_admin"
+                  ? "Your school details (read-only)"
+                  : "Your tenant details (read-only)";
+              return (
+                <div className="card">
+                  <div className="card-header">
+                    <div>
+                      <h2 className="card-title">Account Information</h2>
+                      <p className="card-description">{description}</p>
+                    </div>
+                  </div>
+                  <div className="profile-fields">
+                    <div className="profile-field">
+                      <label className="profile-label">{primaryLabel}</label>
+                      <input
+                        className="profile-input profile-input-disabled"
+                        type="text"
+                        value={primaryValue}
+                        disabled
+                      />
+                    </div>
+                    <div className="profile-field">
+                      <label className="profile-label">{secondaryLabel}</label>
+                      <input
+                        className="profile-input profile-input-disabled"
+                        type={secondaryType}
+                        value={secondaryValue}
+                        disabled
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div className="profile-fields">
-                <div className="profile-field">
-                  <label className="profile-label">Organization Name</label>
-                  <input
-                    className="profile-input profile-input-disabled"
-                    type="text"
-                    value={profile?.tenantName || ""}
-                    disabled
-                  />
-                </div>
-                <div className="profile-field">
-                  <label className="profile-label">Email</label>
-                  <input
-                    className="profile-input profile-input-disabled"
-                    type="email"
-                    value={profile?.email || ""}
-                    disabled
-                  />
-                </div>
-              </div>
-            </div>
+              );
+            })()}
 
             <div className="card">
               <div className="card-header">

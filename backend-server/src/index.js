@@ -22,6 +22,7 @@ const studentRouter = require("./routes/studentRouter.js");
 const mongo = require("./config/mongo");
 const app = express();
 const TEACHER_ROLE = "teacher";
+const CONTENT_CREATOR_ROLE = "content_creator";
 
 // Initialize Swagger
 setupSwagger(app);
@@ -43,7 +44,7 @@ app.use(morgan("dev"));
 app.use(cors());
 app.use("/call", authenticateToken, callRouter);
 app.use("/content", authenticateToken, contentRouter);
-app.use("/class", authenticateToken, authorizeRole(TEACHER_ROLE), classRoomRouter);
+app.use("/class", authenticateToken, authorizeRole(TEACHER_ROLE,CONTENT_CREATOR_ROLE), classRoomRouter);
 app.use("/log", authenticateToken, logRouter);
 app.use("/user", authenticateToken, userRouter);
 app.use("/teacher", teacherRouter);

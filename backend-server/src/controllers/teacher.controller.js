@@ -7,7 +7,12 @@ const teacherService = require("../services/teacher.service");
 exports.getMe = async (req, res) => {
   try {
     const teacher = await teacherService.getTeacherById(req.userId);
-    return res.status(STATUS.OK).json({ phoneNumber: teacher.phoneNumber });
+    return res.status(STATUS.OK).json({
+      name: teacher.name,
+      phoneNumber: teacher.phoneNumber,
+      role: teacher.role,
+      schoolId: teacher.schoolId,
+    });
   } catch (error) {
     if (error.status === STATUS.NOT_FOUND) {
       return res.status(STATUS.NOT_FOUND).json({ message: "Teacher not found" });
