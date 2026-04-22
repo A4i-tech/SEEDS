@@ -36,7 +36,7 @@ const quizSchema = new Schema(
   {
     _id: { type: String, required: true },
     tenantId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true, ref: "Tenant" },
-    schoolId: { type: mongoose.Schema.Types.ObjectId, default: null, index: true, ref: "School" },
+    schoolId: { type: mongoose.Schema.Types.Mixed, default: null, index: true },
     createdBy: { type: String, default: "" },
     creation_time: { type: Number, default: -1 },
     isPullModel: { type: Boolean, default: false },

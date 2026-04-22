@@ -11,6 +11,7 @@ const AppHeader = ({
   onTabChange,
   currentUser,
   onLogout,
+  showContent = true,
   showRegistration = true,
   showAnalytics = true,
 }) => {
@@ -35,12 +36,14 @@ const AppHeader = ({
           <span>SEEDS</span>
         </div>
         <div className="action-group">
-          <button
-            className={`nav-link ${activeTab === "content" ? "active" : ""}`}
-            onClick={() => onTabChange("content")}
-          >
-            Content
-          </button>
+          {showContent && (
+            <button
+              className={`nav-link ${activeTab === "content" ? "active" : ""}`}
+              onClick={() => onTabChange("content")}
+            >
+              Content
+            </button>
+          )}
           {showRegistration && (
             <button
               className={`nav-link ${activeTab === "registration" ? "active" : ""}`}

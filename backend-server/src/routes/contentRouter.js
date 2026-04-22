@@ -70,16 +70,36 @@ function getRequestSchoolId(req) {
   return req.schoolId ? req.schoolId.toString() : null;
 }
 
-// Tenant reads all tenant content. School-scoped users read their school plus tenant-level content.
-function getReadSchoolScope(req) {
+function getScopedSchoolIdValues(req) {
   const schoolId = getRequestSchoolId(req);
-  if (schoolId && SCHOOL_SCOPED_CONTENT_ROLES.has(req.role)) {
+  if (!schoolId) {
+    return [];
+  }
+
+  const values = [schoolId];
+  if (ObjectId.isValid(schoolId)) {
+    values.push(new ObjectId(schoolId));
+  }
+  return values;
+}
+
+// School-scoped users read their own school's content plus shared tenant-level content.
+// Tenant has no content view.
+function getReadSchoolScope(req) {
+  if (SCHOOL_SCOPED_CONTENT_ROLES.has(req.role)) {
+    const schoolIds = getScopedSchoolIdValues(req);
+    if (schoolIds.length === 0) {
+      return { _id: { $exists: false } };
+    }
     return {
       $or: [
-        { schoolId: { $in: [schoolId, null] } },
+        { schoolId: { $in: [...schoolIds, null] } },
         { schoolId: { $exists: false } },
       ],
     };
+  }
+  if (req.role === TENANT_ROLE) {
+    return { _id: { $exists: false } };
   }
   return null;
 }
@@ -96,6 +116,17 @@ function getWriteSchoolIdFilter(req) {
     return schoolId;
   }
   return null;
+}
+
+function getWriteSchoolScopeQuery(req) {
+  if (SCHOOL_SCOPED_CONTENT_ROLES.has(req.role)) {
+    const schoolIds = getScopedSchoolIdValues(req);
+    if (schoolIds.length === 0) {
+      return { schoolId: { $exists: false } };
+    }
+    return { schoolId: { $in: schoolIds } };
+  }
+  return { schoolId: null };
 }
 
 function findTenantContentById(contentId, tenantId, req) {
@@ -789,11 +820,11 @@ router.delete(
   tryCatchWrapper(async (req, res) => {
     const contentId = req.params.contentId;
     const tenantId = req.tenantId;
-    const schoolId = getWriteSchoolIdFilter(req);
+    const schoolScopeQuery = getWriteSchoolScopeQuery(req);
 
     // Try to delete from ContentV3 first (uses _id as String)
     let result = await ContentV3.findOneAndUpdate(
-      { _id: contentId, tenantId, schoolId },
+      { _id: contentId, tenantId, ...schoolScopeQuery },
       { $set: { isDeleted: true } },
       { new: true }
     );
@@ -801,7 +832,7 @@ router.delete(
     // If not found in ContentV3, try QuizData (also uses _id as String)
     if (!result) {
       result = await QuizData.findOneAndUpdate(
-        { _id: contentId, tenantId, schoolId },
+        { _id: contentId, tenantId, ...schoolScopeQuery },
         { $set: { isDeleted: true } },
         { new: true }
       );
@@ -895,8 +926,12 @@ router.patch(
     });
 
     // Check if it is a quiz (stored in QuizData)
-    const schoolId = getWriteSchoolIdFilter(req);
-    const existingQuiz = await QuizData.findOne({ _id: contentId, tenantId: req.tenantId, schoolId }).lean().exec();
+    const schoolScopeQuery = getWriteSchoolScopeQuery(req);
+    const existingQuiz = await QuizData.findOne({
+      _id: contentId,
+      tenantId: req.tenantId,
+      ...schoolScopeQuery,
+    }).lean().exec();
     if (existingQuiz) {
       const quizUpdate = {};
 
@@ -983,7 +1018,7 @@ router.patch(
       }
 
       const updated = await QuizData.findOneAndUpdate(
-        { _id: contentId, tenantId: req.tenantId, schoolId },
+        { _id: contentId, tenantId: req.tenantId, ...schoolScopeQuery },
         { $set: quizUpdate },
         { new: true },
       ).exec();
@@ -1002,7 +1037,7 @@ router.patch(
     const existingContent = await ContentV3.findOne({
       _id: contentId,
       tenantId: req.tenantId,
-      schoolId,
+      ...schoolScopeQuery,
       isDeleted: { $ne: true },
     })
       .lean()
@@ -1012,7 +1047,7 @@ router.patch(
     }
 
     const updated = await ContentV3.findOneAndUpdate(
-      { _id: contentId, tenantId: req.tenantId, schoolId },
+      { _id: contentId, tenantId: req.tenantId, ...schoolScopeQuery },
       { $set: updatePayload },
       { new: true },
     ).exec();

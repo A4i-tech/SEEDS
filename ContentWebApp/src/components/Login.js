@@ -105,6 +105,21 @@ const PHONE_PATTERN = /^[0-9]{10}$/;
 const isUnauthorized = (error) =>
   error?.response?.status === 401 || error?.response?.status === 404;
 
+const parseJwtPayload = (token) => {
+  if (!token) return {};
+
+  try {
+    const [, payload] = token.split(".");
+    if (!payload) return {};
+
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(normalized.length + ((4 - normalized.length % 4) % 4), "=");
+    return JSON.parse(atob(padded));
+  } catch (error) {
+    return {};
+  }
+};
+
 const Login = () => {
   const navigate = useNavigate();
   const [showError, setShowError] = useState("");
@@ -134,8 +149,12 @@ const Login = () => {
 
   const loginAsTeacher = async (phoneNumber, password) => {
     const { data } = await axios.post(`${baseURL}/teacher/login`, { phoneNumber, password });
-    setAuth(data.token, data.role, data.schoolId);
-    navigate("/content", { state: { name: data.name } });
+    const tokenPayload = parseJwtPayload(data.token);
+    const role = tokenPayload.role;
+    const name = tokenPayload.name;
+
+    setAuth(data.token, role, data.schoolId);
+    navigate("/content", { state: { name } });
   };
 
   const handleLogin = async (event) => {

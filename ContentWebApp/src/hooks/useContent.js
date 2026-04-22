@@ -3,7 +3,7 @@ import { contentService } from "../services/contentService";
 
 const PAGE_SIZE = 50;
 
-export const useContent = () => {
+export const useContent = (enabled = true) => {
   const [content, setContent] = useState([]);
   const [allContent, setAllContent] = useState([]);
   const [paginationInfo, setPaginationInfo] = useState({
@@ -30,6 +30,19 @@ export const useContent = () => {
    * Load initial content
    */
   useEffect(() => {
+    if (!enabled) {
+      setContent([]);
+      setAllContent([]);
+      setPaginationInfo({
+        nextCursor: null,
+        hasMore: false,
+        limit: 0,
+      });
+      setIsFiltered(false);
+      setIsLoading(false);
+      return undefined;
+    }
+
     const loadInitialContent = async () => {
       setIsLoading(true);
       try {
@@ -54,7 +67,7 @@ export const useContent = () => {
     loadInitialContent();
     return undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [enabled]);
 
   /**
    * Load more content (pagination)

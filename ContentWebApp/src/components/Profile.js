@@ -113,6 +113,7 @@ const Profile = () => {
           onTabChange={handleTabChange}
           currentUser={currentUser}
           onLogout={logout}
+          showContent={profile ? profile.role !== USER_ROLES.TENANT : true}
           showRegistration={profile && profile.role !== USER_ROLES.CONTENT_CREATOR}
           showAnalytics={profile && profile.role !== USER_ROLES.CONTENT_CREATOR}
         />
@@ -132,6 +133,8 @@ const Profile = () => {
               const secondaryLabel = isPersonRole ? "Phone Number" : "Email";
               const secondaryValue = isPersonRole ? profile.phoneNumber : profile.email;
               const secondaryType = isPersonRole ? "tel" : "email";
+              const tertiaryLabel = isPersonRole ? "School Name" : null;
+              const tertiaryValue = isPersonRole ? profile.schoolName || "" : "";
               const description = isPersonRole
                 ? "Your account details (read-only)"
                 : role === USER_ROLES.SCHOOL_ADMIN
@@ -164,6 +167,17 @@ const Profile = () => {
                         disabled
                       />
                     </div>
+                    {isPersonRole && (
+                      <div className="profile-field">
+                        <label className="profile-label">{tertiaryLabel}</label>
+                        <input
+                          className="profile-input profile-input-disabled"
+                          type="text"
+                          value={tertiaryValue}
+                          disabled
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               );

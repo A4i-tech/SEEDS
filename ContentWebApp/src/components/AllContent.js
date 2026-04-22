@@ -24,6 +24,7 @@ const AllContent = () => {
 
   const navigate = useNavigate();
   const { getAuthHeaders, logout, getCurrentUser } = useAuth();
+  const canViewContent = currentUserRole !== null && currentUserRole !== USER_ROLES.TENANT;
   const {
     content,
     allContent,
@@ -34,7 +35,7 @@ const AllContent = () => {
     deleteContent,
     setContent,
     setIsFiltered,
-  } = useContent();
+  } = useContent(canViewContent);
 
   const {
     options,
@@ -86,6 +87,9 @@ const AllContent = () => {
         const profile = await getCurrentUser();
         setCurrentUser(profile.name);
         setCurrentUserRole(profile.role);
+        if (profile.role === USER_ROLES.TENANT) {
+          setActiveTab("registration");
+        }
       } catch (error) {
         console.error("Error fetching user:", error);
       }
@@ -94,10 +98,14 @@ const AllContent = () => {
   }, [getCurrentUser]);
 
   useEffect(() => {
+    if (!canViewContent && activeTab === "content") {
+      setActiveTab(canViewRegistration ? "registration" : canViewAnalytics ? "analytics" : "content");
+      return;
+    }
     if ((!canViewRegistration && activeTab === "registration") || (!canViewAnalytics && activeTab === "analytics")) {
       setActiveTab("content");
     }
-  }, [activeTab, canViewAnalytics, canViewRegistration]);
+  }, [activeTab, canViewAnalytics, canViewContent, canViewRegistration]);
 
   const handleUpdateIVR = useCallback(async () => {
     setIsUpdatingIVR(true);
@@ -137,13 +145,14 @@ const AllContent = () => {
           onTabChange={setActiveTab}
           currentUser={currentUser}
           onLogout={logout}
+          showContent={canViewContent}
           showRegistration={canViewRegistration}
           showAnalytics={canViewAnalytics}
         />
 
         {updateIVRStatus && <div className="status-message">{updateIVRStatus}</div>}
 
-        {activeTab !== "registration" && activeTab !== "analytics" && (
+        {canViewContent && activeTab !== "registration" && activeTab !== "analytics" && (
           <div className="tabs-container">
             <button
               type="button"
@@ -162,7 +171,7 @@ const AllContent = () => {
           </div>
         )}
 
-        {activeTab === "content" && (
+        {canViewContent && activeTab === "content" && (
           <ContentTab
             content={content}
             allContent={allContent}
@@ -183,7 +192,7 @@ const AllContent = () => {
           />
         )}
 
-        {activeTab === "ivr" && <IVRTab />}
+        {canViewContent && activeTab === "ivr" && <IVRTab />}
 
         {canViewAnalytics && activeTab === "analytics" && <AnalyticsTab />}
 
