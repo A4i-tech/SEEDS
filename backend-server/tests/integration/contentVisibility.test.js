@@ -36,7 +36,7 @@ describe("Content visibility - integration", () => {
   afterAll(teardown);
   beforeEach(clearDatabase);
 
-  test("tenant can see migrated school-scoped content", async () => {
+  test("tenant cannot see school-scoped content", async () => {
     const tenantId = new mongoose.Types.ObjectId();
     const schoolId = new mongoose.Types.ObjectId();
     await createContent({ tenantId, schoolId });
@@ -53,11 +53,29 @@ describe("Content visibility - integration", () => {
       .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.data).toHaveLength(1);
-    expect(res.body.data[0].title.english).toBe("Story title");
+    expect(res.body.data).toHaveLength(0);
   });
 
-  test("school-scoped users only see their school and tenant-level content", async () => {
+  test("tenant cannot see tenant-level content either", async () => {
+    const tenantId = new mongoose.Types.ObjectId();
+    await createContent({ tenantId, schoolId: null });
+
+    const token = signToken({
+      email: "tenant@example.com",
+      role: "tenant",
+      id: tenantId.toString(),
+      iss: "tenant",
+    });
+
+    const res = await request(app)
+      .get("/content")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveLength(0);
+  });
+
+  test("school-scoped users only see their own school content", async () => {
     const tenantId = new mongoose.Types.ObjectId();
     const schoolId = new mongoose.Types.ObjectId();
     const otherSchoolId = new mongoose.Types.ObjectId();
@@ -87,13 +105,13 @@ describe("Content visibility - integration", () => {
       .set("Authorization", `Bearer ${otherSchoolToken}`);
 
     expect(matchingRes.status).toBe(200);
-    expect(matchingRes.body.data).toHaveLength(2);
+    expect(matchingRes.body.data).toHaveLength(1);
+    expect(matchingRes.body.data[0].schoolId).toBe(schoolId.toString());
     expect(otherRes.status).toBe(200);
-    expect(otherRes.body.data).toHaveLength(1);
-    expect(otherRes.body.data[0].schoolId).toBeNull();
+    expect(otherRes.body.data).toHaveLength(0);
   });
 
-  test("content creators see school content from each other but not other schools", async () => {
+  test("content creators see school content from each other but not other schools or tenant-level content", async () => {
     const tenantId = new mongoose.Types.ObjectId();
     const schoolId = new mongoose.Types.ObjectId();
     const otherSchoolId = new mongoose.Types.ObjectId();
@@ -104,6 +122,7 @@ describe("Content visibility - integration", () => {
 
     await createContent({ tenantId, schoolId, createdBy: creatorA, title: sameSchoolTitles[0] });
     await createContent({ tenantId, schoolId, createdBy: creatorB, title: sameSchoolTitles[1] });
+    await createContent({ tenantId, schoolId: null, title: "Tenant story" });
     await createContent({
       tenantId,
       schoolId: otherSchoolId,

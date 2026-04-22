@@ -31,7 +31,7 @@ const ContentSchema = new mongoose.Schema(
     title: { type: TextContentSchema, required: true },
     theme: { type: TextContentSchema, required: true },
     audioContent: { type: [AudioContentSchema], default: [] },
-    schoolId: { type: mongoose.Schema.Types.Mixed, default: null, index: true },
+    schoolId: { type: String, default: null, index: true },
     createdBy: { type: String, default: "" },
     isPullModel: { type: Boolean, default: false },
     isTeacherApp: { type: Boolean, default: false },

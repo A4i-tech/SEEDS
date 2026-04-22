@@ -25,7 +25,7 @@ const BlobService = require("../services/BlobService.js");
 const processNewContent = require("../jobs/processAudioContent.js");
 const processQuizContent = require("../jobs/processQuizContent.js");
 const { tryCatchWrapper } = require(path.join("..", "util.js"));
-const { authorizeRole } = require("../auth/authenticateToken");
+const { authenticateToken, authorizeRole } = require("../auth/authenticateToken");
 
 const TENANT_ROLE = "tenant";
 const SCHOOL_ADMIN_ROLE = "school_admin";
@@ -70,33 +70,31 @@ function getRequestSchoolId(req) {
   return req.schoolId ? req.schoolId.toString() : null;
 }
 
-function getScopedSchoolIdValues(req) {
+function getSchoolScopeClauses(req, { includeTenantLevel = false, includeMissing = false } = {}) {
   const schoolId = getRequestSchoolId(req);
   if (!schoolId) {
     return [];
   }
 
-  const values = [schoolId];
-  if (ObjectId.isValid(schoolId)) {
-    values.push(new ObjectId(schoolId));
+  const clauses = [{ schoolId }];
+  if (includeTenantLevel) {
+    clauses.push({ schoolId: null });
   }
-  return values;
+  if (includeMissing) {
+    clauses.push({ schoolId: { $exists: false } });
+  }
+  return clauses;
 }
 
 // School-scoped users read their own school's content plus shared tenant-level content.
 // Tenant reads all tenant content.
 function getReadSchoolScope(req) {
   if (SCHOOL_SCOPED_CONTENT_ROLES.has(req.role)) {
-    const schoolIds = getScopedSchoolIdValues(req);
-    if (schoolIds.length === 0) {
+    const clauses = getSchoolScopeClauses(req, { includeTenantLevel: true, includeMissing: true });
+    if (clauses.length === 0) {
       return { _id: { $exists: false } };
     }
-    return {
-      $or: [
-        { schoolId: { $in: [...schoolIds, null] } },
-        { schoolId: { $exists: false } },
-      ],
-    };
+    return { $or: clauses };
   }
   return null;
 }
@@ -117,11 +115,11 @@ function getWriteSchoolIdFilter(req) {
 
 function getWriteSchoolScopeQuery(req) {
   if (SCHOOL_SCOPED_CONTENT_ROLES.has(req.role)) {
-    const schoolIds = getScopedSchoolIdValues(req);
-    if (schoolIds.length === 0) {
+    const clauses = getSchoolScopeClauses(req);
+    if (clauses.length === 0) {
       return { schoolId: { $exists: false } };
     }
-    return { schoolId: { $in: schoolIds } };
+    return { $or: clauses };
   }
   return { schoolId: null };
 }
@@ -199,7 +197,7 @@ function sortByCreationTimeThenId(a, b) {
  *       404:
  *         description: Job not found
  */
-router.get("/job/:jobId", authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE), async (req, res) => {
+router.get("/job/:jobId", authenticateToken, authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE), async (req, res) => {
   const job = await agenda.jobs({ _id: new ObjectId(req.params.jobId) });
 
   if (!job.length) {
@@ -233,7 +231,7 @@ router.get("/job/:jobId", authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_
  *                   items:
  *                     $ref: '#/components/schemas/Job'
  */
-router.get("/jobs", authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE), async (req, res) => {
+router.get("/jobs", authenticateToken, authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE), async (req, res) => {
   try {
     // Fetch jobs that are either "In Progress" or "Failed"
     const jobs = await agenda.jobs({
@@ -312,6 +310,7 @@ router.get("/jobs", authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATO
  */
 router.post(
   "/quiz",
+  authenticateToken,
   authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     const quizCreateRequest = new QuizCreateRequest(req.body);
@@ -365,6 +364,7 @@ router.post(
  */
 router.get(
   "/sasUrl",
+  authenticateToken,
   authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     const url = req.query.url; // URL is now obtained from query string
@@ -411,6 +411,7 @@ router.get(
  */
 router.get(
   "/themes",
+  authenticateToken,
   authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     const tenantId = req.tenantId;
@@ -517,6 +518,7 @@ router.get(
 
 router.get(
   "/",
+  authenticateToken,
   authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     const tenantId = req.tenantId;
@@ -728,6 +730,7 @@ router.get(
 
 router.get(
   "/sasToken",
+  authenticateToken,
   authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     const containerName = "input-container";
@@ -746,6 +749,7 @@ router.get(
 
 router.get(
   "/:contentId",
+  authenticateToken,
   authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     const content = await findTenantContentById(req.params.contentId, req.tenantId, req);
@@ -813,6 +817,7 @@ router.get(
 
 router.delete(
   "/:contentId",
+  authenticateToken,
   authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     const contentId = req.params.contentId;
@@ -845,6 +850,7 @@ router.delete(
 
 router.post(
   "/",
+  authenticateToken,
   authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     let content = new ContentV3(req.body);
@@ -902,6 +908,7 @@ router.post(
  */
 router.patch(
   "/",
+  authenticateToken,
   authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     const isAudioUploaded = req.query.isAudioUploaded === "true";
@@ -1223,7 +1230,7 @@ async function deleteUnnecessaryStorage() {
     }
   }
 }
-router.post("/delete-unnecessary-storage", authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE), async (req, res) => {
+router.post("/delete-unnecessary-storage", authenticateToken, authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE), async (req, res) => {
   await deleteUnnecessaryStorage();
   return res.send("Deleted Successfully");
 });
