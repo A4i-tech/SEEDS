@@ -1,7 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import TeacherRegistrationForm from "./TeacherRegistrationForm";
 import TeachersList from "./TeachersList";
-import TeacherDetails from "./TeacherDetails";
+import StudentsSection from "./StudentsSection";
 import SchoolsPanel from "./SchoolsPanel";
 import { getRole } from "../../../utils/authHelpers";
 import "./css/RegistrationTab.css";
@@ -12,15 +12,14 @@ import "../shared/utilities.css";
 
 const RegistrationTab = ({
   teachers,
-  selectedTeacher,
-  selectedTeacherId,
-  onSelectTeacher,
+  students,
   onRegisterTeacher,
-  onAddStudentRow,
-  onRemoveStudentRow,
-  onSetNewStudentValue,
-  onSubmitNewStudents,
-  onRemoveStudentFromTeacher,
+  onAddStudent,
+  onUpdateStudent,
+  onDeleteStudent,
+  onUpdateTeacher,
+  onDeleteTeacher,
+  onTransferTeacher,
   message,
   messageType,
   schools,
@@ -30,6 +29,8 @@ const RegistrationTab = ({
   schoolMessage,
   schoolMessageType,
 }) => {
+  const [activeSection, setActiveSection] = useState("teachers");
+
   if (getRole() === "tenant") {
     return (
       <SchoolsPanel
@@ -52,32 +53,52 @@ const RegistrationTab = ({
         </div>
       </div>
 
-      <TeacherRegistrationForm
-        onRegister={onRegisterTeacher}
-        message={message}
-        messageType={messageType}
-      />
+      <div className="pill-tabs">
+        <button
+          type="button"
+          className={`pill-tab ${activeSection === "teachers" ? "pill-tab--active" : ""}`}
+          onClick={() => setActiveSection("teachers")}
+        >
+          Teachers
+        </button>
+        <button
+          type="button"
+          className={`pill-tab ${activeSection === "students" ? "pill-tab--active" : ""}`}
+          onClick={() => setActiveSection("students")}
+        >
+          Students
+        </button>
+      </div>
 
-      <section className="team-directory-section" aria-labelledby="team-directory-title">
-        <h2 id="team-directory-title" className="team-directory-title">
-          Team Directory
-        </h2>
-        <div className="teachers-layout">
-          <TeachersList
-            teachers={teachers}
-            selectedTeacherId={selectedTeacherId}
-            onSelectTeacher={onSelectTeacher}
+      {activeSection === "teachers" && (
+        <>
+          <TeacherRegistrationForm
+            onRegister={onRegisterTeacher}
+            message={message}
+            messageType={messageType}
           />
-          <TeacherDetails
-            teacher={selectedTeacher}
-            onAddStudentRow={onAddStudentRow}
-            onRemoveStudentRow={onRemoveStudentRow}
-            onSetNewStudentValue={onSetNewStudentValue}
-            onSubmitNewStudents={onSubmitNewStudents}
-            onRemoveStudent={onRemoveStudentFromTeacher}
-          />
-        </div>
-      </section>
+
+          <div className="teachers-section">
+            <h3 className="teachers-section-title">Teachers</h3>
+            <TeachersList
+              teachers={teachers}
+              schools={schools}
+              onUpdateTeacher={onUpdateTeacher}
+              onDeleteTeacher={onDeleteTeacher}
+              onTransferTeacher={onTransferTeacher}
+            />
+          </div>
+        </>
+      )}
+
+      {activeSection === "students" && (
+        <StudentsSection
+          students={students}
+          onAddStudent={onAddStudent}
+          onUpdateStudent={onUpdateStudent}
+          onDeleteStudent={onDeleteStudent}
+        />
+      )}
     </div>
   );
 };
