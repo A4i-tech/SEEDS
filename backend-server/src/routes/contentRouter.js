@@ -70,27 +70,24 @@ function getRequestSchoolId(req) {
   return req.schoolId ? req.schoolId.toString() : null;
 }
 
-function getSchoolScopeClauses(req, { includeTenantLevel = false, includeMissing = false } = {}) {
+function getSchoolScopeClauses(req, { includeMissing = false } = {}) {
   const schoolId = getRequestSchoolId(req);
   if (!schoolId) {
     return [];
   }
 
   const clauses = [{ schoolId }];
-  if (includeTenantLevel) {
-    clauses.push({ schoolId: null });
-  }
   if (includeMissing) {
     clauses.push({ schoolId: { $exists: false } });
   }
   return clauses;
 }
 
-// School-scoped users read their own school's content plus shared tenant-level content.
+// School-scoped users read only their own school's content.
 // Tenant reads all tenant content.
 function getReadSchoolScope(req) {
   if (SCHOOL_SCOPED_CONTENT_ROLES.has(req.role)) {
-    const clauses = getSchoolScopeClauses(req, { includeTenantLevel: true, includeMissing: true });
+    const clauses = getSchoolScopeClauses(req, { includeMissing: true });
     if (clauses.length === 0) {
       return { _id: { $exists: false } };
     }
