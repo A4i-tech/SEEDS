@@ -24,7 +24,7 @@ const AllContent = () => {
 
   const navigate = useNavigate();
   const { getAuthHeaders, logout, getCurrentUser } = useAuth();
-  const canViewContent = currentUserRole !== null && currentUserRole !== USER_ROLES.TENANT;
+  const canViewContent = currentUserRole !== null;
   const {
     content,
     allContent,
@@ -87,9 +87,6 @@ const AllContent = () => {
         const profile = await getCurrentUser();
         setCurrentUser(profile.name);
         setCurrentUserRole(profile.role);
-        if (profile.role === USER_ROLES.TENANT) {
-          setActiveTab("registration");
-        }
       } catch (error) {
         console.error("Error fetching user:", error);
       }

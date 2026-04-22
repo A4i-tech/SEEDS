@@ -113,7 +113,7 @@ const Profile = () => {
           onTabChange={handleTabChange}
           currentUser={currentUser}
           onLogout={logout}
-          showContent={profile ? profile.role !== USER_ROLES.TENANT : true}
+          showContent={Boolean(profile)}
           showRegistration={profile && profile.role !== USER_ROLES.CONTENT_CREATOR}
           showAnalytics={profile && profile.role !== USER_ROLES.CONTENT_CREATOR}
         />

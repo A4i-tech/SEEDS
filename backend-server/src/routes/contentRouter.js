@@ -84,7 +84,7 @@ function getScopedSchoolIdValues(req) {
 }
 
 // School-scoped users read their own school's content plus shared tenant-level content.
-// Tenant has no content view.
+// Tenant reads all tenant content.
 function getReadSchoolScope(req) {
   if (SCHOOL_SCOPED_CONTENT_ROLES.has(req.role)) {
     const schoolIds = getScopedSchoolIdValues(req);
@@ -97,9 +97,6 @@ function getReadSchoolScope(req) {
         { schoolId: { $exists: false } },
       ],
     };
-  }
-  if (req.role === TENANT_ROLE) {
-    return { _id: { $exists: false } };
   }
   return null;
 }
