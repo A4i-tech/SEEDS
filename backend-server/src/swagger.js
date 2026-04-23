@@ -254,14 +254,6 @@ const options = {
               enum: ["teacher", "content_creator"],
               description: "Role attached to this user record",
             },
-            students: {
-              type: "array",
-              description: "Array of student IDs associated with this teacher",
-              items: {
-                type: "string",
-              },
-              example: ["507f1f77bcf86cd799439012", "507f1f77bcf86cd799439013"],
-            },
             createdAt: {
               type: "string",
               format: "date-time",

@@ -10,7 +10,6 @@ const { port } = require("./config/env");
 const { authenticateToken, authorizeRole } = require("./auth/authenticateToken");
 const callRouter = require("./routes/callRouter.js");
 const teacherRouter = require("./routes/teacherRouter.js");
-const v1TeacherRouter = require("./routes/v1TeacherRouter.js");
 const contentRouter = require("./routes/contentRouter");
 const classRoomRouter = require("./routes/classRouter.js");
 const userRouter = require("./routes/userRouter.js");
@@ -48,7 +47,6 @@ app.use("/class", authenticateToken, authorizeRole(TEACHER_ROLE,CONTENT_CREATOR_
 app.use("/log", authenticateToken, logRouter);
 app.use("/user", authenticateToken, userRouter);
 app.use("/teacher", teacherRouter);
-app.use("/v1/teacher", v1TeacherRouter);
 app.use("/tenant", tenantRouter);
 app.use("/school", schoolRouter);
 app.use("/student", authenticateToken, studentRouter);

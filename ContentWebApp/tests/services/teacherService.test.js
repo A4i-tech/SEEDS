@@ -110,48 +110,4 @@ describe("teacherService", () => {
       expect(result).toEqual(mockResponse);
     });
   });
-
-  describe("teacher student links", () => {
-    test("adds students to a teacher", async () => {
-      const mockResponse = { students: [{ name: "A", phoneNumber: "9111111111" }] };
-      apiFetch.mockResolvedValue(mockResponse);
-
-      const result = await teacherService.addStudentsToTeacher(
-        "9000000000",
-        [{ name: "A", phoneNumber: "9111111111" }],
-        { Authorization: "Bearer x" }
-      );
-
-      expect(apiFetch).toHaveBeenCalledWith("http://test-api/v1/teacher/add-students", {
-        method: "POST",
-        headers: { Authorization: "Bearer x" },
-        body: JSON.stringify({
-          phoneNumber: "9000000000",
-          students: [{ name: "A", phoneNumber: "9111111111" }],
-        }),
-      });
-      expect(result).toEqual(mockResponse);
-    });
-
-    test("removes students from a teacher", async () => {
-      const mockResponse = { message: "Students removed successfully", removedCount: 1 };
-      apiFetch.mockResolvedValue(mockResponse);
-
-      const result = await teacherService.removeStudentsFromTeacher(
-        "9000000000",
-        [{ phoneNumber: "9111111111" }],
-        {}
-      );
-
-      expect(apiFetch).toHaveBeenCalledWith("http://test-api/v1/teacher/students", {
-        method: "DELETE",
-        headers: {},
-        body: JSON.stringify({
-          phoneNumber: "9000000000",
-          students: [{ phoneNumber: "9111111111" }],
-        }),
-      });
-      expect(result).toEqual(mockResponse);
-    });
-  });
 });

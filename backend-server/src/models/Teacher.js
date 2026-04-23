@@ -9,7 +9,6 @@ const TeacherSchema = new mongoose.Schema(
     phoneNumber: { type: String, required: true, unique: true },
     password: { type: String, required: true, minlength: 8 },
     role: { type: String, enum: ["content_creator", "teacher"], default: "teacher" },
-    studentId: { type: [String], default: [] },
   },
   { timestamps: true }
 );
