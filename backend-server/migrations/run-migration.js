@@ -6,7 +6,7 @@
  * Usage:
  *   node migrations/run-migration.js
  *
- * Requires DB_CONNECTION or MONGODB_URI in environment (or .env file at project root).
+ * Requires MONGODB_URI in environment (or .env file at project root).
  * Safe to re-run — each phase is idempotent.
  */
 
@@ -67,7 +67,7 @@ async function verify() {
 }
 
 async function run() {
-    const uri = process.env.DB_CONNECTION || process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/SEEDS-Teacher-Backend";
+    const uri = process.env.MONGODB_URI || "mongodb://localhost:27017/SEEDS-Teacher-Backend";
     console.log(`Connecting to ${uri}...`);
     await mongoose.connect(uri);
     console.log("Connected.\n");

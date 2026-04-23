@@ -52,8 +52,7 @@ PORT=4000
 NODE_ENV=development
 
 # MongoDB
-DB_CONNECTION=mongodb://127.0.0.1:27017/SEEDS-Teacher-Backend
-MONGODB_URI=mongodb://127.0.0.1:27017/SEEDS-Teacher-Backend
+MONGODB_URI=mongodb://localhost:27017/seeds
 
 # Azure Storage
 AZURE_STORAGE_CONNECTION_STRING=your_azure_storage_connection_string
@@ -161,8 +160,7 @@ pm2 delete seeds-backend   # Remove from PM2
 | ------------------------------- | ------------------------------------ | -------- | ----------- |
 | PORT                            | Server port                          | No       | 4000        |
 | NODE_ENV                        | Environment (development/production) | No       | development |
-| DB_CONNECTION                   | Backend MongoDB connection string    | Yes      | -           |
-| MONGODB_URI                     | Migration MongoDB connection string  | No       | DB_CONNECTION |
+| MONGODB_URI                     | MongoDB connection string            | Yes      | -           |
 | AZURE_STORAGE_CONNECTION_STRING | Azure Storage connection string      | Yes      | -           |
 | AZURE_STORAGE_CONTAINER         | Azure Storage container name         | Yes      | -           |
 | FIREBASE_PROJECT_ID             | Firebase project ID                  | Yes      | -           |

@@ -19,10 +19,6 @@ export const apiFetch = async (url, options = {}) => {
 
     if (!response.ok) {
       const text = await response.text();
-      if ((response.status === 401 || response.status === 403) && localStorage.getItem("authToken")) {
-        localStorage.removeItem("authToken");
-        window.location.assign("/");
-      }
       throw new ApiError(
         text || `Request failed with status ${response.status}`,
         response.status,

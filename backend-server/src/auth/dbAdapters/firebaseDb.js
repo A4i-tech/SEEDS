@@ -20,6 +20,7 @@ module.exports = {
     snapshot.forEach((doc) => {
       tenants.push({ id: doc.id, tenantName: doc.data().tenantName });
     });
+    console.log(tenants);
     return tenants;
   },
   async getTenantById(tenantId) {

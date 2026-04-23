@@ -91,6 +91,7 @@ router.post("/login", tenantAuthProvider.login);
  *         description: Unauthorized, token is missing or invalid
  */
 router.post("/logout", authenticateToken, (req, res) => {
+  // Acknowledge logout
   res.status(STATUS.OK).json({ message: "Logout successful" });
 });
 

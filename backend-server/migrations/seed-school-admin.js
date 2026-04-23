@@ -20,7 +20,7 @@ const PLAIN_PASSWORD = "Test@123";
 const SALT_ROUNDS = parseInt(process.env.PASSWORD_SALT_ROUNDS) || 10;
 
 async function run() {
-    const uri = process.env.DB_CONNECTION || process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/SEEDS-Teacher-Backend";
+    const uri = process.env.MONGODB_URI || "mongodb://localhost:27017/SEEDS-Teacher-Backend";
     console.log(`Connecting to ${uri}...`);
     await mongoose.connect(uri);
     console.log("Connected.\n");

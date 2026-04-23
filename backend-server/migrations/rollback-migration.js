@@ -15,7 +15,7 @@ require("dotenv").config({ path: require("path").join(__dirname, "../.env") });
 const mongoose = require("mongoose");
 
 async function rollback() {
-    const uri = process.env.DB_CONNECTION || process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/SEEDS-Teacher-Backend";
+    const uri = process.env.MONGODB_URI || "mongodb://localhost:27017/SEEDS-Teacher-Backend";
     console.log(`Connecting to ${uri}...`);
     await mongoose.connect(uri);
     console.log("Connected.\n");
