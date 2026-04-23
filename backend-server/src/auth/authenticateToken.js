@@ -43,7 +43,7 @@ async function authenticateToken(req, res, next) {
     if (user.schoolId) req.schoolId = user.schoolId;
     if (user.tenantId) req.tenantId = user.tenantId;
     if (user.iss === TENANT_ROLE) req.tenantId = user.id;
-    if (user.iss === SCHOOL_ADMIN_ROLE && !req.schoolId) req.schoolId = user.id;
+    if (user.iss === SCHOOL_ADMIN_ROLE) req.schoolId = user.id || user.schoolId;
 
     // Teacher tokens carry only schoolId — resolve tenantId from the school
     if (user.schoolId && !user.tenantId && user.iss !== TENANT_ROLE) {

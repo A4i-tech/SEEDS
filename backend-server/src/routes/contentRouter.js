@@ -39,11 +39,8 @@ const PATCHABLE_CONTENT_FIELDS = [
   "title",
   "theme",
   "audioContent",
-  "createdBy",
   "isPullModel",
   "isTeacherApp",
-  "isDeleted",
-  "isProcessed",
   "localTitle",
   "localTheme",
   "positiveMark",
@@ -70,24 +67,20 @@ function getRequestSchoolId(req) {
   return req.schoolId ? req.schoolId.toString() : null;
 }
 
-function getSchoolScopeClauses(req, { includeMissing = false } = {}) {
+function getSchoolScopeClauses(req) {
   const schoolId = getRequestSchoolId(req);
   if (!schoolId) {
     return [];
   }
 
-  const clauses = [{ schoolId }];
-  if (includeMissing) {
-    clauses.push({ schoolId: { $exists: false } });
-  }
-  return clauses;
+  return [{ schoolId }];
 }
 
 // School-scoped users read only their own school's content.
 // Tenant reads all tenant content.
 function getReadSchoolScope(req) {
   if (SCHOOL_SCOPED_CONTENT_ROLES.has(req.role)) {
-    const clauses = getSchoolScopeClauses(req, { includeMissing: true });
+    const clauses = getSchoolScopeClauses(req);
     if (clauses.length === 0) {
       return { _id: { $exists: false } };
     }
@@ -110,13 +103,13 @@ function getWriteSchoolIdFilter(req) {
   return null;
 }
 
-function getWriteSchoolScopeQuery(req) {
-  if (SCHOOL_SCOPED_CONTENT_ROLES.has(req.role)) {
-    const clauses = getSchoolScopeClauses(req);
-    if (clauses.length === 0) {
-      return { schoolId: { $exists: false } };
+function getWriteSchoolFilter(req) {
+  if (CONTENT_WRITE_ROLES.has(req.role)) {
+    const schoolId = getRequestSchoolId(req);
+    if (!schoolId) {
+      return { _id: { $exists: false } };
     }
-    return { $or: clauses };
+    return { schoolId };
   }
   return { schoolId: null };
 }
@@ -819,11 +812,11 @@ router.delete(
   tryCatchWrapper(async (req, res) => {
     const contentId = req.params.contentId;
     const tenantId = req.tenantId;
-    const schoolScopeQuery = getWriteSchoolScopeQuery(req);
+    const writeSchoolFilter = getWriteSchoolFilter(req);
 
     // Try to delete from ContentV3 first (uses _id as String)
     let result = await ContentV3.findOneAndUpdate(
-      { _id: contentId, tenantId, ...schoolScopeQuery },
+      { _id: contentId, tenantId, ...writeSchoolFilter },
       { $set: { isDeleted: true } },
       { new: true }
     );
@@ -831,7 +824,7 @@ router.delete(
     // If not found in ContentV3, try QuizData (also uses _id as String)
     if (!result) {
       result = await QuizData.findOneAndUpdate(
-        { _id: contentId, tenantId, ...schoolScopeQuery },
+        { _id: contentId, tenantId, ...writeSchoolFilter },
         { $set: { isDeleted: true } },
         { new: true }
       );
@@ -903,17 +896,17 @@ router.post(
  *       404:
  *         description: Content not found for tenant
  */
-router.patch(
-  "/",
-  authenticateToken,
-  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
-  tryCatchWrapper(async (req, res) => {
+const patchContentHandler = tryCatchWrapper(async (req, res) => {
     const isAudioUploaded = req.query.isAudioUploaded === "true";
     const body = req.body;
     if (!body || typeof body !== "object") {
       return res.status(400).json({ error: "Request body is required" });
     }
-    const contentId = body._id;
+    const pathContentId = req.params.contentId;
+    if (pathContentId && body._id && body._id !== pathContentId) {
+      return res.status(400).json({ error: "Content id in path and body must match" });
+    }
+    const contentId = pathContentId || body._id;
 
     if (!contentId) {
       return res.status(400).json({ error: "Content _id is required" });
@@ -927,11 +920,11 @@ router.patch(
     });
 
     // Check if it is a quiz (stored in QuizData)
-    const schoolScopeQuery = getWriteSchoolScopeQuery(req);
+    const writeSchoolFilter = getWriteSchoolFilter(req);
     const existingQuiz = await QuizData.findOne({
       _id: contentId,
       tenantId: req.tenantId,
-      ...schoolScopeQuery,
+      ...writeSchoolFilter,
     }).lean().exec();
     if (existingQuiz) {
       const quizUpdate = {};
@@ -1019,7 +1012,7 @@ router.patch(
       }
 
       const updated = await QuizData.findOneAndUpdate(
-        { _id: contentId, tenantId: req.tenantId, ...schoolScopeQuery },
+        { _id: contentId, tenantId: req.tenantId, ...writeSchoolFilter },
         { $set: quizUpdate },
         { new: true },
       ).exec();
@@ -1038,7 +1031,7 @@ router.patch(
     const existingContent = await ContentV3.findOne({
       _id: contentId,
       tenantId: req.tenantId,
-      ...schoolScopeQuery,
+      ...writeSchoolFilter,
       isDeleted: { $ne: true },
     })
       .lean()
@@ -1048,7 +1041,7 @@ router.patch(
     }
 
     const updated = await ContentV3.findOneAndUpdate(
-      { _id: contentId, tenantId: req.tenantId, ...schoolScopeQuery },
+      { _id: contentId, tenantId: req.tenantId, ...writeSchoolFilter },
       { $set: updatePayload },
       { new: true },
     ).exec();
@@ -1063,7 +1056,20 @@ router.patch(
     }
 
     return res.json({ ...updated.toObject(), id: updated._id });
-  }),
+  });
+
+router.patch(
+  "/",
+  authenticateToken,
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
+  patchContentHandler,
+);
+
+router.patch(
+  "/:contentId",
+  authenticateToken,
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
+  patchContentHandler,
 );
 
 // router.patch("/",tryCatchWrapper(async (req,res) => {

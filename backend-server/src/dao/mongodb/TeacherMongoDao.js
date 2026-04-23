@@ -34,8 +34,8 @@ class TeacherMongoDao extends ITeacherDao {
     return Teacher.findOne({ schoolId, phoneNumber }).lean();
   }
 
-  async insertTeacher({ phoneNumber, password, schoolId, tenantId, name, role }) {
-    return Teacher.create({ phoneNumber, password, schoolId, tenantId, name, role });
+  async insertTeacher({ phoneNumber, password, schoolId, name, role }) {
+    return Teacher.create({ phoneNumber, password, schoolId, name, role });
   }
 
   async updateTeacher(teacherId, schoolId, updates) {

@@ -100,26 +100,6 @@ const footerStyle = {
   color: "#94a3b8",
 };
 
-const PHONE_PATTERN = /^[0-9]{10}$/;
-
-const isUnauthorized = (error) =>
-  error?.response?.status === 401 || error?.response?.status === 404;
-
-const parseJwtPayload = (token) => {
-  if (!token) return {};
-
-  try {
-    const [, payload] = token.split(".");
-    if (!payload) return {};
-
-    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const padded = normalized.padEnd(normalized.length + ((4 - normalized.length % 4) % 4), "=");
-    return JSON.parse(atob(padded));
-  } catch (error) {
-    return {};
-  }
-};
-
 const Login = () => {
   const navigate = useNavigate();
   const [showError, setShowError] = useState("");
@@ -130,9 +110,7 @@ const Login = () => {
   });
 
   const handleChange = (field) => (event) => {
-    const { value } = event.target;
-    const next = field === "identifier" && /^[0-9]+$/.test(value) ? value.slice(0, 10) : value;
-    setFormData((prev) => ({ ...prev, [field]: next }));
+    setFormData((prev) => ({ ...prev, [field]: event.target.value }));
   };
 
   const loginAsTenant = async (email, password) => {
@@ -149,12 +127,9 @@ const Login = () => {
 
   const loginAsTeacher = async (phoneNumber, password) => {
     const { data } = await axios.post(`${baseURL}/teacher/login`, { phoneNumber, password });
-    const tokenPayload = parseJwtPayload(data.token);
-    const role = tokenPayload.role;
-    const name = tokenPayload.name;
 
-    setAuth(data.token, role, data.schoolId);
-    navigate("/content", { state: { name } });
+    setAuth(data.token, data.role, data.schoolId);
+    navigate("/content", { state: { name: data.name } });
   };
 
   const handleLogin = async (event) => {
@@ -170,7 +145,7 @@ const Login = () => {
     }
 
     const looksLikeEmail = validator.isEmail(identifier);
-    const looksLikePhone = PHONE_PATTERN.test(identifier);
+    const looksLikePhone = validator.isMobilePhone(identifier, "en-IN", { strictMode: false });
 
     if (!looksLikeEmail && !looksLikePhone) {
       setShowError("Enter a valid email or a 10-digit phone number.");
@@ -185,7 +160,7 @@ const Login = () => {
           await loginAsTenant(identifier, password);
           return;
         } catch (error) {
-          if (!isUnauthorized(error)) throw error;
+          if (error?.response?.status !== 401) throw error;
         }
         await loginAsSchoolAdmin(identifier, password);
         return;
@@ -194,7 +169,7 @@ const Login = () => {
       await loginAsTeacher(identifier, password);
     } catch (error) {
       console.error("Login error:", error);
-      if (isUnauthorized(error)) {
+      if (error?.response?.status === 401) {
         setShowError("Invalid credentials. Please try again.");
       } else {
         setShowError("Login failed. Please verify your details.");

@@ -38,7 +38,13 @@ module.exports = {
         schoolId: teacher.schoolId,
         role: teacher.role,
       });
-      return res.status(STATUS.OK).json({ token, phoneNumber, schoolId: teacher.schoolId });
+      return res.status(STATUS.OK).json({
+        token,
+        phoneNumber,
+        schoolId: teacher.schoolId,
+        name: teacher.name,
+        role: teacher.role,
+      });
     } catch (error) {
       console.error("Login error:", error);
       return res.status(STATUS.INTERNAL_ERROR).json({ message: "Internal server error" });

@@ -3,22 +3,11 @@
 const validator = require("validator");
 const { STATUS, PASSWORD_POLICY } = require("../config/constants");
 const teacherService = require("../services/teacher.service");
-const School = require("../models/School");
 
 exports.getMe = async (req, res) => {
   try {
-    const teacher = await teacherService.getTeacherById(req.userId);
-    const school = teacher?.schoolId
-      ? await School.findById(teacher.schoolId).select("name").lean()
-      : null;
-
-    return res.status(STATUS.OK).json({
-      name: teacher.name,
-      phoneNumber: teacher.phoneNumber,
-      role: teacher.role,
-      schoolId: teacher.schoolId,
-      schoolName: school?.name || "",
-    });
+    const teacherProfile = await teacherService.getTeacherProfileById(req.userId, req.tenantId);
+    return res.status(STATUS.OK).json(teacherProfile);
   } catch (error) {
     if (error.status === STATUS.NOT_FOUND) {
       return res.status(STATUS.NOT_FOUND).json({ message: "Teacher not found" });

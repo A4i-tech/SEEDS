@@ -25,6 +25,27 @@ exports.getTeacherById = async (teacherId) => {
 };
 
 /**
+ * Get the teacher profile used by /teacher/me, including school name.
+ * @param {string} teacherId - The teacher id
+ * @param {string} tenantId - The tenant id from the authenticated request
+ * @returns {Promise<Object>} - The teacher profile payload
+ */
+exports.getTeacherProfileById = async (teacherId, tenantId) => {
+  const teacher = await exports.getTeacherById(teacherId);
+  const school = teacher.schoolId
+    ? await schoolRepository.getSchoolById(teacher.schoolId, tenantId)
+    : null;
+
+  return {
+    name: teacher.name,
+    phoneNumber: teacher.phoneNumber,
+    role: teacher.role,
+    schoolId: teacher.schoolId,
+    schoolName: school?.name || "",
+  };
+};
+
+/**
  * Get all teachers in a school (validates school belongs to tenant)
  * @param {string} schoolId - The school id
  * @param {string} tenantId - The tenant id
@@ -99,7 +120,6 @@ exports.registerTeacher = async (phoneNumber, password, schoolId, name, role, te
     phoneNumber,
     password: hashedPassword,
     schoolId,
-    tenantId,
     name,
     role,
   });

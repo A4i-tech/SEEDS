@@ -122,66 +122,79 @@ const Profile = () => {
           <div className="card loading-card">Loading profile...</div>
         ) : (
           <div className="profile-grid">
-            {(() => {
-              const { role } = profile;
-              const isPersonRole =
-                role === USER_ROLES.TEACHER || role === USER_ROLES.CONTENT_CREATOR;
-              const primaryLabel = isPersonRole ? "Name" : "Organization Name";
-              const primaryValue = isPersonRole
-                ? profile.name
-                : profile.tenantName || profile.name;
-              const secondaryLabel = isPersonRole ? "Phone Number" : "Email";
-              const secondaryValue = isPersonRole ? profile.phoneNumber : profile.email;
-              const secondaryType = isPersonRole ? "tel" : "email";
-              const tertiaryLabel = isPersonRole ? "School Name" : null;
-              const tertiaryValue = isPersonRole ? profile.schoolName || "" : "";
-              const description = isPersonRole
-                ? "Your account details (read-only)"
-                : role === USER_ROLES.SCHOOL_ADMIN
-                  ? "Your school details (read-only)"
-                  : "Your tenant details (read-only)";
-              return (
-                <div className="card">
-                  <div className="card-header">
-                    <div>
-                      <h2 className="card-title">Account Information</h2>
-                      <p className="card-description">{description}</p>
-                    </div>
-                  </div>
-                  <div className="profile-fields">
-                    <div className="profile-field">
-                      <label className="profile-label">{primaryLabel}</label>
-                      <input
-                        className="profile-input profile-input-disabled"
-                        type="text"
-                        value={primaryValue}
-                        disabled
-                      />
-                    </div>
-                    <div className="profile-field">
-                      <label className="profile-label">{secondaryLabel}</label>
-                      <input
-                        className="profile-input profile-input-disabled"
-                        type={secondaryType}
-                        value={secondaryValue}
-                        disabled
-                      />
-                    </div>
-                    {isPersonRole && (
-                      <div className="profile-field">
-                        <label className="profile-label">{tertiaryLabel}</label>
-                        <input
-                          className="profile-input profile-input-disabled"
-                          type="text"
-                          value={tertiaryValue}
-                          disabled
-                        />
-                      </div>
-                    )}
+            {(profile.role === USER_ROLES.TEACHER ||
+              profile.role === USER_ROLES.CONTENT_CREATOR) ? (
+              <div className="card">
+                <div className="card-header">
+                  <div>
+                    <h2 className="card-title">Account Information</h2>
+                    <p className="card-description">Your account details (read-only)</p>
                   </div>
                 </div>
-              );
-            })()}
+                <div className="profile-fields">
+                  <div className="profile-field">
+                    <label className="profile-label">Name</label>
+                    <input
+                      className="profile-input profile-input-disabled"
+                      type="text"
+                      value={profile.name || ""}
+                      disabled
+                    />
+                  </div>
+                  <div className="profile-field">
+                    <label className="profile-label">Phone Number</label>
+                    <input
+                      className="profile-input profile-input-disabled"
+                      type="tel"
+                      value={profile.phoneNumber || ""}
+                      disabled
+                    />
+                  </div>
+                  <div className="profile-field">
+                    <label className="profile-label">School Name</label>
+                    <input
+                      className="profile-input profile-input-disabled"
+                      type="text"
+                      value={profile.schoolName || ""}
+                      disabled
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="card">
+                <div className="card-header">
+                  <div>
+                    <h2 className="card-title">Account Information</h2>
+                    <p className="card-description">
+                      {profile.role === USER_ROLES.SCHOOL_ADMIN
+                        ? "Your school details (read-only)"
+                        : "Your tenant details (read-only)"}
+                    </p>
+                  </div>
+                </div>
+                <div className="profile-fields">
+                  <div className="profile-field">
+                    <label className="profile-label">Organization Name</label>
+                    <input
+                      className="profile-input profile-input-disabled"
+                      type="text"
+                      value={profile.name || ""}
+                      disabled
+                    />
+                  </div>
+                  <div className="profile-field">
+                    <label className="profile-label">Email</label>
+                    <input
+                      className="profile-input profile-input-disabled"
+                      type="email"
+                      value={profile.email || ""}
+                      disabled
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             {profile.role !== USER_ROLES.TEACHER &&
               profile.role !== USER_ROLES.CONTENT_CREATOR && (

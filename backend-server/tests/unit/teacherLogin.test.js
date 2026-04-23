@@ -1,6 +1,3 @@
-process.env.AUTH_TYPE = "native";
-process.env.SECRET_KEY = "test-secret-key-for-testing-purposes-123";
-
 const bcrypt = require("bcryptjs");
 const teacherAuth = require("../../src/auth/teacher/teacherAuthProviderMiddleware");
 const teacherRepository = require("../../src/repositories/teacher.repository");
@@ -11,6 +8,7 @@ const STATUS_OK = 200;
 const TEST_PHONE = "1234567890";
 const TEST_PASSWORD = "TestPassword123!";
 const TEST_SCHOOL_ID = "aaaaaaaaaaaaaaaaaaaaaaaa";
+const PASSWORD_SALT_ROUNDS = parseInt(process.env.PASSWORD_SALT_ROUNDS, 10);
 
 function getMockReq(body) {
   return { body };
@@ -40,7 +38,7 @@ describe("Teacher login - phone fallback (unit)", () => {
   });
 
   test("login succeeds with phone and password", async () => {
-    const hashedPassword = await bcrypt.hash(TEST_PASSWORD, 10);
+    const hashedPassword = await bcrypt.hash(TEST_PASSWORD, PASSWORD_SALT_ROUNDS);
 
     jest.spyOn(teacherRepository, "getTeacherByPhoneNumber").mockResolvedValue({
       _id: "teacher123",
@@ -61,6 +59,8 @@ describe("Teacher login - phone fallback (unit)", () => {
     expect(res.body.token).toBeDefined();
     expect(res.body.phoneNumber).toBe(TEST_PHONE);
     expect(res.body.schoolId).toBe(TEST_SCHOOL_ID);
+    expect(res.body.name).toBe("Teacher User");
+    expect(res.body.role).toBe("teacher");
   });
 
   afterEach(() => {
