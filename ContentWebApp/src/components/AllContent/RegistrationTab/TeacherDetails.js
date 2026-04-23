@@ -33,7 +33,7 @@ const TeacherDetails = ({
       <StudentsTable
         students={teacher.students || []}
         teacher={teacher}
-        onRemoveStudent={(student) => onRemoveStudent(teacher, student.phoneNumber)}
+        onRemoveStudent={(studentPhone) => onRemoveStudent(teacher, studentPhone)}
         onUpdateStudent={onUpdateStudent}
       />
 
