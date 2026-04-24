@@ -46,8 +46,8 @@ export const contentService = {
    * @returns {Promise<void>}
    */
   async deleteContent(type, id) {
-    // All content (including quizzes) is now deleted through the main endpoint
-    const url = `${SEEDS_URL}/content/${id}`;
+    const path = type === "quiz" ? `quiz/${id}` : `${id}`;
+    const url = `${SEEDS_URL}/content/${path}`;
 
     await apiFetch(url, {
       method: "DELETE",
@@ -127,13 +127,14 @@ export const contentService = {
    * @param {string} id - Content ID
    * @returns {Promise<Object>}
    */
-  async getContentById(id) {
+  async getContentById(id, type) {
     if (!id || !String(id).trim()) {
       throw new Error("Content ID is required");
     }
 
     const contentId = encodeURIComponent(String(id).trim());
-    const url = `${SEEDS_URL}/content/${contentId}`;
+    const path = type === "quiz" ? `quiz/${contentId}` : contentId;
+    const url = `${SEEDS_URL}/content/${path}`;
 
     const response = await apiFetch(url, {
       method: "GET",

@@ -17,7 +17,7 @@ const ContentDetails = () => {
     try {
       setIsLoading(true);
       setError(null);
-      const data = await contentService.getContentById(id);
+      const data = await contentService.getContentById(id, type);
       setContent(data);
       return data;
     } catch (err) {
@@ -27,7 +27,7 @@ const ContentDetails = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [id]);
+  }, [id, type]);
 
   useEffect(() => {
     contentById();

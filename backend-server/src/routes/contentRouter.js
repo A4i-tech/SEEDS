@@ -659,6 +659,23 @@ router.get(
 );
 
 router.get(
+  "/quiz/:quizId",
+  authenticateToken,
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE, CONTENT_CREATOR_ROLE),
+  tryCatchWrapper(async (req, res) => {
+    const quiz = await QuizData.findOne(applyReadSchoolScope({
+      _id: req.params.quizId,
+      tenantId: req.tenantId,
+      isDeleted: { $ne: true },
+    }, req)).lean().exec();
+    if (!quiz) {
+      return res.status(404).json({ error: "Quiz not found" });
+    }
+    return res.json({ ...quiz, id: quiz._id, type: "quiz" });
+  })
+);
+
+router.get(
   "/:contentId",
   authenticateToken,
   authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE, CONTENT_CREATOR_ROLE),
@@ -668,24 +685,10 @@ router.get(
       tenantId: req.tenantId,
       isDeleted: { $ne: true },
     }, req)).lean().exec();
-    if (content) {
-      return res.json({ ...content, id: content._id });
-    }
-
-    const quiz = await QuizData.findOne(applyReadSchoolScope({
-      _id: req.params.contentId,
-      tenantId: req.tenantId,
-      isDeleted: { $ne: true },
-    }, req))
-      .lean()
-      .exec();
-    if (quiz) {
-      return res.json({ ...quiz, id: quiz._id, type: "quiz" });
-    }
-
     if (!content) {
       return res.status(404).json({ error: "Content not found" });
     }
+    return res.json({ ...content, id: content._id });
   })
 );
 
@@ -731,34 +734,35 @@ router.get(
 // }))
 
 router.delete(
+  "/quiz/:quizId",
+  authenticateToken,
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
+  tryCatchWrapper(async (req, res) => {
+    const result = await QuizData.findOneAndUpdate(
+      { _id: req.params.quizId, tenantId: req.tenantId, ...getWriteSchoolFilter(req) },
+      { $set: { isDeleted: true } },
+      { new: true }
+    );
+    if (!result) {
+      return res.status(404).json({ error: "Quiz not found" });
+    }
+    return res.json(result);
+  }),
+);
+
+router.delete(
   "/:contentId",
   authenticateToken,
   authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
-    const contentId = req.params.contentId;
-    const tenantId = req.tenantId;
-    const writeSchoolFilter = getWriteSchoolFilter(req);
-
-    // Try to delete from ContentV3 first (uses _id as String)
-    let result = await ContentV3.findOneAndUpdate(
-      { _id: contentId, tenantId, ...writeSchoolFilter },
+    const result = await ContentV3.findOneAndUpdate(
+      { _id: req.params.contentId, tenantId: req.tenantId, ...getWriteSchoolFilter(req) },
       { $set: { isDeleted: true } },
       { new: true }
     );
-
-    // If not found in ContentV3, try QuizData (also uses _id as String)
-    if (!result) {
-      result = await QuizData.findOneAndUpdate(
-        { _id: contentId, tenantId, ...writeSchoolFilter },
-        { $set: { isDeleted: true } },
-        { new: true }
-      );
-    }
-
     if (!result) {
       return res.status(404).json({ error: "Content not found" });
     }
-
     return res.json(result);
   }),
 );
