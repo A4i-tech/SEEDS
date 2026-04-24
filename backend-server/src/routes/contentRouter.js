@@ -33,76 +33,26 @@ const SCHOOL_ADMIN_ROLE = "school_admin";
 const TEACHER_ROLE = "teacher";
 const CONTENT_CREATOR_ROLE = "content_creator";
 
-const SCHOOL_SCOPED_CONTENT_ROLES = new Set([
-  SCHOOL_ADMIN_ROLE,
-  TEACHER_ROLE,
-  CONTENT_CREATOR_ROLE,
-]);
+const SCHOOL_SCOPED_CONTENT_ROLES = new Set([SCHOOL_ADMIN_ROLE, TEACHER_ROLE, CONTENT_CREATOR_ROLE]);
+const CONTENT_WRITE_ROLES = new Set([SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE]);
 
-const CONTENT_WRITE_ROLES = new Set([
-  SCHOOL_ADMIN_ROLE,
-  CONTENT_CREATOR_ROLE,
-]);
-
-function getRequestSchoolId(req) {
-  return req.schoolId ? req.schoolId.toString() : null;
-}
-
-function getSchoolScopeClauses(req) {
-  const schoolId = getRequestSchoolId(req);
-  if (!schoolId) {
-    return [];
-  }
-
-  return [{ schoolId }];
-}
-
-// School-scoped users read only their own school's content.
-// Tenant reads all tenant content.
-function getReadSchoolScope(req) {
-  if (SCHOOL_SCOPED_CONTENT_ROLES.has(req.role)) {
-    const clauses = getSchoolScopeClauses(req);
-    if (clauses.length === 0) {
-      return { _id: { $exists: false } };
-    }
-    return { $or: clauses };
-  }
-  return null;
-}
-
+// Reads: school-scoped roles see their own school only. Tenant sees all tenant content.
 function applyReadSchoolScope(query, req) {
-  const schoolScope = getReadSchoolScope(req);
-  return schoolScope ? { $and: [query, schoolScope] } : query;
+  if (!SCHOOL_SCOPED_CONTENT_ROLES.has(req.role)) return query;
+  if (!req.schoolId) return { _id: { $exists: false } };
+  return { ...query, schoolId: req.schoolId.toString() };
 }
 
-// Writes are strict: tenant writes tenant-level content, school users write only their school content.
-function getWriteSchoolIdFilter(req) {
-  const schoolId = getRequestSchoolId(req);
-  if (schoolId && CONTENT_WRITE_ROLES.has(req.role)) {
-    return schoolId;
-  }
-  return null;
-}
-
+// Writes: school-scoped writer → own school; tenant → tenant-level (schoolId: null).
 function getWriteSchoolFilter(req) {
   if (CONTENT_WRITE_ROLES.has(req.role)) {
-    const schoolId = getRequestSchoolId(req);
-    if (!schoolId) {
-      return { _id: { $exists: false } };
-    }
-    return { schoolId };
+    return req.schoolId ? { schoolId: req.schoolId.toString() } : { _id: { $exists: false } };
   }
   return { schoolId: null };
 }
 
-function findTenantContentById(contentId, tenantId, req) {
-  return ContentV3.findOne(applyReadSchoolScope({
-    _id: contentId,
-    tenantId,
-    isDeleted: { $ne: true },
-  }, req))
-    .lean()
-    .exec();
+function getWriteSchoolIdFilter(req) {
+  return CONTENT_WRITE_ROLES.has(req.role) && req.schoolId ? req.schoolId.toString() : null;
 }
 
 // Initialize instances
@@ -713,7 +663,11 @@ router.get(
   authenticateToken,
   authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
-    const content = await findTenantContentById(req.params.contentId, req.tenantId, req);
+    const content = await ContentV3.findOne(applyReadSchoolScope({
+      _id: req.params.contentId,
+      tenantId: req.tenantId,
+      isDeleted: { $ne: true },
+    }, req)).lean().exec();
     if (content) {
       return res.json({ ...content, id: content._id });
     }
@@ -839,34 +793,6 @@ router.post(
   }),
 );
 
-/**
- * @swagger
- * /content:
- *   patch:
- *     summary: Update content while retaining immutable identifiers
- *     tags: [Content]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: isAudioUploaded
- *         schema:
- *           type: boolean
- *         description: If true, marks content for re-processing
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/ContentV3'
- *     responses:
- *       200:
- *         description: Updated content document
- *       400:
- *         description: Missing or mismatched content id
- *       404:
- *         description: Content not found for tenant
- */
 const patchContentHandler = tryCatchWrapper(async (req, res) => {
     const isAudioUploaded = req.query.isAudioUploaded === "true";
     const body = req.body;
