@@ -33,26 +33,27 @@ const SCHOOL_ADMIN_ROLE = "school_admin";
 const TEACHER_ROLE = "teacher";
 const CONTENT_CREATOR_ROLE = "content_creator";
 
-const SCHOOL_SCOPED_CONTENT_ROLES = new Set([SCHOOL_ADMIN_ROLE, TEACHER_ROLE, CONTENT_CREATOR_ROLE]);
-const CONTENT_WRITE_ROLES = new Set([SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE]);
+function isSchoolScopedContentRole(role) {
+  return role === SCHOOL_ADMIN_ROLE || role === TEACHER_ROLE || role === CONTENT_CREATOR_ROLE;
+}
 
-// Reads: school-scoped roles see their own school only. Tenant sees all tenant content.
+function isContentWriteRole(role) {
+  return role === SCHOOL_ADMIN_ROLE || role === CONTENT_CREATOR_ROLE;
+}
+
+// Reads: school-scoped roles see tenant-global content plus their own school content.
 function applyReadSchoolScope(query, req) {
-  if (!SCHOOL_SCOPED_CONTENT_ROLES.has(req.role)) return query;
+  if (!isSchoolScopedContentRole(req.role)) return query;
   if (!req.schoolId) return { _id: { $exists: false } };
-  return { ...query, schoolId: req.schoolId.toString() };
+  return { ...query, schoolId: { $in: [null, req.schoolId.toString()] } };
 }
 
 // Writes: school-scoped writer → own school; tenant → tenant-level (schoolId: null).
 function getWriteSchoolFilter(req) {
-  if (CONTENT_WRITE_ROLES.has(req.role)) {
+  if (isContentWriteRole(req.role)) {
     return req.schoolId ? { schoolId: req.schoolId.toString() } : { _id: { $exists: false } };
   }
   return { schoolId: null };
-}
-
-function getWriteSchoolIdFilter(req) {
-  return CONTENT_WRITE_ROLES.has(req.role) && req.schoolId ? req.schoolId.toString() : null;
 }
 
 // Initialize instances
@@ -231,7 +232,7 @@ router.post(
     const quizData = fromQuizCreateRequest(quizCreateRequest);
     quizData.creation_time = Math.floor(Date.now() / 1000);
     quizData.tenantId = req.tenantId;
-    quizData.schoolId = getWriteSchoolIdFilter(req);
+    quizData.schoolId = isContentWriteRole(req.role) && req.schoolId ? req.schoolId.toString() : null;
     quizData.createdBy = req.userId;
     const quizDataDoc = quizData.toObject();
     const job = await agenda.now("processQuizContent", {
@@ -775,7 +776,7 @@ router.post(
     let content = new ContentV3(req.body);
     content.creation_time = Math.floor(Date.now() / 1000);
     content.tenantId = req.tenantId;
-    content.schoolId = getWriteSchoolIdFilter(req);
+    content.schoolId = isContentWriteRole(req.role) && req.schoolId ? req.schoolId.toString() : null;
     content.createdBy = req.userId;
 
     // Validate audioContent entries to ensure uploaded audio URLs reference .mp3 files.

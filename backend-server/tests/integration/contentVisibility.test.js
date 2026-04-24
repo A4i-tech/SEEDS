@@ -36,7 +36,7 @@ describe("Content visibility - integration", () => {
   afterAll(teardown);
   beforeEach(clearDatabase);
 
-  test("school-scoped users only see their own school content", async () => {
+  test("school-scoped users see tenant-global content plus their own school content", async () => {
     const tenantId = new mongoose.Types.ObjectId();
     const schoolId = new mongoose.Types.ObjectId();
     const otherSchoolId = new mongoose.Types.ObjectId();
@@ -68,13 +68,14 @@ describe("Content visibility - integration", () => {
       .set("Authorization", `Bearer ${otherSchoolToken}`);
 
     expect(matchingRes.status).toBe(200);
-    expect(matchingRes.body.data).toHaveLength(1);
-    expect(matchingRes.body.data[0].schoolId).toBe(schoolId.toString());
+    expect(matchingRes.body.data).toHaveLength(2);
+    expect(getEnglishTitles(matchingRes.body.data)).toEqual(["Story title", "Story title"]);
     expect(otherRes.status).toBe(200);
-    expect(otherRes.body.data).toHaveLength(0);
+    expect(otherRes.body.data).toHaveLength(1);
+    expect(otherRes.body.data[0].schoolId).toBeNull();
   });
 
-  test("content creators see school content from each other but not other schools or tenant-level content", async () => {
+  test("content creators see school content from each other plus tenant-global content, but not other schools", async () => {
     const tenantId = new mongoose.Types.ObjectId();
     const schoolId = new mongoose.Types.ObjectId();
     const otherSchoolId = new mongoose.Types.ObjectId();
@@ -126,10 +127,10 @@ describe("Content visibility - integration", () => {
       .set("Authorization", `Bearer ${otherSchoolCreatorToken}`);
 
     expect(sameSchoolRes.status).toBe(200);
-    expect(getEnglishTitles(sameSchoolRes.body.data)).toEqual(sameSchoolTitles);
+    expect(getEnglishTitles(sameSchoolRes.body.data)).toEqual([...sameSchoolTitles, "Tenant story"].sort());
     expect(sameSchoolSecondCreatorRes.status).toBe(200);
-    expect(getEnglishTitles(sameSchoolSecondCreatorRes.body.data)).toEqual(sameSchoolTitles);
+    expect(getEnglishTitles(sameSchoolSecondCreatorRes.body.data)).toEqual([...sameSchoolTitles, "Tenant story"].sort());
     expect(otherSchoolRes.status).toBe(200);
-    expect(getEnglishTitles(otherSchoolRes.body.data)).toEqual(["Other school story"]);
+    expect(getEnglishTitles(otherSchoolRes.body.data)).toEqual(["Other school story", "Tenant story"]);
   });
 });

@@ -13,7 +13,7 @@ exports.getMe = async (req, res) => {
     if (teacher.schoolId) {
       try {
         const school = await schoolService.getSchoolById(teacher.schoolId, req.tenantId);
-        schoolName = school.name || "";
+        schoolName = school.name;
       } catch (error) {
         if (error.status !== STATUS.NOT_FOUND) {
           throw error;
