@@ -17,9 +17,7 @@ import "./AllContent/AllContent.css";
 import "./AllContent/shared/responsive.css";
 
 const AllContent = () => {
-  const [activeTab, setActiveTab] = useState(() =>
-    getRole() === USER_ROLES.TENANT ? "registration" : "content"
-  );
+  const [activeTab, setActiveTab] = useState("content");
   const [updateIVRStatus, setUpdateIVRStatus] = useState("");
   const [isUpdatingIVR, setIsUpdatingIVR] = useState(false);
   const [currentUser, setCurrentUser] = useState("User");
