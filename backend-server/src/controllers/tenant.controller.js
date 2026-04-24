@@ -2,7 +2,6 @@
 
 const { STATUS } = require("../config/constants");
 const tenantService = require("../services/tenant.service");
-const TENANT_ROLE = "tenant";
 
 exports.getMe = async (req, res) => {
     const tenantId = req.userId;
@@ -11,11 +10,7 @@ exports.getMe = async (req, res) => {
         if (!tenant) {
             return res.status(STATUS.NOT_FOUND).json({ message: "Tenant not found" });
         }
-        return res.status(STATUS.OK).json({
-            email: tenant.email,
-            tenantName: tenant.tenantName,
-            role: tenant.role || TENANT_ROLE,
-        });
+        return res.status(STATUS.OK).json({ email: tenant.email, tenantName: tenant.tenantName });
     } catch (error) {
         console.error("Get tenant error:", error);
         return res.status(STATUS.INTERNAL_ERROR).json({ message: "Internal server error" });

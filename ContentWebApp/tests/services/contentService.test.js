@@ -38,7 +38,7 @@ describe("contentService", () => {
       await contentService.deleteContent("quiz", "quiz-123");
 
       expect(apiFetch).toHaveBeenCalledWith(
-        `${SEEDS_URL}/content/quiz-123`,
+        `${SEEDS_URL}/content/quiz/quiz-123`,
         expect.objectContaining({
           method: "DELETE",
           headers: mockAuthHeaders,
@@ -77,4 +77,3 @@ describe("contentService", () => {
     });
   });
 });
-

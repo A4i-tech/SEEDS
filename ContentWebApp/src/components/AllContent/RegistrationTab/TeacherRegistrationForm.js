@@ -132,7 +132,7 @@ const TeacherRegistrationForm = ({ onRegister, message, messageType }) => {
       </div>
 
       <button type="button" className="primary-button full-width-button" onClick={handleSubmit}>
-        Add User
+        Save Teacher
       </button>
 
       {(submitError || message) && (

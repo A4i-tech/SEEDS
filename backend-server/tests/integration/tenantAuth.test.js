@@ -56,25 +56,6 @@ describe("Tenant Authentication - Integration Tests", () => {
     expect(res.status).toBe(200);
     expect(res.body.email).toBe(TEST_TENANT.email);
     expect(res.body.tenantName).toBe(TEST_TENANT.tenantName);
-    expect(res.body.role).toBe("tenant");
   });
 
-  test("POST /tenant/login defaults token role to tenant when tenant document has no role", async () => {
-    const hashedPassword = await bcryptjs.hash(TEST_TENANT.password, 10);
-    await Tenant.create({
-      email: TEST_TENANT.email,
-      password: hashedPassword,
-      tenantName: TEST_TENANT.tenantName,
-    });
-
-    const res = await request(app).post("/tenant/login").send({
-      email: TEST_TENANT.email,
-      password: TEST_TENANT.password,
-    });
-
-    expect(res.status).toBe(200);
-
-    const decoded = jwt.verify(res.body.token, SECRET_KEY);
-    expect(decoded.role).toBe("tenant");
-  });
 });
