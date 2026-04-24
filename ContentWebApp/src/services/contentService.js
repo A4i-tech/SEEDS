@@ -82,7 +82,10 @@ export const contentService = {
    * @returns {Promise<Object>}
    */
   async updateContent(contentData, isAudioUploaded = false) {
-    const url = `${SEEDS_URL}/content?isAudioUploaded=${isAudioUploaded}`;
+    if (!contentData?._id) {
+      throw new Error("updateContent requires _id");
+    }
+    const url = `${SEEDS_URL}/content/${contentData._id}?isAudioUploaded=${isAudioUploaded}`;
 
     const response = await apiFetch(url, {
       method: "PATCH",

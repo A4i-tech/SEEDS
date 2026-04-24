@@ -105,16 +105,6 @@ function findTenantContentById(contentId, tenantId, req) {
     .exec();
 }
 
-function normalizeIdsQuery(ids) {
-  if (Array.isArray(ids)) {
-    return ids.filter(Boolean);
-  }
-  return String(ids)
-    .split(",")
-    .map((id) => id.trim())
-    .filter(Boolean);
-}
-
 // Initialize instances
 const blobService = new BlobService();
 const router = express.Router();
@@ -502,10 +492,10 @@ router.get(
 
     // If specific IDs are requested, return non-deleted content sorted by creation time (newest first)
     if (req.query.ids) {
-      const idsArray = normalizeIdsQuery(req.query.ids);
-      if (idsArray.length === 0) {
-        return res.status(400).json({ error: "ids query parameter must be a non-empty array or comma-separated string" });
+      if (!Array.isArray(req.query.ids) || req.query.ids.length === 0) {
+        return res.status(400).json({ error: "ids query parameter must be a non-empty array" });
       }
+      const idsArray = req.query.ids.filter(Boolean);
 
       // Fetch both content and quiz data for the requested IDs (lean for read-only)
       const [contents, quizzes] = await Promise.all([
@@ -581,9 +571,9 @@ router.get(
     const applyCursorCondition = (baseQuery) =>
       cursorCondition ? { $and: [baseQuery, cursorCondition] } : baseQuery;
 
-    // Fetch content and quizzes separately
-    // Fetch more items to account for merging and pagination
-    const fetchLimit = limit * 2; // Fetch more to ensure we have enough after merging
+    // Fetch limit+1 from each collection: any collection with more than `limit` unseen
+    // items means there is more data to page through after merging.
+    const fetchLimit = limit + 1;
 
     // Fetch content and/or quizzes only when needed (no empty Promise fallbacks)
     let contents = [];
@@ -954,13 +944,6 @@ const patchContentHandler = tryCatchWrapper(async (req, res) => {
 
     return res.json({ ...updated.toObject(), id: updated._id });
   });
-
-router.patch(
-  "/",
-  authenticateToken,
-  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
-  patchContentHandler,
-);
 
 router.patch(
   "/:contentId",

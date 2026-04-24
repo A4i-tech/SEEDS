@@ -13,7 +13,7 @@ export const teacherService = {
   },
 
   async registerTeacher(phoneNumber, password, name, role, headers = {}) {
-    return apiFetch(`${SEEDS_URL}/teacher/register`, {
+    return await apiFetch(`${SEEDS_URL}/teacher/register`, {
       method: "POST",
       headers,
       body: JSON.stringify({
