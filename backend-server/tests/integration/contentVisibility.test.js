@@ -44,6 +44,7 @@ describe("Content visibility - integration", () => {
     await createContent({ tenantId, schoolId: null });
 
     const matchingSchoolToken = signToken({
+      id: schoolId.toString(),
       email: "admin@school.com",
       role: "school_admin",
       schoolId: schoolId.toString(),
@@ -51,6 +52,7 @@ describe("Content visibility - integration", () => {
       iss: "school_admin",
     });
     const otherSchoolToken = signToken({
+      id: otherSchoolId.toString(),
       email: "other@school.com",
       role: "school_admin",
       schoolId: otherSchoolId.toString(),
