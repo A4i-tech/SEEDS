@@ -48,7 +48,7 @@ module.exports = {
         id: tenant._id || tenant.id,
         email: tenant.email,
         name: tenant.tenantName,
-        role: tenant.role,
+        role: tenant.role || ROLES.TENANT,
       });
       return res.status(STATUS.OK).json({
         token,

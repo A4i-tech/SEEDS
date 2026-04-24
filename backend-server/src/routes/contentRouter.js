@@ -26,31 +26,12 @@ const processNewContent = require("../jobs/processAudioContent.js");
 const processQuizContent = require("../jobs/processQuizContent.js");
 const { tryCatchWrapper } = require(path.join("..", "util.js"));
 const { authenticateToken, authorizeRole } = require("../auth/authenticateToken");
+const contentService = require("../services/content.service");
 
 const TENANT_ROLE = "tenant";
 const SCHOOL_ADMIN_ROLE = "school_admin";
 const TEACHER_ROLE = "teacher";
 const CONTENT_CREATOR_ROLE = "content_creator";
-
-const PATCHABLE_CONTENT_FIELDS = [
-  "description",
-  "type",
-  "language",
-  "title",
-  "theme",
-  "audioContent",
-  "isPullModel",
-  "isTeacherApp",
-  "localTitle",
-  "localTheme",
-  "positiveMark",
-  "positiveMarks",
-  "negativeMark",
-  "negativeMarks",
-  "questions",
-  "options",
-  "correctAnswers",
-];
 
 const SCHOOL_SCOPED_CONTENT_ROLES = new Set([
   SCHOOL_ADMIN_ROLE,
@@ -912,12 +893,7 @@ const patchContentHandler = tryCatchWrapper(async (req, res) => {
       return res.status(400).json({ error: "Content _id is required" });
     }
 
-    const updatePayload = {};
-    PATCHABLE_CONTENT_FIELDS.forEach((key) => {
-      if (Object.prototype.hasOwnProperty.call(body, key)) {
-        updatePayload[key] = body[key];
-      }
-    });
+    const updatePayload = contentService.sanitizePatchableContentFields(body);
 
     // Check if it is a quiz (stored in QuizData)
     const writeSchoolFilter = getWriteSchoolFilter(req);
@@ -927,88 +903,11 @@ const patchContentHandler = tryCatchWrapper(async (req, res) => {
       ...writeSchoolFilter,
     }).lean().exec();
     if (existingQuiz) {
-      const quizUpdate = {};
-
-      // Scalar fields
-      if (updatePayload.language !== undefined) quizUpdate.language = updatePayload.language;
-      if (updatePayload.isPullModel !== undefined) quizUpdate.isPullModel = updatePayload.isPullModel;
-      if (updatePayload.isTeacherApp !== undefined) quizUpdate.isTeacherApp = updatePayload.isTeacherApp;
-
-      // Normalize singular → plural mark field names from frontend
-      const posMarks = updatePayload.positiveMarks ?? updatePayload.positiveMark;
-      const negMarks = updatePayload.negativeMarks ?? updatePayload.negativeMark;
-      if (posMarks !== undefined) quizUpdate.positiveMarks = posMarks;
-      if (negMarks !== undefined) quizUpdate.negativeMarks = negMarks;
-
-      if (updatePayload.title !== undefined) {
-        const rawTitle = updatePayload.title;
-        const englishTitle =
-          typeof rawTitle === "string"
-            ? rawTitle
-            : rawTitle && typeof rawTitle.english === "string"
-              ? rawTitle.english
-              : null;
-        if (englishTitle === null) {
-          return res
-            .status(400)
-            .json({ error: "title must be a string or an object with english string" });
-        }
-        const localTitle =
-          typeof updatePayload.localTitle === "string"
-            ? updatePayload.localTitle
-            : existingQuiz.title?.local;
-        quizUpdate.title = {
-          english: englishTitle,
-          local: localTitle,
-          audioUrl: existingQuiz.title?.audioUrl,
-        };
-      }
-      if (updatePayload.theme !== undefined) {
-        const rawTheme = updatePayload.theme;
-        const englishTheme =
-          typeof rawTheme === "string"
-            ? rawTheme
-            : rawTheme && typeof rawTheme.english === "string"
-              ? rawTheme.english
-              : null;
-        if (englishTheme === null) {
-          return res
-            .status(400)
-            .json({ error: "theme must be a string or an object with english string" });
-        }
-        const localTheme =
-          typeof updatePayload.localTheme === "string"
-            ? updatePayload.localTheme
-            : existingQuiz.theme?.local;
-        quizUpdate.theme = {
-          english: englishTheme,
-          local: localTheme,
-          audioUrl: existingQuiz.theme?.audioUrl,
-        };
-      }
-
-      const questionTexts = updatePayload.questions;
-      const optionArrays = updatePayload.options;
-      const correctAnswers = updatePayload.correctAnswers;
-      if (Array.isArray(questionTexts) && Array.isArray(optionArrays)) {
-        quizUpdate.questions = questionTexts.map((questionText, qIdx) => {
-          const existing = existingQuiz.questions?.[qIdx];
-          const optTexts = optionArrays[qIdx];
-          const correctIdx = Array.isArray(correctAnswers) ? (correctAnswers[qIdx] ?? 0) : 0;
-          return {
-            question: {
-              id: existing?.question?.id,
-              url: existing?.question?.url,
-              text: questionText,
-            },
-            options: (optTexts ?? []).map((optText, oIdx) => ({
-              id: existing?.options?.[oIdx]?.id,
-              url: existing?.options?.[oIdx]?.url,
-              text: optText,
-            })),
-            correct_option_id: existing?.options?.[correctIdx]?.id,
-          };
-        });
+      let quizUpdate;
+      try {
+        quizUpdate = contentService.buildQuizUpdatePayload(existingQuiz, updatePayload);
+      } catch (error) {
+        return res.status(400).json({ error: error.message });
       }
 
       const updated = await QuizData.findOneAndUpdate(
@@ -1024,9 +923,7 @@ const patchContentHandler = tryCatchWrapper(async (req, res) => {
     }
 
     // Otherwise update in ContentV3 (story, poem, song, riddle)
-    if (isAudioUploaded) {
-      updatePayload.isProcessed = false;
-    }
+    const storyUpdate = contentService.buildStoryUpdatePayload(updatePayload, { isAudioUploaded });
 
     const existingContent = await ContentV3.findOne({
       _id: contentId,
@@ -1042,7 +939,7 @@ const patchContentHandler = tryCatchWrapper(async (req, res) => {
 
     const updated = await ContentV3.findOneAndUpdate(
       { _id: contentId, tenantId: req.tenantId, ...writeSchoolFilter },
-      { $set: updatePayload },
+      { $set: storyUpdate },
       { new: true },
     ).exec();
 

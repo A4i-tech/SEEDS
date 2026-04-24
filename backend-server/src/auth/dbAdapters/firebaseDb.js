@@ -37,7 +37,8 @@ module.exports = {
     if (snapshot.empty) {
       return null;
     }
-    return snapshot.docs[0].data();
+    const doc = snapshot.docs[0];
+    return { id: doc.id, ...doc.data() };
   },
   async insertTenant({ email, password, tenantName, role }) {
     const tenantsRef = db.collection("Tenants");

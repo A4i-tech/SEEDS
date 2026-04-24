@@ -4,12 +4,10 @@ import { SEEDS_URL } from "../Constants";
 import { getAuthHeaders, isAuthenticated, clearAuth } from "../utils/authHelpers";
 import { apiFetch } from "../services/api";
 
-let cachedTenantName = null;
 let cachedUserProfile = null;
 let cachedUserPromise = null;
 
 const resetUserCache = () => {
-  cachedTenantName = null;
   cachedUserProfile = null;
   cachedUserPromise = null;
 };
@@ -56,7 +54,7 @@ export const useAuth = () => {
     }
 
     const tokenPayload = getTokenPayload();
-    const role = tokenPayload.role || null;
+    const role = tokenPayload.role || tokenPayload.iss || null;
     const nameFromToken = tokenPayload.name || null;
     const meUrl =
       role === "school_admin"
@@ -76,7 +74,6 @@ export const useAuth = () => {
           name: nameFromToken || req.name || req.tenantName || req.schoolName,
         };
         cachedUserProfile = profile;
-        cachedTenantName = profile.name;
         cachedUserPromise = null;
         return cachedUserProfile;
       })
@@ -89,11 +86,12 @@ export const useAuth = () => {
   }, []);
 
   const getCurrentUserName = useCallback(async () => {
-    if (cachedTenantName) return cachedTenantName;
+    if (cachedUserProfile?.name) {
+      return cachedUserProfile.name;
+    }
     const tokenPayload = getTokenPayload();
     if (tokenPayload.name) {
-      cachedTenantName = tokenPayload.name;
-      return cachedTenantName;
+      return tokenPayload.name;
     }
     try {
       const profile = await getCurrentUser();

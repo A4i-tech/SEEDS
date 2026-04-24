@@ -6,6 +6,7 @@ import { useContentFilters } from "../hooks/useContentFilters";
 import { useTeachers } from "../hooks/useTeachers";
 import { useSchools } from "../hooks/useSchools";
 import { ivrService } from "../services/ivrService";
+import { getRole } from "../utils/authHelpers";
 import AppHeader from "./AllContent/Header/AppHeader";
 import ContentTab from "./AllContent/ContentTab/ContentTab";
 import IVRTab from "./AllContent/IVRTab/IVRTab";
@@ -16,11 +17,13 @@ import "./AllContent/AllContent.css";
 import "./AllContent/shared/responsive.css";
 
 const AllContent = () => {
-  const [activeTab, setActiveTab] = useState("content");
+  const [activeTab, setActiveTab] = useState(() =>
+    getRole() === USER_ROLES.TENANT ? "registration" : "content"
+  );
   const [updateIVRStatus, setUpdateIVRStatus] = useState("");
   const [isUpdatingIVR, setIsUpdatingIVR] = useState(false);
   const [currentUser, setCurrentUser] = useState("User");
-  const [currentUserRole, setCurrentUserRole] = useState(null);
+  const [currentUserRole, setCurrentUserRole] = useState(() => getRole() || null);
 
   const navigate = useNavigate();
   const { getAuthHeaders, logout, getCurrentUser } = useAuth();
@@ -35,7 +38,7 @@ const AllContent = () => {
     deleteContent,
     setContent,
     setIsFiltered,
-  } = useContent(canViewContent);
+  } = useContent();
 
   const {
     options,
@@ -77,8 +80,12 @@ const AllContent = () => {
     const fetchUser = async () => {
       try {
         const profile = await getCurrentUser();
-        setCurrentUser(profile.name);
-        setCurrentUserRole(profile.role);
+        if (profile.name) {
+          setCurrentUser(profile.name);
+        }
+        if (profile.role) {
+          setCurrentUserRole(profile.role);
+        }
       } catch (error) {
         console.error("Error fetching user:", error);
       }

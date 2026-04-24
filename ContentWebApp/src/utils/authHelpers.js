@@ -21,6 +21,26 @@ export const isAuthenticated = () => {
   return !!localStorage.getItem("authToken");
 };
 
+const getTokenPayload = () => {
+  const token = localStorage.getItem("authToken");
+  if (!token) {
+    return {};
+  }
+
+  try {
+    const [, payload] = token.split(".");
+    if (!payload) {
+      return {};
+    }
+
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(normalized.length + ((4 - normalized.length % 4) % 4), "=");
+    return JSON.parse(atob(padded));
+  } catch (_error) {
+    return {};
+  }
+};
+
 /**
  * Persist auth data after login
  * @param {string} token - JWT token
@@ -37,7 +57,10 @@ export const setAuth = (token, role, schoolId = null) => {
  * Get stored user role
  * @returns {"tenant"|"school_admin"|"content_creator"|"teacher"|null}
  */
-export const getRole = () => localStorage.getItem("userRole");
+export const getRole = () => {
+  const tokenPayload = getTokenPayload();
+  return tokenPayload.role || tokenPayload.iss || localStorage.getItem("userRole");
+};
 
 /**
  * Get stored school ID (school_admin, content_creator, teacher)
