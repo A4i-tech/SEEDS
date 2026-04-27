@@ -73,6 +73,7 @@ const AllContent = () => {
   const canViewRegistration =
     currentUserRole === USER_ROLES.TENANT || currentUserRole === USER_ROLES.SCHOOL_ADMIN;
   const canViewAnalytics = canViewRegistration;
+  const canDeleteContent = currentUserRole !== USER_ROLES.TEACHER;
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -179,7 +180,7 @@ const AllContent = () => {
             onUpdateIVR={handleUpdateIVR}
             onEdit={handleEdit}
             onView={handleView}
-            onDelete={deleteContent}
+            onDelete={canDeleteContent ? deleteContent : null}
             onLoadMore={loadMore}
             isUpdatingIVR={isUpdatingIVR}
             multiselectRef={multiselectRef}

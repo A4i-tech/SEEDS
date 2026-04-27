@@ -128,9 +128,15 @@ export const useContent = () => {
         alert(`${contentType.charAt(0).toUpperCase() + contentType.slice(1)} deleted successfully.`);
       } catch (error) {
         console.error("Error deleting content:", error);
-        const errorMessage = error.response?.data?.error || error.message || "Failed to delete content";
+        let errorMessage = error.response?.data?.error || error.message || "Failed to delete content";
+        try {
+          const parsed = JSON.parse(errorMessage);
+          errorMessage = parsed?.error || parsed?.message || errorMessage;
+        } catch (_) {}
+        if (errorMessage === "Content not found" || errorMessage === "Unauthorized") {
+          errorMessage = "You do not have permission to delete this item.";
+        }
         alert(`Error deleting ${contentType}: ${errorMessage}`);
-        throw error;
       }
     },
     []

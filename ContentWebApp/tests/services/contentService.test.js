@@ -31,14 +31,14 @@ describe("contentService", () => {
   });
 
   describe("deleteContent", () => {
-    it("should call delete endpoint with correct URL for quiz", async () => {
+    it("should call delete endpoint with id (type ignored)", async () => {
       const { apiFetch } = require("../../src/services/api");
       apiFetch.mockResolvedValue({});
 
       await contentService.deleteContent("quiz", "quiz-123");
 
       expect(apiFetch).toHaveBeenCalledWith(
-        `${SEEDS_URL}/content/quiz/quiz-123`,
+        `${SEEDS_URL}/content/quiz-123`,
         expect.objectContaining({
           method: "DELETE",
           headers: mockAuthHeaders,
