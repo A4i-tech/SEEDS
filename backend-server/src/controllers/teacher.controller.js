@@ -21,13 +21,7 @@ exports.getMe = async (req, res) => {
       }
     }
 
-    return res.status(STATUS.OK).json({
-      name: teacher.name,
-      phoneNumber: teacher.phoneNumber,
-      role: teacher.role,
-      schoolId: teacher.schoolId,
-      schoolName,
-    });
+    return res.status(STATUS.OK).json({ schoolName });
   } catch (error) {
     if (error.status === STATUS.NOT_FOUND) {
       return res.status(STATUS.NOT_FOUND).json({ message: "Teacher not found" });
