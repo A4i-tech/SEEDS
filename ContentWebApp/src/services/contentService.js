@@ -40,14 +40,13 @@ export const contentService = {
   },
 
   /**
-   * Delete content by type and ID
-   * @param {string} type - Content type ("quiz" or other)
+   * Delete content by ID
+   * @param {string} _type - Unused (kept for call-site compat)
    * @param {string} id - Content ID
    * @returns {Promise<void>}
    */
-  async deleteContent(type, id) {
-    const path = type === "quiz" ? `quiz/${id}` : `${id}`;
-    const url = `${SEEDS_URL}/content/${path}`;
+  async deleteContent(_type, id) {
+    const url = `${SEEDS_URL}/content/${id}`;
 
     await apiFetch(url, {
       method: "DELETE",
@@ -86,10 +85,7 @@ export const contentService = {
     if (!contentData?._id) {
       throw new Error("updateContent requires _id");
     }
-    const isQuiz = contentData.type === "quiz";
-    const path = isQuiz ? `quiz/${contentData._id}` : `${contentData._id}`;
-    const query = isQuiz ? "" : `?isAudioUploaded=${isAudioUploaded}`;
-    const url = `${SEEDS_URL}/content/${path}${query}`;
+    const url = `${SEEDS_URL}/content/${contentData._id}?isAudioUploaded=${isAudioUploaded}`;
 
     const response = await apiFetch(url, {
       method: "PATCH",
@@ -131,14 +127,13 @@ export const contentService = {
    * @param {string} id - Content ID
    * @returns {Promise<Object>}
    */
-  async getContentById(id, type) {
+  async getContentById(id) {
     if (!id || !String(id).trim()) {
       throw new Error("Content ID is required");
     }
 
     const contentId = encodeURIComponent(String(id).trim());
-    const path = type === "quiz" ? `quiz/${contentId}` : contentId;
-    const url = `${SEEDS_URL}/content/${path}`;
+    const url = `${SEEDS_URL}/content/${contentId}`;
 
     const response = await apiFetch(url, {
       method: "GET",

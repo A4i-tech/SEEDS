@@ -25,8 +25,9 @@ const BlobService = require("../services/BlobService.js");
 const processNewContent = require("../jobs/processAudioContent.js");
 const processQuizContent = require("../jobs/processQuizContent.js");
 const { tryCatchWrapper } = require(path.join("..", "util.js"));
+const { Binary } = require("mongodb");
+const { parse: uuidParse } = require("uuid");
 const { authenticateToken, authorizeRole } = require("../auth/authenticateToken");
-const contentService = require("../services/content.service");
 
 const TENANT_ROLE = "tenant";
 const SCHOOL_ADMIN_ROLE = "school_admin";
@@ -63,16 +64,6 @@ agenda.define("processQuizContent", async (job) => {
 (async function () {
   await agenda.start();
 })();
-
-/** Sort merged content/quizzes by creation_time descending, then by _id descending as tie-breaker. */
-function sortByCreationTimeThenId(a, b) {
-  const timeA = a.creation_time;
-  const timeB = b.creation_time;
-  if (timeB !== timeA) return timeB - timeA;
-  const idA = a._id.toString();
-  const idB = b._id.toString();
-  return idB.localeCompare(idA);
-}
 
 /**
  * @swagger
@@ -314,24 +305,18 @@ router.get(
 router.get(
   "/themes",
   authenticateToken,
-  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
-    const tenantId = req.tenantId;
-    if (!tenantId) {
-      return res.status(400).json({ error: "tenantId not found in token" });
-    }
     const language = req.query.language;
     const content = await ContentV3.find({
+      tenantId: req.tenantId,
+      schoolId: getReadSchoolIdFilter(req),
       language: language,
       isPullModel: true,
-      tenantId,
-      schoolId: getReadSchoolIdFilter(req),
-    })
-      .sort({ _id: -1 })
-      .lean()
-      .exec();
+    }).sort({ _id: -1 });
     const themeSet = new Set();
     const themes = [];
+    console.log(content.length);
+    console.log(language);
     for (const cont of content) {
       const theme = cont.theme.english;
       if (!themeSet.has(theme)) {
@@ -424,28 +409,24 @@ router.get(
   authenticateToken,
   authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
-    const tenantId = req.tenantId;
-    if (!tenantId) {
-      return res.status(400).json({ error: "tenantId not found in token" });
-    }
-
     const limit = parseInt(req.query.limit) || 15;
     const cursor = req.query.cursor;
 
+    const tenantId = req.query.tenantId;
     // If specific IDs are requested, return non-deleted content sorted by creation time (newest first)
     if (req.query.ids) {
       if (!Array.isArray(req.query.ids) || req.query.ids.length === 0) {
         return res.status(400).json({ error: "ids query parameter must be a non-empty array" });
       }
-      const idsArray = req.query.ids.filter(Boolean);
+      const idsArray = req.query.ids;
 
       // Fetch both content and quiz data for the requested IDs (lean for read-only)
       const schoolIdFilter = getReadSchoolIdFilter(req);
       const [contents, quizzes] = await Promise.all([
-        ContentV3.find({ _id: { $in: idsArray }, isDeleted: { $ne: true }, tenantId, schoolId: schoolIdFilter })
+        ContentV3.find({ _id: { $in: idsArray }, tenantId, isDeleted: { $ne: true }, schoolId: schoolIdFilter })
           .lean()
           .exec(),
-        QuizData.find({ _id: { $in: idsArray }, isDeleted: { $ne: true }, tenantId, schoolId: schoolIdFilter })
+        QuizData.find({ _id: { $in: idsArray }, tenantId, isDeleted: { $ne: true }, schoolId: schoolIdFilter })
           .lean()
           .exec(),
       ]);
@@ -469,15 +450,11 @@ router.get(
       return res.json(allContent);
     }
 
-    // Base query always excludes deleted content
-    let contentQuery = { isDeleted: { $ne: true }, tenantId, schoolId: getReadSchoolIdFilter(req) };
-    let quizQuery = { isDeleted: { $ne: true }, tenantId, schoolId: getReadSchoolIdFilter(req) };
-    let shouldFetchContent = true;
-    let shouldFetchQuizzes = true;
+    // Base query always excludes deleted content, scoped to tenant
+    let query = { isDeleted: { $ne: true }, tenantId: req.tenantId, schoolId: getReadSchoolIdFilter(req) };
 
     if (req.query.onlyTeacherApp) {
-      contentQuery.isTeacherApp = true;
-      quizQuery.isTeacherApp = true;
+      query.isTeacherApp = true;
     } else if (req.query.language && req.query.theme && req.query.expName) {
       const expName = req.query.expName.toLowerCase();
 
@@ -497,91 +474,33 @@ router.get(
       }
     }
 
-    // When using cursor-based pagination, apply the cursor window at the DB level
-    // so that .limit() operates on a deterministic, correctly ordered slice.
-    let cursorCondition = null;
+    // Cursor-based pagination using creation_time (descending) and _id as a tie-breaker
     if (cursor) {
       const [lastCreationTimeStr, lastId] = cursor.split("_");
       const lastCreationTime = parseInt(lastCreationTimeStr, 10);
-      cursorCondition = {
-        $or: [
-          { creation_time: { $lt: lastCreationTime } },
-          { creation_time: lastCreationTime, _id: { $lt: lastId } },
-        ],
-      };
+      const lastIdBinary = new Binary(Buffer.from(uuidParse(lastId)), 4);
+
+      query.$or = [
+        { creation_time: { $lt: lastCreationTime } },
+        {
+          creation_time: lastCreationTime,
+          _id: { $lt: lastIdBinary },
+        },
+      ];
     }
 
-    const applyCursorCondition = (baseQuery) =>
-      cursorCondition ? { $and: [baseQuery, cursorCondition] } : baseQuery;
+    const contents = await ContentV3.find(query)
+      .sort({ creation_time: -1, _id: -1 })
+      .limit(limit + 1)
+      .exec();
 
-    // Fetch limit+1 from each collection: any collection with more than `limit` unseen
-    // items means there is more data to page through after merging.
-    const fetchLimit = limit + 1;
+    const hasMore = contents.length > limit;
+    const data = hasMore ? contents.slice(0, limit) : contents;
 
-    // Fetch content and/or quizzes only when needed (no empty Promise fallbacks)
-    let contents = [];
-    let quizzes = [];
-    if (shouldFetchContent && shouldFetchQuizzes) {
-      [contents, quizzes] = await Promise.all([
-        ContentV3.find(applyCursorCondition(contentQuery))
-          .sort({ creation_time: -1, _id: -1 })
-          .limit(fetchLimit)
-          .lean()
-          .exec(),
-        QuizData.find(applyCursorCondition(quizQuery))
-          .sort({ creation_time: -1, _id: -1 })
-          .limit(fetchLimit)
-          .lean()
-          .exec(),
-      ]);
-    } else if (shouldFetchContent) {
-      contents = await ContentV3.find(applyCursorCondition(contentQuery))
-        .sort({ creation_time: -1, _id: -1 })
-        .limit(fetchLimit)
-        .lean()
-        .exec();
-    } else if (shouldFetchQuizzes) {
-      quizzes = await QuizData.find(applyCursorCondition(quizQuery))
-        .sort({ creation_time: -1, _id: -1 })
-        .limit(fetchLimit)
-        .lean()
-        .exec();
-    }
-
-    // Transform content to ensure id field exists (standardize: always use id from _id)
-    // Note: .lean() returns plain objects, so no need for .toObject()
-    const transformedContents = contents.map((contentObj) => {
-      return {
-        ...contentObj,
-        id: contentObj._id,
-      };
-    });
-
-    // Transform quiz data to match content format (standardize: always use id from _id)
-    // Note: .lean() returns plain objects, so no need for .toObject()
-    const transformedQuizzes = quizzes.map((quizObj) => {
-      return {
-        ...quizObj,
-        id: quizObj._id,
-        type: "quiz",
-      };
-    });
-
-    // Merge content and quizzes, then sort once by creation_time and _id
-    let allContent = [...transformedContents, ...transformedQuizzes];
-    allContent.sort(sortByCreationTimeThenId);
-
-    // Apply limit and check if there are more items
-    const hasMore = allContent.length > limit;
-    const data = hasMore ? allContent.slice(0, limit) : allContent;
-
-    // Generate next cursor from last item (standardized: use id field)
     const lastItem = hasMore ? data[data.length - 1] : null;
-    let nextCursor = null;
-    if (lastItem) {
-      const lastId = lastItem._id.toString();
-      nextCursor = `${lastItem.creation_time}_${lastId}`;
-    }
+    const nextCursor = lastItem
+      ? `${lastItem.creation_time}_${lastItem._id.toString()}`
+      : null;
 
     // Send the final response
     return res.json({
@@ -598,6 +517,7 @@ router.get(
 // async function regenerateAllTitleAudios(){
 //     const contents = await Content.find({isProcessed: true, isPullModel: true})
 //     for(const content of contents){
+//         console.log(`started working for content id=${content.id}`)
 //         const response = await fetch(
 //             'https://seedscontent.azurewebsites.net/api/acs',
 //             {
@@ -624,6 +544,9 @@ router.get(
 //             { new: true }
 //         ).exec()
 
+//         console.log(`id = ${content.id}`)
+//         console.log(`titleAudio = ${titleAudio}`)
+//         console.log(`ThemeAudio = ${themeAudio}`)
 //     }
 // }
 
@@ -652,24 +575,6 @@ router.get(
 );
 
 router.get(
-  "/quiz/:quizId",
-  authenticateToken,
-  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE, CONTENT_CREATOR_ROLE),
-  tryCatchWrapper(async (req, res) => {
-    const quiz = await QuizData.findOne({
-      _id: req.params.quizId,
-      tenantId: req.tenantId,
-      isDeleted: { $ne: true },
-      schoolId: getReadSchoolIdFilter(req),
-    }).lean().exec();
-    if (!quiz) {
-      return res.status(404).json({ error: "Quiz not found" });
-    }
-    return res.json({ ...quiz, id: quiz._id, type: "quiz" });
-  })
-);
-
-router.get(
   "/:contentId",
   authenticateToken,
   authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE, CONTENT_CREATOR_ROLE),
@@ -677,14 +582,39 @@ router.get(
     const content = await ContentV3.findOne({
       _id: req.params.contentId,
       tenantId: req.tenantId,
-      isDeleted: { $ne: true },
       schoolId: getReadSchoolIdFilter(req),
-    }).lean().exec();
+      isDeleted: { $ne: true },
+    });
     if (!content) {
       return res.status(404).json({ error: "Content not found" });
     }
-    return res.json({ ...content, id: content._id });
-  })
+    return res.json(content);
+  }),
+);
+
+router.patch(
+  "/:contentId",
+  authenticateToken,
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
+  tryCatchWrapper(async (req, res) => {
+    const { title, theme, description, isPullModel, isTeacherApp } = req.body;
+    const content = await ContentV3.findOne({
+      _id: req.params.contentId,
+      tenantId: req.tenantId,
+      schoolId: getWriteSchoolIdFilter(req),
+      isDeleted: false,
+    });
+    if (!content) {
+      return res.status(404).json({ error: "Content not found" });
+    }
+    if (title !== undefined) content.title = title;
+    if (theme !== undefined) content.theme = theme;
+    if (description !== undefined) content.description = description;
+    if (isPullModel !== undefined) content.isPullModel = isPullModel;
+    if (isTeacherApp !== undefined) content.isTeacherApp = isTeacherApp;
+    await content.save();
+    return res.json(content);
+  }),
 );
 
 // router.get("/:contentId/processed", tryCatchWrapper(async (req, res) => {
@@ -729,33 +659,15 @@ router.get(
 // }))
 
 router.delete(
-  "/quiz/:quizId",
-  authenticateToken,
-  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
-  tryCatchWrapper(async (req, res) => {
-    const result = await QuizData.findOneAndUpdate(
-      { _id: req.params.quizId, tenantId: req.tenantId, schoolId: getWriteSchoolIdFilter(req) },
-      { $set: { isDeleted: true } },
-      { new: true }
-    );
-    if (!result) {
-      return res.status(404).json({ error: "Quiz not found" });
-    }
-    return res.json(result);
-  }),
-);
-
-router.delete(
   "/:contentId",
   authenticateToken,
   authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
-    const result = await ContentV3.findOneAndUpdate(
+    const result = await ContentV3.updateOne(
       { _id: req.params.contentId, tenantId: req.tenantId, schoolId: getWriteSchoolIdFilter(req) },
       { $set: { isDeleted: true } },
-      { new: true }
     );
-    if (!result) {
+    if (result.matchedCount === 0) {
       return res.status(404).json({ error: "Content not found" });
     }
     return res.json(result);
@@ -768,10 +680,10 @@ router.post(
   authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     let content = new ContentV3(req.body);
-    content.creation_time = Math.floor(Date.now() / 1000);
     content.tenantId = req.tenantId;
-    content.schoolId = req.schoolId || null;
     content.createdBy = req.userId;
+    content.creation_time = Math.floor(Date.now() / 1000);
+    content.schoolId = req.schoolId || null;
 
     // Validate audioContent entries to ensure uploaded audio URLs reference .mp3 files.
     for (const item of content.audioContent || []) {
@@ -789,75 +701,6 @@ router.post(
       message: "Processing New Content job scheduled!",
       jobId: job.attrs._id,
     });
-  }),
-);
-
-router.patch(
-  "/quiz/:quizId",
-  authenticateToken,
-  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
-  tryCatchWrapper(async (req, res) => {
-    const body = req.body || {};
-    const updatePayload = contentService.sanitizePatchableContentFields(body);
-    const writeSchoolId = getWriteSchoolIdFilter(req);
-
-    const existingQuiz = await QuizData.findOne({
-      _id: req.params.quizId,
-      tenantId: req.tenantId,
-      schoolId: writeSchoolId,
-    }).lean().exec();
-    if (!existingQuiz) {
-      return res.status(404).json({ error: "Quiz not found" });
-    }
-
-    let quizUpdate;
-    try {
-      quizUpdate = contentService.buildQuizUpdatePayload(existingQuiz, updatePayload);
-    } catch (error) {
-      return res.status(400).json({ error: error.message });
-    }
-
-    const updated = await QuizData.findOneAndUpdate(
-      { _id: req.params.quizId, tenantId: req.tenantId, schoolId: writeSchoolId },
-      { $set: quizUpdate },
-      { new: true },
-    ).exec();
-    if (!updated) {
-      return res.status(404).json({ error: "Quiz not found" });
-    }
-    return res.json({ ...updated.toObject(), id: updated._id, type: "quiz" });
-  }),
-);
-
-router.patch(
-  "/:contentId",
-  authenticateToken,
-  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
-  tryCatchWrapper(async (req, res) => {
-    const isAudioUploaded = req.query.isAudioUploaded === "true";
-    const body = req.body || {};
-    const updatePayload = contentService.sanitizePatchableContentFields(body);
-    const storyUpdate = contentService.buildStoryUpdatePayload(updatePayload, { isAudioUploaded });
-    const writeSchoolId = getWriteSchoolIdFilter(req);
-
-    const updated = await ContentV3.findOneAndUpdate(
-      {
-        _id: req.params.contentId,
-        tenantId: req.tenantId,
-        schoolId: writeSchoolId,
-        isDeleted: { $ne: true },
-      },
-      { $set: storyUpdate },
-      { new: true },
-    ).exec();
-    if (!updated) {
-      return res.status(404).json({ error: "Content not found" });
-    }
-
-    if (isAudioUploaded) {
-      await agenda.now("processNewContent", { content: updated.toObject() });
-    }
-    return res.json({ ...updated.toObject(), id: updated._id });
   }),
 );
 
@@ -961,8 +804,10 @@ router.patch(
 //                 { $set: { titleAudio, themeAudio } },
 //                 { new: true }
 //             ).exec()
+//             console.log(`Processed for id = ${content.id} and title = ${content.title}`)
 //         }
 //         catch(err){
+//             console.log(`Error occured while handling content id = ${content.id} and Title = ${content.title}`)
 //             console.error(err)
 //         }
 
@@ -981,6 +826,7 @@ async function deleteBlobFromAContainer(containerName, blobNamePrefix) {
   const blobList = containerClient.listBlobsFlat({ prefix: blobNamePrefix });
   for await (const blob of blobList) {
     await containerClient.deleteBlob(blob.name, options);
+    console.log(`Deleted blob with name = ${blob.name}`);
   }
 }
 
@@ -998,7 +844,7 @@ async function deleteAudioBlobs(audioId) {
 }
 
 async function deleteUnnecessaryStorage() {
-  const docs = await Content.find({}).lean().exec();
+  const docs = await Content.find({});
   const containerName = "output-container";
   const containerClient = blobService.getContainerClient(containerName);
   for (const doc of docs) {
@@ -1016,13 +862,15 @@ async function deleteUnnecessaryStorage() {
     }
     if (deleteDoc) {
       await Content.deleteOne({ id: doc.id });
+      console.log(`Deleted doc with id = ${doc.id}`);
     }
     if (deleteBlob) {
       await deleteAudioBlobs(doc.id);
+      console.log(`Deleted blob with id = ${doc.id}`);
     }
   }
 }
-router.post("/delete-unnecessary-storage", authenticateToken, authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE), async (req, res) => {
+router.post("/delete-unnecessary-storage", async (req, res) => {
   await deleteUnnecessaryStorage();
   return res.send("Deleted Successfully");
 });
