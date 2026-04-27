@@ -1,4 +1,5 @@
 const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 const teacherAuth = require("../../src/auth/teacher/teacherAuthProviderMiddleware");
 const teacherRepository = require("../../src/repositories/teacher.repository");
 
@@ -57,10 +58,12 @@ describe("Teacher login - phone fallback (unit)", () => {
     expect(teacherRepository.getTeacherByPhoneNumber).toHaveBeenCalledWith(TEST_PHONE);
     expect(res.statusCode).toBe(STATUS_OK);
     expect(res.body.token).toBeDefined();
-    expect(res.body.phoneNumber).toBe(TEST_PHONE);
-    expect(res.body.schoolId).toBe(TEST_SCHOOL_ID);
-    expect(res.body.name).toBe("Teacher User");
-    expect(res.body.role).toBe("teacher");
+
+    const decoded = jwt.decode(res.body.token);
+    expect(decoded.phoneNumber).toBe(TEST_PHONE);
+    expect(decoded.schoolId).toBe(TEST_SCHOOL_ID);
+    expect(decoded.name).toBe("Teacher User");
+    expect(decoded.role).toBe("teacher");
   });
 
   afterEach(() => {
