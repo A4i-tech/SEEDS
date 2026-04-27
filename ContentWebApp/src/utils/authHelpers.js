@@ -21,7 +21,7 @@ export const isAuthenticated = () => {
   return !!localStorage.getItem("authToken");
 };
 
-const getTokenPayload = () => {
+export const getTokenPayload = () => {
   const token = localStorage.getItem("authToken");
   if (!token) {
     return {};

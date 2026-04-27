@@ -50,11 +50,7 @@ module.exports = {
         name: tenant.tenantName,
         role: tenant.role,
       });
-      return res.status(STATUS.OK).json({
-        token,
-        id: tenant._id || tenant.id,
-        tenantName: tenant.tenantName,
-      });
+      return res.status(STATUS.OK).json({ token });
     } catch (error) {
       console.error("Login error:", error);
       return res

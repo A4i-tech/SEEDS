@@ -70,7 +70,7 @@ export const useAuth = () => {
       .then((req) => {
         const profile = {
           ...req,
-          role: req.role || role,
+          role,
           name: nameFromToken || req.name || req.tenantName || req.schoolName,
         };
         cachedUserProfile = profile;

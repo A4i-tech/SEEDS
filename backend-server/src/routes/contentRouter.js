@@ -33,27 +33,17 @@ const SCHOOL_ADMIN_ROLE = "school_admin";
 const TEACHER_ROLE = "teacher";
 const CONTENT_CREATOR_ROLE = "content_creator";
 
-function isSchoolScopedContentRole(role) {
-  return role === SCHOOL_ADMIN_ROLE || role === TEACHER_ROLE || role === CONTENT_CREATOR_ROLE;
-}
-
-function isContentWriteRole(role) {
-  return role === SCHOOL_ADMIN_ROLE || role === CONTENT_CREATOR_ROLE;
-}
-
-// Reads: school-scoped roles see tenant-global content plus their own school content.
-function applyReadSchoolScope(query, req) {
-  if (!isSchoolScopedContentRole(req.role)) return query;
-  if (!req.schoolId) return { _id: { $exists: false } };
-  return { ...query, schoolId: { $in: [null, req.schoolId.toString()] } };
-}
-
-// Writes: school-scoped writer → own school; tenant → tenant-level (schoolId: null).
-function getWriteSchoolFilter(req) {
-  if (isContentWriteRole(req.role)) {
-    return req.schoolId ? { schoolId: req.schoolId.toString() } : { _id: { $exists: false } };
+// For reads — school-scoped users see their own school's content + tenant content (schoolId: null)
+function getReadSchoolIdFilter(req) {
+  if (req.schoolId && (req.role === SCHOOL_ADMIN_ROLE || req.role === TEACHER_ROLE || req.role === CONTENT_CREATOR_ROLE)) {
+    return { $in: [req.schoolId, null] };
   }
-  return { schoolId: null };
+  return null;
+}
+
+// For writes (modify/delete) — strict ownership only
+function getWriteSchoolIdFilter(req) {
+  return (req.role === SCHOOL_ADMIN_ROLE || req.role === CONTENT_CREATOR_ROLE) ? req.schoolId : null;
 }
 
 // Initialize instances
@@ -232,7 +222,7 @@ router.post(
     const quizData = fromQuizCreateRequest(quizCreateRequest);
     quizData.creation_time = Math.floor(Date.now() / 1000);
     quizData.tenantId = req.tenantId;
-    quizData.schoolId = isContentWriteRole(req.role) && req.schoolId ? req.schoolId.toString() : null;
+    quizData.schoolId = req.schoolId || null;
     quizData.createdBy = req.userId;
     const quizDataDoc = quizData.toObject();
     const job = await agenda.now("processQuizContent", {
@@ -331,11 +321,12 @@ router.get(
       return res.status(400).json({ error: "tenantId not found in token" });
     }
     const language = req.query.language;
-    const content = await ContentV3.find(applyReadSchoolScope({
+    const content = await ContentV3.find({
       language: language,
       isPullModel: true,
       tenantId,
-    }, req))
+      schoolId: getReadSchoolIdFilter(req),
+    })
       .sort({ _id: -1 })
       .lean()
       .exec();
@@ -449,11 +440,12 @@ router.get(
       const idsArray = req.query.ids.filter(Boolean);
 
       // Fetch both content and quiz data for the requested IDs (lean for read-only)
+      const schoolIdFilter = getReadSchoolIdFilter(req);
       const [contents, quizzes] = await Promise.all([
-        ContentV3.find(applyReadSchoolScope({ _id: { $in: idsArray }, isDeleted: { $ne: true }, tenantId }, req))
+        ContentV3.find({ _id: { $in: idsArray }, isDeleted: { $ne: true }, tenantId, schoolId: schoolIdFilter })
           .lean()
           .exec(),
-        QuizData.find(applyReadSchoolScope({ _id: { $in: idsArray }, isDeleted: { $ne: true }, tenantId }, req))
+        QuizData.find({ _id: { $in: idsArray }, isDeleted: { $ne: true }, tenantId, schoolId: schoolIdFilter })
           .lean()
           .exec(),
       ]);
@@ -478,8 +470,8 @@ router.get(
     }
 
     // Base query always excludes deleted content
-    let contentQuery = applyReadSchoolScope({ isDeleted: { $ne: true }, tenantId }, req);
-    let quizQuery = applyReadSchoolScope({ isDeleted: { $ne: true }, tenantId }, req);
+    let contentQuery = { isDeleted: { $ne: true }, tenantId, schoolId: getReadSchoolIdFilter(req) };
+    let quizQuery = { isDeleted: { $ne: true }, tenantId, schoolId: getReadSchoolIdFilter(req) };
     let shouldFetchContent = true;
     let shouldFetchQuizzes = true;
 
@@ -664,11 +656,12 @@ router.get(
   authenticateToken,
   authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
-    const quiz = await QuizData.findOne(applyReadSchoolScope({
+    const quiz = await QuizData.findOne({
       _id: req.params.quizId,
       tenantId: req.tenantId,
       isDeleted: { $ne: true },
-    }, req)).lean().exec();
+      schoolId: getReadSchoolIdFilter(req),
+    }).lean().exec();
     if (!quiz) {
       return res.status(404).json({ error: "Quiz not found" });
     }
@@ -681,11 +674,12 @@ router.get(
   authenticateToken,
   authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
-    const content = await ContentV3.findOne(applyReadSchoolScope({
+    const content = await ContentV3.findOne({
       _id: req.params.contentId,
       tenantId: req.tenantId,
       isDeleted: { $ne: true },
-    }, req)).lean().exec();
+      schoolId: getReadSchoolIdFilter(req),
+    }).lean().exec();
     if (!content) {
       return res.status(404).json({ error: "Content not found" });
     }
@@ -740,7 +734,7 @@ router.delete(
   authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     const result = await QuizData.findOneAndUpdate(
-      { _id: req.params.quizId, tenantId: req.tenantId, ...getWriteSchoolFilter(req) },
+      { _id: req.params.quizId, tenantId: req.tenantId, schoolId: getWriteSchoolIdFilter(req) },
       { $set: { isDeleted: true } },
       { new: true }
     );
@@ -757,7 +751,7 @@ router.delete(
   authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     const result = await ContentV3.findOneAndUpdate(
-      { _id: req.params.contentId, tenantId: req.tenantId, ...getWriteSchoolFilter(req) },
+      { _id: req.params.contentId, tenantId: req.tenantId, schoolId: getWriteSchoolIdFilter(req) },
       { $set: { isDeleted: true } },
       { new: true }
     );
@@ -776,7 +770,7 @@ router.post(
     let content = new ContentV3(req.body);
     content.creation_time = Math.floor(Date.now() / 1000);
     content.tenantId = req.tenantId;
-    content.schoolId = isContentWriteRole(req.role) && req.schoolId ? req.schoolId.toString() : null;
+    content.schoolId = req.schoolId || null;
     content.createdBy = req.userId;
 
     // Validate audioContent entries to ensure uploaded audio URLs reference .mp3 files.
@@ -817,11 +811,11 @@ const patchContentHandler = tryCatchWrapper(async (req, res) => {
     const updatePayload = contentService.sanitizePatchableContentFields(body);
 
     // Check if it is a quiz (stored in QuizData)
-    const writeSchoolFilter = getWriteSchoolFilter(req);
+    const writeSchoolId = getWriteSchoolIdFilter(req);
     const existingQuiz = await QuizData.findOne({
       _id: contentId,
       tenantId: req.tenantId,
-      ...writeSchoolFilter,
+      schoolId: writeSchoolId,
     }).lean().exec();
     if (existingQuiz) {
       let quizUpdate;
@@ -832,7 +826,7 @@ const patchContentHandler = tryCatchWrapper(async (req, res) => {
       }
 
       const updated = await QuizData.findOneAndUpdate(
-        { _id: contentId, tenantId: req.tenantId, ...writeSchoolFilter },
+        { _id: contentId, tenantId: req.tenantId, schoolId: writeSchoolId },
         { $set: quizUpdate },
         { new: true },
       ).exec();
@@ -849,7 +843,7 @@ const patchContentHandler = tryCatchWrapper(async (req, res) => {
     const existingContent = await ContentV3.findOne({
       _id: contentId,
       tenantId: req.tenantId,
-      ...writeSchoolFilter,
+      schoolId: writeSchoolId,
       isDeleted: { $ne: true },
     })
       .lean()
@@ -859,7 +853,7 @@ const patchContentHandler = tryCatchWrapper(async (req, res) => {
     }
 
     const updated = await ContentV3.findOneAndUpdate(
-      { _id: contentId, tenantId: req.tenantId, ...writeSchoolFilter },
+      { _id: contentId, tenantId: req.tenantId, schoolId: writeSchoolId },
       { $set: storyUpdate },
       { new: true },
     ).exec();

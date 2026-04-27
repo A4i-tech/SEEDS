@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import validator from "validator";
-import { setAuth } from "../utils/authHelpers";
+import { setAuth, getTokenPayload } from "../utils/authHelpers";
 
 const baseURL = process.env.REACT_APP_API_BASE_URL;
 
@@ -115,21 +115,26 @@ const Login = () => {
 
   const loginAsTenant = async (email, password) => {
     const { data } = await axios.post(`${baseURL}/tenant/login`, { email, password });
+    localStorage.setItem("authToken", data.token);
+    const { name } = getTokenPayload();
     setAuth(data.token, "tenant");
-    navigate("/content", { state: { name: data.tenantName } });
+    navigate("/content", { state: { name } });
   };
 
   const loginAsSchoolAdmin = async (email, password) => {
     const { data } = await axios.post(`${baseURL}/school/admin/login`, { email, password });
-    setAuth(data.token, "school_admin", data.schoolId);
-    navigate("/content", { state: { name: data.schoolName } });
+    localStorage.setItem("authToken", data.token);
+    const { schoolId, name } = getTokenPayload();
+    setAuth(data.token, "school_admin", schoolId);
+    navigate("/content", { state: { name } });
   };
 
   const loginAsTeacher = async (phoneNumber, password) => {
     const { data } = await axios.post(`${baseURL}/teacher/login`, { phoneNumber, password });
-
-    setAuth(data.token, data.role, data.schoolId);
-    navigate("/content", { state: { name: data.name } });
+    localStorage.setItem("authToken", data.token);
+    const { role, schoolId, name } = getTokenPayload();
+    setAuth(data.token, role, schoolId);
+    navigate("/content", { state: { name } });
   };
 
   const handleLogin = async (event) => {
