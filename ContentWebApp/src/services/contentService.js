@@ -76,8 +76,9 @@ export const contentService = {
   },
 
   /**
-   * Update existing content (quiz or story) via PATCH
-   * @param {Object} contentData - Content with _id field required
+   * Update existing content (quiz or story) via PATCH.
+   * Dispatches by type to /content/quiz/:id or /content/:id.
+   * @param {Object} contentData - Content with _id and type fields
    * @param {boolean} isAudioUploaded - Whether a new audio file was uploaded
    * @returns {Promise<Object>}
    */
@@ -85,7 +86,10 @@ export const contentService = {
     if (!contentData?._id) {
       throw new Error("updateContent requires _id");
     }
-    const url = `${SEEDS_URL}/content/${contentData._id}?isAudioUploaded=${isAudioUploaded}`;
+    const isQuiz = contentData.type === "quiz";
+    const path = isQuiz ? `quiz/${contentData._id}` : `${contentData._id}`;
+    const query = isQuiz ? "" : `?isAudioUploaded=${isAudioUploaded}`;
+    const url = `${SEEDS_URL}/content/${path}${query}`;
 
     const response = await apiFetch(url, {
       method: "PATCH",

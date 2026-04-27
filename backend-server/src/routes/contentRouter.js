@@ -792,89 +792,73 @@ router.post(
   }),
 );
 
-const patchContentHandler = tryCatchWrapper(async (req, res) => {
-    const isAudioUploaded = req.query.isAudioUploaded === "true";
-    const body = req.body;
-    if (!body || typeof body !== "object") {
-      return res.status(400).json({ error: "Request body is required" });
-    }
-    const pathContentId = req.params.contentId;
-    if (pathContentId && body._id && body._id !== pathContentId) {
-      return res.status(400).json({ error: "Content id in path and body must match" });
-    }
-    const contentId = pathContentId || body._id;
-
-    if (!contentId) {
-      return res.status(400).json({ error: "Content _id is required" });
-    }
-
+router.patch(
+  "/quiz/:quizId",
+  authenticateToken,
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
+  tryCatchWrapper(async (req, res) => {
+    const body = req.body || {};
     const updatePayload = contentService.sanitizePatchableContentFields(body);
-
-    // Check if it is a quiz (stored in QuizData)
     const writeSchoolId = getWriteSchoolIdFilter(req);
+
     const existingQuiz = await QuizData.findOne({
-      _id: contentId,
+      _id: req.params.quizId,
       tenantId: req.tenantId,
       schoolId: writeSchoolId,
     }).lean().exec();
-    if (existingQuiz) {
-      let quizUpdate;
-      try {
-        quizUpdate = contentService.buildQuizUpdatePayload(existingQuiz, updatePayload);
-      } catch (error) {
-        return res.status(400).json({ error: error.message });
-      }
-
-      const updated = await QuizData.findOneAndUpdate(
-        { _id: contentId, tenantId: req.tenantId, schoolId: writeSchoolId },
-        { $set: quizUpdate },
-        { new: true },
-      ).exec();
-
-      if (!updated) {
-        return res.status(404).json({ error: "Quiz not found" });
-      }
-      return res.json({ ...updated.toObject(), id: updated._id, type: "quiz" });
+    if (!existingQuiz) {
+      return res.status(404).json({ error: "Quiz not found" });
     }
 
-    // Otherwise update in ContentV3 (story, poem, song, riddle)
-    const storyUpdate = contentService.buildStoryUpdatePayload(updatePayload, { isAudioUploaded });
-
-    const existingContent = await ContentV3.findOne({
-      _id: contentId,
-      tenantId: req.tenantId,
-      schoolId: writeSchoolId,
-      isDeleted: { $ne: true },
-    })
-      .lean()
-      .exec();
-    if (!existingContent) {
-      return res.status(404).json({ error: "Content not found" });
+    let quizUpdate;
+    try {
+      quizUpdate = contentService.buildQuizUpdatePayload(existingQuiz, updatePayload);
+    } catch (error) {
+      return res.status(400).json({ error: error.message });
     }
 
-    const updated = await ContentV3.findOneAndUpdate(
-      { _id: contentId, tenantId: req.tenantId, schoolId: writeSchoolId },
-      { $set: storyUpdate },
+    const updated = await QuizData.findOneAndUpdate(
+      { _id: req.params.quizId, tenantId: req.tenantId, schoolId: writeSchoolId },
+      { $set: quizUpdate },
       { new: true },
     ).exec();
-
     if (!updated) {
-      return res.status(404).json({ error: "Content not found" });
+      return res.status(404).json({ error: "Quiz not found" });
     }
-
-    // If a new audio file was uploaded, trigger reprocessing
-    if (isAudioUploaded) {
-      await agenda.now("processNewContent", { content: updated.toObject() });
-    }
-
-    return res.json({ ...updated.toObject(), id: updated._id });
-  });
+    return res.json({ ...updated.toObject(), id: updated._id, type: "quiz" });
+  }),
+);
 
 router.patch(
   "/:contentId",
   authenticateToken,
   authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
-  patchContentHandler,
+  tryCatchWrapper(async (req, res) => {
+    const isAudioUploaded = req.query.isAudioUploaded === "true";
+    const body = req.body || {};
+    const updatePayload = contentService.sanitizePatchableContentFields(body);
+    const storyUpdate = contentService.buildStoryUpdatePayload(updatePayload, { isAudioUploaded });
+    const writeSchoolId = getWriteSchoolIdFilter(req);
+
+    const updated = await ContentV3.findOneAndUpdate(
+      {
+        _id: req.params.contentId,
+        tenantId: req.tenantId,
+        schoolId: writeSchoolId,
+        isDeleted: { $ne: true },
+      },
+      { $set: storyUpdate },
+      { new: true },
+    ).exec();
+    if (!updated) {
+      return res.status(404).json({ error: "Content not found" });
+    }
+
+    if (isAudioUploaded) {
+      await agenda.now("processNewContent", { content: updated.toObject() });
+    }
+    return res.json({ ...updated.toObject(), id: updated._id });
+  }),
 );
 
 // router.patch("/",tryCatchWrapper(async (req,res) => {
