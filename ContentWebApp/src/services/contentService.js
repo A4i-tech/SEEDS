@@ -40,12 +40,13 @@ export const contentService = {
   },
 
   /**
-   * Delete content by ID
-   * @param {string} _type - Unused (kept for call-site compat)
+   * Delete content by type and ID
+   * @param {string} type - Content type ("quiz" or other)
    * @param {string} id - Content ID
    * @returns {Promise<void>}
    */
-  async deleteContent(_type, id) {
+  async deleteContent(type, id) {
+    // All content (including quizzes) is now deleted through the main endpoint
     const url = `${SEEDS_URL}/content/${id}`;
 
     await apiFetch(url, {
@@ -75,17 +76,13 @@ export const contentService = {
   },
 
   /**
-   * Update existing content (quiz or story) via PATCH.
-   * Dispatches by type to /content/quiz/:id or /content/:id.
-   * @param {Object} contentData - Content with _id and type fields
+   * Update existing content (quiz or story) via PATCH
+   * @param {Object} contentData - Content with _id field required
    * @param {boolean} isAudioUploaded - Whether a new audio file was uploaded
    * @returns {Promise<Object>}
    */
   async updateContent(contentData, isAudioUploaded = false) {
-    if (!contentData?._id) {
-      throw new Error("updateContent requires _id");
-    }
-    const url = `${SEEDS_URL}/content/${contentData._id}?isAudioUploaded=${isAudioUploaded}`;
+    const url = `${SEEDS_URL}/content?isAudioUploaded=${isAudioUploaded}`;
 
     const response = await apiFetch(url, {
       method: "PATCH",
