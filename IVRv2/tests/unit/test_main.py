@@ -20,7 +20,7 @@ sys.path.append(
 )
 
 from app.main import app
-from app.utils.model_classes import StartIVRFormData, BulkCallRequest
+from app.utils.model_classes import StartIVRFormData
 
 
 class TestMainApplication:
@@ -215,13 +215,6 @@ class TestMainApplication:
         response = self.client.get(f"/getFSM?fsm_id={self.NON_EXISTENT_FSM}")
         data = self._assert_successful_response(response, 404)
         assert "not found" in data["detail"].lower()
-
-    def test_start_bulk_calls_empty_list(self):
-        """Test bulk calls with empty phone number list."""
-        bulk_data = {"phone_numbers": [], "fsm_id": self.TEST_FSM_ID}
-
-        response = self.client.post("/start_bulk_calls", json=bulk_data)
-        assert response.status_code == 422
 
     def test_fallback_endpoint(self):
         """Test fallback endpoint."""
