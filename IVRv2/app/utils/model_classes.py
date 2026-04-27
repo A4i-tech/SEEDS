@@ -167,8 +167,3 @@ class Menu(BaseModel):
     description: str
     options: Optional[List[Option]] = None
     level: int
-
-
-class BulkCallRequest(BaseModel):
-    phone_numbers: List[str] = Field(..., description="List of phone numbers to call")
-    content_ids: List[str] = Field(..., description="List of content IDs to fetch FSM")
