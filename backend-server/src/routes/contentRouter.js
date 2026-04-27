@@ -578,16 +578,19 @@ router.get(
   authenticateToken,
   authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE),
   tryCatchWrapper(async (req, res) => {
-    const content = await ContentV3.findOne({
+    const query = {
       _id: req.params.contentId,
       tenantId: req.tenantId,
       schoolId: getReadSchoolIdFilter(req),
       isDeleted: { $ne: true },
-    });
-    if (!content) {
-      return res.status(404).json({ error: "Content not found" });
-    }
-    return res.json(content);
+    };
+    const content = await ContentV3.findOne(query);
+    if (content) return res.json(content);
+
+    const quiz = await QuizData.findOne(query);
+    if (quiz) return res.json({ ...quiz.toObject(), id: quiz._id, type: "quiz" });
+
+    return res.status(404).json({ error: "Content not found" });
   }),
 );
 
@@ -597,22 +600,35 @@ router.patch(
   authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE),
   tryCatchWrapper(async (req, res) => {
     const { title, theme, description, isPullModel, isTeacherApp } = req.body;
-    const content = await ContentV3.findOne({
+    const writeFilter = {
       _id: req.params.contentId,
       tenantId: req.tenantId,
       schoolId: getWriteSchoolIdFilter(req),
       isDeleted: false,
-    });
-    if (!content) {
-      return res.status(404).json({ error: "Content not found" });
+    };
+
+    const content = await ContentV3.findOne(writeFilter);
+    if (content) {
+      if (title !== undefined) content.title = title;
+      if (theme !== undefined) content.theme = theme;
+      if (description !== undefined) content.description = description;
+      if (isPullModel !== undefined) content.isPullModel = isPullModel;
+      if (isTeacherApp !== undefined) content.isTeacherApp = isTeacherApp;
+      await content.save();
+      return res.json(content);
     }
-    if (title !== undefined) content.title = title;
-    if (theme !== undefined) content.theme = theme;
-    if (description !== undefined) content.description = description;
-    if (isPullModel !== undefined) content.isPullModel = isPullModel;
-    if (isTeacherApp !== undefined) content.isTeacherApp = isTeacherApp;
-    await content.save();
-    return res.json(content);
+
+    const quiz = await QuizData.findOne(writeFilter);
+    if (quiz) {
+      if (title !== undefined) quiz.title = title;
+      if (theme !== undefined) quiz.theme = theme;
+      if (isPullModel !== undefined) quiz.isPullModel = isPullModel;
+      if (isTeacherApp !== undefined) quiz.isTeacherApp = isTeacherApp;
+      await quiz.save();
+      return res.json({ ...quiz.toObject(), id: quiz._id, type: "quiz" });
+    }
+
+    return res.status(404).json({ error: "Content not found" });
   }),
 );
 
@@ -662,14 +678,19 @@ router.delete(
   authenticateToken,
   authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE),
   tryCatchWrapper(async (req, res) => {
-    const result = await ContentV3.updateOne(
-      { _id: req.params.contentId, tenantId: req.tenantId, schoolId: getWriteSchoolIdFilter(req) },
-      { $set: { isDeleted: true } },
-    );
-    if (result.matchedCount === 0) {
-      return res.status(404).json({ error: "Content not found" });
-    }
-    return res.json(result);
+    const writeFilter = {
+      _id: req.params.contentId,
+      tenantId: req.tenantId,
+      schoolId: getWriteSchoolIdFilter(req),
+    };
+
+    const contentResult = await ContentV3.updateOne(writeFilter, { $set: { isDeleted: true } });
+    if (contentResult.matchedCount > 0) return res.json(contentResult);
+
+    const quizResult = await QuizData.updateOne(writeFilter, { $set: { isDeleted: true } });
+    if (quizResult.matchedCount > 0) return res.json(quizResult);
+
+    return res.status(404).json({ error: "Content not found" });
   }),
 );
 
