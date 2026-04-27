@@ -33,6 +33,11 @@ const TENANT_ROLE = "tenant";
 const SCHOOL_ADMIN_ROLE = "school_admin";
 const TEACHER_ROLE = "teacher";
 
+function sortByCreationTimeThenId(a, b) {
+  if (b.creation_time !== a.creation_time) return b.creation_time - a.creation_time;
+  return String(b._id) < String(a._id) ? -1 : 1;
+}
+
 // For reads — school-scoped users see their own school's content + tenant content (schoolId: null)
 function getReadSchoolIdFilter(req) {
   if (req.schoolId && (req.role === SCHOOL_ADMIN_ROLE || req.role === TEACHER_ROLE)) {
@@ -449,59 +454,60 @@ router.get(
       return res.json(allContent);
     }
 
-    // Base query always excludes deleted content, scoped to tenant
+    // Base query — excludes deleted, scoped to tenant + school
     let query = { isDeleted: { $ne: true }, tenantId: req.tenantId, schoolId: getReadSchoolIdFilter(req) };
+
+    let shouldFetchContent = true;
+    let shouldFetchQuizzes = true;
 
     if (req.query.onlyTeacherApp) {
       query.isTeacherApp = true;
     } else if (req.query.language && req.query.theme && req.query.expName) {
       const expName = req.query.expName.toLowerCase();
-
       if (expName === "quiz") {
-        // If filtering for quiz, only query QuizData
         shouldFetchContent = false;
-        quizQuery.isPullModel = true;
-        quizQuery.language = req.query.language;
-        quizQuery["theme.english"] = decodeURIComponent(req.query.theme).toString();
+        query.isPullModel = true;
+        query.language = req.query.language;
+        query["theme.english"] = decodeURIComponent(req.query.theme).toString();
       } else {
-        // If filtering for other types, only query ContentV3
         shouldFetchQuizzes = false;
-        contentQuery.isPullModel = true;
-        contentQuery.language = req.query.language;
-        contentQuery["theme.english"] = decodeURIComponent(req.query.theme).toString();
-        contentQuery.type = expName;
+        query.isPullModel = true;
+        query.language = req.query.language;
+        query["theme.english"] = decodeURIComponent(req.query.theme).toString();
+        query.type = expName;
       }
     }
 
-    // Cursor-based pagination using creation_time (descending) and _id as a tie-breaker
+    // Fetch both collections in parallel, merge and sort in memory.
+    // ContentV3 uses ObjectId _ids and QuizData uses string UUIDs — mixing them in a
+    // single DB-level cursor comparison is unreliable, so pagination is applied in memory.
+    const [rawContents, rawQuizzes] = await Promise.all([
+      shouldFetchContent ? ContentV3.find(query).sort({ creation_time: -1 }).lean().exec() : Promise.resolve([]),
+      shouldFetchQuizzes ? QuizData.find(query).sort({ creation_time: -1 }).lean().exec() : Promise.resolve([]),
+    ]);
+
+    let allItems = [
+      ...rawContents.map((c) => ({ ...c, id: c._id })),
+      ...rawQuizzes.map((q) => ({ ...q, id: q._id, type: "quiz" })),
+    ].sort(sortByCreationTimeThenId);
+
+    // Apply cursor: skip items up to and including the last-seen item
     if (cursor) {
       const [lastCreationTimeStr, lastId] = cursor.split("_");
       const lastCreationTime = parseInt(lastCreationTimeStr, 10);
-      const lastIdBinary = new Binary(Buffer.from(uuidParse(lastId)), 4);
-
-      query.$or = [
-        { creation_time: { $lt: lastCreationTime } },
-        {
-          creation_time: lastCreationTime,
-          _id: { $lt: lastIdBinary },
-        },
-      ];
+      const idx = allItems.findIndex(
+        (item) => item.creation_time === lastCreationTime && item._id.toString() === lastId,
+      );
+      allItems = idx !== -1
+        ? allItems.slice(idx + 1)
+        : allItems.filter((item) => item.creation_time < lastCreationTime);
     }
 
-    const contents = await ContentV3.find(query)
-      .sort({ creation_time: -1, _id: -1 })
-      .limit(limit + 1)
-      .exec();
+    const hasMore = allItems.length > limit;
+    const data = hasMore ? allItems.slice(0, limit) : allItems;
+    const lastItem = data.length > 0 ? data[data.length - 1] : null;
+    const nextCursor = lastItem ? `${lastItem.creation_time}_${lastItem._id.toString()}` : null;
 
-    const hasMore = contents.length > limit;
-    const data = hasMore ? contents.slice(0, limit) : contents;
-
-    const lastItem = hasMore ? data[data.length - 1] : null;
-    const nextCursor = lastItem
-      ? `${lastItem.creation_time}_${lastItem._id.toString()}`
-      : null;
-
-    // Send the final response
     return res.json({
       data,
       pagination: {
@@ -595,37 +601,94 @@ router.get(
 );
 
 router.patch(
-  "/:contentId",
+  "/",
   authenticateToken,
   authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE),
   tryCatchWrapper(async (req, res) => {
-    const { title, theme, description, isPullModel, isTeacherApp } = req.body;
+    const isAudioUploaded = req.query.isAudioUploaded === "true";
+    const contentId = req.body?._id;
+    if (!contentId) return res.status(400).json({ error: "Content _id is required" });
+
     const writeFilter = {
-      _id: req.params.contentId,
+      _id: contentId,
       tenantId: req.tenantId,
       schoolId: getWriteSchoolIdFilter(req),
       isDeleted: false,
     };
 
+    // Quiz branch first — QuizData uses string UUIDs; check before ContentV3
+    const quiz = await QuizData.findOne(writeFilter);
+    if (quiz) {
+      const { title, theme, positiveMarks, positiveMark, negativeMarks, negativeMark, isPullModel, isTeacherApp, questions } = req.body;
+
+      // Normalize marks: frontend may send singular (positiveMark) or plural (positiveMarks)
+      const newPositiveMarks = positiveMarks ?? positiveMark;
+      const newNegativeMarks = negativeMarks ?? negativeMark;
+      if (newPositiveMarks !== undefined) quiz.positiveMarks = newPositiveMarks;
+      if (newNegativeMarks !== undefined) quiz.negativeMarks = newNegativeMarks;
+
+      // Normalize title/theme: preserve existing audio URLs if only a string is sent
+      if (title !== undefined) {
+        quiz.title = typeof title === "string"
+          ? { english: title, local: quiz.title.local, audioUrl: quiz.title.audioUrl }
+          : { english: title.english ?? quiz.title.english, local: title.local ?? quiz.title.local, audioUrl: title.audioUrl ?? quiz.title.audioUrl };
+      }
+      if (theme !== undefined) {
+        quiz.theme = typeof theme === "string"
+          ? { english: theme, local: quiz.theme.local, audioUrl: quiz.theme.audioUrl }
+          : { english: theme.english ?? quiz.theme.english, local: theme.local ?? quiz.theme.local, audioUrl: theme.audioUrl ?? quiz.theme.audioUrl };
+      }
+      if (isPullModel !== undefined) quiz.isPullModel = isPullModel;
+      if (isTeacherApp !== undefined) quiz.isTeacherApp = isTeacherApp;
+
+      // Rebuild questions, preserving existing audio URLs for unchanged items
+      if (questions !== undefined && Array.isArray(questions)) {
+        quiz.questions = questions.map((q, index) => {
+          const existing = quiz.questions[index];
+          const questionText = typeof q.question === "string" ? q.question : q.question?.text;
+          return {
+            question: {
+              id: q.question?.id || existing?.question?.id || `${contentId}-q${index + 1}`,
+              url: q.question?.url || existing?.question?.url || "<NOT CREATED>",
+              text: questionText ?? existing?.question?.text ?? "",
+            },
+            options: (q.options || []).map((opt, optIndex) => {
+              const existingOpt = existing?.options?.[optIndex];
+              const optText = typeof opt === "string" ? opt : opt?.text;
+              return {
+                id: opt?.id || existingOpt?.id || `${contentId}-q${index + 1}-opt${optIndex + 1}`,
+                url: opt?.url || existingOpt?.url || "<NOT CREATED>",
+                text: optText ?? existingOpt?.text ?? "",
+              };
+            }),
+            correct_option_id: q.correct_option_id || existing?.correct_option_id,
+          };
+        });
+      }
+
+      await quiz.save();
+      return res.json({ ...quiz.toObject(), id: quiz._id, type: "quiz" });
+    }
+
+    // ContentV3 branch
     const content = await ContentV3.findOne(writeFilter);
     if (content) {
+      const { title, theme, description, isPullModel, isTeacherApp } = req.body;
       if (title !== undefined) content.title = title;
       if (theme !== undefined) content.theme = theme;
       if (description !== undefined) content.description = description;
       if (isPullModel !== undefined) content.isPullModel = isPullModel;
       if (isTeacherApp !== undefined) content.isTeacherApp = isTeacherApp;
+
+      if (isAudioUploaded) {
+        content.isProcessed = false;
+        await content.save();
+        const job = await agenda.now("processNewContent", { content: content.toObject() });
+        return res.json({ ...content.toObject(), jobId: job.attrs._id });
+      }
+
       await content.save();
       return res.json(content);
-    }
-
-    const quiz = await QuizData.findOne(writeFilter);
-    if (quiz) {
-      if (title !== undefined) quiz.title = title;
-      if (theme !== undefined) quiz.theme = theme;
-      if (isPullModel !== undefined) quiz.isPullModel = isPullModel;
-      if (isTeacherApp !== undefined) quiz.isTeacherApp = isTeacherApp;
-      await quiz.save();
-      return res.json({ ...quiz.toObject(), id: quiz._id, type: "quiz" });
     }
 
     return res.status(404).json({ error: "Content not found" });
@@ -864,7 +927,7 @@ async function deleteAudioBlobs(audioId) {
 }
 
 async function deleteUnnecessaryStorage() {
-  const docs = await Content.find({});
+  const docs = await Content.find({}).lean().exec();
   const containerName = "output-container";
   const containerClient = blobService.getContainerClient(containerName);
   for (const doc of docs) {
