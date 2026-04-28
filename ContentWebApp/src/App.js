@@ -8,7 +8,6 @@ const AllContent = lazy(() => import("./components/AllContent"));
 const ContentDetails = lazy(() => import("./components/ContentDetails"));
 const ContentEdit = lazy(() => import("./components/ContentEdit"));
 const AddContent = lazy(() => import("./components/AddContent"));
-const BulkCallInitiator = lazy(() => import("./components/BulkCallInitiator"));
 const IVR = lazy(() => import("./components/IVR"));
 const ViewIVR = lazy(() => import("./components/ViewIVR"));
 const Profile = lazy(() => import("./components/Profile"));
@@ -45,10 +44,6 @@ function App() {
             <Route
               path="/viewivr"
               element={<ProtectedRoute element={<ViewIVR />} />}
-            />
-            <Route
-              path="/bulkcall"
-              element={<ProtectedRoute element={<BulkCallInitiator />} />}
             />
             <Route
               path="/register"

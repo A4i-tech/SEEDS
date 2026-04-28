@@ -38,7 +38,6 @@ from app.utils.model_classes import (
     StreamPlaybackInfo,
     UserAction,
     VonageCallStartResponse,
-    BulkCallRequest,
 )
 import copy
 
@@ -452,131 +451,6 @@ async def start_ivr(
             "error": "An error occurred while processing the request.",
             "details": error_traceback,
         }
-
-
-@app.post(
-    "/start_bulk_calls",
-    summary="Initiate multiple IVR calls",
-    description="""
-    Initiates IVR calls to multiple phone numbers with specified content.
-    
-    This endpoint will:
-    - Create a new FSM for the specified content IDs
-    - Store the FSM in the database
-    - Initiate calls to all provided phone numbers with a rate limit of 1 call per second
-    """,
-    response_model=dict,
-    responses={
-        200: {"description": "Bulk calls initiated successfully"},
-        400: {"description": "Invalid request parameters"},
-        500: {"description": "Failed to initiate bulk calls"},
-    },
-)
-async def start_bulk_calls(request: BulkCallRequest):
-    # Get state from lifespan-managed app state
-    state = get_app_state()
-    fsm = state.fsm
-    ongoing_fsm_mongo = state.ongoing_fsm_mongo
-    radio_fsm_mongo = state.radio_fsm_mongo
-
-    try:
-        phone_numbers = request.phone_numbers
-        content_ids = request.content_ids
-        # Step 3: Get the FSM using content IDs
-        logging.info(f"Content IDs: {content_ids}, Phone numbers: {phone_numbers}")
-        radio_fsm = await instantiate_from_content_ids(content_ids=content_ids)
-        fsm[radio_fsm.fsm_id] = radio_fsm
-
-        # Step 4: Store the FSM in the 'radio' collection in 'ivr' DB
-
-        radio_fsm_doc = radio_fsm.serialize()
-        with open("radio_fsm.json", "w") as f:
-            f.write(json.dumps(radio_fsm_doc.dict(by_alias=True), indent=2))
-        # print(json.dumps(radio_fsm_doc.dict(by_alias=True), indent=2))
-        await radio_fsm_mongo.insert(radio_fsm_doc.dict(by_alias=True))
-
-        # Step 5: Initiate calls at a rate of one per second
-        count = len(phone_numbers)
-        ncco_actions = accumulator.combine(
-            [
-                action_factory.get_action_implmentation(x)
-                for x in radio_fsm.get_start_fsm_actions()
-            ]
-        )
-        logging.info(f"NCCO: {json.dumps(ncco_actions, indent=2)}")
-
-        for phone_number in phone_numbers:
-            doc = await ongoing_fsm_mongo.find_one_by_query(
-                {"phone_number": phone_number}
-            )
-            if doc != None:
-                count -= 1
-                ivr_state = IVRCallStateMongoDoc(**doc)
-                # CHECK IF LAST CALL HAPPENED STALE_WAIT_IN_SECONDS SECONDS BEFORE,
-                # IF THIS IS THE CASE IT IS ASSUMED THAT THE DOC FOUND IS STALE
-                # - DELETE THE DOC
-                # - HANG UP THE CALL IN CASE ITS STILL UP : TODO
-                if (datetime.now() - ivr_state.created_at).total_seconds() > int(
-                    os.environ.get("STALE_WAIT_IN_SECONDS", 60)
-                ):
-                    await ongoing_fsm_mongo.delete(phone_number)
-
-                # OTHERWISE DON'T ALLOW THE CALL TO BE STARTED
-                else:
-                    continue
-                    # response.status_code = 403
-                    # return {"message": "IVR already running for phone number: " + phone_number}
-            raw_key = base64.b64decode(
-                settings.vonage_application_private_key64
-            ).decode("utf-8")
-            client = vonage.Client(
-                application_id=application_id,
-                private_key=raw_key,
-            )
-            # print("NCCO:", json.dumps(ncco_actions, indent=2))
-            vonage_resp = client.voice.create_call(
-                {
-                    "to": [{"type": "phone", "number": phone_number}],
-                    "from": {"type": "phone", "number": os.getenv("VONAGE_NUMBER")},
-                    "ncco": ncco_actions,
-                    "length_timer": int(
-                        os.getenv("CALL_DURATION_LIMIT_IN_SECONDS", 300)
-                    ),
-                }
-            )
-            vonage_resp = VonageCallStartResponse(**vonage_resp)
-
-            ivr_call_state = IVRCallStateMongoDoc(
-                _id=vonage_resp.conversation_uuid,
-                phone_number=phone_number,
-                fsm_id=radio_fsm.fsm_id,
-                current_state_id=radio_fsm.init_state_id,
-                created_at=datetime.now(),
-            )
-
-            await ongoing_fsm_mongo.insert(ivr_call_state.dict(by_alias=True))
-
-            logging.info(
-                f"Call started with conversation UUID: {vonage_resp.conversation_uuid}"
-            )
-
-            # Sleep for one second before initiating the next call
-            await asyncio.sleep(1)
-
-        # write to bulk collection, get the user id initiating the bulk call
-        # Return list of conv IDs of calls
-        return {"message": f"Calls initiated for {count} phone numbers."}
-
-    except Exception as e:
-        error_traceback = traceback.format_exc()
-        logging.error(f"Error in start_bulk_calls: {error_traceback}")
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": "An error occurred while processing the request.",
-                "details": error_traceback,
-            },
-        )
 
 
 @app.get(
