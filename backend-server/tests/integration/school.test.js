@@ -7,10 +7,12 @@ const app = require("../../src/index");
 
 const SECRET_KEY = process.env.SECRET_KEY;
 
+const HOOK_TIMEOUT_MS = 30000;
+
 describe("School Management - Integration Tests", () => {
-  beforeAll(setup);
-  afterAll(teardown);
-  beforeEach(clearDatabase);
+  beforeAll(setup, HOOK_TIMEOUT_MS);
+  afterAll(teardown, HOOK_TIMEOUT_MS);
+  beforeEach(clearDatabase, HOOK_TIMEOUT_MS);
 
   test("POST /school returns 401 without token", async () => {
     const res = await request(app)
