@@ -261,7 +261,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
   };
 
   const sendStory = async () => {
-    const _id = content ? content.id : uuidv4();
+    const _id = content ? (content._id || content.id) : uuidv4();
     const languageLower = (metadata.language || "").toLowerCase();
     // Always send title and theme as objects
     var newMetadata = {
@@ -283,6 +283,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
     if (!metadata.audioFile && !metadata.answerAudioFile) {
       newMetadata["isProcessed"] = metadata.isProcessed;
       isAudioUploaded = "false";
+      delete newMetadata["audioContent"]; // don't send existing .wav URLs — backend only accepts .mp3
     }
     delete newMetadata["audioFile"];
     delete newMetadata["answerAudioFile"];

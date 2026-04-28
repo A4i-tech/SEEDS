@@ -125,7 +125,7 @@ const AddQuiz = ({ quiz }) => {
       localTitle:
         languageLower === "english" ? metadata.title : metadata.localTitle,
       type: "quiz",
-      id: quiz ? quiz.id : uuidv4(),
+      id: quiz ? (quiz._id || quiz.id) : uuidv4(),
     };
 
     return payload;
@@ -190,11 +190,12 @@ const AddQuiz = ({ quiz }) => {
     }
 
     try {
-      const isEditing = quiz && quiz.id;
+      const quizId = quiz && (quiz._id || quiz.id);
+      const isEditing = Boolean(quizId);
       let result;
       if (isEditing) {
         // PATCH existing quiz — backend requires _id in the body
-        result = await contentService.updateContent({ ...payload, _id: quiz.id });
+        result = await contentService.updateContent({ ...payload, _id: quizId });
       } else {
         result = await contentService.createQuiz(payload);
       }
