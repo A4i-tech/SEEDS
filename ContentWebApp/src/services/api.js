@@ -1,3 +1,5 @@
+import { clearAuth } from "../utils/authHelpers";
+
 export class ApiError extends Error {
   constructor(message, status, response) {
     super(message);
@@ -18,6 +20,12 @@ export const apiFetch = async (url, options = {}) => {
     const response = await fetch(url, options);
 
     if (!response.ok) {
+      if (response.status === 401) {
+        clearAuth();
+        if (typeof window !== "undefined" && window.location.pathname !== "/") {
+          window.location.href = "/";
+        }
+      }
       const text = await response.text();
       throw new ApiError(
         text || `Request failed with status ${response.status}`,
