@@ -32,10 +32,11 @@ const { authenticateToken, authorizeRole } = require("../auth/authenticateToken"
 const TENANT_ROLE = "tenant";
 const SCHOOL_ADMIN_ROLE = "school_admin";
 const TEACHER_ROLE = "teacher";
+const CONTENT_CREATOR_ROLE = "content_creator";
 
 // For reads — school-scoped users see their own school's content + tenant content (schoolId: null)
 function getReadSchoolIdFilter(req) {
-  if (req.schoolId && (req.role === SCHOOL_ADMIN_ROLE || req.role === TEACHER_ROLE)) {
+  if (req.schoolId && (req.role === SCHOOL_ADMIN_ROLE || req.role === TEACHER_ROLE || req.role === CONTENT_CREATOR_ROLE)) {
     return { $in: [req.schoolId, null] };
   }
   return null;
@@ -43,7 +44,7 @@ function getReadSchoolIdFilter(req) {
 
 // For writes (modify/delete) — strict ownership only
 function getWriteSchoolIdFilter(req) {
-  return req.role === SCHOOL_ADMIN_ROLE ? req.schoolId : null;
+  return (req.role === SCHOOL_ADMIN_ROLE || req.role === CONTENT_CREATOR_ROLE) ? req.schoolId : null;
 }
 
 // Initialize instances
@@ -89,7 +90,7 @@ agenda.define("processQuizContent", async (job) => {
  *       404:
  *         description: Job not found
  */
-router.get("/job/:jobId", authenticateToken, authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE), async (req, res) => {
+router.get("/job/:jobId", authenticateToken, authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE), async (req, res) => {
   const job = await agenda.jobs({ _id: new ObjectId(req.params.jobId) });
 
   if (!job.length) {
@@ -123,7 +124,7 @@ router.get("/job/:jobId", authenticateToken, authorizeRole(TENANT_ROLE, SCHOOL_A
  *                   items:
  *                     $ref: '#/components/schemas/Job'
  */
-router.get("/jobs", authenticateToken, authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE), async (req, res) => {
+router.get("/jobs", authenticateToken, authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE), async (req, res) => {
   try {
     // Fetch jobs that are either "In Progress" or "Failed"
     const jobs = await agenda.jobs({
@@ -203,7 +204,7 @@ router.get("/jobs", authenticateToken, authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_R
 router.post(
   "/quiz",
   authenticateToken,
-  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE),
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     const quizCreateRequest = new QuizCreateRequest(req.body);
     if (quizCreateRequest.id === "default-id") {
@@ -257,7 +258,7 @@ router.post(
 router.get(
   "/sasUrl",
   authenticateToken,
-  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE),
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     const url = req.query.url; // URL is now obtained from query string
     if (!url) {
@@ -406,7 +407,7 @@ router.get(
 router.get(
   "/",
   authenticateToken,
-  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE),
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     const limit = parseInt(req.query.limit) || 15;
     const cursor = req.query.cursor;
@@ -557,7 +558,7 @@ router.get(
 router.get(
   "/sasToken",
   authenticateToken,
-  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE),
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     const containerName = "input-container";
     const blobName = req.query.blobName;
@@ -576,7 +577,7 @@ router.get(
 router.get(
   "/:contentId",
   authenticateToken,
-  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE),
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     const content = await ContentV3.findOne({
       _id: req.params.contentId,
@@ -594,7 +595,7 @@ router.get(
 router.patch(
   "/:contentId",
   authenticateToken,
-  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE),
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     const { title, theme, description, isPullModel, isTeacherApp } = req.body;
     const content = await ContentV3.findOne({
@@ -660,7 +661,7 @@ router.patch(
 router.delete(
   "/:contentId",
   authenticateToken,
-  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE),
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     const result = await ContentV3.updateOne(
       { _id: req.params.contentId, tenantId: req.tenantId, schoolId: getWriteSchoolIdFilter(req) },
@@ -676,7 +677,7 @@ router.delete(
 router.post(
   "/",
   authenticateToken,
-  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE),
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     let content = new ContentV3(req.body);
     content.tenantId = req.tenantId;

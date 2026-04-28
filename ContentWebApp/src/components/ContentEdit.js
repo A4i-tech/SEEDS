@@ -12,13 +12,13 @@ const ContentEdit = () => {
 
   const contentById = useCallback(async () => {
     try {
-      const data = await contentService.getContentById(id);
+      const data = await contentService.getContentById(id, type);
       return data;
     } catch (error) {
       console.error("Error fetching content for edit:", error);
       return null;
     }
-  }, [id]);
+  }, [id, type]);
 
   useEffect(() => {
     const getContentById = async () => {

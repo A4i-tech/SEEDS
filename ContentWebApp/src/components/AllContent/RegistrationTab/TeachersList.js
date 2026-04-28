@@ -1,9 +1,11 @@
 import React, { useState } from "react";
 import Modal from "../shared/Modal";
 import PasswordInput from "../../PasswordInput";
+import { USER_ROLES } from "../../../Constants";
 import "../shared/buttons.css";
 import "../shared/tables.css";
 import "../shared/utilities.css";
+import "./css/TeachersList.css";
 
 const TeachersList = ({ teachers, schools = [], onUpdateTeacher, onDeleteTeacher, onTransferTeacher }) => {
   const [editingTeacher, setEditingTeacher] = useState(null);
@@ -55,17 +57,29 @@ const TeachersList = ({ teachers, schools = [], onUpdateTeacher, onDeleteTeacher
               </tr>
             </thead>
             <tbody>
-              {teachers.map((teacher) => (
-                <tr key={teacher._id}>
-                  <td>{teacher.name || "—"}</td>
-                  <td>{teacher.phoneNumber}</td>
-                  <td>
-                    <button type="button" className="action-ghost-button" onClick={() => openEdit(teacher)}>Edit</button>
-                    <button type="button" className="action-ghost-button" onClick={() => openTransfer(teacher)}>Transfer</button>
-                    <button type="button" className="action-ghost-button" onClick={() => onDeleteTeacher(teacher._id)}>Remove</button>
-                  </td>
-                </tr>
-              ))}
+              {teachers.map((teacher) => {
+                const isCreator = teacher.role === USER_ROLES.CONTENT_CREATOR;
+                return (
+                  <tr key={teacher._id}>
+                    <td>
+                      <span className="teacher-cell-name">{teacher.name || "—"}</span>
+                      <span
+                        className={`role-badge ${
+                          isCreator ? "creator-role-badge" : "teacher-role-badge"
+                        }`}
+                      >
+                        {isCreator ? "Creator" : "Teacher"}
+                      </span>
+                    </td>
+                    <td>{teacher.phoneNumber}</td>
+                    <td>
+                      <button type="button" className="action-ghost-button" onClick={() => openEdit(teacher)}>Edit</button>
+                      <button type="button" className="action-ghost-button" onClick={() => openTransfer(teacher)}>Transfer</button>
+                      <button type="button" className="action-ghost-button" onClick={() => onDeleteTeacher(teacher._id)}>Remove</button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

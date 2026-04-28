@@ -57,4 +57,5 @@ describe("Tenant Authentication - Integration Tests", () => {
     expect(res.body.email).toBe(TEST_TENANT.email);
     expect(res.body.tenantName).toBe(TEST_TENANT.tenantName);
   });
+
 });

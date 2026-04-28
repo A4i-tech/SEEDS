@@ -37,8 +37,7 @@ exports.getTeachersBySchoolId = async (schoolId, tenantId) => {
     err.status = STATUS.NOT_FOUND;
     throw err;
   }
-  const teachers = await teacherRepository.getTeachersBySchoolId(schoolId);
-  return teachers;
+  return teacherRepository.getTeachersBySchoolId(schoolId);
 };
 
 /**

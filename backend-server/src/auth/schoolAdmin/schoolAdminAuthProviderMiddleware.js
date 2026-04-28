@@ -46,11 +46,7 @@ module.exports = {
         tenantId: school.tenantId,
         role: SCHOOL_ADMIN_ROLE,
       });
-      return res.status(STATUS.OK).json({
-        token,
-        schoolId,
-        schoolName: school.name,
-      });
+      return res.status(STATUS.OK).json({ token });
     } catch (error) {
       console.error("School admin login error:", error);
       return res.status(STATUS.INTERNAL_ERROR).json({ message: "Internal server error" });

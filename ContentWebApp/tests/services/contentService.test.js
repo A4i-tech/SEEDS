@@ -31,7 +31,7 @@ describe("contentService", () => {
   });
 
   describe("deleteContent", () => {
-    it("should call delete endpoint with correct URL for quiz", async () => {
+    it("should call delete endpoint with id (type ignored)", async () => {
       const { apiFetch } = require("../../src/services/api");
       apiFetch.mockResolvedValue({});
 
@@ -77,4 +77,3 @@ describe("contentService", () => {
     });
   });
 });
-

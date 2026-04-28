@@ -4,7 +4,7 @@ const {
   jwtExpiresIn,
   passwordSaltRounds,
 } = require("../../config/env");
-const { STATUS, PASSWORD_POLICY } = require("../../config/constants");
+const { STATUS, PASSWORD_POLICY, ROLES } = require("../../config/constants");
 const validator = require("validator");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
@@ -13,7 +13,7 @@ const nativeDb = require("../dbAdapters/nativeDb");
 const firebaseDb = require("../dbAdapters/firebaseDb");
 
 const dbAdapter = authType === "firebase" ? firebaseDb : nativeDb;
-const TENANT_ROLE = "tenant";
+
 function generateToken(payload) {
   return jwt.sign(payload, secretKey, {
     expiresIn: jwtExpiresIn,
@@ -50,11 +50,7 @@ module.exports = {
         name: tenant.tenantName,
         role: tenant.role,
       });
-      return res.status(STATUS.OK).json({
-        token,
-        id: tenant._id || tenant.id,
-        tenantName: tenant.tenantName,
-      });
+      return res.status(STATUS.OK).json({ token });
     } catch (error) {
       console.error("Login error:", error);
       return res
@@ -95,7 +91,7 @@ module.exports = {
         email,
         password: hashedPassword,
         tenantName,
-        role: TENANT_ROLE,
+        role: ROLES.TENANT,
       });
       return res
         .status(STATUS.CREATED)

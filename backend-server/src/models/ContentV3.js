@@ -43,8 +43,7 @@ const ContentSchema = new mongoose.Schema(
 );
 
 ContentSchema.index({ tenantId: 1, isDeleted: 1, creation_time: -1 });
-ContentSchema.index({ tenantId: 1, language: 1});
-
+ContentSchema.index({ tenantId: 1, language: 1 });
 
 const ContentV3 = mongoose.model("ContentV3", ContentSchema);
 
