@@ -100,12 +100,14 @@ const ContentTable = ({ content, isLoading, onEdit, onView, onDelete }) => {
                       >
                         View
                       </button>
-                      <button
-                        onClick={() => onDelete(itemType, itemId)}
-                        className="action-button-base action-button-delete"
-                      >
-                        Delete
-                      </button>
+                      {onDelete && (
+                        <button
+                          onClick={() => onDelete(itemType, itemId)}
+                          className="action-button-base action-button-delete"
+                        >
+                          Delete
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

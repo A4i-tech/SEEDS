@@ -1,4 +1,9 @@
 module.exports = {
+  ROLES: {
+    TENANT: "tenant",
+    TEACHER: "teacher",
+    CONTENT_CREATOR: "content_creator",
+  },
   STATUS: {
     OK: 200,
     CREATED: 201,

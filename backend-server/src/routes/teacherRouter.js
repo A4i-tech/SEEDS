@@ -16,6 +16,7 @@ const { STATUS } = require("../config/constants");
 const router = express.Router();
 
 const TEACHER_ROLE = "teacher";
+const CONTENT_CREATOR_ROLE = "content_creator";
 const SCHOOL_ADMIN_ROLE = "school_admin";
 
 /**
@@ -30,10 +31,6 @@ const SCHOOL_ADMIN_ROLE = "school_admin";
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - phoneNumber
- *               - password
- *               - schoolId
  *             properties:
  *               phoneNumber:
  *                 type: string
@@ -41,6 +38,10 @@ const SCHOOL_ADMIN_ROLE = "school_admin";
  *                 type: string
  *               schoolId:
  *                 type: string
+ *                 description: Optional school identifier to scope login
+ *             required:
+ *               - phoneNumber
+ *               - password
  *     responses:
  *       200:
  *         description: Successful login, returns JWT token
@@ -83,6 +84,9 @@ router.post("/login", teacherAuthProvider.login);
  *                 type: string
  *               name:
  *                 type: string
+ *               role:
+ *                 type: string
+ *                 enum: [teacher, content_creator]
  *     responses:
  *       201:
  *         description: Teacher registered successfully
@@ -122,9 +126,14 @@ router.post(
  *       401:
  *         description: Unauthorized, token is missing or invalid
  */
-router.post("/logout", authenticateToken, authorizeRole(TEACHER_ROLE), (req, res) => {
-  res.status(STATUS.OK).json({ message: "Logout successful" });
-});
+router.post(
+  "/logout",
+  authenticateToken,
+  authorizeRole(TEACHER_ROLE, CONTENT_CREATOR_ROLE),
+  (req, res) => {
+    res.status(STATUS.OK).json({ message: "Logout successful" });
+  }
+);
 
 /**
  * @swagger
@@ -149,7 +158,12 @@ router.post("/logout", authenticateToken, authorizeRole(TEACHER_ROLE), (req, res
  *       404:
  *         description: Teacher not found
  */
-router.get("/me", authenticateToken, authorizeRole(TEACHER_ROLE), teacherController.getMe);
+router.get(
+  "/me",
+  authenticateToken,
+  authorizeRole(TEACHER_ROLE, CONTENT_CREATOR_ROLE),
+  teacherController.getMe
+);
 
 /**
  * @swagger

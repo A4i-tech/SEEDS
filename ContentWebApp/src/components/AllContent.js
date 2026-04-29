@@ -6,11 +6,13 @@ import { useContentFilters } from "../hooks/useContentFilters";
 import { useTeachers } from "../hooks/useTeachers";
 import { useSchools } from "../hooks/useSchools";
 import { ivrService } from "../services/ivrService";
+import { getRole } from "../utils/authHelpers";
 import AppHeader from "./AllContent/Header/AppHeader";
 import ContentTab from "./AllContent/ContentTab/ContentTab";
 import IVRTab from "./AllContent/IVRTab/IVRTab";
 import RegistrationTab from "./AllContent/RegistrationTab/RegistrationTab";
 import AnalyticsTab from "./AllContent/AnalyticsTab/AnalyticsTab";
+import { USER_ROLES } from "../Constants";
 import "./AllContent/AllContent.css";
 import "./AllContent/shared/responsive.css";
 
@@ -19,9 +21,11 @@ const AllContent = () => {
   const [updateIVRStatus, setUpdateIVRStatus] = useState("");
   const [isUpdatingIVR, setIsUpdatingIVR] = useState(false);
   const [currentUser, setCurrentUser] = useState("User");
+  const [currentUserRole, setCurrentUserRole] = useState(() => getRole() || null);
 
   const navigate = useNavigate();
   const { getAuthHeaders, logout, getCurrentUser } = useAuth();
+  const canViewContent = currentUserRole !== null;
   const {
     content,
     allContent,
@@ -66,26 +70,38 @@ const AllContent = () => {
   } = useSchools(activeTab);
 
   const ivrURL = process.env.REACT_APP_API_IVRV2_URL;
+  const canViewRegistration =
+    currentUserRole === USER_ROLES.TENANT || currentUserRole === USER_ROLES.SCHOOL_ADMIN;
+  const canViewAnalytics = canViewRegistration;
+  const canDeleteContent = currentUserRole !== USER_ROLES.TEACHER;
 
-  /**
-   * Fetch current user on mount
-   */
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const userName = await getCurrentUser();
-        setCurrentUser(userName);
+        const profile = await getCurrentUser();
+        if (profile.name) {
+          setCurrentUser(profile.name);
+        }
+        if (profile.role) {
+          setCurrentUserRole(profile.role);
+        }
       } catch (error) {
         console.error("Error fetching user:", error);
-        setCurrentUser("User");
       }
     };
     fetchUser();
   }, [getCurrentUser]);
 
-  /**
-   * Handle IVR update
-   */
+  useEffect(() => {
+    if (!canViewContent && activeTab === "content") {
+      setActiveTab(canViewRegistration ? "registration" : canViewAnalytics ? "analytics" : "content");
+      return;
+    }
+    if ((!canViewRegistration && activeTab === "registration") || (!canViewAnalytics && activeTab === "analytics")) {
+      setActiveTab("content");
+    }
+  }, [activeTab, canViewAnalytics, canViewContent, canViewRegistration]);
+
   const handleUpdateIVR = useCallback(async () => {
     setIsUpdatingIVR(true);
     setUpdateIVRStatus("");
@@ -102,9 +118,6 @@ const AllContent = () => {
     }
   }, [ivrURL, getAuthHeaders]);
 
-  /**
-   * Handle content edit
-   */
   const handleEdit = useCallback(
     (type, id) => {
       navigate(`/content/edit/${type}/${id}`);
@@ -112,9 +125,6 @@ const AllContent = () => {
     [navigate]
   );
 
-  /**
-   * Handle content view
-   */
   const handleView = useCallback(
     (type, id) => {
       navigate(`/content/detail/${type}/${id}`);
@@ -130,11 +140,14 @@ const AllContent = () => {
           onTabChange={setActiveTab}
           currentUser={currentUser}
           onLogout={logout}
+          showContent={canViewContent}
+          showRegistration={canViewRegistration}
+          showAnalytics={canViewAnalytics}
         />
 
         {updateIVRStatus && <div className="status-message">{updateIVRStatus}</div>}
 
-        {activeTab !== "registration" && activeTab !== "analytics" && (
+        {canViewContent && activeTab !== "registration" && activeTab !== "analytics" && (
           <div className="tabs-container">
             <button
               type="button"
@@ -153,7 +166,7 @@ const AllContent = () => {
           </div>
         )}
 
-        {activeTab === "content" && (
+        {canViewContent && activeTab === "content" && (
           <ContentTab
             content={content}
             allContent={allContent}
@@ -167,18 +180,18 @@ const AllContent = () => {
             onUpdateIVR={handleUpdateIVR}
             onEdit={handleEdit}
             onView={handleView}
-            onDelete={deleteContent}
+            onDelete={canDeleteContent ? deleteContent : null}
             onLoadMore={loadMore}
             isUpdatingIVR={isUpdatingIVR}
             multiselectRef={multiselectRef}
           />
         )}
 
-        {activeTab === "ivr" && <IVRTab />}
+        {canViewContent && activeTab === "ivr" && <IVRTab />}
 
-        {activeTab === "analytics" && <AnalyticsTab />}
+        {canViewAnalytics && activeTab === "analytics" && <AnalyticsTab />}
 
-        {activeTab === "registration" && (
+        {canViewRegistration && activeTab === "registration" && (
           <RegistrationTab
             teachers={teachers}
             students={students}

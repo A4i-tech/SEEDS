@@ -45,10 +45,12 @@ const RegistrationTab = ({
   }
 
   return (
-    <div className="card registration-flex-card">
-      <div>
+    <div className="card registration-page-card">
+      <div className="registration-page-header">
         <div className="card-title">Registration Management</div>
-        <div className="card-description">Manage teachers and students for your school.</div>
+        <div className="card-description">
+          Manage teachers, students, and content creators for your tenant.
+        </div>
       </div>
 
       <div className="pill-tabs">
@@ -75,6 +77,7 @@ const RegistrationTab = ({
             message={message}
             messageType={messageType}
           />
+
           <div className="teachers-section">
             <h3 className="teachers-section-title">Teachers</h3>
             <TeachersList

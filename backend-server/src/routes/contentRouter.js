@@ -32,10 +32,11 @@ const { authenticateToken, authorizeRole } = require("../auth/authenticateToken"
 const TENANT_ROLE = "tenant";
 const SCHOOL_ADMIN_ROLE = "school_admin";
 const TEACHER_ROLE = "teacher";
+const CONTENT_CREATOR_ROLE = "content_creator";
 
 // For reads — school-scoped users see their own school's content + tenant content (schoolId: null)
 function getReadSchoolIdFilter(req) {
-  if (req.schoolId && (req.role === SCHOOL_ADMIN_ROLE || req.role === TEACHER_ROLE)) {
+  if (req.schoolId && (req.role === SCHOOL_ADMIN_ROLE || req.role === TEACHER_ROLE || req.role === CONTENT_CREATOR_ROLE)) {
     return { $in: [req.schoolId, null] };
   }
   return null;
@@ -43,7 +44,7 @@ function getReadSchoolIdFilter(req) {
 
 // For writes (modify/delete) — strict ownership only
 function getWriteSchoolIdFilter(req) {
-  return req.role === SCHOOL_ADMIN_ROLE ? req.schoolId : null;
+  return (req.role === SCHOOL_ADMIN_ROLE || req.role === CONTENT_CREATOR_ROLE) ? req.schoolId : null;
 }
 
 // Initialize instances
@@ -89,7 +90,7 @@ agenda.define("processQuizContent", async (job) => {
  *       404:
  *         description: Job not found
  */
-router.get("/job/:jobId", authenticateToken, authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE), async (req, res) => {
+router.get("/job/:jobId", authenticateToken, authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE), async (req, res) => {
   const job = await agenda.jobs({ _id: new ObjectId(req.params.jobId) });
 
   if (!job.length) {
@@ -123,7 +124,7 @@ router.get("/job/:jobId", authenticateToken, authorizeRole(TENANT_ROLE, SCHOOL_A
  *                   items:
  *                     $ref: '#/components/schemas/Job'
  */
-router.get("/jobs", authenticateToken, authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE), async (req, res) => {
+router.get("/jobs", authenticateToken, authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE), async (req, res) => {
   try {
     // Fetch jobs that are either "In Progress" or "Failed"
     const jobs = await agenda.jobs({
@@ -203,7 +204,7 @@ router.get("/jobs", authenticateToken, authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_R
 router.post(
   "/quiz",
   authenticateToken,
-  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE),
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     const quizCreateRequest = new QuizCreateRequest(req.body);
     if (quizCreateRequest.id === "default-id") {
@@ -257,7 +258,7 @@ router.post(
 router.get(
   "/sasUrl",
   authenticateToken,
-  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE),
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     const url = req.query.url; // URL is now obtained from query string
     if (!url) {
@@ -403,15 +404,25 @@ router.get(
  *                       description: Number of items returned per page
  */
 
+// Helper to sort content by creation_time (desc) and _id (desc)
+const sortByCreationTimeThenId = (a, b) => {
+  if (b.creation_time !== a.creation_time) {
+    return b.creation_time - a.creation_time;
+  }
+  return b._id.toString().localeCompare(a._id.toString());
+};
+
 router.get(
   "/",
   authenticateToken,
-  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE),
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     const limit = parseInt(req.query.limit) || 15;
     const cursor = req.query.cursor;
 
-    const tenantId = req.query.tenantId;
+    const tenantId = req.tenantId;
+    const schoolIdFilter = getReadSchoolIdFilter(req);
+
     // If specific IDs are requested, return non-deleted content sorted by creation time (newest first)
     if (req.query.ids) {
       if (!Array.isArray(req.query.ids) || req.query.ids.length === 0) {
@@ -420,7 +431,6 @@ router.get(
       const idsArray = req.query.ids;
 
       // Fetch both content and quiz data for the requested IDs (lean for read-only)
-      const schoolIdFilter = getReadSchoolIdFilter(req);
       const [contents, quizzes] = await Promise.all([
         ContentV3.find({ _id: { $in: idsArray }, tenantId, isDeleted: { $ne: true }, schoolId: schoolIdFilter })
           .lean()
@@ -450,10 +460,16 @@ router.get(
     }
 
     // Base query always excludes deleted content, scoped to tenant
-    let query = { isDeleted: { $ne: true }, tenantId: req.tenantId, schoolId: getReadSchoolIdFilter(req) };
+    let baseQuery = { isDeleted: { $ne: true }, tenantId: req.tenantId, schoolId: schoolIdFilter };
+    let contentQuery = { ...baseQuery };
+    let quizQuery = { ...baseQuery };
+
+    let shouldFetchContent = true;
+    let shouldFetchQuizzes = true;
 
     if (req.query.onlyTeacherApp) {
-      query.isTeacherApp = true;
+      contentQuery.isTeacherApp = true;
+      quizQuery.isTeacherApp = true;
     } else if (req.query.language && req.query.theme && req.query.expName) {
       const expName = req.query.expName.toLowerCase();
 
@@ -473,35 +489,40 @@ router.get(
       }
     }
 
-    // Cursor-based pagination using creation_time (descending) and _id as a tie-breaker
+    if (cursor) {
+      const [lastCreationTimeStr] = cursor.split("_");
+      const lastCreationTime = parseInt(lastCreationTimeStr, 10);
+      const cursorFilter = { creation_time: { $lte: lastCreationTime } };
+      if (shouldFetchContent) contentQuery = { ...contentQuery, ...cursorFilter };
+      if (shouldFetchQuizzes) quizQuery = { ...quizQuery, ...cursorFilter };
+    }
+
+    const [contents, quizzes] = await Promise.all([
+      shouldFetchContent ? ContentV3.find(contentQuery).sort({ creation_time: -1 }).lean().exec() : [],
+      shouldFetchQuizzes ? QuizData.find(quizQuery).sort({ creation_time: -1 }).lean().exec() : [],
+    ]);
+
+    const transformedContents = contents.map((c) => ({ ...c, id: c._id }));
+    const transformedQuizzes = quizzes.map((q) => ({ ...q, id: q._id, type: "quiz" }));
+
+    let allResults = [...transformedContents, ...transformedQuizzes].sort(sortByCreationTimeThenId);
+
     if (cursor) {
       const [lastCreationTimeStr, lastId] = cursor.split("_");
       const lastCreationTime = parseInt(lastCreationTimeStr, 10);
-      const lastIdBinary = new Binary(Buffer.from(uuidParse(lastId)), 4);
-
-      query.$or = [
-        { creation_time: { $lt: lastCreationTime } },
-        {
-          creation_time: lastCreationTime,
-          _id: { $lt: lastIdBinary },
-        },
-      ];
+      const idx = allResults.findIndex(
+        (item) => item.creation_time === lastCreationTime && item._id.toString() === lastId,
+      );
+      if (idx !== -1) allResults = allResults.slice(idx + 1);
     }
 
-    const contents = await ContentV3.find(query)
-      .sort({ creation_time: -1, _id: -1 })
-      .limit(limit + 1)
-      .exec();
-
-    const hasMore = contents.length > limit;
-    const data = hasMore ? contents.slice(0, limit) : contents;
-
-    const lastItem = hasMore ? data[data.length - 1] : null;
-    const nextCursor = lastItem
+    const hasMore = allResults.length > limit;
+    const data = allResults.slice(0, limit);
+    const lastItem = data.length > 0 ? data[data.length - 1] : null;
+    const nextCursor = hasMore && lastItem
       ? `${lastItem.creation_time}_${lastItem._id.toString()}`
       : null;
 
-    // Send the final response
     return res.json({
       data,
       pagination: {
@@ -557,7 +578,7 @@ router.get(
 router.get(
   "/sasToken",
   authenticateToken,
-  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE),
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     const containerName = "input-container";
     const blobName = req.query.blobName;
@@ -576,43 +597,176 @@ router.get(
 router.get(
   "/:contentId",
   authenticateToken,
-  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE),
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
-    const content = await ContentV3.findOne({
+    const query = {
       _id: req.params.contentId,
       tenantId: req.tenantId,
       schoolId: getReadSchoolIdFilter(req),
       isDeleted: { $ne: true },
-    });
-    if (!content) {
-      return res.status(404).json({ error: "Content not found" });
-    }
-    return res.json(content);
+    };
+    const content = await ContentV3.findOne(query);
+    if (content) return res.json(content);
+
+    const quiz = await QuizData.findOne(query);
+    if (quiz) return res.json({ ...quiz.toObject(), id: quiz._id, type: "quiz" });
+
+    return res.status(404).json({ error: "Content not found" });
   }),
 );
 
 router.patch(
-  "/:contentId",
+  "/",
   authenticateToken,
-  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE),
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
-    const { title, theme, description, isPullModel, isTeacherApp } = req.body;
-    const content = await ContentV3.findOne({
-      _id: req.params.contentId,
+    const isRegionalLanguage = (language) =>
+      typeof language === "string" && !["en", "eng", "english"].includes(language.trim().toLowerCase());
+
+    const mergeTextContent = ({ value, current, language, localOverride }) => {
+      const merged = {
+        english: current?.english ?? "",
+        local: current?.local ?? "",
+        audioUrl: current?.audioUrl ?? "",
+      };
+
+      if (typeof value === "string") {
+        // If caller also sends explicit local text, treat string value as English.
+        // This supports payloads like { title: "...en...", localTitle: "...local..." }.
+        if (localOverride !== undefined) {
+          merged.english = value;
+        } else {
+          const targetKey = isRegionalLanguage(language) ? "local" : "english";
+          merged[targetKey] = value;
+        }
+      } else if (value && typeof value === "object") {
+        ["english", "local", "audioUrl"].forEach((key) => {
+          if (value[key] !== undefined) merged[key] = value[key];
+        });
+      }
+
+      if (localOverride !== undefined) merged.local = localOverride;
+      return merged;
+    };
+
+    const applyTextUpdate = (doc, key, value, localOverride, language) => {
+      if (value === undefined && localOverride === undefined) return;
+      doc[key] = mergeTextContent({ value, current: doc[key], language, localOverride });
+    };
+
+    const isAudioUploaded = req.query.isAudioUploaded === "true";
+    const contentId = req.body?._id;
+    if (!contentId) return res.status(400).json({ error: "Content _id is required" });
+
+    const writeFilter = {
+      _id: contentId,
       tenantId: req.tenantId,
       schoolId: getWriteSchoolIdFilter(req),
-      isDeleted: false,
-    });
-    if (!content) {
-      return res.status(404).json({ error: "Content not found" });
+      isDeleted: { $ne: true },
+    };
+
+    // Quiz branch first
+    const quiz = await QuizData.findOne(writeFilter);
+    if (quiz) {
+      const {
+        title,
+        theme,
+        localTitle,
+        localTheme,
+        positiveMarks,
+        positiveMark,
+        negativeMarks,
+        negativeMark,
+        isPullModel,
+        isTeacherApp,
+        questions,
+      } = req.body;
+
+      const newPositiveMarks = positiveMarks ?? positiveMark;
+      const newNegativeMarks = negativeMarks ?? negativeMark;
+      if (newPositiveMarks !== undefined) quiz.positiveMarks = newPositiveMarks;
+      if (newNegativeMarks !== undefined) quiz.negativeMarks = newNegativeMarks;
+
+      applyTextUpdate(quiz, "title", title, localTitle, quiz.language);
+      applyTextUpdate(quiz, "theme", theme, localTheme, quiz.language);
+      if (isPullModel !== undefined) quiz.isPullModel = isPullModel;
+      if (isTeacherApp !== undefined) quiz.isTeacherApp = isTeacherApp;
+
+      if (questions !== undefined && Array.isArray(questions)) {
+        const { options: optionsMatrix, correctAnswers } = req.body;
+        quiz.questions = questions.map((q, index) => {
+          const existing = quiz.questions[index];
+          // q can be a plain string (flat format from AddQuiz) or a structured object
+          const isFlatFormat = typeof q === "string";
+          const questionText = isFlatFormat ? q : (typeof q.question === "string" ? q.question : q.question?.text);
+
+          // options: flat format sends a parallel matrix; structured format embeds in q
+          const optionsForQ = optionsMatrix?.[index] ?? q.options ?? [];
+
+          // correct option: flat format sends correctAnswers index; structured sends correct_option_id
+          const correct_option_id = correctAnswers?.[index] !== undefined
+            ? `${contentId}-q${index + 1}-opt${correctAnswers[index] + 1}`
+            : (q.correct_option_id || existing?.correct_option_id);
+
+          return {
+            question: {
+              id: (!isFlatFormat && q.question?.id) || existing?.question?.id || `${contentId}-q${index + 1}`,
+              url: (!isFlatFormat && q.question?.url) || existing?.question?.url || "<NOT CREATED>",
+              text: questionText ?? existing?.question?.text ?? "",
+            },
+            options: optionsForQ.map((opt, optIndex) => {
+              const existingOpt = existing?.options?.[optIndex];
+              const optText = typeof opt === "string" ? opt : opt?.text;
+              return {
+                id: (typeof opt === "object" && opt?.id) || existingOpt?.id || `${contentId}-q${index + 1}-opt${optIndex + 1}`,
+                url: (typeof opt === "object" && opt?.url) || existingOpt?.url || "<NOT CREATED>",
+                text: optText ?? existingOpt?.text ?? "",
+              };
+            }),
+            correct_option_id,
+          };
+        });
+      }
+
+      await quiz.save();
+      const quizJob = await agenda.now("processQuizContent", { content: quiz.toObject() });
+      return res.json({ ...quiz.toObject(), id: quiz._id, type: "quiz", jobId: quizJob.attrs._id });
     }
-    if (title !== undefined) content.title = title;
-    if (theme !== undefined) content.theme = theme;
-    if (description !== undefined) content.description = description;
-    if (isPullModel !== undefined) content.isPullModel = isPullModel;
-    if (isTeacherApp !== undefined) content.isTeacherApp = isTeacherApp;
-    await content.save();
-    return res.json(content);
+
+    // ContentV3 branch — build $set from same mutable fields as POST
+    const { title, theme, description, type, language, audioContent, isPullModel, isTeacherApp } = req.body;
+
+    const update = {};
+    if (title !== undefined) update.title = title;
+    if (theme !== undefined) update.theme = theme;
+    if (description !== undefined) update.description = description;
+    if (type !== undefined) update.type = type;
+    if (language !== undefined) update.language = language;
+    if (isPullModel !== undefined) update.isPullModel = isPullModel;
+    if (isTeacherApp !== undefined) update.isTeacherApp = isTeacherApp;
+
+    if (isAudioUploaded) {
+      if (audioContent !== undefined) {
+        for (const item of audioContent) {
+          if (item.audioUrl && !item.audioUrl.toLowerCase().endsWith(".mp3")) {
+            return res.status(400).json({ error: "Only .mp3 audio files are allowed." });
+          }
+        }
+        update.audioContent = audioContent;
+      }
+      update.isProcessed = false;
+    }
+
+    const content = await ContentV3.findOneAndUpdate(writeFilter, { $set: update }, { new: true });
+    if (content) {
+      if (isAudioUploaded) {
+        const job = await agenda.now("processNewContent", { content: content.toObject() });
+        return res.json({ ...content.toObject(), jobId: job.attrs._id });
+      }
+      return res.json(content);
+    }
+
+    return res.status(404).json({ error: "Content not found" });
   }),
 );
 
@@ -660,23 +814,28 @@ router.patch(
 router.delete(
   "/:contentId",
   authenticateToken,
-  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE),
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
-    const result = await ContentV3.updateOne(
-      { _id: req.params.contentId, tenantId: req.tenantId, schoolId: getWriteSchoolIdFilter(req) },
-      { $set: { isDeleted: true } },
-    );
-    if (result.matchedCount === 0) {
-      return res.status(404).json({ error: "Content not found" });
-    }
-    return res.json(result);
+    const writeFilter = {
+      _id: req.params.contentId,
+      tenantId: req.tenantId,
+      schoolId: getWriteSchoolIdFilter(req),
+    };
+
+    const contentResult = await ContentV3.updateOne(writeFilter, { $set: { isDeleted: true } });
+    if (contentResult.matchedCount > 0) return res.json(contentResult);
+
+    const quizResult = await QuizData.updateOne(writeFilter, { $set: { isDeleted: true } });
+    if (quizResult.matchedCount > 0) return res.json(quizResult);
+
+    return res.status(404).json({ error: "Content not found" });
   }),
 );
 
 router.post(
   "/",
   authenticateToken,
-  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE),
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     let content = new ContentV3(req.body);
     content.tenantId = req.tenantId;
@@ -843,7 +1002,7 @@ async function deleteAudioBlobs(audioId) {
 }
 
 async function deleteUnnecessaryStorage() {
-  const docs = await Content.find({});
+  const docs = await Content.find({}).lean().exec();
   const containerName = "output-container";
   const containerClient = blobService.getContainerClient(containerName);
   for (const doc of docs) {

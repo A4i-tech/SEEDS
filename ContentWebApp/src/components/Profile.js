@@ -1,8 +1,8 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AppHeader from "./AllContent/Header/AppHeader";
 import { useAuth } from "../hooks/useAuth";
-import { SEEDS_URL } from "../Constants";
+import { SEEDS_URL, USER_ROLES } from "../Constants";
 import "./AllContent/AllContent.css";
 import "./AllContent/shared/cards.css";
 import "./AllContent/shared/buttons.css";
@@ -29,46 +29,22 @@ const Profile = () => {
     navigate("/content", { state: { activeTab: tab } });
   };
 
-  const fetchProfile = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(`${SEEDS_URL}/tenant/me`, {
-        method: "GET",
-        headers: getAuthHeaders(),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setProfile(data);
-      } else {
-        console.error("Failed to fetch profile");
-        setProfile(null);
-      }
-    } catch (error) {
-      console.error("Error fetching profile:", error);
-      setProfile(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [getAuthHeaders]);
-
   useEffect(() => {
-    const loadUser = async () => {
+    const loadProfile = async () => {
+      setLoading(true);
       try {
-        const name = await getCurrentUser();
-        setCurrentUser(name);
+        const data = await getCurrentUser();
+        setProfile(data);
+        setCurrentUser(data.name);
       } catch (error) {
-        console.error("Error fetching user:", error);
-        setCurrentUser("User");
+        console.error("Error fetching profile:", error);
+        setProfile(null);
+      } finally {
+        setLoading(false);
       }
     };
-
-    loadUser();
+    loadProfile();
   }, [getCurrentUser]);
-
-  useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
 
   const handlePasswordChange = async (e) => {
     e.preventDefault();
@@ -137,41 +113,91 @@ const Profile = () => {
           onTabChange={handleTabChange}
           currentUser={currentUser}
           onLogout={logout}
+          showContent={Boolean(profile)}
+          showRegistration={profile && profile.role !== USER_ROLES.CONTENT_CREATOR}
+          showAnalytics={profile && profile.role !== USER_ROLES.CONTENT_CREATOR}
         />
 
-        {loading ? (
+        {loading || !profile ? (
           <div className="card loading-card">Loading profile...</div>
         ) : (
           <div className="profile-grid">
-            <div className="card">
-              <div className="card-header">
-                <div>
-                  <h2 className="card-title">Account Information</h2>
-                  <p className="card-description">Your tenant details (read-only)</p>
+            {(profile.role === USER_ROLES.TEACHER ||
+              profile.role === USER_ROLES.CONTENT_CREATOR) ? (
+              <div className="card">
+                <div className="card-header">
+                  <div>
+                    <h2 className="card-title">Account Information</h2>
+                    <p className="card-description">Your account details (read-only)</p>
+                  </div>
+                </div>
+                <div className="profile-fields">
+                  <div className="profile-field">
+                    <label className="profile-label">Name</label>
+                    <input
+                      className="profile-input profile-input-disabled"
+                      type="text"
+                      value={profile.name || ""}
+                      disabled
+                    />
+                  </div>
+                  <div className="profile-field">
+                    <label className="profile-label">Phone Number</label>
+                    <input
+                      className="profile-input profile-input-disabled"
+                      type="tel"
+                      value={profile.phoneNumber || ""}
+                      disabled
+                    />
+                  </div>
+                  <div className="profile-field">
+                    <label className="profile-label">School Name</label>
+                    <input
+                      className="profile-input profile-input-disabled"
+                      type="text"
+                      value={profile.schoolName || ""}
+                      disabled
+                    />
+                  </div>
                 </div>
               </div>
-              <div className="profile-fields">
-                <div className="profile-field">
-                  <label className="profile-label">Organization Name</label>
-                  <input
-                    className="profile-input profile-input-disabled"
-                    type="text"
-                    value={profile?.tenantName || ""}
-                    disabled
-                  />
+            ) : (
+              <div className="card">
+                <div className="card-header">
+                  <div>
+                    <h2 className="card-title">Account Information</h2>
+                    <p className="card-description">
+                      {profile.role === USER_ROLES.SCHOOL_ADMIN
+                        ? "Your school details (read-only)"
+                        : "Your tenant details (read-only)"}
+                    </p>
+                  </div>
                 </div>
-                <div className="profile-field">
-                  <label className="profile-label">Email</label>
-                  <input
-                    className="profile-input profile-input-disabled"
-                    type="email"
-                    value={profile?.email || ""}
-                    disabled
-                  />
+                <div className="profile-fields">
+                  <div className="profile-field">
+                    <label className="profile-label">Organization Name</label>
+                    <input
+                      className="profile-input profile-input-disabled"
+                      type="text"
+                      value={profile.name || ""}
+                      disabled
+                    />
+                  </div>
+                  <div className="profile-field">
+                    <label className="profile-label">Email</label>
+                    <input
+                      className="profile-input profile-input-disabled"
+                      type="email"
+                      value={profile.email || ""}
+                      disabled
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
+            {profile.role !== USER_ROLES.TEACHER &&
+              profile.role !== USER_ROLES.CONTENT_CREATOR && (
             <div className="card">
               <div className="card-header">
                 <div>
@@ -249,6 +275,7 @@ const Profile = () => {
                 </div>
               </form>
             </div>
+              )}
           </div>
         )}
       </div>

@@ -8,27 +8,17 @@ import { useFlashMessage } from "./useFlashMessage";
 export const useTeachers = (activeTab) => {
   const [teachers, setTeachers] = useState([]);
   const [students, setStudents] = useState([]);
-  const [selectedTeacherId, setSelectedTeacherId] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const { message, messageType, flashMessage } = useFlashMessage();
 
   const { getAuthHeaders } = useAuth();
 
-  /**
-   * Fetch teachers list
-   */
   const fetchTeachers = useCallback(
     async (signal = null) => {
       setIsLoading(true);
       try {
         const data = await teacherService.getTeachers(getAuthHeaders(), signal);
-
-        setTeachers((prevTeachers) => {
-          if (prevTeachers.length === 0 && data.length > 0) {
-            setSelectedTeacherId(data[0]._id || data[0].id);
-          }
-          return data;
-        });
+        setTeachers(data);
       } catch (error) {
         if (error.name !== "AbortError") {
           console.error("Error fetching teachers:", error);
@@ -40,20 +30,20 @@ export const useTeachers = (activeTab) => {
     [getAuthHeaders]
   );
 
-  const fetchStudents = useCallback(async (signal = null) => {
-    try {
-      const data = await teacherService.getStudents(getAuthHeaders(), signal);
-      setStudents(data);
-    } catch (error) {
-      if (error.name !== "AbortError") {
-        console.error("Error fetching students:", error);
+  const fetchStudents = useCallback(
+    async (signal = null) => {
+      try {
+        const data = await teacherService.getStudents(getAuthHeaders(), signal);
+        setStudents(data);
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          console.error("Error fetching students:", error);
+        }
       }
-    }
-  }, [getAuthHeaders]);
+    },
+    [getAuthHeaders]
+  );
 
-  /**
-   * Load teachers and students when registration tab is active
-   */
   useEffect(() => {
     const ac = new AbortController();
     if (activeTab === "registration" && getRole() === "school_admin") {
@@ -63,9 +53,6 @@ export const useTeachers = (activeTab) => {
     return () => ac.abort();
   }, [activeTab, fetchTeachers, fetchStudents]);
 
-  /**
-   * Register a new teacher
-   */
   const registerTeacher = useCallback(
     async (phoneNumber, password, name, role) => {
       if (isLoading) {
@@ -85,7 +72,12 @@ export const useTeachers = (activeTab) => {
       setIsLoading(true);
       try {
         await teacherService.registerTeacher(phoneNumber, password, name, role, getAuthHeaders());
-        flashMessage("Teacher registered successfully!", "success");
+        flashMessage(
+          role === "content_creator"
+            ? "Content creator registered successfully!"
+            : "Teacher registered successfully!",
+          "success"
+        );
         await fetchTeachers();
         return true;
       } catch (error) {
@@ -99,16 +91,17 @@ export const useTeachers = (activeTab) => {
     [isLoading, getAuthHeaders, fetchTeachers, flashMessage]
   );
 
-  /**
-   * Update teacher state
-   */
   const updateTeacherState = useCallback((id, patch) => {
-    setTeachers((prev) => prev.map((t) => (String(t._id) === String(id) ? { ...t, ...patch } : t)));
+    setTeachers((prev) =>
+      prev.map((teacher) =>
+        String(teacher._id) === String(id) ? { ...teacher, ...patch } : teacher
+      )
+    );
   }, []);
 
   const isTeacherSubmitting = useCallback(
     (teacherId) =>
-      teachers.some((t) => String(t._id) === String(teacherId) && Boolean(t.submitting)),
+      teachers.some((teacher) => String(teacher._id) === String(teacherId) && Boolean(teacher.submitting)),
     [teachers]
   );
 
@@ -142,10 +135,8 @@ export const useTeachers = (activeTab) => {
         );
 
         setTeachers((prev) =>
-          prev.map((t) =>
-            String(t._id) === String(teacherId)
-              ? { ...t, ...updated }
-              : t
+          prev.map((teacher) =>
+            String(teacher._id) === String(teacherId) ? { ...teacher, ...updated } : teacher
           )
         );
 
@@ -173,10 +164,7 @@ export const useTeachers = (activeTab) => {
 
       try {
         await teacherService.deleteTeacher(teacherId, getAuthHeaders());
-        setTeachers((prev) => prev.filter((t) => String(t._id) !== String(teacherId)));
-        if (String(selectedTeacherId) === String(teacherId)) {
-          setSelectedTeacherId(null);
-        }
+        setTeachers((prev) => prev.filter((teacher) => String(teacher._id) !== String(teacherId)));
         flashMessage("Teacher deleted successfully.", "success");
       } catch (error) {
         flashMessage(error.message || "Failed to delete teacher.", "error");
@@ -184,7 +172,7 @@ export const useTeachers = (activeTab) => {
         setTeacherSubmitting(teacherId, false);
       }
     },
-    [getAuthHeaders, selectedTeacherId, flashMessage, isTeacherSubmitting, setTeacherSubmitting]
+    [getAuthHeaders, flashMessage, isTeacherSubmitting, setTeacherSubmitting]
   );
 
   const transferTeacher = useCallback(
@@ -202,10 +190,7 @@ export const useTeachers = (activeTab) => {
 
       try {
         await teacherService.transferTeacher(teacherId, targetSchoolId, getAuthHeaders());
-        setTeachers((prev) => prev.filter((t) => String(t._id) !== String(teacherId)));
-        if (String(selectedTeacherId) === String(teacherId)) {
-          setSelectedTeacherId(null);
-        }
+        setTeachers((prev) => prev.filter((teacher) => String(teacher._id) !== String(teacherId)));
         flashMessage("Teacher transferred successfully.", "success");
         return true;
       } catch (error) {
@@ -215,10 +200,8 @@ export const useTeachers = (activeTab) => {
         setTeacherSubmitting(teacherId, false);
       }
     },
-    [getAuthHeaders, selectedTeacherId, flashMessage, isTeacherSubmitting, setTeacherSubmitting]
+    [getAuthHeaders, flashMessage, isTeacherSubmitting, setTeacherSubmitting]
   );
-
-  // --- School-level student CRUD (flat list via GET /student) ---
 
   const addStudent = useCallback(
     async (name, phoneNumber) => {
@@ -246,8 +229,17 @@ export const useTeachers = (activeTab) => {
         return false;
       }
       try {
-        const updated = await teacherService.updateStudentById(studentId, name, phoneNumber, getAuthHeaders());
-        setStudents((prev) => prev.map((s) => (String(s._id) === String(studentId) ? updated : s)));
+        const updated = await teacherService.updateStudentById(
+          studentId,
+          name,
+          phoneNumber,
+          getAuthHeaders()
+        );
+        setStudents((prev) =>
+          prev.map((student) =>
+            String(student._id) === String(studentId) ? updated : student
+          )
+        );
         flashMessage("Student updated successfully.", "success");
         return true;
       } catch (error) {
@@ -262,7 +254,9 @@ export const useTeachers = (activeTab) => {
     async (studentId) => {
       try {
         await teacherService.deleteStudentById(studentId, getAuthHeaders());
-        setStudents((prev) => prev.filter((s) => String(s._id) !== String(studentId)));
+        setStudents((prev) =>
+          prev.filter((student) => String(student._id) !== String(studentId))
+        );
         flashMessage("Student deleted successfully.", "success");
       } catch (error) {
         flashMessage(error.message || "Failed to delete student.", "error");
@@ -271,17 +265,9 @@ export const useTeachers = (activeTab) => {
     [getAuthHeaders, flashMessage]
   );
 
-  /**
-   * Get selected teacher object
-   */
-  const selectedTeacher = teachers.find((t) => String(t._id) === String(selectedTeacherId));
-
   return {
     teachers,
     students,
-    selectedTeacher,
-    selectedTeacherId,
-    setSelectedTeacherId,
     isLoading,
     message,
     messageType,

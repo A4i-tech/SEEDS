@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { setAuth } from "../utils/authHelpers";
+import validator from "validator";
+import { setAuth, getTokenPayload } from "../utils/authHelpers";
 
 const baseURL = process.env.REACT_APP_API_BASE_URL;
 
@@ -103,9 +104,8 @@ const Login = () => {
   const navigate = useNavigate();
   const [showError, setShowError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [role, setRole] = useState("tenant");
   const [formData, setFormData] = useState({
-    email: "",
+    identifier: "",
     password: "",
   });
 
@@ -113,44 +113,72 @@ const Login = () => {
     setFormData((prev) => ({ ...prev, [field]: event.target.value }));
   };
 
+  const loginAsTenant = async (email, password) => {
+    const { data } = await axios.post(`${baseURL}/tenant/login`, { email, password });
+    localStorage.setItem("authToken", data.token);
+    const { name } = getTokenPayload();
+    setAuth(data.token, "tenant");
+    navigate("/content", { state: { name } });
+  };
+
+  const loginAsSchoolAdmin = async (email, password) => {
+    const { data } = await axios.post(`${baseURL}/school/admin/login`, { email, password });
+    localStorage.setItem("authToken", data.token);
+    const { schoolId, name } = getTokenPayload();
+    setAuth(data.token, "school_admin", schoolId);
+    navigate("/content", { state: { name } });
+  };
+
+  const loginAsTeacher = async (phoneNumber, password) => {
+    const { data } = await axios.post(`${baseURL}/teacher/login`, { phoneNumber, password });
+    localStorage.setItem("authToken", data.token);
+    const { role, schoolId, name } = getTokenPayload();
+    setAuth(data.token, role, schoolId);
+    navigate("/content", { state: { name } });
+  };
+
   const handleLogin = async (event) => {
     event.preventDefault();
     setShowError("");
 
-    if (!formData.email || !formData.password) {
+    const identifier = formData.identifier.trim();
+    const { password } = formData;
+
+    if (!identifier || !password) {
       setShowError("Please fill in all fields.");
+      return;
+    }
+
+    const looksLikeEmail = validator.isEmail(identifier);
+    const looksLikePhone = validator.isMobilePhone(identifier, "en-IN", { strictMode: false });
+
+    if (!looksLikeEmail && !looksLikePhone) {
+      setShowError("Enter a valid email or a 10-digit phone number.");
       return;
     }
 
     try {
       setIsSubmitting(true);
 
-      const endpoint =
-        role === "school_admin"
-          ? `${baseURL}/school/admin/login`
-          : `${baseURL}/tenant/login`;
-
-      const response = await axios.post(endpoint, {
-        email: formData.email,
-        password: formData.password,
-      });
-
-      if (response.status === 200) {
-        if (role === "school_admin") {
-          const { token, schoolId, schoolName } = response.data;
-          setAuth(token, "school_admin", schoolId);
-          navigate("/content", { state: { name: schoolName } });
-        } else {
-          const { token, tenantName } = response.data;
-          setAuth(token, "tenant");
-          navigate("/content", { state: { name: tenantName } });
+      if (looksLikeEmail) {
+        try {
+          await loginAsTenant(identifier, password);
+          return;
+        } catch (error) {
+          if (error?.response?.status !== 401) throw error;
         }
-      } else {
-        setShowError("Invalid credentials. Please try again.");
+        await loginAsSchoolAdmin(identifier, password);
+        return;
       }
+
+      await loginAsTeacher(identifier, password);
     } catch (error) {
       console.error("Login error:", error);
-      setShowError("Login failed. Please verify your details.");
+      if (error?.response?.status === 401) {
+        setShowError("Invalid credentials. Please try again.");
+      } else {
+        setShowError("Login failed. Please verify your details.");
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -173,29 +201,21 @@ const Login = () => {
           </button>
         </div>
 
-        <div style={tabsStyle}>
-          <button type="button" style={tabButtonStyle(role === "tenant")} onClick={() => setRole("tenant")}>
-            Tenant
-          </button>
-          <button type="button" style={tabButtonStyle(role === "school_admin")} onClick={() => setRole("school_admin")}>
-            School Admin
-          </button>
-        </div>
-
         <form
           onSubmit={handleLogin}
           style={{ display: "flex", flexDirection: "column", gap: "18px" }}
         >
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <label htmlFor="login-email" style={labelStyle}>
-              Email
+            <label htmlFor="login-identifier" style={labelStyle}>
+              Email or phone number
             </label>
             <input
-              id="login-email"
-              type="email"
-              placeholder="Enter your email"
-              value={formData.email}
-              onChange={handleChange("email")}
+              id="login-identifier"
+              type="text"
+              autoComplete="username"
+              placeholder="you@example.com or 10-digit mobile"
+              value={formData.identifier}
+              onChange={handleChange("identifier")}
               style={inputStyle}
             />
           </div>

@@ -14,7 +14,6 @@ const contentRouter = require("./routes/contentRouter");
 const classRoomRouter = require("./routes/classRouter.js");
 const userRouter = require("./routes/userRouter.js");
 const logRouter = require("./routes/logRouter.js");
-const { constants } = require("zlib");
 const setupSwagger = require("./swagger");
 const tenantRouter = require("./routes/tenantRouter.js");
 const schoolRouter = require("./routes/schoolRouter.js");
@@ -22,8 +21,9 @@ const studentRouter = require("./routes/studentRouter.js");
 const mongo = require("./config/mongo");
 const healthRouter = require("./routes/healthRouter");
 const app = express();
-
 const TEACHER_ROLE = "teacher";
+const CONTENT_CREATOR_ROLE = "content_creator";
+
 // Initialize Swagger
 setupSwagger(app);
 
@@ -41,16 +41,14 @@ app.get("/", (req, res) => {
 
 app.use(bodyParser.json());
 
-// Existing code remains unchanged
 app.use(morgan("dev"));
 app.use(cors());
 app.use("/health", healthRouter);
 app.use("/call", authenticateToken, callRouter);
 app.use("/content", authenticateToken, contentRouter);
-app.use("/class", authenticateToken, authorizeRole(TEACHER_ROLE), classRoomRouter);
+app.use("/class", authenticateToken, authorizeRole(TEACHER_ROLE,CONTENT_CREATOR_ROLE), classRoomRouter);
 app.use("/log", authenticateToken, logRouter);
 app.use("/user", authenticateToken, userRouter);
-
 app.use("/teacher", teacherRouter);
 app.use("/tenant", tenantRouter);
 app.use("/school", schoolRouter);

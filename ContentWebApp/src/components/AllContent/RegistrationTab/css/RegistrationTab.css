@@ -1,41 +1,13 @@
 /* Registration layout */
-.registration-flex-card {
+.registration-page-card {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
+  border-radius: 8px;
 }
 
-.teachers-section {
-  margin-top: 24px;
-}
-
-.teachers-section-title {
-  margin-bottom: 12px;
-  color: #0f172a;
-}
-
-.teachers-layout {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.no-teachers {
-  padding: 12px;
-  color: #94a3b8;
-}
-
-@media (min-width: 768px) {
-  .teachers-layout {
-    flex-direction: row;
-    gap: 14px;
-  }
-}
-
-@media (min-width: 1024px) {
-  .teachers-layout {
-    gap: 16px;
-  }
+.registration-page-header {
+  text-align: center;
 }
 
 /* Pill tabs */
@@ -64,4 +36,53 @@
   background-color: #0f172a;
   color: #fff;
   cursor: default;
+}
+
+.teachers-section {
+  margin-top: 24px;
+}
+
+.teachers-section-title {
+  margin-bottom: 12px;
+  color: #0f172a;
+}
+
+.team-directory-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.team-directory-title {
+  margin: 16px 0 0;
+  color: #334155;
+  font-size: 26px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.teachers-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 360px;
+}
+
+.no-teachers {
+  padding: 12px;
+  color: #94a3b8;
+}
+
+@media (min-width: 768px) {
+  .teachers-layout {
+    flex-direction: row;
+    gap: 14px;
+    align-items: stretch;
+  }
+}
+
+@media (min-width: 1024px) {
+  .teachers-layout {
+    gap: 16px;
+  }
 }

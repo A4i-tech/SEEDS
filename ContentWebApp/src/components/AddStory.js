@@ -261,7 +261,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
   };
 
   const sendStory = async () => {
-    const _id = content ? content.id : uuidv4();
+    const _id = content ? (content._id || content.id) : uuidv4();
     const languageLower = (metadata.language || "").toLowerCase();
     // Always send title and theme as objects
     var newMetadata = {
@@ -283,6 +283,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
     if (!metadata.audioFile && !metadata.answerAudioFile) {
       newMetadata["isProcessed"] = metadata.isProcessed;
       isAudioUploaded = "false";
+      delete newMetadata["audioContent"]; // don't send existing .wav URLs — backend only accepts .mp3
     }
     delete newMetadata["audioFile"];
     delete newMetadata["answerAudioFile"];
@@ -382,7 +383,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
     // Send metadata to backend with populated audioContent AFTER files are uploaded
     if (content) {
       newMetadata = { ...newMetadata, _id: content._id };
-      const seedsRes = await fetch(`${SEEDS_URL}/content?isAudioUploaded=${isAudioUploaded}`, {
+      const seedsRes = await fetch(`${SEEDS_URL}/content/${content._id}?isAudioUploaded=${isAudioUploaded}`, {
         method: "PATCH",
         headers: getAuthHeaders(),
         body: JSON.stringify(newMetadata),

@@ -6,7 +6,15 @@ import "../shared/buttons.css";
 import "../shared/cards.css";
 import "../shared/utilities.css";
 
-const AppHeader = ({ activeTab, onTabChange, currentUser, onLogout }) => {
+const AppHeader = ({
+  activeTab,
+  onTabChange,
+  currentUser,
+  onLogout,
+  showContent = true,
+  showRegistration = true,
+  showAnalytics = true,
+}) => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const navigate = useNavigate();
 
@@ -28,24 +36,30 @@ const AppHeader = ({ activeTab, onTabChange, currentUser, onLogout }) => {
           <span>SEEDS</span>
         </div>
         <div className="action-group">
-          <button
-            className={`nav-link ${activeTab === "content" ? "active" : ""}`}
-            onClick={() => onTabChange("content")}
-          >
-            Content
-          </button>
-          <button
-            className={`nav-link ${activeTab === "registration" ? "active" : ""}`}
-            onClick={() => onTabChange("registration")}
-          >
-            Registration
-          </button>
-          <button
-            className={`nav-link ${activeTab === "analytics" ? "active" : ""}`}
-            onClick={() => onTabChange("analytics")}
-          >
-            Analytics
-          </button>
+          {showContent && (
+            <button
+              className={`nav-link ${activeTab === "content" ? "active" : ""}`}
+              onClick={() => onTabChange("content")}
+            >
+              Content
+            </button>
+          )}
+          {showRegistration && (
+            <button
+              className={`nav-link ${activeTab === "registration" ? "active" : ""}`}
+              onClick={() => onTabChange("registration")}
+            >
+              Registration
+            </button>
+          )}
+          {showAnalytics && (
+            <button
+              className={`nav-link ${activeTab === "analytics" ? "active" : ""}`}
+              onClick={() => onTabChange("analytics")}
+            >
+              Analytics
+            </button>
+          )}
         </div>
       </div>
       <div className="user-dropdown-container">
