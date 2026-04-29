@@ -53,7 +53,11 @@ describe("Teacher getMe API handler (unit)", () => {
     expect(teacherService.getTeacherById).toHaveBeenCalledWith("teacher123");
     expect(schoolService.getSchoolById).toHaveBeenCalledWith("school123", "tenant123");
     expect(res.statusCode).toBe(STATUS_OK);
-    expect(res.body).toEqual({ schoolName: "School One" });
+    expect(res.body).toEqual({
+      schoolName: "School One",
+      phoneNumber: "9876543210",
+      name: "Creator User",
+    });
   });
 
   test("returns empty schoolName when school lookup is not found", async () => {
@@ -73,6 +77,10 @@ describe("Teacher getMe API handler (unit)", () => {
     await teacherController.getMe(req, res);
 
     expect(res.statusCode).toBe(STATUS_OK);
-    expect(res.body).toEqual({ schoolName: "" });
+    expect(res.body).toEqual({
+      schoolName: "",
+      phoneNumber: "1234567890",
+      name: "Teacher User",
+    });
   });
 });
