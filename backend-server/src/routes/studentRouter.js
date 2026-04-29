@@ -13,6 +13,7 @@ const studentController = require("../controllers/student.controller");
 
 const SCHOOL_ADMIN_ROLE = "school_admin";
 const TEACHER_ROLE = "teacher";
+const CONTENT_CREATOR_ROLE = "content_creator";
 
 const router = express.Router();
 
@@ -64,7 +65,7 @@ router.post("/",authenticateToken, authorizeRole(SCHOOL_ADMIN_ROLE), studentCont
  *       401:
  *         description: Unauthorized
  */
-router.get("/",authenticateToken, authorizeRole(SCHOOL_ADMIN_ROLE, TEACHER_ROLE), studentController.getStudents);
+router.get("/",authenticateToken, authorizeRole(SCHOOL_ADMIN_ROLE, TEACHER_ROLE, CONTENT_CREATOR_ROLE), studentController.getStudents);
 
 /**
  * @swagger
