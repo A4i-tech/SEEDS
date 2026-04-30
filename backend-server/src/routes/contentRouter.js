@@ -490,31 +490,27 @@ router.get(
     }
 
     if (cursor) {
-      const [lastCreationTimeStr] = cursor.split("_");
+      const [lastCreationTimeStr, lastId] = cursor.split("_");
       const lastCreationTime = parseInt(lastCreationTimeStr, 10);
-      const cursorFilter = { creation_time: { $lte: lastCreationTime } };
+      const cursorFilter = {
+        $or: [
+          { creation_time: { $lt: lastCreationTime } },
+          { creation_time: lastCreationTime, _id: { $lt: lastId } },
+        ],
+      };
       if (shouldFetchContent) contentQuery = { ...contentQuery, ...cursorFilter };
       if (shouldFetchQuizzes) quizQuery = { ...quizQuery, ...cursorFilter };
     }
 
     const [contents, quizzes] = await Promise.all([
-      shouldFetchContent ? ContentV3.find(contentQuery).sort({ creation_time: -1 }).lean().exec() : [],
-      shouldFetchQuizzes ? QuizData.find(quizQuery).sort({ creation_time: -1 }).lean().exec() : [],
+      shouldFetchContent ? ContentV3.find(contentQuery).sort({ creation_time: -1, _id: -1 }).limit(limit + 1).lean().exec() : [],
+      shouldFetchQuizzes ? QuizData.find(quizQuery).sort({ creation_time: -1, _id: -1 }).limit(limit + 1).lean().exec() : [],
     ]);
 
     const transformedContents = contents.map((c) => ({ ...c, id: c._id }));
     const transformedQuizzes = quizzes.map((q) => ({ ...q, id: q._id, type: "quiz" }));
 
     let allResults = [...transformedContents, ...transformedQuizzes].sort(sortByCreationTimeThenId);
-
-    if (cursor) {
-      const [lastCreationTimeStr, lastId] = cursor.split("_");
-      const lastCreationTime = parseInt(lastCreationTimeStr, 10);
-      const idx = allResults.findIndex(
-        (item) => item.creation_time === lastCreationTime && item._id.toString() === lastId,
-      );
-      if (idx !== -1) allResults = allResults.slice(idx + 1);
-    }
 
     const hasMore = allResults.length > limit;
     const data = allResults.slice(0, limit);
