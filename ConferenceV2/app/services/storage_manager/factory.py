@@ -5,7 +5,6 @@ Storage backend factory. Returns the configured StorageManager implementation.
 import os
 
 from app.services.storage_manager.base_storage_manager import StorageManager
-from app.services.storage_manager.in_memory_storage import InMemoryStorageManager
 from app.services.storage_manager.cosmosdb_storage import CosmosDBStorage
 from app.services.storage_manager.mongodb_storage import MongoDBStorage
 
@@ -14,17 +13,11 @@ def create_storage_manager() -> StorageManager:
     """
     Return the StorageManager for the configured backend.
 
-    Uses STORAGE_BACKEND env: "memory" | "cosmos" | "mongodb". Default "memory".
-    For memory we avoid loading config (so tests work without full .env).
-    For cosmos/mongodb we use config; raises if required vars missing.
+    Uses STORAGE_BACKEND env: "cosmos" | "mongodb". Default "mongodb".
     """
-    backend = (os.environ.get("STORAGE_BACKEND") or "memory").strip().lower()
-
-    if backend == "memory":
-        return InMemoryStorageManager()
-
     from config import get_settings
 
+    backend = (os.environ.get("STORAGE_BACKEND") or "mongodb").strip().lower()
     s = get_settings()
 
     if backend == "cosmos":
@@ -43,5 +36,5 @@ def create_storage_manager() -> StorageManager:
         return MongoDBStorage()
 
     raise ValueError(
-        f"Unknown STORAGE_BACKEND={backend!r}. Use memory, cosmos, or mongodb."
+        f"Unknown STORAGE_BACKEND={backend!r}. Use cosmos or mongodb."
     )
