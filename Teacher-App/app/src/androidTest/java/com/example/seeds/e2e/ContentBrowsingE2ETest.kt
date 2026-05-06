@@ -24,6 +24,7 @@ import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import org.hamcrest.Matcher
 import org.junit.After
+import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -78,15 +79,28 @@ class ContentBrowsingE2ETest {
         TestAppModule.fakeService.reset()
     }
 
+    // Polls until the view matching [matcher] is displayed, or throws after [timeoutMs].
+    // Needed because the ViewModel loads data on a coroutine dispatcher Espresso can't track.
+    private fun waitForView(matcher: Matcher<View>, timeoutMs: Long = 5_000) {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        do {
+            try { onView(matcher).check(matches(isDisplayed())); return }
+            catch (_: Exception) { Thread.sleep(250) }
+        } while (System.currentTimeMillis() < deadline)
+        fail("View not visible after ${timeoutMs}ms: $matcher")
+    }
+
     @Test
     fun homeTab_displaysContentFromApi() {
         onView(withId(R.id.homeFragment)).perform(performClickAction)
+        waitForView(withText("Sparrow Song"))
         onView(withText("Sparrow Song")).check(matches(isDisplayed()))
     }
 
     @Test
     fun clickContent_navigatesToDetailsFragment() {
         onView(withId(R.id.homeFragment)).perform(performClickAction)
+        waitForView(withText("Sparrow Song"))
         onView(withText("Sparrow Song")).perform(performClickAction)
         onView(withId(R.id.contact_name)).check(matches(withText("Sparrow Song")))
     }
