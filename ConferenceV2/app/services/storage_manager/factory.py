@@ -7,7 +7,7 @@ import os
 from app.services.storage_manager.base_storage_manager import StorageManager
 from app.services.storage_manager.cosmosdb_storage import CosmosDBStorage
 from app.services.storage_manager.mongodb_storage import MongoDBStorage
-
+from config import get_settings
 
 def create_storage_manager() -> StorageManager:
     """
@@ -15,10 +15,9 @@ def create_storage_manager() -> StorageManager:
 
     Uses STORAGE_BACKEND env: "cosmos" | "mongodb". Default "mongodb".
     """
-    from config import get_settings
-
-    backend = (os.environ.get("STORAGE_BACKEND") or "mongodb").strip().lower()
     s = get_settings()
+    backend = (s.STORAGE_BACKEND).strip().lower()
+    
 
     if backend == "cosmos":
         return CosmosDBStorage(
