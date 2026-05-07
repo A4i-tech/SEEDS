@@ -1,5 +1,6 @@
 package com.example.seeds.ui.call
 
+import android.util.Log
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import androidx.lifecycle.SavedStateHandle
 import com.example.seeds.builders.ClassroomTestBuilder
@@ -13,10 +14,14 @@ import com.example.seeds.util.MainDispatcherRule
 import com.google.common.truth.Truth.assertThat
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -35,8 +40,18 @@ class CallSettingsViewModelTest {
 
     private val testClassroom = ClassroomTestBuilder.build(id = "cls-1", name = "Test Class")
 
+    @After
+    fun teardown() {
+        unmockkStatic(Log::class)
+    }
+
     @Before
     fun setup() = runTest {
+        mockkStatic(Log::class)
+        every { Log.d(any(), any()) } returns 0
+        every { Log.e(any(), any<String>()) } returns 0
+        every { Log.e(any(), any(), any()) } returns 0
+
         coEvery { mockDirectory.studentsByPhone() } returns emptyMap()
         coEvery { mockClassroomRepo.getClassroomById("cls-1") } returns testClassroom
         coEvery { mockContentRepo.getContentsById(any()) } returns emptyList()

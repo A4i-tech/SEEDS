@@ -153,9 +153,6 @@ android {
         abortOnError false
     }
 
-    testOptions {
-        unitTests.returnDefaultValues = true
-    }
 }
 configurations.all {
     resolutionStrategy {

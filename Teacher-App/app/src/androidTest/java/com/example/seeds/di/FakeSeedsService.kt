@@ -16,10 +16,13 @@ import com.example.seeds.network.ClassroomDto
 import com.example.seeds.network.ClassroomSaveDto
 import com.example.seeds.network.GetStudentsRequest
 import com.example.seeds.network.SeedsService
+import androidx.test.espresso.idling.CountingIdlingResource
 import okhttp3.ResponseBody
 import retrofit2.Response
 
 class FakeSeedsService : SeedsService {
+
+    val idlingResource = CountingIdlingResource("FakeSeedsService")
 
     var classroomsToReturn: List<ClassroomDto> = emptyList()
     var contentToReturn: PaginatedResponse<Content> =
@@ -28,19 +31,26 @@ class FakeSeedsService : SeedsService {
     var studentsToReturn: List<Student> = emptyList()
 
     fun reset() {
+        while (!idlingResource.isIdleNow) idlingResource.decrement()
         classroomsToReturn = emptyList()
         contentToReturn = PaginatedResponse(emptyList(), Pagination(null, false, 15))
         contentsByIdToReturn = emptyList()
         studentsToReturn = emptyList()
     }
 
-    override suspend fun getAllClassrooms(): List<ClassroomDto> = classroomsToReturn
+    override suspend fun getAllClassrooms(): List<ClassroomDto> {
+        idlingResource.increment()
+        return try { classroomsToReturn } finally { idlingResource.decrement() }
+    }
 
     override suspend fun getClassroomById(classId: String): ClassroomDto =
         classroomsToReturn.firstOrNull { it._id == classId }
             ?: ClassroomDto(_id = classId, name = "Unknown", teacher = "", students = emptyList(), leaders = emptyList())
 
-    override suspend fun getAllContent(limit: Int, cursor: String?): PaginatedResponse<Content> = contentToReturn
+    override suspend fun getAllContent(limit: Int, cursor: String?): PaginatedResponse<Content> {
+        idlingResource.increment()
+        return try { contentToReturn } finally { idlingResource.decrement() }
+    }
 
     override suspend fun getContentsById(ids: String): List<Content> = contentsByIdToReturn
 

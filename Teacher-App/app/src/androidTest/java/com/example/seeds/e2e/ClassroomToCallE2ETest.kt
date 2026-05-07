@@ -5,6 +5,7 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.Espresso.closeSoftKeyboard
 import androidx.test.espresso.Espresso.onView
+import androidx.test.espresso.IdlingRegistry
 import androidx.test.espresso.UiController
 import androidx.test.espresso.ViewAction
 import androidx.test.espresso.action.ViewActions.typeText
@@ -51,6 +52,8 @@ class ClassroomToCallE2ETest {
 
     @Before
     fun setup() {
+        TestAppModule.fakeService.reset()
+        IdlingRegistry.getInstance().register(TestAppModule.fakeService.idlingResource)
         hiltRule.inject()
         TestAppModule.fakeService.classroomsToReturn = listOf(
             ClassroomDto(_id = "cls-1", name = "Alpha Class", teacher = "teacher-1",
@@ -63,6 +66,7 @@ class ClassroomToCallE2ETest {
 
     @After
     fun tearDown() {
+        IdlingRegistry.getInstance().unregister(TestAppModule.fakeService.idlingResource)
         if (::scenario.isInitialized) scenario.close()
         TestAppModule.fakeService.reset()
     }

@@ -39,6 +39,7 @@ jobs:
           path: Teacher-App/app/build/reports/tests/testDebugUnitTest/
 
   instrumented-tests:
+    needs: unit-tests
     name: Instrumented Tests
     runs-on: ubuntu-latest
 
