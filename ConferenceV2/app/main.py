@@ -7,12 +7,17 @@ from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from app.core.telemetry import configure_telemetry, get_tracer
 from app.conf_logger import logger_instance
 from app.services.singletons.websocket_service import WebsocketService
 from app.services.storage_manager.mongodb_client import close_mongodb_manager
 from app.routers import conference, webhooks, websocket
 
 load_dotenv()
+
+configure_telemetry()
+tracer = get_tracer(__name__)
 
 # Read the version from version.txt
 version_file = Path("version.txt")
@@ -36,6 +41,7 @@ async def lifespan(app: FastAPI):
     await close_mongodb_manager()
 
 app = FastAPI(title=f"SEEDS Conference Call System", lifespan=lifespan)
+FastAPIInstrumentor.instrument_app(app)
 
 # Store the original OpenAPI function
 original_openapi = app.openapi
