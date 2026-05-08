@@ -89,7 +89,7 @@ class ConferenceCallManager:
                 await conf.update_state()
             except Exception:
                 logger_instance.error("Failed to persist CONFERENCE_START_FAILED", exc_info=True)
-            raise original_exc
+            raise
         
     def get_conference(self, conference_id: str) -> ConferenceCall | None:
         return self.conferences.get(conference_id, None)
