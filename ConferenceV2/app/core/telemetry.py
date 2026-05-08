@@ -17,18 +17,14 @@ def configure_telemetry() -> None:
     settings = get_settings()
     connection_string = settings.APPLICATIONINSIGHTS_CONNECTION_STRING
 
-    if connection_string:
-        try:
-            configure_azure_monitor(connection_string=connection_string)
-            _telemetry_configured = True
-            logging.info("Azure Monitor telemetry configured successfully")
-        except Exception as e:
-            logging.error(f"Failed to configure Azure Monitor telemetry: {e}")
-    else:
-        logging.warning(
-            "APPLICATIONINSIGHTS_CONNECTION_STRING not set - telemetry disabled"
+    if not connection_string:
+        raise RuntimeError(
+            "APPLICATIONINSIGHTS_CONNECTION_STRING is not set — telemetry is required"
         )
-        _telemetry_configured = True
+
+    configure_azure_monitor(connection_string=connection_string)
+    _telemetry_configured = True
+    logging.info("Azure Monitor telemetry configured successfully")
 
 
 def get_tracer(module_name: str) -> Tracer:

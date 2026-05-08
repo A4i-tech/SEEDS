@@ -36,7 +36,12 @@ class AppInsightsLogHandler(logging.Handler):
         return logger
 
     def emit(self, record):
-        details = {"details.level": record.levelname, "details.message": record.getMessage()}
-        for k, v in getattr(record, AppInsightsLogHandler.DETAILS, {}).items():
-            details["details." + k] = v
-        track_event(record.name, details)
+        try:
+            if record.levelno < self.level:
+                return
+            details = {"details.level": record.levelname, "details.message": record.getMessage()}
+            for k, v in getattr(record, AppInsightsLogHandler.DETAILS, {}).items():
+                details["details." + k] = v
+            track_event(record.name, details)
+        except Exception:
+            self.handleError(record)
