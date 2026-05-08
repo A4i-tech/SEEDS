@@ -21,7 +21,6 @@ class MongoDBStorage(StorageManager):
         coll = get_mongodb_manager().get_collection()
         state_copy = copy.deepcopy(state)
         state_copy["_id"] = conference_id
-        state_copy["id"] = conference_id  # Cosmos-style compatibility
         try:
             await coll.replace_one(
                 {"_id": conference_id},

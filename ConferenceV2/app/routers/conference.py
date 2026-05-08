@@ -94,6 +94,8 @@ async def sink_conference(conference_id: str):
     conference: ConferenceCall = conference_manager.get_conference(conference_id)
     if not conference:
         raise HTTPException(status_code=404, detail="Conference not found")
+    if not conference.is_queue_processing():
+        conference.start_processing_conf_events_from_queue()
     await conference.queue_event(
         SinkConferenceEvent(
             conf_call=conference,

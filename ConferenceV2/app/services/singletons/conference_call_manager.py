@@ -72,19 +72,24 @@ class ConferenceCallManager:
             },
             owner=conf.state.teacher_phone_number,
         ))
-        await conf.update_state()
 
         try:
+            await conf.update_state()
             await conf.start_conference()
-        except Exception:
+        except Exception as original_exc:
+            conf.end_processing_conf_events_from_queue()
+            conf.stop_remote_audio_relay()
             conf.state.action_history.append(ActionHistory(
                 timestamp=datetime.now().isoformat(),
                 action_type=ActionType.CONFERENCE_START_FAILED,
-                metadata={},
+                metadata={"error": type(original_exc).__name__, "detail": str(original_exc)},
                 owner=conf.state.teacher_phone_number,
             ))
-            await conf.update_state()
-            raise
+            try:
+                await conf.update_state()
+            except Exception:
+                logger_instance.error("Failed to persist CONFERENCE_START_FAILED", exc_info=True)
+            raise original_exc
         
     def get_conference(self, conference_id: str) -> ConferenceCall | None:
         return self.conferences.get(conference_id, None)
