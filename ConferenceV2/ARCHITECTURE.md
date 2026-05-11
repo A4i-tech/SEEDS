@@ -72,7 +72,7 @@ ConferenceV2/
 │   └── storage_manager/            # Data persistence layer
 │       ├── base_storage_manager.py
 │       ├── cosmosdb_storage.py
-│       ├── in_memory_storage.py
+│       ├── mongodb_storage.py
 │       └── __init__.py
 │
 ├── schemas/                  # API request/response models
@@ -252,7 +252,7 @@ class StorageManager(ABC):
 
 **Available Implementations:**
 - **Azure Cosmos DB** - Production storage
-- **In-Memory Storage** - Development/testing
+- **MongoDB** - Alternative persistent storage
 - **Extensible** - Easy to add new storage backends
 
 ### 4. Data Models (`models/`)
@@ -304,7 +304,7 @@ class ActionHistory(BaseModel):
 ```
 
 **Action Types:**
-- Conference lifecycle: START, END, SINK
+- Conference lifecycle: CREATED, START_REQUESTED, START, START_FAILED, END, SINK
 - Participant management: ADD, REMOVE, MUTE, UNMUTE
 - Audio control: PLAYBACK_STATUS_CHANGE
 - System events: CALL_STATUS_CHANGE, RAISE_HAND
@@ -355,8 +355,8 @@ class CommunicationAPIFactory:
 Flexible storage and connection management:
 
 ```python
-# Storage can be swapped based on environment
-storage_manager = CosmosDBStorage() if production else InMemoryStorage()
+# Storage backend selected via STORAGE_BACKEND env var
+storage_manager = CosmosDBStorage() if backend == "cosmos" else MongoDBStorage()
 
 # Communication APIs can be switched
 comm_api = factory.create(CommunicationAPIType.VONAGE)
@@ -383,20 +383,18 @@ websocket_service = WebsocketService()
    ↓
 2. ConferenceCallManager.create_conference()
    ↓
-3. New ConferenceCall instance created with:
-   - CommunicationAPI (Vonage)
-   - StorageManager (CosmosDB)
-   - ConnectionManager (Service Bus)
+3. ConferenceCall created → CONFERENCE_CREATED written to MongoDB
    ↓
 4. Conference ID returned to Teacher WebApp
    ↓
 5. Teacher WebApp → POST /conference/start/{id}
    ↓
-6. StartConferenceEvent queued and processed
+6. CONFERENCE_START_REQUESTED written to MongoDB (before Vonage call)
    ↓
-7. CommunicationAPI.start_conf() called
+7. CommunicationAPI.start_conf() called (Vonage)
    ↓
-8. State updates pushed via SSE to Teacher WebApp
+8. CONFERENCE_START written to MongoDB; state updates pushed via SSE
+   (on failure: CONFERENCE_START_FAILED written to MongoDB)
 ```
 
 ### Event Processing Flow
@@ -424,10 +422,11 @@ Communications API        Event Processing   Storage Layer   Real-time Updates
 class Settings(BaseSettings):
     VONAGE_API_KEY: str
     VONAGE_API_SECRET: str
+    STORAGE_BACKEND: str = "mongodb"   # "mongodb" | "cosmos"
+    MONGO_DB_CONNECTION_STRING: str
+    MONGO_COLLECTION_NAME: str = "conferenceState"
     COSMOS_ENDPOINT: str
     COSMOS_KEY: str
-    COSMOS_DATABASE: str
-    COSMOS_CONTAINER: str
     WS_SERVER_EP: str
     EVENTS_WEBHOOK_EP: str
     SERVICE_BUS_NS_NAME: str
@@ -446,7 +445,7 @@ Centralized logging with Azure Application Insights integration for production m
 - **Webhook Endpoints**: Call status updates and DTMF inputs
 
 ### 2. Azure Services
-- **Cosmos DB**: Conference state persistence
+- **Cosmos DB**: Optional conference state backend (`STORAGE_BACKEND=cosmos`)
 - **Service Bus**: Real-time messaging to mobile apps
 - **Blob Storage**: Audio content storage and streaming
 - **Application Insights**: Logging and monitoring

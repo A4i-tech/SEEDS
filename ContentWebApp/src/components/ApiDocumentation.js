@@ -24,10 +24,6 @@ const swaggerDocument = {
       name: "IVR",
       description: "IVR management endpoints",
     },
-    {
-      name: "Bulk Calls",
-      description: "Bulk call management endpoints",
-    },
   ],
   paths: {
     "/": {
@@ -145,17 +141,6 @@ const swaggerDocument = {
         responses: {
           200: {
             description: "IVR flows loaded",
-          },
-        },
-      },
-    },
-    "/bulkcall": {
-      get: {
-        tags: ["Bulk Calls"],
-        summary: "Bulk call initiation interface",
-        responses: {
-          200: {
-            description: "Bulk call interface loaded",
           },
         },
       },

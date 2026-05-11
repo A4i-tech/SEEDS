@@ -22,11 +22,10 @@ class SinkConferenceEvent(ConferenceEvent):
             )
         )
         
+        await self.conf_call.update_state()
         self.conf_call.stop_remote_audio_relay()
         self.conf_call.schedule_capture_finalize()
         self.conf_call.end_processing_conf_events_from_queue()
         await self.conf_call.connection_manager.disconnect(self.conf_call.state.get_teacher())
         if self.on_sink_callback:
             self.on_sink_callback()
-        # Update the conference call state
-        await self.conf_call.update_state()

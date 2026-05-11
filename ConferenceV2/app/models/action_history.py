@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Dict
 
 class ActionType(str, Enum):
+    CONFERENCE_CREATED = "Conference-Created"
     CONFERENCE_START = "Conference-Start"
     CONFERENCE_END = "Conference-End"
     CONFERENCE_SINK = "Conference-Sink"
@@ -22,6 +23,8 @@ class ActionType(str, Enum):
     LEADER_TOGGLE_CONTENT_VIA_DTMF = "Leader-ToggleContentViaDTMF"
     LEADER_SEEK_CONTENT_VIA_DTMF = "Leader-SeekContentViaDTMF"
     LEADER_SET_SPEED_VIA_DTMF = "Leader-SetSpeedViaDTMF"
+    CONFERENCE_START_REQUESTED = "Conference-StartRequested"
+    CONFERENCE_START_FAILED = "Conference-StartFailed"
     AUTO_END_TIMER_START = "AutoEnd-TimerStart"
     AUTO_END_TIMER_CANCEL = "AutoEnd-TimerCancel"
     AUTO_END_TIMER_EXPIRED = "AutoEnd-TimerExpired"

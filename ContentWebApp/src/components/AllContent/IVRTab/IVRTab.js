@@ -28,12 +28,6 @@ const IVRTab = () => {
           onClick={() => navigate("/viewivr")}
           variant="blue"
         />
-        <IVRCard
-          title="Mass Call"
-          description="Initiate bulk outreach campaigns instantly."
-          onClick={() => navigate("/bulkcall")}
-          variant="green"
-        />
       </div>
     </div>
   );

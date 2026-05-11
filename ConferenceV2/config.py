@@ -11,11 +11,11 @@ class Settings(BaseSettings):
     COSMOS_DATABASE: str = ""
     COSMOS_CONTAINER: str = ""
 
-    # Storage backend: "memory" | "cosmos" | "mongodb". Default "memory".
-    STORAGE_BACKEND: str = "memory"
+    # Storage backend: "cosmos" | "mongodb". Default "mongodb".
+    STORAGE_BACKEND: str = "mongodb"
 
     # MongoDB (used when STORAGE_BACKEND=mongodb). DB name is parsed from connection string path.
-    MONGO_DB_CONNECTION_STRING: str = ""
+    MONGO_DB_CONNECTION_STRING: str
     MONGO_COLLECTION_NAME: str = "conferenceState"
     MONGO_MAX_POOL_SIZE: int = 50
 
