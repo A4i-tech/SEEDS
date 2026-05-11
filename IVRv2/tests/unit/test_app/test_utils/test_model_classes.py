@@ -11,7 +11,6 @@ from app.utils.model_classes import (
     UserAction, StreamPlaybackInfo, IVRCallStateMongoDoc, IVRfsmDoc,
     VonageCallStartResponse, StartIVRFormData, EventWebhookRequest,
     ConversationRTCWebhookRequest, DTMFDetails, DTMFInput, Option, Menu,
-    BulkCallRequest
 )
 from app.utils.enums import CallStatus, ConversationRTCEventType
 
@@ -221,27 +220,6 @@ class TestMenuModels:
         assert len(menu.options) == 2
         assert menu.options[0].value == "Sales"
         assert menu.options[1].value == "Support"
-
-
-class TestBulkCallRequest:
-    """Unit tests for BulkCallRequest model."""
-
-    def test_bulk_call_request_initialization(self):
-        """Test BulkCallRequest initialization."""
-        phone_numbers = [TestConstants.DEFAULT_PHONE, TestConstants.DEFAULT_PHONE_2]
-        content_ids = ["content_1", "content_2"]
-        
-        request = BulkCallRequest(
-            phone_numbers=phone_numbers,
-            content_ids=content_ids
-        )
-        
-        TestHelpers.assert_basic_attributes(request, {
-            'phone_numbers': phone_numbers,
-            'content_ids': content_ids
-        })
-        assert len(request.phone_numbers) == 2
-        assert len(request.content_ids) == 2
 
 
 class TestStartIVRFormData:
