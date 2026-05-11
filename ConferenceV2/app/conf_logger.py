@@ -2,10 +2,10 @@ import logging
 from pathlib import Path
 import sys
 from dotenv import load_dotenv
-from opencensus.ext.azure.log_exporter import AzureLogHandler
 from datetime import datetime
-import pytz  # For timezone handling
+import pytz
 from config import get_settings
+from app.application_logger.azure_app_insights import AppInsightsLogHandler
 
 load_dotenv()
 
@@ -42,16 +42,14 @@ class ConferenceLogger:
             self.add_file_handler(log_file_path)
 
     def add_app_insights_handler(self, connection_string):
-        if not connection_string or "InstrumentationKey=" not in connection_string:
+        if not connection_string:
             return False
 
-        # Azure App Insights handler
         try:
-            azure_handler = AzureLogHandler(connection_string=connection_string)
-            azure_handler.setLevel(logging.DEBUG)  # Set log level for production
-            self.logger.addHandler(azure_handler)
+            if not any(isinstance(h, AppInsightsLogHandler) for h in self.logger.handlers):
+                self.logger.addHandler(AppInsightsLogHandler())
             return True
-        except (ValueError, TypeError):
+        except Exception:
             return False
 
     def add_console_handler(self):
@@ -80,23 +78,23 @@ class ConferenceLogger:
         return f"[{timestamp}] [Version: {self.version}] {message}"
 
     # Log level methods
-    def debug(self, *args):
-        self.logger.debug(self._format_message(*args))
+    def debug(self, *args, **kwargs):
+        self.logger.debug(self._format_message(*args), **kwargs)
 
-    def info(self, *args):
-        self.logger.info(self._format_message(*args))
+    def info(self, *args, **kwargs):
+        self.logger.info(self._format_message(*args), **kwargs)
 
-    def warning(self, *args):
-        self.logger.warning(self._format_message(*args))
+    def warning(self, *args, **kwargs):
+        self.logger.warning(self._format_message(*args), **kwargs)
 
-    def error(self, *args):
-        self.logger.error(self._format_message(*args))
+    def error(self, *args, **kwargs):
+        self.logger.error(self._format_message(*args), **kwargs)
 
-    def critical(self, *args):
-        self.logger.critical(self._format_message(*args))
+    def critical(self, *args, **kwargs):
+        self.logger.critical(self._format_message(*args), **kwargs)
 
-    def exception(self, *args):
-        self.logger.exception(self._format_message(*args))
+    def exception(self, *args, **kwargs):
+        self.logger.exception(self._format_message(*args), **kwargs)
 
 
 # Read the version from the version file or use "Unknown" if not found
