@@ -1,5 +1,6 @@
 # services/conference_call_manager.py
 import asyncio
+from datetime import datetime
 from typing import Dict, List
 import uuid
 import os
@@ -9,6 +10,7 @@ from app.services.communication_api import CommunicationAPIFactory, Communicatio
 from app.services.storage_manager import StorageManager, create_storage_manager
 from app.services.smartphone_connection_manager import SmartphoneConnectionManagerType, SmartphoneConnectionManagerFactory
 from app.services.conference_call import ConferenceCall
+from app.models.action_history import ActionHistory, ActionType
 from app.conf_logger import logger_instance
 
 load_dotenv()
@@ -28,7 +30,7 @@ class ConferenceCallManager:
         self.conferences: Dict[str, ConferenceCall] = {}
         self.ws_base_url = os.environ.get("WS_SERVER_EP", "")
 
-    def create_conference(self, teacher_phone: str, student_phones: List[str], leader_phone: str = None, teacher_name: str | None = None, student_names: List[str] | None = None) -> ConferenceCall:
+    async def create_conference(self, teacher_phone: str, student_phones: List[str], leader_phone: str = None, teacher_name: str | None = None, student_names: List[str] | None = None) -> ConferenceCall:
         conf_id = str(uuid.uuid4())
         conference_call = ConferenceCall(
             conf_id=conf_id,
@@ -40,17 +42,54 @@ class ConferenceCallManager:
             storage_manager=self.storage_manager
         )
         conference_call.set_participant_state(teacher_phone, student_phones, leader_phone, teacher_name=teacher_name, student_names=student_names)
+        conference_call.state.action_history.append(ActionHistory(
+            timestamp=datetime.now().isoformat(),
+            action_type=ActionType.CONFERENCE_CREATED,
+            metadata={
+                "teacher_phone": teacher_phone,
+                "student_phones": student_phones,
+            },
+            owner=teacher_phone,
+        ))
         self.conferences[conf_id] = conference_call
+        await conference_call.update_state()
         return conference_call
    
     async def start_conference_call(self, conf_id: str) -> None:
         conf: ConferenceCall = self.get_conference(conf_id)
         if not conf:
             raise ValueError(f"No such conference has been created; ID: {conf_id}")
-        
+
         conf.start_processing_conf_events_from_queue()
         conf.start_remote_audio_relay()
-        await conf.start_conference()
+
+        conf.state.action_history.append(ActionHistory(
+            timestamp=datetime.now().isoformat(),
+            action_type=ActionType.CONFERENCE_START_REQUESTED,
+            metadata={
+                "teacher_phone": conf.state.teacher_phone_number,
+                "student_phones": [s.phone_number for s in conf.state.get_students()],
+            },
+            owner=conf.state.teacher_phone_number,
+        ))
+
+        try:
+            await conf.update_state()
+            await conf.start_conference()
+        except Exception as original_exc:
+            conf.end_processing_conf_events_from_queue()
+            conf.stop_remote_audio_relay()
+            conf.state.action_history.append(ActionHistory(
+                timestamp=datetime.now().isoformat(),
+                action_type=ActionType.CONFERENCE_START_FAILED,
+                metadata={"error": type(original_exc).__name__, "detail": str(original_exc)},
+                owner=conf.state.teacher_phone_number,
+            ))
+            try:
+                await conf.update_state()
+            except Exception:
+                logger_instance.error("Failed to persist CONFERENCE_START_FAILED", exc_info=True)
+            raise
         
     def get_conference(self, conference_id: str) -> ConferenceCall | None:
         return self.conferences.get(conference_id, None)

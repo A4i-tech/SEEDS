@@ -63,6 +63,12 @@ class ConferenceCall:
     def start_processing_conf_events_from_queue(self) -> None:
         self.end_processing_conf_events_from_queue()
         self.event_queue_processing_task = asyncio.create_task(self.__process_conf_events_queue())
+
+    def is_queue_processing(self) -> bool:
+        return (
+            self.event_queue_processing_task is not None
+            and not self.event_queue_processing_task.done()
+        )
     
     def set_participant_state(self, teacher_phone: str, student_phones: List[str], leader_phone: str = None, teacher_name: Optional[str] = None, student_names: Optional[List[str]] = None):
         self.state.participants = {}

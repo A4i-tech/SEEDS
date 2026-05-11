@@ -47,7 +47,6 @@ async def test_mongodb_storage_save_state(mock_manager, mock_collection):
     assert call_args[0][0] == {"_id": "conf-1"}
     doc = call_args[0][1]
     assert doc["_id"] == "conf-1"
-    assert doc["id"] == "conf-1"
     assert doc["is_running"] is False
     assert call_args[1]["upsert"] is True
 

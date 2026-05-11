@@ -35,7 +35,7 @@ router = APIRouter()
 
 @router.post("/test-createstart")
 async def create_start_conference(request: CreateConferenceRequest):
-    conference_call = conference_manager.create_conference(
+    conference_call = await conference_manager.create_conference(
         request.teacher_phone,
         request.student_phones,
         request.leader_phone,
@@ -48,7 +48,7 @@ async def create_start_conference(request: CreateConferenceRequest):
 
 @router.post("/create")
 async def create_conference(request: CreateConferenceRequest):
-    conference_call = conference_manager.create_conference(
+    conference_call = await conference_manager.create_conference(
         request.teacher_phone,
         request.student_phones,
         request.leader_phone,
@@ -94,6 +94,8 @@ async def sink_conference(conference_id: str):
     conference: ConferenceCall = conference_manager.get_conference(conference_id)
     if not conference:
         raise HTTPException(status_code=404, detail="Conference not found")
+    if not conference.is_queue_processing():
+        conference.start_processing_conf_events_from_queue()
     await conference.queue_event(
         SinkConferenceEvent(
             conf_call=conference,
