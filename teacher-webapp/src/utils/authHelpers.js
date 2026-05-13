@@ -31,23 +31,51 @@ export const getAuthHeaders = () => {
   };
 };
 
+export const getTokenPayload = () => {
+  try {
+    const token = localStorage.getItem("authToken");
+    if (!token) return {};
+    const [, payload] = token.split(".");
+    if (!payload) return {};
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(normalized.length + ((4 - normalized.length % 4) % 4), "=");
+    return JSON.parse(atob(padded));
+  } catch (_error) {
+    return {};
+  }
+};
+
+export const isTokenExpired = () => {
+  const { exp } = getTokenPayload();
+  if (typeof exp !== "number") return true;
+  return Date.now() >= exp * 1000;
+};
+
 /**
  * Check if user is authenticated
  * @returns {boolean} True if token exists
  */
 export const isAuthenticated = () => {
-  if (!isLocalStorageAvailable()) {
+  if (!isLocalStorageAvailable()) return false;
+  if (!localStorage.getItem("authToken")) return false;
+  if (isTokenExpired()) {
+    clearAuth();
     return false;
   }
-  return !!localStorage.getItem("authToken");
+  return true;
 };
 
 /**
  * Clear all authentication data
  */
 export const clearAuth = () => {
-  if (!isLocalStorageAvailable()) {
-    return;
-  }
+  if (!isLocalStorageAvailable()) return;
   localStorage.removeItem("authToken");
+};
+
+export const forceLogout = (redirectPath = "/") => {
+  clearAuth();
+  if (typeof window !== "undefined" && window.location.pathname !== redirectPath) {
+    window.location.href = redirectPath;
+  }
 };

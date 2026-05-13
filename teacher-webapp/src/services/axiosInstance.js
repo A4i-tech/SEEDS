@@ -1,4 +1,5 @@
 import axios from "axios";
+import { forceLogout, isTokenExpired } from "../utils/authHelpers";
 
 const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 5000;
@@ -32,8 +33,14 @@ axiosInstance.interceptors.request.use(
   (config) => {
     config._retryCount = config._retryCount ?? 0;
     const token = localStorage.getItem("authToken");
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
+    if (token) {
+      if (isTokenExpired()) {
+        forceLogout();
+        return Promise.reject(new Error("Session expired. Please login again."));
+      }
+      if (config.headers) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
     }
     return config;
   },
@@ -52,11 +59,12 @@ axiosInstance.interceptors.response.use(
   async (error) => {
     const config = error.config;
 
-    // Handle 401 Unauthorized - don't retry
-    if (error.response?.status === 401) {
-      console.error("Unauthorized (401): Clearing auth token and redirecting to login");
-      localStorage.removeItem("authToken");
-      window.location.href = "/";
+    // Skip force-logout when no token is stored (login attempt) so caller sees real error.
+    if (
+      (error.response?.status === 401 || error.response?.status === 403) &&
+      localStorage.getItem("authToken")
+    ) {
+      forceLogout();
       return Promise.reject(new Error("Session expired. Please login again."));
     }
 

@@ -13,14 +13,6 @@ export const getAuthHeaders = () => {
   };
 };
 
-/**
- * Check if user is authenticated
- * @returns {boolean} True if token exists
- */
-export const isAuthenticated = () => {
-  return !!localStorage.getItem("authToken");
-};
-
 export const getTokenPayload = () => {
   const token = localStorage.getItem("authToken");
   if (!token) {
@@ -39,6 +31,21 @@ export const getTokenPayload = () => {
   } catch (_error) {
     return {};
   }
+};
+
+export const isTokenExpired = () => {
+  const { exp } = getTokenPayload();
+  if (typeof exp !== "number") return true;
+  return Date.now() >= exp * 1000;
+};
+
+export const isAuthenticated = () => {
+  if (!localStorage.getItem("authToken")) return false;
+  if (isTokenExpired()) {
+    clearAuth();
+    return false;
+  }
+  return true;
 };
 
 /**
@@ -75,4 +82,11 @@ export const clearAuth = () => {
   localStorage.removeItem("authToken");
   localStorage.removeItem("userRole");
   localStorage.removeItem("schoolId");
+};
+
+export const forceLogout = (redirectPath = "/") => {
+  clearAuth();
+  if (typeof window !== "undefined" && window.location.pathname !== redirectPath) {
+    window.location.href = redirectPath;
+  }
 };

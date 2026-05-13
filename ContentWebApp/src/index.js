@@ -4,6 +4,14 @@ import "./index.css";
 import App from "./App";
 import "bootstrap/dist/css/bootstrap.min.css";
 import reportWebVitals from "./reportWebVitals";
+import { installHttpInterceptors } from "./services/httpInterceptors";
+import { isTokenExpired, clearAuth } from "./utils/authHelpers";
+
+installHttpInterceptors();
+
+if (localStorage.getItem("authToken") && isTokenExpired()) {
+  clearAuth();
+}
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(

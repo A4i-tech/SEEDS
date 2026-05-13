@@ -21,9 +21,6 @@ export const updateClassroom = async (classroomData) => {
     const response = await axiosInstance.post(API_ENDPOINTS.CLASSROOM.UPDATE, classroomData);
     return response.data;
   } catch (error) {
-    if (error.response?.status === 403) {
-      throw new Error("Not authorized to update this classroom");
-    }
     throw new Error("Failed to update classroom");
   }
 };
