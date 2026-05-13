@@ -47,7 +47,7 @@ export const getTokenPayload = () => {
 
 export const isTokenExpired = () => {
   const { exp } = getTokenPayload();
-  if (typeof exp !== "number") return true;
+  if (typeof exp !== "number") return false;
   return Date.now() >= exp * 1000;
 };
 
