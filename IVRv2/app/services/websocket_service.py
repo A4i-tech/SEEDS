@@ -8,10 +8,11 @@ for sending control commands (set speed, stop audio, etc.).
 import asyncio
 import json
 import logging
+import random
 from typing import Optional
 
 import websockets
-from websockets.exceptions import ConnectionClosed
+from websockets.exceptions import ConnectionClosed, ConnectionClosedOK, ConnectionClosedError
 
 from app.settings import settings
 from app.utils.ws_service_message import MessageType, WebsocketServiceMessage
@@ -28,7 +29,6 @@ class WebsocketService:
 
     CONNECTION_ID = "ivrv2server"
     HEARTBEAT_INTERVAL = 30  # seconds
-    RECONNECT_DELAY = 2  # seconds
 
     def __new__(cls):
         if cls._instance is None:
@@ -49,6 +49,7 @@ class WebsocketService:
         self.reconnect_attempts = 0
         self._ws: Optional[websockets.WebSocketClientProtocol] = None
         self._bg_tasks: list[asyncio.Task] = []
+        self._connect_lock = asyncio.Lock()
 
         # Connect and start background processes
         await self._connect()
@@ -59,11 +60,11 @@ class WebsocketService:
 
     def _start_bg_processes(self):
         """Start background tasks for heartbeat and message listening."""
-        # Cancel existing tasks if any
         for task in self._bg_tasks:
             task.cancel()
 
         self._bg_tasks = [
+            asyncio.create_task(self._listen_messages(), name="ws_listener"),
             asyncio.create_task(self._send_heartbeat(), name="ws_heartbeat"),
         ]
         logger.info("Background processes started")
@@ -76,18 +77,45 @@ class WebsocketService:
 
     async def _connect(self):
         """Establish WebSocket connection with retry logic."""
-        while not self.is_connected:
-            try:
-                self._ws = await websockets.connect(self.connection_url)
-                self.is_connected = True
-                self.reconnect_attempts = 0
-                logger.info(f"Connected to WebSocket: {self.connection_url}")
-            except Exception as e:
-                self.reconnect_attempts += 1
-                logger.warning(
-                    f"WebSocket connection failed (attempt {self.reconnect_attempts}): {e}"
-                )
-                await asyncio.sleep(self.RECONNECT_DELAY)
+        if not hasattr(self, "_connect_lock"):
+            self._connect_lock = asyncio.Lock()
+
+        async with self._connect_lock:
+            if self.is_connected and self._ws:
+                return
+
+            while not self.is_connected:
+                try:
+                    self._ws = await websockets.connect(self.connection_url)
+                    self.is_connected = True
+                    self.reconnect_attempts = 0
+                    logger.info(f"Connected to WebSocket: {self.connection_url}")
+                except Exception as e:
+                    self.reconnect_attempts += 1
+                    delay = min(1.0 * 2 ** self.reconnect_attempts, 30.0) + random.uniform(0, 1)
+                    logger.warning(
+                        f"WebSocket connection failed (attempt {self.reconnect_attempts}), retrying in {delay:.1f}s: {e}"
+                    )
+                    await asyncio.sleep(delay)
+
+    async def _listen_messages(self):
+        """Listen for incoming messages and detect disconnects immediately."""
+        while True:
+            await asyncio.sleep(0.5)
+            if self.is_connected and self._ws:
+                try:
+                    async for _ in self._ws:
+                        pass
+                except (ConnectionClosed, ConnectionClosedOK, ConnectionClosedError):
+                    logger.info("WebSocket connection closed. Attempting to reconnect...")
+                    self.is_connected = False
+                    await self._attempt_reconnect()
+                except Exception as e:
+                    logger.warning(f"Error in message listener: {e}")
+                    self.is_connected = False
+                    await self._attempt_reconnect()
+            else:
+                await self._attempt_reconnect()
 
     async def _send_heartbeat(self):
         """Send periodic heartbeat messages to keep connection alive."""
@@ -109,6 +137,16 @@ class WebsocketService:
             else:
                 await self._attempt_reconnect()
 
+    async def _wait_for_connection(self, timeout: float = 15.0) -> bool:
+        """Poll until connected or timeout expires. Returns True if connected."""
+        waited = 0.0
+        while not self.is_connected:
+            if waited >= timeout:
+                return False
+            await asyncio.sleep(0.2)
+            waited += 0.2
+        return True
+
     async def _attempt_reconnect(self):
         """Attempt to reconnect to WebSocket service."""
         if self.is_connected:
@@ -116,7 +154,6 @@ class WebsocketService:
 
         self.reconnect_attempts += 1
         logger.info(f"Reconnection attempt {self.reconnect_attempts}")
-        await asyncio.sleep(self.RECONNECT_DELAY)
         await self._connect()
 
     async def send_message(self, message: WebsocketServiceMessage):
@@ -130,21 +167,26 @@ class WebsocketService:
             ConnectionError: If WebSocket is not connected
         """
         if not self.is_connected or not self._ws:
-            raise ConnectionError("WebSocket is not connected")
+            logger.warning("WebSocket not connected, waiting for reconnection...")
+            if not await self._wait_for_connection(timeout=15.0):
+                raise ConnectionError("WebSocket reconnection timed out, message lost")
 
         try:
             message_str = message.model_dump_json()
             await self._ws.send(message_str)
             logger.info(f"Message sent to WebSocket service: {message_str}")
         except ConnectionClosed as e:
-            logger.error(f"Connection closed while sending message: {e}")
+            logger.error(f"Connection closed while sending message, waiting for reconnection: {e}")
             self.is_connected = False
-            await self._attempt_reconnect()
-            raise ConnectionError("WebSocket connection closed") from e
+            if await self._wait_for_connection(timeout=15.0):
+                logger.info("Reconnected, retrying message...")
+                await self._ws.send(message_str)
+                logger.info(f"Message sent on retry: {message_str}")
+            else:
+                raise ConnectionError("WebSocket reconnection timed out, message lost") from e
         except Exception as e:
             logger.error(f"Failed to send message: {e}")
             self.is_connected = False
-            await self._attempt_reconnect()
             raise
 
     async def set_playback_speed(self, websocket_id: str, speed: float):
