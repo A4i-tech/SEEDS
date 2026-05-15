@@ -37,7 +37,7 @@ describe("ControlService", () => {
       const consoleSpy = jest.spyOn(console, "log").mockImplementation();
       const errorSpy = jest.spyOn(console, "error").mockImplementation();
 
-      controlService.handleControlConnection(mockWebSocket);
+      controlService.handleControlConnection(mockWebSocket, "confv2server");
       expect(mockWebSocket.on).toHaveBeenCalledWith(
         "message",
         expect.any(Function)
@@ -52,9 +52,9 @@ describe("ControlService", () => {
       );
 
       // Test close event
-      mockCloseHandler();
+      mockCloseHandler(1000, "normal");
       expect(consoleSpy).toHaveBeenCalledWith(
-        "Control WebSocket connection closed."
+        "Control WebSocket connection closed (confv2server): code=1000 reason=normal"
       );
       expect(connectionManager.removeConnection).toHaveBeenCalledWith(
         "confv2server"
@@ -73,7 +73,7 @@ describe("ControlService", () => {
     });
 
     it("should handle all message types correctly", async () => {
-      controlService.handleControlConnection(mockWebSocket);
+      controlService.handleControlConnection(mockWebSocket, "confv2server");
       const consoleSpy = jest.spyOn(console, "warn").mockImplementation();
       const logSpy = jest.spyOn(console, "log").mockImplementation();
 
@@ -184,7 +184,7 @@ describe("ControlService", () => {
     });
 
     it("should handle errors and edge cases", async () => {
-      controlService.handleControlConnection(mockWebSocket);
+      controlService.handleControlConnection(mockWebSocket, "confv2server");
       const errorSpy = jest.spyOn(console, "error").mockImplementation();
       const warnSpy = jest.spyOn(console, "warn").mockImplementation();
 

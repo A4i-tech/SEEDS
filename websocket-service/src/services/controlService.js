@@ -8,8 +8,8 @@ const { MessageType } = require("../constants");
  * Handles the control WebSocket connection from the Python application.
  * @param {WebSocket} ws - The control WebSocket connection.
  */
-function handleControlConnection(ws) {
-  console.log("Control connection established (confv2server).");
+function handleControlConnection(ws, id) {
+  console.log(`Control connection established (${id}).`);
 
   ws.on("message", (message) => {
     console.log(`Control raw message received: ${message}`);
@@ -22,9 +22,9 @@ function handleControlConnection(ws) {
     }
   });
 
-  ws.on("close", () => {
-    console.log("Control WebSocket connection closed.");
-    connectionManager.removeConnection("confv2server");
+  ws.on("close", (code, reason) => {
+    console.log(`Control WebSocket connection closed (${id}): code=${code} reason=${reason}`);
+    connectionManager.removeConnection(id);
   });
 
   ws.on("error", (error) => {
