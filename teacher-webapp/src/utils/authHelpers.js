@@ -65,13 +65,16 @@ export const isAuthenticated = () => {
   return true;
 };
 
-const clearAllCookies = () => {
-  if (typeof document === "undefined" || !document.cookie) return;
+// Auth-related cookie names this app may have set in current or prior versions.
+// Keep this list narrow so logout does not clobber unrelated cookies
+// (analytics, consent, third-party widgets, etc.).
+const AUTH_COOKIE_NAMES = ["authToken", "token", "session", "sessionId", "jwt", "connect.sid"];
+
+const clearAuthCookies = () => {
+  if (typeof document === "undefined") return;
   const { hostname } = window.location;
   const domains = [hostname, `.${hostname}`, ""];
-  document.cookie.split(";").forEach((entry) => {
-    const name = entry.split("=")[0].trim();
-    if (!name) return;
+  AUTH_COOKIE_NAMES.forEach((name) => {
     domains.forEach((domain) => {
       const domainAttr = domain ? `; domain=${domain}` : "";
       document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/${domainAttr}`;
@@ -86,7 +89,7 @@ export const clearAuth = () => {
   if (isLocalStorageAvailable()) {
     localStorage.removeItem("authToken");
   }
-  clearAllCookies();
+  clearAuthCookies();
 };
 
 export const forceLogout = (redirectPath = "/") => {
