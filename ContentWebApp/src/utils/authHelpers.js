@@ -75,6 +75,20 @@ export const getRole = () => {
  */
 export const getSchoolId = () => localStorage.getItem("schoolId");
 
+const clearAllCookies = () => {
+  if (typeof document === "undefined" || !document.cookie) return;
+  const { hostname } = window.location;
+  const domains = [hostname, `.${hostname}`, ""];
+  document.cookie.split(";").forEach((entry) => {
+    const name = entry.split("=")[0].trim();
+    if (!name) return;
+    domains.forEach((domain) => {
+      const domainAttr = domain ? `; domain=${domain}` : "";
+      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/${domainAttr}`;
+    });
+  });
+};
+
 /**
  * Clear all authentication data
  */
@@ -82,6 +96,7 @@ export const clearAuth = () => {
   localStorage.removeItem("authToken");
   localStorage.removeItem("userRole");
   localStorage.removeItem("schoolId");
+  clearAllCookies();
 };
 
 export const forceLogout = (redirectPath = "/") => {
