@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 import json
 from dotenv import load_dotenv
 import vonage
+from vonage.errors import ClientError
 from typing import Dict
 from pydantic import BaseModel
 from app.conf_logger import logger_instance
@@ -88,8 +89,7 @@ class VonageAPI(CommunicationAPI):
                 )
                 return
             except Exception as e:
-                err_str = str(e).lower()
-                is_rate_limited = "429" in err_str or "rate" in err_str or "throttl" in err_str
+                is_rate_limited = isinstance(e, ClientError) and "429 response from" in str(e)
                 if not is_rate_limited or attempt == max_retries - 1:
                     logger_instance.error(f"Call failed for {phone_number}", e)
                     raise
