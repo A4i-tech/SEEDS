@@ -11,6 +11,7 @@ const { authenticateToken, authorizeRole } = require("./auth/authenticateToken")
 const callRouter = require("./routes/callRouter.js");
 const teacherRouter = require("./routes/teacherRouter.js");
 const contentRouter = require("./routes/contentRouter");
+const subodhaRouter = require("./routes/subodhaRouter");
 const classRoomRouter = require("./routes/classRouter.js");
 const userRouter = require("./routes/userRouter.js");
 const logRouter = require("./routes/logRouter.js");
@@ -46,6 +47,7 @@ app.use(cors());
 app.use("/health", healthRouter);
 app.use("/call", authenticateToken, callRouter);
 app.use("/content", authenticateToken, contentRouter);
+app.use("/subodha", authenticateToken, subodhaRouter);
 app.use("/class", authenticateToken, authorizeRole(TEACHER_ROLE,CONTENT_CREATOR_ROLE), classRoomRouter);
 app.use("/log", authenticateToken, logRouter);
 app.use("/user", authenticateToken, userRouter);

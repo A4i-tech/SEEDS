@@ -32,6 +32,7 @@
     "mongodb-memory-server": "^10.2.3",
     "mongoose": "^9.0.0",
     "morgan": "^1.10.0",
+    "sanitize-html": "^2.17.4",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.0",
     "validator": "^13.9.0"
@@ -49,7 +50,9 @@
   },
   "jest": {
     "testEnvironment": "node",
-    "setupFiles": ["./jest.setup.js"],
+    "setupFiles": [
+      "./jest.setup.js"
+    ],
     "collectCoverageFrom": [
       "**/*.js",
       "!node_modules/**",

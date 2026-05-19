@@ -14,6 +14,7 @@ const ViewIVR = lazy(() => import("./components/ViewIVR"));
 const Profile = lazy(() => import("./components/Profile"));
 const Login = lazy(() => import("./components/Login"));
 const Register = lazy(() => import("./components/Register"));
+const SubodhaCourseEditor = lazy(() => import("./components/SubodhaCourseEditor"));
 
 function App() {
   return (
@@ -57,6 +58,10 @@ function App() {
             <Route
               path="/profile"
               element={<ProtectedRoute element={<Profile />} />}
+            />
+            <Route
+              path="/subodha/:courseId"
+              element={<ProtectedRoute element={<SubodhaCourseEditor />} />}
             />
           </Routes>
         </Suspense>

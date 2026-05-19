@@ -52,6 +52,64 @@
   gap: 6px;
 }
 
+/* Type chip
+   - Full text label (no letter abbreviations) so screen readers + low-vision users read meaning, not codes
+   - Color is supplementary; shape (dot + glyph) and text carry the signal
+   - WCAG AA contrast on text vs background verified for each variant
+   - Min 14px font + 28px height meets touch / low-vision sizing */
+.content-type-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px 5px 10px;
+  min-height: 28px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: capitalize;
+  border: 1px solid transparent;
+  line-height: 1.3;
+}
+
+.content-type-chip .ct-glyph {
+  font-size: 14px;
+  line-height: 1;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+/* Visible label and screen-reader label both present; aria-label on parent disambiguates */
+.content-type-chip .ct-label {
+  white-space: nowrap;
+}
+
+.sr-only {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.content-type-chip--story          { color: #0a4836; background: #e1f4ec; border-color: #79b89b; }
+.content-type-chip--poem           { color: #5a217d; background: #f3e8fb; border-color: #b495d0; }
+.content-type-chip--quiz           { color: #163a98; background: #dbeafe; border-color: #82a8e8; }
+.content-type-chip--riddle         { color: #7a2a0c; background: #ffedd5; border-color: #e09662; }
+.content-type-chip--song           { color: #97104c; background: #fce7f3; border-color: #ec8ec0; }
+.content-type-chip--subodha_course { color: #14271d; background: #e8efe4; border-color: #6f8a62; }
+.content-type-chip--default        { color: #334155; background: #f1f5f9; border-color: #94a3b8; }
+
+/* Keep keyboard focus visible everywhere */
+.content-type-chip:focus-visible,
+.table-row-white :focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 .content-type-badge-quiz {
   background-color: #007bff;
   color: #ffffff;
@@ -59,6 +117,22 @@
   padding: 2px 6px;
   border-radius: 10px;
   font-weight: bold;
+}
+
+/* Subodha-imported row gets a subtle left-edge marker so it stands out in the list */
+.table-row-white.row-subodha td:first-child {
+  position: relative;
+}
+.table-row-white.row-subodha td:first-child::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 2px;
+  background: #1a3024;
+  opacity: 0.55;
 }
 
 @media (min-width: 768px) {

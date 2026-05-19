@@ -3,6 +3,35 @@ import "../shared/tables.css";
 import "../shared/buttons.css";
 import "../shared/utilities.css";
 
+// Visual + semantic mapping of content types. Keep glyph + label paired so
+// color is never the sole signal (works for color-blind + low-vision teachers).
+const TYPE_META = {
+  story:          { label: "Story",      glyph: "❦", aria: "Story content" },
+  poem:           { label: "Poem",       glyph: "❋", aria: "Poem content" },
+  quiz:           { label: "Quiz",       glyph: "◆", aria: "Quiz content" },
+  riddle:         { label: "Riddle",     glyph: "◈", aria: "Riddle content" },
+  song:           { label: "Song",       glyph: "♪", aria: "Song content" },
+  subodha_course: { label: "Subodha Course", glyph: "✦", aria: "Subodha LMS imported course" },
+};
+
+const TypeChip = ({ type }) => {
+  const m = TYPE_META[type] || { label: type, glyph: "•", aria: `${type} content` };
+  const variantClass = TYPE_META[type]
+    ? `content-type-chip--${type}`
+    : "content-type-chip--default";
+  return (
+    <span
+      className={`content-type-chip ${variantClass}`}
+      role="img"
+      aria-label={m.aria}
+      title={m.aria}
+    >
+      <span className="ct-glyph" aria-hidden="true">{m.glyph}</span>
+      <span className="ct-label">{m.label}</span>
+    </span>
+  );
+};
+
 const ContentTable = ({ content, isLoading, onEdit, onView, onDelete }) => {
   return (
     <div className="table-wrapper">
@@ -46,8 +75,12 @@ const ContentTable = ({ content, isLoading, onEdit, onView, onDelete }) => {
               const itemId = item.id.toString();
               // Get type and normalize to lowercase
               const itemType = item.type.toLowerCase();
+              const rowClass =
+                itemType === "subodha_course"
+                  ? "table-row-white row-subodha"
+                  : "table-row-white";
               return (
-                <tr key={itemId} className="table-row-white">
+                <tr key={itemId} className={rowClass}>
                   <td className="table-cell">
                     {item.title && typeof item.title === "object"
                       ? item.title.english
@@ -77,14 +110,7 @@ const ContentTable = ({ content, isLoading, onEdit, onView, onDelete }) => {
                   </td>
                   <td className="table-cell">{item.language}</td>
                   <td className="table-cell">
-                    <span className="content-type">
-                      {itemType}
-                      {itemType === "quiz" && (
-                        <span className="content-type-badge-quiz" title="Quiz Content">
-                          Q
-                        </span>
-                      )}
-                    </span>
+                    <TypeChip type={itemType} />
                   </td>
                   <td className="table-cell">
                     <div className="action-buttons-wrapper">
