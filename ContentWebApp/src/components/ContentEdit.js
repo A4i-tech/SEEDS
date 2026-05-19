@@ -2,9 +2,23 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useLocation } from "react-router-dom";
 import AddQuiz from "./AddQuiz";
 import AddStory from "./AddStory";
+import SubodhaCourseEditor from "./SubodhaCourseEditor";
 import { contentService } from "../services/contentService";
 
+// Top-level dispatcher: imported third-party LMS content (Subodha + future
+// vendors) collapses under one generic type `imported_content`. Render the
+// tree editor as its OWN route component so React hooks remain stable —
+// `ContentEditFlat` below handles legacy story/quiz/poem and never sees
+// imported types.
 const ContentEdit = () => {
+  const { type } = useParams();
+  if (type === "imported_content" || type === "subodha_course") {
+    return <SubodhaCourseEditor />;
+  }
+  return <ContentEditFlat />;
+};
+
+const ContentEditFlat = () => {
   const { type, id } = useParams();
   const [content, setContent] = useState({});
   const [experience, setExperience] = useState("quiz");

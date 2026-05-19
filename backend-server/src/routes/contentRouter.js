@@ -28,6 +28,9 @@ const { tryCatchWrapper } = require(path.join("..", "util.js"));
 const { Binary } = require("mongodb");
 const { parse: uuidParse } = require("uuid");
 const { authenticateToken, authorizeRole } = require("../auth/authenticateToken");
+const sanitizeHtml = require("sanitize-html");
+const { CANONICAL_LANGUAGES } = require("../constants/languages.js");
+const { getPublicVendorMap } = require("../constants/vendors.js");
 
 const TENANT_ROLE = "tenant";
 const SCHOOL_ADMIN_ROLE = "school_admin";
@@ -90,6 +93,17 @@ agenda.define("processQuizContent", async (job) => {
  *       404:
  *         description: Job not found
  */
+// GET /content/vendors — registered BEFORE /:contentId so it's not shadowed by the catch-all.
+// Returns the public-facing vendor registry (id → {name, organization, glyph, aria}).
+router.get(
+  "/vendors",
+  authenticateToken,
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, TEACHER_ROLE, CONTENT_CREATOR_ROLE),
+  (req, res) => {
+    return res.json({ vendors: getPublicVendorMap() });
+  },
+);
+
 router.get("/job/:jobId", authenticateToken, authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE), async (req, res) => {
   const job = await agenda.jobs({ _id: new ObjectId(req.params.jobId) });
 
@@ -433,6 +447,7 @@ router.get(
       // Fetch both content and quiz data for the requested IDs (lean for read-only)
       const [contents, quizzes] = await Promise.all([
         ContentV3.find({ _id: { $in: idsArray }, tenantId, isDeleted: { $ne: true }, schoolId: schoolIdFilter })
+          .select("-subodhaCourse -imported")
           .lean()
           .exec(),
         QuizData.find({ _id: { $in: idsArray }, tenantId, isDeleted: { $ne: true }, schoolId: schoolIdFilter })
@@ -498,7 +513,7 @@ router.get(
     }
 
     const [contents, quizzes] = await Promise.all([
-      shouldFetchContent ? ContentV3.find(contentQuery).sort({ creation_time: -1 }).lean().exec() : [],
+      shouldFetchContent ? ContentV3.find(contentQuery).select("-subodhaCourse -imported").sort({ creation_time: -1 }).lean().exec() : [],
       shouldFetchQuizzes ? QuizData.find(quizQuery).sort({ creation_time: -1 }).lean().exec() : [],
     ]);
 
@@ -1037,4 +1052,217 @@ router.post("/delete-unnecessary-storage", async (req, res) => {
 //     await Content.updateMany({type:"Snippets"},{$set: {type: "Snippet"}})
 //     res.send("Done");
 // })
+
+// =========================================================================
+// Imported-content block-edit endpoints (vendor-neutral; v3).
+// Per-block data lives in doc.imported.blocks[<seedsBlockId>].
+// All three handlers use one atomic Mongo updateOne with $set on dotted paths —
+// no findById, no tree walk, no save() round-trip. Two writers on different
+// blocks of the same course do not contend.
+// =========================================================================
+
+const IMPORTED_SANITIZE_OPTS = {
+  allowedTags: sanitizeHtml.defaults.allowedTags.concat(["h1", "h2", "img", "figure", "figcaption", "u", "sub", "sup"]),
+  allowedAttributes: {
+    ...sanitizeHtml.defaults.allowedAttributes,
+    "*": ["id", "class", "style", "lang", "dir"],
+    img: ["src", "alt", "title", "width", "height"],
+    a: ["href", "name", "target", "rel"],
+  },
+  allowedSchemes: ["http", "https", "data", "mailto"],
+  disallowedTagsMode: "discard",
+};
+
+function cleanImportedHtml(input) {
+  if (typeof input !== "string" || !input) return input;
+  return sanitizeHtml(input, IMPORTED_SANITIZE_OPTS);
+}
+
+const PATCHABLE_BODY_FIELDS = new Set([
+  "htmlContent", "questionText", "explanation", "videoSources",
+  "youtubeId", "youtubeUrl", "transcriptUrl",
+  "audioUrl", "fileUrl", "fileMime", "fileName", "embedUrl",
+]);
+
+function buildImportedBlockSetOps(seedsBlockId, patch) {
+  // Translate { htmlContent?, questionText?, choices?, explanation?, displayName?, notes? }
+  // into dotted $set operations on imported.blocks.<id>.*. Sanitizes HTML fields.
+  const ops = {};
+  if (!patch || typeof patch !== "object") return ops;
+  for (const [k, v] of Object.entries(patch)) {
+    if (k === "displayName") {
+      if (typeof v === "string") ops[`imported.blocks.${seedsBlockId}.displayName`] = v;
+    } else if (k === "notes") {
+      if (typeof v === "string") ops[`imported.blocks.${seedsBlockId}.notes`] = v;
+    } else if (k === "choices" && Array.isArray(v)) {
+      ops[`imported.blocks.${seedsBlockId}.body.choices`] = v.map((c) => ({
+        label: cleanImportedHtml(c.label || ""),
+        correct: Boolean(c.correct),
+      }));
+    } else if (PATCHABLE_BODY_FIELDS.has(k)) {
+      ops[`imported.blocks.${seedsBlockId}.body.${k}`] = typeof v === "string" ? cleanImportedHtml(v) : v;
+    }
+  }
+  return ops;
+}
+
+function sanitizeImportedTranslation(t) {
+  if (!t || typeof t !== "object") return {};
+  const out = {};
+  for (const [k, v] of Object.entries(t)) {
+    if (["htmlContent", "questionText", "explanation", "transcriptText", "displayName"].includes(k)) {
+      out[k] = typeof v === "string" ? cleanImportedHtml(v) : "";
+    } else if (k === "choices" && Array.isArray(v)) {
+      out[k] = v.map((c) => ({ label: cleanImportedHtml(c.label || ""), correct: Boolean(c.correct) }));
+    }
+  }
+  return out;
+}
+
+// Resolve a vendor-provided blockSourceId → seedsBlockId by scanning the
+// imported.blocks map of the course doc. One findOne; only used when the
+// client doesn't already know the seedsBlockId.
+async function resolveSeedsBlockId(req) {
+  const { blockSourceId, seedsBlockId } = req.body || {};
+  if (seedsBlockId) return seedsBlockId;
+  if (!blockSourceId) return null;
+  const doc = await ContentV3.findOne(
+    { _id: req.params.id, tenantId: req.tenantId, isDeleted: { $ne: true } },
+    { "imported.blocks": 1 }
+  ).lean().exec();
+  if (!doc || !doc.imported || !doc.imported.blocks) return null;
+  for (const [sid, b] of Object.entries(doc.imported.blocks)) {
+    if (b && b.sourceId === blockSourceId) return sid;
+  }
+  return null;
+}
+
+router.patch(
+  "/:id/imported-block",
+  authenticateToken,
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
+  tryCatchWrapper(async (req, res) => {
+    const { expectedBlockVersion, patch } = req.body || {};
+    if (typeof expectedBlockVersion !== "number") {
+      return res.status(400).json({ error: "expectedBlockVersion (number) required" });
+    }
+    const seedsBlockId = await resolveSeedsBlockId(req);
+    if (!seedsBlockId) {
+      return res.status(404).json({ error: "Block not found (provide seedsBlockId or blockSourceId)" });
+    }
+    const setOps = buildImportedBlockSetOps(seedsBlockId, patch);
+    setOps[`imported.blocks.${seedsBlockId}.blockVersion`] = expectedBlockVersion + 1;
+    setOps[`imported.blocks.${seedsBlockId}.updatedAt`] = new Date();
+    setOps[`imported.blocks.${seedsBlockId}.updatedBy`] = req.userId || "";
+    setOps.lastSyncedAt = new Date();
+
+    const result = await ContentV3.updateOne(
+      {
+        _id: req.params.id,
+        tenantId: req.tenantId,
+        isDeleted: { $ne: true },
+        [`imported.blocks.${seedsBlockId}.blockVersion`]: expectedBlockVersion,
+      },
+      { $set: setOps }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(409).json({
+        error: "blockVersion mismatch or block missing — reload the editor",
+      });
+    }
+    return res.json({ ok: true, seedsBlockId, blockVersion: expectedBlockVersion + 1 });
+  }),
+);
+
+router.put(
+  "/:id/imported-block/translation",
+  authenticateToken,
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
+  tryCatchWrapper(async (req, res) => {
+    const { lang, translation, expectedBlockVersion } = req.body || {};
+    if (!lang || !translation) {
+      return res.status(400).json({ error: "lang and translation required" });
+    }
+    if (!CANONICAL_LANGUAGES.includes(lang)) {
+      return res.status(400).json({ error: `lang must be one of ${CANONICAL_LANGUAGES.join(",")}` });
+    }
+    const seedsBlockId = await resolveSeedsBlockId(req);
+    if (!seedsBlockId) {
+      return res.status(404).json({ error: "Block not found (provide seedsBlockId or blockSourceId)" });
+    }
+
+    const filter = {
+      _id: req.params.id,
+      tenantId: req.tenantId,
+      isDeleted: { $ne: true },
+    };
+    // Version guard is optional on translation/audio (overlays often saved without it).
+    if (typeof expectedBlockVersion === "number") {
+      filter[`imported.blocks.${seedsBlockId}.blockVersion`] = expectedBlockVersion;
+    } else {
+      // Still require the block to exist:
+      filter[`imported.blocks.${seedsBlockId}`] = { $exists: true };
+    }
+
+    const cleanTranslation = sanitizeImportedTranslation(translation);
+    const result = await ContentV3.updateOne(filter, {
+      $set: {
+        [`imported.blocks.${seedsBlockId}.translations.${lang}`]: cleanTranslation,
+        [`imported.blocks.${seedsBlockId}.updatedAt`]: new Date(),
+        [`imported.blocks.${seedsBlockId}.updatedBy`]: req.userId || "",
+        lastSyncedAt: new Date(),
+      },
+      $inc: { [`imported.blocks.${seedsBlockId}.blockVersion`]: 1 },
+    });
+
+    if (result.matchedCount === 0) {
+      return res.status(409).json({ error: "blockVersion mismatch or block missing" });
+    }
+    return res.json({ ok: true, seedsBlockId, lang });
+  }),
+);
+
+router.put(
+  "/:id/imported-block/audio",
+  authenticateToken,
+  authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
+  tryCatchWrapper(async (req, res) => {
+    const { lang, audioUrl } = req.body || {};
+    if (!lang || typeof audioUrl !== "string") {
+      return res.status(400).json({ error: "lang and audioUrl required" });
+    }
+    if (!CANONICAL_LANGUAGES.includes(lang)) {
+      return res.status(400).json({ error: `lang must be one of ${CANONICAL_LANGUAGES.join(",")}` });
+    }
+    const seedsBlockId = await resolveSeedsBlockId(req);
+    if (!seedsBlockId) {
+      return res.status(404).json({ error: "Block not found (provide seedsBlockId or blockSourceId)" });
+    }
+
+    const result = await ContentV3.updateOne(
+      {
+        _id: req.params.id,
+        tenantId: req.tenantId,
+        isDeleted: { $ne: true },
+        [`imported.blocks.${seedsBlockId}`]: { $exists: true },
+      },
+      {
+        $set: {
+          [`imported.blocks.${seedsBlockId}.audioByLang.${lang}`]: audioUrl,
+          [`imported.blocks.${seedsBlockId}.updatedAt`]: new Date(),
+          [`imported.blocks.${seedsBlockId}.updatedBy`]: req.userId || "",
+          lastSyncedAt: new Date(),
+        },
+        $inc: { [`imported.blocks.${seedsBlockId}.blockVersion`]: 1 },
+      }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ error: "Block missing" });
+    }
+    return res.json({ ok: true, seedsBlockId, lang });
+  }),
+);
+
 module.exports = router;

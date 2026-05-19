@@ -38,12 +38,42 @@ const ContentSchema = new mongoose.Schema(
     isTeacherApp: { type: Boolean, default: false },
     isDeleted: { type: Boolean, default: false },
     creation_time: { type: Number, default: -1 },
+
+    // Subodha LMS integration — identity + idempotency contract per
+    // subodha_exploration/INTEGRATION_DOC_DIFF.md SC5 / SC17.
+    // All optional; only populated on type === "subodha_course" docs.
+    sourcePlatform:  { type: String, default: undefined },
+    sourceContentId: { type: String, default: undefined },
+    sourceCourseId:  { type: String, default: undefined },
+    sourceVersion:   { type: String, default: undefined },
+    sourceUpdatedAt: { type: Date,   default: undefined },
+    contentHash:     { type: String, default: undefined },
+    lastSyncedAt:    { type: Date,   default: undefined },
+    dedupKey:        { type: String, default: undefined },
+    // v3 vendor-neutral tree (replaces v2 `subodhaCourse`).
+    // Holds { schemaVersion, source, status, detectedScripts, vendorMeta, tree[], blocks{} }.
+    // Tree is structure-only; per-block bodies + overlays live under `blocks` keyed by SEEDS-stable uuid.
+    imported:        { type: mongoose.Schema.Types.Mixed, default: undefined },
+    // Legacy v2 field — populated only on docs not yet migrated. Drop after migration verified.
+    subodhaCourse:   { type: mongoose.Schema.Types.Mixed, default: undefined },
   },
   { collection: "contentsV3" }
 );
 
 ContentSchema.index({ tenantId: 1, isDeleted: 1, creation_time: -1 });
 ContentSchema.index({ tenantId: 1, language: 1 });
+ContentSchema.index(
+  { tenantId: 1, sourcePlatform: 1, sourceContentId: 1 },
+  { unique: true, partialFilterExpression: { sourcePlatform: { $exists: true } } }
+);
+ContentSchema.index(
+  { sourcePlatform: 1, contentHash: 1 },
+  { sparse: true }
+);
+ContentSchema.index(
+  { tenantId: 1, dedupKey: 1, type: 1 },
+  { sparse: true }
+);
 
 const ContentV3 = mongoose.model("ContentV3", ContentSchema);
 

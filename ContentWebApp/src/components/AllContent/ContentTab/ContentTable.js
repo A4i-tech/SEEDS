@@ -6,12 +6,15 @@ import "../shared/utilities.css";
 // Visual + semantic mapping of content types. Keep glyph + label paired so
 // color is never the sole signal (works for color-blind + low-vision teachers).
 const TYPE_META = {
-  story:          { label: "Story",      glyph: "❦", aria: "Story content" },
-  poem:           { label: "Poem",       glyph: "❋", aria: "Poem content" },
-  quiz:           { label: "Quiz",       glyph: "◆", aria: "Quiz content" },
-  riddle:         { label: "Riddle",     glyph: "◈", aria: "Riddle content" },
-  song:           { label: "Song",       glyph: "♪", aria: "Song content" },
-  subodha_course: { label: "Subodha Course", glyph: "✦", aria: "Subodha LMS imported course" },
+  story:            { label: "Story",      glyph: "❦", aria: "Story content" },
+  poem:             { label: "Poem",       glyph: "❋", aria: "Poem content" },
+  quiz:             { label: "Quiz",       glyph: "◆", aria: "Quiz content" },
+  riddle:           { label: "Riddle",     glyph: "◈", aria: "Riddle content" },
+  song:             { label: "Song",       glyph: "♪", aria: "Song content" },
+  // v3 generic type — vendor distinguisher is `sourcePlatform` on the row.
+  imported_content: { label: "Imported Course", glyph: "✦", aria: "Imported LMS course" },
+  // Legacy type retained for any rows yet to be migrated.
+  subodha_course:   { label: "Subodha Course",  glyph: "✦", aria: "Subodha LMS imported course" },
 };
 
 const TypeChip = ({ type }) => {
@@ -76,7 +79,7 @@ const ContentTable = ({ content, isLoading, onEdit, onView, onDelete }) => {
               // Get type and normalize to lowercase
               const itemType = item.type.toLowerCase();
               const rowClass =
-                itemType === "subodha_course"
+                itemType === "subodha_course" || itemType === "imported_content"
                   ? "table-row-white row-subodha"
                   : "table-row-white";
               return (
