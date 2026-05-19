@@ -447,7 +447,7 @@ router.get(
       // Fetch both content and quiz data for the requested IDs (lean for read-only)
       const [contents, quizzes] = await Promise.all([
         ContentV3.find({ _id: { $in: idsArray }, tenantId, isDeleted: { $ne: true }, schoolId: schoolIdFilter })
-          .select("-subodhaCourse -imported")
+          .select("-imported")
           .lean()
           .exec(),
         QuizData.find({ _id: { $in: idsArray }, tenantId, isDeleted: { $ne: true }, schoolId: schoolIdFilter })
@@ -513,7 +513,7 @@ router.get(
     }
 
     const [contents, quizzes] = await Promise.all([
-      shouldFetchContent ? ContentV3.find(contentQuery).select("-subodhaCourse -imported").sort({ creation_time: -1 }).lean().exec() : [],
+      shouldFetchContent ? ContentV3.find(contentQuery).select("-imported").sort({ creation_time: -1 }).lean().exec() : [],
       shouldFetchQuizzes ? QuizData.find(quizQuery).sort({ creation_time: -1 }).lean().exec() : [],
     ]);
 

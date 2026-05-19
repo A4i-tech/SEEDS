@@ -63,7 +63,6 @@ function walkNested(nodes, visit, path = []) {
 }
 
 function harvestExistingBlocks(existingDoc) {
-  // existingDoc may have legacy v2 (subodhaCourse) OR v3 (imported.blocks).
   // Returns Map<sourceId, {seedsBlockId, overlay}>
   const map = new Map();
   if (!existingDoc) return map;
@@ -307,8 +306,6 @@ async function upsertImported(args) {
   if (existing) {
     Object.assign(existing, docFields);
     existing.markModified("imported");
-    // Drop legacy v2 field on update.
-    existing.subodhaCourse = undefined;
     await existing.save();
     savedId = existing._id;
     action = "updated";

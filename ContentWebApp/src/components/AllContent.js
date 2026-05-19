@@ -128,7 +128,7 @@ const AllContent = () => {
   const handleView = useCallback(
     (type, id) => {
       // Imported content opens the tree editor (same view for now); flat types use the detail page.
-      if (type === "imported_content" || type === "subodha_course") {
+      if (type === "imported_content") {
         navigate(`/content/edit/${type}/${id}`);
         return;
       }

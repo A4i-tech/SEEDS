@@ -99,7 +99,7 @@
 .content-type-chip--quiz           { color: #163a98; background: #dbeafe; border-color: #82a8e8; }
 .content-type-chip--riddle         { color: #7a2a0c; background: #ffedd5; border-color: #e09662; }
 .content-type-chip--song           { color: #97104c; background: #fce7f3; border-color: #ec8ec0; }
-.content-type-chip--subodha_course { color: #14271d; background: #e8efe4; border-color: #6f8a62; }
+.content-type-chip--imported_content { color: #14271d; background: #e8efe4; border-color: #6f8a62; }
 .content-type-chip--default        { color: #334155; background: #f1f5f9; border-color: #94a3b8; }
 
 /* Keep keyboard focus visible everywhere */

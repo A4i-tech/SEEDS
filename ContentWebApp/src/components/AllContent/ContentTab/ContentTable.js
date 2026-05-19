@@ -11,10 +11,8 @@ const TYPE_META = {
   quiz:             { label: "Quiz",       glyph: "◆", aria: "Quiz content" },
   riddle:           { label: "Riddle",     glyph: "◈", aria: "Riddle content" },
   song:             { label: "Song",       glyph: "♪", aria: "Song content" },
-  // v3 generic type — vendor distinguisher is `sourcePlatform` on the row.
-  imported_content: { label: "Imported Course", glyph: "✦", aria: "Imported LMS course" },
-  // Legacy type retained for any rows yet to be migrated.
-  subodha_course:   { label: "Subodha Course",  glyph: "✦", aria: "Subodha LMS imported course" },
+  // Generic type for all imported LMS content. Vendor distinguisher = `sourcePlatform`.
+  imported_content: { label: "Course", glyph: "✦", aria: "Imported LMS course" },
 };
 
 const TypeChip = ({ type }) => {
@@ -79,7 +77,7 @@ const ContentTable = ({ content, isLoading, onEdit, onView, onDelete }) => {
               // Get type and normalize to lowercase
               const itemType = item.type.toLowerCase();
               const rowClass =
-                itemType === "subodha_course" || itemType === "imported_content"
+                itemType === "imported_content"
                   ? "table-row-white row-subodha"
                   : "table-row-white";
               return (

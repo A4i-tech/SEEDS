@@ -5,14 +5,13 @@ import AddStory from "./AddStory";
 import SubodhaCourseEditor from "./SubodhaCourseEditor";
 import { contentService } from "../services/contentService";
 
-// Top-level dispatcher: imported third-party LMS content (Subodha + future
-// vendors) collapses under one generic type `imported_content`. Render the
-// tree editor as its OWN route component so React hooks remain stable —
-// `ContentEditFlat` below handles legacy story/quiz/poem and never sees
-// imported types.
+// Top-level dispatcher: imported third-party LMS content (any vendor) lives
+// under the single generic type `imported_content`. Render the tree editor as
+// its OWN route component so React hooks stay stable — `ContentEditFlat`
+// below handles legacy story/quiz/poem and never sees imported types.
 const ContentEdit = () => {
   const { type } = useParams();
-  if (type === "imported_content" || type === "subodha_course") {
+  if (type === "imported_content") {
     return <SubodhaCourseEditor />;
   }
   return <ContentEditFlat />;

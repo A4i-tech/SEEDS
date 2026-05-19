@@ -39,9 +39,9 @@ const ContentSchema = new mongoose.Schema(
     isDeleted: { type: Boolean, default: false },
     creation_time: { type: Number, default: -1 },
 
-    // Subodha LMS integration — identity + idempotency contract per
-    // subodha_exploration/INTEGRATION_DOC_DIFF.md SC5 / SC17.
-    // All optional; only populated on type === "subodha_course" docs.
+    // Imported-content identity + idempotency contract (SC5 / SC17 in
+    // subodha_exploration/INTEGRATION_DOC_DIFF.md).
+    // All optional; only populated on type === "imported_content" docs.
     sourcePlatform:  { type: String, default: undefined },
     sourceContentId: { type: String, default: undefined },
     sourceCourseId:  { type: String, default: undefined },
@@ -50,12 +50,10 @@ const ContentSchema = new mongoose.Schema(
     contentHash:     { type: String, default: undefined },
     lastSyncedAt:    { type: Date,   default: undefined },
     dedupKey:        { type: String, default: undefined },
-    // v3 vendor-neutral tree (replaces v2 `subodhaCourse`).
+    // Vendor-neutral imported-content tree.
     // Holds { schemaVersion, source, status, detectedScripts, vendorMeta, tree[], blocks{} }.
     // Tree is structure-only; per-block bodies + overlays live under `blocks` keyed by SEEDS-stable uuid.
     imported:        { type: mongoose.Schema.Types.Mixed, default: undefined },
-    // Legacy v2 field — populated only on docs not yet migrated. Drop after migration verified.
-    subodhaCourse:   { type: mongoose.Schema.Types.Mixed, default: undefined },
   },
   { collection: "contentsV3" }
 );
