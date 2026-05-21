@@ -3,11 +3,6 @@ import ReactDOM from "react-dom/client"; // Use the new ReactDOM API from 'react
 import App from "./App";
 import { ConferenceProvider } from "./context/ConferenceContext"; // Import ConferenceProvider
 import "./index.css";
-import { isTokenExpired, clearAuth } from "./utils/authHelpers";
-
-if (typeof localStorage !== "undefined" && localStorage.getItem("authToken") && isTokenExpired()) {
-  clearAuth();
-}
 
 // Find the root element in your HTML
 const rootElement = document.getElementById("root");

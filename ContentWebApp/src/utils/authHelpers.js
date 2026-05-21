@@ -13,6 +13,14 @@ export const getAuthHeaders = () => {
   };
 };
 
+/**
+ * Check if user is authenticated
+ * @returns {boolean} True if token exists
+ */
+export const isAuthenticated = () => {
+  return !!localStorage.getItem("authToken");
+};
+
 export const getTokenPayload = () => {
   const token = localStorage.getItem("authToken");
   if (!token) {
@@ -31,21 +39,6 @@ export const getTokenPayload = () => {
   } catch (_error) {
     return {};
   }
-};
-
-export const isTokenExpired = () => {
-  const { exp } = getTokenPayload();
-  if (typeof exp !== "number") return false;
-  return Date.now() >= exp * 1000;
-};
-
-export const isAuthenticated = () => {
-  if (!localStorage.getItem("authToken")) return false;
-  if (isTokenExpired()) {
-    clearAuth();
-    return false;
-  }
-  return true;
 };
 
 /**
@@ -75,23 +68,6 @@ export const getRole = () => {
  */
 export const getSchoolId = () => localStorage.getItem("schoolId");
 
-// Auth-related cookie names this app may have set in current or prior versions.
-// Keep this list narrow so logout does not clobber unrelated cookies
-// (analytics, consent, third-party widgets, etc.).
-const AUTH_COOKIE_NAMES = ["authToken", "token", "session", "sessionId", "jwt", "connect.sid"];
-
-const clearAuthCookies = () => {
-  if (typeof document === "undefined") return;
-  const { hostname } = window.location;
-  const domains = [hostname, `.${hostname}`, ""];
-  AUTH_COOKIE_NAMES.forEach((name) => {
-    domains.forEach((domain) => {
-      const domainAttr = domain ? `; domain=${domain}` : "";
-      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/${domainAttr}`;
-    });
-  });
-};
-
 /**
  * Clear all authentication data
  */
@@ -99,12 +75,4 @@ export const clearAuth = () => {
   localStorage.removeItem("authToken");
   localStorage.removeItem("userRole");
   localStorage.removeItem("schoolId");
-  clearAuthCookies();
-};
-
-export const forceLogout = (redirectPath = "/") => {
-  clearAuth();
-  if (typeof window !== "undefined" && window.location.pathname !== redirectPath) {
-    window.location.href = redirectPath;
-  }
 };
