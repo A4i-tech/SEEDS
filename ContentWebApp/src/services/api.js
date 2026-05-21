@@ -20,7 +20,7 @@ export const apiFetch = async (url, options = {}) => {
     const response = await fetch(url, options);
 
     if (!response.ok) {
-      if (response.status === 401) {
+      if (response.status === 401 || response.status === 403) {
         clearAuth();
         if (typeof window !== "undefined" && window.location.pathname !== "/") {
           window.location.href = "/";
