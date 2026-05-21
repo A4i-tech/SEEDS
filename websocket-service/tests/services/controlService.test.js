@@ -56,7 +56,8 @@ describe("ControlService", () => {
       connectionManager.getConnection.mockReturnValue({ ws: mockWebSocket });
       mockCloseHandler(1000, "normal");
       expect(consoleSpy).toHaveBeenCalledWith(
-        "Control WebSocket connection closed (confv2server): code=1000 reason=normal"
+        "Control WebSocket connection closed (confv2server): code=1000 reason=normal",
+        ""
       );
       expect(connectionManager.removeConnection).toHaveBeenCalledWith(
         "confv2server"
@@ -67,7 +68,8 @@ describe("ControlService", () => {
       mockErrorHandler(testError);
       expect(errorSpy).toHaveBeenCalledWith(
         "Control WebSocket error",
-        testError
+        testError,
+        ""
       );
 
       consoleSpy.mockRestore();
@@ -166,7 +168,8 @@ describe("ControlService", () => {
         })
       );
       expect(consoleSpy).toHaveBeenCalledWith(
-        "Heartbeat message received from conf server"
+        "Heartbeat message received from conf server",
+        ""
       );
 
       // Test unknown type
@@ -178,7 +181,8 @@ describe("ControlService", () => {
         })
       );
       expect(consoleSpy).toHaveBeenCalledWith(
-        "Unknown control message type: UNKNOWN"
+        "Unknown control message type: UNKNOWN",
+        ""
       );
 
       consoleSpy.mockRestore();
@@ -193,8 +197,9 @@ describe("ControlService", () => {
       // Malformed JSON
       await mockMessageHandler("{ invalid json }");
       expect(errorSpy).toHaveBeenCalledWith(
-        "Error parsing control message:",
-        expect.any(Error)
+        "Error parsing control message",
+        expect.any(Error),
+        ""
       );
 
       // Empty/null messages
@@ -213,8 +218,9 @@ describe("ControlService", () => {
         })
       );
       expect(errorSpy).toHaveBeenCalledWith(
-        "Error playing audio for ID error-client:",
-        testError
+        "Error playing audio for ID error-client",
+        testError,
+        ""
       );
 
       websocketService.playSystemAudioContent.mockRejectedValue(testError);
@@ -226,8 +232,9 @@ describe("ControlService", () => {
         })
       );
       expect(errorSpy).toHaveBeenCalledWith(
-        "Error playing audio for ID system-error:",
-        testError
+        "Error playing audio for ID system-error",
+        testError,
+        ""
       );
 
       websocketService.seekAudioContent.mockRejectedValue(testError);
@@ -239,8 +246,9 @@ describe("ControlService", () => {
         })
       );
       expect(errorSpy).toHaveBeenCalledWith(
-        "Error seeking audio for ID seek-error:",
-        testError
+        "Error seeking audio for ID seek-error",
+        testError,
+        ""
       );
 
       // Missing fields
@@ -254,7 +262,8 @@ describe("ControlService", () => {
         JSON.stringify({ websocket_id: "test", type: MessageType.PLAY_AUDIO })
       );
       expect(warnSpy).toHaveBeenCalledWith(
-        "Unknown control message type: undefined"
+        "Unknown control message type: undefined",
+        ""
       );
 
       errorSpy.mockRestore();

@@ -12,7 +12,7 @@ if (connectionString) {
     .setAutoCollectRequests(true)
     .setAutoCollectDependencies(true)
     .setAutoCollectExceptions(true)
-    .setAutoCollectConsole(true, true)
+    .setAutoCollectConsole(false)
     .setDistributedTracingMode(appInsights.DistributedTracingModes.AI_AND_W3C)
     .start();
 
