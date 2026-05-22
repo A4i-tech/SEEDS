@@ -10,8 +10,10 @@ from app.services.communication_api import CommunicationAPIFactory, Communicatio
 from app.services.storage_manager import StorageManager, create_storage_manager
 from app.services.smartphone_connection_manager import SmartphoneConnectionManagerType, SmartphoneConnectionManagerFactory
 from app.services.conference_call import ConferenceCall
+from app.services.redis_conference_store import RedisConferenceStore
 from app.models.action_history import ActionHistory, ActionType
 from app.conf_logger import logger_instance
+from config import get_settings
 
 load_dotenv()
 
@@ -29,6 +31,20 @@ class ConferenceCallManager:
         self.smartphone_connection_manager_factory = SmartphoneConnectionManagerFactory()
         self.conferences: Dict[str, ConferenceCall] = {}
         self.ws_base_url = os.environ.get("WS_SERVER_EP", "")
+        self._redis_store: RedisConferenceStore | None = None
+
+    def _get_redis(self) -> RedisConferenceStore | None:
+        settings = get_settings()
+        if settings.ENVIRONMENT != "production" or not settings.REDIS_URL:
+            return None
+        if self._redis_store is None:
+            self._redis_store = RedisConferenceStore()
+        return self._redis_store
+
+    def _attach_redis(self, conference_call: ConferenceCall) -> None:
+        store = self._get_redis()
+        if store is not None:
+            conference_call.redis_store = store
 
     async def create_conference(self, teacher_phone: str, student_phones: List[str], leader_phone: str = None, teacher_name: str | None = None, student_names: List[str] | None = None) -> ConferenceCall:
         conf_id = str(uuid.uuid4())
@@ -41,6 +57,7 @@ class ConferenceCallManager:
                                                                                  conf_id),
             storage_manager=self.storage_manager
         )
+        self._attach_redis(conference_call)
         conference_call.set_participant_state(teacher_phone, student_phones, leader_phone, teacher_name=teacher_name, student_names=student_names)
         conference_call.state.action_history.append(ActionHistory(
             timestamp=datetime.now().isoformat(),
@@ -54,7 +71,7 @@ class ConferenceCallManager:
         self.conferences[conf_id] = conference_call
         await conference_call.update_state()
         return conference_call
-   
+
     async def start_conference_call(self, conf_id: str) -> None:
         conf: ConferenceCall = self.get_conference(conf_id)
         if not conf:
@@ -90,12 +107,15 @@ class ConferenceCallManager:
             except Exception:
                 logger_instance.error("Failed to persist CONFERENCE_START_FAILED", exc_info=True)
             raise
-        
+
     def get_conference(self, conference_id: str) -> ConferenceCall | None:
         return self.conferences.get(conference_id, None)
 
-    def delete_conference(self, conf_id: str):
-        del self.conferences[conf_id]
+    def delete_conference(self, conf_id: str) -> None:
+        self.conferences.pop(conf_id, None)
+        store = self._get_redis()
+        if store is not None:
+            asyncio.create_task(store.delete(conf_id))
 
     def get_conference_from_phone_number(self, phone_number: str) -> ConferenceCall | None:
         for conf in self.conferences.values():
@@ -103,6 +123,11 @@ class ConferenceCallManager:
             if phone_number in participant_phone_numbers:
                 return conf
         return None
+
+    async def close(self) -> None:
+        if self._redis_store is not None:
+            await self._redis_store.close()
+
 
 # UNIVERSAL ConferenceCallManager instance
 conference_manager = ConferenceCallManager(

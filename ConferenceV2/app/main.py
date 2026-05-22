@@ -16,6 +16,7 @@ tracer = get_tracer(__name__)
 
 from app.conf_logger import logger_instance
 from app.services.singletons.websocket_service import WebsocketService
+from app.services.singletons.conference_call_manager import conference_manager
 from app.services.storage_manager.mongodb_client import close_mongodb_manager
 from app.routers import conference, webhooks, websocket
 
@@ -35,10 +36,9 @@ async def lifespan(app: FastAPI):
     ws = WebsocketService()
     await ws.initialize()
     yield
-    # End background task to listen for messages from Node.js
     ws.cancel_bg_processes()
-    # Close MongoDB client singleton if it was used (no-op otherwise)
     await close_mongodb_manager()
+    await conference_manager.close()
 
 app = FastAPI(title=f"SEEDS Conference Call System", lifespan=lifespan)
 FastAPIInstrumentor.instrument_app(app)
