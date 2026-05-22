@@ -1,4 +1,5 @@
 import axios from "axios";
+import { clearAuth } from "../utils/authHelpers";
 
 const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 5000;
@@ -52,10 +53,12 @@ axiosInstance.interceptors.response.use(
   async (error) => {
     const config = error.config;
 
-    // Handle 401 Unauthorized - don't retry
-    if (error.response?.status === 401) {
-      console.error("Unauthorized (401): Clearing auth token and redirecting to login");
-      localStorage.removeItem("authToken");
+    // Backend-driven auth invalidation. Skip when no token is stored (login attempt) so caller sees real error.
+    if (
+      (error.response?.status === 401 || error.response?.status === 403) &&
+      localStorage.getItem("authToken")
+    ) {
+      clearAuth();
       window.location.href = "/";
       return Promise.reject(new Error("Session expired. Please login again."));
     }

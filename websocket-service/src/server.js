@@ -83,7 +83,7 @@ wss.on("connection", (ws, req) => {
   if (isControlConnection) {
     // Control WebSocket connection
     console.log(`Control WebSocket connection established with id: ${id}`);
-    controlService.handleControlConnection(ws);
+    controlService.handleControlConnection(ws, id);
   } else {
 
     // Forward incoming audio to the ConferenceV2 control connection

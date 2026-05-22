@@ -1,15 +1,18 @@
 import asyncio
 import os
+import random
 from app.models.system_audio_messages import SystemAudioMessages
 from app.services.communication_api import CommunicationAPI
 from typing import Any, Dict, List, Optional
 import json
 from dotenv import load_dotenv
 import vonage
-from typing import Dict
+from vonage.errors import ClientError
 from pydantic import BaseModel
 from app.conf_logger import logger_instance
 from app.services.singletons.sas_gen import sas_gen
+
+_VONAGE_RATE_LIMIT = 3  # max outbound call POSTs per second
 
 
 class VonageParticipantInfo(BaseModel):
@@ -45,15 +48,13 @@ class VonageAPI(CommunicationAPI):
         self.teacher_phone_number = None
         self.is_websocket_connected = False
 
-    def _add_participant_to_call_with_system_message(
+    async def _add_participant_to_call_with_system_message(
         self,
         phone_number: str,
         start_muted: bool = False,
         announce_text: str | None = None,
-    ):
-        call_payload = {"type": "phone", "number": phone_number}
-
-        # Build conversation action with optional mute parameter
+        max_retries: int = 5,
+    ) -> None:
         conversation_action: Dict[str, Any] = {
             "action": "conversation",
             "name": self.conf_id,
@@ -61,47 +62,41 @@ class VonageAPI(CommunicationAPI):
         if start_muted:
             conversation_action["mute"] = True
 
-        # Build NCCO: for teacher include welcome then join phrase; for students include join phrase if provided
         ncco: List[Dict[str, Any]] = []
         if not start_muted:
-            # Teacher: always play generic welcome first, then announce join (by name if provided)
-            ncco.append(
-                {
-                    "action": "talk",
-                    "text": "Hi, welcome to SEEDS. Connecting you to the conference call.",
-                }
-            )
-            if announce_text:
-                ncco.append({"action": "talk", "text": f"{announce_text} has joined"})
-            else:
-                ncco.append({"action": "talk", "text": "Teacher has joined"})
+            ncco.append({"action": "talk", "text": "Hi, welcome to SEEDS. Connecting you to the conference call."})
+            ncco.append({"action": "talk", "text": f"{announce_text} has joined" if announce_text else "Teacher has joined"})
         else:
-            if announce_text:
-                ncco.append({"action": "talk", "text": f"{announce_text} has joined the conference."})
-            else:
-                ncco.append({"action": "talk", "text": "You have joined the conference."})
-        # Finally add conversation action
+            ncco.append({"action": "talk", "text": f"{announce_text} has joined the conference." if announce_text else "You have joined the conference."})
         ncco.append(conversation_action)
-        call_data_tts = {
-            "to": [call_payload],
+
+        call_data = {
+            "to": [{"type": "phone", "number": phone_number}],
             "from": {"type": "phone", "number": self.vonage_number},
             "event_url": [self.events_webhook_url + f"/webhooks/event/{self.conf_id}"],
             "ncco": ncco,
         }
 
-        try:
-            vonage_resp = self.client.voice.create_call(call_data_tts)
-            logger_instance.info(
-                "VONAGE ADD PARTICIPANT RESPONSE", json.dumps(vonage_resp, indent=2)
-            )
-        except Exception as e:
-            logger_instance.error("Call failed", e)
-            raise
-        self.participant_info_map[phone_number] = VonageParticipantInfo(
-            phone_number=phone_number,
-            call_leg_id=vonage_resp["uuid"],
-            initial_conv_id=vonage_resp["conversation_uuid"],
-        )
+        for attempt in range(max_retries):
+            try:
+                vonage_resp = await asyncio.to_thread(self.client.voice.create_call, call_data)
+                logger_instance.info("VONAGE ADD PARTICIPANT RESPONSE", json.dumps(vonage_resp, indent=2))
+                self.participant_info_map[phone_number] = VonageParticipantInfo(
+                    phone_number=phone_number,
+                    call_leg_id=vonage_resp["uuid"],
+                    initial_conv_id=vonage_resp["conversation_uuid"],
+                )
+                return
+            except Exception as e:
+                is_rate_limited = isinstance(e, ClientError) and "429 response from" in str(e)
+                if not is_rate_limited or attempt == max_retries - 1:
+                    logger_instance.error(f"Call failed for {phone_number}", e)
+                    raise
+                delay = (2 ** attempt) + random.uniform(0, 1)
+                logger_instance.warning(
+                    f"Rate limited adding {phone_number}, retry {attempt + 1}/{max_retries} in {delay:.2f}s"
+                )
+                await asyncio.sleep(delay)
 
     async def _try_connecting_websocket_with_participant(
         self, participant: VonageParticipantInfo
@@ -212,18 +207,25 @@ class VonageAPI(CommunicationAPI):
         """
         Starts a conference call between a teacher and students using Vonage API.
         Students are muted by default when they join.
+
+        Calls are fired in parallel batches of _VONAGE_RATE_LIMIT (3/s) to stay
+        within Vonage's outbound call creation rate limit. Each individual call
+        retries with exponential backoff + jitter on 429 responses.
         """
         self.teacher_phone_number = teacher_phone
-        # Teacher joins unmuted - announce generic teacher welcome TTS
-        self._add_participant_to_call_with_system_message(
-            teacher_phone, start_muted=False, announce_text=None
-        )
 
-        # Students join muted by default - no announce_text
-        for student_phone in student_phones:
-            self._add_participant_to_call_with_system_message(
-                student_phone, start_muted=True, announce_text=None
+        # (teacher, muted, announce_text) tuples — teacher first
+        participants = [(teacher_phone, False, None)] + [
+            (sp, True, None) for sp in student_phones
+        ]
+
+        for i in range(0, len(participants), _VONAGE_RATE_LIMIT):
+            batch = participants[i : i + _VONAGE_RATE_LIMIT]
+            await asyncio.gather(
+                *[self._add_participant_to_call_with_system_message(ph, muted, text) for ph, muted, text in batch]
             )
+            if i + _VONAGE_RATE_LIMIT < len(participants):
+                await asyncio.sleep(1.0)
 
     # client.update_call()
     async def end_conf(self):
@@ -281,7 +283,7 @@ class VonageAPI(CommunicationAPI):
             start_muted = False  # Teacher is not muted
 
         # Pass announce_text if provided; otherwise no TTS for adds without name.
-        self._add_participant_to_call_with_system_message(
+        await self._add_participant_to_call_with_system_message(
             phone_number, start_muted=start_muted, announce_text=announce_text or None
         )
 
