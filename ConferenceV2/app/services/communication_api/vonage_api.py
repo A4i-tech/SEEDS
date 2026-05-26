@@ -14,6 +14,14 @@ from app.services.singletons.sas_gen import sas_gen
 
 _VONAGE_RATE_LIMIT = 3  # max outbound call POSTs per second
 
+# Vonage SDK 2.x uses requests with no default timeout, so a stuck Vonage call
+# can block the FastAPI event loop indefinitely (observed: 15+ minute hang on
+# GET /v1/calls/<uuid>). Used by _try_connecting_websocket_with_participant
+# below to bound the one sync call that lives on the websocket-attach hot path.
+_VONAGE_GET_CALL_TIMEOUT_SECONDS = float(
+    os.environ.get("VONAGE_GET_CALL_TIMEOUT_SECONDS", "10.0")
+)
+
 
 class VonageParticipantInfo(BaseModel):
     phone_number: str
@@ -108,7 +116,25 @@ class VonageAPI(CommunicationAPI):
 
         Returns True if the above process happened for the given participant
         """
-        call = self.client.voice.get_call(uuid=participant.call_leg_id)
+        # Bound this single sync Vonage call. The Vonage 2.x SDK uses requests
+        # with no default timeout, so a non-responding leg used to freeze the
+        # event loop for 15+ minutes. On timeout, treat the leg as not-answered
+        # so the caller can move on (matches the existing else-branch semantics
+        # below, where a non-"answered" status returns False).
+        try:
+            call = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.client.voice.get_call, uuid=participant.call_leg_id
+                ),
+                timeout=_VONAGE_GET_CALL_TIMEOUT_SECONDS,
+            )
+        except asyncio.TimeoutError:
+            logger_instance.warning(
+                f"Vonage get_call timed out after {_VONAGE_GET_CALL_TIMEOUT_SECONDS}s "
+                f"for {participant.phone_number} ({participant.call_leg_id}); "
+                f"treating as not-answered"
+            )
+            return False
         logger_instance.info(
             f'Checking participant {participant.phone_number} call status: {call["status"]}'
         )
