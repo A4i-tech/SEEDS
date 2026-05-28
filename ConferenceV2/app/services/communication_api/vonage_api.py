@@ -19,7 +19,7 @@ _VONAGE_RATE_LIMIT = 3  # max outbound call POSTs per second
 # GET /v1/calls/<uuid>). Used by _try_connecting_websocket_with_participant
 # below to bound the one sync call that lives on the websocket-attach hot path.
 _VONAGE_GET_CALL_TIMEOUT_SECONDS = float(
-    os.environ.get("VONAGE_GET_CALL_TIMEOUT_SECONDS", "10.0")
+    os.environ.get("VONAGE_GET_CALL_TIMEOUT_SECONDS", "30.0")
 )
 
 
