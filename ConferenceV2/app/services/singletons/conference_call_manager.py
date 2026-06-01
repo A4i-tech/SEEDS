@@ -45,6 +45,7 @@ class ConferenceCallManager:
         store = self._get_redis()
         if store is not None:
             conference_call.redis_store = store
+            conference_call.communication_api.redis_store = store
 
     async def create_conference(self, teacher_phone: str, student_phones: List[str], leader_phone: str = None, teacher_name: str | None = None, student_names: List[str] | None = None) -> ConferenceCall:
         conf_id = str(uuid.uuid4())
