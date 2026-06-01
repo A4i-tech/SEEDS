@@ -10,5 +10,5 @@ runs:
     - name: Run tests with coverage
       run: |
         cd ${{ inputs.directory }}
-        poetry run pytest --cov=. --cov-report=html --cov-report=xml --cov-report=json --cov-report=term
+        poetry run pytest --ignore=tests/e2e --cov=. --cov-report=html --cov-report=xml --cov-report=json --cov-report=term
       shell: bash

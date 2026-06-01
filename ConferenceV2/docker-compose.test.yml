@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  conference:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "9210:9210"
+    environment:
+      COMM_API_TYPE: fake
+      MONGO_DB_CONNECTION_STRING: mongodb://mongo:27017/conference_test
+      MONGO_COLLECTION_NAME: conferenceState
+      STORAGE_BACKEND: mongodb
+      AUDIO_ANALYSIS_ENABLED: "false"
+      AUDIO_CAPTURE_ENABLED: "false"
+      WS_SERVICE_ENABLED: "true"
+      WS_SERVER_EP: ws://mock-ws:9999
+      EVENTS_WEBHOOK_EP: http://localhost:9999
+      ENVIRONMENT: test
+      APPLICATIONINSIGHTS_CONNECTION_STRING: "InstrumentationKey=00000000-0000-0000-0000-000000000000;IngestionEndpoint=https://dc.applicationinsights.azure.com/"
+      STORAGE_ACCOUNT_NAME: test
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mock-ws:
+        condition: service_healthy
+
+  mock-ws:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: python tests/mock_ws_server.py
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import socket; s=socket.socket(); s.settimeout(2); s.connect(('localhost', 9999)); s.close()\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
