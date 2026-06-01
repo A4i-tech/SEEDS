@@ -12,7 +12,20 @@ from pydantic import BaseModel
 from app.conf_logger import logger_instance
 from app.services.singletons.sas_gen import sas_gen
 
+load_dotenv()
+
 _VONAGE_RATE_LIMIT = 3  # max outbound call POSTs per second
+
+# Vonage SDK 2.x uses requests with no default timeout, so a stuck Vonage call
+# can block the FastAPI event loop indefinitely (observed: 15+ minute hang on
+# GET /v1/calls/<uuid>). Used by _try_connecting_websocket_with_participant
+# below to bound the sync calls that live on the websocket-attach hot path.
+_VONAGE_GET_CALL_TIMEOUT_SECONDS = float(
+    os.environ.get("VONAGE_GET_CALL_TIMEOUT_SECONDS", "30.0")
+)
+_VONAGE_UPDATE_CALL_TIMEOUT_SECONDS = float(
+    os.environ.get("VONAGE_UPDATE_CALL_TIMEOUT_SECONDS", "30.0")
+)
 
 
 class VonageParticipantInfo(BaseModel):
@@ -20,9 +33,6 @@ class VonageParticipantInfo(BaseModel):
     call_leg_id: str
     initial_conv_id: str
     conference_conv_id: str = None
-
-
-load_dotenv()
 
 
 class VonageAPI(CommunicationAPI):
@@ -108,7 +118,34 @@ class VonageAPI(CommunicationAPI):
 
         Returns True if the above process happened for the given participant
         """
-        call = self.client.voice.get_call(uuid=participant.call_leg_id)
+        # Bound this single sync Vonage call. The Vonage 2.x SDK uses requests
+        # with no default timeout, so a non-responding leg used to freeze the
+        # event loop for 15+ minutes. On timeout, treat the leg as not-answered
+        # so the caller can move on (matches the existing else-branch semantics
+        # below, where a non-"answered" status returns False).
+        try:
+            call = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.client.voice.get_call, uuid=participant.call_leg_id
+                ),
+                timeout=_VONAGE_GET_CALL_TIMEOUT_SECONDS,
+            )
+        except asyncio.TimeoutError:
+            logger_instance.warning(
+                f"Vonage get_call timed out after {_VONAGE_GET_CALL_TIMEOUT_SECONDS}s "
+                f"for {participant.phone_number} ({participant.call_leg_id}); "
+                f"treating as not-answered"
+            )
+            return False
+        # Non-timeout SDK/network errors (404 stale leg, 401 auth, connection
+        # reset, etc.) used to propagate and crash callers (handle_call_transfer_event,
+        # reconnect_websocket). Match the timeout semantics — log + return False.
+        except Exception as e:
+            logger_instance.error(
+                f"Vonage get_call failed for {participant.phone_number} "
+                f"({participant.call_leg_id}): {e}"
+            )
+            return False
         logger_instance.info(
             f'Checking participant {participant.phone_number} call status: {call["status"]}'
         )
@@ -116,33 +153,50 @@ class VonageAPI(CommunicationAPI):
             logger_instance.info(
                 f"CONNECTING WEBSOCKET TO THE CONFERENCE {self.conf_id} USING NUMBER {participant.phone_number} URL: {self.ws_server_url}"
             )
-            self.client.voice.update_call(
-                uuid=participant.call_leg_id,
-                params={
-                    "action": "transfer",
-                    "destination": {
-                        "type": "ncco",
-                        "ncco": [
-                            # {
-                            #     "action": "talk",
-                            #     "text": "Connecting websocket"
-                            # },
-                            {
-                                "action": "connect",
-                                "from": "SEEDS-ConfV2",
-                                "endpoint": [
+            # Bound this sync update_call too. Same SDK, same no-default-timeout
+            # problem as get_call above — without this, a hung transfer would
+            # freeze the event loop.
+            try:
+                await asyncio.wait_for(
+                    asyncio.to_thread(
+                        self.client.voice.update_call,
+                        uuid=participant.call_leg_id,
+                        params={
+                            "action": "transfer",
+                            "destination": {
+                                "type": "ncco",
+                                "ncco": [
                                     {
-                                        "type": "websocket",
-                                        "uri": self.ws_server_url,
-                                        "content-type": "audio/l16;rate=8000",
-                                    }
+                                        "action": "connect",
+                                        "from": "SEEDS-ConfV2",
+                                        "endpoint": [
+                                            {
+                                                "type": "websocket",
+                                                "uri": self.ws_server_url,
+                                                "content-type": "audio/l16;rate=8000",
+                                            }
+                                        ],
+                                    },
+                                    {"action": "conversation", "name": self.conf_id},
                                 ],
                             },
-                            {"action": "conversation", "name": self.conf_id},
-                        ],
-                    },
-                },
-            )
+                        },
+                    ),
+                    timeout=_VONAGE_UPDATE_CALL_TIMEOUT_SECONDS,
+                )
+            except asyncio.TimeoutError:
+                logger_instance.warning(
+                    f"Vonage update_call (transfer) timed out after "
+                    f"{_VONAGE_UPDATE_CALL_TIMEOUT_SECONDS}s for "
+                    f"{participant.phone_number} ({participant.call_leg_id})"
+                )
+                return False
+            except Exception as e:
+                logger_instance.error(
+                    f"Vonage update_call (transfer) failed for "
+                    f"{participant.phone_number} ({participant.call_leg_id}): {e}"
+                )
+                return False
             # Say it takes 2 seconds for vonage to connect the websocket to the conference.
             # TODO: Figure out a way around this assumption
             await asyncio.sleep(2)
