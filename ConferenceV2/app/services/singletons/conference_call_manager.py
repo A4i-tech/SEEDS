@@ -35,7 +35,7 @@ class ConferenceCallManager:
 
     def _get_redis(self) -> RedisConferenceStore | None:
         settings = get_settings()
-        if settings.ENVIRONMENT != "production" or not settings.REDIS_URL:
+        if settings.ENVIRONMENT == "production" or not settings.REDIS_URL:
             return None
         if self._redis_store is None:
             self._redis_store = RedisConferenceStore()
@@ -65,12 +65,11 @@ class ConferenceCallManager:
 
     async def create_conference(self, teacher_phone: str, student_phones: List[str], leader_phone: str = None, teacher_name: str | None = None, student_names: List[str] | None = None) -> ConferenceCall:
         conf_id = str(uuid.uuid4())
-        conference_call = _build_conference_call(conf_id)
-        self._attach_redis(conference_call)
+        conference_call = self._build_conference_call(conf_id)
         conference_call.set_participant_state(teacher_phone, student_phones, leader_phone, teacher_name=teacher_name, student_names=student_names)
         conference_call.state.action_history.append(ActionHistory(
             timestamp=datetime.now().isoformat(),
-            action_type=ActionType.CONFERENCE_CREATED,
+
             metadata={
                 "teacher_phone": teacher_phone,
                 "student_phones": student_phones,
