@@ -47,17 +47,25 @@ class ConferenceCallManager:
             conference_call.redis_store = store
             conference_call.communication_api.redis_store = store
 
-    async def create_conference(self, teacher_phone: str, student_phones: List[str], leader_phone: str = None, teacher_name: str | None = None, student_names: List[str] | None = None) -> ConferenceCall:
-        conf_id = str(uuid.uuid4())
+    def _build_conference_call(self, conf_id: str) -> ConferenceCall:
         conference_call = ConferenceCall(
             conf_id=conf_id,
-            communication_api=self.communication_api_factory.create(self.communication_api_type,
-                                                                    conf_id,
-                                                                    ws_url=f"{self.ws_base_url}?id={conf_id}"),
-            connection_manager=self.smartphone_connection_manager_factory.create(self.smartphone_connection_manager_type,
-                                                                                 conf_id),
-            storage_manager=self.storage_manager
+            communication_api=self.communication_api_factory.create(
+                self.communication_api_type,
+                conf_id,
+                ws_url=f"{self.ws_base_url}?id={conf_id}",
+            ),
+            connection_manager=self.smartphone_connection_manager_factory.create(
+                self.smartphone_connection_manager_type, conf_id
+            ),
+            storage_manager=self.storage_manager,
         )
+        self._attach_redis(conference_call)
+        return conference_call
+
+    async def create_conference(self, teacher_phone: str, student_phones: List[str], leader_phone: str = None, teacher_name: str | None = None, student_names: List[str] | None = None) -> ConferenceCall:
+        conf_id = str(uuid.uuid4())
+        conference_call = _build_conference_call(conf_id)
         self._attach_redis(conference_call)
         conference_call.set_participant_state(teacher_phone, student_phones, leader_phone, teacher_name=teacher_name, student_names=student_names)
         conference_call.state.action_history.append(ActionHistory(
