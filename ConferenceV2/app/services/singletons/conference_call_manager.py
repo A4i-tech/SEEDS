@@ -33,19 +33,15 @@ class ConferenceCallManager:
         self.ws_base_url = os.environ.get("WS_SERVER_EP", "")
         self._redis_store: RedisConferenceStore | None = None
 
-    def _get_redis(self) -> RedisConferenceStore | None:
-        settings = get_settings()
-        if settings.ENVIRONMENT != "production" or not settings.REDIS_URL:
-            return None
+    def _get_redis(self) -> RedisConferenceStore:
         if self._redis_store is None:
             self._redis_store = RedisConferenceStore()
         return self._redis_store
 
     def _attach_redis(self, conference_call: ConferenceCall) -> None:
         store = self._get_redis()
-        if store is not None:
-            conference_call.redis_store = store
-            conference_call.communication_api.redis_store = store
+        conference_call.redis_store = store
+        conference_call.communication_api.redis_store = store
 
     def _build_conference_call(self, conf_id: str) -> ConferenceCall:
         conference_call = ConferenceCall(
@@ -65,8 +61,7 @@ class ConferenceCallManager:
 
     async def create_conference(self, teacher_phone: str, student_phones: List[str], leader_phone: str = None, teacher_name: str | None = None, student_names: List[str] | None = None) -> ConferenceCall:
         conf_id = str(uuid.uuid4())
-        conference_call = _build_conference_call(conf_id)
-        self._attach_redis(conference_call)
+        conference_call = self._build_conference_call(conf_id)
         conference_call.set_participant_state(teacher_phone, student_phones, leader_phone, teacher_name=teacher_name, student_names=student_names)
         conference_call.state.action_history.append(ActionHistory(
             timestamp=datetime.now().isoformat(),
@@ -122,9 +117,7 @@ class ConferenceCallManager:
 
     def delete_conference(self, conf_id: str) -> None:
         self.conferences.pop(conf_id, None)
-        store = self._get_redis()
-        if store is not None:
-            asyncio.create_task(store.delete(conf_id))
+        asyncio.create_task(self._get_redis().delete(conf_id))
 
     def get_conference_from_phone_number(self, phone_number: str) -> ConferenceCall | None:
         for conf in self.conferences.values():
@@ -135,8 +128,6 @@ class ConferenceCallManager:
 
     async def restore_from_redis(self) -> None:
         store = self._get_redis()
-        if store is None:
-            return
         conf_ids = await store.list_active()
         for conf_id in conf_ids:
             if conf_id in self.conferences:
