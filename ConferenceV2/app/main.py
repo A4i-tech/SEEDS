@@ -35,6 +35,7 @@ async def lifespan(app: FastAPI):
     # Start background task to listen for messages from Node.js
     ws = WebsocketService()
     await ws.initialize()
+    await conference_manager.restore_from_redis()
     yield
     ws.cancel_bg_processes()
     await close_mongodb_manager()

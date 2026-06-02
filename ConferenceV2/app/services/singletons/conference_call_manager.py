@@ -125,6 +125,28 @@ class ConferenceCallManager:
                 return conf
         return None
 
+    async def restore_from_redis(self) -> None:
+        store = self._get_redis()
+        if store is None:
+            return
+        conf_ids = await store.list_active()
+        for conf_id in conf_ids:
+            if conf_id in self.conferences:
+                continue
+            state = await store.load(conf_id)
+            if state is None:
+                continue
+            conference_call = self._build_conference_call(conf_id)
+            conference_call.state = state
+            self.conferences[conf_id] = conference_call
+            if state.is_running:
+                conference_call.start_processing_conf_events_from_queue()
+                conference_call.start_remote_audio_relay()
+                conference_call.restore_auto_end_timer()
+                logger_instance.info(f"Restored running conference {conf_id}")
+            else:
+                logger_instance.info(f"Restored idle conference {conf_id}")
+
     async def close(self) -> None:
         if self._redis_store is not None:
             await self._redis_store.close()
