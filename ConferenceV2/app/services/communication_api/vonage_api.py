@@ -51,9 +51,6 @@ class VonageAPI(CommunicationAPI):
         self.client = vonage.Client(
             application_id=self.application_id, private_key=self.private_key_path
         )
-        api_host = get_settings().VONAGE_API_HOST
-        if api_host:
-            self.client.api_host(api_host)
         self.participant_info_map: Dict[str, VonageParticipantInfo] = {}
         self.teacher_phone_number = None
         self.is_websocket_connected = False

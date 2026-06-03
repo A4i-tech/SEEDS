@@ -186,28 +186,3 @@ async def test_try_connecting_websocket_update_call_sdk_error():
 
         assert result is False
 
-
-def test_vonage_api_host_configuration():
-    from config import Settings
-
-    custom_settings = Settings(VONAGE_API_HOST="custom-api.nexmo.com")
-
-    with patch(
-        "app.services.communication_api.vonage_api.get_settings",
-        return_value=custom_settings,
-    ), patch("vonage.Client") as MockClient:
-        mock_client_instance = MagicMock()
-        MockClient.return_value = mock_client_instance
-
-        api = VonageAPI(
-            application_id="app-id",
-            private_key_path="private-key",
-            vonage_number="12345",
-            conf_id="conf-id",
-            ws_server_url="ws://localhost:8000",
-        )
-
-        mock_client_instance.api_host.assert_called_once_with(
-            "custom-api.nexmo.com"
-        )
-
