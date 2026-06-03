@@ -21,11 +21,8 @@ _VONAGE_RATE_LIMIT = 3  # max outbound call POSTs per second
 # can block the FastAPI event loop indefinitely (observed: 15+ minute hang on
 # GET /v1/calls/<uuid>). Used by _try_connecting_websocket_with_participant
 # below to bound the sync calls that live on the websocket-attach hot path.
-_VONAGE_GET_CALL_TIMEOUT_SECONDS = float(
-    os.environ.get("VONAGE_GET_CALL_TIMEOUT_SECONDS", "30.0")
-)
-_VONAGE_UPDATE_CALL_TIMEOUT_SECONDS = float(
-    os.environ.get("VONAGE_UPDATE_CALL_TIMEOUT_SECONDS", "30.0")
+_VONAGE_CALL_TIMEOUT_SECONDS = float(
+    os.environ.get("VONAGE_CALL_TIMEOUT_SECONDS", "30.0")
 )
 
 
@@ -132,11 +129,11 @@ class VonageAPI(CommunicationAPI):
                 asyncio.to_thread(
                     self.client.voice.get_call, uuid=participant.call_leg_id
                 ),
-                timeout=_VONAGE_GET_CALL_TIMEOUT_SECONDS,
+                timeout=_VONAGE_CALL_TIMEOUT_SECONDS,
             )
         except asyncio.TimeoutError:
             logger_instance.warning(
-                f"Vonage get_call timed out after {_VONAGE_GET_CALL_TIMEOUT_SECONDS}s "
+                f"Vonage get_call timed out after {_VONAGE_CALL_TIMEOUT_SECONDS}s "
                 f"for {participant.phone_number} ({participant.call_leg_id}); "
                 f"treating as not-answered"
             )
@@ -186,12 +183,12 @@ class VonageAPI(CommunicationAPI):
                             },
                         },
                     ),
-                    timeout=_VONAGE_UPDATE_CALL_TIMEOUT_SECONDS,
+                    timeout=_VONAGE_CALL_TIMEOUT_SECONDS,
                 )
             except asyncio.TimeoutError:
                 logger_instance.warning(
                     f"Vonage update_call (transfer) timed out after "
-                    f"{_VONAGE_UPDATE_CALL_TIMEOUT_SECONDS}s for "
+                    f"{_VONAGE_CALL_TIMEOUT_SECONDS}s for "
                     f"{participant.phone_number} ({participant.call_leg_id})"
                 )
                 return False

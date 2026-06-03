@@ -80,7 +80,6 @@ class Settings(BaseSettings):
     AUDIO_CAPTURE_SAMPLE_RATE_HZ: int = 8000
     AUDIO_CAPTURE_CHANNELS: int = 1
     AUDIO_CAPTURE_SAMPLE_WIDTH_BYTES: int = 2
-
     class Config:
         env_file = ".env"
         extra = "ignore"
