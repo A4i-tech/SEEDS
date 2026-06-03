@@ -79,6 +79,10 @@ class Settings(BaseSettings):
     AUDIO_CAPTURE_CHANNELS: int = 1
     AUDIO_CAPTURE_SAMPLE_WIDTH_BYTES: int = 2
 
+    VONAGE_GET_CALL_TIMEOUT_SECONDS: float = 30.0
+    VONAGE_UPDATE_CALL_TIMEOUT_SECONDS: float = 30.0
+    VONAGE_API_HOST: str = "api.nexmo.com"
+
     class Config:
         env_file = ".env"
         extra = "ignore"
