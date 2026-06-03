@@ -33,7 +33,7 @@ class VonageParticipantInfo(BaseModel):
     phone_number: str
     call_leg_id: str
     initial_conv_id: str
-    conference_conv_id: str = None
+    conference_conv_id: str | None = None
 
 
 class VonageAPI(CommunicationAPI):
