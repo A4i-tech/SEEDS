@@ -53,7 +53,20 @@ def mock_connection_manager():
 
 
 @pytest.fixture
-def manager(mock_storage, mock_comm_api, mock_connection_manager):
+def mock_redis_store():
+    store = AsyncMock()
+    store.save = AsyncMock()
+    store.load = AsyncMock(return_value=None)
+    store.delete = AsyncMock()
+    store.list_active = AsyncMock(return_value=[])
+    store.save_participant = AsyncMock()
+    store.get_participant = AsyncMock(return_value=None)
+    store.delete_participant = AsyncMock()
+    return store
+
+
+@pytest.fixture
+def manager(mock_storage, mock_comm_api, mock_connection_manager, mock_redis_store):
     mgr = ConferenceCallManager(
         communication_api_type=CommunicationAPIType.VONAGE,
         smartphone_connection_manager_type=SmartphoneConnectionManagerType.SSE,
@@ -61,6 +74,7 @@ def manager(mock_storage, mock_comm_api, mock_connection_manager):
     )
     mgr.communication_api_factory.create = MagicMock(return_value=mock_comm_api)
     mgr.smartphone_connection_manager_factory.create = MagicMock(return_value=mock_connection_manager)
+    mgr._redis_store = mock_redis_store
     return mgr
 
 

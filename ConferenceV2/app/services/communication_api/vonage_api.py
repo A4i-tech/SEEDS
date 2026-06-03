@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 import vonage
 from vonage.errors import ClientError
 from pydantic import BaseModel
+from requests.exceptions import ReadTimeout, ConnectionError as RequestsConnectionError
 from app.conf_logger import logger_instance
 from app.services.singletons.sas_gen import sas_gen
 
@@ -32,7 +33,7 @@ class VonageParticipantInfo(BaseModel):
     phone_number: str
     call_leg_id: str
     initial_conv_id: str
-    conference_conv_id: str = None
+    conference_conv_id: str | None = None
 
 
 class VonageAPI(CommunicationAPI):
@@ -52,9 +53,10 @@ class VonageAPI(CommunicationAPI):
         self.conf_id = conf_id
         self.vonage_conv_id = None
         self.client = vonage.Client(
-            application_id=self.application_id, private_key=self.private_key_path
+            application_id=self.application_id,
+            private_key=self.private_key_path,
         )
-        self.participant_info_map: Dict[str, VonageParticipantInfo] = {}
+        self.redis_store = None
         self.teacher_phone_number = None
         self.is_websocket_connected = False
 
@@ -91,20 +93,22 @@ class VonageAPI(CommunicationAPI):
             try:
                 vonage_resp = await asyncio.to_thread(self.client.voice.create_call, call_data)
                 logger_instance.info("VONAGE ADD PARTICIPANT RESPONSE", json.dumps(vonage_resp, indent=2))
-                self.participant_info_map[phone_number] = VonageParticipantInfo(
+                await self.redis_store.save_participant(self.conf_id, VonageParticipantInfo(
                     phone_number=phone_number,
                     call_leg_id=vonage_resp["uuid"],
                     initial_conv_id=vonage_resp["conversation_uuid"],
-                )
+                ))
                 return
             except Exception as e:
                 is_rate_limited = isinstance(e, ClientError) and "429 response from" in str(e)
-                if not is_rate_limited or attempt == max_retries - 1:
+                is_network_error = isinstance(e, (ReadTimeout, RequestsConnectionError))
+                if (not is_rate_limited and not is_network_error) or attempt == max_retries - 1:
                     logger_instance.error(f"Call failed for {phone_number}", e)
                     raise
                 delay = (2 ** attempt) + random.uniform(0, 1)
+                reason = "Rate limited" if is_rate_limited else "Network error"
                 logger_instance.warning(
-                    f"Rate limited adding {phone_number}, retry {attempt + 1}/{max_retries} in {delay:.2f}s"
+                    f"{reason} adding {phone_number}, retry {attempt + 1}/{max_retries} in {delay:.2f}s"
                 )
                 await asyncio.sleep(delay)
 
@@ -223,10 +227,7 @@ class VonageAPI(CommunicationAPI):
         logger_instance.info(
             f"Handling call transfer event - UUID: {uuid}, conversation_uuid_to: {conversation_uuid_to}"
         )
-        participant = next(
-            (p for p in self.participant_info_map.values() if p.call_leg_id == uuid),
-            None,
-        )
+        participant = await self.redis_store.get_participant_by_leg_id(self.conf_id, uuid)
         logger_instance.info(
             f"Found participant for UUID {uuid}: {participant.phone_number if participant else 'None'}"
         )
@@ -236,6 +237,7 @@ class VonageAPI(CommunicationAPI):
                 self.vonage_conv_id = conversation_uuid_to
 
             participant.conference_conv_id = conversation_uuid_to
+            await self.redis_store.save_participant(self.conf_id, participant)
             logger_instance.info(
                 f"WebSocket connected status: {self.is_websocket_connected}"
             )
@@ -287,14 +289,16 @@ class VonageAPI(CommunicationAPI):
         Ends a call by its conference ID using the Vonage API.
         """
         self.is_websocket_connected = False
-        for participant in self.participant_info_map.values():
-            call_details = self.client.voice.get_call(uuid=participant.call_leg_id)
+        for participant in (await self.redis_store.get_all_participants(self.conf_id)).values():
+            call_details = await asyncio.to_thread(self.client.voice.get_call, uuid=participant.call_leg_id)
             if call_details["status"] == "answered":
                 logger_instance.info(
                     "ENDING CALL FOR PARTICIPANT", participant.phone_number
                 )
-                self.client.voice.update_call(
-                    uuid=participant.call_leg_id, action="hangup"
+                await asyncio.to_thread(
+                    self.client.voice.update_call,
+                    uuid=participant.call_leg_id,
+                    action="hangup",
                 )
             else:
                 logger_instance.info(
@@ -308,8 +312,8 @@ class VonageAPI(CommunicationAPI):
         """
         self.is_websocket_connected = False
         while not self.is_websocket_connected:
-            for participant_ph_number in self.participant_info_map:
-                participant = self.participant_info_map[participant_ph_number]
+            participants = await self.redis_store.get_all_participants(self.conf_id)
+            for participant in participants.values():
                 if (
                     participant.conference_conv_id == self.vonage_conv_id
                 ):  # The participant is already in the conference
@@ -376,12 +380,13 @@ class VonageAPI(CommunicationAPI):
         """
         Play TTS to each active participant call leg.
         """
-        recipients = phone_numbers or list(self.participant_info_map.keys())
+        all_participants = await self.redis_store.get_all_participants(self.conf_id)
+        recipients = phone_numbers or list(all_participants.keys())
         if not recipients:
             return
 
         for phone_number in recipients:
-            participant_info = self.participant_info_map.get(phone_number)
+            participant_info = all_participants.get(phone_number)
             if not participant_info:
                 continue
             await self._play_tts_to_call_leg(participant_info.call_leg_id, text)
@@ -391,23 +396,26 @@ class VonageAPI(CommunicationAPI):
         """
         Removes a participant from an ongoing call.
         """
-        if phone_number in self.participant_info_map:
-            participant_info = self.participant_info_map[phone_number]
-            self.client.voice.update_call(
-                uuid=participant_info.call_leg_id, action="hangup"
+        participant_info = await self.redis_store.get_participant(self.conf_id, phone_number)
+        if participant_info:
+            await asyncio.to_thread(
+                self.client.voice.update_call,
+                uuid=participant_info.call_leg_id,
+                action="hangup",
             )
-
-            del self.participant_info_map[phone_number]
+            await self.redis_store.delete_participant(self.conf_id, phone_number)
 
     # client.update_call()
     async def mute_participant(self, phone_number: str):
         """
         Mutes a participant in the call.
         """
-        if phone_number in self.participant_info_map:
-            participant_info = self.participant_info_map[phone_number]
-            self.client.voice.update_call(
-                uuid=participant_info.call_leg_id, action="mute"
+        participant_info = await self.redis_store.get_participant(self.conf_id, phone_number)
+        if participant_info:
+            await asyncio.to_thread(
+                self.client.voice.update_call,
+                uuid=participant_info.call_leg_id,
+                action="mute",
             )
 
     # client.update_call()
@@ -415,8 +423,10 @@ class VonageAPI(CommunicationAPI):
         """
         Unmutes a participant in the call.
         """
-        if phone_number in self.participant_info_map:
-            participant_info = self.participant_info_map[phone_number]
-            self.client.voice.update_call(
-                uuid=participant_info.call_leg_id, action="unmute"
+        participant_info = await self.redis_store.get_participant(self.conf_id, phone_number)
+        if participant_info:
+            await asyncio.to_thread(
+                self.client.voice.update_call,
+                uuid=participant_info.call_leg_id,
+                action="unmute",
             )
