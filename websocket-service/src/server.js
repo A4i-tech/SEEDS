@@ -109,7 +109,9 @@ wss.on("connection", (ws, req) => {
     ws.on("close", () => {
       console.log(`WebSocket connection closed for ID: ${id}`);
       clearTimeout(connectionTimeout);
-      const { state } = connectionManager.getConnection(id);
+      const current = connectionManager.getConnection(id);
+      if (!current || current.ws !== ws) return;
+      const { state } = current;
       connectionManager.removeConnection(id);
 
       if (!state.isClosed) {
