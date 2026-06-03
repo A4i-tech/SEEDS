@@ -24,7 +24,10 @@ function handleControlConnection(ws, id) {
 
   ws.on("close", (code, reason) => {
     console.log(`Control WebSocket connection closed (${id}): code=${code} reason=${reason}`);
-    connectionManager.removeConnection(id);
+    const current = connectionManager.getConnection(id);
+    if (current && current.ws === ws) {
+      connectionManager.removeConnection(id);
+    }
   });
 
   ws.on("error", (error) => {

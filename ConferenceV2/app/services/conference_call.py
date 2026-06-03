@@ -13,8 +13,9 @@ from app.services.confevents.base_event import ConferenceEvent
 from app.models.participant import Participant, Role, CallStatus
 from app.models.action_history import ActionHistory, ActionType
 from app.services.communication_api import CommunicationAPI
-from app.services.storage_manager import StorageManager 
+from app.services.storage_manager import StorageManager
 from app.services.smartphone_connection_manager import SmartphoneConnectionManager
+from app.services.redis_conference_store import RedisConferenceStore
 from app.conf_logger import logger_instance
 from app.services.stream_system_messages import StreamSystemMessages
 from config import get_settings
@@ -37,6 +38,7 @@ class ConferenceCall:
         self.communication_api = communication_api
         self.storage_manager = storage_manager
         self.connection_manager = connection_manager
+        self.redis_store: RedisConferenceStore | None = None
         self.state = ConferenceCallState()
         self._system_message_streaming_service = StreamSystemMessages(conf_id=conf_id)
         
@@ -285,9 +287,9 @@ class ConferenceCall:
         raise ValueError("No teacher participant in conf call " + self.conf_id)
         
     async def update_state(self) -> None:
-        # Save state to storage
         await self.storage_manager.save_state(self.conf_id, self.state.model_dump(by_alias=True))
-        # Notify clients
+        if self.redis_store is not None:
+            await self.redis_store.save(self.conf_id, self.state)
         await self.connection_manager.send_message_to_client(client=self.state.get_teacher(),
                                                              message=self.state.model_dump(by_alias=True))
     

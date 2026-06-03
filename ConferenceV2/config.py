@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     SERVICE_BUS_TOPIC_NAME: str = ""
     OPENAI_API_KEY: str = ""
     OPENAI_ORG_ID: str = ""
+    REDIS_URL: str = ""
+    REDIS_CONFERENCE_TTL_SECONDS: int = 7200
     AUDIO_ANALYSIS_ENABLED: bool = True
     AUDIO_CAPTURE_ENABLED: bool = False
     AUDIO_CAPTURE_UPLOAD_TO_AZURE: bool = False

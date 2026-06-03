@@ -52,6 +52,7 @@ describe("ControlService", () => {
       );
 
       // Test close event
+      connectionManager.getConnection.mockReturnValue({ ws: mockWebSocket });
       mockCloseHandler(1000, "normal");
       expect(consoleSpy).toHaveBeenCalledWith(
         "Control WebSocket connection closed (confv2server): code=1000 reason=normal"
