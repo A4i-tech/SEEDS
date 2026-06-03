@@ -8,8 +8,8 @@ import json
 from dotenv import load_dotenv
 import vonage
 from vonage.errors import ClientError
-from pydantic import BaseModel
 from requests.exceptions import ReadTimeout, ConnectionError as RequestsConnectionError
+from pydantic import BaseModel
 from app.conf_logger import logger_instance
 from app.services.singletons.sas_gen import sas_gen
 
