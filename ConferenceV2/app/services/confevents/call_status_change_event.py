@@ -7,7 +7,6 @@ from app.services.confevents.teacher_disconnect_timer_event import (
     CancelTeacherDisconnectTimerEvent
 )
 from app.conf_logger import logger_instance
-from app.services.singletons.conference_call_manager import conference_manager
 
 
 class CallStatusChangeEvent(ConferenceEvent):
@@ -113,21 +112,3 @@ class CallStatusChangeEvent(ConferenceEvent):
                         await self.conf_call.queue_event(timer_event)
 
                 await self.conf_call.update_state()
-
-                # Condition-based cleanup: if conference was started, has ended,
-                # and all participants are now disconnected, free it from memory.
-                if self.conf_call._has_started and not self.conf_call.state.is_running:
-                    all_disconnected = all(
-                        p.call_status == CallStatus.DISCONNECTED
-                        for p in self.conf_call.state.participants.values()
-                    )
-                    if all_disconnected:
-                        logger_instance.info(
-                            f"All participants disconnected for ended conference "
-                            f"{self.conf_call.conf_id} — cleaning up from memory"
-                        )
-                        self.conf_call.end_processing_conf_events_from_queue()
-                        try:
-                            conference_manager.delete_conference(self.conf_call.conf_id)
-                        except KeyError:
-                            pass

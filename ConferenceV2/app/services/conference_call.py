@@ -39,7 +39,6 @@ class ConferenceCall:
         self.storage_manager = storage_manager
         self.connection_manager = connection_manager
         self.redis_store: RedisConferenceStore | None = None
-        self._has_started: bool = False
         self.state = ConferenceCallState()
         self._system_message_streaming_service = StreamSystemMessages(conf_id=conf_id)
         
@@ -260,7 +259,6 @@ class ConferenceCall:
             [student.phone_number for student in self.state.get_students()]
         )
         self.state.is_running = True
-        self._has_started = True
         self.state.hold_detected = False
         # TODO: Set CONNECTED CALL STATUS WHEN ATLEAST ONE OF THE PARTICIPANTS HAVE PICKED UP
         self.state.action_history.append(ActionHistory(
