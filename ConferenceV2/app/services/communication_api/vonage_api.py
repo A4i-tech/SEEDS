@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from requests.exceptions import ReadTimeout, ConnectionError as RequestsConnectionError
 from app.conf_logger import logger_instance
 from app.services.singletons.sas_gen import sas_gen
+from config import get_settings
 
 load_dotenv()
 
@@ -21,9 +22,7 @@ _VONAGE_RATE_LIMIT = 3  # max outbound call POSTs per second
 # can block the FastAPI event loop indefinitely (observed: 15+ minute hang on
 # GET /v1/calls/<uuid>). Used by _try_connecting_websocket_with_participant
 # below to bound the sync calls that live on the websocket-attach hot path.
-_VONAGE_CALL_TIMEOUT_SECONDS = float(
-    os.environ.get("VONAGE_CALL_TIMEOUT_SECONDS", "30.0")
-)
+_VONAGE_CALL_TIMEOUT_SECONDS = get_settings().VONAGE_CALL_TIMEOUT_SECONDS
 
 
 class VonageParticipantInfo(BaseModel):
