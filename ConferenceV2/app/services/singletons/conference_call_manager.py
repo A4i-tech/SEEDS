@@ -80,6 +80,8 @@ class ConferenceCallManager:
         conf: ConferenceCall = self.get_conference(conf_id)
         if not conf:
             raise ValueError(f"No such conference has been created; ID: {conf_id}")
+        if conf.state.is_running:
+            return
 
         conf.start_processing_conf_events_from_queue()
         conf.start_remote_audio_relay()
