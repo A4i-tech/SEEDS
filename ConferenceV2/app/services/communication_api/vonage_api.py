@@ -55,7 +55,6 @@ class VonageAPI(CommunicationAPI):
         self.client = vonage.Client(
             application_id=self.application_id,
             private_key=self.private_key_path,
-            timeout=10,
         )
         self.redis_store = None
         self.teacher_phone_number = None
