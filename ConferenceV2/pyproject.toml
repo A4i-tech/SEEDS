@@ -39,7 +39,8 @@ dependencies = [
     "openai",
     "numpy",
     "scipy",
-    "webrtcvad"
+    "webrtcvad",
+    "redis[hiredis]>=5.0"
 ]
 
 

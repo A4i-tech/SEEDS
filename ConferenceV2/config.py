@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     SERVICE_BUS_TOPIC_NAME: str = ""
     OPENAI_API_KEY: str = ""
     OPENAI_ORG_ID: str = ""
+    REDIS_URL: str = ""
+    REDIS_CONFERENCE_TTL_SECONDS: int = 7200
     AUDIO_ANALYSIS_ENABLED: bool = True
     AUDIO_CAPTURE_ENABLED: bool = False
     AUDIO_CAPTURE_UPLOAD_TO_AZURE: bool = False
@@ -78,6 +80,8 @@ class Settings(BaseSettings):
     AUDIO_CAPTURE_SAMPLE_RATE_HZ: int = 8000
     AUDIO_CAPTURE_CHANNELS: int = 1
     AUDIO_CAPTURE_SAMPLE_WIDTH_BYTES: int = 2
+
+    VONAGE_CALL_TIMEOUT_SECONDS: float = 30.0
 
     class Config:
         env_file = ".env"
