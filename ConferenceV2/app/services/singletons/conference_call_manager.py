@@ -137,6 +137,16 @@ class ConferenceCallManager:
                 continue
             conference_call = self._build_conference_call(conf_id)
             conference_call.state = state
+
+            # Rehydrate CommunicationAPI fields derived from state/participants.
+            comm_api = conference_call.communication_api
+            if hasattr(comm_api, "teacher_phone_number"):
+                comm_api.teacher_phone_number = state.teacher_phone_number
+            participants = await store.get_all_participants(conf_id)
+            conv_id = next((p.conference_conv_id for p in participants.values() if p.conference_conv_id), None)
+            if conv_id and hasattr(comm_api, "vonage_conv_id"):
+                comm_api.vonage_conv_id = conv_id
+
             self.conferences[conf_id] = conference_call
             if state.is_running:
                 conference_call.start_processing_conf_events_from_queue()
