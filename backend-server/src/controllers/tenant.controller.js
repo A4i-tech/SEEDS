@@ -2,6 +2,7 @@
 
 const { STATUS } = require("../config/constants");
 const tenantService = require("../services/tenant.service");
+const logger = require("../logger");
 
 exports.getMe = async (req, res) => {
     const tenantId = req.userId;
@@ -12,7 +13,7 @@ exports.getMe = async (req, res) => {
         }
         return res.status(STATUS.OK).json({ email: tenant.email, tenantName: tenant.tenantName });
     } catch (error) {
-        console.error("Get tenant error:", error);
+        logger.error("Get tenant error:", error);
         return res.status(STATUS.INTERNAL_ERROR).json({ message: "Internal server error" });
     }
 };
@@ -36,7 +37,7 @@ exports.getAnalytics = async (req, res) => {
         const data = await tenantService.getTenantAnalytics(tenantId, start, end);
         return res.status(STATUS.OK).json({ startDate, endDate, count: data.length, data });
     } catch (error) {
-        console.error("Tenant analytics error:", error);
+        logger.error("Tenant analytics error:", error);
         return res.status(STATUS.INTERNAL_ERROR).json({ message: "Internal server error" });
     }
 };

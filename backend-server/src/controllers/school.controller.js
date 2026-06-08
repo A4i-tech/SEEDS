@@ -2,6 +2,7 @@ const validator = require("validator");
 const { STATUS, PASSWORD_POLICY } = require("../config/constants");
 
 const schoolService = require("../services/school.service");
+const logger = require("../logger");
 
 exports.createSchool = async (req, res) => {
   try {
@@ -42,7 +43,7 @@ exports.createSchool = async (req, res) => {
 exports.getSchools = async (req, res) => {
     try {
         const tenantId = req.tenantId;
-        console.log("tenantId", tenantId);
+        logger.info("tenantId", { tenantId });
         const schools = await schoolService.getSchools(tenantId);
         return res.status(STATUS.OK).json(schools);
     } catch (error) {
@@ -106,7 +107,7 @@ exports.getSchoolAnalytics = async (req, res) => {
         const data = await schoolService.getSchoolAnalytics(schoolId, start, end);
         return res.status(STATUS.OK).json({ startDate, endDate, count: data.length, data });
     } catch (error) {
-        console.error("School analytics error:", error);
+        logger.error("School analytics error:", error);
         return res.status(STATUS.INTERNAL_ERROR).json({ message: "Internal server error" });
     }
 };

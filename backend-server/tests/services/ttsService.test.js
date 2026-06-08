@@ -9,7 +9,7 @@ const mockSDK = {
 
 jest.mock("microsoft-cognitiveservices-speech-sdk", () => mockSDK);
 jest.mock("@azure/identity", () => ({ DefaultAzureCredential: jest.fn() }));
-jest.mock("fs", () => ({ createReadStream: jest.fn() }));
+jest.mock("fs", () => ({ createReadStream: jest.fn(), existsSync: jest.fn().mockReturnValue(false) }));
 jest.mock("dotenv", () => ({ config: jest.fn() }));
 
 const ttsService = require('../../src/services/ttsService');

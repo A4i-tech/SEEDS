@@ -6,6 +6,7 @@ const CallLog = require("../models/CallLog.js");
 const FsmContext = require("../models/FsmContext.js");
 const path = require("path");
 const { tryCatchWrapper, tryCatchWrapperLog } = require(path.join("..", "util.js"));
+const logger = require("../logger");
 
 const axios = require("axios").default;
 
@@ -41,10 +42,10 @@ const router = express.Router();
 router.get(
   "/accessToken",
   tryCatchWrapper(async (req, res) => {
-    console.log(process.env.IVR_SERVER_URL);
-    console.log("HERE");
+    logger.info("IVR_SERVER_URL", { url: process.env.IVR_SERVER_URL });
+    logger.info("HERE");
     const response = await axios.get(`${process.env.IVR_SERVER_URL}conference_call/accessToken`);
-    console.log(response.data);
+    logger.info("accessToken response", { data: response.data });
     return res.json(response.data);
   })
 );
@@ -90,9 +91,9 @@ router.get(
 router.post(
   "/start",
   tryCatchWrapperLog(async (req, res) => {
-    console.log("START CALL BOD", req.body);
+    logger.info("START CALL BOD", { body: req.body });
     const response = await axios.post(`${process.env.IVR_SERVER_URL}conference_call`, req.body);
-    console.log("START CALL RESPONSE", response.data);
+    logger.info("START CALL RESPONSE", { data: response.data });
     return res.json(response.data);
   })
 );

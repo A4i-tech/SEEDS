@@ -1,6 +1,7 @@
 const controlService = require("../../src/services/controlService");
 const websocketService = require("../../src/services/websocketService");
 const connectionManager = require("../../src/services/connectionManager");
+const logger = require("../../src/logger");
 const { MessageType } = require("../../src/constants");
 
 jest.mock("../../src/services/websocketService");
@@ -65,7 +66,7 @@ describe("ControlService", () => {
       const testError = new Error("Test error");
       mockErrorHandler(testError);
       expect(errorSpy).toHaveBeenCalledWith(
-        "Control WebSocket error:",
+        "Control WebSocket error",
         testError
       );
 

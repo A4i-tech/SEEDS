@@ -166,9 +166,9 @@ describe('jobsUtils', () => {
             expect(() => cleanupTempFiles(singleFilePath)).not.toThrow();
 
             expect(console.error).toHaveBeenCalledWith(
-                'Error cleaning up file:',
-                singleFilePath[0],
-                expect.any(Error)
+                `[ERROR] Error cleaning up file: ${singleFilePath[0]}`,
+                expect.any(Error),
+                ''
             );
         });
 

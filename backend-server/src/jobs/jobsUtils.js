@@ -9,6 +9,7 @@ const path = require("path");
 const os = require("os");
 const ffmpegPath = require("ffmpeg-static");
 const ffmpeg = require("fluent-ffmpeg");
+const logger = require("../logger");
 
 /**
  * Writes a Buffer to a file.
@@ -60,7 +61,7 @@ function cleanupTempFiles(filePaths) {
         fs.unlinkSync(filePath);
       }
     } catch (err) {
-      console.error("Error cleaning up file:", filePath, err);
+      logger.error("Error cleaning up file: " + filePath, err);
     }
   }
 }

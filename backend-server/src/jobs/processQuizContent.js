@@ -8,6 +8,7 @@ const BlobService = require("../services/BlobService.js");
 const { QuizData } = require("../models/QuizData.js");
 const { textToSpeech } = require("../services/ttsService.js");
 const { addForInOptionAudio } = require("./jobsUtils.js");
+const logger = require("../logger");
 
 // Maximum job runtime: 5 minutes.
 const JOB_TIMEOUT_MS = 5 * 60 * 1000;
@@ -29,11 +30,11 @@ async function processQuizData(job) {
     }
     // Use a document instance for transformation, but upsert on save to allow edits.
     const quizDoc = new QuizData(content);
-    console.log("Processing Quiz content:", quizDoc);
+    logger.info("Processing Quiz content", { quizId: quizDoc?._id });
 
     // Fail job if it runs longer than allowed.
     const timeout = setTimeout(async () => {
-      console.error("Job timeout exceeded.");
+      logger.error("Job timeout exceeded.", null);
       job.attrs.failedAt = new Date();
       job.attrs.errorMessage = "Job exceeded timeout of 5 minutes.";
       await job.save();
@@ -43,7 +44,7 @@ async function processQuizData(job) {
     job.attrs.data.startedAt = new Date();
     await job.save();
 
-    console.log("PROCESSING QUESTIONS...");
+    logger.info("PROCESSING QUESTIONS...");
     var questionIndex = 1;
     for (const question of quizDoc.questions) {
       try {
@@ -56,7 +57,7 @@ async function processQuizData(job) {
         const questionBlobClient = outputContainerClient.getBlockBlobClient(questionBlobPath);
         await questionBlobClient.uploadStream(questionAudioStream);
         question.question.url = questionBlobClient.url;
-        console.log(`PROCESSED QUESTION INDEX: ${questionIndex} ${question.question.url}`);
+        logger.info(`PROCESSED QUESTION INDEX: ${questionIndex} ${question.question.url}`);
 
         var optionIndex = 1;
         for (const option of question.options) {
@@ -70,9 +71,9 @@ async function processQuizData(job) {
             const optionBlobClient = outputContainerClient.getBlockBlobClient(optionBlobPath);
             await optionBlobClient.uploadStream(optionAudioStream);
             option.url = optionBlobClient.url;
-            console.log(`   PROCESSED OPTION INDEX: ${optionIndex} ${option.url}`);
+            logger.info(`   PROCESSED OPTION INDEX: ${optionIndex} ${option.url}`);
           } catch (optionError) {
-            console.error(
+            logger.error(
               `Error processing option ${optionIndex} for question ${questionIndex}:`,
               optionError
             );
@@ -81,7 +82,7 @@ async function processQuizData(job) {
           optionIndex++;
         }
       } catch (questionError) {
-        console.error(`Error processing question ${questionIndex}:`, questionError);
+        logger.error(`Error processing question ${questionIndex}:`, questionError);
         question.errorMessage = questionError.message || "Unknown question error";
       }
       questionIndex++;
@@ -89,7 +90,7 @@ async function processQuizData(job) {
 
     if (quizDoc.isPullModel) {
       try {
-        console.log("PROCESSING TITLE...");
+        logger.info("PROCESSING TITLE...");
         // Generate TTS for title.
         const titleAudioStream = await textToSpeech(
           addForInOptionAudio(quizDoc.language, quizDoc.title.local),
@@ -101,15 +102,15 @@ async function processQuizData(job) {
         await titleBlobClient.uploadStream(titleAudioStream);
         quizDoc.title.audioUrl = titleBlobClient.url;
 
-        console.log("PROCESSING THEME...");
+        logger.info("PROCESSING THEME...");
         // Process theme TTS audio.
         const themeBlobName = `${quizDoc.theme.english}/1.0.mp3`;
         const themeBlobClient = themeContainerClient.getBlockBlobClient(themeBlobName);
         if (await themeBlobClient.exists()) {
           quizDoc.theme.audioUrl = themeBlobClient.url;
-          console.log("Theme URL exists.");
+          logger.info("Theme URL exists.");
         } else {
-          console.log("Creating theme audio...");
+          logger.info("Creating theme audio...");
           const themeAudioStream = await textToSpeech(
             addForInOptionAudio(quizDoc.language, quizDoc.theme.local),
             quizDoc.language,
@@ -117,10 +118,10 @@ async function processQuizData(job) {
           );
           await themeBlobClient.uploadStream(themeAudioStream);
           quizDoc.theme.audioUrl = themeBlobClient.url;
-          console.log("Theme audio uploaded.");
+          logger.info("Theme audio uploaded.");
         }
       } catch (ttsError) {
-        console.error("Error processing title or theme:", ttsError);
+        logger.error("Error processing title or theme:", ttsError);
         quizDoc.errorMessage = ttsError.message || "Unknown TTS error";
       }
     }
@@ -139,10 +140,10 @@ async function processQuizData(job) {
       processedContent,
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
-    console.log("SAVED/UPDATED QUIZ DOC (atomic upsert)");
-    console.log(`Processed JOB: ${quizDoc}`);
+    logger.info("SAVED/UPDATED QUIZ DOC (atomic upsert)");
+    logger.info(`Processed JOB`, { quizId: quizDoc?._id });
   } catch (error) {
-    console.error("Job failed due to error:", error);
+    logger.error("Job failed due to error:", error);
 
     // Mark job as failed with error details
     job.attrs.failedAt = new Date();

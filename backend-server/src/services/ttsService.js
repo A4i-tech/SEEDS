@@ -7,6 +7,7 @@ const { Buffer } = require("buffer");
 const { PassThrough } = require("stream");
 const fs = require("fs");
 const { DefaultAzureCredential } = require("@azure/identity");
+const logger = require("../logger");
 
 // Global mappings
 const translationLanguageCodeToAzureSpeechCode = {
@@ -55,7 +56,7 @@ async function getCognitiveServicesToken(resource) {
     const accessToken = await credential.getToken(resource);
     return accessToken.token;
   } catch (error) {
-    console.error("Error fetching access token for resource: " + resource, error);
+    logger.error("Error fetching access token for resource: " + resource, error);
     throw error;
   }
 }
@@ -101,7 +102,7 @@ async function textToSpeech(text, language, rate, filename) {
 
     const { languageCode, voiceName } = getTTSAttributes(language) || {};
 
-    console.log(
+    logger.info(
       `CONVERTING TEXT : ${text} TO AUDIO OF LANGUAGE CODE: ${languageCode} USING VOICE: ${voiceName} WITH SPEECH RATE: ${rate}...`
     );
 
@@ -123,7 +124,7 @@ async function textToSpeech(text, language, rate, filename) {
         ssml,
         (result) => {
           if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
-            console.log("TTS synthesis completed successfully.");
+            logger.info("TTS synthesis completed successfully.");
 
             if (filename) {
               resolve(fs.createReadStream(filename));
@@ -133,20 +134,21 @@ async function textToSpeech(text, language, rate, filename) {
               resolve(bufferStream);
             }
           } else {
-            console.error("TTS synthesis failed:", result.errorDetails);
-            reject(new Error(result.errorDetails || "Unknown error synthesizing speech"));
+            const synthError = new Error(result.errorDetails || "Unknown error synthesizing speech");
+            logger.error("TTS synthesis failed:", synthError, { errorDetails: result.errorDetails });
+            reject(synthError);
           }
           synthesizer.close();
         },
         (error) => {
-          console.error("TTS synthesis error:", error);
+          logger.error("TTS synthesis error:", error);
           synthesizer.close();
           reject(error);
         }
       );
     });
   } catch (error) {
-    console.error("Error in textToSpeech:", error);
+    logger.error("Error in textToSpeech:", error);
     throw error;
   }
 }

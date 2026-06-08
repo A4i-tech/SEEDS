@@ -28,6 +28,7 @@ const { tryCatchWrapper } = require(path.join("..", "util.js"));
 const { Binary } = require("mongodb");
 const { parse: uuidParse } = require("uuid");
 const { authenticateToken, authorizeRole } = require("../auth/authenticateToken");
+const logger = require("../logger");
 
 const TENANT_ROLE = "tenant";
 const SCHOOL_ADMIN_ROLE = "school_admin";
@@ -165,7 +166,7 @@ router.get("/jobs", authenticateToken, authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_R
     jobList.sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
     res.json({ jobs: jobList });
   } catch (error) {
-    console.error("Error fetching jobs:", error);
+    logger.error("Error fetching jobs:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -315,8 +316,7 @@ router.get(
     }).sort({ _id: -1 });
     const themeSet = new Set();
     const themes = [];
-    console.log(content.length);
-    console.log(language);
+    logger.info("themes query", { contentLength: content.length, language });
     for (const cont of content) {
       const theme = cont.theme.english;
       if (!themeSet.has(theme)) {
@@ -984,7 +984,7 @@ async function deleteBlobFromAContainer(containerName, blobNamePrefix) {
   const blobList = containerClient.listBlobsFlat({ prefix: blobNamePrefix });
   for await (const blob of blobList) {
     await containerClient.deleteBlob(blob.name, options);
-    console.log(`Deleted blob with name = ${blob.name}`);
+    logger.info(`Deleted blob with name = ${blob.name}`);
   }
 }
 
@@ -1020,11 +1020,11 @@ async function deleteUnnecessaryStorage() {
     }
     if (deleteDoc) {
       await Content.deleteOne({ id: doc.id });
-      console.log(`Deleted doc with id = ${doc.id}`);
+      logger.info(`Deleted doc with id = ${doc.id}`);
     }
     if (deleteBlob) {
       await deleteAudioBlobs(doc.id);
-      console.log(`Deleted blob with id = ${doc.id}`);
+      logger.info(`Deleted blob with id = ${doc.id}`);
     }
   }
 }
