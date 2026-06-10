@@ -3,6 +3,23 @@
  */
 
 /**
+ * Trigger a browser download for a blob
+ * @param {Blob} blob - File contents
+ * @param {string} filename - Full filename including extension
+ */
+export const downloadBlob = (blob, filename) => {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
+/**
  * Convert array of objects to CSV and trigger download
  * @param {Array} data - Array of objects to export
  * @param {Array} headers - Array of keys to use as column headers
