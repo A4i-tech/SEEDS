@@ -3,6 +3,8 @@ name: Execute Workflows
 on:
   push:
     branches: [a4i/main, a4i/staging]
+  pull_request:
+    branches: [a4i/main]
   workflow_dispatch:
 
 jobs:
@@ -18,7 +20,7 @@ jobs:
     secrets: inherit
 
   deploy-staging-workflow:
-    if: github.ref == 'refs/heads/a4i/staging'
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/a4i/staging') || github.event_name == 'pull_request'
     uses: ./.github/workflows/deploy-staging.yml
     secrets: inherit
 
