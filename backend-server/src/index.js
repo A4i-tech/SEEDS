@@ -54,6 +54,9 @@ app.use("/teacher", teacherRouter);
 app.use("/tenant", tenantRouter);
 app.use("/school", schoolRouter);
 app.use("/student", authenticateToken, studentRouter);
+// Auth is enforced inline per-route inside metaCaller.js (tts-prompt is public),
+// so mount the router without a pre-mounted authenticateToken middleware.
+app.use("/meta", metaCallerRouter);
 if (require.main === module) {
   mongo()
     .then(() => {
