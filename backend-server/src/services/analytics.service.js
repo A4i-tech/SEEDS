@@ -56,12 +56,25 @@ function parseDate(value) {
     return isNaN(date.getTime()) ? null : date;
 }
 
-/** Final status from call_status_updates ({isoTimestamp: status}); ISO keys sort chronologically. */
+/**
+ * Final status from call_status_updates ({isoTimestamp: status}); ISO keys sort chronologically.
+ * Some IVRv2 writes used dotted $set paths, nesting the fractional-second part one level deep
+ * ({"...T10:02:36": {"173000+00:00": "started"}}) — flatten those back.
+ */
 function finalCallStatus(callStatusUpdates) {
-    const keys = Object.keys(callStatusUpdates || {});
-    if (!keys.length) return null;
-    keys.sort();
-    return callStatusUpdates[keys[keys.length - 1]];
+    const entries = [];
+    for (const [key, value] of Object.entries(callStatusUpdates || {})) {
+        if (value && typeof value === "object") {
+            for (const [innerKey, innerValue] of Object.entries(value)) {
+                entries.push([`${key}.${innerKey}`, innerValue]);
+            }
+        } else {
+            entries.push([key, value]);
+        }
+    }
+    if (!entries.length) return null;
+    entries.sort(([a], [b]) => (a < b ? -1 : 1));
+    return entries[entries.length - 1][1];
 }
 
 /** Classify a call as completed | failed | dropped from its final status. */

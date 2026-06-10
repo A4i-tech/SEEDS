@@ -82,6 +82,14 @@ describe("analytics service helpers", () => {
             expect(finalCallStatus({})).toBeNull();
             expect(finalCallStatus(null)).toBeNull();
         });
+
+        test("flattens nested entries from dotted $set writes", () => {
+            const updates = {
+                "2026-01-12T10:02:36": { "173000+00:00": "started" },
+                "2026-01-12T10:04:41": { "696000+00:00": "completed" },
+            };
+            expect(finalCallStatus(updates)).toBe("completed");
+        });
     });
 
     describe("classifyCall", () => {
