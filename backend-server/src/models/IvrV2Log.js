@@ -12,10 +12,11 @@ const UserActionSchema = new mongoose.Schema(
 
 const StreamPlaybackInfoSchema = new mongoose.Schema(
   {
-    stream_id: { type: String },
-    started_at: { type: Date },
-    ended_at: { type: Date },
-    duration: { type: Number },
+    play_id: { type: String },
+    stream_url: { type: String },
+    started_at: { type: String },
+    stopped_at: { type: String },
+    done_at: { type: String },
   },
   { _id: false }
 );
