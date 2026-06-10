@@ -70,6 +70,10 @@ export const useExtendedAnalytics = () => {
 
   const exportCSV = useCallback(
     async (kind, section, startDate, endDate, filters = {}) => {
+      if (!startDate || !endDate) {
+        setError("Please select both start and end dates");
+        return;
+      }
       try {
         await analyticsService.exportAnalyticsCSV(
           kind,

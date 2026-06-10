@@ -15,9 +15,10 @@ describe("durationHelpers", () => {
       expect(formatSeconds(95.6)).toBe("1m 36s");
     });
 
-    test("returns dash for null/undefined", () => {
+    test("returns dash for null/undefined/negative", () => {
       expect(formatSeconds(null)).toBe("—");
       expect(formatSeconds(undefined)).toBe("—");
+      expect(formatSeconds(-30)).toBe("—");
     });
   });
 

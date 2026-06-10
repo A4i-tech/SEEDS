@@ -4,7 +4,7 @@
  * @returns {string}
  */
 export const formatSeconds = (totalSeconds) => {
-  if (totalSeconds === null || totalSeconds === undefined || isNaN(totalSeconds)) {
+  if (totalSeconds === null || totalSeconds === undefined || isNaN(totalSeconds) || totalSeconds < 0) {
     return "—";
   }
   const rounded = Math.round(totalSeconds);

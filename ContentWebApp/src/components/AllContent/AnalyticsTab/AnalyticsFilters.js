@@ -30,18 +30,22 @@ const AnalyticsFilters = ({
   const [teachers, setTeachers] = useState([]);
 
   useEffect(() => {
+    let active = true;
     if (isTenant) {
       schoolService
         .getSchools()
-        .then((response) => setSchools(response.data || response || []))
+        .then((response) => active && setSchools(response.data || response || []))
         .catch((err) => console.error("Unable to load schools:", err));
     }
     if (isSchoolAdmin) {
       teacherService
         .getTeachers(getAuthHeaders())
-        .then((response) => setTeachers(response || []))
+        .then((response) => active && setTeachers(response || []))
         .catch((err) => console.error("Unable to load teachers:", err));
     }
+    return () => {
+      active = false;
+    };
   }, [isTenant, isSchoolAdmin]);
 
   return (

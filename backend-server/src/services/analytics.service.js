@@ -229,6 +229,10 @@ exports.getIvrAnalytics = async (scope, range) => {
             throw error;
         }
         phoneNumbers = phoneCandidates(teacher.phoneNumber);
+    } else if (schoolId) {
+        // Restrict the query to the school's known phone numbers instead of
+        // fetching the whole tenant's logs and filtering in memory.
+        phoneNumbers = [...new Set([...map.keys()].flatMap((phone) => phoneCandidates(phone)))];
     }
 
     let logs = await ivrV2LogRepository.findForAnalytics({
