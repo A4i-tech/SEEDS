@@ -61,7 +61,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="4dp"
-                android:text="@{content.language.substring(0, 1).toUpperCase() + content.language.substring(1)}"
+                app:displayLanguage="@{content.language}"
                 app:layout_constraintBottom_toBottomOf="@+id/contact_name2"
                 app:layout_constraintLeft_toLeftOf="parent"
                 app:layout_constraintStart_toEndOf="@+id/imageView2"

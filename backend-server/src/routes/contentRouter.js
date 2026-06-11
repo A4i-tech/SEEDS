@@ -25,14 +25,14 @@ const BlobService = require("../services/BlobService.js");
 const processNewContent = require("../jobs/processAudioContent.js");
 const processQuizContent = require("../jobs/processQuizContent.js");
 const { tryCatchWrapper } = require(path.join("..", "util.js"));
-const { Binary } = require("mongodb");
-const { parse: uuidParse } = require("uuid");
 const { authenticateToken, authorizeRole } = require("../auth/authenticateToken");
+const ISO6391 = require("iso-639-1");
 
 const TENANT_ROLE = "tenant";
 const SCHOOL_ADMIN_ROLE = "school_admin";
 const TEACHER_ROLE = "teacher";
 const CONTENT_CREATOR_ROLE = "content_creator";
+
 
 // For reads — school-scoped users see their own school's content + tenant content (schoolId: null)
 function getReadSchoolIdFilter(req) {
@@ -621,7 +621,7 @@ router.patch(
   authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
     const isRegionalLanguage = (language) =>
-      typeof language === "string" && !["en", "eng", "english"].includes(language.trim().toLowerCase());
+      typeof language === "string" && language.trim().toLowerCase() !== "en";
 
     const mergeTextContent = ({ value, current, language, localOverride }) => {
       const merged = {
@@ -653,6 +653,11 @@ router.patch(
       if (value === undefined && localOverride === undefined) return;
       doc[key] = mergeTextContent({ value, current: doc[key], language, localOverride });
     };
+
+
+    if (req.body.language !== undefined && !ISO6391.validate(req.body.language)) {
+      return res.status(400).json({ error: `language must be a valid ISO 639-1 code. Received: "${req.body.language}"` });
+    }
 
     const isAudioUploaded = req.query.isAudioUploaded === "true";
     const contentId = req.body?._id;
@@ -837,6 +842,10 @@ router.post(
   authenticateToken,
   authorizeRole(TENANT_ROLE, SCHOOL_ADMIN_ROLE, CONTENT_CREATOR_ROLE),
   tryCatchWrapper(async (req, res) => {
+    if (!ISO6391.validate(req.body.language)) {
+      return res.status(400).json({ error: `language must be a valid ISO 639-1 code. Received: "${req.body.language}"` });
+    }
+
     let content = new ContentV3(req.body);
     content.tenantId = req.tenantId;
     content.createdBy = req.userId;

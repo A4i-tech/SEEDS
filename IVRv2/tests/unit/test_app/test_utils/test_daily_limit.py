@@ -104,11 +104,11 @@ from app.utils.duration_announcement import get_daily_limit_announcement
 
 class TestGetDailyLimitAnnouncement:
     def test_english_announcement(self):
-        result = get_daily_limit_announcement("english")
+        result = get_daily_limit_announcement("en")
         assert "daily listening limit" in result.lower()
 
     def test_kannada_announcement(self):
-        result = get_daily_limit_announcement("kannada")
+        result = get_daily_limit_announcement("kn")
         assert len(result) > 0
 
     def test_unknown_language_falls_back_to_default_language(self):

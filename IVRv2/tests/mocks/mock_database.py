@@ -215,7 +215,7 @@ class MockDatabase(IDatabase):
                 "_id": "valid-story-1",
                 "type": "story",
                 "description": "Kannada Story",
-                "language": "kannada",
+                "language": "kn",
                 "title": {
                     "english": "Snehitaru",
                     "local": "ನಾನು ಮತ್ತು ನನ್ನ ಶರೀರ",
@@ -243,7 +243,7 @@ class MockDatabase(IDatabase):
                 "_id": "valid-quiz-1",
                 "type": "quiz",
                 "description": "Hindi Quiz",
-                "language": "hindi",
+                "language": "hi",
                 "localTitle": "गणित प्रश्नोत्तरी",
                 "titleAudio": "https://seedsblob.blob.core.windows.net/experience-titles/30/1.0.mp3",
                 "theme": {
@@ -263,7 +263,7 @@ class MockDatabase(IDatabase):
                 "_id": "deleted-story-1",
                 "type": "story",
                 "description": "Deleted Tamil Story",
-                "language": "tamil",
+                "language": "ta",
                 "title": {
                     "english": "Old Story",
                     "local": "பழைய கதை",
@@ -291,7 +291,7 @@ class MockDatabase(IDatabase):
                 "_id": "non-pull-story-1",
                 "type": "story",
                 "description": "Non-Pull Odia Story",
-                "language": "odia",
+                "language": "or",
                 "title": {
                     "english": "Push Model Story",
                     "local": "ପୁସ୍ ମଡେଲ୍ କାହାଣୀ",
@@ -319,7 +319,7 @@ class MockDatabase(IDatabase):
                 "_id": "invalid-content-1",
                 "type": "quiz",
                 "description": "Invalid Content",
-                "language": "marathi",
+                "language": "mr",
                 "localTitle": "अवैध प्रश्नमंजुषा",
                 "titleAudio": "https://seedsblob.blob.core.windows.net/experience-titles/60/1.0.mp3",
                 "theme": {
@@ -347,7 +347,7 @@ class MockDatabase(IDatabase):
                 "_id": "test-story-1",
                 "type": "story",
                 "description": "Kannada Story",
-                "language": "kannada",
+                "language": "kn",
                 "title": {
                     "english": "Test Story",
                     "local": "ಪರೀಕ್ಷಾ ಕಥೆ",

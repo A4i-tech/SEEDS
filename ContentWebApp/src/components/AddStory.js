@@ -7,6 +7,7 @@ import { getAuthHeaders } from "../utils/authHelpers";
 import { useAuth } from "../hooks/useAuth";
 import { isMp3File } from "../utils/fileValidators";
 import { contentService } from "../services/contentService";
+import { getLanguageLabel } from "../utils/languageUtils";
 
 const AddStory = ({ content, contentType, onContentTypeChange }) => {
   const { getCurrentUser } = useAuth();
@@ -14,7 +15,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
     id: "",
     type: "Story",
     description: "",
-    language: "kannada",
+    language: "kn",
     title: { english: "", local: "", audioUrl: "" },
     theme: { english: "", local: "", audioUrl: "" },
     audioContent: [],
@@ -151,11 +152,11 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
         id: content.id,
         type: content.type || "Story",
         description: content.description || "",
-        language: (content.language || "kannada").toLowerCase(),
+        language: (content.language || "kn").toLowerCase(),
         title: {
           english: content.title?.english || "",
           local:
-            (content.language || "").toLowerCase() === "english"
+            (content.language || "").toLowerCase() === "en"
               ? content.title?.english || ""
               : content.title?.local || "",
           audioUrl: content.title?.audioUrl || "",
@@ -163,7 +164,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
         theme: {
           english: content.theme?.english || "",
           local:
-            (content.language || "").toLowerCase() === "english"
+            (content.language || "").toLowerCase() === "en"
               ? content.theme?.english || ""
               : content.theme?.local || "",
           audioUrl: content.theme?.audioUrl || "",
@@ -216,7 +217,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
     }
     // When language is not English, local theme is also required
     else if (
-      languageLower !== "english" &&
+      languageLower !== "en" &&
       (!metadata.theme.local || metadata.theme.local === "new-theme")
     ) {
       alert("Local theme cannot be empty");
@@ -231,7 +232,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
       valid = false;
     }
     //Check that localTitle is not empty if language is not english
-    else if (languageLower !== "english" && !metadata.title.local) {
+    else if (languageLower !== "en" && !metadata.title.local) {
       alert("Local Title cannot be empty");
       valid = false;
     }
@@ -270,12 +271,12 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
       type: contentType,
       title: {
         english: metadata.title.english,
-        local: languageLower === "english" ? metadata.title.english : metadata.title.local,
+        local: languageLower === "en" ? metadata.title.english : metadata.title.local,
         audioUrl: metadata.title.audioUrl,
       },
       theme: {
         english: metadata.theme.english,
-        local: languageLower === "english" ? metadata.theme.english : metadata.theme.local,
+        local: languageLower === "en" ? metadata.theme.english : metadata.theme.local,
         audioUrl: metadata.theme.audioUrl,
       },
     };
@@ -452,13 +453,13 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
           className="mintgreen"
           style={{ width: "100%", maxWidth: "300px", padding: "8px" }}
         >
-          <option value="kannada">Kannada</option>
-          <option value="hindi">Hindi</option>
-          <option value="marathi">Marathi</option>
-          <option value="odia">Odia</option>
-          <option value="english">English</option>
-          <option value="tamil">Tamil</option>
-          <option value="bengali">Bengali</option>
+          <option value="kn">Kannada</option>
+          <option value="hi">Hindi</option>
+          <option value="mr">Marathi</option>
+          <option value="or">Odia</option>
+          <option value="en">English</option>
+          <option value="ta">Tamil</option>
+          <option value="bn">Bengali</option>
         </select>
       </div>
 
@@ -466,7 +467,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
         style={{
           display: "grid",
           gridTemplateColumns:
-            metadata.language === "english" ? "1fr" : "1fr 1fr",
+            metadata.language === "en" ? "1fr" : "1fr 1fr",
           gap: "20px",
           marginBottom: "25px",
         }}
@@ -499,7 +500,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
             </option>
           </select>
         </div>
-        {metadata.language !== "english" && (
+        {metadata.language !== "en" && (
           <div>
             <label
               style={{
@@ -509,7 +510,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
                 textTransform: "capitalize",
               }}
             >
-              {metadata.language} Theme
+              {getLanguageLabel(metadata.language)} Theme
             </label>
             <select
               name="localTheme"
@@ -550,9 +551,9 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
                 placeholder="Enter new theme in English"
               />
             </div>
-            {metadata.language !== "english" && (
+            {metadata.language !== "en" && (
               <div className="form-group">
-                <label className="form-label form-label-required">New {metadata.language.charAt(0).toUpperCase() + metadata.language.slice(1)} Theme</label>
+                <label className="form-label form-label-required">New {getLanguageLabel(metadata.language)} Theme</label>
                 <input
                   type="text"
                   value={metadata.theme.local}
@@ -563,7 +564,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
                     })
                   }
                   className="form-input"
-                  placeholder={`Enter new theme in ${metadata.language}`}
+                  placeholder={`Enter new theme in ${getLanguageLabel(metadata.language)}`}
                 />
               </div>
             )}
@@ -587,14 +588,14 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
               }
             />
           </div>
-          {metadata.language !== "english" && (
+          {metadata.language !== "en" && (
             <div className="form-group">
-              <label className="form-label form-label-required">{metadata.language.charAt(0).toUpperCase() + metadata.language.slice(1)} Title</label>
+              <label className="form-label form-label-required">{getLanguageLabel(metadata.language)} Title</label>
               <input
                 type="text"
                 name="titleLocal"
                 className="form-input"
-                placeholder={`Enter title in ${metadata.language}`}
+                placeholder={`Enter title in ${getLanguageLabel(metadata.language)}`}
                 value={metadata.title.local}
                 onChange={(event) =>
                   setMetadata({ ...metadata, title: { ...metadata.title, local: event.target.value } })
@@ -608,7 +609,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
       {Object.keys(titlesUnderTheme).length > 0 && !newTheme && (
         <div className="existing-titles">
           <label className="existing-titles-label">
-            Existing Titles under "{metadata.theme.english}" in {metadata.language}:
+            Existing Titles under "{metadata.theme.english}" in {getLanguageLabel(metadata.language)}:
           </label>
           <ul className="existing-titles-list">
             {Object.entries(titlesUnderTheme).map(([englishTitle, localTitle], index) => (

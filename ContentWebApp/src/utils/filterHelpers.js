@@ -1,3 +1,5 @@
+import { getLanguageLabel } from "./languageUtils";
+
 /**
  * Generate filter options from content list
  * @param {Array} contentList - Array of content items
@@ -7,14 +9,14 @@ export const generateFilterOptions = (contentList) => {
   if (!Array.isArray(contentList)) {
     throw new Error("generateFilterOptions: contentList must be an array");
   }
-  
+
   const languageSet = new Set();
   const experienceSet = new Set();
 
   contentList.forEach((contentItem) => {
     if (!contentItem) return;
     if (contentItem.language) {
-      languageSet.add(contentItem.language.charAt(0).toUpperCase() + contentItem.language.slice(1));
+      languageSet.add(getLanguageLabel(contentItem.language));
     }
     if (contentItem.type) {
       experienceSet.add(contentItem.type.charAt(0).toUpperCase() + contentItem.type.slice(1));
@@ -47,15 +49,15 @@ export const applyFilters = (allContent, selectedFilters, allOptions) => {
   if (!Array.isArray(allContent)) {
     throw new Error("applyFilters: allContent must be an array");
   }
-  
+
   if (!Array.isArray(selectedFilters)) {
     selectedFilters = [];
   }
-  
+
   if (!Array.isArray(allOptions)) {
     allOptions = [];
   }
-  
+
   let langs = selectedFilters
     .filter((option) => option && option.category === "Language")
     .map((option) => option.name.toLowerCase());
@@ -83,7 +85,7 @@ export const applyFilters = (allContent, selectedFilters, allOptions) => {
       contentItem &&
       contentItem.language &&
       contentItem.type &&
-      langs.includes(contentItem.language.toLowerCase()) &&
+      langs.includes(getLanguageLabel(contentItem.language).toLowerCase()) &&
       exps.includes(contentItem.type.toLowerCase())
   );
 };

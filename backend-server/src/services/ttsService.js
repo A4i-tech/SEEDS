@@ -19,16 +19,6 @@ const translationLanguageCodeToAzureSpeechCode = {
   or: "or-IN",
 };
 
-const humanLanguageCodeToTranslationLanguageCode = {
-  english: "en",
-  kannada: "kn",
-  hindi: "hi",
-  marathi: "mr",
-  tamil: "ta",
-  bengali: "bn",
-  odia: "or",
-};
-
 const voiceName = {
   "en-IN": "en-IN-NeerjaNeural",
   "kn-IN": "kn-IN-SapnaNeural",
@@ -40,12 +30,8 @@ const voiceName = {
 };
 
 function getTTSAttributes(language) {
-  const translationCode = humanLanguageCodeToTranslationLanguageCode[language.toLowerCase()];
-  if (!translationCode) return null; // Language not found
-
-  const languageCode = translationLanguageCodeToAzureSpeechCode[translationCode];
+  const languageCode = translationLanguageCodeToAzureSpeechCode[language.toLowerCase()];
   const voice = voiceName[languageCode];
-
   return languageCode && voice ? { languageCode, voiceName: voice } : null;
 }
 

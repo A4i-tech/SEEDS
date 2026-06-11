@@ -36,7 +36,7 @@ def fsm_with_limit():
     content_state = State(
         state_id="content",
         actions=[TalkAction(text="Playing audio"), InputAction(type_=["dtmf"], eventApi="/input")],
-        pre_operation=DailyLimitPreOperation(duration_seconds=180, language="english", school_id="school-1"),
+        pre_operation=DailyLimitPreOperation(duration_seconds=180, language="en", school_id="school-1"),
     )
 
     fsm.add_state(menu_state)

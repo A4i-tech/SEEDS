@@ -14,7 +14,7 @@ from app.utils.model_classes import Menu
 from app.utils.model_classes import Option
 from app.utils.pure_audio_model_classes import PureAudioData
 from app.utils.duration_announcement import format_duration_announcement
-from app.utils.ivr_utils import get_vonage_language_code
+from app.utils.ivr_utils import get_vonage_language_code, get_blob_language_name
 from app.fsm.operations.daily_limit_pre_operation import DailyLimitPreOperation
 from app.utils.speed_control import get_speed_instruction
 from app.utils.pause_announcement import get_pause_instruction
@@ -52,7 +52,8 @@ class PureAudio:
         actions = []
 
         # Build and add a "going to be played" dialog action.
-        going_to_play_url = audioGoingTobePlayedDialogUrl.replace("{language}", self.language).replace("{speechRate}", self.speechRate)
+        blob_lang = get_blob_language_name(self.language)
+        going_to_play_url = audioGoingTobePlayedDialogUrl.replace("{language}", blob_lang).replace("{speechRate}", self.speechRate)
         actions.append(StreamAction(pullMenuMainUrl + going_to_play_url))
 
         # Add duration announcement if available
