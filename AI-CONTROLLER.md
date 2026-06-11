@@ -12,12 +12,13 @@
 │                        FRONTEND                                 │
 │  VoiceCommandButton.jsx                                         │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │  🎤 Voice Input ──► Whisper STT ──► transcript           │   │
+│  │  🎤 Voice Input ──► Azure STT ──► transcript             │   │
+│  │     (WebM ──ffmpeg──► WAV 16k ──► Azure Speech REST)      │   │
 │  │  ⌨️  Text Input ──────────────────► transcript           │   │
 │  └──────────────┬───────────────────────────────────────────┘   │
 │                 │ POST /meta/text-command  { command, context }  │
 │                 │ POST /meta/voice-command { audio, context }    │
-│                 │   context: { activeConferenceId }              │
+│                 │   context: { activeConferenceId, history[2] }  │
 │                 ▼                                                │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │  voiceCommandService.js                                   │   │
@@ -50,14 +51,15 @@
 │  meta.controller.js (orchestrator)                               │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │  getUserInfo(req, context) → { phoneNumber, tenantId,    │   │
-│  │    userId, schoolId, name, activeConferenceId }           │   │
+│  │    userId, schoolId, name, activeConferenceId, history }  │   │
 │  │    ← JWT fields + frontend context merged                 │   │
+│  │  buildTranscriptionHint() → class+student names for STT  │   │
 │  │  Phase 1: REASON  ─► LLM reasons about intent + steps    │   │
 │  │    ↳ if canAutoResolve===false → skip to TTS directly    │   │
 │  │  Phase 2: PLAN    ─► LLM generates executable API calls  │   │
 │  │  Phase 3: EXECUTE ─► Sequential internal API calls       │   │
 │  │    ↳ /call/conference/* → flagged PENDING_CLIENT         │   │
-│  │  Phase 4: SPEAK   ─► LLM summary → Murf.ai TTS → audio  │   │
+│  │  Phase 4: SPEAK   ─► LLM summary → Azure TTS → audio    │   │
 │  └──────────────────────────────────────────────────────────┘   │
 │                                                                  │
 │  meta.service.js (engine)                                        │
@@ -68,11 +70,14 @@
 │  │    - students (Student model, filter by schoolId)  ✨     │   │
 │  │  • reasonAboutCommand()       → Groq LLM reasoning       │   │
 │  │  • planCommands()             → Groq LLM planning        │   │
+│  │    (LLM stays on Groq Llama; only STT+TTS moved to Azure)│   │
 │  │  • normalizePlan()            → Validate + resolve vars  │   │
 │  │  • executeCommands()          → axios calls against self  │   │
 │  │    ↳ /call/conference/* → returns requiresClientExecution│   │
-│  │  • generateSpokenSummary()    → LLM spoken text          │   │
-│  │  • synthesizeSpeech()         → Murf.ai TTS → base64     │   │
+│  │  • transcribeAudio()          → ffmpeg→WAV → Azure STT   │   │
+│  │  • formatHistory()            → last 2 turns → prompt ✨ │   │
+│  │  • generateSpokenSummary()    → LLM spoken text (no IDs) │   │
+│  │  • synthesizeSpeech()         → Azure TTS (SSML→MP3 b64) │   │
 │  └──────────────────────────────────────────────────────────┘   │
 └──────────────────────────────────────────────────────────────────┘
                            │  HTTP (from browser only)
@@ -124,7 +129,8 @@ Each class includes populated student/leader details (name + phone) for conferen
   - _id: "69cbac77..." | name: "Grade 7" | students: [{"name":"Ananya","phone":"9112233445"}] | leaders: []
 
 ═══ TEACHER'S EXISTING STUDENTS ═══
-When adding a student or leader to a class, ONLY use these exact mapped PHONE NUMBERS:
+When adding a student or leader to a class, use ONLY these mapped PHONE NUMBERS.
+Names come from speech transcription — match the CLOSEST student phonetically:
   - name: "Ananya" | phone: "9112233445"
 ```
 
@@ -136,6 +142,9 @@ When adding a student or leader to a class, ONLY use these exact mapped PHONE NU
     - Resolves natively because `activeConferenceId` is injected into the context by the frontend hook `useConference()`.
 - `"mute all"` / `"unmute all"` → PUT /call/conference/muteall or /unmuteall
 - `"how do I..."` / `"explain..."` → conversational → `canAutoResolve: false`
+- **Fuzzy student matching** ✨ — transcribed names may be accent-/spelling-mangled (e.g. `"Phonet" → "Punit"`). The reasoner picks the closest existing student by phonetic similarity; refuses only when no student is a reasonable match. It NEVER creates a new student (see [Student Management](#student-management)).
+- **Help / capabilities** ✨ — `"what can you do?"`, `"help"`, `"navigation options"` → `canAutoResolve: false` with `unresolvedNote` set to a fixed capability list (no route exists to fetch this). Phase 4 reads it aloud.
+- **Conversation memory** ✨ — the last 2 turns are injected so references like `"add Punit to it"`, `"the last class"`, or answers to a previously-asked clarifying question resolve correctly. See [Conversation Memory](#conversation-memory).
 
 ### Phase 2: Planning (`planCommands`)
 
@@ -192,9 +201,42 @@ After execution (or directly after Phase 1 if `canAutoResolve: false`), the syst
 **What happens:**
 1. Execution results are summarized into context
 2. A 3rd LLM call produces a short conversational spoken summary (1-2 sentences)
-3. Sent to **Murf.ai** (`synthesizeSpeech`) → binary audio → base64
+3. Wrapped in SSML and sent to **Azure TTS** (`synthesizeSpeech`) → MP3 audio (`audio-24khz-48kbitrate-mono-mp3`) → base64
 4. Both `spokenSummary` and `audioBase64` are included in the API response
 5. Phase 4 is **non-blocking** — failure does not break execution results
+
+> 🔇 **No raw IDs in speech.** The TTS prompt forbids reading out ObjectIds / hex / UUID-like strings (e.g. "…with ID 6a2a5f7b…"). Things are referred to by human name only. Note: the LLM still *sees* `_id`s in the results context — this is a prompt-level guard, not a hard strip.
+
+---
+
+## Speech-to-Text (Azure)
+
+STT runs on **Azure Speech Services** (REST short-audio endpoint).
+
+**Pipeline:** the browser records `audio/webm` (Opus). Azure short-audio REST accepts only WAV-PCM or OGG-Opus, so `transcribeAudio()` decodes the buffer to raw 16 kHz mono PCM via bundled **ffmpeg** (`ffmpeg-static` + `fluent-ffmpeg`), wraps it in a 44-byte WAV header, then POSTs to:
+
+```
+https://<TTS_REGION>.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=en-US
+  header: Ocp-Apim-Subscription-Key: <TTS_SUBSCRIPTION_KEY>
+  header: Content-Type: audio/wav; codecs=audio/pcm; samplerate=16000
+→ { RecognitionStatus, DisplayText, ... }
+```
+
+- `transcribeAudio(buffer, mimetype, promptHint)` — `promptHint` is accepted for signature compat but **ignored**: Azure short-audio REST has no prompt/phrase-bias parameter.
+- ⚠️ **Biasing regression vs Whisper:** the old Groq-Whisper path biased recognition with a SEEDS glossary + class/student names. Azure REST can't consume that hint. Proper-noun disambiguation is now handled entirely **downstream** by the reasoning LLM's phonetic fuzzy-match rule (see [Fuzzy student matching](#)). The `buildTranscriptionHint()` DB round-trips were removed from the controller (latency win). To restore STT-level biasing, switch to the Azure Speech SDK with `PhraseListGrammar`.
+
+---
+
+## Conversation Memory ✨
+
+The pipeline is otherwise **stateless** — each `callLLM()` sends only `[system, user]`, no prior turns. To resolve references (`"it"`, `"that class"`, `"him"`, `"the last one"`) and continue clarification loops, the **last 2 turns** are passed back to the reasoner and planner.
+
+**Flow:**
+1. **Frontend** (`VoiceCommandButton.jsx`) — `historyRef` keeps the last 2 successful turns `{ transcript, spokenSummary }` (`.slice(-2)`); recorded via `recordTurn()` after each success, cleared on dialog reset. Sent as `context.history`.
+2. **Service forwarding** — `context` (incl. `history`) is serialized into the request body; `getUserInfo()` merges it into `userInfo.history`.
+3. **Backend** — `formatHistory(userInfo.history)` renders a `RECENT CONVERSATION` block injected via `{{history}}` into both `REASONING_PROMPT` and `PLANNING_PROMPT`. The current transcript is always the latest message; history is for context only.
+
+> Double-capped at 2 (frontend + `formatHistory` both `.slice(-2)`) defensively. History is scoped to one dialog session and reset when the assistant is closed.
 
 ---
 
@@ -218,6 +260,7 @@ Auth is now enforced **inline per-route** inside `metaCaller.js` (not pre-mounte
 
 **Injected Context Fields (Frontend → Backend Contextual Body):**
 - `activeConferenceId` — Captured from `useConference()` dynamically inside `VoiceCommandButton.jsx`. Prevents AI from failing when commanding endpoints like `PUT /call/conference/end/:confId`.
+- `history` ✨ — Last 2 conversation turns `[{ transcript, spokenSummary }]` for reference resolution. See [Conversation Memory](#conversation-memory).
 
 ---
 
@@ -249,9 +292,10 @@ The backend connects to MongoDB `SEEDS-Teacher-Backend`. Key collections used by
 | `src/routes/classRouter.js` | Class CRUD — resolves phone numbers → Student ObjectIds on POST ✨ |
 | `src/routes/callRouter.js` | Legacy IVR proxy + ConferenceV2 proxy routes |
 | `src/controllers/meta.controller.js` | Orchestrator: 4-phase pipeline, canAutoResolve short-circuit ✨ |
-| `src/services/meta.service.js` | Engine: Groq LLM, MongoDB pre-fetch, conference delegation ✨ |
+| `src/services/meta.service.js` | Engine: Groq LLM, MongoDB pre-fetch, conference delegation, STT bias, fuzzy name match, help intent, conversation history, no-ID TTS ✨ |
+| `docs/STUDENT_ROUTES_ACCESS.md` | Policy doc: students are `school_admin`-only; AI cannot create/edit/delete ✨ |
 | `src/auth/authenticateToken.js` | JWT middleware — sets `req.userId`, `req.schoolId`, `req.tenantId` |
-| `src/config/env.js` | Environment config: exports `confServerUrl`, `groqApiKey`, `murfApiKey`, etc. |
+| `src/config/env.js` | Environment config: exports `confServerUrl`, `groqApiKey`, `azureSpeechRegion`, `azureSpeechKey`, etc. |
 
 ---
 
@@ -261,7 +305,7 @@ The backend connects to MongoDB `SEEDS-Teacher-Backend`. Key collections used by
 
 A floating UI component (FAB button) providing two input modes:
 
-1. **Voice Input:** Records audio → `/meta/voice-command` → Whisper transcribes → LLM processes
+1. **Voice Input:** Records audio → `/meta/voice-command` → Azure STT transcribes → LLM processes
 2. **Text Input:** User types → `/meta/text-command` → LLM processes
 
 **State machine:**
@@ -291,8 +335,8 @@ After *any* successful command execution (voice or text), `storeConferenceIdFrom
 
 | Function | Purpose |
 |---|---|
-| `sendVoiceCommand(blob, context)` | POST to `/meta/voice-command` with `context` (includes `activeConferenceId`) |
-| `sendTextCommand(text, context)` | POST to `/meta/text-command` with `context` |
+| `sendVoiceCommand(blob, context)` | POST to `/meta/voice-command` with `context` (includes `activeConferenceId`, `history`) |
+| `sendTextCommand(text, context)` | POST to `/meta/text-command` with `context` (includes `activeConferenceId`, `history`) |
 | `transcribeAudio(blob)` | POST to `/meta/transcribe` |
 | `fetchTTSPrompt(type)` | POST to `/meta/tts-prompt` |
 | `executeClientCommands(results)` ✨ | Execute PENDING_CLIENT conference steps directly against ConferenceV2 |
@@ -313,7 +357,9 @@ The AI assistant is branded as **"Seeds"** — a friendly teaching assistant per
 | Function | Purpose |
 |---|---|
 | `formatResult(cmd, res)` | Converts raw API response into user-friendly display cards |
-| `getNavigationTarget(cmds, res)` | Determines post-command navigation (content → `/content/:id`, conference → `/class/:id` with `autoStart` state) |
+| `getNavigationTarget(cmds, res)` | Determines post-command navigation (content → `/content/:id`, conference → `/class/:id` with `autoStart` state, **new class created → `/classrooms/detail/:newId` "Go to {room name}"** ✨) |
+
+> ✨ **New-classroom navigation:** A successful `POST /class/` create (response carries `_id` + `name`) now returns a `Go to {room name}` button targeting that room's detail page, instead of the generic "Go to Classrooms" list. The button is the opt-in ("ask"), the click is "yes" — no `autoNavigate`.
 
 ---
 
@@ -328,12 +374,15 @@ The AI assistant is branded as **"Seeds"** — a friendly teaching assistant per
 | DELETE | `/class/:classId` | Delete a classroom |
 
 ### Student Management
-| Method | Route | Description |
-|---|---|---|
-| GET | `/student/` | List students for the school (requires schoolId from JWT) |
-| POST | `/student/` | Create a student |
-| PATCH | `/student/:id` | Update a student |
-| DELETE | `/student/:id` | Delete a student |
+
+> ⚠️ **The AI controller can NEVER create, edit, or delete students.** Mutation routes are restricted to `school_admin` via `authorizeRole`, and the planner prompt explicitly forbids planning a student create/add/edit/delete (rule 5). Phantom `/v1/teacher/students` and `/v1/teacher/add-students` endpoints were removed from the prompts — they never existed. The AI may only **read** students and reference existing ones (by phone) when building a class. See `docs/STUDENT_ROUTES_ACCESS.md`.
+
+| Method | Route | Description | AI access |
+|---|---|---|---|
+| GET | `/student/` | List students for the school (requires schoolId from JWT) | ✅ read only |
+| POST | `/student/` | Create a student | ❌ `school_admin` only |
+| PATCH | `/student/:id` | Update a student | ❌ `school_admin` only |
+| DELETE | `/student/:id` | Delete a student | ❌ `school_admin` only |
 
 ### Teacher Management
 | Method | Route | Description |
@@ -425,6 +474,32 @@ Execute      → PUT /call/conference/end/conf_abc → 200
 Phase 4      → "The conference has been ended."
 ```
 
+### Reference Resolution: "Add Punit" → then "add him as leader too" ✨
+```
+Turn 1: "add Punit to test22"
+  History sent: [] → resolves normally → records turn
+Turn 2: "add him as leader too"
+  History sent: [{ transcript:"add Punit to test22", spokenSummary:"Added Punit to test22." }]
+  Reasoning → {{history}} resolves "him" = Punit, "test22" carried over
+  Plan      → POST /class/ update test22 leaders += Punit's phone
+```
+
+### Help: "What can you do?" ✨
+```
+Reasoning → intent: "capabilities", canAutoResolve: false
+            unresolvedNote: fixed capability list
+SHORT-CIRCUIT → skip Phase 2 & 3
+Phase 4   → reads the command menu aloud
+```
+
+### New Class: "Create a class called Grade 9"
+```
+Plan     → [{ POST /class/, body: { name:"Grade 9", students:[], leaders:[], contentIds:[] } }]
+Execute  → 200 → { _id:"66f…", name:"Grade 9" }
+Phase 4  → "Your new class Grade 9 has been created."  (no ID spoken)
+Frontend → getNavigationTarget() → button "Go to Grade 9" → /classrooms/detail/66f…
+```
+
 ### Compound: "Delete all classrooms"
 ```
 Plan    → [{ GET /class/ }, { DELETE /class/{{step1.data[]}}, forEach: true }]
@@ -440,10 +515,11 @@ Execute → Step 1: GET /class/ → [{ _id: "abc" }, { _id: "def" }]
 ### Backend (`backend-server/.env`)
 | Variable | Purpose | Required |
 |---|---|---|
-| `GROQ_API_KEY` | Groq Cloud API key for LLM (Llama 3.3) and Whisper STT | Yes |
-| `MURF_API_KEY` | Murf.ai API key for TTS audio synthesis | For TTS |
+| `GROQ_API_KEY` | Groq Cloud API key for the LLM (Llama 3.3) reasoning/planning/summary calls | Yes |
+| `TTS_REGION` | Azure Speech resource region (e.g. `centralindia`) — powers both STT and TTS | For STT/TTS |
+| `TTS_SUBSCRIPTION_KEY` | Azure Speech subscription key | For STT/TTS |
+| `TTS_VOICE` | Azure neural voice name (default: `en-US-AvaNeural`) | No |
 | `LLM` | LLM model name (default: `llama-3.3-70b-versatile`) | No |
-| `STT_MODEL` | Speech-to-text model (default: `whisper-large-v3-turbo`) | No |
 | `CONF_SERVER_URL` | ConferenceV2 server URL — used only by legacy call proxy routes | Legacy |
 | `MONGODB_URI` | MongoDB connection string pointing to `SEEDS-Teacher-Backend` | Yes |
 | `SECRET_KEY` | JWT signing secret | Yes |
@@ -526,7 +602,9 @@ VoiceCommandButton                     Backend                          Classroo
 
 #### Point A: `getNavigationTarget()` may return `null`
 
-**File:** `commandResultFormatter.js:77-148`
+**File:** `commandResultFormatter.js` (`getNavigationTarget`)
+
+> Note: line numbers below predate the new-classroom-navigation block (a `POST /class/` create check now sits just before the generic `/class` fallback). The conference logic and the analysis below are unchanged; offsets shifted by a few lines.
 
 The function iterates through `commands[]` and `results[]` in order, looking for:
 1. A `GET /class/:id` command to extract `classIdSearchResult`

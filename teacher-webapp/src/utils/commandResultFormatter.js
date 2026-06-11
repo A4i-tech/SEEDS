@@ -136,6 +136,15 @@ export function getNavigationTarget(commands, results) {
       return { label: "Go to Content", path: ROUTES.CONTENT };
     }
 
+    // New classroom created -> offer to navigate directly to it (POST with no _id = create)
+    if (path.match(/\/class\/?$/) && cmd.method === "POST" && res?.status < 300 && res?.data?._id) {
+      const roomName = res.data.name || "new classroom";
+      return {
+        label: `Go to ${roomName}`,
+        path: ROUTES.CLASSROOM_DETAIL(res.data._id),
+      };
+    }
+
     if (path.match(/\/class/)) {
       return { label: "Go to Classrooms", path: ROUTES.CLASSROOMS };
     }

@@ -24,7 +24,6 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 
  *       - "List all content in English"
  *       - "Get all available themes in Hindi"
  *       - "Show me tenant names"
- *       - "Add a student named Rahul with phone number 9876543210"
  *       - "Delete class with ID 661abc123def"
  *       - "Get my teacher profile"
  *     tags: [Meta]
@@ -60,15 +59,15 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 
  *                     properties:
  *                       method:
  *                         type: string
- *                         example: POST
+ *                         example: GET
  *                       path:
  *                         type: string
- *                         example: /v1/teacher/students
+ *                         example: /class/
  *                       body:
  *                         type: object
  *                       description:
  *                         type: string
- *                         example: Get all students for current teacher
+ *                         example: Get all classrooms for current teacher
  *                 results:
  *                   type: array
  *                   items:
@@ -136,7 +135,6 @@ router.post("/transcribe", authenticateToken, upload.single("audio"), tryCatchWr
  *       - "Get all my classrooms and also show me my students"
  *       - "Show me my profile and list all content themes in Hindi"
  *       - "Get all teachers in my school and then get all the students"
- *       - "Add a student named Ravi with phone 9876543210 and then show me all my students"
  *       - "List all tenant names and then get my teacher profile"
  *       - "Get English content and also get Hindi themes"
  *     tags: [Meta]

@@ -89,7 +89,7 @@ async function processCommand(transcript, req, context = {}) {
     console.log("[meta] Spoken summary:", spokenSummary);
 
     if (spokenSummary) {
-      console.log("[meta] Phase 4b: Synthesizing speech via Murf.ai...");
+      console.log("[meta] Phase 4b: Synthesizing speech via Azure TTS...");
       audioBase64 = await metaService.synthesizeSpeech(spokenSummary);
       console.log("[meta] TTS audio:", audioBase64 ? `${audioBase64.length} chars base64` : "skipped");
     }
@@ -108,7 +108,7 @@ exports.voiceCommand = async (req, res) => {
 
   console.log("[meta] Received audio:", req.file.mimetype, req.file.size, "bytes");
 
-  // Transcribe
+  // Transcribe via Azure STT (proper-noun matching handled by reasoning LLM)
   console.log("[meta] Transcribing audio...");
   const transcript = await metaService.transcribeAudio(req.file.buffer, req.file.mimetype);
   console.log("[meta] Transcript:", transcript);

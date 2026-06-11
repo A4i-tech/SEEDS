@@ -1,17 +1,70 @@
 "use strict";
 const axios = require("axios");
-const FormData = require("form-data");
+const { Readable, PassThrough } = require("stream");
+const ffmpeg = require("fluent-ffmpeg");
+const ffmpegPath = require("ffmpeg-static");
 const { ContentV3 } = require("../models/ContentV3");
 const ClassRoom = require("../models/Class");
 const Student = require("../models/Student");
-const { murfApiKey, groqApiKey, sttModel, llm } = require("../config/env");
+const { groqApiKey, llm, azureSpeechRegion, azureSpeechKey, azureTtsVoice } = require("../config/env");
 
+if (ffmpegPath) ffmpeg.setFfmpegPath(ffmpegPath);
+
+// LLM (reasoning/planning/summary) still runs on Groq Llama. Only STT + TTS moved to Azure.
 const GROQ_API_KEY = groqApiKey;
-const MURF_API_KEY = murfApiKey;
-const STT_MODEL = sttModel || "whisper-large-v3-turbo";
 const LLM = llm || "llama-3.3-70b-versatile";
 const GROQ_BASE = "https://api.groq.com/openai/v1";
-const MURF_API_URL = "https://api.murf.ai/v1/speech/stream";
+
+// Azure Speech Services — one resource (region + subscription key) serves STT and TTS.
+const AZURE_REGION = azureSpeechRegion;
+const AZURE_KEY = azureSpeechKey;
+const AZURE_TTS_VOICE = azureTtsVoice || "en-US-AvaNeural";
+const AZURE_STT_URL = AZURE_REGION
+  ? `https://${AZURE_REGION}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=en-US`
+  : null;
+const AZURE_TTS_URL = AZURE_REGION
+  ? `https://${AZURE_REGION}.tts.speech.microsoft.com/cognitiveservices/v1`
+  : null;
+
+// Browser records WebM/Opus; Azure short-audio STT REST accepts only WAV-PCM or OGG-Opus.
+// Decode any input container to raw 16 kHz mono PCM (s16le) via bundled ffmpeg, then wrap WAV.
+function decodeToPcm(buffer) {
+  return new Promise((resolve, reject) => {
+    const out = new PassThrough();
+    const chunks = [];
+    out.on("data", (c) => chunks.push(c));
+    out.on("end", () => resolve(Buffer.concat(chunks)));
+    out.on("error", reject);
+    ffmpeg(Readable.from(buffer))
+      .audioChannels(1)
+      .audioFrequency(16000)
+      .audioCodec("pcm_s16le")
+      .format("s16le")
+      .on("error", reject)
+      .pipe(out, { end: true });
+  });
+}
+
+// Wrap raw PCM in a 44-byte WAV header (16-bit mono 16 kHz) — avoids ffmpeg seek issues on pipe output.
+function pcmToWav(pcm, sampleRate = 16000, channels = 1, bitsPerSample = 16) {
+  const blockAlign = (channels * bitsPerSample) / 8;
+  const byteRate = sampleRate * blockAlign;
+  const header = Buffer.alloc(44);
+  header.write("RIFF", 0);
+  header.writeUInt32LE(36 + pcm.length, 4);
+  header.write("WAVE", 8);
+  header.write("fmt ", 12);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20); // PCM
+  header.writeUInt16LE(channels, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(byteRate, 28);
+  header.writeUInt16LE(blockAlign, 32);
+  header.writeUInt16LE(bitsPerSample, 34);
+  header.write("data", 36);
+  header.writeUInt32LE(pcm.length, 40);
+  return Buffer.concat([header, pcm]);
+}
 
 // ── MongoDB pre-fetch: search content and classes for LLM context ────────────
 const STOP_WORDS = new Set([
@@ -103,6 +156,10 @@ CURRENT USER CONTEXT:
 - Tenant ID: {{tenantId}}
 - User ID: {{userId}}
 
+{{history}}
+
+Use the recent conversation above to resolve references like "it", "that class", "him", "the last one", or to continue answering a question you previously asked. The CURRENT command is the latest user message; history is only for context.
+
 ═══ CRITICAL: CONTENT PLAYBACK vs CONFERENCE CALLS ═══
 - "play", "show", "find", "get" content → Just fetch it with GET /content/?expName=...
   The FRONTEND handles playback. You only need to return the content data.
@@ -122,9 +179,9 @@ AVAILABLE API ROUTES (summary):
   IMPORTANT: students and leaders are arrays of STRINGS (names or phone numbers), NOT arrays of objects!
 - DELETE /class/:classId → delete a class
 
-- POST /v1/teacher/students → body: {phoneNumber} → get students for teacher
-- POST /v1/teacher/add-students → body: {phoneNumber, students: [{name, phone_number}]}
-- DELETE /v1/teacher/students → body: {phoneNumber, students: [{phoneNumber}]}
+NOTE: Students cannot be created, added, edited, or deleted via voice/text commands.
+Only existing students (provided in the DB context below) may be referenced. There is
+no endpoint to create a student here — never plan one.
 
 - GET /content/ → query: language, theme, expName, ids, limit, cursor
   "play X" or "find X" → GET /content/?expName=X (frontend handles playback)
@@ -164,6 +221,9 @@ IMPORTANT RULES:
 1. Only return valid JSON. No markdown.
 2. If the user wants to start a conference, you MUST clarify which specific students to include and who should be the leader. If they haven't explicitly mentioned this, set canAutoResolve to false and set unresolvedNote to ask them "Who would you like to select? And who would you like to assign as a leader?"
 3. If the user wants to end a conference, but the 'Active Conference ID' in CURRENT USER CONTEXT is 'none', set canAutoResolve to false and explain that there is no active conference to end.
+4. Student/leader names come from speech transcription and may be misspelled or distorted by accent. When a requested name is not an exact match, pick the CLOSEST existing student (phonetic/spelling similarity) and proceed with that student. Only set canAutoResolve to false if NO existing student is a reasonably close match. Do not reject a name just because the spelling differs slightly.
+5. HELP / CAPABILITIES: If the user asks what you can do, what commands or navigation options exist, how to use the assistant, or any similar "help" question, set canAutoResolve to false and set unresolvedNote to this exact list (rephrase naturally, do not invent extra abilities):
+   "Here's what I can help you with: show your classrooms; create a new classroom; add an existing student or leader to a class; delete a class; play or find content; show content themes; start, end, mute, or unmute a conference call; add or remove a call participant; show your teacher profile; and list tenant names. Just tell me what you'd like to do."
 `;
 
 // ── Planning prompt — produces executable API calls, informed by reasoning ───
@@ -177,6 +237,8 @@ CURRENT USER CONTEXT:
 - Tenant ID: {{tenantId}}
 - User ID: {{userId}}
 - Active Conference ID: {{activeConferenceId}}
+
+{{history}}
 
 REASONING FROM PREVIOUS STEP:
 {{reasoning}}
@@ -204,7 +266,9 @@ CRITICAL RULES:
    - To UPDATE an existing class, include _id in the body.
 4. When the user says "delete all classrooms", plan to GET /class/ first, then output a single DELETE step
    with path "/class/{{step1.data[]}}" and set "forEach": true. The system will loop over each item.
-5. For /v1/teacher/students and /v1/teacher/add-students, phoneNumber in body is REQUIRED — use current user's phone.
+5. NEVER plan to create, add, edit, or delete a student. No such route exists for this user.
+   If the user asks to add a new (non-existing) student, set this is unmappable.
+   Only reference students already present in the DB context (by their phone number).
 6. If the command truly cannot be mapped to any route, return:
    { "error": "I could not understand that command. Please try again." }
 7. NEVER set "needsInput": true if the data can be resolved from a previous step. Always chain steps.
@@ -275,26 +339,61 @@ Example 8: "Play keats poem" (content playback — just fetch, frontend plays)
 ═══ END EXAMPLES ═══
 `;
 
-// ── Transcribe audio using Groq Whisper ──────────────────────────────────────
-exports.transcribeAudio = async function transcribeAudio(audioBuffer, mimetype) {
-  const form = new FormData();
-  form.append("file", audioBuffer, {
-    filename: "audio.webm",
-    contentType: mimetype || "audio/webm",
-  });
-  form.append("model", STT_MODEL);
-  form.append("language", "en");
+// Build a name hint from the teacher's class + student names. Retained for
+// callers/compat, but Azure short-audio STT REST cannot consume it (no phrase
+// bias param) — proper-noun disambiguation now happens in the reasoning LLM.
+exports.buildTranscriptionHint = async function buildTranscriptionHint(userInfo = {}) {
+  try {
+    const [classes, students] = await Promise.all([
+      userInfo.userId
+        ? ClassRoom.find({ teacher: userInfo.userId }).select("name").lean().exec()
+        : [],
+      userInfo.schoolId
+        ? Student.find({ schoolId: userInfo.schoolId }).select("name").lean().exec()
+        : [],
+    ]);
+    const names = [
+      ...classes.map((c) => c.name),
+      ...students.map((s) => s.name),
+    ].filter(Boolean);
+    if (names.length === 0) return "";
+    return `Names that may be mentioned: ${[...new Set(names)].join(", ")}.`;
+  } catch {
+    return "";
+  }
+};
 
-  const { data } = await axios.post(`${GROQ_BASE}/audio/transcriptions`, form, {
+// ── Transcribe audio using Azure Speech-to-Text (REST short audio) ───────────
+// NOTE: Azure short-audio REST has no prompt/phrase-bias param (unlike Whisper),
+// so `promptHint` is accepted for signature compatibility but not used. Name
+// disambiguation is handled downstream by the reasoning LLM (phonetic matching
+// against the students DB context). PhraseListGrammar via the Speech SDK could
+// restore STT-level biasing if accuracy on proper nouns proves insufficient.
+exports.transcribeAudio = async function transcribeAudio(audioBuffer, mimetype, promptHint = "") {
+  if (!AZURE_KEY || !AZURE_STT_URL) {
+    throw new Error("Azure Speech not configured (TTS_REGION / TTS_SUBSCRIPTION_KEY missing)");
+  }
+
+  const pcm = await decodeToPcm(audioBuffer);
+  const wav = pcmToWav(pcm);
+
+  const { data } = await axios.post(AZURE_STT_URL, wav, {
     headers: {
-      Authorization: `Bearer ${GROQ_API_KEY}`,
-      ...form.getHeaders(),
+      "Ocp-Apim-Subscription-Key": AZURE_KEY,
+      "Content-Type": "audio/wav; codecs=audio/pcm; samplerate=16000",
+      Accept: "application/json",
     },
     maxContentLength: Infinity,
     maxBodyLength: Infinity,
+    timeout: 20000,
   });
 
-  return data.text;
+  // Azure returns { RecognitionStatus, DisplayText, Offset, Duration }
+  if (data.RecognitionStatus !== "Success") {
+    console.warn("[meta] Azure STT non-success status:", data.RecognitionStatus);
+    return "";
+  }
+  return data.DisplayText || "";
 };
 
 // ── Build prompt with user info ──────────────────────────────────────────────
@@ -350,6 +449,22 @@ async function callLLM(systemPrompt, userMessage) {
   }
 }
 
+// Render the last few conversation turns (from userInfo.history) into a prompt block.
+function formatHistory(history) {
+  if (!Array.isArray(history) || history.length === 0) {
+    return "RECENT CONVERSATION: (none — this is the first command)";
+  }
+  const lines = history
+    .slice(-2)
+    .map((h, i) => {
+      const user = (h.transcript || h.command || "").trim();
+      const assistant = (h.spokenSummary || h.response || "").trim();
+      return `${i + 1}. User: "${user}"${assistant ? `\n   Assistant: "${assistant}"` : ""}`;
+    })
+    .join("\n");
+  return `RECENT CONVERSATION (oldest first, for resolving references only):\n${lines}`;
+}
+
 // ── Phase 1: Reason about the command ────────────────────────────────────────
 exports.reasonAboutCommand = async function reasonAboutCommand(transcript, userInfo = {}) {
   // Pre-fetch relevant data from MongoDB
@@ -357,7 +472,8 @@ exports.reasonAboutCommand = async function reasonAboutCommand(transcript, userI
   const dbContext = formatDBContext(dbResults);
   console.log("[meta] DB context:", dbContext);
 
-  const systemPrompt = buildPrompt(REASONING_PROMPT, userInfo, { dbContext });
+  const history = formatHistory(userInfo.history);
+  const systemPrompt = buildPrompt(REASONING_PROMPT, userInfo, { dbContext, history });
   return callLLM(systemPrompt, `User command: "${transcript}"`);
 };
 
@@ -370,6 +486,7 @@ exports.planCommands = async function planCommands(transcript, userInfo = {}, re
   const extras = {
     reasoning: reasoning ? JSON.stringify(reasoning, null, 2) : "(no reasoning provided)",
     dbContext,
+    history: formatHistory(userInfo.history),
   };
   const systemPrompt = buildPrompt(PLANNING_PROMPT, userInfo, extras);
   return callLLM(systemPrompt, `User command: "${transcript}"`);
@@ -403,7 +520,11 @@ function formatDBContext(dbResults) {
   if (dbResults.students && dbResults.students.length > 0) {
     sections.push(
       "═══ TEACHER'S EXISTING STUDENTS ═══\n" +
-      "When adding a student or leader to a class, ONLY use these exact mapped PHONE NUMBERS if they match the requested name:\n" +
+      "When adding a student or leader to a class, use ONLY these mapped PHONE NUMBERS.\n" +
+      "The requested name comes from speech transcription and may be misspelled or mangled by accent " +
+      "(e.g. \"Phonet\" -> \"Punit\", \"Smart phone\" -> \"smartphone\"). Match the requested name to the " +
+      "CLOSEST student below by phonetic/spelling similarity and use that student's phone. " +
+      "Only refuse if no student is a reasonably close match:\n" +
       dbResults.students.map((s) => `  - name: "${s.name}" | phone: "${s.phone}"`).join("\n") +
       "\n═══ END STUDENTS ═══"
     );
@@ -625,6 +746,7 @@ RULES:
 6. Do NOT use markdown, bullet points, or any formatting — just plain spoken text.
 7. Do NOT say "Here are your results" or similar generic phrases. Be specific.
 8. CRITICAL: For content playback commands ("play X", "show X"), if the step was SUCCESS, the system is ALREADY playing it for the user! Do NOT claim you cannot play it or check for media fields. Simply say you are playing it now.
+9. NEVER speak raw IDs, database identifiers, ObjectIds, or hex/UUID-like strings (e.g. "6a2a5f7bb1ff8304cade8735"). Refer to things by their human name only. Do NOT say "with ID ..." or read out any identifier.
 
 RESPOND WITH JSON:
 {
@@ -652,36 +774,42 @@ exports.generateSpokenSummary = async function generateSpokenSummary(transcript,
   return callLLM(TTS_SUMMARY_PROMPT, userMessage);
 };
 
-// ── Murf.ai TTS synthesis — convert text to audio ────────────────────────────
+// ── Azure Text-to-Speech — convert text to MP3 audio (base64) ────────────────
+function escapeXml(s) {
+  return String(s).replace(/[<>&'"]/g, (c) =>
+    ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" }[c])
+  );
+}
+
 exports.synthesizeSpeech = async function synthesizeSpeech(text) {
-  if (!MURF_API_KEY) {
-    console.warn("[meta] MURF_API_KEY not set, skipping TTS synthesis");
+  if (!AZURE_KEY || !AZURE_TTS_URL) {
+    console.warn("[meta] Azure Speech not configured (TTS_REGION / TTS_SUBSCRIPTION_KEY), skipping TTS");
     return null;
   }
 
-  try {
-    const response = await axios.post(
-      MURF_API_URL,
-      {
-        text,
-        voiceId: "Matthew",
-        model: "FALCON",
-        locale: "en-US",
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-          "api-key": MURF_API_KEY,
-        },
-        responseType: "arraybuffer",
-        timeout: 30000,
-      }
-    );
+  const locale = AZURE_TTS_VOICE.split("-").slice(0, 2).join("-"); // e.g. "en-US"
+  const ssml =
+    `<speak version='1.0' xml:lang='${locale}'>` +
+    `<voice xml:lang='${locale}' name='${AZURE_TTS_VOICE}'>${escapeXml(text)}</voice>` +
+    `</speak>`;
 
-    const audioBuffer = Buffer.from(response.data);
-    return audioBuffer.toString("base64");
+  try {
+    const response = await axios.post(AZURE_TTS_URL, ssml, {
+      headers: {
+        "Ocp-Apim-Subscription-Key": AZURE_KEY,
+        "Content-Type": "application/ssml+xml",
+        // Frontend plays `data:audio/mp3;base64,...` → emit MP3.
+        "X-Microsoft-OutputFormat": "audio-24khz-48kbitrate-mono-mp3",
+        "User-Agent": "seeds-teacher-backend",
+      },
+      responseType: "arraybuffer",
+      timeout: 30000,
+    });
+
+    return Buffer.from(response.data).toString("base64");
   } catch (err) {
-    console.error("[meta] Murf.ai TTS error:", err.message);
+    const detail = err.response?.data ? Buffer.from(err.response.data).toString() : err.message;
+    console.error("[meta] Azure TTS error:", detail);
     return null;
   }
 };

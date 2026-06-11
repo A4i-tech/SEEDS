@@ -26,7 +26,10 @@ const config = {
   groqApiKey: process.env.GROQ_API_KEY,
   sttModel: process.env.STT_MODEL,
   llm: process.env.LLM,
-  murfApiKey: process.env.MURF_API_KEY,
+  // Azure Speech Services — single resource powers both STT and TTS.
+  azureSpeechRegion: process.env.TTS_REGION,
+  azureSpeechKey: process.env.TTS_SUBSCRIPTION_KEY,
+  azureTtsVoice: process.env.TTS_VOICE,
 };
 
 if (config.authType === "firebase") {
