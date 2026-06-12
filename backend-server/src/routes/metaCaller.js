@@ -14,7 +14,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 
  *   post:
  *     summary: Execute a voice command against the backend
  *     description: |
- *       Accepts an audio recording, transcribes it using Groq Whisper,
+ *       Accepts an audio recording, transcribes it using Azure Speech-to-Text,
  *       sends the transcript to an LLM that maps it to backend API calls,
  *       then executes those calls and returns the results.
  *

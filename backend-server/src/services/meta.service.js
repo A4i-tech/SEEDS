@@ -6,14 +6,32 @@ const ffmpegPath = require("ffmpeg-static");
 const { ContentV3 } = require("../models/ContentV3");
 const ClassRoom = require("../models/Class");
 const Student = require("../models/Student");
-const { groqApiKey, llm, azureSpeechRegion, azureSpeechKey, azureTtsVoice } = require("../config/env");
+const { AzureOpenAI } = require("openai");
+const {
+  azureOpenAiKey,
+  azureOpenAiEndpoint,
+  azureOpenAiModel,
+  azureOpenAiApiVersion,
+  azureSpeechRegion,
+  azureSpeechKey,
+  azureTtsVoice,
+} = require("../config/env");
 
 if (ffmpegPath) ffmpeg.setFfmpegPath(ffmpegPath);
 
-// LLM (reasoning/planning/summary) still runs on Groq Llama. Only STT + TTS moved to Azure.
-const GROQ_API_KEY = groqApiKey;
-const LLM = llm || "llama-3.3-70b-versatile";
-const GROQ_BASE = "https://api.groq.com/openai/v1";
+// LLM (reasoning/planning/summary) runs on Azure OpenAI.
+let azureOpenAiClient = null;
+if (azureOpenAiKey && azureOpenAiEndpoint) {
+  // Normalize endpoint: strip trailing slashes and /openai/v1 suffix if present
+  const cleanedEndpoint = azureOpenAiEndpoint.replace(/\/+$/, "").replace(/\/openai\/v1$/, "");
+  azureOpenAiClient = new AzureOpenAI({
+    apiKey: azureOpenAiKey,
+    endpoint: cleanedEndpoint,
+    apiVersion: azureOpenAiApiVersion,
+  });
+} else {
+  console.warn("[meta] Azure OpenAI is not configured (AZURE_OPENAI_KEY or AZURE_OPENAI_ENDPOINT missing)");
+}
 
 // Azure Speech Services — one resource (region + subscription key) serves STT and TTS.
 const AZURE_REGION = azureSpeechRegion;
@@ -440,37 +458,35 @@ function buildPrompt(template, userInfo, extras = {}) {
 
 // ── Call LLM helper ──────────────────────────────────────────────────────────
 async function callLLM(systemPrompt, userMessage) {
-  try {
-    const { data } = await axios.post(
-      `${GROQ_BASE}/chat/completions`,
-      {
-        model: LLM,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userMessage },
-        ],
-        temperature: 0,
-        response_format: { type: "json_object" },
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${GROQ_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
+  if (!azureOpenAiClient) {
+    throw new Error("Azure OpenAI is not configured (azureOpenAiKey or azureOpenAiEndpoint missing)");
+  }
+  if (!azureOpenAiModel) {
+    throw new Error("Azure OpenAI model deployment is not configured (azureOpenAiModel missing)");
+  }
 
-    const raw = data.choices[0].message.content;
+  try {
+    const response = await azureOpenAiClient.chat.completions.create({
+      model: azureOpenAiModel,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage },
+      ],
+      temperature: 0,
+      response_format: { type: "json_object" },
+    });
+
+    const raw = response.choices[0].message.content;
     return JSON.parse(raw);
   } catch (err) {
-    if (err.response?.status === 429) {
-      const retryAfter = parseFloat(err.response?.data?.error?.message?.match(/(\d+\.?\d*)s/)?.[1] || "5");
-      console.log(`[meta] Rate limited, retrying in ${retryAfter}s...`);
+    if (err.status === 429) {
+      const retryAfterHeader = err.headers?.["retry-after"] || err.headers?.["x-ratelimit-reset"];
+      const retryAfter = retryAfterHeader ? parseInt(retryAfterHeader, 10) : 5;
+      console.log(`[meta] Azure OpenAI rate limited, retrying in ${retryAfter}s...`);
       await new Promise((r) => setTimeout(r, retryAfter * 1000));
       return callLLM(systemPrompt, userMessage);
     }
-    const groqError = err.response?.data;
-    console.error("[meta] Groq API error:", groqError ? JSON.stringify(groqError) : err.message);
+    console.error("[meta] Azure OpenAI SDK error:", err);
     throw err;
   }
 }

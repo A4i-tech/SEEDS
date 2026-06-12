@@ -23,9 +23,10 @@ const config = {
   firebaseServiceAccount: process.env.FIREBASE_SERVICE_ACCOUNT,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN,
   passwordSaltRounds: process.env.PASSWORD_SALT_ROUNDS,
-  groqApiKey: process.env.GROQ_API_KEY,
-  sttModel: process.env.STT_MODEL,
-  llm: process.env.LLM,
+  azureOpenAiKey: process.env.AZURE_OPENAI_KEY,
+  azureOpenAiEndpoint: process.env.AZURE_OPENAI_ENDPOINT,
+  azureOpenAiModel: process.env.AZURE_OPENAI_MODEL,
+  azureOpenAiApiVersion: process.env.AZURE_OPENAI_API_VERSION || "2025-03-01-preview",
   // Azure Speech Services — single resource powers both STT and TTS.
   azureSpeechRegion: process.env.TTS_REGION,
   azureSpeechKey: process.env.TTS_SUBSCRIPTION_KEY,

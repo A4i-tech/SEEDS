@@ -68,9 +68,9 @@
 │  │    - contentsV3 (regex search)                            │   │
 │  │    - classes (teacher's classes, populated students)      │   │
 │  │    - students (Student model, filter by schoolId)  ✨     │   │
-│  │  • reasonAboutCommand()       → Groq LLM reasoning       │   │
-│  │  • planCommands()             → Groq LLM planning        │   │
-│  │    (LLM stays on Groq Llama; only STT+TTS moved to Azure)│   │
+│  │  • reasonAboutCommand()       → Azure OpenAI reasoning   │   │
+│  │  • planCommands()             → Azure OpenAI planning    │   │
+│  │    (LLM runs on Azure OpenAI; STT+TTS on Azure Speech)   │   │
 │  │  • normalizePlan()            → Validate + resolve vars  │   │
 │  │  • executeCommands()          → axios calls against self  │   │
 │  │    ↳ /call/conference/* → returns requiresClientExecution│   │
@@ -292,10 +292,10 @@ The backend connects to MongoDB `SEEDS-Teacher-Backend`. Key collections used by
 | `src/routes/classRouter.js` | Class CRUD — resolves phone numbers → Student ObjectIds on POST ✨ |
 | `src/routes/callRouter.js` | Legacy IVR proxy + ConferenceV2 proxy routes |
 | `src/controllers/meta.controller.js` | Orchestrator: 4-phase pipeline, canAutoResolve short-circuit ✨ |
-| `src/services/meta.service.js` | Engine: Groq LLM, MongoDB pre-fetch, conference delegation, STT bias, fuzzy name match, help intent, conversation history, no-ID TTS ✨ |
+| `src/services/meta.service.js` | Engine: Azure OpenAI LLM, MongoDB pre-fetch, conference delegation, STT bias, fuzzy name match, help intent, conversation history, no-ID TTS ✨ |
 | `docs/STUDENT_ROUTES_ACCESS.md` | Policy doc: students are `school_admin`-only; AI cannot create/edit/delete ✨ |
 | `src/auth/authenticateToken.js` | JWT middleware — sets `req.userId`, `req.schoolId`, `req.tenantId` |
-| `src/config/env.js` | Environment config: exports `confServerUrl`, `groqApiKey`, `azureSpeechRegion`, `azureSpeechKey`, etc. |
+| `src/config/env.js` | Environment config: exports `confServerUrl`, `azureOpenAiKey`, `azureSpeechRegion`, `azureSpeechKey`, etc. |
 
 ---
 
@@ -515,11 +515,13 @@ Execute → Step 1: GET /class/ → [{ _id: "abc" }, { _id: "def" }]
 ### Backend (`backend-server/.env`)
 | Variable | Purpose | Required |
 |---|---|---|
-| `GROQ_API_KEY` | Groq Cloud API key for the LLM (Llama 3.3) reasoning/planning/summary calls | Yes |
+| `AZURE_OPENAI_KEY` | Azure OpenAI API Key for the LLM reasoning/planning/summary calls | Yes |
+| `AZURE_OPENAI_ENDPOINT` | Azure OpenAI Resource Endpoint URL | Yes |
+| `AZURE_OPENAI_MODEL` | Azure OpenAI Deployment Model Name | Yes |
+| `AZURE_OPENAI_API_VERSION` | Azure OpenAI API Version (default: `2025-03-01-preview`) | No |
 | `TTS_REGION` | Azure Speech resource region (e.g. `centralindia`) — powers both STT and TTS | For STT/TTS |
 | `TTS_SUBSCRIPTION_KEY` | Azure Speech subscription key | For STT/TTS |
 | `TTS_VOICE` | Azure neural voice name (default: `en-US-AvaNeural`) | No |
-| `LLM` | LLM model name (default: `llama-3.3-70b-versatile`) | No |
 | `CONF_SERVER_URL` | ConferenceV2 server URL — used only by legacy call proxy routes | Legacy |
 | `MONGODB_URI` | MongoDB connection string pointing to `SEEDS-Teacher-Backend` | Yes |
 | `SECRET_KEY` | JWT signing secret | Yes |
