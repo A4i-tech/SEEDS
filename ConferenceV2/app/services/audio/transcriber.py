@@ -281,6 +281,32 @@ class AudioTranscriber:
 
         return None
 
+    def _prepare_wav_payload(self, segment_bytes: bytes) -> io.BytesIO:
+        """Resample 8kHz PCM to 16kHz and encode as an in-memory WAV.
+
+        CPU-bound (resample_poly can take seconds on a max-length segment),
+        so it must run in a worker thread, never on the event loop.
+        """
+        audio_np = np.frombuffer(segment_bytes, dtype=np.int16)
+        audio_float = audio_np.astype(np.float32)
+
+        # 8kHz PCM -> 16kHz for Whisper.
+        resampled_float = signal.resample_poly(
+            audio_float, self.PROCESS_RATE, self.INPUT_RATE
+        )
+        resampled_np = resampled_float.astype(np.int16)
+
+        wav_buffer = io.BytesIO()
+        with wave.open(wav_buffer, "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(self.PROCESS_RATE)
+            wf.writeframes(resampled_np.tobytes())
+
+        wav_buffer.seek(0)
+        wav_buffer.name = "audio.wav"
+        return wav_buffer
+
     async def _transcribe_segment(self, segment_bytes: bytes) -> Optional[dict[str, Any]]:
         if not segment_bytes:
             return None
@@ -288,29 +314,14 @@ class AudioTranscriber:
             return None
 
         try:
-            audio_np = np.frombuffer(segment_bytes, dtype=np.int16)
-            audio_float = audio_np.astype(np.float32)
-
-            # 8kHz PCM -> 16kHz for Whisper.
-            resampled_float = signal.resample_poly(
-                audio_float, self.PROCESS_RATE, self.INPUT_RATE
+            wav_buffer = await asyncio.to_thread(
+                self._prepare_wav_payload, segment_bytes
             )
-            resampled_np = resampled_float.astype(np.int16)
-
-            wav_buffer = io.BytesIO()
-            with wave.open(wav_buffer, "wb") as wf:
-                wf.setnchannels(1)
-                wf.setsampwidth(2)
-                wf.setframerate(self.PROCESS_RATE)
-                wf.writeframes(resampled_np.tobytes())
-
-            wav_buffer.seek(0)
-            wav_buffer.name = "audio.wav"
 
             logger.debug(
                 "Sending segmented audio to Whisper (bytes=%s, frames=%s).",
                 len(segment_bytes),
-                len(audio_np),
+                len(segment_bytes) // 2,
             )
             transcript = await asyncio.wait_for(
                 self.client.audio.transcriptions.create(

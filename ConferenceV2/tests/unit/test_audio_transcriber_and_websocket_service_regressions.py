@@ -52,3 +52,56 @@ async def test_process_chunk_merges_multiple_transcriptions_from_single_payload(
     assert len(result["transcript_chunks"]) == 2
     assert result["transcript_chunks"][0]["text"] == "first phrase"
     assert result["transcript_chunks"][1]["text"] == "second phrase"
+
+
+def test_prepare_wav_payload_outputs_16k_mono_wav():
+    import wave
+
+    transcriber = AudioTranscriber()
+
+    # 100ms of 8kHz 16-bit PCM -> 800 samples in, 1600 samples out
+    buf = transcriber._prepare_wav_payload(b"\x00\x01" * 800)
+
+    with wave.open(buf, "rb") as wf:
+        assert wf.getnchannels() == 1
+        assert wf.getsampwidth() == 2
+        assert wf.getframerate() == AudioTranscriber.PROCESS_RATE
+        assert wf.getnframes() == 1600
+    assert buf.name == "audio.wav"
+
+
+@pytest.mark.asyncio
+async def test_transcribe_segment_resamples_off_event_loop():
+    """resample_poly is CPU-bound (seconds per max-length segment) and used
+    to run directly on the event loop, freezing the whole service."""
+    import threading
+    from scipy import signal as scipy_signal
+
+    transcriber = AudioTranscriber()
+
+    fake_transcript = Mock()
+    fake_transcript.text = "hello"
+    fake_transcript.duration = 1.0
+    fake_transcript.segments = []
+    transcriber.client = Mock()
+    transcriber.client.audio.transcriptions.create = AsyncMock(
+        return_value=fake_transcript
+    )
+
+    resample_threads = []
+    real_resample = scipy_signal.resample_poly
+
+    def recording_resample(*args, **kwargs):
+        resample_threads.append(threading.get_ident())
+        return real_resample(*args, **kwargs)
+
+    with patch(
+        "app.services.audio.transcriber.signal.resample_poly",
+        side_effect=recording_resample,
+    ):
+        result = await transcriber._transcribe_segment(b"\x00\x01" * 1600)
+
+    assert result is not None
+    assert result["text"] == "hello"
+    assert resample_threads, "resample_poly was never called"
+    assert resample_threads[0] != threading.get_ident()

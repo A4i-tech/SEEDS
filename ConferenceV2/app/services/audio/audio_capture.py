@@ -92,7 +92,9 @@ class AudioCaptureService:
         if not self.enabled or not self.file_path:
             return None
 
-        self._close_file()
+        # flush + fsync of a long recording (tens of MB) can block for
+        # seconds; keep it off the event loop.
+        await asyncio.to_thread(self._close_file)
 
         if self.total_bytes == 0:
             logger.info("No audio data captured, skipping upload")
