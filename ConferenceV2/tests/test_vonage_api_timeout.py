@@ -1,7 +1,7 @@
 import pytest
 import asyncio
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 import sys
 import os
 
@@ -177,3 +177,120 @@ async def test_try_connecting_websocket_update_call_sdk_error():
 
         assert result is False
 
+
+def _participant_info(phone="+1234567890", leg="call-uuid-123"):
+    return VonageParticipantInfo(
+        phone_number=phone,
+        call_leg_id=leg,
+        initial_conv_id="initial-conv-uuid",
+    )
+
+
+def _api_with_redis(participant_info):
+    api = DummyVonage()
+    api.redis_store = AsyncMock()
+    api.redis_store.get_participant.return_value = participant_info
+    return api
+
+
+@pytest.mark.asyncio
+async def test_mute_participant_timeout_raises():
+    api = _api_with_redis(_participant_info())
+
+    def slow_update_call(uuid, action):
+        time.sleep(2.0)
+        return {}
+
+    api.client.voice.update_call.side_effect = slow_update_call
+
+    with patch(
+        "app.services.communication_api.vonage_api._VONAGE_CALL_TIMEOUT_SECONDS",
+        0.1,
+    ):
+        with pytest.raises(asyncio.TimeoutError):
+            await api.mute_participant("+1234567890")
+
+
+@pytest.mark.asyncio
+async def test_unmute_participant_sdk_error_raises():
+    api = _api_with_redis(_participant_info())
+    api.client.voice.update_call.side_effect = Exception(
+        "400 Bad Request: call leg already ended"
+    )
+
+    with patch(
+        "app.services.communication_api.vonage_api._VONAGE_CALL_TIMEOUT_SECONDS",
+        1.0,
+    ):
+        with pytest.raises(Exception, match="400"):
+            await api.unmute_participant("+1234567890")
+
+
+@pytest.mark.asyncio
+async def test_mute_participant_missing_leg_raises():
+    api = _api_with_redis(None)
+
+    with pytest.raises(ValueError, match="No Vonage call leg"):
+        await api.mute_participant("+1234567890")
+    api.client.voice.update_call.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_remove_participant_timeout_keeps_redis_entry():
+    api = _api_with_redis(_participant_info())
+
+    def slow_update_call(uuid, action):
+        time.sleep(2.0)
+        return {}
+
+    api.client.voice.update_call.side_effect = slow_update_call
+
+    with patch(
+        "app.services.communication_api.vonage_api._VONAGE_CALL_TIMEOUT_SECONDS",
+        0.1,
+    ):
+        with pytest.raises(asyncio.TimeoutError):
+            await api.remove_participant("+1234567890")
+
+    api.redis_store.delete_participant.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_remove_participant_missing_leg_treated_as_removed():
+    api = _api_with_redis(None)
+
+    await api.remove_participant("+1234567890")
+
+    api.client.voice.update_call.assert_not_called()
+    api.redis_store.delete_participant.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_end_conf_continues_past_hung_leg():
+    api = DummyVonage()
+    hung = _participant_info(phone="+1111111111", leg="leg-hung")
+    healthy = _participant_info(phone="+2222222222", leg="leg-healthy")
+    api.redis_store = AsyncMock()
+    api.redis_store.get_all_participants.return_value = {
+        hung.phone_number: hung,
+        healthy.phone_number: healthy,
+    }
+
+    def get_call(uuid):
+        if uuid == "leg-hung":
+            time.sleep(2.0)
+        return {"status": "answered"}
+
+    api.client.voice.get_call.side_effect = get_call
+    api.client.voice.update_call.return_value = {}
+
+    with patch(
+        "app.services.communication_api.vonage_api._VONAGE_CALL_TIMEOUT_SECONDS",
+        0.1,
+    ):
+        await api.end_conf()
+
+    # The hung leg timed out, but the healthy leg was still hung up.
+    api.client.voice.update_call.assert_called_once_with(
+        uuid="leg-healthy", action="hangup"
+    )

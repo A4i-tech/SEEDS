@@ -20,8 +20,9 @@ _VONAGE_RATE_LIMIT = 3  # max outbound call POSTs per second
 
 # Vonage SDK 2.x uses requests with no default timeout, so a stuck Vonage call
 # can block the FastAPI event loop indefinitely (observed: 15+ minute hang on
-# GET /v1/calls/<uuid>). Used by _try_connecting_websocket_with_participant
-# below to bound the sync calls that live on the websocket-attach hot path.
+# GET /v1/calls/<uuid>). Every sync Vonage call in this module is bounded by
+# this timeout via asyncio.wait_for — the conference event queue processes
+# events sequentially, so a single hung call stalls every queued action.
 _VONAGE_CALL_TIMEOUT_SECONDS = get_settings().VONAGE_CALL_TIMEOUT_SECONDS
 
 
@@ -286,19 +287,42 @@ class VonageAPI(CommunicationAPI):
         """
         self.is_websocket_connected = False
         for participant in (await self.redis_store.get_all_participants(self.conf_id)).values():
-            call_details = await asyncio.to_thread(self.client.voice.get_call, uuid=participant.call_leg_id)
-            if call_details["status"] == "answered":
-                logger_instance.info(
-                    "ENDING CALL FOR PARTICIPANT", participant.phone_number
+            # Bound each per-leg Vonage call and isolate failures: one hung or
+            # stale leg (observed: get_call hanging 15+ minutes) must not stop
+            # the remaining participants from being hung up.
+            try:
+                call_details = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        self.client.voice.get_call, uuid=participant.call_leg_id
+                    ),
+                    timeout=_VONAGE_CALL_TIMEOUT_SECONDS,
                 )
-                await asyncio.to_thread(
-                    self.client.voice.update_call,
-                    uuid=participant.call_leg_id,
-                    action="hangup",
+                if call_details["status"] == "answered":
+                    logger_instance.info(
+                        "ENDING CALL FOR PARTICIPANT", participant.phone_number
+                    )
+                    await asyncio.wait_for(
+                        asyncio.to_thread(
+                            self.client.voice.update_call,
+                            uuid=participant.call_leg_id,
+                            action="hangup",
+                        ),
+                        timeout=_VONAGE_CALL_TIMEOUT_SECONDS,
+                    )
+                else:
+                    logger_instance.info(
+                        "CALL ALREADY ENDED FOR PARTICIPANT", participant.phone_number
+                    )
+            except asyncio.TimeoutError:
+                logger_instance.warning(
+                    f"Vonage call timed out after {_VONAGE_CALL_TIMEOUT_SECONDS}s while "
+                    f"ending leg for {participant.phone_number} ({participant.call_leg_id}); "
+                    f"continuing with remaining participants"
                 )
-            else:
-                logger_instance.info(
-                    "CALL ALREADY ENDED FOR PARTICIPANT", participant.phone_number
+            except Exception as e:
+                logger_instance.error(
+                    f"Failed to end call leg for {participant.phone_number} "
+                    f"({participant.call_leg_id}): {e}"
                 )
 
     async def reconnect_websocket(self):
@@ -345,25 +369,33 @@ class VonageAPI(CommunicationAPI):
         create_talk = getattr(self.client.voice, "create_talk", None)
         if callable(create_talk):
             try:
-                await asyncio.to_thread(create_talk, uuid=call_leg_id, text=text)
+                # Bounded like every other sync Vonage call — a hung leg must
+                # not stall the event queue (TimeoutError lands in the except).
+                await asyncio.wait_for(
+                    asyncio.to_thread(create_talk, uuid=call_leg_id, text=text),
+                    timeout=_VONAGE_CALL_TIMEOUT_SECONDS,
+                )
                 return True
             except Exception as e:
                 logger_instance.error("Failed to play TTS via create_talk", e)
 
         try:
-            await asyncio.to_thread(
-                self.client.voice.update_call,
-                uuid=call_leg_id,
-                params={
-                    "action": "transfer",
-                    "destination": {
-                        "type": "ncco",
-                        "ncco": [
-                            {"action": "talk", "text": text},
-                            {"action": "conversation", "name": self.conf_id},
-                        ],
+            await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.client.voice.update_call,
+                    uuid=call_leg_id,
+                    params={
+                        "action": "transfer",
+                        "destination": {
+                            "type": "ncco",
+                            "ncco": [
+                                {"action": "talk", "text": text},
+                                {"action": "conversation", "name": self.conf_id},
+                            ],
+                        },
                     },
-                },
+                ),
+                timeout=_VONAGE_CALL_TIMEOUT_SECONDS,
             )
             return True
         except Exception as e:
@@ -387,42 +419,86 @@ class VonageAPI(CommunicationAPI):
                 continue
             await self._play_tts_to_call_leg(participant_info.call_leg_id, text)
 
+    async def _get_participant_info_or_raise(
+        self, phone_number: str
+    ) -> VonageParticipantInfo:
+        participant_info = await self.redis_store.get_participant(
+            self.conf_id, phone_number
+        )
+        if participant_info is None:
+            # Returning silently here made a stale/mismatched phone number look
+            # like a successful action — callers flip is_muted etc. only on
+            # success, so they must hear about this.
+            raise ValueError(
+                f"No Vonage call leg found for {phone_number} in conference {self.conf_id}"
+            )
+        return participant_info
+
+    async def _update_call_bounded(self, call_leg_id: str, action: str, phone_number: str):
+        """
+        Run a sync update_call in a thread, bounded by the Vonage timeout.
+        Raises on timeout or SDK error (e.g. 400 on a leg that already ended)
+        so callers don't update local state for an action that never happened.
+        """
+        try:
+            await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.client.voice.update_call,
+                    uuid=call_leg_id,
+                    action=action,
+                ),
+                timeout=_VONAGE_CALL_TIMEOUT_SECONDS,
+            )
+        except asyncio.TimeoutError:
+            logger_instance.warning(
+                f"Vonage update_call ({action}) timed out after "
+                f"{_VONAGE_CALL_TIMEOUT_SECONDS}s for {phone_number} ({call_leg_id})"
+            )
+            raise
+        except Exception as e:
+            logger_instance.error(
+                f"Vonage update_call ({action}) failed for {phone_number} "
+                f"({call_leg_id}): {e}"
+            )
+            raise
+
     # client.update_call()
     async def remove_participant(self, phone_number: str):
         """
         Removes a participant from an ongoing call.
         """
-        participant_info = await self.redis_store.get_participant(self.conf_id, phone_number)
-        if participant_info:
-            await asyncio.to_thread(
-                self.client.voice.update_call,
-                uuid=participant_info.call_leg_id,
-                action="hangup",
+        participant_info = await self.redis_store.get_participant(
+            self.conf_id, phone_number
+        )
+        if participant_info is None:
+            # No leg to hang up (never answered, or already ended) — treat as
+            # already removed so the caller can still clean up its state.
+            logger_instance.warning(
+                f"No Vonage call leg found for {phone_number} in conference "
+                f"{self.conf_id}; treating as already removed"
             )
-            await self.redis_store.delete_participant(self.conf_id, phone_number)
+            return
+        await self._update_call_bounded(
+            participant_info.call_leg_id, "hangup", phone_number
+        )
+        await self.redis_store.delete_participant(self.conf_id, phone_number)
 
     # client.update_call()
     async def mute_participant(self, phone_number: str):
         """
         Mutes a participant in the call.
         """
-        participant_info = await self.redis_store.get_participant(self.conf_id, phone_number)
-        if participant_info:
-            await asyncio.to_thread(
-                self.client.voice.update_call,
-                uuid=participant_info.call_leg_id,
-                action="mute",
-            )
+        participant_info = await self._get_participant_info_or_raise(phone_number)
+        await self._update_call_bounded(
+            participant_info.call_leg_id, "mute", phone_number
+        )
 
     # client.update_call()
     async def unmute_participant(self, phone_number: str):
         """
         Unmutes a participant in the call.
         """
-        participant_info = await self.redis_store.get_participant(self.conf_id, phone_number)
-        if participant_info:
-            await asyncio.to_thread(
-                self.client.voice.update_call,
-                uuid=participant_info.call_leg_id,
-                action="unmute",
-            )
+        participant_info = await self._get_participant_info_or_raise(phone_number)
+        await self._update_call_bounded(
+            participant_info.call_leg_id, "unmute", phone_number
+        )

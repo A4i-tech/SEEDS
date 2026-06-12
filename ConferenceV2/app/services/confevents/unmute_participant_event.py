@@ -5,6 +5,7 @@ from app.models.ws_service_message import MessageType, WebsocketServiceMessage
 from app.services.conference_call import ConferenceCall
 from app.services.confevents.base_event import ConferenceEvent
 from app.services.singletons.websocket_service import WebsocketService
+from app.conf_logger import logger_instance
 import asyncio
 
 class UnmuteParticipantEvent(ConferenceEvent):
@@ -15,34 +16,53 @@ class UnmuteParticipantEvent(ConferenceEvent):
 
     async def execute_event(self):
         # TODO: Speak out announcement messages in conversation through comm API, check if the participant is already unmuted
-        if self.phone_number in self.conf_call.state.participants:
-            participant = self.conf_call.state.participants[self.phone_number]
-            
+        if self.phone_number not in self.conf_call.state.participants:
+            # A silent return here looks like a successful unmute to the caller
+            # and the frontend never gets a state update — log and resync.
+            logger_instance.warning(
+                f"Unmute requested for unknown participant {self.phone_number}; "
+                f"known: {list(self.conf_call.state.participants.keys())}"
+            )
+            await self.conf_call.update_state()
+            return
+
+        participant = self.conf_call.state.participants[self.phone_number]
+
+        try:
             # Unmute the participant via communication API
             await self.conf_call.communication_api.unmute_participant(self.phone_number)
-            
-            # Update participant's mute status
-            participant.is_muted = False
-
-            # Set raised hand to false
-            participant.is_raised = False
-            participant.raised_at = -1
-            
-            if self.stream_system_message and self.phone_number != self.conf_call.state.get_teacher().phone_number:
-                await self.conf_call.stream_system_message(SystemAudioMessages.STUDENT_IS_UNMUTED)
-            
-            # Log the unmute action in the action history
-            self.conf_call.state.action_history.append(
-                ActionHistory(
-                    timestamp=datetime.now().isoformat(),
-                    action_type=ActionType.TEACHER_MUTE_UNMUTE_STUDENT,
-                    metadata={
-                        "phone_number": self.phone_number,
-                        "is_muted": False
-                    },
-                    owner=self.conf_call.state.teacher_phone_number
-                )
+        except Exception:
+            # The Vonage action did not happen (timeout, stale leg, 400, ...):
+            # don't flip is_muted, but push the truthful state so the frontend
+            # un-sticks, then let the caller (queue loop / UnmuteAllEvent) log it.
+            logger_instance.error(
+                f"Unmute failed for {self.phone_number}; resyncing state"
             )
-            
-            # Update the conference call state
             await self.conf_call.update_state()
+            raise
+
+        # Update participant's mute status
+        participant.is_muted = False
+
+        # Set raised hand to false
+        participant.is_raised = False
+        participant.raised_at = -1
+
+        if self.stream_system_message and self.phone_number != self.conf_call.state.get_teacher().phone_number:
+            await self.conf_call.stream_system_message(SystemAudioMessages.STUDENT_IS_UNMUTED)
+
+        # Log the unmute action in the action history
+        self.conf_call.state.action_history.append(
+            ActionHistory(
+                timestamp=datetime.now().isoformat(),
+                action_type=ActionType.TEACHER_MUTE_UNMUTE_STUDENT,
+                metadata={
+                    "phone_number": self.phone_number,
+                    "is_muted": False
+                },
+                owner=self.conf_call.state.teacher_phone_number
+            )
+        )
+
+        # Update the conference call state
+        await self.conf_call.update_state()

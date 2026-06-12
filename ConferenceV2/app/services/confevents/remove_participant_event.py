@@ -3,6 +3,7 @@ from app.models.action_history import ActionHistory, ActionType
 from app.models.participant import CallStatus, Role
 from app.services.conference_call import ConferenceCall
 from app.services.confevents.base_event import ConferenceEvent
+from app.conf_logger import logger_instance
 
 
 class RemoveParticipantEvent(ConferenceEvent):
@@ -30,8 +31,18 @@ class RemoveParticipantEvent(ConferenceEvent):
                     leave_text, remaining_numbers
                 )
 
-            # Remove the participant via communication API
-            await self.conf_call.communication_api.remove_participant(self.phone_number)
+            try:
+                # Remove the participant via communication API
+                await self.conf_call.communication_api.remove_participant(self.phone_number)
+            except Exception:
+                # Hangup did not happen (timeout, SDK error) — keep the
+                # participant in state so the teacher can retry, but push the
+                # truthful state so the frontend un-sticks.
+                logger_instance.error(
+                    f"Remove failed for {self.phone_number}; resyncing state"
+                )
+                await self.conf_call.update_state()
+                raise
 
             # Delete the participant from the conference state
             del self.conf_call.state.participants[self.phone_number]

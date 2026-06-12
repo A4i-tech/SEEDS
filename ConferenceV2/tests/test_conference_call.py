@@ -144,6 +144,60 @@ class TestConferenceCall:
         assert result["status"] == "disconnected"
     
     @pytest.mark.asyncio
+    async def test_mute_event_failure_keeps_state_and_resyncs(self, conference_call, participants):
+        """A failed Vonage mute must not flip is_muted, but must still push state"""
+        from app.services.confevents.mute_participant_event import MuteParticipantEvent
+
+        conf_call, comm_api, _, conn_mgr = conference_call
+        teacher_phone, student_phones = participants
+        conf_call.set_participant_state(teacher_phone, student_phones)
+        student_phone = student_phones[0]
+        conf_call.state.participants[student_phone].is_muted = False
+
+        comm_api.mute_participant.side_effect = asyncio.TimeoutError()
+
+        event = MuteParticipantEvent(phone_number=student_phone, conf_call=conf_call)
+        with pytest.raises(asyncio.TimeoutError):
+            await event.execute_event()
+
+        assert conf_call.state.participants[student_phone].is_muted is False
+        conn_mgr.send_message_to_client.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_unmute_event_failure_keeps_state_and_resyncs(self, conference_call, participants):
+        """A failed Vonage unmute must not flip is_muted, but must still push state"""
+        from app.services.confevents.unmute_participant_event import UnmuteParticipantEvent
+
+        conf_call, comm_api, _, conn_mgr = conference_call
+        teacher_phone, student_phones = participants
+        conf_call.set_participant_state(teacher_phone, student_phones)
+        student_phone = student_phones[0]
+
+        comm_api.unmute_participant.side_effect = Exception("400 stale leg")
+
+        event = UnmuteParticipantEvent(phone_number=student_phone, conf_call=conf_call)
+        with pytest.raises(Exception, match="400"):
+            await event.execute_event()
+
+        assert conf_call.state.participants[student_phone].is_muted is True
+        conn_mgr.send_message_to_client.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_mute_event_unknown_participant_logs_and_resyncs(self, conference_call, participants):
+        """Mute for an unknown phone number must not be a silent no-op"""
+        from app.services.confevents.mute_participant_event import MuteParticipantEvent
+
+        conf_call, comm_api, _, conn_mgr = conference_call
+        teacher_phone, student_phones = participants
+        conf_call.set_participant_state(teacher_phone, student_phones)
+
+        event = MuteParticipantEvent(phone_number="919999999999", conf_call=conf_call)
+        await event.execute_event()
+
+        comm_api.mute_participant.assert_not_called()
+        conn_mgr.send_message_to_client.assert_called_once()
+
+    @pytest.mark.asyncio
     async def test_smartphone_connection_no_teacher(self, conference_call):
         """Test smartphone operations when no teacher exists"""
         conf_call, _, _, _ = conference_call
