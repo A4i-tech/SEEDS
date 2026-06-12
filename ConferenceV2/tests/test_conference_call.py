@@ -144,6 +144,43 @@ class TestConferenceCall:
         assert result["status"] == "disconnected"
     
     @pytest.mark.asyncio
+    async def test_connect_smartphone_sends_state_snapshot(self, conference_call, participants):
+        """Connecting the smartphone should immediately seed the client with current state"""
+        conf_call, _, _, conn_mgr = conference_call
+        teacher_phone, _ = participants
+        conf_call.set_participant_state(teacher_phone, [])
+
+        await conf_call.connect_smartphone()
+
+        teacher = conf_call.state.get_teacher()
+        conn_mgr.send_message_to_client.assert_called_once()
+        kwargs = conn_mgr.send_message_to_client.call_args.kwargs
+        assert kwargs["client"] == teacher
+        assert kwargs["message"] == conf_call.state.model_dump(by_alias=True)
+
+    @pytest.mark.asyncio
+    async def test_connect_smartphone_seeds_sse_queue(self, mock_services, participants):
+        """With the real SSE manager, the snapshot should be waiting in the queue on connect"""
+        from app.services.smartphone_connection_manager.sse_connection_manager import SSEConnectionManager
+
+        communication_api, storage_manager, _ = mock_services
+        conn_mgr = SSEConnectionManager()
+        conf_call = ConferenceCall(
+            conf_id="sse-snapshot-test",
+            communication_api=communication_api,
+            storage_manager=storage_manager,
+            connection_manager=conn_mgr
+        )
+        teacher_phone, _ = participants
+        conf_call.set_participant_state(teacher_phone, [])
+
+        await conf_call.connect_smartphone()
+
+        queue = conn_mgr.active_connections[teacher_phone]["queue"]
+        assert queue.qsize() == 1
+        assert queue.get_nowait() == conf_call.state.model_dump(by_alias=True)
+
+    @pytest.mark.asyncio
     async def test_smartphone_connection_no_teacher(self, conference_call):
         """Test smartphone operations when no teacher exists"""
         conf_call, _, _, _ = conference_call

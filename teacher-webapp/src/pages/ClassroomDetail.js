@@ -59,6 +59,8 @@ const ClassroomDetail = () => {
   const [selectedLeaderForCall, setSelectedLeaderForCall] = useState(null);
   const eventSourceRef = useRef(null);
   const isMountedRef = useRef(true);
+  const sseRetryTimerRef = useRef(null);
+  const sseLostToastShownRef = useRef(false);
 
   const {
     selectedStudents,
@@ -129,10 +131,43 @@ const ClassroomDetail = () => {
       return;
     }
 
-    try {
-      const sseEp = SSE_ENDPOINTS.CONFERENCE.TEACHER_CONNECT(conferenceId);
-      const eventSource = new EventSource(sseEp);
+    let retryDelayMs = 1000;
+    const MAX_RETRY_DELAY_MS = 30000;
+
+    const scheduleReconnect = () => {
+      if (!isMountedRef.current || sseRetryTimerRef.current) return;
+      if (!sseLostToastShownRef.current) {
+        sseLostToastShownRef.current = true;
+        showToast.error("Connection to class lost. Reconnecting…");
+      }
+      sseRetryTimerRef.current = setTimeout(() => {
+        sseRetryTimerRef.current = null;
+        connect();
+      }, retryDelayMs);
+      retryDelayMs = Math.min(retryDelayMs * 2, MAX_RETRY_DELAY_MS);
+    };
+
+    const connect = () => {
+      if (!isMountedRef.current) return;
+
+      let eventSource;
+      try {
+        const sseEp = SSE_ENDPOINTS.CONFERENCE.TEACHER_CONNECT(conferenceId);
+        eventSource = new EventSource(sseEp);
+      } catch (error) {
+        console.error("Error setting up SSE connection:", error);
+        scheduleReconnect();
+        return;
+      }
       eventSourceRef.current = eventSource;
+
+      eventSource.onopen = () => {
+        retryDelayMs = 1000;
+        if (sseLostToastShownRef.current) {
+          sseLostToastShownRef.current = false;
+          showToast.success("Reconnected to class");
+        }
+      };
 
       eventSource.onmessage = (event) => {
         // Only process if component is still mounted
@@ -151,21 +186,33 @@ const ClassroomDetail = () => {
 
       eventSource.onerror = (err) => {
         console.error("SSE Error:", err);
-        if (eventSourceRef.current) {
-          eventSourceRef.current.close();
+        // While readyState is CONNECTING the browser is already retrying the
+        // stream on its own — don't close, or state updates stop for good.
+        if (eventSource.readyState !== EventSource.CLOSED) return;
+
+        // The browser gave up (handshake failure or non-200 response):
+        // recreate the connection ourselves with exponential backoff.
+        eventSource.close();
+        if (eventSourceRef.current === eventSource) {
           eventSourceRef.current = null;
         }
+        scheduleReconnect();
       };
-    } catch (error) {
-      console.error("Error setting up SSE connection:", error);
-    }
+    };
+
+    connect();
 
     // Cleanup on unmount or when conference ends
     return () => {
+      if (sseRetryTimerRef.current) {
+        clearTimeout(sseRetryTimerRef.current);
+        sseRetryTimerRef.current = null;
+      }
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
         eventSourceRef.current = null;
       }
+      sseLostToastShownRef.current = false;
     };
   }, [conferenceStarted, conferenceId, handleSSEEvent]);
 

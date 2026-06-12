@@ -277,7 +277,14 @@ class ConferenceCall:
     async def connect_smartphone(self):
         teacher = self.state.get_teacher()
         if teacher:
-            return await self.connection_manager.connect(client=teacher)
+            response = await self.connection_manager.connect(client=teacher)
+            # A fresh SSE connection starts with an empty queue, so a client that
+            # (re)connects mid-conference would stay stale until the next event
+            # fires. Seed it with the current state immediately.
+            await self.connection_manager.send_message_to_client(
+                client=teacher, message=self.state.model_dump(by_alias=True)
+            )
+            return response
         raise ValueError("No teacher participant in conf call " + self.conf_id)
     
     async def disconnect_smartphone(self):
