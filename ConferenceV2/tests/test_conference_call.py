@@ -33,13 +33,16 @@ from app.models.audio_content_state import ContentStatus
 
 class MockEvent(ConferenceEvent):
     """Mock event for testing"""
-    def __init__(self, should_raise_exception=False, should_timeout=False):
+    def __init__(self, should_raise_exception=False, should_timeout=False, timeout_first_n=0):
         self.executed = False
+        self.attempts = 0
         self.should_raise_exception = should_raise_exception
         self.should_timeout = should_timeout
-    
+        self.timeout_first_n = timeout_first_n
+
     async def execute_event(self):
-        if self.should_timeout:
+        self.attempts += 1
+        if self.should_timeout or self.attempts <= self.timeout_first_n:
             await asyncio.sleep(60)
         if self.should_raise_exception:
             raise Exception("Test exception")
@@ -250,24 +253,88 @@ class TestConferenceCall:
         await conf_call.event_queue.put(event)
         
         with patch('app.services.conference_call.logger_instance') as mock_logger:
-            # For timeout test, use a short timeout to make the test run fast
+            # For timeout test, use a short timeout to make the test run fast.
+            # A timed-out event is retried once, so allow two timeout windows.
             if event_type == "timeout":
                 conf_call.event_queue_processing_task = asyncio.create_task(
-                    conf_call._ConferenceCall__process_conf_events_queue(timeout=1.0)
+                    conf_call._ConferenceCall__process_conf_events_queue(timeout=0.3)
                 )
-                wait_time = 1.5
+                wait_time = 1.0
             else:
                 conf_call.start_processing_conf_events_from_queue()
                 wait_time = 0.1
 
             await asyncio.sleep(wait_time)
-            
+
             conf_call.end_processing_conf_events_from_queue()
-            
+
             assert event.executed == expected_executed
             if should_log:
-                assert mock_logger.error.called or mock_logger.info.called
+                assert mock_logger.error.called or mock_logger.warning.called
     
+    @pytest.mark.asyncio
+    async def test_event_timeout_retried_once_then_succeeds(self, conference_call):
+        """An event that times out on the first attempt should succeed on retry"""
+        conf_call, _, _, _ = conference_call
+        event = MockEvent(timeout_first_n=1)
+        await conf_call.event_queue.put(event)
+
+        conf_call.event_queue_processing_task = asyncio.create_task(
+            conf_call._ConferenceCall__process_conf_events_queue(timeout=0.3)
+        )
+        await asyncio.sleep(0.7)
+        conf_call.end_processing_conf_events_from_queue()
+
+        assert event.attempts == 2
+        assert event.executed is True
+
+    @pytest.mark.asyncio
+    async def test_event_dropped_after_double_timeout_pushes_state(self, conference_call):
+        """After a double timeout the event is dropped and state is resynced"""
+        conf_call, _, _, conn_mgr = conference_call
+        event = MockEvent(should_timeout=True)
+        await conf_call.event_queue.put(event)
+
+        conf_call.event_queue_processing_task = asyncio.create_task(
+            conf_call._ConferenceCall__process_conf_events_queue(timeout=0.3)
+        )
+        await asyncio.sleep(1.0)
+        conf_call.end_processing_conf_events_from_queue()
+
+        assert event.attempts == 2
+        assert event.executed is False
+        conn_mgr.send_message_to_client.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_event_exception_not_retried_pushes_state(self, conference_call):
+        """Exceptions are deterministic: no retry, but state is still resynced"""
+        conf_call, _, _, conn_mgr = conference_call
+        event = MockEvent(should_raise_exception=True)
+        await conf_call.event_queue.put(event)
+
+        conf_call.start_processing_conf_events_from_queue()
+        await asyncio.sleep(0.2)
+        conf_call.end_processing_conf_events_from_queue()
+
+        assert event.attempts == 1
+        assert event.executed is False
+        conn_mgr.send_message_to_client.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_queue_continues_after_dropped_event(self, conference_call):
+        """A dropped event must not stall the events queued behind it"""
+        conf_call, _, _, _ = conference_call
+        bad_event = MockEvent(should_raise_exception=True)
+        good_event = MockEvent()
+        await conf_call.event_queue.put(bad_event)
+        await conf_call.event_queue.put(good_event)
+
+        conf_call.start_processing_conf_events_from_queue()
+        await asyncio.sleep(0.3)
+        conf_call.end_processing_conf_events_from_queue()
+
+        assert good_event.executed is True
+
     @pytest.mark.asyncio
     async def test_multiple_events_processing(self, conference_call):
         """Test processing multiple events from queue"""

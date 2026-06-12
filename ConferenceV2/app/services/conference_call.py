@@ -297,19 +297,49 @@ class ConferenceCall:
         await self.communication_api.reconnect_websocket()
     
     # Dequeue function: runs continuously to process tasks
-    async def __process_conf_events_queue(self, timeout: float = 15.0):
+    # The timeout must exceed VONAGE_CALL_TIMEOUT_SECONDS (30s) — an event
+    # wrapping a Vonage call needs room for the call's own timeout (and one
+    # internal retry) to fire and run its clean failure path; a shorter queue
+    # timeout would kill the handler mid-flight instead.
+    async def __process_conf_events_queue(self, timeout: float = 65.0):
         while True:
             event: ConferenceEvent = await self.event_queue.get()
             try:
-                # Attempt to execute the event with a timeout
-                await asyncio.wait_for(event.execute_event(), timeout=timeout)
-            except asyncio.TimeoutError:
-                # Handle the timeout (e.g., log a warning, skip, etc.)
-                logger_instance.info(f"Event {event} execution timed out and was skipped.")
-            except Exception as e:
-                logger_instance.error(f"Error executing event {event} : ", e)
-                traceback_str = ''.join(traceback.format_tb(e.__traceback__))
-                logger_instance.error("Traceback:\n%s", traceback_str)
+                failed = False
+                try:
+                    # Attempt to execute the event with a timeout
+                    await asyncio.wait_for(event.execute_event(), timeout=timeout)
+                except asyncio.TimeoutError:
+                    # Retry once, inline, so ordering relative to later events
+                    # is preserved. Only timeouts are retried: handlers are
+                    # state-idempotent, while exceptions (e.g. a Vonage 400 on
+                    # a stale leg) are deterministic and would just fail again.
+                    logger_instance.warning(
+                        f"Event {event} execution timed out; retrying once."
+                    )
+                    try:
+                        await asyncio.wait_for(event.execute_event(), timeout=timeout)
+                    except asyncio.TimeoutError:
+                        logger_instance.error(
+                            f"Event {event} timed out twice and was dropped."
+                        )
+                        failed = True
+                except Exception as e:
+                    logger_instance.error(f"Error executing event {event} : ", e)
+                    traceback_str = ''.join(traceback.format_tb(e.__traceback__))
+                    logger_instance.error("Traceback:\n%s", traceback_str)
+                    failed = True
+
+                if failed:
+                    # A dropped event usually means its terminal update_state()
+                    # never ran — push the current truthful state so the
+                    # frontend doesn't stay stuck on an optimistic assumption.
+                    try:
+                        await self.update_state()
+                    except Exception as e:
+                        logger_instance.error(
+                            f"Failed to push state after dropped event {event}: {e}"
+                        )
             finally:
                 # Mark the task as done to release the queue item
                 self.event_queue.task_done()
