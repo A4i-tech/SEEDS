@@ -149,6 +149,10 @@ const ClassroomDetail = () => {
 
     const connect = () => {
       if (!isMountedRef.current) return;
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
 
       let eventSource;
       try {
@@ -189,13 +193,14 @@ const ClassroomDetail = () => {
         // While readyState is CONNECTING the browser is already retrying the
         // stream on its own — don't close, or state updates stop for good.
         if (eventSource.readyState !== EventSource.CLOSED) return;
+        // A superseded instance erroring late must not reconnect on top of
+        // the currently active connection.
+        if (eventSourceRef.current !== eventSource) return;
 
         // The browser gave up (handshake failure or non-200 response):
         // recreate the connection ourselves with exponential backoff.
         eventSource.close();
-        if (eventSourceRef.current === eventSource) {
-          eventSourceRef.current = null;
-        }
+        eventSourceRef.current = null;
         scheduleReconnect();
       };
     };
