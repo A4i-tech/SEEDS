@@ -79,11 +79,19 @@ export function getNavigationTarget(commands, results) {
 
   let confIdSearchResult = null;
   let classIdSearchResult = null;
+  let sawClassCommand = false;
+  let sawStudentsCommand = false;
 
   for (let i = 0; i < commands.length; i++) {
     const cmd = commands[i];
     const res = results?.[i];
     const path = cmd.path || "";
+
+    // Frontend navigation pseudo-command — go straight to the requested route.
+    if (cmd.method === "NAVIGATE" && res?.status < 300) {
+      const target = res?.data?.navigate || path;
+      return { label: "Go", path: target, autoNavigate: true };
+    }
 
     // Track classroom ID if fetched
     if (path.match(/^\/class\/([^/]+)$/) && cmd.method === "GET" && res?.status < 300) {
@@ -145,12 +153,15 @@ export function getNavigationTarget(commands, results) {
       };
     }
 
-    if (path.match(/\/class/)) {
-      return { label: "Go to Classrooms", path: ROUTES.CLASSROOMS };
-    }
-    if (path.includes("/teacher/students")) {
-      return { label: "Go to Classrooms", path: ROUTES.CLASSROOMS };
-    }
+    // Note generic class/student commands but DON'T return yet — a later command
+    // (e.g. conference start) may be a higher-priority navigation target.
+    if (path.match(/\/class/)) sawClassCommand = true;
+    if (path.includes("/teacher/students")) sawStudentsCommand = true;
+  }
+
+  // Generic fallback: only after scanning ALL commands for priority targets.
+  if (sawClassCommand || sawStudentsCommand) {
+    return { label: "Go to Classrooms", path: ROUTES.CLASSROOMS };
   }
 
   return null;

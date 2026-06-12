@@ -155,6 +155,10 @@ CURRENT USER CONTEXT:
 - Teacher name: {{teacherName}}
 - Tenant ID: {{tenantId}}
 - User ID: {{userId}}
+- Active Conference ID: {{activeConferenceId}}
+  ("none" means there is no live conference. Any non-"none" value IS a live call that can be ended/muted.)
+- Current class being viewed: {{currentClassId}}
+  ("none" means the user is on the main/list screen, not inside a specific class page.)
 
 {{history}}
 
@@ -170,6 +174,14 @@ Use the recent conversation above to resolve references like "it", "that class",
 - "mute all", "unmute all" → Use PUT /call/conference/muteall or /call/conference/unmuteall
 Do NOT confuse content playback with conference calls. "Play keats poem" = GET /content/?expName=keats poem. That's it.
 ═══ END CRITICAL ═══
+
+═══ NAVIGATION (frontend screens) ═══
+Pure "take me to / go to / open / go back to / show me the X screen" requests are FRONTEND navigation — no backend data is fetched. These ALWAYS have canAutoResolve=true. Known screens:
+- "home", "home screen", "classrooms", "my classes", "go back", "main screen" → the classrooms list (route /classrooms)
+- "content", "content library", "songs/stories list" → the content screen (route /content)
+- A specific class by name → that class's detail page (route /classrooms/detail/<classId> using the _id from DB context)
+Navigating is a single frontend step; do not plan any API call for it.
+═══ END NAVIGATION ═══
 
 AVAILABLE API ROUTES (summary):
 - GET /class/ → returns array of classes [{_id, name, teacher, students, leaders, contentIds}]
@@ -219,7 +231,10 @@ RESPOND WITH JSON:
 
 IMPORTANT RULES:
 1. Only return valid JSON. No markdown.
-2. If the user wants to start a conference, you MUST clarify which specific students to include and who should be the leader. If they haven't explicitly mentioned this, set canAutoResolve to false and set unresolvedNote to ask them "Who would you like to select? And who would you like to assign as a leader?"
+2. If the user wants to start a conference:
+   - If 'Current class being viewed' in CURRENT USER CONTEXT is a real class id (NOT "none"), use THAT class. Include ALL of its students (from the matching class in DB context) as participants and proceed — set canAutoResolve to true. Do NOT ask which class; the user is already on that class page. A leader is optional — do not block on it.
+   - If the user explicitly named a class or specific students in their command, use those instead.
+   - Only if 'Current class being viewed' is "none" AND the user did not name a class/students, set canAutoResolve to false and set unresolvedNote to "Which class would you like to start the call for?"
 3. If the user wants to end a conference, but the 'Active Conference ID' in CURRENT USER CONTEXT is 'none', set canAutoResolve to false and explain that there is no active conference to end.
 4. Student/leader names come from speech transcription and may be misspelled or distorted by accent. When a requested name is not an exact match, pick the CLOSEST existing student (phonetic/spelling similarity) and proceed with that student. Only set canAutoResolve to false if NO existing student is a reasonably close match. Do not reject a name just because the spelling differs slightly.
 5. HELP / CAPABILITIES: If the user asks what you can do, what commands or navigation options exist, how to use the assistant, or any similar "help" question, set canAutoResolve to false and set unresolvedNote to this exact list (rephrase naturally, do not invent extra abilities):
@@ -237,6 +252,8 @@ CURRENT USER CONTEXT:
 - Tenant ID: {{tenantId}}
 - User ID: {{userId}}
 - Active Conference ID: {{activeConferenceId}}
+- Current class being viewed: {{currentClassId}}
+  (If not "none" and the command is "start a call" without a named class, build the conference from THIS class's students in DB context.)
 
 {{history}}
 
@@ -248,10 +265,18 @@ REASONING FROM PREVIOUS STEP:
 Now produce a JSON array of API calls to execute IN ORDER.
 
 Each element must have:
-  - "method": HTTP method (GET, POST, PUT, PATCH, DELETE)
-  - "path": the full API path
+  - "method": HTTP method (GET, POST, PUT, PATCH, DELETE) — or "NAVIGATE" for frontend screen changes
+  - "path": the full API path — or the frontend route for NAVIGATE
   - "body": request body object (null if not needed)
   - "description": short description of what this step does
+
+FRONTEND NAVIGATION: for pure "go to / open / take me back to <screen>" requests, emit a single
+NAVIGATE step (no HTTP call). Use the frontend route as the path:
+  - classrooms / home / main screen / go back → "/classrooms"
+  - content library → "/content"
+  - a specific class → "/classrooms/detail/<classId>" (use the real _id from DB context)
+Example: "take me back to the home screen"
+[ { "method": "NAVIGATE", "path": "/classrooms", "body": null, "description": "Navigate to the classrooms home screen" } ]
 
 CRITICAL RULES:
 1. Only return valid JSON. No markdown, no explanation.
@@ -403,7 +428,8 @@ function buildPrompt(template, userInfo, extras = {}) {
     .replace(/{{teacherName}}/g, userInfo.name || "Teacher")
     .replace(/{{tenantId}}/g, userInfo.tenantId || "unknown")
     .replace(/{{userId}}/g, userInfo.userId || "unknown")
-    .replace(/{{activeConferenceId}}/g, userInfo.activeConferenceId || "none");
+    .replace(/{{activeConferenceId}}/g, userInfo.activeConferenceId || "none")
+    .replace(/{{currentClassId}}/g, userInfo.currentClassId || "none");
 
   for (const [key, value] of Object.entries(extras)) {
     prompt = prompt.replace(`{{${key}}}`, typeof value === "string" ? value : JSON.stringify(value, null, 2));
@@ -564,6 +590,15 @@ exports.executeCommands = async function executeCommands(commands, authToken, ba
         const forEachResults = await executeForEach(cmd, resolvedPath, resolvedBody, authToken, baseUrl, context, i);
         results.push(...forEachResults);
         context[`step${i + 1}`] = { data: forEachResults.map((r) => r.data), status: 200 };
+        continue;
+      }
+
+      // NAVIGATE is a frontend-only pseudo-command (no HTTP). The frontend reads
+      // it from the results and routes there. Return a synthetic success.
+      if (cmd.method === "NAVIGATE") {
+        const result = { step: cmd.description, status: 200, data: { navigate: resolvedPath } };
+        results.push(result);
+        context[`step${i + 1}`] = result;
         continue;
       }
 

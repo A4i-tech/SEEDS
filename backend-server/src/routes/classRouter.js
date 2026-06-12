@@ -6,15 +6,42 @@ const Student = require("../models/Student.js");
 const { tryCatchWrapper } = require(path.join("..", "util.js"));
 
 /**
- * Given an array of phone number strings, resolve them to Student _id ObjectIds.
- * Values with no matching student are dropped.
+ * Resolve a heterogeneous students/leaders array to Student _id ObjectIds.
+ * Entries may be:
+ *   - phone number strings (AI sends these)
+ *   - populated student objects {_id, name, phoneNumber} (GET /class/:id returns these,
+ *     and the AI append flow re-sends them when adding a student to an existing class)
+ *   - raw ObjectId strings (already-resolved refs)
+ * Values with no matching student are dropped. Duplicates removed.
  */
-async function resolveStudentIds(phones, schoolId) {
-  if (!phones || phones.length === 0) return [];
-  const found = await Student.find({ phoneNumber: { $in: phones }, schoolId }).select("_id phoneNumber").lean();
-  const phoneToId = {};
-  found.forEach((s) => { phoneToId[s.phoneNumber] = s._id; });
-  return phones.map((p) => phoneToId[p]).filter(Boolean);
+async function resolveStudentIds(entries, schoolId) {
+  if (!entries || entries.length === 0) return [];
+
+  const ids = [];
+  const phones = [];
+  for (const e of entries) {
+    if (e && typeof e === "object") {
+      // Populated student object — prefer its _id, fall back to phoneNumber.
+      if (e._id) ids.push(String(e._id));
+      else if (e.phoneNumber) phones.push(e.phoneNumber);
+    } else if (typeof e === "string") {
+      // 24-char hex → already an ObjectId; otherwise treat as a phone number.
+      if (/^[a-f\d]{24}$/i.test(e)) ids.push(e);
+      else phones.push(e);
+    }
+  }
+
+  if (phones.length > 0) {
+    const found = await Student.find({ phoneNumber: { $in: phones }, schoolId })
+      .select("_id phoneNumber")
+      .lean();
+    const phoneToId = {};
+    found.forEach((s) => { phoneToId[s.phoneNumber] = String(s._id); });
+    phones.forEach((p) => { if (phoneToId[p]) ids.push(phoneToId[p]); });
+  }
+
+  // De-dupe while preserving order.
+  return [...new Set(ids)];
 }
 
 /**

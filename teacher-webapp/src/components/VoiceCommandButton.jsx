@@ -27,7 +27,7 @@ import {
   NavigateNext as NavigateNextIcon,
   VolumeUp as VolumeUpIcon,
 } from "@mui/icons-material";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import useVoiceRecorder from "../hooks/useVoiceRecorder";
 import { sendVoiceCommand, sendTextCommand, fetchTTSPrompt, executeClientCommands } from "../services/voiceCommandService";
 import { formatResult, getNavigationTarget } from "../utils/commandResultFormatter";
@@ -54,6 +54,10 @@ const STATUS_LABELS = {
 
 export default function VoiceCommandButton() {
   const navigate = useNavigate();
+  const location = useLocation();
+  // Class the user is currently viewing, derived from the route /classrooms/detail/:id.
+  // Sent to the backend so "start a call" can default to this class without asking.
+  const currentClassId = location.pathname.match(/\/classrooms\/detail\/([^/]+)/)?.[1] || null;
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState(STATUS.IDLE);
   const [result, setResult] = useState(null);
@@ -65,6 +69,15 @@ export default function VoiceCommandButton() {
   const thinkingPlayerRef = useRef(null);
   // Last 2 conversation turns, sent back to the planner for reference resolution.
   const historyRef = useRef([]);
+  // Mirror volatile context into refs so the audioBlob effect can read the latest
+  // values WITHOUT listing them as deps — otherwise a conf-id/route change re-fires
+  // the effect with the same blob and re-sends the command (rate-limit storm).
+  const activeConferenceIdRef = useRef(activeConferenceId);
+  const currentClassIdRef = useRef(currentClassId);
+  activeConferenceIdRef.current = activeConferenceId;
+  currentClassIdRef.current = currentClassId;
+  // Guards against processing the same recorded blob twice.
+  const processedBlobRef = useRef(null);
 
   // Record a completed turn and keep only the most recent 2.
   const recordTurn = useCallback((data) => {
@@ -179,7 +192,7 @@ export default function VoiceCommandButton() {
 
     try {
       setStatus(STATUS.PLANNING);
-      let data = await sendTextCommand(text, { activeConferenceId, history: historyRef.current });
+      let data = await sendTextCommand(text, { activeConferenceId, currentClassId, history: historyRef.current });
       // Execute any conference steps client-side (ConferenceV2 is only reachable from frontend)
       if (data.results?.some((r) => r.requiresClientExecution)) {
         setStatus(STATUS.EXECUTING);
@@ -196,7 +209,7 @@ export default function VoiceCommandButton() {
       setResult({ error: err.message || "Request failed" });
       setStatus(STATUS.ERROR);
     }
-  }, [textInput, dispatchCommandComplete, storeConferenceIdFromResults, activeConferenceId, recordTurn]);
+  }, [textInput, dispatchCommandComplete, storeConferenceIdFromResults, activeConferenceId, currentClassId, recordTurn]);
 
   const handleTextKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -208,12 +221,19 @@ export default function VoiceCommandButton() {
   // When audioBlob is ready, send to backend
   useEffect(() => {
     if (!audioBlob) return;
+    // Only process each recorded blob once; ignore re-runs caused by context changes.
+    if (processedBlobRef.current === audioBlob) return;
+    processedBlobRef.current = audioBlob;
     let cancelled = false;
 
     (async () => {
       try {
         setStatus(STATUS.PLANNING);
-        let data = await sendVoiceCommand(audioBlob, { activeConferenceId, history: historyRef.current });
+        let data = await sendVoiceCommand(audioBlob, {
+          activeConferenceId: activeConferenceIdRef.current,
+          currentClassId: currentClassIdRef.current,
+          history: historyRef.current,
+        });
 
         if (cancelled) return;
 
@@ -242,7 +262,7 @@ export default function VoiceCommandButton() {
     return () => {
       cancelled = true;
     };
-  }, [audioBlob, dispatchCommandComplete, storeConferenceIdFromResults, activeConferenceId, recordTurn]);
+  }, [audioBlob, dispatchCommandComplete, storeConferenceIdFromResults, recordTurn]);
 
   const isBusy = status === STATUS.PLANNING || status === STATUS.EXECUTING || status === STATUS.TRANSCRIBING;
   const navTarget = result?.commands ? getNavigationTarget(result.commands, result.results) : null;
