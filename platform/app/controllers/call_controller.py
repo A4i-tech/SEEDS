@@ -448,29 +448,21 @@ async def transfer_ivr_call(
         raise HTTPException(status_code=503, detail="Vonage not configured")
 
     raw_key = base64.b64decode(settings.vonage_application_private_key64).decode("utf-8")
-    client = vonage.Client(
-        application_id=settings.vonage_application_id,
-        private_key=raw_key,
+    client = vonage.Vonage(
+        auth=vonage.Auth(
+            application_id=settings.vonage_application_id,
+            private_key=raw_key,
+        )
     )
     try:
-        resp = client.voice.transfer(
-            request.call_id,
+        ncco = [
             {
-                "action": "transfer",
-                "destination": {
-                    "type": "ncco",
-                    "ncco": [
-                        {
-                            "action": "connect",
-                            "endpoint": [
-                                {"type": "phone", "number": request.transfer_to}
-                            ],
-                        }
-                    ],
-                },
-            },
-        )
-        return {"message": "Transfer initiated", "response": resp}
+                "action": "connect",
+                "endpoint": [{"type": "phone", "number": request.transfer_to}],
+            }
+        ]
+        client.voice.transfer_call_ncco(request.call_id, ncco)
+        return {"message": "Transfer initiated"}
     except Exception as exc:
         logger.error("Transfer failed for call %s: %s", request.call_id, exc)
         raise HTTPException(status_code=500, detail=f"Transfer failed: {exc}") from exc
@@ -495,12 +487,14 @@ async def hangup_ivr_call(
         raise HTTPException(status_code=503, detail="Vonage not configured")
 
     raw_key = base64.b64decode(settings.vonage_application_private_key64).decode("utf-8")
-    client = vonage.Client(
-        application_id=settings.vonage_application_id,
-        private_key=raw_key,
+    client = vonage.Vonage(
+        auth=vonage.Auth(
+            application_id=settings.vonage_application_id,
+            private_key=raw_key,
+        )
     )
     try:
-        client.voice.update_call(request.call_id, {"action": "hangup"})
+        client.voice.hangup(request.call_id)
         return {"message": f"Hangup initiated for {request.call_id}"}
     except Exception as exc:
         logger.error("Hangup failed for call %s: %s", request.call_id, exc)

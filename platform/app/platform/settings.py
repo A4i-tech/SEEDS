@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     # ---------------------------------------------------------------------------
     db_connection: str = Field(default="", repr=False)  # backend-server legacy name
     mongo_db_connection_string: str = Field(default="", repr=False)
-mongo_max_pool_size: int = 50
+    mongo_max_pool_size: int = 50
 
     # ---------------------------------------------------------------------------
     # Auth / Security  (backend-server)
