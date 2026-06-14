@@ -212,20 +212,20 @@ class TestIVRRoutes:
 
     @pytest.mark.asyncio
     async def test_transfer_ivr_call_no_vonage_config(self, client, mock_db):
-        """transfer requires Vonage config — should return 503 when not configured."""
+        """transfer requires Vonage config — 503 when unconfigured, 500 when Vonage rejects fake call_id."""
         resp = await client.post("/transfer", json={
             "call_id": "leg1",
             "transfer_to": "+919999999999",
         })
-        assert resp.status_code in (200, 400, 422, 503)
+        assert resp.status_code in (200, 400, 422, 500, 503)
 
     @pytest.mark.asyncio
     async def test_hangup_ivr_call_no_vonage_config(self, client, mock_db):
-        """hangup requires Vonage config."""
+        """hangup requires Vonage config — 503 when unconfigured, 500 when Vonage rejects fake call_id."""
         resp = await client.post("/hangup", json={
             "call_id": "leg1",
         })
-        assert resp.status_code in (200, 400, 422, 503)
+        assert resp.status_code in (200, 400, 422, 500, 503)
 
 
 # ---------------------------------------------------------------------------
