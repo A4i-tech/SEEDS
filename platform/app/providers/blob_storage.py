@@ -228,7 +228,7 @@ class SASGenerator:
         self._account_key: Optional[str] = (
             settings.accountkey or settings.azure_storage_account_key or None
         )
-        self._azure_enabled: bool = settings.azure_storage_enabled
+        self._azure_enabled: bool = settings.azure_blob_sas_enabled
         self._sas_expiry_hours: int = 1
         self._use_account_key: bool = bool(self._account_name and self._account_key)
 

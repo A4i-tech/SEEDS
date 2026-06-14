@@ -90,7 +90,7 @@ class WebsocketClientProvider:
         from app.platform.settings import get_settings  # noqa: PLC0415
 
         settings = get_settings()
-        self._connection_url = settings.ws_server_ep + f"?id={self.connection_id}"
+        self._connection_url = settings.websocket_service_url + f"?id={self.connection_id}"
         self.is_connected = False
         self.reconnect_attempts = 0
         self._conference_manager = conference_manager

@@ -37,7 +37,7 @@ class TestParseBlobUrl:
 class TestSASGenerator:
     def _make_mock_settings(self, enabled=False):
         s = MagicMock()
-        s.azure_storage_enabled = enabled
+        s.azure_blob_sas_enabled = enabled
         s.storage_account_name = "testaccount"
         s.azure_storage_account_name = "testaccount"
         s.accountkey = None

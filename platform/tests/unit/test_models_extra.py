@@ -146,6 +146,6 @@ class TestModelsCoverage:
         except Exception:
             pass
         try:
-            _ = settings.azure_storage_enabled
+            _ = settings.azure_blob_sas_enabled
         except Exception:
             pass

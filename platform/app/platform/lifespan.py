@@ -107,7 +107,7 @@ def _init_conference_manager() -> "ConferenceCallManager":
         communication_api_factory=_VonageAPIFactory(),
         connection_manager_factory=_NoopConnectionManagerFactory(),
         storage_manager=_NoopStorageManager(),
-        ws_base_url=settings.ws_server_ep,
+        ws_base_url=settings.websocket_service_url,
     )
     logger.info("Conference manager initialized")
     return _conference_manager

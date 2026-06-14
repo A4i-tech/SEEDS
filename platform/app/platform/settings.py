@@ -33,8 +33,7 @@ class Settings(BaseSettings):
     # ---------------------------------------------------------------------------
     db_connection: str = Field(default="", repr=False)  # backend-server legacy name
     mongo_db_connection_string: str = Field(default="", repr=False)
-    mongo_collection_name: str = "conferenceState"
-    mongo_max_pool_size: int = 50
+mongo_max_pool_size: int = 50
 
     # ---------------------------------------------------------------------------
     # Auth / Security  (backend-server)
@@ -59,19 +58,6 @@ class Settings(BaseSettings):
     vonage_call_timeout_seconds: float = 30.0
 
     # ---------------------------------------------------------------------------
-    # Azure Cosmos DB (ConferenceV2 / legacy)
-    # ---------------------------------------------------------------------------
-    cosmos_endpoint: str = ""
-    cosmos_key: str = Field(default="", repr=False)
-    cosmos_database: str = ""
-    cosmos_container: str = ""
-    azure_cosmos_endpoint: str = ""
-    azure_cosmos_key: str = Field(default="", repr=False)
-
-    # Storage backend selector ("cosmos" | "mongodb")
-    storage_backend: str = "mongodb"
-
-    # ---------------------------------------------------------------------------
     # Azure Speech / TTS (ttsService.js)
     # ---------------------------------------------------------------------------
     azure_speech_key: str = Field(default="", repr=False)
@@ -84,14 +70,13 @@ class Settings(BaseSettings):
     # ---------------------------------------------------------------------------
     # Azure Blob Storage
     # ---------------------------------------------------------------------------
-    azure_storage_enabled: bool = False
+    azure_blob_sas_enabled: bool = False
     azure_storage_account_name: str = ""
     azure_storage_account_key: str = Field(default="", repr=False)
     azure_storage_connection_string: str = Field(default="", repr=False)
     azure_storage_container: str = "seedsstagingblob"
     storage_account_name: str = ""
     accountkey: str = Field(default="", repr=False)
-    blob_store_conn_str: str = Field(default="", repr=False)
 
     # Audio blob capture
     audio_capture_enabled: bool = False
@@ -110,10 +95,6 @@ class Settings(BaseSettings):
     # ---------------------------------------------------------------------------
     # Azure Service Bus
     # ---------------------------------------------------------------------------
-    service_bus_connection_string: str = Field(default="", repr=False)
-    service_bus_queue_name: str = ""
-    service_bus_ns_name: str = ""
-    service_bus_topic_name: str = ""
     azure_service_bus_connection_string: str = Field(default="", repr=False)
     azure_service_bus_queue_name: str = ""
     azure_service_bus_max_retries: int = 3
@@ -142,17 +123,14 @@ class Settings(BaseSettings):
     ivr_server_url: str = ""
     conf_server_url: str = ""
     events_webhook_ep: str = ""
-    ws_server_ep: str = ""
     websocket_service_url: str = ""
 
     # ---------------------------------------------------------------------------
     # IVR specific
     # ---------------------------------------------------------------------------
-    to_phone_number: str = ""
     my_number: str = ""
     call_duration_limit: int = 0
     ivr_daily_listening_limit_seconds: int = 7200
-    provider_type: str = ""
     default_welcome_language: str = "kannada"
 
     # ---------------------------------------------------------------------------

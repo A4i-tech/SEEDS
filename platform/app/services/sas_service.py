@@ -35,7 +35,7 @@ class SASService:
         self._account_name: str = settings.azure_storage_account_name
         self._account_key: str = settings.azure_storage_account_key
         self._sas_expiry_hours: int = 1  # configurable if needed
-        self._azure_enabled: bool = settings.azure_storage_enabled
+        self._azure_enabled: bool = settings.azure_blob_sas_enabled
 
         self._use_account_key: bool = bool(self._account_name and self._account_key)
         self._credential = None
