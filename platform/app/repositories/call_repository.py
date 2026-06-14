@@ -1,0 +1,74 @@
+"""Call repository — Motor async data access for call and call log collections."""
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import List, Optional
+
+from bson import ObjectId
+from motor.motor_asyncio import AsyncIOMotorDatabase
+
+from app.models.call import Call, CallLog
+
+
+class CallRepository:
+    """Async Motor repository for call sequence and call log documents."""
+
+    CALL_COLLECTION = "calls"
+    LOG_COLLECTION = "calllogs"
+
+    def __init__(self, db: AsyncIOMotorDatabase) -> None:
+        self._call_col = db[self.CALL_COLLECTION]
+        self._log_col = db[self.LOG_COLLECTION]
+
+    @staticmethod
+    def _to_id(id_str: str) -> ObjectId | str:
+        try:
+            return ObjectId(id_str)
+        except Exception:
+            return id_str
+
+    # ------------------------------------------------------------------
+    # Call sequence documents
+    # ------------------------------------------------------------------
+    async def find_call_by_id(self, id: str) -> Optional[Call]:
+        doc = await self._call_col.find_one({"_id": self._to_id(id)})
+        return Call.from_mongo(doc) if doc else None
+
+    async def create_call(self, call: Call) -> Call:
+        doc = call.model_dump(by_alias=True, exclude_none=True)
+        doc.pop("_id", None)
+        result = await self._call_col.insert_one(doc)
+        doc["_id"] = str(result.inserted_id)
+        return Call.from_mongo(doc)
+
+    # ------------------------------------------------------------------
+    # Call log documents
+    # ------------------------------------------------------------------
+    async def find_log_by_fsm_context(self, fsm_context_id: str) -> Optional[CallLog]:
+        doc = await self._log_col.find_one({"fsmContextId": fsm_context_id})
+        return CallLog.from_mongo(doc) if doc else None
+
+    async def find_logs_by_tenant(self, tenant_id: str) -> List[CallLog]:
+        cursor = self._log_col.find({"tenant_id": tenant_id}).sort("_id", -1)
+        docs = await cursor.to_list(length=None)
+        return [CallLog.from_mongo(d) for d in docs]
+
+    async def find_logs_by_teacher(self, teacher_id: str) -> List[CallLog]:
+        cursor = self._log_col.find({"teacher_id": teacher_id}).sort("_id", -1)
+        docs = await cursor.to_list(length=None)
+        return [CallLog.from_mongo(d) for d in docs]
+
+    async def create_log(self, log: CallLog) -> CallLog:
+        doc = log.model_dump(by_alias=True, exclude_none=True)
+        doc.pop("_id", None)
+        result = await self._log_col.insert_one(doc)
+        doc["_id"] = str(result.inserted_id)
+        return CallLog.from_mongo(doc)
+
+    async def update_log(self, id: str, updates: dict) -> Optional[CallLog]:
+        result = await self._log_col.find_one_and_update(
+            {"_id": self._to_id(id)},
+            {"$set": updates},
+            return_document=True,
+        )
+        return CallLog.from_mongo(result) if result else None

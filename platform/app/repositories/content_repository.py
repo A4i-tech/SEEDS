@@ -1,0 +1,84 @@
+"""Content repository — Motor async data access for the content collections."""
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import List, Optional
+
+from bson import ObjectId
+from motor.motor_asyncio import AsyncIOMotorDatabase
+
+from app.models.content import Content, ContentCreate
+
+
+class ContentRepository:
+    """Async Motor repository for the 'contentsV3' (and legacy 'contentsV2') collections."""
+
+    COLLECTION = "contentsV3"
+
+    def __init__(self, db: AsyncIOMotorDatabase) -> None:
+        self._col = db[self.COLLECTION]
+
+    @staticmethod
+    def _to_id(id_str: str) -> ObjectId | str:
+        try:
+            return ObjectId(id_str)
+        except Exception:
+            return id_str
+
+    async def find_by_id(self, id: str) -> Optional[Content]:
+        doc = await self._col.find_one({"_id": id})
+        return Content.from_mongo(doc) if doc else None
+
+    async def find_by_tenant(self, tenant_id: str, include_deleted: bool = False) -> List[Content]:
+        query: dict = {"tenant_id": tenant_id}
+        if not include_deleted:
+            query["is_deleted"] = {"$ne": True}
+        cursor = self._col.find(query).sort("creation_time", -1)
+        docs = await cursor.to_list(length=None)
+        return [Content.from_mongo(d) for d in docs]
+
+    async def find_by_class(self, content_ids: List[str]) -> List[Content]:
+        """Fetch a batch of content items by their IDs (as used in Classroom.contentIds)."""
+        cursor = self._col.find({"_id": {"$in": content_ids}})
+        docs = await cursor.to_list(length=None)
+        return [Content.from_mongo(d) for d in docs]
+
+    async def find_by_tenant_and_language(
+        self, tenant_id: str, language: str, include_deleted: bool = False
+    ) -> List[Content]:
+        query: dict = {"tenant_id": tenant_id, "language": language}
+        if not include_deleted:
+            query["is_deleted"] = {"$ne": True}
+        cursor = self._col.find(query)
+        docs = await cursor.to_list(length=None)
+        return [Content.from_mongo(d) for d in docs]
+
+    async def create(self, content: ContentCreate) -> Content:
+        import uuid
+        now = datetime.now(timezone.utc)
+        doc = content.model_dump(by_alias=False)
+        doc["_id"] = str(uuid.uuid4())
+        doc["created_at"] = now
+        doc["updated_at"] = now
+        await self._col.insert_one(doc)
+        return Content.from_mongo(doc)
+
+    async def update(self, id: str, updates: dict) -> Optional[Content]:
+        updates["updated_at"] = datetime.now(timezone.utc)
+        result = await self._col.find_one_and_update(
+            {"_id": id},
+            {"$set": updates},
+            return_document=True,
+        )
+        return Content.from_mongo(result) if result else None
+
+    async def soft_delete(self, id: str) -> bool:
+        result = await self._col.update_one(
+            {"_id": id},
+            {"$set": {"is_deleted": True, "updated_at": datetime.now(timezone.utc)}},
+        )
+        return result.modified_count > 0
+
+    async def delete(self, id: str) -> bool:
+        result = await self._col.delete_one({"_id": id})
+        return result.deleted_count > 0
