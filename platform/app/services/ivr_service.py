@@ -465,9 +465,11 @@ async def _make_vonage_call(
     import vonage  # noqa: PLC0415
 
     raw_key = base64.b64decode(settings.vonage_application_private_key64).decode("utf-8")
-    client = vonage.Client(
-        application_id=settings.vonage_application_id,
-        private_key=raw_key,
+    client = vonage.Vonage(
+        auth=vonage.Auth(
+            application_id=settings.vonage_ivr_application_id,
+            private_key=raw_key,
+        )
     )
     vonage_number = getattr(settings, "vonage_number", "") or os.getenv("VONAGE_NUMBER", "")
     loop = asyncio.get_event_loop()

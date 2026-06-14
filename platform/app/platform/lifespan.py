@@ -69,7 +69,7 @@ def _init_conference_manager() -> "ConferenceCallManager":
     class _VonageAPIFactory:
         def create(self, conf_id: str, ws_url: str) -> VonageAPIProvider:
             return VonageAPIProvider(
-                application_id=settings.vonage_application_id,
+                application_id=settings.vonage_conference_application_id,
                 private_key=private_key,
                 vonage_number=settings.vonage_number,
                 conf_id=conf_id,

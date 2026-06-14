@@ -69,12 +69,10 @@ async def verify_vonage_signature(request: Request) -> None:  # noqa: RUF029
 
     private_key_b64 = settings.vonage_application_private_key64
     if not private_key_b64:
-        # No key configured → cannot verify; deny in non-dev environments
         logger.warning("webhook: vonage_application_private_key64 not set; rejecting request")
         raise HTTPException(status_code=403, detail="Webhook signature verification not configured")
 
     try:
-        # Decode the base64-encoded PEM key
         private_key_pem = base64.b64decode(private_key_b64).decode("utf-8")
     except Exception:
         logger.error("webhook: failed to decode vonage_application_private_key64")
