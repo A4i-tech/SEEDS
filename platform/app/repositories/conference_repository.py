@@ -1,0 +1,80 @@
+"""Conference repository — Motor async data access for conference state documents."""
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import List, Optional
+
+from bson import ObjectId
+from motor.motor_asyncio import AsyncIOMotorDatabase
+
+from app.models.conference_state import ConferenceCallState
+
+
+class ConferenceRepository:
+    """Async Motor repository for the 'conference_states' collection."""
+
+    COLLECTION = "conference_states"
+
+    def __init__(self, db: AsyncIOMotorDatabase) -> None:
+        self._col = db[self.COLLECTION]
+
+    @staticmethod
+    def _to_id(id_str: str) -> ObjectId | str:
+        try:
+            return ObjectId(id_str)
+        except Exception:
+            return id_str
+
+    async def find_by_id(self, id: str) -> Optional[ConferenceCallState]:
+        doc = await self._col.find_one({"_id": self._to_id(id)})
+        return ConferenceCallState.from_mongo(doc) if doc else None
+
+    async def find_by_conference_id(self, conference_id: str) -> Optional[ConferenceCallState]:
+        doc = await self._col.find_one({"conference_id": conference_id})
+        return ConferenceCallState.from_mongo(doc) if doc else None
+
+    async def find_active_by_teacher(self, teacher_phone: str) -> Optional[ConferenceCallState]:
+        """Return the active (non-ended) conference for a teacher phone number."""
+        doc = await self._col.find_one(
+            {
+                "teacher_phone_number": teacher_phone,
+                "ended_at": None,
+                "is_running": True,
+            }
+        )
+        return ConferenceCallState.from_mongo(doc) if doc else None
+
+    async def find_active_by_tenant(self, tenant_id: str) -> List[ConferenceCallState]:
+        """Return all active conferences for a tenant."""
+        cursor = self._col.find({"tenant_id": tenant_id, "ended_at": None, "is_running": True})
+        docs = await cursor.to_list(length=None)
+        return [ConferenceCallState.from_mongo(d) for d in docs]
+
+    async def create(self, state: ConferenceCallState) -> ConferenceCallState:
+        doc = state.model_dump(by_alias=True, exclude_none=False)
+        if doc.get("_id") is None:
+            doc.pop("_id", None)
+        result = await self._col.insert_one(doc)
+        doc["_id"] = str(result.inserted_id)
+        return ConferenceCallState.from_mongo(doc)
+
+    async def update_state(self, conference_id: str, updates: dict) -> Optional[ConferenceCallState]:
+        """Update a conference document identified by its Vonage conference_id."""
+        result = await self._col.find_one_and_update(
+            {"conference_id": conference_id},
+            {"$set": updates},
+            return_document=True,
+        )
+        return ConferenceCallState.from_mongo(result) if result else None
+
+    async def end_conference(self, conference_id: str) -> Optional[ConferenceCallState]:
+        """Mark a conference as ended."""
+        now_iso = datetime.now(timezone.utc).isoformat()
+        return await self.update_state(
+            conference_id,
+            {"is_running": False, "ended_at": now_iso},
+        )
+
+    async def delete(self, id: str) -> bool:
+        result = await self._col.delete_one({"_id": self._to_id(id)})
+        return result.deleted_count > 0
