@@ -483,6 +483,10 @@ class ContentJobConsumer:
         self._db = db
         self._running = False
 
+    async def run(self) -> None:
+        """Start the polling loop (alias for lifespan compatibility)."""
+        await self.start()
+
     async def start(self) -> None:
         """Start the polling loop."""
         self._running = True
