@@ -445,12 +445,12 @@ async def transfer_ivr_call(
 
     settings = get_settings()
     if not settings.vonage_application_private_key64:
-        raise HTTPException(status_code=503, detail="Vonage not configured")
+        raise HTTPException(status_code=503, detail="Vonage IVR not configured")
 
     raw_key = base64.b64decode(settings.vonage_application_private_key64).decode("utf-8")
     client = vonage.Vonage(
         auth=vonage.Auth(
-            application_id=settings.vonage_application_id,
+            application_id=settings.vonage_ivr_application_id,
             private_key=raw_key,
         )
     )
@@ -484,12 +484,12 @@ async def hangup_ivr_call(
 
     settings = get_settings()
     if not settings.vonage_application_private_key64:
-        raise HTTPException(status_code=503, detail="Vonage not configured")
+        raise HTTPException(status_code=503, detail="Vonage IVR not configured")
 
     raw_key = base64.b64decode(settings.vonage_application_private_key64).decode("utf-8")
     client = vonage.Vonage(
         auth=vonage.Auth(
-            application_id=settings.vonage_application_id,
+            application_id=settings.vonage_ivr_application_id,
             private_key=raw_key,
         )
     )

@@ -52,7 +52,8 @@ class Settings(BaseSettings):
     # ---------------------------------------------------------------------------
     vonage_api_key: str = Field(default="", repr=False)
     vonage_api_secret: str = Field(default="", repr=False)
-    vonage_application_id: str = ""
+    vonage_conference_application_id: str = ""
+    vonage_ivr_application_id: str = ""
     vonage_application_private_key64: str = Field(default="", repr=False)
     vonage_number: str = ""
     vonage_call_timeout_seconds: float = 30.0
