@@ -2,7 +2,7 @@
 Additional coverage for:
 - FSM debug methods (print_states, print_transitions, visualize_fsm)
 - BlobStorageProvider.extract_blob_path_without_extension
-- SASGenerator (azure_storage_enabled=False path)
+- SASGenerator (azure_blob_sas_enabled=False path)
 - AudioAnalysisConsumer unit
 - content_job_consumer deeper methods
 - Conference service confevents deeper paths
@@ -114,7 +114,7 @@ class TestBlobStorageExtractPath:
 
 
 # ---------------------------------------------------------------------------
-# SASGenerator — azure_storage_enabled=False path
+# SASGenerator — azure_blob_sas_enabled=False path
 # ---------------------------------------------------------------------------
 
 
@@ -127,7 +127,7 @@ class TestSASGeneratorDisabled:
         mock_settings.azure_storage_account_name = ""
         mock_settings.accountkey = ""
         mock_settings.azure_storage_account_key = ""
-        mock_settings.azure_storage_enabled = False
+        mock_settings.azure_blob_sas_enabled = False
 
         with patch("app.providers.blob_storage.get_settings", return_value=mock_settings):
             gen = SASGenerator()
@@ -144,7 +144,7 @@ class TestSASGeneratorDisabled:
         result = gen.get_url_with_sas("")
         assert result == ""
 
-    def test_disabled_azure_storage_enabled_false(self) -> None:
+    def test_disabled_azure_blob_sas_enabled_false(self) -> None:
         gen = self._make_sas_gen()
         assert gen._azure_enabled is False
 

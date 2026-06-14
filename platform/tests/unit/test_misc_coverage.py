@@ -359,7 +359,7 @@ class TestSASServiceOffline:
         mock_settings = MagicMock()
         mock_settings.azure_storage_account_name = ""
         mock_settings.azure_storage_account_key = ""
-        mock_settings.azure_storage_enabled = False
+        mock_settings.azure_blob_sas_enabled = False
 
         with patch("app.services.sas_service.get_settings", return_value=mock_settings):
             from app.services.sas_service import SASService

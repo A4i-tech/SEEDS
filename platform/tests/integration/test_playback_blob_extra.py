@@ -186,7 +186,7 @@ class TestBlobStoragePure:
     def test_extract_blob_path_without_extension(self) -> None:
         """BlobStorageProvider.extract_blob_path_without_extension strips extension."""
         mock_settings = MagicMock()
-        mock_settings.azure_storage_enabled = False
+        mock_settings.azure_blob_sas_enabled = False
         mock_settings.azure_storage_account_name = "testaccount"
         mock_settings.azure_storage_account_key = ""
         mock_settings.azure_storage_connection_string = ""
@@ -208,7 +208,7 @@ class TestBlobStoragePure:
         from app.providers.blob_storage import SASGenerator
 
         mock_settings = MagicMock()
-        mock_settings.azure_storage_enabled = False
+        mock_settings.azure_blob_sas_enabled = False
         mock_settings.azure_storage_account_name = ""
         mock_settings.azure_storage_account_key = ""
 
@@ -222,7 +222,7 @@ class TestBlobStoragePure:
         from app.providers.blob_storage import SASGenerator
 
         mock_settings = MagicMock()
-        mock_settings.azure_storage_enabled = False
+        mock_settings.azure_blob_sas_enabled = False
         mock_settings.azure_storage_account_name = ""
         mock_settings.azure_storage_account_key = ""
 
@@ -236,7 +236,7 @@ class TestBlobStoragePure:
         from app.providers.blob_storage import SASGenerator
 
         mock_settings = MagicMock()
-        mock_settings.azure_storage_enabled = False
+        mock_settings.azure_blob_sas_enabled = False
         mock_settings.azure_storage_account_name = ""
         mock_settings.azure_storage_account_key = ""
 
