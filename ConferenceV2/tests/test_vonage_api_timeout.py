@@ -351,3 +351,20 @@ def test_install_session_timeout_no_session_is_safe():
 
     client = MagicMock(spec=[])  # no .session attribute
     _install_session_timeout(client)  # should not raise
+
+
+def test_positive_float_or_default_valid():
+    """A valid positive value passes through, coerced to float."""
+    from app.services.communication_api.vonage_api import _positive_float_or_default
+
+    assert _positive_float_or_default(30, 99.0, "X") == 30.0
+    assert _positive_float_or_default("12.5", 99.0, "X") == 12.5
+
+
+@pytest.mark.parametrize("bad", [None, 0, -5, "abc", ""])
+def test_positive_float_or_default_falls_back(bad):
+    """None / non-positive / non-numeric values fall back to the safe default,
+    so the (connect, read) socket timeout can never be silently disabled."""
+    from app.services.communication_api.vonage_api import _positive_float_or_default
+
+    assert _positive_float_or_default(bad, 30.0, "X") == 30.0

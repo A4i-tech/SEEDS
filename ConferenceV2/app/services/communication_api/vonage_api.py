@@ -33,8 +33,49 @@ _VONAGE_RATE_LIMIT = 3  # max outbound call POSTs per second
 #      running the blocked socket until the OS gives up, leaking threads.
 #   2) asyncio.wait_for(_VONAGE_CALL_TIMEOUT_SECONDS) stays as a backstop for the
 #      rare case a thread wedges for a non-socket reason.
-_VONAGE_CALL_TIMEOUT_SECONDS = get_settings().VONAGE_CALL_TIMEOUT_SECONDS
-_VONAGE_CONNECT_TIMEOUT_SECONDS = get_settings().VONAGE_CONNECT_TIMEOUT_SECONDS
+# Safe fallbacks if env config is missing/invalid. A non-positive or non-numeric
+# socket timeout silently disables the timeout (requests treats it as "no
+# timeout"), which would reintroduce the 15.6-min hang. Validate at load.
+_DEFAULT_CONNECT_TIMEOUT_SECONDS = 10.0
+_DEFAULT_READ_TIMEOUT_SECONDS = 30.0
+
+
+def _positive_float_or_default(value, default: float, name: str) -> float:
+    """Coerce a configured timeout to a positive float, else log and fall back.
+
+    Guards the (connect, read) tuple handed to requests: a None/0/negative/
+    non-numeric value would disable the socket timeout and reopen the hang path."""
+    try:
+        coerced = float(value)
+    except (TypeError, ValueError):
+        logger_instance.warning(
+            "%s is not numeric (%r); falling back to %ss socket timeout",
+            name,
+            value,
+            default,
+        )
+        return default
+    if coerced <= 0:
+        logger_instance.warning(
+            "%s must be > 0 (got %s); falling back to %ss socket timeout",
+            name,
+            coerced,
+            default,
+        )
+        return default
+    return coerced
+
+
+_VONAGE_CALL_TIMEOUT_SECONDS = _positive_float_or_default(
+    get_settings().VONAGE_CALL_TIMEOUT_SECONDS,
+    _DEFAULT_READ_TIMEOUT_SECONDS,
+    "VONAGE_CALL_TIMEOUT_SECONDS",
+)
+_VONAGE_CONNECT_TIMEOUT_SECONDS = _positive_float_or_default(
+    get_settings().VONAGE_CONNECT_TIMEOUT_SECONDS,
+    _DEFAULT_CONNECT_TIMEOUT_SECONDS,
+    "VONAGE_CONNECT_TIMEOUT_SECONDS",
+)
 
 
 class _TimeoutHTTPAdapter(HTTPAdapter):
