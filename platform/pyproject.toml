@@ -46,6 +46,8 @@ anyio = {extras = ["trio"], version = ">=4.0"}
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+addopts = "--ignore=tests/parity"
+markers = ["parity: live-service parity tests (deselect with -m 'not parity')"]
 
 [build-system]
 requires = ["poetry-core"]
