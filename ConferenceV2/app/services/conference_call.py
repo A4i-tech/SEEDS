@@ -280,10 +280,19 @@ class ConferenceCall:
             response = await self.connection_manager.connect(client=teacher)
             # A fresh SSE connection starts with an empty queue, so a client that
             # (re)connects mid-conference would stay stale until the next event
-            # fires. Seed it with the current state immediately.
-            await self.connection_manager.send_message_to_client(
-                client=teacher, message=self.state.model_dump(by_alias=True)
-            )
+            # fires. Seed it with the current state immediately. This is
+            # best-effort: a failed snapshot must not break the connection, since
+            # the next real event will refresh the client anyway.
+            try:
+                await self.connection_manager.send_message_to_client(
+                    client=teacher, message=self.state.model_dump(by_alias=True)
+                )
+            except Exception:
+                logger_instance.warning(
+                    "connect_smartphone: failed to seed state snapshot for "
+                    f"conference {self.conf_id}",
+                    exc_info=True,
+                )
             return response
         raise ValueError("No teacher participant in conf call " + self.conf_id)
     
