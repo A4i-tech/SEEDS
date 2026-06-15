@@ -32,17 +32,13 @@ class RemoveParticipantEvent(ConferenceEvent):
                 )
 
             try:
-                # Remove the participant via communication API
                 await self.conf_call.communication_api.remove_participant(self.phone_number)
-            except Exception:
-                # Hangup did not happen (timeout, SDK error) — keep the
-                # participant in state so the teacher can retry, but push the
-                # truthful state so the frontend un-sticks.
-                logger_instance.error(
-                    f"Remove failed for {self.phone_number}; resyncing state"
-                )
+            except Exception as e:
+                # Hangup did not happen (timeout, SDK error): keep participant in
+                # state so the teacher can retry, resync so the frontend un-sticks.
+                logger_instance.error(f"Remove failed for {self.phone_number}: {e}")
                 await self.conf_call.update_state()
-                raise
+                return
 
             # Delete the participant from the conference state
             del self.conf_call.state.participants[self.phone_number]

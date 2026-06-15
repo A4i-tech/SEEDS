@@ -49,16 +49,19 @@ class UnmuteAllEvent(ConferenceEvent):
 
             # Process results
             for i, result in enumerate(results):
+                student_phone = (
+                    student_phones[i] if i < len(student_phones) else "unknown"
+                )
                 if isinstance(result, Exception):
-                    student_phone = (
-                        student_phones[i] if i < len(student_phones) else "unknown"
-                    )
                     logger_instance.error(
                         f"Failed to unmute student {student_phone}: {result}"
                     )
                     failed_phones.append(student_phone)
                 elif result:
                     unmuted_count += 1
+                else:
+                    # execute_event returned False (Vonage failure / unknown leg)
+                    failed_phones.append(student_phone)
 
             # Stream system message once for all students (not per student)
             if self.stream_system_message and unmuted_count > 0:
@@ -90,14 +93,9 @@ class UnmuteAllEvent(ConferenceEvent):
 
     async def _unmute_student(self, phone_number: str) -> bool:
         """Helper method to unmute a single student using UnmuteParticipantEvent."""
-        try:
-            unmute_event = UnmuteParticipantEvent(
-                phone_number=phone_number,
-                conf_call=self.conf_call,
-                stream_system_message=False,
-            )
-            await unmute_event.execute_event()
-            return True
-        except Exception as e:
-            logger_instance.error(f"Error unmuting student {phone_number}: {e}")
-            raise
+        unmute_event = UnmuteParticipantEvent(
+            phone_number=phone_number,
+            conf_call=self.conf_call,
+            stream_system_message=False,
+        )
+        return await unmute_event.execute_event()

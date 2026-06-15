@@ -157,9 +157,9 @@ class TestConferenceCall:
         comm_api.mute_participant.side_effect = asyncio.TimeoutError()
 
         event = MuteParticipantEvent(phone_number=student_phone, conf_call=conf_call)
-        with pytest.raises(asyncio.TimeoutError):
-            await event.execute_event()
+        result = await event.execute_event()
 
+        assert result is False
         assert conf_call.state.participants[student_phone].is_muted is False
         conn_mgr.send_message_to_client.assert_called_once()
 
@@ -176,9 +176,9 @@ class TestConferenceCall:
         comm_api.unmute_participant.side_effect = Exception("400 stale leg")
 
         event = UnmuteParticipantEvent(phone_number=student_phone, conf_call=conf_call)
-        with pytest.raises(Exception, match="400"):
-            await event.execute_event()
+        result = await event.execute_event()
 
+        assert result is False
         assert conf_call.state.participants[student_phone].is_muted is True
         conn_mgr.send_message_to_client.assert_called_once()
 

@@ -13,31 +13,25 @@ class MuteParticipantEvent(ConferenceEvent):
         self.conf_call = conf_call
         self.stream_system_message = stream_system_message
 
-    async def execute_event(self):
+    async def execute_event(self) -> bool:
         if self.phone_number not in self.conf_call.state.participants:
-            # A silent return here looks like a successful mute to the caller
-            # and the frontend never gets a state update — log and resync.
             logger_instance.warning(
                 f"Mute requested for unknown participant {self.phone_number}; "
                 f"known: {list(self.conf_call.state.participants.keys())}"
             )
             await self.conf_call.update_state()
-            return
+            return False
 
         logger_instance.info("EXECUTING MUTE PARTICIPANT EVENT", self.phone_number)
 
         try:
-            # Mute the participant using communication API
             await self.conf_call.communication_api.mute_participant(self.phone_number)
-        except Exception:
-            # The Vonage action did not happen (timeout, stale leg, 400, ...):
-            # don't flip is_muted, but push the truthful state so the frontend
-            # un-sticks, then let the caller (queue loop / MuteAllEvent) log it.
-            logger_instance.error(
-                f"Mute failed for {self.phone_number}; resyncing state"
-            )
+        except Exception as e:
+            # Vonage action did not happen (timeout, stale leg, 400, ...): don't
+            # flip is_muted, resync so the frontend un-sticks, report failure.
+            logger_instance.error(f"Mute failed for {self.phone_number}: {e}")
             await self.conf_call.update_state()
-            raise
+            return False
 
         # Update the participant's muted status
         self.conf_call.state.participants[self.phone_number].is_muted = True
@@ -60,3 +54,4 @@ class MuteParticipantEvent(ConferenceEvent):
 
         # Update the conference call state
         await self.conf_call.update_state()
+        return True

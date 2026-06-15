@@ -8,6 +8,7 @@ import json
 from dotenv import load_dotenv
 import vonage
 from vonage.errors import ClientError
+from requests.adapters import HTTPAdapter
 from requests.exceptions import ReadTimeout, ConnectionError as RequestsConnectionError
 from pydantic import BaseModel
 from app.conf_logger import logger_instance
@@ -18,12 +19,56 @@ load_dotenv()
 
 _VONAGE_RATE_LIMIT = 3  # max outbound call POSTs per second
 
-# Vonage SDK 2.x uses requests with no default timeout, so a stuck Vonage call
-# can block the FastAPI event loop indefinitely (observed: 15+ minute hang on
-# GET /v1/calls/<uuid>). Every sync Vonage call in this module is bounded by
-# this timeout via asyncio.wait_for — the conference event queue processes
-# events sequentially, so a single hung call stalls every queued action.
+# ROOT CAUSE of the 15.6-minute hang: Vonage SDK 2.x builds a bare
+# requests.Session() and never passes a timeout to session.get/post/put. With
+# no socket timeout, a non-responding Vonage endpoint leaves the underlying TCP
+# read blocked forever. Because the conference event queue is sequential, that
+# one blocked read stalls every queued action behind it.
+#
+# Two layers of defense, source-first:
+#   1) _TimeoutHTTPAdapter (below) installs a real (connect, read) socket timeout
+#      on the SDK session so the HTTP request itself fails fast with ReadTimeout —
+#      this is what actually frees the worker thread. asyncio.wait_for alone
+#      could NOT do this: it abandons the await but the to_thread worker keeps
+#      running the blocked socket until the OS gives up, leaking threads.
+#   2) asyncio.wait_for(_VONAGE_CALL_TIMEOUT_SECONDS) stays as a backstop for the
+#      rare case a thread wedges for a non-socket reason.
 _VONAGE_CALL_TIMEOUT_SECONDS = get_settings().VONAGE_CALL_TIMEOUT_SECONDS
+_VONAGE_CONNECT_TIMEOUT_SECONDS = get_settings().VONAGE_CONNECT_TIMEOUT_SECONDS
+
+
+class _TimeoutHTTPAdapter(HTTPAdapter):
+    """HTTPAdapter that injects a default (connect, read) timeout on every send,
+    so requests made by the Vonage SDK can never block the worker thread
+    indefinitely. An explicit per-request timeout, if ever set, still wins."""
+
+    def __init__(self, *args, timeout=None, **kwargs):
+        self._timeout = timeout
+        super().__init__(*args, **kwargs)
+
+    def send(self, request, **kwargs):
+        if kwargs.get("timeout") is None:
+            kwargs["timeout"] = self._timeout
+        return super().send(request, **kwargs)
+
+
+def _install_session_timeout(client: "vonage.Client") -> None:
+    """Mount a timeout-injecting adapter on the Vonage SDK's requests session.
+
+    The SDK exposes its session as client.session; if that ever changes this is
+    best-effort and the asyncio.wait_for backstop still bounds the call."""
+    session = getattr(client, "session", None)
+    if session is None:
+        logger_instance.warning(
+            "Vonage client has no .session attribute; cannot install socket "
+            "timeout (asyncio.wait_for backstop still applies)"
+        )
+        return
+    adapter = _TimeoutHTTPAdapter(
+        timeout=(_VONAGE_CONNECT_TIMEOUT_SECONDS, _VONAGE_CALL_TIMEOUT_SECONDS)
+    )
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
 
 
 class VonageParticipantInfo(BaseModel):
@@ -53,6 +98,9 @@ class VonageAPI(CommunicationAPI):
             application_id=self.application_id,
             private_key=self.private_key_path,
         )
+        # Root-cause fix: give the SDK's timeout-less requests session a real
+        # socket timeout so a stuck Vonage call fails fast instead of hanging.
+        _install_session_timeout(self.client)
         self.redis_store = None
         self.teacher_phone_number = None
         self.is_websocket_connected = False
@@ -119,11 +167,7 @@ class VonageAPI(CommunicationAPI):
 
         Returns True if the above process happened for the given participant
         """
-        # Bound this single sync Vonage call. The Vonage 2.x SDK uses requests
-        # with no default timeout, so a non-responding leg used to freeze the
-        # event loop for 15+ minutes. On timeout, treat the leg as not-answered
-        # so the caller can move on (matches the existing else-branch semantics
-        # below, where a non-"answered" status returns False).
+        # On timeout/error, treat the leg as not-answered so the caller moves on.
         try:
             call = await asyncio.wait_for(
                 asyncio.to_thread(
@@ -138,9 +182,6 @@ class VonageAPI(CommunicationAPI):
                 f"treating as not-answered"
             )
             return False
-        # Non-timeout SDK/network errors (404 stale leg, 401 auth, connection
-        # reset, etc.) used to propagate and crash callers (handle_call_transfer_event,
-        # reconnect_websocket). Match the timeout semantics — log + return False.
         except Exception as e:
             logger_instance.error(
                 f"Vonage get_call failed for {participant.phone_number} "
@@ -154,9 +195,6 @@ class VonageAPI(CommunicationAPI):
             logger_instance.info(
                 f"CONNECTING WEBSOCKET TO THE CONFERENCE {self.conf_id} USING NUMBER {participant.phone_number} URL: {self.ws_server_url}"
             )
-            # Bound this sync update_call too. Same SDK, same no-default-timeout
-            # problem as get_call above — without this, a hung transfer would
-            # freeze the event loop.
             try:
                 await asyncio.wait_for(
                     asyncio.to_thread(
@@ -287,9 +325,7 @@ class VonageAPI(CommunicationAPI):
         """
         self.is_websocket_connected = False
         for participant in (await self.redis_store.get_all_participants(self.conf_id)).values():
-            # Bound each per-leg Vonage call and isolate failures: one hung or
-            # stale leg (observed: get_call hanging 15+ minutes) must not stop
-            # the remaining participants from being hung up.
+            # Isolate per-leg failures so one hung/stale leg doesn't strand the rest.
             try:
                 call_details = await asyncio.wait_for(
                     asyncio.to_thread(
@@ -369,8 +405,6 @@ class VonageAPI(CommunicationAPI):
         create_talk = getattr(self.client.voice, "create_talk", None)
         if callable(create_talk):
             try:
-                # Bounded like every other sync Vonage call — a hung leg must
-                # not stall the event queue (TimeoutError lands in the except).
                 await asyncio.wait_for(
                     asyncio.to_thread(create_talk, uuid=call_leg_id, text=text),
                     timeout=_VONAGE_CALL_TIMEOUT_SECONDS,
@@ -419,21 +453,6 @@ class VonageAPI(CommunicationAPI):
                 continue
             await self._play_tts_to_call_leg(participant_info.call_leg_id, text)
 
-    async def _get_participant_info_or_raise(
-        self, phone_number: str
-    ) -> VonageParticipantInfo:
-        participant_info = await self.redis_store.get_participant(
-            self.conf_id, phone_number
-        )
-        if participant_info is None:
-            # Returning silently here made a stale/mismatched phone number look
-            # like a successful action — callers flip is_muted etc. only on
-            # success, so they must hear about this.
-            raise ValueError(
-                f"No Vonage call leg found for {phone_number} in conference {self.conf_id}"
-            )
-        return participant_info
-
     async def _update_call_bounded(self, call_leg_id: str, action: str, phone_number: str):
         """
         Run a sync update_call in a thread, bounded by the Vonage timeout.
@@ -471,8 +490,7 @@ class VonageAPI(CommunicationAPI):
             self.conf_id, phone_number
         )
         if participant_info is None:
-            # No leg to hang up (never answered, or already ended) — treat as
-            # already removed so the caller can still clean up its state.
+            # No leg to hang up (never answered, or already ended) — already removed.
             logger_instance.warning(
                 f"No Vonage call leg found for {phone_number} in conference "
                 f"{self.conf_id}; treating as already removed"
@@ -488,7 +506,11 @@ class VonageAPI(CommunicationAPI):
         """
         Mutes a participant in the call.
         """
-        participant_info = await self._get_participant_info_or_raise(phone_number)
+        participant_info = await self.redis_store.get_participant(self.conf_id, phone_number)
+        if participant_info is None:
+            raise ValueError(
+                f"No Vonage call leg found for {phone_number} in conference {self.conf_id}"
+            )
         await self._update_call_bounded(
             participant_info.call_leg_id, "mute", phone_number
         )
@@ -498,7 +520,11 @@ class VonageAPI(CommunicationAPI):
         """
         Unmutes a participant in the call.
         """
-        participant_info = await self._get_participant_info_or_raise(phone_number)
+        participant_info = await self.redis_store.get_participant(self.conf_id, phone_number)
+        if participant_info is None:
+            raise ValueError(
+                f"No Vonage call leg found for {phone_number} in conference {self.conf_id}"
+            )
         await self._update_call_bounded(
             participant_info.call_leg_id, "unmute", phone_number
         )

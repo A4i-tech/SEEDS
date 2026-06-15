@@ -14,32 +14,26 @@ class UnmuteParticipantEvent(ConferenceEvent):
         self.conf_call = conf_call
         self.stream_system_message = stream_system_message
 
-    async def execute_event(self):
+    async def execute_event(self) -> bool:
         # TODO: Speak out announcement messages in conversation through comm API, check if the participant is already unmuted
         if self.phone_number not in self.conf_call.state.participants:
-            # A silent return here looks like a successful unmute to the caller
-            # and the frontend never gets a state update — log and resync.
             logger_instance.warning(
                 f"Unmute requested for unknown participant {self.phone_number}; "
                 f"known: {list(self.conf_call.state.participants.keys())}"
             )
             await self.conf_call.update_state()
-            return
+            return False
 
         participant = self.conf_call.state.participants[self.phone_number]
 
         try:
-            # Unmute the participant via communication API
             await self.conf_call.communication_api.unmute_participant(self.phone_number)
-        except Exception:
-            # The Vonage action did not happen (timeout, stale leg, 400, ...):
-            # don't flip is_muted, but push the truthful state so the frontend
-            # un-sticks, then let the caller (queue loop / UnmuteAllEvent) log it.
-            logger_instance.error(
-                f"Unmute failed for {self.phone_number}; resyncing state"
-            )
+        except Exception as e:
+            # Vonage action did not happen (timeout, stale leg, 400, ...): don't
+            # flip is_muted, resync so the frontend un-sticks, report failure.
+            logger_instance.error(f"Unmute failed for {self.phone_number}: {e}")
             await self.conf_call.update_state()
-            raise
+            return False
 
         # Update participant's mute status
         participant.is_muted = False
@@ -66,3 +60,4 @@ class UnmuteParticipantEvent(ConferenceEvent):
 
         # Update the conference call state
         await self.conf_call.update_state()
+        return True

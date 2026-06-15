@@ -49,16 +49,19 @@ class MuteAllEvent(ConferenceEvent):
 
             # Process results
             for i, result in enumerate(results):
+                student_phone = (
+                    student_phones[i] if i < len(student_phones) else "unknown"
+                )
                 if isinstance(result, Exception):
-                    student_phone = (
-                        student_phones[i] if i < len(student_phones) else "unknown"
-                    )
                     logger_instance.error(
                         f"Failed to mute student {student_phone}: {result}"
                     )
                     failed_phones.append(student_phone)
                 elif result:
                     muted_count += 1
+                else:
+                    # execute_event returned False (Vonage failure / unknown leg)
+                    failed_phones.append(student_phone)
 
             # Stream system message once for all students (not per student)
             if self.stream_system_message and muted_count > 0:
@@ -88,15 +91,10 @@ class MuteAllEvent(ConferenceEvent):
         )
 
     async def _mute_student(self, phone_number: str) -> bool:
-        """Helper method to mute a single student."""
-        try:
-            mute_event = MuteParticipantEvent(
-                phone_number=phone_number,
-                conf_call=self.conf_call,
-                stream_system_message=False,
-            )
-            await mute_event.execute_event()
-            return True
-        except Exception as e:
-            logger_instance.error(f"Error muting student {phone_number}: {e}")
-            raise
+        """Helper method to mute a single student. Returns the event's success."""
+        mute_event = MuteParticipantEvent(
+            phone_number=phone_number,
+            conf_call=self.conf_call,
+            stream_system_message=False,
+        )
+        return await mute_event.execute_event()

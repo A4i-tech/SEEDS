@@ -82,6 +82,11 @@ class Settings(BaseSettings):
     AUDIO_CAPTURE_SAMPLE_WIDTH_BYTES: int = 2
 
     VONAGE_CALL_TIMEOUT_SECONDS: float = 30.0
+    # Socket-level connect timeout for the Vonage HTTP session (root-cause fix:
+    # the SDK's requests.Session is created with no timeout, so a stuck TCP
+    # connect/read blocks the worker thread indefinitely). Read timeout reuses
+    # VONAGE_CALL_TIMEOUT_SECONDS.
+    VONAGE_CONNECT_TIMEOUT_SECONDS: float = 10.0
 
     class Config:
         env_file = ".env"

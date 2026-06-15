@@ -294,3 +294,60 @@ async def test_end_conf_continues_past_hung_leg():
     api.client.voice.update_call.assert_called_once_with(
         uuid="leg-healthy", action="hangup"
     )
+
+
+def test_install_session_timeout_mounts_adapter():
+    """Root-cause fix: the SDK's bare requests.Session gets a real socket
+    timeout so a stuck Vonage call fails fast instead of hanging the worker
+    thread for 15+ minutes."""
+    import requests
+    from app.services.communication_api.vonage_api import (
+        _install_session_timeout,
+        _TimeoutHTTPAdapter,
+        _VONAGE_CALL_TIMEOUT_SECONDS,
+        _VONAGE_CONNECT_TIMEOUT_SECONDS,
+    )
+
+    client = MagicMock()
+    client.session = requests.Session()
+
+    _install_session_timeout(client)
+
+    https_adapter = client.session.get_adapter("https://example.com")
+    assert isinstance(https_adapter, _TimeoutHTTPAdapter)
+    assert https_adapter._timeout == (
+        _VONAGE_CONNECT_TIMEOUT_SECONDS,
+        _VONAGE_CALL_TIMEOUT_SECONDS,
+    )
+
+
+def test_timeout_adapter_injects_default_timeout(monkeypatch):
+    from app.services.communication_api.vonage_api import _TimeoutHTTPAdapter
+
+    adapter = _TimeoutHTTPAdapter(timeout=(3, 7))
+    captured = {}
+
+    def fake_send(self, request, **kwargs):
+        captured["timeout"] = kwargs.get("timeout")
+        return "ok"
+
+    monkeypatch.setattr(
+        "requests.adapters.HTTPAdapter.send", fake_send, raising=True
+    )
+
+    # No explicit timeout -> adapter injects its default.
+    adapter.send(MagicMock())
+    assert captured["timeout"] == (3, 7)
+
+    # Explicit timeout wins.
+    adapter.send(MagicMock(), timeout=1.5)
+    assert captured["timeout"] == 1.5
+
+
+def test_install_session_timeout_no_session_is_safe():
+    """If the SDK ever drops .session, install is best-effort (the wait_for
+    backstop still bounds the call) and must not raise."""
+    from app.services.communication_api.vonage_api import _install_session_timeout
+
+    client = MagicMock(spec=[])  # no .session attribute
+    _install_session_timeout(client)  # should not raise
