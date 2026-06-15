@@ -1,9 +1,12 @@
 import asyncio
 import os
 import sys
+import threading
+import wave
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from scipy import signal as scipy_signal
 
 os.environ["STORAGE_ACCOUNT_NAME"] = "test"
 os.environ["ENVIRONMENT"] = "development"
@@ -55,8 +58,6 @@ async def test_process_chunk_merges_multiple_transcriptions_from_single_payload(
 
 
 def test_prepare_wav_payload_outputs_16k_mono_wav():
-    import wave
-
     transcriber = AudioTranscriber()
 
     # 100ms of 8kHz 16-bit PCM -> 800 samples in, 1600 samples out
@@ -74,9 +75,6 @@ def test_prepare_wav_payload_outputs_16k_mono_wav():
 async def test_transcribe_segment_resamples_off_event_loop():
     """resample_poly is CPU-bound (seconds per max-length segment) and used
     to run directly on the event loop, freezing the whole service."""
-    import threading
-    from scipy import signal as scipy_signal
-
     transcriber = AudioTranscriber()
 
     fake_transcript = Mock()
