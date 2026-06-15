@@ -92,7 +92,7 @@ const ContentDetails = () => {
   };
 
   const handleBack = () => {
-    navigate(ROUTES.CONTENT);
+    navigate(ROUTES.CLASSROOMS);
   };
 
   const handleNextPage = () => {

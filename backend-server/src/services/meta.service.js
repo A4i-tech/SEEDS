@@ -196,7 +196,7 @@ Do NOT confuse content playback with conference calls. "Play keats poem" = GET /
 ═══ NAVIGATION (frontend screens) ═══
 Pure "take me to / go to / open / go back to / show me the X screen" requests are FRONTEND navigation — no backend data is fetched. These ALWAYS have canAutoResolve=true. Known screens:
 - "home", "home screen", "classrooms", "my classes", "go back", "main screen" → the classrooms list (route /classrooms)
-- "content", "content library", "songs/stories list" → the content screen (route /content)
+- "content", "content library", "songs list", "stories list", "show me content" → fetch the content list: GET /content/ (no filter). The frontend will open the content drawer automatically and you will speak the item names aloud in the summary.
 - A specific class by name → that class's detail page (route /classrooms/detail/<classId> using the _id from DB context)
 Navigating is a single frontend step; do not plan any API call for it.
 ═══ END NAVIGATION ═══
@@ -220,9 +220,10 @@ no endpoint to create a student here — never plan one.
 
 - GET /teacher/me → current teacher info
 
-- POST /call/conference/create → body: {teacher_phone, teacher_name, student_phones: [...], student_names: [...]}
+- POST /call/conference/create → body: {teacher_phone, teacher_name, student_phones: [...], student_names: [...], leader_phone: "<phone>" (optional — include only if user names a leader)}
   Creates a conference. Returns {status: "CREATED", id: "<confId>"}. student_phones and student_names are parallel arrays.
   Use teacher's phone number for teacher_phone and student phones/names from the class data in DB context.
+  If the user names a leader ("with X as leader" / "make X the leader"), resolve that student via fuzzy match and include their phone as leader_phone. If no leader named, omit the field.
 - POST /call/conference/start/:confId → starts a created conference (no body needed). Returns {status: "STARTED", id}
 - PUT /call/conference/end/:confId → ends an active conference
 - PUT /call/conference/muteall/:confId → mutes all participants in a conference
@@ -280,9 +281,14 @@ REASONING FROM PREVIOUS STEP:
 
 {{dbContext}}
 
-Now produce a JSON array of API calls to execute IN ORDER.
+Now produce the API calls to execute IN ORDER.
 
-Each element must have:
+OUTPUT FORMAT: respond with a JSON OBJECT containing a "commands" array:
+{ "commands": [ {step1}, {step2}, ... ] }
+The top level MUST be an object with a "commands" key — NEVER a bare array (the
+response format requires an object). Even a single step goes inside "commands".
+
+Each element of "commands" must have:
   - "method": HTTP method (GET, POST, PUT, PATCH, DELETE) — or "NAVIGATE" for frontend screen changes
   - "path": the full API path — or the frontend route for NAVIGATE
   - "body": request body object (null if not needed)
@@ -291,10 +297,10 @@ Each element must have:
 FRONTEND NAVIGATION: for pure "go to / open / take me back to <screen>" requests, emit a single
 NAVIGATE step (no HTTP call). Use the frontend route as the path:
   - classrooms / home / main screen / go back → "/classrooms"
-  - content library → "/content"
+  - content library / show me content → GET /content/ (fetch list; frontend opens content drawer; speak item names in summary)
   - a specific class → "/classrooms/detail/<classId>" (use the real _id from DB context)
 Example: "take me back to the home screen"
-[ { "method": "NAVIGATE", "path": "/classrooms", "body": null, "description": "Navigate to the classrooms home screen" } ]
+{ "commands": [ { "method": "NAVIGATE", "path": "/classrooms", "body": null, "description": "Navigate to the classrooms home screen" } ] }
 
 CRITICAL RULES:
 1. Only return valid JSON. No markdown, no explanation.
@@ -330,54 +336,61 @@ CRITICAL RULES:
 ═══ COMMON MULTI-STEP EXAMPLES ═══
 
 Example 1: "Delete all classrooms"
-[
+{ "commands": [
   { "method": "GET", "path": "/class/", "body": null, "description": "Fetch all classes" },
   { "method": "DELETE", "path": "/class/{{step1.data[]._id}}", "body": null, "description": "Delete each class", "forEach": true }
-]
+] }
 
 Example 2: "Add student studentA to Grade 10" (assuming studentA's phone is 9112233445)
-[
+{ "commands": [
   { "method": "GET", "path": "/class/", "body": null, "description": "Fetch all classes to find Grade 10" },
   { "method": "GET", "path": "/class/{{step1.data[name=Grade 10]._id}}", "body": null, "description": "Get full details of Grade 10 class" },
   { "method": "POST", "path": "/class/", "body": { "_id": "{{step2.data._id}}", "name": "{{step2.data.name}}", "students": "{{step2.data.students+9112233445}}", "leaders": "{{step2.data.leaders}}", "contentIds": "{{step2.data.contentIds}}" }, "description": "Update Grade 10 to add student studentA" }
-]
+] }
 
 Example 3: "Assign studentA as leader for Grade 7" (assuming studentA's phone is 9112233445)
-[
+{ "commands": [
   { "method": "GET", "path": "/class/", "body": null, "description": "Fetch all classes to find Grade 7" },
   { "method": "GET", "path": "/class/{{step1.data[name=Grade 7]._id}}", "body": null, "description": "Get full details of Grade 7 class" },
   { "method": "POST", "path": "/class/", "body": { "_id": "{{step2.data._id}}", "name": "{{step2.data.name}}", "students": "{{step2.data.students}}", "leaders": "{{step2.data.leaders+9112233445}}", "contentIds": "{{step2.data.contentIds}}" }, "description": "Update Grade 7 to assign studentA as leader" }
-]
+] }
 
 Example 4: "Start a conference for Grade 7" (DB context has class with students: [{name: "Ananya", phone: "9112233445"}, {name: "Balaji", phone: "9887766554"}])
-[
+{ "commands": [
   { "method": "GET", "path": "/class/{{step1.data[name=Grade 7]._id}}", "body": null, "description": "Fetch classroom details" },
   { "method": "POST", "path": "/call/conference/create", "body": { "teacher_phone": "{{phoneNumber}}", "teacher_name": "{{teacherName}}", "student_phones": ["9112233445", "9887766554"], "student_names": ["Ananya", "Balaji"] }, "description": "Create conference for Grade 7 students" },
   { "method": "POST", "path": "/call/conference/start/{{step2.data.id}}", "body": null, "description": "Start the conference call" }
-]
+] }
 
 Example 5: "Start a call for Grade 7 and then mute everyone" (chained: create → start → mute)
-[
+{ "commands": [
   { "method": "GET", "path": "/class/{{step1.data[name=Grade 7]._id}}", "body": null, "description": "Fetch classroom details" },
   { "method": "POST", "path": "/call/conference/create", "body": { "teacher_phone": "{{phoneNumber}}", "teacher_name": "{{teacherName}}", "student_phones": ["9112233445"], "student_names": ["Ananya"] }, "description": "Create conference for Grade 7" },
   { "method": "POST", "path": "/call/conference/start/{{step2.data.id}}", "body": null, "description": "Start the conference" },
   { "method": "PUT", "path": "/call/conference/muteall/{{step2.data.id}}", "body": null, "description": "Mute all participants" }
-]
+] }
+
+Example 5b: "Start a conference for Grade 7 with Ananya as leader" (DB context: Ananya phone "9112233445", Balaji phone "9887766554")
+{ "commands": [
+  { "method": "GET", "path": "/class/{{step1.data[name=Grade 7]._id}}", "body": null, "description": "Fetch classroom details" },
+  { "method": "POST", "path": "/call/conference/create", "body": { "teacher_phone": "{{phoneNumber}}", "teacher_name": "{{teacherName}}", "student_phones": ["9112233445", "9887766554"], "student_names": ["Ananya", "Balaji"], "leader_phone": "9112233445" }, "description": "Create conference for Grade 7 with Ananya as leader" },
+  { "method": "POST", "path": "/call/conference/start/{{step2.data.id}}", "body": null, "description": "Start the conference" }
+] }
 
 Example 6: "Create classroom Grade 10 and add student studentA" (assuming studentA's phone is 9112233445)
-[
+{ "commands": [
   { "method": "POST", "path": "/class/", "body": { "name": "Grade 10", "students": ["9112233445"], "leaders": [], "contentIds": [] }, "description": "Create classroom Grade 10 with student studentA" }
-]
+] }
 
 Example 7: "End the active conference" (assuming activeConferenceId is conf-1234)
-[
+{ "commands": [
   { "method": "PUT", "path": "/call/conference/end/conf-1234", "body": null, "description": "End the currently active conference call" }
-]
+] }
 
 Example 8: "Play keats poem" (content playback — just fetch, frontend plays)
-[
+{ "commands": [
   { "method": "GET", "path": "/content/?expName=keats%20poem", "body": null, "description": "Fetch keats poem content for playback" }
-]
+] }
 
 ═══ END EXAMPLES ═══
 `;
@@ -798,6 +811,8 @@ RULES:
 7. Do NOT say "Here are your results" or similar generic phrases. Be specific.
 8. CRITICAL: For content playback commands ("play X", "show X"), if the step was SUCCESS, the system is ALREADY playing it for the user! Do NOT claim you cannot play it or check for media fields. Simply say you are playing it now.
 9. NEVER speak raw IDs, database identifiers, ObjectIds, or hex/UUID-like strings (e.g. "6a2a5f7bb1ff8304cade8735"). Refer to things by their human name only. Do NOT say "with ID ..." or read out any identifier.
+10. CRITICAL — describe ONLY actions that actually appear as SUCCESS steps above. Do NOT claim an action happened unless a step performed it. Example: only say "I've started the conference call" if a step that STARTS the call (e.g. "Start the conference") succeeded. If the only step was fetching/loading the class, say you've opened or pulled up the class — NOT that you started a call. Never invent steps that are absent from the results.
+11. CONTENT LIBRARY: If a step fetched a list of content items (GET /content/ with no expName filter), the content drawer is already open on screen. Tell the user the names of the available items (up to 5) and invite them to choose one to play.
 
 RESPOND WITH JSON:
 {
@@ -812,8 +827,10 @@ exports.generateSpokenSummary = async function generateSpokenSummary(transcript,
   const resultsContext = results
     .map((r, i) => {
       if (r.error) return `Step ${i + 1} (${r.step}): FAILED — ${r.error}`;
-      const dataSummary = Array.isArray(r.data)
-        ? `returned ${r.data.length} items: ${r.data.slice(0, 5).map(d => d.name || d.title?.english || d._id || JSON.stringify(d)).join(", ")}`
+      // Unwrap paginated content responses { data: [...], pagination }
+      const items = Array.isArray(r.data) ? r.data : Array.isArray(r.data?.data) ? r.data.data : null;
+      const dataSummary = items
+        ? `returned ${items.length} items: ${items.slice(0, 5).map(d => d.name || d.title?.english || d._id || JSON.stringify(d)).join(", ")}`
         : typeof r.data === "object" && r.data
           ? `returned: ${JSON.stringify(r.data).substring(0, 200)}`
           : `status ${r.status}`;

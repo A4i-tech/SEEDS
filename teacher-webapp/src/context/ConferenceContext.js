@@ -269,6 +269,7 @@ export const ConferenceProvider = ({ children }) => {
         handleTeacherSelect,
         handleStudentToggle,
         clearSelectedStudents,
+        setSelectedStudents,
         setConferenceStudents,
         conferenceStudents,
         allClassroomStudents,

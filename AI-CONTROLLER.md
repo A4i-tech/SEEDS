@@ -34,7 +34,12 @@
 │  │  commandResultFormatter.js                                │   │
 │  │  • formatResult() → display-friendly cards                │   │
 │  │  • getNavigationTarget() → auto-navigate to pages        │   │
+│  │    ↳ { action:"OPEN_CONTENT_DRAWER" } → DOM event ✨     │   │
 │  └──────────────────────────────────────────────────────────┘   │
+│                 │                                                │
+│  (content library)   window.dispatchEvent("open-content-drawer")│
+│                 ▼                                                │
+│  ClassroomList.js / callPage.js listen → open ContentDrawer ✨  │
 └──────────────────────────┬──────────────────────────────────────┘
                            │  HTTP
                            ▼
@@ -135,7 +140,8 @@ Names come from speech transcription — match the CLOSEST student phonetically:
 ```
 
 **Key reasoning rules:**
-- `"play X"` → content playback (GET request), NOT a conference call
+- `"play X"` → content playback (`GET /content/?expName=X` or by `_id` from DB context), NOT a conference call
+- `"content library"` / `"show me content"` / `"songs list"` → `GET /content/` (no filter) → frontend opens `ContentDrawer` via DOM event; TTS speaks item names ✨
 - `"start call for X"` → conference call (create → start)
     - Triggers UI auto-navigation to `ClassroomDetail.js` to mount the live connection (SSE).
 - `"end the call"` → PUT /call/conference/end
@@ -317,7 +323,8 @@ IDLE → RECORDING → TRANSCRIBING → PLANNING → EXECUTING → DONE
                                                 ├── Display results
                                                 ├── 🔊 Auto-play TTS audio
                                                 ├── Show spoken summary bubble
-                                                └── Auto-navigate (e.g. to ClassroomDetail logic with state.autoStart)
+                                                ├── Auto-navigate (e.g. to ClassroomDetail with state.autoStart)
+                                                └── DOM event dispatch (e.g. "open-content-drawer") ✨
 ```
 
 **Conference delegation flow:**
@@ -330,6 +337,9 @@ After receiving the backend response, if any result has `requiresClientExecution
 
 **Conference ID persistence:**
 After *any* successful command execution (voice or text), `storeConferenceIdFromResults()` scans the results for a `/call/conference/create` response. If found, the conference ID is immediately stored in `ConferenceContext` via `setConfId()`. This ensures the `activeConferenceId` is available for subsequent commands like "end the call" — without relying on page navigation.
+
+**DOM event dispatch for non-navigational actions:** ✨
+When `getNavigationTarget()` returns `{ action: "OPEN_CONTENT_DRAWER" }` (content library browse), `VoiceCommandButton` dispatches `window.dispatchEvent(new CustomEvent("open-content-drawer"))` instead of calling `navigate()`. Both `ClassroomList.js` and `callPage.js` register a `useEffect` listener for this event and call their local `setContentDrawerOpen(true)` / `setIsContentDrawerOpen(true)`. Only the mounted page's listener fires.
 
 ### voiceCommandService.js
 
@@ -357,9 +367,11 @@ The AI assistant is branded as **"Seeds"** — a friendly teaching assistant per
 | Function | Purpose |
 |---|---|
 | `formatResult(cmd, res)` | Converts raw API response into user-friendly display cards |
-| `getNavigationTarget(cmds, res)` | Determines post-command navigation (content → `/content/:id`, conference → `/class/:id` with `autoStart` state, **new class created → `/classrooms/detail/:newId` "Go to {room name}"** ✨) |
+| `getNavigationTarget(cmds, res)` | Determines post-command navigation (content → `/content/:id`, conference → `/class/:id` with `autoStart` state, **new class created → `/classrooms/detail/:newId` "Go to {room name}"** ✨, **content library → `OPEN_CONTENT_DRAWER` action** ✨) |
 
 > ✨ **New-classroom navigation:** A successful `POST /class/` create (response carries `_id` + `name`) now returns a `Go to {room name}` button targeting that room's detail page, instead of the generic "Go to Classrooms" list. The button is the opt-in ("ask"), the click is "yes" — no `autoNavigate`.
+
+> ✨ **Content library drawer:** `GET /content/` with no search filter returns `{ data: [...], pagination }` (paginated wrapper). `getNavigationTarget` detects the unwrapped array and returns `{ action: "OPEN_CONTENT_DRAWER" }` instead of navigating to the first item. `VoiceCommandButton` dispatches a `"open-content-drawer"` DOM event; both `ClassroomList.js` and `callPage.js` listen for it and call `setContentDrawerOpen(true)`. Search queries (`?expName=` or `?ids=`) still navigate directly to the first matched item's detail page.
 
 ---
 
@@ -392,9 +404,11 @@ The AI assistant is branded as **"Seeds"** — a friendly teaching assistant per
 ### Content Library
 | Method | Route | Description |
 |---|---|---|
-| GET | `/content/` | List content (filters: `language`, `theme`, `expName`, `ids`, `limit`, `cursor`) |
-| GET | `/content/:contentId` | Get a single content item |
+| GET | `/content/` | List content (filters: `language`, `theme`, `expName`, `ids`, `limit`, `cursor`). **Returns `{ data: [...], pagination }` wrapper — not a plain array.** No-filter request = content library browse → opens ContentDrawer. |
+| GET | `/content/:contentId` | Get a single content item (plain object, not wrapped) |
 | GET | `/content/themes` | Get available themes |
+
+> ⚠️ **No standalone `/content` browse route exists.** The old `ContentPlayback.js` page was removed. Content browsing is exclusively through `ContentDrawer` (opened in `ClassroomList.js` and `callPage.js`). The AI triggers it via DOM event, not page navigation.
 
 ### Conference Calls (ConferenceV2 — frontend-delegated)
 
@@ -402,7 +416,7 @@ The AI assistant is branded as **"Seeds"** — a friendly teaching assistant per
 
 | Method | Route | Description |
 |---|---|---|
-| POST | `/call/conference/create` | Create conference (`teacher_phone`, `teacher_name`, `student_phones[]`, `student_names[]`) |
+| POST | `/call/conference/create` | Create conference (`teacher_phone`, `teacher_name`, `student_phones[]`, `student_names[]`, `leader_phone?` — optional, resolved via fuzzy student match) |
 | POST | `/call/conference/start/:confId` | Start the conference |
 | PUT | `/call/conference/end/:confId` | End an active conference |
 | PUT | `/call/conference/muteall/:confId` | Mute all participants |
@@ -436,22 +450,34 @@ Phase 4   → explanation built from reasoning.steps
 Frontend  → Plays TTS explanation, no results cards shown
 ```
 
+### Content Library: "Show me the content library"
+```
+Reasoning → intent: "browse content library", canAutoResolve: true
+Plan      → [{ GET /content/ }]
+Execute   → GET /content/ → 200 → { data: [{ _id, title, type, ... }, ...], pagination }
+Phase 4   → "I found 12 items including Keats Poem, Rain Song, and Alphabet Story. The content library is open — choose one to play."
+Frontend  → getNavigationTarget() unwraps { data }, no expName → { action: "OPEN_CONTENT_DRAWER" }
+           VoiceCommandButton dispatches "open-content-drawer" DOM event
+           ClassroomList.js (or callPage.js) listener → setContentDrawerOpen(true)
+```
+
 ### Content Playback: "Play keats poem"
 ```
 DB Pre-fetch → ContentV3 search → [{ _id: "a29...", title: "Keats Poem" }]
 Reasoning    → canAutoResolve: true
-Plan         → [{ GET /content/a29... }]
-Execute      → GET /content/a29... → 200
-Frontend     → Auto-navigates to /content/a29..., audio auto-plays
+Plan         → [{ GET /content/a29... }]    ← uses specific _id from DB context
+Execute      → GET /content/a29... → 200 (single object, not wrapped)
+Frontend     → getNavigationTarget() → single item with _id → auto-navigates to /content/a29..., audio auto-plays
 ```
 
-### Multi-Step Conference: "Start conference for test smartphone"
+### Multi-Step Conference: "Start conference for test smartphone with Pranav as leader"
 ```
 DB Pre-fetch → classes populated with students → test smartphone: [Pranav (9554433221), TestUser (9001122334)]
 Reasoning    → canAutoResolve: true
 Plan         → [
                  { GET /class/69955a49... },
-                 { POST /call/conference/create, body: { teacher_phone, student_phones: [...] } },
+                 { POST /call/conference/create, body: { teacher_phone, student_phones: [...],
+                     leader_phone: "9554433221" } },   ← fuzzy-matched "Pranav"
                  { POST /call/conference/start/{{step2.data.id}} }
                ]
 Execute      → Step 1: GET /class/69955a49... → 200 (classroom data)

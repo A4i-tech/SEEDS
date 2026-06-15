@@ -48,9 +48,9 @@ export function formatResult(command, result) {
     };
   }
 
-  // Content list
+  // Content list (handles both plain array and paginated { data: [...], pagination })
   if (path.match(/\/content\/?/) && command.method === "GET") {
-    const items = Array.isArray(data) ? data : [];
+    const items = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
     const titles = items.map((c) => c.title?.english || c.title?.local || c.expName || c.name || "Untitled");
     return {
       title: "Content",
@@ -118,30 +118,37 @@ export function getNavigationTarget(commands, results) {
 
     // Content command — navigate directly to the content detail page for auto-play
     if (path.match(/\/content/) && cmd.method === "GET" && res?.status < 300) {
-      const data = res?.data;
+      const raw = res?.data;
+      // Unwrap paginated response { data: [...], pagination } or plain array
+      const items = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : null;
+      const single = !items && raw && raw._id ? raw : null;
 
-      // If result is a single content item with _id, go directly to it
-      if (data && !Array.isArray(data) && data._id) {
+      // Single content item → play directly
+      if (single) {
         return {
-          label: `Play: ${data.title?.english || data.expName || "Content"}`,
-          path: ROUTES.CONTENT_DETAILS(data._id),
+          label: `Play: ${single.title?.english || single.expName || "Content"}`,
+          path: ROUTES.CONTENT_DETAILS(single._id),
           autoNavigate: true,
         };
       }
 
-      // If result is an array with content items, go to the first one
-      if (Array.isArray(data) && data.length > 0 && data[0]._id) {
-        return {
-          label: `Play: ${data[0].title?.english || data[0].expName || "Content"}`,
-          path: ROUTES.CONTENT_DETAILS(data[0]._id),
-          autoNavigate: true,
-          // Pass full list for next/prev navigation
-          state: { contentList: data, currentIndex: 0 },
-        };
+      // Array result
+      if (items && items.length > 0 && items[0]._id) {
+        // Search query (expName/ids) → play the first match directly
+        if (path.includes("expName=") || path.includes("ids=")) {
+          return {
+            label: `Play: ${items[0].title?.english || items[0].expName || "Content"}`,
+            path: ROUTES.CONTENT_DETAILS(items[0]._id),
+            autoNavigate: true,
+            state: { contentList: items, currentIndex: 0 },
+          };
+        }
+        // Content library browse (no search filter) → open content drawer
+        return { action: "OPEN_CONTENT_DRAWER", label: "Open Content Library" };
       }
 
-      // Fallback to content listing page
-      return { label: "Go to Content", path: ROUTES.CONTENT };
+      // No items resolved
+      return null;
     }
 
     // New classroom created -> offer to navigate directly to it (POST with no _id = create)

@@ -72,24 +72,49 @@ const ClassroomDetail = () => {
     setConferenceStudents,
     setAllClassroomStudents,
     clearSelectedStudents,
+    setSelectedStudents,
   } = useConference();
 
   // Clear stale selections when entering a different classroom
   useEffect(() => {
+    // Skip clear when arriving via AI auto-start — the auto-start effect populates context instead
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (location.state?.autoStart) return;
     clearSelectedStudents();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classroomId]);
 
   // Handle auto-starting conference from navigation state (e.g. from VoiceCommand)
+  // Waits for classroom + teacherPhone to load before populating context, mirroring the manual flow
   useEffect(() => {
-    if (location.state?.autoStart && location.state?.confId && !conferenceStarted) {
-      setConferenceStarted(true);
-      setConferenceId(location.state.confId);
-      setConfId(location.state.confId);
-      // Clean up location state so refresh doesn't trigger again
-      navigate(location.pathname, { replace: true, state: {} });
-    }
-  }, [location.state, conferenceStarted, setConfId, navigate, location.pathname]);
+    if (!location.state?.autoStart || !location.state?.confId || conferenceStarted) return;
+    if (!classroom || !teacherPhone) return;
+
+    const autoConfId = location.state.confId;
+
+    handleTeacherSelect({ name: teacherName || "Teacher", phoneNumber: teacherPhone, role: "Teacher" });
+
+    const students = (classroom.students || []).map((s) => ({
+      ...s,
+      phoneNumber: normalizePhoneNumber(s.phoneNumber),
+    }));
+    setSelectedStudents(students);
+    setConferenceStudents(students);
+
+    const allStudentsFormatted = (classroom.students || []).map((s) => {
+      const p = normalizePhoneNumber(s.phoneNumber);
+      return { name: s.name, phoneNumber: p, phone_number: p };
+    });
+    setAllClassroomStudents(allStudentsFormatted);
+
+    setConferenceId(autoConfId);
+    setConfId(autoConfId);
+    setConferenceStarted(true);
+
+    // Clean up location state so refresh doesn't trigger again
+    navigate(location.pathname, { replace: true, state: {} });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state, conferenceStarted, classroom, teacherPhone, teacherName]);
 
   // Main data loading effect - handles sequential and parallel fetching
   useEffect(() => {

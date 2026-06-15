@@ -60,6 +60,13 @@ const ClassroomList = () => {
     return () => window.removeEventListener("voice-command-complete", handler);
   }, []);
 
+  // Open content drawer when AI voice command requests it
+  useEffect(() => {
+    const handler = () => setContentDrawerOpen(true);
+    window.addEventListener("open-content-drawer", handler);
+    return () => window.removeEventListener("open-content-drawer", handler);
+  }, []);
+
   const fetchClassrooms = async () => {
     try {
       setLoading(true);

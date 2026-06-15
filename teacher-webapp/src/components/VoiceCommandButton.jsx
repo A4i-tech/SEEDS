@@ -279,9 +279,15 @@ export default function VoiceCommandButton() {
     }
   }, [status, result?.audioBase64]);
 
-  // Auto-navigate when the command result says to (e.g., "play keats poem")
+  // Auto-navigate or open content drawer when command result says to
   useEffect(() => {
-    if (status === STATUS.DONE && navTarget?.autoNavigate) {
+    if (status !== STATUS.DONE) return;
+    if (navTarget?.action === "OPEN_CONTENT_DRAWER") {
+      handleClose();
+      window.dispatchEvent(new CustomEvent("open-content-drawer"));
+      return;
+    }
+    if (navTarget?.autoNavigate) {
       handleClose();
       navigate(navTarget.path, navTarget.state ? { state: navTarget.state } : undefined);
     }
@@ -289,7 +295,10 @@ export default function VoiceCommandButton() {
   }, [status, navTarget]);
 
   const handleNavigate = () => {
-    if (navTarget) {
+    if (navTarget?.action === "OPEN_CONTENT_DRAWER") {
+      handleClose();
+      window.dispatchEvent(new CustomEvent("open-content-drawer"));
+    } else if (navTarget?.path) {
       handleClose();
       navigate(navTarget.path, navTarget.state ? { state: navTarget.state } : undefined);
     }

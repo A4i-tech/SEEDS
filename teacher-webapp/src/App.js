@@ -19,7 +19,6 @@ import ClassroomList from "./pages/ClassroomList";
 import ClassroomForm from "./pages/ClassroomForm";
 import ClassroomDetail from "./pages/ClassroomDetail";
 import ContentDetails from "./pages/ContentDetails";
-import ContentPlayback from "./pages/ContentPlayback";
 
 // Inner component — must live inside <BrowserRouter> and <AuthProvider>
 // so it can access auth state and router context.
@@ -79,14 +78,6 @@ function AppContent() {
         <Route
           path={ROUTES.CLASSROOM_DETAIL(":classroomId")}
           element={<ProtectedRoute element={<ClassroomDetail />} />}
-        />
-        <Route
-          path={ROUTES.CONTENT_PLAYBACK(":classroomId")}
-          element={<ProtectedRoute element={<ContentPlayback />} />}
-        />
-        <Route
-          path={ROUTES.CONTENT}
-          element={<ProtectedRoute element={<ContentPlayback />} />}
         />
         <Route
           path={ROUTES.CONTENT_DETAILS(":contentId")}
