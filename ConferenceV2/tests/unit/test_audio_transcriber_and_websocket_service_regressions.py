@@ -1,4 +1,5 @@
 import asyncio
+import io
 import os
 import sys
 import threading
@@ -57,18 +58,34 @@ async def test_process_chunk_merges_multiple_transcriptions_from_single_payload(
     assert result["transcript_chunks"][1]["text"] == "second phrase"
 
 
-def test_prepare_wav_payload_outputs_16k_mono_wav():
+@pytest.mark.asyncio
+async def test_transcribe_segment_sends_16k_mono_wav():
     transcriber = AudioTranscriber()
 
-    # 100ms of 8kHz 16-bit PCM -> 800 samples in, 1600 samples out
-    buf = transcriber._prepare_wav_payload(b"\x00\x01" * 800)
+    sent = {}
 
-    with wave.open(buf, "rb") as wf:
+    async def capture_create(*, file, **kwargs):
+        file.seek(0)
+        sent["bytes"] = file.read()
+        sent["name"] = file.name
+        result = Mock()
+        result.text = "hello"
+        result.duration = 1.0
+        result.segments = []
+        return result
+
+    transcriber.client = Mock()
+    transcriber.client.audio.transcriptions.create = capture_create
+
+    # 100ms of 8kHz 16-bit PCM -> 800 samples in, 1600 samples out
+    await transcriber._transcribe_segment(b"\x00\x01" * 800)
+
+    assert sent["name"] == "audio.wav"
+    with wave.open(io.BytesIO(sent["bytes"]), "rb") as wf:
         assert wf.getnchannels() == 1
         assert wf.getsampwidth() == 2
         assert wf.getframerate() == AudioTranscriber.PROCESS_RATE
         assert wf.getnframes() == 1600
-    assert buf.name == "audio.wav"
 
 
 @pytest.mark.asyncio
