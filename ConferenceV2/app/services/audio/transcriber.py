@@ -291,9 +291,10 @@ class AudioTranscriber:
             audio_np = np.frombuffer(segment_bytes, dtype=np.int16)
             audio_float = audio_np.astype(np.float32)
 
-            # 8kHz PCM -> 16kHz for Whisper.
-            resampled_float = signal.resample_poly(
-                audio_float, self.PROCESS_RATE, self.INPUT_RATE
+            # 8kHz PCM -> 16kHz for Whisper. resample_poly is CPU-bound and can
+            # take seconds on a max-length segment, so keep it off the event loop.
+            resampled_float = await asyncio.to_thread(
+                signal.resample_poly, audio_float, self.PROCESS_RATE, self.INPUT_RATE
             )
             resampled_np = resampled_float.astype(np.int16)
 

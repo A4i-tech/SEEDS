@@ -92,7 +92,7 @@ class AudioCaptureService:
         if not self.enabled or not self.file_path:
             return None
 
-        self._close_file()
+        await asyncio.to_thread(self._close_file)
 
         if self.total_bytes == 0:
             logger.info("No audio data captured, skipping upload")
