@@ -17,11 +17,6 @@ from config import get_settings
 load_dotenv()
 
 _VONAGE_RATE_LIMIT = 3  # max outbound call POSTs per second
-
-# Vonage SDK 2.x uses requests with no default timeout, so a stuck Vonage call
-# can block the FastAPI event loop indefinitely (observed: 15+ minute hang on
-# GET /v1/calls/<uuid>). Used by _try_connecting_websocket_with_participant
-# below to bound the sync calls that live on the websocket-attach hot path.
 _VONAGE_CALL_TIMEOUT_SECONDS = get_settings().VONAGE_CALL_TIMEOUT_SECONDS
 
 
@@ -51,6 +46,7 @@ class VonageAPI(CommunicationAPI):
         self.client = vonage.Client(
             application_id=self.application_id,
             private_key=self.private_key_path,
+            timeout=_VONAGE_CALL_TIMEOUT_SECONDS,
         )
         self.redis_store = None
         self.teacher_phone_number = None
