@@ -3068,35 +3068,34 @@ vonage-jwt = ">=1.1.0"
 
 [[package]]
 name = "vonage-jwt"
-version = "1.1.1"
+version = "1.1.5"
 description = "Tooling for working with JWTs for Vonage APIs in Python."
 optional = false
-python-versions = ">=3.8"
+python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "vonage_jwt-1.1.1-py3-none-any.whl", hash = "sha256:4b751571e013deeab9f13b68f9e1478d8aa7f0a91f0cb7f6d793fa7b859859df"},
-    {file = "vonage_jwt-1.1.1.tar.gz", hash = "sha256:15f4b1cd8fa5909390a4074a909053ae823df0557b1edb9b675d0a013295dc10"},
+    {file = "vonage_jwt-1.1.5-py3-none-any.whl", hash = "sha256:d2dea812ff271a75d495b703a1a27dcb7e457233f6237c2ad92cb815650004a7"},
+    {file = "vonage_jwt-1.1.5.tar.gz", hash = "sha256:92dee47aa18092efc8c158f89cbe01ffaf7a976eef717c57b23e01c5491c795d"},
 ]
 
 [package.dependencies]
 pyjwt = {version = ">=1.6.4", extras = ["crypto"]}
-vonage-utils = ">=1.1.2"
+vonage-utils = ">=1.1.4"
 
 [[package]]
 name = "vonage-utils"
-version = "1.1.2"
+version = "1.1.4"
 description = "Utils package containing objects for use with Vonage APIs"
 optional = false
-python-versions = ">=3.8"
+python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "vonage_utils-1.1.2-py3-none-any.whl", hash = "sha256:a815a8be8f5fdba558d090d0f81b469a2eb0ded4cccbfe4e27dc9276e84c4b7e"},
-    {file = "vonage_utils-1.1.2.tar.gz", hash = "sha256:a86c1eafe62e6f82d18dda6fd4dc78c898dea81888b83f18ea75105365307daf"},
+    {file = "vonage_utils-1.1.4-py3-none-any.whl", hash = "sha256:438b0bc8da25e8026ec6789cd9a113b4f41636c70c4d84b2d9ab0e92ed23a665"},
+    {file = "vonage_utils-1.1.4.tar.gz", hash = "sha256:950b802dc93f8440717fba6e183d2ae39f6e0316dc19a3f1f41ca81f9af24bf8"},
 ]
 
 [package.dependencies]
-pydantic = ">=2.7.1"
-typing-extensions = ">=4.9.0"
+pydantic = ">=2.9.2"
 
 [[package]]
 name = "webrtcvad"
@@ -3416,4 +3415,4 @@ type = ["pytest-mypy (>=1.0.1) ; platform_python_implementation != \"PyPy\""]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12"
-content-hash = "c0e28837339eedbd41091b35d826288e2bfb8e80343d83bb1731268db4679a5d"
+content-hash = "4a091fb092d853f42a066b3528a228fe230d694cf31723ff52f33a4068b307c1"
