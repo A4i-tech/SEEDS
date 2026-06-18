@@ -8,8 +8,13 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const ffmpegPath = require("ffmpeg-static");
+const ffprobePath = require("ffprobe-static").path;
 const ffmpeg = require("fluent-ffmpeg");
+<<<<<<< farman/backend-websocket-application-insights
 const logger = require("../logger");
+=======
+ffmpeg.setFfprobePath(ffprobePath);
+>>>>>>> a4i/staging
 
 /**
  * Writes a Buffer to a file.
