@@ -74,7 +74,7 @@ async function playAudioContent(id, blobUrl) {
     // Discard old audio content blobData
     state.audioContentState.blobData = null;
 
-    logger.info(`playAudioContent called for ID: ${id}, Blob URL: ${blobUrl}`);
+    logger.info(`playAudioContent called for ID: ${id}, Blob URL: ${blobUrl.substring(0,5)}`);
 
     // If no system audio content is playing, start playing audio content
     if (!state.currentAudioType || state.currentAudioType === "audioContent") {

@@ -42,10 +42,7 @@ const router = express.Router();
 router.get(
   "/accessToken",
   tryCatchWrapper(async (req, res) => {
-    logger.info("IVR_SERVER_URL", { url: process.env.IVR_SERVER_URL });
-    logger.info("HERE");
     const response = await axios.get(`${process.env.IVR_SERVER_URL}conference_call/accessToken`);
-    logger.info("accessToken response", { data: response.data });
     return res.json(response.data);
   })
 );
@@ -91,9 +88,7 @@ router.get(
 router.post(
   "/start",
   tryCatchWrapperLog(async (req, res) => {
-    logger.info("START CALL BOD", { body: req.body });
     const response = await axios.post(`${process.env.IVR_SERVER_URL}conference_call`, req.body);
-    logger.info("START CALL RESPONSE", { data: response.data });
     return res.json(response.data);
   })
 );
