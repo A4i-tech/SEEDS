@@ -52,6 +52,7 @@ from app.fsm.ivr_constants import (
     quiz_new,
 )
 from app.fsm.ivr_utils import get_content
+from app.utils.ivr_utils import get_blob_language_name
 from app.core.database import MongoDBCollection
 from app.settings import settings
 load_dotenv()
@@ -173,11 +174,12 @@ def handle_type(filtered_content, speechRate, parent_selections):
     sorted_categories = []
     sorted_keys = []
     language = parent_selections.get("language", settings.default_welcome_language)
+    blob_lang = get_blob_language_name(language)
     for exp in experiences:
         # Retrieve the URL template from the global mapping.
         template_url = experienceDialogAudioUrls[exp]
         # Replace the placeholders with the actual language and speechRate.
-        audio_url = template_url.replace("{language}", language).replace(
+        audio_url = template_url.replace("{language}", blob_lang).replace(
             "{speechRate}", str(speechRate)
         )
         values_to_urls[exp] = audio_url
@@ -250,11 +252,12 @@ attribute_handlers = {
     "title": handle_title,
 }
 
-welcomeToSEEDSUrl = f"https://{settings.storage_account_name}.blob.core.windows.net/pull-model-menus/welcomeDialog/{settings.default_welcome_language}/welcome%20to%20SEEDS/1.0.mp3"
+welcomeToSEEDSUrl = f"https://{settings.storage_account_name}.blob.core.windows.net/pull-model-menus/welcomeDialog/{get_blob_language_name(settings.default_welcome_language)}/welcome%20to%20SEEDS/1.0.mp3"
 
 
 def getKeyPressUrl(key, language, speechRate):
-    replaced_url = pressKeyMessageUrl.replace("{language}", language).replace(
+    blob_lang = get_blob_language_name(language)
+    replaced_url = pressKeyMessageUrl.replace("{language}", blob_lang).replace(
         "{speechRate}", str(speechRate)
     )
     replaced_url = re.sub(r"\{key\}", key, replaced_url)
@@ -282,7 +285,8 @@ def add_nav_action(
       speechRate (str): The speech rate value.
       description (str): The description text to assign for this key.
     """
-    url = pullMenuMainUrl + message_template.replace("{language}", language).replace(
+    blob_lang = get_blob_language_name(language)
+    url = pullMenuMainUrl + message_template.replace("{language}", blob_lang).replace(
         "{speechRate}", str(speechRate)
     )
     actions.append(StreamAction(url))
@@ -335,8 +339,9 @@ def getStreamActions(items_list, sorted_keys, level, state, parent_selections={}
                 parent_selections["type"].lower()
             ]
         if initial_dialog:
+            blob_lang = get_blob_language_name(language)
             dialog_url = pullMenuMainUrl + initial_dialog.replace(
-                "{language}", language
+                "{language}", blob_lang
             ).replace("{speechRate}", str(speechRate))
             actions.append(StreamAction(dialog_url))
 

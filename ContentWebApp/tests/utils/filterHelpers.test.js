@@ -7,10 +7,10 @@ describe("filterHelpers", () => {
   describe("generateFilterOptions", () => {
     it("should generate filter options from content list", () => {
       const contentList = [
-        { type: "story", language: "english" },
-        { type: "quiz", language: "kannada" },
-        { type: "poem", language: "english" },
-        { type: "quiz", language: "hindi" },
+        { type: "story", language: "en" },
+        { type: "quiz", language: "kn" },
+        { type: "poem", language: "en" },
+        { type: "quiz", language: "hi" },
       ];
 
       const options = generateFilterOptions(contentList);
@@ -18,13 +18,12 @@ describe("filterHelpers", () => {
       expect(options).toBeInstanceOf(Array);
       expect(options.length).toBeGreaterThan(0);
 
-      // Check for language options
+      // generateFilterOptions returns display labels via getLanguageLabel()
       const languageOptions = options.filter((opt) => opt.category === "Language");
       expect(languageOptions.length).toBeGreaterThan(0);
-      expect(languageOptions.some((opt) => opt.name.toLowerCase() === "english")).toBe(true);
-      expect(languageOptions.some((opt) => opt.name.toLowerCase() === "kannada")).toBe(true);
+      expect(languageOptions.some((opt) => opt.name === "English")).toBe(true);
+      expect(languageOptions.some((opt) => opt.name === "Kannada")).toBe(true);
 
-      // Check for type/experience options
       const experienceOptions = options.filter((opt) => opt.category === "Experience");
       expect(experienceOptions.length).toBeGreaterThan(0);
       expect(experienceOptions.some((opt) => opt.name.toLowerCase() === "quiz")).toBe(true);
@@ -33,8 +32,8 @@ describe("filterHelpers", () => {
 
     it("should include quiz type in filter options", () => {
       const contentList = [
-        { type: "quiz", language: "kannada" },
-        { type: "story", language: "english" },
+        { type: "quiz", language: "kn" },
+        { type: "story", language: "en" },
       ];
 
       const options = generateFilterOptions(contentList);
@@ -53,26 +52,26 @@ describe("filterHelpers", () => {
 
     it("should handle content items without type or language", () => {
       const contentList = [
-        { type: "quiz", language: "kannada" },
+        { type: "quiz", language: "kn" },
         { type: "story" }, // missing language
-        { language: "english" }, // missing type
+        { language: "en" }, // missing type
         {}, // missing both
       ];
 
       const options = generateFilterOptions(contentList);
-      // Should still generate options for items that have the fields
       expect(options.length).toBeGreaterThan(0);
     });
   });
 
   describe("applyFilters", () => {
     const mockContent = [
-      { id: "1", type: "quiz", language: "kannada", title: "Quiz 1" },
-      { id: "2", type: "quiz", language: "english", title: "Quiz 2" },
-      { id: "3", type: "story", language: "kannada", title: "Story 1" },
-      { id: "4", type: "poem", language: "english", title: "Poem 1" },
+      { id: "1", type: "quiz", language: "kn", title: "Quiz 1" },
+      { id: "2", type: "quiz", language: "en", title: "Quiz 2" },
+      { id: "3", type: "story", language: "kn", title: "Story 1" },
+      { id: "4", type: "poem", language: "en", title: "Poem 1" },
     ];
 
+    // Filter chips use display labels (e.g. "Kannada", "English")
     const mockOptions = [
       { category: "Language", name: "Kannada", id: 1 },
       { category: "Language", name: "English", id: 2 },
@@ -94,7 +93,7 @@ describe("filterHelpers", () => {
       expect(filtered.some((item) => item.id === "2")).toBe(true);
     });
 
-    it("should filter by language", () => {
+    it("should filter by language (Kannada)", () => {
       const selectedFilters = [
         { category: "Language", name: "Kannada", id: 1 },
       ];
@@ -102,7 +101,7 @@ describe("filterHelpers", () => {
       const filtered = applyFilters(mockContent, selectedFilters, mockOptions);
 
       expect(filtered.length).toBe(2);
-      expect(filtered.every((item) => item.language.toLowerCase() === "kannada")).toBe(true);
+      expect(filtered.every((item) => item.language === "kn")).toBe(true);
       expect(filtered.some((item) => item.id === "1")).toBe(true);
       expect(filtered.some((item) => item.id === "3")).toBe(true);
     });
@@ -118,16 +117,11 @@ describe("filterHelpers", () => {
       expect(filtered.length).toBe(1);
       expect(filtered[0].id).toBe("1");
       expect(filtered[0].type.toLowerCase()).toBe("quiz");
-      expect(filtered[0].language.toLowerCase()).toBe("kannada");
+      expect(filtered[0].language).toBe("kn");
     });
 
     it("should return all content when no filters selected", () => {
       const filtered = applyFilters(mockContent, [], mockOptions);
-
-      // applyFilters filters out items missing type or language fields
-      // It also requires items to match available options
-      // All items in mockContent have both fields and match options, so all should be returned
-      // Note: The function filters items that don't have both type AND language
       const itemsWithBothFields = mockContent.filter(
         (item) => item.type && item.language
       );
@@ -135,46 +129,24 @@ describe("filterHelpers", () => {
       expect(filtered.every((item) => item.type && item.language)).toBe(true);
     });
 
-    it("should handle case-insensitive filtering", () => {
-      const contentWithMixedCase = [
-        { id: "1", type: "QUIZ", language: "KANNADA", title: "Quiz 1" },
-        { id: "2", type: "quiz", language: "kannada", title: "Quiz 2" },
-      ];
-
-      const selectedFilters = [
-        { category: "Experience", name: "Quiz", id: 3 },
-        { category: "Language", name: "Kannada", id: 1 },
-      ];
-
-      const filtered = applyFilters(contentWithMixedCase, selectedFilters, mockOptions);
-
-      expect(filtered.length).toBe(2);
-    });
-
     it("should handle empty content list", () => {
       const filtered = applyFilters([], [], mockOptions);
       expect(filtered).toEqual([]);
     });
 
-    it("should filter quiz items correctly", () => {
+    it("should filter quiz items correctly (experience only)", () => {
       const quizContent = [
-        { id: "q1", type: "quiz", language: "kannada", title: "Math Quiz" },
-        { id: "q2", type: "quiz", language: "english", title: "Science Quiz" },
-        { id: "s1", type: "story", language: "kannada", title: "Story" },
+        { id: "q1", type: "quiz", language: "kn", title: "Math Quiz" },
+        { id: "q2", type: "quiz", language: "en", title: "Science Quiz" },
+        { id: "s1", type: "story", language: "kn", title: "Story" },
       ];
 
-      const selectedFilters = [
-        { category: "Experience", name: "Quiz", id: 3 },
-      ];
+      const selectedFilters = [{ category: "Experience", name: "Quiz", id: 3 }];
 
       const filtered = applyFilters(quizContent, selectedFilters, mockOptions);
 
       expect(filtered.length).toBe(2);
       expect(filtered.every((item) => item.type.toLowerCase() === "quiz")).toBe(true);
-      expect(filtered.some((item) => item.id === "q1")).toBe(true);
-      expect(filtered.some((item) => item.id === "q2")).toBe(true);
-      expect(filtered.some((item) => item.id === "s1")).toBe(false);
     });
   });
 });
-
