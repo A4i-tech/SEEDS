@@ -56,7 +56,7 @@ describe("ControlService", () => {
       connectionManager.getConnection.mockReturnValue({ ws: mockWebSocket });
       mockCloseHandler(1000, "normal");
       expect(consoleSpy).toHaveBeenCalledWith(
-        "Control WebSocket connection closed (confv2server): code=1000 reason=normal",
+        "[INFO] Control WebSocket connection closed (confv2server): code=1000 reason=normal",
         ""
       );
       expect(connectionManager.removeConnection).toHaveBeenCalledWith(
@@ -67,7 +67,7 @@ describe("ControlService", () => {
       const testError = new Error("Test error");
       mockErrorHandler(testError);
       expect(errorSpy).toHaveBeenCalledWith(
-        "Control WebSocket error",
+        "[ERROR] Control WebSocket error",
         testError,
         ""
       );
@@ -168,7 +168,7 @@ describe("ControlService", () => {
         })
       );
       expect(consoleSpy).toHaveBeenCalledWith(
-        "Heartbeat message received from conf server",
+        "[WARN] Heartbeat message received from conf server",
         ""
       );
 
@@ -181,7 +181,7 @@ describe("ControlService", () => {
         })
       );
       expect(consoleSpy).toHaveBeenCalledWith(
-        "Unknown control message type: UNKNOWN",
+        "[WARN] Unknown control message type: UNKNOWN",
         ""
       );
 
@@ -197,7 +197,7 @@ describe("ControlService", () => {
       // Malformed JSON
       await mockMessageHandler("{ invalid json }");
       expect(errorSpy).toHaveBeenCalledWith(
-        "Error parsing control message",
+        "[ERROR] Error parsing control message",
         expect.any(Error),
         ""
       );
@@ -218,7 +218,7 @@ describe("ControlService", () => {
         })
       );
       expect(errorSpy).toHaveBeenCalledWith(
-        "Error playing audio for ID error-client",
+        "[ERROR] Error playing audio for ID error-client",
         testError,
         ""
       );
@@ -232,7 +232,7 @@ describe("ControlService", () => {
         })
       );
       expect(errorSpy).toHaveBeenCalledWith(
-        "Error playing audio for ID system-error",
+        "[ERROR] Error playing audio for ID system-error",
         testError,
         ""
       );
@@ -246,7 +246,7 @@ describe("ControlService", () => {
         })
       );
       expect(errorSpy).toHaveBeenCalledWith(
-        "Error seeking audio for ID seek-error",
+        "[ERROR] Error seeking audio for ID seek-error",
         testError,
         ""
       );
@@ -262,7 +262,7 @@ describe("ControlService", () => {
         JSON.stringify({ websocket_id: "test", type: MessageType.PLAY_AUDIO })
       );
       expect(warnSpy).toHaveBeenCalledWith(
-        "Unknown control message type: undefined",
+        "[WARN] Unknown control message type: undefined",
         ""
       );
 

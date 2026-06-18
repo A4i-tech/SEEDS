@@ -15,28 +15,28 @@ describe('logger — dev mode', () => {
     const spy = jest.spyOn(console, 'log').mockImplementation(() => {});
     const logger = require('../src/logger');
     logger.info('hello');
-    expect(spy).toHaveBeenCalledWith('hello', '');
+    expect(spy).toHaveBeenCalledWith('[INFO] hello', '');
   });
 
   it('info() passes properties when provided', () => {
     const spy = jest.spyOn(console, 'log').mockImplementation(() => {});
     const logger = require('../src/logger');
     logger.info('hello', { key: 'val' });
-    expect(spy).toHaveBeenCalledWith('hello', { key: 'val' });
+    expect(spy).toHaveBeenCalledWith('[INFO] hello', { key: 'val' });
   });
 
   it('warn() writes to console.warn', () => {
     const spy = jest.spyOn(console, 'warn').mockImplementation(() => {});
     const logger = require('../src/logger');
     logger.warn('careful');
-    expect(spy).toHaveBeenCalledWith('careful', '');
+    expect(spy).toHaveBeenCalledWith('[WARN] careful', '');
   });
 
   it('warn() passes properties when provided', () => {
     const spy = jest.spyOn(console, 'warn').mockImplementation(() => {});
     const logger = require('../src/logger');
     logger.warn('careful', { key: 'val' });
-    expect(spy).toHaveBeenCalledWith('careful', { key: 'val' });
+    expect(spy).toHaveBeenCalledWith('[WARN] careful', { key: 'val' });
   });
 
   it('error() writes to console.error with Error object', () => {
@@ -44,14 +44,14 @@ describe('logger — dev mode', () => {
     const logger = require('../src/logger');
     const err = new Error('boom');
     logger.error('broke', err);
-    expect(spy).toHaveBeenCalledWith('broke', err, '');
+    expect(spy).toHaveBeenCalledWith('[ERROR] broke', err, '');
   });
 
   it('error() handles null error gracefully', () => {
     const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
     const logger = require('../src/logger');
     logger.error('broke', null);
-    expect(spy).toHaveBeenCalledWith('broke', '', '');
+    expect(spy).toHaveBeenCalledWith('[ERROR] broke', '', '');
   });
 });
 
@@ -71,7 +71,7 @@ describe('logger — production without connection string', () => {
     const spy = jest.spyOn(console, 'log').mockImplementation(() => {});
     const logger = require('../src/logger');
     logger.info('hello');
-    expect(spy).toHaveBeenCalledWith('hello', '');
+    expect(spy).toHaveBeenCalledWith('[INFO] hello', '');
   });
 });
 

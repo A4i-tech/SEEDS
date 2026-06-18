@@ -103,7 +103,7 @@ async function textToSpeech(text, language, rate, filename) {
     const { languageCode, voiceName } = getTTSAttributes(language) || {};
 
     logger.info(
-      `CONVERTING TEXT : ${text} TO AUDIO OF LANGUAGE CODE: ${languageCode} USING VOICE: ${voiceName} WITH SPEECH RATE: ${rate}...`
+      `CONVERTING TEXT : ${text.slice(0, 10)}... TO AUDIO OF LANGUAGE CODE: ${languageCode} USING VOICE: ${voiceName} WITH SPEECH RATE: ${rate}...`
     );
 
     const synthesizer = new sdk.SpeechSynthesizer(speechConfig, audioConfig);
