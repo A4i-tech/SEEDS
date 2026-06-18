@@ -1,5 +1,6 @@
 const admin = require("firebase-admin");
 const { firebaseServiceAccount, authType } = require("../../config/env");
+const logger = require("../../logger");
 
 let db = null;
 
@@ -20,7 +21,7 @@ module.exports = {
     snapshot.forEach((doc) => {
       tenants.push({ id: doc.id, tenantName: doc.data().tenantName });
     });
-    console.log(tenants);
+    logger.info("getAllTenants result", { count: tenants.length });
     return tenants;
   },
   async getTenantById(tenantId) {

@@ -1,5 +1,6 @@
 // src/services/websocketService.js
 
+const logger = require("../logger");
 const azureBlobService = require("./azureBlobService");
 const connectionManager = require("./connectionManager");
 const { PlaybackStatus } = require("../constants");
@@ -73,24 +74,24 @@ async function playAudioContent(id, blobUrl) {
     // Discard old audio content blobData
     state.audioContentState.blobData = null;
 
-    console.log(`playAudioContent called for ID: ${id}, Blob URL: ${blobUrl}`);
+    logger.info(`playAudioContent called for ID: ${id}, Blob URL: ${blobUrl.substring(0,5)}`);
 
     // If no system audio content is playing, start playing audio content
     if (!state.currentAudioType || state.currentAudioType === "audioContent") {
       state.currentAudioType = "audioContent";
       const { containerName, blobName } = parseBlobUrl(blobUrl);
       const blobData = await azureBlobService.getBlobData(containerName, blobName);
-      console.log(`Blob downloaded for ID: ${id}, size: ${blobData ? blobData.length : 'null'} bytes`);
+      logger.info(`Blob downloaded for ID: ${id}, size: ${blobData ? blobData.length : 'null'} bytes`);
       state.audioContentState.blobData = blobData;
       state.audioContentState.durationSeconds = blobData ? blobData.length / AUDIO_BYTES_PER_SECOND : 0;
 
       sendPlaybackStatus(id, PlaybackStatus.PLAYING);
-      console.log(`Starting audio content playback for ID: ${id}`);
+      logger.info(`Starting audio content playback for ID: ${id}`);
       sendAudioContentChunks(ws, id, blobData, state, currentPlaybackId);
     } else {
       // Keep audio content in paused state
       sendPlaybackStatus(id, PlaybackStatus.PAUSED);
-      console.log(
+      logger.info(
         `Audio content playback paused for ID: ${id} due to system audio content in progress`
       );
     }
@@ -118,11 +119,11 @@ async function playSystemAudioContent(id, blobUrl) {
 
     // Enqueue system audio content
     state.systemAudioContentQueue.push({ blobUrl });
-    console.log(`System audio content queued for ID: ${id}, Blob URL: ${blobUrl}`);
+    logger.info(`System audio content queued for ID: ${id}, Blob URL: ${blobUrl}`);
 
     if (state.currentAudioType === "systemAudioContent") {
       // Do nothing; it will play after the current system audio content
-      console.log(`System audio content already playing for ID: ${id}, new content will be queued`);
+      logger.info(`System audio content already playing for ID: ${id}, new content will be queued`);
     } else {
       // Pause audio content if playing
       if (
@@ -132,7 +133,7 @@ async function playSystemAudioContent(id, blobUrl) {
       ) {
         state.audioContentState.playing = false;
         sendPlaybackStatus(id, PlaybackStatus.PAUSED);
-        console.log(`Audio content playback paused for ID: ${id} to play system audio content`);
+        logger.info(`Audio content playback paused for ID: ${id} to play system audio content`);
       }
 
       // Set currentAudioType to 'systemAudioContent' and start playing next system audio content
@@ -153,14 +154,14 @@ async function playSystemAudioContent(id, blobUrl) {
 async function playNextSystemAudioContent(ws, id, state) {
   if (state.systemAudioContentQueue.length === 0) {
     // No more system audio content; do not resume audio content
-    console.log(`No more system audio content in queue for ID: ${id}`);
+    logger.info(`No more system audio content in queue for ID: ${id}`);
     state.currentAudioType = null; // Set currentAudioType to null indicating no audio is playing
     return;
   }
 
   const nextSystemAudioContent = state.systemAudioContentQueue.shift();
   const { blobUrl } = nextSystemAudioContent;
-  console.log(`Starting system audio content playback for ID: ${id}, Blob URL: ${blobUrl}`);
+  logger.info(`Starting system audio content playback for ID: ${id}, Blob URL: ${blobUrl}`);
 
   const { containerName, blobName } = parseBlobUrl(blobUrl);
   const blobData = await azureBlobService.getBlobData(containerName, blobName);
@@ -193,13 +194,13 @@ function sendAudioContentChunks(ws, id, blobData, state, playbackId) {
       !state.audioContentState.playing
     ) {
       // Stop sending if playback is paused, stopped, or overridden
-      console.log(`Stopping audio content streaming for ID: ${id}`);
+      logger.info(`Stopping audio content streaming for ID: ${id}`);
       return;
     }
 
     if (position >= totalLength) {
       // Audio content streaming completed
-      console.log(`Audio content streaming completed for ID: ${id}`);
+      logger.info(`Audio content streaming completed for ID: ${id}`);
       state.audioContentState.playing = false;
       state.currentAudioType = null; // Set to null since playback has completed
       sendPlaybackStatus(id, PlaybackStatus.STOPPED); // Send playback status when audio content stops
@@ -215,7 +216,7 @@ function sendAudioContentChunks(ws, id, blobData, state, playbackId) {
     const alignedSourceBytes = sourceBytes & ~1;
     if (alignedSourceBytes === 0) {
       // Remaining data too small to form a sample; treat as end of file
-      console.log(`Audio content streaming completed for ID: ${id}`);
+      logger.info(`Audio content streaming completed for ID: ${id}`);
       state.audioContentState.playing = false;
       state.currentAudioType = null;
       sendPlaybackStatus(id, PlaybackStatus.STOPPED);
@@ -239,7 +240,7 @@ function sendAudioContentChunks(ws, id, blobData, state, playbackId) {
 
     ws.send(chunk, { binary: true }, (error) => {
       if (error) {
-        console.error(`Error sending data over WebSocket for ID: ${id}`, error);
+        logger.error(`Error sending data over WebSocket for ID: ${id}`, error);
         sendPlaybackStatus(id, PlaybackStatus.STOPPED);
         ws.close();
         return;
@@ -250,7 +251,7 @@ function sendAudioContentChunks(ws, id, blobData, state, playbackId) {
   }
 
   // Start sending chunks
-  console.log(`Sending audio content chunks for ID: ${id}`);
+  logger.info(`Sending audio content chunks for ID: ${id}`);
   sendNextChunk();
 }
 
@@ -269,13 +270,13 @@ function sendSystemAudioContentChunks(ws, id, blobData, state) {
     // Check if WebSocket is open and currentAudioType is 'systemAudioContent'
     if (ws.readyState !== ws.OPEN || state.currentAudioType !== "systemAudioContent") {
       // Stop sending if overridden or WebSocket closed
-      console.log(`Stopping system audio content streaming for ID: ${id}`);
+      logger.info(`Stopping system audio content streaming for ID: ${id}`);
       return;
     }
 
     if (position >= totalLength) {
       // System audio content streaming completed
-      console.log(`System audio content streaming completed for ID: ${id}`);
+      logger.info(`System audio content streaming completed for ID: ${id}`);
       // Play next system audio content or set currentAudioType to null
       playNextSystemAudioContent(ws, id, state);
       return;
@@ -287,7 +288,7 @@ function sendSystemAudioContentChunks(ws, id, blobData, state) {
 
     ws.send(chunk, { binary: true }, (error) => {
       if (error) {
-        console.error(`Error sending data over WebSocket for ID: ${id}`, error);
+        logger.error(`Error sending data over WebSocket for ID: ${id}`, error);
         ws.close();
         return;
       }
@@ -298,7 +299,7 @@ function sendSystemAudioContentChunks(ws, id, blobData, state) {
   }
 
   // Start sending chunks
-  console.log(`Sending system audio content chunks for ID: ${id}`);
+  logger.info(`Sending system audio content chunks for ID: ${id}`);
   sendNextChunk();
 }
 
@@ -320,7 +321,7 @@ function pauseAudioContent(id) {
   ) {
     state.audioContentState.playing = false;
     sendPlaybackStatus(id, PlaybackStatus.PAUSED);
-    console.log(`Audio content playback paused for ID: ${id}`);
+    logger.info(`Audio content playback paused for ID: ${id}`);
   }
 }
 
@@ -340,7 +341,7 @@ function resumeAudioContent(id) {
     (state.systemAudioContentQueue && state.systemAudioContentQueue.length > 0)
   ) {
     // Ignore resume request; system audio content is playing or queued
-    console.log(`Resume request ignored for ID: ${id}; system audio content is playing or queued`);
+    logger.info(`Resume request ignored for ID: ${id}; system audio content is playing or queued`);
     return;
   }
 
@@ -351,7 +352,7 @@ function resumeAudioContent(id) {
     state.currentAudioType = "audioContent";
     state.audioContentState.playing = true;
     sendPlaybackStatus(id, PlaybackStatus.PLAYING);
-    console.log(`Resuming audio content playback for ID: ${id}`);
+    logger.info(`Resuming audio content playback for ID: ${id}`);
     sendAudioContentChunks(ws, id, state.audioContentState.blobData, state, currentPlaybackId);
   } else {
     throw new Error("No audio content data to resume");
@@ -375,7 +376,7 @@ async function seekAudioContent(id, seekPayload) {
     throw new Error("No audio content data to seek");
   }
   const seekTarget = extractSeekTarget(seekPayload);
-  console.log(
+  logger.info(
     `Seek request received for ID: ${id}; ${seekTarget.type}: ${seekTarget.value}; currentPosition: ${audioState.position}`
   );
   const totalLength = audioState.blobData.length;
@@ -393,7 +394,7 @@ async function seekAudioContent(id, seekPayload) {
   if (state.currentAudioType === "systemAudioContent") {
     // Acknowledge the seek but leave playback paused until announcements finish.
     audioState.playing = false;
-    console.log(
+    logger.info(
       `Seek for ID: ${id} applied while system audio playing; new buffered position: ${targetPosition}`
     );
     return;
@@ -405,7 +406,7 @@ async function seekAudioContent(id, seekPayload) {
   audioState.playing = true;
 
   sendPlaybackStatus(id, PlaybackStatus.PLAYING);
-  console.log(
+  logger.info(
     `Restarting audio stream after seek for ID: ${id}; playbackId: ${currentPlaybackId}; startByte: ${targetPosition}`
   );
   sendAudioContentChunks(ws, id, audioState.blobData, state, currentPlaybackId);
@@ -429,7 +430,7 @@ function setPlaybackSpeed(id, speed) {
 
   const clampedSpeed = Math.max(0.5, Math.min(3.0, speed));
   audioState.speed = clampedSpeed;
-  console.log(`Playback speed set to ${clampedSpeed}x for ID: ${id}`);
+  logger.info(`Playback speed set to ${clampedSpeed}x for ID: ${id}`);
 
   if (state.currentAudioType === "audioContent" && audioState.playing) {
     state.playbackId = (state.playbackId || 0) + 1;
@@ -458,7 +459,7 @@ function stopAudioContent(id) {
     state.audioContentState.position = 0;
     sendPlaybackStatus(id, PlaybackStatus.STOPPED);
     state.currentAudioType = null; // Set currentAudioType to null since playback is stopped
-    console.log(`Audio content playback stopped for ID: ${id}`);
+    logger.info(`Audio content playback stopped for ID: ${id}`);
   }
 }
 
@@ -475,7 +476,7 @@ function closeConnection(id) {
   state.isClosed = true;
   ws.close();
   sendPlaybackStatus(id, PlaybackStatus.STOPPED);
-  console.log(`WebSocket connection closed for ID: ${id}`);
+  logger.info(`WebSocket connection closed for ID: ${id}`);
 }
 
 /**
@@ -483,7 +484,7 @@ function closeConnection(id) {
  * @param {string} id - Unique identifier for the connection.
  */
 function handleAccidentalDisconnection(id) {
-  console.log(`Sending reconnection message for WebSocket ID: ${id}`);
+  logger.info(`Sending reconnection message for WebSocket ID: ${id}`);
   sendReconnectionMessage(id);
 }
 
@@ -504,7 +505,7 @@ function sendPlaybackStatus(id, status) {
   try {
     const confv2Conn = connectionManager.getConnection("confv2server");
     if (!confv2Conn || !confv2Conn.ws) {
-      console.error(`sendPlaybackStatus [${id}]: No confv2server connection available`);
+      logger.error(`sendPlaybackStatus [${id}]: No confv2server connection available`, null);
       return;
     }
     const { ws } = confv2Conn;
@@ -526,18 +527,18 @@ function sendPlaybackStatus(id, status) {
       duration_seconds: durationSec,
       speed: audioState?.speed || 1.0,
     };
-    console.log(`sendPlaybackStatus [${id}]: status=${status}, position=${payload.position_seconds}, duration=${payload.duration_seconds}, speed=${payload.speed}, blobData=${audioState?.blobData ? audioState.blobData.length + ' bytes' : 'null'}`);
+    logger.info(`sendPlaybackStatus [${id}]: status=${status}, position=${payload.position_seconds}, duration=${payload.duration_seconds}, speed=${payload.speed}, blobData=${audioState?.blobData ? audioState.blobData.length + ' bytes' : 'null'}`);
 
     ws.send(
       JSON.stringify(payload),
       (error) => {
         if (error) {
-          console.error(`Error sending playback status over WebSocket for ID: ${id}`, error);
+          logger.error(`Error sending playback status over WebSocket for ID: ${id}`, error);
         }
       }
     );
   } catch (err) {
-    console.error(`sendPlaybackStatus [${id}] CRASHED:`, err);
+    logger.error(`sendPlaybackStatus [${id}] CRASHED`, err);
   }
 }
 
@@ -550,7 +551,7 @@ function sendReconnectionMessage(id) {
     }),
     (error) => {
       if (error) {
-        console.error(`Error sending data over WebSocket for ID: ${id}`, error);
+        logger.error(`Error sending data over WebSocket for ID: ${id}`, error);
         ws.close();
         return;
       }

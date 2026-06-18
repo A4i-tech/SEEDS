@@ -1,6 +1,7 @@
 // src/config/azureConfig.js
 
 require("dotenv").config();
+const logger = require("../logger");
 const { DefaultAzureCredential } = require("@azure/identity");
 const { BlobServiceClient } = require("@azure/storage-blob");
 const { StorageSharedKeyCredential } = require("@azure/storage-blob");
@@ -17,7 +18,7 @@ if (!accountName) {
 }
 if (accountName && accountKey) {
   useAccountKey = true;
-  console.log("Using Azure Storage account key for authentication.");
+  logger.info("Using Azure Storage account key for authentication.");
 }
 
 if (useAccountKey) {

@@ -1,7 +1,9 @@
 jest.mock('../src/models/LogEntry');
+jest.mock('../src/logger');
 
 const util = require('../src/util');
 const LogEntry = require('../src/models/LogEntry');
+const logger = require('../src/logger');
 
 describe('Util Functions', () => {
     let mocks;
@@ -20,9 +22,7 @@ describe('Util Functions', () => {
             req: { ...CONFIG.req, ...reqOverrides },
             res,
             next: jest.fn(),
-            logEntry: { save: jest.fn().mockResolvedValue(true) },
-            consoleSpy: jest.spyOn(console, 'log').mockImplementation(),
-            errorSpy: jest.spyOn(console, 'error').mockImplementation()
+            logEntry: { save: jest.fn().mockResolvedValue(true) }
         };
     };
 
@@ -32,7 +32,7 @@ describe('Util Functions', () => {
         LogEntry.mockImplementation(() => mocks.logEntry);
     });
 
-    afterEach(() => { mocks.consoleSpy.mockRestore(); mocks.errorSpy.mockRestore(); });
+    afterEach(() => { jest.clearAllMocks(); });
 
     describe('tryCatchWrapper', () => {
         const syncResult = { sync: true };
@@ -55,9 +55,9 @@ describe('Util Functions', () => {
 
         test.each(errorTests)('should handle %s', async (_, errorFn) => {
             const result = await util.tryCatchWrapper(jest.fn().mockImplementation(errorFn))(mocks.req, mocks.res);
-            expect(mocks.consoleSpy).toHaveBeenCalledWith(expect.stringContaining(CONFIG.error.message));
+            expect(logger.error).toHaveBeenCalledWith('Unhandled route error', expect.any(Error));
             expect(mocks.res.status).toHaveBeenCalledWith(400);
-            expect(mocks.res.json).toHaveBeenCalledWith({ message: CONFIG.error.message, stack: expect.any(String) });
+            expect(mocks.res.json).toHaveBeenCalledWith({ message: CONFIG.error.message });
             expect(result).toBe(mocks.res);
         });
 
@@ -92,7 +92,7 @@ describe('Util Functions', () => {
             mocks.logEntry.save.mockRejectedValue(new Error('DB failed'));
             const mockFn = jest.fn().mockImplementation((req, res) => res.json(CONFIG.res));
             await util.tryCatchWrapperLog(mockFn)(mocks.req, mocks.res, mocks.next);
-            expect(mocks.errorSpy).toHaveBeenCalledWith('Log could not be saved', expect.any(Error));
+            expect(logger.error).toHaveBeenCalledWith('Log could not be saved', expect.any(Error));
         });
 
         const errorTests = [
@@ -102,15 +102,16 @@ describe('Util Functions', () => {
 
         test.each(errorTests)('should handle %s', async (_, errorFn) => {
             await util.tryCatchWrapperLog(jest.fn().mockImplementation(errorFn))(mocks.req, mocks.res, mocks.next);
-            expect(mocks.errorSpy).toHaveBeenCalledWith('Error:', expect.any(Error));
-            expectLogEntry({ message: CONFIG.error.message, stack: expect.any(String) }, 400);
+            expect(logger.error).toHaveBeenCalledWith('Unhandled route error', expect.any(Error));
+            expectLogEntry({ message: CONFIG.error.message }, 400);
             expect(mocks.res.status).toHaveBeenCalledWith(400);
+            expect(mocks.res.json).toHaveBeenCalledWith({ message: CONFIG.error.message });
         });
 
         it('should handle error log save failures', async () => {
             mocks.logEntry.save.mockRejectedValue(new Error('Log save failed'));
             await util.tryCatchWrapperLog(jest.fn().mockRejectedValue(new Error(CONFIG.error.message)))(mocks.req, mocks.res, mocks.next);
-            expect(mocks.errorSpy).toHaveBeenCalledWith('Log could not be saved', expect.any(Error));
+            expect(logger.error).toHaveBeenCalledWith('Log could not be saved', expect.any(Error));
         });
 
         it('should restore original res.json after response', async () => {

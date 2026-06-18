@@ -23,6 +23,7 @@ const config = {
   firebaseServiceAccount: process.env.FIREBASE_SERVICE_ACCOUNT,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN,
   passwordSaltRounds: process.env.PASSWORD_SALT_ROUNDS,
+  appInsightsConnectionString: process.env.APPLICATIONINSIGHTS_CONNECTION_STRING,
 };
 
 if (config.authType === "firebase") {

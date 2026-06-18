@@ -17,6 +17,7 @@ const {
   addForInOptionAudio,
   withTimeout,
 } = require("./jobsUtils.js");
+const logger = require("../logger");
 
 // Maximum job runtime: 5 minutes.
 const JOB_TIMEOUT_MS = 5 * 60 * 1000;
@@ -36,10 +37,10 @@ const themeContainerClient = blobService.getContainerClient("theme-titles");
  * @returns {Promise<{url: string, duration: number|null}>} - Object with URL and duration.
  */
 async function generateWAVFileAndUploadToOutputContainer(ip_url, contentId) {
-  console.log(`Starting processing for: ${ip_url}`);
+  logger.info(`Starting processing for: ${ip_url}`);
   const { tempInputPath, tempOutputPath } = generateTempPaths(contentId, ip_url);
   try {
-    console.log(`Downloading blob from: ${ip_url}`);
+    logger.info(`Downloading blob from: ${ip_url}`);
     const inputBuffer = await withTimeout(
       blobService.downloadBlobToBuffer(ip_url),
       BLOB_TIMEOUT_MS,
@@ -48,42 +49,42 @@ async function generateWAVFileAndUploadToOutputContainer(ip_url, contentId) {
     if (!inputBuffer || inputBuffer.length === 0) {
       throw new Error("Input buffer is empty!");
     }
-    console.log(`Blob downloaded. Buffer size: ${inputBuffer.length} bytes`);
+    logger.info(`Blob downloaded. Buffer size: ${inputBuffer.length} bytes`);
 
     await writeBufferToFile(inputBuffer, tempInputPath);
-    console.log("Input file written.");
+    logger.info("Input file written.");
 
-    console.log("Starting ffmpeg processing...");
+    logger.info("Starting ffmpeg processing...");
     await processAudioWithFfmpeg(tempInputPath, tempOutputPath);
-    console.log("ffmpeg processing completed.");
+    logger.info("ffmpeg processing completed.");
 
     const processedBuffer = await fs.promises.readFile(tempOutputPath);
-    console.log(`Processed file size: ${processedBuffer.length} bytes`);
+    logger.info(`Processed file size: ${processedBuffer.length} bytes`);
 
     // Extract audio duration
-    console.log("Extracting audio duration...");
+    logger.info("Extracting audio duration...");
     let duration = null;
     try {
       duration = await extractAudioDuration(tempOutputPath);
     } catch (err) {
-      console.warn("Failed to extract audio duration:", err);
+      logger.warn("Failed to extract audio duration: " + err.message);
     }
 
     const outputBlobName = `${blobService.extractBlobPathWithoutExtension(ip_url)}.wav`;
-    console.log(`Uploading processed file as: ${outputBlobName}`);
+    logger.info(`Uploading processed file as: ${outputBlobName}`);
     const outputBlockBlobClient = outputContainerClient.getBlockBlobClient(outputBlobName);
     await withTimeout(
       outputBlockBlobClient.uploadData(processedBuffer, { blobHTTPHeaders: { blobContentType: "audio/wav" } }),
       BLOB_TIMEOUT_MS,
       "blobUpload"
     );
-    console.log(`Processed blob uploaded: ${outputBlobName}`);
+    logger.info(`Processed blob uploaded: ${outputBlobName}`);
     return { url: outputBlockBlobClient.url, duration };
   } catch (err) {
-    console.error(`Error processing ${ip_url}:`, err);
+    logger.error(`Error processing ${ip_url}:`, err);
     throw err;
   } finally {
-    console.log("Cleaning up temporary files...");
+    logger.info("Cleaning up temporary files...");
     cleanupTempFiles([tempInputPath, tempOutputPath]);
   }
 }
@@ -98,11 +99,12 @@ async function processNewContent(job) {
       throw new Error("Invalid content data received.");
     }
     const contentDoc = await ContentV3.findById(content._id);
-    console.log("Processing audio content:", contentDoc);
+    logger.info("Processing audio content", { contentId: contentDoc?._id });
 
     // Fail job if it runs longer than allowed.
     const timeout = setTimeout(async () => {
-      console.error("Job timeout exceeded.");
+      const timeoutError = new Error("Job exceeded timeout of 5 minutes.");
+      logger.error("Job timeout exceeded.", timeoutError);
       job.attrs.failedAt = new Date();
       job.attrs.errorMessage = "Job exceeded timeout of 5 minutes.";
       await job.save();
@@ -119,7 +121,7 @@ async function processNewContent(job) {
         const parsedUrl = new URL(ip_url);
         const blobName = parsedUrl.pathname.split("/").filter(Boolean).pop();
         if (!blobName || !blobName.toLowerCase().endsWith(".mp3")) {
-          console.error(`Skipping non-mp3 file during processing: ${ip_url}`);
+          logger.warn(`Skipping non-mp3 file during processing: ${ip_url}`);
           continue;
         }
 
@@ -130,13 +132,13 @@ async function processNewContent(job) {
         audioContentItem.audioUrl = url;
         audioContentItem.durationSeconds = duration;
       } catch (err) {
-        console.error(`Failed to process audio content item ${ip_url}:`, err);
+        logger.error(`Failed to process audio content item ${ip_url}:`, err);
         throw err;
       }
     }
 
     if (contentDoc.isPullModel) {
-      console.log("PROCESSING TITLE...");
+      logger.info("PROCESSING TITLE...");
       // Use local title.
       const titleText = contentDoc.title.local?.trim() || "";
       const titleTextForTts = addForInOptionAudio(contentDoc.language, titleText);
@@ -146,15 +148,15 @@ async function processNewContent(job) {
       await titleBlobClient.uploadStream(titleAudioStream);
       contentDoc.title.audioUrl = titleBlobClient.url;
 
-      console.log("PROCESSING THEME...");
+      logger.info("PROCESSING THEME...");
       // Process theme TTS audio.
       const themeBlobName = `${contentDoc.theme.english}/1.0.mp3`;
       const themeBlobClient = themeContainerClient.getBlockBlobClient(themeBlobName);
       if (await themeBlobClient.exists()) {
         contentDoc.theme.audioUrl = themeBlobClient.url;
-        console.log("Theme URL exists.");
+        logger.info("Theme URL exists.");
       } else {
-        console.log("Creating theme audio...");
+        logger.info("Creating theme audio...");
         const themeText = contentDoc.theme.local?.trim() || "";
         const themeAudioStream = await textToSpeech(
           addForInOptionAudio(contentDoc.language, themeText),
@@ -163,7 +165,7 @@ async function processNewContent(job) {
         );
         await themeBlobClient.uploadStream(themeAudioStream);
         contentDoc.theme.audioUrl = themeBlobClient.url;
-        console.log("Theme audio uploaded.");
+        logger.info("Theme audio uploaded.");
       }
     }
 
@@ -173,10 +175,10 @@ async function processNewContent(job) {
     job.attrs.data.processedContent = contentDoc.toObject();
     await job.save();
     await contentDoc.save();
-    console.log("SAVED CONTENT DOC");
-    console.log(`Processed JOB: ${contentDoc}`);
+    logger.info("SAVED CONTENT DOC");
+    logger.info(`Processed JOB`, { contentId: contentDoc?._id });
   } catch (error) {
-    console.error("Job failed due to error:", error);
+    logger.error("Job failed due to error:", error);
 
     // Mark job as failed with error details
     job.attrs.failedAt = new Date();

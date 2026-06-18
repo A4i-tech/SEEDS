@@ -1,4 +1,5 @@
 "use strict";
+const logger = require("./logger"); // must be first — initialises App Insights auto-instrumentation
 const express = require("express");
 const path = require("path");
 const cors = require("cors");
@@ -56,13 +57,13 @@ app.use("/student", authenticateToken, studentRouter);
 if (require.main === module) {
   mongo()
     .then(() => {
-      console.log("MongoDB Connected");
+      logger.info("MongoDB Connected");
       app.listen(port, () => {
-        console.log("MongoDB Listening on port: " + port);
+        logger.info("MongoDB Listening on port: " + port);
       });
     })
     .catch((err) => {
-      console.error("MongoDB connection error:", err);
+      logger.error("MongoDB connection error", err);
       process.exit(1);
     });
 }
