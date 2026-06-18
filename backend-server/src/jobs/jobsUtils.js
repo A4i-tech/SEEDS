@@ -8,7 +8,9 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const ffmpegPath = require("ffmpeg-static");
+const ffprobePath = require("ffprobe-static").path;
 const ffmpeg = require("fluent-ffmpeg");
+ffmpeg.setFfprobePath(ffprobePath);
 
 /**
  * Writes a Buffer to a file.
