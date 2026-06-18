@@ -12,6 +12,7 @@ class RedisConferenceStore:
             settings.REDIS_URL,
             encoding="utf-8",
             decode_responses=True,
+            ssl_cert_reqs=None,
         )
         self._ttl = settings.REDIS_CONFERENCE_TTL_SECONDS
 
