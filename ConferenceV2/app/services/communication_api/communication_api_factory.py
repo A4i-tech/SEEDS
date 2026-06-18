@@ -8,6 +8,7 @@ load_dotenv()
 
 class CommunicationAPIType(Enum):
     VONAGE = "vonage"
+    FAKE = "fake"
 
 class CommunicationAPIFactory:
     @staticmethod
@@ -21,5 +22,8 @@ class CommunicationAPIFactory:
                              vonage_number=os.environ.get("VONAGE_NUMBER"),
                              conf_id=conf_id, 
                              ws_server_url=ws_url)
+        elif type == CommunicationAPIType.FAKE:
+            from app.services.communication_api.fake_communication_api import FakeCommunicationAPI
+            return FakeCommunicationAPI(conf_id=conf_id)
         else:
             raise ValueError(f"Unknown COMM API type: {type}")

@@ -1,0 +1,36 @@
+name: Run ConferenceV2 E2E Tests
+description: Spin up docker-compose test stack and run E2E tests for ConferenceV2
+runs:
+  using: composite
+  steps:
+    - name: Start test stack
+      shell: bash
+      working-directory: ConferenceV2
+      run: docker compose -f docker-compose.test.yml up -d --build
+
+    - name: Wait for service health
+      shell: bash
+      working-directory: ConferenceV2
+      run: |
+        echo "Waiting for ConferenceV2 to be ready..."
+        for i in $(seq 1 30); do
+          if curl -sf http://localhost:9210/docs > /dev/null; then
+            echo "Service is up."
+            exit 0
+          fi
+          echo "Attempt $i/30 — retrying in 5s..."
+          sleep 5
+        done
+        echo "Service did not become ready in time."
+        docker compose -f docker-compose.test.yml logs
+        docker compose -f docker-compose.test.yml down -v
+        exit 1
+
+    - name: Run E2E tests
+      shell: bash
+      working-directory: ConferenceV2
+      run: |
+        poetry run pytest tests/e2e/ -v --tb=short
+        EXIT_CODE=$?
+        docker compose -f docker-compose.test.yml down -v
+        exit $EXIT_CODE

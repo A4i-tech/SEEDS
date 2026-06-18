@@ -19,6 +19,7 @@ from app.services.singletons.websocket_service import WebsocketService
 from app.services.singletons.conference_call_manager import conference_manager
 from app.services.storage_manager.mongodb_client import close_mongodb_manager
 from app.routers import conference, webhooks, websocket
+from config import get_settings
 
 # Read the version from version.txt
 version_file = Path("version.txt")
@@ -32,12 +33,14 @@ logger_instance.info(os.environ.get("EVENTS_WEBHOOK_EP", "<NO EVENTS_WEBHOOK_EP 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Start background task to listen for messages from Node.js
+    settings = get_settings()
     ws = WebsocketService()
-    await ws.initialize()
+    if settings.WS_SERVICE_ENABLED:
+        await ws.initialize()
     await conference_manager.restore_from_redis()
     yield
-    ws.cancel_bg_processes()
+    if settings.WS_SERVICE_ENABLED:
+        ws.cancel_bg_processes()
     await close_mongodb_manager()
     await conference_manager.close()
 

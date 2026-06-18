@@ -162,8 +162,15 @@ class ConferenceCallManager:
 
 
 # UNIVERSAL ConferenceCallManager instance
+_api_type_str = os.getenv("COMM_API_TYPE", "vonage").lower()
+_VALID_API_TYPES = {t.value for t in CommunicationAPIType}
+if _api_type_str not in _VALID_API_TYPES:
+    raise RuntimeError(
+        f"Invalid COMM_API_TYPE={_api_type_str!r}. "
+        f"Valid values: {sorted(_VALID_API_TYPES)}"
+    )
 conference_manager = ConferenceCallManager(
-    communication_api_type=CommunicationAPIType.VONAGE,
+    communication_api_type=CommunicationAPIType(_api_type_str),
     smartphone_connection_manager_type=SmartphoneConnectionManagerType.SSE,
     storage_manager=create_storage_manager(),
 )
