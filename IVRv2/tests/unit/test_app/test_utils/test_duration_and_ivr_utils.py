@@ -34,12 +34,12 @@ class TestFormatDurationAnnouncement:
 class TestGetVonageLanguageCode:
 
     @pytest.mark.parametrize("lang, expected", [
-        ("kannada", "kn-IN"),
-        ("english", "en-US"),
-        ("hindi",   "hi-IN"),
-        ("bengali", "bn-IN"),
-        ("tamil",   "ta-IN"),
-        ("marathi", "mr-IN"),
+        ("kn", "kn-IN"),
+        ("en", "en-US"),
+        ("hi", "hi-IN"),
+        ("bn", "bn-IN"),
+        ("ta", "ta-IN"),
+        ("mr", "mr-IN"),
         ("swahili", "en-US"),   # unknown → fallback
         ("",        "en-US"),   # empty → fallback
     ])

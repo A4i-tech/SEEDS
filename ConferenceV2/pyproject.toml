@@ -20,7 +20,7 @@ dependencies = [
     "azure-servicebus",
     "azure-identity",
     "azure-storage-blob",
-    "vonage<3",
+    "vonage==3.17.1",
     "aiohttp",
     "websockets",
     "azure-monitor-opentelemetry>=1.6.0,<2.0.0",

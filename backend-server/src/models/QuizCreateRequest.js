@@ -16,7 +16,7 @@ class QuizCreateRequest {
     this.localTitle = data.localTitle || "Untitled Quiz";
     this.theme = data.theme || "Default theme";
     this.localTheme = data.localTheme || "Default Local Theme";
-    this.language = data.language || "English";
+    this.language = data.language || "en";
     this.positiveMark = data.positiveMark || 1;
     this.negativeMark = data.negativeMark || 0;
     this.questions = data.questions || [];

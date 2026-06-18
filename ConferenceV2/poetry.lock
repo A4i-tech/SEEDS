@@ -3049,21 +3049,53 @@ standard = ["colorama (>=0.4) ; sys_platform == \"win32\"", "httptools (>=0.6.3)
 
 [[package]]
 name = "vonage"
-version = "2.8.0"
+version = "3.17.1"
 description = "Vonage Server SDK for Python"
 optional = false
-python-versions = ">=3.7"
+python-versions = ">=3.8"
 groups = ["main"]
 files = [
-    {file = "vonage-2.8.0-py2.py3-none-any.whl", hash = "sha256:82b1e5ff5b4e5a291cb34c6c596b4d151a3070048d0e5709d175a00b3f876746"},
-    {file = "vonage-2.8.0.tar.gz", hash = "sha256:5e1a4b192c956f40dfd14dac68d03a6a94fecaabd7830acf455fe9e59040df55"},
+    {file = "vonage-3.17.1-py2.py3-none-any.whl", hash = "sha256:8292400402857017767628bdf749cb97b399d76537ed5c12a5ece59d8dcee833"},
+    {file = "vonage-3.17.1.tar.gz", hash = "sha256:788aeeec7bd5d414255214b2cf255339ff9a401e2dd9de977c2030d0a521b080"},
 ]
 
 [package.dependencies]
 Deprecated = "*"
-PyJWT = {version = ">=1.6.4", extras = ["crypto"]}
+pydantic = ">=2.5.2"
 pytz = ">=2018.5"
-requests = ">=2.4.2"
+requests = ">=2.32.2"
+vonage-jwt = ">=1.1.0"
+
+[[package]]
+name = "vonage-jwt"
+version = "1.1.5"
+description = "Tooling for working with JWTs for Vonage APIs in Python."
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "vonage_jwt-1.1.5-py3-none-any.whl", hash = "sha256:d2dea812ff271a75d495b703a1a27dcb7e457233f6237c2ad92cb815650004a7"},
+    {file = "vonage_jwt-1.1.5.tar.gz", hash = "sha256:92dee47aa18092efc8c158f89cbe01ffaf7a976eef717c57b23e01c5491c795d"},
+]
+
+[package.dependencies]
+pyjwt = {version = ">=1.6.4", extras = ["crypto"]}
+vonage-utils = ">=1.1.4"
+
+[[package]]
+name = "vonage-utils"
+version = "1.1.4"
+description = "Utils package containing objects for use with Vonage APIs"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "vonage_utils-1.1.4-py3-none-any.whl", hash = "sha256:438b0bc8da25e8026ec6789cd9a113b4f41636c70c4d84b2d9ab0e92ed23a665"},
+    {file = "vonage_utils-1.1.4.tar.gz", hash = "sha256:950b802dc93f8440717fba6e183d2ae39f6e0316dc19a3f1f41ca81f9af24bf8"},
+]
+
+[package.dependencies]
+pydantic = ">=2.9.2"
 
 [[package]]
 name = "webrtcvad"
@@ -3383,4 +3415,4 @@ type = ["pytest-mypy (>=1.0.1) ; platform_python_implementation != \"PyPy\""]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12"
-content-hash = "6c4427d25915715a32a2e7da7615d4a7e507e9b1be914f768c8af81f135428b3"
+content-hash = "4a091fb092d853f42a066b3528a228fe230d694cf31723ff52f33a4068b307c1"

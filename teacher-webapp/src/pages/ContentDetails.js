@@ -12,6 +12,7 @@ import { LoadingSpinner } from "../components/common/LoadingSpinner";
 import { PageContainer } from "../components/layout/PageContainer";
 import { ROUTES } from "../constants/routes";
 import AudioPlayer from "../components/audio/AudioPlayer";
+import { getLanguageLabel } from "../utils/languageUtils";
 
 const ContentDetails = () => {
   const navigate = useNavigate();
@@ -143,7 +144,7 @@ const ContentDetails = () => {
 
   const formatLanguage = () => {
     if (!content || !content.language) return "";
-    return content.language.charAt(0).toUpperCase() + content.language.slice(1).toLowerCase();
+    return getLanguageLabel(content.language);
   };
 
   if (loading) {

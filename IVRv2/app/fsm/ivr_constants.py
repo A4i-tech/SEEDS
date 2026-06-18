@@ -12,13 +12,13 @@ headers = {
 }
 
 languageDialogUrls = {
-  'english':'languageDialog/english/For%20English/{speechRate}.mp3',
-  'kannada':'languageDialog/kannada/For%20Kannada/{speechRate}.mp3',
-  'bengali':'languageDialog/bengali/For%20Bengali/{speechRate}.mp3',
-  'hindi':'languageDialog/hindi/For%20Hindi/{speechRate}.mp3',
-  'tamil':'languageDialog/tamil/For%20Tamil/{speechRate}.mp3',
-  'odia':'languageDialog/odia/For%20Odia/{speechRate}.mp3',
-  'marathi':'languageDialog/marathi/For%20Marathi/{speechRate}.mp3',
+  'en':'languageDialog/english/For%20English/{speechRate}.mp3',
+  'kn':'languageDialog/kannada/For%20Kannada/{speechRate}.mp3',
+  'bn':'languageDialog/bengali/For%20Bengali/{speechRate}.mp3',
+  'hi':'languageDialog/hindi/For%20Hindi/{speechRate}.mp3',
+  'ta':'languageDialog/tamil/For%20Tamil/{speechRate}.mp3',
+  'or':'languageDialog/odia/For%20Odia/{speechRate}.mp3',
+  'mr':'languageDialog/marathi/For%20Marathi/{speechRate}.mp3',
 }
 
 speechRate = "1.0"
@@ -109,7 +109,7 @@ content_attributes = [
 
 quiz_new = {
   "id": "e3d1db09-f5fd-44b2-8244-86ea61619175",
-  "language": "kannada",
+  "language": "kn",
   "theme": "water",
   "themeAudio": f"{storage_account_base_url}theme-titles/Water/kannada",
   "title": "Punyakoti",

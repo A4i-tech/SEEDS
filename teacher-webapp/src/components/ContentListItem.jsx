@@ -11,6 +11,7 @@ import {
   MenuBook as MenuBookIcon,
   PlayArrow as PlayArrowIcon,
 } from "@mui/icons-material";
+import { getLanguageLabel } from "../utils/languageUtils";
 
 /**
  * ContentListItem - renders individual content card in the library
@@ -123,7 +124,7 @@ const ContentListItem = ({
             color="text.secondary"
             sx={{ fontSize: "0.7rem" }}
           >
-            {[item.language, typeof item.theme === "string" ? item.theme : item.theme?.english]
+            {[item.language ? getLanguageLabel(item.language) : null, typeof item.theme === "string" ? item.theme : item.theme?.english]
               .filter(Boolean)
               .join(" \u00B7 ")}
           </Typography>
