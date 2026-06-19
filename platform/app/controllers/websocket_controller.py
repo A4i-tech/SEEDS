@@ -13,6 +13,7 @@ Security (Phase 11):
 from __future__ import annotations
 
 import asyncio
+import hmac
 import logging
 from typing import Any, Optional
 
@@ -66,7 +67,7 @@ def _check_control_secret(websocket: WebSocket) -> bool:
         return True
 
     provided = websocket.headers.get("WS-Control-Secret", "")
-    return provided == expected
+    return hmac.compare_digest(provided, expected)
 
 
 async def _check_conference_exists(conference_id: str) -> bool:
@@ -112,7 +113,13 @@ async def websocket_endpoint(websocket: WebSocket, conference_id: str) -> None:
         return
 
     # --- 2. Conference ID allowlist ---
-    if not await _check_conference_exists(conference_id):
+    try:
+        exists = await asyncio.wait_for(_check_conference_exists(conference_id), timeout=2.0)
+    except asyncio.TimeoutError:
+        logger.warning("websocket: conference lookup timed out conf_id=%s, closing 1008", conference_id)
+        await websocket.close(code=1008)
+        return
+    if not exists:
         logger.warning(
             "websocket: conference not found or ended conf_id=%s, closing 1008",
             conference_id,

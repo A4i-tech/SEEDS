@@ -63,6 +63,7 @@ class AudioRecordingConsumer(BaseConsumer):
     def __init__(self) -> None:
         self._queue: asyncio.Queue[AudioFrame | FinalizeConference] = asyncio.Queue(maxsize=1000)
         self._capture_sessions: dict[str, Any] = {}
+        self._failed_sessions: set[str] = set()  # conf_ids where init failed — skip per-frame retries
 
     @property
     def queue(self) -> asyncio.Queue[AudioFrame | FinalizeConference]:
@@ -102,6 +103,7 @@ class AudioRecordingConsumer(BaseConsumer):
 
     async def _handle_finalize(self, msg: FinalizeConference) -> None:
         """Close WAV file and upload to Azure Blob."""
+        self._failed_sessions.discard(msg.conference_id)
         session = self._capture_sessions.pop(msg.conference_id, None)
         if session is None:
             return
@@ -126,9 +128,17 @@ class AudioRecordingConsumer(BaseConsumer):
             )
 
     def _get_or_create_session(self, conference_id: str) -> Optional[Any]:
-        """Return an AudioCaptureService for *conference_id*, creating one lazily."""
+        """Return an AudioCaptureService for *conference_id*, creating one lazily.
+
+        Once init fails for a conference_id, that id is added to _failed_sessions so
+        subsequent frames don't retry (and spam logs) on every audio chunk.
+        Cleared on FinalizeConference so a new conference reusing the same id gets a
+        fresh attempt (unlikely but correct).
+        """
         if conference_id in self._capture_sessions:
             return self._capture_sessions[conference_id]
+        if conference_id in self._failed_sessions:
+            return None
         try:
             from app.platform.settings import get_settings  # noqa: PLC0415
             from app.services.audio.audio_capture import AudioCaptureService  # noqa: PLC0415
@@ -140,7 +150,8 @@ class AudioRecordingConsumer(BaseConsumer):
             return None
         except Exception as exc:
             logger.error(
-                "audio_recording: session init failed conf_id=%s — %s",
-                conference_id, type(exc).__name__,
+                "audio_recording: session init failed conf_id=%s — audio capture disabled for this conference — %s",
+                conference_id, exc, exc_info=True,
             )
+            self._failed_sessions.add(conference_id)
             return None

@@ -68,8 +68,9 @@ class WebsocketClientProvider:
     heartbeat.  All background tasks (heartbeat, message listener) are started
     via ``initialize()`` and cancelled via ``close()``.
 
-    SECURITY: WS_CONTROL_SECRET is sent as a query-parameter on the connection
-    URL (Phase 11).  Until then the connection relies on network-level isolation.
+    SECURITY: WS_CONTROL_SECRET is sent as a ``WS-Control-Secret`` header on
+    the WebSocket handshake (see ``_build_extra_headers``).  The server-side
+    check is in ``websocket_controller.verify_vonage_signature``.
     """
 
     _instance: Optional["WebsocketClientProvider"] = None

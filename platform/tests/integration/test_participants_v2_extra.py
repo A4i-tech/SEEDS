@@ -59,8 +59,8 @@ async def _seed_teacher(db, email="pt2@test.com", tid="t1", sid="s1"):
     return doc
 
 
-async def _seed_conference(db, conf_id: str, created_by: str):
-    doc = {"_id": conf_id, "created_by": created_by}
+async def _seed_conference(db, conf_id: str, created_by: str, tenant_id: str = "t1"):
+    doc = {"_id": conf_id, "created_by": created_by, "tenant_id": tenant_id}
     await db["conferences"].insert_one(doc)
     return doc
 

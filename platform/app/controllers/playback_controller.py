@@ -12,12 +12,24 @@ Preserves EXACT URL paths from ConferenceV2:
 from __future__ import annotations
 
 from typing import Any, Optional
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.platform.auth.dependencies import get_current_user, require_conference_owner
 
 router = APIRouter(tags=["Playback"])
+
+
+def _validate_audio_url(url: str) -> None:
+    """Reject plaintext HTTP audio URLs forwarded to Vonage NCCO."""
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid audio URL")
+
+    if parsed.scheme != "https":
+        raise HTTPException(status_code=400, detail="Audio URL must use HTTPS")
 
 
 def _get_conference_manager() -> Any:
@@ -41,6 +53,7 @@ async def play_audio(
 ) -> Any:
     from app.services.confevents.play_content_event import PlayContentEvent  # noqa: PLC0415
 
+    _validate_audio_url(url)
     conf = _get_conf_or_404(conference_id)
     await conf.queue_event(PlayContentEvent(conf_call=conf, url=url))
     return {"message": "Event Queued for execution"}

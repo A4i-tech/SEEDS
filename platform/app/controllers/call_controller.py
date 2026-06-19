@@ -106,6 +106,7 @@ async def create_conference(
     await db["conferences"].insert_one({
         "_id": conf.conf_id,
         "created_by": user.get("sub", ""),
+        "tenant_id": user.get("tenant_id", ""),
         "teacher_phone": request.teacher_phone,
         "created_at": datetime.now(timezone.utc),
     })

@@ -152,6 +152,9 @@ async def require_conference_owner(
     if str(conference.get("created_by", "")) != user.get("sub", ""):
         raise ForbiddenError("not conference owner")
 
+    if str(conference.get("tenant_id", "")) != str(user.get("tenant_id", "")):
+        raise ForbiddenError("conference tenant mismatch")
+
     return user
 
 
