@@ -504,15 +504,24 @@ class ContentJobConsumer:
 
     async def _run_loop(self) -> None:
         """Poll for pending jobs and process them."""
-        try:
-            from app.providers.blob_storage import BlobStorageProvider  # noqa: PLC0415
-            blob_provider = BlobStorageProvider()
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("ContentJobConsumer: BlobStorageProvider unavailable — %s", exc)
-            blob_provider = None  # type: ignore[assignment]
+        blob_provider = None
         jobs_col = self._db[_JOB_COLLECTION]
 
         while self._running:
+            # Re-attempt init each cycle so we recover when blob storage comes back
+            if blob_provider is None:
+                try:
+                    from app.providers.blob_storage import BlobStorageProvider  # noqa: PLC0415
+                    blob_provider = BlobStorageProvider()
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(
+                        "ContentJobConsumer: BlobStorageProvider unavailable — %s. "
+                        "No jobs will be claimed until storage recovers. Retrying in %ds.",
+                        exc, POLL_INTERVAL_SECONDS,
+                    )
+                    await asyncio.sleep(POLL_INTERVAL_SECONDS)
+                    continue
+
             try:
                 # Find one pending job atomically
                 job_doc = await jobs_col.find_one_and_update(

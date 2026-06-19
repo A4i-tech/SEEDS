@@ -86,7 +86,10 @@ class _AzureQueueHandle:
         from azure.servicebus.aio import ServiceBusClient  # noqa: PLC0415
 
         self._client = ServiceBusClient.from_connection_string(conn_str=self.connection_string)
-        self._receiver = self._client.get_queue_receiver(queue_name=self.queue_name)
+        self._receiver = self._client.get_queue_receiver(
+            queue_name=self.queue_name,
+            max_wait_time=30,  # SDK-level default; prevents indefinite hang if no messages arrive
+        )
         await self._receiver.__aenter__()
         logger.info("ServiceBus queue initialized: %s", self.queue_name)
 
@@ -121,7 +124,7 @@ class _AzureQueueHandle:
     async def receive(self, max_count: int = 10, wait_seconds: int = 5) -> List[QueueMessage]:
         try:
             raw_msgs = await self._receiver.receive_messages(
-                max_message_count=max_count, max_wait_time=wait_seconds
+                max_message_count=max_count,
             )
             messages: List[QueueMessage] = []
             for raw in raw_msgs:
@@ -136,6 +139,7 @@ class _AzureQueueHandle:
             return messages
         except Exception as exc:  # noqa: BLE001
             logger.error("Failed to receive from %s: %s", self.queue_name, exc)
+            await asyncio.sleep(0.1)  # prevent tight loop on repeated receive errors
             return []
 
     async def complete(self, message: QueueMessage) -> bool:

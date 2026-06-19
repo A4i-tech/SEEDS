@@ -29,6 +29,7 @@ from app.platform.auth.dependencies import (
     require_teacher,
     require_tenant,
 )
+from app.models.user import UserRole
 from app.platform.error_handling import ForbiddenError, NotFoundError
 
 logger = logging.getLogger(__name__)
@@ -36,8 +37,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Content"])
 
 # Roles allowed for content operations (mirrors JS authorizeRole calls)
-_WRITE_ROLES = {"tenant", "school_admin", "content_creator"}
-_READ_ROLES = {"tenant", "school_admin", "teacher", "content_creator"}
+_WRITE_ROLES = {UserRole.TENANT.value, UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value}
+_READ_ROLES = {UserRole.TENANT.value, UserRole.SCHOOL_ADMIN.value, UserRole.TEACHER.value, UserRole.CONTENT_CREATOR.value}
 
 
 # ---------------------------------------------------------------------------
@@ -68,7 +69,7 @@ def _read_school_filter(user: dict[str, Any]) -> Optional[Any]:
     """For reads: school-scoped users see their school's content + tenant-wide content."""
     role = user.get("role", "")
     school_id = user.get("school_id") or user.get("schoolId")
-    if school_id and role in ("school_admin", "teacher", "content_creator"):
+    if school_id and role in (UserRole.SCHOOL_ADMIN.value, UserRole.TEACHER.value, UserRole.CONTENT_CREATOR.value):
         return {"$in": [school_id, None]}
     return None
 
@@ -76,7 +77,7 @@ def _read_school_filter(user: dict[str, Any]) -> Optional[Any]:
 def _write_school_filter(user: dict[str, Any]) -> Optional[str]:
     """For writes: return the school_id if the user is school-scoped, else None."""
     role = user.get("role", "")
-    if role in ("school_admin", "content_creator"):
+    if role in (UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value):
         return user.get("school_id") or user.get("schoolId") or None
     return None
 

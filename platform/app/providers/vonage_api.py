@@ -15,9 +15,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import random
-import tempfile
 from typing import Any
 
 from pydantic import BaseModel
@@ -66,29 +64,16 @@ class VonageAPIProvider:
         self.teacher_phone_number: str | None = None
         self.redis_store: Any = None
 
-        # Write private key to a temp file if it is a base64/raw PEM string
-        # (the Vonage SDK needs a file path or a raw key string).
-        if "\n" in private_key or private_key.startswith("-----"):
-            # Looks like a PEM block — use directly
-            self._client = vonage.Client(
-                application_id=application_id,
-                private_key=private_key,  # SDK accepts str or path
-            )
-        else:
-            # Assume base64-encoded private key
+        # Decode base64-encoded PEM key to a string if needed.
+        # SDK accepts the PEM string directly — no temp file required.
+        if "\n" not in private_key and not private_key.startswith("-----"):
             import base64
+            private_key = base64.b64decode(private_key).decode("utf-8")
 
-            pem_bytes = base64.b64decode(private_key)
-            fd, path = tempfile.mkstemp(suffix=".pem", prefix="vonage_pk_")
-            try:
-                os.write(fd, pem_bytes)
-            finally:
-                os.close(fd)
-            self._client = vonage.Client(
-                application_id=application_id,
-                private_key=path,
-            )
-            self._pem_tmp_path = path  # keep reference for cleanup
+        self._client = vonage.Client(
+            application_id=application_id,
+            private_key=private_key,
+        )
 
     # ------------------------------------------------------------------
     # Internal helpers

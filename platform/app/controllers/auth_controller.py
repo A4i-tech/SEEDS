@@ -311,7 +311,7 @@ async def tenant_analytics(
     cursor = db["ivr_v2_logs"].find(
         {
             "tenant_id": tenant_id,
-            "created_at": {"$gte": start.isoformat(), "$lte": end.isoformat()},
+            "created_at": {"$gte": start, "$lte": end},
         }
     )
     data = await cursor.to_list(length=None)

@@ -55,8 +55,8 @@ async def verify_vonage_signature(request: Request) -> None:  # noqa: RUF029
 
     settings = get_settings()
 
-    # Dev bypass — allows unauthenticated webhook delivery in local dev
-    if settings.env == "development":
+    # Dev bypass — only for loopback traffic in local dev to prevent cloud dev/staging exposure
+    if settings.env == "development" and (request.client is None or request.client.host in {"127.0.0.1", "::1"}):
         return
 
     auth_header: str = request.headers.get("Authorization", "")

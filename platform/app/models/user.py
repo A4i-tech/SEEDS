@@ -46,6 +46,7 @@ class UserRole(str, Enum):
     TEACHER = "teacher"
     STUDENT = "student"
     TENANT = "tenant"
+    SCHOOL_ADMIN = "school_admin"
     CONTENT_CREATOR = "content_creator"
 
 
