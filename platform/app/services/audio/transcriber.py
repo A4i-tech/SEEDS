@@ -169,7 +169,9 @@ class AudioTranscriber:
             return None
         try:
             audio_np = np.frombuffer(segment_bytes, dtype=np.int16).astype(np.float32)
-            resampled = signal.resample_poly(audio_np, self.PROCESS_RATE, self.INPUT_RATE).astype(np.int16)
+            resampled = await asyncio.to_thread(
+                lambda: signal.resample_poly(audio_np, self.PROCESS_RATE, self.INPUT_RATE).astype(np.int16)
+            )
             buf = io.BytesIO()
             with wave.open(buf, "wb") as wf:
                 wf.setnchannels(1)

@@ -2,12 +2,43 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.conference_state import ConferenceCallState
+
+
+class ConferenceOwnershipRepository:
+    """Async Motor repository for the 'conferences' collection.
+
+    Stores lightweight ownership metadata (created_by, tenant_id) used by
+    auth dependencies to enforce conference ownership checks.
+    """
+
+    COLLECTION = "conferences"
+
+    def __init__(self, db: AsyncIOMotorDatabase) -> None:  # type: ignore[type-arg]
+        self._col = db[self.COLLECTION]
+
+    async def create(
+        self,
+        conf_id: str,
+        created_by: str,
+        tenant_id: str,
+        teacher_phone: str,
+    ) -> None:
+        await self._col.insert_one({
+            "_id": conf_id,
+            "created_by": created_by,
+            "tenant_id": tenant_id,
+            "teacher_phone": teacher_phone,
+            "created_at": datetime.now(timezone.utc),
+        })
+
+    async def find_by_id(self, conf_id: str) -> Optional[Dict[str, Any]]:
+        return await self._col.find_one({"_id": conf_id})
 
 
 class ConferenceRepository:

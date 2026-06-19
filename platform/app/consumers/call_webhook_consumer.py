@@ -8,9 +8,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime
 
 from app.consumers.base_consumer import BaseConsumer
+from app.platform.database import get_database
+from app.providers.service_bus import service_bus_provider
+from app.repositories.call_repository import CallsLogRepository
+from app.services import ivr_service
 
 logger = logging.getLogger(__name__)
 
@@ -24,9 +27,6 @@ class CallWebhookConsumer(BaseConsumer):
     POLL_WAIT_SECONDS = 5
 
     async def _run_loop(self) -> None:
-        from app.providers.service_bus import service_bus_provider  # noqa: PLC0415
-        from app.platform.database import get_database  # noqa: PLC0415
-
         db = get_database()
 
         if not service_bus_provider._initialized:
@@ -70,9 +70,6 @@ class CallWebhookConsumer(BaseConsumer):
 
         Starts the IVR call and updates the call log status.
         """
-        from app.services import ivr_service  # noqa: PLC0415
-        from app.platform.database import get_database  # noqa: PLC0415
-
         payload = message.payload
         phone_number = payload.get("phone_number")
         call_log_id = payload.get("call_log_id")
@@ -90,12 +87,8 @@ class CallWebhookConsumer(BaseConsumer):
         )
 
         if response.get("status_code") == 200 and call_log_id:
-            # Update call log to "called" status
             try:
-                await db["callsLog"].update_one(
-                    {"_id": call_log_id},
-                    {"$set": {"status": "called", "called_at": datetime.now()}},
-                )
+                await CallsLogRepository(db).mark_called(call_log_id)
                 logger.info("call_webhook_consumer: updated call log %s", call_log_id)
             except Exception as exc:
                 logger.warning(

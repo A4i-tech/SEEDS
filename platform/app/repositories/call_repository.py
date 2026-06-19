@@ -2,12 +2,44 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.call import Call, CallLog
+
+
+class CallsLogRepository:
+    """Async Motor repository for the 'callsLog' IVR missed-call log collection.
+
+    Distinct from CallRepository.calllogs — this is the IVRv2-origin collection
+    tracking missed-call webhook receipts and their processing status.
+    """
+
+    COLLECTION = "callsLog"
+
+    def __init__(self, db: AsyncIOMotorDatabase) -> None:  # type: ignore[type-arg]
+        self._col = db[self.COLLECTION]
+
+    async def create_pending(self, phone_number: str) -> str:
+        """Insert a new pending call log entry. Returns the string ID for the SB payload."""
+        result = await self._col.insert_one({
+            "phone_number": phone_number,
+            "created_at": datetime.now(timezone.utc),
+            "status": "pending",
+        })
+        return str(result.inserted_id)
+
+    async def mark_called(self, call_log_id: str) -> None:
+        """Update status to 'called' by ObjectId string."""
+        await self._col.update_one(
+            {"_id": ObjectId(call_log_id)},
+            {"$set": {"status": "called", "called_at": datetime.now(timezone.utc)}},
+        )
+
+    async def find_by_id(self, call_log_id: str) -> Optional[Dict[str, Any]]:
+        return await self._col.find_one({"_id": ObjectId(call_log_id)})
 
 
 class CallRepository:

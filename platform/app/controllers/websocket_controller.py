@@ -71,24 +71,33 @@ def _check_control_secret(websocket: WebSocket) -> bool:
 
 
 async def _check_conference_exists(conference_id: str) -> bool:
-    """Return True if conference_id maps to an active (non-ended) conference in MongoDB."""
-    try:
-        from app.platform.database import get_database  # noqa: PLC0415
-        from app.repositories.conference_repository import ConferenceRepository  # noqa: PLC0415
+    """Return True if conference_id maps to an active (non-ended) conference in MongoDB.
 
-        db = get_database()
-        repo = ConferenceRepository(db)
+    Fail-closed: DB errors deny the connection and are logged separately from
+    NotFound so operators can distinguish transient infrastructure failures from
+    legitimate rejections.
+    """
+    from app.platform.database import get_database  # noqa: PLC0415
+    from app.repositories.conference_repository import ConferenceRepository  # noqa: PLC0415
+
+    db = get_database()
+    repo = ConferenceRepository(db)
+    try:
         state = await repo.find_by_conference_id(conference_id)
-        if state is None:
-            return False
-        # Reject if already ended
-        if state.ended_at is not None or not state.is_running:
-            return False
-        return True
     except Exception as exc:
-        logger.error("websocket_ctrl: conference lookup failed conf_id=%s — %s", conference_id, exc)
-        # Fail-closed: if we cannot verify, deny the connection
+        logger.error(
+            "websocket_ctrl: DB error during conference lookup conf_id=%s — %s (fail-closed)",
+            conference_id, exc,
+        )
         return False
+
+    if state is None:
+        logger.debug("websocket_ctrl: conference not found conf_id=%s", conference_id)
+        return False
+    if state.ended_at is not None or not state.is_running:
+        logger.debug("websocket_ctrl: conference inactive conf_id=%s", conference_id)
+        return False
+    return True
 
 
 # ---------------------------------------------------------------------------

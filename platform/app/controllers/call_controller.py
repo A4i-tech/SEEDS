@@ -38,6 +38,7 @@ from app.platform.auth.dependencies import (
 )
 from app.platform.error_handling import NotFoundError
 from app.repositories.call_repository import CallRepository
+from app.repositories.conference_repository import ConferenceOwnershipRepository
 
 logger = logging.getLogger(__name__)
 
@@ -101,15 +102,12 @@ async def create_conference(
         teacher_name=request.teacher_name,
         student_names=request.student_names,
     )
-    # Persist conference ownership to MongoDB for require_conference_owner checks
-    from datetime import datetime, timezone  # noqa: PLC0415
-    await db["conferences"].insert_one({
-        "_id": conf.conf_id,
-        "created_by": user.get("sub", ""),
-        "tenant_id": user.get("tenant_id", ""),
-        "teacher_phone": request.teacher_phone,
-        "created_at": datetime.now(timezone.utc),
-    })
+    await ConferenceOwnershipRepository(db).create(
+        conf_id=conf.conf_id,
+        created_by=user.get("sub", ""),
+        tenant_id=user.get("tenant_id", ""),
+        teacher_phone=request.teacher_phone,
+    )
     return {"status": "CREATED", "id": conf.conf_id}
 
 
