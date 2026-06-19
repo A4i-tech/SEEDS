@@ -10,6 +10,9 @@ import asyncio
 import logging
 
 from app.consumers.base_consumer import BaseConsumer
+from app.platform.database import get_database
+from app.providers.service_bus import service_bus_provider
+from app.services import ivr_service
 
 logger = logging.getLogger(__name__)
 
@@ -23,9 +26,6 @@ class CallEventConsumer(BaseConsumer):
     POLL_WAIT_SECONDS = 5
 
     async def _run_loop(self) -> None:
-        from app.providers.service_bus import service_bus_provider  # noqa: PLC0415
-        from app.platform.database import get_database  # noqa: PLC0415
-
         db = get_database()
 
         # Ensure service bus is initialized
@@ -67,9 +67,6 @@ class CallEventConsumer(BaseConsumer):
 
     async def process(self, message) -> None:
         """Process a single call event message."""
-        from app.services import ivr_service  # noqa: PLC0415
-        from app.platform.database import get_database  # noqa: PLC0415
-
         payload = message.payload
         conversation_uuid = payload.get("conversation_uuid")
         if not conversation_uuid:

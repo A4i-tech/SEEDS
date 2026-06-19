@@ -25,6 +25,8 @@ import logging
 import re
 from typing import Any
 
+from app.repositories.call_repository import CallsLogRepository
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 
 logger = logging.getLogger(__name__)
@@ -234,8 +236,6 @@ async def ivr_call_webhook(request: Request, background_tasks: BackgroundTasks) 
 
     Triggered by Vonage when a call is missed; enqueues to call_webhook queue.
     """
-    from datetime import datetime  # noqa: PLC0415
-
     call_data = await request.json()
     query_params = request.query_params
     call_status = call_data.get("_su")
@@ -247,10 +247,7 @@ async def ivr_call_webhook(request: Request, background_tasks: BackgroundTasks) 
         return {"detail": "Invalid call data — not a missed call"}
 
     db = _get_db()
-    insert_result = await db["callsLog"].insert_one(
-        {"phone_number": phone_number, "timestamp": datetime.now(), "status": "pending"}
-    )
-    call_log_id = str(insert_result.inserted_id)
+    call_log_id = await CallsLogRepository(db).create_pending(phone_number)
     logger.info("ivr /webhook: logged missed call %s id=%s", phone_number, call_log_id)
 
     payload = {

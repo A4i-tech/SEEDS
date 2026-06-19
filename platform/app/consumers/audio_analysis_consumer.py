@@ -104,6 +104,12 @@ class AudioAnalysisConsumer(BaseConsumer):
         # Transcribe + hold detect
         from app.services.audio.websocket_audio_processor import process_audio_message  # noqa: PLC0415
 
-        await process_audio_message(
-            audio_bytes, conf, self._transcriber, self._hold_detector, conference_id
-        )
+        try:
+            await process_audio_message(
+                audio_bytes, conf, self._transcriber, self._hold_detector, conference_id
+            )
+        except Exception as exc:
+            logger.error(
+                "audio_analysis: processing failed conf_id=%s — %s",
+                conference_id, type(exc).__name__, exc_info=True,
+            )

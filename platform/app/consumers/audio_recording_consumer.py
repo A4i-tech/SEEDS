@@ -94,7 +94,7 @@ class AudioRecordingConsumer(BaseConsumer):
         session = self._get_or_create_session(frame.conference_id)
         if session is not None:
             try:
-                session.write_chunk(frame.audio_bytes)
+                await asyncio.to_thread(session.write_chunk, frame.audio_bytes)
             except Exception as exc:
                 logger.error(
                     "audio_recording: write_chunk failed conf_id=%s — %s",

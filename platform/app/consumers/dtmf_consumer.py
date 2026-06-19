@@ -13,6 +13,9 @@ import asyncio
 import logging
 
 from app.consumers.base_consumer import BaseConsumer
+from app.platform.database import get_database
+from app.providers.service_bus import service_bus_provider
+from app.services import ivr_service
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +29,6 @@ class DtmfConsumer(BaseConsumer):
     POLL_WAIT_SECONDS = 5
 
     async def _run_loop(self) -> None:
-        from app.providers.service_bus import service_bus_provider  # noqa: PLC0415
-        from app.platform.database import get_database  # noqa: PLC0415
-
         db = get_database()
 
         if not service_bus_provider._initialized:
@@ -69,9 +69,6 @@ class DtmfConsumer(BaseConsumer):
 
     async def process(self, message) -> None:
         """Process a single DTMF input message."""
-        from app.services import ivr_service  # noqa: PLC0415
-        from app.platform.database import get_database  # noqa: PLC0415
-
         payload = message.payload
         conversation_uuid = payload.get("conversation_uuid")
         digits = payload.get("digits", "")

@@ -18,6 +18,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.platform.database import get_database
 from app.platform.error_handling import ForbiddenError, UnauthorizedError
+from app.repositories.conference_repository import ConferenceOwnershipRepository
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +144,7 @@ async def require_conference_owner(
 
     Raises ForbiddenError if they are not.
     """
-    conference = await db["conferences"].find_one({"_id": conference_id})
+    conference = await ConferenceOwnershipRepository(db).find_by_id(conference_id)
     if conference is None:
         from app.platform.error_handling import NotFoundError  # noqa: PLC0415
 
