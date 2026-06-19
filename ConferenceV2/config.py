@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     AUDIO_CAPTURE_BLOB_PREFIX: str = "audio-recording"
     AUDIO_CAPTURE_FORMAT: str = "wav"
     AUDIO_CAPTURE_DELETE_LOCAL_AFTER_UPLOAD: bool = False
+    WS_SERVICE_ENABLED: bool = True
     LOG_TO_FILE: bool = False
     LOG_FILE_PATH: str = "runtime.log"
     AUDIO_SILENCE_THRESHOLD: int = 300

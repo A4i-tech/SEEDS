@@ -7,6 +7,7 @@ const classRepository = require("../repositories/class.repository");
 const ivrV2LogRepository = require("../repositories/ivrV2Log.repository");
 const tenantRepository = require("../repositories/tenant.repository");
 const { STATUS } = require("../config/constants");
+const logger = require("../logger");
 
 /**
  * Get tenant by ID
@@ -72,7 +73,7 @@ exports.getDashboard = async (req, res) => {
             schools: schoolStats,
         });
     } catch (error) {
-        console.error("Dashboard error:", error);
+        logger.error("Dashboard error:", error);
         return res.status(STATUS.INTERNAL_ERROR).json({ message: "Internal server error" });
     }
 };

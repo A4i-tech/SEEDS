@@ -1,5 +1,6 @@
 // src/server.js
 
+const logger = require("./logger"); // must be first — initialises App Insights auto-instrumentation
 const http = require("http");
 const WebSocket = require("ws");
 const url = require("url");
@@ -61,28 +62,26 @@ wss.on("connection", (ws, req) => {
     return;
   }
 
-  // Client WebSocket connection
   connectionManager.addConnection(id, {
     ws,
     state: { id, playing: false, position: 0, isClosed: false },
   });
-  console.log(`Client WebSocket connection opened for ID: ${id}`);
+  logger.info(`Client WebSocket connection opened for ID: ${id}`);
 
-  // Check if this is a control connection (confv2server or ivrv2server)
   const isControlConnection = id === "confv2server" || id === "ivrv2server";
 
   if (!isControlConnection && audioUrl) {
-    console.log(`Auto-play requested for ID: ${id} with audio_url`);
+    logger.info(`Auto-play requested for ID: ${id} with audio_url`);
     websocketService
       .playAudioContent(id, audioUrl)
       .catch((error) =>
-        console.error(`Auto-play failed for ID: ${id}, URL: ${audioUrl}`, error)
+        logger.error(`Auto-play failed for ID: ${id}, URL: ${audioUrl}`, error)
       );
   }
 
   if (isControlConnection) {
     // Control WebSocket connection
-    console.log(`Control WebSocket connection established with id: ${id}`);
+    logger.info(`Control WebSocket connection established with id: ${id}`);
     controlService.handleControlConnection(ws, id);
   } else {
 
@@ -98,16 +97,14 @@ wss.on("connection", (ws, req) => {
       }
     });
 
-    // Start a timer to close the connection after 1 hour
     const maxConnectionTime = MAXIMUM_CONFERENCE_TIME_ALLOWED_IN_MILLISECONDS;
     const connectionTimeout = setTimeout(() => {
-      console.log(`Closing WebSocket connection for ID: ${id} after 1 hour`);
+      logger.info(`Closing WebSocket connection for ID: ${id} after 1 hour`);
       ws.close();
     }, maxConnectionTime);
 
-    // Clear the timer when the connection is closed
     ws.on("close", () => {
-      console.log(`WebSocket connection closed for ID: ${id}`);
+      logger.info(`WebSocket connection closed for ID: ${id}`);
       clearTimeout(connectionTimeout);
       const current = connectionManager.getConnection(id);
       if (!current || current.ws !== ws) return;
@@ -120,11 +117,11 @@ wss.on("connection", (ws, req) => {
     });
 
     ws.on("error", (error) => {
-      console.error(`WebSocket error for ID: ${id}`, error);
+      logger.error(`WebSocket error for ID: ${id}`, error);
     });
   }
 });
 
 server.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+  logger.info(`Server is running on port ${port}`);
 });

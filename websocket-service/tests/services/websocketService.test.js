@@ -1,6 +1,7 @@
 const websocketService = require("../../src/services/websocketService");
 const azureBlobService = require("../../src/services/azureBlobService");
 const connectionManager = require("../../src/services/connectionManager");
+const logger = require("../../src/logger");
 const { PlaybackStatus } = require("../../src/constants");
 
 // Mock dependencies
@@ -174,7 +175,7 @@ describe("WebSocketService", () => {
 
   describe("control methods", () => {
     it("should handle pause, resume, stop, close, and reconnection", () => {
-      const consoleSpy = jest.spyOn(console, "log").mockImplementation();
+      const consoleSpy = jest.spyOn(logger, "info").mockImplementation();
 
       // Test pause
       mockState.currentAudioType = "audioContent";
@@ -202,6 +203,7 @@ describe("WebSocketService", () => {
       expect(consoleSpy).toHaveBeenCalledWith(
         "Resume request ignored for ID: test-client; system audio content is playing or queued"
       );
+
 
       // Test stop
       mockState.audioContentState = { playing: true, position: 100 };
@@ -239,7 +241,7 @@ describe("WebSocketService", () => {
     });
 
     it("should handle seek requests and clamp positions", async () => {
-      const controlSpy = jest.spyOn(console, "log").mockImplementation();
+      const controlSpy = jest.spyOn(logger, "info").mockImplementation();
       mockState.audioContentState = {
         position: 3200,
         playing: true,
@@ -292,7 +294,7 @@ describe("WebSocketService", () => {
 
   describe("streaming and error handling", () => {
     it("should handle audio streaming with timing and error scenarios", async () => {
-      const consoleSpy = jest.spyOn(console, "error").mockImplementation();
+      const consoleSpy = jest.spyOn(logger, "error").mockImplementation();
 
       // Test successful streaming with position updates
       const testData = Buffer.alloc(640, "a");
@@ -332,13 +334,14 @@ describe("WebSocketService", () => {
         "Error sending data over WebSocket for ID: test-client",
         testError
       );
+
       expect(mockWebSocket.close).toHaveBeenCalled();
 
       consoleSpy.mockRestore();
     });
 
     it("should handle edge cases and service errors", async () => {
-      const consoleSpy = jest.spyOn(console, "error").mockImplementation();
+      const consoleSpy = jest.spyOn(logger, "error").mockImplementation();
 
       // Test Azure blob service errors
       const blobError = new Error("Blob service error");
@@ -365,6 +368,7 @@ describe("WebSocketService", () => {
         "Error sending playback status over WebSocket for ID: test-client",
         controlError
       );
+
       mockControlWebSocket.send.mockImplementation(
         (data, callback) => callback && callback()
       );

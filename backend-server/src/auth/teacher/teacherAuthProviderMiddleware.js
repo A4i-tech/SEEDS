@@ -4,6 +4,7 @@ const { secretKey, jwtExpiresIn } = require("../../config/env");
 const { STATUS } = require("../../config/constants");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
+const logger = require("../../logger");
 
 const teacherRepository = require("../../repositories/teacher.repository");
 
@@ -40,7 +41,7 @@ module.exports = {
       });
       return res.status(STATUS.OK).json({ token });
     } catch (error) {
-      console.error("Login error:", error);
+      logger.error("Login error:", error);
       return res.status(STATUS.INTERNAL_ERROR).json({ message: "Internal server error" });
     }
   },

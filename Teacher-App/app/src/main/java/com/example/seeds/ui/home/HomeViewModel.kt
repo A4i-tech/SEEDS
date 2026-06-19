@@ -12,6 +12,7 @@ import com.example.seeds.model.Classroom
 import com.example.seeds.model.Content
 import com.example.seeds.repository.ClassroomRepository
 import com.example.seeds.repository.ContentRepository
+import com.example.seeds.utils.getLanguageLabel
 import com.example.seeds.repository.TeacherRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
@@ -35,7 +36,7 @@ class HomeViewModel @Inject constructor(
 
     // --- UI-VISIBLE LIVE DATA ---
     val languages: LiveData<List<String>> = Transformations.map(_allContent) { list ->
-        list.map { it.language.lowercase() }.distinct().map { lang -> lang.capitalize() }
+        list.map { it.language.lowercase() }.distinct().map { lang -> getLanguageLabel(lang) }
     }
     val experiences: LiveData<List<String>> = Transformations.map(_allContent) { list ->
         list.map { it.type.lowercase() }.distinct().map { exp -> exp.capitalize() }

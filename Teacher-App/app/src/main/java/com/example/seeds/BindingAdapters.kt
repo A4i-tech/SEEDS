@@ -3,6 +3,7 @@ package com.example.seeds
 import android.graphics.drawable.Drawable
 import android.util.Log
 import android.widget.ImageView
+import android.widget.TextView
 import androidx.databinding.BindingAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.example.seeds.adapters.ContentListAdapter
@@ -16,6 +17,7 @@ import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
+import com.example.seeds.utils.getLanguageLabel
 
 @BindingAdapter("contentData")
 fun bindContentRecyclerView(recyclerView: RecyclerView, data: List<Content>?) {
@@ -104,4 +106,9 @@ fun bindStudentCallStatusRecyclerView(
 @BindingAdapter("imageDrawable")
 fun bindDrawableImageView(imageView: ImageView, drawable: Drawable) {
     imageView.setImageDrawable(drawable)
+}
+
+@BindingAdapter("displayLanguage")
+fun bindDisplayLanguage(textView: TextView, languageCode: String?) {
+    textView.text = languageCode?.let { getLanguageLabel(it) } ?: ""
 }

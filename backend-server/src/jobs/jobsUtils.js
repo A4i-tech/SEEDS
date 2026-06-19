@@ -8,7 +8,10 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const ffmpegPath = require("ffmpeg-static");
+const ffprobePath = require("ffprobe-static").path;
 const ffmpeg = require("fluent-ffmpeg");
+ffmpeg.setFfprobePath(ffprobePath);
+const logger = require("../logger");
 
 /**
  * Writes a Buffer to a file.
@@ -60,7 +63,7 @@ function cleanupTempFiles(filePaths) {
         fs.unlinkSync(filePath);
       }
     } catch (err) {
-      console.error("Error cleaning up file:", filePath, err);
+      logger.error("Error cleaning up file: " + filePath, err);
     }
   }
 }

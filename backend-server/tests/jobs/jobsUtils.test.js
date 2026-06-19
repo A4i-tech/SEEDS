@@ -8,9 +8,11 @@ jest.mock('fs');
 jest.mock('fluent-ffmpeg', () => {
     const mockFn = jest.fn();
     mockFn.ffprobe = jest.fn();
+    mockFn.setFfprobePath = jest.fn();
     return mockFn;
 });
 jest.mock('ffmpeg-static', () => '/mocked/path/to/ffmpeg');
+jest.mock('ffprobe-static', () => ({ path: '/mocked/path/to/ffprobe' }));
 
 const {
     writeBufferToFile,
@@ -166,9 +168,9 @@ describe('jobsUtils', () => {
             expect(() => cleanupTempFiles(singleFilePath)).not.toThrow();
 
             expect(console.error).toHaveBeenCalledWith(
-                'Error cleaning up file:',
-                singleFilePath[0],
-                expect.any(Error)
+                `[ERROR] Error cleaning up file: ${singleFilePath[0]}`,
+                expect.any(Error),
+                ''
             );
         });
 

@@ -29,6 +29,7 @@ import com.example.seeds.network.ConferenceSSEClient
 import com.example.seeds.network.SeedsService
 import com.example.seeds.network.asDomainModel
 import com.example.seeds.utils.Encryptor
+import com.example.seeds.utils.getLanguageLabel
 import com.example.seeds.repository.ClassroomRepository
 import com.example.seeds.repository.ContentRepository
 import com.example.seeds.repository.TeacherRepository
@@ -271,7 +272,7 @@ class CallViewModel @Inject constructor(
                 _filteredContent.value = filteredListContent 
 
                 _languages.value =
-                    filteredListContent.map { it.language.lowercase() }.distinct().map { it.capitalize() }
+                    filteredListContent.map { it.language.lowercase() }.distinct().map { getLanguageLabel(it) }
                 _experiences.value = filteredListContent.map { it.type.lowercase() }.distinct().map {
                     it.capitalize()
                 }

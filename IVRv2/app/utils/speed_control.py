@@ -12,9 +12,9 @@ MAX_SPEED = 2.0
 SPEED_INCREMENT = 0.25
 SUPPORTED_SPEEDS = [0.75, 1.0, 1.25, 1.5, 2.0]
 
-# Module-level constant for speed announcements
+# Module-level constant for speed announcements (keyed by ISO 639-1 codes)
 _SPEED_ANNOUNCEMENTS: Dict[str, dict] = {
-    "kannada": {
+    "kn": {
         "instruction": "ನಿಧಾನಗೊಳಿಸಲು ಸ್ಟಾರ್ ಒತ್ತಿರಿ, ವೇಗಗೊಳಿಸಲು ಹ್ಯಾಶ್ ಒತ್ತಿರಿ",
         0.75: "ವೇಗ ನಿಧಾನಕ್ಕೆ ಹೊಂದಿಸಲಾಗಿದೆ",
         1.0: "ವೇಗ ಸಾಮಾನ್ಯಕ್ಕೆ ಹೊಂದಿಸಲಾಗಿದೆ",
@@ -22,7 +22,7 @@ _SPEED_ANNOUNCEMENTS: Dict[str, dict] = {
         1.5: "ವೇಗ ಅತಿ ವೇಗಕ್ಕೆ ಹೊಂದಿಸಲಾಗಿದೆ",
         2.0: "ವೇಗ ಅತ್ಯಂತ ವೇಗಕ್ಕೆ ಹೊಂದಿಸಲಾಗಿದೆ"
     },
-    "english": {
+    "en": {
         "instruction": "Press star to slow down, press hash to speed up",
         0.75: "Speed set to slow",
         1.0: "Speed set to normal",
@@ -30,7 +30,7 @@ _SPEED_ANNOUNCEMENTS: Dict[str, dict] = {
         1.5: "Speed set to very fast",
         2.0: "Speed set to ultra fast"
     },
-    "hindi": {
+    "hi": {
         "instruction": "धीमा करने के लिए स्टार दबाएं, तेज करने के लिए हैश दबाएं",
         0.75: "गति धीमी पर सेट की गई",
         1.0: "गति सामान्य पर सेट की गई",
@@ -38,7 +38,7 @@ _SPEED_ANNOUNCEMENTS: Dict[str, dict] = {
         1.5: "गति बहुत तेज पर सेट की गई",
         2.0: "गति अति तेज पर सेट की गई"
     },
-    "bengali": {
+    "bn": {
         "instruction": "ধীর করতে স্টার চাপুন, দ্রুত করতে হ্যাশ চাপুন",
         0.75: "গতি ধীরে সেট করা হয়েছে",
         1.0: "গতি সাধারণে সেট করা হয়েছে",
@@ -46,7 +46,7 @@ _SPEED_ANNOUNCEMENTS: Dict[str, dict] = {
         1.5: "গতি খুব দ্রুতে সেট করা হয়েছে",
         2.0: "গতি অতি দ্রুতে সেট করা হয়েছে"
     },
-    "tamil": {
+    "ta": {
         "instruction": "மெதுவாக்க ஸ்டார் அழுத்தவும், வேகமாக்க ஹாஷ் அழுத்தவும்",
         0.75: "வேகம் மெதுவாக அமைக்கப்பட்டது",
         1.0: "வேகம் சாதாரணமாக அமைக்கப்பட்டது",
@@ -54,7 +54,7 @@ _SPEED_ANNOUNCEMENTS: Dict[str, dict] = {
         1.5: "வேகம் மிக விரைவாக அமைக்கப்பட்டது",
         2.0: "வேகம் அதி விரைவாக அமைக்கப்பட்டது"
     },
-    "marathi": {
+    "mr": {
         "instruction": "हळू करण्यासाठी स्टार दाबा, वेगवान करण्यासाठी हॅश दाबा",
         0.75: "वेग हळू वर सेट केला",
         1.0: "वेग सामान्य वर सेट केला",
@@ -144,14 +144,14 @@ def get_speed_instruction(language: str) -> str:
     Gets the speed control instruction text for initial announcement.
 
     Args:
-        language: Language code (kannada, english, hindi, bengali, tamil, marathi)
+        language: ISO 639-1 code (e.g. "kn", "en", "hi", "bn", "ta", "mr")
 
     Returns:
         Instruction text in the specified language
 
     Examples:
-        >>> get_speed_instruction("english")
+        >>> get_speed_instruction("en")
         "Press star to slow down, press hash to speed up"
     """
-    lang_announcements = _SPEED_ANNOUNCEMENTS.get(language.lower(), _SPEED_ANNOUNCEMENTS["english"])
+    lang_announcements = _SPEED_ANNOUNCEMENTS.get(language.lower(), _SPEED_ANNOUNCEMENTS["en"])
     return lang_announcements["instruction"]

@@ -5,6 +5,7 @@ const { STATUS, PASSWORD_POLICY } = require("../../config/constants");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const validator = require("validator");
+const logger = require("../../logger");
 
 const schoolRepository = require("../../repositories/school.repository");
 
@@ -48,7 +49,7 @@ module.exports = {
       });
       return res.status(STATUS.OK).json({ token });
     } catch (error) {
-      console.error("School admin login error:", error);
+      logger.error("School admin login error:", error);
       return res.status(STATUS.INTERNAL_ERROR).json({ message: "Internal server error" });
     }
   },
@@ -61,7 +62,7 @@ module.exports = {
       }
       return res.status(STATUS.OK).json(school);
     } catch (error) {
-      console.error("School admin getMe error:", error);
+      logger.error("School admin getMe error:", error);
       return res.status(STATUS.INTERNAL_ERROR).json({ message: "Internal server error" });
     }
   },
@@ -105,7 +106,7 @@ module.exports = {
       if (error.code === 11000) {
         return res.status(STATUS.CONFLICT).json({ message: "Email already in use" });
       }
-      console.error("Update school error:", error);
+      logger.error("Update school error:", error);
       return res.status(STATUS.INTERNAL_ERROR).json({ message: "Internal server error" });
     }
   },

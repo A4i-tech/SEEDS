@@ -9,7 +9,7 @@ const mockSDK = {
 
 jest.mock("microsoft-cognitiveservices-speech-sdk", () => mockSDK);
 jest.mock("@azure/identity", () => ({ DefaultAzureCredential: jest.fn() }));
-jest.mock("fs", () => ({ createReadStream: jest.fn() }));
+jest.mock("fs", () => ({ createReadStream: jest.fn(), existsSync: jest.fn().mockReturnValue(false) }));
 jest.mock("dotenv", () => ({ config: jest.fn() }));
 
 const ttsService = require('../../src/services/ttsService');
@@ -24,14 +24,14 @@ describe('TTS Service', () => {
     // Test constants
     const CONFIG = {
         azure: { resource: "https://cognitiveservices.azure.com/.default", region: "test-region", resourceId: "test-resource-id" },
-        test: { text: "Hello, test message", language: "english", rate: "medium", filename: "test.mp3" },
+        test: { text: "Hello, test message", language: "en", rate: "medium", filename: "test.mp3" },
         languages: {
-            english: { languageCode: 'en-IN', voice: 'en-IN-NeerjaNeural' },
-            kannada: { languageCode: 'kn-IN', voice: 'kn-IN-SapnaNeural' },
-            hindi: { languageCode: 'hi-IN', voice: 'hi-IN-SwaraNeural' },
-            marathi: { languageCode: 'mr-IN', voice: 'mr-IN-AarohiNeural' },
-            tamil: { languageCode: 'ta-IN', voice: 'ta-IN-PallaviNeural' },
-            bengali: { languageCode: 'bn-IN', voice: 'bn-IN-TanishaaNeural' }
+            en: { languageCode: 'en-IN', voice: 'en-IN-NeerjaNeural' },
+            kn: { languageCode: 'kn-IN', voice: 'kn-IN-SapnaNeural' },
+            hi: { languageCode: 'hi-IN', voice: 'hi-IN-SwaraNeural' },
+            mr: { languageCode: 'mr-IN', voice: 'mr-IN-AarohiNeural' },
+            ta: { languageCode: 'ta-IN', voice: 'ta-IN-PallaviNeural' },
+            bn: { languageCode: 'bn-IN', voice: 'bn-IN-TanishaaNeural' }
         }
     };
 

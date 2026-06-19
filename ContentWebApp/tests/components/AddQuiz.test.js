@@ -70,7 +70,7 @@ describe("AddQuiz", () => {
   it("populates fields when quiz prop is provided", () => {
     const quiz = {
       title: "Sample Quiz",
-      language: "english",
+      language: "en",
       positiveMarks: 2,
       negativeMarks: 1,
       questions: [
@@ -106,7 +106,7 @@ describe("AddQuiz", () => {
     // Check that the correct language option is selected by checking the selected option's text
     const select = screen.getByRole("combobox");
     const selectedOption = select.options[select.selectedIndex];
-    expect(selectedOption.value).toBe("english");
+    expect(selectedOption.value).toBe("en");
     expect(selectedOption.textContent.toLowerCase()).toBe("english");
     expect(screen.getByDisplayValue("2")).toBeInTheDocument();
     expect(screen.getByDisplayValue("1")).toBeInTheDocument();

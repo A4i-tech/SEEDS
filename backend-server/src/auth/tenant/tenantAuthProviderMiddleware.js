@@ -8,6 +8,7 @@ const { STATUS, PASSWORD_POLICY, ROLES } = require("../../config/constants");
 const validator = require("validator");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
+const logger = require("../../logger");
 
 const nativeDb = require("../dbAdapters/nativeDb");
 const firebaseDb = require("../dbAdapters/firebaseDb");
@@ -52,7 +53,7 @@ module.exports = {
       });
       return res.status(STATUS.OK).json({ token });
     } catch (error) {
-      console.error("Login error:", error);
+      logger.error("Login error:", error);
       return res
         .status(STATUS.INTERNAL_ERROR)
         .json({ message: "Internal server error" });
@@ -97,7 +98,7 @@ module.exports = {
         .status(STATUS.CREATED)
         .json({ message: "Tenant registered successfully" });
     } catch (error) {
-      console.error("Registration error:", error);
+      logger.error("Registration error:", error);
       return res
         .status(STATUS.INTERNAL_ERROR)
         .json({ message: "Internal server error" });
@@ -171,7 +172,7 @@ module.exports = {
         .status(STATUS.OK)
         .json({ message: "Password changed successfully" });
     } catch (error) {
-      console.error("Change password error:", error);
+      logger.error("Change password error:", error);
       return res
         .status(STATUS.INTERNAL_ERROR)
         .json({ message: "Internal server error" });

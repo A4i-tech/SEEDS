@@ -1,6 +1,7 @@
 "use strict";
 const mongoose = require("mongoose");
 const crypto = require("crypto");
+const logger = require("../logger");
 
 const UserInfoSchema = new mongoose.Schema(
   {
@@ -80,7 +81,7 @@ module.exports.getAllUsers = async (encryptionPassword) => {
     });
     return decryptedUsers;
   } catch (error) {
-    console.error("Failed to get and decrypt users:", error);
+    logger.error("Failed to get and decrypt users:", error);
     throw error;
   }
 };

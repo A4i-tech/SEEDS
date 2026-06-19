@@ -9,7 +9,7 @@ from app.utils.pause_announcement import (
     RESUMING_ANNOUNCEMENTS,
 )
 
-LANGUAGES = ["kannada", "english", "hindi", "bengali", "tamil", "marathi"]
+LANGUAGES = ["kn", "en", "hi", "bn", "ta", "mr"]
 
 
 class TestGetPauseInstruction:
@@ -18,10 +18,10 @@ class TestGetPauseInstruction:
         assert get_pause_instruction(lang) == PAUSE_INSTRUCTIONS[lang]
 
     def test_unknown_language_falls_back_to_english(self):
-        assert get_pause_instruction("swahili") == PAUSE_INSTRUCTIONS["english"]
+        assert get_pause_instruction("swahili") == PAUSE_INSTRUCTIONS["en"]
 
     def test_empty_string_falls_back_to_english(self):
-        assert get_pause_instruction("") == PAUSE_INSTRUCTIONS["english"]
+        assert get_pause_instruction("") == PAUSE_INSTRUCTIONS["en"]
 
     def test_each_language_has_distinct_text(self):
         results = [get_pause_instruction(lang) for lang in LANGUAGES]
@@ -34,10 +34,10 @@ class TestGetPausedAnnouncement:
         assert get_paused_announcement(lang) == PAUSED_ANNOUNCEMENTS[lang]
 
     def test_unknown_language_falls_back_to_english(self):
-        assert get_paused_announcement("swahili") == PAUSED_ANNOUNCEMENTS["english"]
+        assert get_paused_announcement("swahili") == PAUSED_ANNOUNCEMENTS["en"]
 
     def test_empty_string_falls_back_to_english(self):
-        assert get_paused_announcement("") == PAUSED_ANNOUNCEMENTS["english"]
+        assert get_paused_announcement("") == PAUSED_ANNOUNCEMENTS["en"]
 
 
 class TestGetResumingAnnouncement:
@@ -46,7 +46,7 @@ class TestGetResumingAnnouncement:
         assert get_resuming_announcement(lang) == RESUMING_ANNOUNCEMENTS[lang]
 
     def test_unknown_language_falls_back_to_english(self):
-        assert get_resuming_announcement("swahili") == RESUMING_ANNOUNCEMENTS["english"]
+        assert get_resuming_announcement("swahili") == RESUMING_ANNOUNCEMENTS["en"]
 
     def test_empty_string_falls_back_to_english(self):
-        assert get_resuming_announcement("") == RESUMING_ANNOUNCEMENTS["english"]
+        assert get_resuming_announcement("") == RESUMING_ANNOUNCEMENTS["en"]

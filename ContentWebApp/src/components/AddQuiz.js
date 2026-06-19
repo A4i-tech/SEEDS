@@ -27,7 +27,7 @@ const AddQuiz = ({ quiz }) => {
     localTitle: "",
     theme: "",
     localTheme: "",
-    language: "kannada",
+    language: "kn",
     positiveMark: 1,
     negativeMark: 0,
   });
@@ -119,11 +119,11 @@ const AddQuiz = ({ quiz }) => {
       // Theme fields expected by backend quiz creation (mirror AddStory behavior)
       theme: metadata.theme,
       localTheme:
-        languageLower === "english" ? metadata.theme : metadata.localTheme,
+        languageLower === "en" ? metadata.theme : metadata.localTheme,
       // Title fields expected by backend quiz creation (mirror AddStory behavior)
       title: metadata.title,
       localTitle:
-        languageLower === "english" ? metadata.title : metadata.localTitle,
+        languageLower === "en" ? metadata.title : metadata.localTitle,
       type: "quiz",
       id: quiz ? (quiz._id || quiz.id) : uuidv4(),
     };
@@ -139,7 +139,7 @@ const AddQuiz = ({ quiz }) => {
       valid = false;
       alert("Title cannot be empty");
     } else if (
-      languageLower !== "english" &&
+      languageLower !== "en" &&
       metadata.localTitle.length === 0
     ) {
       valid = false;
@@ -151,7 +151,7 @@ const AddQuiz = ({ quiz }) => {
       valid = false;
       alert("Language cannot be empty");
     } else if (
-      languageLower !== "english" &&
+      languageLower !== "en" &&
       metadata.localTheme.length === 0
     ) {
       valid = false;
@@ -235,17 +235,19 @@ const AddQuiz = ({ quiz }) => {
   const getLocalizedLabelPrefix = () => {
     const language = (metadata.language || "").toLowerCase();
     switch (language) {
-      case "kannada":
+      case "kn":
         return "Kannada";
-      case "hindi":
+      case "hi":
         return "Hindi";
-      case "marathi":
+      case "mr":
         return "Marathi";
-      case "tamil":
+      case "ta":
         return "Tamil";
-      case "bengali":
+      case "bn":
         return "Bengali";
-      case "english":
+      case "or":
+        return "Odia";
+      case "en":
       default:
         return "Local";
     }
@@ -264,13 +266,13 @@ const AddQuiz = ({ quiz }) => {
               className="mintgreen"
               style={{ width: "200px" }}
             >
-              <option value="kannada">Kannada</option>
-              <option value="hindi">Hindi</option>
-              <option value="marathi">Marathi</option>
-              <option value="odia">Odia</option>
-              <option value="english">English</option>
-              <option value="tamil">Tamil</option>
-              <option value="bengali">Bengali</option>
+              <option value="kn">Kannada</option>
+              <option value="hi">Hindi</option>
+              <option value="mr">Marathi</option>
+              <option value="or">Odia</option>
+              <option value="en">English</option>
+              <option value="ta">Tamil</option>
+              <option value="bn">Bengali</option>
             </select>
           </label>
         </div>
@@ -301,7 +303,7 @@ const AddQuiz = ({ quiz }) => {
           />
         </div>
 
-        {metadata.language.toLowerCase() !== "english" && (
+        {metadata.language.toLowerCase() !== "en" && (
           <>
             <div>
               <label>{`${getLocalizedLabelPrefix()} Title`}</label>

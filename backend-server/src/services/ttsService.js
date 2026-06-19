@@ -7,6 +7,7 @@ const { Buffer } = require("buffer");
 const { PassThrough } = require("stream");
 const fs = require("fs");
 const { DefaultAzureCredential } = require("@azure/identity");
+const logger = require("../logger");
 
 // Global mappings
 const translationLanguageCodeToAzureSpeechCode = {
@@ -17,16 +18,6 @@ const translationLanguageCodeToAzureSpeechCode = {
   ta: "ta-IN",
   bn: "bn-IN",
   or: "or-IN",
-};
-
-const humanLanguageCodeToTranslationLanguageCode = {
-  english: "en",
-  kannada: "kn",
-  hindi: "hi",
-  marathi: "mr",
-  tamil: "ta",
-  bengali: "bn",
-  odia: "or",
 };
 
 const voiceName = {
@@ -40,12 +31,8 @@ const voiceName = {
 };
 
 function getTTSAttributes(language) {
-  const translationCode = humanLanguageCodeToTranslationLanguageCode[language.toLowerCase()];
-  if (!translationCode) return null; // Language not found
-
-  const languageCode = translationLanguageCodeToAzureSpeechCode[translationCode];
+  const languageCode = translationLanguageCodeToAzureSpeechCode[language.toLowerCase()];
   const voice = voiceName[languageCode];
-
   return languageCode && voice ? { languageCode, voiceName: voice } : null;
 }
 
@@ -55,7 +42,7 @@ async function getCognitiveServicesToken(resource) {
     const accessToken = await credential.getToken(resource);
     return accessToken.token;
   } catch (error) {
-    console.error("Error fetching access token for resource: " + resource, error);
+    logger.error("Error fetching access token for resource: " + resource, error);
     throw error;
   }
 }
@@ -101,8 +88,8 @@ async function textToSpeech(text, language, rate, filename) {
 
     const { languageCode, voiceName } = getTTSAttributes(language) || {};
 
-    console.log(
-      `CONVERTING TEXT : ${text} TO AUDIO OF LANGUAGE CODE: ${languageCode} USING VOICE: ${voiceName} WITH SPEECH RATE: ${rate}...`
+    logger.info(
+      `CONVERTING TEXT : ${text.slice(0, 10)}... TO AUDIO OF LANGUAGE CODE: ${languageCode} USING VOICE: ${voiceName} WITH SPEECH RATE: ${rate}...`
     );
 
     const synthesizer = new sdk.SpeechSynthesizer(speechConfig, audioConfig);
@@ -123,7 +110,7 @@ async function textToSpeech(text, language, rate, filename) {
         ssml,
         (result) => {
           if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
-            console.log("TTS synthesis completed successfully.");
+            logger.info("TTS synthesis completed successfully.");
 
             if (filename) {
               resolve(fs.createReadStream(filename));
@@ -133,20 +120,21 @@ async function textToSpeech(text, language, rate, filename) {
               resolve(bufferStream);
             }
           } else {
-            console.error("TTS synthesis failed:", result.errorDetails);
-            reject(new Error(result.errorDetails || "Unknown error synthesizing speech"));
+            const synthError = new Error(result.errorDetails || "Unknown error synthesizing speech");
+            logger.error("TTS synthesis failed:", synthError, { errorDetails: result.errorDetails });
+            reject(synthError);
           }
           synthesizer.close();
         },
         (error) => {
-          console.error("TTS synthesis error:", error);
+          logger.error("TTS synthesis error:", error);
           synthesizer.close();
           reject(error);
         }
       );
     });
   } catch (error) {
-    console.error("Error in textToSpeech:", error);
+    logger.error("Error in textToSpeech:", error);
     throw error;
   }
 }
