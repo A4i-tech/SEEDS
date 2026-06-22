@@ -88,8 +88,8 @@ async def _require_content_write(
 
 def _read_school_filter(user: dict[str, Any]) -> Any | None:
     """For reads: school-scoped users see their school's content + tenant-wide content."""
-    role = user.get("role", "")
-    school_id = user.get("school_id") or user.get("schoolId")
+    role = user.get("role")
+    school_id = user.get("school_id")
     if school_id and role in (UserRole.SCHOOL_ADMIN.value, UserRole.TEACHER.value, UserRole.CONTENT_CREATOR.value):
         return {"$in": [school_id, None]}
     return None
@@ -97,10 +97,10 @@ def _read_school_filter(user: dict[str, Any]) -> Any | None:
 
 def _write_school_filter(user: dict[str, Any]) -> dict:
     """Return a schoolId dict for write operations — spread into query/document."""
-    role = user.get("role", "")
+    role = user.get("role")
     school_id: str | None = None
     if role in (UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value):
-        school_id = user.get("school_id") or user.get("schoolId") or None
+        school_id = user.get("school_id")
     return {"schoolId": school_id}
 
 
