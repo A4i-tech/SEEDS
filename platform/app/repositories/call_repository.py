@@ -8,6 +8,7 @@ from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.call import Call, CallLog
+from app.repositories.base_repository import BaseRepository
 
 
 class CallsLogRepository:
@@ -42,22 +43,17 @@ class CallsLogRepository:
         return await self._col.find_one({"_id": ObjectId(call_log_id)})
 
 
-class CallRepository:
-    """Async Motor repository for call sequence and call log documents."""
+class CallRepository(BaseRepository):
+    """Async Motor repository for call sequence, call log, and FSM context documents."""
 
     CALL_COLLECTION = "calls"
     LOG_COLLECTION = "calllogs"
+    FSM_COLLECTION = "fsmcontexts"
 
     def __init__(self, db: AsyncIOMotorDatabase) -> None:
         self._call_col = db[self.CALL_COLLECTION]
         self._log_col = db[self.LOG_COLLECTION]
-
-    @staticmethod
-    def _to_id(id_str: str) -> ObjectId | str:
-        try:
-            return ObjectId(id_str)
-        except Exception:
-            return id_str
+        self._fsm_col = db[self.FSM_COLLECTION]
 
     # ------------------------------------------------------------------
     # Call sequence documents
@@ -104,3 +100,29 @@ class CallRepository:
             return_document=True,
         )
         return CallLog.from_mongo(result) if result else None
+
+    async def insert_raw_log(self, data: dict) -> dict:
+        result = await self._log_col.insert_one(data)
+        data["_id"] = str(result.inserted_id)
+        return data
+
+    async def find_raw_log_by_id(self, id: str) -> Optional[Dict[str, Any]]:
+        doc = await self._log_col.find_one({"_id": self._to_id(id)})
+        if doc:
+            doc["_id"] = str(doc["_id"])
+        return doc
+
+    # ------------------------------------------------------------------
+    # FSM context documents
+    # ------------------------------------------------------------------
+
+    async def insert_fsm_context(self, data: dict) -> dict:
+        result = await self._fsm_col.insert_one(data)
+        data["_id"] = str(result.inserted_id)
+        return data
+
+    async def find_fsm_context_by_id(self, id: str) -> Optional[Dict[str, Any]]:
+        doc = await self._fsm_col.find_one({"_id": self._to_id(id)})
+        if doc:
+            doc["_id"] = str(doc["_id"])
+        return doc

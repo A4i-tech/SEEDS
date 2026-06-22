@@ -12,7 +12,7 @@ import logging
 from app.consumers.base_consumer import BaseConsumer
 from app.platform.database import get_database
 from app.providers.service_bus import service_bus_provider
-from app.services import ivr_service
+from app.services.ivr_service import IVRService
 
 logger = logging.getLogger(__name__)
 
@@ -74,10 +74,9 @@ class CallEventConsumer(BaseConsumer):
             return
 
         db = get_database()
-        await ivr_service.process_call_event(
+        await IVRService(db).process_call_event(
             call_id=conversation_uuid,
             event=payload,
-            db=db,
         )
         logger.info(
             "call_event_consumer: processed event conv=%s status=%s",

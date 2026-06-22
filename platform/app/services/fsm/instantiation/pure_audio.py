@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from urllib.parse import urlencode
 
+from app.platform.settings import get_settings
 from app.providers.vonage_actions.connect_action import VonageConnectAction
 from app.providers.vonage_actions.input_action import InputAction
 from app.providers.vonage_actions.stream_action import StreamAction
@@ -65,7 +66,6 @@ class PureAudio:
         key_chosen: int,
         level: int,
     ) -> "FSM":
-        from app.platform.settings import get_settings  # noqa: PLC0415
 
         settings = get_settings()
         pullMenuMainUrl = get_pull_menu_main_url()

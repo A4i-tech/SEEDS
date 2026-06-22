@@ -9,21 +9,16 @@ from typing import Any, Dict, List, Optional
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from app.repositories.base_repository import BaseRepository
 
-class ComprehensionRepository:
+
+class ComprehensionRepository(BaseRepository):
     """Repository for managing comprehension documents in the database."""
 
     COLLECTION = "comprehensions"
 
     def __init__(self, db: AsyncIOMotorDatabase) -> None:
         self._col = db[self.COLLECTION]
-
-    @staticmethod
-    def _to_id(id_str: str) -> ObjectId | str:
-        try:
-            return ObjectId(id_str)
-        except Exception:
-            return id_str
 
     async def get_all_comprehensions(self) -> List[Dict[str, Any]]:
         """Retrieve all comprehension documents from the database."""

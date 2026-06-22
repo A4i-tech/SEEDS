@@ -4,13 +4,13 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.classroom import Classroom, ClassroomCreate
+from app.repositories.base_repository import BaseRepository
 
 
-class ClassroomRepository:
+class ClassroomRepository(BaseRepository):
     """Async Motor repository for the 'classes' collection."""
 
     COLLECTION = "classes"
@@ -18,21 +18,17 @@ class ClassroomRepository:
     def __init__(self, db: AsyncIOMotorDatabase) -> None:
         self._col = db[self.COLLECTION]
 
-    @staticmethod
-    def _to_id(id_str: str) -> ObjectId | str:
-        try:
-            return ObjectId(id_str)
-        except Exception:
-            return id_str
-
     async def find_by_id(self, id: str) -> Optional[Classroom]:
         doc = await self._col.find_one({"_id": self._to_id(id)})
         return Classroom.from_mongo(doc) if doc else None
 
     async def find_by_school(self, school_id: str) -> List[Classroom]:
-        cursor = self._col.find({"school_id": school_id})
+        cursor = self._col.find({"schoolId": school_id})
         docs = await cursor.to_list(length=None)
         return [Classroom.from_mongo(d) for d in docs]
+
+    async def count_by_school(self, school_id: str) -> int:
+        return await self._col.count_documents({"schoolId": school_id})
 
     async def find_by_teacher(self, teacher_id: str) -> List[Classroom]:
         cursor = self._col.find({"teacher": teacher_id})
@@ -41,7 +37,7 @@ class ClassroomRepository:
 
     async def create(self, classroom: ClassroomCreate) -> Classroom:
         now = datetime.now(timezone.utc)
-        doc = classroom.model_dump(by_alias=False)
+        doc = classroom.model_dump(by_alias=True)
         doc["created_at"] = now
         doc["updated_at"] = now
         result = await self._col.insert_one(doc)

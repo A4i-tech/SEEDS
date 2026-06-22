@@ -284,11 +284,11 @@ class TestIVRServiceEnsureLoaded:
 
     @pytest.mark.asyncio
     async def test_get_ivr_structure_no_db_content(self, db) -> None:
-        from app.services.ivr_service import get_ivr_structure
+        from app.services.ivr_service import IVRService
 
         # Empty DB — should return empty dict or raise
         try:
-            result = await get_ivr_structure(tenant_id="t1", db=db)
+            result = await IVRService(db).get_ivr_structure(tenant_id="t1")
             assert isinstance(result, dict)
         except Exception:
             pass  # Acceptable — no FSM configured
@@ -420,10 +420,10 @@ class TestAuditRepositoryExtra:
         from app.models.audit_log import AuditLog
 
         repo = AuditRepository(db)
-        log = AuditLog(user="u1", logText="action1", time="10:00", priority=1)
+        log = AuditLog(user="u1", logText="action1", time="10:00", priority=1, tenant_id="t1")
         await repo.create_log(log)
 
-        logs = await repo.find_logs_by_user("u1")
+        logs = await repo.find_logs_by_user_and_tenant("u1", "t1")
         assert len(logs) >= 1
 
     @pytest.mark.asyncio
@@ -431,5 +431,5 @@ class TestAuditRepositoryExtra:
         from app.repositories.audit_repository import AuditRepository
 
         repo = AuditRepository(db)
-        logs = await repo.find_logs_by_user("nonexistent_user")
+        logs = await repo.find_logs_by_user_and_tenant("nonexistent_user", "t1")
         assert logs == []

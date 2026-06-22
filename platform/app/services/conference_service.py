@@ -22,12 +22,15 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from fastapi import WebSocket
+from fastapi import Depends, WebSocket
+from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.action_history import ActionHistory, ActionType
 from app.models.conference_state import ConferenceCallState, AutoEndState
 from app.models.participant import CallStatus, Participant, Role
 from app.models.playback_state import AudioContentState
+from app.platform.auth.dependencies import get_db
+from app.platform.settings import get_settings
 from app.services.confevents.base_event import ConferenceEvent
 
 if TYPE_CHECKING:
@@ -191,7 +194,6 @@ class ConferenceCall:
     # ------------------------------------------------------------------
 
     def start_remote_audio_relay(self) -> None:
-        from app.platform.settings import get_settings  # noqa: PLC0415
 
         settings = get_settings()
         if not (settings.audio_analysis_enabled or settings.audio_capture_enabled):
@@ -208,7 +210,6 @@ class ConferenceCall:
         self._remote_audio_queue = None
 
     async def _consume_remote_audio(self) -> None:
-        from app.platform.settings import get_settings  # noqa: PLC0415
         from app.services.audio.audio_capture import AudioCaptureService  # noqa: PLC0415
         from app.services.audio.hold_detector import HoldDetector  # noqa: PLC0415
         from app.services.audio.transcriber import AudioTranscriber  # noqa: PLC0415
@@ -526,3 +527,34 @@ class ConferenceCallManager:
     async def close(self) -> None:
         if self._redis_store is not None:
             await self._redis_store.close()
+
+
+# ---------------------------------------------------------------------------
+# Conference ownership service — thin wrapper for DI
+# ---------------------------------------------------------------------------
+
+
+class ConferenceOwnershipService:
+    def __init__(self, db: AsyncIOMotorDatabase[Any]) -> None:  # type: ignore[type-arg]
+        from app.repositories.conference_repository import ConferenceOwnershipRepository  # noqa: PLC0415
+        self._repo = ConferenceOwnershipRepository(db)
+
+    async def record_ownership(
+        self,
+        conf_id: str,
+        created_by: str,
+        tenant_id: str,
+        teacher_phone: str,
+    ) -> None:
+        await self._repo.create(
+            conf_id=conf_id,
+            created_by=created_by,
+            tenant_id=tenant_id,
+            teacher_phone=teacher_phone,
+        )
+
+
+def get_conference_ownership_service(
+    db: AsyncIOMotorDatabase = Depends(get_db),  # type: ignore[type-arg]
+) -> ConferenceOwnershipService:
+    return ConferenceOwnershipService(db)

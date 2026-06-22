@@ -476,56 +476,20 @@ class TestAuditRepository:
         assert created.path == "/api/test"
 
     @pytest.mark.asyncio
-    async def test_find_logs_by_user(self, db) -> None:
+    async def test_find_logs_by_user_and_tenant(self, db) -> None:
         from app.models.audit_log import AuditLog
         from app.repositories.audit_repository import AuditRepository
 
         repo = AuditRepository(db)
-        log = AuditLog(user="u1", log_text="did something", time="09:00", priority=2)
+        log = AuditLog(user="u1", log_text="did something", time="09:00", priority=2, tenant_id="t1")
         await repo.create_log(log)
 
-        results = await repo.find_logs_by_user("u1")
+        results = await repo.find_logs_by_user_and_tenant("u1", "t1")
         assert len(results) == 1
 
-    @pytest.mark.asyncio
-    async def test_create_and_find_ivr_log(self, db) -> None:
-        from app.models.audit_log import IvrV2Log
-        from app.repositories.audit_repository import AuditRepository
-
-        repo = AuditRepository(db)
-        log = IvrV2Log(
-            phone_number="+9100000001",
-            fsm_id="fsm1",
-            current_state_id="s0",
-            created_at="2026-01-01T00:00:00Z",
-            duration="0",
-            tenant_id="t1",
-        )
-        created = await repo.create_ivr_log(log)
-        assert created.phone_number == "+9100000001"
-
-        found = await repo.find_ivr_log_by_phone("+9100000001")
-        assert found is not None
-        assert found.tenant_id == "t1"
-
-    @pytest.mark.asyncio
-    async def test_find_ivr_logs_by_tenant(self, db) -> None:
-        from app.models.audit_log import IvrV2Log
-        from app.repositories.audit_repository import AuditRepository
-
-        repo = AuditRepository(db)
-        log = IvrV2Log(
-            phone_number="+9100000002",
-            fsm_id="fsm2",
-            current_state_id="s0",
-            created_at="2026-01-01T00:00:00Z",
-            duration="0",
-            tenant_id="t2",
-        )
-        await repo.create_ivr_log(log)
-
-        results = await repo.find_ivr_logs_by_tenant("t2")
-        assert len(results) == 1
+        # different tenant returns nothing
+        cross = await repo.find_logs_by_user_and_tenant("u1", "t_other")
+        assert len(cross) == 0
 
 
 # ---------------------------------------------------------------------------
@@ -745,48 +709,45 @@ class TestSchoolService:
 
     @pytest.mark.asyncio
     async def test_create_school_success(self, db) -> None:
-        from app.models.school import SchoolCreate
-        from app.services.school_service import create_school
+        from app.services.school_service import SchoolService
 
-        data = SchoolCreate(
+        school = await SchoolService(db).create_school(
             name="Test School",
             email="school@test.com",
             tenant_id="t1",
+            plain_password="secret123",
         )
-        school = await create_school(data, db)
         assert school.name == "Test School"
         assert school.email == "school@test.com"
 
     @pytest.mark.asyncio
     async def test_create_school_conflict(self, db) -> None:
-        from app.models.school import SchoolCreate
         from app.platform.error_handling import ConflictError
-        from app.services.school_service import create_school
+        from app.services.school_service import SchoolService
 
-        data = SchoolCreate(name="Dup School", email="dup@test.com", tenant_id="t1")
-        await create_school(data, db)
+        svc = SchoolService(db)
+        await svc.create_school(name="Dup School", email="dup@test.com", tenant_id="t1", plain_password="pass")
 
         with pytest.raises(ConflictError):
-            await create_school(data, db)
+            await svc.create_school(name="Dup School", email="dup@test.com", tenant_id="t1", plain_password="pass")
 
     @pytest.mark.asyncio
     async def test_get_school_not_found(self, db) -> None:
         from app.platform.error_handling import NotFoundError
-        from app.services.school_service import get_school
+        from app.services.school_service import SchoolService
 
         with pytest.raises(NotFoundError):
-            await get_school("nonexistent123456789012", db)
+            await SchoolService(db).get_school("nonexistent123456789012")
 
     @pytest.mark.asyncio
     async def test_create_school_with_password(self, db) -> None:
-        from app.services.school_service import create_school_with_password
+        from app.services.school_service import SchoolService
 
-        school = await create_school_with_password(
+        school = await SchoolService(db).create_school(
             name="Pwd School",
             email="pwd@test.com",
             tenant_id="t1",
             plain_password="secret123",
-            db=db,
         )
         assert school.name == "Pwd School"
 

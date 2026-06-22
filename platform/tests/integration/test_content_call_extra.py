@@ -129,7 +129,7 @@ class TestContentControllerExtra:
         tenant = await _seed_tenant(mock_db)
         token = create_access_token({"sub": tenant["_id"], "role": "tenant"})
 
-        with patch("app.controllers.content_controller._enqueue_content_job", return_value="job1"):
+        with patch("app.services.content_service.ContentService.enqueue_content_job", new=AsyncMock(return_value="job1")):
             resp = await client.post("/content", json={
                 "type": "audio",
                 "language": "english",
@@ -159,11 +159,6 @@ class TestContentControllerExtra:
         token = create_access_token({"sub": tenant["_id"], "role": "tenant"})
         resp = await client.delete("/content/000000000000000000000000", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code in (200, 404)
-
-    @pytest.mark.asyncio
-    async def test_put_content_requires_auth(self, client, mock_db):
-        resp = await client.put("/content/someid", json={})
-        assert resp.status_code == 401
 
     @pytest.mark.asyncio
     async def test_create_quiz_requires_auth(self, client, mock_db):

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from app.models.action_history import ActionHistory, ActionType
 from app.models.participant import CallStatus
 from app.models.system_audio_messages import SystemAudioMessages
+from app.platform.settings import get_settings
 from app.services.confevents.base_event import ConferenceEvent
 if TYPE_CHECKING:
     from app.services.conference_service import ConferenceCall
@@ -16,7 +17,6 @@ logger = logging.getLogger(__name__)
 class StartTeacherDisconnectTimerEvent(ConferenceEvent):
     def __init__(self, conf_call: "ConferenceCall") -> None:
         self.conf_call = conf_call
-        from app.platform.settings import get_settings  # noqa: PLC0415
         settings = get_settings()
         self.timeout_minutes = settings.auto_end_timeout_minutes
         self.auto_end_enabled = settings.auto_end_enabled

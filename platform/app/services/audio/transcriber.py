@@ -17,6 +17,7 @@ import wave
 from collections import deque
 from typing import Any, Optional
 
+from app.platform.settings import get_settings
 import numpy as np
 from scipy import signal  # type: ignore[import-untyped]
 
@@ -36,7 +37,6 @@ class AudioTranscriber:
     SILENCE_THRESHOLD = 300
 
     def __init__(self) -> None:
-        from app.platform.settings import get_settings  # noqa: PLC0415
 
         settings = get_settings()
         from openai import AsyncOpenAI  # type: ignore[import-untyped]  # noqa: PLC0415

@@ -165,7 +165,7 @@ class TestWebhookController:
         from app.platform.lifespan import get_conference_manager
         mock_mgr = MagicMock()
         mock_mgr.get_conference = MagicMock(return_value=None)
-        with patch("app.controllers.webhook_controller._get_conference_manager", return_value=mock_mgr):
+        with patch("app.controllers.webhook_controller.get_conference_manager", return_value=mock_mgr):
             resp = await client.post("/webhooks/event/conf1", json={
                 "status": "answered",
                 "conversation_uuid": "conv1",

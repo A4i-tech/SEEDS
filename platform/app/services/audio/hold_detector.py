@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from app.platform.settings import get_settings
 import os
 
 logger = logging.getLogger(__name__)
@@ -50,7 +51,6 @@ class HoldDetector:
         return instance
 
     def _init_client(self) -> None:
-        from app.platform.settings import get_settings  # noqa: PLC0415
 
         api_key = get_settings().openai_api_key
         if not api_key:

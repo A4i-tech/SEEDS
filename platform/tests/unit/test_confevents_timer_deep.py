@@ -46,7 +46,7 @@ class TestStartTeacherDisconnectTimerEvent:
         mock_settings.auto_end_enabled = False
         mock_settings.auto_end_timeout_minutes = 5
 
-        with patch("app.platform.settings.get_settings", return_value=mock_settings):
+        with patch("app.services.confevents.teacher_disconnect_timer_event.get_settings", return_value=mock_settings):
             conf = self._make_conf(auto_end_enabled=False)
             event = StartTeacherDisconnectTimerEvent(conf_call=conf)
             assert event.auto_end_enabled is False
@@ -61,7 +61,7 @@ class TestStartTeacherDisconnectTimerEvent:
         mock_settings.auto_end_enabled = True
         mock_settings.auto_end_timeout_minutes = 5
 
-        with patch("app.platform.settings.get_settings", return_value=mock_settings):
+        with patch("app.services.confevents.teacher_disconnect_timer_event.get_settings", return_value=mock_settings):
             conf = self._make_conf(auto_end_enabled=True, teacher_connected=True)
             event = StartTeacherDisconnectTimerEvent(conf_call=conf)
             await event.execute_event()
@@ -75,7 +75,7 @@ class TestStartTeacherDisconnectTimerEvent:
         mock_settings.auto_end_enabled = True
         mock_settings.auto_end_timeout_minutes = 5
 
-        with patch("app.platform.settings.get_settings", return_value=mock_settings):
+        with patch("app.services.confevents.teacher_disconnect_timer_event.get_settings", return_value=mock_settings):
             conf = self._make_conf()
             conf.state.get_teacher = MagicMock(return_value=None)
             event = StartTeacherDisconnectTimerEvent(conf_call=conf)

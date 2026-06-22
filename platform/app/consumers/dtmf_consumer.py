@@ -15,7 +15,7 @@ import logging
 from app.consumers.base_consumer import BaseConsumer
 from app.platform.database import get_database
 from app.providers.service_bus import service_bus_provider
-from app.services import ivr_service
+from app.services.ivr_service import IVRService
 
 logger = logging.getLogger(__name__)
 
@@ -78,10 +78,9 @@ class DtmfConsumer(BaseConsumer):
             return
 
         db = get_database()
-        await ivr_service.process_dtmf(
+        await IVRService(db).process_dtmf(
             call_id=conversation_uuid,
             dtmf=digits,
-            db=db,
         )
         logger.info(
             "dtmf_consumer: processed DTMF conv=%s digits=%r",

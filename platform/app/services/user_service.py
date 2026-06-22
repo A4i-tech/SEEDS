@@ -12,13 +12,15 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from fastapi import Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.models.user import User
+from app.models.user import User, UserCreate, UserRole
+from app.platform.auth.dependencies import get_db
 from app.platform.authz.audit import log_denial
 from app.platform.authz.ownership import assert_conference_owner
 from app.platform.authz.tenant_scope import assert_same_tenant
-from app.platform.error_handling import NotFoundError
+from app.platform.error_handling import ConflictError, NotFoundError
 from app.repositories.user_repository import UserRepository
 
 logger = logging.getLogger(__name__)
@@ -153,3 +155,109 @@ async def delete_user(
         assert_same_tenant(current_user, existing.tenant_id)
 
     return await repo.delete(user_id)
+
+
+# ---------------------------------------------------------------------------
+# UserService class (DI-friendly wrapper around module-level functions)
+# ---------------------------------------------------------------------------
+
+
+class UserService:
+    def __init__(self, db: AsyncIOMotorDatabase[Any]) -> None:
+        self._db = db
+        self._repo = UserRepository(db)
+
+    # Delegates to existing module-level functions:
+    async def get_user(self, user_id: str, current_user: dict) -> User:
+        return await get_user(user_id, current_user, self._db)
+
+    async def list_users_by_tenant(self, tenant_id: str, current_user: dict) -> list[User]:
+        return await list_users_by_tenant(tenant_id, current_user, self._db)
+
+    async def get_participants(self, conference_id: str, current_user: dict) -> list[User]:
+        return await get_participants(conference_id, current_user, self._db)
+
+    async def update_user(self, user_id: str, updates: dict, current_user: dict) -> User:
+        return await update_user(user_id, updates, current_user, self._db)
+
+    async def delete_user(self, user_id: str, current_user: dict) -> bool:
+        return await delete_user(user_id, current_user, self._db)
+
+    # Student methods (logic from student_controller.py):
+    async def create_student(self, name: str, phone_number: str, school_id: str, tenant_id: str) -> User:
+        existing = await self._repo.find_by_phone(phone_number)
+        if existing and existing.school_id == school_id:
+            raise ConflictError("Phone number already in use in this school")
+        return await self._repo.create(
+            UserCreate(
+                role=UserRole.STUDENT,
+                name=name,
+                phone=phone_number,
+                school_id=school_id,
+                tenant_id=tenant_id,
+            )
+        )
+
+    async def list_students_for_school(self, school_id: str, tenant_id: str) -> list[User]:
+        all_users = await self._repo.find_all_by_tenant(tenant_id)
+        return [u for u in all_users if u.school_id == school_id and u.role.value == "student"]
+
+    async def update_student(self, student_id: str, updates: dict[str, Any], caller_school_id: str) -> User:
+        existing = await self._repo.find_by_id(student_id)
+        if existing is None:
+            raise NotFoundError("Student", student_id)
+        if caller_school_id and existing.school_id != caller_school_id:
+            raise NotFoundError("Student", student_id)
+        if "phone" in updates:
+            dup = await self._repo.find_by_phone(updates["phone"])
+            if dup and str(dup.id) != student_id and dup.school_id == caller_school_id:
+                raise ConflictError("Phone number already in use in this school")
+        updated = await self._repo.update(student_id, updates)
+        if updated is None:
+            raise NotFoundError("Student", student_id)
+        return updated
+
+    async def delete_student(self, student_id: str, caller_school_id: str) -> None:
+        existing = await self._repo.find_by_id(student_id)
+        if existing is None:
+            raise NotFoundError("Student", student_id)
+        if caller_school_id and existing.school_id != caller_school_id:
+            raise NotFoundError("Student", student_id)
+        await self._repo.delete(student_id)
+
+    # Teacher methods (logic from teacher_controller.py):
+    async def list_teachers_for_school(self, school_id: str, tenant_id: str) -> list[User]:
+        users = await self._repo.find_all_by_tenant(tenant_id)
+        return [u for u in users if u.school_id == school_id and u.role.value in ("teacher", "content_creator")]
+
+    async def update_teacher(self, teacher_id: str, updates: dict[str, Any], caller_school_id: str) -> User:
+        existing = await self._repo.find_by_id(teacher_id)
+        if existing is None:
+            raise NotFoundError("Teacher", teacher_id)
+        if caller_school_id and existing.school_id != caller_school_id:
+            raise NotFoundError("Teacher", teacher_id)
+        updated = await self._repo.update(teacher_id, updates)
+        if updated is None:
+            raise NotFoundError("Teacher", teacher_id)
+        return updated
+
+    async def delete_teacher(self, teacher_id: str, caller_school_id: str) -> None:
+        existing = await self._repo.find_by_id(teacher_id)
+        if existing is None:
+            raise NotFoundError("Teacher", teacher_id)
+        if caller_school_id and existing.school_id != caller_school_id:
+            raise NotFoundError("Teacher", teacher_id)
+        await self._repo.delete(teacher_id)
+
+    # Participant listing for user_controller:
+    async def get_participants_for_school(self, tenant_id: str, school_id: str) -> list[dict]:
+        all_users = await self._repo.find_all_by_tenant(tenant_id)
+        return [
+            {"_id": str(u.id), "name": u.name, "phone": u.phone or "", "role": u.role.value}
+            for u in all_users
+            if not school_id or u.school_id == school_id
+        ]
+
+
+def get_user_service(db: AsyncIOMotorDatabase[Any] = Depends(get_db)) -> UserService:
+    return UserService(db)

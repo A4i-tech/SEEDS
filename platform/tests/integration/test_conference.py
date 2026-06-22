@@ -76,10 +76,10 @@ async def client(mock_db, mock_conf_mgr):
     app.dependency_overrides[get_db] = _override_db
 
     with patch("app.platform.lifespan.get_conference_manager", return_value=mock_conf_mgr):
-        with patch("app.controllers.call_controller._get_conf_mgr", return_value=mock_conf_mgr):
+        with patch("app.controllers.conference_controller.get_conference_manager", return_value=mock_conf_mgr):
             with patch("app.controllers.playback_controller._get_conference_manager", return_value=mock_conf_mgr):
                 with patch("app.controllers.participants_controller._get_conference_manager", return_value=mock_conf_mgr):
-                    with patch("app.controllers.webhook_controller._get_conference_manager", return_value=mock_conf_mgr):
+                    with patch("app.controllers.webhook_controller.get_conference_manager", return_value=mock_conf_mgr):
                         with patch("app.controllers.websocket_controller._get_conference_manager", return_value=mock_conf_mgr):
                             transport = ASGITransport(app=app)
                             async with AsyncClient(transport=transport, base_url="http://test") as ac:

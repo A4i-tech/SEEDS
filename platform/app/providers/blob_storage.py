@@ -16,9 +16,12 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from azure.identity import DefaultAzureCredential
+from urllib.parse import unquote, urlparse
+
 from azure.storage.blob import (
     BlobSasPermissions,
     BlobServiceClient,
+    ContentSettings,
     ContainerClient,
     generate_blob_sas,
 )
@@ -82,8 +85,6 @@ class BlobStorageProvider:
 
         Raises on failure; caller is responsible for cleanup.
         """
-        from azure.storage.blob import ContentSettings  # noqa: PLC0415
-
         container_client = self._client.get_container_client(container)
         blob_client = container_client.get_blob_client(blob_name)
         blob_client.upload_blob(
@@ -237,8 +238,6 @@ class SASGenerator:
         if not self._azure_enabled:
             return url
         try:
-            from urllib.parse import urlparse, unquote  # noqa: PLC0415
-
             decoded_url = unquote(url)
             parsed = urlparse(decoded_url)
             parts = [p for p in parsed.path.split("/") if p]
@@ -293,9 +292,8 @@ def _parse_blob_url(blob_url: str) -> tuple[str, str]:
 
     Raises ValueError on invalid URL format.
     """
-    from urllib.parse import urlparse as _up  # noqa: PLC0415
 
-    parsed = _up(blob_url)
+    parsed = urlparse(blob_url)
     parts = [p for p in parsed.path.split("/") if p]
     if len(parts) < 2:
         raise ValueError(f"Invalid blob URL format: {blob_url!r}")

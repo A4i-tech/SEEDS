@@ -88,7 +88,7 @@ def _school_admin_token(uid, tid="t1", sid="s1"):
 class TestSchoolControllerExtra:
     @pytest.mark.asyncio
     async def test_transfer_teacher_requires_auth(self, client, mock_db):
-        resp = await client.post("/school/transferTeacher", json={
+        resp = await client.post("/school/transfer", json={
             "teacher_id": "000000000000000000000000",
             "target_school_id": "000000000000000000000001",
         })
@@ -98,7 +98,7 @@ class TestSchoolControllerExtra:
     async def test_transfer_teacher_not_found(self, client, mock_db):
         teacher = await _seed_teacher(mock_db)
         token = _teacher_token(teacher["_id"])
-        resp = await client.post("/school/transferTeacher", json={
+        resp = await client.post("/school/transfer", json={
             "teacher_id": "000000000000000000000000",
             "target_school_id": "000000000000000000000001",
         }, headers={"Authorization": f"Bearer {token}"})

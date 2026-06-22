@@ -13,6 +13,7 @@ from app.models.ivr_state import IVRfsmDoc
 from app.providers.vonage_actions.input_action import InputAction
 from app.providers.vonage_actions.stream_action import StreamAction
 from app.providers.vonage_actions.talk_action import TalkAction
+from app.platform.settings import get_settings
 from app.services.fsm.fsm import FSM
 from app.services.fsm.instantiation.ivr_constants import (
     audioGoingTobePlayedDialogUrl,
@@ -65,7 +66,6 @@ _input_action = InputAction(type_=["dtmf"], eventApi="/input")
 
 
 def _get_welcome_url() -> str:
-    from app.platform.settings import get_settings  # noqa: PLC0415
     settings = get_settings()
     pullMenuMainUrl = get_pull_menu_main_url()
     return (
@@ -126,7 +126,6 @@ def handle_theme(
 def handle_type(
     filtered_content: list, speech_rate: str, parent_selections: dict
 ) -> tuple[list, dict, list]:
-    from app.platform.settings import get_settings  # noqa: PLC0415
     settings = get_settings()
     pullMenuMainUrl = get_pull_menu_main_url()
 
@@ -214,7 +213,6 @@ def _get_stream_actions(
     state: int,
     parent_selections: dict,
 ) -> dict:
-    from app.platform.settings import get_settings  # noqa: PLC0415
     settings = get_settings()
 
     category = content_attributes[level]["category"]

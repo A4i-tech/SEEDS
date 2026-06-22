@@ -297,7 +297,7 @@ class TestTeacherDisconnectTimerDeeper:
         mock_settings.auto_end_timeout_minutes = 2
         mock_settings.auto_end_enabled = True
 
-        with patch("app.platform.settings.get_settings", return_value=mock_settings):
+        with patch("app.services.confevents.teacher_disconnect_timer_event.get_settings", return_value=mock_settings):
             event = StartTeacherDisconnectTimerEvent(conf_call=self._mock_conf_call())
             assert event.auto_end_enabled is True
             assert event.timeout_minutes == 2
@@ -325,7 +325,7 @@ class TestTeacherDisconnectTimerDeeper:
         conf_call.state.get_teacher = MagicMock(return_value=None)
         conf_call.state.auto_end_state.is_active = False
 
-        with patch("app.platform.settings.get_settings", return_value=mock_settings):
+        with patch("app.services.confevents.teacher_disconnect_timer_event.get_settings", return_value=mock_settings):
             event = StartTeacherDisconnectTimerEvent(conf_call=conf_call)
             # execute_event when is_active=False should set timer
             # patch asyncio.create_task to avoid running background task
