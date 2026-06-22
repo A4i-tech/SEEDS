@@ -821,7 +821,7 @@ class TestAuthService:
         await register_teacher(tc, db)
 
         result = await login("carol@example.com", "mypassword", "native", db)
-        assert "access_token" in result
+        assert "token" in result
         assert result["user"]["email"] == "carol@example.com"
         # password must not be in response
         assert "hashed_password" not in result["user"]

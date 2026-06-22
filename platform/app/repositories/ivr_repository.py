@@ -129,7 +129,7 @@ class IVRRepository(BaseRepository):
     async def find_logs_by_school_date_range(
         self, school_id: str, start_iso: str, end_iso: str
     ) -> list[dict[str, Any]]:
-        """Return raw log docs for school within ISO date range (created_at stored as string)."""
+        """Return raw log docs for school within ISO date range."""
         cursor = self._log_col.find(
             {
                 "school_id": school_id,

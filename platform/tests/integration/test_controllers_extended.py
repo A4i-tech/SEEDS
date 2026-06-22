@@ -128,7 +128,7 @@ class TestTenantAuth:
             "password": "tenantpass",
         })
         assert resp.status_code == 200
-        assert "access_token" in resp.json()
+        assert "token" in resp.json()
 
     @pytest.mark.asyncio
     async def test_tenant_login_wrong_password(self, client, mock_db):

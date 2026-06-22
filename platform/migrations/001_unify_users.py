@@ -14,9 +14,15 @@ Idempotent:
     Documents that already have a 'migrated_from' field are skipped so
     the script is safe to run multiple times.
 
+Field renames applied:
+    phoneNumber  → phone
+    tenantName   → tenant_name
+    schoolId     → school_id
+    password     → hashed_password  (legacy stored bcrypt hash under "password")
+
 Traceability:
     Each migrated document receives:
-        role          = "teacher" | "student" | "tenant"
+        role          = preserved from source doc, or default "teacher" | "student" | "tenant"
         migrated_from = "teachers" | "students" | "tenants"
 """
 
@@ -80,6 +86,16 @@ async def migrate(mongo_uri: str, dry_run: bool) -> None:
                 new_doc["phone"] = new_doc.pop("phoneNumber")
             if "tenantName" in new_doc and "tenant_name" not in new_doc:
                 new_doc["tenant_name"] = new_doc.pop("tenantName")
+            if "schoolId" in new_doc and "school_id" not in new_doc:
+                new_doc["school_id"] = str(new_doc.pop("schoolId"))
+            # Rename plain-text password field to hashed_password (legacy stored bcrypt hash as "password").
+            if "password" in new_doc and "hashed_password" not in new_doc:
+                new_doc["hashed_password"] = new_doc.pop("password")
+            # Ensure name is always populated — legacy tenants had no name field, only tenantName.
+            if not new_doc.get("name"):
+                new_doc["name"] = new_doc.get("tenant_name") or new_doc.get("phone") or str(new_doc["_id"])
+            # Preserve sub-roles (e.g. "content_creator") — only set default if doc has no role.
+            new_doc["role"] = doc.get("role") or role
 
             existing = await dst_col.find_one(
                 {"migrated_from": collection_name, "_id": doc["_id"]}
