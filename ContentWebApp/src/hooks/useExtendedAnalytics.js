@@ -69,26 +69,21 @@ export const useExtendedAnalytics = () => {
   );
 
   const exportCSV = useCallback(
-    async (kind, section, startDate, endDate, filters = {}) => {
+    (kind, section, startDate, endDate) => {
       if (!startDate || !endDate) {
         setError("Please select both start and end dates");
         return;
       }
+      const source = kind === "ivr" ? ivrData : conferenceData;
+      const rows = source ? source[section] : null;
       try {
-        await analyticsService.exportAnalyticsCSV(
-          kind,
-          section,
-          startDate,
-          endDate,
-          filters,
-          getAuthHeaders()
-        );
+        analyticsService.exportAnalyticsCSV(kind, section, rows, startDate, endDate);
       } catch (err) {
         console.error("CSV export failed:", err);
         setError(err.message || "CSV export failed");
       }
     },
-    [getAuthHeaders]
+    [ivrData, conferenceData]
   );
 
   return {

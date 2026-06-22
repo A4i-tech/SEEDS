@@ -84,10 +84,10 @@ const AnalyticsTab = () => {
   const handleExport = useCallback(
     (kind, section) => {
       if (startDate && endDate) {
-        exportCSV(kind, section, startDate, endDate, filters);
+        exportCSV(kind, section, startDate, endDate);
       }
     },
-    [exportCSV, startDate, endDate, filters]
+    [exportCSV, startDate, endDate]
   );
 
   // Default to last 7 days on first load

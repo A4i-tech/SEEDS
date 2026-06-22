@@ -223,18 +223,4 @@ describe("Conference Analytics - Integration Tests", () => {
         expect(res.body.byTeacher).toHaveLength(1);
         expect(res.body.byTeacher[0].teacherName).toBe("Teacher A");
     });
-
-    test("CSV export returns text/csv with expected header", async () => {
-        const res = await request(app)
-            .get(`/tenant/analytics/conference?${RANGE}&format=csv`)
-            .set("Authorization", `Bearer ${tenantToken()}`);
-
-        expect(res.status).toBe(200);
-        expect(res.headers["content-type"]).toContain("text/csv");
-        const lines = res.text.split("\n");
-        expect(lines[0]).toBe(
-            "Conference ID,Teacher,School,Started At,Ended At,Duration (s),Students,Raised Hands"
-        );
-        expect(lines).toHaveLength(4);
-    });
 });

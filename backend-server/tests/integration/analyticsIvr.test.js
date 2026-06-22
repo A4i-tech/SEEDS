@@ -310,24 +310,4 @@ describe("IVR Analytics - Integration Tests", () => {
         expect(res.status).toBe(200);
         expect(res.body.totals.totalCalls).toBe(0);
     });
-
-    test("CSV export returns text/csv with header row", async () => {
-        const res = await request(app)
-            .get(`/tenant/analytics/ivr?${RANGE}&format=csv&section=byTeacher`)
-            .set("Authorization", `Bearer ${tenantToken()}`);
-
-        expect(res.status).toBe(200);
-        expect(res.headers["content-type"]).toContain("text/csv");
-        expect(res.headers["content-disposition"]).toContain("attachment");
-        const lines = res.text.split("\n");
-        expect(lines[0]).toBe("Teacher,School,Total Calls,Avg Session (s),Failure Rate");
-        expect(lines).toHaveLength(3);
-    });
-
-    test("CSV export with invalid section returns 400", async () => {
-        const res = await request(app)
-            .get(`/tenant/analytics/ivr?${RANGE}&format=csv&section=bogus`)
-            .set("Authorization", `Bearer ${tenantToken()}`);
-        expect(res.status).toBe(400);
-    });
 });

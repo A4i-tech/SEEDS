@@ -90,27 +90,27 @@ describe("analyticsService extended analytics", () => {
   });
 
   describe("exportAnalyticsCSV", () => {
-    test("fetches csv and triggers blob download", async () => {
-      getRole.mockReturnValue("tenant");
-      const blob = new Blob(["a,b"], { type: "text/csv" });
-      global.fetch = jest.fn().mockResolvedValue({ ok: true, blob: () => Promise.resolve(blob) });
+    test("builds CSV client-side from supplied rows and triggers blob download", async () => {
+      global.fetch = jest.fn();
+      const rows = [
+        { teacherName: "Teacher A", schoolName: "School X", totalCalls: 3, averageSeconds: 42, failureRate: 0.1 },
+      ];
 
-      await analyticsService.exportAnalyticsCSV("ivr", "byTeacher", START, END, {}, HEADERS);
+      analyticsService.exportAnalyticsCSV("ivr", "byTeacher", rows, START, END);
 
-      const url = global.fetch.mock.calls[0][0];
-      expect(url).toContain("/tenant/analytics/ivr?");
-      expect(url).toContain("format=csv");
-      expect(url).toContain("section=byTeacher");
-      expect(downloadBlob).toHaveBeenCalledWith(blob, expect.stringContaining("ivr-analytics-byTeacher"));
+      // No backend round-trip: CSV is produced on the device.
+      expect(global.fetch).not.toHaveBeenCalled();
+      expect(downloadBlob).toHaveBeenCalledTimes(1);
+      const [blob, filename] = downloadBlob.mock.calls[0];
+      expect(blob).toBeInstanceOf(Blob);
+      expect(blob.type).toContain("text/csv");
+      expect(filename).toContain("ivr-analytics-byTeacher");
     });
 
-    test("throws on failed export", async () => {
-      getRole.mockReturnValue("tenant");
-      global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 500 });
-
-      await expect(
-        analyticsService.exportAnalyticsCSV("conference", "conferences", START, END, {}, HEADERS)
-      ).rejects.toThrow("Export failed with status 500");
+    test("throws on unknown section without downloading", () => {
+      expect(() => analyticsService.exportAnalyticsCSV("ivr", "bogus", [], START, END)).toThrow(
+        "Unknown export section: ivr/bogus"
+      );
       expect(downloadBlob).not.toHaveBeenCalled();
     });
   });
