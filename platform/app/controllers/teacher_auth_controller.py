@@ -8,7 +8,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, status
 
 from app.models.requests.auth_requests import TeacherLoginRequest, TeacherRegisterRequest
-from app.platform.auth.dependencies import get_current_user, require_role, require_teacher
+from app.platform.auth.dependencies import get_current_user, require_role
 from app.services.auth_service import AuthService, TeacherCreate, get_auth_service
 
 logger = logging.getLogger(__name__)
@@ -31,7 +31,7 @@ async def teacher_login(
     "/register",
     summary="Register a new teacher (school_admin only)",
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_teacher)],
+    dependencies=[Depends(require_role("school_admin"))],
 )
 async def teacher_register(
     body: TeacherRegisterRequest,
