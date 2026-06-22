@@ -99,8 +99,7 @@ class TestLoginNative:
 
         result = await login("login@example.com", plain, "jwt", mock_db)
 
-        assert "access_token" in result
-        assert result["token_type"] == "bearer"
+        assert "token" in result
         assert "user" in result
         # hashed_password must NOT appear in the public response
         assert "hashed_password" not in result["user"]

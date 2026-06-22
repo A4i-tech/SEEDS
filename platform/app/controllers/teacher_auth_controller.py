@@ -21,10 +21,9 @@ async def teacher_login(
     body: TeacherLoginRequest,
     service: AuthService = Depends(get_auth_service),
 ) -> dict[str, Any]:
-    return await service.login(
-        email=body.phone_number,
+    return await service.login_by_phone(
+        phone=body.phone_number,
         password=body.password,
-        auth_type="native",
     )
 
 

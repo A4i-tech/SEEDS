@@ -126,7 +126,7 @@ def _tenant_token(user_id: str) -> str:
 
 @pytest.mark.asyncio
 async def test_teacher_login_returns_token(client, mock_db):
-    """POST /teacher/login with valid credentials returns access_token."""
+    """POST /teacher/login with valid credentials returns token."""
     await _seed_teacher(mock_db, "+911234567890", "Test@1234")
 
     resp = await client.post(
@@ -135,8 +135,7 @@ async def test_teacher_login_returns_token(client, mock_db):
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert "access_token" in body
-    assert body["token_type"] == "bearer"
+    assert "token" in body
 
 
 @pytest.mark.asyncio

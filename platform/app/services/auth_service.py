@@ -148,8 +148,7 @@ async def login(
             }
         )
         return {
-            "access_token": token,
-            "token_type": "bearer",  # nosec B105 — OAuth2 literal, not a password
+            "token": token,
             "user": _user_public(user),
         }
 
@@ -174,8 +173,50 @@ async def login(
         }
     )
     return {
-        "access_token": token,
-        "token_type": "bearer",  # nosec B105 — OAuth2 literal, not a password
+        "token": token,
+        "user": _user_public(user),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Phone-based login (teachers identify by phone, not email)
+# ---------------------------------------------------------------------------
+
+
+async def login_by_phone(
+    phone: str,
+    password: str,
+    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+) -> dict[str, Any]:
+    """Authenticate a teacher by phone number and return a JWT + public user data.
+
+    Teachers have no email in the legacy schema — they are looked up by phone.
+    SECURITY: plain password is never logged.
+    """
+    auth_failures = get_counter("auth.failures")
+    repo = UserRepository(db)
+
+    user = await repo.find_by_phone(phone)
+    if user is None or not user.hashed_password:
+        logger.warning("auth: teacher login failed — phone not found or no password set")
+        auth_failures.add(1, {"reason": "user_not_found"})
+        raise UnauthorizedError("Invalid phone or password")
+
+    if not verify_password(password, user.hashed_password):
+        logger.warning("auth: teacher login failed — wrong password for user %s", user.id)
+        auth_failures.add(1, {"reason": "wrong_password"})
+        raise UnauthorizedError("Invalid phone or password")
+
+    token = create_access_token(
+        {
+            "sub": str(user.id),
+            "role": user.role.value,
+            "tenant_id": user.tenant_id,
+            "school_id": user.school_id,
+        }
+    )
+    return {
+        "token": token,
         "user": _user_public(user),
     }
 
@@ -401,6 +442,9 @@ class AuthService:
 
     async def login(self, email: str, password: str, auth_type: str) -> dict:
         return await login(email, password, auth_type, self._db)
+
+    async def login_by_phone(self, phone: str, password: str) -> dict:
+        return await login_by_phone(phone, password, self._db)
 
     async def register_teacher(self, data: TeacherCreate) -> User:
         return await register_teacher(data, self._db)
