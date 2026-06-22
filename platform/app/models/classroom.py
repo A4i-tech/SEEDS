@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional
 
 from bson import ObjectId
 from pydantic import BaseModel, ConfigDict, Field
@@ -13,18 +12,18 @@ class Classroom(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    id: Optional[str] = Field(None, alias="_id")
+    id: str | None = Field(None, alias="_id")
     school_id: str = Field(..., alias="schoolId")
     name: str
     teacher: str  # teacher user id
-    students: List[str] = Field(default_factory=list)   # ObjectId refs stored as str
-    leaders: List[str] = Field(default_factory=list)    # ObjectId refs stored as str
-    content_ids: List[str] = Field(default_factory=list, alias="contentIds")
-    created_at: Optional[datetime] = Field(None, alias="createdAt")
-    updated_at: Optional[datetime] = Field(None, alias="updatedAt")
+    students: list[str] = Field(default_factory=list)   # ObjectId refs stored as str
+    leaders: list[str] = Field(default_factory=list)    # ObjectId refs stored as str
+    content_ids: list[str] = Field(default_factory=list, alias="contentIds")
+    created_at: datetime | None = Field(None, alias="createdAt")
+    updated_at: datetime | None = Field(None, alias="updatedAt")
 
     @classmethod
-    def from_mongo(cls, doc: dict) -> "Classroom":
+    def from_mongo(cls, doc: dict) -> Classroom:
         if doc is None:
             return None  # type: ignore[return-value]
         d = dict(doc)
@@ -46,6 +45,6 @@ class ClassroomCreate(BaseModel):
     school_id: str = Field(..., alias="schoolId")
     name: str
     teacher: str
-    students: List[str] = Field(default_factory=list)
-    leaders: List[str] = Field(default_factory=list)
-    content_ids: List[str] = Field(default_factory=list, alias="contentIds")
+    students: list[str] = Field(default_factory=list)
+    leaders: list[str] = Field(default_factory=list)
+    content_ids: list[str] = Field(default_factory=list, alias="contentIds")

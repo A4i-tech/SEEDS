@@ -9,8 +9,8 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from app.services.fsm.fsm import FSM
     from app.models.ivr_state import IVRCallStateMongoDoc
+    from app.services.fsm.fsm import FSM
 
 
 class FSMOperation(ABC):
@@ -19,8 +19,8 @@ class FSMOperation(ABC):
     @abstractmethod
     def execute(
         self,
-        fsm: "FSM",
-        fsm_state_doc: "IVRCallStateMongoDoc | None" = None,
+        fsm: FSM,
+        fsm_state_doc: IVRCallStateMongoDoc | None = None,
     ) -> Any:
         pass
 
@@ -35,7 +35,7 @@ class FSMOperation(ABC):
         }
 
     @staticmethod
-    def from_json(data: dict) -> "FSMOperation":
+    def from_json(data: dict) -> FSMOperation:
         module = __import__(data["__module__"], fromlist=[data["__class__"]])
         cls = getattr(module, data["__class__"])
         obj = cls.__new__(cls)

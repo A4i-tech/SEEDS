@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from bson import ObjectId
 from pydantic import BaseModel, ConfigDict, Field
@@ -16,17 +16,17 @@ class AuditLog(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    id: Optional[str] = Field(None, alias="_id")
-    log_id: Optional[int] = Field(None, alias="logId")  # legacy numeric id
+    id: str | None = Field(None, alias="_id")
+    log_id: int | None = Field(None, alias="logId")  # legacy numeric id
     user: str  # user identifier
     log_text: str = Field(..., alias="logText")
     time: str
     priority: int
-    tenant_id: Optional[str] = None
-    created_at: Optional[datetime] = None
+    tenant_id: str | None = None
+    created_at: datetime | None = None
 
     @classmethod
-    def from_mongo(cls, doc: dict) -> "AuditLog":
+    def from_mongo(cls, doc: dict) -> AuditLog:
         if doc is None:
             return None  # type: ignore[return-value]
         d = dict(doc)
@@ -43,17 +43,17 @@ class LogEntry(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    id: Optional[str] = Field(None, alias="_id")
-    path: Optional[str] = None
-    method: Optional[str] = None
-    request_body: Optional[Any] = Field(None, alias="requestBody")
-    response_body: Optional[Any] = Field(None, alias="responseBody")
-    status_code: Optional[int] = Field(None, alias="statusCode")
-    timestamp: Optional[datetime] = None
-    tenant_id: Optional[str] = None
+    id: str | None = Field(None, alias="_id")
+    path: str | None = None
+    method: str | None = None
+    request_body: Any | None = Field(None, alias="requestBody")
+    response_body: Any | None = Field(None, alias="responseBody")
+    status_code: int | None = Field(None, alias="statusCode")
+    timestamp: datetime | None = None
+    tenant_id: str | None = None
 
     @classmethod
-    def from_mongo(cls, doc: dict) -> "LogEntry":
+    def from_mongo(cls, doc: dict) -> LogEntry:
         if doc is None:
             return None  # type: ignore[return-value]
         d = dict(doc)
@@ -67,9 +67,9 @@ class UserActionLog(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    action_type: Optional[str] = None
-    timestamp: Optional[datetime] = None
-    details: Optional[Any] = None
+    action_type: str | None = None
+    timestamp: datetime | None = None
+    details: Any | None = None
 
 
 class StreamPlaybackLog(BaseModel):
@@ -77,10 +77,10 @@ class StreamPlaybackLog(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    stream_id: Optional[str] = None
-    started_at: Optional[datetime] = None
-    ended_at: Optional[datetime] = None
-    duration: Optional[float] = None
+    stream_id: str | None = None
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
+    duration: float | None = None
 
 
 class IvrV2Log(BaseModel):
@@ -91,22 +91,22 @@ class IvrV2Log(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    id: Optional[str] = Field(None, alias="_id")
+    id: str | None = Field(None, alias="_id")
     phone_number: str
     fsm_id: str
     current_state_id: str
     created_at: str
-    stopped_at: Optional[str] = None
+    stopped_at: str | None = None
     duration: str = ""
-    user_actions: List[UserActionLog] = Field(default_factory=list)
-    stream_playback: List[StreamPlaybackLog] = Field(default_factory=list)
-    experience_data: Dict[str, Any] = Field(default_factory=dict)
-    call_status_updates: Dict[str, Any] = Field(default_factory=dict)
+    user_actions: list[UserActionLog] = Field(default_factory=list)
+    stream_playback: list[StreamPlaybackLog] = Field(default_factory=list)
+    experience_data: dict[str, Any] = Field(default_factory=dict)
+    call_status_updates: dict[str, Any] = Field(default_factory=dict)
     tenant_id: str
-    school_id: Optional[str] = None
+    school_id: str | None = None
 
     @classmethod
-    def from_mongo(cls, doc: dict) -> "IvrV2Log":
+    def from_mongo(cls, doc: dict) -> IvrV2Log:
         if doc is None:
             return None  # type: ignore[return-value]
         d = dict(doc)

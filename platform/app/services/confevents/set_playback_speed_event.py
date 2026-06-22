@@ -1,15 +1,18 @@
 """Set playback speed event."""
 from __future__ import annotations
+
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
+
 from app.models.action_history import ActionHistory, ActionType
 from app.models.ws_service_message import MessageType, WebsocketServiceMessage
 from app.services.confevents.base_event import ConferenceEvent
+
 if TYPE_CHECKING:
     from app.services.conference_service import ConferenceCall
 
 class SetPlaybackSpeedEvent(ConferenceEvent):
-    def __init__(self, conf_call: "ConferenceCall", speed: float, initiator_phone: Optional[str] = None) -> None:
+    def __init__(self, conf_call: ConferenceCall, speed: float, initiator_phone: str | None = None) -> None:
         if not (0.5 <= speed <= 2.0):
             raise ValueError(f"speed must be 0.5-2.0, got {speed}")
         self.conf_call = conf_call

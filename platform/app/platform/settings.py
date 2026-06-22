@@ -208,7 +208,7 @@ class Settings(BaseSettings):
         return self.mongo_db_connection_string or self.db_connection
 
 
-@lru_cache()
+@lru_cache
 def get_settings() -> Settings:
     """Return a cached Settings instance. Cached to avoid re-reading .env repeatedly."""
     return Settings()

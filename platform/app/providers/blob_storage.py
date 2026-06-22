@@ -12,17 +12,15 @@ SECURITY:
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import Optional
-
-from azure.identity import DefaultAzureCredential
+from datetime import UTC, datetime, timedelta
 from urllib.parse import unquote, urlparse
 
+from azure.identity import DefaultAzureCredential
 from azure.storage.blob import (
     BlobSasPermissions,
     BlobServiceClient,
-    ContentSettings,
     ContainerClient,
+    ContentSettings,
     generate_blob_sas,
 )
 
@@ -43,7 +41,7 @@ class BlobStorageProvider:
     def __init__(self) -> None:
         settings = get_settings()
         self._account_name: str = settings.azure_storage_account_name
-        self._account_key: Optional[str] = settings.azure_storage_account_key or None
+        self._account_key: str | None = settings.azure_storage_account_key or None
         self._use_shared_key: bool = bool(self._account_key)
 
         conn_str = settings.azure_storage_connection_string
@@ -137,7 +135,7 @@ class BlobStorageProvider:
 
         SECURITY: SAS token string is never logged.
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         start = now - timedelta(minutes=5)   # small clock-skew buffer
         expiry = now + timedelta(hours=expiry_hours)
 
@@ -226,7 +224,7 @@ class SASGenerator:
         self._account_name: str = (
             settings.storage_account_name or settings.azure_storage_account_name
         )
-        self._account_key: Optional[str] = (
+        self._account_key: str | None = (
             settings.accountkey or settings.azure_storage_account_key or None
         )
         self._azure_enabled: bool = settings.azure_blob_sas_enabled
@@ -246,8 +244,8 @@ class SASGenerator:
             container_name = parts[0]
             blob_path = "/".join(parts[1:])
 
-            expiry = datetime.now(timezone.utc) + timedelta(hours=self._sas_expiry_hours)
-            start = datetime.now(timezone.utc) - timedelta(minutes=5)
+            expiry = datetime.now(UTC) + timedelta(hours=self._sas_expiry_hours)
+            start = datetime.now(UTC) - timedelta(minutes=5)
 
             if self._use_account_key:
                 sas_token = generate_blob_sas(

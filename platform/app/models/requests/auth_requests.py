@@ -35,7 +35,7 @@ class TenantLoginRequest(BaseModel):
 class TenantRegisterRequest(BaseModel):
     email: str
     password: str
-    tenant_name: str = Field("", alias="tenantName")
+    tenant_name: str = Field(..., alias="tenantName")
     name: str = ""
 
     model_config = {"populate_by_name": True}

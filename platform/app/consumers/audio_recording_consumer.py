@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from app.consumers.base_consumer import BaseConsumer, PermanentError
 
@@ -127,7 +127,7 @@ class AudioRecordingConsumer(BaseConsumer):
                 msg.conference_id, type(exc).__name__,
             )
 
-    def _get_or_create_session(self, conference_id: str) -> Optional[Any]:
+    def _get_or_create_session(self, conference_id: str) -> Any | None:
         """Return an AudioCaptureService for *conference_id*, creating one lazily.
 
         Once init fails for a conference_id, that id is added to _failed_sessions so

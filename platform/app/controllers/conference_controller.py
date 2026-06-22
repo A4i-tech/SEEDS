@@ -10,11 +10,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.models.requests.call_requests import CreateConferenceRequest
 from app.platform.auth.dependencies import (
     get_current_user,
-    require_teacher,
     require_conference_owner,
+    require_teacher,
 )
 from app.platform.lifespan import get_conference_manager
-from app.services.conference_service import ConferenceOwnershipService, get_conference_ownership_service
+from app.services.conference_service import (
+    ConferenceOwnershipService,
+    get_conference_ownership_service,
+)
 
 logger = logging.getLogger(__name__)
 

@@ -12,7 +12,7 @@ SECURITY:
 from __future__ import annotations
 
 import logging
-from typing import Any, List
+from typing import Any
 
 from fastapi import Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -114,7 +114,9 @@ async def login(
     repo = UserRepository(db)
 
     if auth_type == "firebase":
-        from app.platform.auth.providers.firebase_provider import verify_firebase_token  # noqa: PLC0415
+        from app.platform.auth.providers.firebase_provider import (
+            verify_firebase_token,  # noqa: PLC0415
+        )
 
         try:
             firebase_payload = await verify_firebase_token(password)  # password = ID token
@@ -348,7 +350,7 @@ async def get_school_admin_profile(
 
 async def get_tenant_names(
     db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
-) -> List[str]:
+) -> list[str]:
     """Return a list of all tenant names (public endpoint)."""
     cursor = db["users"].find({"role": UserRole.TENANT.value}, {"tenant_name": 1, "name": 1})
     docs = await cursor.to_list(length=None)

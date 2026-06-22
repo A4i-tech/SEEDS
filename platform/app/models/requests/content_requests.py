@@ -1,7 +1,7 @@
 """Request schemas for content/quiz endpoints."""
 from __future__ import annotations
 
-from typing import Any, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -11,26 +11,26 @@ class ContentCreateRequest(BaseModel):
 
     type: str
     language: str
-    title: Optional[dict[str, Any]] = None
-    theme: Optional[dict[str, Any]] = None
-    audio_content: Optional[List[Any]] = Field(None, alias="audioContent")
-    description: Optional[str] = None
-    is_pull_model: Optional[bool] = Field(None, alias="isPullModel")
-    is_teacher_app: Optional[bool] = Field(None, alias="isTeacherApp")
+    title: dict[str, Any] | None = None
+    theme: dict[str, Any] | None = None
+    audio_content: list[Any] | None = Field(None, alias="audioContent")
+    description: str | None = None
+    is_pull_model: bool | None = Field(None, alias="isPullModel")
+    is_teacher_app: bool | None = Field(None, alias="isTeacherApp")
 
 
 class ContentUpdateRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     id: str = Field(..., alias="_id")
-    title: Optional[dict[str, Any]] = None
-    theme: Optional[dict[str, Any]] = None
-    description: Optional[str] = None
-    type: Optional[str] = None
-    language: Optional[str] = None
-    audio_content: Optional[List[Any]] = Field(None, alias="audioContent")
-    is_pull_model: Optional[bool] = Field(None, alias="isPullModel")
-    is_teacher_app: Optional[bool] = Field(None, alias="isTeacherApp")
+    title: dict[str, Any] | None = None
+    theme: dict[str, Any] | None = None
+    description: str | None = None
+    type: str | None = None
+    language: str | None = None
+    audio_content: list[Any] | None = Field(None, alias="audioContent")
+    is_pull_model: bool | None = Field(None, alias="isPullModel")
+    is_teacher_app: bool | None = Field(None, alias="isTeacherApp")
 
 
 class QuizCreateRequest(BaseModel):
@@ -38,16 +38,16 @@ class QuizCreateRequest(BaseModel):
 
     type: str
     language: str
-    title: Optional[dict[str, Any]] = None
-    theme: Optional[dict[str, Any]] = None
-    audio_content: Optional[List[Any]] = Field(None, alias="audioContent")
-    description: Optional[str] = None
-    is_pull_model: Optional[bool] = Field(None, alias="isPullModel")
-    is_teacher_app: Optional[bool] = Field(None, alias="isTeacherApp")
-    local_title: Optional[str] = Field(None, alias="localTitle")
-    local_theme: Optional[str] = Field(None, alias="localTheme")
-    positive_marks: Optional[float] = Field(None, alias="positiveMarks")
-    negative_marks: Optional[float] = Field(None, alias="negativeMarks")
-    questions: Optional[List[Any]] = None
-    options: Optional[List[Any]] = None
-    correct_answers: Optional[List[Any]] = Field(None, alias="correctAnswers")
+    title: dict[str, Any] | None = None
+    theme: dict[str, Any] | None = None
+    audio_content: list[Any] | None = Field(None, alias="audioContent")
+    description: str | None = None
+    is_pull_model: bool | None = Field(None, alias="isPullModel")
+    is_teacher_app: bool | None = Field(None, alias="isTeacherApp")
+    local_title: str | None = Field(None, alias="localTitle")
+    local_theme: str | None = Field(None, alias="localTheme")
+    positive_marks: float | None = Field(None, alias="positiveMarks")
+    negative_marks: float | None = Field(None, alias="negativeMarks")
+    questions: list[Any] | None = None
+    options: list[Any] | None = None
+    correct_answers: list[Any] | None = Field(None, alias="correctAnswers")

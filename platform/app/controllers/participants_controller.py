@@ -16,7 +16,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.platform.auth.dependencies import get_current_user, require_conference_owner
+from app.platform.auth.dependencies import require_conference_owner
 
 router = APIRouter(prefix="/conference", tags=["Participants"])
 
@@ -54,7 +54,9 @@ async def remove_participant(
     phone_number: str = Query(...),
     user: dict[str, Any] = Depends(require_conference_owner),
 ) -> Any:
-    from app.services.confevents.remove_participant_event import RemoveParticipantEvent  # noqa: PLC0415
+    from app.services.confevents.remove_participant_event import (
+        RemoveParticipantEvent,  # noqa: PLC0415
+    )
 
     conf = _get_conf_or_404(conference_id)
     await conf.queue_event(RemoveParticipantEvent(phone_number=phone_number, conf_call=conf))
@@ -80,7 +82,9 @@ async def unmute_participant(
     phone_number: str = Query(...),
     user: dict[str, Any] = Depends(require_conference_owner),
 ) -> Any:
-    from app.services.confevents.unmute_participant_event import UnmuteParticipantEvent  # noqa: PLC0415
+    from app.services.confevents.unmute_participant_event import (
+        UnmuteParticipantEvent,  # noqa: PLC0415
+    )
 
     conf = _get_conf_or_404(conference_id)
     await conf.queue_event(UnmuteParticipantEvent(phone_number=phone_number, conf_call=conf))

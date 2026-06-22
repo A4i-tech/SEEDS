@@ -6,8 +6,7 @@ Ported from IVRv2/app/utils/ — contains only the subset used by FSM internals.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone, timedelta
-from typing import Dict, Optional
+from datetime import datetime, timedelta, timezone
 
 # IST is UTC+5:30
 _IST = timezone(timedelta(hours=5, minutes=30))
@@ -22,7 +21,7 @@ def get_ist_date_string() -> str:
 # Language utilities
 # ---------------------------------------------------------------------------
 
-_LANGUAGE_MAPPING: Dict[str, str] = {
+_LANGUAGE_MAPPING: dict[str, str] = {
     "kannada": "kn-IN",
     "english": "en-US",
     "hindi": "hi-IN",
@@ -44,7 +43,7 @@ def get_vonage_language_code(language: str) -> str:
 # Daily limit announcements
 # ---------------------------------------------------------------------------
 
-_DAILY_LIMIT_TEMPLATES: Dict[str, str] = {
+_DAILY_LIMIT_TEMPLATES: dict[str, str] = {
     "kannada": (
         "ನೀವು ಇಂದಿನ ದೈನಂದಿನ ಆಲಿಸುವ ಮಿತಿಯನ್ನು ತಲುಪಿದ್ದೀರಿ. "
         "ದಯವಿಟ್ಟು ನಾಳೆ ಮತ್ತೆ ಕರೆ ಮಾಡಿ."

@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
-from typing import Any, Optional
+from enum import StrEnum
+from typing import Any
 
 from bson import ObjectId
 from pydantic import BaseModel, ConfigDict, Field
@@ -42,7 +42,7 @@ class PyObjectId(str):
         raise ValueError(f"Invalid ObjectId value: {v!r}")
 
 
-class UserRole(str, Enum):
+class UserRole(StrEnum):
     TEACHER = "teacher"
     STUDENT = "student"
     TENANT = "tenant"
@@ -58,35 +58,35 @@ class User(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    id: Optional[str] = Field(None, alias="_id")
+    id: str | None = Field(None, alias="_id")
     role: UserRole
     # Contact
-    email: Optional[str] = None
-    phone: Optional[str] = None  # phoneNumber in legacy models
+    email: str | None = None
+    phone: str | None = None  # phoneNumber in legacy models
     # Auth
-    hashed_password: Optional[str] = None
-    firebase_uid: Optional[str] = None  # UserInfo._id is firebase uid
+    hashed_password: str | None = None
+    firebase_uid: str | None = None  # UserInfo._id is firebase uid
     # Relationships
-    tenant_id: Optional[str] = None   # ObjectId stored as str
-    school_id: Optional[str] = None   # ObjectId stored as str
+    tenant_id: str | None = None   # ObjectId stored as str
+    school_id: str | None = None   # ObjectId stored as str
     # Profile
     name: str
-    tenant_name: Optional[str] = None  # Tenant.tenantName
-    organisation: Optional[str] = None  # UserInfo.organisation
-    language_preference: Optional[str] = None
+    tenant_name: str | None = None  # Tenant.tenantName
+    organisation: str | None = None  # UserInfo.organisation
+    language_preference: str | None = None
     # Encryption fields (UserInfo)
-    encrypted_phone_number: Optional[str] = None
-    encryption_iv: Optional[str] = None
-    encryption_salt: Optional[str] = None
+    encrypted_phone_number: str | None = None
+    encryption_iv: str | None = None
+    encryption_salt: str | None = None
     # Flags
     is_active: bool = True
     # Timestamps
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-    legacy_created_at: Optional[int] = Field(None, alias="creation_time")  # epoch ms
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    legacy_created_at: int | None = Field(None, alias="creation_time")  # epoch ms
 
     @classmethod
-    def from_mongo(cls, doc: dict) -> "User":
+    def from_mongo(cls, doc: dict) -> User:
         """Convert a raw MongoDB document to a User instance.
 
         Converts ObjectId values to str so Pydantic validation passes.
@@ -109,15 +109,15 @@ class UserCreate(BaseModel):
 
     role: UserRole
     name: str
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    hashed_password: Optional[str] = None
-    firebase_uid: Optional[str] = None
-    tenant_id: Optional[str] = None
-    school_id: Optional[str] = None
-    tenant_name: Optional[str] = None
-    organisation: Optional[str] = None
-    language_preference: Optional[str] = None
+    email: str | None = None
+    phone: str | None = None
+    hashed_password: str | None = None
+    firebase_uid: str | None = None
+    tenant_id: str | None = None
+    school_id: str | None = None
+    tenant_name: str | None = None
+    organisation: str | None = None
+    language_preference: str | None = None
     is_active: bool = True
 
 
@@ -126,12 +126,12 @@ class UserUpdate(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    name: Optional[str] = None
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    hashed_password: Optional[str] = None
-    tenant_id: Optional[str] = None
-    school_id: Optional[str] = None
-    language_preference: Optional[str] = None
-    is_active: Optional[bool] = None
-    organisation: Optional[str] = None
+    name: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    hashed_password: str | None = None
+    tenant_id: str | None = None
+    school_id: str | None = None
+    language_preference: str | None = None
+    is_active: bool | None = None
+    organisation: str | None = None

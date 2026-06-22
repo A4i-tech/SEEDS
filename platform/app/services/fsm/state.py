@@ -5,7 +5,8 @@ Ported from IVRv2/app/fsm/state.py — import paths updated.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, List, Optional
+import contextlib
+from typing import TYPE_CHECKING
 
 from app.providers.vonage_actions.base.action import Action
 from app.providers.vonage_actions.base.fsm_operation import FSMOperation
@@ -19,12 +20,16 @@ if TYPE_CHECKING:
 
 # Lazy imports to avoid circular dependency with FSM operations package
 def _get_empty_state_operation():  # type: ignore[no-untyped-def]
-    from app.services.fsm.operations.empty_state_operation import EmptyStateOperation  # noqa: PLC0415
+    from app.services.fsm.operations.empty_state_operation import (
+        EmptyStateOperation,  # noqa: PLC0415
+    )
     return EmptyStateOperation()
 
 
 def _get_empty_process_state_output():  # type: ignore[no-untyped-def]
-    from app.services.fsm.operations.empty_process_state_output import EmptyProcessStateOutput  # noqa: PLC0415
+    from app.services.fsm.operations.empty_process_state_output import (
+        EmptyProcessStateOutput,  # noqa: PLC0415
+    )
     return EmptyProcessStateOutput()
 
 
@@ -34,15 +39,15 @@ class State:
     def __init__(
         self,
         state_id: str,
-        actions: Optional[List[Action]] = None,
-        post_operation: Optional[FSMOperation] = None,
-        pre_operation: Optional[FSMOperation] = None,
-        process_operation_output_into_actions: Optional[ProcessOperationOutput] = None,
+        actions: list[Action] | None = None,
+        post_operation: FSMOperation | None = None,
+        pre_operation: FSMOperation | None = None,
+        process_operation_output_into_actions: ProcessOperationOutput | None = None,
         menu=None,  # Optional[Menu] — avoid circular import
     ) -> None:
         self.id = state_id
-        self.actions: List[Action] = actions if actions is not None else []
-        self.transition_map: Dict[str, Transition] = {}
+        self.actions: list[Action] = actions if actions is not None else []
+        self.transition_map: dict[str, Transition] = {}
         self.post_operation: FSMOperation = (
             post_operation if post_operation is not None else _get_empty_state_operation()
         )
@@ -61,12 +66,12 @@ class State:
             raise ValueError(f"Transition for input '{transition.input}' already exists")
         self.transition_map[transition.input] = transition
 
-    def get_stream_action_with_record_playback_option(self) -> List[StreamAction]:
+    def get_stream_action_with_record_playback_option(self) -> list[StreamAction]:
         return [
             a for a in self.actions if isinstance(a, StreamAction) and a.record_playback_time
         ]
 
-    def serialize_transitions(self) -> List[dict]:
+    def serialize_transitions(self) -> list[dict]:
         return [t.to_json() for t in self.transition_map.values()]
 
     def serialize(self) -> dict:
@@ -80,16 +85,14 @@ class State:
         }
 
     @staticmethod
-    def from_json(data: dict) -> "State":
+    def from_json(data: dict) -> State:
         state = State(state_id=data["id"])
         for action_json in data["actions"]:
             state.actions.append(Action.from_json(action_json))
         if "menu" in data and data["menu"] is not None:
             from app.models.ivr_state import Menu  # noqa: PLC0415  # type: ignore[attr-defined]
-            try:
+            with contextlib.suppress(Exception):  # noqa: BLE001
                 state.menu = Menu(**data["menu"])
-            except Exception:  # noqa: BLE001
-                pass
         if (
             "post_operation" in data
             and "pre_operation" in data

@@ -1,17 +1,17 @@
 """Participant domain model (from ConferenceV2 participant.py)."""
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class Role(str, Enum):
+class Role(StrEnum):
     TEACHER = "Teacher"
     STUDENT = "Student"
 
 
-class CallStatus(str, Enum):
+class CallStatus(StrEnum):
     CONNECTED = "connected"
     DISCONNECTED = "disconnected"
     CONNECTING = "connecting"

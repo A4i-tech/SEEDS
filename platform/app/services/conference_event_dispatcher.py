@@ -7,9 +7,8 @@ Ported from ConferenceV2 routers/webhooks.py process_event / process_conversatio
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from pydantic import ValidationError
 
@@ -17,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 async def dispatch_conference_event(
-    event_data: Dict[str, Any],
+    event_data: dict[str, Any],
     conference_id: str,
     conference_manager: Any,
     caller_state_manager: Any,
@@ -27,8 +26,12 @@ async def dispatch_conference_event(
     This runs as a BackgroundTask so errors must not bubble to FastAPI.
     """
     from app.models.participant import CallStatus  # noqa: PLC0415
-    from app.services.confevents.vonage.vonage_call_leg_transfer_event import VonageCallTransferEvent  # noqa: PLC0415
-    from app.services.confevents.vonage.vonage_call_status_change_event import VonageCallStatusChangeEvent  # noqa: PLC0415
+    from app.services.confevents.vonage.vonage_call_leg_transfer_event import (
+        VonageCallTransferEvent,  # noqa: PLC0415
+    )
+    from app.services.confevents.vonage.vonage_call_status_change_event import (
+        VonageCallStatusChangeEvent,  # noqa: PLC0415
+    )
 
     conf = conference_manager.get_conference(conference_id)
     if conf is None:
@@ -66,7 +69,7 @@ async def dispatch_conference_event(
 
 
 async def dispatch_conversation_event(
-    event_data: Dict[str, Any],
+    event_data: dict[str, Any],
     conference_manager: Any,
 ) -> None:
     """Route a Vonage conversation event (DTMF) to the conference."""

@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 import hmac
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
@@ -24,11 +24,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["WebSocket"])
 
 # Singleton hold detector to cache embeddings across connections
-_hold_detector_instance: Optional[Any] = None
+_hold_detector_instance: Any | None = None
 _hold_detector_lock = asyncio.Lock()
 
 
-async def _get_hold_detector() -> Optional[Any]:
+async def _get_hold_detector() -> Any | None:
     global _hold_detector_instance
     if _hold_detector_instance is None:
         async with _hold_detector_lock:
@@ -124,7 +124,7 @@ async def websocket_endpoint(websocket: WebSocket, conference_id: str) -> None:
     # --- 2. Conference ID allowlist ---
     try:
         exists = await asyncio.wait_for(_check_conference_exists(conference_id), timeout=2.0)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.warning("websocket: conference lookup timed out conf_id=%s, closing 1008", conference_id)
         await websocket.close(code=1008)
         return
@@ -150,9 +150,9 @@ async def websocket_endpoint(websocket: WebSocket, conference_id: str) -> None:
     conf.set_websocket(websocket)
     logger.info("websocket: accepted conf_id=%s", conference_id)
 
-    transcriber: Optional[Any] = None
-    hold_detector: Optional[Any] = None
-    capture_session: Optional[Any] = None
+    transcriber: Any | None = None
+    hold_detector: Any | None = None
+    capture_session: Any | None = None
 
     try:
         from app.services.audio.transcriber import AudioTranscriber  # noqa: PLC0415
@@ -172,7 +172,9 @@ async def websocket_endpoint(websocket: WebSocket, conference_id: str) -> None:
         except Exception as exc:
             logger.error("websocket: audio capture init failed conf_id=%s — %s", conference_id, exc)
 
-    from app.services.audio.websocket_audio_processor import handle_incoming_message  # noqa: PLC0415
+    from app.services.audio.websocket_audio_processor import (
+        handle_incoming_message,  # noqa: PLC0415
+    )
 
     try:
         while True:

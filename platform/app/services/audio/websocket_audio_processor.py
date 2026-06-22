@@ -14,8 +14,8 @@ import json
 import logging
 import os
 from collections import deque
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ def _remember_transcript(conf: Any, text: str) -> str:
     window = getattr(conf, "_hold_transcript_window", None)
     if window is None:
         window = deque(maxlen=TRANSCRIPT_WINDOW_SIZE)
-        setattr(conf, "_hold_transcript_window", window)
+        conf._hold_transcript_window = window
     window.append(normalized)
     return " ".join(window)
 
@@ -47,7 +47,7 @@ async def process_audio_message(
     transcriber: Any,
     hold_detector: Any,
     conference_id: str,
-    capture_session: Optional[Any] = None,
+    capture_session: Any | None = None,
 ) -> None:
     """Process a single binary audio frame: transcribe, detect hold, update state.
 
@@ -87,13 +87,13 @@ async def process_audio_message(
 
             conf.state.hold_detected = True
             conf.state.action_history.append(ActionHistory(
-                timestamp=datetime.now(timezone.utc).isoformat(),
+                timestamp=datetime.now(UTC).isoformat(),
                 action_type=ActionType.SYSTEM_AUDIO_ANALYSIS,
                 metadata=analysis_log,
                 owner="system",
             ))
             conf.state.action_history.append(ActionHistory(
-                timestamp=datetime.now(timezone.utc).isoformat(),
+                timestamp=datetime.now(UTC).isoformat(),
                 action_type=ActionType.SYSTEM_HOLD_DETECTED,
                 metadata={"conference_id": conference_id, "status": "hold_detected", "scope": "conference"},
                 owner="system",
@@ -108,10 +108,10 @@ async def process_audio_message(
 async def handle_incoming_message(
     msg: dict[str, Any],
     conf: Any,
-    transcriber: Optional[Any],
-    hold_detector: Optional[Any],
+    transcriber: Any | None,
+    hold_detector: Any | None,
     conference_id: str,
-    capture_session: Optional[Any] = None,
+    capture_session: Any | None = None,
 ) -> bool:
     """Handle a raw WebSocket message dict.  Returns False when the caller should stop."""
     if msg.get("type") == "websocket.disconnect":

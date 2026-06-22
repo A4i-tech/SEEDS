@@ -1,7 +1,6 @@
 """Quiz domain model (from QuizData.js + IVRv2 quiz_model_classes.py)."""
 from __future__ import annotations
 
-from typing import List, Optional
 import uuid
 
 from bson import ObjectId
@@ -24,7 +23,7 @@ class QuizQuestion(BaseModel):
     """A single quiz question with its options and correct answer."""
 
     question: QuizOption
-    options: List[QuizOption] = Field(default_factory=list)
+    options: list[QuizOption] = Field(default_factory=list)
     correct_option_id: str
 
     model_config = ConfigDict(populate_by_name=True)
@@ -35,9 +34,9 @@ class Quiz(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    id: Optional[str] = Field(None, alias="_id")
-    tenant_id: Optional[str] = None  # ObjectId stored as str; ref Tenant
-    school_id: Optional[str] = None
+    id: str | None = Field(None, alias="_id")
+    tenant_id: str | None = None  # ObjectId stored as str; ref Tenant
+    school_id: str | None = None
     created_by: str = Field(default="", alias="createdBy")
     creation_time: int = -1
     is_pull_model: bool = Field(default=False, alias="isPullModel")
@@ -48,10 +47,10 @@ class Quiz(BaseModel):
     theme: TextContent
     positive_marks: float = Field(..., alias="positiveMarks")
     negative_marks: float = Field(..., alias="negativeMarks")
-    questions: List[QuizQuestion] = Field(default_factory=list)
+    questions: list[QuizQuestion] = Field(default_factory=list)
 
     @classmethod
-    def from_mongo(cls, doc: dict) -> "Quiz":
+    def from_mongo(cls, doc: dict) -> Quiz:
         if doc is None:
             return None  # type: ignore[return-value]
         d = dict(doc)
@@ -73,8 +72,8 @@ class QuizCreate(BaseModel):
     theme: TextContent
     positive_marks: float = Field(..., alias="positiveMarks")
     negative_marks: float = Field(..., alias="negativeMarks")
-    questions: List[QuizQuestion] = Field(default_factory=list)
-    school_id: Optional[str] = None
+    questions: list[QuizQuestion] = Field(default_factory=list)
+    school_id: str | None = None
     created_by: str = Field(default="", alias="createdBy")
     is_pull_model: bool = Field(default=False, alias="isPullModel")
     is_teacher_app: bool = Field(default=False, alias="isTeacherApp")

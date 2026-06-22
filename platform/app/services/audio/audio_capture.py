@@ -11,12 +11,12 @@ SECURITY:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import os
 import tempfile
 import wave
 from datetime import datetime
-from typing import Optional
 
 logger = logging.getLogger("audio-capture")
 
@@ -51,9 +51,9 @@ class AudioCaptureService:
         self.upload_max_retries = int(os.getenv("AUDIO_BLOB_UPLOAD_MAX_RETRIES", "3"))
         self.start_time = datetime.utcnow()
         self.blob_service_client = None
-        self._wav_writer: Optional[wave.Wave_write] = None
+        self._wav_writer: wave.Wave_write | None = None
         self._file = None
-        self.file_path: Optional[str] = None
+        self.file_path: str | None = None
 
         if not self.enabled:
             return
@@ -62,7 +62,7 @@ class AudioCaptureService:
         timestamp = self.start_time.strftime("%Y%m%dT%H%M%SZ")
         self.file_path = os.path.join(capture_dir, f"{conference_id}-{timestamp}.wav")
         self._file = open(self.file_path, "wb")  # noqa: SIM115
-        self._wav_writer = wave.open(self._file, "wb")
+        self._wav_writer = wave.open(self._file, "wb")  # noqa: SIM115
         self._wav_writer.setnchannels(self.CHANNELS)
         self._wav_writer.setsampwidth(self.SAMPLE_WIDTH)
         self._wav_writer.setframerate(self.INPUT_RATE)
@@ -94,7 +94,7 @@ class AudioCaptureService:
             os.fsync(self._file.fileno())
             self._file.close()
 
-    async def finalize(self) -> Optional[str]:
+    async def finalize(self) -> str | None:
         """Close WAV file, upload to Azure, optionally delete local copy."""
         if not self.enabled or not self.file_path:
             return None
@@ -109,7 +109,7 @@ class AudioCaptureService:
             self._cleanup_local()
         return blob_url
 
-    async def flush_and_upload(self) -> Optional[str]:
+    async def flush_and_upload(self) -> str | None:
         return await self.finalize()
 
     def _do_upload(self, blob_name: str) -> str:
@@ -129,7 +129,7 @@ class AudioCaptureService:
             )
         return blob_client.url
 
-    async def _upload_to_azure(self) -> Optional[str]:
+    async def _upload_to_azure(self) -> str | None:
         blob_name = self._build_blob_name()
         last_error = None
         for attempt in range(1, self.upload_max_retries + 1):
@@ -139,7 +139,7 @@ class AudioCaptureService:
                     timeout=self.upload_timeout,
                 )
                 return url
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 last_error = "timeout"
                 logger.warning("audio_capture: upload attempt %d/%d timed out", attempt, self.upload_max_retries)
             except Exception as exc:
@@ -152,10 +152,8 @@ class AudioCaptureService:
 
     def _cleanup_local(self) -> None:
         if self.file_path and os.path.exists(self.file_path):
-            try:
+            with contextlib.suppress(OSError):
                 os.remove(self.file_path)
-            except OSError:
-                pass
 
     def _build_blob_name(self) -> str:
         date_path = self.start_time.strftime("%Y/%m/%d")

@@ -13,8 +13,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING, Any, AsyncGenerator, Optional
+from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI
 
@@ -30,10 +31,10 @@ logger = logging.getLogger(__name__)
 # Conference manager singleton accessor
 # ---------------------------------------------------------------------------
 
-_conference_manager: Optional["ConferenceCallManager"] = None
+_conference_manager: ConferenceCallManager | None = None
 
 
-def get_conference_manager() -> "ConferenceCallManager":
+def get_conference_manager() -> ConferenceCallManager:
     """Return the active ConferenceCallManager singleton.
 
     Raises RuntimeError if called before lifespan startup.
@@ -43,17 +44,16 @@ def get_conference_manager() -> "ConferenceCallManager":
     return _conference_manager
 
 
-def _init_conference_manager() -> "ConferenceCallManager":
+def _init_conference_manager() -> ConferenceCallManager:
     """Construct and return the ConferenceCallManager using platform settings."""
     global _conference_manager
 
     settings = get_settings()
 
+    import base64
+
     from app.providers.vonage_api import VonageAPIProvider  # noqa: PLC0415
     from app.services.conference_service import ConferenceCallManager  # noqa: PLC0415
-
-    import base64
-    import os
 
     # Decode base64 private key if set
     private_key_raw = settings.vonage_application_private_key64
@@ -119,13 +119,13 @@ def _make_consumer_tasks(conference_manager: Any) -> list[asyncio.Task]:  # type
     Imports are deferred so that missing optional deps only fail at startup,
     not at module import time.
     """
-    from app.platform.database import get_database  # noqa: PLC0415
-    from app.consumers.audio_recording_consumer import AudioRecordingConsumer  # noqa: PLC0415
     from app.consumers.audio_analysis_consumer import AudioAnalysisConsumer  # noqa: PLC0415
+    from app.consumers.audio_recording_consumer import AudioRecordingConsumer  # noqa: PLC0415
     from app.consumers.call_event_consumer import CallEventConsumer  # noqa: PLC0415
-    from app.consumers.dtmf_consumer import DtmfConsumer  # noqa: PLC0415
     from app.consumers.call_webhook_consumer import CallWebhookConsumer  # noqa: PLC0415
     from app.consumers.content_job_consumer import ContentJobConsumer  # noqa: PLC0415
+    from app.consumers.dtmf_consumer import DtmfConsumer  # noqa: PLC0415
+    from app.platform.database import get_database  # noqa: PLC0415
 
     db = get_database()
 

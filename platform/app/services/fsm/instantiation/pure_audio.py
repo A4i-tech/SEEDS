@@ -60,12 +60,12 @@ class PureAudio:
 
     def generate_state(
         self,
-        fsm: "FSM",
+        fsm: FSM,
         prefix_state_id: str,
         parent_block_state_id: str,
         key_chosen: int,
         level: int,
-    ) -> "FSM":
+    ) -> FSM:
 
         settings = get_settings()
         pullMenuMainUrl = get_pull_menu_main_url()
@@ -97,13 +97,17 @@ class PureAudio:
                         )
                     )
 
-            from app.services.fsm.instantiation.speed_control import get_speed_instruction  # noqa: PLC0415
+            from app.services.fsm.instantiation.speed_control import (
+                get_speed_instruction,  # noqa: PLC0415
+            )
             speed_instruction = get_speed_instruction(self.language)
             actions.append(
                 TalkAction(text=speed_instruction, level=1.0, bargeIn=True, loop=1, language=vonage_language)
             )
 
-            from app.services.fsm.instantiation.pause_announcement import get_pause_instruction  # noqa: PLC0415
+            from app.services.fsm.instantiation.pause_announcement import (
+                get_pause_instruction,  # noqa: PLC0415
+            )
             pause_instruction = get_pause_instruction(self.language)
             actions.append(
                 TalkAction(text=pause_instruction, level=1.0, bargeIn=True, loop=1, language=vonage_language)

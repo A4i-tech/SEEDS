@@ -5,9 +5,7 @@ Ported from IVRv2/app/utils/duration_announcement.py.
 
 from __future__ import annotations
 
-from typing import Dict, Optional
-
-_DURATION_TEMPLATES: Dict[str, Dict[str, str]] = {
+_DURATION_TEMPLATES: dict[str, dict[str, str]] = {
     "kannada": {
         "full": "ಈ ವಿಷಯವು {minutes} ನಿಮಿಷ {seconds} ಸೆಕೆಂಡುಗಳ ಅವಧಿಯದ್ದಾಗಿದೆ",
         "minutes_only": "ಈ ವಿಷಯವು {minutes} ನಿಮಿಷಗಳ ಅವಧಿಯದ್ದಾಗಿದೆ",
@@ -41,7 +39,7 @@ _DURATION_TEMPLATES: Dict[str, Dict[str, str]] = {
 }
 
 
-def format_duration_announcement(duration_seconds: Optional[float], language: str) -> str:
+def format_duration_announcement(duration_seconds: float | None, language: str) -> str:
     if duration_seconds is None or duration_seconds <= 0:
         return ""
     minutes = int(duration_seconds // 60)

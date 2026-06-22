@@ -20,15 +20,14 @@ import logging
 import traceback
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 from fastapi import Depends, WebSocket
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.action_history import ActionHistory, ActionType
-from app.models.conference_state import ConferenceCallState, AutoEndState
+from app.models.conference_state import ConferenceCallState
 from app.models.participant import CallStatus, Participant, Role
-from app.models.playback_state import AudioContentState
 from app.platform.auth.dependencies import get_db
 from app.platform.settings import get_settings
 from app.services.confevents.base_event import ConferenceEvent
@@ -69,14 +68,14 @@ class ConferenceCall:
         self.state = ConferenceCallState()
 
         self.event_queue: asyncio.Queue[ConferenceEvent] = asyncio.Queue()
-        self.event_queue_processing_task: Optional[asyncio.Task[None]] = None
+        self.event_queue_processing_task: asyncio.Task[None] | None = None
 
         # Remote audio relay (websocket-service → hold detection)
-        self._remote_audio_queue: Optional[asyncio.Queue[bytes]] = None
-        self._remote_audio_task: Optional[asyncio.Task[None]] = None
+        self._remote_audio_queue: asyncio.Queue[bytes] | None = None
+        self._remote_audio_task: asyncio.Task[None] | None = None
         self._capture_session: Any = None
-        self._capture_finalize_task: Optional[asyncio.Task[Optional[str]]] = None
-        self._websocket: Optional[WebSocket] = None
+        self._capture_finalize_task: asyncio.Task[str | None] | None = None
+        self._websocket: WebSocket | None = None
         self._hold_transcript_window: Any = None
 
     # ------------------------------------------------------------------
@@ -86,10 +85,10 @@ class ConferenceCall:
     def set_participant_state(
         self,
         teacher_phone: str,
-        student_phones: List[str],
-        leader_phone: Optional[str] = None,
-        teacher_name: Optional[str] = None,
-        student_names: Optional[List[str]] = None,
+        student_phones: list[str],
+        leader_phone: str | None = None,
+        teacher_name: str | None = None,
+        student_names: list[str] | None = None,
     ) -> None:
         self.state.participants = {}
         teacher = Participant(
@@ -145,7 +144,7 @@ class ConferenceCall:
             event = await self.event_queue.get()
             try:
                 await asyncio.wait_for(event.execute_event(), timeout=timeout)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning("conference_service: event %s timed out", type(event).__name__)
             except Exception as exc:
                 logger.error("conference_service: event %s error — %s", type(event).__name__, exc)
@@ -161,8 +160,11 @@ class ConferenceCall:
         """Stream a system audio message via the websocket-service."""
         if self.state.is_running and self.communication_api.get_is_websocket_connected():
             try:
+                from app.models.ws_service_message import (  # noqa: PLC0415
+                    MessageType,
+                    WebsocketServiceMessage,
+                )
                 from app.providers.websocket_client import WebsocketClientProvider  # noqa: PLC0415
-                from app.models.ws_service_message import MessageType, WebsocketServiceMessage  # noqa: PLC0415
 
                 ws = WebsocketClientProvider()
                 await ws.send_message(WebsocketServiceMessage(
@@ -177,7 +179,7 @@ class ConferenceCall:
     # WebSocket (inbound audio from Vonage)
     # ------------------------------------------------------------------
 
-    def set_websocket(self, websocket: Optional[WebSocket]) -> None:
+    def set_websocket(self, websocket: WebSocket | None) -> None:
         self._websocket = websocket
 
     async def close_websocket(self) -> None:
@@ -213,11 +215,13 @@ class ConferenceCall:
         from app.services.audio.audio_capture import AudioCaptureService  # noqa: PLC0415
         from app.services.audio.hold_detector import HoldDetector  # noqa: PLC0415
         from app.services.audio.transcriber import AudioTranscriber  # noqa: PLC0415
-        from app.services.audio.websocket_audio_processor import process_audio_message  # noqa: PLC0415
+        from app.services.audio.websocket_audio_processor import (
+            process_audio_message,  # noqa: PLC0415
+        )
 
         settings = get_settings()
-        transcriber: Optional[AudioTranscriber] = None
-        hold_detector: Optional[HoldDetector] = None
+        transcriber: AudioTranscriber | None = None
+        hold_detector: HoldDetector | None = None
 
         if settings.audio_capture_enabled and self._capture_session is None:
             try:
@@ -254,7 +258,7 @@ class ConferenceCall:
         except Exception as exc:
             logger.exception("conference_service: remote audio relay error — %s", exc)
 
-    def schedule_capture_finalize(self) -> Optional[asyncio.Task[Optional[str]]]:
+    def schedule_capture_finalize(self) -> asyncio.Task[str | None] | None:
         if self._capture_finalize_task is not None and not self._capture_finalize_task.done():
             return self._capture_finalize_task
         if self._capture_session is None:
@@ -263,13 +267,13 @@ class ConferenceCall:
         self._capture_finalize_task.add_done_callback(self._log_capture_finalize_result)
         return self._capture_finalize_task
 
-    def _log_capture_finalize_result(self, task: asyncio.Task[Optional[str]]) -> None:
+    def _log_capture_finalize_result(self, task: asyncio.Task[str | None]) -> None:
         try:
             task.result()
         except Exception:
             logger.exception("conference_service: capture finalize failed for %s", self.conf_id)
 
-    async def finalize_capture_session(self) -> Optional[str]:
+    async def finalize_capture_session(self) -> str | None:
         if self._capture_session is None:
             return None
         session = self._capture_session
@@ -298,9 +302,8 @@ class ConferenceCall:
                 self.conf_id, self.state.auto_end_state.expires_at,
             )
             timer_event = StartTeacherDisconnectTimerEvent(self)
-            if hasattr(self, "_auto_end_monitor_task"):
-                if self._auto_end_monitor_task and not self._auto_end_monitor_task.done():
-                    self._auto_end_monitor_task.cancel()
+            if hasattr(self, "_auto_end_monitor_task") and self._auto_end_monitor_task and not self._auto_end_monitor_task.done():
+                self._auto_end_monitor_task.cancel()
             self._auto_end_monitor_task = asyncio.create_task(timer_event._monitor_timer())
 
     # ------------------------------------------------------------------
@@ -380,7 +383,7 @@ class ConferenceCallManager:
         self._connection_manager_factory = connection_manager_factory
         self._storage_manager = storage_manager
         self._ws_base_url = ws_base_url
-        self._conferences: Dict[str, ConferenceCall] = {}
+        self._conferences: dict[str, ConferenceCall] = {}
         self._redis_store: Any = None
 
     # ------------------------------------------------------------------
@@ -424,10 +427,10 @@ class ConferenceCallManager:
     async def create_conference(
         self,
         teacher_phone: str,
-        student_phones: List[str],
-        leader_phone: Optional[str] = None,
-        teacher_name: Optional[str] = None,
-        student_names: Optional[List[str]] = None,
+        student_phones: list[str],
+        leader_phone: str | None = None,
+        teacher_name: str | None = None,
+        student_names: list[str] | None = None,
     ) -> ConferenceCall:
         conf_id = str(uuid.uuid4())
         conf = self._build_conference_call(conf_id)
@@ -481,14 +484,14 @@ class ConferenceCallManager:
                 logger.error("conference_service: failed to persist CONFERENCE_START_FAILED", exc_info=True)
             raise
 
-    def get_conference(self, conf_id: str) -> Optional[ConferenceCall]:
+    def get_conference(self, conf_id: str) -> ConferenceCall | None:
         return self._conferences.get(conf_id)
 
     def delete_conference(self, conf_id: str) -> None:
         self._conferences.pop(conf_id, None)
         asyncio.create_task(self._get_redis().delete(conf_id))
 
-    def get_conference_from_phone_number(self, phone_number: str) -> Optional[ConferenceCall]:
+    def get_conference_from_phone_number(self, phone_number: str) -> ConferenceCall | None:
         for conf in self._conferences.values():
             if phone_number in conf.state.participants:
                 return conf
@@ -536,7 +539,9 @@ class ConferenceCallManager:
 
 class ConferenceOwnershipService:
     def __init__(self, db: AsyncIOMotorDatabase[Any]) -> None:  # type: ignore[type-arg]
-        from app.repositories.conference_repository import ConferenceOwnershipRepository  # noqa: PLC0415
+        from app.repositories.conference_repository import (
+            ConferenceOwnershipRepository,  # noqa: PLC0415
+        )
         self._repo = ConferenceOwnershipRepository(db)
 
     async def record_ownership(

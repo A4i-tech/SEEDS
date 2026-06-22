@@ -1,8 +1,6 @@
 """Request schemas for school and classroom endpoints."""
 from __future__ import annotations
 
-from typing import List, Optional
-
 from pydantic import BaseModel, Field
 
 
@@ -13,9 +11,9 @@ class SchoolCreateRequest(BaseModel):
 
 
 class SchoolUpdateRequest(BaseModel):
-    name: Optional[str] = None
-    email: Optional[str] = None
-    password: Optional[str] = None
+    name: str | None = None
+    email: str | None = None
+    password: str | None = None
 
 
 class TeacherTransferRequest(BaseModel):
@@ -33,10 +31,10 @@ class SchoolAnalyticsRequest(BaseModel):
 
 
 class ClassroomUpsertRequest(BaseModel):
-    id: Optional[str] = Field(None, alias="_id")
-    name: Optional[str] = None
-    students: List[str] = Field(default_factory=list)
-    leaders: List[str] = Field(default_factory=list)
-    content_ids: List[str] = Field(default_factory=list, alias="contentIds")
+    id: str | None = Field(None, alias="_id")
+    name: str | None = None
+    students: list[str] = Field(default_factory=list)
+    leaders: list[str] = Field(default_factory=list)
+    content_ids: list[str] = Field(default_factory=list, alias="contentIds")
 
     model_config = {"populate_by_name": True}

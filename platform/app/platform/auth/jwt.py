@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from jose import ExpiredSignatureError, JWTError, jwt
@@ -90,7 +90,7 @@ def create_access_token(
     if expires_delta is None:
         expires_delta = _parse_expires_delta(settings.jwt_expires_in)
 
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     expire = now + expires_delta
 
     payload: dict[str, Any] = {

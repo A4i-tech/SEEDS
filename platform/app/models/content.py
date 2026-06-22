@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional
 
 from bson import ObjectId
 from pydantic import BaseModel, ConfigDict, Field
@@ -23,7 +22,7 @@ class AudioContent(BaseModel):
 
     description: str = ""
     audio_url: str = Field(..., alias="audioUrl")
-    duration_seconds: Optional[float] = Field(None, alias="durationSeconds")
+    duration_seconds: float | None = Field(None, alias="durationSeconds")
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -38,37 +37,37 @@ class Content(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    id: Optional[str] = Field(None, alias="_id")
+    id: str | None = Field(None, alias="_id")
     version: str = "v3"  # "v2" or "v3"
-    tenant_id: Optional[str] = None  # ObjectId stored as str; ref Tenant
+    tenant_id: str | None = None  # ObjectId stored as str; ref Tenant
     description: str = ""
     type: str
     language: str
     # V3 structured title/theme
-    title: Optional[TextContent] = None
-    theme: Optional[TextContent] = None
+    title: TextContent | None = None
+    theme: TextContent | None = None
     # V2 flat title/theme fields
-    title_text: Optional[str] = Field(None, alias="titleText")
-    local_title: Optional[str] = Field(None, alias="localTitle")
-    title_audio: Optional[str] = Field(None, alias="titleAudio")
-    theme_text: Optional[str] = Field(None, alias="themeText")
-    local_theme: Optional[str] = Field(None, alias="localTheme")
-    theme_audio: Optional[str] = Field(None, alias="themeAudio")
+    title_text: str | None = Field(None, alias="titleText")
+    local_title: str | None = Field(None, alias="localTitle")
+    title_audio: str | None = Field(None, alias="titleAudio")
+    theme_text: str | None = Field(None, alias="themeText")
+    local_theme: str | None = Field(None, alias="localTheme")
+    theme_audio: str | None = Field(None, alias="themeAudio")
     # Audio content (v3)
-    audio_content: List[AudioContent] = Field(default_factory=list, alias="audioContent")
+    audio_content: list[AudioContent] = Field(default_factory=list, alias="audioContent")
     # Flags
-    school_id: Optional[str] = Field(None, alias="schoolId")
+    school_id: str | None = Field(None, alias="schoolId")
     created_by: str = Field(default="", alias="createdBy")
     is_pull_model: bool = Field(default=False, alias="isPullModel")
     is_teacher_app: bool = Field(default=False, alias="isTeacherApp")
     is_processed: bool = Field(default=False, alias="isProcessed")
     is_deleted: bool = Field(default=False, alias="isDeleted")
     creation_time: int = -1
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     @classmethod
-    def from_mongo(cls, doc: dict) -> "Content":
+    def from_mongo(cls, doc: dict) -> Content:
         if doc is None:
             return None  # type: ignore[return-value]
         d = dict(doc)
@@ -89,10 +88,10 @@ class ContentCreate(BaseModel):
     type: str
     language: str
     version: str = "v3"
-    title: Optional[TextContent] = None
-    theme: Optional[TextContent] = None
-    audio_content: List[AudioContent] = Field(default_factory=list, alias="audioContent")
-    school_id: Optional[str] = Field(None, alias="schoolId")
+    title: TextContent | None = None
+    theme: TextContent | None = None
+    audio_content: list[AudioContent] = Field(default_factory=list, alias="audioContent")
+    school_id: str | None = Field(None, alias="schoolId")
     created_by: str = Field(default="", alias="createdBy")
     is_pull_model: bool = Field(default=False, alias="isPullModel")
     is_teacher_app: bool = Field(default=False, alias="isTeacherApp")

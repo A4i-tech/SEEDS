@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class CallStatusChangeEvent(ConferenceEvent):
-    def __init__(self, phone_number: str, status: CallStatus, conf_call: "ConferenceCall") -> None:
+    def __init__(self, phone_number: str, status: CallStatus, conf_call: ConferenceCall) -> None:
         self.phone_number = phone_number
         self.status = status
         self.conf_call = conf_call
@@ -56,7 +56,9 @@ class CallStatusChangeEvent(ConferenceEvent):
                 logger.error("call_status_change: join TTS failed — %s", exc)
 
             if is_teacher and self.conf_call.state.auto_end_state.is_active:
-                from app.services.confevents.teacher_disconnect_timer_event import CancelTeacherDisconnectTimerEvent  # noqa: PLC0415
+                from app.services.confevents.teacher_disconnect_timer_event import (
+                    CancelTeacherDisconnectTimerEvent,  # noqa: PLC0415
+                )
                 await self.conf_call.queue_event(CancelTeacherDisconnectTimerEvent(self.conf_call))
 
         if self.status == CallStatus.DISCONNECTED:
@@ -70,7 +72,9 @@ class CallStatusChangeEvent(ConferenceEvent):
 
             if is_teacher:
                 await self.conf_call.stream_system_message(SystemAudioMessages.TEACHER_HAS_DROPPED)
-                from app.services.confevents.teacher_disconnect_timer_event import StartTeacherDisconnectTimerEvent  # noqa: PLC0415
+                from app.services.confevents.teacher_disconnect_timer_event import (
+                    StartTeacherDisconnectTimerEvent,  # noqa: PLC0415
+                )
                 await self.conf_call.queue_event(StartTeacherDisconnectTimerEvent(self.conf_call))
 
         await self.conf_call.update_state()

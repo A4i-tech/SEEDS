@@ -11,7 +11,7 @@ and had no /transfer endpoint; neither was proven to work in production.
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -25,7 +25,7 @@ router = APIRouter(tags=["IVR"])
 
 class _StartCallRequest(BaseModel):
     phone_number: str
-    tenant_id: Optional[str] = None
+    tenant_id: str | None = None
 
 
 @router.get("/answer", summary="Vonage answer webhook — returns initial NCCO")

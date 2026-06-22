@@ -17,7 +17,6 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.user import User, UserCreate, UserRole
 from app.platform.auth.dependencies import get_db
-from app.platform.authz.audit import log_denial
 from app.platform.authz.ownership import assert_conference_owner
 from app.platform.authz.tenant_scope import assert_same_tenant
 from app.platform.error_handling import ConflictError, NotFoundError

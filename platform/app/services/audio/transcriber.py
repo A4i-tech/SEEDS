@@ -15,11 +15,12 @@ import io
 import logging
 import wave
 from collections import deque
-from typing import Any, Optional
+from typing import Any
 
-from app.platform.settings import get_settings
 import numpy as np
 from scipy import signal  # type: ignore[import-untyped]
+
+from app.platform.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,7 @@ class AudioTranscriber:
         settings = get_settings()
         from openai import AsyncOpenAI  # type: ignore[import-untyped]  # noqa: PLC0415
 
-        self.client: Optional[AsyncOpenAI] = None
+        self.client: AsyncOpenAI | None = None
         self.analysis_enabled = settings.audio_analysis_enabled
         if self.analysis_enabled and settings.openai_api_key:
             self.client = AsyncOpenAI(api_key=settings.openai_api_key)
@@ -91,7 +92,7 @@ class AudioTranscriber:
         if self.use_webrtc_vad:
             self.vad = webrtcvad.Vad(self.vad_aggressiveness)
 
-    async def process_chunk(self, audio_data: bytes) -> Optional[dict[str, Any]]:
+    async def process_chunk(self, audio_data: bytes) -> dict[str, Any] | None:
         if not audio_data:
             return None
         self.pending_frame_buffer.extend(audio_data)
@@ -123,7 +124,7 @@ class AudioTranscriber:
             return rms >= mean_rms * self._rms_calibration_factor
         return rms >= self.silence_threshold
 
-    async def _consume_frame(self, frame: bytes) -> Optional[dict[str, Any]]:
+    async def _consume_frame(self, frame: bytes) -> dict[str, Any] | None:
         is_voiced = self._is_voiced_frame(frame)
         self.metrics["frames_total"] += 1
         if is_voiced:
@@ -164,7 +165,7 @@ class AudioTranscriber:
             return await self._transcribe_segment(seg)
         return None
 
-    async def _transcribe_segment(self, segment_bytes: bytes) -> Optional[dict[str, Any]]:
+    async def _transcribe_segment(self, segment_bytes: bytes) -> dict[str, Any] | None:
         if not segment_bytes or not self.client:
             return None
         try:

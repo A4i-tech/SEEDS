@@ -1,8 +1,8 @@
 """Call repository — Motor async data access for call and call log collections."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -27,7 +27,7 @@ class CallsLogRepository:
         """Insert a new pending call log entry. Returns the string ID for the SB payload."""
         result = await self._col.insert_one({
             "phone_number": phone_number,
-            "created_at": datetime.now(timezone.utc),
+            "created_at": datetime.now(UTC),
             "status": "pending",
         })
         return str(result.inserted_id)
@@ -36,10 +36,10 @@ class CallsLogRepository:
         """Update status to 'called' by ObjectId string."""
         await self._col.update_one(
             {"_id": ObjectId(call_log_id)},
-            {"$set": {"status": "called", "called_at": datetime.now(timezone.utc)}},
+            {"$set": {"status": "called", "called_at": datetime.now(UTC)}},
         )
 
-    async def find_by_id(self, call_log_id: str) -> Optional[Dict[str, Any]]:
+    async def find_by_id(self, call_log_id: str) -> dict[str, Any] | None:
         return await self._col.find_one({"_id": ObjectId(call_log_id)})
 
 
@@ -58,7 +58,7 @@ class CallRepository(BaseRepository):
     # ------------------------------------------------------------------
     # Call sequence documents
     # ------------------------------------------------------------------
-    async def find_call_by_id(self, id: str) -> Optional[Call]:
+    async def find_call_by_id(self, id: str) -> Call | None:
         doc = await self._call_col.find_one({"_id": self._to_id(id)})
         return Call.from_mongo(doc) if doc else None
 
@@ -72,16 +72,16 @@ class CallRepository(BaseRepository):
     # ------------------------------------------------------------------
     # Call log documents
     # ------------------------------------------------------------------
-    async def find_log_by_fsm_context(self, fsm_context_id: str) -> Optional[CallLog]:
+    async def find_log_by_fsm_context(self, fsm_context_id: str) -> CallLog | None:
         doc = await self._log_col.find_one({"fsmContextId": fsm_context_id})
         return CallLog.from_mongo(doc) if doc else None
 
-    async def find_logs_by_tenant(self, tenant_id: str) -> List[CallLog]:
+    async def find_logs_by_tenant(self, tenant_id: str) -> list[CallLog]:
         cursor = self._log_col.find({"tenant_id": tenant_id}).sort("_id", -1)
         docs = await cursor.to_list(length=None)
         return [CallLog.from_mongo(d) for d in docs]
 
-    async def find_logs_by_teacher(self, teacher_id: str) -> List[CallLog]:
+    async def find_logs_by_teacher(self, teacher_id: str) -> list[CallLog]:
         cursor = self._log_col.find({"teacher_id": teacher_id}).sort("_id", -1)
         docs = await cursor.to_list(length=None)
         return [CallLog.from_mongo(d) for d in docs]
@@ -93,7 +93,7 @@ class CallRepository(BaseRepository):
         doc["_id"] = str(result.inserted_id)
         return CallLog.from_mongo(doc)
 
-    async def update_log(self, id: str, updates: dict) -> Optional[CallLog]:
+    async def update_log(self, id: str, updates: dict) -> CallLog | None:
         result = await self._log_col.find_one_and_update(
             {"_id": self._to_id(id)},
             {"$set": updates},
@@ -106,7 +106,7 @@ class CallRepository(BaseRepository):
         data["_id"] = str(result.inserted_id)
         return data
 
-    async def find_raw_log_by_id(self, id: str) -> Optional[Dict[str, Any]]:
+    async def find_raw_log_by_id(self, id: str) -> dict[str, Any] | None:
         doc = await self._log_col.find_one({"_id": self._to_id(id)})
         if doc:
             doc["_id"] = str(doc["_id"])
@@ -121,7 +121,7 @@ class CallRepository(BaseRepository):
         data["_id"] = str(result.inserted_id)
         return data
 
-    async def find_fsm_context_by_id(self, id: str) -> Optional[Dict[str, Any]]:
+    async def find_fsm_context_by_id(self, id: str) -> dict[str, Any] | None:
         doc = await self._fsm_col.find_one({"_id": self._to_id(id)})
         if doc:
             doc["_id"] = str(doc["_id"])

@@ -36,7 +36,7 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["5000/15minutes"]
 # ---------------------------------------------------------------------------
 
 
-def _cors_origins(settings: "Settings") -> list[str]:
+def _cors_origins(settings: Settings) -> list[str]:
     """Return the list of allowed origins based on the active environment."""
     if settings.env in ("development", "staging"):
         return ["*"]
@@ -115,7 +115,7 @@ async def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONR
 # ---------------------------------------------------------------------------
 
 
-def setup_security(app: "FastAPI", settings: "Settings") -> None:
+def setup_security(app: FastAPI, settings: Settings) -> None:
     """
     Wire all security middleware and handlers onto *app*.
 

@@ -1,13 +1,12 @@
 """Audio playback state model (from ConferenceV2 audio_content_state.py)."""
 from __future__ import annotations
 
-from enum import Enum
-from typing import Optional
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class ContentStatus(str, Enum):
+class ContentStatus(StrEnum):
     STARTING = "Starting"
     PLAYING = "Playing"
     PAUSED = "Paused"
@@ -19,9 +18,9 @@ class AudioContentState(BaseModel):
 
     model_config = ConfigDict(use_enum_values=True, populate_by_name=True)
 
-    current_url: Optional[str] = None
+    current_url: str | None = None
     status: ContentStatus = Field(default=ContentStatus.STOPPED)
-    paused_at: Optional[str] = None
-    position_seconds: Optional[float] = Field(default=None, ge=0)
-    duration_seconds: Optional[float] = Field(default=None, ge=0)
+    paused_at: str | None = None
+    position_seconds: float | None = Field(default=None, ge=0)
+    duration_seconds: float | None = Field(default=None, ge=0)
     speed: float = Field(default=1.0, ge=0.5, le=2.0)

@@ -9,32 +9,32 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.controllers import (
-    # Auth (split from auth_controller)
-    teacher_auth_controller,
-    tenant_auth_controller,
-    school_admin_auth_controller,
-    # Users (split from users_controller)
-    teacher_controller,
-    student_controller,
-    user_controller,
-    # School + Classes
-    school_controller,
-    class_controller,
-    # Content
-    content_controller,
     audit_controller,
+    call_controller,
+    class_controller,
     # Calls (split from call_controller)
     conference_controller,
-    call_controller,
+    # Content
+    content_controller,
     ivr_controller,
-    # Conference features
-    playback_controller,
-    participants_controller,
-    # Webhooks (split from webhook_controller)
-    webhook_controller,
-    ivr_webhook_controller,
     # Other
     ivr_structure_controller,
+    ivr_webhook_controller,
+    participants_controller,
+    # Conference features
+    playback_controller,
+    school_admin_auth_controller,
+    # School + Classes
+    school_controller,
+    student_controller,
+    # Auth (split from auth_controller)
+    teacher_auth_controller,
+    # Users (split from users_controller)
+    teacher_controller,
+    tenant_auth_controller,
+    user_controller,
+    # Webhooks (split from webhook_controller)
+    webhook_controller,
     websocket_controller,
 )
 

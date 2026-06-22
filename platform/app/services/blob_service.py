@@ -7,7 +7,6 @@ Provides application-level helpers used by the content job consumer and controll
 from __future__ import annotations
 
 import logging
-from functools import lru_cache
 
 logger = logging.getLogger(__name__)
 

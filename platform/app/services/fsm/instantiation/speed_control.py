@@ -5,9 +5,7 @@ Ported from IVRv2/app/utils/speed_control.py — get_speed_instruction only.
 
 from __future__ import annotations
 
-from typing import Dict
-
-_SPEED_ANNOUNCEMENTS: Dict[str, dict] = {
+_SPEED_ANNOUNCEMENTS: dict[str, dict] = {
     "kannada": {"instruction": "ನಿಧಾನಗೊಳಿಸಲು ಸ್ಟಾರ್ ಒತ್ತಿರಿ, ವೇಗಗೊಳಿಸಲು ಹ್ಯಾಶ್ ಒತ್ತಿರಿ"},
     "english": {"instruction": "Press star to slow down, press hash to speed up"},
     "hindi": {"instruction": "धीमा करने के लिए स्टार दबाएं, तेज करने के लिए हैश दबाएं"},

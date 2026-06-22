@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import json
 import logging
 import random
 from typing import Any
@@ -22,11 +21,13 @@ from typing import Any
 from pydantic import BaseModel
 
 try:
-    from vonage.errors import ClientError  # type: ignore[import-untyped]
     from requests.exceptions import (  # type: ignore[import-untyped]
         ConnectionError as RequestsConnectionError,
+    )
+    from requests.exceptions import (
         ReadTimeout,
     )
+    from vonage.errors import ClientError  # type: ignore[import-untyped]
 except ImportError:
     ClientError = Exception  # type: ignore[misc,assignment]
     ReadTimeout = Exception  # type: ignore[misc,assignment]
@@ -177,7 +178,7 @@ class VonageAPIProvider:
                 asyncio.to_thread(self._client.voice.get_call, uuid=participant.call_leg_id),
                 timeout=self._call_timeout,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning(
                 "vonage_api: get_call timed out after %.0fs for call_leg=%s",
                 self._call_timeout, participant.call_leg_id,
@@ -222,7 +223,7 @@ class VonageAPIProvider:
                 ),
                 timeout=self._call_timeout,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning(
                 "vonage_api: update_call (transfer) timed out after %.0fs for call_leg=%s",
                 self._call_timeout, participant.call_leg_id,

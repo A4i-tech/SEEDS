@@ -27,7 +27,7 @@ class Action(ABC):
         }
 
     @staticmethod
-    def from_json(data: dict) -> "Action":
+    def from_json(data: dict) -> Action:
         """Deserialize a dict (produced by ``to_json``) back into an Action."""
         module = __import__(data["__module__"], fromlist=[data["__class__"]])
         cls = getattr(module, data["__class__"])

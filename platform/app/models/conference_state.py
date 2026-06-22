@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from bson import ObjectId
 from pydantic import BaseModel, ConfigDict, Field
@@ -18,9 +18,9 @@ class AutoEndState(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     is_active: bool = False
-    started_at: Optional[str] = None   # ISO timestamp
-    expires_at: Optional[str] = None   # ISO timestamp
-    timeout_minutes: Optional[int] = None
+    started_at: str | None = None   # ISO timestamp
+    expires_at: str | None = None   # ISO timestamp
+    timeout_minutes: int | None = None
 
 
 class ConferenceCallState(BaseModel):
@@ -31,35 +31,35 @@ class ConferenceCallState(BaseModel):
 
     model_config = ConfigDict(use_enum_values=True, populate_by_name=True)
 
-    id: Optional[str] = Field(None, alias="_id")
-    conference_id: Optional[str] = None  # Vonage conference UUID / room key
+    id: str | None = Field(None, alias="_id")
+    conference_id: str | None = None  # Vonage conference UUID / room key
     is_running: bool = False
-    teacher_phone_number: Optional[str] = None
-    leader_phone_number: Optional[str] = None
-    participants: Dict[str, Participant] = Field(default_factory=dict)
+    teacher_phone_number: str | None = None
+    leader_phone_number: str | None = None
+    participants: dict[str, Participant] = Field(default_factory=dict)
     hold_detected: bool = False
     audio_content_state: AudioContentState = Field(default_factory=AudioContentState)
-    action_history: List[ActionHistory] = Field(default_factory=list)
+    action_history: list[ActionHistory] = Field(default_factory=list)
     auto_end_state: AutoEndState = Field(default_factory=AutoEndState)
     # Optional denormalised fields for query
-    tenant_id: Optional[str] = None
-    ended_at: Optional[str] = None  # set when conference ends (ISO timestamp)
+    tenant_id: str | None = None
+    ended_at: str | None = None  # set when conference ends (ISO timestamp)
 
-    def get_teacher(self) -> Optional[Participant]:
+    def get_teacher(self) -> Participant | None:
         if self.teacher_phone_number and self.teacher_phone_number in self.participants:
             return self.participants[self.teacher_phone_number]
         return None
 
-    def get_leader(self) -> Optional[Participant]:
+    def get_leader(self) -> Participant | None:
         if self.leader_phone_number and self.leader_phone_number in self.participants:
             return self.participants[self.leader_phone_number]
         return None
 
-    def get_students(self) -> List[Participant]:
+    def get_students(self) -> list[Participant]:
         return [p for p in self.participants.values() if p.role != Role.TEACHER]
 
     @classmethod
-    def from_mongo(cls, doc: dict) -> "ConferenceCallState":
+    def from_mongo(cls, doc: dict) -> ConferenceCallState:
         if doc is None:
             return None  # type: ignore[return-value]
         d = dict(doc)
@@ -67,14 +67,14 @@ class ConferenceCallState(BaseModel):
             d["_id"] = str(d["_id"])
         return cls.model_validate(d)
 
-    def _get_user_action_history(self, action_history: List[Any]) -> List[Any]:
+    def _get_user_action_history(self, action_history: list[Any]) -> list[Any]:
         return [
             action
             for action in action_history
             if not (isinstance(action, dict) and action.get("owner") == "system")
         ]
 
-    def model_dump(self, **kwargs) -> Dict[str, Any]:
+    def model_dump(self, **kwargs) -> dict[str, Any]:
         def convert_enums(data: Any) -> Any:
             if isinstance(data, dict):
                 return {k: convert_enums(v) for k, v in data.items()}

@@ -1,8 +1,7 @@
 """School repository — Motor async data access for the schools collection."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import List, Optional
+from datetime import UTC, datetime
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -20,27 +19,27 @@ class SchoolRepository(BaseRepository):
     def __init__(self, db: AsyncIOMotorDatabase) -> None:
         self._col = db[self.COLLECTION]
 
-    async def find_by_id(self, id: str) -> Optional[School]:
+    async def find_by_id(self, id: str) -> School | None:
         doc = await self._col.find_one({"_id": self._to_id(id)}, self._NO_PWD)
         return School.from_mongo(doc) if doc else None
 
-    async def find_by_email(self, email: str) -> Optional[School]:
+    async def find_by_email(self, email: str) -> School | None:
         # No projection — password required for auth (school_admin_login)
         doc = await self._col.find_one({"email": email})
         return School.from_mongo(doc) if doc else None
 
-    async def find_all_by_tenant(self, tenant_id: str) -> List[School]:
+    async def find_all_by_tenant(self, tenant_id: str) -> list[School]:
         cursor = self._col.find({"tenantId": tenant_id}, self._NO_PWD)
         docs = await cursor.to_list(length=None)
         return [School.from_mongo(d) for d in docs]
 
-    async def find_active_by_tenant(self, tenant_id: str) -> List[School]:
+    async def find_active_by_tenant(self, tenant_id: str) -> list[School]:
         cursor = self._col.find({"tenantId": tenant_id, "isActive": True}, self._NO_PWD)
         docs = await cursor.to_list(length=None)
         return [School.from_mongo(d) for d in docs]
 
     async def create(self, school: SchoolCreate) -> School:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         # by_alias=True writes legacy camelCase field names (tenantId, isActive, password)
         doc = school.model_dump(by_alias=True)
         doc["created_at"] = now
@@ -49,8 +48,8 @@ class SchoolRepository(BaseRepository):
         doc["_id"] = str(result.inserted_id)
         return School.from_mongo(doc)
 
-    async def update(self, id: str, updates: dict) -> Optional[School]:
-        updates["updated_at"] = datetime.now(timezone.utc)
+    async def update(self, id: str, updates: dict) -> School | None:
+        updates["updated_at"] = datetime.now(UTC)
         result = await self._col.find_one_and_update(
             {"_id": self._to_id(id)},
             {"$set": updates},

@@ -1,13 +1,13 @@
 """Webhook event model (from ConferenceV2 webhook_event.py)."""
 from __future__ import annotations
 
-from enum import Enum
-from typing import Any, Dict, Optional
+from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
 
-class EventType(str, Enum):
+class EventType(StrEnum):
     PARTICIPANT_STATUS = "participant_status"
     DTMF_INPUT = "dtmf_input"
     AUDIO_PLAYBACK = "audio_playback"
@@ -21,5 +21,5 @@ class WebHookEvent(BaseModel):
 
     conference_id: str
     event_type: EventType
-    participant_phone: Optional[str] = None
-    data: Dict[str, Any]
+    participant_phone: str | None = None
+    data: dict[str, Any]

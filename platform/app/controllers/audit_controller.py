@@ -15,7 +15,6 @@ No current frontend consumer; endpoint is available for when clients migrate.
 from __future__ import annotations
 
 import logging
-from typing import List
 
 from fastapi import APIRouter, Depends
 
@@ -30,7 +29,7 @@ router = APIRouter(prefix="/log", tags=["Audit"])
 
 @router.post("", summary="Create log entries", status_code=200)
 async def create_log_entries(
-    entries: List[AuditLog],
+    entries: list[AuditLog],
     user: dict = Depends(get_current_user),
     service: AuditService = Depends(get_audit_service),
 ) -> None:
@@ -48,12 +47,12 @@ async def create_log_entries(
     return None
 
 
-@router.get("/{user_id}", summary="Get logs by user ID", response_model=List[AuditLog])
+@router.get("/{user_id}", summary="Get logs by user ID", response_model=list[AuditLog])
 async def get_logs_by_user(
     user_id: str,
     user: dict = Depends(get_current_user),
     service: AuditService = Depends(get_audit_service),
-) -> List[AuditLog]:
+) -> list[AuditLog]:
     """Return log entries for the given user, scoped to the authenticated tenant.
 
     Mirrors: ``await Log.getLogsByUserId(req.params.userId)``

@@ -1,7 +1,7 @@
 """Call service — business logic for call log and FSM context operations."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import Depends
@@ -17,7 +17,7 @@ class CallService:
         self._repo = CallRepository(db)
 
     async def log_call(self, body: dict[str, Any]) -> dict[str, Any]:
-        return await self._repo.insert_raw_log({**body, "created_at": datetime.now(timezone.utc)})
+        return await self._repo.insert_raw_log({**body, "created_at": datetime.now(UTC)})
 
     async def get_call_log(self, call_id: str) -> dict[str, Any]:
         doc = await self._repo.find_raw_log_by_id(call_id)
@@ -27,7 +27,7 @@ class CallService:
 
     async def save_fsm_context(self, body: dict[str, Any]) -> dict[str, Any]:
         return await self._repo.insert_fsm_context(
-            {**body, "created_at": datetime.now(timezone.utc)}
+            {**body, "created_at": datetime.now(UTC)}
         )
 
     async def get_fsm_context(self, context_id: str) -> dict[str, Any]:

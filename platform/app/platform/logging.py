@@ -20,7 +20,7 @@ import uuid
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from fastapi import FastAPI
+    pass
 
 # ---------------------------------------------------------------------------
 # Context variables
