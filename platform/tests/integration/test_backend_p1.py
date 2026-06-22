@@ -111,6 +111,15 @@ def _teacher_token(user_id: str, school_id: str = "school001", tenant_id: str = 
     })
 
 
+def _school_admin_token(school_id: str, tenant_id: str = "tenant001") -> str:
+    return create_access_token({
+        "sub": school_id,
+        "role": "school_admin",
+        "school_id": school_id,
+        "tenant_id": tenant_id,
+    })
+
+
 def _tenant_token(user_id: str) -> str:
     return create_access_token({
         "sub": user_id,
@@ -152,9 +161,8 @@ async def test_teacher_login_wrong_password(client, mock_db):
 
 @pytest.mark.asyncio
 async def test_teacher_register_success(client, mock_db):
-    """POST /teacher/register with valid teacher token creates a new teacher."""
-    teacher = await _seed_teacher(mock_db, "+919999999990", "Test@1234")
-    token = _teacher_token(teacher["_id"])
+    """POST /teacher/register with valid school_admin token creates a new teacher."""
+    token = _school_admin_token("school001")
 
     resp = await client.post(
         "/teacher/register",
@@ -175,8 +183,8 @@ async def test_teacher_register_success(client, mock_db):
 @pytest.mark.asyncio
 async def test_teacher_register_duplicate(client, mock_db):
     """POST /teacher/register with duplicate phone returns 409."""
-    teacher = await _seed_teacher(mock_db, "+919999999991", "Test@1234")
-    token = _teacher_token(teacher["_id"])
+    await _seed_teacher(mock_db, "+919999999991", "Test@1234")
+    token = _school_admin_token("school001")
 
     # Register with same phone number
     resp = await client.post(
