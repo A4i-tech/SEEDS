@@ -7,10 +7,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
+from app.platform.settings import get_settings
 from app.providers.vonage_actions.base.action import Action
 from app.providers.vonage_actions.connect_action import VonageConnectAction
 from app.providers.vonage_actions.input_action import InputAction
@@ -31,7 +32,6 @@ class FSM:
     STORAGE_ACCOUNT_BASE_URL: str = ""  # set at construction from settings
 
     def __init__(self, fsm_id: str) -> None:
-        from app.platform.settings import get_settings  # noqa: PLC0415
 
         settings = get_settings()
         storage_account_name = settings.storage_account_name
@@ -148,7 +148,6 @@ class FSM:
             return False, None
 
         from app.platform.database import get_database  # noqa: PLC0415
-        from app.platform.settings import get_settings  # noqa: PLC0415
         from app.services.fsm.utils import (  # noqa: PLC0415
             get_daily_limit_announcement,
             get_ist_date_string,
@@ -185,8 +184,6 @@ class FSM:
             return True, limit_actions
 
         # Within limit — increment usage atomically
-        from datetime import datetime, timezone, timedelta  # noqa: PLC0415
-
         IST = timezone(timedelta(hours=5, minutes=30))
         await collection.update_one(
             {"phone_number": ivr_state_doc.phone_number, "date": today},

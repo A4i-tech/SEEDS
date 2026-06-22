@@ -4,26 +4,19 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.content import Content, ContentCreate
+from app.repositories.base_repository import BaseRepository
 
 
-class ContentRepository:
+class ContentRepository(BaseRepository):
     """Async Motor repository for the 'contentsV3' (and legacy 'contentsV2') collections."""
 
     COLLECTION = "contentsV3"
 
     def __init__(self, db: AsyncIOMotorDatabase) -> None:
         self._col = db[self.COLLECTION]
-
-    @staticmethod
-    def _to_id(id_str: str) -> ObjectId | str:
-        try:
-            return ObjectId(id_str)
-        except Exception:
-            return id_str
 
     async def find_by_id(self, id: str) -> Optional[Content]:
         doc = await self._col.find_one({"_id": id})

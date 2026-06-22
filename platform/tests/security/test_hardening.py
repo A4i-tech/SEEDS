@@ -80,8 +80,7 @@ async def test_webhook_invalid_hmac_rejected():
     from app.controllers.webhook_controller import router as wh_router
     app.include_router(wh_router)
 
-    # The dependency calls get_settings lazily via app.platform.settings
-    with patch("app.platform.settings.get_settings", return_value=mock_settings):
+    with patch("app.controllers.webhook_controller.get_settings", return_value=mock_settings):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             resp = await client.post(
                 "/webhooks/event/conf123",
@@ -111,7 +110,7 @@ async def test_webhook_missing_auth_rejected():
     from app.controllers.webhook_controller import router as wh_router
     app.include_router(wh_router)
 
-    with patch("app.platform.settings.get_settings", return_value=mock_settings):
+    with patch("app.controllers.webhook_controller.get_settings", return_value=mock_settings):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             resp = await client.post("/webhooks/event/conf123", json={"type": "test"})
     assert resp.status_code == 403
@@ -139,14 +138,14 @@ async def test_webhook_dev_mode_bypasses_hmac():
     mock_conf_mgr.get_conference.return_value = None
 
     with (
-        patch("app.platform.settings.get_settings", return_value=mock_settings),
+        patch("app.controllers.webhook_controller.get_settings", return_value=mock_settings),
         patch(
-            "app.controllers.webhook_controller._get_conference_manager",
+            "app.controllers.webhook_controller.get_conference_manager",
             return_value=mock_conf_mgr,
         ),
         patch(
-            "app.controllers.webhook_controller._get_caller_state_service",
-            return_value=MagicMock(),
+            "app.controllers.webhook_controller.caller_state_service",
+            new=MagicMock(),
         ),
     ):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -206,7 +205,7 @@ def test_websocket_unregistered_conference_rejected():
     app.include_router(ws_router)
 
     with (
-        patch("app.platform.settings.get_settings", return_value=mock_settings),
+        patch("app.controllers.webhook_controller.get_settings", return_value=mock_settings),
         patch(
             "app.controllers.websocket_controller._check_conference_exists",
             new=AsyncMock(return_value=False),
@@ -252,7 +251,7 @@ def test_websocket_valid_secret_connects():
         return False  # Stop audio loop immediately
 
     with (
-        patch("app.platform.settings.get_settings", return_value=mock_settings),
+        patch("app.controllers.webhook_controller.get_settings", return_value=mock_settings),
         patch(
             "app.controllers.websocket_controller._check_conference_exists",
             new=AsyncMock(return_value=True),

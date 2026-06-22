@@ -85,7 +85,7 @@ class TestWebhookControllerExtra:
         """POST /webhooks/conversationevents — conversation event webhook."""
         mock_mgr3 = MagicMock()
         mock_mgr3.get_conference_from_phone_number = MagicMock(return_value=None)
-        with patch("app.controllers.webhook_controller._get_conference_manager", return_value=mock_mgr3):
+        with patch("app.controllers.webhook_controller.get_conference_manager", return_value=mock_mgr3):
             resp = await client.post("/webhooks/conversationevents", json={
                 "type": "member:joined",
                 "conversation_id": "CON-abc123",

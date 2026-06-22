@@ -185,7 +185,7 @@ class TestTeacherDisconnectTimerEvent:
         mock_settings.auto_end_timeout_minutes = 5
         mock_settings.auto_end_enabled = False
 
-        with patch("app.platform.settings.get_settings", return_value=mock_settings):
+        with patch("app.services.confevents.teacher_disconnect_timer_event.get_settings", return_value=mock_settings):
             event = StartTeacherDisconnectTimerEvent(conf_call=self._mock_conf_call())
             assert event.auto_end_enabled is False
 
@@ -197,7 +197,7 @@ class TestTeacherDisconnectTimerEvent:
         mock_settings.auto_end_timeout_minutes = 5
         mock_settings.auto_end_enabled = False
 
-        with patch("app.platform.settings.get_settings", return_value=mock_settings):
+        with patch("app.services.confevents.teacher_disconnect_timer_event.get_settings", return_value=mock_settings):
             event = StartTeacherDisconnectTimerEvent(conf_call=self._mock_conf_call())
             # execute_event should return early when disabled
             await event.execute_event()
@@ -256,13 +256,11 @@ class TestIVRUpdateStructure:
 
     @pytest.mark.asyncio
     async def test_update_ivr_structure_no_content(self, db) -> None:
-        from app.services.ivr_service import update_ivr_structure
-        from app.services import ivr_service
+        from app.services.ivr_service import IVRService
 
-        result = await update_ivr_structure(
+        result = await IVRService(db).update_ivr_structure(
             tenant_id="t1",
             structure={},
-            db=db,
         )
         assert isinstance(result, dict)
         # When no content exists, should return error or status dict

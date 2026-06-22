@@ -286,13 +286,13 @@ class TestIVRServiceUtils:
     @pytest.mark.asyncio
     async def test_get_ivr_structure_empty_db(self) -> None:
         import mongomock_motor
-        from app.services.ivr_service import get_ivr_structure
+        from app.services.ivr_service import IVRService
 
         client = mongomock_motor.AsyncMongoMockClient()
         db = client["test_ivr_struct"]
 
         try:
-            result = await get_ivr_structure(tenant_id="t1", db=db)
+            result = await IVRService(db).get_ivr_structure(tenant_id="t1")
             assert isinstance(result, dict)
         except Exception:
             pass
@@ -300,13 +300,13 @@ class TestIVRServiceUtils:
     @pytest.mark.asyncio
     async def test_process_dtmf_nonexistent_call(self) -> None:
         import mongomock_motor
-        from app.services.ivr_service import process_dtmf
+        from app.services.ivr_service import IVRService
 
         client = mongomock_motor.AsyncMongoMockClient()
         db = client["test_dtmf"]
 
         try:
-            result = await process_dtmf(call_id="nonexistent_call", dtmf="1", db=db)
+            result = await IVRService(db).process_dtmf(call_id="nonexistent_call", dtmf="1")
             # Should return error or empty dict
             assert isinstance(result, (dict, list))
         except Exception:
@@ -315,7 +315,7 @@ class TestIVRServiceUtils:
     @pytest.mark.asyncio
     async def test_process_call_event_nonexistent(self) -> None:
         import mongomock_motor
-        from app.services.ivr_service import process_call_event
+        from app.services.ivr_service import IVRService
 
         client = mongomock_motor.AsyncMongoMockClient()
         db = client["test_call_event"]
@@ -325,7 +325,7 @@ class TestIVRServiceUtils:
         mock_event.to = "+111"
 
         try:
-            result = await process_call_event(call_id="nonexistent", event=mock_event, db=db)
+            result = await IVRService(db).process_call_event(call_id="nonexistent", event=mock_event)
             assert isinstance(result, (dict, list))
         except Exception:
             pass

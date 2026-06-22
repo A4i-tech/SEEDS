@@ -240,18 +240,14 @@ class TestSchoolServiceExtended:
 
     @pytest.mark.asyncio
     async def test_list_schools_for_tenant(self, db) -> None:
-        from app.models.school import SchoolCreate
-        from app.services.school_service import create_school, list_schools_by_tenant
+        from app.services.school_service import SchoolService
 
-        s1 = SchoolCreate(name="School A", email="a@school.com", tenant_id="t1")
-        s2 = SchoolCreate(name="School B", email="b@school.com", tenant_id="t1")
-        s3 = SchoolCreate(name="School C", email="c@school.com", tenant_id="t2")
+        svc = SchoolService(db)
+        await svc.create_school(name="School A", email="a@school.com", tenant_id="t1", plain_password="p")
+        await svc.create_school(name="School B", email="b@school.com", tenant_id="t1", plain_password="p")
+        await svc.create_school(name="School C", email="c@school.com", tenant_id="t2", plain_password="p")
 
-        await create_school(s1, db)
-        await create_school(s2, db)
-        await create_school(s3, db)
-
-        schools = await list_schools_by_tenant("t1", db)
+        schools = await svc.list_schools_by_tenant("t1")
         assert len(schools) == 2
         names = {s.name for s in schools}
         assert "School A" in names
@@ -260,30 +256,32 @@ class TestSchoolServiceExtended:
     @pytest.mark.asyncio
     async def test_create_classroom(self, db) -> None:
         from app.models.classroom import ClassroomCreate
-        from app.services.school_service import create_classroom
+        from app.services.school_service import SchoolService
 
+        svc = SchoolService(db)
         data = ClassroomCreate(
             name="Class 1A",
             school_id="s1",
             teacher="teacher1",
         )
-        classroom = await create_classroom(data, db)
+        classroom = await svc.create_classroom(data)
         assert classroom.name == "Class 1A"
 
     @pytest.mark.asyncio
     async def test_get_classrooms_by_school(self, db) -> None:
         from app.models.classroom import ClassroomCreate
-        from app.services.school_service import create_classroom, list_classrooms_by_school
+        from app.services.school_service import SchoolService
 
+        svc = SchoolService(db)
         c1 = ClassroomCreate(name="Class 1A", school_id="s1", teacher="t1")
         c2 = ClassroomCreate(name="Class 1B", school_id="s1", teacher="t1")
         c3 = ClassroomCreate(name="Class 2A", school_id="s2", teacher="t1")
 
-        await create_classroom(c1, db)
-        await create_classroom(c2, db)
-        await create_classroom(c3, db)
+        await svc.create_classroom(c1)
+        await svc.create_classroom(c2)
+        await svc.create_classroom(c3)
 
-        classes = await list_classrooms_by_school("s1", db)
+        classes = await svc.list_classrooms_by_school("s1")
         assert len(classes) == 2
 
 

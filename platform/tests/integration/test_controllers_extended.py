@@ -67,6 +67,19 @@ async def _seed_teacher(mock_db, email="teacher@ext.com", password="pass1234", t
     return doc
 
 
+async def _seed_school(mock_db, email="admin@school.com", password="adminpass123", tenant_id="t1"):
+    doc = {
+        "name": "Test School",
+        "email": email,
+        "password": hash_password(password),  # legacy field name in schools collection
+        "tenant_id": tenant_id,
+        "is_active": True,
+    }
+    result = await mock_db["schools"].insert_one(doc)
+    doc["_id"] = str(result.inserted_id)
+    return doc
+
+
 async def _seed_tenant(mock_db, email="tenant@ext.com", password="tenantpass"):
     doc = {
         "role": UserRole.TENANT.value,
@@ -172,24 +185,29 @@ class TestTenantAuth:
 
     @pytest.mark.asyncio
     async def test_school_admin_login(self, client, mock_db):
-        await _seed_teacher(mock_db, email="admin@school.com", password="adminpass123")
+        await _seed_school(mock_db, email="admin@school.com", password="adminpass123")
         resp = await client.post("/school/admin/login", json={
             "email": "admin@school.com",
             "password": "adminpass123",
         })
         assert resp.status_code == 200
         data = resp.json()
-        assert "access_token" in data
-        assert "schoolId" in data
+        assert "token" in data
 
     @pytest.mark.asyncio
     async def test_school_admin_me(self, client, mock_db):
-        teacher = await _seed_teacher(mock_db, email="admin2@school.com")
-        token = _teacher_token(teacher["_id"])
+        school = await _seed_school(mock_db, email="admin2@school.com", tenant_id="t1")
+        token = create_access_token({
+            "sub": school["_id"],
+            "role": "school_admin",
+            "school_id": school["_id"],
+            "tenant_id": "t1",
+        })
         resp = await client.get("/school/admin/me", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 200
         data = resp.json()
-        assert "schoolId" in data
+        assert "email" in data
+        assert "name" in data
 
 
 # ---------------------------------------------------------------------------

@@ -83,15 +83,15 @@ class TestIVRServiceStructure:
 
     @pytest.mark.asyncio
     async def test_get_ivr_structure_not_found(self, db) -> None:
-        from app.services.ivr_service import get_ivr_structure
         from app.services import ivr_service
+        from app.services.ivr_service import IVRService
 
         # Ensure cache is clear
         original = ivr_service._latest_fsm_id
         ivr_service._latest_fsm_id = None
 
         try:
-            result = await get_ivr_structure(tenant_id="t1", db=db)
+            result = await IVRService(db).get_ivr_structure(tenant_id="t1")
             # No IVR doc in DB → returns error dict
             assert isinstance(result, dict)
             assert "error" in result or "fsm_id" in result
@@ -101,12 +101,11 @@ class TestIVRServiceStructure:
     @pytest.mark.asyncio
     async def test_process_dtmf_no_context(self, db) -> None:
         """process_dtmf with nonexistent call_id returns error response."""
-        from app.services.ivr_service import process_dtmf
+        from app.services.ivr_service import IVRService
 
-        result = await process_dtmf(
+        result = await IVRService(db).process_dtmf(
             call_id="nonexistent_call",
             dtmf="1",
-            db=db,
         )
         # Returns NCCO list (error talk action) or dict
         assert result is not None
@@ -114,12 +113,11 @@ class TestIVRServiceStructure:
     @pytest.mark.asyncio
     async def test_process_call_event_no_context(self, db) -> None:
         """process_call_event with nonexistent UUID returns gracefully (None)."""
-        from app.services.ivr_service import process_call_event
+        from app.services.ivr_service import IVRService
 
-        result = await process_call_event(
+        result = await IVRService(db).process_call_event(
             call_id="nonexistent_call",
             event={"status": "completed"},
-            db=db,
         )
         # Returns None when call not found
         assert result is None or isinstance(result, dict)
@@ -140,18 +138,17 @@ class TestIVRStartCallFlow:
     @pytest.mark.asyncio
     async def test_start_call_flow_no_ivr_loaded_returns_503(self, db) -> None:
         """start_call_flow when no FSM is loaded returns 4xx/5xx."""
-        from app.services.ivr_service import start_call_flow, set_latest_fsm_id
         from app.services import ivr_service
+        from app.services.ivr_service import IVRService
 
         # Clear cache
         original = ivr_service._latest_fsm_id
         ivr_service._latest_fsm_id = None
 
         try:
-            result = await start_call_flow(
+            result = await IVRService(db).start_call_flow(
                 phone_number="+91999999999",
                 tenant_id="t1",
-                db=db,
             )
             assert isinstance(result, dict)
             assert result.get("status_code", 503) >= 400

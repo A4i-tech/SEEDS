@@ -13,7 +13,7 @@ from app.consumers.base_consumer import BaseConsumer
 from app.platform.database import get_database
 from app.providers.service_bus import service_bus_provider
 from app.repositories.call_repository import CallsLogRepository
-from app.services import ivr_service
+from app.services.ivr_service import IVRService
 
 logger = logging.getLogger(__name__)
 
@@ -80,10 +80,9 @@ class CallWebhookConsumer(BaseConsumer):
             return
 
         db = get_database()
-        response = await ivr_service.start_call_flow(
+        response = await IVRService(db).start_call_flow(
             phone_number=phone_number,
             tenant_id=tenant_id,
-            db=db,
         )
 
         if response.get("status_code") == 200 and call_log_id:

@@ -1,5 +1,5 @@
 """
-Auth service — login, register_teacher, register_tenant.
+Auth service — login, register_teacher, register_tenant, school_admin_login, profiles.
 
 Ported from backend-server/src/auth/authenticateToken.js and teacher/tenant services.
 
@@ -12,15 +12,19 @@ SECURITY:
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, List
 
+from fastapi import Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.user import User, UserCreate, UserRole
+from app.platform.auth.dependencies import get_db
 from app.platform.auth.hashing import hash_password, verify_password
 from app.platform.auth.jwt import create_access_token
-from app.platform.error_handling import ConflictError, UnauthorizedError
+from app.platform.error_handling import ConflictError, NotFoundError, UnauthorizedError
 from app.platform.telemetry import get_counter
+from app.repositories.classroom_repository import ClassroomRepository
+from app.repositories.school_repository import SchoolRepository
 from app.repositories.user_repository import UserRepository
 
 logger = logging.getLogger(__name__)
@@ -246,3 +250,180 @@ async def register_tenant(
         )
     )
     return user
+
+
+# ---------------------------------------------------------------------------
+# School admin login
+# ---------------------------------------------------------------------------
+
+
+async def school_admin_login(
+    email: str,
+    password: str,
+    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+) -> dict[str, Any]:
+    """Authenticate a school admin against the schools collection.
+
+    School admins are NOT in the users collection — they are schools documents
+    with a bcrypt-hashed password field. Issues a JWT with role=school_admin.
+
+    SECURITY: plain password is never logged.
+    """
+    auth_failures = get_counter("auth.failures")
+    repo = SchoolRepository(db)
+
+    school = await repo.find_by_email(email)
+    if school is None or not school.hashed_password:
+        logger.warning("auth: school_admin login failed — email not found or no password")
+        auth_failures.add(1, {"reason": "school_not_found"})
+        raise UnauthorizedError("Invalid credentials")
+
+    if not school.is_active:
+        logger.warning("auth: school_admin login failed — inactive account %s", school.id)
+        auth_failures.add(1, {"reason": "inactive_account"})
+        raise UnauthorizedError("Account is inactive")
+
+    if not verify_password(password, school.hashed_password):
+        logger.warning("auth: school_admin login failed — wrong password for school %s", school.id)
+        auth_failures.add(1, {"reason": "wrong_password"})
+        raise UnauthorizedError("Invalid credentials")
+
+    school_id = str(school.id)
+    token = create_access_token(
+        {
+            "sub": school_id,
+            "role": "school_admin",
+            "school_id": school_id,
+            "tenant_id": school.tenant_id,
+        }
+    )
+    return {"token": token}
+
+
+# ---------------------------------------------------------------------------
+# Profile helpers
+# ---------------------------------------------------------------------------
+
+
+async def get_user_profile(
+    user_id: str,
+    entity_label: str,
+    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+) -> User:
+    """Fetch a user document by ID; raise NotFoundError if absent."""
+    user = await UserRepository(db).find_by_id(user_id)
+    if user is None:
+        raise NotFoundError(entity_label, user_id)
+    return user
+
+
+async def change_password(
+    user_id: str,
+    new_password: str,
+    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+) -> None:
+    """Hash *new_password* and persist it for *user_id*. Raises NotFoundError if absent."""
+    repo = UserRepository(db)
+    if await repo.find_by_id(user_id) is None:
+        raise NotFoundError("User", user_id)
+    await repo.update(user_id, {"hashed_password": hash_password(new_password)})
+
+
+async def get_school_admin_profile(
+    school_id: str,
+    tenant_id: str,
+    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+) -> dict[str, Any]:
+    """Return the school document for a school admin (parity with backend-server getMe).
+
+    Excludes hashed_password from the response.
+    """
+    school = await SchoolRepository(db).find_by_id(school_id)
+    if school is None or school.tenant_id != tenant_id:
+        raise NotFoundError("School", school_id)
+    data = school.model_dump(by_alias=False, exclude_none=True)
+    data.pop("hashed_password", None)
+    return data
+
+
+async def get_tenant_names(
+    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+) -> List[str]:
+    """Return a list of all tenant names (public endpoint)."""
+    cursor = db["users"].find({"role": UserRole.TENANT.value}, {"tenant_name": 1, "name": 1})
+    docs = await cursor.to_list(length=None)
+    return [d.get("tenant_name") or d.get("name", "") for d in docs]
+
+
+async def get_tenant_dashboard(
+    tenant_id: str,
+    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+) -> dict[str, Any]:
+    """Return aggregated dashboard statistics for a tenant."""
+    schools = await SchoolRepository(db).find_all_by_tenant(tenant_id)
+    all_users = await UserRepository(db).find_all_by_tenant(tenant_id)
+    teacher_count = sum(1 for u in all_users if u.role == UserRole.TEACHER)
+    student_count = sum(1 for u in all_users if u.role == UserRole.STUDENT)
+
+    class_count = 0
+    classroom_repo = ClassroomRepository(db)
+    for school in schools:
+        classes = await classroom_repo.find_by_school(str(school.id))
+        class_count += len(classes)
+
+    return {
+        "statistics": {
+            "totalSchools": len(schools),
+            "totalTeachers": teacher_count,
+            "totalStudents": student_count,
+            "totalClasses": class_count,
+        },
+        "schools": [s.model_dump(by_alias=False, exclude_none=True) for s in schools],
+    }
+
+
+# ---------------------------------------------------------------------------
+# AuthService class — thin OO wrapper around the module-level functions above
+# ---------------------------------------------------------------------------
+
+
+class AuthService:
+    """Stateful wrapper around auth module-level functions, bound to a single DB session.
+
+    Intended for use with FastAPI's dependency injection via ``get_auth_service``.
+    All module-level functions are preserved for backward compatibility.
+    """
+
+    def __init__(self, db: AsyncIOMotorDatabase[Any]) -> None:
+        self._db = db
+
+    async def login(self, email: str, password: str, auth_type: str) -> dict:
+        return await login(email, password, auth_type, self._db)
+
+    async def register_teacher(self, data: TeacherCreate) -> User:
+        return await register_teacher(data, self._db)
+
+    async def register_tenant(self, data: TenantCreate) -> User:
+        return await register_tenant(data, self._db)
+
+    async def school_admin_login(self, email: str, password: str) -> dict:
+        return await school_admin_login(email, password, self._db)
+
+    async def get_user_profile(self, user_id: str, entity_label: str) -> User:
+        return await get_user_profile(user_id, entity_label, self._db)
+
+    async def change_password(self, user_id: str, new_password: str) -> None:
+        return await change_password(user_id, new_password, self._db)
+
+    async def get_school_admin_profile(self, school_id: str, tenant_id: str) -> dict:
+        return await get_school_admin_profile(school_id, tenant_id, self._db)
+
+    async def get_tenant_names(self) -> list:
+        return await get_tenant_names(self._db)
+
+    async def get_tenant_dashboard(self, tenant_id: str) -> dict:
+        return await get_tenant_dashboard(tenant_id, self._db)
+
+
+def get_auth_service(db: AsyncIOMotorDatabase[Any] = Depends(get_db)) -> AuthService:
+    return AuthService(db)

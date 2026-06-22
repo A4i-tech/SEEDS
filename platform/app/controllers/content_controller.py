@@ -16,29 +16,50 @@ from __future__ import annotations
 
 import logging
 import time
-import uuid
+import urllib.parse
 from datetime import datetime, timezone
 from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.platform.auth.dependencies import (
-    get_current_user,
-    get_db,
-    require_teacher,
-    require_tenant,
+from app.platform.auth.dependencies import get_current_user
+from app.models.requests.content_requests import (
+    ContentCreateRequest,
+    ContentUpdateRequest,
+    QuizCreateRequest,
 )
 from app.models.user import UserRole
 from app.platform.error_handling import ForbiddenError, NotFoundError
+from app.providers.blob_storage import BlobStorageProvider
+from app.services.content_service import ContentService, get_content_service
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["Content"])
+router = APIRouter(prefix="/content", tags=["Content"])
 
 # Roles allowed for content operations (mirrors JS authorizeRole calls)
 _WRITE_ROLES = {UserRole.TENANT.value, UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value}
 _READ_ROLES = {UserRole.TENANT.value, UserRole.SCHOOL_ADMIN.value, UserRole.TEACHER.value, UserRole.CONTENT_CREATOR.value}
+
+
+# ---------------------------------------------------------------------------
+# Response DTOs
+# ---------------------------------------------------------------------------
+
+class ContentOut(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+    id: Optional[str] = Field(None, alias="_id")
+
+    @field_validator("id", mode="before")
+    @classmethod
+    def _coerce_id(cls, v: Any) -> Optional[str]:
+        return str(v) if v is not None else None
+
+
+class QuizOut(ContentOut):
+    pass
 
 
 # ---------------------------------------------------------------------------
@@ -74,12 +95,13 @@ def _read_school_filter(user: dict[str, Any]) -> Optional[Any]:
     return None
 
 
-def _write_school_filter(user: dict[str, Any]) -> Optional[str]:
-    """For writes: return the school_id if the user is school-scoped, else None."""
+def _write_school_filter(user: dict[str, Any]) -> dict:
+    """Return a schoolId dict for write operations — spread into query/document."""
     role = user.get("role", "")
+    school_id: Optional[str] = None
     if role in (UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value):
-        return user.get("school_id") or user.get("schoolId") or None
-    return None
+        school_id = user.get("school_id") or user.get("schoolId") or None
+    return {"schoolId": school_id}
 
 
 # ---------------------------------------------------------------------------
@@ -88,7 +110,6 @@ def _write_school_filter(user: dict[str, Any]) -> Optional[str]:
 
 async def _get_sas_url(url: str) -> str:
     try:
-        from app.providers.blob_storage import BlobStorageProvider  # noqa: PLC0415
         provider = BlobStorageProvider()
         return await provider.get_sas_url_from_blob_url(url, expiry_hours=1)
     except Exception as exc:  # noqa: BLE001
@@ -96,33 +117,17 @@ async def _get_sas_url(url: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Job enqueueing helper
-# ---------------------------------------------------------------------------
-
-async def _enqueue_content_job(content_id: str, db: AsyncIOMotorDatabase) -> str:
-    """Insert a pending job document and return the job _id as a string."""
-    job_doc: dict = {
-        "_id": str(uuid.uuid4()),
-        "content_id": content_id,
-        "status": "pending",
-        "created_at": datetime.now(timezone.utc),
-    }
-    await db["content_jobs"].insert_one(job_doc)
-    return str(job_doc["_id"])
-
-
-# ---------------------------------------------------------------------------
 # GET /content/job/{jobId}
 # ---------------------------------------------------------------------------
 
-@router.get("/content/job/{job_id}", summary="Get content job status")
+@router.get("/job/{job_id}", summary="Get content job status")
 async def get_job_status(
     job_id: str,
     user: dict[str, Any] = Depends(_require_content_write),
-    db: AsyncIOMotorDatabase = Depends(get_db),  # type: ignore[type-arg]
+    service: ContentService = Depends(get_content_service),
 ) -> dict[str, Any]:
     """Return the status document for a content processing job."""
-    doc = await db["content_jobs"].find_one({"_id": job_id})
+    doc = await service.get_job(job_id)
     if not doc:
         raise NotFoundError("Job", job_id)
     doc.pop("_id", None)
@@ -134,16 +139,13 @@ async def get_job_status(
 # GET /content/jobs
 # ---------------------------------------------------------------------------
 
-@router.get("/content/jobs", summary="List running and failed content jobs")
+@router.get("/jobs", summary="List running and failed content jobs")
 async def list_jobs(
     user: dict[str, Any] = Depends(_require_content_write),
-    db: AsyncIOMotorDatabase = Depends(get_db),  # type: ignore[type-arg]
+    service: ContentService = Depends(get_content_service),
 ) -> dict[str, Any]:
     """Return content jobs that are in-progress or failed."""
-    cursor = db["content_jobs"].find(
-        {"status": {"$in": ["running", "failed", "claimed"]}}
-    ).sort("created_at", -1)
-    docs = await cursor.to_list(length=None)
+    docs = await service.list_active_jobs()
 
     jobs = []
     for doc in docs:
@@ -162,7 +164,7 @@ async def list_jobs(
 # GET /content/sasUrl
 # ---------------------------------------------------------------------------
 
-@router.get("/content/sasUrl", summary="Generate SAS URL for a blob")
+@router.get("/sasUrl", summary="Generate SAS URL for a blob")
 async def get_sas_url(
     url: str = Query(..., description="Blob URL to generate SAS token for"),
     user: dict[str, Any] = Depends(_require_content_read),
@@ -178,7 +180,7 @@ async def get_sas_url(
 # GET /content/sasToken
 # ---------------------------------------------------------------------------
 
-@router.get("/content/sasToken", summary="Get upload SAS token for MP3 blob")
+@router.get("/sasToken", summary="Get upload SAS token for MP3 blob")
 async def get_sas_token(
     blob_name: str = Query(..., alias="blobName"),
     user: dict[str, Any] = Depends(_require_content_write),
@@ -187,7 +189,6 @@ async def get_sas_token(
     if not blob_name or not blob_name.lower().endswith(".mp3"):
         raise HTTPException(status_code=400, detail="Only .mp3 files are allowed.")
     try:
-        from app.providers.blob_storage import BlobStorageProvider  # noqa: PLC0415
         provider = BlobStorageProvider()
         sas_url = await provider.get_upload_sas_url("input-container", blob_name, expiry_hours=1)
     except Exception as exc:  # noqa: BLE001
@@ -199,14 +200,14 @@ async def get_sas_token(
 # GET /content/themes
 # ---------------------------------------------------------------------------
 
-@router.get("/content/themes", summary="Get distinct themes for a language")
+@router.get("/themes", summary="Get distinct themes for a language")
 async def get_themes(
     language: str = Query(...),
     user: dict[str, Any] = Depends(get_current_user),
-    db: AsyncIOMotorDatabase = Depends(get_db),  # type: ignore[type-arg]
+    service: ContentService = Depends(get_content_service),
 ) -> list[dict]:
     """Return distinct themes with audio URLs for the given language + tenant."""
-    tenant_id = user.get("tenant_id") or user.get("tenantId", "")
+    tenant_id = user.get("tenant_id", "")
     school_filter = _read_school_filter(user)
 
     query: dict = {
@@ -218,8 +219,7 @@ async def get_themes(
     if school_filter is not None:
         query["schoolId"] = school_filter
 
-    cursor = db["contentsV3"].find(query).sort("_id", -1)
-    docs = await cursor.to_list(length=None)
+    docs = await service.get_themes(query)
 
     seen: set = set()
     themes: list = []
@@ -239,7 +239,7 @@ async def get_themes(
 # GET /content
 # ---------------------------------------------------------------------------
 
-@router.get("/content", summary="List content (cursor pagination)")
+@router.get("", summary="List content (cursor pagination)")
 async def list_content(
     language: Optional[str] = None,
     theme: Optional[str] = None,
@@ -249,10 +249,10 @@ async def list_content(
     limit: int = Query(15, ge=1, le=200),
     cursor: Optional[str] = None,
     user: dict[str, Any] = Depends(_require_content_read),
-    db: AsyncIOMotorDatabase = Depends(get_db),  # type: ignore[type-arg]
+    service: ContentService = Depends(get_content_service),
 ) -> Any:
     """Return paginated content items, optionally filtered by language/theme/type."""
-    tenant_id = user.get("tenant_id") or user.get("tenantId", "")
+    tenant_id = user.get("tenant_id", "")
     school_filter = _read_school_filter(user)
 
     base_query: dict = {"isDeleted": {"$ne": True}, "tenantId": tenant_id}
@@ -264,11 +264,12 @@ async def list_content(
         if len(ids) == 0:
             raise HTTPException(status_code=400, detail="ids query parameter must be a non-empty array")
         id_query = {**base_query, "_id": {"$in": ids}}
-        contents = await db["contentsV3"].find(id_query).to_list(length=None)
-        quizzes = await db["quizdata"].find(id_query).to_list(length=None)
+        contents = await service.fetch_contents(id_query)
+        quizzes = await service.fetch_quizzes(id_query)
         all_items = sorted(
-            [_fmt_content(d) for d in contents] + [_fmt_quiz(d) for d in quizzes],
-            key=lambda x: (-x.get("creation_time", 0), str(x.get("_id", ""))),
+            [ContentOut.model_validate(d).model_dump(by_alias=False) for d in contents]
+            + [{**QuizOut.model_validate(d).model_dump(by_alias=False), "type": "quiz"} for d in quizzes],
+            key=lambda x: (-x.get("creation_time", 0), str(x.get("id", ""))),
         )
         return all_items
 
@@ -281,7 +282,6 @@ async def list_content(
         content_query["isTeacherApp"] = True
         quiz_query["isTeacherApp"] = True
     elif language and theme and exp_name:
-        import urllib.parse  # noqa: PLC0415
         decoded_theme = urllib.parse.unquote(theme)
         if exp_name.lower() == "quiz":
             fetch_content = False
@@ -309,12 +309,13 @@ async def list_content(
             except ValueError:
                 pass
 
-    contents = await db["contentsV3"].find(content_query).sort("creation_time", -1).to_list(length=None) if fetch_content else []
-    quizzes = await db["quizdata"].find(quiz_query).sort("creation_time", -1).to_list(length=None) if fetch_quizzes else []
+    contents = await service.fetch_contents(content_query) if fetch_content else []
+    quizzes = await service.fetch_quizzes(quiz_query) if fetch_quizzes else []
 
     all_results = sorted(
-        [_fmt_content(d) for d in contents] + [_fmt_quiz(d) for d in quizzes],
-        key=lambda x: (-x.get("creation_time", 0), str(x.get("_id", ""))),
+        [ContentOut.model_validate(d).model_dump(by_alias=False) for d in contents]
+        + [{**QuizOut.model_validate(d).model_dump(by_alias=False), "type": "quiz"} for d in quizzes],
+        key=lambda x: (-x.get("creation_time", 0), str(x.get("id", ""))),
     )
 
     # Skip past cursor position
@@ -326,7 +327,7 @@ async def list_content(
                 last_id = parts[1]
                 idx = next(
                     (i for i, x in enumerate(all_results)
-                     if x.get("creation_time") == last_ct and str(x.get("_id", "")) == last_id),
+                     if x.get("creation_time") == last_ct and str(x.get("id", "")) == last_id),
                     None,
                 )
                 if idx is not None:
@@ -338,7 +339,7 @@ async def list_content(
     data = all_results[:limit]
     last_item = data[-1] if data else None
     next_cursor = (
-        f"{last_item['creation_time']}_{last_item['_id']}"
+        f"{last_item['creation_time']}_{last_item['id']}"
         if has_more and last_item
         else None
     )
@@ -350,14 +351,14 @@ async def list_content(
 # GET /content/{content_id}
 # ---------------------------------------------------------------------------
 
-@router.get("/content/{content_id}", summary="Get content by ID")
+@router.get("/{content_id}", summary="Get content by ID")
 async def get_content(
     content_id: str,
     user: dict[str, Any] = Depends(_require_content_read),
-    db: AsyncIOMotorDatabase = Depends(get_db),  # type: ignore[type-arg]
+    service: ContentService = Depends(get_content_service),
 ) -> Any:
     """Return a content item by ID, scoped to the authenticated tenant."""
-    tenant_id = user.get("tenant_id") or user.get("tenantId", "")
+    tenant_id = user.get("tenant_id", "")
     school_filter = _read_school_filter(user)
 
     query: dict = {
@@ -368,13 +369,13 @@ async def get_content(
     if school_filter is not None:
         query["schoolId"] = school_filter
 
-    doc = await db["contentsV3"].find_one(query)
+    doc = await service.get_content_doc(query)
     if doc:
-        return _fmt_content(doc)
+        return ContentOut.model_validate(doc).model_dump(by_alias=False)
 
-    quiz = await db["quizdata"].find_one(query)
+    quiz = await service.get_quiz_doc(query)
     if quiz:
-        return _fmt_quiz(quiz)
+        return {**QuizOut.model_validate(quiz).model_dump(by_alias=False), "type": "quiz"}
 
     raise NotFoundError("Content", content_id)
 
@@ -383,42 +384,38 @@ async def get_content(
 # POST /content — create + trigger job
 # ---------------------------------------------------------------------------
 
-@router.post("/content", summary="Create content and trigger processing job", status_code=201)
+@router.post("", summary="Create content and trigger processing job", status_code=201)
 async def create_content(
-    body: dict[str, Any],
+    body: ContentCreateRequest,
     user: dict[str, Any] = Depends(_require_content_write),
-    db: AsyncIOMotorDatabase = Depends(get_db),  # type: ignore[type-arg]
+    service: ContentService = Depends(get_content_service),
 ) -> dict[str, Any]:
     """Create a new content document and enqueue a processing job.
 
     Returns ``{"message": "...", "jobId": "..."}``.
     """
-    tenant_id = user.get("tenant_id") or user.get("tenantId", "")
+    tenant_id = user.get("tenant_id", "")
     user_id = user.get("sub", "")
-    school_id = _write_school_filter(user)
 
-    # Validate audio URLs
-    for item in body.get("audioContent", []):
+    for item in body.audio_content or []:
         au = item.get("audioUrl", "")
         if au and not au.lower().endswith(".mp3"):
             raise HTTPException(status_code=400, detail="Only .mp3 audio files are allowed.")
 
-    content_id = str(uuid.uuid4())
     now_ts = int(time.time())
+    body_dict = body.model_dump(by_alias=True, exclude_unset=True)
     doc: dict = {
-        **body,
-        "_id": content_id,
+        **body_dict,
         "tenantId": tenant_id,
         "createdBy": user_id,
         "creation_time": now_ts,
-        "schoolId": school_id,
+        **_write_school_filter(user),
         "isDeleted": False,
         "isProcessed": False,
-        "created_at": datetime.now(timezone.utc),
     }
 
-    await db["contentsV3"].insert_one(doc)
-    job_id = await _enqueue_content_job(content_id, db)
+    content_id = await service.insert_content(doc)
+    job_id = await service.enqueue_content_job(content_id)
 
     logger.info("content_controller: created content_id=%s job_id=%s", content_id, job_id)
     return {"message": "Processing New Content job scheduled!", "jobId": job_id}
@@ -428,100 +425,78 @@ async def create_content(
 # PATCH /content — update + optionally re-trigger job
 # ---------------------------------------------------------------------------
 
-@router.patch("/content", summary="Update content")
+@router.patch("", summary="Update content")
 async def update_content(
-    body: dict[str, Any],
+    body: ContentUpdateRequest,
     is_audio_uploaded: bool = Query(False, alias="isAudioUploaded"),
     user: dict[str, Any] = Depends(_require_content_write),
-    db: AsyncIOMotorDatabase = Depends(get_db),  # type: ignore[type-arg]
+    service: ContentService = Depends(get_content_service),
 ) -> Any:
     """Update a content item. Re-triggers processing job if isAudioUploaded=true."""
-    tenant_id = user.get("tenant_id") or user.get("tenantId", "")
-    content_id = body.get("_id")
-    if not content_id:
-        raise HTTPException(status_code=400, detail="Content _id is required")
+    tenant_id = user.get("tenant_id", "")
+    content_id = body.id
 
-    school_filter = _write_school_filter(user)
     write_filter: dict = {
         "_id": content_id,
         "tenantId": tenant_id,
         "isDeleted": {"$ne": True},
+        **_write_school_filter(user),
     }
-    if school_filter is not None:
-        write_filter["schoolId"] = school_filter
 
-    # Build update set
     allowed = {"title", "theme", "description", "type", "language", "isPullModel", "isTeacherApp"}
-    update: dict = {k: v for k, v in body.items() if k in allowed}
+    body_dict = body.model_dump(by_alias=True, exclude_unset=True)
+    update: dict = {k: v for k, v in body_dict.items() if k in allowed}
 
     if is_audio_uploaded:
-        for item in body.get("audioContent", []):
-            au = item.get("audioUrl", "")
-            if au and not au.lower().endswith(".mp3"):
-                raise HTTPException(status_code=400, detail="Only .mp3 audio files are allowed.")
-        if "audioContent" in body:
-            update["audioContent"] = body["audioContent"]
+        if "audio_content" in body.model_fields_set:
+            for item in body.audio_content or []:
+                au = item.get("audioUrl", "")
+                if au and not au.lower().endswith(".mp3"):
+                    raise HTTPException(status_code=400, detail="Only .mp3 audio files are allowed.")
+            update["audioContent"] = body.audio_content
         update["isProcessed"] = False
 
     update["updated_at"] = datetime.now(timezone.utc)
 
-    result = await db["contentsV3"].find_one_and_update(
-        write_filter, {"$set": update}, return_document=True
-    )
+    result = await service.update_content_doc(write_filter, update)
 
     if result:
         if is_audio_uploaded:
             content_id_str = str(result.get("_id", ""))
-            job_id = await _enqueue_content_job(content_id_str, db)
-            out = _fmt_content(result)
+            job_id = await service.enqueue_content_job(content_id_str)
+            out = ContentOut.model_validate(result).model_dump(by_alias=False)
             out["jobId"] = job_id
             return out
-        return _fmt_content(result)
+        return ContentOut.model_validate(result).model_dump(by_alias=False)
 
     raise NotFoundError("Content", str(content_id))
-
-
-# ---------------------------------------------------------------------------
-# PUT /content/{content_id}  (alias for PATCH for REST completeness)
-# ---------------------------------------------------------------------------
-
-@router.put("/content/{content_id}", summary="Replace/update content by ID")
-async def put_content(
-    content_id: str,
-    body: dict[str, Any],
-    user: dict[str, Any] = Depends(_require_content_write),
-    db: AsyncIOMotorDatabase = Depends(get_db),  # type: ignore[type-arg]
-) -> Any:
-    """Full update of a content item by ID."""
-    body["_id"] = content_id
-    return await update_content(body=body, is_audio_uploaded=False, user=user, db=db)
 
 
 # ---------------------------------------------------------------------------
 # DELETE /content/{content_id}
 # ---------------------------------------------------------------------------
 
-@router.delete("/content/{content_id}", summary="Soft-delete content by ID")
+@router.delete("/{content_id}", summary="Soft-delete content by ID")
 async def delete_content(
     content_id: str,
     user: dict[str, Any] = Depends(_require_content_write),
-    db: AsyncIOMotorDatabase = Depends(get_db),  # type: ignore[type-arg]
+    service: ContentService = Depends(get_content_service),
 ) -> Any:
     """Soft-delete a content item (sets isDeleted=true)."""
-    tenant_id = user.get("tenant_id") or user.get("tenantId", "")
-    school_filter = _write_school_filter(user)
+    tenant_id = user.get("tenant_id", "")
+    write_filter: dict = {
+        "_id": content_id,
+        "tenantId": tenant_id,
+        **_write_school_filter(user),
+    }
 
-    write_filter: dict = {"_id": content_id, "tenantId": tenant_id}
-    if school_filter is not None:
-        write_filter["schoolId"] = school_filter
+    matched = await service.soft_delete_content(write_filter)
+    if matched > 0:
+        return {"matched": matched}
 
-    result = await db["contentsV3"].update_one(write_filter, {"$set": {"isDeleted": True}})
-    if result.matched_count > 0:
-        return {"matched": result.matched_count, "modified": result.modified_count}
-
-    quiz_result = await db["quizdata"].update_one(write_filter, {"$set": {"isDeleted": True}})
-    if quiz_result.matched_count > 0:
-        return {"matched": quiz_result.matched_count, "modified": quiz_result.modified_count}
+    quiz_matched = await service.soft_delete_quiz(write_filter)
+    if quiz_matched > 0:
+        return {"matched": quiz_matched}
 
     raise NotFoundError("Content", content_id)
 
@@ -530,50 +505,28 @@ async def delete_content(
 # POST /content/quiz — create quiz + trigger job
 # ---------------------------------------------------------------------------
 
-@router.post("/content/quiz", summary="Create quiz and trigger processing job")
+@router.post("/quiz", summary="Create quiz and trigger processing job")
 async def create_quiz(
-    body: dict[str, Any],
+    body: QuizCreateRequest,
     user: dict[str, Any] = Depends(_require_content_write),
-    db: AsyncIOMotorDatabase = Depends(get_db),  # type: ignore[type-arg]
+    service: ContentService = Depends(get_content_service),
 ) -> dict[str, Any]:
     """Create a new quiz document and enqueue a processing job."""
-    tenant_id = user.get("tenant_id") or user.get("tenantId", "")
+    tenant_id = user.get("tenant_id", "")
     user_id = user.get("sub", "")
-    school_id = _write_school_filter(user)
 
-    quiz_id = str(uuid.uuid4())
     now_ts = int(time.time())
+    body_dict = body.model_dump(by_alias=True, exclude_unset=True)
     doc: dict = {
-        **body,
-        "_id": quiz_id,
+        **body_dict,
         "tenantId": tenant_id,
         "createdBy": user_id,
         "creation_time": now_ts,
-        "schoolId": school_id,
+        **_write_school_filter(user),
         "isDeleted": False,
-        "created_at": datetime.now(timezone.utc),
     }
 
-    await db["quizdata"].insert_one(doc)
-    job_id = await _enqueue_content_job(quiz_id, db)
+    quiz_id = await service.insert_quiz(doc)
+    job_id = await service.enqueue_content_job(quiz_id)
 
     return {"message": "Processing New Content job scheduled!", "jobId": job_id}
-
-
-# ---------------------------------------------------------------------------
-# Formatting helpers
-# ---------------------------------------------------------------------------
-
-def _fmt_content(doc: dict) -> dict:
-    d = dict(doc)
-    if "_id" in d:
-        d["id"] = str(d["_id"])
-    return d
-
-
-def _fmt_quiz(doc: dict) -> dict:
-    d = dict(doc)
-    if "_id" in d:
-        d["id"] = str(d["_id"])
-    d["type"] = "quiz"
-    return d

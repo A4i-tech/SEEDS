@@ -6,6 +6,7 @@ Storage account URLs are computed lazily from settings.
 
 from __future__ import annotations
 
+from app.platform.settings import get_settings
 from functools import lru_cache
 from typing import Dict
 
@@ -13,7 +14,6 @@ from typing import Dict
 @lru_cache(maxsize=1)
 def _get_base_urls() -> tuple[str, str]:
     """Return (storage_account_base_url, pullMenuMainUrl) from settings."""
-    from app.platform.settings import get_settings  # noqa: PLC0415
 
     settings = get_settings()
     storage_account_name = settings.storage_account_name

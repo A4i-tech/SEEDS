@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.platform.auth.dependencies import get_current_user, require_conference_owner
 
-router = APIRouter(tags=["Participants"])
+router = APIRouter(prefix="/conference", tags=["Participants"])
 
 
 def _get_conference_manager() -> Any:
@@ -34,7 +34,7 @@ def _get_conf_or_404(conference_id: str) -> Any:
     return conf
 
 
-@router.put("/conference/addparticipant/{conference_id}", summary="Add participant to conference")
+@router.put("/addparticipant/{conference_id}", summary="Add participant to conference")
 async def add_participant(
     conference_id: str,
     phone_number: str = Query(...),
@@ -48,7 +48,7 @@ async def add_participant(
     return {"message": "Event Queued for execution"}
 
 
-@router.put("/conference/removeparticipant/{conference_id}", summary="Remove participant from conference")
+@router.put("/removeparticipant/{conference_id}", summary="Remove participant from conference")
 async def remove_participant(
     conference_id: str,
     phone_number: str = Query(...),
@@ -61,7 +61,7 @@ async def remove_participant(
     return {"message": "Event Queued for execution"}
 
 
-@router.put("/conference/muteparticipant/{conference_id}", summary="Mute a participant")
+@router.put("/muteparticipant/{conference_id}", summary="Mute a participant")
 async def mute_participant(
     conference_id: str,
     phone_number: str = Query(...),
@@ -74,7 +74,7 @@ async def mute_participant(
     return {"message": "Event Queued for execution"}
 
 
-@router.put("/conference/unmuteparticipant/{conference_id}", summary="Unmute a participant")
+@router.put("/unmuteparticipant/{conference_id}", summary="Unmute a participant")
 async def unmute_participant(
     conference_id: str,
     phone_number: str = Query(...),
@@ -87,7 +87,7 @@ async def unmute_participant(
     return {"message": "Event Queued for execution"}
 
 
-@router.put("/conference/muteall/{conference_id}", summary="Mute all students in conference")
+@router.put("/muteall/{conference_id}", summary="Mute all students in conference")
 async def mute_all(
     conference_id: str,
     user: dict[str, Any] = Depends(require_conference_owner),
@@ -102,7 +102,7 @@ async def mute_all(
     return {"message": "Event Queued for execution"}
 
 
-@router.put("/conference/unmuteall/{conference_id}", summary="Unmute all students in conference")
+@router.put("/unmuteall/{conference_id}", summary="Unmute all students in conference")
 async def unmute_all(
     conference_id: str,
     user: dict[str, Any] = Depends(require_conference_owner),

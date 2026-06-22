@@ -4,10 +4,10 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.conference_state import ConferenceCallState
+from app.repositories.base_repository import BaseRepository
 
 
 class ConferenceOwnershipRepository:
@@ -41,20 +41,13 @@ class ConferenceOwnershipRepository:
         return await self._col.find_one({"_id": conf_id})
 
 
-class ConferenceRepository:
+class ConferenceRepository(BaseRepository):
     """Async Motor repository for the 'conference_states' collection."""
 
     COLLECTION = "conference_states"
 
     def __init__(self, db: AsyncIOMotorDatabase) -> None:
         self._col = db[self.COLLECTION]
-
-    @staticmethod
-    def _to_id(id_str: str) -> ObjectId | str:
-        try:
-            return ObjectId(id_str)
-        except Exception:
-            return id_str
 
     async def find_by_id(self, id: str) -> Optional[ConferenceCallState]:
         doc = await self._col.find_one({"_id": self._to_id(id)})

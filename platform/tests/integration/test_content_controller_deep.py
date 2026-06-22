@@ -213,16 +213,6 @@ class TestContentCRUD:
         assert resp.status_code in (200, 404, 422)
 
     @pytest.mark.asyncio
-    async def test_put_content_not_found(self, client, mock_db):
-        tenant = await _seed_tenant(mock_db)
-        token = _tenant_token(tenant["_id"])
-        resp = await client.put("/content/000000000000000000000000", json={
-            "type": "audio",
-            "language": "english",
-        }, headers={"Authorization": f"Bearer {token}"})
-        assert resp.status_code in (200, 404, 422)
-
-    @pytest.mark.asyncio
     async def test_delete_content_not_found(self, client, mock_db):
         tenant = await _seed_tenant(mock_db)
         token = _tenant_token(tenant["_id"])
@@ -283,18 +273,18 @@ class TestContentHelperFunctions:
 
         user = {"role": "content_creator", "school_id": "s2"}
         result = _write_school_filter(user)
-        assert result == "s2"
+        assert result == {"schoolId": "s2"}
 
     def test_write_school_filter_tenant(self) -> None:
         from app.controllers.content_controller import _write_school_filter
 
         user = {"role": "tenant"}
         result = _write_school_filter(user)
-        assert result is None
+        assert result == {"schoolId": None}
 
     def test_write_school_filter_school_admin(self) -> None:
         from app.controllers.content_controller import _write_school_filter
 
         user = {"role": "school_admin", "school_id": "s3"}
         result = _write_school_filter(user)
-        assert result == "s3"
+        assert result == {"schoolId": "s3"}

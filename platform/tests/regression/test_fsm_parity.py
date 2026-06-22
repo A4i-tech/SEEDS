@@ -71,7 +71,7 @@ def _build_simple_fsm() -> Any:
     """
     from app.services.fsm.fsm import FSM  # noqa: PLC0415
 
-    with patch("app.platform.settings.get_settings") as mock_settings:
+    with patch("app.services.fsm.fsm.get_settings") as mock_settings:
         mock_settings.return_value.storage_account_name = ""
         mock_settings.return_value.ivr_daily_listening_limit_seconds = 1800
         fsm = FSM(fsm_id="test_fsm")
@@ -111,7 +111,7 @@ class TestFSMTransitions:
         doc = _make_ivr_state_doc("conv1", "LA0")
 
         with (
-            patch("app.platform.settings.get_settings") as mock_settings,
+            patch("app.services.fsm.fsm.get_settings") as mock_settings,
             patch("app.platform.database.get_database") as mock_db,
         ):
             mock_settings.return_value.ivr_daily_listening_limit_seconds = 1800
@@ -133,7 +133,7 @@ class TestFSMTransitions:
         doc = _make_ivr_state_doc("conv2", "LA0")
 
         with (
-            patch("app.platform.settings.get_settings") as mock_settings,
+            patch("app.services.fsm.fsm.get_settings") as mock_settings,
             patch("app.platform.database.get_database") as mock_db,
         ):
             mock_settings.return_value.ivr_daily_listening_limit_seconds = 1800
@@ -154,7 +154,7 @@ class TestFSMTransitions:
         doc = _make_ivr_state_doc("conv3", "LA1")
 
         with (
-            patch("app.platform.settings.get_settings") as mock_settings,
+            patch("app.services.fsm.fsm.get_settings") as mock_settings,
             patch("app.platform.database.get_database") as mock_db,
         ):
             mock_settings.return_value.ivr_daily_listening_limit_seconds = 1800
@@ -182,7 +182,7 @@ class TestFSMTransitions:
         doc = _make_ivr_state_doc("conv4", "LA0")
 
         with (
-            patch("app.platform.settings.get_settings") as mock_settings,
+            patch("app.services.fsm.fsm.get_settings") as mock_settings,
             patch("app.platform.database.get_database") as mock_db,
         ):
             mock_settings.return_value.ivr_daily_listening_limit_seconds = 1800
@@ -204,7 +204,7 @@ class TestFSMTransitions:
         doc = _make_ivr_state_doc("conv5", "LA0")
 
         with (
-            patch("app.platform.settings.get_settings") as mock_settings,
+            patch("app.services.fsm.fsm.get_settings") as mock_settings,
             patch("app.platform.database.get_database") as mock_db,
         ):
             mock_settings.return_value.ivr_daily_listening_limit_seconds = 1800
@@ -224,7 +224,7 @@ class TestFSMSerializationRoundTrip:
 
     def test_serialize_produces_ivr_fsm_doc(self):
         fsm = _build_simple_fsm()
-        with patch("app.platform.settings.get_settings") as mock_settings:
+        with patch("app.services.fsm.fsm.get_settings") as mock_settings:
             mock_settings.return_value.storage_account_name = ""
             doc = fsm.serialize()
 
@@ -238,7 +238,7 @@ class TestFSMSerializationRoundTrip:
         from app.services.fsm.fsm import FSM  # noqa: PLC0415
 
         fsm = _build_simple_fsm()
-        with patch("app.platform.settings.get_settings") as mock_settings:
+        with patch("app.services.fsm.fsm.get_settings") as mock_settings:
             mock_settings.return_value.storage_account_name = ""
             mock_settings.return_value.ivr_daily_listening_limit_seconds = 1800
             doc = fsm.serialize()
@@ -319,7 +319,7 @@ class TestDailyLimitPreOperation:
         doc = _make_ivr_state_doc("conv7", "LA0")
 
         with (
-            patch("app.platform.settings.get_settings") as mock_settings,
+            patch("app.services.fsm.fsm.get_settings") as mock_settings,
             patch("app.platform.database.get_database") as mock_db,
         ):
             mock_settings.return_value.ivr_daily_listening_limit_seconds = 1800
@@ -355,7 +355,7 @@ class TestDailyLimitPreOperation:
         doc = _make_ivr_state_doc("conv8", "LA0")
 
         with (
-            patch("app.platform.settings.get_settings") as mock_settings,
+            patch("app.services.fsm.fsm.get_settings") as mock_settings,
             patch("app.platform.database.get_database") as mock_db,
         ):
             mock_settings.return_value.ivr_daily_listening_limit_seconds = 1800
@@ -395,7 +395,7 @@ class TestDTMFNavigation:
             return mock_db
 
         with (
-            patch("app.platform.settings.get_settings") as mock_settings,
+            patch("app.services.fsm.fsm.get_settings") as mock_settings,
             patch("app.platform.database.get_database") as _mock_db,
         ):
             mock_settings.return_value.ivr_daily_listening_limit_seconds = 1800
@@ -428,7 +428,7 @@ class TestDTMFNavigation:
             return mock_db
 
         with (
-            patch("app.platform.settings.get_settings") as mock_settings,
+            patch("app.services.fsm.fsm.get_settings") as mock_settings,
             patch("app.platform.database.get_database") as _mock_db,
         ):
             mock_settings.return_value.ivr_daily_listening_limit_seconds = 1800

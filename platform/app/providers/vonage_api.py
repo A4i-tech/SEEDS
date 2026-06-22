@@ -13,12 +13,24 @@ SECURITY:
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 import random
 from typing import Any
 
 from pydantic import BaseModel
+
+try:
+    from vonage.errors import ClientError  # type: ignore[import-untyped]
+    from requests.exceptions import (  # type: ignore[import-untyped]
+        ConnectionError as RequestsConnectionError,
+        ReadTimeout,
+    )
+except ImportError:
+    ClientError = Exception  # type: ignore[misc,assignment]
+    ReadTimeout = Exception  # type: ignore[misc,assignment]
+    RequestsConnectionError = Exception  # type: ignore[misc,assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +79,6 @@ class VonageAPIProvider:
         # Decode base64-encoded PEM key to a string if needed.
         # SDK accepts the PEM string directly — no temp file required.
         if "\n" not in private_key and not private_key.startswith("-----"):
-            import base64
             private_key = base64.b64decode(private_key).decode("utf-8")
 
         self._client = vonage.Client(
@@ -86,12 +97,6 @@ class VonageAPIProvider:
         max_retries: int = 5,
     ) -> dict[str, Any]:
         """Call voice.create_call with exponential back-off on 429/network errors."""
-        from vonage.errors import ClientError  # type: ignore[import-untyped]
-        from requests.exceptions import (  # type: ignore[import-untyped]
-            ReadTimeout,
-            ConnectionError as RequestsConnectionError,
-        )
-
         for attempt in range(max_retries):
             try:
                 resp = await asyncio.to_thread(self._client.voice.create_call, call_data)

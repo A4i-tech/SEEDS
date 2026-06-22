@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.platform.auth.dependencies import get_current_user, require_conference_owner
 
-router = APIRouter(tags=["Playback"])
+router = APIRouter(prefix="/conference", tags=["Playback"])
 
 
 def _validate_audio_url(url: str) -> None:
@@ -45,7 +45,7 @@ def _get_conf_or_404(conference_id: str) -> Any:
     return conf
 
 
-@router.put("/conference/playaudio/{conference_id}", summary="Play audio content in conference")
+@router.put("/playaudio/{conference_id}", summary="Play audio content in conference")
 async def play_audio(
     conference_id: str,
     url: str = Query(..., description="Azure Blob URL of the audio content"),
@@ -59,7 +59,7 @@ async def play_audio(
     return {"message": "Event Queued for execution"}
 
 
-@router.put("/conference/pauseaudio/{conference_id}", summary="Pause audio content")
+@router.put("/pauseaudio/{conference_id}", summary="Pause audio content")
 async def pause_audio(
     conference_id: str,
     user: dict[str, Any] = Depends(require_conference_owner),
@@ -71,7 +71,7 @@ async def pause_audio(
     return {"message": "Event Queued for execution"}
 
 
-@router.put("/conference/resumeaudio/{conference_id}", summary="Resume audio content")
+@router.put("/resumeaudio/{conference_id}", summary="Resume audio content")
 async def resume_audio(
     conference_id: str,
     user: dict[str, Any] = Depends(require_conference_owner),
@@ -83,7 +83,7 @@ async def resume_audio(
     return {"message": "Event Queued for execution"}
 
 
-@router.put("/conference/seekaudio/{conference_id}", summary="Seek audio position")
+@router.put("/seekaudio/{conference_id}", summary="Seek audio position")
 async def seek_audio(
     conference_id: str,
     delta_seconds: Optional[int] = Query(None, description="Signed seek offset in seconds"),
@@ -102,7 +102,7 @@ async def seek_audio(
     return {"message": "Event Queued for execution"}
 
 
-@router.put("/conference/setplaybackspeed/{conference_id}", summary="Set playback speed")
+@router.put("/setplaybackspeed/{conference_id}", summary="Set playback speed")
 async def set_playback_speed(
     conference_id: str,
     speed: float = Query(..., ge=0.5, le=2.0, description="Playback speed multiplier"),

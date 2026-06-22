@@ -8,9 +8,10 @@ from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.user import User, UserCreate
+from app.repositories.base_repository import BaseRepository
 
 
-class UserRepository:
+class UserRepository(BaseRepository):
     """Async Motor repository for the 'users' collection.
 
     Never raises on not-found; callers decide to raise HTTPException / NotFoundError.
@@ -20,17 +21,6 @@ class UserRepository:
 
     def __init__(self, db: AsyncIOMotorDatabase) -> None:
         self._col = db[self.COLLECTION]
-
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-    @staticmethod
-    def _to_id(id_str: str) -> ObjectId | str:
-        """Convert a str to ObjectId when valid, otherwise return as-is."""
-        try:
-            return ObjectId(id_str)
-        except Exception:
-            return id_str
 
     # ------------------------------------------------------------------
     # Read
@@ -60,6 +50,10 @@ class UserRepository:
         cursor = self._col.find({"tenant_id": tenant_id})
         docs = await cursor.to_list(length=None)
         return [User.from_mongo(d) for d in docs]
+
+    async def count_by_school_and_role(self, school_id: str, role: str) -> int:
+        """Return count of users with the given school_id and role."""
+        return await self._col.count_documents({"school_id": school_id, "role": role})
 
     # ------------------------------------------------------------------
     # Write

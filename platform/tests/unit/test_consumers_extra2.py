@@ -173,10 +173,10 @@ class TestCallWebhookConsumerExtra:
         }
 
         mock_db = MagicMock()
-        mock_ivr_service = MagicMock()
-        mock_ivr_service.start_call_flow = AsyncMock(return_value={"status_code": 503})
+        mock_instance = MagicMock()
+        mock_instance.start_call_flow = AsyncMock(return_value={"status_code": 503})
 
-        with patch("app.consumers.call_webhook_consumer.ivr_service", mock_ivr_service, create=True):
+        with patch("app.consumers.call_webhook_consumer.IVRService", return_value=mock_instance):
             with patch("app.platform.database.get_database", return_value=mock_db):
                 try:
                     await consumer.process(msg)

@@ -590,58 +590,56 @@ class TestSchoolServiceAdditional:
 
     @pytest.mark.asyncio
     async def test_get_school_success(self, db) -> None:
-        from app.models.school import SchoolCreate
-        from app.services.school_service import create_school, get_school
+        from app.services.school_service import SchoolService
 
-        data = SchoolCreate(name="Get By ID", email="getbyid@school.com", tenant_id="t1")
-        school = await create_school(data, db)
+        svc = SchoolService(db)
+        school = await svc.create_school(name="Get By ID", email="getbyid@school.com", tenant_id="t1", plain_password="pass")
 
-        result = await get_school(school.id, db)
+        result = await svc.get_school(school.id)
         assert result is not None
         assert result.name == "Get By ID"
 
     @pytest.mark.asyncio
     async def test_get_school_not_found(self, db) -> None:
-        from app.services.school_service import get_school
+        from app.services.school_service import SchoolService
         from app.platform.error_handling import NotFoundError
 
         with pytest.raises(NotFoundError):
-            await get_school("000000000000000000000000", db)
+            await SchoolService(db).get_school("000000000000000000000000")
 
     @pytest.mark.asyncio
     async def test_get_school_dashboard(self, db) -> None:
-        from app.models.school import SchoolCreate
-        from app.services.school_service import create_school, get_school_dashboard
+        from app.services.school_service import SchoolService
 
-        data = SchoolCreate(name="Dashboard School", email="dash@school.com", tenant_id="t1")
-        school = await create_school(data, db)
+        svc = SchoolService(db)
+        school = await svc.create_school(name="Dashboard School", email="dash@school.com", tenant_id="t1", plain_password="pass")
 
-        result = await get_school_dashboard(school.id, "t1", db)
+        result = await svc.get_school_dashboard(school.id, "t1")
         assert result is not None
 
     @pytest.mark.asyncio
     async def test_update_school(self, db) -> None:
-        from app.models.school import SchoolCreate
-        from app.services.school_service import create_school, update_school
+        from app.services.school_service import SchoolService
 
-        data = SchoolCreate(name="Old Name", email="old@school.com", tenant_id="t1")
-        school = await create_school(data, db)
+        svc = SchoolService(db)
+        school = await svc.create_school(name="Old Name", email="old@school.com", tenant_id="t1", plain_password="pass")
 
-        updated = await update_school(school.id, {"name": "New Name"}, db)
+        updated = await svc.update_school(school.id, {"name": "New Name"})
         assert updated is not None
         assert updated.name == "New Name"
 
     @pytest.mark.asyncio
     async def test_list_classrooms_by_teacher(self, db) -> None:
         from app.models.classroom import ClassroomCreate
-        from app.services.school_service import create_classroom, list_classrooms_by_teacher
+        from app.services.school_service import SchoolService
 
+        svc = SchoolService(db)
         c1 = ClassroomCreate(name="Class 1A", school_id="s1", teacher="t1")
         c2 = ClassroomCreate(name="Class 1B", school_id="s1", teacher="t1")
-        await create_classroom(c1, db)
-        await create_classroom(c2, db)
+        await svc.create_classroom(c1)
+        await svc.create_classroom(c2)
 
-        result = await list_classrooms_by_teacher("t1", db)
+        result = await svc.list_classrooms_by_teacher("t1")
         assert len(result) == 2
 
 

@@ -14,13 +14,13 @@ class School(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: Optional[str] = Field(None, alias="_id")
-    tenant_id: str  # ObjectId stored as str; ref Tenant
+    tenant_id: str = Field(..., alias="tenantId")
     name: str
     email: str
-    hashed_password: Optional[str] = None
-    is_active: bool = True
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    hashed_password: Optional[str] = Field(None, alias="password")
+    is_active: bool = Field(True, alias="isActive")
+    created_at: Optional[datetime] = Field(None, alias="createdAt")
+    updated_at: Optional[datetime] = Field(None, alias="updatedAt")
 
     @classmethod
     def from_mongo(cls, doc: dict) -> "School":
@@ -29,18 +29,21 @@ class School(BaseModel):
         d = dict(doc)
         if "_id" in d and isinstance(d["_id"], ObjectId):
             d["_id"] = str(d["_id"])
-        if "tenant_id" in d and isinstance(d["tenant_id"], ObjectId):
-            d["tenant_id"] = str(d["tenant_id"])
+        if "tenantId" in d and isinstance(d["tenantId"], ObjectId):
+            d["tenantId"] = str(d["tenantId"])
         return cls.model_validate(d)
 
 
 class SchoolCreate(BaseModel):
-    """Payload for creating a new school."""
+    """Payload for creating a new school.
+
+    Aliases match legacy School.js field names so repository writes correct keys.
+    """
 
     model_config = ConfigDict(populate_by_name=True)
 
-    tenant_id: str
+    tenant_id: str = Field(..., alias="tenantId")
     name: str
     email: str
-    hashed_password: Optional[str] = None
-    is_active: bool = True
+    hashed_password: Optional[str] = Field(None, alias="password")
+    is_active: bool = Field(True, alias="isActive")

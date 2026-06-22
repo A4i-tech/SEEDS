@@ -16,8 +16,12 @@ from fastapi import Depends, Request
 from fastapi.security import OAuth2PasswordBearer
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from app.platform.auth.jwt import verify_token
+from app.platform.auth.providers.firebase_provider import verify_firebase_token
 from app.platform.database import get_database
-from app.platform.error_handling import ForbiddenError, UnauthorizedError
+from app.platform.error_handling import ForbiddenError, NotFoundError, UnauthorizedError
+from app.platform.settings import get_settings
+from app.platform.telemetry import get_counter
 from app.repositories.conference_repository import ConferenceOwnershipRepository
 
 logger = logging.getLogger(__name__)
@@ -56,9 +60,6 @@ async def get_current_user(
     Increments auth.failures counter and logs structured failure details on
     any auth error.  The token value is NEVER included in log messages.
     """
-    from app.platform.settings import get_settings  # noqa: PLC0415
-    from app.platform.telemetry import get_counter  # noqa: PLC0415
-
     settings = get_settings()
     auth_failures = get_counter("auth.failures")
 
@@ -69,10 +70,6 @@ async def get_current_user(
 
     try:
         if settings.auth_type == "firebase":
-            from app.platform.auth.providers.firebase_provider import (  # noqa: PLC0415
-                verify_firebase_token,
-            )
-
             firebase_payload = await verify_firebase_token(token)
             user: dict[str, Any] = {
                 "sub": firebase_payload["uid"],
@@ -81,8 +78,6 @@ async def get_current_user(
                 "email": firebase_payload.get("email", ""),
             }
         else:
-            from app.platform.auth.jwt import verify_token  # noqa: PLC0415
-
             user = verify_token(token)
 
     except UnauthorizedError:
@@ -110,22 +105,25 @@ async def get_current_user(
 # ---------------------------------------------------------------------------
 
 
-async def require_teacher(
-    user: dict[str, Any] = Depends(get_current_user),
-) -> dict[str, Any]:
-    """Assert that the authenticated user has the 'teacher' role."""
-    if user.get("role") != "teacher":
-        raise ForbiddenError("teacher role required")
-    return user
+def require_role(*roles: str):
+    """Factory returning a FastAPI dependency that asserts the user has one of *roles*.
+
+    Usage: Depends(require_role("teacher", "content_creator"))
+    Replaces ad-hoc per-combination async functions — scales to any role set.
+    """
+    role_set = frozenset(roles)
+
+    async def _check(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+        if user.get("role") not in role_set:
+            raise ForbiddenError(f"one of {sorted(role_set)} role required")
+        return user
+
+    return _check
 
 
-async def require_tenant(
-    user: dict[str, Any] = Depends(get_current_user),
-) -> dict[str, Any]:
-    """Assert that the authenticated user has the 'tenant' role."""
-    if user.get("role") != "tenant":
-        raise ForbiddenError("tenant role required")
-    return user
+# Convenience aliases kept for backward compatibility with existing Depends() callsites.
+require_teacher = require_role("teacher")
+require_tenant = require_role("tenant")
 
 
 # ---------------------------------------------------------------------------
@@ -146,8 +144,6 @@ async def require_conference_owner(
     """
     conference = await ConferenceOwnershipRepository(db).find_by_id(conference_id)
     if conference is None:
-        from app.platform.error_handling import NotFoundError  # noqa: PLC0415
-
         raise NotFoundError("Conference", conference_id)
 
     if str(conference.get("created_by", "")) != user.get("sub", ""):

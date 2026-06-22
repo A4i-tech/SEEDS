@@ -111,7 +111,7 @@ class TestTeacherDisconnectDeeper:
         mock_settings.auto_end_enabled = False
         mock_settings.auto_end_timeout_minutes = 5
 
-        with patch("app.platform.settings.get_settings", return_value=mock_settings):
+        with patch("app.services.confevents.teacher_disconnect_timer_event.get_settings", return_value=mock_settings):
             conf = self._make_conf()
             event = StartTeacherDisconnectTimerEvent(conf_call=conf)
             assert event.auto_end_enabled is False

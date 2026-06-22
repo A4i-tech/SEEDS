@@ -7,42 +7,32 @@ Preserves ALL original URL paths exactly:
   POST /log           — create log entries (bulk insert)
   GET  /log/{userId}  — get logs by user ID
 
-SECURITY:
-  - Tenant scoping enforced on all reads.
-  - Write operations require authentication.
+Purpose: client-originated event logging (teacher/webapp action audit trail).
+The legacy logRouter had no auth — platform adds tenant scoping for security.
+No current frontend consumer; endpoint is available for when clients migrate.
 """
 
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
-from typing import Any, List
+from typing import List
 
 from fastapi import APIRouter, Depends
-from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.platform.auth.dependencies import (
-    get_current_user,
-    get_db,
-    require_teacher,
-    require_tenant,
-)
-from app.platform.error_handling import NotFoundError
+from app.models.audit_log import AuditLog
+from app.platform.auth.dependencies import get_current_user
+from app.services.audit_service import AuditService, get_audit_service
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["Audit"])
+router = APIRouter(prefix="/log", tags=["Audit"])
 
 
-# ---------------------------------------------------------------------------
-# POST /log  — bulk insert log entries
-# ---------------------------------------------------------------------------
-
-@router.post("/log", summary="Create log entries", status_code=200)
+@router.post("", summary="Create log entries", status_code=200)
 async def create_log_entries(
-    entries: List[dict],
-    user: dict[str, Any] = Depends(get_current_user),
-    db: AsyncIOMotorDatabase = Depends(get_db),  # type: ignore[type-arg]
+    entries: List[AuditLog],
+    user: dict = Depends(get_current_user),
+    service: AuditService = Depends(get_audit_service),
 ) -> None:
     """Insert one or more log entries into the logs collection.
 
@@ -51,52 +41,24 @@ async def create_log_entries(
     if not entries:
         return None
 
-    tenant_id = user.get("tenant_id") or user.get("tenantId", "")
-    now = datetime.now(timezone.utc)
+    tenant_id: str = user.get("tenant_id", "")
+    await service.create_log_entries(entries, tenant_id)
 
-    docs = [
-        {
-            **entry,
-            "tenant_id": tenant_id,
-            "created_at": now,
-        }
-        for entry in entries
-    ]
-
-    await db["logs"].insert_many(docs)
-    logger.debug("audit_controller: inserted %d log entries tenant_id=%s", len(docs), tenant_id)
+    logger.debug("audit_controller: inserted %d log entries tenant_id=%s", len(entries), tenant_id)
     return None
 
 
-# ---------------------------------------------------------------------------
-# GET /log/{userId}  — get logs for a user
-# ---------------------------------------------------------------------------
-
-@router.get("/log/{user_id}", summary="Get logs by user ID")
+@router.get("/{user_id}", summary="Get logs by user ID", response_model=List[AuditLog])
 async def get_logs_by_user(
     user_id: str,
-    user: dict[str, Any] = Depends(get_current_user),
-    db: AsyncIOMotorDatabase = Depends(get_db),  # type: ignore[type-arg]
-) -> List[dict]:
+    user: dict = Depends(get_current_user),
+    service: AuditService = Depends(get_audit_service),
+) -> List[AuditLog]:
     """Return log entries for the given user, scoped to the authenticated tenant.
 
     Mirrors: ``await Log.getLogsByUserId(req.params.userId)``
 
-    SECURITY: results are filtered by tenantId from the JWT — callers cannot
-    access logs from other tenants by passing an arbitrary userId.
+    SECURITY: tenant_id from JWT — callers cannot access other tenants' logs.
     """
-    tenant_id = user.get("tenant_id") or user.get("tenantId", "")
-
-    query: dict = {"user": user_id}
-    if tenant_id:
-        query["tenant_id"] = tenant_id
-
-    cursor = db["logs"].find(query).sort("_id", -1)
-    docs = await cursor.to_list(length=None)
-
-    results = []
-    for doc in docs:
-        doc["_id"] = str(doc["_id"])
-        results.append(doc)
-
-    return results
+    tenant_id: str = user.get("tenant_id", "")
+    return await service.find_logs_by_user(user_id, tenant_id)

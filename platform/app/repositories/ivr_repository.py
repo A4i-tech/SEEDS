@@ -1,35 +1,35 @@
 """IVR repository — Motor async data access for IVR FSM state and logs."""
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
-from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.ivr_state import IVRCallStateMongoDoc, IVRfsmDoc
+from app.repositories.base_repository import BaseRepository
 
 
-class IVRRepository:
+class IVRRepository(BaseRepository):
     """Async Motor repository for IVR FSM documents and call state logs.
 
     Collections:
-      - 'ivrfsms'    : compiled FSM definitions (IVRfsmDoc)
-      - 'ivrv2logs'  : per-call session state / event log (IVRCallStateMongoDoc)
+      - 'ivrfsms'         : compiled FSM definitions (IVRfsmDoc)
+      - 'radioFSMs'       : radio-variant FSM definitions (IVRfsmDoc)
+      - 'ivrv2logs'       : per-call session state / event log (IVRCallStateMongoDoc)
+      - 'ongoingIVRState' : live stream-playback state per conversation
     """
 
     FSM_COLLECTION = "ivrfsms"
+    RADIO_COLLECTION = "radioFSMs"
     LOG_COLLECTION = "ivrv2logs"
+    ONGOING_COLLECTION = "ongoingIVRState"
 
     def __init__(self, db: AsyncIOMotorDatabase) -> None:
         self._fsm_col = db[self.FSM_COLLECTION]
+        self._radio_col = db[self.RADIO_COLLECTION]
         self._log_col = db[self.LOG_COLLECTION]
-
-    @staticmethod
-    def _to_id(id_str: str) -> ObjectId | str:
-        try:
-            return ObjectId(id_str)
-        except Exception:
-            return id_str
+        self._ongoing_col = db[self.ONGOING_COLLECTION]
 
     # ------------------------------------------------------------------
     # FSM definitions
@@ -37,6 +37,13 @@ class IVRRepository:
     async def find_fsm_by_id(self, fsm_id: str) -> Optional[IVRfsmDoc]:
         """Retrieve a compiled FSM definition document."""
         doc = await self._fsm_col.find_one({"_id": fsm_id})
+        return IVRfsmDoc.from_mongo(doc) if doc else None
+
+    async def find_fsm_by_id_any(self, fsm_id: str) -> Optional[IVRfsmDoc]:
+        """Check ivrfsms first, then radioFSMs fallback."""
+        doc = await self._fsm_col.find_one({"_id": fsm_id})
+        if doc is None:
+            doc = await self._radio_col.find_one({"_id": fsm_id})
         return IVRfsmDoc.from_mongo(doc) if doc else None
 
     async def save_fsm(self, fsm: IVRfsmDoc) -> IVRfsmDoc:
@@ -77,6 +84,15 @@ class IVRRepository:
             upsert=True,
         )
 
+    async def find_logs_by_tenant_date_range(
+        self, tenant_id: str, start: datetime, end: datetime
+    ) -> List[Dict[str, Any]]:
+        """Return raw log documents for tenant within [start, end] — used for analytics."""
+        cursor = self._log_col.find(
+            {"tenant_id": tenant_id, "created_at": {"$gte": start, "$lte": end}}
+        ).sort("_id", -1)
+        return await cursor.to_list(length=None)
+
     async def update_fsm_context(self, call_id: str, updates: dict) -> Optional[IVRCallStateMongoDoc]:
         result = await self._log_col.find_one_and_update(
             {"_id": call_id},
@@ -84,3 +100,40 @@ class IVRRepository:
             return_document=True,
         )
         return IVRCallStateMongoDoc.from_mongo(result) if result else None
+
+    # ------------------------------------------------------------------
+    # Ongoing IVR state (stream playback tracking)
+    # ------------------------------------------------------------------
+
+    async def find_ongoing_state(self, conversation_id: str) -> Optional[Dict[str, Any]]:
+        return await self._ongoing_col.find_one({"_id": conversation_id})
+
+    async def push_stream_playback(self, conversation_id: str, item: Dict[str, Any]) -> None:
+        await self._ongoing_col.update_one(
+            {"_id": conversation_id},
+            {"$push": {"stream_playback": item}},
+        )
+
+    async def set_playback_field(
+        self, conversation_id: str, play_id: str, field: str, value: Any
+    ) -> None:
+        await self._ongoing_col.update_one(
+            {"_id": conversation_id, "stream_playback.play_id": play_id},
+            {"$set": {f"stream_playback.$.{field}": value}},
+        )
+
+    # ------------------------------------------------------------------
+    # Analytics — ivrv2logs by school
+    # ------------------------------------------------------------------
+
+    async def find_logs_by_school_date_range(
+        self, school_id: str, start_iso: str, end_iso: str
+    ) -> List[Dict[str, Any]]:
+        """Return raw log docs for school within ISO date range (created_at stored as string)."""
+        cursor = self._log_col.find(
+            {
+                "school_id": school_id,
+                "created_at": {"$gte": start_iso, "$lte": end_iso},
+            }
+        )
+        return await cursor.to_list(length=None)
