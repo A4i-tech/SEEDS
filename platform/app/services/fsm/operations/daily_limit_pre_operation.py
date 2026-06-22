@@ -6,13 +6,13 @@ Ported from IVRv2/app/fsm/operations/daily_limit_pre_operation.py.
 from __future__ import annotations
 
 import logging
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from app.providers.vonage_actions.base.fsm_operation import FSMOperation
 
 if TYPE_CHECKING:
-    from app.services.fsm.fsm import FSM
     from app.models.ivr_state import IVRCallStateMongoDoc
+    from app.services.fsm.fsm import FSM
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ class DailyLimitPreOperation(FSMOperation):
         self.school_id = school_id
 
     def execute(
-        self, fsm: "FSM", fsm_state_doc: "IVRCallStateMongoDoc | None" = None
+        self, fsm: FSM, fsm_state_doc: IVRCallStateMongoDoc | None = None
     ) -> Any:
         if fsm_state_doc is not None:
             fsm_state_doc.experience_data["_daily_limit_check"] = {

@@ -1,10 +1,8 @@
 """User repository — Motor async data access for the users collection."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import List, Optional
+from datetime import UTC, datetime
 
-from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.user import User, UserCreate
@@ -25,27 +23,27 @@ class UserRepository(BaseRepository):
     # ------------------------------------------------------------------
     # Read
     # ------------------------------------------------------------------
-    async def find_by_id(self, id: str) -> Optional[User]:
+    async def find_by_id(self, id: str) -> User | None:
         """Find a user by their MongoDB _id."""
         doc = await self._col.find_one({"_id": self._to_id(id)})
         return User.from_mongo(doc) if doc else None
 
-    async def find_by_email(self, email: str) -> Optional[User]:
+    async def find_by_email(self, email: str) -> User | None:
         """Find a user by their email address."""
         doc = await self._col.find_one({"email": email})
         return User.from_mongo(doc) if doc else None
 
-    async def find_by_phone(self, phone: str) -> Optional[User]:
+    async def find_by_phone(self, phone: str) -> User | None:
         """Find a user by their phone number."""
         doc = await self._col.find_one({"phone": phone})
         return User.from_mongo(doc) if doc else None
 
-    async def find_by_firebase_uid(self, uid: str) -> Optional[User]:
+    async def find_by_firebase_uid(self, uid: str) -> User | None:
         """Find a user by their Firebase UID."""
         doc = await self._col.find_one({"firebase_uid": uid})
         return User.from_mongo(doc) if doc else None
 
-    async def find_all_by_tenant(self, tenant_id: str) -> List[User]:
+    async def find_all_by_tenant(self, tenant_id: str) -> list[User]:
         """Return all users belonging to a tenant."""
         cursor = self._col.find({"tenant_id": tenant_id})
         docs = await cursor.to_list(length=None)
@@ -60,7 +58,7 @@ class UserRepository(BaseRepository):
     # ------------------------------------------------------------------
     async def create(self, user: UserCreate) -> User:
         """Insert a new user and return the persisted document."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         doc = user.model_dump(by_alias=False)
         doc["created_at"] = now
         doc["updated_at"] = now
@@ -68,12 +66,12 @@ class UserRepository(BaseRepository):
         doc["_id"] = str(result.inserted_id)
         return User.from_mongo(doc)
 
-    async def update(self, id: str, updates: dict) -> Optional[User]:
+    async def update(self, id: str, updates: dict) -> User | None:
         """Apply a partial update dict and return the updated document.
 
         Returns None when the document is not found.
         """
-        updates["updated_at"] = datetime.now(timezone.utc)
+        updates["updated_at"] = datetime.now(UTC)
         result = await self._col.find_one_and_update(
             {"_id": self._to_id(id)},
             {"$set": updates},

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, List
+from typing import Any
 
 from fastapi import Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -16,12 +16,12 @@ class AuditService:
     def __init__(self, db: AsyncIOMotorDatabase[Any]) -> None:
         self._repo = AuditRepository(db)
 
-    async def create_log_entries(self, entries: List[AuditLog], tenant_id: str) -> None:
+    async def create_log_entries(self, entries: list[AuditLog], tenant_id: str) -> None:
         for entry in entries:
             entry.tenant_id = tenant_id
             await self._repo.create_log(entry)
 
-    async def find_logs_by_user(self, user_id: str, tenant_id: str) -> List[AuditLog]:
+    async def find_logs_by_user(self, user_id: str, tenant_id: str) -> list[AuditLog]:
         return await self._repo.find_logs_by_user_and_tenant(user_id, tenant_id)
 
 

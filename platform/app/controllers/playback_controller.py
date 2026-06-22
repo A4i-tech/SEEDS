@@ -11,12 +11,12 @@ Preserves EXACT URL paths from ConferenceV2:
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.platform.auth.dependencies import get_current_user, require_conference_owner
+from app.platform.auth.dependencies import require_conference_owner
 
 router = APIRouter(prefix="/conference", tags=["Playback"])
 
@@ -86,8 +86,8 @@ async def resume_audio(
 @router.put("/seekaudio/{conference_id}", summary="Seek audio position")
 async def seek_audio(
     conference_id: str,
-    delta_seconds: Optional[int] = Query(None, description="Signed seek offset in seconds"),
-    position_seconds: Optional[float] = Query(None, description="Absolute position in seconds"),
+    delta_seconds: int | None = Query(None, description="Signed seek offset in seconds"),
+    position_seconds: float | None = Query(None, description="Absolute position in seconds"),
     user: dict[str, Any] = Depends(require_conference_owner),
 ) -> Any:
     from app.services.confevents.seek_content_event import SeekContentEvent  # noqa: PLC0415
@@ -108,7 +108,9 @@ async def set_playback_speed(
     speed: float = Query(..., ge=0.5, le=2.0, description="Playback speed multiplier"),
     user: dict[str, Any] = Depends(require_conference_owner),
 ) -> Any:
-    from app.services.confevents.set_playback_speed_event import SetPlaybackSpeedEvent  # noqa: PLC0415
+    from app.services.confevents.set_playback_speed_event import (
+        SetPlaybackSpeedEvent,  # noqa: PLC0415
+    )
 
     conf = _get_conf_or_404(conference_id)
     await conf.queue_event(SetPlaybackSpeedEvent(conf_call=conf, speed=speed))

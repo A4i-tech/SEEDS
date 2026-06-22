@@ -1,14 +1,17 @@
 """Vonage call leg transfer event."""
 from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING
+
 from app.services.confevents.base_event import ConferenceEvent
+
 if TYPE_CHECKING:
     from app.services.conference_service import ConferenceCall
 logger = logging.getLogger(__name__)
 
 class VonageCallTransferEvent(ConferenceEvent):
-    def __init__(self, conf_call: "ConferenceCall", conversation_uuid_from: str, type: str, uuid: str, conversation_uuid_to: str, timestamp: str) -> None:
+    def __init__(self, conf_call: ConferenceCall, conversation_uuid_from: str, type: str, uuid: str, conversation_uuid_to: str, timestamp: str) -> None:
         self.conf_call = conf_call
         self.conversation_uuid_from = conversation_uuid_from
         self.type = type

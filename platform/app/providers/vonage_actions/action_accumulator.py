@@ -5,8 +5,6 @@ Ported from IVRv2/app/actions/vonage_actions/vonage_action_accumulator.py.
 
 from __future__ import annotations
 
-from typing import List
-
 from app.providers.vonage_actions.base.action import Action
 
 
@@ -18,5 +16,5 @@ class VonageActionAccumulator:
 
         self._sas_gen = SASGenerator()
 
-    def combine(self, actions: List[Action]) -> List[dict]:
+    def combine(self, actions: list[Action]) -> list[dict]:
         return [x.get(self._sas_gen) for x in actions]

@@ -10,9 +10,7 @@ SECURITY:
 
 from __future__ import annotations
 
-import io
 import logging
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +49,7 @@ _VOICE_NAME: dict[str, str] = {
 }
 
 
-def _get_tts_attributes(language: str) -> Optional[tuple[str, str]]:
+def _get_tts_attributes(language: str) -> tuple[str, str] | None:
     """Return (language_code, voice_name) for *language*, or None if unsupported."""
     translation_code = _HUMAN_TO_TRANSLATION.get(language.lower())
     if not translation_code:
@@ -81,7 +79,7 @@ def _build_ssml(text: str, language_code: str, voice_name: str, rate: str = "1.0
 async def synthesize(
     text: str,
     language: str,
-    voice: Optional[str] = None,
+    voice: str | None = None,
     rate: str = "1.0",
 ) -> bytes:
     """Convert *text* to speech audio and return raw WAV/MP3 bytes.

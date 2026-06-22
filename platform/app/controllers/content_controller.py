@@ -17,19 +17,19 @@ from __future__ import annotations
 import logging
 import time
 import urllib.parse
-from datetime import datetime, timezone
-from typing import Any, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.platform.auth.dependencies import get_current_user
 from app.models.requests.content_requests import (
     ContentCreateRequest,
     ContentUpdateRequest,
     QuizCreateRequest,
 )
 from app.models.user import UserRole
+from app.platform.auth.dependencies import get_current_user
 from app.platform.error_handling import ForbiddenError, NotFoundError
 from app.providers.blob_storage import BlobStorageProvider
 from app.services.content_service import ContentService, get_content_service
@@ -50,11 +50,11 @@ _READ_ROLES = {UserRole.TENANT.value, UserRole.SCHOOL_ADMIN.value, UserRole.TEAC
 class ContentOut(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
-    id: Optional[str] = Field(None, alias="_id")
+    id: str | None = Field(None, alias="_id")
 
     @field_validator("id", mode="before")
     @classmethod
-    def _coerce_id(cls, v: Any) -> Optional[str]:
+    def _coerce_id(cls, v: Any) -> str | None:
         return str(v) if v is not None else None
 
 
@@ -86,7 +86,7 @@ async def _require_content_write(
 # School-ID filter helpers (mirrors JS getReadSchoolIdFilter / getWriteSchoolIdFilter)
 # ---------------------------------------------------------------------------
 
-def _read_school_filter(user: dict[str, Any]) -> Optional[Any]:
+def _read_school_filter(user: dict[str, Any]) -> Any | None:
     """For reads: school-scoped users see their school's content + tenant-wide content."""
     role = user.get("role", "")
     school_id = user.get("school_id") or user.get("schoolId")
@@ -98,7 +98,7 @@ def _read_school_filter(user: dict[str, Any]) -> Optional[Any]:
 def _write_school_filter(user: dict[str, Any]) -> dict:
     """Return a schoolId dict for write operations — spread into query/document."""
     role = user.get("role", "")
-    school_id: Optional[str] = None
+    school_id: str | None = None
     if role in (UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value):
         school_id = user.get("school_id") or user.get("schoolId") or None
     return {"schoolId": school_id}
@@ -241,13 +241,13 @@ async def get_themes(
 
 @router.get("", summary="List content (cursor pagination)")
 async def list_content(
-    language: Optional[str] = None,
-    theme: Optional[str] = None,
-    exp_name: Optional[str] = Query(None, alias="expName"),
-    ids: Optional[List[str]] = Query(None),
-    only_teacher_app: Optional[bool] = Query(None, alias="onlyTeacherApp"),
+    language: str | None = None,
+    theme: str | None = None,
+    exp_name: str | None = Query(None, alias="expName"),
+    ids: list[str] | None = Query(None),
+    only_teacher_app: bool | None = Query(None, alias="onlyTeacherApp"),
     limit: int = Query(15, ge=1, le=200),
-    cursor: Optional[str] = None,
+    cursor: str | None = None,
     user: dict[str, Any] = Depends(_require_content_read),
     service: ContentService = Depends(get_content_service),
 ) -> Any:
@@ -456,7 +456,7 @@ async def update_content(
             update["audioContent"] = body.audio_content
         update["isProcessed"] = False
 
-    update["updated_at"] = datetime.now(timezone.utc)
+    update["updated_at"] = datetime.now(UTC)
 
     result = await service.update_content_doc(write_filter, update)
 

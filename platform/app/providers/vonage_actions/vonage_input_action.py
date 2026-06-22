@@ -5,8 +5,6 @@ Ported from IVRv2/app/actions/vonage_actions/vonage_input_action.py.
 
 from __future__ import annotations
 
-from typing import List
-
 from app.providers.vonage_actions.input_action import InputAction
 
 
@@ -15,7 +13,7 @@ class VonageInputAction(InputAction):
 
     def __init__(
         self,
-        type_: List[str],
+        type_: list[str],
         maxDigits: int,
         eventUrl: str,
         timeOut: int,

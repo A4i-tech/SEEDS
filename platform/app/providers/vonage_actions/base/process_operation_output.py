@@ -6,11 +6,11 @@ Ported from IVRv2/app/base_classes/base_process_operation_output.py.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from app.providers.vonage_actions.base.action import Action
     from app.models.ivr_state import IVRCallStateMongoDoc
+    from app.providers.vonage_actions.base.action import Action
 
 
 class ProcessOperationOutput(ABC):
@@ -21,8 +21,8 @@ class ProcessOperationOutput(ABC):
         self,
         state: object,
         op_output: object,
-        fsm_state_doc: "IVRCallStateMongoDoc | None" = None,
-    ) -> "List[Action]":
+        fsm_state_doc: IVRCallStateMongoDoc | None = None,
+    ) -> list[Action]:
         pass
 
     def __repr__(self) -> str:
@@ -36,7 +36,7 @@ class ProcessOperationOutput(ABC):
         }
 
     @staticmethod
-    def from_json(data: dict) -> "ProcessOperationOutput":
+    def from_json(data: dict) -> ProcessOperationOutput:
         module = __import__(data["__module__"], fromlist=[data["__class__"]])
         cls = getattr(module, data["__class__"])
         obj = cls.__new__(cls)

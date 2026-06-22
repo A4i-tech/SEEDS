@@ -153,7 +153,7 @@ async def _unhandled_exception_handler(
 # ---------------------------------------------------------------------------
 
 
-def register_error_handlers(app: "FastAPI") -> None:
+def register_error_handlers(app: FastAPI) -> None:
     """Wire all exception handlers onto *app*."""
     app.add_exception_handler(AppError, _app_error_handler)
     app.add_exception_handler(RequestValidationError, _validation_error_handler)

@@ -13,8 +13,8 @@ from typing import Any
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.platform.auth.dependencies import get_current_user, require_teacher
 from app.models.requests.call_requests import FsmContextRequest, LogCallRequest
+from app.platform.auth.dependencies import get_current_user, require_teacher
 from app.platform.settings import get_settings
 from app.services.call_service import CallService, get_call_service
 

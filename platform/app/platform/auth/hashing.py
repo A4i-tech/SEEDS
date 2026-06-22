@@ -12,7 +12,6 @@ to bypass the 72-byte limit imposed by the underlying C library).
 from __future__ import annotations
 
 import hashlib
-import hmac
 
 import bcrypt
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, List
+from typing import Any
 
 from fastapi import APIRouter, Depends, status
 
@@ -25,7 +25,7 @@ _require_class_access = require_role("teacher", "content_creator")
 async def list_classes(
     current_user: dict[str, Any] = Depends(_require_class_access),
     service: SchoolService = Depends(get_school_service),
-) -> List[dict]:
+) -> list[dict]:
     # Legacy classRouter.js only filters by req.userId — no school_id param
     teacher_id = current_user.get("sub", "")
     classrooms = await service.list_classrooms_by_teacher(teacher_id)

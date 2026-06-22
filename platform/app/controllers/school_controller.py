@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any, List
+from typing import Any
 
 from fastapi import APIRouter, Depends, status
 
@@ -63,7 +63,7 @@ async def create_school(
 async def list_schools(
     current_user: dict[str, Any] = Depends(get_current_user),
     service: SchoolService = Depends(get_school_service),
-) -> List[dict]:
+) -> list[dict]:
     if current_user.get("role") == "tenant":
         tenant_id: str = current_user.get("sub", "")
     else:
@@ -86,7 +86,7 @@ async def list_schools(
 async def school_teachers(
     current_user: dict[str, Any] = Depends(require_teacher),
     service: SchoolService = Depends(get_school_service),
-) -> List[dict]:
+) -> list[dict]:
     school_id = current_user.get("school_id", "")
     tenant_id = current_user.get("tenant_id", "")
     if not school_id:

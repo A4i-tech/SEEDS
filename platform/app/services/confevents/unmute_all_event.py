@@ -1,18 +1,21 @@
 """Unmute all students event."""
 from __future__ import annotations
+
 import asyncio
 import logging
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
+
 from app.models.action_history import ActionHistory, ActionType
 from app.models.system_audio_messages import SystemAudioMessages
 from app.services.confevents.base_event import ConferenceEvent
+
 if TYPE_CHECKING:
     from app.services.conference_service import ConferenceCall
 logger = logging.getLogger(__name__)
 
 class UnmuteAllEvent(ConferenceEvent):
-    def __init__(self, conf_call: "ConferenceCall", stream_system_message: bool = True, initiator_phone: Optional[str] = None) -> None:
+    def __init__(self, conf_call: ConferenceCall, stream_system_message: bool = True, initiator_phone: str | None = None) -> None:
         self.conf_call = conf_call
         self.stream_system_message = stream_system_message
         self.initiator_phone = initiator_phone
@@ -39,6 +42,8 @@ class UnmuteAllEvent(ConferenceEvent):
         await self.conf_call.update_state()
 
     async def _unmute_student(self, phone_number: str) -> bool:
-        from app.services.confevents.unmute_participant_event import UnmuteParticipantEvent  # noqa: PLC0415
+        from app.services.confevents.unmute_participant_event import (
+            UnmuteParticipantEvent,  # noqa: PLC0415
+        )
         await UnmuteParticipantEvent(phone_number=phone_number, conf_call=self.conf_call, stream_system_message=False).execute_event()
         return True

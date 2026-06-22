@@ -13,7 +13,7 @@ Security: all POST routes validate Vonage JWT via verify_vonage_signature.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Request
@@ -169,16 +169,15 @@ async def _process_ivr_rtc_event(event_data: dict) -> None:
                     await repo.push_stream_playback(conversation_id, {
                         "play_id": body["play_id"],
                         "stream_url": stream_url[0] if isinstance(stream_url, list) else stream_url,
-                        "started_at": event_data.get("timestamp", datetime.now(timezone.utc).isoformat()),
+                        "started_at": event_data.get("timestamp", datetime.now(UTC).isoformat()),
                     })
         elif event_type_str in (
             ConversationRTCEventType.AUDIO_PLAY_STOP.value,
             ConversationRTCEventType.AUDIO_PLAY_DONE.value,
-        ):
-            if "play_id" in body:
-                field = "stopped_at" if "stop" in event_type_str else "done_at"
-                await repo.set_playback_field(
-                    conversation_id, body["play_id"], field, event_data.get("timestamp")
-                )
+        ) and "play_id" in body:
+            field = "stopped_at" if "stop" in event_type_str else "done_at"
+            await repo.set_playback_field(
+                conversation_id, body["play_id"], field, event_data.get("timestamp")
+            )
     except Exception as exc:
         logger.error("ivr RTC event processing error: %s", exc, exc_info=True)

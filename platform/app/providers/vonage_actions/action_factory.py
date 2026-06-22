@@ -6,10 +6,9 @@ Ported from IVRv2/app/actions/vonage_actions/vonage_action_factory.py.
 from __future__ import annotations
 
 import os
-from typing import Union
 
-from app.providers.vonage_actions.base.action import Action
 from app.providers.vonage_actions.action_accumulator import VonageActionAccumulator
+from app.providers.vonage_actions.base.action import Action
 from app.providers.vonage_actions.connect_action import VonageConnectAction
 from app.providers.vonage_actions.input_action import InputAction
 from app.providers.vonage_actions.stream_action import StreamAction
@@ -24,7 +23,7 @@ class VonageActionFactory:
 
     def get_action_implmentation(  # noqa: N802 — keeping original spelling
         self, action: Action
-    ) -> Union[VonageStreamAction, VonageTalkAction, VonageInputAction, VonageConnectAction]:
+    ) -> VonageStreamAction | VonageTalkAction | VonageInputAction | VonageConnectAction:
         if isinstance(action, StreamAction):
             return VonageStreamAction(
                 streamUrl=action.url,

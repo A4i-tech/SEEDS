@@ -7,7 +7,6 @@ SECURITY: Connection string is never logged; errors mask the full URI.
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 
@@ -15,8 +14,8 @@ from app.platform.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
-_client: Optional[AsyncIOMotorClient] = None  # type: ignore[type-arg]
-_database: Optional[AsyncIOMotorDatabase] = None  # type: ignore[type-arg]
+_client: AsyncIOMotorClient | None = None  # type: ignore[type-arg]
+_database: AsyncIOMotorDatabase | None = None  # type: ignore[type-arg]
 
 
 def _extract_db_name(connection_string: str) -> str:

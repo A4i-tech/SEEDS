@@ -1,8 +1,8 @@
 """Conference repository — Motor async data access for conference state documents."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -34,10 +34,10 @@ class ConferenceOwnershipRepository:
             "created_by": created_by,
             "tenant_id": tenant_id,
             "teacher_phone": teacher_phone,
-            "created_at": datetime.now(timezone.utc),
+            "created_at": datetime.now(UTC),
         })
 
-    async def find_by_id(self, conf_id: str) -> Optional[Dict[str, Any]]:
+    async def find_by_id(self, conf_id: str) -> dict[str, Any] | None:
         return await self._col.find_one({"_id": conf_id})
 
 
@@ -49,15 +49,15 @@ class ConferenceRepository(BaseRepository):
     def __init__(self, db: AsyncIOMotorDatabase) -> None:
         self._col = db[self.COLLECTION]
 
-    async def find_by_id(self, id: str) -> Optional[ConferenceCallState]:
+    async def find_by_id(self, id: str) -> ConferenceCallState | None:
         doc = await self._col.find_one({"_id": self._to_id(id)})
         return ConferenceCallState.from_mongo(doc) if doc else None
 
-    async def find_by_conference_id(self, conference_id: str) -> Optional[ConferenceCallState]:
+    async def find_by_conference_id(self, conference_id: str) -> ConferenceCallState | None:
         doc = await self._col.find_one({"conference_id": conference_id})
         return ConferenceCallState.from_mongo(doc) if doc else None
 
-    async def find_active_by_teacher(self, teacher_phone: str) -> Optional[ConferenceCallState]:
+    async def find_active_by_teacher(self, teacher_phone: str) -> ConferenceCallState | None:
         """Return the active (non-ended) conference for a teacher phone number."""
         doc = await self._col.find_one(
             {
@@ -68,7 +68,7 @@ class ConferenceRepository(BaseRepository):
         )
         return ConferenceCallState.from_mongo(doc) if doc else None
 
-    async def find_active_by_tenant(self, tenant_id: str) -> List[ConferenceCallState]:
+    async def find_active_by_tenant(self, tenant_id: str) -> list[ConferenceCallState]:
         """Return all active conferences for a tenant."""
         cursor = self._col.find({"tenant_id": tenant_id, "ended_at": None, "is_running": True})
         docs = await cursor.to_list(length=None)
@@ -82,7 +82,7 @@ class ConferenceRepository(BaseRepository):
         doc["_id"] = str(result.inserted_id)
         return ConferenceCallState.from_mongo(doc)
 
-    async def update_state(self, conference_id: str, updates: dict) -> Optional[ConferenceCallState]:
+    async def update_state(self, conference_id: str, updates: dict) -> ConferenceCallState | None:
         """Update a conference document identified by its Vonage conference_id."""
         result = await self._col.find_one_and_update(
             {"conference_id": conference_id},
@@ -91,9 +91,9 @@ class ConferenceRepository(BaseRepository):
         )
         return ConferenceCallState.from_mongo(result) if result else None
 
-    async def end_conference(self, conference_id: str) -> Optional[ConferenceCallState]:
+    async def end_conference(self, conference_id: str) -> ConferenceCallState | None:
         """Mark a conference as ended."""
-        now_iso = datetime.now(timezone.utc).isoformat()
+        now_iso = datetime.now(UTC).isoformat()
         return await self.update_state(
             conference_id,
             {"is_running": False, "ended_at": now_iso},

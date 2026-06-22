@@ -11,7 +11,7 @@ via ConferenceCallState.
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Any, Dict, Tuple
+from typing import Any
 
 
 class CallerStateService:
@@ -21,20 +21,20 @@ class CallerStateService:
     changes (e.g. ON_HOLD) without a full DB round-trip.
     """
 
-    _instance: "CallerStateService | None" = None
+    _instance: CallerStateService | None = None
 
-    def __new__(cls) -> "CallerStateService":
+    def __new__(cls) -> CallerStateService:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._instance._states: Dict[str, Dict[str, Any]] = defaultdict(dict)
-            cls._instance._versions: Dict[str, int] = defaultdict(int)
+            cls._instance._states: dict[str, dict[str, Any]] = defaultdict(dict)
+            cls._instance._versions: dict[str, int] = defaultdict(int)
         return cls._instance
 
     async def update_state(
         self,
         conference_id: str,
         participant_id: str,
-        new_state: Dict[str, Any],
+        new_state: dict[str, Any],
     ) -> None:
         """Merge *new_state* into the participant's state and increment version."""
         if participant_id not in self._states[conference_id]:
@@ -44,7 +44,7 @@ class CallerStateService:
 
     async def get_current_state(
         self, conference_id: str
-    ) -> Tuple[Dict[str, Any], int]:
+    ) -> tuple[dict[str, Any], int]:
         """Return the full state dict and current version for *conference_id*."""
         state = self._states.get(conference_id, {})
         version = self._versions.get(conference_id, 0)

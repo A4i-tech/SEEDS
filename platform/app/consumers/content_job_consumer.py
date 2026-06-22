@@ -71,10 +71,8 @@ import logging
 import os
 import subprocess  # nosec B404 — used safely with list form, no shell=True
 import tempfile
-import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -214,7 +212,7 @@ async def _process_audio_item(
     audio_url: str,
     content_id: str,
     blob_provider,
-) -> tuple[str, Optional[float]]:
+) -> tuple[str, float | None]:
     """Download *audio_url*, transcode to WAV, upload, return (new_url, duration).
 
     Raises on any failure; caller handles dead-lettering.
@@ -241,7 +239,7 @@ async def _process_audio_item(
             transcoded = fh.read()
 
         # Extract duration (best-effort)
-        duration: Optional[float] = None
+        duration: float | None = None
         try:
             duration = await _extract_duration(output_path)
         except Exception as exc:  # noqa: BLE001
@@ -258,7 +256,7 @@ async def _process_audio_item(
         _cleanup_temp_files(input_path, output_path)
 
 
-async def _extract_duration(wav_path: str) -> Optional[float]:
+async def _extract_duration(wav_path: str) -> float | None:
     """Extract duration in seconds from a WAV file using ffprobe."""
     _validate_temp_path(wav_path)
 
@@ -356,7 +354,7 @@ async def _process_audio_content_job(job_doc: dict, db: AsyncIOMotorDatabase, bl
 
     Mutates job status in DB on completion or failure.
     """
-    from datetime import datetime, timezone  # noqa: PLC0415
+    from datetime import datetime  # noqa: PLC0415
 
     job_id = job_doc.get("_id")
     content_id = job_doc.get("content_id")
@@ -366,7 +364,7 @@ async def _process_audio_content_job(job_doc: dict, db: AsyncIOMotorDatabase, bl
     # Mark as running
     await jobs_col.update_one(
         {"_id": job_id},
-        {"$set": {"status": "running", "started_at": datetime.now(timezone.utc)}},
+        {"$set": {"status": "running", "started_at": datetime.now(UTC)}},
     )
 
     last_exc: Exception | None = None
@@ -417,7 +415,7 @@ async def _process_audio_content_job(job_doc: dict, db: AsyncIOMotorDatabase, bl
             # Mark job complete
             await jobs_col.update_one(
                 {"_id": job_id},
-                {"$set": {"status": "completed", "completed_at": datetime.now(timezone.utc)}},
+                {"$set": {"status": "completed", "completed_at": datetime.now(UTC)}},
             )
             logger.info(
                 "content_job: completed job_id=%s content_id=%s (attempt %d)",
@@ -461,7 +459,7 @@ async def _process_audio_content_job(job_doc: dict, db: AsyncIOMotorDatabase, bl
             "$set": {
                 "status": "failed",
                 "reason": error_msg,
-                "failed_at": datetime.now(timezone.utc),
+                "failed_at": datetime.now(UTC),
             }
         },
     )
@@ -526,7 +524,7 @@ class ContentJobConsumer:
                 # Find one pending job atomically
                 job_doc = await jobs_col.find_one_and_update(
                     {"status": "pending"},
-                    {"$set": {"status": "claimed", "claimed_at": datetime.now(timezone.utc)}},
+                    {"$set": {"status": "claimed", "claimed_at": datetime.now(UTC)}},
                     return_document=True,
                 )
 
@@ -536,7 +534,7 @@ class ContentJobConsumer:
                             _process_audio_content_job(job_doc, self._db, blob_provider),
                             timeout=JOB_TIMEOUT_SECONDS,
                         )
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         job_id = job_doc.get("_id")
                         logger.error("content_job: timeout job_id=%s", job_id)
                         await jobs_col.update_one(
@@ -545,7 +543,7 @@ class ContentJobConsumer:
                                 "$set": {
                                     "status": "failed",
                                     "reason": "Job exceeded timeout of 5 minutes",
-                                    "failed_at": datetime.now(timezone.utc),
+                                    "failed_at": datetime.now(UTC),
                                 }
                             },
                         )

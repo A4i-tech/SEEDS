@@ -4,7 +4,7 @@ Adapted to use Motor AsyncIOMotorDatabase directly rather than the IDatabase int
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -20,7 +20,7 @@ class ComprehensionRepository(BaseRepository):
     def __init__(self, db: AsyncIOMotorDatabase) -> None:
         self._col = db[self.COLLECTION]
 
-    async def get_all_comprehensions(self) -> List[Dict[str, Any]]:
+    async def get_all_comprehensions(self) -> list[dict[str, Any]]:
         """Retrieve all comprehension documents from the database."""
         cursor = self._col.find({})
         docs = await cursor.to_list(length=None)
@@ -29,21 +29,21 @@ class ComprehensionRepository(BaseRepository):
                 d["_id"] = str(d["_id"])
         return docs
 
-    async def get_comprehension_by_id(self, comprehension_id: str) -> Optional[Dict[str, Any]]:
+    async def get_comprehension_by_id(self, comprehension_id: str) -> dict[str, Any] | None:
         """Retrieve a single comprehension document by its ID."""
         doc = await self._col.find_one({"_id": self._to_id(comprehension_id)})
         if doc and isinstance(doc.get("_id"), ObjectId):
             doc["_id"] = str(doc["_id"])
         return doc
 
-    async def create_comprehension(self, doc: Dict[str, Any]) -> Any:
+    async def create_comprehension(self, doc: dict[str, Any]) -> Any:
         """Insert a new comprehension document into the database."""
         result = await self._col.insert_one(doc)
         return str(result.inserted_id)
 
     async def update_comprehension(
-        self, comprehension_id: str, new_doc: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+        self, comprehension_id: str, new_doc: dict[str, Any]
+    ) -> dict[str, Any] | None:
         """Update an existing comprehension document."""
         result = await self._col.find_one_and_update(
             {"_id": self._to_id(comprehension_id)},

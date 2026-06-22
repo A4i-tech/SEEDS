@@ -5,8 +5,6 @@ Ported from IVRv2/app/actions/vonage_actions/vonage_connect_action.py.
 
 from __future__ import annotations
 
-from typing import Optional
-
 from app.providers.vonage_actions.base.action import Action
 
 
@@ -21,7 +19,7 @@ class VonageConnectAction(Action):
         self,
         websocket_uri: str,
         content_type: str = "audio/l16;rate=8000",
-        headers: Optional[dict] = None,
+        headers: dict | None = None,
     ) -> None:
         self.websocket_uri = websocket_uri
         self.content_type = content_type

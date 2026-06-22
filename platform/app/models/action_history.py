@@ -1,13 +1,12 @@
 """Action history model (from ConferenceV2 action_history.py)."""
 from __future__ import annotations
 
-from enum import Enum
-from typing import Dict
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict
 
 
-class ActionType(str, Enum):
+class ActionType(StrEnum):
     CONFERENCE_CREATED = "Conference-Created"
     CONFERENCE_START = "Conference-Start"
     CONFERENCE_END = "Conference-End"
@@ -41,5 +40,5 @@ class ActionHistory(BaseModel):
 
     timestamp: str
     action_type: ActionType
-    metadata: Dict
+    metadata: dict
     owner: str  # phone number or identifier of the user who performed the action

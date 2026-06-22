@@ -15,9 +15,8 @@ import asyncio
 import base64
 import logging
 import os
-import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -43,15 +42,15 @@ def _get_factory_and_accumulator():
 # Module-level globals preserve the cache across per-request service instances.
 # ---------------------------------------------------------------------------
 
-_fsm_cache: Dict[str, Any] = {}
-_latest_fsm_id: Optional[str] = None
+_fsm_cache: dict[str, Any] = {}
+_latest_fsm_id: str | None = None
 
 
-def get_fsm_cache() -> Dict[str, Any]:
+def get_fsm_cache() -> dict[str, Any]:
     return _fsm_cache
 
 
-def get_latest_fsm_id() -> Optional[str]:
+def get_latest_fsm_id() -> str | None:
     return _latest_fsm_id
 
 
@@ -66,9 +65,9 @@ def set_latest_fsm_id(fsm_id: str) -> None:
 
 async def _make_vonage_call(
     phone_number: str,
-    ncco_actions: List[dict],
+    ncco_actions: list[dict],
     settings: Any,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     import vonage  # noqa: PLC0415
 
     raw_key = base64.b64decode(settings.vonage_application_private_key64).decode("utf-8")
@@ -109,7 +108,7 @@ class IVRService:
         self,
         phone_number: str,
         tenant_id: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Start an IVR call to *phone_number*.
 
         Performs daily-limit check, creates Vonage call, persists IVR state.
@@ -118,8 +117,8 @@ class IVRService:
             {"status_code": 200, "message": "..."} on success
             {"status_code": 4xx/5xx, "message": "..."} on failure
         """
-        from app.platform.settings import get_settings  # noqa: PLC0415
         from app.models.ivr_state import IVRCallStateMongoDoc  # noqa: PLC0415
+        from app.platform.settings import get_settings  # noqa: PLC0415
 
         settings = get_settings()
 
@@ -149,11 +148,11 @@ class IVRService:
             current_usage = usage_doc.get("total_seconds", 0) if usage_doc else 0
             if current_usage >= settings.ivr_daily_listening_limit_seconds:
                 logger.info("Daily limit reached for %s", phone_number)
+                from app.providers.vonage_actions.talk_action import TalkAction  # noqa: PLC0415
                 from app.services.fsm.utils import (  # noqa: PLC0415
                     get_daily_limit_announcement,
                     get_vonage_language_code,
                 )
-                from app.providers.vonage_actions.talk_action import TalkAction  # noqa: PLC0415
                 announcement = get_daily_limit_announcement(settings.default_welcome_language)
                 vonage_lang = get_vonage_language_code(settings.default_welcome_language)
                 factory, accumulator = _get_factory_and_accumulator()
@@ -217,7 +216,7 @@ class IVRService:
         self,
         call_id: str,
         dtmf: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Process a DTMF input for an active IVR call.
 
         Returns NCCO-compatible list of action dicts, or empty list on error.
@@ -256,8 +255,8 @@ class IVRService:
         fsm = _fsm_cache[ivr_state.fsm_id]
         input_time = datetime.now()
 
-        next_actions: Optional[List[Any]] = None
-        next_state_id: Optional[str] = None
+        next_actions: list[Any] | None = None
+        next_state_id: str | None = None
 
         digits = dtmf if dtmf is not None else ""
 
@@ -306,7 +305,7 @@ class IVRService:
     async def process_call_event(
         self,
         call_id: str,
-        event: Dict[str, Any],
+        event: dict[str, Any],
     ) -> None:
         """Process a Vonage call lifecycle event (answered, completed, etc.)."""
         from app.models.ivr_state import IVRCallStateMongoDoc, IVRCallStatus  # noqa: PLC0415
@@ -335,7 +334,7 @@ class IVRService:
 
         ivr_state = IVRCallStateMongoDoc.from_mongo(doc)
 
-        update_ops: Dict[str, Any] = {}
+        update_ops: dict[str, Any] = {}
         if timestamp_str:
             try:
                 if isinstance(timestamp_str, str):
@@ -362,7 +361,9 @@ class IVRService:
                         upsert=True,
                     )
                     try:
-                        from app.providers.websocket_client import get_websocket_service  # noqa: PLC0415
+                        from app.providers.websocket_client import (
+                            get_websocket_service,  # noqa: PLC0415
+                        )
                         ws = await get_websocket_service()
                         await ws.disconnect(call_id)
                     except Exception as exc:  # noqa: BLE001
@@ -380,7 +381,7 @@ class IVRService:
     # get_ivr_fsm_by_id
     # ------------------------------------------------------------------
 
-    async def get_ivr_fsm_by_id(self, fsm_id: str) -> Optional[Any]:
+    async def get_ivr_fsm_by_id(self, fsm_id: str) -> Any | None:
         """Return the FSM document for fsm_id, checking ivrfsms then radioFSMs."""
         from app.repositories.ivr_repository import IVRRepository  # noqa: PLC0415
         return await IVRRepository(self._db).find_fsm_by_id_any(fsm_id)
@@ -389,7 +390,7 @@ class IVRService:
     # get_ivr_structure
     # ------------------------------------------------------------------
 
-    async def get_ivr_structure(self, tenant_id: str) -> Dict[str, Any]:
+    async def get_ivr_structure(self, tenant_id: str) -> dict[str, Any]:
         """Return the active FSM structure document."""
         if not _latest_fsm_id:
             await self._ensure_fsm_loaded()
@@ -417,8 +418,8 @@ class IVRService:
     async def update_ivr_structure(
         self,
         tenant_id: str,
-        structure: Dict[str, Any],
-    ) -> Dict[str, Any]:
+        structure: dict[str, Any],
+    ) -> dict[str, Any]:
         """Rebuild the FSM from latest MongoDB content and persist it.
 
         Refuses to update if active calls exist (returns 409-like response).
@@ -433,7 +434,9 @@ class IVRService:
                 "message": f"Cannot update IVR — {active_count} active call(s). Try again later.",
             }
 
-        from app.services.fsm.instantiation.insti import instantiate_from_latest_content  # noqa: PLC0415
+        from app.services.fsm.instantiation.insti import (
+            instantiate_from_latest_content,  # noqa: PLC0415
+        )
 
         updated_fsm = await instantiate_from_latest_content(db=self._db)
         _fsm_cache[updated_fsm.fsm_id] = updated_fsm
@@ -486,7 +489,9 @@ class IVRService:
 
         # Fall back to building from content
         try:
-            from app.services.fsm.instantiation.insti import instantiate_from_latest_content  # noqa: PLC0415
+            from app.services.fsm.instantiation.insti import (
+                instantiate_from_latest_content,  # noqa: PLC0415
+            )
 
             fsm = await instantiate_from_latest_content(db=self._db)
             _fsm_cache[fsm.fsm_id] = fsm

@@ -1,13 +1,12 @@
 """WebSocket service message envelope (from ConferenceV2 models/ws_service_message.py)."""
 from __future__ import annotations
 
-from enum import Enum
-from typing import Optional
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class MessageType(str, Enum):
+class MessageType(StrEnum):
     HEARTBEAT = "ping"
     PLAY_AUDIO = "play"
     PLAY_SYSTEM_MESSAGE = "play-system-message"
@@ -30,6 +29,6 @@ class WebsocketServiceMessage(BaseModel):
     websocket_id: str
     type: MessageType
     message: str = ""
-    position_seconds: Optional[float] = Field(default=None, ge=0)
-    duration_seconds: Optional[float] = Field(default=None, ge=0)
-    speed: Optional[float] = Field(default=None, ge=0.5, le=2.0)
+    position_seconds: float | None = Field(default=None, ge=0)
+    duration_seconds: float | None = Field(default=None, ge=0)
+    speed: float | None = Field(default=None, ge=0.5, le=2.0)

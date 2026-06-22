@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -34,12 +34,12 @@ class IVRRepository(BaseRepository):
     # ------------------------------------------------------------------
     # FSM definitions
     # ------------------------------------------------------------------
-    async def find_fsm_by_id(self, fsm_id: str) -> Optional[IVRfsmDoc]:
+    async def find_fsm_by_id(self, fsm_id: str) -> IVRfsmDoc | None:
         """Retrieve a compiled FSM definition document."""
         doc = await self._fsm_col.find_one({"_id": fsm_id})
         return IVRfsmDoc.from_mongo(doc) if doc else None
 
-    async def find_fsm_by_id_any(self, fsm_id: str) -> Optional[IVRfsmDoc]:
+    async def find_fsm_by_id_any(self, fsm_id: str) -> IVRfsmDoc | None:
         """Check ivrfsms first, then radioFSMs fallback."""
         doc = await self._fsm_col.find_one({"_id": fsm_id})
         if doc is None:
@@ -60,7 +60,7 @@ class IVRRepository(BaseRepository):
     # ------------------------------------------------------------------
     # Call state / FSM context
     # ------------------------------------------------------------------
-    async def find_fsm_context(self, call_id: str) -> Optional[IVRCallStateMongoDoc]:
+    async def find_fsm_context(self, call_id: str) -> IVRCallStateMongoDoc | None:
         """Retrieve the IVR session state document for a call UUID."""
         doc = await self._log_col.find_one({"_id": call_id})
         return IVRCallStateMongoDoc.from_mongo(doc) if doc else None
@@ -76,7 +76,7 @@ class IVRRepository(BaseRepository):
             doc["_id"] = str(result.inserted_id)
         return IVRCallStateMongoDoc.from_mongo(doc)
 
-    async def log_ivr_event(self, call_id: str, event: Dict[str, Any]) -> None:
+    async def log_ivr_event(self, call_id: str, event: dict[str, Any]) -> None:
         """Append an event to the call_status_updates map in the log document."""
         await self._log_col.update_one(
             {"_id": call_id},
@@ -86,14 +86,14 @@ class IVRRepository(BaseRepository):
 
     async def find_logs_by_tenant_date_range(
         self, tenant_id: str, start: datetime, end: datetime
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Return raw log documents for tenant within [start, end] — used for analytics."""
         cursor = self._log_col.find(
             {"tenant_id": tenant_id, "created_at": {"$gte": start, "$lte": end}}
         ).sort("_id", -1)
         return await cursor.to_list(length=None)
 
-    async def update_fsm_context(self, call_id: str, updates: dict) -> Optional[IVRCallStateMongoDoc]:
+    async def update_fsm_context(self, call_id: str, updates: dict) -> IVRCallStateMongoDoc | None:
         result = await self._log_col.find_one_and_update(
             {"_id": call_id},
             {"$set": updates},
@@ -105,10 +105,10 @@ class IVRRepository(BaseRepository):
     # Ongoing IVR state (stream playback tracking)
     # ------------------------------------------------------------------
 
-    async def find_ongoing_state(self, conversation_id: str) -> Optional[Dict[str, Any]]:
+    async def find_ongoing_state(self, conversation_id: str) -> dict[str, Any] | None:
         return await self._ongoing_col.find_one({"_id": conversation_id})
 
-    async def push_stream_playback(self, conversation_id: str, item: Dict[str, Any]) -> None:
+    async def push_stream_playback(self, conversation_id: str, item: dict[str, Any]) -> None:
         await self._ongoing_col.update_one(
             {"_id": conversation_id},
             {"$push": {"stream_playback": item}},
@@ -128,7 +128,7 @@ class IVRRepository(BaseRepository):
 
     async def find_logs_by_school_date_range(
         self, school_id: str, start_iso: str, end_iso: str
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Return raw log docs for school within ISO date range (created_at stored as string)."""
         cursor = self._log_col.find(
             {

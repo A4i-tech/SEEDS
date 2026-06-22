@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, List, Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -24,8 +24,8 @@ class StudentCreateRequest(BaseModel):
 
 
 class StudentUpdateRequest(BaseModel):
-    name: Optional[str] = None
-    phone_number: Optional[str] = Field(None, alias="phoneNumber")
+    name: str | None = None
+    phone_number: str | None = Field(None, alias="phoneNumber")
 
     model_config = {"populate_by_name": True}
 
@@ -59,7 +59,7 @@ async def create_student(
 async def list_students(
     current_user: dict[str, Any] = Depends(require_teacher),
     service: UserService = Depends(get_user_service),
-) -> List[dict]:
+) -> list[dict]:
     school_id = current_user.get("school_id", "")
     tenant_id = current_user.get("tenant_id", "")
     if not school_id:

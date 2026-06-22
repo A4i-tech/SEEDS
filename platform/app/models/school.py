@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
 
 from bson import ObjectId
 from pydantic import BaseModel, ConfigDict, Field
@@ -13,17 +12,17 @@ class School(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    id: Optional[str] = Field(None, alias="_id")
+    id: str | None = Field(None, alias="_id")
     tenant_id: str = Field(..., alias="tenantId")
     name: str
     email: str
-    hashed_password: Optional[str] = Field(None, alias="password")
+    hashed_password: str | None = Field(None, alias="password")
     is_active: bool = Field(True, alias="isActive")
-    created_at: Optional[datetime] = Field(None, alias="createdAt")
-    updated_at: Optional[datetime] = Field(None, alias="updatedAt")
+    created_at: datetime | None = Field(None, alias="createdAt")
+    updated_at: datetime | None = Field(None, alias="updatedAt")
 
     @classmethod
-    def from_mongo(cls, doc: dict) -> "School":
+    def from_mongo(cls, doc: dict) -> School:
         if doc is None:
             return None  # type: ignore[return-value]
         d = dict(doc)
@@ -45,5 +44,5 @@ class SchoolCreate(BaseModel):
     tenant_id: str = Field(..., alias="tenantId")
     name: str
     email: str
-    hashed_password: Optional[str] = Field(None, alias="password")
+    hashed_password: str | None = Field(None, alias="password")
     is_active: bool = Field(True, alias="isActive")

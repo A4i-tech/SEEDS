@@ -2,14 +2,14 @@
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
-from typing import Any, Dict, List, Optional
+from enum import StrEnum
+from typing import Any
 
 from bson import ObjectId
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class IVRCallStatus(str, Enum):
+class IVRCallStatus(StrEnum):
     STARTED = "started"
     RINGING = "ringing"
     ANSWERED = "answered"
@@ -28,7 +28,7 @@ class IVRCallStatus(str, Enum):
     TRANSFER = "transfer"
 
     @staticmethod
-    def end_statuses() -> List["IVRCallStatus"]:
+    def end_statuses() -> list[IVRCallStatus]:
         return [
             IVRCallStatus.BUSY,
             IVRCallStatus.CANCELLED,
@@ -41,7 +41,7 @@ class IVRCallStatus(str, Enum):
         ]
 
 
-class ConversationRTCEventType(str, Enum):
+class ConversationRTCEventType(StrEnum):
     GENERAL = "leg:status:update"
     AUDIO_DTMF = "audio:dtmf"
     AUDIO_EARMUFF_OFF = "audio:earmuff:off"
@@ -88,8 +88,8 @@ class StreamPlaybackInfo(BaseModel):
     play_id: str
     stream_url: str
     started_at: datetime
-    stopped_at: Optional[datetime] = None
-    done_at: Optional[datetime] = None
+    stopped_at: datetime | None = None
+    done_at: datetime | None = None
 
 
 class IVRCallStateMongoDoc(BaseModel):
@@ -100,22 +100,22 @@ class IVRCallStateMongoDoc(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    id: Optional[str] = Field(None, alias="_id")
+    id: str | None = Field(None, alias="_id")
     phone_number: str
     fsm_id: str
     current_state_id: str
     created_at: datetime
-    stopped_at: Optional[datetime] = None
-    duration: Optional[str] = ""
-    user_actions: List[UserAction] = Field(default_factory=list)
-    stream_playback: List[StreamPlaybackInfo] = Field(default_factory=list)
-    experience_data: Dict[str, Any] = Field(default_factory=dict)
-    call_status_updates: Dict[str, Any] = Field(default_factory=dict)
+    stopped_at: datetime | None = None
+    duration: str | None = ""
+    user_actions: list[UserAction] = Field(default_factory=list)
+    stream_playback: list[StreamPlaybackInfo] = Field(default_factory=list)
+    experience_data: dict[str, Any] = Field(default_factory=dict)
+    call_status_updates: dict[str, Any] = Field(default_factory=dict)
     tenant_id: str = ""
-    school_id: Optional[str] = None
+    school_id: str | None = None
 
     @classmethod
-    def from_mongo(cls, doc: dict) -> "IVRCallStateMongoDoc":
+    def from_mongo(cls, doc: dict) -> IVRCallStateMongoDoc:
         if doc is None:
             return None  # type: ignore[return-value]
         d = dict(doc)
@@ -132,10 +132,10 @@ class IVRfsmDoc(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    id: Optional[str] = Field(None, alias="_id")
+    id: str | None = Field(None, alias="_id")
     created_at: int  # epoch ms
-    states: List[Dict[str, Any]] = Field(default_factory=list)
-    transitions: List[Dict[str, Any]] = Field(default_factory=list)
+    states: list[dict[str, Any]] = Field(default_factory=list)
+    transitions: list[dict[str, Any]] = Field(default_factory=list)
     init_state_id: str
 
     def __eq__(self, other: object) -> bool:
@@ -148,7 +148,7 @@ class IVRfsmDoc(BaseModel):
         )
 
     @classmethod
-    def from_mongo(cls, doc: dict) -> "IVRfsmDoc":
+    def from_mongo(cls, doc: dict) -> IVRfsmDoc:
         if doc is None:
             return None  # type: ignore[return-value]
         d = dict(doc)
@@ -162,14 +162,14 @@ class EventWebhookRequest(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    end_time: Optional[str] = ""
-    network: Optional[str] = ""
-    duration: Optional[str] = ""
-    start_time: Optional[str] = ""
-    rate: Optional[str] = ""
-    price: Optional[str] = ""
+    end_time: str | None = ""
+    network: str | None = ""
+    duration: str | None = ""
+    start_time: str | None = ""
+    rate: str | None = ""
+    price: str | None = ""
     from_number: str = Field(..., alias="from")
-    headers: Dict[str, Any] = Field(default_factory=dict)
+    headers: dict[str, Any] = Field(default_factory=dict)
     uuid: str
     to: str
     conversation_uuid: str
@@ -183,7 +183,7 @@ class ConversationRTCWebhookRequest(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    body: Dict[str, Any]
+    body: dict[str, Any]
     application_id: str
     timestamp: datetime
     type: ConversationRTCEventType

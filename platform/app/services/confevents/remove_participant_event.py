@@ -1,15 +1,18 @@
 """Remove participant event."""
 from __future__ import annotations
+
 from datetime import datetime
 from typing import TYPE_CHECKING
+
 from app.models.action_history import ActionHistory, ActionType
 from app.models.participant import CallStatus, Role
 from app.services.confevents.base_event import ConferenceEvent
+
 if TYPE_CHECKING:
     from app.services.conference_service import ConferenceCall
 
 class RemoveParticipantEvent(ConferenceEvent):
-    def __init__(self, phone_number: str, conf_call: "ConferenceCall") -> None:
+    def __init__(self, phone_number: str, conf_call: ConferenceCall) -> None:
         self.phone_number = phone_number
         self.conf_call = conf_call
 

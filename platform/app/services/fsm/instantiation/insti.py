@@ -7,16 +7,16 @@ from __future__ import annotations
 
 import re
 import uuid
-from typing import Dict, List, Optional
+
+from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.ivr_state import IVRfsmDoc
+from app.platform.settings import get_settings
 from app.providers.vonage_actions.input_action import InputAction
 from app.providers.vonage_actions.stream_action import StreamAction
 from app.providers.vonage_actions.talk_action import TalkAction
-from app.platform.settings import get_settings
 from app.services.fsm.fsm import FSM
 from app.services.fsm.instantiation.ivr_constants import (
-    audioGoingTobePlayedDialogUrl,
     content_attributes,
     experienceDialogAudioUrls,
     get_pull_menu_main_url,
@@ -25,10 +25,10 @@ from app.services.fsm.instantiation.ivr_constants import (
     next4MessageUrls,
     next_n_categories_key,
     number_of_categories_listed_in_one_state,
+    pressKeyMessageUrl,
     prev4MessageUrls,
     previous_category_level_key,
     previous_n_categories_key,
-    pressKeyMessageUrl,
     readingContentTitlesDialogUrl,
     repeat_current_categories_key,
     repeatCurrentMenuUrl,
@@ -36,7 +36,6 @@ from app.services.fsm.instantiation.ivr_constants import (
 )
 from app.services.fsm.state import State
 from app.services.fsm.transition import Transition
-from motor.motor_asyncio import AsyncIOMotorDatabase
 
 
 class _Option:
@@ -345,8 +344,8 @@ def generate_states(
         parent_block_state_id, key_for_option_chosen = _extract_parent_info(parent_state_id)
 
         if content_type == "quiz":
-            from app.services.fsm.instantiation.quiz import Quiz  # noqa: PLC0415
             from app.models.quiz import QuizData  # type: ignore[attr-defined]  # noqa: PLC0415
+            from app.services.fsm.instantiation.quiz import Quiz  # noqa: PLC0415
             try:
                 quiz_data = QuizData(**filtered_content[0])
             except Exception:  # noqa: BLE001
@@ -357,8 +356,10 @@ def generate_states(
                 fsm, parent_state_id, parent_block_state_id, key_for_option_chosen, level
             )
         else:
+            from app.models.content import (
+                PureAudioData,  # type: ignore[attr-defined]  # noqa: PLC0415
+            )
             from app.services.fsm.instantiation.pure_audio import PureAudio  # noqa: PLC0415
-            from app.models.content import PureAudioData  # type: ignore[attr-defined]  # noqa: PLC0415
             try:
                 content_data = PureAudioData(**filtered_content[0])
             except Exception:  # noqa: BLE001
@@ -469,8 +470,8 @@ def generate_states(
 
 
 async def instantiate_from_latest_content(
-    content_ids: Optional[List[str]] = None,
-    db: Optional[AsyncIOMotorDatabase] = None,
+    content_ids: list[str] | None = None,
+    db: AsyncIOMotorDatabase | None = None,
 ) -> FSM:
     """Build an FSM from MongoDB pull-model content.
 

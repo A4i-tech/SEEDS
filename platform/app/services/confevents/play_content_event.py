@@ -1,16 +1,19 @@
 """Play content event."""
 from __future__ import annotations
+
 from datetime import datetime
 from typing import TYPE_CHECKING
+
 from app.models.action_history import ActionHistory, ActionType
 from app.models.playback_state import ContentStatus
 from app.models.ws_service_message import MessageType, WebsocketServiceMessage
 from app.services.confevents.base_event import ConferenceEvent
+
 if TYPE_CHECKING:
     from app.services.conference_service import ConferenceCall
 
 class PlayContentEvent(ConferenceEvent):
-    def __init__(self, conf_call: "ConferenceCall", url: str) -> None:
+    def __init__(self, conf_call: ConferenceCall, url: str) -> None:
         self.url = url
         self.conf_call = conf_call
 

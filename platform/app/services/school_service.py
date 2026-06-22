@@ -11,7 +11,7 @@ SECURITY:
 from __future__ import annotations
 
 import logging
-from typing import Any, List, Optional
+from typing import Any
 
 from fastapi import Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -80,12 +80,12 @@ class SchoolService:
             raise NotFoundError("School", school_id)
         return updated
 
-    async def get_school_by_tenant(self, tenant_id: str) -> Optional[School]:
+    async def get_school_by_tenant(self, tenant_id: str) -> School | None:
         """Return the first school belonging to *tenant_id*, or None."""
         schools = await self._repo.find_all_by_tenant(tenant_id)
         return schools[0] if schools else None
 
-    async def list_schools_by_tenant(self, tenant_id: str) -> List[School]:
+    async def list_schools_by_tenant(self, tenant_id: str) -> list[School]:
         """Return all schools belonging to *tenant_id*."""
         return await self._repo.find_all_by_tenant(tenant_id)
 
@@ -189,10 +189,10 @@ class SchoolService:
             raise NotFoundError("Classroom", classroom_id)
         return updated
 
-    async def list_classrooms_by_school(self, school_id: str) -> List[Classroom]:
+    async def list_classrooms_by_school(self, school_id: str) -> list[Classroom]:
         return await self._class_repo.find_by_school(school_id)
 
-    async def list_classrooms_by_teacher(self, teacher_id: str) -> List[Classroom]:
+    async def list_classrooms_by_teacher(self, teacher_id: str) -> list[Classroom]:
         return await self._class_repo.find_by_teacher(teacher_id)
 
     async def delete_classroom(self, classroom_id: str) -> bool:

@@ -1,8 +1,7 @@
 """Content repository — Motor async data access for the content collections."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import List, Optional
+from datetime import UTC, datetime
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -18,11 +17,11 @@ class ContentRepository(BaseRepository):
     def __init__(self, db: AsyncIOMotorDatabase) -> None:
         self._col = db[self.COLLECTION]
 
-    async def find_by_id(self, id: str) -> Optional[Content]:
+    async def find_by_id(self, id: str) -> Content | None:
         doc = await self._col.find_one({"_id": id})
         return Content.from_mongo(doc) if doc else None
 
-    async def find_by_tenant(self, tenant_id: str, include_deleted: bool = False) -> List[Content]:
+    async def find_by_tenant(self, tenant_id: str, include_deleted: bool = False) -> list[Content]:
         query: dict = {"tenant_id": tenant_id}
         if not include_deleted:
             query["is_deleted"] = {"$ne": True}
@@ -30,7 +29,7 @@ class ContentRepository(BaseRepository):
         docs = await cursor.to_list(length=None)
         return [Content.from_mongo(d) for d in docs]
 
-    async def find_by_class(self, content_ids: List[str]) -> List[Content]:
+    async def find_by_class(self, content_ids: list[str]) -> list[Content]:
         """Fetch a batch of content items by their IDs (as used in Classroom.contentIds)."""
         cursor = self._col.find({"_id": {"$in": content_ids}})
         docs = await cursor.to_list(length=None)
@@ -38,7 +37,7 @@ class ContentRepository(BaseRepository):
 
     async def find_by_tenant_and_language(
         self, tenant_id: str, language: str, include_deleted: bool = False
-    ) -> List[Content]:
+    ) -> list[Content]:
         query: dict = {"tenant_id": tenant_id, "language": language}
         if not include_deleted:
             query["is_deleted"] = {"$ne": True}
@@ -48,7 +47,7 @@ class ContentRepository(BaseRepository):
 
     async def create(self, content: ContentCreate) -> Content:
         import uuid
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         doc = content.model_dump(by_alias=False)
         doc["_id"] = str(uuid.uuid4())
         doc["created_at"] = now
@@ -56,8 +55,8 @@ class ContentRepository(BaseRepository):
         await self._col.insert_one(doc)
         return Content.from_mongo(doc)
 
-    async def update(self, id: str, updates: dict) -> Optional[Content]:
-        updates["updated_at"] = datetime.now(timezone.utc)
+    async def update(self, id: str, updates: dict) -> Content | None:
+        updates["updated_at"] = datetime.now(UTC)
         result = await self._col.find_one_and_update(
             {"_id": id},
             {"$set": updates},
@@ -68,7 +67,7 @@ class ContentRepository(BaseRepository):
     async def soft_delete(self, id: str) -> bool:
         result = await self._col.update_one(
             {"_id": id},
-            {"$set": {"is_deleted": True, "updated_at": datetime.now(timezone.utc)}},
+            {"$set": {"is_deleted": True, "updated_at": datetime.now(UTC)}},
         )
         return result.modified_count > 0
 

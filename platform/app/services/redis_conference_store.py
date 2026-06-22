@@ -22,6 +22,7 @@ class RedisConferenceStore:
 
     def __init__(self) -> None:
         import redis.asyncio as aioredis  # type: ignore[import-untyped]
+
         from app.platform.settings import get_settings  # noqa: PLC0415
 
         settings = get_settings()

@@ -1,17 +1,20 @@
 """Unmute participant event."""
 from __future__ import annotations
+
 import logging
 from datetime import datetime
 from typing import TYPE_CHECKING
+
 from app.models.action_history import ActionHistory, ActionType
 from app.models.system_audio_messages import SystemAudioMessages
 from app.services.confevents.base_event import ConferenceEvent
+
 if TYPE_CHECKING:
     from app.services.conference_service import ConferenceCall
 logger = logging.getLogger(__name__)
 
 class UnmuteParticipantEvent(ConferenceEvent):
-    def __init__(self, phone_number: str, conf_call: "ConferenceCall", stream_system_message: bool = True) -> None:
+    def __init__(self, phone_number: str, conf_call: ConferenceCall, stream_system_message: bool = True) -> None:
         self.phone_number = phone_number
         self.conf_call = conf_call
         self.stream_system_message = stream_system_message

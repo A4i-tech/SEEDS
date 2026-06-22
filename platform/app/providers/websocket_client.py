@@ -13,10 +13,11 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib
 import json
 import logging
 import random
-from typing import Any, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 logger = logging.getLogger(__name__)
 
@@ -32,9 +33,9 @@ class WebsocketServiceMessage:
         websocket_id: str,
         type: str,
         message: str = "",
-        position_seconds: Optional[float] = None,
-        duration_seconds: Optional[float] = None,
-        speed: Optional[float] = None,
+        position_seconds: float | None = None,
+        duration_seconds: float | None = None,
+        speed: float | None = None,
     ) -> None:
         self.websocket_id = websocket_id
         self.type = type
@@ -73,11 +74,11 @@ class WebsocketClientProvider:
     check is in ``websocket_controller.verify_vonage_signature``.
     """
 
-    _instance: Optional["WebsocketClientProvider"] = None
+    _instance: WebsocketClientProvider | None = None
     connection_id = "confv2server"
     heartbeat_interval = 30
 
-    def __new__(cls) -> "WebsocketClientProvider":
+    def __new__(cls) -> WebsocketClientProvider:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
@@ -116,10 +117,8 @@ class WebsocketClientProvider:
             task.cancel()
         self._bg_tasks = []
         if self._ws:
-            try:
+            with contextlib.suppress(Exception):
                 await self._ws.close()
-            except Exception:
-                pass
 
     # ------------------------------------------------------------------
     # Connection management
@@ -180,7 +179,7 @@ class WebsocketClientProvider:
 
     async def _listen_messages(self) -> None:
         import websockets  # type: ignore[import-untyped]
-        from app.models.ws_service_message import MessageType, WebsocketServiceMessage as WSMsg  # noqa: PLC0415
+
 
         while True:
             await asyncio.sleep(0.5)
@@ -224,8 +223,10 @@ class WebsocketClientProvider:
             return
 
         if msg_type == MessageType.PLAYBACK_STATE_UPDATES:
-            from app.services.confevents.playback_state_update_event import PlaybackStateUpdateEvent  # noqa: PLC0415
             from app.models.audio_content_state import ContentStatus  # noqa: PLC0415
+            from app.services.confevents.playback_state_update_event import (
+                PlaybackStateUpdateEvent,  # noqa: PLC0415
+            )
 
             await conf_call.queue_event(PlaybackStateUpdateEvent(
                 conf_call=conf_call,
@@ -242,7 +243,9 @@ class WebsocketClientProvider:
                 except asyncio.QueueFull:
                     logger.warning("WebsocketClientProvider: audio relay queue full for %s, dropping chunk", websocket_id)
         elif msg_type == MessageType.RECONNECT:
-            from app.services.confevents.reconnect_comm_api_websocket_event import ReconnectCommApiWebsocketEvent  # noqa: PLC0415
+            from app.services.confevents.reconnect_comm_api_websocket_event import (
+                ReconnectCommApiWebsocketEvent,  # noqa: PLC0415
+            )
 
             await conf_call.queue_event(ReconnectCommApiWebsocketEvent(conf_call=conf_call))
 

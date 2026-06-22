@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, List
+from typing import Any
 
 from fastapi import APIRouter, Depends, status
 
@@ -23,7 +23,7 @@ router = APIRouter(prefix="/user", tags=["Users"])
 async def get_participants(
     current_user: dict[str, Any] = Depends(require_teacher),
     service: UserService = Depends(get_user_service),
-) -> List[dict]:
+) -> list[dict]:
     """SECURITY FIX: was unprotected in legacy backend-server (userRouter.js)."""
     tenant_id = current_user.get("tenant_id", "")
     school_id = current_user.get("school_id", "")

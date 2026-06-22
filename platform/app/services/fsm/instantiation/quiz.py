@@ -51,12 +51,12 @@ class Quiz:
 
     def generate_states(
         self,
-        fsm: "FSM",
+        fsm: FSM,
         prefix_state_id: str,
         parent_block_state_id: str,
         key_chosen: int,
         level: int,
-    ) -> "FSM":
+    ) -> FSM:
         initial_quiz_state_id = f"{prefix_state_id}_QuizStart"
         initial_state = self.get_initial_state(initial_quiz_state_id, level)
         fsm.add_state(initial_state)

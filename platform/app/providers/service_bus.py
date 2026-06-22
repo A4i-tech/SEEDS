@@ -16,8 +16,8 @@ import json
 import logging
 import uuid
 from datetime import datetime
-from enum import Enum
-from typing import Any, Dict, List, Optional
+from enum import StrEnum
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 # Message model
 # ---------------------------------------------------------------------------
 
-class MessageType(str, Enum):
+class MessageType(StrEnum):
     CALL_WEBHOOK = "call_webhook"
     DTMF_INPUT = "dtmf_input"
     CALL_EVENT = "call_event"
@@ -38,8 +38,8 @@ class QueueMessage:
     def __init__(
         self,
         type: MessageType,
-        payload: Dict[str, Any],
-        message_id: Optional[str] = None,
+        payload: dict[str, Any],
+        message_id: str | None = None,
     ) -> None:
         self.type = type
         self.payload = payload
@@ -59,7 +59,7 @@ class QueueMessage:
         )
 
     @classmethod
-    def from_json_string(cls, json_string: str) -> "QueueMessage":
+    def from_json_string(cls, json_string: str) -> QueueMessage:
         data = json.loads(json_string)
         return cls(
             type=MessageType(data["type"]),
@@ -80,7 +80,7 @@ class _AzureQueueHandle:
         self.queue_name = queue_name
         self._client = None
         self._receiver = None
-        self._message_map: Dict[str, Any] = {}
+        self._message_map: dict[str, Any] = {}
 
     async def initialize(self) -> None:
         from azure.servicebus.aio import ServiceBusClient  # noqa: PLC0415
@@ -121,12 +121,12 @@ class _AzureQueueHandle:
             logger.error("Failed to send to %s: %s", self.queue_name, exc)
             return False
 
-    async def receive(self, max_count: int = 10, wait_seconds: int = 5) -> List[QueueMessage]:
+    async def receive(self, max_count: int = 10, wait_seconds: int = 5) -> list[QueueMessage]:
         try:
             raw_msgs = await self._receiver.receive_messages(
                 max_message_count=max_count,
             )
-            messages: List[QueueMessage] = []
+            messages: list[QueueMessage] = []
             for raw in raw_msgs:
                 try:
                     msg = QueueMessage.from_json_string(str(raw))
@@ -199,9 +199,9 @@ class ServiceBusProvider:
     }
 
     def __init__(self) -> None:
-        self._call_webhook: Optional[_AzureQueueHandle] = None
-        self._dtmf_input: Optional[_AzureQueueHandle] = None
-        self._call_event: Optional[_AzureQueueHandle] = None
+        self._call_webhook: _AzureQueueHandle | None = None
+        self._dtmf_input: _AzureQueueHandle | None = None
+        self._call_event: _AzureQueueHandle | None = None
         self._initialized = False
 
     async def initialize(self) -> None:
@@ -241,8 +241,8 @@ class ServiceBusProvider:
         self._initialized = False
         logger.info("ServiceBusProvider closed")
 
-    def _get_handle(self, queue_name: str) -> Optional[_AzureQueueHandle]:
-        mapping: Dict[str, Optional[_AzureQueueHandle]] = {
+    def _get_handle(self, queue_name: str) -> _AzureQueueHandle | None:
+        mapping: dict[str, _AzureQueueHandle | None] = {
             "call_webhook": self._call_webhook,
             "dtmf_input": self._dtmf_input,
             "call_event": self._call_event,
@@ -267,7 +267,7 @@ class ServiceBusProvider:
 
     async def receive_messages(
         self, queue_name: str, max_count: int = 10, wait_seconds: int = 5
-    ) -> List[QueueMessage]:
+    ) -> list[QueueMessage]:
         """Receive up to *max_count* messages from a named queue."""
         handle = self._get_handle(queue_name)
         if handle is None:
@@ -310,13 +310,13 @@ class ServiceBusProvider:
     async def send_call_event(self, payload: dict) -> bool:
         return await self.send_message("call_event", payload)
 
-    def get_call_webhook_queue(self) -> Optional[_AzureQueueHandle]:
+    def get_call_webhook_queue(self) -> _AzureQueueHandle | None:
         return self._call_webhook
 
-    def get_dtmf_input_queue(self) -> Optional[_AzureQueueHandle]:
+    def get_dtmf_input_queue(self) -> _AzureQueueHandle | None:
         return self._dtmf_input
 
-    def get_call_event_queue(self) -> Optional[_AzureQueueHandle]:
+    def get_call_event_queue(self) -> _AzureQueueHandle | None:
         return self._call_event
 
 

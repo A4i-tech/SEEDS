@@ -1,14 +1,18 @@
 """Vonage call status change event wrapper."""
 from __future__ import annotations
-from enum import Enum
-from typing import Any, TYPE_CHECKING
+
+from enum import StrEnum
+from typing import TYPE_CHECKING, Any
+
 from pydantic import BaseModel, Field, validator
+
 from app.models.participant import CallStatus
 from app.services.confevents.call_status_change_event import CallStatusChangeEvent
+
 if TYPE_CHECKING:
     from app.services.conference_service import ConferenceCall
 
-class VonageCallStatus(str, Enum):
+class VonageCallStatus(StrEnum):
     STARTED = "started"
     RINGING = "ringing"
     ANSWERED = "answered"
@@ -28,7 +32,7 @@ class VonageCallStatusChangeEvent(BaseModel):
     class Config:
         populate_by_name = True
 
-    def get_conf_call_status_change_event(self, conf_call: "ConferenceCall") -> CallStatusChangeEvent:
+    def get_conf_call_status_change_event(self, conf_call: ConferenceCall) -> CallStatusChangeEvent:
         if self.status in (VonageCallStatus.STARTED, VonageCallStatus.RINGING):
             status = CallStatus.CONNECTING
         elif self.status == VonageCallStatus.ANSWERED:

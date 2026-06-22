@@ -1,9 +1,13 @@
 """Vonage RTC DTMF input event wrapper."""
 from __future__ import annotations
-from enum import Enum
-from typing import Any, TYPE_CHECKING
+
+from enum import StrEnum
+from typing import TYPE_CHECKING, Any
+
 from pydantic import BaseModel, Field, validator
+
 from app.services.confevents.dtmf_input_event import DTMFInputEvent
+
 if TYPE_CHECKING:
     from app.services.conference_service import ConferenceCall
 
@@ -25,7 +29,7 @@ class Body(BaseModel):
     channel: Channel
     dtmf_seq: int
 
-class VonageRTCEventType(str, Enum):
+class VonageRTCEventType(StrEnum):
     DTMF = "audio:dtmf"
     UNKNOWN = "ringing"
 
@@ -39,7 +43,7 @@ class VonageDTMFInputEvent(BaseModel):
             return VonageRTCEventType.UNKNOWN
         return VonageRTCEventType(v)
 
-    def get_conf_dtmf_input_event(self, conf_call: "ConferenceCall") -> DTMFInputEvent:
+    def get_conf_dtmf_input_event(self, conf_call: ConferenceCall) -> DTMFInputEvent:
         return DTMFInputEvent(phone_number=self.body.channel.to.number, digit=self.body.digit, conf_call=conf_call)
 
     def get_user_phone_number(self) -> str:

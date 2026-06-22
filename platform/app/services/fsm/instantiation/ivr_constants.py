@@ -6,9 +6,9 @@ Storage account URLs are computed lazily from settings.
 
 from __future__ import annotations
 
-from app.platform.settings import get_settings
 from functools import lru_cache
-from typing import Dict
+
+from app.platform.settings import get_settings
 
 
 @lru_cache(maxsize=1)
@@ -38,7 +38,7 @@ def get_content_url() -> str:
 # Language dialog URLs (relative paths, prepend pullMenuMainUrl)
 # ---------------------------------------------------------------------------
 
-languageDialogUrls: Dict[str, str] = {
+languageDialogUrls: dict[str, str] = {
     "english": "languageDialog/english/For%20English/{speechRate}.mp3",
     "kannada": "languageDialog/kannada/For%20Kannada/{speechRate}.mp3",
     "bengali": "languageDialog/bengali/For%20Bengali/{speechRate}.mp3",
@@ -50,7 +50,7 @@ languageDialogUrls: Dict[str, str] = {
 
 speechRate = "1.0"
 
-readingContentTitlesDialogUrl: Dict[str, str] = {
+readingContentTitlesDialogUrl: dict[str, str] = {
     "story": "readingContentTitlesDialog/{language}/story/{speechRate}.mp3",
     "poem": "readingContentTitlesDialog/{language}/poetry/{speechRate}.mp3",
     "song": "readingContentTitlesDialog/{language}/music/{speechRate}.mp3",
@@ -61,7 +61,7 @@ readingContentTitlesDialogUrl: Dict[str, str] = {
     "theme": "readingContentTitlesDialog/{language}/theme/{speechRate}.mp3",
 }
 
-next4MessageUrls: Dict[str, str] = {
+next4MessageUrls: dict[str, str] = {
     "language": "next4Dialog/{language}/language/{speechRate}.mp3",
     "story": "next4Dialog/{language}/story/{speechRate}.mp3",
     "poem": "next4Dialog/{language}/poetry/{speechRate}.mp3",
@@ -74,7 +74,7 @@ next4MessageUrls: Dict[str, str] = {
     "theme": "next4Dialog/{language}/theme/{speechRate}.mp3",
 }
 
-prev4MessageUrls: Dict[str, str] = {
+prev4MessageUrls: dict[str, str] = {
     "language": "prev4Dialog/{language}/language/{speechRate}.mp3",
     "story": "prev4Dialog/{language}/story/{speechRate}.mp3",
     "poem": "prev4Dialog/{language}/poetry/{speechRate}.mp3",
@@ -87,11 +87,11 @@ prev4MessageUrls: Dict[str, str] = {
     "theme": "prev4Dialog/{language}/theme/{speechRate}.mp3",
 }
 
-experienceNames: Dict[str, list] = {
+experienceNames: dict[str, list] = {
     "english": ["story", "poem", "song", "snippet", "riddle"]
 }
 
-experienceDialogAudioUrls: Dict[str, str] = {
+experienceDialogAudioUrls: dict[str, str] = {
     "story": "{pullMenu}experiencesDialog/{language}/story/For%20Stories/{speechRate}.mp3",
     "poem": "{pullMenu}experiencesDialog/{language}/poetry/For%20Rhymes/{speechRate}.mp3",
     "song": "{pullMenu}experiencesDialog/{language}/music/For%20Songs/{speechRate}.mp3",

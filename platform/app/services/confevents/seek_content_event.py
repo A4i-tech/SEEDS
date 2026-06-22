@@ -1,16 +1,19 @@
 """Seek content event."""
 from __future__ import annotations
+
 import json
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
+
 from app.models.action_history import ActionHistory, ActionType
 from app.models.ws_service_message import MessageType, WebsocketServiceMessage
 from app.services.confevents.base_event import ConferenceEvent
+
 if TYPE_CHECKING:
     from app.services.conference_service import ConferenceCall
 
 class SeekContentEvent(ConferenceEvent):
-    def __init__(self, conf_call: "ConferenceCall", delta_seconds: Optional[int] = None, position_seconds: Optional[float] = None, initiator_phone: Optional[str] = None) -> None:
+    def __init__(self, conf_call: ConferenceCall, delta_seconds: int | None = None, position_seconds: float | None = None, initiator_phone: str | None = None) -> None:
         if delta_seconds is None and position_seconds is None:
             raise ValueError("Exactly one of delta_seconds or position_seconds must be provided")
         self.conf_call = conf_call

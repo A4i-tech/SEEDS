@@ -1,21 +1,24 @@
 """Teacher disconnect timer events — auto-end conference if teacher stays disconnected."""
 from __future__ import annotations
+
 import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
+
 from app.models.action_history import ActionHistory, ActionType
 from app.models.participant import CallStatus
 from app.models.system_audio_messages import SystemAudioMessages
 from app.platform.settings import get_settings
 from app.services.confevents.base_event import ConferenceEvent
+
 if TYPE_CHECKING:
     from app.services.conference_service import ConferenceCall
 logger = logging.getLogger(__name__)
 
 
 class StartTeacherDisconnectTimerEvent(ConferenceEvent):
-    def __init__(self, conf_call: "ConferenceCall") -> None:
+    def __init__(self, conf_call: ConferenceCall) -> None:
         self.conf_call = conf_call
         settings = get_settings()
         self.timeout_minutes = settings.auto_end_timeout_minutes
@@ -35,9 +38,8 @@ class StartTeacherDisconnectTimerEvent(ConferenceEvent):
         self.conf_call.state.auto_end_state.timeout_minutes = self.timeout_minutes
         self.conf_call.state.action_history.append(ActionHistory(timestamp=now.isoformat(), action_type=ActionType.AUTO_END_TIMER_START, metadata={"timeout_minutes": self.timeout_minutes, "expires_at": expires_at.isoformat()}, owner="system"))
         await self.conf_call.update_state()
-        if hasattr(self.conf_call, "_auto_end_monitor_task"):
-            if self.conf_call._auto_end_monitor_task and not self.conf_call._auto_end_monitor_task.done():
-                self.conf_call._auto_end_monitor_task.cancel()
+        if hasattr(self.conf_call, "_auto_end_monitor_task") and self.conf_call._auto_end_monitor_task and not self.conf_call._auto_end_monitor_task.done():
+            self.conf_call._auto_end_monitor_task.cancel()
         self.conf_call._auto_end_monitor_task = asyncio.create_task(self._monitor_timer())
 
     async def _monitor_timer(self) -> None:
@@ -64,7 +66,7 @@ class StartTeacherDisconnectTimerEvent(ConferenceEvent):
 
 
 class AutoEndTimerExpiredEvent(ConferenceEvent):
-    def __init__(self, conf_call: "ConferenceCall", timeout_minutes: int) -> None:
+    def __init__(self, conf_call: ConferenceCall, timeout_minutes: int) -> None:
         self.conf_call = conf_call
         self.timeout_minutes = timeout_minutes
 
@@ -88,7 +90,7 @@ class AutoEndTimerExpiredEvent(ConferenceEvent):
 
 
 class AutoEndTimerFailedEvent(ConferenceEvent):
-    def __init__(self, conf_call: "ConferenceCall") -> None:
+    def __init__(self, conf_call: ConferenceCall) -> None:
         self.conf_call = conf_call
 
     async def execute_event(self) -> None:
@@ -100,7 +102,7 @@ class AutoEndTimerFailedEvent(ConferenceEvent):
 
 
 class CancelTeacherDisconnectTimerEvent(ConferenceEvent):
-    def __init__(self, conf_call: "ConferenceCall") -> None:
+    def __init__(self, conf_call: ConferenceCall) -> None:
         self.conf_call = conf_call
 
     async def execute_event(self) -> None:
@@ -109,9 +111,8 @@ class CancelTeacherDisconnectTimerEvent(ConferenceEvent):
         self.conf_call.state.auto_end_state.is_active = False
         self.conf_call.state.auto_end_state.started_at = None
         self.conf_call.state.auto_end_state.expires_at = None
-        if hasattr(self.conf_call, "_auto_end_monitor_task"):
-            if self.conf_call._auto_end_monitor_task and not self.conf_call._auto_end_monitor_task.done():
-                self.conf_call._auto_end_monitor_task.cancel()
+        if hasattr(self.conf_call, "_auto_end_monitor_task") and self.conf_call._auto_end_monitor_task and not self.conf_call._auto_end_monitor_task.done():
+            self.conf_call._auto_end_monitor_task.cancel()
         self.conf_call.state.action_history.append(ActionHistory(timestamp=datetime.utcnow().isoformat(), action_type=ActionType.AUTO_END_TIMER_CANCEL, metadata={"reason": "teacher_reconnected"}, owner=self.conf_call.state.teacher_phone_number or ""))
         await self.conf_call.update_state()
         await self.conf_call.stream_system_message(SystemAudioMessages.TEACHER_HAS_JOINED)

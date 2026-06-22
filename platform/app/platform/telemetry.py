@@ -54,7 +54,7 @@ class _NoopUpDownCounter:
 # ---------------------------------------------------------------------------
 
 
-def configure_telemetry(settings: "Settings") -> None:
+def configure_telemetry(settings: Settings) -> None:
     """
     Configure Azure Monitor telemetry and register custom metrics.
 
@@ -76,14 +76,14 @@ def configure_telemetry(settings: "Settings") -> None:
             from opentelemetry.instrumentation.fastapi import (  # noqa: PLC0415
                 FastAPIInstrumentor,
             )
-            from opentelemetry.instrumentation.pymongo import (  # noqa: PLC0415
-                PymongoInstrumentor,
-            )
             from opentelemetry.instrumentation.httpx import (  # noqa: PLC0415
                 HTTPXClientInstrumentor,
             )
             from opentelemetry.instrumentation.logging import (  # noqa: PLC0415
                 LoggingInstrumentor,
+            )
+            from opentelemetry.instrumentation.pymongo import (  # noqa: PLC0415
+                PymongoInstrumentor,
             )
 
             configure_azure_monitor(connection_string=conn_str)

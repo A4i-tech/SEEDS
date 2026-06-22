@@ -18,10 +18,10 @@ SECURITY:
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from app.consumers.audio_recording_consumer import get_audio_analysis_queue
-from app.consumers.base_consumer import BaseConsumer, PermanentError
+from app.consumers.base_consumer import BaseConsumer
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +37,8 @@ class AudioAnalysisConsumer(BaseConsumer):
 
     def __init__(self, conference_manager: Any) -> None:
         self._conference_manager = conference_manager
-        self._transcriber: Optional[Any] = None
-        self._hold_detector: Optional[Any] = None
+        self._transcriber: Any | None = None
+        self._hold_detector: Any | None = None
 
     async def _run_loop(self) -> None:
         queue = get_audio_analysis_queue()
@@ -102,7 +102,9 @@ class AudioAnalysisConsumer(BaseConsumer):
             return
 
         # Transcribe + hold detect
-        from app.services.audio.websocket_audio_processor import process_audio_message  # noqa: PLC0415
+        from app.services.audio.websocket_audio_processor import (
+            process_audio_message,  # noqa: PLC0415
+        )
 
         try:
             await process_audio_message(

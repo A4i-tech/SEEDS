@@ -1,14 +1,18 @@
 """Sink conference event — tears down conference after all participants have left."""
 from __future__ import annotations
+
+from collections.abc import Callable
 from datetime import datetime
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
+
 from app.models.action_history import ActionHistory, ActionType
 from app.services.confevents.base_event import ConferenceEvent
+
 if TYPE_CHECKING:
     from app.services.conference_service import ConferenceCall
 
 class SinkConferenceEvent(ConferenceEvent):
-    def __init__(self, conf_call: "ConferenceCall", on_sink_callback: Callable[[], None]) -> None:
+    def __init__(self, conf_call: ConferenceCall, on_sink_callback: Callable[[], None]) -> None:
         self.conf_call = conf_call
         self.on_sink_callback = on_sink_callback
 

@@ -1,7 +1,7 @@
 """Call domain models (from Call.js + CallLog.js)."""
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from bson import ObjectId
 from pydantic import BaseModel, ConfigDict, Field
@@ -15,12 +15,12 @@ class Call(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    id: Optional[str] = Field(None, alias="_id")
+    id: str | None = Field(None, alias="_id")
     call_id: int = Field(..., alias="id")   # unique numeric call identifier
     index: int                              # round-robin / sequence index
 
     @classmethod
-    def from_mongo(cls, doc: dict) -> "Call":
+    def from_mongo(cls, doc: dict) -> Call:
         if doc is None:
             return None  # type: ignore[return-value]
         d = dict(doc)
@@ -34,15 +34,15 @@ class CallLog(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    id: Optional[str] = Field(None, alias="_id")
+    id: str | None = Field(None, alias="_id")
     type: str
     time: str
     fsm_context_id: str = Field(..., alias="fsmContextId")
-    data: Optional[Dict[str, Any]] = None
+    data: dict[str, Any] | None = None
     is_completed: bool = Field(..., alias="isCompleted")
 
     @classmethod
-    def from_mongo(cls, doc: dict) -> "CallLog":
+    def from_mongo(cls, doc: dict) -> CallLog:
         if doc is None:
             return None  # type: ignore[return-value]
         d = dict(doc)

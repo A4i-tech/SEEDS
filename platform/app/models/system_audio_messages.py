@@ -6,7 +6,7 @@ be imported without STORAGE_ACCOUNT_NAME set (e.g. in unit tests).
 from __future__ import annotations
 
 import logging
-from enum import Enum
+from enum import StrEnum
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ def _base_url() -> str:
     return "https://placeholder.blob.core.windows.net/conference/conferenceMessagesWav/english/"
 
 
-class SystemAudioMessages(str, Enum):
+class SystemAudioMessages(StrEnum):
     WELCOME_TEACHER = "teacher_welcome_message.wav"
     WELCOME_STUDENT = "student_welcome_message.wav"
     TEACHER_HAS_JOINED = "teacher_has_joined.wav"

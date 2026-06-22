@@ -1,13 +1,16 @@
 """DTMF input event — handles student hand-raise and leader control digits."""
 from __future__ import annotations
+
 import logging
 from datetime import datetime
 from typing import TYPE_CHECKING
+
 from app.models.action_history import ActionHistory, ActionType
-from app.models.participant import Role, Participant
+from app.models.participant import Participant, Role
 from app.models.playback_state import ContentStatus
 from app.models.system_audio_messages import SystemAudioMessages
 from app.services.confevents.base_event import ConferenceEvent
+
 if TYPE_CHECKING:
     from app.services.conference_service import ConferenceCall
 logger = logging.getLogger(__name__)
@@ -15,7 +18,7 @@ logger = logging.getLogger(__name__)
 CONTENT_ACTIVE_STATUSES = (ContentStatus.PLAYING, ContentStatus.STARTING, ContentStatus.PAUSED)
 
 class DTMFInputEvent(ConferenceEvent):
-    def __init__(self, phone_number: str, digit: str, conf_call: "ConferenceCall") -> None:
+    def __init__(self, phone_number: str, digit: str, conf_call: ConferenceCall) -> None:
         self.phone_number = phone_number
         self.digit = digit
         self.conf_call = conf_call
@@ -35,11 +38,17 @@ class DTMFInputEvent(ConferenceEvent):
 
         elif leader_phone and self.phone_number == leader_phone:
             from app.services.confevents.mute_all_event import MuteAllEvent  # noqa: PLC0415
-            from app.services.confevents.unmute_all_event import UnmuteAllEvent  # noqa: PLC0415
-            from app.services.confevents.pause_content_event import PauseContentEvent  # noqa: PLC0415
-            from app.services.confevents.resume_content_event import ResumeContentEvent  # noqa: PLC0415
+            from app.services.confevents.pause_content_event import (
+                PauseContentEvent,  # noqa: PLC0415
+            )
+            from app.services.confevents.resume_content_event import (
+                ResumeContentEvent,  # noqa: PLC0415
+            )
             from app.services.confevents.seek_content_event import SeekContentEvent  # noqa: PLC0415
-            from app.services.confevents.set_playback_speed_event import SetPlaybackSpeedEvent  # noqa: PLC0415
+            from app.services.confevents.set_playback_speed_event import (
+                SetPlaybackSpeedEvent,  # noqa: PLC0415
+            )
+            from app.services.confevents.unmute_all_event import UnmuteAllEvent  # noqa: PLC0415
             audio_state = self.conf_call.state.audio_content_state
             if self.digit == "1":
                 await MuteAllEvent(conf_call=self.conf_call, initiator_phone=self.phone_number).execute_event()

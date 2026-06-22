@@ -5,10 +5,9 @@ Ported from IVRv2/app/fsm/fsm.py — import paths updated, logic unchanged.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from app.platform.settings import get_settings
@@ -51,23 +50,22 @@ class FSM:
             "chosenWrongOptionDialog/kannada/Sorry,%20you%20have%20chosen%20the%20wrong%20option/1.0.mp3"
         )
 
-        from app.services.fsm.state import State  # noqa: PLC0415
 
         self.fsm_id = fsm_id
-        self.states: Dict[str, "State"] = {}
+        self.states: dict[str, State] = {}
         self.init_state_id = "LA0"
-        self.invalid_input_error_actions: List[Action] = [StreamAction(WRONG_INPUT_URL)]
-        self.empty_input_error_actions: List[Action] = [StreamAction(NO_OPTION_URL)]
+        self.invalid_input_error_actions: list[Action] = [StreamAction(WRONG_INPUT_URL)]
+        self.empty_input_error_actions: list[Action] = [StreamAction(NO_OPTION_URL)]
 
     # ------------------------------------------------------------------
     # Serialisation
     # ------------------------------------------------------------------
 
-    def serialize(self) -> "IVRfsmDoc":
+    def serialize(self) -> IVRfsmDoc:
         from app.models.ivr_state import IVRfsmDoc  # noqa: PLC0415
 
         states = [s.serialize() for s in self.states.values()]
-        transitions: List[dict] = []
+        transitions: list[dict] = []
         for s in self.states.values():
             transitions.extend(s.serialize_transitions())
 
@@ -80,7 +78,7 @@ class FSM:
         )
 
     @staticmethod
-    def deserialize(data: "IVRfsmDoc") -> "FSM":
+    def deserialize(data: IVRfsmDoc) -> FSM:
         from app.services.fsm.state import State  # noqa: PLC0415
 
         fsm = FSM(data.id)
@@ -100,14 +98,14 @@ class FSM:
     # State management
     # ------------------------------------------------------------------
 
-    def get_state(self, state_id: str) -> Optional["State"]:
+    def get_state(self, state_id: str) -> State | None:
         return self.states.get(state_id)
 
-    def set_end_state(self, state: "State") -> None:
+    def set_end_state(self, state: State) -> None:
         self.end_state = state
         self.add_state(state)
 
-    def add_state(self, state: "State") -> None:
+    def add_state(self, state: State) -> None:
         if state.id in self.states:
             raise ValueError(f"State with id '{state.id}' already exists")
         self.states[state.id] = state
@@ -128,7 +126,7 @@ class FSM:
             )
         self.states[transition.source_state_id].add_transition(transition)
 
-    def get_start_fsm_actions(self) -> List[Action]:
+    def get_start_fsm_actions(self) -> list[Action]:
         if self.init_state_id not in self.states:
             raise ValueError(f"Initial state '{self.init_state_id}' does not exist")
         return self.states[self.init_state_id].actions
@@ -139,9 +137,9 @@ class FSM:
 
     async def _check_daily_limit(
         self,
-        dest_state: "State",
-        ivr_state_doc: "IVRCallStateMongoDoc",
-    ) -> Tuple[bool, Optional[List[Action]]]:
+        dest_state: State,
+        ivr_state_doc: IVRCallStateMongoDoc,
+    ) -> tuple[bool, list[Action] | None]:
         """Check daily listening limit after pre-operation has flagged a check."""
         limit_check = ivr_state_doc.experience_data.pop("_daily_limit_check", None)
         if limit_check is None:
@@ -172,7 +170,7 @@ class FSM:
         if current_usage + duration > limit or current_usage >= limit:
             announcement_text = get_daily_limit_announcement(language)
             vonage_lang = get_vonage_language_code(language)
-            limit_actions: List[Action] = [
+            limit_actions: list[Action] = [
                 TalkAction(
                     text=announcement_text,
                     level=1.0,
@@ -210,8 +208,8 @@ class FSM:
     async def get_next_actions(
         self,
         input_: str,
-        ivr_state_doc: "IVRCallStateMongoDoc",
-    ) -> Tuple[List[Action], str]:
+        ivr_state_doc: IVRCallStateMongoDoc,
+    ) -> tuple[list[Action], str]:
         """Return (actions, next_state_id) for the given DTMF *input_*."""
         current_state_id = ivr_state_doc.current_state_id
 
@@ -276,10 +274,10 @@ class FSM:
         )
 
     def _prepare_actions_for_call(
-        self, actions: List[Action], conversation_id: str
-    ) -> List[Action]:
+        self, actions: list[Action], conversation_id: str
+    ) -> list[Action]:
         """Inject the conversation ID into VonageConnectAction WebSocket URIs."""
-        prepared: List[Action] = []
+        prepared: list[Action] = []
         for action in actions:
             if isinstance(action, VonageConnectAction) and getattr(action, "websocket_uri", ""):
                 parsed_uri = urlparse(action.websocket_uri)
@@ -308,7 +306,7 @@ class FSM:
         return prepared
 
     async def _stop_websocket_audio_for_state(
-        self, current_state: "State", conversation_id: str
+        self, current_state: State, conversation_id: str
     ) -> None:
         """Stop WebSocket audio via the WebSocket client provider."""
         try:
@@ -345,9 +343,9 @@ class FSM:
 
     def visualize_fsm(
         self,
-        current_state_id: Optional[str] = None,
+        current_state_id: str | None = None,
         depth: int = 0,
-        visited: Optional[set] = None,
+        visited: set | None = None,
         parent_prefix: str = "",
     ) -> str:
         if visited is None:

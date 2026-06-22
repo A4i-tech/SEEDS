@@ -12,8 +12,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from app.platform.settings import get_settings
 import os
+
+from app.platform.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,7 @@ class HoldDetector:
         self.rule_based_phrases = [self._normalize_text(p) for p in self.hold_phrases]
 
     @classmethod
-    async def create(cls, threshold: float = 0.82) -> "HoldDetector":
+    async def create(cls, threshold: float = 0.82) -> HoldDetector:
         instance = cls(threshold)
         instance._init_client()
         await instance._load_embeddings()
