@@ -92,10 +92,11 @@ def _error_envelope(
     request_id: str,
     details: dict | None = None,
 ) -> dict:
-    payload: dict = {"code": code, "message": message, "request_id": request_id}
+    # Flat dual-key shape: ContentWebApp reads data.error, teacher-webapp reads data.message.
+    payload: dict = {"error": message, "message": message, "code": code, "request_id": request_id}
     if details is not None:
         payload["details"] = details
-    return {"error": payload}
+    return payload
 
 
 async def _app_error_handler(request: Request, exc: AppError) -> JSONResponse:

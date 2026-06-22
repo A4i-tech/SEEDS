@@ -167,11 +167,11 @@ async def test_error_envelope_format() -> None:
 
     assert response.status_code == 400
     body = response.json()
-    assert "error" in body
-    err = body["error"]
-    assert err["code"] == "TEST_CODE"
-    assert err["message"] == "test message"
-    assert "request_id" in err  # may be empty string in unit test context
+    # Flat dual-key shape: data.error and data.message are both flat strings.
+    assert body["error"] == "test message"
+    assert body["message"] == "test message"
+    assert body["code"] == "TEST_CODE"
+    assert "request_id" in body
 
 
 @pytest.mark.asyncio
@@ -195,10 +195,9 @@ async def test_unhandled_exception_sanitized() -> None:
 
     assert response.status_code == 500
     body = response.json()
-    assert "error" in body
-    err = body["error"]
-    assert err["code"] == "INTERNAL_ERROR"
-    assert err["message"] == "Internal server error"
+    assert body["error"] == "Internal server error"
+    assert body["message"] == "Internal server error"
+    assert body["code"] == "INTERNAL_ERROR"
     # Must not contain stack trace indicators
     raw_text = response.text
     assert "Traceback" not in raw_text
