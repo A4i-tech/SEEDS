@@ -221,9 +221,7 @@ class SASGenerator:
 
     def __init__(self) -> None:
         settings = get_settings()
-        self._account_name: str = (
-            settings.storage_account_name or settings.azure_storage_account_name
-        )
+        self._account_name: str = settings.azure_storage_account_name
         self._account_key: str | None = (
             settings.accountkey or settings.azure_storage_account_key or None
         )

@@ -91,6 +91,24 @@ class StartIVRRequest(BaseModel):
 
 
 @router.post(
+    "/updateivr",
+    summary="Rebuild FSM from latest content",
+    description="Rebuilds and persists the IVR FSM. Refuses if active calls exist (409).",
+)
+async def update_ivr(
+    user: dict[str, Any] = Depends(_require_tenant),
+    service: IVRService = Depends(get_ivr_service),
+) -> Any:
+    result = await service.update_ivr_structure(
+        tenant_id=user.get("tenant_id", "") if isinstance(user, dict) else "",
+        structure={},
+    )
+    if result.get("status_code", 200) >= 400:
+        raise HTTPException(status_code=result["status_code"], detail=result.get("message"))
+    return result
+
+
+@router.post(
     "/start-ivr",
     summary="Start an IVR call",
     description="Triggers an outbound IVR call to the specified phone number.",

@@ -274,6 +274,30 @@ class WebsocketClientProvider:
     # Public send
     # ------------------------------------------------------------------
 
+    async def set_playback_speed(self, websocket_id: str, speed: float) -> None:
+        from app.models.ws_service_message import MessageType  # noqa: PLC0415
+        await self.send_message(
+            WebsocketServiceMessage(websocket_id=websocket_id, type=MessageType.SET_SPEED, message=str(speed), speed=speed)
+        )
+
+    async def pause_audio(self, websocket_id: str) -> None:
+        from app.models.ws_service_message import MessageType  # noqa: PLC0415
+        await self.send_message(
+            WebsocketServiceMessage(websocket_id=websocket_id, type=MessageType.PAUSE_AUDIO)
+        )
+
+    async def resume_audio(self, websocket_id: str) -> None:
+        from app.models.ws_service_message import MessageType  # noqa: PLC0415
+        await self.send_message(
+            WebsocketServiceMessage(websocket_id=websocket_id, type=MessageType.RESUME_AUDIO)
+        )
+
+    async def disconnect(self, websocket_id: str) -> None:
+        from app.models.ws_service_message import MessageType  # noqa: PLC0415
+        await self.send_message(
+            WebsocketServiceMessage(websocket_id=websocket_id, type=MessageType.DISCONNECT)
+        )
+
     async def send_message(self, message: WebsocketServiceMessage) -> None:
         """Send *message* to websocket-service.  Raises ConnectionError if not connected."""
         if not self.is_connected:
@@ -287,3 +311,8 @@ class WebsocketClientProvider:
             self.is_connected = False
             await self._attempt_reconnect()
             raise
+
+
+async def get_websocket_service() -> WebsocketClientProvider:
+    """Return the singleton WebsocketClientProvider (IVR-compatible interface)."""
+    return WebsocketClientProvider()

@@ -33,7 +33,7 @@ class FSM:
     def __init__(self, fsm_id: str) -> None:
 
         settings = get_settings()
-        storage_account_name = settings.storage_account_name
+        storage_account_name = settings.azure_storage_account_name
         if storage_account_name:
             self.STORAGE_ACCOUNT_BASE_URL = (
                 f"https://{storage_account_name}.blob.core.windows.net/pull-model-menus/"
@@ -228,7 +228,7 @@ class FSM:
                 )
                 if has_connect:
                     return (
-                        [InputAction(type_=["dtmf"], eventApi="/input", timeOut=10)],
+                        [InputAction(type_=["dtmf"], eventApi="/dtmf", timeOut=10)],
                         current_state_id,
                     )
                 error_actions = self.empty_input_error_actions

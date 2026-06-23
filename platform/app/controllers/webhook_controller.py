@@ -9,7 +9,7 @@ Preserves EXACT URL paths from ConferenceV2:
 IVR webhooks have been split into ivr_webhook_controller.py.
 
 Security: all POST routes validate a Vonage-signed JWT in the Authorization header.
-Verification is bypassed in development mode (settings.env == "development").
+Vonage JWT signature is verified on all inbound webhook requests.
 """
 
 from __future__ import annotations
@@ -42,14 +42,10 @@ async def verify_vonage_signature(request: Request) -> None:  # noqa: RUF029
         Authorization: Bearer <vonage_jwt>
 
     Raises HTTP 403 if the token is missing, malformed, or fails verification.
-    Bypassed entirely when settings.env == "development" on loopback traffic.
 
     SECURITY: The private key is NEVER logged.
     """
     settings = get_settings()
-
-    if settings.env == "development" and (request.client is None or request.client.host in {"127.0.0.1", "::1"}):
-        return
 
     auth_header: str = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):

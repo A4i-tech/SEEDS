@@ -22,7 +22,7 @@ from app.services.fsm.instantiation.ivr_constants import (
 from app.services.fsm.operations.daily_limit_pre_operation import DailyLimitPreOperation
 from app.services.fsm.state import State
 from app.services.fsm.transition import Transition
-from app.services.fsm.utils import get_vonage_language_code
+from app.services.fsm.utils import get_blob_language_name, get_vonage_language_code
 
 if TYPE_CHECKING:
     from app.services.fsm.fsm import FSM
@@ -73,9 +73,10 @@ class PureAudio:
         actions = []
 
         # "Going to be played" dialog
+        blob_lang = get_blob_language_name(self.language)
         going_to_play_url = (
             audioGoingTobePlayedDialogUrl
-            .replace("{language}", self.language)
+            .replace("{language}", blob_lang)
             .replace("{speechRate}", self.speechRate)
         )
         actions.append(StreamAction(pullMenuMainUrl + going_to_play_url))
@@ -122,7 +123,7 @@ class PureAudio:
             )
 
         # DTMF capture after WebSocket leg
-        actions.append(InputAction(type_=["dtmf"], eventApi="/input", timeOut=10))
+        actions.append(InputAction(type_=["dtmf"], eventApi="/dtmf", timeOut=10))
 
         options = [
             _Option(key=8, value="repeat"),

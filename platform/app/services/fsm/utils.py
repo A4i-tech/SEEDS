@@ -22,21 +22,39 @@ def get_ist_date_string() -> str:
 # ---------------------------------------------------------------------------
 
 _LANGUAGE_MAPPING: dict[str, str] = {
-    "kannada": "kn-IN",
-    "english": "en-US",
-    "hindi": "hi-IN",
-    "bengali": "bn-IN",
-    "tamil": "ta-IN",
-    "marathi": "mr-IN",
+    "kn": "kn-IN",
+    "en": "en-US",
+    "hi": "hi-IN",
+    "bn": "bn-IN",
+    "ta": "ta-IN",
+    "mr": "mr-IN",
+}
+
+_ISO_TO_BLOB_NAME: dict[str, str] = {
+    "en": "english",
+    "kn": "kannada",
+    "hi": "hindi",
+    "bn": "bengali",
+    "ta": "tamil",
+    "mr": "marathi",
+    "or": "odia",
 }
 
 
 def get_vonage_language_code(language: str) -> str:
-    """Map an internal language name to a Vonage TTS language code.
+    """Map an ISO 639-1 language code to a Vonage TTS language code.
 
     Falls back to "en-US" for unknown languages.
     """
     return _LANGUAGE_MAPPING.get(language.lower(), "en-US")
+
+
+def get_blob_language_name(iso: str) -> str:
+    """Return the Azure blob folder name for an ISO 639-1 code.
+
+    Falls back to the input value if unknown.
+    """
+    return _ISO_TO_BLOB_NAME.get(iso.lower(), iso)
 
 
 # ---------------------------------------------------------------------------
@@ -44,22 +62,18 @@ def get_vonage_language_code(language: str) -> str:
 # ---------------------------------------------------------------------------
 
 _DAILY_LIMIT_TEMPLATES: dict[str, str] = {
-    "kannada": (
+    "kn": (
         "ನೀವು ಇಂದಿನ ದೈನಂದಿನ ಆಲಿಸುವ ಮಿತಿಯನ್ನು ತಲುಪಿದ್ದೀರಿ. "
         "ದಯವಿಟ್ಟು ನಾಳೆ ಮತ್ತೆ ಕರೆ ಮಾಡಿ."
     ),
-    "english": "You have reached your daily listening limit. Please call back tomorrow.",
-    "hindi": "आपने अपनी दैनिक सुनने की सीमा पूरी कर ली है। कृपया कल फिर से कॉल करें।",
-    "bengali": "আপনি আজকের শোনার সীমায় পৌঁছে গেছেন। দয়া করে আগামীকাল আবার কল করুন।",
-    "tamil": "நீங்கள் இன்றைய கேட்கும் வரம்பை எட்டிவிட்டீர்கள். தயவுசெய்து நாளை மீண்டும் அழைக்கவும்.",
-    "marathi": "तुम्ही आजची ऐकण्याची मर्यादा गाठली आहे. कृपया उद्या पुन्हा कॉल करा.",
+    "en": "You have reached your daily listening limit. Please call back tomorrow.",
+    "hi": "आपने अपनी दैनिक सुनने की सीमा पूरी कर ली है। कृपया कल फिर से कॉल करें।",
+    "bn": "আপনি আজকের শোনার সীমায় পৌঁছে গেছেন। দয়া করে আগামীকাল আবার কল করুন।",
+    "ta": "நீங்கள் இன்றைய கேட்கும் வரம்பை எட்டிவிட்டீர்கள். தயவுசெய்து நாளை மீண்டும் அழைக்கவும்.",
+    "mr": "तुम्ही आजची ऐकण्याची मर्यादा गाठली आहे. कृपया उद्या पुन्हा कॉल करा.",
 }
-
-_DEFAULT_DAILY_LIMIT_LANG = "kannada"
 
 
 def get_daily_limit_announcement(language: str) -> str:
     """Return the daily-limit-reached announcement for *language*."""
-    return _DAILY_LIMIT_TEMPLATES.get(
-        language, _DAILY_LIMIT_TEMPLATES[_DEFAULT_DAILY_LIMIT_LANG]
-    )
+    return _DAILY_LIMIT_TEMPLATES.get(language, _DAILY_LIMIT_TEMPLATES["en"])
