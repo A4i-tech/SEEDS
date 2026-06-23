@@ -197,9 +197,30 @@ class UserService:
             )
         )
 
-    async def list_students_for_school(self, school_id: str, tenant_id: str) -> list[User]:
-        all_users = await self._repo.find_all_by_tenant(tenant_id)
-        return [u for u in all_users if u.school_id == school_id and u.role.value == "student"]
+    async def list_students_for_school(self, school_id: str, tenant_id: str) -> list[dict]:
+        from bson import ObjectId  # noqa: PLC0415
+        results: list[dict] = []
+
+        # platform-created students live in `users` with role=student
+        users = await self._repo.find_by_school(school_id)
+        for u in users:
+            if u.role.value == "student":
+                results.append({"_id": str(u.id), "name": u.name, "phoneNumber": u.phone or ""})
+
+        # migrated students live in the legacy `students` collection
+        oid = ObjectId(school_id) if len(school_id) == 24 else None
+        query: dict = {"schoolId": {"$in": [oid, school_id]} if oid else school_id}
+        cursor = self._db["students"].find(query, {"_id": 1, "name": 1, "phoneNumber": 1})
+        async for doc in cursor:
+            results.append({"_id": str(doc["_id"]), "name": doc.get("name", ""), "phoneNumber": doc.get("phoneNumber", "")})
+
+        seen: set = set()
+        deduped = []
+        for r in results:
+            if r["_id"] not in seen:
+                seen.add(r["_id"])
+                deduped.append(r)
+        return sorted(deduped, key=lambda s: s["name"])
 
     async def update_student(self, student_id: str, updates: dict[str, Any], caller_school_id: str) -> User:
         existing = await self._repo.find_by_id(student_id)

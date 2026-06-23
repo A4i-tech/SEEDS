@@ -43,6 +43,7 @@ import { createConference } from "../services/apiService";
 import getCurrentTime from "../utils/CurrentTime";
 import { SSE_ENDPOINTS } from "../constants/sseEndpoints";
 import { normalizePhoneNumber, formatStudentPhones } from "../utils/phoneUtils";
+import { getSchoolStudents } from "../services/teacherService";
 
 const ClassroomDetail = () => {
   const navigate = useNavigate();
@@ -87,15 +88,22 @@ const ClassroomDetail = () => {
         setErrorMsg("");
 
         const teacher = await getCurrentTeacher();
-        if (!teacher?.phoneNumber) {
+        const teacherPhoneNumber = teacher?.phoneNumber || teacher?.phone;
+        if (!teacherPhoneNumber) {
           throw new Error("Teacher phone number not available");
         }
-        setTeacherPhone(teacher.phoneNumber);
+        setTeacherPhone(teacherPhoneNumber);
         setTeacherName(teacher.name || "Teacher");
 
-        const [classroomData] = await Promise.all([getClassroomById(classroomId)]);
+        const [classroomData, allStudents] = await Promise.all([
+          getClassroomById(classroomId),
+          getSchoolStudents(),
+        ]);
 
-        setClassroom(classroomData);
+        // Populate student IDs with full objects from the school student list
+        const studentMap = Object.fromEntries(allStudents.map((s) => [s._id, s]));
+        const populatedStudents = classroomData.students.map((s) => studentMap[s] || { _id: s, name: "", phoneNumber: "" });
+        setClassroom({ ...classroomData, students: populatedStudents });
       } catch (err) {
         console.error("Error loading classroom data:", err);
         setErrorMsg("Failed to load classroom details. Please try again.");

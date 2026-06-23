@@ -223,7 +223,7 @@ class WebsocketClientProvider:
             return
 
         if msg_type == MessageType.PLAYBACK_STATE_UPDATES:
-            from app.models.audio_content_state import ContentStatus  # noqa: PLC0415
+            from app.models.playback_state import ContentStatus  # noqa: PLC0415
             from app.services.confevents.playback_state_update_event import (
                 PlaybackStateUpdateEvent,  # noqa: PLC0415
             )

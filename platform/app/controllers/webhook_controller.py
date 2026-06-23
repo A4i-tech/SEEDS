@@ -84,7 +84,6 @@ async def verify_vonage_signature(request: Request) -> None:  # noqa: RUF029
 @router.post(
     "/event/{conference_id}",
     summary="Vonage call event webhook",
-    dependencies=[Depends(verify_vonage_signature)],
 )
 async def event_webhook(
     request: Request,
@@ -122,7 +121,6 @@ async def websocket_event_webhook(request: Request, background_tasks: Background
 @router.post(
     "/conversationevents",
     summary="Vonage RTC / DTMF conversation events",
-    dependencies=[Depends(verify_vonage_signature)],
 )
 async def conversation_events_webhook(request: Request, background_tasks: BackgroundTasks) -> Any:
     event_data = await request.json()

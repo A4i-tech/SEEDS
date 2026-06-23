@@ -64,12 +64,7 @@ async def list_students(
     tenant_id = current_user.get("tenant_id", "")
     if not school_id:
         return []
-    students = await service.list_students_for_school(school_id, tenant_id)
-    result = [
-        {"_id": str(u.id), "name": u.name, "phoneNumber": u.phone}
-        for u in students
-    ]
-    return sorted(result, key=lambda s: s["name"])
+    return await service.list_students_for_school(school_id, tenant_id)
 
 
 @router.patch("/{student_id}", summary="Update a student (school_admin only)", status_code=status.HTTP_200_OK)
