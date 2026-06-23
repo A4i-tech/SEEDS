@@ -49,6 +49,11 @@ class UserRepository(BaseRepository):
         docs = await cursor.to_list(length=None)
         return [User.from_mongo(d) for d in docs]
 
+    async def find_by_school(self, school_id: str) -> list[User]:
+        cursor = self._col.find({"school_id": school_id})
+        docs = await cursor.to_list(length=None)
+        return [User.from_mongo(d) for d in docs]
+
     async def count_by_school_and_role(self, school_id: str, role: str) -> int:
         """Return count of users with the given school_id and role."""
         return await self._col.count_documents({"school_id": school_id, "role": role})

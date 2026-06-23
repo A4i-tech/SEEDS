@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.school import School, SchoolCreate
+from app.platform.mongo_compat import as_oid
 from app.repositories.base_repository import BaseRepository
 
 
@@ -28,13 +29,18 @@ class SchoolRepository(BaseRepository):
         doc = await self._col.find_one({"email": email})
         return School.from_mongo(doc) if doc else None
 
+    def _tenant_filter(self, tenant_id: str) -> dict:
+        """Match tenantId stored as either ObjectId (legacy Mongoose) or string (platform-created)."""
+        oid = as_oid(tenant_id)
+        return {"tenantId": {"$in": [oid, tenant_id]} if oid != tenant_id else oid}
+
     async def find_all_by_tenant(self, tenant_id: str) -> list[School]:
-        cursor = self._col.find({"tenantId": tenant_id}, self._NO_PWD)
+        cursor = self._col.find(self._tenant_filter(tenant_id), self._NO_PWD)
         docs = await cursor.to_list(length=None)
         return [School.from_mongo(d) for d in docs]
 
     async def find_active_by_tenant(self, tenant_id: str) -> list[School]:
-        cursor = self._col.find({"tenantId": tenant_id, "isActive": True}, self._NO_PWD)
+        cursor = self._col.find({**self._tenant_filter(tenant_id), "isActive": True}, self._NO_PWD)
         docs = await cursor.to_list(length=None)
         return [School.from_mongo(d) for d in docs]
 
@@ -42,6 +48,9 @@ class SchoolRepository(BaseRepository):
         now = datetime.now(UTC)
         # by_alias=True writes legacy camelCase field names (tenantId, isActive, password)
         doc = school.model_dump(by_alias=True)
+        # Store tenantId as ObjectId for consistency with legacy Mongoose documents
+        if doc.get("tenantId"):
+            doc["tenantId"] = as_oid(doc["tenantId"]) or doc["tenantId"]
         doc["created_at"] = now
         doc["updated_at"] = now
         result = await self._col.insert_one(doc)

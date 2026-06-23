@@ -114,7 +114,7 @@ class SchoolService:
         teacher_count = await self._user_repo.count_by_school_and_role(school_id, "teacher")
         student_count = await self._user_repo.count_by_school_and_role(school_id, "student")
         class_count = await self._class_repo.count_by_school(school_id)
-        school_data = school.model_dump(by_alias=False, exclude_none=True)
+        school_data = school.model_dump(by_alias=True, exclude_none=True)
         school_data.pop("hashed_password", None)
         return {
             "school": school_data,
@@ -133,7 +133,7 @@ class SchoolService:
         self, school_id: str, tenant_id: str
     ) -> list[dict[str, Any]]:
         """Return all teachers and content_creators for a given school."""
-        all_users = await self._user_repo.find_all_by_tenant(tenant_id)
+        users = await self._user_repo.find_by_school(school_id)
         return [
             {
                 "_id": str(u.id),
@@ -141,8 +141,8 @@ class SchoolService:
                 "phoneNumber": u.phone,
                 "role": u.role.value,
             }
-            for u in all_users
-            if u.school_id == school_id and u.role.value in ("teacher", "content_creator")
+            for u in users
+            if u.role.value in ("teacher", "content_creator")
         ]
 
     async def transfer_teacher(
@@ -160,7 +160,7 @@ class SchoolService:
         if updated is None:
             raise NotFoundError("Teacher", teacher_id)
 
-        safe = updated.model_dump(by_alias=False, exclude_none=True)
+        safe = updated.model_dump(by_alias=True, exclude_none=True)
         safe.pop("hashed_password", None)
         return safe
 

@@ -89,7 +89,7 @@ class IVRRepository(BaseRepository):
     ) -> list[dict[str, Any]]:
         """Return raw log documents for tenant within [start, end] — used for analytics."""
         cursor = self._log_col.find(
-            {"tenant_id": tenant_id, "created_at": {"$gte": start, "$lte": end}}
+            {"tenant_id": tenant_id, "created_at": {"$gte": start.isoformat(), "$lte": end.isoformat()}}
         ).sort("_id", -1)
         return await cursor.to_list(length=None)
 

@@ -5,25 +5,25 @@ from datetime import datetime
 from typing import Any
 
 from bson import ObjectId
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
+
+from app.models.base import BaseDocument
 
 
-class AuditLog(BaseModel):
+class AuditLog(BaseDocument):
     """General application log entry (from Log.js).
 
     Maps to the 'logs' collection.
     """
 
-    model_config = ConfigDict(populate_by_name=True)
-
     id: str | None = Field(None, alias="_id")
-    log_id: int | None = Field(None, alias="logId")  # legacy numeric id
-    user: str  # user identifier
-    log_text: str = Field(..., alias="logText")
+    log_id: int | None = None              # alias: logId
+    user: str
+    log_text: str                          # alias: logText
     time: str
     priority: int
-    tenant_id: str | None = None
-    created_at: datetime | None = None
+    tenant_id: str | None = None           # alias: tenantId
+    created_at: datetime | None = None     # alias: createdAt
 
     @classmethod
     def from_mongo(cls, doc: dict) -> AuditLog:
@@ -35,22 +35,20 @@ class AuditLog(BaseModel):
         return cls.model_validate(d)
 
 
-class LogEntry(BaseModel):
+class LogEntry(BaseDocument):
     """HTTP request/response log entry (from LogEntry.js).
 
     Maps to the 'logentries' collection.
     """
 
-    model_config = ConfigDict(populate_by_name=True)
-
     id: str | None = Field(None, alias="_id")
     path: str | None = None
     method: str | None = None
-    request_body: Any | None = Field(None, alias="requestBody")
-    response_body: Any | None = Field(None, alias="responseBody")
-    status_code: int | None = Field(None, alias="statusCode")
+    request_body: Any | None = None        # alias: requestBody
+    response_body: Any | None = None       # alias: responseBody
+    status_code: int | None = None         # alias: statusCode
     timestamp: datetime | None = None
-    tenant_id: str | None = None
+    tenant_id: str | None = None           # alias: tenantId
 
     @classmethod
     def from_mongo(cls, doc: dict) -> LogEntry:
@@ -62,48 +60,42 @@ class LogEntry(BaseModel):
         return cls.model_validate(d)
 
 
-class UserActionLog(BaseModel):
+class UserActionLog(BaseDocument):
     """A single user action captured within an IVR session."""
 
-    model_config = ConfigDict(populate_by_name=True)
-
-    action_type: str | None = None
+    action_type: str | None = None         # alias: actionType
     timestamp: datetime | None = None
     details: Any | None = None
 
 
-class StreamPlaybackLog(BaseModel):
+class StreamPlaybackLog(BaseDocument):
     """Playback segment info stored in an IVR log entry."""
 
-    model_config = ConfigDict(populate_by_name=True)
-
-    stream_id: str | None = None
-    started_at: datetime | None = None
-    ended_at: datetime | None = None
+    stream_id: str | None = None           # alias: streamId
+    started_at: datetime | None = None     # alias: startedAt
+    ended_at: datetime | None = None       # alias: endedAt
     duration: float | None = None
 
 
-class IvrV2Log(BaseModel):
+class IvrV2Log(BaseDocument):
     """IVR v2 session log document (from IvrV2Log.js).
 
     Maps to the 'ivrv2logs' collection.
     """
 
-    model_config = ConfigDict(populate_by_name=True)
-
     id: str | None = Field(None, alias="_id")
-    phone_number: str
-    fsm_id: str
-    current_state_id: str
-    created_at: str
-    stopped_at: str | None = None
+    phone_number: str                      # alias: phoneNumber
+    fsm_id: str                            # alias: fsmId
+    current_state_id: str                  # alias: currentStateId
+    created_at: str                        # alias: createdAt
+    stopped_at: str | None = None          # alias: stoppedAt
     duration: str = ""
-    user_actions: list[UserActionLog] = Field(default_factory=list)
-    stream_playback: list[StreamPlaybackLog] = Field(default_factory=list)
-    experience_data: dict[str, Any] = Field(default_factory=dict)
-    call_status_updates: dict[str, Any] = Field(default_factory=dict)
-    tenant_id: str
-    school_id: str | None = None
+    user_actions: list[UserActionLog] = Field(default_factory=list)   # alias: userActions
+    stream_playback: list[StreamPlaybackLog] = Field(default_factory=list)  # alias: streamPlayback
+    experience_data: dict[str, Any] = Field(default_factory=dict)     # alias: experienceData
+    call_status_updates: dict[str, Any] = Field(default_factory=dict) # alias: callStatusUpdates
+    tenant_id: str                         # alias: tenantId
+    school_id: str | None = None           # alias: schoolId
 
     @classmethod
     def from_mongo(cls, doc: dict) -> IvrV2Log:

@@ -22,7 +22,7 @@ from app.models.requests.school_requests import (
 )
 from app.platform.auth.dependencies import (
     get_current_user,
-    require_teacher,
+    require_school_actor,
     require_tenant,
 )
 from app.platform.auth.hashing import hash_password
@@ -50,7 +50,7 @@ async def create_school(
         tenant_id=tenant_id,
         plain_password=body.password,
     )
-    result = school.model_dump(by_alias=False, exclude_none=True)
+    result = school.model_dump(by_alias=True, exclude_none=True)
     result.pop("hashed_password", None)
     return result
 
@@ -72,7 +72,7 @@ async def list_schools(
     schools = await service.list_schools_by_tenant(tenant_id)
     result = []
     for s in schools:
-        d = s.model_dump(by_alias=False, exclude_none=True)
+        d = s.model_dump(by_alias=True, exclude_none=True)
         d.pop("hashed_password", None)
         result.append(d)
     return result
@@ -84,7 +84,7 @@ async def list_schools(
     status_code=status.HTTP_200_OK,
 )
 async def school_teachers(
-    current_user: dict[str, Any] = Depends(require_teacher),
+    current_user: dict[str, Any] = Depends(require_school_actor),
     service: SchoolService = Depends(get_school_service),
 ) -> list[dict]:
     school_id = current_user.get("school_id", "")
@@ -101,7 +101,7 @@ async def school_teachers(
 )
 async def transfer_teacher(
     body: TeacherTransferRequest,
-    current_user: dict[str, Any] = Depends(require_teacher),
+    current_user: dict[str, Any] = Depends(require_school_actor),
     service: SchoolService = Depends(get_school_service),
 ) -> dict[str, Any]:
     teacher = await service.transfer_teacher(body.teacher_id, body.target_school_id)
@@ -114,7 +114,7 @@ async def transfer_teacher(
     status_code=status.HTTP_200_OK,
 )
 async def school_dashboard(
-    current_user: dict[str, Any] = Depends(require_teacher),
+    current_user: dict[str, Any] = Depends(require_school_actor),
     service: SchoolService = Depends(get_school_service),
 ) -> dict[str, Any]:
     school_id = current_user.get("school_id", "")
@@ -129,7 +129,7 @@ async def school_dashboard(
 )
 async def school_analytics(
     body: SchoolAnalyticsRequest,
-    current_user: dict[str, Any] = Depends(require_teacher),
+    current_user: dict[str, Any] = Depends(require_school_actor),
     service: SchoolService = Depends(get_school_service),
 ) -> dict[str, Any]:
     start = datetime.fromisoformat(body.start_date)
@@ -158,7 +158,7 @@ async def get_school(
     service: SchoolService = Depends(get_school_service),
 ) -> dict[str, Any]:
     school = await service.get_school(school_id)
-    result = school.model_dump(by_alias=False, exclude_none=True)
+    result = school.model_dump(by_alias=True, exclude_none=True)
     result.pop("hashed_password", None)
     return result
 
@@ -183,7 +183,7 @@ async def update_school(
         updates["password"] = hash_password(body.password)
 
     school = await service.update_school(school_id, updates)
-    result = school.model_dump(by_alias=False, exclude_none=True)
+    result = school.model_dump(by_alias=True, exclude_none=True)
     result.pop("hashed_password", None)
     return result
 

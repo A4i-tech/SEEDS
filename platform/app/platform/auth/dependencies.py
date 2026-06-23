@@ -125,6 +125,8 @@ def require_role(*roles: str):
 # Convenience aliases kept for backward compatibility with existing Depends() callsites.
 require_teacher = require_role("teacher")
 require_tenant = require_role("tenant")
+# school_admin needs the same endpoints as teacher (school/teachers, student CRUD)
+require_school_actor = require_role("teacher", "school_admin")
 
 
 # ---------------------------------------------------------------------------

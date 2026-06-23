@@ -1,52 +1,42 @@
 """Request schemas for auth endpoints."""
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from app.models.base import BaseDocument
 
 
-class TeacherLoginRequest(BaseModel):
-    phone_number: str = Field(..., alias="phoneNumber")
+class TeacherLoginRequest(BaseDocument):
+    phone_number: str       # alias: phoneNumber
     password: str
-    school_id: str | None = Field(None, alias="schoolId")
-
-    model_config = {"populate_by_name": True}
+    school_id: str | None = None  # alias: schoolId
 
 
-class TeacherRegisterRequest(BaseModel):
-    phone_number: str = Field(..., alias="phoneNumber")
+class TeacherRegisterRequest(BaseDocument):
+    phone_number: str       # alias: phoneNumber
     password: str
     name: str
     role: str = "teacher"
 
-    model_config = {"populate_by_name": True}
+
+class TeacherUpdatePasswordRequest(BaseDocument):
+    new_password: str       # alias: newPassword
 
 
-class TeacherUpdatePasswordRequest(BaseModel):
-    new_password: str = Field(..., alias="newPassword")
-
-    model_config = {"populate_by_name": True}
-
-
-class TenantLoginRequest(BaseModel):
+class TenantLoginRequest(BaseDocument):
     email: str
     password: str
 
 
-class TenantRegisterRequest(BaseModel):
+class TenantRegisterRequest(BaseDocument):
     email: str
     password: str
-    tenant_name: str = Field(..., alias="tenantName")
+    tenant_name: str        # alias: tenantName
     name: str = ""
 
-    model_config = {"populate_by_name": True}
+
+class TenantChangePasswordRequest(BaseDocument):
+    new_password: str       # alias: newPassword
 
 
-class TenantChangePasswordRequest(BaseModel):
-    new_password: str = Field(..., alias="newPassword")
-
-    model_config = {"populate_by_name": True}
-
-
-class SchoolAdminLoginRequest(BaseModel):
+class SchoolAdminLoginRequest(BaseDocument):
     email: str
     password: str

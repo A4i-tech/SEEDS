@@ -61,7 +61,7 @@ async def update_teacher(
         updates["hashed_password"] = hash_password(body.password)
 
     updated = await service.update_teacher(teacher_id, updates, caller_school)
-    safe = updated.model_dump(by_alias=False, exclude_none=True)
+    safe = updated.model_dump(by_alias=True, exclude_none=True)
     safe.pop("hashed_password", None)
     return safe
 
