@@ -15,14 +15,14 @@ import asyncio
 import base64
 import logging
 import os
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import vonage
 from fastapi import Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.models.ivr_state import IVRCallStateMongoDoc, IVRCallStatus, IVRfsmDoc, UserAction
+from app.models.ivr_state import ConversationRTCEventType, IVRCallStateMongoDoc, IVRCallStatus, IVRfsmDoc, UserAction
 from app.platform.auth.dependencies import get_db
 from app.platform.settings import get_settings
 from app.providers.vonage_actions.action_factory import VonageActionFactory
@@ -32,6 +32,8 @@ from app.providers.vonage_actions.talk_action import TalkAction
 from app.providers.websocket_client import WebsocketClientProvider, get_websocket_service
 from app.repositories.ivr_repository import IVRRepository
 from app.services.fsm.instantiation.insti import instantiate_from_latest_content, instantitate_from_doc
+from app.services.fsm.instantiation.pause_announcement import get_paused_announcement, get_resuming_announcement
+from app.services.fsm.instantiation.speed_control import decrease_speed, increase_speed
 from app.services.fsm.utils import get_daily_limit_announcement, get_ist_date_string, get_vonage_language_code
 
 logger = logging.getLogger(__name__)
@@ -266,7 +268,6 @@ class IVRService:
 
         # Speed control (* = decrease, # = increase) during streaming
         if digits in ("*", "#") and is_streaming:
-            from app.services.fsm.instantiation.speed_control import decrease_speed, increase_speed  # noqa: PLC0415
             current_speed = (ivr_state.experience_data or {}).get("playback_speed", 1.0)
             new_speed, _ = increase_speed(current_speed) if digits == "#" else decrease_speed(current_speed)
             try:
@@ -284,7 +285,6 @@ class IVRService:
 
         # Pause/resume toggle (0) during streaming
         if digits == "0" and is_streaming:
-            from app.services.fsm.instantiation.pause_announcement import get_paused_announcement, get_resuming_announcement  # noqa: PLC0415
             is_paused = (ivr_state.experience_data or {}).get("is_paused", False)
             new_pause = not is_paused
             settings = get_settings()
@@ -500,6 +500,36 @@ class IVRService:
             "message": "FSM updated successfully",
             "fsm_id": updated_fsm.fsm_id,
         }
+
+    # ------------------------------------------------------------------
+    # process_rtc_event
+    # ------------------------------------------------------------------
+
+    async def process_rtc_event(self, event_data: dict[str, Any]) -> None:
+        """Process a Vonage RTC/conversation event (audio:play, stop, done)."""
+        repo = IVRRepository(self._db)
+        event_type_str = event_data.get("type", "")
+        conversation_id = event_data.get("conversation_id", event_data.get("body", {}).get("conversation_id", ""))
+        body = event_data.get("body", {})
+
+        if event_type_str == ConversationRTCEventType.AUDIO_PLAY.value:
+            if "stream_url" in body and "play_id" in body:
+                doc = await repo.find_ongoing_state(conversation_id)
+                if doc:
+                    stream_url = body["stream_url"]
+                    await repo.push_stream_playback(conversation_id, {
+                        "play_id": body["play_id"],
+                        "stream_url": stream_url[0] if isinstance(stream_url, list) else stream_url,
+                        "started_at": event_data.get("timestamp", datetime.now(UTC).isoformat()),
+                    })
+        elif event_type_str in (
+            ConversationRTCEventType.AUDIO_PLAY_STOP.value,
+            ConversationRTCEventType.AUDIO_PLAY_DONE.value,
+        ) and "play_id" in body:
+            field = "stopped_at" if "stop" in event_type_str else "done_at"
+            await repo.set_playback_field(
+                conversation_id, body["play_id"], field, event_data.get("timestamp")
+            )
 
     # ------------------------------------------------------------------
     # Internal: ensure FSM is loaded from DB or content
