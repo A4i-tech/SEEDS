@@ -2,20 +2,23 @@
 Security hardening tests (#329 #330).
 
 Tests:
-  1. test_webhook_invalid_hmac_rejected
-  2. test_webhook_missing_auth_rejected
-  3. test_webhook_dev_mode_bypasses_hmac
-  4. test_websocket_invalid_control_secret_rejected
-  5. test_websocket_unregistered_conference_rejected
-  6. test_websocket_valid_secret_connects
-  7. test_content_job_retry_on_transient
-  8. test_content_job_dead_letter_on_permanent
+  1. test_webhook_wrong_issuer_rejected
+  2. test_webhook_wrong_api_key_rejected
+  3. test_webhook_wrong_application_id_rejected
+  4. test_webhook_payload_hash_mismatch_rejected
+  5. test_webhook_no_auth_passes_through
+  6. test_webhook_ivr_app_id_accepted
+  7. test_websocket_invalid_control_secret_rejected
+  8. test_websocket_unregistered_conference_rejected
+  9. test_websocket_valid_secret_connects
+  10. test_content_job_retry_on_transient
+  11. test_content_job_dead_letter_on_permanent
 """
 
 from __future__ import annotations
 
 import asyncio
-import base64
+import base64  # used by _b64 helper
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -31,26 +34,26 @@ from starlette.websockets import WebSocketDisconnect
 # JWT helpers
 # ---------------------------------------------------------------------------
 
-def _generate_rsa_key_pair() -> str:
-    """Generate a test RSA-2048 private key PEM string."""
-    from cryptography.hazmat.primitives.asymmetric import rsa
-    from cryptography.hazmat.primitives import serialization
-
-    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    return private_key.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.TraditionalOpenSSL,
-        encryption_algorithm=serialization.NoEncryption(),
-    ).decode("utf-8")
+import hashlib
+import json as _json
 
 
-def _make_valid_token(private_pem: str) -> str:
+def _make_vonage_token(
+    api_key: str = "test-api-key",
+    application_id: str = "test-conf-app",
+    iss: str = "Vonage",
+    payload_hash: str | None = None,
+) -> str:
     from jose import jwt
-    return jwt.encode({"application_id": "test-app"}, private_pem, algorithm="RS256")
+    claims: dict = {"iss": iss, "api_key": api_key, "application_id": application_id}
+    if payload_hash is not None:
+        claims["payload_hash"] = payload_hash
+    # Signed with empty secret — verify_vonage_signature decodes without verification
+    return jwt.encode(claims, key="", algorithm="HS256")
 
 
-def _b64(pem: str) -> str:
-    return base64.b64encode(pem.encode()).decode()
+def _b64(s: str) -> str:
+    return base64.b64encode(s.encode()).decode()
 
 
 @asynccontextmanager
@@ -58,77 +61,148 @@ async def _noop_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     yield
 
 
+def _mock_settings(**overrides):
+    from app.platform.settings import Settings
+    defaults = dict(
+        env="production",
+        mongo_db_connection_string="",
+        vonage_api_key="test-api-key",
+        vonage_conference_application_id="test-conf-app",
+        vonage_ivr_application_id="test-ivr-app",
+    )
+    return Settings(**{**defaults, **overrides})
+
+
 # ---------------------------------------------------------------------------
-# 1. test_webhook_invalid_hmac_rejected
+# 1. test_webhook_wrong_issuer_rejected
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_webhook_invalid_hmac_rejected():
-    """POST /webhooks/event/{id} with wrong JWT signature → 403."""
-    correct_pem = _generate_rsa_key_pair()
-    wrong_pem = _generate_rsa_key_pair()
-    bad_token = _make_valid_token(wrong_pem)  # signed with wrong key
-
-    from app.platform.settings import Settings
-    mock_settings = Settings(
-        env="production",
-        vonage_application_private_key64=_b64(correct_pem),
-        mongo_db_connection_string="",
-    )
+async def test_webhook_wrong_issuer_rejected():
+    """JWT with iss != 'Vonage' → 403 Unexpected JWT issuer."""
+    token = _make_vonage_token(iss="NotVonage")
 
     app = FastAPI(lifespan=_noop_lifespan)
     from app.controllers.webhook_controller import router as wh_router
     app.include_router(wh_router)
 
-    with patch("app.controllers.webhook_controller.get_settings", return_value=mock_settings):
+    with patch("app.controllers.webhook_controller.get_settings", return_value=_mock_settings()):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             resp = await client.post(
                 "/webhooks/event/conf123",
                 json={"type": "test"},
-                headers={"Authorization": f"Bearer {bad_token}"},
+                headers={"Authorization": f"Bearer {token}"},
             )
     assert resp.status_code == 403
+    assert "issuer" in resp.json()["detail"]
 
 
 # ---------------------------------------------------------------------------
-# 2. test_webhook_missing_auth_rejected
+# 2. test_webhook_wrong_api_key_rejected
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_webhook_missing_auth_rejected():
-    """POST /webhooks/event/{id} with no Authorization header → 403."""
-    private_pem = _generate_rsa_key_pair()
-
-    from app.platform.settings import Settings
-    mock_settings = Settings(
-        env="production",
-        vonage_application_private_key64=_b64(private_pem),
-        mongo_db_connection_string="",
-    )
+async def test_webhook_wrong_api_key_rejected():
+    """JWT with wrong api_key claim → 403 api_key mismatch."""
+    token = _make_vonage_token(api_key="wrong-key")
 
     app = FastAPI(lifespan=_noop_lifespan)
     from app.controllers.webhook_controller import router as wh_router
     app.include_router(wh_router)
 
-    with patch("app.controllers.webhook_controller.get_settings", return_value=mock_settings):
+    with patch("app.controllers.webhook_controller.get_settings", return_value=_mock_settings()):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            resp = await client.post("/webhooks/event/conf123", json={"type": "test"})
+            resp = await client.post(
+                "/webhooks/event/conf123",
+                json={"type": "test"},
+                headers={"Authorization": f"Bearer {token}"},
+            )
     assert resp.status_code == 403
+    assert "api_key" in resp.json()["detail"]
 
 
 # ---------------------------------------------------------------------------
-# 3. test_webhook_dev_mode_bypasses_hmac
+# 3. test_webhook_wrong_application_id_rejected
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_webhook_dev_mode_bypasses_hmac():
-    """ENV=development, no Authorization header → 200 (HMAC bypass)."""
-    from app.platform.settings import Settings
-    mock_settings = Settings(
-        env="development",
-        vonage_application_private_key64="",
-        mongo_db_connection_string="",
-    )
+async def test_webhook_wrong_application_id_rejected():
+    """JWT with unknown application_id → 403 application_id mismatch."""
+    token = _make_vonage_token(application_id="unknown-app")
+
+    app = FastAPI(lifespan=_noop_lifespan)
+    from app.controllers.webhook_controller import router as wh_router
+    app.include_router(wh_router)
+
+    with patch("app.controllers.webhook_controller.get_settings", return_value=_mock_settings()):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            resp = await client.post(
+                "/webhooks/event/conf123",
+                json={"type": "test"},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+    assert resp.status_code == 403
+    assert "application_id" in resp.json()["detail"]
+
+
+# ---------------------------------------------------------------------------
+# 4. test_webhook_payload_hash_mismatch_rejected
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_webhook_payload_hash_mismatch_rejected():
+    """JWT payload_hash doesn't match body SHA-256 → 403 payload_hash mismatch."""
+    body = b'{"type": "test"}'
+    wrong_hash = hashlib.sha256(b"different body").hexdigest()
+    token = _make_vonage_token(payload_hash=wrong_hash)
+
+    app = FastAPI(lifespan=_noop_lifespan)
+    from app.controllers.webhook_controller import router as wh_router
+    app.include_router(wh_router)
+
+    with patch("app.controllers.webhook_controller.get_settings", return_value=_mock_settings()):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            resp = await client.post(
+                "/webhooks/event/conf123",
+                content=body,
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            )
+    assert resp.status_code == 403
+    assert "payload_hash" in resp.json()["detail"]
+
+
+# ---------------------------------------------------------------------------
+# 5. test_webhook_no_auth_passes_through
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_webhook_no_auth_passes_through():
+    """No Authorization header → request passes through (DTMF eventUrl pattern)."""
+    app = FastAPI(lifespan=_noop_lifespan)
+    from app.controllers.webhook_controller import router as wh_router
+    app.include_router(wh_router)
+
+    mock_conf_mgr = MagicMock()
+    mock_conf_mgr.get_conference.return_value = None
+
+    with (
+        patch("app.controllers.webhook_controller.get_settings", return_value=_mock_settings()),
+        patch("app.controllers.webhook_controller.get_conference_manager", return_value=mock_conf_mgr),
+        patch("app.controllers.webhook_controller.caller_state_service", new=MagicMock()),
+    ):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            resp = await client.post("/webhooks/event/conf123", json={"type": "test"})
+    assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# 6. test_webhook_ivr_app_id_accepted
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_webhook_ivr_app_id_accepted():
+    """JWT with IVR application_id (not conference) → passes claim check → reaches handler."""
+    token = _make_vonage_token(application_id="test-ivr-app")
 
     app = FastAPI(lifespan=_noop_lifespan)
     from app.controllers.webhook_controller import router as wh_router
@@ -138,18 +212,16 @@ async def test_webhook_dev_mode_bypasses_hmac():
     mock_conf_mgr.get_conference.return_value = None
 
     with (
-        patch("app.controllers.webhook_controller.get_settings", return_value=mock_settings),
-        patch(
-            "app.controllers.webhook_controller.get_conference_manager",
-            return_value=mock_conf_mgr,
-        ),
-        patch(
-            "app.controllers.webhook_controller.caller_state_service",
-            new=MagicMock(),
-        ),
+        patch("app.controllers.webhook_controller.get_settings", return_value=_mock_settings()),
+        patch("app.controllers.webhook_controller.get_conference_manager", return_value=mock_conf_mgr),
+        patch("app.controllers.webhook_controller.caller_state_service", new=MagicMock()),
     ):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            resp = await client.post("/webhooks/event/conf123", json={"type": "test"})
+            resp = await client.post(
+                "/webhooks/event/conf123",
+                json={"type": "test"},
+                headers={"Authorization": f"Bearer {token}"},
+            )
     assert resp.status_code == 200
 
 
