@@ -16,6 +16,7 @@ from app.providers.vonage_actions.connect_action import VonageConnectAction
 from app.providers.vonage_actions.input_action import InputAction
 from app.providers.vonage_actions.stream_action import StreamAction
 from app.providers.vonage_actions.talk_action import TalkAction
+from app.providers.websocket_client import WebsocketClientProvider
 from app.services.fsm.transition import Transition
 
 if TYPE_CHECKING:
@@ -33,7 +34,7 @@ class FSM:
     def __init__(self, fsm_id: str) -> None:
 
         settings = get_settings()
-        storage_account_name = settings.storage_account_name
+        storage_account_name = settings.azure_storage_account_name
         if storage_account_name:
             self.STORAGE_ACCOUNT_BASE_URL = (
                 f"https://{storage_account_name}.blob.core.windows.net/pull-model-menus/"
@@ -228,7 +229,7 @@ class FSM:
                 )
                 if has_connect:
                     return (
-                        [InputAction(type_=["dtmf"], eventApi="/input", timeOut=10)],
+                        [InputAction(type_=["dtmf"], eventApi="/dtmf", timeOut=10)],
                         current_state_id,
                     )
                 error_actions = self.empty_input_error_actions
@@ -310,10 +311,8 @@ class FSM:
     ) -> None:
         """Stop WebSocket audio via the WebSocket client provider."""
         try:
-            from app.providers.websocket_client import get_websocket_service  # noqa: PLC0415
-
-            ws_service = await get_websocket_service()
-            await ws_service.stop_audio(conversation_id)
+            ws_service = WebsocketClientProvider()
+            await ws_service.close()
         except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "FSM: failed to stop websocket audio for %s: %s", conversation_id, exc

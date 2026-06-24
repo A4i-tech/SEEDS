@@ -18,10 +18,21 @@ import os
 from datetime import datetime
 from typing import Any
 
+import vonage
 from fastapi import Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from app.models.ivr_state import IVRCallStateMongoDoc, IVRCallStatus, IVRfsmDoc, UserAction
 from app.platform.auth.dependencies import get_db
+from app.platform.settings import get_settings
+from app.providers.vonage_actions.action_factory import VonageActionFactory
+from app.providers.vonage_actions.connect_action import VonageConnectAction
+from app.providers.vonage_actions.input_action import InputAction
+from app.providers.vonage_actions.talk_action import TalkAction
+from app.providers.websocket_client import WebsocketClientProvider, get_websocket_service
+from app.repositories.ivr_repository import IVRRepository
+from app.services.fsm.instantiation.insti import instantiate_from_latest_content, instantitate_from_doc
+from app.services.fsm.utils import get_daily_limit_announcement, get_ist_date_string, get_vonage_language_code
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +42,6 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 def _get_factory_and_accumulator():
-    from app.providers.vonage_actions.action_factory import VonageActionFactory  # noqa: PLC0415
     factory = VonageActionFactory()
     accumulator = factory.get_action_accumulator_implmentation()
     return factory, accumulator
@@ -68,26 +78,19 @@ async def _make_vonage_call(
     ncco_actions: list[dict],
     settings: Any,
 ) -> dict[str, Any] | None:
-    import vonage  # noqa: PLC0415
-
     raw_key = base64.b64decode(settings.vonage_application_private_key64).decode("utf-8")
-    client = vonage.Vonage(
-        auth=vonage.Auth(
-            application_id=settings.vonage_ivr_application_id,
-            private_key=raw_key,
-        )
+    client = vonage.Client(
+        application_id=settings.vonage_ivr_application_id,
+        private_key=raw_key,
     )
     vonage_number = getattr(settings, "vonage_number", "") or os.getenv("VONAGE_NUMBER", "")
-    loop = asyncio.get_event_loop()
-    response = await loop.run_in_executor(
-        None,
-        lambda: client.voice.create_call(
-            {
-                "to": [{"type": "phone", "number": phone_number}],
-                "from": {"type": "phone", "number": vonage_number},
-                "ncco": ncco_actions,
-            }
-        ),
+    response = await asyncio.to_thread(
+        client.voice.create_call,
+        {
+            "to": [{"type": "phone", "number": phone_number}],
+            "from": {"type": "phone", "number": vonage_number},
+            "ncco": ncco_actions,
+        },
     )
     return response
 
@@ -117,9 +120,6 @@ class IVRService:
             {"status_code": 200, "message": "..."} on success
             {"status_code": 4xx/5xx, "message": "..."} on failure
         """
-        from app.models.ivr_state import IVRCallStateMongoDoc  # noqa: PLC0415
-        from app.platform.settings import get_settings  # noqa: PLC0415
-
         settings = get_settings()
 
         # Check for existing ongoing call
@@ -139,7 +139,6 @@ class IVRService:
 
         # Check daily listening limit
         if settings.ivr_daily_listening_limit_seconds > 0:
-            from app.services.fsm.utils import get_ist_date_string  # noqa: PLC0415
             today = get_ist_date_string()
             usage_col = self._db["dailyListeningUsage"]
             usage_doc = await usage_col.find_one(
@@ -148,11 +147,6 @@ class IVRService:
             current_usage = usage_doc.get("total_seconds", 0) if usage_doc else 0
             if current_usage >= settings.ivr_daily_listening_limit_seconds:
                 logger.info("Daily limit reached for %s", phone_number)
-                from app.providers.vonage_actions.talk_action import TalkAction  # noqa: PLC0415
-                from app.services.fsm.utils import (  # noqa: PLC0415
-                    get_daily_limit_announcement,
-                    get_vonage_language_code,
-                )
                 announcement = get_daily_limit_announcement(settings.default_welcome_language)
                 vonage_lang = get_vonage_language_code(settings.default_welcome_language)
                 factory, accumulator = _get_factory_and_accumulator()
@@ -216,27 +210,26 @@ class IVRService:
         self,
         call_id: str,
         dtmf: str,
-    ) -> dict[str, Any]:
+        timed_out: bool = False,
+    ) -> list[Any]:
         """Process a DTMF input for an active IVR call.
 
         Returns NCCO-compatible list of action dicts, or empty list on error.
+        Handles speed control (*/#), pause/resume (0), and WebSocket timeout.
         """
-        from app.models.ivr_state import IVRCallStateMongoDoc, UserAction  # noqa: PLC0415
-        from app.providers.vonage_actions.talk_action import TalkAction  # noqa: PLC0415
-
-        ongoing_col = self._db["ongoingIVRState"]
+        repo = IVRRepository(self._db)
         factory, accumulator = _get_factory_and_accumulator()
 
         # Retry logic for race condition
-        doc = None
+        ivr_state = None
         for attempt in range(3):
-            doc = await ongoing_col.find_one({"_id": call_id})
-            if doc:
+            ivr_state = await repo.find_ongoing_call(call_id)
+            if ivr_state:
                 break
             if attempt < 2:
                 await asyncio.sleep(0.5)
 
-        if doc is None:
+        if ivr_state is None:
             logger.warning("No IVR state for call_id=%s", call_id)
             error_ncco = accumulator.combine([
                 factory.get_action_implmentation(
@@ -246,19 +239,84 @@ class IVRService:
             error_ncco.append({"action": "hangup"})
             return error_ncco
 
-        ivr_state = IVRCallStateMongoDoc.from_mongo(doc)
-
         if ivr_state.fsm_id not in _fsm_cache:
             logger.error("FSM %s not in cache", ivr_state.fsm_id)
             return []
 
         fsm = _fsm_cache[ivr_state.fsm_id]
+        digits = dtmf if dtmf is not None else ""
+
+        # Detect WebSocket streaming state
+        current_state = fsm.states.get(ivr_state.current_state_id)
+        is_streaming = current_state and any(
+            isinstance(a, VonageConnectAction) for a in current_state.actions
+        )
+
+        _keep_listening_ncco: list[dict[str, Any]] = [{
+            "type": ["dtmf"],
+            "action": "input",
+            "eventUrl": [get_settings().base_url + "/dtmf"],
+            "dtmf": {"maxDigits": 1, "submitOnHash": False, "timeOut": 10},
+        }]
+
+        # Timeout during WebSocket playback — keep listening without interrupting
+        if digits == "" and timed_out and is_streaming:
+            logger.info("DTMF timeout during WebSocket playback for %s — keeping listener", call_id)
+            return _keep_listening_ncco
+
+        # Speed control (* = decrease, # = increase) during streaming
+        if digits in ("*", "#") and is_streaming:
+            from app.services.fsm.instantiation.speed_control import decrease_speed, increase_speed  # noqa: PLC0415
+            current_speed = (ivr_state.experience_data or {}).get("playback_speed", 1.0)
+            new_speed, _ = increase_speed(current_speed) if digits == "#" else decrease_speed(current_speed)
+            try:
+                ws = await get_websocket_service()
+                await ws.set_playback_speed(call_id, new_speed)
+                logger.info("Speed changed %s→%s for %s", current_speed, new_speed, call_id)
+            except Exception as exc:  # noqa: BLE001
+                logger.error("Failed to set speed for %s: %s", call_id, exc)
+                new_speed = current_speed
+            if not ivr_state.experience_data:
+                ivr_state.experience_data = {}
+            ivr_state.experience_data["playback_speed"] = new_speed
+            await repo.save_ongoing_call(ivr_state)
+            return _keep_listening_ncco
+
+        # Pause/resume toggle (0) during streaming
+        if digits == "0" and is_streaming:
+            from app.services.fsm.instantiation.pause_announcement import get_paused_announcement, get_resuming_announcement  # noqa: PLC0415
+            is_paused = (ivr_state.experience_data or {}).get("is_paused", False)
+            new_pause = not is_paused
+            settings = get_settings()
+            language = settings.default_welcome_language
+            if current_state and hasattr(current_state, "menu") and current_state.menu and hasattr(current_state.menu, "language"):
+                language = current_state.menu.language
+            vonage_lang = get_vonage_language_code(language)
+            try:
+                ws = await get_websocket_service()
+                if new_pause:
+                    await ws.pause_audio(call_id)
+                    announcement = get_paused_announcement(language)
+                else:
+                    await ws.resume_audio(call_id)
+                    announcement = get_resuming_announcement(language)
+                logger.info("Pause toggled to %s for %s", new_pause, call_id)
+            except Exception as exc:  # noqa: BLE001
+                logger.error("Failed to toggle pause for %s: %s", call_id, exc)
+                return _keep_listening_ncco
+            if not ivr_state.experience_data:
+                ivr_state.experience_data = {}
+            ivr_state.experience_data["is_paused"] = new_pause
+            await repo.save_ongoing_call(ivr_state)
+            return [
+                {"action": "talk", "text": announcement, "language": vonage_lang, "level": 1.0, "bargeIn": True},
+                *_keep_listening_ncco,
+            ]
+
         input_time = datetime.now()
 
         next_actions: list[Any] | None = None
         next_state_id: str | None = None
-
-        digits = dtmf if dtmf is not None else ""
 
         if digits == "":
             pre_state_id = ivr_state.current_state_id
@@ -286,11 +344,8 @@ class IVRService:
                     )
                 )
 
-        await ongoing_col.replace_one(
-            {"_id": call_id}, ivr_state.model_dump(by_alias=True), upsert=True
-        )
+        await repo.save_ongoing_call(ivr_state)
 
-        from app.providers.vonage_actions.input_action import InputAction  # noqa: PLC0415
         is_terminal = not any(isinstance(a, InputAction) for a in (next_actions or []))
         ncco = accumulator.combine([factory.get_action_implmentation(x) for x in (next_actions or [])])
         if is_terminal:
@@ -308,8 +363,6 @@ class IVRService:
         event: dict[str, Any],
     ) -> None:
         """Process a Vonage call lifecycle event (answered, completed, etc.)."""
-        from app.models.ivr_state import IVRCallStateMongoDoc, IVRCallStatus  # noqa: PLC0415
-
         ongoing_col = self._db["ongoingIVRState"]
         logs_col = self._db["ivrv2logs"]
 
@@ -361,11 +414,8 @@ class IVRService:
                         upsert=True,
                     )
                     try:
-                        from app.providers.websocket_client import (
-                            get_websocket_service,  # noqa: PLC0415
-                        )
-                        ws = await get_websocket_service()
-                        await ws.disconnect(call_id)
+                        ws = WebsocketClientProvider()
+                        await ws.close()
                     except Exception as exc:  # noqa: BLE001
                         logger.warning("Failed to disconnect WS for %s: %s", call_id, exc)
 
@@ -383,7 +433,6 @@ class IVRService:
 
     async def get_ivr_fsm_by_id(self, fsm_id: str) -> Any | None:
         """Return the FSM document for fsm_id, checking ivrfsms then radioFSMs."""
-        from app.repositories.ivr_repository import IVRRepository  # noqa: PLC0415
         return await IVRRepository(self._db).find_fsm_by_id_any(fsm_id)
 
     # ------------------------------------------------------------------
@@ -434,10 +483,6 @@ class IVRService:
                 "message": f"Cannot update IVR — {active_count} active call(s). Try again later.",
             }
 
-        from app.services.fsm.instantiation.insti import (
-            instantiate_from_latest_content,  # noqa: PLC0415
-        )
-
         updated_fsm = await instantiate_from_latest_content(db=self._db)
         _fsm_cache[updated_fsm.fsm_id] = updated_fsm
         _latest_fsm_id = updated_fsm.fsm_id
@@ -473,9 +518,6 @@ class IVRService:
         cursor = fsm_col.find({}).sort("created_at", -1).limit(1)
         docs = await cursor.to_list(length=1)
         if docs:
-            from app.models.ivr_state import IVRfsmDoc  # noqa: PLC0415
-            from app.services.fsm.instantiation.insti import instantitate_from_doc  # noqa: PLC0415
-
             doc = docs[0]
             fsm_doc = IVRfsmDoc.from_mongo(doc)
             try:
@@ -489,10 +531,6 @@ class IVRService:
 
         # Fall back to building from content
         try:
-            from app.services.fsm.instantiation.insti import (
-                instantiate_from_latest_content,  # noqa: PLC0415
-            )
-
             fsm = await instantiate_from_latest_content(db=self._db)
             _fsm_cache[fsm.fsm_id] = fsm
             _latest_fsm_id = fsm.fsm_id
