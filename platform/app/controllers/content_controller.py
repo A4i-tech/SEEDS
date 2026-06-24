@@ -21,13 +21,13 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.requests.content_requests import (
     ContentCreateRequest,
     ContentUpdateRequest,
     QuizCreateRequest,
 )
+from app.models.responses.content import ContentResponse, QuizResponse
 from app.models.user import UserRole
 from app.platform.auth.dependencies import get_current_user
 from app.platform.error_handling import ForbiddenError, NotFoundError
@@ -41,25 +41,6 @@ router = APIRouter(prefix="/content", tags=["Content"])
 # Roles allowed for content operations (mirrors JS authorizeRole calls)
 _WRITE_ROLES = {UserRole.TENANT.value, UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value}
 _READ_ROLES = {UserRole.TENANT.value, UserRole.SCHOOL_ADMIN.value, UserRole.TEACHER.value, UserRole.CONTENT_CREATOR.value}
-
-
-# ---------------------------------------------------------------------------
-# Response DTOs
-# ---------------------------------------------------------------------------
-
-class ContentOut(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
-
-    id: str | None = Field(None, alias="_id")
-
-    @field_validator("id", mode="before")
-    @classmethod
-    def _coerce_id(cls, v: Any) -> str | None:
-        return str(v) if v is not None else None
-
-
-class QuizOut(ContentOut):
-    pass
 
 
 # ---------------------------------------------------------------------------
@@ -267,9 +248,9 @@ async def list_content(
         contents = await service.fetch_contents(id_query)
         quizzes = await service.fetch_quizzes(id_query)
         all_items = sorted(
-            [ContentOut.model_validate(d).model_dump(by_alias=False) for d in contents]
-            + [{**QuizOut.model_validate(d).model_dump(by_alias=False), "type": "quiz"} for d in quizzes],
-            key=lambda x: (-x.get("creation_time", 0), str(x.get("id", ""))),
+            [ContentResponse.model_validate(d).model_dump(by_alias=True) for d in contents]
+            + [{**QuizResponse.model_validate(d).model_dump(by_alias=True), "type": "quiz"} for d in quizzes],
+            key=lambda x: (-x.get("creation_time", 0), str(x.get("_id", ""))),
         )
         return all_items
 
@@ -313,9 +294,9 @@ async def list_content(
     quizzes = await service.fetch_quizzes(quiz_query) if fetch_quizzes else []
 
     all_results = sorted(
-        [ContentOut.model_validate(d).model_dump(by_alias=False) for d in contents]
-        + [{**QuizOut.model_validate(d).model_dump(by_alias=False), "type": "quiz"} for d in quizzes],
-        key=lambda x: (-x.get("creation_time", 0), str(x.get("id", ""))),
+        [ContentResponse.model_validate(d).model_dump(by_alias=True) for d in contents]
+        + [{**QuizResponse.model_validate(d).model_dump(by_alias=True), "type": "quiz"} for d in quizzes],
+        key=lambda x: (-x.get("creation_time", 0), str(x.get("_id", ""))),
     )
 
     # Skip past cursor position
@@ -327,7 +308,7 @@ async def list_content(
                 last_id = parts[1]
                 idx = next(
                     (i for i, x in enumerate(all_results)
-                     if x.get("creation_time") == last_ct and str(x.get("id", "")) == last_id),
+                     if x.get("creation_time") == last_ct and str(x.get("_id", "")) == last_id),
                     None,
                 )
                 if idx is not None:
@@ -339,7 +320,7 @@ async def list_content(
     data = all_results[:limit]
     last_item = data[-1] if data else None
     next_cursor = (
-        f"{last_item['creation_time']}_{last_item['id']}"
+        f"{last_item['creation_time']}_{last_item['_id']}"
         if has_more and last_item
         else None
     )
@@ -371,11 +352,11 @@ async def get_content(
 
     doc = await service.get_content_doc(query)
     if doc:
-        return ContentOut.model_validate(doc).model_dump(by_alias=False)
+        return ContentResponse.model_validate(doc).model_dump(by_alias=True)
 
     quiz = await service.get_quiz_doc(query)
     if quiz:
-        return {**QuizOut.model_validate(quiz).model_dump(by_alias=False), "type": "quiz"}
+        return {**QuizResponse.model_validate(quiz).model_dump(by_alias=True), "type": "quiz"}
 
     raise NotFoundError("Content", content_id)
 
@@ -464,10 +445,10 @@ async def update_content(
         if is_audio_uploaded:
             content_id_str = str(result.get("_id", ""))
             job_id = await service.enqueue_content_job(content_id_str)
-            out = ContentOut.model_validate(result).model_dump(by_alias=False)
+            out = ContentResponse.model_validate(result).model_dump(by_alias=True)
             out["jobId"] = job_id
             return out
-        return ContentOut.model_validate(result).model_dump(by_alias=False)
+        return ContentResponse.model_validate(result).model_dump(by_alias=True)
 
     raise NotFoundError("Content", str(content_id))
 
