@@ -39,11 +39,13 @@ class ContentService:
         cursor = self._db["contentsV3"].find(query).sort("_id", -1)
         return await cursor.to_list(length=None)
 
-    async def fetch_contents(self, query: dict[str, Any]) -> list[dict[str, Any]]:
-        return await self._db["contentsV3"].find(query).sort("creation_time", -1).to_list(length=None)
+    async def fetch_contents(self, query: dict[str, Any], limit: int | None = None) -> list[dict[str, Any]]:
+        cursor = self._db["contentsV3"].find(query).sort("creation_time", -1)
+        return await cursor.to_list(length=limit)
 
-    async def fetch_quizzes(self, query: dict[str, Any]) -> list[dict[str, Any]]:
-        return await self._db["quizdata"].find(query).sort("creation_time", -1).to_list(length=None)
+    async def fetch_quizzes(self, query: dict[str, Any], limit: int | None = None) -> list[dict[str, Any]]:
+        cursor = self._db["quizdata"].find(query).sort("creation_time", -1)
+        return await cursor.to_list(length=limit)
 
     async def get_content_doc(self, query: dict[str, Any]) -> dict[str, Any] | None:
         return await self._db["contentsV3"].find_one(query)

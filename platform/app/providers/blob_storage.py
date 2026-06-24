@@ -7,6 +7,13 @@ SECURITY:
   - SAS tokens are NEVER logged.
   - Connection string / account key are never returned to callers.
   - Short expiry defaults (1 hour) to minimise token exposure window.
+
+NOTE (deferred): upload_file, download_file, and delete_blob call the synchronous
+azure-storage-blob SDK inside async methods, which blocks the event loop under
+concurrent load. The correct fix is to migrate to azure.storage.blob.aio
+(BlobServiceClient from the aio submodule) for true non-blocking I/O. This is
+deferred as it requires replacing the sync client construction and all call sites;
+tracked as a follow-up task.
 """
 
 from __future__ import annotations

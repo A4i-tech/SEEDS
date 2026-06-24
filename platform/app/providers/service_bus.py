@@ -88,7 +88,6 @@ class _AzureQueueHandle:
         self._client = ServiceBusClient.from_connection_string(conn_str=self.connection_string)
         self._receiver = self._client.get_queue_receiver(
             queue_name=self.queue_name,
-            max_wait_time=30,  # SDK-level default; prevents indefinite hang if no messages arrive
         )
         await self._receiver.__aenter__()
         logger.info("ServiceBus queue initialized: %s", self.queue_name)
@@ -125,6 +124,7 @@ class _AzureQueueHandle:
         try:
             raw_msgs = await self._receiver.receive_messages(
                 max_message_count=max_count,
+                max_wait_time=wait_seconds,
             )
             messages: list[QueueMessage] = []
             for raw in raw_msgs:

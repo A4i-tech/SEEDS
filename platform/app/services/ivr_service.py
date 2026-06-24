@@ -153,7 +153,7 @@ class IVRService:
                 vonage_lang = get_vonage_language_code(settings.default_welcome_language)
                 factory, accumulator = _get_factory_and_accumulator()
                 limit_ncco = accumulator.combine([
-                    factory.get_action_implmentation(
+                    factory.get_action_implementation(
                         TalkAction(
                             text=announcement, level=1.0, bargeIn=False, loop=1,
                             language=vonage_lang,
@@ -177,7 +177,7 @@ class IVRService:
         latest_fsm = _fsm_cache[_latest_fsm_id]
         factory, accumulator = _get_factory_and_accumulator()
         ncco_actions = accumulator.combine(
-            [factory.get_action_implmentation(x) for x in latest_fsm.get_start_fsm_actions()]
+            [factory.get_action_implementation(x) for x in latest_fsm.get_start_fsm_actions()]
         )
 
         try:
@@ -234,7 +234,7 @@ class IVRService:
         if ivr_state is None:
             logger.warning("No IVR state for call_id=%s", call_id)
             error_ncco = accumulator.combine([
-                factory.get_action_implmentation(
+                factory.get_action_implementation(
                     TalkAction(text="Server error. Please try again later. Bye bye.")
                 )
             ])
@@ -347,7 +347,7 @@ class IVRService:
         await repo.save_ongoing_call(ivr_state)
 
         is_terminal = not any(isinstance(a, InputAction) for a in (next_actions or []))
-        ncco = accumulator.combine([factory.get_action_implmentation(x) for x in (next_actions or [])])
+        ncco = accumulator.combine([factory.get_action_implementation(x) for x in (next_actions or [])])
         if is_terminal:
             ncco.append({"action": "hangup"})
 
