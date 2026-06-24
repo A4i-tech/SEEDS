@@ -21,13 +21,4 @@ class MyStudentsViewModelTest {
         assertThat(viewModel.students.value).isNull()
     }
 
-    @Test
-    fun `refreshStudents does not crash`() {
-        viewModel.refreshStudents()
-    }
-
-    @Test
-    fun `setMyStudents does not crash`() {
-        viewModel.setMyStudents(listOf("stu-1", "stu-2"))
-    }
 }

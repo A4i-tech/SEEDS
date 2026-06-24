@@ -1,7 +1,6 @@
 package com.example.seeds.ui.home
 
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
-import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.Observer
 import com.example.seeds.builders.ContentTestBuilder
@@ -17,6 +16,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
@@ -39,15 +39,13 @@ class HomeViewModelTest {
         pagination = Pagination(nextCursor = null, hasMore = false, limit = 15)
     )
 
-    private fun seedAllContent(vararg titles: String) {
-        val field = HomeViewModel::class.java.getDeclaredField("_allContent").apply { isAccessible = true }
-        @Suppress("UNCHECKED_CAST")
-        (field.get(viewModel) as MutableLiveData<List<Content>>).value = titles.mapIndexed { i, t ->
-            ContentTestBuilder.build(id = "c-$i", title = t)
-        }
+    private fun TestScope.seedAllContent(vararg titles: String) {
+        coEvery { mockContentRepo.getAllContent(any(), any()) } returns paginatedOf(*titles)
+        viewModel.fetchInitialContent()
+        advanceUntilIdle()
     }
 
-    private fun withFilteredContentObserver(block: () -> Unit) {
+    private suspend fun TestScope.withFilteredContentObserver(block: suspend TestScope.() -> Unit) {
         val observer = Observer<List<Content>> { }
         viewModel.filteredContent.observeForever(observer)
         try {

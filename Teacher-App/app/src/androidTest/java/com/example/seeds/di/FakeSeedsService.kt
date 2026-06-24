@@ -17,6 +17,7 @@ import com.example.seeds.network.ClassroomSaveDto
 import com.example.seeds.network.GetStudentsRequest
 import com.example.seeds.network.SeedsService
 import androidx.test.espresso.idling.CountingIdlingResource
+import kotlinx.coroutines.yield
 import okhttp3.ResponseBody
 import retrofit2.Response
 
@@ -40,7 +41,7 @@ class FakeSeedsService : SeedsService {
 
     override suspend fun getAllClassrooms(): List<ClassroomDto> {
         idlingResource.increment()
-        return try { classroomsToReturn } finally { idlingResource.decrement() }
+        return try { yield(); classroomsToReturn } finally { idlingResource.decrement() }
     }
 
     override suspend fun getClassroomById(classId: String): ClassroomDto =
@@ -49,7 +50,7 @@ class FakeSeedsService : SeedsService {
 
     override suspend fun getAllContent(limit: Int, cursor: String?): PaginatedResponse<Content> {
         idlingResource.increment()
-        return try { contentToReturn } finally { idlingResource.decrement() }
+        return try { yield(); contentToReturn } finally { idlingResource.decrement() }
     }
 
     override suspend fun getContentsById(ids: String): List<Content> = contentsByIdToReturn
