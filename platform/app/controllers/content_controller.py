@@ -290,31 +290,17 @@ async def list_content(
             except ValueError:
                 pass
 
-    contents = await service.fetch_contents(content_query) if fetch_content else []
-    quizzes = await service.fetch_quizzes(quiz_query) if fetch_quizzes else []
+    # Fetch limit+1 per collection to bound memory; Python sort only needed for
+    # the combined content+quiz case (cross-collection ordering).
+    fetch_limit = limit + 1
+    contents = await service.fetch_contents(content_query, limit=fetch_limit) if fetch_content else []
+    quizzes = await service.fetch_quizzes(quiz_query, limit=fetch_limit) if fetch_quizzes else []
 
     all_results = sorted(
         [ContentResponse.model_validate(d).model_dump(by_alias=True) for d in contents]
         + [{**QuizResponse.model_validate(d).model_dump(by_alias=True), "type": "quiz"} for d in quizzes],
         key=lambda x: (-x.get("creation_time", 0), str(x.get("_id", ""))),
     )
-
-    # Skip past cursor position
-    if cursor:
-        parts = cursor.split("_", 1)
-        if len(parts) == 2:
-            try:
-                last_ct = int(parts[0])
-                last_id = parts[1]
-                idx = next(
-                    (i for i, x in enumerate(all_results)
-                     if x.get("creation_time") == last_ct and str(x.get("_id", "")) == last_id),
-                    None,
-                )
-                if idx is not None:
-                    all_results = all_results[idx + 1:]
-            except ValueError:
-                pass
 
     has_more = len(all_results) > limit
     data = all_results[:limit]

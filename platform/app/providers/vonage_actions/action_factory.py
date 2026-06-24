@@ -21,7 +21,7 @@ from app.providers.vonage_actions.vonage_talk_action import VonageTalkAction
 class VonageActionFactory:
     """Converts base Action instances to their Vonage-specific NCCO implementations."""
 
-    def get_action_implmentation(  # noqa: N802 — keeping original spelling
+    def get_action_implementation(
         self, action: Action
     ) -> VonageStreamAction | VonageTalkAction | VonageInputAction | VonageConnectAction:
         if isinstance(action, StreamAction):
@@ -55,6 +55,9 @@ class VonageActionFactory:
             return action
 
         raise NotImplementedError(f"No Vonage implementation for action type: {type(action)}")
+
+    # Deprecated alias — use get_action_implementation
+    get_action_implmentation = get_action_implementation
 
     def get_action_accumulator_implmentation(self) -> VonageActionAccumulator:  # noqa: N802
         return VonageActionAccumulator()

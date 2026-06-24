@@ -115,34 +115,60 @@ def _init_conference_manager() -> ConferenceCallManager:
 
 def _make_consumer_tasks(conference_manager: Any) -> list[asyncio.Task]:  # type: ignore[type-arg]
     """
-    Lazily import each consumer class and create asyncio tasks.
-    Imports are deferred so that missing optional deps only fail at startup,
-    not at module import time.
+    Lazily import and start each consumer as an isolated asyncio task.
+    Each consumer is wrapped in its own try/except so a single failed import
+    or constructor does not prevent the remaining consumers from starting.
     """
-    from app.consumers.audio_analysis_consumer import AudioAnalysisConsumer  # noqa: PLC0415
-    from app.consumers.audio_recording_consumer import AudioRecordingConsumer  # noqa: PLC0415
-    from app.consumers.call_event_consumer import CallEventConsumer  # noqa: PLC0415
-    from app.consumers.call_webhook_consumer import CallWebhookConsumer  # noqa: PLC0415
-    from app.consumers.content_job_consumer import ContentJobConsumer  # noqa: PLC0415
-    from app.consumers.dtmf_consumer import DtmfConsumer  # noqa: PLC0415
     from app.platform.database import get_database  # noqa: PLC0415
 
     db = get_database()
 
-    consumers: list[Any] = [
-        AudioRecordingConsumer(),
-        AudioAnalysisConsumer(conference_manager=conference_manager),
-        CallEventConsumer(),
-        DtmfConsumer(),
-        CallWebhookConsumer(),
-        ContentJobConsumer(db),
-    ]
+    consumer_specs: list[tuple[str, Any]] = []
+
+    try:
+        from app.consumers.audio_recording_consumer import AudioRecordingConsumer  # noqa: PLC0415
+        consumer_specs.append(("AudioRecordingConsumer", AudioRecordingConsumer()))
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Failed to initialise AudioRecordingConsumer: %s", exc)
+
+    try:
+        from app.consumers.audio_analysis_consumer import AudioAnalysisConsumer  # noqa: PLC0415
+        consumer_specs.append(("AudioAnalysisConsumer", AudioAnalysisConsumer(conference_manager=conference_manager)))
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Failed to initialise AudioAnalysisConsumer: %s", exc)
+
+    try:
+        from app.consumers.call_event_consumer import CallEventConsumer  # noqa: PLC0415
+        consumer_specs.append(("CallEventConsumer", CallEventConsumer()))
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Failed to initialise CallEventConsumer: %s", exc)
+
+    try:
+        from app.consumers.dtmf_consumer import DtmfConsumer  # noqa: PLC0415
+        consumer_specs.append(("DtmfConsumer", DtmfConsumer()))
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Failed to initialise DtmfConsumer: %s", exc)
+
+    try:
+        from app.consumers.call_webhook_consumer import CallWebhookConsumer  # noqa: PLC0415
+        consumer_specs.append(("CallWebhookConsumer", CallWebhookConsumer()))
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Failed to initialise CallWebhookConsumer: %s", exc)
+
+    try:
+        from app.consumers.content_job_consumer import ContentJobConsumer  # noqa: PLC0415
+        consumer_specs.append(("ContentJobConsumer", ContentJobConsumer(db)))
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Failed to initialise ContentJobConsumer: %s", exc)
 
     tasks: list[asyncio.Task] = []  # type: ignore[type-arg]
-    for consumer in consumers:
-        task = asyncio.create_task(consumer.run(), name=type(consumer).__name__)
-        tasks.append(task)
-        logger.info("Started consumer task: %s", type(consumer).__name__)
+    for name, consumer in consumer_specs:
+        try:
+            task = asyncio.create_task(consumer.run(), name=name)
+            tasks.append(task)
+            logger.info("Started consumer task: %s", name)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Failed to create task for %s: %s", name, exc)
 
     return tasks
 
