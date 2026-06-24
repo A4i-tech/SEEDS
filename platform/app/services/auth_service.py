@@ -18,6 +18,14 @@ from fastapi import Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.user import User, UserCreate, UserRole
+
+
+def _jwt_tenant_id(user: User) -> str | None:
+    if user.role == UserRole.TENANT:
+        return user.tenant_id or str(user.id)
+    return user.tenant_id
+
+
 from app.platform.auth.dependencies import get_db
 from app.platform.auth.hashing import hash_password, verify_password
 from app.platform.auth.jwt import create_access_token
@@ -37,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 def _user_public(user: User) -> dict[str, Any]:
     """Return a safe user dict that excludes hashed_password and firebase internals."""
-    data = user.model_dump(by_alias=False, exclude_none=True)
+    data = user.model_dump(by_alias=True, exclude_none=True)
     data.pop("hashed_password", None)
     data.pop("firebase_uid", None)
     return data
@@ -143,7 +151,7 @@ async def login(
             {
                 "sub": str(user.id),
                 "role": user.role.value,
-                "tenant_id": user.tenant_id,
+                "tenant_id": _jwt_tenant_id(user),
                 "school_id": user.school_id,
             }
         )
@@ -164,11 +172,17 @@ async def login(
         auth_failures.add(1, {"reason": "wrong_password"})
         raise UnauthorizedError("Invalid email or password")
 
+    tenant_id = _jwt_tenant_id(user)
+    if not tenant_id and user.school_id:
+        school = await SchoolRepository(db).find_by_id(user.school_id)
+        if school:
+            tenant_id = school.tenant_id
+
     token = create_access_token(
         {
             "sub": str(user.id),
             "role": user.role.value,
-            "tenant_id": user.tenant_id,
+            "tenant_id": tenant_id,
             "school_id": user.school_id,
         }
     )
@@ -207,11 +221,17 @@ async def login_by_phone(
         auth_failures.add(1, {"reason": "wrong_password"})
         raise UnauthorizedError("Invalid phone or password")
 
+    tenant_id = _jwt_tenant_id(user)
+    if not tenant_id and user.school_id:
+        school = await SchoolRepository(db).find_by_id(user.school_id)
+        if school:
+            tenant_id = school.tenant_id
+
     token = create_access_token(
         {
             "sub": str(user.id),
             "role": user.role.value,
-            "tenant_id": user.tenant_id,
+            "tenant_id": tenant_id,
             "school_id": user.school_id,
         }
     )
@@ -292,6 +312,8 @@ async def register_tenant(
             phone=data.phone,
         )
     )
+    # Tenant users ARE the tenant — self-assign tenant_id = own _id
+    user = await repo.update(str(user.id), {"tenant_id": str(user.id)}) or user
     return user
 
 
@@ -384,7 +406,7 @@ async def get_school_admin_profile(
     school = await SchoolRepository(db).find_by_id(school_id)
     if school is None or school.tenant_id != tenant_id:
         raise NotFoundError("School", school_id)
-    data = school.model_dump(by_alias=False, exclude_none=True)
+    data = school.model_dump(by_alias=True, exclude_none=True)
     data.pop("hashed_password", None)
     return data
 
@@ -410,9 +432,19 @@ async def get_tenant_dashboard(
 
     class_count = 0
     classroom_repo = ClassroomRepository(db)
+    user_repo = UserRepository(db)
+    school_docs = []
     for school in schools:
-        classes = await classroom_repo.find_by_school(str(school.id))
-        class_count += len(classes)
+        sid = str(school.id)
+        s_classes = await classroom_repo.count_by_school(sid)
+        s_teachers = await user_repo.count_by_school_and_role(sid, UserRole.TEACHER.value)
+        s_students = await user_repo.count_by_school_and_role(sid, UserRole.STUDENT.value)
+        class_count += s_classes
+        d = school.model_dump(by_alias=True, exclude_none=True)
+        d["teacherCount"] = s_teachers
+        d["studentCount"] = s_students
+        d["classCount"] = s_classes
+        school_docs.append(d)
 
     return {
         "statistics": {
@@ -421,7 +453,7 @@ async def get_tenant_dashboard(
             "totalStudents": student_count,
             "totalClasses": class_count,
         },
-        "schools": [s.model_dump(by_alias=False, exclude_none=True) for s in schools],
+        "schools": school_docs,
     }
 
 

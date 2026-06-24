@@ -45,7 +45,7 @@ class Quiz:
 
     def __init__(self, quiz_data) -> None:  # noqa: ANN001
         self.quiz_data = quiz_data
-        self.input_action = InputAction(type_=["dtmf"], eventApi="/input")
+        self.input_action = InputAction(type_=["dtmf"], eventApi="/dtmf")
         self.move_forward_key = "1"
         self.type = "quiz"
 

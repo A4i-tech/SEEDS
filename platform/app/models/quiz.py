@@ -4,49 +4,44 @@ from __future__ import annotations
 import uuid
 
 from bson import ObjectId
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 
+from app.models.base import BaseDocument
 from app.models.content import TextContent
 
 
-class QuizOption(BaseModel):
+class QuizOption(BaseDocument):
     """A single answer option within a quiz question."""
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     url: str = "<NOT CREATED>"
     text: str
 
-    model_config = ConfigDict(populate_by_name=True)
 
-
-class QuizQuestion(BaseModel):
+class QuizQuestion(BaseDocument):
     """A single quiz question with its options and correct answer."""
 
     question: QuizOption
     options: list[QuizOption] = Field(default_factory=list)
-    correct_option_id: str
-
-    model_config = ConfigDict(populate_by_name=True)
+    correct_option_id: str                  # alias: correctOptionId
 
 
-class Quiz(BaseModel):
+class Quiz(BaseDocument):
     """MongoDB document for quiz data, maps to the 'quizData' collection."""
 
-    model_config = ConfigDict(populate_by_name=True)
-
     id: str | None = Field(None, alias="_id")
-    tenant_id: str | None = None  # ObjectId stored as str; ref Tenant
-    school_id: str | None = None
-    created_by: str = Field(default="", alias="createdBy")
+    tenant_id: str | None = None            # alias: tenantId
+    school_id: str | None = None            # alias: schoolId
+    created_by: str = ""                    # alias: createdBy
     creation_time: int = -1
-    is_pull_model: bool = Field(default=False, alias="isPullModel")
-    is_teacher_app: bool = Field(default=False, alias="isTeacherApp")
-    is_deleted: bool = Field(default=False, alias="isDeleted")
+    is_pull_model: bool = False             # alias: isPullModel
+    is_teacher_app: bool = False            # alias: isTeacherApp
+    is_deleted: bool = False               # alias: isDeleted
     language: str
     title: TextContent
     theme: TextContent
-    positive_marks: float = Field(..., alias="positiveMarks")
-    negative_marks: float = Field(..., alias="negativeMarks")
+    positive_marks: float                   # alias: positiveMarks
+    negative_marks: float                   # alias: negativeMarks
     questions: list[QuizQuestion] = Field(default_factory=list)
 
     @classmethod
@@ -56,25 +51,24 @@ class Quiz(BaseModel):
         d = dict(doc)
         if "_id" in d and isinstance(d["_id"], ObjectId):
             d["_id"] = str(d["_id"])
-        if "tenant_id" in d and isinstance(d["tenant_id"], ObjectId):
-            d["tenant_id"] = str(d["tenant_id"])
+        for key in ("tenantId", "tenant_id", "schoolId", "school_id"):
+            if key in d and isinstance(d[key], ObjectId):
+                d[key] = str(d[key])
         return cls.model_validate(d)
 
 
-class QuizCreate(BaseModel):
+class QuizCreate(BaseDocument):
     """Payload for creating a new quiz."""
-
-    model_config = ConfigDict(populate_by_name=True)
 
     tenant_id: str
     language: str
     title: TextContent
     theme: TextContent
-    positive_marks: float = Field(..., alias="positiveMarks")
-    negative_marks: float = Field(..., alias="negativeMarks")
+    positive_marks: float                   # alias: positiveMarks
+    negative_marks: float                   # alias: negativeMarks
     questions: list[QuizQuestion] = Field(default_factory=list)
-    school_id: str | None = None
-    created_by: str = Field(default="", alias="createdBy")
-    is_pull_model: bool = Field(default=False, alias="isPullModel")
-    is_teacher_app: bool = Field(default=False, alias="isTeacherApp")
+    school_id: str | None = None            # alias: schoolId
+    created_by: str = ""                    # alias: createdBy
+    is_pull_model: bool = False             # alias: isPullModel
+    is_teacher_app: bool = False            # alias: isTeacherApp
     creation_time: int = -1

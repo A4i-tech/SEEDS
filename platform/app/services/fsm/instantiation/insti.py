@@ -36,6 +36,7 @@ from app.services.fsm.instantiation.ivr_constants import (
 )
 from app.services.fsm.state import State
 from app.services.fsm.transition import Transition
+from app.services.fsm.utils import get_blob_language_name
 
 
 class _Option:
@@ -61,22 +62,21 @@ class _Menu:
 
 
 # Module-level InputAction instance
-_input_action = InputAction(type_=["dtmf"], eventApi="/input")
+_input_action = InputAction(type_=["dtmf"], eventApi="/dtmf")
 
 
 def _get_welcome_url() -> str:
     settings = get_settings()
     pullMenuMainUrl = get_pull_menu_main_url()
-    return (
-        f"{pullMenuMainUrl}welcomeDialog/{settings.default_welcome_language}"
-        f"/welcome%20to%20SEEDS/1.0.mp3"
-    )
+    blob_lang = get_blob_language_name(settings.default_welcome_language)
+    return f"{pullMenuMainUrl}welcomeDialog/{blob_lang}/welcome%20to%20SEEDS/1.0.mp3"
 
 
 def _get_key_press_url(key: str, language: str, speech_rate: str) -> str:
     pullMenuMainUrl = get_pull_menu_main_url()
+    blob_lang = get_blob_language_name(language)
     replaced_url = (
-        pressKeyMessageUrl.replace("{language}", language)
+        pressKeyMessageUrl.replace("{language}", blob_lang)
         .replace("{speechRate}", str(speech_rate))
     )
     replaced_url = re.sub(r"\{key\}", key, replaced_url)
@@ -133,6 +133,7 @@ def handle_type(
     sorted_categories: list = []
     sorted_keys: list = []
     language = parent_selections.get("language", settings.default_welcome_language)
+    blob_lang = get_blob_language_name(language)
     for exp in experiences:
         template_url = experienceDialogAudioUrls.get(exp, "")
         if not template_url:
@@ -140,7 +141,7 @@ def handle_type(
         audio_url = (
             template_url
             .replace("{pullMenu}", pullMenuMainUrl)
-            .replace("{language}", language)
+            .replace("{language}", blob_lang)
             .replace("{speechRate}", str(speech_rate))
         )
         values_to_urls[exp] = audio_url
@@ -197,7 +198,8 @@ def _add_nav_action(
     description: str,
 ) -> None:
     pullMenuMainUrl = get_pull_menu_main_url()
-    url = pullMenuMainUrl + message_template.replace("{language}", language).replace(
+    blob_lang = get_blob_language_name(language)
+    url = pullMenuMainUrl + message_template.replace("{language}", blob_lang).replace(
         "{speechRate}", str(speech_rate)
     )
     actions.append(StreamAction(url))
@@ -233,9 +235,10 @@ def _get_stream_actions(
                 raise ValueError("Missing 'type' in parent_selections for title initial dialog")
             initial_dialog = readingContentTitlesDialogUrl[parent_selections["type"].lower()]
         if initial_dialog:
+            blob_lang = get_blob_language_name(language)
             dialog_url = (
                 pullMenuMainUrl
-                + initial_dialog.replace("{language}", language).replace("{speechRate}", str(speechRate))
+                + initial_dialog.replace("{language}", blob_lang).replace("{speechRate}", str(speechRate))
             )
             actions.append(StreamAction(dialog_url))
 
@@ -356,14 +359,8 @@ def generate_states(
                 fsm, parent_state_id, parent_block_state_id, key_for_option_chosen, level
             )
         else:
-            from app.models.content import (
-                PureAudioData,  # type: ignore[attr-defined]  # noqa: PLC0415
-            )
             from app.services.fsm.instantiation.pure_audio import PureAudio  # noqa: PLC0415
-            try:
-                content_data = PureAudioData(**filtered_content[0])
-            except Exception:  # noqa: BLE001
-                content_data = _SimplePureAudioData(filtered_content[0])  # type: ignore[assignment]
+            content_data = _SimplePureAudioData(filtered_content[0])
             pure_audio = PureAudio(content_data, speechRate)
             pure_audio.generate_state(
                 fsm, parent_state_id, parent_block_state_id, key_for_option_chosen, level

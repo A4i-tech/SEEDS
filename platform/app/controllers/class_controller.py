@@ -29,7 +29,7 @@ async def list_classes(
     # Legacy classRouter.js only filters by req.userId — no school_id param
     teacher_id = current_user.get("sub", "")
     classrooms = await service.list_classrooms_by_teacher(teacher_id)
-    return [c.model_dump(by_alias=False, exclude_none=True) for c in classrooms]
+    return [c.model_dump(by_alias=True, exclude_none=True) for c in classrooms]
 
 
 @router.get("/{class_id}", summary="Get class by ID", status_code=status.HTTP_200_OK)
@@ -39,7 +39,7 @@ async def get_class(
     service: SchoolService = Depends(get_school_service),
 ) -> dict[str, Any]:
     classroom = await service.get_classroom(class_id)
-    return classroom.model_dump(by_alias=False, exclude_none=True)
+    return classroom.model_dump(by_alias=True, exclude_none=True)
 
 
 @router.post("", summary="Create or update a class", status_code=status.HTTP_200_OK)
@@ -82,7 +82,7 @@ async def upsert_class(
             )
         )
 
-    return classroom.model_dump(by_alias=False, exclude_none=True)
+    return classroom.model_dump(by_alias=True, exclude_none=True)
 
 
 @router.delete("/{class_id}", summary="Delete a class", status_code=status.HTTP_200_OK)

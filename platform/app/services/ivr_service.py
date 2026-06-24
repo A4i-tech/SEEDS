@@ -71,23 +71,19 @@ async def _make_vonage_call(
     import vonage  # noqa: PLC0415
 
     raw_key = base64.b64decode(settings.vonage_application_private_key64).decode("utf-8")
-    client = vonage.Vonage(
-        auth=vonage.Auth(
-            application_id=settings.vonage_ivr_application_id,
-            private_key=raw_key,
-        )
+    # Use conference app credentials — IVR is merged into same platform/app
+    client = vonage.Client(
+        application_id=settings.vonage_conference_application_id,
+        private_key=raw_key,
     )
     vonage_number = getattr(settings, "vonage_number", "") or os.getenv("VONAGE_NUMBER", "")
-    loop = asyncio.get_event_loop()
-    response = await loop.run_in_executor(
-        None,
-        lambda: client.voice.create_call(
-            {
-                "to": [{"type": "phone", "number": phone_number}],
-                "from": {"type": "phone", "number": vonage_number},
-                "ncco": ncco_actions,
-            }
-        ),
+    response = await asyncio.to_thread(
+        client.voice.create_call,
+        {
+            "to": [{"type": "phone", "number": phone_number}],
+            "from": {"type": "phone", "number": vonage_number},
+            "ncco": ncco_actions,
+        },
     )
     return response
 
@@ -216,13 +212,18 @@ class IVRService:
         self,
         call_id: str,
         dtmf: str,
-    ) -> dict[str, Any]:
+        timed_out: bool = False,
+    ) -> list[Any]:
         """Process a DTMF input for an active IVR call.
 
         Returns NCCO-compatible list of action dicts, or empty list on error.
+        Handles speed control (*/#), pause/resume (0), and WebSocket timeout.
         """
         from app.models.ivr_state import IVRCallStateMongoDoc, UserAction  # noqa: PLC0415
+        from app.providers.vonage_actions.connect_action import VonageConnectAction  # noqa: PLC0415
+        from app.providers.vonage_actions.input_action import InputAction  # noqa: PLC0415
         from app.providers.vonage_actions.talk_action import TalkAction  # noqa: PLC0415
+        from app.platform.settings import get_settings  # noqa: PLC0415
 
         ongoing_col = self._db["ongoingIVRState"]
         factory, accumulator = _get_factory_and_accumulator()
@@ -253,24 +254,89 @@ class IVRService:
             return []
 
         fsm = _fsm_cache[ivr_state.fsm_id]
-        input_time = datetime.now()
+        digits = dtmf if dtmf is not None else ""
 
+        # Detect WebSocket streaming state
+        current_state = fsm.states.get(ivr_state.current_state_id)
+        is_streaming = current_state and any(
+            isinstance(a, VonageConnectAction) for a in current_state.actions
+        )
+
+        _keep_listening_ncco = [{
+            "type": ["dtmf"],
+            "action": "input",
+            "eventUrl": [get_settings().base_url + "/dtmf"],
+            "dtmf": {"maxDigits": 1, "submitOnHash": False, "timeOut": 10},
+        }]
+
+        # Timeout during WebSocket playback — keep listening without interrupting
+        if digits == "" and timed_out and is_streaming:
+            logger.info("DTMF timeout during WebSocket playback for %s — keeping listener", call_id)
+            return _keep_listening_ncco
+
+        # Speed control (* = decrease, # = increase) during streaming
+        if digits in ("*", "#") and is_streaming:
+            from app.services.fsm.instantiation.speed_control import decrease_speed, increase_speed  # noqa: PLC0415
+            current_speed = (ivr_state.experience_data or {}).get("playback_speed", 1.0)
+            new_speed, _ = increase_speed(current_speed) if digits == "#" else decrease_speed(current_speed)
+            try:
+                from app.providers.websocket_client import get_websocket_service  # noqa: PLC0415
+                ws = await get_websocket_service()
+                await ws.set_playback_speed(call_id, new_speed)
+                logger.info("Speed changed %s→%s for %s", current_speed, new_speed, call_id)
+            except Exception as exc:
+                logger.error("Failed to set speed for %s: %s", call_id, exc)
+                new_speed = current_speed
+            if not ivr_state.experience_data:
+                ivr_state.experience_data = {}
+            ivr_state.experience_data["playback_speed"] = new_speed
+            await ongoing_col.replace_one({"_id": call_id}, ivr_state.model_dump(by_alias=True), upsert=True)
+            return _keep_listening_ncco
+
+        # Pause/resume toggle (0) during streaming
+        if digits == "0" and is_streaming:
+            from app.services.fsm.instantiation.pause_announcement import get_paused_announcement, get_resuming_announcement  # noqa: PLC0415
+            from app.services.fsm.utils import get_vonage_language_code  # noqa: PLC0415
+            is_paused = (ivr_state.experience_data or {}).get("is_paused", False)
+            new_pause = not is_paused
+            settings = get_settings()
+            language = settings.default_welcome_language
+            if current_state and hasattr(current_state, "menu") and current_state.menu and hasattr(current_state.menu, "language"):
+                language = current_state.menu.language
+            vonage_lang = get_vonage_language_code(language)
+            try:
+                from app.providers.websocket_client import get_websocket_service  # noqa: PLC0415
+                ws = await get_websocket_service()
+                if new_pause:
+                    await ws.pause_audio(call_id)
+                    announcement = get_paused_announcement(language)
+                else:
+                    await ws.resume_audio(call_id)
+                    announcement = get_resuming_announcement(language)
+                logger.info("Pause toggled to %s for %s", new_pause, call_id)
+            except Exception as exc:
+                logger.error("Failed to toggle pause for %s: %s", call_id, exc)
+                return _keep_listening_ncco
+            if not ivr_state.experience_data:
+                ivr_state.experience_data = {}
+            ivr_state.experience_data["is_paused"] = new_pause
+            await ongoing_col.replace_one({"_id": call_id}, ivr_state.model_dump(by_alias=True), upsert=True)
+            return [
+                {"action": "talk", "text": announcement, "language": vonage_lang, "level": 1.0, "bargeIn": True},
+                *_keep_listening_ncco,
+            ]
+
+        # Normal FSM processing
+        input_time = datetime.now()
         next_actions: list[Any] | None = None
         next_state_id: str | None = None
-
-        digits = dtmf if dtmf is not None else ""
 
         if digits == "":
             pre_state_id = ivr_state.current_state_id
             next_actions, next_state_id = await fsm.get_next_actions("", ivr_state)
             ivr_state.current_state_id = next_state_id
             ivr_state.user_actions.append(
-                UserAction(
-                    key_pressed="empty",
-                    timestamp=input_time,
-                    pre_state_id=pre_state_id,
-                    post_state_id=next_state_id,
-                )
+                UserAction(key_pressed="empty", timestamp=input_time, pre_state_id=pre_state_id, post_state_id=next_state_id)
             )
         else:
             for digit in digits:
@@ -278,19 +344,13 @@ class IVRService:
                 next_actions, next_state_id = await fsm.get_next_actions(digit, ivr_state)
                 ivr_state.current_state_id = next_state_id
                 ivr_state.user_actions.append(
-                    UserAction(
-                        key_pressed=digit if digit != "" else "empty",
-                        timestamp=input_time,
-                        pre_state_id=pre_state_id,
-                        post_state_id=next_state_id,
-                    )
+                    UserAction(key_pressed=digit if digit != "" else "empty", timestamp=input_time, pre_state_id=pre_state_id, post_state_id=next_state_id)
                 )
 
         await ongoing_col.replace_one(
             {"_id": call_id}, ivr_state.model_dump(by_alias=True), upsert=True
         )
 
-        from app.providers.vonage_actions.input_action import InputAction  # noqa: PLC0415
         is_terminal = not any(isinstance(a, InputAction) for a in (next_actions or []))
         ncco = accumulator.combine([factory.get_action_implmentation(x) for x in (next_actions or [])])
         if is_terminal:

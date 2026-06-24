@@ -23,6 +23,7 @@ from app.models.ivr_state import (
     ConversationRTCEventType,
     DTMFInput,
     EventWebhookRequest,
+    IVRCallStatus,
 )
 from app.platform.database import get_database
 from app.providers.service_bus import service_bus_provider
@@ -53,6 +54,10 @@ async def ivr_event_webhook(request: Request, background_tasks: BackgroundTasks)
             "duration": event.duration,
         }
         background_tasks.add_task(_enqueue_call_event, payload)
+        if event.status in IVRCallStatus.end_statuses():
+            background_tasks.add_task(
+                _cleanup_ivr_state, event.conversation_uuid, event.duration
+            )
         return {"message": "event queued for processing"}
     except Exception as exc:
         logger.warning("ivr /event parse error: %s", exc)
@@ -123,12 +128,28 @@ async def ivr_dtmf_webhook(request: Request, background_tasks: BackgroundTasks) 
         logger.warning("ivr /dtmf parse error: %s", exc)
         return []
 
+    timed_out = dtmf_input.dtmf.timed_out
+
     payload = {"conversation_uuid": conv_id, "digits": digits}
     background_tasks.add_task(_enqueue_dtmf_input, payload)
 
     db = get_database()
-    ncco = await IVRService(db).process_dtmf(call_id=conv_id, dtmf=digits)
+    ncco = await IVRService(db).process_dtmf(call_id=conv_id, dtmf=digits, timed_out=timed_out)
     return ncco
+
+
+async def _cleanup_ivr_state(conversation_uuid: str, duration: str) -> None:
+    try:
+        db = get_database()
+        result = await db["ongoingIVRState"].delete_one({"_id": conversation_uuid})
+        logger.info(
+            "ivr /event: cleaned up ongoingIVRState for %s (deleted=%s, duration=%s)",
+            conversation_uuid,
+            result.deleted_count,
+            duration,
+        )
+    except Exception as exc:
+        logger.error("Failed to clean up ongoingIVRState for %s: %s", conversation_uuid, exc)
 
 
 async def _enqueue_call_event(payload: dict) -> None:

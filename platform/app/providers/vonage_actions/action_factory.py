@@ -42,7 +42,8 @@ class VonageActionFactory:
             )
 
         if isinstance(action, InputAction):
-            base_url = os.getenv("BASE_URL", "")
+            from app.platform.settings import get_settings  # noqa: PLC0415
+            base_url = get_settings().base_url
             return VonageInputAction(
                 type_=action.type,
                 eventUrl=base_url + action.eventApi,

@@ -349,7 +349,10 @@ class ConferenceCall:
                 self.conf_id, self.state.model_dump(by_alias=True)
             )
         if self.redis_store is not None:
-            await self.redis_store.save(self.conf_id, self.state)
+            try:
+                await self.redis_store.save(self.conf_id, self.state)
+            except Exception as exc:
+                logger.warning("conference_service: redis save failed for %s — %s", self.conf_id, exc)
         if self.connection_manager is not None:
             await self.connection_manager.send_message_to_client(
                 client=self.state.get_teacher(),

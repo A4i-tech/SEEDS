@@ -53,7 +53,7 @@ async def tenant_register(
         tenant_name=body.tenant_name,
     )
     user = await service.register_tenant(data)
-    safe = user.model_dump(by_alias=False, exclude_none=True)
+    safe = user.model_dump(by_alias=True, exclude_none=True)
     safe.pop("hashed_password", None)
     return safe
 

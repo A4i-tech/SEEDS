@@ -6,7 +6,9 @@ from enum import StrEnum
 from typing import Any
 
 from bson import ObjectId
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
+
+from app.models.base import BaseDocument
 
 
 class PyObjectId(str):
@@ -50,62 +52,54 @@ class UserRole(StrEnum):
     CONTENT_CREATOR = "content_creator"
 
 
-class User(BaseModel):
+class User(BaseDocument):
     """Unified user document stored in the 'users' collection.
 
     Merges fields from Teacher.js, Student.js, Tenant.js, and UserInfo.js.
     """
 
-    model_config = ConfigDict(populate_by_name=True)
-
     id: str | None = Field(None, alias="_id")
     role: UserRole
     # Contact
     email: str | None = None
-    phone: str | None = None  # phoneNumber in legacy models
+    phone: str | None = None               # legacy: phoneNumber
     # Auth
     hashed_password: str | None = None
-    firebase_uid: str | None = None  # UserInfo._id is firebase uid
+    firebase_uid: str | None = None        # alias: firebaseUid
     # Relationships
-    tenant_id: str | None = None   # ObjectId stored as str
-    school_id: str | None = None   # ObjectId stored as str
+    tenant_id: str | None = None           # alias: tenantId
+    school_id: str | None = None           # alias: schoolId
     # Profile
     name: str
-    tenant_name: str | None = None  # Tenant.tenantName
-    organisation: str | None = None  # UserInfo.organisation
-    language_preference: str | None = None
+    tenant_name: str | None = None         # alias: tenantName
+    organisation: str | None = None
+    language_preference: str | None = None # alias: languagePreference
     # Encryption fields (UserInfo)
-    encrypted_phone_number: str | None = None
-    encryption_iv: str | None = None
-    encryption_salt: str | None = None
+    encrypted_phone_number: str | None = None  # alias: encryptedPhoneNumber
+    encryption_iv: str | None = None       # alias: encryptionIv
+    encryption_salt: str | None = None     # alias: encryptionSalt
     # Flags
-    is_active: bool = True
+    is_active: bool = True                 # alias: isActive
     # Timestamps
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
-    legacy_created_at: int | None = Field(None, alias="creation_time")  # epoch ms
+    created_at: datetime | None = None     # alias: createdAt
+    updated_at: datetime | None = None     # alias: updatedAt
+    legacy_created_at: int | None = Field(None, alias="creation_time")  # epoch ms, not camelCase
 
     @classmethod
     def from_mongo(cls, doc: dict) -> User:
-        """Convert a raw MongoDB document to a User instance.
-
-        Converts ObjectId values to str so Pydantic validation passes.
-        """
         if doc is None:
             return None  # type: ignore[return-value]
         d = dict(doc)
         if "_id" in d and isinstance(d["_id"], ObjectId):
             d["_id"] = str(d["_id"])
-        for key in ("tenant_id", "school_id"):
+        for key in ("tenantId", "tenant_id", "schoolId", "school_id"):
             if key in d and isinstance(d[key], ObjectId):
                 d[key] = str(d[key])
         return cls.model_validate(d)
 
 
-class UserCreate(BaseModel):
+class UserCreate(BaseDocument):
     """Payload for creating a new user."""
-
-    model_config = ConfigDict(populate_by_name=True)
 
     role: UserRole
     name: str
@@ -121,10 +115,8 @@ class UserCreate(BaseModel):
     is_active: bool = True
 
 
-class UserUpdate(BaseModel):
+class UserUpdate(BaseDocument):
     """Payload for partial updates to a user."""
-
-    model_config = ConfigDict(populate_by_name=True)
 
     name: str | None = None
     email: str | None = None

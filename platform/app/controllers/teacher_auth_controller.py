@@ -47,7 +47,7 @@ async def teacher_register(
         school_id=current_user.get("school_id"),
     )
     user = await service.register_teacher(data)
-    safe = user.model_dump(by_alias=False, exclude_none=True)
+    safe = user.model_dump(by_alias=True, exclude_none=True)
     safe.pop("hashed_password", None)
     return safe
 
@@ -68,6 +68,6 @@ async def teacher_me(
     service: AuthService = Depends(get_auth_service),
 ) -> dict[str, Any]:
     user = await service.get_user_profile(current_user.get("sub", ""), "Teacher")
-    safe = user.model_dump(by_alias=False, exclude_none=True)
+    safe = user.model_dump(by_alias=True, exclude_none=True)
     safe.pop("hashed_password", None)
     return safe

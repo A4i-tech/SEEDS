@@ -16,10 +16,7 @@ def _get_base_urls() -> tuple[str, str]:
     """Return (storage_account_base_url, pullMenuMainUrl) from settings."""
 
     settings = get_settings()
-    storage_account_name = settings.storage_account_name
-    if not storage_account_name:
-        # Allow empty in test environments
-        storage_account_name = ""
+    storage_account_name = settings.azure_storage_account_name
     base = f"https://{storage_account_name}.blob.core.windows.net/"
     pull_menu = f"{base}pull-model-menus/"
     return base, pull_menu
@@ -39,13 +36,13 @@ def get_content_url() -> str:
 # ---------------------------------------------------------------------------
 
 languageDialogUrls: dict[str, str] = {
-    "english": "languageDialog/english/For%20English/{speechRate}.mp3",
-    "kannada": "languageDialog/kannada/For%20Kannada/{speechRate}.mp3",
-    "bengali": "languageDialog/bengali/For%20Bengali/{speechRate}.mp3",
-    "hindi": "languageDialog/hindi/For%20Hindi/{speechRate}.mp3",
-    "tamil": "languageDialog/tamil/For%20Tamil/{speechRate}.mp3",
-    "odia": "languageDialog/odia/For%20Odia/{speechRate}.mp3",
-    "marathi": "languageDialog/marathi/For%20Marathi/{speechRate}.mp3",
+    "en": "languageDialog/english/For%20English/{speechRate}.mp3",
+    "kn": "languageDialog/kannada/For%20Kannada/{speechRate}.mp3",
+    "bn": "languageDialog/bengali/For%20Bengali/{speechRate}.mp3",
+    "hi": "languageDialog/hindi/For%20Hindi/{speechRate}.mp3",
+    "ta": "languageDialog/tamil/For%20Tamil/{speechRate}.mp3",
+    "or": "languageDialog/odia/For%20Odia/{speechRate}.mp3",
+    "mr": "languageDialog/marathi/For%20Marathi/{speechRate}.mp3",
 }
 
 speechRate = "1.0"

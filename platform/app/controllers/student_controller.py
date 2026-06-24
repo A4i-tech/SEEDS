@@ -8,7 +8,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from app.platform.auth.dependencies import require_teacher
+from app.platform.auth.dependencies import require_school_actor
 from app.services.user_service import UserService, get_user_service
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,7 @@ class StudentUpdateRequest(BaseModel):
 @router.post("", summary="Create a student (school_admin only)", status_code=status.HTTP_201_CREATED)
 async def create_student(
     body: StudentCreateRequest,
-    current_user: dict[str, Any] = Depends(require_teacher),
+    current_user: dict[str, Any] = Depends(require_school_actor),
     service: UserService = Depends(get_user_service),
 ) -> dict[str, Any]:
     if not body.name.strip():
@@ -57,26 +57,21 @@ async def create_student(
 
 @router.get("", summary="List students in admin's school", status_code=status.HTTP_200_OK)
 async def list_students(
-    current_user: dict[str, Any] = Depends(require_teacher),
+    current_user: dict[str, Any] = Depends(require_school_actor),
     service: UserService = Depends(get_user_service),
 ) -> list[dict]:
     school_id = current_user.get("school_id", "")
     tenant_id = current_user.get("tenant_id", "")
     if not school_id:
         return []
-    students = await service.list_students_for_school(school_id, tenant_id)
-    result = [
-        {"_id": str(u.id), "name": u.name, "phoneNumber": u.phone}
-        for u in students
-    ]
-    return sorted(result, key=lambda s: s["name"])
+    return await service.list_students_for_school(school_id, tenant_id)
 
 
 @router.patch("/{student_id}", summary="Update a student (school_admin only)", status_code=status.HTTP_200_OK)
 async def update_student(
     student_id: str,
     body: StudentUpdateRequest,
-    current_user: dict[str, Any] = Depends(require_teacher),
+    current_user: dict[str, Any] = Depends(require_school_actor),
     service: UserService = Depends(get_user_service),
 ) -> dict[str, Any]:
     if not body.name and not body.phone_number:
@@ -101,7 +96,7 @@ async def update_student(
 @router.delete("/{student_id}", summary="Delete a student (school_admin only)", status_code=status.HTTP_200_OK)
 async def delete_student(
     student_id: str,
-    current_user: dict[str, Any] = Depends(require_teacher),
+    current_user: dict[str, Any] = Depends(require_school_actor),
     service: UserService = Depends(get_user_service),
 ) -> dict[str, str]:
     caller_school = current_user.get("school_id", "")

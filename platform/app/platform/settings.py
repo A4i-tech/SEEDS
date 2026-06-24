@@ -71,12 +71,11 @@ class Settings(BaseSettings):
     # ---------------------------------------------------------------------------
     # Azure Blob Storage
     # ---------------------------------------------------------------------------
-    azure_blob_sas_enabled: bool = False
+    azure_blob_sas_enabled: bool = True
     azure_storage_account_name: str = ""
     azure_storage_account_key: str = Field(default="", repr=False)
     azure_storage_connection_string: str = Field(default="", repr=False)
     azure_storage_container: str = "seedsstagingblob"
-    storage_account_name: str = ""
     accountkey: str = Field(default="", repr=False)
 
     # Audio blob capture
@@ -132,7 +131,7 @@ class Settings(BaseSettings):
     my_number: str = ""
     call_duration_limit: int = 0
     ivr_daily_listening_limit_seconds: int = 7200
-    default_welcome_language: str = "kannada"
+    default_welcome_language: str = "kn"
 
     # ---------------------------------------------------------------------------
     # Conference auto-end

@@ -11,7 +11,7 @@ from app.models.requests.call_requests import CreateConferenceRequest
 from app.platform.auth.dependencies import (
     get_current_user,
     require_conference_owner,
-    require_teacher,
+    require_role,
 )
 from app.platform.lifespan import get_conference_manager
 from app.services.conference_service import (
@@ -48,10 +48,13 @@ async def create_start_conference(request: CreateConferenceRequest) -> Any:
     return {"status": "STARTED", "id": conf.conf_id}
 
 
+_require_conference_create = require_role("teacher", "content_creator")
+
+
 @router.post("/create", summary="Create a conference call", status_code=201)
 async def create_conference(
     request: CreateConferenceRequest,
-    user: dict[str, Any] = Depends(require_teacher),
+    user: dict[str, Any] = Depends(_require_conference_create),
     service: ConferenceOwnershipService = Depends(get_conference_ownership_service),
 ) -> Any:
     conf = await _create_conf(request)
@@ -73,7 +76,7 @@ async def start_conference(
     return {"status": "STARTED", "id": conference_id}
 
 
-@router.get("/teacherappconnect/{conference_id}", summary="Connect teacher smartphone")
+@router.get("/teacherappconnect/{conference_id}", summary="Connect teacher smartphone (SSE stream)")
 async def connect_smartphone(
     conference_id: str,
     user: dict[str, Any] = Depends(get_current_user),

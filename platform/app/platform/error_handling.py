@@ -133,7 +133,6 @@ async def _unhandled_exception_handler(
     request: Request, exc: Exception
 ) -> JSONResponse:
     request_id = _get_request_id()
-    # Log with full traceback on server side, but NEVER expose it in the response.
     logger.exception(
         "Unhandled exception (request_id=%s): %s",
         request_id,

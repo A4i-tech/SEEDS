@@ -78,24 +78,11 @@ def _init_conference_manager() -> ConferenceCallManager:
                 call_timeout_seconds=settings.vonage_call_timeout_seconds,
             )
 
-    class _NoopConnectionManager:
-        """Placeholder connection manager until SmartphoneConnectionManager is ported."""
+    from app.services.smartphone_connection_manager import SSEConnectionManager  # noqa: PLC0415
 
-        def __init__(self, conf_id: str) -> None:
-            self.conf_id = conf_id
-
-        async def connect(self, client: Any) -> dict:
-            return {}
-
-        async def disconnect(self, client: Any) -> dict:
-            return {}
-
-        async def send_message_to_client(self, client: Any, message: Any) -> None:
-            pass
-
-    class _NoopConnectionManagerFactory:
-        def create(self, conf_id: str) -> _NoopConnectionManager:
-            return _NoopConnectionManager(conf_id)
+    class _SSEConnectionManagerFactory:
+        def create(self, conf_id: str) -> SSEConnectionManager:
+            return SSEConnectionManager()
 
     class _NoopStorageManager:
         """Placeholder storage manager (MongoDB integration in future phase)."""
@@ -105,7 +92,7 @@ def _init_conference_manager() -> ConferenceCallManager:
 
     _conference_manager = ConferenceCallManager(
         communication_api_factory=_VonageAPIFactory(),
-        connection_manager_factory=_NoopConnectionManagerFactory(),
+        connection_manager_factory=_SSEConnectionManagerFactory(),
         storage_manager=_NoopStorageManager(),
         ws_base_url=settings.websocket_service_url,
     )
@@ -175,6 +162,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.state.consumer_tasks = consumer_tasks
     app.state.conference_manager = conf_mgr
 
+    # Init websocket-service control channel (confv2server equivalent)
+    ws_client = None
+    if conf_mgr is not None:
+        try:
+            from app.providers.websocket_client import WebsocketClientProvider  # noqa: PLC0415
+            ws_client = WebsocketClientProvider()
+            await ws_client.initialize(conf_mgr)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("WebsocketClientProvider init failed (non-fatal): %s", exc)
+
     logger.info(
         "SEEDS Platform started (mode=%s, env=%s, version=%s)",
         settings.app_mode,
@@ -193,6 +190,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             task.cancel()
         await asyncio.gather(*consumer_tasks, return_exceptions=True)
         logger.info("All consumer tasks stopped.")
+
+    if ws_client is not None:
+        try:
+            await ws_client.close()
+        except Exception as exc:
+            logger.warning("WebsocketClientProvider close failed: %s", exc)
 
     if conf_mgr is not None:
         try:

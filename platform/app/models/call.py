@@ -4,20 +4,17 @@ from __future__ import annotations
 from typing import Any
 
 from bson import ObjectId
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
+
+from app.models.base import BaseDocument
 
 
-class Call(BaseModel):
-    """Sequence tracking document from the 'calls' collection (legacy Call.js).
-
-    Used to track monotonically increasing call IDs and round-robin index.
-    """
-
-    model_config = ConfigDict(populate_by_name=True)
+class Call(BaseDocument):
+    """Sequence tracking document from the 'calls' collection (legacy Call.js)."""
 
     id: str | None = Field(None, alias="_id")
-    call_id: int = Field(..., alias="id")   # unique numeric call identifier
-    index: int                              # round-robin / sequence index
+    call_id: int = Field(..., alias="id")   # DB field is 'id', not 'callId'
+    index: int
 
     @classmethod
     def from_mongo(cls, doc: dict) -> Call:
@@ -29,17 +26,15 @@ class Call(BaseModel):
         return cls.model_validate(d)
 
 
-class CallLog(BaseModel):
+class CallLog(BaseDocument):
     """IVR call log entry stored in the 'calllogs' collection (CallLog.js)."""
-
-    model_config = ConfigDict(populate_by_name=True)
 
     id: str | None = Field(None, alias="_id")
     type: str
     time: str
-    fsm_context_id: str = Field(..., alias="fsmContextId")
+    fsm_context_id: str                    # alias: fsmContextId
     data: dict[str, Any] | None = None
-    is_completed: bool = Field(..., alias="isCompleted")
+    is_completed: bool                     # alias: isCompleted
 
     @classmethod
     def from_mongo(cls, doc: dict) -> CallLog:

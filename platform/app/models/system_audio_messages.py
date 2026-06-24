@@ -16,7 +16,7 @@ def _base_url() -> str:
     try:
         from app.platform.settings import get_settings  # noqa: PLC0415
 
-        name = get_settings().storage_account_name or get_settings().azure_storage_account_name
+        name = get_settings().azure_storage_account_name
         if name:
             return (
                 f"https://{name}.blob.core.windows.net"

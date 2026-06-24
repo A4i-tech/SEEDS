@@ -3,29 +3,25 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from app.models.base import BaseDocument
 
 
-class CreateConferenceRequest(BaseModel):
-    teacher_phone: str
+class CreateConferenceRequest(BaseDocument):
+    teacher_phone: str      # alias: teacherPhone
     teacher_name: str | None = None
-    student_phones: list[str]
+    student_phones: list[str]   # alias: studentPhones
     student_names: list[str | None] | None = None
-    leader_phone: str | None = None
+    leader_phone: str | None = None  # alias: leaderPhone
 
 
-class LogCallRequest(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
+class LogCallRequest(BaseDocument):
     type: str
     time: str
-    fsm_context_id: str = Field(..., alias="fsmContextId")
+    fsm_context_id: str     # alias: fsmContextId
     data: Any | None = None
-    is_completed: bool = Field(..., alias="isCompleted")
+    is_completed: bool      # alias: isCompleted
 
 
-class FsmContextRequest(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    fsm_context_id: str = Field(..., alias="fsmContextId")
-    phone_numbers: list[str] | None = Field(None, alias="phoneNumbers")
+class FsmContextRequest(BaseDocument):
+    fsm_context_id: str     # alias: fsmContextId
+    phone_numbers: list[str] | None = None  # alias: phoneNumbers

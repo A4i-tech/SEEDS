@@ -20,9 +20,11 @@ import urllib.parse
 from datetime import UTC, datetime
 from typing import Any
 
+from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.platform.mongo_compat import as_oid
 from app.models.requests.content_requests import (
     ContentCreateRequest,
     ContentUpdateRequest,
@@ -51,6 +53,13 @@ class ContentOut(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     id: str | None = Field(None, alias="_id")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _strip_oids(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            return {k: str(v) if isinstance(v, ObjectId) else v for k, v in data.items()}
+        return data
 
     @field_validator("id", mode="before")
     @classmethod
@@ -95,12 +104,16 @@ def _read_school_filter(user: dict[str, Any]) -> Any | None:
     return None
 
 
-def _write_school_filter(user: dict[str, Any]) -> dict:
-    """Return a schoolId dict for write operations — spread into query/document."""
+def _write_school_filter(user: dict[str, Any], for_query: bool = False) -> dict:
+    """Return a schoolId dict for write operations.
+
+    for_query=True: used in update/delete filters — allows null (tenant-wide) content.
+    for_query=False: used in insert docs — sets the literal schoolId value.
+    """
     role = user.get("role")
-    school_id: str | None = None
-    if role in (UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value):
-        school_id = user.get("school_id")
+    school_id: str | None = user.get("school_id") if role in (UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value) else None
+    if for_query and school_id:
+        return {"schoolId": {"$in": [school_id, None]}}
     return {"schoolId": school_id}
 
 
@@ -211,7 +224,7 @@ async def get_themes(
     school_filter = _read_school_filter(user)
 
     query: dict = {
-        "tenantId": tenant_id,
+        "tenantId": as_oid(tenant_id),
         "language": language,
         "isPullModel": True,
         "isDeleted": {"$ne": True},
@@ -255,7 +268,7 @@ async def list_content(
     tenant_id = user.get("tenant_id", "")
     school_filter = _read_school_filter(user)
 
-    base_query: dict = {"isDeleted": {"$ne": True}, "tenantId": tenant_id}
+    base_query: dict = {"isDeleted": {"$ne": True}, "tenantId": as_oid(tenant_id)}
     if school_filter is not None:
         base_query["schoolId"] = school_filter
 
@@ -267,9 +280,9 @@ async def list_content(
         contents = await service.fetch_contents(id_query)
         quizzes = await service.fetch_quizzes(id_query)
         all_items = sorted(
-            [ContentOut.model_validate(d).model_dump(by_alias=False) for d in contents]
-            + [{**QuizOut.model_validate(d).model_dump(by_alias=False), "type": "quiz"} for d in quizzes],
-            key=lambda x: (-x.get("creation_time", 0), str(x.get("id", ""))),
+            [ContentOut.model_validate(d).model_dump(by_alias=True) for d in contents]
+            + [{**QuizOut.model_validate(d).model_dump(by_alias=True), "type": "quiz"} for d in quizzes],
+            key=lambda x: (-x.get("creation_time", 0), str(x.get("_id", ""))),
         )
         return all_items
 
@@ -313,9 +326,9 @@ async def list_content(
     quizzes = await service.fetch_quizzes(quiz_query) if fetch_quizzes else []
 
     all_results = sorted(
-        [ContentOut.model_validate(d).model_dump(by_alias=False) for d in contents]
-        + [{**QuizOut.model_validate(d).model_dump(by_alias=False), "type": "quiz"} for d in quizzes],
-        key=lambda x: (-x.get("creation_time", 0), str(x.get("id", ""))),
+        [ContentOut.model_validate(d).model_dump(by_alias=True) for d in contents]
+        + [{**QuizOut.model_validate(d).model_dump(by_alias=True), "type": "quiz"} for d in quizzes],
+        key=lambda x: (-x.get("creation_time", 0), str(x.get("_id", ""))),
     )
 
     # Skip past cursor position
@@ -327,7 +340,7 @@ async def list_content(
                 last_id = parts[1]
                 idx = next(
                     (i for i, x in enumerate(all_results)
-                     if x.get("creation_time") == last_ct and str(x.get("id", "")) == last_id),
+                     if x.get("creation_time") == last_ct and str(x.get("_id", "")) == last_id),
                     None,
                 )
                 if idx is not None:
@@ -339,7 +352,7 @@ async def list_content(
     data = all_results[:limit]
     last_item = data[-1] if data else None
     next_cursor = (
-        f"{last_item['creation_time']}_{last_item['id']}"
+        f"{last_item['creation_time']}_{last_item['_id']}"
         if has_more and last_item
         else None
     )
@@ -363,7 +376,7 @@ async def get_content(
 
     query: dict = {
         "_id": content_id,
-        "tenantId": tenant_id,
+        "tenantId": as_oid(tenant_id),
         "isDeleted": {"$ne": True},
     }
     if school_filter is not None:
@@ -371,11 +384,11 @@ async def get_content(
 
     doc = await service.get_content_doc(query)
     if doc:
-        return ContentOut.model_validate(doc).model_dump(by_alias=False)
+        return ContentOut.model_validate(doc).model_dump(by_alias=True)
 
     quiz = await service.get_quiz_doc(query)
     if quiz:
-        return {**QuizOut.model_validate(quiz).model_dump(by_alias=False), "type": "quiz"}
+        return {**QuizOut.model_validate(quiz).model_dump(by_alias=True), "type": "quiz"}
 
     raise NotFoundError("Content", content_id)
 
@@ -406,7 +419,7 @@ async def create_content(
     body_dict = body.model_dump(by_alias=True, exclude_unset=True)
     doc: dict = {
         **body_dict,
-        "tenantId": tenant_id,
+        "tenantId": as_oid(tenant_id),
         "createdBy": user_id,
         "creation_time": now_ts,
         **_write_school_filter(user),
@@ -425,8 +438,9 @@ async def create_content(
 # PATCH /content — update + optionally re-trigger job
 # ---------------------------------------------------------------------------
 
-@router.patch("", summary="Update content")
+@router.patch("/{content_id}", summary="Update content")
 async def update_content(
+    content_id: str,
     body: ContentUpdateRequest,
     is_audio_uploaded: bool = Query(False, alias="isAudioUploaded"),
     user: dict[str, Any] = Depends(_require_content_write),
@@ -434,14 +448,15 @@ async def update_content(
 ) -> Any:
     """Update a content item. Re-triggers processing job if isAudioUploaded=true."""
     tenant_id = user.get("tenant_id", "")
-    content_id = body.id
 
     write_filter: dict = {
         "_id": content_id,
-        "tenantId": tenant_id,
+        "tenantId": as_oid(tenant_id),
         "isDeleted": {"$ne": True},
-        **_write_school_filter(user),
     }
+    _sid = user.get("school_id")
+    if _sid and user.get("role") in (UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value):
+        write_filter["schoolId"] = {"$in": [_sid, None]}
 
     allowed = {"title", "theme", "description", "type", "language", "isPullModel", "isTeacherApp"}
     body_dict = body.model_dump(by_alias=True, exclude_unset=True)
@@ -464,10 +479,10 @@ async def update_content(
         if is_audio_uploaded:
             content_id_str = str(result.get("_id", ""))
             job_id = await service.enqueue_content_job(content_id_str)
-            out = ContentOut.model_validate(result).model_dump(by_alias=False)
+            out = ContentOut.model_validate(result).model_dump(by_alias=True)
             out["jobId"] = job_id
             return out
-        return ContentOut.model_validate(result).model_dump(by_alias=False)
+        return ContentOut.model_validate(result).model_dump(by_alias=True)
 
     raise NotFoundError("Content", str(content_id))
 
@@ -486,8 +501,8 @@ async def delete_content(
     tenant_id = user.get("tenant_id", "")
     write_filter: dict = {
         "_id": content_id,
-        "tenantId": tenant_id,
-        **_write_school_filter(user),
+        "tenantId": as_oid(tenant_id),
+        **_write_school_filter(user, for_query=True),
     }
 
     matched = await service.soft_delete_content(write_filter)
@@ -519,7 +534,7 @@ async def create_quiz(
     body_dict = body.model_dump(by_alias=True, exclude_unset=True)
     doc: dict = {
         **body_dict,
-        "tenantId": tenant_id,
+        "tenantId": as_oid(tenant_id),
         "createdBy": user_id,
         "creation_time": now_ts,
         **_write_school_filter(user),

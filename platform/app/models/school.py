@@ -4,22 +4,22 @@ from __future__ import annotations
 from datetime import datetime
 
 from bson import ObjectId
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
+
+from app.models.base import BaseDocument
 
 
-class School(BaseModel):
+class School(BaseDocument):
     """MongoDB document for a school, maps to the 'schools' collection."""
 
-    model_config = ConfigDict(populate_by_name=True)
-
     id: str | None = Field(None, alias="_id")
-    tenant_id: str = Field(..., alias="tenantId")
+    tenant_id: str                                          # alias: tenantId
     name: str
     email: str
-    hashed_password: str | None = Field(None, alias="password")
-    is_active: bool = Field(True, alias="isActive")
-    created_at: datetime | None = Field(None, alias="createdAt")
-    updated_at: datetime | None = Field(None, alias="updatedAt")
+    hashed_password: str | None = Field(None, alias="password")  # DB field is 'password'
+    is_active: bool = True                                  # alias: isActive
+    created_at: datetime | None = None                     # alias: createdAt
+    updated_at: datetime | None = None                     # alias: updatedAt
 
     @classmethod
     def from_mongo(cls, doc: dict) -> School:
@@ -28,21 +28,17 @@ class School(BaseModel):
         d = dict(doc)
         if "_id" in d and isinstance(d["_id"], ObjectId):
             d["_id"] = str(d["_id"])
-        if "tenantId" in d and isinstance(d["tenantId"], ObjectId):
-            d["tenantId"] = str(d["tenantId"])
+        for key in ("tenantId", "tenant_id"):
+            if key in d and isinstance(d[key], ObjectId):
+                d[key] = str(d[key])
         return cls.model_validate(d)
 
 
-class SchoolCreate(BaseModel):
-    """Payload for creating a new school.
+class SchoolCreate(BaseDocument):
+    """Payload for creating a new school."""
 
-    Aliases match legacy School.js field names so repository writes correct keys.
-    """
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    tenant_id: str = Field(..., alias="tenantId")
+    tenant_id: str                                          # alias: tenantId
     name: str
     email: str
-    hashed_password: str | None = Field(None, alias="password")
-    is_active: bool = Field(True, alias="isActive")
+    hashed_password: str | None = Field(None, alias="password")  # DB field is 'password'
+    is_active: bool = True                                  # alias: isActive

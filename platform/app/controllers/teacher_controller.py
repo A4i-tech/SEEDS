@@ -8,7 +8,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from app.platform.auth.dependencies import require_teacher
+from app.platform.auth.dependencies import require_school_actor
 from app.platform.auth.hashing import hash_password
 from app.services.user_service import UserService, get_user_service
 
@@ -27,7 +27,7 @@ class TeacherUpdateRequest(BaseModel):
 
 @router.get("/teachers", summary="List teachers in admin's school", status_code=status.HTTP_200_OK)
 async def list_teachers_by_school(
-    current_user: dict[str, Any] = Depends(require_teacher),
+    current_user: dict[str, Any] = Depends(require_school_actor),
     service: UserService = Depends(get_user_service),
 ) -> list[dict]:
     school_id = current_user.get("school_id", "")
@@ -45,7 +45,7 @@ async def list_teachers_by_school(
 async def update_teacher(
     teacher_id: str,
     body: TeacherUpdateRequest,
-    current_user: dict[str, Any] = Depends(require_teacher),
+    current_user: dict[str, Any] = Depends(require_school_actor),
     service: UserService = Depends(get_user_service),
 ) -> dict[str, Any]:
     if not body.name and not body.phone_number and not body.password:
@@ -61,7 +61,7 @@ async def update_teacher(
         updates["hashed_password"] = hash_password(body.password)
 
     updated = await service.update_teacher(teacher_id, updates, caller_school)
-    safe = updated.model_dump(by_alias=False, exclude_none=True)
+    safe = updated.model_dump(by_alias=True, exclude_none=True)
     safe.pop("hashed_password", None)
     return safe
 
@@ -69,7 +69,7 @@ async def update_teacher(
 @router.delete("/{teacher_id}", summary="Delete a teacher (school_admin only)", status_code=status.HTTP_200_OK)
 async def delete_teacher(
     teacher_id: str,
-    current_user: dict[str, Any] = Depends(require_teacher),
+    current_user: dict[str, Any] = Depends(require_school_actor),
     service: UserService = Depends(get_user_service),
 ) -> dict[str, str]:
     caller_school = current_user.get("school_id", "")
