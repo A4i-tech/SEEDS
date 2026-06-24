@@ -6,20 +6,12 @@ import com.example.seeds.model.Student
 import com.squareup.moshi.JsonClass
 import se.ansman.kotshi.JsonSerializable
 
-@JsonSerializable
-@JsonClass(generateAdapter = true)
-data class StudentRefDto(
-    var _id: String,
-    var name: String,
-    var phoneNumber: String,
-)
-
 data class ClassroomDto(
     var _id: String? = null,
     var name: String,
     var teacher: String,
-    var students: List<StudentRefDto>,
-    var leaders: List<StudentRefDto>,
+    var students: List<String>,
+    var leaders: List<String>,
     var contentIds: List<String>? = null,
 )
 
@@ -34,7 +26,8 @@ data class ClassroomSaveDto(
 )
 
 fun ClassroomDto.asDomainModel(
-    context: Context
+    context: Context,
+    studentMap: Map<String, Student> = emptyMap(),
 ): Classroom {
     val prefs = context.getSharedPreferences("sharedPref", Context.MODE_PRIVATE)
     val teacherId = prefs.getString("teacher_id", "") ?: ""
@@ -43,14 +36,14 @@ fun ClassroomDto.asDomainModel(
         _id,
         name,
         teacherId,
-        students.map { Student(phoneNumber = it.phoneNumber, name = it.name, _id = it._id) },
-        leaders.map { Student(phoneNumber = it.phoneNumber, name = it.name, _id = it._id) },
+        students.map { id -> studentMap[id] ?: Student(phoneNumber = "", name = "", _id = id) },
+        leaders.map { id -> studentMap[id] ?: Student(phoneNumber = "", name = "", _id = id) },
         contentIds ?: emptyList()
     )
 }
 
 fun List<ClassroomDto>.asDomainModel(
-    context: Context
+    context: Context,
 ): List<Classroom> {
     return map { it.asDomainModel(context) }
 }
