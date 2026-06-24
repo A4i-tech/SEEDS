@@ -433,3 +433,34 @@ class TestAuditRepositoryExtra:
         repo = AuditRepository(db)
         logs = await repo.find_logs_by_user_and_tenant("nonexistent_user", "t1")
         assert logs == []
+
+
+# ---------------------------------------------------------------------------
+# AudioAnalysisConsumer — conference_manager None guard
+# ---------------------------------------------------------------------------
+
+
+class TestAudioAnalysisConsumerNoneGuard:
+    @pytest.mark.asyncio
+    async def test_process_skips_when_conference_manager_none(self) -> None:
+        from app.consumers.audio_analysis_consumer import AudioAnalysisConsumer
+
+        consumer = AudioAnalysisConsumer(conference_manager=None)
+        # Should return without raising, not calling get_conference on None
+        await consumer.process(("conf-abc", "https://blob/audio.wav"))
+
+    @pytest.mark.asyncio
+    async def test_process_calls_get_conference_when_manager_set(self) -> None:
+        from app.consumers.audio_analysis_consumer import AudioAnalysisConsumer
+
+        mock_mgr = MagicMock()
+        mock_mgr.get_conference = MagicMock(return_value=None)  # conference gone
+
+        consumer = AudioAnalysisConsumer(conference_manager=mock_mgr)
+
+        with patch.object(consumer, "_ensure_pipeline", new_callable=AsyncMock):
+            consumer._transcriber = MagicMock()
+            consumer._hold_detector = MagicMock()
+            await consumer.process(("conf-gone", "https://blob/audio.wav"))
+
+        mock_mgr.get_conference.assert_called_once_with("conf-gone")

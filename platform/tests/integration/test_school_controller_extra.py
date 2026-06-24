@@ -149,6 +149,40 @@ class TestSchoolControllerExtra:
         assert resp.status_code in (200, 404, 422)
 
     @pytest.mark.asyncio
+    async def test_update_school_rejects_non_tenant(self, client, mock_db):
+        teacher = await _seed_teacher(mock_db)
+        token = _teacher_token(teacher["_id"])
+        resp = await client.patch("/school/000000000000000000000000", json={
+            "name": "Hacked School",
+        }, headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_update_school_rejects_unauthenticated(self, client, mock_db):
+        resp = await client.patch("/school/000000000000000000000000", json={"name": "x"})
+        assert resp.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_get_school_rejects_non_tenant(self, client, mock_db):
+        teacher = await _seed_teacher(mock_db)
+        token = _teacher_token(teacher["_id"])
+        resp = await client.get("/school/000000000000000000000000", headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_transfer_teacher_cross_tenant_blocked(self, client, mock_db):
+        # Teacher in tenant-a tries to transfer a teacher from tenant-b
+        caller = await _seed_teacher(mock_db, email="caller@t.com", tid="tenant-a", sid="school-a")
+        victim = await _seed_teacher(mock_db, email="victim@t.com", tid="tenant-b", sid="school-b")
+        token = _teacher_token(caller["_id"], tid="tenant-a", sid="school-a")
+        resp = await client.post("/school/transfer", json={
+            "teacher_id": victim["_id"],
+            "target_school_id": "000000000000000000000001",
+        }, headers={"Authorization": f"Bearer {token}"})
+        # Service raises NotFoundError (cross-tenant teacher not visible)
+        assert resp.status_code in (404, 403)
+
+    @pytest.mark.asyncio
     async def test_upsert_class_with_teacher(self, client, mock_db):
         teacher = await _seed_teacher(mock_db)
         token = _teacher_token(teacher["_id"])
@@ -163,3 +197,46 @@ class TestSchoolControllerExtra:
         token = _teacher_token(teacher["_id"])
         resp = await client.get("/class/000000000000000000000000", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code in (200, 404)
+
+    @pytest.mark.asyncio
+    async def test_get_class_rejects_non_owner(self, client, mock_db):
+        # Seed a class owned by teacher-a, then access with teacher-b token
+        owner = await _seed_teacher(mock_db, email="owner@cls.com", tid="t1", sid="s1")
+        intruder = await _seed_teacher(mock_db, email="intruder@cls.com", tid="t1", sid="s1")
+
+        # Insert class owned by owner
+        from bson import ObjectId
+        cls_id = ObjectId()
+        await mock_db["classes"].insert_one({
+            "_id": cls_id,
+            "schoolId": "s1",
+            "name": "Private Class",
+            "teacher": owner["_id"],
+            "students": [],
+            "leaders": [],
+            "content_ids": [],
+        })
+
+        token = _teacher_token(intruder["_id"])
+        resp = await client.get(f"/class/{cls_id}", headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_get_class_owner_succeeds(self, client, mock_db):
+        teacher = await _seed_teacher(mock_db, email="cls_owner@test.com", tid="t1", sid="s1")
+
+        from bson import ObjectId
+        cls_id = ObjectId()
+        await mock_db["classes"].insert_one({
+            "_id": cls_id,
+            "schoolId": "s1",
+            "name": "My Class",
+            "teacher": teacher["_id"],
+            "students": [],
+            "leaders": [],
+            "content_ids": [],
+        })
+
+        token = _teacher_token(teacher["_id"])
+        resp = await client.get(f"/class/{cls_id}", headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 200

@@ -45,11 +45,10 @@ async def create_school(
     current_user: dict[str, Any] = Depends(require_tenant),
     service: SchoolService = Depends(get_school_service),
 ) -> dict[str, Any]:
-    tenant_id: str = current_user.get("sub", "")
     school = await service.create_school(
         name=body.name,
         email=body.email,
-        tenant_id=tenant_id,
+        tenant_id=current_user["sub"],
         plain_password=body.password,
     )
     return SchoolResponse.from_domain(school).to_response()
@@ -99,7 +98,7 @@ async def transfer_teacher(
     current_user: dict[str, Any] = Depends(require_teacher),
     service: SchoolService = Depends(get_school_service),
 ) -> dict[str, Any]:
-    teacher = await service.transfer_teacher(body.teacher_id, body.target_school_id)
+    teacher = await service.transfer_teacher(body.teacher_id, body.target_school_id, current_user["tenant_id"])
     return {"message": "Teacher transferred successfully", "teacher": UserPublicResponse.from_domain(teacher).to_response()}
 
 
@@ -152,21 +151,22 @@ async def get_school(
     current_user: dict[str, Any] = Depends(require_tenant),
     service: SchoolService = Depends(get_school_service),
 ) -> dict[str, Any]:
-    school = await service.get_school(school_id)
+    school = await service.get_school(school_id, current_user["sub"])
     return SchoolResponse.from_domain(school).to_response()
 
 
 @router.patch(
     "/{school_id}",
-    summary="Update a school",
+    summary="Update a school (tenant only)",
     status_code=status.HTTP_200_OK,
 )
 async def update_school(
     school_id: str,
     body: SchoolUpdateRequest,
-    current_user: dict[str, Any] = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(require_tenant),
     service: SchoolService = Depends(get_school_service),
 ) -> dict[str, Any]:
+    tenant_id: str = current_user["sub"]
     updates: dict[str, Any] = {}
     if body.name:
         updates["name"] = body.name.strip()
@@ -175,7 +175,7 @@ async def update_school(
     if body.password:
         updates["password"] = hash_password(body.password)
 
-    school = await service.update_school(school_id, updates)
+    school = await service.update_school(school_id, updates, tenant_id)
     return SchoolResponse.from_domain(school).to_response()
 
 
@@ -189,6 +189,5 @@ async def delete_school(
     current_user: dict[str, Any] = Depends(require_tenant),
     service: SchoolService = Depends(get_school_service),
 ) -> dict[str, Any]:
-    tenant_id: str = current_user.get("sub", "")
-    await service.delete_school(school_id, tenant_id)
+    await service.delete_school(school_id, current_user["sub"])
     return {"message": "School deleted successfully"}

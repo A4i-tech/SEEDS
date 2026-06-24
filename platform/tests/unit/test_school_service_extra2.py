@@ -80,12 +80,29 @@ class TestSchoolServiceExtra:
 
         with patch("app.services.school_service.SchoolRepository") as MockRepo:
             mock_repo = AsyncMock()
-            mock_repo.find_by_id = AsyncMock(return_value=None)
+            mock_repo.find_by_id_and_tenant = AsyncMock(return_value=None)
             MockRepo.return_value = mock_repo
 
             svc = SchoolService(mock_db)
             with pytest.raises(NotFoundError):
-                await svc.get_school("nonexistent")
+                await svc.get_school("nonexistent", "tenant1")
+
+    @pytest.mark.asyncio
+    async def test_get_school_tenant_mismatch(self) -> None:
+        from app.services.school_service import SchoolService
+        from app.platform.error_handling import NotFoundError
+
+        mock_db = MagicMock()
+
+        with patch("app.services.school_service.SchoolRepository") as MockRepo:
+            mock_repo = AsyncMock()
+            # find_by_id_and_tenant returns None when tenant doesn't match
+            mock_repo.find_by_id_and_tenant = AsyncMock(return_value=None)
+            MockRepo.return_value = mock_repo
+
+            svc = SchoolService(mock_db)
+            with pytest.raises(NotFoundError):
+                await svc.get_school("school-a", "wrong-tenant")
 
     @pytest.mark.asyncio
     async def test_update_school_not_found(self) -> None:
@@ -96,13 +113,100 @@ class TestSchoolServiceExtra:
 
         with patch("app.services.school_service.SchoolRepository") as MockRepo:
             mock_repo = AsyncMock()
-            mock_repo.find_by_id = AsyncMock(return_value=None)
+            mock_repo.find_by_id_and_tenant = AsyncMock(return_value=None)
             mock_repo.update = AsyncMock(return_value=None)
             MockRepo.return_value = mock_repo
 
             svc = SchoolService(mock_db)
             with pytest.raises(NotFoundError):
-                await svc.update_school("nonexistent", {"name": "New"})
+                await svc.update_school("nonexistent", {"name": "New"}, "tenant1")
+
+    @pytest.mark.asyncio
+    async def test_update_school_tenant_mismatch(self) -> None:
+        from app.services.school_service import SchoolService
+        from app.platform.error_handling import NotFoundError
+
+        mock_db = MagicMock()
+
+        with patch("app.services.school_service.SchoolRepository") as MockRepo:
+            mock_repo = AsyncMock()
+            mock_repo.find_by_id_and_tenant = AsyncMock(return_value=None)
+            MockRepo.return_value = mock_repo
+
+            svc = SchoolService(mock_db)
+            with pytest.raises(NotFoundError):
+                await svc.update_school("school-x", {"name": "Hack"}, "wrong-tenant")
+
+    @pytest.mark.asyncio
+    async def test_transfer_teacher_cross_tenant_blocked(self) -> None:
+        from app.services.school_service import SchoolService
+        from app.platform.error_handling import NotFoundError
+
+        mock_db = MagicMock()
+        mock_teacher = MagicMock()
+        mock_teacher.tenant_id = "tenant-b"  # different from caller
+
+        with patch("app.services.school_service.SchoolRepository") as MockSchoolRepo, \
+             patch("app.services.school_service.UserRepository") as MockUserRepo:
+            mock_user_repo = AsyncMock()
+            mock_user_repo.find_by_id = AsyncMock(return_value=mock_teacher)
+            MockUserRepo.return_value = mock_user_repo
+
+            mock_school_repo = AsyncMock()
+            MockSchoolRepo.return_value = mock_school_repo
+
+            svc = SchoolService(mock_db)
+            with pytest.raises(NotFoundError):
+                await svc.transfer_teacher("teacher-1", "school-b", "tenant-a")
+
+    @pytest.mark.asyncio
+    async def test_transfer_teacher_cross_tenant_target_school_blocked(self) -> None:
+        from app.services.school_service import SchoolService
+        from app.platform.error_handling import NotFoundError
+
+        mock_db = MagicMock()
+        mock_teacher = MagicMock()
+        mock_teacher.tenant_id = "tenant-a"
+
+        with patch("app.services.school_service.SchoolRepository") as MockSchoolRepo, \
+             patch("app.services.school_service.UserRepository") as MockUserRepo:
+            mock_user_repo = AsyncMock()
+            mock_user_repo.find_by_id = AsyncMock(return_value=mock_teacher)
+            MockUserRepo.return_value = mock_user_repo
+
+            mock_school_repo = AsyncMock()
+            # Target school not found under caller's tenant
+            mock_school_repo.find_by_id_and_tenant = AsyncMock(return_value=None)
+            MockSchoolRepo.return_value = mock_school_repo
+
+            svc = SchoolService(mock_db)
+            with pytest.raises(NotFoundError):
+                await svc.transfer_teacher("teacher-1", "school-b", "tenant-a")
+
+    @pytest.mark.asyncio
+    async def test_transfer_teacher_same_tenant_succeeds(self) -> None:
+        from app.services.school_service import SchoolService
+
+        mock_db = MagicMock()
+        mock_teacher = MagicMock()
+        mock_teacher.tenant_id = "tenant-a"
+        mock_school = MagicMock()
+        mock_updated = MagicMock()
+
+        with patch("app.services.school_service.SchoolRepository") as MockSchoolRepo, \
+             patch("app.services.school_service.UserRepository") as MockUserRepo:
+            mock_user_repo = AsyncMock()
+            mock_user_repo.find_by_id = AsyncMock(return_value=mock_teacher)
+            mock_user_repo.update = AsyncMock(return_value=mock_updated)
+            MockUserRepo.return_value = mock_user_repo
+
+            mock_school_repo = AsyncMock()
+            mock_school_repo.find_by_id_and_tenant = AsyncMock(return_value=mock_school)
+            MockSchoolRepo.return_value = mock_school_repo
+
+            svc = SchoolService(mock_db)
+            result = await svc.transfer_teacher("teacher-1", "school-b", "tenant-a")
+            assert result is mock_updated
 
     @pytest.mark.asyncio
     async def test_delete_school_success(self) -> None:
@@ -148,10 +252,12 @@ class TestSchoolServiceExtra:
         from app.services.school_service import SchoolService
 
         mock_db = MagicMock()
+        mock_school = MagicMock()
+        mock_school.tenant_id = "tenant1"
 
         with patch("app.services.school_service.SchoolRepository") as MockRepo:
             mock_repo = AsyncMock()
-            mock_repo.find_by_id = AsyncMock(return_value=MagicMock())
+            mock_repo.find_by_id = AsyncMock(return_value=mock_school)
             MockRepo.return_value = mock_repo
 
             svc = SchoolService(mock_db)

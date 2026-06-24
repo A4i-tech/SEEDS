@@ -73,6 +73,13 @@ class AudioAnalysisConsumer(BaseConsumer):
 
     async def process(self, message: tuple[str, str]) -> None:
         conference_id, wav_url = message
+
+        if self._conference_manager is None:
+            logger.warning(
+                "audio_analysis: conference_manager unavailable, skipping conf_id=%s", conference_id
+            )
+            return
+
         await self._ensure_pipeline()
 
         if self._transcriber is None or self._hold_detector is None:

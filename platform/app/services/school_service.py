@@ -43,9 +43,9 @@ class SchoolService:
     # School CRUD
     # ------------------------------------------------------------------
 
-    async def get_school(self, school_id: str) -> School:
-        """Fetch a school by its _id. Raises NotFoundError when not found."""
-        school = await self._repo.find_by_id(school_id)
+    async def get_school(self, school_id: str, tenant_id: str) -> School:
+        """Fetch a school by ID, scoped to tenant_id. Raises NotFoundError when not found or tenant mismatch."""
+        school = await self._repo.find_by_id_and_tenant(school_id, tenant_id)
         if school is None:
             raise NotFoundError("School", school_id)
         return school
@@ -73,9 +73,9 @@ class SchoolService:
         )
         return await self._repo.create(data)
 
-    async def update_school(self, school_id: str, updates: dict[str, Any]) -> School:
-        """Apply partial updates to a school document. Raises NotFoundError if not found."""
-        if await self._repo.find_by_id(school_id) is None:
+    async def update_school(self, school_id: str, updates: dict[str, Any], tenant_id: str) -> School:
+        """Apply partial updates to a school document, scoped to tenant_id. Raises NotFoundError if not found or tenant mismatch."""
+        if await self._repo.find_by_id_and_tenant(school_id, tenant_id) is None:
             raise NotFoundError("School", school_id)
         updated = await self._repo.update(school_id, updates)
         if updated is None:
@@ -146,14 +146,18 @@ class SchoolService:
         ]
 
     async def transfer_teacher(
-        self, teacher_id: str, target_school_id: str
+        self, teacher_id: str, target_school_id: str, caller_tenant_id: str
     ) -> User:
-        """Transfer a teacher to another school. Returns the updated User domain object."""
+        """Transfer a teacher to another school within the same tenant. Returns the updated User domain object."""
         teacher = await self._user_repo.find_by_id(teacher_id)
         if teacher is None:
             raise NotFoundError("Teacher", teacher_id)
 
-        if await self._repo.find_by_id(target_school_id) is None:
+        if teacher.tenant_id != caller_tenant_id:
+            raise NotFoundError("Teacher", teacher_id)
+
+        target_school = await self._repo.find_by_id_and_tenant(target_school_id, caller_tenant_id)
+        if target_school is None:
             raise NotFoundError("School", target_school_id)
 
         updated = await self._user_repo.update(teacher_id, {"school_id": target_school_id})

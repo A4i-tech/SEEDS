@@ -595,7 +595,7 @@ class TestSchoolServiceAdditional:
         svc = SchoolService(db)
         school = await svc.create_school(name="Get By ID", email="getbyid@school.com", tenant_id="t1", plain_password="pass")
 
-        result = await svc.get_school(school.id)
+        result = await svc.get_school(school.id, "t1")
         assert result is not None
         assert result.name == "Get By ID"
 
@@ -605,7 +605,7 @@ class TestSchoolServiceAdditional:
         from app.platform.error_handling import NotFoundError
 
         with pytest.raises(NotFoundError):
-            await SchoolService(db).get_school("000000000000000000000000")
+            await SchoolService(db).get_school("000000000000000000000000", "t1")
 
     @pytest.mark.asyncio
     async def test_get_school_dashboard(self, db) -> None:
@@ -624,7 +624,7 @@ class TestSchoolServiceAdditional:
         svc = SchoolService(db)
         school = await svc.create_school(name="Old Name", email="old@school.com", tenant_id="t1", plain_password="pass")
 
-        updated = await svc.update_school(school.id, {"name": "New Name"})
+        updated = await svc.update_school(school.id, {"name": "New Name"}, "t1")
         assert updated is not None
         assert updated.name == "New Name"
 
