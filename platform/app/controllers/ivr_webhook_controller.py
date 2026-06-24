@@ -7,7 +7,7 @@ IVR webhooks (from IVRv2 routers/call_events.py):
   POST /rtc-event  — Vonage RTC/conversation events
   POST /dtmf       — DTMF input (enqueued to Service Bus dtmf_input queue)
 
-Security: no JWT verification (IVRv2 had none; Vonage does not send Authorization on DTMF eventUrl callbacks).
+Security: all POST routes validate Vonage JWT via verify_vonage_signature.
 """
 
 from __future__ import annotations
@@ -16,8 +16,9 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Request
 
+from app.controllers.webhook_controller import verify_vonage_signature
 from app.models.ivr_state import (
     ConversationRTCEventType,
     DTMFInput,
@@ -38,6 +39,7 @@ router = APIRouter(tags=["IVR Webhooks"])
 @router.post(
     "/event",
     summary="Vonage IVR call lifecycle event",
+    dependencies=[Depends(verify_vonage_signature)],
 )
 async def ivr_event_webhook(request: Request, background_tasks: BackgroundTasks) -> Any:
     """Receives Vonage call events and enqueues them for async processing."""
@@ -65,6 +67,7 @@ async def ivr_event_webhook(request: Request, background_tasks: BackgroundTasks)
 @router.post(
     "/webhook",
     summary="Vonage missed-call webhook (IVR trigger)",
+    dependencies=[Depends(verify_vonage_signature)],
 )
 async def ivr_call_webhook(request: Request, background_tasks: BackgroundTasks) -> Any:
     """Receives a missed-call webhook and enqueues IVR call initiation."""
@@ -97,6 +100,7 @@ async def ivr_call_webhook(request: Request, background_tasks: BackgroundTasks) 
 @router.post(
     "/rtc-event",
     summary="Vonage RTC / conversation event (IVR)",
+    dependencies=[Depends(verify_vonage_signature)],
 )
 async def ivr_rtc_event_webhook(request: Request, background_tasks: BackgroundTasks) -> Any:
     """Handles Vonage RTC/conversation events (audio:play, audio:play:stop, etc.)."""
@@ -109,6 +113,7 @@ async def ivr_rtc_event_webhook(request: Request, background_tasks: BackgroundTa
 @router.post(
     "/dtmf",
     summary="Vonage DTMF input webhook (IVR)",
+    dependencies=[Depends(verify_vonage_signature)],
 )
 async def ivr_dtmf_webhook(request: Request, background_tasks: BackgroundTasks) -> Any:
     """Receives DTMF input from Vonage and enqueues for async processing."""

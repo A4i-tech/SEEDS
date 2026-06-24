@@ -10,7 +10,6 @@ from fastapi import APIRouter
 
 from app.controllers import (
     audit_controller,
-    health_controller,
     call_controller,
     class_controller,
     # Calls (split from call_controller)
@@ -71,9 +70,6 @@ api_router.include_router(participants_controller.router)
 # Webhooks
 api_router.include_router(webhook_controller.router)
 api_router.include_router(ivr_webhook_controller.router)
-
-# Health
-api_router.include_router(health_controller.router)
 
 # Other
 api_router.include_router(ivr_structure_controller.router)

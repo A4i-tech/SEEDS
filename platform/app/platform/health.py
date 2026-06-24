@@ -15,6 +15,11 @@ from app.platform.settings import get_settings
 health_router = APIRouter(tags=["health"])
 
 
+@health_router.get("/health/ping")
+async def ping() -> dict:
+    return {"message": "pong"}
+
+
 @health_router.get("/health", response_class=JSONResponse)
 async def health_check() -> dict:
     """Return platform health status."""
