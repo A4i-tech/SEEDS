@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
+from app.models.responses.user import UserPublicResponse
 from app.platform.auth.dependencies import require_teacher
 from app.platform.auth.hashing import hash_password
 from app.services.user_service import UserService, get_user_service
@@ -61,9 +62,7 @@ async def update_teacher(
         updates["hashed_password"] = hash_password(body.password)
 
     updated = await service.update_teacher(teacher_id, updates, caller_school)
-    safe = updated.model_dump(by_alias=False, exclude_none=True)
-    safe.pop("hashed_password", None)
-    return safe
+    return UserPublicResponse.from_domain(updated).to_response()
 
 
 @router.delete("/{teacher_id}", summary="Delete a teacher (school_admin only)", status_code=status.HTTP_200_OK)

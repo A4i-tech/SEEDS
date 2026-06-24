@@ -17,6 +17,8 @@ from typing import Any
 from fastapi import Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from app.models.responses.school import SchoolResponse
+from app.models.responses.user import UserPublicResponse
 from app.models.user import User, UserCreate, UserRole
 from app.platform.auth.dependencies import get_db
 from app.platform.auth.hashing import hash_password, verify_password
@@ -36,11 +38,8 @@ logger = logging.getLogger(__name__)
 
 
 def _user_public(user: User) -> dict[str, Any]:
-    """Return a safe user dict that excludes hashed_password and firebase internals."""
-    data = user.model_dump(by_alias=False, exclude_none=True)
-    data.pop("hashed_password", None)
-    data.pop("firebase_uid", None)
-    return data
+    """Return a safe user dict — camelCase, no password or firebase internals."""
+    return UserPublicResponse.from_domain(user).to_response()
 
 
 # ---------------------------------------------------------------------------
@@ -384,9 +383,7 @@ async def get_school_admin_profile(
     school = await SchoolRepository(db).find_by_id(school_id)
     if school is None or school.tenant_id != tenant_id:
         raise NotFoundError("School", school_id)
-    data = school.model_dump(by_alias=False, exclude_none=True)
-    data.pop("hashed_password", None)
-    return data
+    return SchoolResponse.from_domain(school).to_response()
 
 
 async def get_tenant_names(

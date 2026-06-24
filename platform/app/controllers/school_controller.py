@@ -25,6 +25,8 @@ from app.platform.auth.dependencies import (
     require_teacher,
     require_tenant,
 )
+from app.models.responses.school import SchoolResponse
+from app.models.responses.user import UserPublicResponse
 from app.platform.auth.hashing import hash_password
 from app.services.school_service import SchoolService, get_school_service
 
@@ -50,9 +52,7 @@ async def create_school(
         tenant_id=tenant_id,
         plain_password=body.password,
     )
-    result = school.model_dump(by_alias=False, exclude_none=True)
-    result.pop("hashed_password", None)
-    return result
+    return SchoolResponse.from_domain(school).to_response()
 
 
 @router.get(
@@ -70,12 +70,7 @@ async def list_schools(
         tenant_id = current_user.get("tenant_id", "")
 
     schools = await service.list_schools_by_tenant(tenant_id)
-    result = []
-    for s in schools:
-        d = s.model_dump(by_alias=False, exclude_none=True)
-        d.pop("hashed_password", None)
-        result.append(d)
-    return result
+    return [SchoolResponse.from_domain(s).to_response() for s in schools]
 
 
 @router.get(
@@ -105,7 +100,7 @@ async def transfer_teacher(
     service: SchoolService = Depends(get_school_service),
 ) -> dict[str, Any]:
     teacher = await service.transfer_teacher(body.teacher_id, body.target_school_id)
-    return {"message": "Teacher transferred successfully", "teacher": teacher}
+    return {"message": "Teacher transferred successfully", "teacher": UserPublicResponse.from_domain(teacher).to_response()}
 
 
 @router.get(
@@ -158,9 +153,7 @@ async def get_school(
     service: SchoolService = Depends(get_school_service),
 ) -> dict[str, Any]:
     school = await service.get_school(school_id)
-    result = school.model_dump(by_alias=False, exclude_none=True)
-    result.pop("hashed_password", None)
-    return result
+    return SchoolResponse.from_domain(school).to_response()
 
 
 @router.patch(
@@ -183,9 +176,7 @@ async def update_school(
         updates["password"] = hash_password(body.password)
 
     school = await service.update_school(school_id, updates)
-    result = school.model_dump(by_alias=False, exclude_none=True)
-    result.pop("hashed_password", None)
-    return result
+    return SchoolResponse.from_domain(school).to_response()
 
 
 @router.delete(
