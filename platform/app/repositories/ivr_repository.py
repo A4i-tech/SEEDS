@@ -89,7 +89,7 @@ class IVRRepository(BaseRepository):
     ) -> list[dict[str, Any]]:
         """Return raw log documents for tenant within [start, end] — used for analytics."""
         cursor = self._log_col.find(
-            {"tenant_id": tenant_id, "created_at": {"$gte": start, "$lte": end}}
+            {"tenant_id": tenant_id, "created_at": {"$gte": start.isoformat(), "$lte": end.isoformat()}}
         ).sort("_id", -1)
         return await cursor.to_list(length=None)
 
@@ -107,6 +107,14 @@ class IVRRepository(BaseRepository):
 
     async def find_ongoing_state(self, conversation_id: str) -> dict[str, Any] | None:
         return await self._ongoing_col.find_one({"_id": conversation_id})
+
+    async def find_ongoing_call(self, call_id: str) -> IVRCallStateMongoDoc | None:
+        doc = await self._ongoing_col.find_one({"_id": call_id})
+        return IVRCallStateMongoDoc.from_mongo(doc) if doc else None
+
+    async def save_ongoing_call(self, state: IVRCallStateMongoDoc) -> None:
+        doc = state.model_dump(by_alias=True)
+        await self._ongoing_col.replace_one({"_id": doc["_id"]}, doc, upsert=True)
 
     async def push_stream_playback(self, conversation_id: str, item: dict[str, Any]) -> None:
         await self._ongoing_col.update_one(

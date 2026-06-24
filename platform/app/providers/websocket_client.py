@@ -17,12 +17,17 @@ import contextlib
 import json
 import logging
 import random
-from typing import TYPE_CHECKING, Any
+from typing import Any
+
+import websockets  # type: ignore[import-untyped]
+
+from app.models.playback_state import ContentStatus
+from app.models.ws_service_message import MessageType
+from app.platform.settings import get_settings
+from app.services.confevents.playback_state_update_event import PlaybackStateUpdateEvent
+from app.services.confevents.reconnect_comm_api_websocket_event import ReconnectCommApiWebsocketEvent
 
 logger = logging.getLogger(__name__)
-
-if TYPE_CHECKING:
-    pass
 
 
 class WebsocketServiceMessage:
@@ -89,8 +94,6 @@ class WebsocketClientProvider:
         *conference_manager* is the ConferenceCallManager singleton used to
         route inbound messages to the correct ConferenceCall instance.
         """
-        from app.platform.settings import get_settings  # noqa: PLC0415
-
         settings = get_settings()
         self._connection_url = settings.websocket_service_url + f"?id={self.connection_id}"
         self.is_connected = False
@@ -130,8 +133,6 @@ class WebsocketClientProvider:
         Includes WS-Control-Secret when settings.ws_control_secret is set.
         SECURITY: The secret value is never logged.
         """
-        from app.platform.settings import get_settings  # noqa: PLC0415
-
         settings = get_settings()
         headers: dict[str, str] = {}
         if settings.ws_control_secret:
@@ -139,8 +140,6 @@ class WebsocketClientProvider:
         return headers
 
     async def _connect(self) -> None:
-        import websockets  # type: ignore[import-untyped]
-
         if not hasattr(self, "_connect_lock"):
             self._connect_lock = asyncio.Lock()
 
@@ -178,9 +177,6 @@ class WebsocketClientProvider:
     # ------------------------------------------------------------------
 
     async def _listen_messages(self) -> None:
-        import websockets  # type: ignore[import-untyped]
-
-
         while True:
             await asyncio.sleep(0.5)
             if not (self.is_connected and self._ws):
@@ -200,8 +196,6 @@ class WebsocketClientProvider:
 
     async def _dispatch_message(self, raw: str) -> None:
         """Route inbound message from websocket-service to the correct conference."""
-        from app.models.ws_service_message import MessageType  # noqa: PLC0415
-
         try:
             data = json.loads(raw)
         except json.JSONDecodeError:
@@ -223,11 +217,6 @@ class WebsocketClientProvider:
             return
 
         if msg_type == MessageType.PLAYBACK_STATE_UPDATES:
-            from app.models.audio_content_state import ContentStatus  # noqa: PLC0415
-            from app.services.confevents.playback_state_update_event import (
-                PlaybackStateUpdateEvent,  # noqa: PLC0415
-            )
-
             await conf_call.queue_event(PlaybackStateUpdateEvent(
                 conf_call=conf_call,
                 content_state=ContentStatus(message),
@@ -243,10 +232,6 @@ class WebsocketClientProvider:
                 except asyncio.QueueFull:
                     logger.warning("WebsocketClientProvider: audio relay queue full for %s, dropping chunk", websocket_id)
         elif msg_type == MessageType.RECONNECT:
-            from app.services.confevents.reconnect_comm_api_websocket_event import (
-                ReconnectCommApiWebsocketEvent,  # noqa: PLC0415
-            )
-
             await conf_call.queue_event(ReconnectCommApiWebsocketEvent(conf_call=conf_call))
 
     # ------------------------------------------------------------------
@@ -287,3 +272,28 @@ class WebsocketClientProvider:
             self.is_connected = False
             await self._attempt_reconnect()
             raise
+
+    async def set_playback_speed(self, websocket_id: str, speed: float) -> None:
+        await self.send_message(
+            WebsocketServiceMessage(websocket_id=websocket_id, type=MessageType.SET_SPEED, message=str(speed), speed=speed)
+        )
+
+    async def pause_audio(self, websocket_id: str) -> None:
+        await self.send_message(
+            WebsocketServiceMessage(websocket_id=websocket_id, type=MessageType.PAUSE_AUDIO)
+        )
+
+    async def resume_audio(self, websocket_id: str) -> None:
+        await self.send_message(
+            WebsocketServiceMessage(websocket_id=websocket_id, type=MessageType.RESUME_AUDIO)
+        )
+
+    async def disconnect(self, websocket_id: str) -> None:
+        await self.send_message(
+            WebsocketServiceMessage(websocket_id=websocket_id, type=MessageType.DISCONNECT)
+        )
+
+
+async def get_websocket_service() -> WebsocketClientProvider:
+    """Return the singleton WebsocketClientProvider (IVR-compatible interface)."""
+    return WebsocketClientProvider()
