@@ -40,6 +40,8 @@ async def get_class(
     service: SchoolService = Depends(get_school_service),
 ) -> dict[str, Any]:
     classroom = await service.get_classroom(class_id)
+    if classroom.teacher != current_user["sub"]:
+        raise ForbiddenError("not classroom owner")
     return ClassroomResponse.from_domain(classroom).to_response()
 
 

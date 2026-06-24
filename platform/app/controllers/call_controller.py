@@ -13,8 +13,11 @@ from typing import Any
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 
+from motor.motor_asyncio import AsyncIOMotorDatabase
+
 from app.models.requests.call_requests import FsmContextRequest, LogCallRequest
-from app.platform.auth.dependencies import get_current_user, require_teacher
+from app.platform.auth.dependencies import get_current_user, get_db, require_teacher
+from app.platform.authz.ownership import assert_conference_owner
 from app.platform.settings import get_settings
 from app.services.call_service import CallService, get_call_service
 
@@ -68,8 +71,10 @@ async def start_call(
 async def get_call_status(
     conf_id: str,
     user: dict[str, Any] = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db),  # type: ignore[type-arg]
 ) -> Any:
     """Proxy status query to IVR server (backend-server callRouter.js:138)."""
+    await assert_conference_owner(user, conf_id, db)
     settings = get_settings()
     ivr_url = settings.ivr_server_url
     if not ivr_url:

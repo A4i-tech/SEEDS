@@ -737,7 +737,7 @@ class TestSchoolService:
         from app.services.school_service import SchoolService
 
         with pytest.raises(NotFoundError):
-            await SchoolService(db).get_school("nonexistent123456789012")
+            await SchoolService(db).get_school("nonexistent123456789012", "tenant-x")
 
     @pytest.mark.asyncio
     async def test_create_school_with_password(self, db) -> None:

@@ -23,6 +23,12 @@ class SchoolRepository(BaseRepository):
         doc = await self._col.find_one({"_id": self._to_id(id)}, self._NO_PWD)
         return School.from_mongo(doc) if doc else None
 
+    async def find_by_id_and_tenant(self, id: str, tenant_id: str) -> School | None:
+        doc = await self._col.find_one(
+            {"_id": self._to_id(id), "tenantId": tenant_id}, self._NO_PWD
+        )
+        return School.from_mongo(doc) if doc else None
+
     async def find_by_email(self, email: str) -> School | None:
         # No projection — password required for auth (school_admin_login)
         doc = await self._col.find_one({"email": email})
