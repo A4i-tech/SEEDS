@@ -13,21 +13,15 @@ Security: all POST routes validate Vonage JWT via verify_vonage_signature.
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Request
 
 from app.controllers.webhook_controller import verify_vonage_signature
-from app.models.ivr_state import (
-    ConversationRTCEventType,
-    DTMFInput,
-    EventWebhookRequest,
-)
+from app.models.ivr_state import DTMFInput, EventWebhookRequest
 from app.platform.database import get_database
 from app.providers.service_bus import service_bus_provider
 from app.repositories.call_repository import CallsLogRepository
-from app.repositories.ivr_repository import IVRRepository
 from app.services.ivr_service import IVRService
 
 logger = logging.getLogger(__name__)
@@ -156,28 +150,6 @@ async def _process_ivr_rtc_event(event_data: dict) -> None:
     """Process an IVR RTC event (audio:play / stop / done)."""
     try:
         db = get_database()
-        repo = IVRRepository(db)
-        event_type_str = event_data.get("type", "")
-        conversation_id = event_data.get("conversation_id", event_data.get("body", {}).get("conversation_id", ""))
-        body = event_data.get("body", {})
-
-        if event_type_str == ConversationRTCEventType.AUDIO_PLAY.value:
-            if "stream_url" in body and "play_id" in body:
-                doc = await repo.find_ongoing_state(conversation_id)
-                if doc:
-                    stream_url = body["stream_url"]
-                    await repo.push_stream_playback(conversation_id, {
-                        "play_id": body["play_id"],
-                        "stream_url": stream_url[0] if isinstance(stream_url, list) else stream_url,
-                        "started_at": event_data.get("timestamp", datetime.now(UTC).isoformat()),
-                    })
-        elif event_type_str in (
-            ConversationRTCEventType.AUDIO_PLAY_STOP.value,
-            ConversationRTCEventType.AUDIO_PLAY_DONE.value,
-        ) and "play_id" in body:
-            field = "stopped_at" if "stop" in event_type_str else "done_at"
-            await repo.set_playback_field(
-                conversation_id, body["play_id"], field, event_data.get("timestamp")
-            )
+        await IVRService(db).process_rtc_event(event_data)
     except Exception as exc:
         logger.error("ivr RTC event processing error: %s", exc, exc_info=True)
