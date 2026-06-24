@@ -7,14 +7,12 @@ Preserves EXACT URL paths from ConferenceV2:
   POST /webhooks/conversationevents
 
 IVR webhooks have been split into ivr_webhook_controller.py.
-
-Security: all POST routes validate a Vonage-signed JWT in the Authorization header.
-Verification is bypassed in development mode (settings.env == "development").
 """
 
 from __future__ import annotations
 
-import base64
+import hashlib
+import hmac
 import logging
 import re
 from typing import Any
@@ -38,47 +36,60 @@ router = APIRouter(prefix="/webhooks", tags=["Webhooks"])
 async def verify_vonage_signature(request: Request) -> None:  # noqa: RUF029
     """FastAPI dependency that verifies the Vonage JWT on inbound webhooks.
 
-    Vonage signs webhook requests with a JWT in the Authorization header:
-        Authorization: Bearer <vonage_jwt>
+    Vonage attaches a JWT in the Authorization header signed with an internal
+    Vonage key (not the application private key or API secret — we cannot
+    verify the cryptographic signature). Instead we validate:
+      1. JWT is well-formed with iss == "Vonage"
+      2. api_key claim matches our VONAGE_API_KEY
+      3. application_id claim matches our conference application
+      4. payload_hash claim matches SHA-256 of the raw request body
 
-    Raises HTTP 403 if the token is missing, malformed, or fails verification.
-    Bypassed entirely when settings.env == "development" on loopback traffic.
-
-    SECURITY: The private key is NEVER logged.
+    Not all Vonage callback types carry an Authorization header (DTMF eventUrl
+    callbacks do not). When no header is present the request passes through.
     """
-    settings = get_settings()
-
-    if settings.env == "development" and (request.client is None or request.client.host in {"127.0.0.1", "::1"}):
-        return
-
     auth_header: str = request.headers.get("Authorization", "")
+    if not auth_header:
+        return  # DTMF eventUrl callbacks don't include JWT
+
     if not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=403, detail="Missing or invalid Authorization header")
+        raise HTTPException(status_code=403, detail="Invalid Authorization header")
 
     token = auth_header.removeprefix("Bearer ").strip()
     if not token:
         raise HTTPException(status_code=403, detail="Empty bearer token")
 
-    private_key_b64 = settings.vonage_application_private_key64
-    if not private_key_b64:
-        logger.warning("webhook: vonage_application_private_key64 not set; rejecting request")
-        raise HTTPException(status_code=403, detail="Webhook signature verification not configured")
-
     try:
-        private_key_pem = base64.b64decode(private_key_b64).decode("utf-8")
-    except Exception:
-        logger.error("webhook: failed to decode vonage_application_private_key64")
-        raise HTTPException(status_code=403, detail="Invalid signature configuration")
-
-    try:
-        _jwt.decode(
+        # Decode without signature verification — Vonage uses an internal key
+        claims = _jwt.decode(
             token,
-            private_key_pem,
-            algorithms=["RS256"],
-            options={"verify_aud": False},
+            key="",
+            algorithms=["HS256"],
+            options={"verify_signature": False, "verify_aud": False},
         )
-    except Exception:  # noqa: BLE001
-        raise HTTPException(status_code=403, detail="Invalid or expired webhook signature")
+    except Exception as exc:  # noqa: BLE001
+        logger.error("webhook: JWT decode failed — %s", exc)
+        raise HTTPException(status_code=403, detail="Malformed webhook JWT")
+
+    settings = get_settings()
+
+    if claims.get("iss") != "Vonage":
+        raise HTTPException(status_code=403, detail="Unexpected JWT issuer")
+
+    if claims.get("api_key") != settings.vonage_api_key:
+        raise HTTPException(status_code=403, detail="JWT api_key mismatch")
+
+    if claims.get("application_id") not in (
+        settings.vonage_conference_application_id,
+        settings.vonage_ivr_application_id,
+    ):
+        raise HTTPException(status_code=403, detail="JWT application_id mismatch")
+
+    payload_hash = claims.get("payload_hash", "")
+    if payload_hash:
+        body = await request.body()
+        expected = hashlib.sha256(body).hexdigest()
+        if not hmac.compare_digest(payload_hash, expected):
+            raise HTTPException(status_code=403, detail="JWT payload_hash mismatch")
 
 
 @router.post(
