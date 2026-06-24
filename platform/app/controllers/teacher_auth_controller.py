@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, status
 
 from app.models.requests.auth_requests import TeacherLoginRequest, TeacherRegisterRequest
+from app.models.responses.user import UserPublicResponse
 from app.platform.auth.dependencies import get_current_user, require_role
 from app.services.auth_service import AuthService, TeacherCreate, get_auth_service
 
@@ -47,9 +48,7 @@ async def teacher_register(
         school_id=current_user.get("school_id"),
     )
     user = await service.register_teacher(data)
-    safe = user.model_dump(by_alias=False, exclude_none=True)
-    safe.pop("hashed_password", None)
-    return safe
+    return UserPublicResponse.from_domain(user).to_response()
 
 
 @router.post(
@@ -68,6 +67,4 @@ async def teacher_me(
     service: AuthService = Depends(get_auth_service),
 ) -> dict[str, Any]:
     user = await service.get_user_profile(current_user.get("sub", ""), "Teacher")
-    safe = user.model_dump(by_alias=False, exclude_none=True)
-    safe.pop("hashed_password", None)
-    return safe
+    return UserPublicResponse.from_domain(user).to_response()

@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, status
 
 from app.models.classroom import ClassroomCreate
 from app.models.requests.school_requests import ClassroomUpsertRequest
+from app.models.responses.classroom import ClassroomResponse
 from app.platform.auth.dependencies import require_role
 from app.platform.error_handling import ForbiddenError, NotFoundError
 from app.services.school_service import SchoolService, get_school_service
@@ -29,7 +30,7 @@ async def list_classes(
     # Legacy classRouter.js only filters by req.userId — no school_id param
     teacher_id = current_user.get("sub", "")
     classrooms = await service.list_classrooms_by_teacher(teacher_id)
-    return [c.model_dump(by_alias=False, exclude_none=True) for c in classrooms]
+    return [ClassroomResponse.from_domain(c).to_response() for c in classrooms]
 
 
 @router.get("/{class_id}", summary="Get class by ID", status_code=status.HTTP_200_OK)
@@ -39,7 +40,7 @@ async def get_class(
     service: SchoolService = Depends(get_school_service),
 ) -> dict[str, Any]:
     classroom = await service.get_classroom(class_id)
-    return classroom.model_dump(by_alias=False, exclude_none=True)
+    return ClassroomResponse.from_domain(classroom).to_response()
 
 
 @router.post("", summary="Create or update a class", status_code=status.HTTP_200_OK)
@@ -82,7 +83,7 @@ async def upsert_class(
             )
         )
 
-    return classroom.model_dump(by_alias=False, exclude_none=True)
+    return ClassroomResponse.from_domain(classroom).to_response()
 
 
 @router.delete("/{class_id}", summary="Delete a class", status_code=status.HTTP_200_OK)

@@ -13,6 +13,7 @@ from app.models.requests.auth_requests import (
     TenantLoginRequest,
     TenantRegisterRequest,
 )
+from app.models.responses.user import UserPublicResponse
 from app.platform.auth.dependencies import get_current_user, require_tenant
 from app.repositories.ivr_repository import IVRRepository
 from app.services.auth_service import AuthService, TenantCreate, get_auth_service
@@ -53,9 +54,7 @@ async def tenant_register(
         tenant_name=body.tenant_name,
     )
     user = await service.register_tenant(data)
-    safe = user.model_dump(by_alias=False, exclude_none=True)
-    safe.pop("hashed_password", None)
-    return safe
+    return UserPublicResponse.from_domain(user).to_response()
 
 
 @router.post(
