@@ -31,20 +31,3 @@ class _StartCallRequest(BaseModel):
 @router.get("/answer", summary="Vonage answer webhook — returns initial NCCO")
 async def ivr_answer() -> Any:
     return [{"action": "talk", "text": "Hello from SEEDS IVR!", "bargeIn": True, "loop": 1}]
-
-
-@router.post("/start-call", summary="Start a new IVR call")
-async def start_ivr_call(
-    request: _StartCallRequest,
-    service: IVRService = Depends(get_ivr_service),
-) -> Any:
-    response = await service.start_call_flow(
-        phone_number=request.phone_number,
-        tenant_id=request.tenant_id or "",
-    )
-    if response.get("status_code", 500) >= 400:
-        raise HTTPException(
-            status_code=response["status_code"],
-            detail=response.get("message", "Failed to start call"),
-        )
-    return response

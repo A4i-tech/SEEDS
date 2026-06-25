@@ -11,6 +11,7 @@ from app.models.requests.call_requests import CreateConferenceRequest
 from app.platform.auth.dependencies import (
     get_current_user,
     require_conference_owner,
+    require_role,
     require_teacher,
 )
 from app.platform.lifespan import get_conference_manager
@@ -41,13 +42,6 @@ async def _create_conf(request: CreateConferenceRequest) -> Any:
     )
 
 
-@router.post("/test-createstart", summary="Create and immediately start a conference (test)")
-async def create_start_conference(request: CreateConferenceRequest) -> Any:
-    conf = await _create_conf(request)
-    await conf.start_conference_call()
-    return {"status": "STARTED", "id": conf.conf_id}
-
-
 @router.post("/create", summary="Create a conference call", status_code=201)
 async def create_conference(
     request: CreateConferenceRequest,
@@ -76,7 +70,7 @@ async def start_conference(
 @router.get("/teacherappconnect/{conference_id}", summary="Connect teacher smartphone")
 async def connect_smartphone(
     conference_id: str,
-    user: dict[str, Any] = Depends(get_current_user),
+    user: dict[str, Any] = Depends(require_role("teacher", "content_creator")),
 ) -> Any:
     return await _get_conf_or_404(conference_id).connect_smartphone()
 
@@ -84,7 +78,7 @@ async def connect_smartphone(
 @router.post("/teacherappdisconnect/{conference_id}", summary="Disconnect teacher smartphone")
 async def disconnect_smartphone(
     conference_id: str,
-    user: dict[str, Any] = Depends(get_current_user),
+    user: dict[str, Any] = Depends(require_role("teacher", "content_creator")),
 ) -> Any:
     return await _get_conf_or_404(conference_id).disconnect_smartphone()
 
