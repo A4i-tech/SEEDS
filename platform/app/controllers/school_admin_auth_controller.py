@@ -8,6 +8,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, status
 
 from app.models.requests.auth_requests import SchoolAdminLoginRequest
+from app.models.responses.common import LoginResponse, TokenResponse
+from app.models.responses.school import SchoolResponse
 from app.platform.auth.dependencies import get_current_user
 from app.services.auth_service import AuthService, get_auth_service
 
@@ -20,9 +22,10 @@ router = APIRouter(prefix="/school/admin", tags=["Auth"])
 async def school_admin_login(
     body: SchoolAdminLoginRequest,
     service: AuthService = Depends(get_auth_service),
-) -> dict[str, Any]:
+) -> LoginResponse:
     """Kept for frontend parity — ContentWebApp Login.js:125 calls this directly."""
-    return await service.school_admin_login(body.email, body.password)
+    result = await service.school_admin_login(body.email, body.password)
+    return LoginResponse(token=result["token"], user=result["user"])
 
 
 @router.get("/me", summary="Get current school admin profile", status_code=status.HTTP_200_OK)

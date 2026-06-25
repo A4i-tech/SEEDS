@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.models.requests.call_requests import FsmContextRequest, LogCallRequest
+from app.models.requests.call_requests import CallStartRequest, FsmContextRequest, LogCallRequest
 from app.platform.auth.dependencies import get_current_user, get_db, require_teacher
 from app.platform.authz.ownership import assert_conference_owner
 from app.platform.settings import get_settings
@@ -48,7 +48,7 @@ async def get_access_token(
 
 @router.post("/start", summary="Start a new conference call")
 async def start_call(
-    body: dict[str, Any],
+    body: CallStartRequest,
     user: dict[str, Any] = Depends(get_current_user),
 ) -> Any:
     """Proxy call-start to IVR server (backend-server callRouter.js:90)."""
@@ -58,7 +58,7 @@ async def start_call(
         raise HTTPException(status_code=503, detail="IVR server URL not configured")
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(f"{ivr_url}conference_call", json=body)
+            resp = await client.post(f"{ivr_url}conference_call", json=body.model_dump())
             resp.raise_for_status()
             return resp.json()
     except httpx.HTTPStatusError as exc:

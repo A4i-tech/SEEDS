@@ -1,4 +1,4 @@
-"""Request schemas for school and classroom endpoints."""
+"""Request schemas for school and classroom endpoints — snake_case only."""
 from __future__ import annotations
 
 from pydantic import BaseModel, Field

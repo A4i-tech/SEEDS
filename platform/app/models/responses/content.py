@@ -1,27 +1,34 @@
 """Response DTOs for content and quiz endpoints.
 
 ContentResponse/QuizResponse wrap raw MongoDB documents with extra="allow" so all
-document fields pass through unchanged. The only explicit mapping is _id (alias)
-and ObjectId coercion via _strip_oids so callers never need to pre-process docs.
+document fields pass through unchanged. _id from MongoDB is remapped to id so the
+wire format always uses id, never _id.
 """
 from __future__ import annotations
 
 from typing import Any
 
 from bson import ObjectId
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 
 class ContentResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
-    id: str | None = Field(None, alias="_id")
+    id: str | None = None
 
     @model_validator(mode="before")
     @classmethod
-    def _strip_oids(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            return {k: str(v) if isinstance(v, ObjectId) else v for k, v in data.items()}
+    def _normalize(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        # Coerce ObjectId values to str
+        data = {k: str(v) if isinstance(v, ObjectId) else v for k, v in data.items()}
+        # Remap _id → id so output always uses id
+        if "_id" in data and "id" not in data:
+            data["id"] = data.pop("_id")
+        elif "_id" in data:
+            data.pop("_id")
         return data
 
     @field_validator("id", mode="before")

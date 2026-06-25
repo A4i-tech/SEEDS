@@ -1,9 +1,9 @@
-"""Request schemas for call/conference endpoints."""
+"""Request schemas for call/conference endpoints — snake_case only."""
 from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 
 class CreateConferenceRequest(BaseModel):
@@ -12,6 +12,20 @@ class CreateConferenceRequest(BaseModel):
     student_phones: list[str]
     student_names: list[str | None] | None = None
     leader_phone: str | None = None
+
+
+class CallStartRequest(BaseModel):
+    phone_number: str
+    tenant_id: str
+
+
+class StartCallRequest(BaseModel):
+    phone_number: str
+    tenant_id: str
+
+
+class StartIVRRequest(BaseModel):
+    phone_number: str
 
 
 class LogCallRequest(BaseModel):

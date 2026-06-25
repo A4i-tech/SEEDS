@@ -1,36 +1,21 @@
-"""Response DTOs for user-related endpoints.
-
-Maps platform User (snake_case domain) → API wire format.
-
-UserPublicResponse matches user.model_dump(by_alias=True, exclude_none=True) minus
-hashed_password and firebase_uid. The User model has no camelCase aliases (only
-_id), so all fields are snake_case except _id — matching PR #237's staging shape.
-
-Sensitive fields excluded: hashed_password, firebase_uid, encrypted_phone_number,
-encryption_iv, encryption_salt.
-"""
+"""Response DTOs for user-related endpoints — snake_case wire format."""
 from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 from app.models.user import User
 
 
 class UserPublicResponse(BaseModel):
-    """Safe user representation for login, profile, register, and update responses.
-
-    Output shape matches user.model_dump(by_alias=True) on the User domain model:
-    snake_case for all fields except _id (User model only aliases id → _id).
-    """
     model_config = ConfigDict(populate_by_name=True)
 
     id: str | None = None
     role: str
     name: str
     email: str | None = None
-    phone: str | None = None
+    phone_number: str | None = None
     tenant_id: str | None = None
     school_id: str | None = None
     tenant_name: str | None = None
@@ -47,7 +32,7 @@ class UserPublicResponse(BaseModel):
             role=user.role.value if hasattr(user.role, "value") else str(user.role),
             name=user.name,
             email=user.email,
-            phone=user.phone,
+            phone_number=user.phone,
             tenant_id=user.tenant_id,
             school_id=user.school_id,
             tenant_name=user.tenant_name,
@@ -63,7 +48,7 @@ class UserPublicResponse(BaseModel):
 
 
 class TenantProfileResponse(BaseModel):
-    """Response DTO for GET /tenant/me."""
+    model_config = ConfigDict(populate_by_name=True)
 
     id: str
     email: str | None = None

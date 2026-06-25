@@ -1,4 +1,4 @@
-"""Request schemas for auth endpoints."""
+"""Request schemas for auth endpoints — snake_case only."""
 from __future__ import annotations
 
 from pydantic import BaseModel
@@ -35,6 +35,11 @@ class TenantRegisterRequest(BaseModel):
 
 class TenantChangePasswordRequest(BaseModel):
     new_password: str
+
+
+class TenantAnalyticsRequest(BaseModel):
+    start_date: str
+    end_date: str
 
 
 class SchoolAdminLoginRequest(BaseModel):

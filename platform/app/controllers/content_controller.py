@@ -28,6 +28,14 @@ from app.models.requests.content_requests import (
     ContentUpdateRequest,
     QuizCreateRequest,
 )
+from app.models.responses.common import (
+    DeleteMatchedResponse,
+    JobScheduledResponse,
+    JobStatusResponse,
+    SasTokenResponse,
+    SasUrlResponse,
+    ThemeResponse,
+)
 from app.models.responses.content import ContentResponse, QuizResponse
 from app.models.user import UserRole
 from app.platform.auth.dependencies import get_current_user
@@ -114,14 +122,16 @@ async def get_job_status(
     job_id: str,
     user: dict[str, Any] = Depends(_require_content_write),
     service: ContentService = Depends(get_content_service),
-) -> dict[str, Any]:
+) -> JobStatusResponse:
     """Return the status document for a content processing job."""
     doc = await service.get_job(job_id)
     if not doc:
         raise NotFoundError("Job", job_id)
-    doc.pop("_id", None)
-    doc["job_id"] = job_id
-    return doc
+    return JobStatusResponse(
+        job_id=job_id,
+        status=doc.get("status", "UNKNOWN"),
+        content_id=doc.get("content_id"),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -157,12 +167,12 @@ async def list_jobs(
 async def get_sas_url(
     url: str = Query(..., description="Blob URL to generate SAS token for"),
     user: dict[str, Any] = Depends(_require_content_read),
-) -> dict[str, Any]:
+) -> SasUrlResponse:
     """Return a read-only SAS URL for the given Azure Blob Storage URL."""
     if not url:
         raise HTTPException(status_code=400, detail="URL parameter is required.")
     sas_url = await _get_sas_url(url)
-    return {"url": sas_url}
+    return SasUrlResponse(url=sas_url)
 
 
 # ---------------------------------------------------------------------------
@@ -173,7 +183,7 @@ async def get_sas_url(
 async def get_sas_token(
     blob_name: str = Query(...),
     user: dict[str, Any] = Depends(_require_content_write),
-) -> dict[str, Any]:
+) -> SasTokenResponse:
     """Return a read-write SAS token URL for direct client upload of an MP3."""
     if not blob_name or not blob_name.lower().endswith(".mp3"):
         raise HTTPException(status_code=400, detail="Only .mp3 files are allowed.")
@@ -182,7 +192,7 @@ async def get_sas_token(
         sas_url = await provider.get_upload_sas_url("input-container", blob_name, expiry_hours=1)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return {"sas_token": sas_url}
+    return SasTokenResponse(sas_token=sas_url)
 
 
 # ---------------------------------------------------------------------------
@@ -194,7 +204,7 @@ async def get_themes(
     language: str = Query(...),
     user: dict[str, Any] = Depends(get_current_user),
     service: ContentService = Depends(get_content_service),
-) -> list[dict]:
+) -> list[ThemeResponse]:
     """Return distinct themes with audio URLs for the given language + tenant."""
     tenant_id = user.get("tenant_id", "")
     school_filter = _read_school_filter(user)
@@ -211,14 +221,14 @@ async def get_themes(
     docs = await service.get_themes(query)
 
     seen: set = set()
-    themes: list = []
+    themes: list[ThemeResponse] = []
     for doc in docs:
         theme = (doc.get("theme") or {}).get("english", "")
         if theme and theme not in seen:
-            themes.append({
-                "name": theme,
-                "audio_url": (doc.get("theme") or {}).get("audio_url", ""),
-            })
+            themes.append(ThemeResponse(
+                name=theme,
+                audio_url=(doc.get("theme") or {}).get("audioUrl", ""),
+            ))
             seen.add(theme)
 
     return themes
@@ -258,7 +268,7 @@ async def list_content(
         all_items = sorted(
             [ContentResponse.model_validate(d).model_dump(by_alias=False, exclude_none=True) for d in contents]
             + [{**QuizResponse.model_validate(d).model_dump(by_alias=False, exclude_none=True), "type": "quiz"} for d in quizzes],
-            key=lambda x: (-x.get("creation_time", 0), str(x.get("_id", ""))),
+            key=lambda x: (-x.get("creation_time", 0), str(x.get("id", ""))),
         )
         return all_items
 
@@ -305,8 +315,8 @@ async def list_content(
     quizzes = await service.fetch_quizzes(quiz_query, limit=fetch_limit) if fetch_quizzes else []
 
     all_results = sorted(
-        [ContentResponse.model_validate(d).model_dump(by_alias=False, exclude_none=True) for d in contents]
-        + [{**QuizResponse.model_validate(d).model_dump(by_alias=False, exclude_none=True), "type": "quiz"} for d in quizzes],
+        [ContentResponse.model_validate(d).model_dump(by_alias=True, exclude_none=True) for d in contents]
+        + [{**QuizResponse.model_validate(d).model_dump(by_alias=True, exclude_none=True), "type": "quiz"} for d in quizzes],
         key=lambda x: (-x.get("creation_time", 0), str(x.get("_id", ""))),
     )
 
@@ -364,11 +374,8 @@ async def create_content(
     body: ContentCreateRequest,
     user: dict[str, Any] = Depends(_require_content_write),
     service: ContentService = Depends(get_content_service),
-) -> dict[str, Any]:
-    """Create a new content document and enqueue a processing job.
-
-    Returns ``{"message": "...", "jobId": "..."}``.
-    """
+) -> JobScheduledResponse:
+    """Create a new content document and enqueue a processing job."""
     tenant_id = user.get("tenant_id", "")
     user_id = user.get("sub", "")
 
@@ -393,7 +400,7 @@ async def create_content(
     job_id = await service.enqueue_content_job(content_id)
 
     logger.info("content_controller: created content_id=%s job_id=%s", content_id, job_id)
-    return {"message": "Processing New Content job scheduled!", "job_id": job_id}
+    return JobScheduledResponse(message="Processing New Content job scheduled!", job_id=job_id)
 
 
 # ---------------------------------------------------------------------------
@@ -456,7 +463,7 @@ async def delete_content(
     content_id: str,
     user: dict[str, Any] = Depends(_require_content_write),
     service: ContentService = Depends(get_content_service),
-) -> Any:
+) -> DeleteMatchedResponse:
     """Soft-delete a content item (sets is_deleted=true)."""
     tenant_id = user.get("tenant_id", "")
     write_filter: dict = {
@@ -467,11 +474,11 @@ async def delete_content(
 
     matched = await service.soft_delete_content(write_filter)
     if matched > 0:
-        return {"matched": matched}
+        return DeleteMatchedResponse(matched=matched)
 
     quiz_matched = await service.soft_delete_quiz(write_filter)
     if quiz_matched > 0:
-        return {"matched": quiz_matched}
+        return DeleteMatchedResponse(matched=quiz_matched)
 
     raise NotFoundError("Content", content_id)
 
@@ -485,7 +492,7 @@ async def create_quiz(
     body: QuizCreateRequest,
     user: dict[str, Any] = Depends(_require_content_write),
     service: ContentService = Depends(get_content_service),
-) -> dict[str, Any]:
+) -> JobScheduledResponse:
     """Create a new quiz document and enqueue a processing job."""
     tenant_id = user.get("tenant_id", "")
     user_id = user.get("sub", "")
@@ -505,4 +512,4 @@ async def create_quiz(
     quiz_id = await service.insert_quiz(doc)
     job_id = await service.enqueue_content_job(quiz_id)
 
-    return {"message": "Processing New Content job scheduled!", "job_id": job_id}
+    return JobScheduledResponse(message="Processing New Content job scheduled!", job_id=job_id)
