@@ -30,7 +30,7 @@ class ContentResponse(BaseModel):
         return str(v) if v is not None else None
 
     def to_response(self) -> dict:
-        return self.model_dump(by_alias=True, exclude_none=True)
+        return self.model_dump(by_alias=False, exclude_none=True)
 
 
 class QuizResponse(ContentResponse):

@@ -72,12 +72,8 @@ async def tenant_me(
     current_user: dict[str, Any] = Depends(require_tenant),
     service: AuthService = Depends(get_auth_service),
 ) -> dict[str, Any]:
-    user = await service.get_user_profile(current_user.get("sub", ""), "Tenant")
-    return {
-        "email": user.email,
-        "tenantName": user.tenant_name,
-        "id": str(user.id),
-    }
+    profile = await service.get_tenant_profile(current_user.get("sub", ""))
+    return profile.to_response()
 
 
 @router.post("/analytics", summary="Tenant analytics", status_code=status.HTTP_200_OK)
@@ -86,17 +82,20 @@ async def tenant_analytics(
     current_user: dict[str, Any] = Depends(require_tenant),
     service: AuthService = Depends(get_auth_service),
 ) -> dict[str, Any]:
-    start_date = body.get("startDate")
-    end_date = body.get("endDate")
+    start_date = body.get("start_date")
+    end_date = body.get("end_date")
     if not start_date or not end_date:
-        raise HTTPException(status_code=400, detail="startDate and endDate are required")
+        raise HTTPException(status_code=400, detail="start_date and end_date are required")
 
     start = datetime.fromisoformat(start_date)
     end = datetime.fromisoformat(end_date)
     tenant_id: str = current_user.get("sub", "")
 
     data = await IVRRepository(service._db).find_logs_by_tenant_date_range(tenant_id, start, end)
-    return {"startDate": start_date, "endDate": end_date, "count": len(data), "data": data}
+    for doc in data:
+        if "_id" in doc:
+            doc["id"] = str(doc.pop("_id"))
+    return {"start_date": start_date, "end_date": end_date, "count": len(data), "data": data}
 
 
 @router.post("/change-password", summary="Change tenant password", status_code=status.HTTP_200_OK)

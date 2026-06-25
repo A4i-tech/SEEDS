@@ -18,7 +18,7 @@ from fastapi import Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.responses.school import SchoolResponse
-from app.models.responses.user import UserPublicResponse
+from app.models.responses.user import TenantProfileResponse, UserPublicResponse
 from app.models.user import User, UserCreate, UserRole
 from app.platform.auth.dependencies import get_db
 from app.platform.auth.hashing import hash_password, verify_password
@@ -359,6 +359,17 @@ async def get_user_profile(
     return user
 
 
+async def get_tenant_profile(
+    user_id: str,
+    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+) -> TenantProfileResponse:
+    """Fetch a tenant user by ID and return its public profile."""
+    user = await UserRepository(db).find_by_id(user_id)
+    if user is None:
+        raise NotFoundError("Tenant", user_id)
+    return TenantProfileResponse.from_domain(user)
+
+
 async def change_password(
     user_id: str,
     new_password: str,
@@ -413,12 +424,12 @@ async def get_tenant_dashboard(
 
     return {
         "statistics": {
-            "totalSchools": len(schools),
-            "totalTeachers": teacher_count,
-            "totalStudents": student_count,
-            "totalClasses": class_count,
+            "total_schools": len(schools),
+            "total_teachers": teacher_count,
+            "total_students": student_count,
+            "total_classes": class_count,
         },
-        "schools": [s.model_dump(by_alias=False, exclude_none=True) for s in schools],
+        "schools": [SchoolResponse.from_domain(s).to_response() for s in schools],
     }
 
 
@@ -454,6 +465,9 @@ class AuthService:
 
     async def get_user_profile(self, user_id: str, entity_label: str) -> User:
         return await get_user_profile(user_id, entity_label, self._db)
+
+    async def get_tenant_profile(self, user_id: str) -> TenantProfileResponse:
+        return await get_tenant_profile(user_id, self._db)
 
     async def change_password(self, user_id: str, new_password: str) -> None:
         return await change_password(user_id, new_password, self._db)

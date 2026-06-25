@@ -19,13 +19,13 @@ class LogCallRequest(BaseModel):
 
     type: str
     time: str
-    fsm_context_id: str = Field(..., alias="fsmContextId")
+    fsm_context_id: str
     data: Any | None = None
-    is_completed: bool = Field(..., alias="isCompleted")
+    is_completed: bool
 
 
 class FsmContextRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    fsm_context_id: str = Field(..., alias="fsmContextId")
-    phone_numbers: list[str] | None = Field(None, alias="phoneNumbers")
+    fsm_context_id: str
+    phone_numbers: list[str] | None = None

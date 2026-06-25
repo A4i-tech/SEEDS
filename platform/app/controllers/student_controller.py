@@ -6,7 +6,7 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from app.platform.auth.dependencies import require_teacher
 from app.services.user_service import UserService, get_user_service
@@ -18,16 +18,12 @@ router = APIRouter(prefix="/student", tags=["Students"])
 
 class StudentCreateRequest(BaseModel):
     name: str
-    phone_number: str = Field(..., alias="phoneNumber")
-
-    model_config = {"populate_by_name": True}
+    phone_number: str
 
 
 class StudentUpdateRequest(BaseModel):
     name: str | None = None
-    phone_number: str | None = Field(None, alias="phoneNumber")
-
-    model_config = {"populate_by_name": True}
+    phone_number: str | None = None
 
 
 @router.post("", summary="Create a student (school_admin only)", status_code=status.HTTP_201_CREATED)
@@ -37,7 +33,7 @@ async def create_student(
     service: UserService = Depends(get_user_service),
 ) -> dict[str, Any]:
     if not body.name.strip():
-        raise HTTPException(status_code=400, detail="name and phoneNumber are required")
+        raise HTTPException(status_code=400, detail="name and phone_number are required")
 
     school_id = current_user.get("school_id", "")
     tenant_id = current_user.get("tenant_id", "")
@@ -50,7 +46,7 @@ async def create_student(
     return {
         "_id": str(user.id),
         "name": user.name,
-        "phoneNumber": user.phone,
+        "phone": user.phone,
         "schoolId": user.school_id or "",
     }
 
@@ -66,7 +62,7 @@ async def list_students(
         return []
     students = await service.list_students_for_school(school_id, tenant_id)
     result = [
-        {"_id": str(u.id), "name": u.name, "phoneNumber": u.phone}
+        {"_id": str(u.id), "name": u.name, "phone": u.phone}
         for u in students
     ]
     return sorted(result, key=lambda s: s["name"])
@@ -80,7 +76,7 @@ async def update_student(
     service: UserService = Depends(get_user_service),
 ) -> dict[str, Any]:
     if not body.name and not body.phone_number:
-        raise HTTPException(status_code=400, detail="name or phoneNumber is required")
+        raise HTTPException(status_code=400, detail="name or phone_number is required")
 
     caller_school = current_user.get("school_id", "")
     updates: dict[str, Any] = {}
@@ -93,7 +89,7 @@ async def update_student(
     return {
         "_id": str(updated.id),
         "name": updated.name,
-        "phoneNumber": updated.phone,
+        "phone": updated.phone,
         "schoolId": updated.school_id or "",
     }
 

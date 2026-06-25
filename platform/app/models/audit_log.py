@@ -19,7 +19,7 @@ class AuditLog(BaseModel):
     id: str | None = Field(None, alias="_id")
     log_id: int | None = Field(None, alias="logId")  # legacy numeric id
     user: str  # user identifier
-    log_text: str = Field(..., alias="logText")
+    log_text: str
     time: str
     priority: int
     tenant_id: str | None = None
@@ -46,9 +46,9 @@ class LogEntry(BaseModel):
     id: str | None = Field(None, alias="_id")
     path: str | None = None
     method: str | None = None
-    request_body: Any | None = Field(None, alias="requestBody")
-    response_body: Any | None = Field(None, alias="responseBody")
-    status_code: int | None = Field(None, alias="statusCode")
+    request_body: Any | None = None
+    response_body: Any | None = None
+    status_code: int | None = None
     timestamp: datetime | None = None
     tenant_id: str | None = None
 

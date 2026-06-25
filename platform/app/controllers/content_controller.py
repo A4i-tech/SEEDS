@@ -20,6 +20,7 @@ import urllib.parse
 from datetime import UTC, datetime
 from typing import Any
 
+from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.models.requests.content_requests import (
@@ -41,6 +42,13 @@ router = APIRouter(prefix="/content", tags=["Content"])
 # Roles allowed for content operations (mirrors JS authorizeRole calls)
 _WRITE_ROLES = {UserRole.TENANT.value, UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value}
 _READ_ROLES = {UserRole.TENANT.value, UserRole.SCHOOL_ADMIN.value, UserRole.TEACHER.value, UserRole.CONTENT_CREATOR.value}
+
+
+def _to_oid(val: str | None) -> Any:
+    """Coerce a string to ObjectId if valid, else return as-is."""
+    if val and ObjectId.is_valid(val):
+        return ObjectId(val)
+    return val
 
 
 # ---------------------------------------------------------------------------
@@ -72,17 +80,17 @@ def _read_school_filter(user: dict[str, Any]) -> Any | None:
     role = user.get("role")
     school_id = user.get("school_id")
     if school_id and role in (UserRole.SCHOOL_ADMIN.value, UserRole.TEACHER.value, UserRole.CONTENT_CREATOR.value):
-        return {"$in": [school_id, None]}
+        return {"$in": [_to_oid(school_id), None]}
     return None
 
 
 def _write_school_filter(user: dict[str, Any]) -> dict:
-    """Return a schoolId dict for write operations — spread into query/document."""
+    """Return a school_id dict for write operations — spread into query/document."""
     role = user.get("role")
     school_id: str | None = None
     if role in (UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value):
         school_id = user.get("school_id")
-    return {"schoolId": school_id}
+    return {"school_id": _to_oid(school_id)}
 
 
 # ---------------------------------------------------------------------------
@@ -112,7 +120,7 @@ async def get_job_status(
     if not doc:
         raise NotFoundError("Job", job_id)
     doc.pop("_id", None)
-    doc["jobId"] = job_id
+    doc["job_id"] = job_id
     return doc
 
 
@@ -131,10 +139,10 @@ async def list_jobs(
     jobs = []
     for doc in docs:
         jobs.append({
-            "jobId": str(doc.get("_id", "")),
+            "job_id": str(doc.get("_id", "")),
             "status": "ERROR" if doc.get("status") == "failed" else "IN PROGRESS",
-            "contentId": doc.get("content_id"),
-            "startedAt": doc.get("started_at"),
+            "content_id": doc.get("content_id"),
+            "started_at": doc.get("started_at"),
             "reason": doc.get("reason"),
         })
 
@@ -163,7 +171,7 @@ async def get_sas_url(
 
 @router.get("/sasToken", summary="Get upload SAS token for MP3 blob")
 async def get_sas_token(
-    blob_name: str = Query(..., alias="blobName"),
+    blob_name: str = Query(...),
     user: dict[str, Any] = Depends(_require_content_write),
 ) -> dict[str, Any]:
     """Return a read-write SAS token URL for direct client upload of an MP3."""
@@ -174,7 +182,7 @@ async def get_sas_token(
         sas_url = await provider.get_upload_sas_url("input-container", blob_name, expiry_hours=1)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return {"sasToken": sas_url}
+    return {"sas_token": sas_url}
 
 
 # ---------------------------------------------------------------------------
@@ -192,13 +200,13 @@ async def get_themes(
     school_filter = _read_school_filter(user)
 
     query: dict = {
-        "tenantId": tenant_id,
+        "tenant_id": _to_oid(tenant_id),
         "language": language,
-        "isPullModel": True,
-        "isDeleted": {"$ne": True},
+        "is_pull_model": True,
+        "is_deleted": {"$ne": True},
     }
     if school_filter is not None:
-        query["schoolId"] = school_filter
+        query["school_id"] = school_filter
 
     docs = await service.get_themes(query)
 
@@ -209,7 +217,7 @@ async def get_themes(
         if theme and theme not in seen:
             themes.append({
                 "name": theme,
-                "audioUrl": (doc.get("theme") or {}).get("audioUrl", ""),
+                "audio_url": (doc.get("theme") or {}).get("audio_url", ""),
             })
             seen.add(theme)
 
@@ -236,9 +244,9 @@ async def list_content(
     tenant_id = user.get("tenant_id", "")
     school_filter = _read_school_filter(user)
 
-    base_query: dict = {"isDeleted": {"$ne": True}, "tenantId": tenant_id}
+    base_query: dict = {"is_deleted": {"$ne": True}, "tenant_id": _to_oid(tenant_id)}
     if school_filter is not None:
-        base_query["schoolId"] = school_filter
+        base_query["school_id"] = school_filter
 
     # Fetch by specific IDs
     if ids is not None:
@@ -248,8 +256,8 @@ async def list_content(
         contents = await service.fetch_contents(id_query)
         quizzes = await service.fetch_quizzes(id_query)
         all_items = sorted(
-            [ContentResponse.model_validate(d).model_dump(by_alias=True) for d in contents]
-            + [{**QuizResponse.model_validate(d).model_dump(by_alias=True), "type": "quiz"} for d in quizzes],
+            [ContentResponse.model_validate(d).model_dump(by_alias=False, exclude_none=True) for d in contents]
+            + [{**QuizResponse.model_validate(d).model_dump(by_alias=False, exclude_none=True), "type": "quiz"} for d in quizzes],
             key=lambda x: (-x.get("creation_time", 0), str(x.get("_id", ""))),
         )
         return all_items
@@ -260,17 +268,17 @@ async def list_content(
     fetch_quizzes = True
 
     if only_teacher_app:
-        content_query["isTeacherApp"] = True
-        quiz_query["isTeacherApp"] = True
+        content_query["is_teacher_app"] = True
+        quiz_query["is_teacher_app"] = True
     elif language and theme and exp_name:
         decoded_theme = urllib.parse.unquote(theme)
         if exp_name.lower() == "quiz":
             fetch_content = False
-            quiz_query.update({"isPullModel": True, "language": language, "theme.english": decoded_theme})
+            quiz_query.update({"is_pull_model": True, "language": language, "theme.english": decoded_theme})
         else:
             fetch_quizzes = False
             content_query.update({
-                "isPullModel": True,
+                "is_pull_model": True,
                 "language": language,
                 "theme.english": decoded_theme,
                 "type": exp_name.lower(),
@@ -297,8 +305,8 @@ async def list_content(
     quizzes = await service.fetch_quizzes(quiz_query, limit=fetch_limit) if fetch_quizzes else []
 
     all_results = sorted(
-        [ContentResponse.model_validate(d).model_dump(by_alias=True) for d in contents]
-        + [{**QuizResponse.model_validate(d).model_dump(by_alias=True), "type": "quiz"} for d in quizzes],
+        [ContentResponse.model_validate(d).model_dump(by_alias=False, exclude_none=True) for d in contents]
+        + [{**QuizResponse.model_validate(d).model_dump(by_alias=False, exclude_none=True), "type": "quiz"} for d in quizzes],
         key=lambda x: (-x.get("creation_time", 0), str(x.get("_id", ""))),
     )
 
@@ -306,7 +314,7 @@ async def list_content(
     data = all_results[:limit]
     last_item = data[-1] if data else None
     next_cursor = (
-        f"{last_item['creation_time']}_{last_item['_id']}"
+        f"{last_item['creation_time']}_{last_item['id']}"
         if has_more and last_item
         else None
     )
@@ -330,19 +338,19 @@ async def get_content(
 
     query: dict = {
         "_id": content_id,
-        "tenantId": tenant_id,
-        "isDeleted": {"$ne": True},
+        "tenant_id": _to_oid(tenant_id),
+        "is_deleted": {"$ne": True},
     }
     if school_filter is not None:
-        query["schoolId"] = school_filter
+        query["school_id"] = school_filter
 
     doc = await service.get_content_doc(query)
     if doc:
-        return ContentResponse.model_validate(doc).model_dump(by_alias=True)
+        return ContentResponse.model_validate(doc).model_dump(by_alias=False, exclude_none=True)
 
     quiz = await service.get_quiz_doc(query)
     if quiz:
-        return {**QuizResponse.model_validate(quiz).model_dump(by_alias=True), "type": "quiz"}
+        return {**QuizResponse.model_validate(quiz).model_dump(by_alias=False, exclude_none=True), "type": "quiz"}
 
     raise NotFoundError("Content", content_id)
 
@@ -365,27 +373,27 @@ async def create_content(
     user_id = user.get("sub", "")
 
     for item in body.audio_content or []:
-        au = item.get("audioUrl", "")
+        au = item.get("audio_url", "") if isinstance(item, dict) else ""
         if au and not au.lower().endswith(".mp3"):
             raise HTTPException(status_code=400, detail="Only .mp3 audio files are allowed.")
 
     now_ts = int(time.time())
-    body_dict = body.model_dump(by_alias=True, exclude_unset=True)
+    body_dict = body.model_dump(by_alias=False, exclude_unset=True)
     doc: dict = {
         **body_dict,
-        "tenantId": tenant_id,
-        "createdBy": user_id,
+        "tenant_id": _to_oid(tenant_id),
+        "created_by": user_id,
         "creation_time": now_ts,
         **_write_school_filter(user),
-        "isDeleted": False,
-        "isProcessed": False,
+        "is_deleted": False,
+        "is_processed": False,
     }
 
     content_id = await service.insert_content(doc)
     job_id = await service.enqueue_content_job(content_id)
 
     logger.info("content_controller: created content_id=%s job_id=%s", content_id, job_id)
-    return {"message": "Processing New Content job scheduled!", "jobId": job_id}
+    return {"message": "Processing New Content job scheduled!", "job_id": job_id}
 
 
 # ---------------------------------------------------------------------------
@@ -405,23 +413,23 @@ async def update_content(
 
     write_filter: dict = {
         "_id": content_id,
-        "tenantId": tenant_id,
-        "isDeleted": {"$ne": True},
+        "tenant_id": _to_oid(tenant_id),
+        "is_deleted": {"$ne": True},
         **_write_school_filter(user),
     }
 
-    allowed = {"title", "theme", "description", "type", "language", "isPullModel", "isTeacherApp"}
-    body_dict = body.model_dump(by_alias=True, exclude_unset=True)
+    allowed = {"title", "theme", "description", "type", "language", "is_pull_model", "is_teacher_app"}
+    body_dict = body.model_dump(by_alias=False, exclude_unset=True)
     update: dict = {k: v for k, v in body_dict.items() if k in allowed}
 
     if is_audio_uploaded:
         if "audio_content" in body.model_fields_set:
             for item in body.audio_content or []:
-                au = item.get("audioUrl", "")
+                au = item.get("audio_url", "") if isinstance(item, dict) else ""
                 if au and not au.lower().endswith(".mp3"):
                     raise HTTPException(status_code=400, detail="Only .mp3 audio files are allowed.")
-            update["audioContent"] = body.audio_content
-        update["isProcessed"] = False
+            update["audio_content"] = body.audio_content
+        update["is_processed"] = False
 
     update["updated_at"] = datetime.now(UTC)
 
@@ -431,10 +439,10 @@ async def update_content(
         if is_audio_uploaded:
             content_id_str = str(result.get("_id", ""))
             job_id = await service.enqueue_content_job(content_id_str)
-            out = ContentResponse.model_validate(result).model_dump(by_alias=True)
-            out["jobId"] = job_id
+            out = ContentResponse.model_validate(result).model_dump(by_alias=False, exclude_none=True)
+            out["job_id"] = job_id
             return out
-        return ContentResponse.model_validate(result).model_dump(by_alias=True)
+        return ContentResponse.model_validate(result).model_dump(by_alias=False, exclude_none=True)
 
     raise NotFoundError("Content", str(content_id))
 
@@ -449,11 +457,11 @@ async def delete_content(
     user: dict[str, Any] = Depends(_require_content_write),
     service: ContentService = Depends(get_content_service),
 ) -> Any:
-    """Soft-delete a content item (sets isDeleted=true)."""
+    """Soft-delete a content item (sets is_deleted=true)."""
     tenant_id = user.get("tenant_id", "")
     write_filter: dict = {
         "_id": content_id,
-        "tenantId": tenant_id,
+        "tenant_id": _to_oid(tenant_id),
         **_write_school_filter(user),
     }
 
@@ -483,17 +491,18 @@ async def create_quiz(
     user_id = user.get("sub", "")
 
     now_ts = int(time.time())
-    body_dict = body.model_dump(by_alias=True, exclude_unset=True)
+    body_dict = body.model_dump(by_alias=False, exclude_unset=True)
+    school_id = user.get("school_id") if user.get("role") in (UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value) else None
     doc: dict = {
         **body_dict,
-        "tenantId": tenant_id,
-        "createdBy": user_id,
+        "tenant_id": _to_oid(tenant_id),
+        "created_by": _to_oid(user_id),
         "creation_time": now_ts,
-        **_write_school_filter(user),
-        "isDeleted": False,
+        "school_id": _to_oid(school_id),
+        "is_deleted": False,
     }
 
     quiz_id = await service.insert_quiz(doc)
     job_id = await service.enqueue_content_job(quiz_id)
 
-    return {"message": "Processing New Content job scheduled!", "jobId": job_id}
+    return {"message": "Processing New Content job scheduled!", "job_id": job_id}

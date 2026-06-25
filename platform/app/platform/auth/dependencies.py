@@ -123,7 +123,7 @@ def require_role(*roles: str):
 
 
 # Convenience aliases kept for backward compatibility with existing Depends() callsites.
-require_teacher = require_role("teacher")
+require_teacher = require_role("teacher", "content_creator")
 require_tenant = require_role("tenant")
 
 

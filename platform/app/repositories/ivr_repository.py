@@ -35,13 +35,13 @@ class IVRRepository(BaseRepository):
     # FSM definitions
     # ------------------------------------------------------------------
     async def find_fsm_by_id(self, fsm_id: str) -> IVRfsmDoc | None:
-        """Retrieve a compiled FSM definition document."""
-        doc = await self._fsm_col.find_one({"_id": fsm_id})
+        """Retrieve a compiled FSM definition document by its UUID (fsm_uuid field)."""
+        doc = await self._fsm_col.find_one({"fsm_uuid": fsm_id})
         return IVRfsmDoc.from_mongo(doc) if doc else None
 
     async def find_fsm_by_id_any(self, fsm_id: str) -> IVRfsmDoc | None:
-        """Check ivrfsms first, then radioFSMs fallback."""
-        doc = await self._fsm_col.find_one({"_id": fsm_id})
+        """Check ivrfsms (by fsm_uuid) first, then radioFSMs (by _id string) fallback."""
+        doc = await self._fsm_col.find_one({"fsm_uuid": fsm_id})
         if doc is None:
             doc = await self._radio_col.find_one({"_id": fsm_id})
         return IVRfsmDoc.from_mongo(doc) if doc else None
@@ -51,7 +51,7 @@ class IVRRepository(BaseRepository):
         doc = fsm.model_dump(by_alias=True)
         fsm_id = doc.get("_id")
         if fsm_id:
-            await self._fsm_col.replace_one({"_id": fsm_id}, doc, upsert=True)
+            await self._fsm_col.replace_one({"_id": self._to_id(fsm_id)}, doc, upsert=True)
         else:
             result = await self._fsm_col.insert_one(doc)
             doc["_id"] = str(result.inserted_id)

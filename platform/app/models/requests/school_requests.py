@@ -17,24 +17,18 @@ class SchoolUpdateRequest(BaseModel):
 
 
 class TeacherTransferRequest(BaseModel):
-    teacher_id: str = Field(..., alias="teacherId")
-    target_school_id: str = Field(..., alias="targetSchoolId")
-
-    model_config = {"populate_by_name": True}
+    teacher_id: str
+    target_school_id: str
 
 
 class SchoolAnalyticsRequest(BaseModel):
-    start_date: str = Field(..., alias="startDate")
-    end_date: str = Field(..., alias="endDate")
-
-    model_config = {"populate_by_name": True}
+    start_date: str
+    end_date: str
 
 
 class ClassroomUpsertRequest(BaseModel):
-    id: str | None = Field(None, alias="_id")
+    id: str | None = None
     name: str | None = None
     students: list[str] = Field(default_factory=list)
     leaders: list[str] = Field(default_factory=list)
-    content_ids: list[str] = Field(default_factory=list, alias="contentIds")
-
-    model_config = {"populate_by_name": True}
+    content_ids: list[str] = Field(default_factory=list)

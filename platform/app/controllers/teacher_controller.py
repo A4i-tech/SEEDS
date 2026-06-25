@@ -6,7 +6,7 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from app.models.responses.user import UserPublicResponse
 from app.platform.auth.dependencies import require_teacher
@@ -20,10 +20,8 @@ router = APIRouter(prefix="/teacher", tags=["Teachers"])
 
 class TeacherUpdateRequest(BaseModel):
     name: str | None = None
-    phone_number: str | None = Field(None, alias="phoneNumber")
+    phone_number: str | None = None
     password: str | None = None
-
-    model_config = {"populate_by_name": True}
 
 
 @router.get("/teachers", summary="List teachers in admin's school", status_code=status.HTTP_200_OK)
@@ -36,7 +34,7 @@ async def list_teachers_by_school(
         return []
     teachers = await service.list_teachers_for_school(school_id, current_user.get("tenant_id", ""))
     result = [
-        {"_id": str(u.id), "name": u.name, "phoneNumber": u.phone, "role": u.role.value}
+        {"_id": str(u.id), "name": u.name, "phone": u.phone, "role": u.role.value}
         for u in teachers
     ]
     return sorted(result, key=lambda t: t["name"])
@@ -50,7 +48,7 @@ async def update_teacher(
     service: UserService = Depends(get_user_service),
 ) -> dict[str, Any]:
     if not body.name and not body.phone_number and not body.password:
-        raise HTTPException(status_code=400, detail="At least one field (name, phoneNumber, password) is required")
+        raise HTTPException(status_code=400, detail="At least one field (name, phone_number, password) is required")
 
     caller_school = current_user.get("school_id", "")
     updates: dict[str, Any] = {}

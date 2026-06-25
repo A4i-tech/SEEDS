@@ -22,6 +22,7 @@ from app.models.requests.school_requests import (
 )
 from app.platform.auth.dependencies import (
     get_current_user,
+    require_role,
     require_teacher,
     require_tenant,
 )
@@ -108,7 +109,7 @@ async def transfer_teacher(
     status_code=status.HTTP_200_OK,
 )
 async def school_dashboard(
-    current_user: dict[str, Any] = Depends(require_teacher),
+    current_user: dict[str, Any] = Depends(require_role("school_admin")),
     service: SchoolService = Depends(get_school_service),
 ) -> dict[str, Any]:
     school_id = current_user.get("school_id", "")
@@ -123,7 +124,7 @@ async def school_dashboard(
 )
 async def school_analytics(
     body: SchoolAnalyticsRequest,
-    current_user: dict[str, Any] = Depends(require_teacher),
+    current_user: dict[str, Any] = Depends(require_role("school_admin")),
     service: SchoolService = Depends(get_school_service),
 ) -> dict[str, Any]:
     start = datetime.fromisoformat(body.start_date)
@@ -133,9 +134,12 @@ async def school_analytics(
     data = await service.get_school_analytics(
         school_id, start.isoformat(), end.isoformat()
     )
+    for doc in data:
+        if "_id" in doc:
+            doc["id"] = str(doc.pop("_id"))
     return {
-        "startDate": body.start_date,
-        "endDate": body.end_date,
+        "start_date": body.start_date,
+        "end_date": body.end_date,
         "count": len(data),
         "data": data,
     }
@@ -173,7 +177,7 @@ async def update_school(
     if body.email:
         updates["email"] = body.email.strip()
     if body.password:
-        updates["password"] = hash_password(body.password)
+        updates["hashed_password"] = hash_password(body.password)
 
     school = await service.update_school(school_id, updates, tenant_id)
     return SchoolResponse.from_domain(school).to_response()
