@@ -113,7 +113,7 @@ async def transfer_teacher(
     status_code=status.HTTP_200_OK,
 )
 async def school_dashboard(
-    current_user: dict[str, Any] = Depends(require_role("school_admin")),
+    current_user: dict[str, Any] = Depends(require_role("school")),
     service: SchoolService = Depends(get_school_service),
 ) -> dict[str, Any]:
     school_id = current_user.get("school_id", "")
@@ -128,7 +128,7 @@ async def school_dashboard(
 )
 async def school_analytics(
     body: SchoolAnalyticsRequest,
-    current_user: dict[str, Any] = Depends(require_role("school_admin")),
+    current_user: dict[str, Any] = Depends(require_role("school")),
     service: SchoolService = Depends(get_school_service),
 ) -> dict[str, Any]:
     start = datetime.fromisoformat(body.start_date)

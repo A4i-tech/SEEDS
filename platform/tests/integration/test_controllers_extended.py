@@ -199,7 +199,7 @@ class TestTenantAuth:
         school = await _seed_school(mock_db, email="admin2@school.com", tenant_id="t1")
         token = create_access_token({
             "sub": school["_id"],
-            "role": "school_admin",
+            "role": "school",
             "school_id": school["_id"],
             "tenant_id": "t1",
         })

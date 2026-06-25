@@ -48,8 +48,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/content", tags=["Content"])
 
 # Roles allowed for content operations (mirrors JS authorizeRole calls)
-_WRITE_ROLES = {UserRole.TENANT.value, UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value}
-_READ_ROLES = {UserRole.TENANT.value, UserRole.SCHOOL_ADMIN.value, UserRole.TEACHER.value, UserRole.CONTENT_CREATOR.value}
+_WRITE_ROLES = {UserRole.TENANT.value, UserRole.SCHOOL.value, UserRole.CONTENT_CREATOR.value}
+_READ_ROLES = {UserRole.TENANT.value, UserRole.SCHOOL.value, UserRole.TEACHER.value, UserRole.CONTENT_CREATOR.value}
 
 
 def _to_oid(val: str | None) -> Any:
@@ -57,6 +57,17 @@ def _to_oid(val: str | None) -> Any:
     if val and ObjectId.is_valid(val):
         return ObjectId(val)
     return val
+
+
+# ---------------------------------------------------------------------------
+# Tenant ID helper
+# ---------------------------------------------------------------------------
+
+def _tenant_id(user: dict[str, Any]) -> str:
+    """For tenant-role users, sub IS their tenant_id. Others carry tenant_id explicitly."""
+    if user.get("role") == UserRole.TENANT.value:
+        return user.get("sub", "")
+    return user.get("tenant_id", "")
 
 
 # ---------------------------------------------------------------------------
@@ -87,7 +98,7 @@ def _read_school_filter(user: dict[str, Any]) -> Any | None:
     """For reads: school-scoped users see their school's content + tenant-wide content."""
     role = user.get("role")
     school_id = user.get("school_id")
-    if school_id and role in (UserRole.SCHOOL_ADMIN.value, UserRole.TEACHER.value, UserRole.CONTENT_CREATOR.value):
+    if school_id and role in (UserRole.SCHOOL.value, UserRole.TEACHER.value, UserRole.CONTENT_CREATOR.value):
         return {"$in": [_to_oid(school_id), None]}
     return None
 
@@ -96,7 +107,7 @@ def _write_school_filter(user: dict[str, Any]) -> dict:
     """Return a school_id dict for write operations — spread into query/document."""
     role = user.get("role")
     school_id: str | None = None
-    if role in (UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value):
+    if role in (UserRole.SCHOOL.value, UserRole.CONTENT_CREATOR.value):
         school_id = user.get("school_id")
     return {"school_id": _to_oid(school_id)}
 
@@ -206,7 +217,7 @@ async def get_themes(
     service: ContentService = Depends(get_content_service),
 ) -> list[ThemeResponse]:
     """Return distinct themes with audio URLs for the given language + tenant."""
-    tenant_id = user.get("tenant_id", "")
+    tenant_id = _tenant_id(user)
     school_filter = _read_school_filter(user)
 
     query: dict = {
@@ -251,7 +262,7 @@ async def list_content(
     service: ContentService = Depends(get_content_service),
 ) -> Any:
     """Return paginated content items, optionally filtered by language/theme/type."""
-    tenant_id = user.get("tenant_id", "")
+    tenant_id = _tenant_id(user)
     school_filter = _read_school_filter(user)
 
     base_query: dict = {"is_deleted": {"$ne": True}, "tenant_id": _to_oid(tenant_id)}
@@ -343,7 +354,7 @@ async def get_content(
     service: ContentService = Depends(get_content_service),
 ) -> Any:
     """Return a content item by ID, scoped to the authenticated tenant."""
-    tenant_id = user.get("tenant_id", "")
+    tenant_id = _tenant_id(user)
     school_filter = _read_school_filter(user)
 
     query: dict = {
@@ -376,7 +387,7 @@ async def create_content(
     service: ContentService = Depends(get_content_service),
 ) -> JobScheduledResponse:
     """Create a new content document and enqueue a processing job."""
-    tenant_id = user.get("tenant_id", "")
+    tenant_id = _tenant_id(user)
     user_id = user.get("sub", "")
 
     for item in body.audio_content or []:
@@ -415,7 +426,7 @@ async def update_content(
     service: ContentService = Depends(get_content_service),
 ) -> Any:
     """Update a content item. Re-triggers processing job if isAudioUploaded=true."""
-    tenant_id = user.get("tenant_id", "")
+    tenant_id = _tenant_id(user)
     content_id = body.id
 
     write_filter: dict = {
@@ -465,7 +476,7 @@ async def delete_content(
     service: ContentService = Depends(get_content_service),
 ) -> DeleteMatchedResponse:
     """Soft-delete a content item (sets is_deleted=true)."""
-    tenant_id = user.get("tenant_id", "")
+    tenant_id = _tenant_id(user)
     write_filter: dict = {
         "_id": content_id,
         "tenant_id": _to_oid(tenant_id),
@@ -494,12 +505,12 @@ async def create_quiz(
     service: ContentService = Depends(get_content_service),
 ) -> JobScheduledResponse:
     """Create a new quiz document and enqueue a processing job."""
-    tenant_id = user.get("tenant_id", "")
+    tenant_id = _tenant_id(user)
     user_id = user.get("sub", "")
 
     now_ts = int(time.time())
     body_dict = body.model_dump(by_alias=False, exclude_unset=True)
-    school_id = user.get("school_id") if user.get("role") in (UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value) else None
+    school_id = user.get("school_id") if user.get("role") in (UserRole.SCHOOL.value, UserRole.CONTENT_CREATOR.value) else None
     doc: dict = {
         **body_dict,
         "tenant_id": _to_oid(tenant_id),

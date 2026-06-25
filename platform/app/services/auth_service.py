@@ -334,7 +334,7 @@ async def school_admin_login(
     token = create_access_token(
         {
             "sub": school_id,
-            "role": "school_admin",
+            "role": "school",
             "school_id": school_id,
             "tenant_id": school.tenant_id,
         }
@@ -413,23 +413,39 @@ async def get_tenant_dashboard(
     """Return aggregated dashboard statistics for a tenant."""
     schools = await SchoolRepository(db).find_all_by_tenant(tenant_id)
     all_users = await UserRepository(db).find_all_by_tenant(tenant_id)
-    teacher_count = sum(1 for u in all_users if u.role == UserRole.TEACHER)
-    student_count = sum(1 for u in all_users if u.role == UserRole.STUDENT)
 
-    class_count = 0
+    # Index users by school_id for O(1) per-school counts
+    teachers_by_school: dict[str, int] = {}
+    students_by_school: dict[str, int] = {}
+    for u in all_users:
+        sid = str(u.school_id) if u.school_id else "__none__"
+        if u.role == UserRole.TEACHER:
+            teachers_by_school[sid] = teachers_by_school.get(sid, 0) + 1
+        elif u.role == UserRole.STUDENT:
+            students_by_school[sid] = students_by_school.get(sid, 0) + 1
+
     classroom_repo = ClassroomRepository(db)
+    school_rows = []
+    total_classes = 0
     for school in schools:
-        classes = await classroom_repo.find_by_school(str(school.id))
-        class_count += len(classes)
+        sid = str(school.id)
+        classes = await classroom_repo.find_by_school(sid)
+        class_count = len(classes)
+        total_classes += class_count
+        row = SchoolResponse.from_domain(school).to_response()
+        row["teacher_count"] = teachers_by_school.get(sid, 0)
+        row["student_count"] = students_by_school.get(sid, 0)
+        row["class_count"] = class_count
+        school_rows.append(row)
 
     return {
         "statistics": {
             "total_schools": len(schools),
-            "total_teachers": teacher_count,
-            "total_students": student_count,
-            "total_classes": class_count,
+            "total_teachers": sum(1 for u in all_users if u.role == UserRole.TEACHER),
+            "total_students": sum(1 for u in all_users if u.role == UserRole.STUDENT),
+            "total_classes": total_classes,
         },
-        "schools": [SchoolResponse.from_domain(s).to_response() for s in schools],
+        "schools": school_rows,
     }
 
 

@@ -285,6 +285,6 @@ class TestContentHelperFunctions:
     def test_write_school_filter_school_admin(self) -> None:
         from app.controllers.content_controller import _write_school_filter
 
-        user = {"role": "school_admin", "school_id": "s3"}
+        user = {"role": "school", "school_id": "s3"}
         result = _write_school_filter(user)
         assert result == {"schoolId": "s3"}

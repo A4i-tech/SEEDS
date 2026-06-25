@@ -114,7 +114,7 @@ def _teacher_token(user_id: str, school_id: str = "school001", tenant_id: str = 
 def _school_admin_token(school_id: str, tenant_id: str = "tenant001") -> str:
     return create_access_token({
         "sub": school_id,
-        "role": "school_admin",
+        "role": "school",
         "school_id": school_id,
         "tenant_id": tenant_id,
     })

@@ -34,7 +34,7 @@ async def teacher_login(
     "/register",
     summary="Register a new teacher (school_admin only)",
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_role("school_admin"))],
+    dependencies=[Depends(require_role("school"))],
 )
 async def teacher_register(
     body: TeacherRegisterRequest,
