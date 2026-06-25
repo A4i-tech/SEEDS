@@ -35,6 +35,16 @@ platform :android do
     end
   end
 
+  desc "Run JVM unit tests"
+  lane :run_unit_tests do
+    gradle(task: "test", build_type: "Debug")
+  end
+
+  desc "Run instrumented tests (requires connected device or emulator)"
+  lane :run_integration_tests do
+    gradle(task: "connectedAndroidTest", build_type: "Debug")
+  end
+
   desc "Build and deploy a STAGING version to Firebase"
   lane :deploy_staging do
     load_env_file(filename: ".env.staging")

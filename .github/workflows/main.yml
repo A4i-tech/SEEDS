@@ -29,7 +29,13 @@ jobs:
     uses: ./.github/workflows/deploy-main.yml
     secrets: inherit
 
+  run-android-tests:
+    if: github.ref == 'refs/heads/a4i/staging' || github.ref == 'refs/heads/a4i/main'
+    uses: ./.github/workflows/android-tests.yml
+    secrets: inherit
+
   deploy-android:
+    needs: run-android-tests
     if: github.ref == 'refs/heads/a4i/staging' || github.ref == 'refs/heads/a4i/main'
     uses: ./.github/workflows/android-deploy.yml
     secrets: inherit
@@ -47,6 +53,7 @@ jobs:
       - deploy-websocket-service-staging-workflow
       - deploy-staging-workflow
       - deploy-main-workflow
+      - run-android-tests
       - deploy-android
       - run-coverage-summary
     steps:
