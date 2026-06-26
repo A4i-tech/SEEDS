@@ -2,9 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Box,
   IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
+  Tooltip,
   Typography,
   CircularProgress,
   Paper,
@@ -95,6 +93,13 @@ export default function VoiceCommandButton() {
     historyRef.current = [];
   }, []);
 
+  // Push/restore page content when panel opens/closes
+  useEffect(() => {
+    const root = document.getElementById("root");
+    if (root) root.style.paddingRight = open ? "420px" : "";
+    return () => { if (root) root.style.paddingRight = ""; };
+  }, [open]);
+
   const handleOpen = useCallback(() => {
     reset();
     setOpen(true);
@@ -107,25 +112,37 @@ export default function VoiceCommandButton() {
     reset();
   };
 
-  // R-key hotkey to open Seeds AI and start recording
+  // Spacebar hold-to-record: open dialog + record while held, stop on release
   useEffect(() => {
     const onKeyDown = (e) => {
-      if ((e.key === "r" || e.key === "R") && !e.repeat) {
+      if (e.code === "Space" && !e.repeat) {
         const tag = e.target.tagName;
         if (tag === "INPUT" || tag === "TEXTAREA" || e.target.isContentEditable) return;
         e.preventDefault();
         handleOpen();
-        
-        // Auto-start recording
         if (!isRecording) {
           startRecording();
           setStatus(STATUS.RECORDING);
         }
       }
     };
+    const onKeyUp = (e) => {
+      if (e.code === "Space") {
+        const tag = e.target.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || e.target.isContentEditable) return;
+        if (isRecording) {
+          stopRecording();
+          setStatus(STATUS.TRANSCRIBING);
+        }
+      }
+    };
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isRecording, startRecording, handleOpen]);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+    };
+  }, [isRecording, startRecording, stopRecording, handleOpen]);
 
   // Play "thinking" audio when AI is processing
   useEffect(() => {
@@ -309,220 +326,265 @@ export default function VoiceCommandButton() {
     setResult(null);
   };
 
+  const PANEL_WIDTH = 420;
+
   return (
     <>
-      <IconButton
-        onClick={handleOpen}
-        sx={{
-          bgcolor: "primary.main",
-          color: "white",
-          "&:hover": { bgcolor: "primary.dark" },
-          width: 48,
-          height: 48,
-        }}
-      >
-        <MicIcon />
-      </IconButton>
-
-      <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          🌱 Seeds AI
-          <IconButton onClick={handleClose} size="small">
-            <CloseIcon />
-          </IconButton>
-        </DialogTitle>
-
-        <DialogContent>
-          {recorderError && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {recorderError}
-            </Alert>
-          )}
-
-          {/* Record button */}
-          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 2 }}>
+      {/* Floating trigger button — hidden while panel is open */}
+      {!open && (
+        <Tooltip
+          title={<Typography variant="caption">Hold <b>Space</b> to talk to Seeds AI</Typography>}
+          arrow
+          placement="left"
+        >
+          <Box sx={{ position: "fixed", bottom: 24, right: 24, zIndex: 1300 }}>
             <IconButton
-              onClick={handleToggleRecording}
-              disabled={isBusy}
+              onClick={handleOpen}
               sx={{
-                width: 80,
-                height: 80,
-                bgcolor: isRecording ? "error.main" : "primary.main",
+                bgcolor: "primary.main",
                 color: "white",
-                "&:hover": { bgcolor: isRecording ? "error.dark" : "primary.dark" },
-                mb: 1,
+                "&:hover": { bgcolor: "primary.dark" },
+                width: 48,
+                height: 48,
               }}
             >
-              {isRecording ? <StopIcon sx={{ fontSize: 40 }} /> : <MicIcon sx={{ fontSize: 40 }} />}
+              <MicIcon />
             </IconButton>
+          </Box>
+        </Tooltip>
+      )}
 
-            {status !== STATUS.IDLE && (
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                {status !== STATUS.DONE && status !== STATUS.ERROR && (
-                  <CircularProgress size={16} />
-                )}
-                <Typography variant="body2" color="text.secondary">
-                  {STATUS_LABELS[status]}
+      {/* Side panel */}
+      {open && (
+        <Box
+          sx={{
+            position: "fixed",
+            top: 0,
+            right: 0,
+            bottom: 0,
+            width: PANEL_WIDTH,
+            bgcolor: "background.paper",
+            borderLeft: 1,
+            borderColor: "divider",
+            boxShadow: "-4px 0 24px rgba(0,0,0,0.12)",
+            zIndex: 1200,
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+          }}
+        >
+          {/* Panel header */}
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              px: 2,
+              py: 1.5,
+              borderBottom: 1,
+              borderColor: "divider",
+              flexShrink: 0,
+            }}
+          >
+            <Typography variant="h6">🌱 Seeds AI</Typography>
+            <IconButton onClick={handleClose} size="small">
+              <CloseIcon />
+            </IconButton>
+          </Box>
+
+          {/* Panel content */}
+          <Box sx={{ flex: 1, overflow: "auto", p: 2 }}>
+            {recorderError && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {recorderError}
+              </Alert>
+            )}
+
+            {/* Record button */}
+            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 2 }}>
+              <IconButton
+                onClick={handleToggleRecording}
+                disabled={isBusy}
+                sx={{
+                  width: 80,
+                  height: 80,
+                  bgcolor: isRecording ? "error.main" : "primary.main",
+                  color: "white",
+                  "&:hover": { bgcolor: isRecording ? "error.dark" : "primary.dark" },
+                  mb: 1,
+                }}
+              >
+                {isRecording ? <StopIcon sx={{ fontSize: 40 }} /> : <MicIcon sx={{ fontSize: 40 }} />}
+              </IconButton>
+
+              {status !== STATUS.IDLE && (
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  {status !== STATUS.DONE && status !== STATUS.ERROR && (
+                    <CircularProgress size={16} />
+                  )}
+                  <Typography variant="body2" color="text.secondary">
+                    {STATUS_LABELS[status]}
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+
+            {/* Text input */}
+            <Divider sx={{ my: 1 }}>
+              <Typography variant="caption" color="text.secondary">
+                or type a command
+              </Typography>
+            </Divider>
+            <TextField
+              fullWidth
+              size="small"
+              placeholder="e.g. Show me all my classrooms"
+              value={textInput}
+              onChange={(e) => setTextInput(e.target.value)}
+              onKeyDown={handleTextKeyDown}
+              disabled={isBusy}
+              sx={{ mb: 2 }}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={handleSendText}
+                      disabled={isBusy || !textInput.trim()}
+                      color="primary"
+                      size="small"
+                    >
+                      <SendIcon />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+            />
+
+            {/* Transcript */}
+            {result?.transcript && (
+              <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+                <Typography variant="caption" color="text.secondary">
+                  You said:
                 </Typography>
+                <Typography variant="body1">{result.transcript}</Typography>
+              </Paper>
+            )}
+
+            {/* Error */}
+            {result?.error && (
+              <Alert
+                severity="error"
+                sx={{ mb: 2 }}
+                action={
+                  <Button
+                    color="inherit"
+                    size="small"
+                    startIcon={<RefreshIcon />}
+                    onClick={handleTryAgain}
+                  >
+                    Try again
+                  </Button>
+                }
+              >
+                {result.error}
+              </Alert>
+            )}
+
+            {/* Spoken summary bubble */}
+            {status === STATUS.DONE && result?.spokenSummary && (
+              <Paper
+                sx={{
+                  p: 2,
+                  mb: 2,
+                  bgcolor: "primary.50",
+                  borderLeft: 4,
+                  borderColor: "primary.main",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1.5,
+                }}
+              >
+                <VolumeUpIcon color="primary" />
+                <Typography variant="body2" sx={{ fontStyle: "italic" }}>
+                  {result.spokenSummary}
+                </Typography>
+              </Paper>
+            )}
+
+            {/* Formatted result cards */}
+            {result?.commands && result?.results && (
+              <>
+                <Divider sx={{ my: 1 }} />
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                  Results:
+                </Typography>
+                {result.commands.map((cmd, i) => {
+                  const res = result.results?.[i];
+                  const formatted = formatResult(cmd, res);
+                  const isSuccess = res && !res.error && res.status < 300;
+
+                  return (
+                    <Paper
+                      key={i}
+                      variant="outlined"
+                      sx={{
+                        p: 2,
+                        mb: 1.5,
+                        borderColor: isSuccess ? "success.main" : "error.main",
+                        borderLeftWidth: 4,
+                      }}
+                    >
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+                        {isSuccess ? (
+                          <CheckCircleIcon color="success" fontSize="small" />
+                        ) : (
+                          <Alert severity="error" sx={{ p: 0, bgcolor: "transparent" }} icon={false}>
+                            Error
+                          </Alert>
+                        )}
+                        <Typography variant="subtitle2">{formatted.title}</Typography>
+                      </Box>
+                      <Typography variant="body2" color="text.secondary">
+                        {formatted.summary}
+                      </Typography>
+                      {formatted.items.length > 0 && (
+                        <List dense disablePadding sx={{ mt: 0.5 }}>
+                          {formatted.items.slice(0, 10).map((item, j) => (
+                            <ListItem key={j} disableGutters sx={{ py: 0 }}>
+                              <ListItemText
+                                primary={item}
+                                primaryTypographyProps={{ variant: "body2" }}
+                              />
+                            </ListItem>
+                          ))}
+                          {formatted.items.length > 10 && (
+                            <Typography variant="caption" color="text.secondary">
+                              ...and {formatted.items.length - 10} more
+                            </Typography>
+                          )}
+                        </List>
+                      )}
+                    </Paper>
+                  );
+                })}
+              </>
+            )}
+
+            {/* Navigation button */}
+            {status === STATUS.DONE && navTarget && (
+              <Box sx={{ display: "flex", justifyContent: "center", mt: 2 }}>
+                <Button
+                  variant="outlined"
+                  endIcon={<NavigateNextIcon />}
+                  onClick={handleNavigate}
+                >
+                  {navTarget.label}
+                </Button>
               </Box>
             )}
           </Box>
-
-          {/* Text input */}
-          <Divider sx={{ my: 1 }}>
-            <Typography variant="caption" color="text.secondary">
-              or type a command
-            </Typography>
-          </Divider>
-          <TextField
-            fullWidth
-            size="small"
-            placeholder="e.g. Show me all my classrooms"
-            value={textInput}
-            onChange={(e) => setTextInput(e.target.value)}
-            onKeyDown={handleTextKeyDown}
-            disabled={isBusy}
-            sx={{ mb: 2 }}
-            InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={handleSendText}
-                    disabled={isBusy || !textInput.trim()}
-                    color="primary"
-                    size="small"
-                  >
-                    <SendIcon />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
-          />
-
-          {/* Transcript */}
-          {result?.transcript && (
-            <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
-              <Typography variant="caption" color="text.secondary">
-                You said:
-              </Typography>
-              <Typography variant="body1">{result.transcript}</Typography>
-            </Paper>
-          )}
-
-          {/* Error */}
-          {result?.error && (
-            <Alert
-              severity="error"
-              sx={{ mb: 2 }}
-              action={
-                <Button
-                  color="inherit"
-                  size="small"
-                  startIcon={<RefreshIcon />}
-                  onClick={handleTryAgain}
-                >
-                  Try again
-                </Button>
-              }
-            >
-              {result.error}
-            </Alert>
-          )}
-
-          {/* Spoken summary bubble */}
-          {status === STATUS.DONE && result?.spokenSummary && (
-            <Paper
-              sx={{
-                p: 2,
-                mb: 2,
-                bgcolor: "primary.50",
-                borderLeft: 4,
-                borderColor: "primary.main",
-                display: "flex",
-                alignItems: "center",
-                gap: 1.5,
-              }}
-            >
-              <VolumeUpIcon color="primary" />
-              <Typography variant="body2" sx={{ fontStyle: "italic" }}>
-                {result.spokenSummary}
-              </Typography>
-            </Paper>
-          )}
-
-          {/* Formatted result cards */}
-          {result?.commands && result?.results && (
-            <>
-              <Divider sx={{ my: 1 }} />
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                Results:
-              </Typography>
-              {result.commands.map((cmd, i) => {
-                const res = result.results?.[i];
-                const formatted = formatResult(cmd, res);
-                const isSuccess = res && !res.error && res.status < 300;
-
-                return (
-                  <Paper
-                    key={i}
-                    variant="outlined"
-                    sx={{
-                      p: 2,
-                      mb: 1.5,
-                      borderColor: isSuccess ? "success.main" : "error.main",
-                      borderLeftWidth: 4,
-                    }}
-                  >
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
-                      {isSuccess ? (
-                        <CheckCircleIcon color="success" fontSize="small" />
-                      ) : (
-                        <Alert severity="error" sx={{ p: 0, bgcolor: "transparent" }} icon={false}>
-                          Error
-                        </Alert>
-                      )}
-                      <Typography variant="subtitle2">{formatted.title}</Typography>
-                    </Box>
-                    <Typography variant="body2" color="text.secondary">
-                      {formatted.summary}
-                    </Typography>
-                    {formatted.items.length > 0 && (
-                      <List dense disablePadding sx={{ mt: 0.5 }}>
-                        {formatted.items.slice(0, 10).map((item, j) => (
-                          <ListItem key={j} disableGutters sx={{ py: 0 }}>
-                            <ListItemText
-                              primary={item}
-                              primaryTypographyProps={{ variant: "body2" }}
-                            />
-                          </ListItem>
-                        ))}
-                        {formatted.items.length > 10 && (
-                          <Typography variant="caption" color="text.secondary">
-                            ...and {formatted.items.length - 10} more
-                          </Typography>
-                        )}
-                      </List>
-                    )}
-                  </Paper>
-                );
-              })}
-            </>
-          )}
-
-          {/* Navigation button */}
-          {status === STATUS.DONE && navTarget && (
-            <Box sx={{ display: "flex", justifyContent: "center", mt: 2 }}>
-              <Button
-                variant="outlined"
-                endIcon={<NavigateNextIcon />}
-                onClick={handleNavigate}
-              >
-                {navTarget.label}
-              </Button>
-            </Box>
-          )}
-        </DialogContent>
-      </Dialog>
+        </Box>
+      )}
     </>
   );
 }

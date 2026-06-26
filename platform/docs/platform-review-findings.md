@@ -277,17 +277,6 @@ Add `__del__` or explicit `cleanup()` that calls `os.unlink(self._pem_tmp_path)`
 
 ---
 
-## F14 — school_admin_login: schoolName always empty
-
-**File:** `platform/app/controllers/auth_controller.py:411`  
-**Status:** PENDING — needs client audit
-
-`result["schoolName"] = ""` — backward-compat field never populated.
-
-**Parity:** Legacy `schoolAdminAuthProviderMiddleware.js` login returns `name: school.name` (the school entity's own name field). The `schoolName` resolution pattern (query school service by `schoolId`) exists in teacher `getMe` (teacher.controller.js:15–16), not in school admin login. Platform may be porting the wrong contract. Need to confirm which client reads `schoolName` from school admin login before deciding to populate or drop.
-
----
-
 ## F15 — VAD calibration hardcoded defaults
 
 **File:** `platform/app/services/audio/transcriber.py`, `platform/app/platform/settings.py:144–157`  
