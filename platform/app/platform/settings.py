@@ -69,6 +69,16 @@ class Settings(BaseSettings):
     tts_region: str = ""
 
     # ---------------------------------------------------------------------------
+    # Azure OpenAI (AI controller — reasoning / planning / summary LLM calls)
+    # ---------------------------------------------------------------------------
+    azure_openai_key: str = Field(default="", repr=False)
+    azure_openai_endpoint: str = ""
+    azure_openai_model: str = ""
+    azure_openai_api_version: str = "2025-03-01-preview"
+    # TTS voice used by the Seeds AI persona (AI controller only)
+    seeds_tts_voice: str = "en-US-AvaNeural"
+
+    # ---------------------------------------------------------------------------
     # Azure Blob Storage
     # ---------------------------------------------------------------------------
     azure_blob_sas_enabled: bool = False

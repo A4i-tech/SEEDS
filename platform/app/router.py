@@ -17,6 +17,8 @@ from app.controllers import (
     # Content
     content_controller,
     ivr_controller,
+    # AI Controller
+    meta_controller,
     # Other
     ivr_structure_controller,
     ivr_webhook_controller,
@@ -57,6 +59,9 @@ api_router.include_router(class_controller.router)
 # Content
 api_router.include_router(content_controller.router)
 api_router.include_router(audit_controller.router)
+
+# AI Controller
+api_router.include_router(meta_controller.router)
 
 # Calls
 api_router.include_router(conference_controller.router)
