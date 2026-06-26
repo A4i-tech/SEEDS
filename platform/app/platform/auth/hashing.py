@@ -50,7 +50,24 @@ def verify_password(plain: str, hashed: str) -> bool:
     """
     Verify *plain* against *hashed* using constant-time comparison.
 
+    Tries the current scheme (SHA256 pre-hash) first, then falls back to the
+    legacy scheme (plain bcrypt, as produced by the Node.js backend-server) so
+    that users created before the Python platform can still log in.
+
     Returns True when they match, False otherwise.
     """
-    digest = _prehash(plain)
-    return bcrypt.checkpw(digest, hashed.encode("utf-8"))
+    hashed_bytes = hashed.encode("utf-8")
+    # Current scheme: sha256 pre-hash → bcrypt
+    if bcrypt.checkpw(_prehash(plain), hashed_bytes):
+        return True
+    # Legacy scheme: plain bcrypt (Node.js backend-server)
+    return bcrypt.checkpw(plain.encode("utf-8"), hashed_bytes)
+
+
+def needs_rehash(plain: str, hashed: str) -> bool:
+    """Return True when *hashed* was produced with the legacy scheme.
+
+    Call this after verify_password succeeds to decide whether to migrate the
+    stored hash to the current scheme.
+    """
+    return not bcrypt.checkpw(_prehash(plain), hashed.encode("utf-8"))

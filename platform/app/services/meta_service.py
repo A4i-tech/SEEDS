@@ -822,7 +822,7 @@ async def transcribe_audio(audio_bytes: bytes) -> str:
 # ---------------------------------------------------------------------------
 
 _SEEDS_PROMPTS: dict[str, str] = {
-    "welcome": "Hey there! I'm Seeds, your AI teaching assistant. Hold Space to talk to me, or type a command. I'm here to help!",
+    "welcome": "Hey there! I'm Seeds, your AI teaching assistant. Hold Space to talk to me. I'm here to help!",
     "thinking": "Let me think about that for a moment.",
 }
 

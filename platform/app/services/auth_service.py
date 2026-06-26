@@ -21,7 +21,7 @@ from app.models.responses.school import SchoolResponse
 from app.models.responses.user import UserPublicResponse
 from app.models.user import User, UserCreate, UserRole
 from app.platform.auth.dependencies import get_db
-from app.platform.auth.hashing import hash_password, verify_password
+from app.platform.auth.hashing import hash_password, needs_rehash, verify_password
 from app.platform.auth.jwt import create_access_token
 from app.platform.error_handling import ConflictError, NotFoundError, UnauthorizedError
 from app.platform.telemetry import get_counter
@@ -163,6 +163,10 @@ async def login(
         auth_failures.add(1, {"reason": "wrong_password"})
         raise UnauthorizedError("Invalid email or password")
 
+    if needs_rehash(password, user.hashed_password):
+        logger.info("auth: migrating legacy password hash for user %s", user.id)
+        await repo.update(str(user.id), {"hashed_password": hash_password(password)})
+
     token = create_access_token(
         {
             "sub": str(user.id),
@@ -205,6 +209,10 @@ async def login_by_phone(
         logger.warning("auth: teacher login failed — wrong password for user %s", user.id)
         auth_failures.add(1, {"reason": "wrong_password"})
         raise UnauthorizedError("Invalid phone or password")
+
+    if needs_rehash(password, user.hashed_password):
+        logger.info("auth: migrating legacy password hash for teacher %s", user.id)
+        await repo.update(str(user.id), {"hashed_password": hash_password(password)})
 
     token = create_access_token(
         {
@@ -329,6 +337,10 @@ async def school_admin_login(
         logger.warning("auth: school_admin login failed — wrong password for school %s", school.id)
         auth_failures.add(1, {"reason": "wrong_password"})
         raise UnauthorizedError("Invalid credentials")
+
+    if needs_rehash(password, school.hashed_password):
+        logger.info("auth: migrating legacy password hash for school %s", school.id)
+        await repo.update(str(school.id), {"hashed_password": hash_password(password)})
 
     school_id = str(school.id)
     token = create_access_token(
