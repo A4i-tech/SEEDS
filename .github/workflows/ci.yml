@@ -89,3 +89,27 @@ jobs:
           coverage_gist_token: ${{ secrets.COVERAGE_GIST_TOKEN }}
           coverage_gist_id: ${{ vars.COVERAGE_GIST_ID }}
           directory: ${{ matrix.service.context }}
+
+  android-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v2
+
+      - name: Make Gradle executable
+        working-directory: ./Teacher-App
+        run: chmod +x gradlew
+
+      - name: Run unit tests
+        working-directory: ./Teacher-App
+        run: ./gradlew test
