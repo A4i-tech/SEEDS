@@ -7,33 +7,45 @@ on:
 
 jobs:
 
+  ci-workflow:
+    uses: ./.github/workflows/ci.yml
+    with:
+      upload_coverage: true
+    secrets: inherit
+
   deploy-websocket-service-main-workflow:
+    needs: ci-workflow
     if: github.ref == 'refs/heads/a4i/main'
     uses: ./.github/workflows/deploy-websocket-service-main.yml
     secrets: inherit
 
   deploy-websocket-service-staging-workflow:
+    needs: ci-workflow
     if: github.ref == 'refs/heads/a4i/staging'
     uses: ./.github/workflows/deploy-websocket-service-staging.yml
     secrets: inherit
 
   deploy-staging-workflow:
+    needs: ci-workflow
     if: github.ref == 'refs/heads/a4i/staging'
     uses: ./.github/workflows/deploy-staging.yml
     secrets: inherit
 
   deploy-main-workflow:
+    needs: ci-workflow
     if: github.ref == 'refs/heads/a4i/main'
     uses: ./.github/workflows/deploy-main.yml
     secrets: inherit
 
   deploy-android:
+    needs: ci-workflow
     if: github.ref == 'refs/heads/a4i/staging' || github.ref == 'refs/heads/a4i/main'
     uses: ./.github/workflows/android-deploy.yml
     secrets: inherit
 
   run-coverage-summary:
-    needs: deploy-staging-workflow
+    needs: ci-workflow
+    if: github.ref == 'refs/heads/a4i/staging'
     uses: ./.github/workflows/coverage-summary.yml
     secrets: inherit
 
@@ -41,6 +53,7 @@ jobs:
     runs-on: ubuntu-latest
     if: always()
     needs:
+      - ci-workflow
       - deploy-websocket-service-main-workflow
       - deploy-websocket-service-staging-workflow
       - deploy-staging-workflow
@@ -59,6 +72,7 @@ jobs:
           RUN_URL: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
         run: |
           JOB_MAPPING='{
+            "ci-workflow": "CI",
             "deploy-websocket-service-main-workflow": "Websocket",
             "deploy-websocket-service-staging-workflow": "Websocket",
             "deploy-staging-workflow": "Backend",
@@ -72,7 +86,7 @@ jobs:
             --argjson map "$JOB_MAPPING" \
             '
             ($needs | to_entries | map(select(.value.result != "skipped") | select($map[.key] != null))) as $jobs |
-            
+
             [
               {
                 "type": "ColumnSet",
@@ -107,7 +121,7 @@ jobs:
               }
             ]'
           )
-          
+
           echo "columns_json=$COLUMNS_JSON" >> $GITHUB_OUTPUT
 
       - name: Send Teams Notification
