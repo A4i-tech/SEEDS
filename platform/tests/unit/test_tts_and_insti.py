@@ -619,12 +619,13 @@ class TestSchoolServiceAdditional:
 
     @pytest.mark.asyncio
     async def test_update_school(self, db) -> None:
+        from app.models.requests.school_requests import SchoolUpdateRequest
         from app.services.school_service import SchoolService
 
         svc = SchoolService(db)
         school = await svc.create_school(name="Old Name", email="old@school.com", tenant_id="t1", plain_password="pass")
 
-        updated = await svc.update_school(school.id, {"name": "New Name"}, "t1")
+        updated = await svc.update_school(school.id, SchoolUpdateRequest(name="New Name"), "t1")
         assert updated is not None
         assert updated.name == "New Name"
 

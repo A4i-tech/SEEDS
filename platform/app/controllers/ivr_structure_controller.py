@@ -16,8 +16,8 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
 
+from app.models.requests.call_requests import StartIVRRequest
 from app.platform.auth.dependencies import get_current_user
 from app.services.ivr_service import IVRService, get_ivr_service
 
@@ -86,10 +86,6 @@ async def get_ivr_by_id(
 # ---------------------------------------------------------------------------
 # POST /start-ivr
 # ---------------------------------------------------------------------------
-
-
-class StartIVRRequest(BaseModel):
-    phone_number: str
 
 
 @router.post(

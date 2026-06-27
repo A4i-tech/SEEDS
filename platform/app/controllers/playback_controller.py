@@ -16,6 +16,7 @@ from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from app.controllers._conference_helpers import get_conf_or_404
 from app.platform.auth.dependencies import require_conference_owner
 
 router = APIRouter(prefix="/conference", tags=["Playback"])
@@ -32,19 +33,6 @@ def _validate_audio_url(url: str) -> None:
         raise HTTPException(status_code=400, detail="Audio URL must use HTTPS")
 
 
-def _get_conference_manager() -> Any:
-    from app.platform.lifespan import get_conference_manager  # noqa: PLC0415
-    return get_conference_manager()
-
-
-def _get_conf_or_404(conference_id: str) -> Any:
-    mgr = _get_conference_manager()
-    conf = mgr.get_conference(conference_id)
-    if conf is None:
-        raise HTTPException(status_code=404, detail="Conference not found")
-    return conf
-
-
 @router.put("/playaudio/{conference_id}", summary="Play audio content in conference")
 async def play_audio(
     conference_id: str,
@@ -54,7 +42,7 @@ async def play_audio(
     from app.services.confevents.play_content_event import PlayContentEvent  # noqa: PLC0415
 
     _validate_audio_url(url)
-    conf = _get_conf_or_404(conference_id)
+    conf = get_conf_or_404(conference_id)
     await conf.queue_event(PlayContentEvent(conf_call=conf, url=url))
     return {"message": "Event Queued for execution"}
 
@@ -66,7 +54,7 @@ async def pause_audio(
 ) -> Any:
     from app.services.confevents.pause_content_event import PauseContentEvent  # noqa: PLC0415
 
-    conf = _get_conf_or_404(conference_id)
+    conf = get_conf_or_404(conference_id)
     await conf.queue_event(PauseContentEvent(conf_call=conf))
     return {"message": "Event Queued for execution"}
 
@@ -78,7 +66,7 @@ async def resume_audio(
 ) -> Any:
     from app.services.confevents.resume_content_event import ResumeContentEvent  # noqa: PLC0415
 
-    conf = _get_conf_or_404(conference_id)
+    conf = get_conf_or_404(conference_id)
     await conf.queue_event(ResumeContentEvent(conf_call=conf))
     return {"message": "Event Queued for execution"}
 
@@ -97,7 +85,7 @@ async def seek_audio(
             status_code=400,
             detail="Exactly one of delta_seconds or position_seconds must be provided",
         )
-    conf = _get_conf_or_404(conference_id)
+    conf = get_conf_or_404(conference_id)
     await conf.queue_event(SeekContentEvent(conf_call=conf, delta_seconds=delta_seconds, position_seconds=position_seconds))
     return {"message": "Event Queued for execution"}
 
@@ -112,6 +100,6 @@ async def set_playback_speed(
         SetPlaybackSpeedEvent,  # noqa: PLC0415
     )
 
-    conf = _get_conf_or_404(conference_id)
+    conf = get_conf_or_404(conference_id)
     await conf.queue_event(SetPlaybackSpeedEvent(conf_call=conf, speed=speed))
     return {"message": "Event Queued for execution"}

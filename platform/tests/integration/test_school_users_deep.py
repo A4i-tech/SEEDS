@@ -112,7 +112,7 @@ class TestSchoolControllerDeep:
     @pytest.mark.asyncio
     async def test_school_teachers_with_token(self, client, mock_db):
         teacher = await _seed_teacher(mock_db)
-        token = _teacher_token(teacher["_id"])
+        token = _school_admin_token(teacher["_id"])
         resp = await client.get("/school/teachers", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
@@ -194,28 +194,28 @@ class TestUsersControllerDeep:
     @pytest.mark.asyncio
     async def test_update_teacher_not_found(self, client, mock_db):
         teacher = await _seed_teacher(mock_db)
-        token = _teacher_token(teacher["_id"])
+        token = _school_admin_token(teacher["_id"])
         resp = await client.patch("/teacher/000000000000000000000000", json={"name": "New Name"}, headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code in (200, 404)
 
     @pytest.mark.asyncio
     async def test_update_teacher_self(self, client, mock_db):
         teacher = await _seed_teacher(mock_db)
-        token = _teacher_token(teacher["_id"])
+        token = _school_admin_token(teacher["_id"])
         resp = await client.patch(f"/teacher/{teacher['_id']}", json={"name": "Updated Teacher"}, headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code in (200, 404, 403)
 
     @pytest.mark.asyncio
     async def test_delete_teacher_not_found(self, client, mock_db):
         teacher = await _seed_teacher(mock_db)
-        token = _teacher_token(teacher["_id"])
+        token = _school_admin_token(teacher["_id"])
         resp = await client.delete("/teacher/000000000000000000000000", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code in (200, 204, 404, 403)
 
     @pytest.mark.asyncio
     async def test_create_student_success(self, client, mock_db):
         teacher = await _seed_teacher(mock_db)
-        token = _teacher_token(teacher["_id"])
+        token = _school_admin_token(teacher["_id"])
         resp = await client.post("/student", json={
             "name": "Test Student",
             "phoneNumber": "+919999999998",
@@ -225,7 +225,7 @@ class TestUsersControllerDeep:
     @pytest.mark.asyncio
     async def test_create_student_duplicate_phone(self, client, mock_db):
         teacher = await _seed_teacher(mock_db)
-        token = _teacher_token(teacher["_id"])
+        token = _school_admin_token(teacher["_id"])
 
         # Create first
         resp1 = await client.post("/student", json={
@@ -244,13 +244,13 @@ class TestUsersControllerDeep:
     @pytest.mark.asyncio
     async def test_update_student_not_found(self, client, mock_db):
         teacher = await _seed_teacher(mock_db)
-        token = _teacher_token(teacher["_id"])
+        token = _school_admin_token(teacher["_id"])
         resp = await client.patch("/student/000000000000000000000000", json={"name": "Updated"}, headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code in (200, 404)
 
     @pytest.mark.asyncio
     async def test_delete_student_not_found(self, client, mock_db):
         teacher = await _seed_teacher(mock_db)
-        token = _teacher_token(teacher["_id"])
+        token = _school_admin_token(teacher["_id"])
         resp = await client.delete("/student/000000000000000000000000", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code in (200, 204, 404)

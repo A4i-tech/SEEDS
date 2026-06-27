@@ -18,11 +18,16 @@ class TestSchoolServiceExtra:
         mock_school.id = "school123"
         mock_school.name = "Test School"
 
-        with patch("app.services.school_service.SchoolRepository") as MockRepo:
+        with patch("app.services.school_service.SchoolRepository") as MockSchoolRepo, \
+             patch("app.services.school_service.UserRepository") as MockUserRepo:
             mock_repo = AsyncMock()
             mock_repo.find_by_email = AsyncMock(return_value=None)
             mock_repo.create = AsyncMock(return_value=mock_school)
-            MockRepo.return_value = mock_repo
+            MockSchoolRepo.return_value = mock_repo
+
+            mock_user_repo = AsyncMock()
+            mock_user_repo.create = AsyncMock(return_value=MagicMock())
+            MockUserRepo.return_value = mock_user_repo
 
             svc = SchoolService(mock_db)
             result = await svc.create_school(
@@ -107,6 +112,7 @@ class TestSchoolServiceExtra:
     @pytest.mark.asyncio
     async def test_update_school_not_found(self) -> None:
         from app.services.school_service import SchoolService
+        from app.models.requests.school_requests import SchoolUpdateRequest
         from app.platform.error_handling import NotFoundError
 
         mock_db = MagicMock()
@@ -119,11 +125,12 @@ class TestSchoolServiceExtra:
 
             svc = SchoolService(mock_db)
             with pytest.raises(NotFoundError):
-                await svc.update_school("nonexistent", {"name": "New"}, "tenant1")
+                await svc.update_school("nonexistent", SchoolUpdateRequest(name="New"), "tenant1")
 
     @pytest.mark.asyncio
     async def test_update_school_tenant_mismatch(self) -> None:
         from app.services.school_service import SchoolService
+        from app.models.requests.school_requests import SchoolUpdateRequest
         from app.platform.error_handling import NotFoundError
 
         mock_db = MagicMock()
@@ -135,7 +142,7 @@ class TestSchoolServiceExtra:
 
             svc = SchoolService(mock_db)
             with pytest.raises(NotFoundError):
-                await svc.update_school("school-x", {"name": "Hack"}, "wrong-tenant")
+                await svc.update_school("school-x", SchoolUpdateRequest(name="Hack"), "wrong-tenant")
 
     @pytest.mark.asyncio
     async def test_transfer_teacher_cross_tenant_blocked(self) -> None:

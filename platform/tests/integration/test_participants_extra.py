@@ -69,7 +69,7 @@ class TestParticipantsController:
         teacher = await _seed_teacher(mock_db)
         token = _teacher_token(teacher["_id"])
 
-        with patch("app.controllers.participants_controller._get_conference_manager") as mock_mgr:
+        with patch("app.platform.lifespan.get_conference_manager") as mock_mgr:
             mgr = MagicMock()
             mgr.get_conference = MagicMock(return_value=None)
             mock_mgr.return_value = mgr
@@ -86,7 +86,7 @@ class TestParticipantsController:
         teacher = await _seed_teacher(mock_db)
         token = _teacher_token(teacher["_id"])
 
-        with patch("app.controllers.participants_controller._get_conference_manager") as mock_mgr:
+        with patch("app.platform.lifespan.get_conference_manager") as mock_mgr:
             mgr = MagicMock()
             mgr.get_conference = MagicMock(return_value=None)
             mock_mgr.return_value = mgr
@@ -103,7 +103,7 @@ class TestParticipantsController:
         teacher = await _seed_teacher(mock_db)
         token = _teacher_token(teacher["_id"])
 
-        with patch("app.controllers.participants_controller._get_conference_manager") as mock_mgr:
+        with patch("app.platform.lifespan.get_conference_manager") as mock_mgr:
             mgr = MagicMock()
             mgr.get_conference = MagicMock(return_value=None)
             mock_mgr.return_value = mgr
@@ -120,7 +120,7 @@ class TestParticipantsController:
         teacher = await _seed_teacher(mock_db)
         token = _teacher_token(teacher["_id"])
 
-        with patch("app.controllers.participants_controller._get_conference_manager") as mock_mgr:
+        with patch("app.platform.lifespan.get_conference_manager") as mock_mgr:
             mgr = MagicMock()
             mgr.get_conference = MagicMock(return_value=None)
             mock_mgr.return_value = mgr
@@ -147,7 +147,7 @@ class TestParticipantsController:
         teacher = await _seed_teacher(mock_db)
         token = _teacher_token(teacher["_id"])
 
-        with patch("app.controllers.participants_controller._get_conference_manager") as mock_mgr:
+        with patch("app.platform.lifespan.get_conference_manager") as mock_mgr:
             mgr = MagicMock()
             mgr.get_conference = MagicMock(return_value=None)
             mock_mgr.return_value = mgr
@@ -163,7 +163,7 @@ class TestParticipantsController:
         teacher = await _seed_teacher(mock_db)
         token = _teacher_token(teacher["_id"])
 
-        with patch("app.controllers.participants_controller._get_conference_manager") as mock_mgr:
+        with patch("app.platform.lifespan.get_conference_manager") as mock_mgr:
             mgr = MagicMock()
             mgr.get_conference = MagicMock(return_value=None)
             mock_mgr.return_value = mgr
@@ -184,7 +184,7 @@ class TestParticipantsController:
         mock_conf.state = MagicMock()
         mock_conf.queue_event = AsyncMock()
 
-        with patch("app.controllers.participants_controller._get_conference_manager") as mock_mgr:
+        with patch("app.platform.lifespan.get_conference_manager") as mock_mgr:
             mgr = MagicMock()
             mgr.get_conference = MagicMock(return_value=mock_conf)
             mock_mgr.return_value = mgr

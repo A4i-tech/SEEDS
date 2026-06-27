@@ -63,11 +63,15 @@ def _teacher_token(uid, tid="t1", sid="s1"):
     return create_access_token({"sub": uid, "role": "teacher", "tenant_id": tid, "school_id": sid})
 
 
+def _school_admin_token(uid, tid="t1", sid="s1"):
+    return create_access_token({"sub": uid, "role": "school_admin", "tenant_id": tid, "school_id": sid})
+
+
 class TestUsersControllerExtra:
     @pytest.mark.asyncio
     async def test_create_student_empty_name_fails(self, client, mock_db):
         teacher = await _seed_teacher(mock_db)
-        token = _teacher_token(teacher["_id"])
+        token = _school_admin_token(teacher["_id"])
         resp = await client.post("/student", json={
             "name": "",
             "phoneNumber": "+919999999995",
@@ -78,7 +82,7 @@ class TestUsersControllerExtra:
     @pytest.mark.asyncio
     async def test_create_student_success(self, client, mock_db):
         teacher = await _seed_teacher(mock_db)
-        token = _teacher_token(teacher["_id"])
+        token = _school_admin_token(teacher["_id"])
         resp = await client.post("/student", json={
             "name": "New Student",
             "phoneNumber": "+919999999993",
@@ -91,7 +95,7 @@ class TestUsersControllerExtra:
     @pytest.mark.asyncio
     async def test_update_student_empty_body_fails(self, client, mock_db):
         teacher = await _seed_teacher(mock_db)
-        token = _teacher_token(teacher["_id"])
+        token = _school_admin_token(teacher["_id"])
         resp = await client.patch("/student/000000000000000000000000", json={}, headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code in (400, 404, 422)
 
@@ -120,7 +124,7 @@ class TestUsersControllerExtra:
     @pytest.mark.asyncio
     async def test_update_student_with_existing_student(self, client, mock_db):
         teacher = await _seed_teacher(mock_db)
-        token = _teacher_token(teacher["_id"])
+        token = _school_admin_token(teacher["_id"])
 
         # Create a student first
         resp = await client.post("/student", json={
@@ -140,7 +144,7 @@ class TestUsersControllerExtra:
     @pytest.mark.asyncio
     async def test_delete_student_with_existing(self, client, mock_db):
         teacher = await _seed_teacher(mock_db)
-        token = _teacher_token(teacher["_id"])
+        token = _school_admin_token(teacher["_id"])
 
         # Create then delete
         resp = await client.post("/student", json={
