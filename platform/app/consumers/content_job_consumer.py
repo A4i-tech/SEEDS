@@ -76,6 +76,9 @@ from pathlib import Path
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from app.repositories.content_job_repository import ContentJobRepository
+from app.repositories.content_repository import ContentRepository
+
 logger = logging.getLogger(__name__)
 
 # Maximum processing time per job
@@ -89,9 +92,6 @@ RETRY_BASE_SECONDS = 1.0  # backoff: 1 s, 2 s, 4 s
 
 # Errors that indicate a transient condition and should be retried
 _TRANSIENT_ERRORS = (ConnectionError, TimeoutError, OSError)
-
-_CONTENT_COLLECTION = "contentsV3"
-_JOB_COLLECTION = "content_jobs"
 
 
 # ---------------------------------------------------------------------------
@@ -343,7 +343,12 @@ async def _process_tts_for_content(content_doc: dict, blob_provider) -> None:
 # Job processing
 # ---------------------------------------------------------------------------
 
-async def _process_audio_content_job(job_doc: dict, db: AsyncIOMotorDatabase, blob_provider) -> None:
+async def _process_audio_content_job(
+    job_doc: dict,
+    job_repo: ContentJobRepository,
+    content_repo: ContentRepository,
+    blob_provider,
+) -> None:
     """Process a single audio content job with retry and dead-letter handling.
 
     Retry policy:
@@ -354,23 +359,15 @@ async def _process_audio_content_job(job_doc: dict, db: AsyncIOMotorDatabase, bl
 
     Mutates job status in DB on completion or failure.
     """
-    from datetime import datetime  # noqa: PLC0415
-
     job_id = job_doc.get("_id")
     content_id = job_doc.get("content_id")
-    jobs_col = db[_JOB_COLLECTION]
-    content_col = db[_CONTENT_COLLECTION]
 
-    # Mark as running
-    await jobs_col.update_one(
-        {"_id": job_id},
-        {"$set": {"status": "running", "started_at": datetime.now(UTC)}},
-    )
+    await job_repo.mark_running(job_id)
 
     last_exc: Exception | None = None
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            content_doc = await content_col.find_one({"_id": content_id})
+            content_doc = await content_repo.find_raw_by_id(content_id)
             if not content_doc:
                 raise RuntimeError(f"Content document not found: {content_id}")
 
@@ -401,7 +398,7 @@ async def _process_audio_content_job(job_doc: dict, db: AsyncIOMotorDatabase, bl
                 await _process_tts_for_content(content_doc, blob_provider)
 
             # Save updated content
-            update_fields = {
+            update_fields: dict = {
                 "audioContent": content_doc["audioContent"],
                 "isProcessed": True,
             }
@@ -410,13 +407,8 @@ async def _process_audio_content_job(job_doc: dict, db: AsyncIOMotorDatabase, bl
             if "theme" in content_doc:
                 update_fields["theme"] = content_doc["theme"]
 
-            await content_col.update_one({"_id": content_id}, {"$set": update_fields})
-
-            # Mark job complete
-            await jobs_col.update_one(
-                {"_id": job_id},
-                {"$set": {"status": "completed", "completed_at": datetime.now(UTC)}},
-            )
+            await content_repo.save_processed(content_id, update_fields)
+            await job_repo.mark_completed(job_id)
             logger.info(
                 "content_job: completed job_id=%s content_id=%s (attempt %d)",
                 job_id, content_id, attempt,
@@ -453,16 +445,7 @@ async def _process_audio_content_job(job_doc: dict, db: AsyncIOMotorDatabase, bl
         "content_job: dead-lettering job_id=%s content_id=%s reason=%r",
         job_id, content_id, error_msg,
     )
-    await jobs_col.update_one(
-        {"_id": job_id},
-        {
-            "$set": {
-                "status": "failed",
-                "reason": error_msg,
-                "failed_at": datetime.now(UTC),
-            }
-        },
-    )
+    await job_repo.mark_failed(job_id, error_msg)
     if last_exc is not None:
         raise last_exc
 
@@ -503,7 +486,8 @@ class ContentJobConsumer:
     async def _run_loop(self) -> None:
         """Poll for pending jobs and process them."""
         blob_provider = None
-        jobs_col = self._db[_JOB_COLLECTION]
+        job_repo = ContentJobRepository(self._db)
+        content_repo = ContentRepository(self._db)
 
         while self._running:
             # Re-attempt init each cycle so we recover when blob storage comes back
@@ -521,32 +505,18 @@ class ContentJobConsumer:
                     continue
 
             try:
-                # Find one pending job atomically
-                job_doc = await jobs_col.find_one_and_update(
-                    {"status": "pending"},
-                    {"$set": {"status": "claimed", "claimed_at": datetime.now(UTC)}},
-                    return_document=True,
-                )
+                job_doc = await job_repo.claim_next_pending()
 
                 if job_doc:
                     try:
                         await asyncio.wait_for(
-                            _process_audio_content_job(job_doc, self._db, blob_provider),
+                            _process_audio_content_job(job_doc, job_repo, content_repo, blob_provider),
                             timeout=JOB_TIMEOUT_SECONDS,
                         )
                     except TimeoutError:
                         job_id = job_doc.get("_id")
                         logger.error("content_job: timeout job_id=%s", job_id)
-                        await jobs_col.update_one(
-                            {"_id": job_id},
-                            {
-                                "$set": {
-                                    "status": "failed",
-                                    "reason": "Job exceeded timeout of 5 minutes",
-                                    "failed_at": datetime.now(UTC),
-                                }
-                            },
-                        )
+                        await job_repo.mark_failed(job_id, "Job exceeded timeout of 5 minutes")
                     except Exception as exc:  # noqa: BLE001
                         # Already dead-lettered inside _process_audio_content_job
                         logger.debug("content_job: job processing exception handled: %s", exc)

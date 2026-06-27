@@ -40,13 +40,13 @@ async def get_user_by_credentials(
         logger.debug("auth/native: no user found for email (redacted)")
         return None
 
-    stored_hash: str = user.get("password", "")
+    stored_hash: str = user.get("hashed_password", "")
     if not stored_hash or not verify_password(password, stored_hash):
         logger.debug("auth/native: password mismatch for user id=%s", user.get("_id"))
         return None
 
     # Strip the password hash before returning to callers.
-    user.pop("password", None)
+    user.pop("hashed_password", None)
     return _normalise_id(user)
 
 

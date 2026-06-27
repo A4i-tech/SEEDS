@@ -1,9 +1,24 @@
 """Request schemas for call/conference endpoints."""
+
 from __future__ import annotations
 
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+class CallStartRequest(BaseModel):
+    phone_number: str
+    tenant_id: str
+
+
+class StartCallRequest(BaseModel):
+    phone_number: str
+    tenant_id: str
+
+
+class StartIVRRequest(BaseModel):
+    phone_number: str
 
 
 class CreateConferenceRequest(BaseModel):
@@ -19,13 +34,12 @@ class LogCallRequest(BaseModel):
 
     type: str
     time: str
-    fsm_context_id: str = Field(..., alias="fsmContextId")
+    fsmContextId: str
     data: Any | None = None
-    is_completed: bool = Field(..., alias="isCompleted")
+    isCompleted: bool
 
 
 class FsmContextRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
-
-    fsm_context_id: str = Field(..., alias="fsmContextId")
-    phone_numbers: list[str] | None = Field(None, alias="phoneNumbers")
+    fsmContextId: str
+    phoneNumbers: list[str] | None

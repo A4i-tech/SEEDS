@@ -15,15 +15,22 @@ Idempotent:
     the script is safe to run multiple times.
 
 Field renames applied:
-    phoneNumber  → phone
-    tenantName   → tenant_name
-    schoolId     → school_id
-    password     → hashed_password  (legacy stored bcrypt hash under "password")
+    phoneNumber  -> phone
+    tenantName   -> (dropped)
+    schoolId     -> school_id  (string)
+    tenantId     -> tenant_id  (ObjectId, schools only)
+    password     -> hashed_password  (legacy stored bcrypt hash under "password")
+
+    tenant_id resolution:
+    schools   — taken from schools.tenantId directly
+    teachers  — resolved via schools lookup: teacher.schoolId -> school.tenantId
+    students  — resolved via schools lookup: student.schoolId -> school.tenantId
+    tenants   — not set (they are the tenant)
 
 Traceability:
     Each migrated document receives:
-        role          = preserved from source doc, or default "teacher" | "student" | "tenant"
-        migrated_from = "teachers" | "students" | "tenants"
+        role          = preserved from source doc, or default "teacher" | "student" | "tenant" | "school_admin"
+        migrated_from = "teachers" | "students" | "tenants" | "school_admin"
 """
 
 from __future__ import annotations
@@ -50,16 +57,25 @@ async def migrate(mongo_uri: str, dry_run: bool) -> None:
     client: AsyncIOMotorClient = AsyncIOMotorClient(mongo_uri)  # type: ignore[type-arg]
     try:
         # Infer DB name from URI or fall back to "seeds"
-        db_name = client.get_default_database().name if "/" in mongo_uri.rsplit("?", 1)[0] else "seeds"
+        db_name = (
+            client.get_default_database().name if "/" in mongo_uri.rsplit("?", 1)[0] else "seeds"
+        )
     except Exception:
         db_name = "seeds"
 
     db = client[db_name]
 
+    # Pre-load school_id -> tenant_id for resolving tenant_id on teachers/students.
+    school_tenant_map: dict[Any, Any] = {}
+    async for school in db["schools"].find({}, {"tenantId": 1}):
+        if "tenantId" in school:
+            school_tenant_map[school["_id"]] = school["tenantId"]
+
     sources: list[tuple[str, str]] = [
         ("teachers", "teacher"),
         ("students", "student"),
         ("tenants", "tenant"),
+        ("schools", "school_admin"),
     ]
 
     totals: dict[str, int] = {}
@@ -86,28 +102,41 @@ async def migrate(mongo_uri: str, dry_run: bool) -> None:
                 new_doc["phone"] = new_doc.pop("phoneNumber")
             if "tenantName" in new_doc and "tenant_name" not in new_doc:
                 new_doc["tenant_name"] = new_doc.pop("tenantName")
+            if "isActive" in new_doc and "is_active" not in new_doc:
+                new_doc["is_active"] = new_doc.pop("isActive")
+            # schoolId → school_id; also resolve tenant_id for teachers/students
+            # who have no tenantId of their own (must look up via school).
             if "schoolId" in new_doc and "school_id" not in new_doc:
-                new_doc["school_id"] = str(new_doc.pop("schoolId"))
+                raw_school_id = new_doc.pop("schoolId")
+                new_doc["school_id"] = str(raw_school_id)
+                if "tenant_id" not in new_doc and raw_school_id in school_tenant_map:
+                    new_doc["tenant_id"] = str(school_tenant_map[raw_school_id])
+            # tenantId → tenant_id (present on school and tenant docs directly).
+            if "tenantId" in new_doc and "tenant_id" not in new_doc:
+                raw = new_doc.pop("tenantId")
+                new_doc["tenant_id"] = str(raw) if raw is not None else None
+            # For school docs the document _id IS the school — set school_id explicitly.
+            if collection_name == "schools":
+                new_doc["school_id"] = str(doc["_id"])
             # Rename plain-text password field to hashed_password (legacy stored bcrypt hash as "password").
             if "password" in new_doc and "hashed_password" not in new_doc:
                 new_doc["hashed_password"] = new_doc.pop("password")
             # Ensure name is always populated — legacy tenants had no name field, only tenantName.
             if not new_doc.get("name"):
-                new_doc["name"] = new_doc.get("tenant_name") or new_doc.get("phone") or str(new_doc["_id"])
+                new_doc["name"] = (
+                    new_doc.get("tenant_name") or new_doc.get("phone") or str(new_doc["_id"])
+                )
             # Preserve sub-roles (e.g. "content_creator") — only set default if doc has no role.
             new_doc["role"] = doc.get("role") or role
 
-            existing = await dst_col.find_one(
-                {"migrated_from": collection_name, "_id": doc["_id"]}
-            )
+            existing = await dst_col.find_one({"migrated_from": collection_name, "_id": doc["_id"]})
             if existing is not None:
                 skipped += 1
                 continue
 
             if dry_run:
                 print(
-                    f"[DRY-RUN] Would migrate {collection_name}/{doc['_id']} "
-                    f"→ users (role={role})"
+                    f"[DRY-RUN] Would migrate {collection_name}/{doc['_id']} → users (role={role})"
                 )
             else:
                 await dst_col.replace_one(

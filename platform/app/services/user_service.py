@@ -19,7 +19,7 @@ from app.models.user import User, UserCreate, UserRole
 from app.platform.auth.dependencies import get_db
 from app.platform.authz.ownership import assert_conference_owner
 from app.platform.authz.tenant_scope import assert_same_tenant
-from app.platform.error_handling import ConflictError, NotFoundError
+from app.platform.error_handling import ConflictError, ForbiddenError, NotFoundError
 from app.repositories.user_repository import UserRepository
 
 logger = logging.getLogger(__name__)
@@ -85,7 +85,7 @@ async def get_participants(
     await assert_conference_owner(current_user, conference_id, db)
 
     # Resolve participant user IDs from the conference document.
-    conference_doc = await db["conference_states"].find_one({"conference_id": conference_id})
+    conference_doc = await db["conferenceState"].find_one({"conference_id": conference_id})
     if conference_doc is None:
         raise NotFoundError("Conference", conference_id)
 
@@ -202,10 +202,10 @@ class UserService:
         return [u for u in all_users if u.school_id == school_id and u.role.value == "student"]
 
     async def update_student(self, student_id: str, updates: dict[str, Any], caller_school_id: str) -> User:
+        if not caller_school_id:
+            raise ForbiddenError("school_id claim required to update students")
         existing = await self._repo.find_by_id(student_id)
-        if existing is None:
-            raise NotFoundError("Student", student_id)
-        if caller_school_id and existing.school_id != caller_school_id:
+        if existing is None or existing.school_id != caller_school_id:
             raise NotFoundError("Student", student_id)
         if "phone" in updates:
             dup = await self._repo.find_by_phone(updates["phone"])
@@ -217,10 +217,10 @@ class UserService:
         return updated
 
     async def delete_student(self, student_id: str, caller_school_id: str) -> None:
+        if not caller_school_id:
+            raise ForbiddenError("school_id claim required to delete students")
         existing = await self._repo.find_by_id(student_id)
-        if existing is None:
-            raise NotFoundError("Student", student_id)
-        if caller_school_id and existing.school_id != caller_school_id:
+        if existing is None or existing.school_id != caller_school_id:
             raise NotFoundError("Student", student_id)
         await self._repo.delete(student_id)
 
@@ -230,10 +230,10 @@ class UserService:
         return [u for u in users if u.school_id == school_id and u.role.value in ("teacher", "content_creator")]
 
     async def update_teacher(self, teacher_id: str, updates: dict[str, Any], caller_school_id: str) -> User:
+        if not caller_school_id:
+            raise ForbiddenError("school_id claim required to update teachers")
         existing = await self._repo.find_by_id(teacher_id)
-        if existing is None:
-            raise NotFoundError("Teacher", teacher_id)
-        if caller_school_id and existing.school_id != caller_school_id:
+        if existing is None or existing.school_id != caller_school_id:
             raise NotFoundError("Teacher", teacher_id)
         updated = await self._repo.update(teacher_id, updates)
         if updated is None:
@@ -241,10 +241,10 @@ class UserService:
         return updated
 
     async def delete_teacher(self, teacher_id: str, caller_school_id: str) -> None:
+        if not caller_school_id:
+            raise ForbiddenError("school_id claim required to delete teachers")
         existing = await self._repo.find_by_id(teacher_id)
-        if existing is None:
-            raise NotFoundError("Teacher", teacher_id)
-        if caller_school_id and existing.school_id != caller_school_id:
+        if existing is None or existing.school_id != caller_school_id:
             raise NotFoundError("Teacher", teacher_id)
         await self._repo.delete(teacher_id)
 

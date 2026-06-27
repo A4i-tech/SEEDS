@@ -39,12 +39,12 @@ class AuditRepository(BaseRepository):
         return AuditLog.from_mongo(doc)
 
     async def find_recent_by_tenant(self, tenant_id: str, limit: int = 100) -> list[AuditLog]:
-        cursor = self._audit_col.find({"tenant_id": tenant_id}).sort("_id", -1).limit(limit)
+        cursor = self._audit_col.find({"tenantId": tenant_id}).sort("_id", -1).limit(limit)
         docs = await cursor.to_list(length=None)
         return [AuditLog.from_mongo(d) for d in docs]
 
     async def find_logs_by_user_and_tenant(self, user_id: str, tenant_id: str) -> list[AuditLog]:
-        cursor = self._audit_col.find({"user": user_id, "tenant_id": tenant_id}).sort("_id", -1)
+        cursor = self._audit_col.find({"user": user_id, "tenantId": tenant_id}).sort("_id", -1)
         docs = await cursor.to_list(length=None)
         return [AuditLog.from_mongo(d) for d in docs]
 

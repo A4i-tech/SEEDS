@@ -17,7 +17,7 @@ Flags:
 Indexes created:
     users:
         {tenant_id: 1, _id: 1}
-        {tenant_id: 1, email: 1}  (unique)
+        {tenant_id: 1, email: 1}  (unique, partial — email exists and non-empty)
     schools:
         {tenant_id: 1, _id: 1}
     classrooms:
@@ -63,7 +63,14 @@ if _PROJECT_ROOT not in sys.path:
 INDEX_SPECS: list[tuple[str, list[tuple[str, int]], dict[str, Any]]] = [
     # users
     ("users", [("tenant_id", 1), ("_id", 1)], {}),
-    ("users", [("tenant_id", 1), ("email", 1)], {"unique": True, "sparse": True}),
+    (
+        "users",
+        [("tenant_id", 1), ("email", 1)],
+        {
+            "unique": True,
+            "partialFilterExpression": {"email": {"$exists": True, "$type": "string", "$gt": ""}},
+        },
+    ),
     # schools
     ("schools", [("tenant_id", 1), ("_id", 1)], {}),
     # classrooms
@@ -118,6 +125,8 @@ async def migrate(mongo_uri: str, dry_run: bool) -> None:
                 created += 1
             except Exception as exc:
                 print(f"  ERROR: {collection_name} index failed — {exc}")
+                client.close()
+                sys.exit(1)
 
     if dry_run:
         print(f"\n[DRY-RUN] {len(INDEX_SPECS)} index command(s) would be executed (no writes performed).")

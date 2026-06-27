@@ -511,13 +511,13 @@ class TestContentRepository:
     @pytest.mark.asyncio
     async def test_create_and_find_content(self, db) -> None:
         from app.repositories.content_repository import ContentRepository
-        from app.models.content import ContentCreate
+        from app.models.requests.content_requests import ContentCreate
 
         repo = ContentRepository(db)
         content_create = ContentCreate(
             type="audio",
             language="english",
-            tenant_id="t1",
+            tenantId="t1",
             createdBy="teacher1",
         )
         created = await repo.create(content_create)
@@ -630,12 +630,12 @@ class TestSchoolServiceAdditional:
 
     @pytest.mark.asyncio
     async def test_list_classrooms_by_teacher(self, db) -> None:
-        from app.models.classroom import ClassroomCreate
+        from app.models.requests.school_requests import ClassroomCreate
         from app.services.school_service import SchoolService
 
         svc = SchoolService(db)
-        c1 = ClassroomCreate(name="Class 1A", school_id="s1", teacher="t1")
-        c2 = ClassroomCreate(name="Class 1B", school_id="s1", teacher="t1")
+        c1 = ClassroomCreate(name="Class 1A", schoolId="s1", teacher="t1")
+        c2 = ClassroomCreate(name="Class 1B", schoolId="s1", teacher="t1")
         await svc.create_classroom(c1)
         await svc.create_classroom(c2)
 

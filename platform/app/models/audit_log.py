@@ -1,4 +1,5 @@
 """Unified audit log models (from Log.js + LogEntry.js + IvrV2Log.js)."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -17,13 +18,13 @@ class AuditLog(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: str | None = Field(None, alias="_id")
-    log_id: int | None = Field(None, alias="logId")  # legacy numeric id
-    user: str  # user identifier
-    log_text: str = Field(..., alias="logText")
+    log_id: int | None = Field(None, alias="logId")
+    user: str
+    log_text: str = Field(alias="logText")
     time: str
     priority: int
-    tenant_id: str | None = None
-    created_at: datetime | None = None
+    tenant_id: str | None = Field(None, alias="tenantId")
+    created_at: datetime | None = Field(None, alias="createdAt")
 
     @classmethod
     def from_mongo(cls, doc: dict) -> AuditLog:
@@ -50,7 +51,7 @@ class LogEntry(BaseModel):
     response_body: Any | None = Field(None, alias="responseBody")
     status_code: int | None = Field(None, alias="statusCode")
     timestamp: datetime | None = None
-    tenant_id: str | None = None
+    tenant_id: str | None = Field(None, alias="tenantId")
 
     @classmethod
     def from_mongo(cls, doc: dict) -> LogEntry:

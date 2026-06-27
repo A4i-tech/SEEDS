@@ -255,13 +255,13 @@ class TestSchoolServiceExtended:
 
     @pytest.mark.asyncio
     async def test_create_classroom(self, db) -> None:
-        from app.models.classroom import ClassroomCreate
+        from app.models.requests.school_requests import ClassroomCreate
         from app.services.school_service import SchoolService
 
         svc = SchoolService(db)
         data = ClassroomCreate(
             name="Class 1A",
-            school_id="s1",
+            schoolId="s1",
             teacher="teacher1",
         )
         classroom = await svc.create_classroom(data)
@@ -269,13 +269,13 @@ class TestSchoolServiceExtended:
 
     @pytest.mark.asyncio
     async def test_get_classrooms_by_school(self, db) -> None:
-        from app.models.classroom import ClassroomCreate
+        from app.models.requests.school_requests import ClassroomCreate
         from app.services.school_service import SchoolService
 
         svc = SchoolService(db)
-        c1 = ClassroomCreate(name="Class 1A", school_id="s1", teacher="t1")
-        c2 = ClassroomCreate(name="Class 1B", school_id="s1", teacher="t1")
-        c3 = ClassroomCreate(name="Class 2A", school_id="s2", teacher="t1")
+        c1 = ClassroomCreate(name="Class 1A", schoolId="s1", teacher="t1")
+        c2 = ClassroomCreate(name="Class 1B", schoolId="s1", teacher="t1")
+        c3 = ClassroomCreate(name="Class 2A", schoolId="s2", teacher="t1")
 
         await svc.create_classroom(c1)
         await svc.create_classroom(c2)
@@ -325,7 +325,7 @@ class TestUserServiceExtended:
 
         current = {"sub": str(user.id), "role": "teacher", "tenant_id": "t1"}
         # Insert a conference_state to check ownership
-        await db["conference_states"].insert_one({
+        await db["conferenceState"].insert_one({
             "conference_id": "conf1",
             "created_by": str(user.id),
         })

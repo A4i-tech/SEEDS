@@ -1,4 +1,5 @@
 """User repository — Motor async data access for the users collection."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -33,9 +34,19 @@ class UserRepository(BaseRepository):
         doc = await self._col.find_one({"email": email})
         return User.from_mongo(doc) if doc else None
 
+    async def find_by_email_and_role(self, email: str, role: str) -> User | None:
+        """Find a user by email scoped to a specific role."""
+        doc = await self._col.find_one({"email": email, "role": role})
+        return User.from_mongo(doc) if doc else None
+
     async def find_by_phone(self, phone: str) -> User | None:
         """Find a user by their phone number."""
         doc = await self._col.find_one({"phone": phone})
+        return User.from_mongo(doc) if doc else None
+
+    async def find_by_school_id_and_tenant_id(self, school_id: str, tenant_id: str) -> User | None:
+        """Find a user by their Firebase UID."""
+        doc = await self._col.find_one({"school_id": school_id, "tenant_id": tenant_id})
         return User.from_mongo(doc) if doc else None
 
     async def find_by_firebase_uid(self, uid: str) -> User | None:
@@ -46,6 +57,15 @@ class UserRepository(BaseRepository):
     async def find_all_by_tenant(self, tenant_id: str) -> list[User]:
         """Return all users belonging to a tenant."""
         cursor = self._col.find({"tenant_id": tenant_id})
+        docs = await cursor.to_list(length=None)
+        return [User.from_mongo(d) for d in docs]
+
+    async def find_many_by_ids(self, ids: list[str]) -> list[User]:
+        """Fetch multiple users by a list of _id strings in one query."""
+        if not ids:
+            return []
+        object_ids = [self._to_id(i) for i in ids]
+        cursor = self._col.find({"_id": {"$in": object_ids}})
         docs = await cursor.to_list(length=None)
         return [User.from_mongo(d) for d in docs]
 

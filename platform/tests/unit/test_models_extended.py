@@ -300,7 +300,7 @@ class TestNativeAuthProvider:
         from app.platform.auth.hashing import hash_password
 
         hashed = hash_password("correctpass")
-        user_doc = {"_id": "uid1", "email": "x@y.com", "password": hashed}
+        user_doc = {"_id": "uid1", "email": "x@y.com", "hashed_password": hashed}
 
         db = MagicMock()
         db.__getitem__ = MagicMock(return_value=MagicMock(
@@ -315,7 +315,7 @@ class TestNativeAuthProvider:
         from app.platform.auth.hashing import hash_password
 
         hashed = hash_password("correctpass")
-        user_doc = {"_id": "uid1", "email": "x@y.com", "password": hashed, "name": "Alice"}
+        user_doc = {"_id": "uid1", "email": "x@y.com", "hashed_password": hashed, "name": "Alice"}
 
         db = MagicMock()
         db.__getitem__ = MagicMock(return_value=MagicMock(
@@ -324,8 +324,8 @@ class TestNativeAuthProvider:
         result = await get_user_by_credentials("x@y.com", "correctpass", db)
         assert result is not None
         assert result.get("email") == "x@y.com"
-        # password must NOT be in result
-        assert "password" not in result
+        # hashed_password must NOT be in result
+        assert "hashed_password" not in result
 
     @pytest.mark.asyncio
     async def test_get_user_by_id_invalid(self) -> None:
@@ -679,6 +679,8 @@ class TestContentJobConsumerDeadLetter:
         from bson import ObjectId
 
         from app.consumers.content_job_consumer import _process_audio_content_job
+        from app.repositories.content_job_repository import ContentJobRepository
+        from app.repositories.content_repository import ContentRepository
 
         job_id = ObjectId()
         job_doc = {"_id": job_id, "content_id": "c1", "status": "claimed"}
@@ -687,7 +689,7 @@ class TestContentJobConsumerDeadLetter:
         # content_col returns None => RuntimeError (permanent)
         blob_mock = MagicMock()
         with pytest.raises(RuntimeError):
-            await _process_audio_content_job(job_doc, db, blob_mock)
+            await _process_audio_content_job(job_doc, ContentJobRepository(db), ContentRepository(db), blob_mock)
 
         updated = await db["content_jobs"].find_one({"_id": job_id})
         assert updated["status"] == "failed"

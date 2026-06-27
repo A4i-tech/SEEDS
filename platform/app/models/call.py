@@ -1,4 +1,5 @@
 """Call domain models (from Call.js + CallLog.js)."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -16,8 +17,8 @@ class Call(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: str | None = Field(None, alias="_id")
-    call_id: int = Field(..., alias="id")   # unique numeric call identifier
-    index: int                              # round-robin / sequence index
+    call_id: int = Field(..., alias="id")  # unique numeric call identifier
+    index: int  # round-robin / sequence index
 
     @classmethod
     def from_mongo(cls, doc: dict) -> Call:
@@ -37,9 +38,9 @@ class CallLog(BaseModel):
     id: str | None = Field(None, alias="_id")
     type: str
     time: str
-    fsm_context_id: str = Field(..., alias="fsmContextId")
+    fsmContextId: str
     data: dict[str, Any] | None = None
-    is_completed: bool = Field(..., alias="isCompleted")
+    is_completed: bool = Field(alias="isCompleted")
 
     @classmethod
     def from_mongo(cls, doc: dict) -> CallLog:

@@ -23,7 +23,7 @@ async def teacher_login(
     service: AuthService = Depends(get_auth_service),
 ) -> dict[str, Any]:
     return await service.login_by_phone(
-        phone=body.phone_number,
+        phone=body.phoneNumber,
         password=body.password,
     )
 
@@ -41,9 +41,10 @@ async def teacher_register(
 ) -> dict[str, Any]:
     data = TeacherCreate(
         name=body.name.strip(),
-        email=body.phone_number,
+        email=body.phoneNumber,
         password=body.password,
-        phone=body.phone_number,
+        phone=body.phoneNumber,
+        role=body.role,
         tenant_id=current_user.get("tenant_id"),
         school_id=current_user.get("school_id"),
     )

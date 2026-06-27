@@ -1,4 +1,5 @@
-"""Request schemas for school and classroom endpoints."""
+"""Request schemas and create DTOs for school and classroom endpoints."""
+
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
@@ -17,24 +18,45 @@ class SchoolUpdateRequest(BaseModel):
 
 
 class TeacherTransferRequest(BaseModel):
-    teacher_id: str = Field(..., alias="teacherId")
-    target_school_id: str = Field(..., alias="targetSchoolId")
+    teacherId: str
+    targetSchoolId: str
 
     model_config = {"populate_by_name": True}
 
 
 class SchoolAnalyticsRequest(BaseModel):
-    start_date: str = Field(..., alias="startDate")
-    end_date: str = Field(..., alias="endDate")
+    startDate: str
+    endDate: str
 
     model_config = {"populate_by_name": True}
 
 
 class ClassroomUpsertRequest(BaseModel):
-    id: str | None = Field(None, alias="_id")
+    id: str | None = None
     name: str | None = None
     students: list[str] = Field(default_factory=list)
     leaders: list[str] = Field(default_factory=list)
-    content_ids: list[str] = Field(default_factory=list, alias="contentIds")
+    contentIds: list[str] = Field(default_factory=list)
 
     model_config = {"populate_by_name": True}
+
+
+class ClassroomCreate(BaseModel):
+    """CamelCase create DTO — model_dump() writes correct DB keys directly."""
+
+    schoolId: str
+    name: str
+    teacher: str
+    students: list[str] = Field(default_factory=list)
+    leaders: list[str] = Field(default_factory=list)
+    contentIds: list[str] = Field(default_factory=list)
+
+
+class SchoolCreate(BaseModel):
+    """CamelCase create DTO — model_dump() writes correct DB keys directly."""
+
+    tenantId: str
+    name: str
+    email: str
+    password: str | None = None
+    isActive: bool = True

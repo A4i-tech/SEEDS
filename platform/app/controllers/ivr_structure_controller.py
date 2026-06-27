@@ -35,6 +35,7 @@ def _require_tenant(user: dict = Depends(get_current_user)) -> dict:
 # GET /ivr-structure
 # ---------------------------------------------------------------------------
 
+
 @router.get(
     "/ivr-structure",
     summary="Get current IVR FSM structure",
@@ -52,6 +53,7 @@ async def get_ivr_structure(
 # ---------------------------------------------------------------------------
 # GET /ivr/{ivr_id}
 # ---------------------------------------------------------------------------
+
 
 @router.get(
     "/ivr/{ivr_id}",
@@ -85,9 +87,9 @@ async def get_ivr_by_id(
 # POST /start-ivr
 # ---------------------------------------------------------------------------
 
+
 class StartIVRRequest(BaseModel):
     phone_number: str
-    tenant_id: str = ""
 
 
 @router.post(
@@ -101,9 +103,7 @@ async def start_ivr(
     service: IVRService = Depends(get_ivr_service),
 ) -> Any:
     """Start an IVR call for the given phone number."""
-    tenant_id = request.tenant_id or (
-        user.get("tenant_id", "") if isinstance(user, dict) else ""
-    )
+    tenant_id = user.get("tenant_id", "") if isinstance(user, dict) else ""
     response = await service.start_call_flow(
         phone_number=request.phone_number,
         tenant_id=tenant_id,
@@ -116,3 +116,26 @@ async def start_ivr(
             detail=response.get("message", "Failed to start IVR"),
         )
     return response
+
+
+# ---------------------------------------------------------------------------
+# PATCH /ivr
+# ---------------------------------------------------------------------------
+
+
+@router.patch(
+    "/ivr",
+    summary="Rebuild FSM from latest content",
+    description="Rebuilds and persists the IVR FSM. Refuses if active calls exist (409).",
+)
+async def update_ivr(
+    user: dict[str, Any] = Depends(_require_tenant),
+    service: IVRService = Depends(get_ivr_service),
+) -> Any:
+    result = await service.update_ivr_structure(
+        tenant_id=user.get("tenant_id", "") if isinstance(user, dict) else "",
+        structure={},
+    )
+    if result.get("status_code", 200) >= 400:
+        raise HTTPException(status_code=result["status_code"], detail=result.get("message"))
+    return result
