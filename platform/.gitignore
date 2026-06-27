@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.venv/
+dist/
+*.egg-info/
+.env
+.coverage
+coverage.json
+bandit_report.json
+.pytest_cache/

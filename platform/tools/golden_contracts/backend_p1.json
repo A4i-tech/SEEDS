@@ -1,0 +1,258 @@
+{
+  "description": "Golden contract for backend Phase 1 - identity, users, school, classroom endpoints",
+  "version": "1.0.0",
+  "endpoints": [
+    {
+      "method": "POST",
+      "path": "/teacher/login",
+      "required_auth": false,
+      "expected_status_codes": [200, 400, 401],
+      "description": "Teacher login - returns JWT token"
+    },
+    {
+      "method": "POST",
+      "path": "/teacher/register",
+      "required_auth": true,
+      "expected_status_codes": [201, 400, 401, 409],
+      "description": "Register a new teacher (school_admin only)"
+    },
+    {
+      "method": "POST",
+      "path": "/teacher/logout",
+      "required_auth": true,
+      "expected_status_codes": [200, 401],
+      "description": "Teacher logout"
+    },
+    {
+      "method": "GET",
+      "path": "/teacher/me",
+      "required_auth": true,
+      "expected_status_codes": [200, 401, 404],
+      "description": "Get current teacher profile"
+    },
+    {
+      "method": "GET",
+      "path": "/teacher/teachers",
+      "required_auth": true,
+      "expected_status_codes": [200, 401, 403],
+      "description": "List teachers in admin's school"
+    },
+    {
+      "method": "PATCH",
+      "path": "/teacher/{teacherId}",
+      "required_auth": true,
+      "expected_status_codes": [200, 400, 401, 404, 409],
+      "description": "Update a teacher"
+    },
+    {
+      "method": "DELETE",
+      "path": "/teacher/{teacherId}",
+      "required_auth": true,
+      "expected_status_codes": [200, 401, 404],
+      "description": "Delete a teacher"
+    },
+    {
+      "method": "POST",
+      "path": "/student",
+      "required_auth": true,
+      "expected_status_codes": [201, 400, 401, 409],
+      "description": "Create a student"
+    },
+    {
+      "method": "GET",
+      "path": "/student",
+      "required_auth": true,
+      "expected_status_codes": [200, 401],
+      "description": "List students in school"
+    },
+    {
+      "method": "PATCH",
+      "path": "/student/{studentId}",
+      "required_auth": true,
+      "expected_status_codes": [200, 400, 401, 404, 409],
+      "description": "Update a student"
+    },
+    {
+      "method": "DELETE",
+      "path": "/student/{studentId}",
+      "required_auth": true,
+      "expected_status_codes": [200, 401, 404],
+      "description": "Delete a student"
+    },
+    {
+      "method": "GET",
+      "path": "/user/participants",
+      "required_auth": true,
+      "expected_status_codes": [200, 401],
+      "description": "SECURITY FIX: was unprotected, now requires auth"
+    },
+    {
+      "method": "GET",
+      "path": "/tenant/names",
+      "required_auth": false,
+      "expected_status_codes": [200],
+      "description": "Get all tenant names"
+    },
+    {
+      "method": "POST",
+      "path": "/tenant/login",
+      "required_auth": false,
+      "expected_status_codes": [200, 400, 401],
+      "description": "Tenant login"
+    },
+    {
+      "method": "POST",
+      "path": "/tenant/register",
+      "required_auth": false,
+      "expected_status_codes": [201, 400, 409],
+      "description": "Register a new tenant"
+    },
+    {
+      "method": "POST",
+      "path": "/tenant/logout",
+      "required_auth": true,
+      "expected_status_codes": [200, 401],
+      "description": "Tenant logout"
+    },
+    {
+      "method": "GET",
+      "path": "/tenant/me",
+      "required_auth": true,
+      "expected_status_codes": [200, 401, 404],
+      "description": "Get current tenant"
+    },
+    {
+      "method": "POST",
+      "path": "/tenant/analytics",
+      "required_auth": true,
+      "expected_status_codes": [200, 400, 401, 403],
+      "description": "Tenant analytics"
+    },
+    {
+      "method": "POST",
+      "path": "/tenant/change-password",
+      "required_auth": true,
+      "expected_status_codes": [200, 400, 401, 403],
+      "description": "Change tenant password"
+    },
+    {
+      "method": "GET",
+      "path": "/tenant/dashboard",
+      "required_auth": true,
+      "expected_status_codes": [200, 401, 403],
+      "description": "Tenant dashboard statistics"
+    },
+    {
+      "method": "POST",
+      "path": "/school/admin/login",
+      "required_auth": false,
+      "expected_status_codes": [200, 400, 401],
+      "description": "School admin login"
+    },
+    {
+      "method": "GET",
+      "path": "/school/admin/me",
+      "required_auth": true,
+      "expected_status_codes": [200, 401, 404],
+      "description": "Get current school admin profile"
+    },
+    {
+      "method": "POST",
+      "path": "/school",
+      "required_auth": true,
+      "expected_status_codes": [201, 400, 401, 403],
+      "description": "Create a new school (tenant only)"
+    },
+    {
+      "method": "GET",
+      "path": "/school",
+      "required_auth": true,
+      "expected_status_codes": [200, 401],
+      "description": "List schools for current tenant"
+    },
+    {
+      "method": "GET",
+      "path": "/school/teachers",
+      "required_auth": true,
+      "expected_status_codes": [200, 401, 403],
+      "description": "List teachers in school"
+    },
+    {
+      "method": "POST",
+      "path": "/school/transfer",
+      "required_auth": true,
+      "expected_status_codes": [200, 400, 401, 404],
+      "description": "Transfer teacher to another school"
+    },
+    {
+      "method": "GET",
+      "path": "/school/dashboard",
+      "required_auth": true,
+      "expected_status_codes": [200, 401, 403],
+      "description": "Get school dashboard"
+    },
+    {
+      "method": "POST",
+      "path": "/school/analytics",
+      "required_auth": true,
+      "expected_status_codes": [200, 400, 401, 403],
+      "description": "School analytics"
+    },
+    {
+      "method": "GET",
+      "path": "/school/{schoolId}",
+      "required_auth": true,
+      "expected_status_codes": [200, 401, 403, 404],
+      "description": "Get school by ID"
+    },
+    {
+      "method": "PATCH",
+      "path": "/school/{schoolId}",
+      "required_auth": true,
+      "expected_status_codes": [200, 400, 401, 404],
+      "description": "Update a school"
+    },
+    {
+      "method": "DELETE",
+      "path": "/school/{schoolId}",
+      "required_auth": true,
+      "expected_status_codes": [200, 400, 401, 403, 404],
+      "description": "Delete a school"
+    },
+    {
+      "method": "GET",
+      "path": "/class",
+      "required_auth": true,
+      "expected_status_codes": [200, 401],
+      "description": "List classes"
+    },
+    {
+      "method": "GET",
+      "path": "/class/{classId}",
+      "required_auth": true,
+      "expected_status_codes": [200, 401, 404],
+      "description": "Get class by ID"
+    },
+    {
+      "method": "POST",
+      "path": "/class",
+      "required_auth": true,
+      "expected_status_codes": [200, 400, 401, 403],
+      "description": "Create or update a class"
+    },
+    {
+      "method": "DELETE",
+      "path": "/class/{classId}",
+      "required_auth": true,
+      "expected_status_codes": [200, 401, 404],
+      "description": "Delete a class"
+    },
+    {
+      "method": "GET",
+      "path": "/health",
+      "required_auth": false,
+      "expected_status_codes": [200],
+      "description": "Health check"
+    }
+  ]
+}
