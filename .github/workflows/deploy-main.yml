@@ -17,11 +17,11 @@ jobs:
         strategy:
             matrix:
                 service:
-                    - name: backend-server-service
-                      context: backend-server
-                      image: backend-server
-                      lang: node
-                      azure_publish_profile: BACKEND_SERVER_AZURE_PUBLISH_PROFILE
+                    - name: platform-service
+                      context: platform
+                      image: platform
+                      lang: python
+                      azure_publish_profile: PLATFORM_AZURE_PUBLISH_PROFILE
 
                     - name: content-webapp-service
                       context: ContentWebApp
@@ -43,17 +43,6 @@ jobs:
                       build_arg_storage: TEACHER_WEBAPP_STORAGE_ACCOUNT_NAME
                       build_arg_api_url: TEACHER_WEBAPP_API_BASE_URL
 
-                    - name: conference-v2-service
-                      context: ConferenceV2
-                      image: conference-v2
-                      lang: python
-                      azure_publish_profile: CONFERENCE_V2_AZURE_PUBLISH_PROFILE
-
-                    - name: IvrV2-service
-                      context: IVRv2
-                      image: ivrv2
-                      lang: python
-                      azure_publish_profile: IVRV2_AZURE_PUBLISH_PROFILE
         steps:
             - name: Checkout repository
               uses: actions/checkout@v4
