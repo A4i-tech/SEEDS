@@ -5,9 +5,9 @@ content_controller additional paths, and users_controller additional routes.
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 
 # ---------------------------------------------------------------------------
 # ServiceBusProvider — methods with handle=None (no Azure)
@@ -33,7 +33,7 @@ class TestServiceBusProviderNullHandles:
 
     @pytest.mark.asyncio
     async def test_complete_message_null_handle_returns_false(self) -> None:
-        from app.providers.service_bus import QueueMessage, MessageType
+        from app.providers.service_bus import MessageType, QueueMessage
         p = self._make_provider()
         msg = QueueMessage(type=MessageType.CALL_WEBHOOK, payload={})
         result = await p.complete_message("call_webhook", msg)
@@ -41,7 +41,7 @@ class TestServiceBusProviderNullHandles:
 
     @pytest.mark.asyncio
     async def test_abandon_message_null_handle_returns_false(self) -> None:
-        from app.providers.service_bus import QueueMessage, MessageType
+        from app.providers.service_bus import MessageType, QueueMessage
         p = self._make_provider()
         msg = QueueMessage(type=MessageType.DTMF_INPUT, payload={})
         result = await p.abandon_message("dtmf_input", msg)
@@ -49,7 +49,7 @@ class TestServiceBusProviderNullHandles:
 
     @pytest.mark.asyncio
     async def test_dead_letter_message_null_handle_returns_false(self) -> None:
-        from app.providers.service_bus import QueueMessage, MessageType
+        from app.providers.service_bus import MessageType, QueueMessage
         p = self._make_provider()
         msg = QueueMessage(type=MessageType.CALL_EVENT, payload={})
         result = await p.dead_letter_message("call_event", msg, "test reason")
@@ -120,7 +120,7 @@ class TestAzureQueueHandle:
 
     @pytest.mark.asyncio
     async def test_complete_message_not_in_map_returns_false(self) -> None:
-        from app.providers.service_bus import QueueMessage, MessageType
+        from app.providers.service_bus import MessageType, QueueMessage
 
         handle = self._make_handle()
         msg = QueueMessage(type=MessageType.CALL_WEBHOOK, payload={})
@@ -129,7 +129,7 @@ class TestAzureQueueHandle:
 
     @pytest.mark.asyncio
     async def test_abandon_message_not_in_map_returns_false(self) -> None:
-        from app.providers.service_bus import QueueMessage, MessageType
+        from app.providers.service_bus import MessageType, QueueMessage
 
         handle = self._make_handle()
         msg = QueueMessage(type=MessageType.CALL_WEBHOOK, payload={})
@@ -138,7 +138,7 @@ class TestAzureQueueHandle:
 
     @pytest.mark.asyncio
     async def test_dead_letter_not_in_map_returns_false(self) -> None:
-        from app.providers.service_bus import QueueMessage, MessageType
+        from app.providers.service_bus import MessageType, QueueMessage
 
         handle = self._make_handle()
         msg = QueueMessage(type=MessageType.CALL_WEBHOOK, payload={})
@@ -147,7 +147,7 @@ class TestAzureQueueHandle:
 
     @pytest.mark.asyncio
     async def test_complete_message_in_map_success(self) -> None:
-        from app.providers.service_bus import QueueMessage, MessageType
+        from app.providers.service_bus import MessageType, QueueMessage
 
         handle = self._make_handle()
         msg = QueueMessage(type=MessageType.CALL_WEBHOOK, payload={})
@@ -161,7 +161,7 @@ class TestAzureQueueHandle:
 
     @pytest.mark.asyncio
     async def test_abandon_message_in_map_success(self) -> None:
-        from app.providers.service_bus import QueueMessage, MessageType
+        from app.providers.service_bus import MessageType, QueueMessage
 
         handle = self._make_handle()
         msg = QueueMessage(type=MessageType.DTMF_INPUT, payload={})
@@ -174,7 +174,6 @@ class TestAzureQueueHandle:
 
     @pytest.mark.asyncio
     async def test_receive_returns_empty_on_exception(self) -> None:
-        from app.providers.service_bus import QueueMessage
 
         handle = self._make_handle()
         handle._receiver.receive_messages = AsyncMock(side_effect=Exception("recv failed"))
@@ -208,6 +207,7 @@ class TestWebhookControllerDeep:
     async def test_answer_endpoint_public(self) -> None:
         from httpx import ASGITransport, AsyncClient
         from mongomock_motor import AsyncMongoMockClient
+
         from app.main import app
         from app.platform.auth.dependencies import get_db
 
@@ -228,6 +228,7 @@ class TestWebhookControllerDeep:
     async def test_event_endpoint_completed_status(self) -> None:
         from httpx import ASGITransport, AsyncClient
         from mongomock_motor import AsyncMongoMockClient
+
         from app.main import app
         from app.platform.auth.dependencies import get_db
 
@@ -255,6 +256,7 @@ class TestWebhookControllerDeep:
     async def test_event_endpoint_answered_status(self) -> None:
         from httpx import ASGITransport, AsyncClient
         from mongomock_motor import AsyncMongoMockClient
+
         from app.main import app
         from app.platform.auth.dependencies import get_db
 
@@ -282,6 +284,7 @@ class TestWebhookControllerDeep:
     async def test_dtmf_webhook_no_auth_404_or_200(self) -> None:
         from httpx import ASGITransport, AsyncClient
         from mongomock_motor import AsyncMongoMockClient
+
         from app.main import app
         from app.platform.auth.dependencies import get_db
 

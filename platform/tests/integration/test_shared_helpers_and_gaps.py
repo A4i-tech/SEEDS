@@ -27,7 +27,6 @@ from app.platform.auth.dependencies import get_db
 from app.platform.auth.hashing import hash_password
 from app.platform.auth.jwt import create_access_token
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -91,8 +90,9 @@ class TestConferenceHelpersShared:
         assert result is mock_conf
 
     def test_raises_404_when_not_found(self) -> None:
-        from app.controllers._conference_helpers import get_conf_or_404
         from fastapi import HTTPException
+
+        from app.controllers._conference_helpers import get_conf_or_404
         mock_mgr = MagicMock()
         mock_mgr.get_conference.return_value = None
         with patch("app.platform.lifespan.get_conference_manager", return_value=mock_mgr):
@@ -102,21 +102,21 @@ class TestConferenceHelpersShared:
         assert "Conference not found" in exc_info.value.detail
 
     def test_participants_controller_uses_shared_helper(self) -> None:
-        import app.controllers.participants_controller as pc
         import app.controllers._conference_helpers as ch
+        import app.controllers.participants_controller as pc
         # _get_conf_or_404 must no longer exist locally; get_conf_or_404 is imported
         assert not hasattr(pc, "_get_conf_or_404")
         assert pc.get_conf_or_404 is ch.get_conf_or_404
 
     def test_playback_controller_uses_shared_helper(self) -> None:
-        import app.controllers.playback_controller as plc
         import app.controllers._conference_helpers as ch
+        import app.controllers.playback_controller as plc
         assert not hasattr(plc, "_get_conf_or_404")
         assert plc.get_conf_or_404 is ch.get_conf_or_404
 
     def test_conference_controller_uses_shared_helper(self) -> None:
-        import app.controllers.conference_controller as cc
         import app.controllers._conference_helpers as ch
+        import app.controllers.conference_controller as cc
         assert not hasattr(cc, "_get_conf_or_404")
         assert cc.get_conf_or_404 is ch.get_conf_or_404
 

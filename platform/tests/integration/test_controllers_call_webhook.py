@@ -13,7 +13,7 @@ os.environ.setdefault("ENV", "development")
 os.environ.setdefault("MONGO_DB_CONNECTION_STRING", "")
 os.environ.setdefault("DB_CONNECTION", "")
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 import pytest_asyncio
@@ -21,11 +21,10 @@ from httpx import ASGITransport, AsyncClient
 from mongomock_motor import AsyncMongoMockClient
 
 from app.main import app
+from app.models.user import UserRole
 from app.platform.auth.dependencies import get_db
 from app.platform.auth.hashing import hash_password
 from app.platform.auth.jwt import create_access_token
-from app.models.user import UserRole
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -162,7 +161,6 @@ class TestWebhookController:
     async def test_conference_webhook_event_exists(self, client, mock_db):
         # The webhook requires conference_manager to be initialized. In test mode,
         # it will return 500 due to RuntimeError, or 200/204 if manager is up.
-        from app.platform.lifespan import get_conference_manager
         mock_mgr = MagicMock()
         mock_mgr.get_conference = MagicMock(return_value=None)
         with patch("app.controllers.webhook_controller.get_conference_manager", return_value=mock_mgr):

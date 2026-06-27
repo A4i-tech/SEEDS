@@ -7,14 +7,12 @@ from __future__ import annotations
 import pytest
 from bson import ObjectId
 from mongomock_motor import AsyncMongoMockClient
+from pydantic import ValidationError
 
-from app.models.conference_state import ConferenceCallState
-from app.models.content import Content, TextContent
 from app.models.user import User, UserCreate, UserRole
 from app.repositories.conference_repository import ConferenceRepository
 from app.repositories.content_repository import ContentRepository
 from app.repositories.user_repository import UserRepository
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -72,7 +70,7 @@ def test_user_model_role_validation():
         u = User(role=role, name="Test User")
         assert u.role == role
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         User(role="admin", name="Bad Role")
 
 

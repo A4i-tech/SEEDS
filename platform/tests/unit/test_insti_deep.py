@@ -4,9 +4,9 @@ Deep coverage for insti.py helper functions and data classes.
 
 from __future__ import annotations
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
+import pytest
 
 # ---------------------------------------------------------------------------
 # _SimpleQuizData, _SimpleQuizQuestion, _SimpleURLText, _SimplePureAudioData
@@ -45,7 +45,7 @@ class TestInstiDataClasses:
         assert q.question.text == "Q1?"
 
     def test_simple_quiz_data(self) -> None:
-        from app.services.fsm.instantiation.insti import _SimpleQuizData, _SimpleQuizQuestion
+        from app.services.fsm.instantiation.insti import _SimpleQuizData
 
         data = {
             "id": "quiz1",
@@ -286,6 +286,7 @@ class TestIVRServiceUtils:
     @pytest.mark.asyncio
     async def test_get_ivr_structure_empty_db(self) -> None:
         import mongomock_motor
+
         from app.services.ivr_service import IVRService
 
         client = mongomock_motor.AsyncMongoMockClient()
@@ -300,6 +301,7 @@ class TestIVRServiceUtils:
     @pytest.mark.asyncio
     async def test_process_dtmf_nonexistent_call(self) -> None:
         import mongomock_motor
+
         from app.services.ivr_service import IVRService
 
         client = mongomock_motor.AsyncMongoMockClient()
@@ -315,6 +317,7 @@ class TestIVRServiceUtils:
     @pytest.mark.asyncio
     async def test_process_call_event_nonexistent(self) -> None:
         import mongomock_motor
+
         from app.services.ivr_service import IVRService
 
         client = mongomock_motor.AsyncMongoMockClient()

@@ -22,7 +22,6 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-import textwrap
 from pathlib import Path
 from typing import Any
 
@@ -78,7 +77,6 @@ def _check_endpoint(
     raw_path: str = endpoint["path"]
     required_auth: bool = endpoint["required_auth"]
     expected_codes: list[int] = endpoint["expected_status_codes"]
-    description: str = endpoint.get("description", "")
 
     path = _resolve_path(raw_path)
     url = base_url.rstrip("/") + path

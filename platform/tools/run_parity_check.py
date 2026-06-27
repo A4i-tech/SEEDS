@@ -29,8 +29,8 @@ _mock_client = AsyncMongoMockClient()
 _mock_db = _mock_client["seeds_parity"]
 _db_mod._database = _mock_db  # type: ignore[assignment]
 
-from app.main import app
-from app.platform.auth.dependencies import get_db
+from app.main import app  # noqa: E402
+from app.platform.auth.dependencies import get_db  # noqa: E402
 
 
 async def _override_db():
@@ -68,7 +68,7 @@ async def run() -> int:
     endpoints = contract.get("endpoints", [])
 
     print(f"Parity check: {contract.get('description', 'backend_p1')}")
-    print(f"Transport:    in-process ASGITransport (mongomock-motor)")
+    print("Transport:    in-process ASGITransport (mongomock-motor)")
     print(f"Endpoints:    {len(endpoints)}")
     print("-" * 70)
 

@@ -7,12 +7,10 @@ no real network calls are made.
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -341,15 +339,17 @@ class TestConfeventModels:
         assert evt.phone_number == "+111"
 
     def test_reconnect_comm_api_event_construction(self) -> None:
-        from app.services.confevents.reconnect_comm_api_websocket_event import ReconnectCommApiWebsocketEvent
+        from app.services.confevents.reconnect_comm_api_websocket_event import (
+            ReconnectCommApiWebsocketEvent,
+        )
 
         call = _make_conf_call()
         evt = ReconnectCommApiWebsocketEvent(conf_call=call)
         assert evt.conf_call is call
 
     def test_playback_state_update_event_construction(self) -> None:
-        from app.services.confevents.playback_state_update_event import PlaybackStateUpdateEvent
         from app.models.playback_state import ContentStatus
+        from app.services.confevents.playback_state_update_event import PlaybackStateUpdateEvent
 
         call = _make_conf_call()
         evt = PlaybackStateUpdateEvent(conf_call=call, content_state=ContentStatus.PLAYING)
@@ -364,8 +364,8 @@ class TestConfeventModels:
 class TestConfeventExecution:
     @pytest.mark.asyncio
     async def test_pause_content_event_sends_pause_message(self) -> None:
-        from app.services.confevents.pause_content_event import PauseContentEvent
         from app.models.ws_service_message import MessageType
+        from app.services.confevents.pause_content_event import PauseContentEvent
 
         call = _make_conf_call()
         call.storage_manager.save_state = AsyncMock()

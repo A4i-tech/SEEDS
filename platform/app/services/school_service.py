@@ -18,6 +18,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.classroom import Classroom
 from app.models.requests.school_requests import ClassroomCreate, SchoolCreate, SchoolUpdateRequest
+from app.models.responses.classroom import ClassMemberResponse, ClassroomDetailResponse
 from app.models.responses.school_response import SchoolResponse
 from app.models.school import School
 from app.models.user import User, UserCreate, UserRole
@@ -223,8 +224,6 @@ class SchoolService:
 
     async def get_classroom_detail(self, classroom_id: str) -> ClassroomDetailResponse:
         """Fetch classroom with students and leaders hydrated into member objects."""
-        from app.models.responses.classroom import ClassMemberResponse, ClassroomDetailResponse  # noqa: PLC0415
-
         classroom = await self.get_classroom(classroom_id)
 
         all_ids = list(set(classroom.students) | set(classroom.leaders))

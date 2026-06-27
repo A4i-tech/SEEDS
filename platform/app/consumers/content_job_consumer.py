@@ -71,7 +71,6 @@ import logging
 import os
 import subprocess  # nosec B404 — used safely with list form, no shell=True
 import tempfile
-from datetime import UTC, datetime
 from pathlib import Path
 
 from motor.motor_asyncio import AsyncIOMotorDatabase

@@ -155,12 +155,12 @@ class TestAssertSameTenant:
         tenant_id = str(ObjectId())
         current_user = {"sub": "user-1", "role": "teacher", "tenant_id": tenant_id}
         # Should not raise
-        assert_same_tenant(current_user, tenant_id) is None
+        assert_same_tenant(current_user, tenant_id)
 
     def test_assert_same_tenant_blocks_mismatched_ids(self):
         """Different tenant IDs must raise ForbiddenError."""
-        from app.platform.error_handling import ForbiddenError
         from app.platform.authz.tenant_scope import assert_same_tenant
+        from app.platform.error_handling import ForbiddenError
 
         current_user = {
             "sub": "user-1",
@@ -179,7 +179,7 @@ class TestAssertSameTenant:
         sub = str(ObjectId())
         current_user = {"sub": sub, "role": "tenant", "tenant_id": ""}
         # Should not raise — sub == resource_tenant_id
-        assert_same_tenant(current_user, sub) is None
+        assert_same_tenant(current_user, sub)
 
 
 # ---------------------------------------------------------------------------

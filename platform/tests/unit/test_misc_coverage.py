@@ -5,9 +5,9 @@ quiz model, IVR constants, SAS service (offline), and platform utilities.
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import MagicMock, patch
 
+import pytest
 
 # ---------------------------------------------------------------------------
 # Quiz model
@@ -42,7 +42,6 @@ class TestQuizModel:
         from bson import ObjectId
 
         from app.models.quiz import Quiz
-        from app.models.content import TextContent
 
         oid = ObjectId()
         doc = {
@@ -124,8 +123,9 @@ class TestJWTUtilities:
 
     def test_invalid_token_raises(self) -> None:
         from app.platform.auth.jwt import verify_token
+        from app.platform.error_handling import UnauthorizedError
 
-        with pytest.raises(Exception):
+        with pytest.raises(UnauthorizedError):
             verify_token("not.a.valid.token")
 
 

@@ -18,10 +18,10 @@ from httpx import ASGITransport, AsyncClient
 from mongomock_motor import AsyncMongoMockClient
 
 from app.main import app
+from app.models.user import UserRole
 from app.platform.auth.dependencies import get_db
 from app.platform.auth.hashing import hash_password
 from app.platform.auth.jwt import create_access_token
-from app.models.user import UserRole
 
 
 @pytest_asyncio.fixture
@@ -226,8 +226,9 @@ class TestParticipantsControllerV2:
     @pytest.mark.asyncio
     async def test_get_conf_helper_not_found(self, client, mock_db):
         """Direct unit test for get_conf_or_404."""
-        from app.controllers._conference_helpers import get_conf_or_404
         from fastapi import HTTPException
+
+        from app.controllers._conference_helpers import get_conf_or_404
 
         mock_mgr = _make_mock_mgr(conf=None)
         with patch("app.platform.lifespan.get_conference_manager", return_value=mock_mgr):

@@ -4,13 +4,11 @@ Extra coverage for models with small missing line counts.
 
 from __future__ import annotations
 
-import pytest
-from unittest.mock import MagicMock
+import contextlib
 
 
 class TestModelsCoverage:
     def test_classroom_model(self) -> None:
-        from app.models.classroom import Classroom
         from app.models.requests.school_requests import ClassroomCreate
 
         c = ClassroomCreate(
@@ -46,7 +44,6 @@ class TestModelsCoverage:
             pass  # OK if schema differs
 
     def test_school_model(self) -> None:
-        from app.models.school import School
         from app.models.requests.school_requests import SchoolCreate
 
         s = SchoolCreate(
@@ -67,7 +64,6 @@ class TestModelsCoverage:
             pass
 
     def test_content_model(self) -> None:
-        from app.models.content import Content
         from app.models.requests.content_requests import ContentCreate
 
         try:
@@ -99,30 +95,24 @@ class TestModelsCoverage:
             pass
 
     def test_ivr_state_model(self) -> None:
-        from app.models.ivr_state import IVRCallStatus, IVRCallStateMongoDoc
+        from app.models.ivr_state import IVRCallStatus
 
-        try:
+        with contextlib.suppress(Exception):
             status = IVRCallStatus.ACTIVE
             assert status is not None
-        except Exception:
-            pass
 
     def test_vonage_action_base(self) -> None:
         from app.providers.vonage_actions.base.action import Action
 
-        try:
+        with contextlib.suppress(Exception):
             # Action is abstract — just import it
             assert Action is not None
-        except Exception:
-            pass
 
     def test_tenant_scope_same_tenant(self) -> None:
         from app.platform.authz.tenant_scope import assert_same_tenant
 
-        try:
+        with contextlib.suppress(Exception):
             assert_same_tenant("tenant1", "tenant1")
-        except Exception:
-            pass
 
     def test_tenant_scope_different_tenant(self) -> None:
         from app.platform.authz.tenant_scope import assert_same_tenant
@@ -141,11 +131,7 @@ class TestModelsCoverage:
 
         settings = get_settings()
         # Access computed properties
-        try:
+        with contextlib.suppress(Exception):
             _ = settings.effective_mongo_connection_string
-        except Exception:
-            pass
-        try:
+        with contextlib.suppress(Exception):
             _ = settings.azure_blob_sas_enabled
-        except Exception:
-            pass

@@ -10,7 +10,6 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key-for-integration-tests-32ch"
 os.environ.setdefault("APP_MODE", "api")
 os.environ.setdefault("ENV", "development")
 
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
@@ -18,10 +17,10 @@ from httpx import ASGITransport, AsyncClient
 from mongomock_motor import AsyncMongoMockClient
 
 from app.main import app
+from app.models.user import UserRole
 from app.platform.auth.dependencies import get_db
 from app.platform.auth.hashing import hash_password
 from app.platform.auth.jwt import create_access_token
-from app.models.user import UserRole
 
 
 @pytest_asyncio.fixture

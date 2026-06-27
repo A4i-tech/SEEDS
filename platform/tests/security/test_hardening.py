@@ -17,10 +17,14 @@ Tests:
 
 from __future__ import annotations
 
-import asyncio
 import base64  # used by _b64 helper
+
+# ---------------------------------------------------------------------------
+# JWT helpers
+# ---------------------------------------------------------------------------
+import hashlib
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -28,14 +32,6 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
-
-
-# ---------------------------------------------------------------------------
-# JWT helpers
-# ---------------------------------------------------------------------------
-
-import hashlib
-import json as _json
 
 
 def _make_vonage_token(
@@ -63,13 +59,13 @@ async def _noop_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 def _mock_settings(**overrides):
     from app.platform.settings import Settings
-    defaults = dict(
-        env="production",
-        mongo_db_connection_string="",
-        vonage_api_key="test-api-key",
-        vonage_conference_application_id="test-conf-app",
-        vonage_ivr_application_id="test-ivr-app",
-    )
+    defaults = {
+        "env": "production",
+        "mongo_db_connection_string": "",
+        "vonage_api_key": "test-api-key",
+        "vonage_conference_application_id": "test-conf-app",
+        "vonage_ivr_application_id": "test-ivr-app",
+    }
     return Settings(**{**defaults, **overrides})
 
 
@@ -348,7 +344,7 @@ def test_websocket_valid_secret_connects():
         except WebSocketDisconnect as exc:
             # A normal close (not 1008) still means the handshake succeeded
             assert exc.code != 1008, (
-                f"Expected successful connection but got 1008 Policy Violation"
+                "Expected successful connection but got 1008 Policy Violation"
             )
         except Exception as exc:
             exc_str = str(exc)

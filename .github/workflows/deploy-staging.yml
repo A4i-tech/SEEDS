@@ -3,8 +3,6 @@ name: Deploy Staging Services
 on:
   push:
     branches: a4i/staging
-  pull_request:
-    branches: a4i/staging
   workflow_call:
   workflow_dispatch:
 
@@ -12,103 +10,30 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-  service:
+  deploy:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         service:
-          - name: backend-server
-            context: backend-server
-            image: backend-server
-            lang: node
-            render_deploy_hook_url: BACKEND_SERVER_RENDER_DEPLOY_HOOK_URL
+          - name: platform
+            context: platform
+            image: platform
+            render_deploy_hook_url: PLATFORM_RENDER_DEPLOY_HOOK_URL
 
           - name: content-webapp
             context: ContentWebApp
             image: content-webapp
-            lang: node
             render_deploy_hook_url: CONTENT_WEBAPP_RENDER_DEPLOY_HOOK_URL
 
           - name: teacher-webapp
             context: teacher-webapp
             image: teacher-webapp
-            lang: node
             render_deploy_hook_url: TEACHER_WEBAPP_RENDER_DEPLOY_HOOK_URL
-
-          - name: conference-v2
-            context: ConferenceV2
-            image: conference-v2
-            lang: python
-            render_deploy_hook_url: CONFERENCE_V2_RENDER_DEPLOY_HOOK_URL
-
-          - name: IvrV2
-            context: IVRv2
-            image: ivrv2
-            lang: python
-            render_deploy_hook_url: IVRV2_RENDER_DEPLOY_HOOK_URL
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up language (Poetry)
-        if: matrix.service.lang == 'python'
-        uses: ./.github/actions/setup-poetry
-        with:
-          python-version: "3.12"
-          directory: ${{ matrix.service.context }}
-
-      - name: Set up language (Node.js)
-        if: matrix.service.lang == 'node'
-        uses: ./.github/actions/setup-node
-        with:
-          node-version: "20"
-          directory: ${{ matrix.service.context }}
-
-      - name: Run tests (python)
-        if: matrix.service.lang == 'python'
-        uses: ./.github/actions/run-python-tests
-        with:
-          directory: ${{ matrix.service.context }}
-
-      - name: Run E2E tests (ConferenceV2)
-        if: matrix.service.context == 'ConferenceV2'
-        uses: ./.github/actions/run-e2e-tests-conferencev2
-
-      - name: Run tests (Node.js)
-        if: matrix.service.lang == 'node'
-        uses: ./.github/actions/run-node-tests
-        with:
-          directory: ${{ matrix.service.context }}
-
-      - name: Extract coverage (python)
-        if: matrix.service.lang == 'python'
-        uses: ./.github/actions/extract-coverage-python
-        with:
-          coverage_gist_token: ${{ secrets.COVERAGE_GIST_TOKEN }}
-          coverage_gist_id: ${{ vars.COVERAGE_GIST_ID }}
-          directory: ${{ matrix.service.context }}
-
-      - name: Extract coverage (Node.js)
-        if: matrix.service.lang == 'node'
-        uses: ./.github/actions/extract-coverage-node
-        with:
-          coverage_gist_token: ${{ secrets.COVERAGE_GIST_TOKEN }}
-          coverage_gist_id: ${{ vars.COVERAGE_GIST_ID }}
-          directory: ${{ matrix.service.context }}
-
-      - name: Determine environment tag
-        id: env-tag
-        run: |
-          if [[ "${{ github.ref }}" == "refs/heads/a4i/main" ]]; then
-            echo "tag=prod" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref }}" == "refs/heads/a4i/staging" ]]; then
-            echo "tag=staging" >> $GITHUB_OUTPUT
-          else
-            echo "tag=latest" >> $GITHUB_OUTPUT
-          fi
-
       - name: Build & push image
-        if: github.event_name == 'push'
         uses: ./.github/actions/deploy-docker
         with:
           context: ${{ matrix.service.context }}
@@ -117,10 +42,9 @@ jobs:
           repository: ${{ github.repository }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           username: ${{ github.actor }}
-          environment_tag: ${{ steps.env-tag.outputs.tag }}
+          environment_tag: staging
 
       - name: Deploy to Render
-        if: github.event_name == 'push'
         uses: ./.github/actions/deploy-render
         with:
-          deploy_hook_url: ${{ secrets[ matrix.service.render_deploy_hook_url ] }}
+          deploy_hook_url: ${{ secrets[matrix.service.render_deploy_hook_url] }}

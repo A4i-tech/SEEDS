@@ -5,9 +5,7 @@ Unit tests for telemetry and JWT auth core.
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta, timezone
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -186,7 +184,7 @@ class TestJWT:
         from app.platform.settings import get_settings
 
         settings = get_settings()
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         bad_payload = {
             "sub": "user-123",
             "role": "teacher",
@@ -209,7 +207,7 @@ class TestJWT:
 
         from app.platform.error_handling import UnauthorizedError
 
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         payload = {
             "sub": "user-123",
             "role": "teacher",

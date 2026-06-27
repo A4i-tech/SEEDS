@@ -5,9 +5,10 @@ call_webhook_consumer, audio_recording_consumer helper functions.
 
 from __future__ import annotations
 
-import pytest
+import contextlib
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 
 # ---------------------------------------------------------------------------
 # ContentJobConsumer
@@ -33,9 +34,10 @@ class TestContentJobConsumerExtra:
         assert consumer._running is False
 
     def test_validate_temp_path_valid(self) -> None:
-        from app.consumers.content_job_consumer import _validate_temp_path
-        import tempfile
         import os
+        import tempfile
+
+        from app.consumers.content_job_consumer import _validate_temp_path
 
         # Create a valid temp path
         tmp_dir = tempfile.gettempdir()
@@ -178,10 +180,8 @@ class TestCallWebhookConsumerExtra:
 
         with patch("app.consumers.call_webhook_consumer.IVRService", return_value=mock_instance):
             with patch("app.platform.database.get_database", return_value=mock_db):
-                try:
+                with contextlib.suppress(Exception):
                     await consumer.process(msg)
-                except Exception:
-                    pass  # Acceptable — DB not available
 
 
 # ---------------------------------------------------------------------------
@@ -205,7 +205,10 @@ class TestAudioRecordingConsumerExtra:
 
     @pytest.mark.asyncio
     async def test_process_finalize_event(self) -> None:
-        from app.consumers.audio_recording_consumer import AudioRecordingConsumer, FinalizeConference
+        from app.consumers.audio_recording_consumer import (
+            AudioRecordingConsumer,
+            FinalizeConference,
+        )
 
         consumer = AudioRecordingConsumer()
         event = FinalizeConference(conference_id="conf1")

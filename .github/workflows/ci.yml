@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  pull_request:
+  workflow_call:
+    inputs:
+      upload_coverage:
+        description: "Upload coverage results to gist"
+        type: boolean
+        default: false
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - name: platform
+            context: platform
+            lang: python
+
+          - name: content-webapp
+            context: ContentWebApp
+            lang: node
+
+          - name: teacher-webapp
+            context: teacher-webapp
+            lang: node
+
+          - name: websocket-service
+            context: websocket-service
+            lang: node
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up (Poetry)
+        if: matrix.service.lang == 'python'
+        uses: ./.github/actions/setup-poetry
+        with:
+          python-version: "3.12"
+          directory: ${{ matrix.service.context }}
+
+      - name: Set up (Node.js)
+        if: matrix.service.lang == 'node'
+        uses: ./.github/actions/setup-node
+        with:
+          node-version: "20"
+          directory: ${{ matrix.service.context }}
+
+      - name: Lint (Python)
+        if: matrix.service.lang == 'python'
+        uses: ./.github/actions/run-python-lint
+        with:
+          directory: ${{ matrix.service.context }}
+
+      - name: Lint (Node.js)
+        if: matrix.service.lang == 'node'
+        uses: ./.github/actions/run-node-lint
+        with:
+          directory: ${{ matrix.service.context }}
+
+      - name: Test (Python)
+        if: matrix.service.lang == 'python'
+        uses: ./.github/actions/run-python-tests
+        with:
+          directory: ${{ matrix.service.context }}
+
+      - name: Test (Node.js)
+        if: matrix.service.lang == 'node'
+        uses: ./.github/actions/run-node-tests
+        with:
+          directory: ${{ matrix.service.context }}
+
+      - name: Extract coverage (Python)
+        if: matrix.service.lang == 'python' && inputs.upload_coverage
+        uses: ./.github/actions/extract-coverage-python
+        with:
+          coverage_gist_token: ${{ secrets.COVERAGE_GIST_TOKEN }}
+          coverage_gist_id: ${{ vars.COVERAGE_GIST_ID }}
+          directory: ${{ matrix.service.context }}
+
+      - name: Extract coverage (Node.js)
+        if: matrix.service.lang == 'node' && inputs.upload_coverage
+        uses: ./.github/actions/extract-coverage-node
+        with:
+          coverage_gist_token: ${{ secrets.COVERAGE_GIST_TOKEN }}
+          coverage_gist_id: ${{ vars.COVERAGE_GIST_ID }}
+          directory: ${{ matrix.service.context }}

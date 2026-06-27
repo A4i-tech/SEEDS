@@ -5,9 +5,10 @@ and content job consumer utilities.
 
 from __future__ import annotations
 
-import pytest
+import contextlib
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 
 # ---------------------------------------------------------------------------
 # Audio recording consumer — pure message classes + queue
@@ -29,15 +30,17 @@ class TestAudioRecordingConsumer:
         assert msg.conference_id == "conf1"
 
     def test_get_audio_analysis_queue(self) -> None:
-        from app.consumers.audio_recording_consumer import get_audio_analysis_queue
         import asyncio
+
+        from app.consumers.audio_recording_consumer import get_audio_analysis_queue
 
         q = get_audio_analysis_queue()
         assert isinstance(q, asyncio.Queue)
 
     def test_audio_recording_consumer_instantiation(self) -> None:
-        from app.consumers.audio_recording_consumer import AudioRecordingConsumer
         import asyncio
+
+        from app.consumers.audio_recording_consumer import AudioRecordingConsumer
 
         consumer = AudioRecordingConsumer()
         assert isinstance(consumer._queue, asyncio.Queue)
@@ -61,6 +64,7 @@ class TestAudioRecordingConsumer:
 class TestContentJobConsumerUtils:
     def test_content_job_consumer_instantiation(self) -> None:
         import mongomock_motor
+
         from app.consumers.content_job_consumer import ContentJobConsumer
 
         client = mongomock_motor.AsyncMongoMockClient()
@@ -71,17 +75,16 @@ class TestContentJobConsumerUtils:
     @pytest.mark.asyncio
     async def test_content_job_consumer_process_unknown_raises(self) -> None:
         import mongomock_motor
-        from app.consumers.content_job_consumer import ContentJobConsumer
+
         from app.consumers.base_consumer import PermanentError
+        from app.consumers.content_job_consumer import ContentJobConsumer
 
         client = mongomock_motor.AsyncMongoMockClient()
         db = client["test_cjc_stop"]
         consumer = ContentJobConsumer(db)
         # Unknown message type should raise
-        try:
+        with contextlib.suppress(PermanentError, Exception):
             await consumer.process("unknown")
-        except (PermanentError, Exception):
-            pass  # Expected
 
 
 # ---------------------------------------------------------------------------
@@ -137,7 +140,6 @@ class TestConferenceCallDeeper:
         await cc.stream_system_message("TEST_MESSAGE")
 
     def test_start_processing_marks_running(self) -> None:
-        import asyncio
         cc = self._make_conf_call()
         # create_task needs event loop — skip if no loop
         # Just test the flag mechanism directly
@@ -325,7 +327,7 @@ class TestLifespanAppMode:
 
 class TestWebhookEventModel:
     def test_webhook_event_creation(self) -> None:
-        from app.models.webhook_event import WebHookEvent, EventType
+        from app.models.webhook_event import EventType, WebHookEvent
 
         event = WebHookEvent(
             conference_id="conf1",
@@ -335,7 +337,7 @@ class TestWebhookEventModel:
         assert event.conference_id == "conf1"
 
     def test_webhook_event_with_participant(self) -> None:
-        from app.models.webhook_event import WebHookEvent, EventType
+        from app.models.webhook_event import EventType, WebHookEvent
 
         event = WebHookEvent(
             conference_id="conf1",
@@ -349,7 +351,7 @@ class TestWebhookEventModel:
 
 class TestWSServiceMessage:
     def test_ws_message_creation(self) -> None:
-        from app.models.ws_service_message import WebsocketServiceMessage, MessageType
+        from app.models.ws_service_message import MessageType, WebsocketServiceMessage
 
         msg = WebsocketServiceMessage(
             websocket_id="ws1",
@@ -359,7 +361,7 @@ class TestWSServiceMessage:
         assert msg.websocket_id == "ws1"
 
     def test_ws_message_play_audio(self) -> None:
-        from app.models.ws_service_message import WebsocketServiceMessage, MessageType
+        from app.models.ws_service_message import MessageType, WebsocketServiceMessage
 
         msg = WebsocketServiceMessage(
             websocket_id="ws2",
@@ -416,8 +418,8 @@ class TestAuditRepositoryExtra:
 
     @pytest.mark.asyncio
     async def test_create_and_find_logs(self, db) -> None:
-        from app.repositories.audit_repository import AuditRepository
         from app.models.audit_log import AuditLog
+        from app.repositories.audit_repository import AuditRepository
 
         repo = AuditRepository(db)
         log = AuditLog(user="u1", logText="action1", time="10:00", priority=1, tenant_id="t1")

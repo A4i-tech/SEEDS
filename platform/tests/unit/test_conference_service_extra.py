@@ -4,8 +4,10 @@ Extra coverage for conference_service.py.
 
 from __future__ import annotations
 
-import pytest
+import contextlib
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 
 def _make_conf_call(conf_id="test_conf"):
@@ -110,14 +112,14 @@ class TestConferenceCallExtra:
 
         # Create an event that will timeout
         slow_event = MagicMock()
-        slow_event.execute_event = AsyncMock(side_effect=asyncio.TimeoutError())
+        slow_event.execute_event = AsyncMock(side_effect=TimeoutError())
 
         await conf.event_queue.put(slow_event)
         # Manually process one event from queue
         event = conf.event_queue.get_nowait()
         try:
             await asyncio.wait_for(event.execute_event(), timeout=0.1)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pass  # Expected
         finally:
             conf.event_queue.task_done()
@@ -193,10 +195,8 @@ class TestConferenceCallExtra:
         conf.communication_api.start_conference = AsyncMock(return_value="vonage_conv_id")
         conf.state.teacher_phone_number = "+111"
 
-        try:
+        with contextlib.suppress(Exception):
             await conf.start_conference()
-        except Exception:
-            pass  # May fail without real vonage setup
 
 
 class TestConferenceCallManagerExtra2:

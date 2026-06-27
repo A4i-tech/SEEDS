@@ -52,7 +52,7 @@ _resolve_mongo_uri = _create_mod._resolve_mongo_uri
 
 def _index_key_from_spec(key_spec: list[tuple[str, int]]) -> dict[str, int]:
     """Convert a key_spec list to a dict matching MongoDB's index key format."""
-    return {field: direction for field, direction in key_spec}
+    return dict(key_spec)
 
 
 def _index_matches(existing_key: dict, expected_spec: list[tuple[str, int]]) -> bool:

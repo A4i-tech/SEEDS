@@ -4,11 +4,10 @@ Extra coverage for audio_capture.py service.
 
 from __future__ import annotations
 
-import os
 import tempfile
-import wave
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 
 class TestAudioCaptureServiceEnabled:

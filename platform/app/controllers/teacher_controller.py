@@ -6,7 +6,6 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
 
 from app.models.requests.user_requests import TeacherUpdateRequest
 from app.models.responses.login import MessageResponse
