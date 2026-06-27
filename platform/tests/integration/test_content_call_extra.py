@@ -70,6 +70,10 @@ def _teacher_token(user_id, tenant_id="t1", school_id="s1"):
     return create_access_token({"sub": user_id, "role": "teacher", "tenant_id": tenant_id, "school_id": school_id})
 
 
+def _school_admin_token(user_id, tenant_id="t1", school_id="s1"):
+    return create_access_token({"sub": user_id, "role": "school_admin", "tenant_id": tenant_id, "school_id": school_id})
+
+
 async def _seed_tenant(mock_db, email="tenant@c.com", password="tenantpass"):
     doc = {
         "role": UserRole.TENANT.value,
@@ -249,7 +253,7 @@ class TestUsersControllerExtra:
     @pytest.mark.asyncio
     async def test_list_teachers_by_school_with_token(self, client, mock_db):
         teacher = await _seed_teacher(mock_db)
-        token = _teacher_token(teacher["_id"])
+        token = _school_admin_token(teacher["_id"])
         resp = await client.get("/teacher/teachers", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
@@ -272,7 +276,7 @@ class TestUsersControllerExtra:
     @pytest.mark.asyncio
     async def test_create_student_with_token(self, client, mock_db):
         teacher = await _seed_teacher(mock_db)
-        token = _teacher_token(teacher["_id"])
+        token = _school_admin_token(teacher["_id"])
         resp = await client.post("/student", json={
             "name": "Test Student",
             "phoneNumber": "+919999999999",

@@ -97,7 +97,7 @@ class TestSchoolControllerExtra:
     @pytest.mark.asyncio
     async def test_transfer_teacher_not_found(self, client, mock_db):
         teacher = await _seed_teacher(mock_db)
-        token = _teacher_token(teacher["_id"])
+        token = _school_admin_token(teacher["_id"])
         resp = await client.post("/school/transfer", json={
             "teacher_id": "000000000000000000000000",
             "target_school_id": "000000000000000000000001",
@@ -174,7 +174,7 @@ class TestSchoolControllerExtra:
         # Teacher in tenant-a tries to transfer a teacher from tenant-b
         caller = await _seed_teacher(mock_db, email="caller@t.com", tid="tenant-a", sid="school-a")
         victim = await _seed_teacher(mock_db, email="victim@t.com", tid="tenant-b", sid="school-b")
-        token = _teacher_token(caller["_id"], tid="tenant-a", sid="school-a")
+        token = _school_admin_token(caller["_id"], tid="tenant-a", sid="school-a")
         resp = await client.post("/school/transfer", json={
             "teacherId": victim["_id"],
             "targetSchoolId": "000000000000000000000001",

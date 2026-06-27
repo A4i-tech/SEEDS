@@ -817,10 +817,10 @@ class TestAuthService:
 
     @pytest.mark.asyncio
     async def test_login_native_success(self, db) -> None:
-        from app.services.auth_service import TeacherCreate, login, register_teacher
+        from app.services.auth_service import TenantCreate, login, register_tenant
 
-        tc = TeacherCreate(name="Carol", email="carol@example.com", password="mypassword")
-        await register_teacher(tc, db)
+        tc = TenantCreate(name="Carol", email="carol@example.com", password="mypassword")
+        await register_tenant(tc, db)
 
         result = await login("carol@example.com", "mypassword", "native", db)
         assert "token" in result

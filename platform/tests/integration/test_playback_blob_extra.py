@@ -96,7 +96,7 @@ class TestPlaybackControllerNoConf:
         teacher = await _seed_teacher(mock_db)
         token = _teacher_token(teacher["_id"])
 
-        with patch("app.controllers.playback_controller._get_conference_manager") as mock_mgr:
+        with patch("app.platform.lifespan.get_conference_manager") as mock_mgr:
             mgr = MagicMock()
             mgr.get_conference = MagicMock(return_value=None)
             mock_mgr.return_value = mgr
@@ -113,7 +113,7 @@ class TestPlaybackControllerNoConf:
         teacher = await _seed_teacher(mock_db)
         token = _teacher_token(teacher["_id"])
 
-        with patch("app.controllers.playback_controller._get_conference_manager") as mock_mgr:
+        with patch("app.platform.lifespan.get_conference_manager") as mock_mgr:
             mgr = MagicMock()
             mgr.get_conference = MagicMock(return_value=None)
             mock_mgr.return_value = mgr
@@ -129,7 +129,7 @@ class TestPlaybackControllerNoConf:
         teacher = await _seed_teacher(mock_db)
         token = _teacher_token(teacher["_id"])
 
-        with patch("app.controllers.playback_controller._get_conference_manager") as mock_mgr:
+        with patch("app.platform.lifespan.get_conference_manager") as mock_mgr:
             mgr = MagicMock()
             mgr.get_conference = MagicMock(return_value=None)
             mock_mgr.return_value = mgr
@@ -146,7 +146,7 @@ class TestPlaybackControllerNoConf:
         teacher = await _seed_teacher(mock_db)
         token = _teacher_token(teacher["_id"])
 
-        with patch("app.controllers.playback_controller._get_conference_manager") as mock_mgr:
+        with patch("app.platform.lifespan.get_conference_manager") as mock_mgr:
             mgr = MagicMock()
             mgr.get_conference = MagicMock(return_value=None)
             mock_mgr.return_value = mgr

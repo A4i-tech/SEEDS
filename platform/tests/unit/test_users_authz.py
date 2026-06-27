@@ -91,13 +91,13 @@ class TestLoginNative:
     @pytest.mark.asyncio
     async def test_login_native_success_returns_jwt(self, mock_db):
         """Correct credentials must return a bearer token and user info."""
-        from app.services.auth_service import TeacherCreate, login, register_teacher
+        from app.services.auth_service import TenantCreate, login, register_tenant
 
         plain = "Correct$1"
-        data = TeacherCreate(name="Login User", email="login@example.com", password=plain)
-        await register_teacher(data, mock_db)
+        data = TenantCreate(name="Login User", email="login@example.com", password=plain)
+        await register_tenant(data, mock_db)
 
-        result = await login("login@example.com", plain, "jwt", mock_db)
+        result = await login("login@example.com", plain, "native", mock_db)
 
         assert "token" in result
         assert "user" in result

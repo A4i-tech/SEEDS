@@ -5,8 +5,9 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
+from app.controllers._conference_helpers import get_conf_or_404
 from app.models.requests.call_requests import CreateConferenceRequest
 from app.models.responses.common import ConferenceStatusResponse, EventQueuedResponse
 from app.models.responses.login import MessageResponse
@@ -26,12 +27,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/conference", tags=["Conference"])
 
-
-def _get_conf_or_404(conference_id: str) -> Any:
-    conf = get_conference_manager().get_conference(conference_id)
-    if conf is None:
-        raise HTTPException(status_code=404, detail="Conference not found")
-    return conf
 
 
 async def _create_conf(request: CreateConferenceRequest) -> Any:
@@ -74,7 +69,7 @@ async def connect_smartphone(
     conference_id: str,
     user: dict[str, Any] = Depends(require_conference_owner),
 ) -> Any:
-    return await _get_conf_or_404(conference_id).connect_smartphone()
+    return await get_conf_or_404(conference_id).connect_smartphone()
 
 
 @router.post("/teacherappdisconnect/{conference_id}", summary="Disconnect teacher smartphone")
@@ -82,7 +77,7 @@ async def disconnect_smartphone(
     conference_id: str,
     user: dict[str, Any] = Depends(require_conference_owner),
 ) -> Any:
-    return await _get_conf_or_404(conference_id).disconnect_smartphone()
+    return await get_conf_or_404(conference_id).disconnect_smartphone()
 
 
 @router.put("/end/{conference_id}", summary="End a conference call")
@@ -92,7 +87,7 @@ async def end_conference(
 ) -> EventQueuedResponse:
     from app.services.confevents.end_conf_event import EndConferenceEvent  # noqa: PLC0415
 
-    conf = _get_conf_or_404(conference_id)
+    conf = get_conf_or_404(conference_id)
     await conf.queue_event(EndConferenceEvent(conf_call=conf))
     return EventQueuedResponse(message="Event Queued for execution")
 
@@ -105,7 +100,7 @@ async def sink_conference(
     from app.services.confevents.sink_conf_event import SinkConferenceEvent  # noqa: PLC0415
 
     mgr = get_conference_manager()
-    conf = _get_conf_or_404(conference_id)
+    conf = get_conf_or_404(conference_id)
     if not conf.is_queue_processing():
         conf.start_processing_conf_events_from_queue()
     await conf.queue_event(

@@ -225,12 +225,12 @@ class TestParticipantsControllerV2:
 
     @pytest.mark.asyncio
     async def test_get_conf_helper_not_found(self, client, mock_db):
-        """Direct unit test for _get_conf_or_404."""
-        from app.controllers.participants_controller import _get_conf_or_404
+        """Direct unit test for get_conf_or_404."""
+        from app.controllers._conference_helpers import get_conf_or_404
         from fastapi import HTTPException
 
         mock_mgr = _make_mock_mgr(conf=None)
-        with patch("app.controllers.participants_controller._get_conference_manager", return_value=mock_mgr):
+        with patch("app.platform.lifespan.get_conference_manager", return_value=mock_mgr):
             with pytest.raises(HTTPException) as exc_info:
-                _get_conf_or_404("nonexistent")
+                get_conf_or_404("nonexistent")
             assert exc_info.value.status_code == 404
