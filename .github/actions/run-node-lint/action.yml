@@ -9,6 +9,5 @@ runs:
   steps:
     - name: Lint with ESLint
       shell: bash
-      run: |
-        cd ${{ inputs.directory }}
-        npm run lint --if-present
+      working-directory: ${{ inputs.directory }}
+      run: npm run lint --if-present

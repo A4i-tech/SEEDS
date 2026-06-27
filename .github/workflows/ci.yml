@@ -1,10 +1,6 @@
 name: CI
 
 on:
-  push:
-    branches-ignore:
-      - a4i/main
-      - a4i/staging
   pull_request:
   workflow_call:
     inputs:
