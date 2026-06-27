@@ -10,15 +10,16 @@ from unittest.mock import MagicMock
 
 class TestModelsCoverage:
     def test_classroom_model(self) -> None:
-        from app.models.classroom import Classroom, ClassroomCreate
+        from app.models.classroom import Classroom
+        from app.models.requests.school_requests import ClassroomCreate
 
         c = ClassroomCreate(
-            school_id="s1",
+            schoolId="s1",
             name="My Class",
             teacher="t1",
             students=["s1", "s2"],
             leaders=["l1"],
-            content_ids=["c1"],
+            contentIds=["c1"],
         )
         assert c.name == "My Class"
         assert c.teacher == "t1"
@@ -45,13 +46,14 @@ class TestModelsCoverage:
             pass  # OK if schema differs
 
     def test_school_model(self) -> None:
-        from app.models.school import School, SchoolCreate
+        from app.models.school import School
+        from app.models.requests.school_requests import SchoolCreate
 
         s = SchoolCreate(
-            tenant_id="t1",
+            tenantId="t1",
             name="School A",
             email="school@test.com",
-            hashed_password="hashed",
+            password="hashed",
         )
         assert s.name == "School A"
 
@@ -65,14 +67,12 @@ class TestModelsCoverage:
             pass
 
     def test_content_model(self) -> None:
-        from app.models.content import Content, ContentCreate
+        from app.models.content import Content
+        from app.models.requests.content_requests import ContentCreate
 
         try:
-            c = ContentCreate(
-                title="Test",
-                url="https://example.com/file.mp3",
-            )
-            assert c.title == "Test"
+            c = ContentCreate(tenantId="t1", type="Story", language="english")
+            assert c.type == "Story"
         except Exception:
             pass
 

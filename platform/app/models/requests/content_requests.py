@@ -1,4 +1,5 @@
-"""Request schemas for content/quiz endpoints."""
+"""Request schemas and create DTOs for content/quiz endpoints."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -13,10 +14,10 @@ class ContentCreateRequest(BaseModel):
     language: str
     title: dict[str, Any] | None = None
     theme: dict[str, Any] | None = None
-    audio_content: list[Any] | None = Field(None, alias="audioContent")
+    audioContent: list[Any] | None = None
     description: str | None = None
-    is_pull_model: bool | None = Field(None, alias="isPullModel")
-    is_teacher_app: bool | None = Field(None, alias="isTeacherApp")
+    isPullModel: bool | None = None
+    isTeacherApp: bool | None = None
 
 
 class ContentUpdateRequest(BaseModel):
@@ -28,9 +29,9 @@ class ContentUpdateRequest(BaseModel):
     description: str | None = None
     type: str | None = None
     language: str | None = None
-    audio_content: list[Any] | None = Field(None, alias="audioContent")
-    is_pull_model: bool | None = Field(None, alias="isPullModel")
-    is_teacher_app: bool | None = Field(None, alias="isTeacherApp")
+    audioContent: list[Any] | None
+    isPullModel: bool | None
+    isTeacherApp: bool | None
 
 
 class QuizCreateRequest(BaseModel):
@@ -40,14 +41,55 @@ class QuizCreateRequest(BaseModel):
     language: str
     title: dict[str, Any] | None = None
     theme: dict[str, Any] | None = None
-    audio_content: list[Any] | None = Field(None, alias="audioContent")
+    audioContent: list[Any] | None = None
     description: str | None = None
-    is_pull_model: bool | None = Field(None, alias="isPullModel")
-    is_teacher_app: bool | None = Field(None, alias="isTeacherApp")
-    local_title: str | None = Field(None, alias="localTitle")
-    local_theme: str | None = Field(None, alias="localTheme")
-    positive_marks: float | None = Field(None, alias="positiveMarks")
-    negative_marks: float | None = Field(None, alias="negativeMarks")
+    isPullModel: bool | None = None
+    isTeacherApp: bool | None = None
+    localTitle: str | None = None
+    localTheme: str | None = None
+    positiveMarks: float | None = None
+    negativeMarks: float | None = None
     questions: list[Any] | None = None
     options: list[Any] | None = None
-    correct_answers: list[Any] | None = Field(None, alias="correctAnswers")
+    correctAnswers: list[Any] | None = None
+
+
+class ContentCreate(BaseModel):
+    """CamelCase DB document DTO for content creation — model_dump() writes correct DB keys."""
+
+    tenantId: str
+    type: str
+    language: str
+    createdBy: str = ""
+    schoolId: str | None = None
+    title: dict[str, Any] | None = None
+    theme: dict[str, Any] | None = None
+    audioContent: list[Any] = Field(default_factory=list)
+    description: str = ""
+    isPullModel: bool = False
+    isTeacherApp: bool = False
+    isDeleted: bool = False
+    isProcessed: bool = False
+    creation_time: int = -1  # DB stores this field as snake_case
+    version: str = "v3"
+
+
+class QuizCreate(BaseModel):
+    """CamelCase DB document DTO for quiz creation — model_dump() writes correct DB keys."""
+
+    tenantId: str
+    type: str
+    language: str
+    createdBy: str = ""
+    schoolId: str | None = None
+    title: str = ""
+    localTitle: str = ""
+    theme: str = ""
+    localTheme: str = ""
+    positiveMarks: float = 1.0
+    negativeMarks: float = 0.0
+    questions: list[Any] = Field(default_factory=list)
+    options: list[Any] = Field(default_factory=list)
+    correctAnswers: list[Any] = Field(default_factory=list)
+    isDeleted: bool = False
+    creation_time: int = -1  # DB stores this field as snake_case

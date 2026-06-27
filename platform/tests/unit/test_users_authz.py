@@ -202,7 +202,7 @@ class TestGetParticipantsRequiresAuth:
         intruder_id = str(ObjectId())
 
         # Insert a mock conference owned by creator_id.
-        await mock_db["conference_states"].insert_one(
+        await mock_db["conferenceState"].insert_one(
             {
                 "conference_id": conference_id,
                 "created_by": creator_id,
@@ -223,7 +223,7 @@ class TestGetParticipantsRequiresAuth:
         conference_id = "conf-owner-test"
         owner_id = str(ObjectId())
 
-        await mock_db["conference_states"].insert_one(
+        await mock_db["conferenceState"].insert_one(
             {
                 "conference_id": conference_id,
                 "created_by": owner_id,

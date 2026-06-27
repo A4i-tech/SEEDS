@@ -1,4 +1,5 @@
 """Classroom domain model (from Class.js)."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -13,11 +14,11 @@ class Classroom(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: str | None = Field(None, alias="_id")
-    school_id: str = Field(..., alias="schoolId")
+    school_id: str = Field(alias="schoolId")
     name: str
     teacher: str  # teacher user id
-    students: list[str] = Field(default_factory=list)   # ObjectId refs stored as str
-    leaders: list[str] = Field(default_factory=list)    # ObjectId refs stored as str
+    students: list[str] = Field(default_factory=list)  # ObjectId refs stored as str
+    leaders: list[str] = Field(default_factory=list)  # ObjectId refs stored as str
     content_ids: list[str] = Field(default_factory=list, alias="contentIds")
     created_at: datetime | None = Field(None, alias="createdAt")
     updated_at: datetime | None = Field(None, alias="updatedAt")
@@ -37,14 +38,3 @@ class Classroom(BaseModel):
         return cls.model_validate(d)
 
 
-class ClassroomCreate(BaseModel):
-    """Payload for creating a new classroom."""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    school_id: str = Field(..., alias="schoolId")
-    name: str
-    teacher: str
-    students: list[str] = Field(default_factory=list)
-    leaders: list[str] = Field(default_factory=list)
-    content_ids: list[str] = Field(default_factory=list, alias="contentIds")

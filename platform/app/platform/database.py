@@ -7,6 +7,7 @@ SECURITY: Connection string is never logged; errors mask the full URI.
 from __future__ import annotations
 
 import logging
+from urllib.parse import urlparse
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 
@@ -24,12 +25,10 @@ def _extract_db_name(connection_string: str) -> str:
     Falls back to "seeds_platform" when no path component is present.
     """
     try:
-        # Strip query string, then take the last path segment
-        path = connection_string.split("?")[0]
-        segments = [s for s in path.split("/") if s]
-        # segments[-1] is the db name if the path has at least 4 parts (mongodb://host/db)
-        if len(segments) >= 2:
-            return segments[-1]
+        parsed = urlparse(connection_string)
+        db_name = parsed.path.lstrip("/").split("?")[0]
+        if db_name:
+            return db_name
     except Exception:  # noqa: BLE001
         pass
     return "seeds_platform"

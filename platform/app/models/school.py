@@ -1,4 +1,5 @@
-"""School domain model (from School.js)."""
+"""School domain model - contains school information, users are available in unified users collection"""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -13,7 +14,7 @@ class School(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: str | None = Field(None, alias="_id")
-    tenant_id: str = Field(..., alias="tenantId")
+    tenant_id: str = Field(alias="tenantId")
     name: str
     email: str
     hashed_password: str | None = Field(None, alias="password")
@@ -28,21 +29,6 @@ class School(BaseModel):
         d = dict(doc)
         if "_id" in d and isinstance(d["_id"], ObjectId):
             d["_id"] = str(d["_id"])
-        if "tenantId" in d and isinstance(d["tenantId"], ObjectId):
-            d["tenantId"] = str(d["tenantId"])
         return cls.model_validate(d)
 
 
-class SchoolCreate(BaseModel):
-    """Payload for creating a new school.
-
-    Aliases match legacy School.js field names so repository writes correct keys.
-    """
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    tenant_id: str = Field(..., alias="tenantId")
-    name: str
-    email: str
-    hashed_password: str | None = Field(None, alias="password")
-    is_active: bool = Field(True, alias="isActive")

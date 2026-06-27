@@ -23,11 +23,14 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.models.requests.content_requests import (
+    ContentCreate,
     ContentCreateRequest,
     ContentUpdateRequest,
+    QuizCreate,
     QuizCreateRequest,
 )
 from app.models.responses.content import ContentResponse, QuizResponse
+from app.models.responses.job import DeleteMatchedResponse, JobScheduledResponse
 from app.models.user import UserRole
 from app.platform.auth.dependencies import get_current_user
 from app.platform.error_handling import ForbiddenError, NotFoundError
@@ -40,12 +43,18 @@ router = APIRouter(prefix="/content", tags=["Content"])
 
 # Roles allowed for content operations (mirrors JS authorizeRole calls)
 _WRITE_ROLES = {UserRole.TENANT.value, UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value}
-_READ_ROLES = {UserRole.TENANT.value, UserRole.SCHOOL_ADMIN.value, UserRole.TEACHER.value, UserRole.CONTENT_CREATOR.value}
+_READ_ROLES = {
+    UserRole.TENANT.value,
+    UserRole.SCHOOL_ADMIN.value,
+    UserRole.TEACHER.value,
+    UserRole.CONTENT_CREATOR.value,
+}
 
 
 # ---------------------------------------------------------------------------
 # Auth dependency helpers
 # ---------------------------------------------------------------------------
+
 
 async def _require_content_read(
     user: dict[str, Any] = Depends(get_current_user),
@@ -67,11 +76,16 @@ async def _require_content_write(
 # School-ID filter helpers (mirrors JS getReadSchoolIdFilter / getWriteSchoolIdFilter)
 # ---------------------------------------------------------------------------
 
+
 def _read_school_filter(user: dict[str, Any]) -> Any | None:
     """For reads: school-scoped users see their school's content + tenant-wide content."""
     role = user.get("role")
     school_id = user.get("school_id")
-    if school_id and role in (UserRole.SCHOOL_ADMIN.value, UserRole.TEACHER.value, UserRole.CONTENT_CREATOR.value):
+    if school_id and role in (
+        UserRole.SCHOOL_ADMIN.value,
+        UserRole.TEACHER.value,
+        UserRole.CONTENT_CREATOR.value,
+    ):
         return {"$in": [school_id, None]}
     return None
 
@@ -89,6 +103,7 @@ def _write_school_filter(user: dict[str, Any]) -> dict:
 # Blob SAS helper
 # ---------------------------------------------------------------------------
 
+
 async def _get_sas_url(url: str) -> str:
     try:
         provider = BlobStorageProvider()
@@ -100,6 +115,7 @@ async def _get_sas_url(url: str) -> str:
 # ---------------------------------------------------------------------------
 # GET /content/job/{jobId}
 # ---------------------------------------------------------------------------
+
 
 @router.get("/job/{job_id}", summary="Get content job status")
 async def get_job_status(
@@ -120,6 +136,7 @@ async def get_job_status(
 # GET /content/jobs
 # ---------------------------------------------------------------------------
 
+
 @router.get("/jobs", summary="List running and failed content jobs")
 async def list_jobs(
     user: dict[str, Any] = Depends(_require_content_write),
@@ -130,13 +147,15 @@ async def list_jobs(
 
     jobs = []
     for doc in docs:
-        jobs.append({
-            "jobId": str(doc.get("_id", "")),
-            "status": "ERROR" if doc.get("status") == "failed" else "IN PROGRESS",
-            "contentId": doc.get("content_id"),
-            "startedAt": doc.get("started_at"),
-            "reason": doc.get("reason"),
-        })
+        jobs.append(
+            {
+                "jobId": str(doc.get("_id", "")),
+                "status": "ERROR" if doc.get("status") == "failed" else "IN PROGRESS",
+                "contentId": doc.get("content_id"),
+                "startedAt": doc.get("started_at"),
+                "reason": doc.get("reason"),
+            }
+        )
 
     return {"jobs": jobs}
 
@@ -144,6 +163,7 @@ async def list_jobs(
 # ---------------------------------------------------------------------------
 # GET /content/sasUrl
 # ---------------------------------------------------------------------------
+
 
 @router.get("/sasUrl", summary="Generate SAS URL for a blob")
 async def get_sas_url(
@@ -160,6 +180,7 @@ async def get_sas_url(
 # ---------------------------------------------------------------------------
 # GET /content/sasToken
 # ---------------------------------------------------------------------------
+
 
 @router.get("/sasToken", summary="Get upload SAS token for MP3 blob")
 async def get_sas_token(
@@ -180,6 +201,7 @@ async def get_sas_token(
 # ---------------------------------------------------------------------------
 # GET /content/themes
 # ---------------------------------------------------------------------------
+
 
 @router.get("/themes", summary="Get distinct themes for a language")
 async def get_themes(
@@ -207,10 +229,12 @@ async def get_themes(
     for doc in docs:
         theme = (doc.get("theme") or {}).get("english", "")
         if theme and theme not in seen:
-            themes.append({
-                "name": theme,
-                "audioUrl": (doc.get("theme") or {}).get("audioUrl", ""),
-            })
+            themes.append(
+                {
+                    "name": theme,
+                    "audioUrl": (doc.get("theme") or {}).get("audioUrl", ""),
+                }
+            )
             seen.add(theme)
 
     return themes
@@ -219,6 +243,7 @@ async def get_themes(
 # ---------------------------------------------------------------------------
 # GET /content
 # ---------------------------------------------------------------------------
+
 
 @router.get("", summary="List content (cursor pagination)")
 async def list_content(
@@ -243,13 +268,18 @@ async def list_content(
     # Fetch by specific IDs
     if ids is not None:
         if len(ids) == 0:
-            raise HTTPException(status_code=400, detail="ids query parameter must be a non-empty array")
+            raise HTTPException(
+                status_code=400, detail="ids query parameter must be a non-empty array"
+            )
         id_query = {**base_query, "_id": {"$in": ids}}
         contents = await service.fetch_contents(id_query)
         quizzes = await service.fetch_quizzes(id_query)
         all_items = sorted(
             [ContentResponse.model_validate(d).model_dump(by_alias=True) for d in contents]
-            + [{**QuizResponse.model_validate(d).model_dump(by_alias=True), "type": "quiz"} for d in quizzes],
+            + [
+                {**QuizResponse.model_validate(d).model_dump(by_alias=True), "type": "quiz"}
+                for d in quizzes
+            ],
             key=lambda x: (-x.get("creation_time", 0), str(x.get("_id", ""))),
         )
         return all_items
@@ -266,15 +296,19 @@ async def list_content(
         decoded_theme = urllib.parse.unquote(theme)
         if exp_name.lower() == "quiz":
             fetch_content = False
-            quiz_query.update({"isPullModel": True, "language": language, "theme.english": decoded_theme})
+            quiz_query.update(
+                {"isPullModel": True, "language": language, "theme.english": decoded_theme}
+            )
         else:
             fetch_quizzes = False
-            content_query.update({
-                "isPullModel": True,
-                "language": language,
-                "theme.english": decoded_theme,
-                "type": exp_name.lower(),
-            })
+            content_query.update(
+                {
+                    "isPullModel": True,
+                    "language": language,
+                    "theme.english": decoded_theme,
+                    "type": exp_name.lower(),
+                }
+            )
 
     # Cursor-based pagination
     if cursor:
@@ -293,12 +327,17 @@ async def list_content(
     # Fetch limit+1 per collection to bound memory; Python sort only needed for
     # the combined content+quiz case (cross-collection ordering).
     fetch_limit = limit + 1
-    contents = await service.fetch_contents(content_query, limit=fetch_limit) if fetch_content else []
+    contents = (
+        await service.fetch_contents(content_query, limit=fetch_limit) if fetch_content else []
+    )
     quizzes = await service.fetch_quizzes(quiz_query, limit=fetch_limit) if fetch_quizzes else []
 
     all_results = sorted(
         [ContentResponse.model_validate(d).model_dump(by_alias=True) for d in contents]
-        + [{**QuizResponse.model_validate(d).model_dump(by_alias=True), "type": "quiz"} for d in quizzes],
+        + [
+            {**QuizResponse.model_validate(d).model_dump(by_alias=True), "type": "quiz"}
+            for d in quizzes
+        ],
         key=lambda x: (-x.get("creation_time", 0), str(x.get("_id", ""))),
     )
 
@@ -306,17 +345,19 @@ async def list_content(
     data = all_results[:limit]
     last_item = data[-1] if data else None
     next_cursor = (
-        f"{last_item['creation_time']}_{last_item['_id']}"
-        if has_more and last_item
-        else None
+        f"{last_item['creation_time']}_{last_item['_id']}" if has_more and last_item else None
     )
 
-    return {"data": data, "pagination": {"nextCursor": next_cursor, "hasMore": has_more, "limit": limit}}
+    return {
+        "data": data,
+        "pagination": {"nextCursor": next_cursor, "hasMore": has_more, "limit": limit},
+    }
 
 
 # ---------------------------------------------------------------------------
 # GET /content/{content_id}
 # ---------------------------------------------------------------------------
+
 
 @router.get("/{content_id}", summary="Get content by ID")
 async def get_content(
@@ -351,12 +392,13 @@ async def get_content(
 # POST /content — create + trigger job
 # ---------------------------------------------------------------------------
 
+
 @router.post("", summary="Create content and trigger processing job", status_code=201)
 async def create_content(
     body: ContentCreateRequest,
     user: dict[str, Any] = Depends(_require_content_write),
     service: ContentService = Depends(get_content_service),
-) -> dict[str, Any]:
+) -> JobScheduledResponse:
     """Create a new content document and enqueue a processing job.
 
     Returns ``{"message": "...", "jobId": "..."}``.
@@ -364,33 +406,45 @@ async def create_content(
     tenant_id = user.get("tenant_id", "")
     user_id = user.get("sub", "")
 
-    for item in body.audio_content or []:
+    for item in body.audioContent or []:
         au = item.get("audioUrl", "")
         if au and not au.lower().endswith(".mp3"):
             raise HTTPException(status_code=400, detail="Only .mp3 audio files are allowed.")
 
     now_ts = int(time.time())
     body_dict = body.model_dump(by_alias=True, exclude_unset=True)
-    doc: dict = {
-        **body_dict,
-        "tenantId": tenant_id,
-        "createdBy": user_id,
-        "creation_time": now_ts,
-        **_write_school_filter(user),
-        "isDeleted": False,
-        "isProcessed": False,
-    }
+    school_filter = _write_school_filter(user)
+    content_create = ContentCreate(
+        type=body.type,
+        language=body.language,
+        title=body.title,
+        theme=body.theme,
+        audioContent=body.audioContent or [],
+        description=body.description or "",
+        isPullModel=body.isPullModel or False,
+        isTeacherApp=body.isTeacherApp or False,
+        tenantId=tenant_id,
+        createdBy=user_id,
+        creation_time=now_ts,
+        schoolId=school_filter.get("schoolId"),
+        isDeleted=False,
+        isProcessed=False,
+    )
+    doc = content_create.model_dump()
+    if "_id" in body_dict:
+        doc["_id"] = body_dict["_id"]
 
     content_id = await service.insert_content(doc)
     job_id = await service.enqueue_content_job(content_id)
 
     logger.info("content_controller: created content_id=%s job_id=%s", content_id, job_id)
-    return {"message": "Processing New Content job scheduled!", "jobId": job_id}
+    return JobScheduledResponse(message="Processing New Content job scheduled!", jobId=job_id)
 
 
 # ---------------------------------------------------------------------------
 # PATCH /content — update + optionally re-trigger job
 # ---------------------------------------------------------------------------
+
 
 @router.patch("", summary="Update content")
 async def update_content(
@@ -415,15 +469,17 @@ async def update_content(
     update: dict = {k: v for k, v in body_dict.items() if k in allowed}
 
     if is_audio_uploaded:
-        if "audio_content" in body.model_fields_set:
-            for item in body.audio_content or []:
+        if "audioContent" in body.model_fields_set:
+            for item in body.audioContent or []:
                 au = item.get("audioUrl", "")
                 if au and not au.lower().endswith(".mp3"):
-                    raise HTTPException(status_code=400, detail="Only .mp3 audio files are allowed.")
-            update["audioContent"] = body.audio_content
+                    raise HTTPException(
+                        status_code=400, detail="Only .mp3 audio files are allowed."
+                    )
+            update["audioContent"] = body.audioContent
         update["isProcessed"] = False
 
-    update["updated_at"] = datetime.now(UTC)
+    update["updatedAt"] = datetime.now(UTC)
 
     result = await service.update_content_doc(write_filter, update)
 
@@ -443,12 +499,13 @@ async def update_content(
 # DELETE /content/{content_id}
 # ---------------------------------------------------------------------------
 
+
 @router.delete("/{content_id}", summary="Soft-delete content by ID")
 async def delete_content(
     content_id: str,
     user: dict[str, Any] = Depends(_require_content_write),
     service: ContentService = Depends(get_content_service),
-) -> Any:
+) -> DeleteMatchedResponse:
     """Soft-delete a content item (sets isDeleted=true)."""
     tenant_id = user.get("tenant_id", "")
     write_filter: dict = {
@@ -472,28 +529,43 @@ async def delete_content(
 # POST /content/quiz — create quiz + trigger job
 # ---------------------------------------------------------------------------
 
+
 @router.post("/quiz", summary="Create quiz and trigger processing job")
 async def create_quiz(
     body: QuizCreateRequest,
     user: dict[str, Any] = Depends(_require_content_write),
     service: ContentService = Depends(get_content_service),
-) -> dict[str, Any]:
+) -> JobScheduledResponse:
     """Create a new quiz document and enqueue a processing job."""
     tenant_id = user.get("tenant_id", "")
     user_id = user.get("sub", "")
 
     now_ts = int(time.time())
     body_dict = body.model_dump(by_alias=True, exclude_unset=True)
-    doc: dict = {
-        **body_dict,
-        "tenantId": tenant_id,
-        "createdBy": user_id,
-        "creation_time": now_ts,
-        **_write_school_filter(user),
-        "isDeleted": False,
-    }
+    school_filter = _write_school_filter(user)
+    quiz_create = QuizCreate(
+        type=body.type,
+        language=body.language,
+        title=body_dict.get("title") or "",
+        localTitle=body_dict.get("localTitle") or "",
+        theme=body_dict.get("theme") or "",
+        localTheme=body_dict.get("localTheme") or "",
+        positiveMarks=body.positiveMarks or 1.0,
+        negativeMarks=body.negativeMarks or 0.0,
+        questions=body.questions or [],
+        options=body.options or [],
+        correctAnswers=body.correctAnswers or [],
+        tenantId=tenant_id,
+        createdBy=user_id,
+        creation_time=now_ts,
+        schoolId=school_filter.get("schoolId"),
+        isDeleted=False,
+    )
+    doc = quiz_create.model_dump()
+    if "id" in body_dict:
+        doc["_id"] = body_dict["id"]
 
     quiz_id = await service.insert_quiz(doc)
     job_id = await service.enqueue_content_job(quiz_id)
 
-    return {"message": "Processing New Content job scheduled!", "jobId": job_id}
+    return JobScheduledResponse(message="Processing New Content job scheduled!", jobId=job_id)

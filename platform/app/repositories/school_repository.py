@@ -5,7 +5,8 @@ from datetime import UTC, datetime
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.models.school import School, SchoolCreate
+from app.models.school import School
+from app.models.requests.school_requests import SchoolCreate
 from app.repositories.base_repository import BaseRepository
 
 
@@ -46,16 +47,15 @@ class SchoolRepository(BaseRepository):
 
     async def create(self, school: SchoolCreate) -> School:
         now = datetime.now(UTC)
-        # by_alias=True writes legacy camelCase field names (tenantId, isActive, password)
-        doc = school.model_dump(by_alias=True)
-        doc["created_at"] = now
-        doc["updated_at"] = now
+        doc = school.model_dump()
+        doc["createdAt"] = now
+        doc["updatedAt"] = now
         result = await self._col.insert_one(doc)
         doc["_id"] = str(result.inserted_id)
         return School.from_mongo(doc)
 
     async def update(self, id: str, updates: dict) -> School | None:
-        updates["updated_at"] = datetime.now(UTC)
+        updates["updatedAt"] = datetime.now(UTC)
         result = await self._col.find_one_and_update(
             {"_id": self._to_id(id)},
             {"$set": updates},

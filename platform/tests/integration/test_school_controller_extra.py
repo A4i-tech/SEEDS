@@ -176,8 +176,8 @@ class TestSchoolControllerExtra:
         victim = await _seed_teacher(mock_db, email="victim@t.com", tid="tenant-b", sid="school-b")
         token = _teacher_token(caller["_id"], tid="tenant-a", sid="school-a")
         resp = await client.post("/school/transfer", json={
-            "teacher_id": victim["_id"],
-            "target_school_id": "000000000000000000000001",
+            "teacherId": victim["_id"],
+            "targetSchoolId": "000000000000000000000001",
         }, headers={"Authorization": f"Bearer {token}"})
         # Service raises NotFoundError (cross-tenant teacher not visible)
         assert resp.status_code in (404, 403)

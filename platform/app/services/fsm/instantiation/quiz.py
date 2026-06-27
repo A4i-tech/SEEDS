@@ -78,8 +78,13 @@ class Quiz:
             cor_or_wrong_state_ids = []
 
             correct_option_text = next(
-                opt.text for opt in question.options if opt.id == question.correct_option_id
+                (opt.text for opt in question.options if opt.id == question.correct_option_id),
+                None,
             )
+            if correct_option_text is None:
+                raise ValueError(
+                    f"correct_option_id {question.correct_option_id!r} not found in options for question {index + 1}"
+                )
 
             for index_option, option in enumerate(question.options):
                 actions.append(StreamAction(url=option.url))

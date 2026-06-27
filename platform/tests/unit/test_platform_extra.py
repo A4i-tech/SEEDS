@@ -24,8 +24,16 @@ class TestDatabaseModule:
         from app.platform.database import _extract_db_name
 
         result = _extract_db_name("mongodb://localhost:27017")
-        # Returns either the last segment or default
-        assert isinstance(result, str) and len(result) > 0
+        assert result == "seeds_platform"
+
+    def test_extract_db_name_srv_no_db(self) -> None:
+        from app.platform.database import _extract_db_name
+
+        # Azure Cosmos DB SRV URL with no database name in path — was returning hostname (contains dots)
+        result = _extract_db_name(
+            "mongodb+srv://admin:pass@cluster.global.mongocluster.cosmos.azure.com/?ssl=true"
+        )
+        assert result == "seeds_platform"
 
     def test_extract_db_name_with_query_string(self) -> None:
         from app.platform.database import _extract_db_name

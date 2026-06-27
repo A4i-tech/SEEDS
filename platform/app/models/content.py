@@ -1,4 +1,5 @@
 """Content domain model (unified from ContentV3.js and Content.js)."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -12,7 +13,7 @@ class TextContent(BaseModel):
 
     english: str
     local: str = ""
-    audio_url: str = Field(default="", alias="audioUrl")
+    audio_url: str = ""
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -21,8 +22,8 @@ class AudioContent(BaseModel):
     """A single audio segment within a content item."""
 
     description: str = ""
-    audio_url: str = Field(..., alias="audioUrl")
-    duration_seconds: float | None = Field(None, alias="durationSeconds")
+    audio_url: str = ""
+    duration_seconds: float | None = None
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -38,8 +39,8 @@ class Content(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: str | None = Field(None, alias="_id")
-    version: str = "v3"  # "v2" or "v3"
-    tenant_id: str | None = None  # ObjectId stored as str; ref Tenant
+    version: str = "v3"
+    tenant_id: str | None = Field(None, alias="tenantId")
     description: str = ""
     type: str
     language: str
@@ -57,11 +58,11 @@ class Content(BaseModel):
     audio_content: list[AudioContent] = Field(default_factory=list, alias="audioContent")
     # Flags
     school_id: str | None = Field(None, alias="schoolId")
-    created_by: str = Field(default="", alias="createdBy")
-    is_pull_model: bool = Field(default=False, alias="isPullModel")
-    is_teacher_app: bool = Field(default=False, alias="isTeacherApp")
-    is_processed: bool = Field(default=False, alias="isProcessed")
-    is_deleted: bool = Field(default=False, alias="isDeleted")
+    created_by: str = Field("", alias="createdBy")
+    is_pull_model: bool = Field(False, alias="isPullModel")
+    is_teacher_app: bool = Field(False, alias="isTeacherApp")
+    is_processed: bool = Field(False, alias="isProcessed")
+    is_deleted: bool = Field(False, alias="isDeleted")
     creation_time: int = -1
     created_at: datetime | None = None
     updated_at: datetime | None = None
@@ -73,26 +74,6 @@ class Content(BaseModel):
         d = dict(doc)
         if "_id" in d and isinstance(d["_id"], ObjectId):
             d["_id"] = str(d["_id"])
-        if "tenant_id" in d and isinstance(d["tenant_id"], ObjectId):
-            d["tenant_id"] = str(d["tenant_id"])
         return cls.model_validate(d)
 
 
-class ContentCreate(BaseModel):
-    """Payload for creating a new content item."""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    tenant_id: str
-    description: str = ""
-    type: str
-    language: str
-    version: str = "v3"
-    title: TextContent | None = None
-    theme: TextContent | None = None
-    audio_content: list[AudioContent] = Field(default_factory=list, alias="audioContent")
-    school_id: str | None = Field(None, alias="schoolId")
-    created_by: str = Field(default="", alias="createdBy")
-    is_pull_model: bool = Field(default=False, alias="isPullModel")
-    is_teacher_app: bool = Field(default=False, alias="isTeacherApp")
-    creation_time: int = -1

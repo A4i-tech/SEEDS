@@ -16,10 +16,11 @@ from typing import Any
 from fastapi import Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.models.classroom import Classroom, ClassroomCreate
-from app.models.responses.school import SchoolResponse
-from app.models.school import School, SchoolCreate
-from app.models.user import User
+from app.models.classroom import Classroom
+from app.models.requests.school_requests import ClassroomCreate, SchoolCreate, SchoolUpdateRequest
+from app.models.responses.school_response import SchoolResponse
+from app.models.school import School
+from app.models.user import User, UserCreate, UserRole
 from app.platform.auth.dependencies import get_db
 from app.platform.auth.hashing import hash_password
 from app.platform.error_handling import ConflictError, NotFoundError, ValidationError
@@ -57,29 +58,71 @@ class SchoolService:
         tenant_id: str,
         plain_password: str,
     ) -> School:
-        """Create a school, hashing the plain-text password before storage.
+        """Create a school record and a matching school_admin user in the users collection.
 
         Raises ConflictError if email already taken.
         """
         if await self._repo.find_by_email(email) is not None:
             raise ConflictError(f"School with email {email}")
 
+        hashed = hash_password(plain_password)
+
         data = SchoolCreate(
-            tenant_id=tenant_id,
+            tenantId=tenant_id,
             name=name.strip(),
             email=email.strip(),
-            password=hash_password(plain_password),
-            is_active=True,
+            password=hashed,
+            isActive=True,
         )
-        return await self._repo.create(data)
+        school = await self._repo.create(data)
 
-    async def update_school(self, school_id: str, updates: dict[str, Any], tenant_id: str) -> School:
-        """Apply partial updates to a school document, scoped to tenant_id. Raises NotFoundError if not found or tenant mismatch."""
+        # Mirror into users collection so school_admin_login can authenticate.
+        await self._user_repo.create(
+            UserCreate(
+                role=UserRole.SCHOOL_ADMIN,
+                name=name.strip(),
+                email=email.strip(),
+                hashed_password=hashed,
+                tenant_id=tenant_id,
+                school_id=school.id,
+                is_active=True,
+            )
+        )
+
+        return school
+
+    async def update_school(
+        self, school_id: str, body: SchoolUpdateRequest, tenant_id: str
+    ) -> School:
+        """Apply partial updates to a school document and keep the users record in sync."""
         if await self._repo.find_by_id_and_tenant(school_id, tenant_id) is None:
             raise NotFoundError("School", school_id)
-        updated = await self._repo.update(school_id, updates)
+
+        school_updates: dict[str, Any] = {}
+        user_updates: dict[str, Any] = {}
+
+        if body.name:
+            school_updates["name"] = body.name.strip()
+            user_updates["name"] = body.name.strip()
+        if body.email:
+            school_updates["email"] = body.email.strip()
+            user_updates["email"] = body.email.strip()
+        if body.password:
+            hashed = hash_password(body.password)
+            school_updates["password"] = hashed
+            user_updates["hashed_password"] = hashed
+
+        updated = await self._repo.update(school_id, school_updates)
         if updated is None:
             raise NotFoundError("School", school_id)
+
+        if user_updates:
+            user = await self._user_repo.find_by_email_and_role(
+                updated.email, UserRole.SCHOOL_ADMIN.value
+            )
+            if user is not None:
+                await self._user_repo.update(str(user.id), user_updates)
+
         return updated
 
     async def get_school_by_tenant(self, tenant_id: str) -> School | None:
@@ -129,16 +172,14 @@ class SchoolService:
         """Return ivrv2logs for *school_id* within [start_iso, end_iso] ISO range."""
         return await self._ivr_repo.find_logs_by_school_date_range(school_id, start_iso, end_iso)
 
-    async def list_teachers_by_school(
-        self, school_id: str, tenant_id: str
-    ) -> list[dict[str, Any]]:
+    async def list_teachers_by_school(self, school_id: str, tenant_id: str) -> list[dict[str, Any]]:
         """Return all teachers and content_creators for a given school."""
         all_users = await self._user_repo.find_all_by_tenant(tenant_id)
         return [
             {
                 "_id": str(u.id),
                 "name": u.name,
-                "phoneNumber": u.phone,
+                "phone": u.phone,
                 "role": u.role.value,
             }
             for u in all_users
@@ -180,9 +221,35 @@ class SchoolService:
             raise NotFoundError("Classroom", classroom_id)
         return classroom
 
-    async def update_classroom(
-        self, classroom_id: str, updates: dict[str, Any]
-    ) -> Classroom:
+    async def get_classroom_detail(self, classroom_id: str) -> ClassroomDetailResponse:
+        """Fetch classroom with students and leaders hydrated into member objects."""
+        from app.models.responses.classroom import ClassMemberResponse, ClassroomDetailResponse  # noqa: PLC0415
+
+        classroom = await self.get_classroom(classroom_id)
+
+        all_ids = list(set(classroom.students) | set(classroom.leaders))
+        users_by_id = {
+            str(u.id): u
+            for u in await self._user_repo.find_many_by_ids(all_ids)
+        }
+
+        def _member(uid: str) -> ClassMemberResponse | None:
+            u = users_by_id.get(uid)
+            return ClassMemberResponse.from_domain(u) if u else None
+
+        return ClassroomDetailResponse(
+            id=classroom.id,
+            school_id=classroom.school_id,
+            name=classroom.name,
+            teacher=classroom.teacher,
+            students=[m for uid in classroom.students if (m := _member(uid))],
+            leaders=[m for uid in classroom.leaders if (m := _member(uid))],
+            contentIds=classroom.content_ids,
+            createdAt=classroom.created_at,
+            updatedAt=classroom.updated_at,
+        )
+
+    async def update_classroom(self, classroom_id: str, updates: dict[str, Any]) -> Classroom:
         """Apply partial updates to a classroom. Raises NotFoundError if not found."""
         if await self._class_repo.find_by_id(classroom_id) is None:
             raise NotFoundError("Classroom", classroom_id)

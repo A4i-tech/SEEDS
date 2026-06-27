@@ -9,7 +9,7 @@ from bson import ObjectId
 from mongomock_motor import AsyncMongoMockClient
 
 from app.models.conference_state import ConferenceCallState
-from app.models.content import Content, ContentCreate, TextContent
+from app.models.content import Content, TextContent
 from app.models.user import User, UserCreate, UserRole
 from app.repositories.conference_repository import ConferenceRepository
 from app.repositories.content_repository import ContentRepository
@@ -215,26 +215,26 @@ async def test_content_repository_find_by_tenant(content_repo):
         [
             {
                 "_id": "content-1",
-                "tenant_id": tenant_id,
+                "tenantId": tenant_id,
                 "type": "story",
                 "language": "en",
-                "is_deleted": False,
+                "isDeleted": False,
                 "creation_time": 100,
             },
             {
                 "_id": "content-2",
-                "tenant_id": tenant_id,
+                "tenantId": tenant_id,
                 "type": "song",
                 "language": "hi",
-                "is_deleted": True,
+                "isDeleted": True,
                 "creation_time": 200,
             },
             {
                 "_id": "content-3",
-                "tenant_id": other_tenant,
+                "tenantId": other_tenant,
                 "type": "story",
                 "language": "en",
-                "is_deleted": False,
+                "isDeleted": False,
                 "creation_time": 150,
             },
         ]

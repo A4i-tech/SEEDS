@@ -71,12 +71,24 @@ async def _seed_school(mock_db, email="admin@school.com", password="adminpass123
     doc = {
         "name": "Test School",
         "email": email,
-        "password": hash_password(password),  # legacy field name in schools collection
-        "tenant_id": tenant_id,
-        "is_active": True,
+        "password": hash_password(password),
+        "tenantId": tenant_id,
+        "isActive": True,
     }
     result = await mock_db["schools"].insert_one(doc)
-    doc["_id"] = str(result.inserted_id)
+    school_id = str(result.inserted_id)
+    doc["_id"] = school_id
+    # Also seed a users record so get_school_admin_profile (UserRepository) can find it.
+    await mock_db["users"].insert_one({
+        "_id": result.inserted_id,
+        "role": UserRole.SCHOOL_ADMIN.value,
+        "name": "Test School",
+        "email": email,
+        "hashed_password": hash_password(password),
+        "school_id": school_id,
+        "tenant_id": tenant_id,
+        "is_active": True,
+    })
     return doc
 
 

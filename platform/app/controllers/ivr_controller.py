@@ -23,11 +23,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["IVR"])
 
 
-class _StartCallRequest(BaseModel):
-    phone_number: str
-    tenant_id: str | None = None
-
-
 @router.get("/answer", summary="Vonage answer webhook — returns initial NCCO")
 async def ivr_answer() -> Any:
     return [{"action": "talk", "text": "Hello from SEEDS IVR!", "bargeIn": True, "loop": 1}]

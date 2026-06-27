@@ -17,7 +17,7 @@ from typing import Any
 from fastapi import Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.models.responses.school import SchoolResponse
+from app.models.responses.school_response import SchoolResponse
 from app.models.responses.user import UserPublicResponse
 from app.models.user import User, UserCreate, UserRole
 from app.platform.auth.dependencies import get_db
@@ -48,13 +48,14 @@ def _user_public(user: User) -> dict[str, Any]:
 
 
 class TeacherCreate:
-    """Minimal creation payload for a teacher user."""
+    """Minimal creation payload for a teacher or content_creator user."""
 
     def __init__(
         self,
         name: str,
         email: str,
         password: str,
+        role: str = "teacher",
         tenant_id: str | None = None,
         school_id: str | None = None,
         phone: str | None = None,
@@ -63,6 +64,7 @@ class TeacherCreate:
         self.name = name
         self.email = email
         self.password = password
+        self.role = role
         self.tenant_id = tenant_id
         self.school_id = school_id
         self.phone = phone
@@ -152,9 +154,9 @@ async def login(
         }
 
     # --- native auth ---
-    user = await repo.find_by_email(email)
+    user = await repo.find_by_email_and_role(email, UserRole.TENANT.value)
     if user is None or not user.hashed_password:
-        logger.warning("auth: login failed — email not found or no password set")
+        logger.warning("auth: login failed — tenant not found or no password set")
         auth_failures.add(1, {"reason": "user_not_found"})
         raise UnauthorizedError("Invalid email or password")
 
@@ -235,6 +237,11 @@ async def register_teacher(
     Raises ConflictError if email is already taken.
     SECURITY: password is hashed before storage; plaintext is never retained.
     """
+    try:
+        role = UserRole(data.role)
+    except ValueError:
+        raise ConflictError(f"invalid role: {data.role}")
+
     repo = UserRepository(db)
 
     existing = await repo.find_by_email(data.email)
@@ -245,7 +252,7 @@ async def register_teacher(
 
     user = await repo.create(
         UserCreate(
-            role=UserRole.TEACHER,
+            role=role,
             name=data.name,
             email=data.email,
             hashed_password=hashed,
@@ -256,6 +263,7 @@ async def register_teacher(
         )
     )
     return user
+
 
 
 # ---------------------------------------------------------------------------
@@ -304,39 +312,38 @@ async def school_admin_login(
     password: str,
     db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
 ) -> dict[str, Any]:
-    """Authenticate a school admin against the schools collection.
+    """Authenticate a school admin from the users collection (role=school_admin).
 
-    School admins are NOT in the users collection — they are schools documents
-    with a bcrypt-hashed password field. Issues a JWT with role=school_admin.
+    School admin docs are migrated from the schools collection into users by
+    migration 001. Issues a JWT with role=school_admin.
 
     SECURITY: plain password is never logged.
     """
     auth_failures = get_counter("auth.failures")
-    repo = SchoolRepository(db)
+    repo = UserRepository(db)
 
-    school = await repo.find_by_email(email)
-    if school is None or not school.hashed_password:
+    user = await repo.find_by_email_and_role(email, UserRole.SCHOOL_ADMIN.value)
+    if user is None or not user.hashed_password:
         logger.warning("auth: school_admin login failed — email not found or no password")
         auth_failures.add(1, {"reason": "school_not_found"})
         raise UnauthorizedError("Invalid credentials")
 
-    if not school.is_active:
-        logger.warning("auth: school_admin login failed — inactive account %s", school.id)
+    if not user.is_active:
+        logger.warning("auth: school_admin login failed — inactive account %s", user.id)
         auth_failures.add(1, {"reason": "inactive_account"})
         raise UnauthorizedError("Account is inactive")
 
-    if not verify_password(password, school.hashed_password):
-        logger.warning("auth: school_admin login failed — wrong password for school %s", school.id)
+    if not verify_password(password, user.hashed_password):
+        logger.warning("auth: school_admin login failed — wrong password for school_admin %s", user.id)
         auth_failures.add(1, {"reason": "wrong_password"})
         raise UnauthorizedError("Invalid credentials")
 
-    school_id = str(school.id)
     token = create_access_token(
         {
-            "sub": school_id,
+            "sub": str(user.id),
             "role": "school_admin",
-            "school_id": school_id,
-            "tenant_id": school.tenant_id,
+            "tenant_id": user.tenant_id,
+            "school_id": user.school_id,
         }
     )
     return {"token": token}
@@ -375,15 +382,15 @@ async def get_school_admin_profile(
     school_id: str,
     tenant_id: str,
     db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
-) -> dict[str, Any]:
+) -> UserPublicResponse:
     """Return the school document for a school admin (parity with backend-server getMe).
 
     Excludes hashed_password from the response.
     """
-    school = await SchoolRepository(db).find_by_id(school_id)
-    if school is None or school.tenant_id != tenant_id:
+    user = await UserRepository(db).find_by_school_id_and_tenant_id(school_id, tenant_id)
+    if user is None:
         raise NotFoundError("School", school_id)
-    return SchoolResponse.from_domain(school).to_response()
+    return UserPublicResponse.from_domain(user)
 
 
 async def get_tenant_names(
