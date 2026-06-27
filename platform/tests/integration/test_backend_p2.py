@@ -15,7 +15,6 @@ Coverage:
 
 from __future__ import annotations
 
-import asyncio
 import os
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -27,6 +26,8 @@ os.environ.setdefault("ENV", "development")
 os.environ.setdefault("MONGO_DB_CONNECTION_STRING", "")
 os.environ.setdefault("DB_CONNECTION", "")
 
+from datetime import UTC
+
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -35,7 +36,6 @@ from mongomock_motor import AsyncMongoMockClient
 from app.main import app
 from app.platform.auth.dependencies import get_db
 from app.platform.auth.jwt import create_access_token
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -204,9 +204,9 @@ async def test_list_calls_requires_teacher(client):
 @pytest.mark.asyncio
 async def test_content_job_consumer_process_audio(mock_db):
     """ContentJobConsumer processes a pending job: mocks ffmpeg + blob, verifies temp file cleanup."""
-    from datetime import datetime, timezone
-    import tempfile
     import os
+    import tempfile
+    from datetime import datetime
 
     content_id = str(uuid.uuid4())
     job_id = str(uuid.uuid4())
@@ -230,7 +230,7 @@ async def test_content_job_consumer_process_audio(mock_db):
         "_id": job_id,
         "content_id": content_id,
         "status": "pending",
-        "created_at": datetime.now(timezone.utc),
+        "created_at": datetime.now(UTC),
     })
 
     # Track temp files created
@@ -279,7 +279,7 @@ async def test_content_job_consumer_process_audio(mock_db):
 @pytest.mark.asyncio
 async def test_content_job_dead_letter_on_failure(mock_db):
     """A job with a corrupt blob URL is dead-lettered: status=failed with reason set."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     content_id = str(uuid.uuid4())
     job_id = str(uuid.uuid4())
@@ -302,7 +302,7 @@ async def test_content_job_dead_letter_on_failure(mock_db):
         "_id": job_id,
         "content_id": content_id,
         "status": "pending",
-        "created_at": datetime.now(timezone.utc),
+        "created_at": datetime.now(UTC),
     })
 
     # Mock blob provider to always fail

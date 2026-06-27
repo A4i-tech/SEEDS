@@ -8,7 +8,6 @@ from pydantic import ValidationError
 from app.models.requests.content_requests import ContentCreate, QuizCreate
 from app.models.requests.school_requests import ClassroomCreate, SchoolCreate
 
-
 # ---------------------------------------------------------------------------
 # ClassroomCreate
 # ---------------------------------------------------------------------------

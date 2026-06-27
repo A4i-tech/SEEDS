@@ -25,7 +25,9 @@ from app.models.playback_state import ContentStatus
 from app.models.ws_service_message import MessageType
 from app.platform.settings import get_settings
 from app.services.confevents.playback_state_update_event import PlaybackStateUpdateEvent
-from app.services.confevents.reconnect_comm_api_websocket_event import ReconnectCommApiWebsocketEvent
+from app.services.confevents.reconnect_comm_api_websocket_event import (
+    ReconnectCommApiWebsocketEvent,
+)
 
 logger = logging.getLogger(__name__)
 

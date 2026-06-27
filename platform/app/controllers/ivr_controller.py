@@ -13,10 +13,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
-
-from app.services.ivr_service import IVRService, get_ivr_service
+from fastapi import APIRouter
 
 logger = logging.getLogger(__name__)
 

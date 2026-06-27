@@ -17,7 +17,6 @@ from typing import Any
 from fastapi import Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.models.responses.school_response import SchoolResponse
 from app.models.responses.user import UserPublicResponse
 from app.models.user import User, UserCreate, UserRole
 from app.platform.auth.dependencies import get_db

@@ -4,9 +4,10 @@ Deep coverage for teacher_disconnect_timer_event, confevents, conference_service
 
 from __future__ import annotations
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
+import contextlib
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 
 # ---------------------------------------------------------------------------
 # StartTeacherDisconnectTimerEvent
@@ -40,7 +41,9 @@ class TestStartTeacherDisconnectTimerEvent:
 
     @pytest.mark.asyncio
     async def test_execute_auto_end_disabled(self) -> None:
-        from app.services.confevents.teacher_disconnect_timer_event import StartTeacherDisconnectTimerEvent
+        from app.services.confevents.teacher_disconnect_timer_event import (
+            StartTeacherDisconnectTimerEvent,
+        )
 
         mock_settings = MagicMock()
         mock_settings.auto_end_enabled = False
@@ -55,7 +58,9 @@ class TestStartTeacherDisconnectTimerEvent:
 
     @pytest.mark.asyncio
     async def test_execute_teacher_connected_returns_early(self) -> None:
-        from app.services.confevents.teacher_disconnect_timer_event import StartTeacherDisconnectTimerEvent
+        from app.services.confevents.teacher_disconnect_timer_event import (
+            StartTeacherDisconnectTimerEvent,
+        )
 
         mock_settings = MagicMock()
         mock_settings.auto_end_enabled = True
@@ -69,7 +74,9 @@ class TestStartTeacherDisconnectTimerEvent:
 
     @pytest.mark.asyncio
     async def test_execute_no_teacher_returns_early(self) -> None:
-        from app.services.confevents.teacher_disconnect_timer_event import StartTeacherDisconnectTimerEvent
+        from app.services.confevents.teacher_disconnect_timer_event import (
+            StartTeacherDisconnectTimerEvent,
+        )
 
         mock_settings = MagicMock()
         mock_settings.auto_end_enabled = True
@@ -86,7 +93,9 @@ class TestStartTeacherDisconnectTimerEvent:
 class TestCancelTeacherDisconnectTimerEvent:
     @pytest.mark.asyncio
     async def test_cancel_no_task(self) -> None:
-        from app.services.confevents.teacher_disconnect_timer_event import CancelTeacherDisconnectTimerEvent
+        from app.services.confevents.teacher_disconnect_timer_event import (
+            CancelTeacherDisconnectTimerEvent,
+        )
 
         conf = MagicMock()
         conf.state = MagicMock()
@@ -101,7 +110,9 @@ class TestCancelTeacherDisconnectTimerEvent:
 
     @pytest.mark.asyncio
     async def test_cancel_active_task(self) -> None:
-        from app.services.confevents.teacher_disconnect_timer_event import CancelTeacherDisconnectTimerEvent
+        from app.services.confevents.teacher_disconnect_timer_event import (
+            CancelTeacherDisconnectTimerEvent,
+        )
 
         conf = MagicMock()
         conf.state = MagicMock()
@@ -217,10 +228,8 @@ class TestConferenceCallExtra:
         conf.state.auto_end_state.expires_at = future
         conf.state.auto_end_state.timeout_minutes = 5
         conf.queue_event = AsyncMock()
-        try:
+        with contextlib.suppress(Exception):
             conf.restore_auto_end_timer()
-        except Exception:
-            pass  # May create asyncio task
 
     def test_conference_call_id_attribute(self) -> None:
         conf = self._make_conf_call()

@@ -61,7 +61,7 @@ async def rollback(mongo_uri: str, dry_run: bool) -> None:
             )
         if count > 5:
             print(f"  [DRY-RUN] ... and {count - 5} more.")
-        print(f"\n[DRY-RUN] No documents deleted (dry-run mode).")
+        print("\n[DRY-RUN] No documents deleted (dry-run mode).")
     else:
         result = await db["users"].delete_many(filter_query)
         print(f"Rollback complete — {result.deleted_count} document(s) removed from users.")

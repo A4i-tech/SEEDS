@@ -20,11 +20,10 @@ from httpx import ASGITransport, AsyncClient
 from mongomock_motor import AsyncMongoMockClient
 
 from app.main import app
+from app.models.user import UserRole
 from app.platform.auth.dependencies import get_db
 from app.platform.auth.hashing import hash_password
 from app.platform.auth.jwt import create_access_token
-from app.models.user import UserRole
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

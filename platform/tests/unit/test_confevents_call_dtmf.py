@@ -4,8 +4,10 @@ Coverage for DTMFInputEvent and CallStatusChangeEvent.
 
 from __future__ import annotations
 
-import pytest
+import contextlib
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from app.models.participant import CallStatus, Role
 
@@ -95,10 +97,8 @@ class TestDTMFInputEvent:
         conf.state.participants["+222"].call_status = CallStatus.CONNECTED
 
         event = DTMFInputEvent(phone_number="+222", digit="1", conf_call=conf)
-        try:
+        with contextlib.suppress(Exception):
             await event.execute_event()
-        except Exception:
-            pass  # Vonage not available
 
     @pytest.mark.asyncio
     async def test_leader_digit_3_unmute_all(self) -> None:
@@ -106,15 +106,13 @@ class TestDTMFInputEvent:
 
         conf = _make_conf(teacher_phone="+111", student_phones=["+222"], leader_phone="+222")
         event = DTMFInputEvent(phone_number="+222", digit="3", conf_call=conf)
-        try:
+        with contextlib.suppress(Exception):
             await event.execute_event()
-        except Exception:
-            pass
 
     @pytest.mark.asyncio
     async def test_leader_digit_6_no_content_returns_early(self) -> None:
-        from app.services.confevents.dtmf_input_event import DTMFInputEvent
         from app.models.playback_state import ContentStatus
+        from app.services.confevents.dtmf_input_event import DTMFInputEvent
 
         conf = _make_conf(teacher_phone="+111", student_phones=["+222"], leader_phone="+222")
         conf.state.audio_content_state.status = ContentStatus.STOPPED

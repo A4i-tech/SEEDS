@@ -9,12 +9,10 @@ Covers: audit_log, webhook_event, ws_service_message, quiz, ivr_state,
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # Models — audit_log
@@ -162,8 +160,9 @@ class TestWSServiceMessage:
         assert msg.position_seconds == 30.5
 
     def test_websocket_service_message_speed_clamp(self) -> None:
-        from app.models.ws_service_message import MessageType, WebsocketServiceMessage
         import pydantic
+
+        from app.models.ws_service_message import MessageType, WebsocketServiceMessage
 
         with pytest.raises(pydantic.ValidationError):
             WebsocketServiceMessage(
@@ -296,8 +295,8 @@ class TestNativeAuthProvider:
 
     @pytest.mark.asyncio
     async def test_get_user_by_credentials_wrong_password(self) -> None:
-        from app.platform.auth.providers.native_provider import get_user_by_credentials
         from app.platform.auth.hashing import hash_password
+        from app.platform.auth.providers.native_provider import get_user_by_credentials
 
         hashed = hash_password("correctpass")
         user_doc = {"_id": "uid1", "email": "x@y.com", "hashed_password": hashed}
@@ -311,8 +310,8 @@ class TestNativeAuthProvider:
 
     @pytest.mark.asyncio
     async def test_get_user_by_credentials_success(self) -> None:
-        from app.platform.auth.providers.native_provider import get_user_by_credentials
         from app.platform.auth.hashing import hash_password
+        from app.platform.auth.providers.native_provider import get_user_by_credentials
 
         hashed = hash_password("correctpass")
         user_doc = {"_id": "uid1", "email": "x@y.com", "hashed_password": hashed, "name": "Alice"}
@@ -393,7 +392,7 @@ class TestBaseConsumer:
     @pytest.mark.asyncio
     async def test_safe_process_transient_retries_then_dead_letters(self) -> None:
         """Transient errors retry MAX_TRANSIENT_RETRIES times then dead-letter."""
-        from app.consumers.base_consumer import BaseConsumer, MAX_TRANSIENT_RETRIES
+        from app.consumers.base_consumer import MAX_TRANSIENT_RETRIES, BaseConsumer
 
         attempts = []
         dead_lettered = []

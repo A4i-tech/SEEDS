@@ -7,45 +7,48 @@ no Service Bus, no Vonage calls.
 
 from __future__ import annotations
 
-import asyncio
-import pytest
-from typing import Any, Dict, List
+from datetime import datetime
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
+from app.models.ivr_state import IVRCallStateMongoDoc
+from app.providers.vonage_actions.base.action import Action
+from app.providers.vonage_actions.input_action import InputAction
+from app.providers.vonage_actions.stream_action import StreamAction
+from app.providers.vonage_actions.talk_action import TalkAction
+from app.services.fsm.fsm import FSM
+from app.services.fsm.operations.daily_limit_pre_operation import DailyLimitPreOperation
+from app.services.fsm.state import State
+from app.services.fsm.transition import Transition
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 def _make_stream_action(url: str):
-    from app.providers.vonage_actions.stream_action import StreamAction  # noqa: PLC0415
     return StreamAction(url=url)
 
 
 def _make_talk_action(text: str):
-    from app.providers.vonage_actions.talk_action import TalkAction  # noqa: PLC0415
     return TalkAction(text=text, level=1.0, bargeIn=False, loop=1, language="en-US")
 
 
 def _make_input_action():
-    from app.providers.vonage_actions.input_action import InputAction  # noqa: PLC0415
     return InputAction(type_=["dtmf"], eventApi="/input", timeOut=10)
 
 
 def _make_state(state_id: str, actions=None):
-    from app.services.fsm.state import State  # noqa: PLC0415
     return State(state_id=state_id, actions=actions or [])
 
 
 def _make_transition(input_key: str, src: str, dst: str, actions=None):
-    from app.services.fsm.transition import Transition  # noqa: PLC0415
     return Transition(input=input_key, source_state_id=src, dest_state_id=dst, actions=actions or [])
 
 
 def _make_ivr_state_doc(conv_id: str, current_state_id: str, phone: str = "+1234567890"):
     """Build a minimal IVRCallStateMongoDoc in-memory."""
-    from app.models.ivr_state import IVRCallStateMongoDoc  # noqa: PLC0415
-    from datetime import datetime  # noqa: PLC0415
     return IVRCallStateMongoDoc(
         _id=conv_id,
         phone_number=phone,
@@ -69,8 +72,6 @@ def _build_simple_fsm() -> Any:
     All states have a StreamAction. States LA1 and LA2 are leaf nodes
     with a back-to-root key "9".
     """
-    from app.services.fsm.fsm import FSM  # noqa: PLC0415
-
     with patch("app.services.fsm.fsm.get_settings") as mock_settings:
         mock_settings.return_value.storage_account_name = ""
         mock_settings.return_value.ivr_daily_listening_limit_seconds = 1800
@@ -235,8 +236,6 @@ class TestFSMSerializationRoundTrip:
         assert state_ids == {"LA0", "LA1", "LA2"}
 
     def test_deserialize_round_trip(self):
-        from app.services.fsm.fsm import FSM  # noqa: PLC0415
-
         fsm = _build_simple_fsm()
         with patch("app.services.fsm.fsm.get_settings") as mock_settings:
             mock_settings.return_value.storage_account_name = ""
@@ -255,9 +254,6 @@ class TestFSMSerializationRoundTrip:
         assert "9" in fsm2.states["LA1"].transition_map
 
     def test_action_to_json_from_json_round_trip(self):
-        from app.providers.vonage_actions.stream_action import StreamAction  # noqa: PLC0415
-        from app.providers.vonage_actions.base.action import Action  # noqa: PLC0415
-
         action = StreamAction(url="https://example.com/audio.mp3", record_playback_time=False)
         data = action.to_json()
         restored = Action.from_json(data)
@@ -267,8 +263,6 @@ class TestFSMSerializationRoundTrip:
         assert restored.record_playback_time == action.record_playback_time
 
     def test_transition_to_json_from_json(self):
-        from app.services.fsm.transition import Transition  # noqa: PLC0415
-
         t = _make_transition("1", "LA0", "LA1", [_make_stream_action("a.mp3")])
         data = t.to_json()
         restored = Transition.from_json(data)
@@ -283,8 +277,6 @@ class TestDailyLimitPreOperation:
     """DailyLimitPreOperation sets flag in experience_data."""
 
     def test_execute_sets_daily_limit_check_flag(self):
-        from app.services.fsm.operations.daily_limit_pre_operation import DailyLimitPreOperation  # noqa: PLC0415
-
         op = DailyLimitPreOperation(duration_seconds=300.0, language="kannada", school_id="sch1")
         doc = _make_ivr_state_doc("conv6", "LA0")
 
@@ -299,8 +291,6 @@ class TestDailyLimitPreOperation:
         assert check["school_id"] == "sch1"
 
     def test_execute_noop_when_no_doc(self):
-        from app.services.fsm.operations.daily_limit_pre_operation import DailyLimitPreOperation  # noqa: PLC0415
-
         op = DailyLimitPreOperation(duration_seconds=100.0, language="hindi")
         # Should not raise
         op.execute(fsm=MagicMock(), fsm_state_doc=None)
@@ -311,7 +301,6 @@ class TestDailyLimitPreOperation:
         fsm = _build_simple_fsm()
 
         # Add daily limit pre-operation to LA1
-        from app.services.fsm.operations.daily_limit_pre_operation import DailyLimitPreOperation  # noqa: PLC0415
         fsm.states["LA1"].pre_operation = DailyLimitPreOperation(
             duration_seconds=300.0, language="kannada"
         )
@@ -337,7 +326,6 @@ class TestDailyLimitPreOperation:
         # Should still advance to LA1 (limit actions are served AT the dest state)
         assert next_state_id == "LA1"
         # But actions should be the limit announcement (TalkAction), not option_a.mp3
-        from app.providers.vonage_actions.talk_action import TalkAction  # noqa: PLC0415
         assert any(isinstance(a, TalkAction) for a in actions), (
             "Expected TalkAction limit announcement when daily limit exceeded"
         )
@@ -347,7 +335,6 @@ class TestDailyLimitPreOperation:
         """When usage is below limit, navigation proceeds normally."""
         fsm = _build_simple_fsm()
 
-        from app.services.fsm.operations.daily_limit_pre_operation import DailyLimitPreOperation  # noqa: PLC0415
         fsm.states["LA1"].pre_operation = DailyLimitPreOperation(
             duration_seconds=300.0, language="kannada"
         )
@@ -371,7 +358,6 @@ class TestDailyLimitPreOperation:
 
         assert next_state_id == "LA1"
         # No limit TalkAction expected
-        from app.providers.vonage_actions.talk_action import TalkAction  # noqa: PLC0415
         assert not any(isinstance(a, TalkAction) for a in actions), (
             "Should not return limit announcement when usage is within limit"
         )

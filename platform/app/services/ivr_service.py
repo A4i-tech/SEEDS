@@ -22,7 +22,13 @@ import vonage
 from fastapi import Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.models.ivr_state import ConversationRTCEventType, IVRCallStateMongoDoc, IVRCallStatus, IVRfsmDoc, UserAction
+from app.models.ivr_state import (
+    ConversationRTCEventType,
+    IVRCallStateMongoDoc,
+    IVRCallStatus,
+    IVRfsmDoc,
+    UserAction,
+)
 from app.platform.auth.dependencies import get_db
 from app.platform.settings import get_settings
 from app.providers.vonage_actions.action_factory import VonageActionFactory
@@ -31,10 +37,20 @@ from app.providers.vonage_actions.input_action import InputAction
 from app.providers.vonage_actions.talk_action import TalkAction
 from app.providers.websocket_client import WebsocketClientProvider, get_websocket_service
 from app.repositories.ivr_repository import IVRRepository
-from app.services.fsm.instantiation.insti import instantiate_from_latest_content, instantitate_from_doc
-from app.services.fsm.instantiation.pause_announcement import get_paused_announcement, get_resuming_announcement
+from app.services.fsm.instantiation.insti import (
+    instantiate_from_latest_content,
+    instantitate_from_doc,
+)
+from app.services.fsm.instantiation.pause_announcement import (
+    get_paused_announcement,
+    get_resuming_announcement,
+)
 from app.services.fsm.instantiation.speed_control import decrease_speed, increase_speed
-from app.services.fsm.utils import get_daily_limit_announcement, get_ist_date_string, get_vonage_language_code
+from app.services.fsm.utils import (
+    get_daily_limit_announcement,
+    get_ist_date_string,
+    get_vonage_language_code,
+)
 
 logger = logging.getLogger(__name__)
 

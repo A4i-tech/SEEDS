@@ -9,7 +9,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Pause announcement
 # ---------------------------------------------------------------------------
@@ -60,47 +59,61 @@ class TestPauseAnnouncement:
 
 class TestDurationAnnouncement:
     def test_format_minutes_only(self) -> None:
-        from app.services.fsm.instantiation.duration_announcement import format_duration_announcement
+        from app.services.fsm.instantiation.duration_announcement import (
+            format_duration_announcement,
+        )
 
         result = format_duration_announcement(120.0, "english")
         assert "2" in result
         assert "minutes" in result.lower()
 
     def test_format_seconds_only(self) -> None:
-        from app.services.fsm.instantiation.duration_announcement import format_duration_announcement
+        from app.services.fsm.instantiation.duration_announcement import (
+            format_duration_announcement,
+        )
 
         result = format_duration_announcement(45.0, "english")
         assert "45" in result
         assert "seconds" in result.lower()
 
     def test_format_full(self) -> None:
-        from app.services.fsm.instantiation.duration_announcement import format_duration_announcement
+        from app.services.fsm.instantiation.duration_announcement import (
+            format_duration_announcement,
+        )
 
         result = format_duration_announcement(90.5, "english")
         assert "1" in result  # 1 minute
         assert "30" in result or "seconds" in result.lower()
 
     def test_format_none_returns_empty(self) -> None:
-        from app.services.fsm.instantiation.duration_announcement import format_duration_announcement
+        from app.services.fsm.instantiation.duration_announcement import (
+            format_duration_announcement,
+        )
 
         result = format_duration_announcement(None, "english")
         assert result == ""
 
     def test_format_zero_returns_empty(self) -> None:
-        from app.services.fsm.instantiation.duration_announcement import format_duration_announcement
+        from app.services.fsm.instantiation.duration_announcement import (
+            format_duration_announcement,
+        )
 
         result = format_duration_announcement(0.0, "english")
         assert result == ""
 
     def test_format_kannada(self) -> None:
-        from app.services.fsm.instantiation.duration_announcement import format_duration_announcement
+        from app.services.fsm.instantiation.duration_announcement import (
+            format_duration_announcement,
+        )
 
         result = format_duration_announcement(60.0, "kannada")
         assert isinstance(result, str)
         assert len(result) > 0
 
     def test_format_unknown_language_falls_back(self) -> None:
-        from app.services.fsm.instantiation.duration_announcement import format_duration_announcement
+        from app.services.fsm.instantiation.duration_announcement import (
+            format_duration_announcement,
+        )
 
         result = format_duration_announcement(60.0, "unknown")
         # Falls back to English
@@ -116,7 +129,7 @@ class TestIVRConstantsExtended:
     def test_language_dialog_urls_are_strings(self) -> None:
         from app.services.fsm.instantiation.ivr_constants import languageDialogUrls
 
-        for lang, url in languageDialogUrls.items():
+        for _lang, url in languageDialogUrls.items():
             assert isinstance(url, str)
             assert len(url) > 0
 
@@ -175,6 +188,7 @@ class TestRedisConferenceStore:
     def _make_store(self):
         """Create a RedisConferenceStore with a mocked redis client."""
         import redis.asyncio as aioredis
+
         from app.services.redis_conference_store import RedisConferenceStore
 
         mock_client = AsyncMock()

@@ -4,9 +4,10 @@ Extra coverage for platform/database.py and school_controller endpoints.
 
 from __future__ import annotations
 
-import pytest
+import contextlib
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 
 # ---------------------------------------------------------------------------
 # database.py — pure function coverage
@@ -91,7 +92,7 @@ class TestDatabaseModule:
 class TestTeacherDisconnectDeeper:
     def _make_conf(self, auto_end_enabled=True):
         from app.models.conference_state import ConferenceCallState
-        from app.models.participant import Participant, Role, CallStatus
+        from app.models.participant import CallStatus, Participant, Role
 
         conf = MagicMock()
         conf.conf_id = "conf_timer"
@@ -113,7 +114,9 @@ class TestTeacherDisconnectDeeper:
 
     @pytest.mark.asyncio
     async def test_execute_event_disabled_returns_early(self) -> None:
-        from app.services.confevents.teacher_disconnect_timer_event import StartTeacherDisconnectTimerEvent
+        from app.services.confevents.teacher_disconnect_timer_event import (
+            StartTeacherDisconnectTimerEvent,
+        )
 
         mock_settings = MagicMock()
         mock_settings.auto_end_enabled = False
@@ -199,7 +202,5 @@ class TestTelemetry:
         mock_settings.azure_monitor_connection_string = ""
         mock_settings.telemetry_sampling_ratio = 1.0
 
-        try:
+        with contextlib.suppress(Exception):
             configure_telemetry(mock_settings)
-        except Exception:
-            pass  # OK if Azure not configured

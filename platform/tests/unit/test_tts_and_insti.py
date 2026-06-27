@@ -5,9 +5,10 @@ conference_event_dispatcher, and more repositories coverage.
 
 from __future__ import annotations
 
-import pytest
+import contextlib
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 
 # ---------------------------------------------------------------------------
 # TTS service — pure helper functions (no network / SDK needed)
@@ -195,8 +196,8 @@ class TestIVRServiceCacheHelpers:
         ivr_service._latest_fsm_id = original
 
     def test_set_and_get_latest_fsm_id(self) -> None:
-        from app.services.ivr_service import get_latest_fsm_id, set_latest_fsm_id
         from app.services import ivr_service
+        from app.services.ivr_service import get_latest_fsm_id, set_latest_fsm_id
 
         original = ivr_service._latest_fsm_id
         set_latest_fsm_id("fsm-test-123")
@@ -390,22 +391,20 @@ class TestConferenceEventDispatcher:
     @pytest.mark.asyncio
     async def test_dispatch_conference_event_unknown_status(self) -> None:
         """Dispatching unknown status to non-existent conference returns gracefully."""
+
         from app.services.conference_event_dispatcher import dispatch_conference_event
-        from unittest.mock import AsyncMock
 
         mgr = self._make_manager()
         caller_state_mgr = MagicMock()
 
         # Should not raise even with no conference found
-        try:
+        with contextlib.suppress(Exception):
             await dispatch_conference_event(
                 event_data={"status": "unknown_xyz"},
                 conference_id="conf_test_999",
                 conference_manager=mgr,
                 caller_state_manager=caller_state_mgr,
             )
-        except Exception:
-            pass  # Errors about missing conference are fine
 
     @pytest.mark.asyncio
     async def test_dispatch_conversation_event_unknown(self) -> None:
@@ -413,13 +412,11 @@ class TestConferenceEventDispatcher:
 
         mgr = self._make_manager()
 
-        try:
+        with contextlib.suppress(Exception):
             await dispatch_conversation_event(
                 event_data={"type": "unknown:event:type"},
                 conference_manager=mgr,
             )
-        except Exception:
-            pass
 
 
 # ---------------------------------------------------------------------------
@@ -436,8 +433,8 @@ class TestCallRepository:
 
     @pytest.mark.asyncio
     async def test_create_and_find_call_log(self, db) -> None:
-        from app.repositories.call_repository import CallRepository
         from app.models.call import CallLog
+        from app.repositories.call_repository import CallRepository
 
         repo = CallRepository(db)
         log = CallLog(
@@ -475,8 +472,8 @@ class TestConferenceRepository:
 
     @pytest.mark.asyncio
     async def test_create_and_find_conference(self, db) -> None:
-        from app.repositories.conference_repository import ConferenceRepository
         from app.models.conference_state import ConferenceCallState
+        from app.repositories.conference_repository import ConferenceRepository
 
         repo = ConferenceRepository(db)
         state = ConferenceCallState(conference_id="conf1", is_running=True)
@@ -510,8 +507,8 @@ class TestContentRepository:
 
     @pytest.mark.asyncio
     async def test_create_and_find_content(self, db) -> None:
-        from app.repositories.content_repository import ContentRepository
         from app.models.requests.content_requests import ContentCreate
+        from app.repositories.content_repository import ContentRepository
 
         repo = ContentRepository(db)
         content_create = ContentCreate(
@@ -601,8 +598,8 @@ class TestSchoolServiceAdditional:
 
     @pytest.mark.asyncio
     async def test_get_school_not_found(self, db) -> None:
-        from app.services.school_service import SchoolService
         from app.platform.error_handling import NotFoundError
+        from app.services.school_service import SchoolService
 
         with pytest.raises(NotFoundError):
             await SchoolService(db).get_school("000000000000000000000000", "t1")
@@ -671,8 +668,8 @@ class TestUserServiceAdditional:
 
     @pytest.mark.asyncio
     async def test_get_user_not_found(self, db) -> None:
-        from app.services.user_service import get_user
         from app.platform.error_handling import NotFoundError
+        from app.services.user_service import get_user
 
         current = {"sub": "teacher1", "role": "teacher", "tenant_id": "t1"}
         with pytest.raises(NotFoundError):
@@ -702,10 +699,8 @@ class TestUserServiceAdditional:
         user = await register_teacher(tc, db)
 
         current = {"sub": str(user.id), "role": "teacher", "tenant_id": "t1"}
-        try:
+        with contextlib.suppress(Exception):
             await delete_user(str(user.id), current, db)
-        except Exception:
-            pass
 
 
 # ---------------------------------------------------------------------------
@@ -741,7 +736,7 @@ class TestAuthServiceTenant:
 
     @pytest.mark.asyncio
     async def test_login_tenant_success(self, db) -> None:
-        from app.services.auth_service import TenantCreate, register_tenant, login
+        from app.services.auth_service import TenantCreate, login, register_tenant
 
         data = TenantCreate(name="Login Org", email="login@test.com", password="loginpass")
         await register_tenant(data, db)
@@ -751,8 +746,8 @@ class TestAuthServiceTenant:
 
     @pytest.mark.asyncio
     async def test_login_wrong_password_raises(self, db) -> None:
-        from app.services.auth_service import TenantCreate, register_tenant, login
         from app.platform.error_handling import UnauthorizedError
+        from app.services.auth_service import TenantCreate, login, register_tenant
 
         data = TenantCreate(name="Wrong Pass Org", email="wrong@test.com", password="correctpass")
         await register_tenant(data, db)
@@ -769,7 +764,5 @@ class TestAuthServiceTenant:
         user = await register_tenant(data, db)
 
         current = {"sub": str(user.id), "role": "tenant"}
-        try:
-            updated = await update_user(str(user.id), {"hashed_password": "newhash"}, current, db)
-        except Exception:
-            pass  # Cross-tenant or permission issues OK
+        with contextlib.suppress(Exception):
+            await update_user(str(user.id), {"hashed_password": "newhash"}, current, db)

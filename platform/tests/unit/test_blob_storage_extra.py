@@ -4,8 +4,9 @@ Extra unit coverage for blob_storage.py provider.
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 
 class TestParseBlobUrl:

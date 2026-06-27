@@ -10,9 +10,10 @@ Additional coverage for:
 
 from __future__ import annotations
 
-import pytest
+import contextlib
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 
 # ---------------------------------------------------------------------------
 # FSM debug methods
@@ -88,7 +89,7 @@ class TestFSMDebugMethods:
 
 class TestBlobStorageExtractPath:
     def test_extract_path_without_extension(self) -> None:
-        from app.providers.blob_storage import _parse_blob_url, BlobStorageProvider
+        from app.providers.blob_storage import _parse_blob_url
 
         # Test _parse_blob_url directly
         container, blob = _parse_blob_url(
@@ -106,10 +107,7 @@ class TestBlobStorageExtractPath:
         assert container == "audio"
         # Strip extension manually
         dot_pos = blob.rfind(".")
-        if dot_pos > 0:
-            stripped = blob[:dot_pos]
-        else:
-            stripped = blob
+        stripped = blob[:dot_pos] if dot_pos > 0 else blob
         assert "conf-123" in stripped
 
 
@@ -213,7 +211,7 @@ class TestContentJobConsumerDeeper:
     @pytest.mark.asyncio
     async def test_process_message_with_call_webhook_type(self, db) -> None:
         from app.consumers.content_job_consumer import ContentJobConsumer
-        from app.providers.service_bus import QueueMessage, MessageType
+        from app.providers.service_bus import MessageType, QueueMessage
 
         consumer = ContentJobConsumer(db)
         msg = QueueMessage(
@@ -225,25 +223,21 @@ class TestContentJobConsumerDeeper:
             },
         )
         # process should handle unknown status gracefully
-        try:
+        with contextlib.suppress(Exception):
             await consumer.process(msg)
-        except Exception:
-            pass  # External service calls may fail
 
     @pytest.mark.asyncio
     async def test_process_message_missing_fields(self, db) -> None:
         from app.consumers.content_job_consumer import ContentJobConsumer
-        from app.providers.service_bus import QueueMessage, MessageType
+        from app.providers.service_bus import MessageType, QueueMessage
 
         consumer = ContentJobConsumer(db)
         msg = QueueMessage(
             type=MessageType.CALL_EVENT,
             payload={},  # empty payload
         )
-        try:
+        with contextlib.suppress(Exception):
             await consumer.process(msg)
-        except Exception:
-            pass  # Acceptable
 
 
 # ---------------------------------------------------------------------------
@@ -279,7 +273,9 @@ class TestConferenceConfeventsExtra:
         await event.execute_event()  # Should return early if no participant
 
     def test_reconnect_comm_api_event_creation(self) -> None:
-        from app.services.confevents.reconnect_comm_api_websocket_event import ReconnectCommApiWebsocketEvent
+        from app.services.confevents.reconnect_comm_api_websocket_event import (
+            ReconnectCommApiWebsocketEvent,
+        )
 
         conf = self._mock_conf()
         event = ReconnectCommApiWebsocketEvent(conf_call=conf)
@@ -308,6 +304,7 @@ class TestSchoolControllerEndpoints:
 
         from httpx import ASGITransport, AsyncClient
         from mongomock_motor import AsyncMongoMockClient
+
         from app.main import app
         from app.platform.auth.dependencies import get_db
 
@@ -332,6 +329,7 @@ class TestSchoolControllerEndpoints:
 
         from httpx import ASGITransport, AsyncClient
         from mongomock_motor import AsyncMongoMockClient
+
         from app.main import app
         from app.platform.auth.dependencies import get_db
 

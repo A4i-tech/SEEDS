@@ -5,9 +5,9 @@ teacher_disconnect_timer_event, and FSM quiz/pure_audio import coverage.
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 
 # ---------------------------------------------------------------------------
 # service_bus — QueueMessage and MessageType (no Azure SDK calls)
@@ -23,7 +23,7 @@ class TestServiceBusQueueMessage:
         assert MessageType.CALL_EVENT is not None
 
     def test_queue_message_creation(self) -> None:
-        from app.providers.service_bus import QueueMessage, MessageType
+        from app.providers.service_bus import MessageType, QueueMessage
 
         msg = QueueMessage(
             type=MessageType.CALL_WEBHOOK,
@@ -33,7 +33,7 @@ class TestServiceBusQueueMessage:
         assert msg.payload["status"] == "answered"
 
     def test_queue_message_to_json(self) -> None:
-        from app.providers.service_bus import QueueMessage, MessageType
+        from app.providers.service_bus import MessageType, QueueMessage
 
         msg = QueueMessage(
             type=MessageType.DTMF_INPUT,
@@ -44,7 +44,7 @@ class TestServiceBusQueueMessage:
         assert "digits" in json_str
 
     def test_queue_message_from_json(self) -> None:
-        from app.providers.service_bus import QueueMessage, MessageType
+        from app.providers.service_bus import MessageType, QueueMessage
 
         msg = QueueMessage(
             type=MessageType.CALL_EVENT,
@@ -55,13 +55,13 @@ class TestServiceBusQueueMessage:
         assert restored.payload["status"] == "completed"
 
     def test_queue_message_has_message_id(self) -> None:
-        from app.providers.service_bus import QueueMessage, MessageType
+        from app.providers.service_bus import MessageType, QueueMessage
 
         msg = QueueMessage(type=MessageType.CALL_WEBHOOK, payload={})
         assert msg.message_id is not None
 
     def test_queue_message_retry_count_default(self) -> None:
-        from app.providers.service_bus import QueueMessage, MessageType
+        from app.providers.service_bus import MessageType, QueueMessage
 
         msg = QueueMessage(type=MessageType.CALL_WEBHOOK, payload={})
         assert msg.retry_count == 0
@@ -179,7 +179,9 @@ class TestTeacherDisconnectTimerEvent:
         return conf_call
 
     def test_start_timer_event_creation(self) -> None:
-        from app.services.confevents.teacher_disconnect_timer_event import StartTeacherDisconnectTimerEvent
+        from app.services.confevents.teacher_disconnect_timer_event import (
+            StartTeacherDisconnectTimerEvent,
+        )
 
         mock_settings = MagicMock()
         mock_settings.auto_end_timeout_minutes = 5
@@ -191,7 +193,9 @@ class TestTeacherDisconnectTimerEvent:
 
     @pytest.mark.asyncio
     async def test_start_timer_does_nothing_when_disabled(self) -> None:
-        from app.services.confevents.teacher_disconnect_timer_event import StartTeacherDisconnectTimerEvent
+        from app.services.confevents.teacher_disconnect_timer_event import (
+            StartTeacherDisconnectTimerEvent,
+        )
 
         mock_settings = MagicMock()
         mock_settings.auto_end_timeout_minutes = 5
@@ -203,14 +207,18 @@ class TestTeacherDisconnectTimerEvent:
             await event.execute_event()
 
     def test_cancel_timer_event_creation(self) -> None:
-        from app.services.confevents.teacher_disconnect_timer_event import CancelTeacherDisconnectTimerEvent
+        from app.services.confevents.teacher_disconnect_timer_event import (
+            CancelTeacherDisconnectTimerEvent,
+        )
 
         event = CancelTeacherDisconnectTimerEvent(conf_call=self._mock_conf_call())
         assert event is not None
 
     @pytest.mark.asyncio
     async def test_cancel_timer_inactive(self) -> None:
-        from app.services.confevents.teacher_disconnect_timer_event import CancelTeacherDisconnectTimerEvent
+        from app.services.confevents.teacher_disconnect_timer_event import (
+            CancelTeacherDisconnectTimerEvent,
+        )
 
         conf_call = self._mock_conf_call()
         conf_call.state.auto_end_state.is_active = False
@@ -322,6 +330,7 @@ class TestConferenceCallUnit:
 class TestIVRStateModels:
     def test_ivr_call_state_creation(self) -> None:
         from datetime import datetime
+
         from app.models.ivr_state import IVRCallStateMongoDoc
 
         doc = IVRCallStateMongoDoc(
@@ -336,6 +345,7 @@ class TestIVRStateModels:
 
     def test_ivr_fsm_doc_creation(self) -> None:
         import time
+
         from app.models.ivr_state import IVRfsmDoc
 
         doc = IVRfsmDoc(
@@ -361,6 +371,7 @@ class TestIVRStateModels:
 
     def test_ivr_call_state_from_mongo_with_id(self) -> None:
         from datetime import datetime
+
         from app.models.ivr_state import IVRCallStateMongoDoc
 
         doc = {

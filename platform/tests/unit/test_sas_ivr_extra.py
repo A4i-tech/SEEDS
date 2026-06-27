@@ -5,9 +5,9 @@ FSM quiz/pure_audio instantiation stubs, and confevents event classes.
 
 from __future__ import annotations
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 
 # ---------------------------------------------------------------------------
 # SAS service — offline path coverage
@@ -215,7 +215,9 @@ class TestConfeventsAdditional:
         assert event is not None
 
     def test_reconnect_websocket_event_creation(self) -> None:
-        from app.services.confevents.reconnect_comm_api_websocket_event import ReconnectCommApiWebsocketEvent
+        from app.services.confevents.reconnect_comm_api_websocket_event import (
+            ReconnectCommApiWebsocketEvent,
+        )
 
         event = ReconnectCommApiWebsocketEvent(conf_call=self._mock_conf_call())
         assert event is not None
@@ -234,7 +236,9 @@ class TestConfeventsAdditional:
 
 class TestVonageConfevents:
     def test_vonage_call_status_change_event_answered(self) -> None:
-        from app.services.confevents.vonage.vonage_call_status_change_event import VonageCallStatusChangeEvent
+        from app.services.confevents.vonage.vonage_call_status_change_event import (
+            VonageCallStatusChangeEvent,
+        )
 
         event = VonageCallStatusChangeEvent(
             status="answered",
@@ -243,7 +247,10 @@ class TestVonageConfevents:
         assert event.status.value == "answered"
 
     def test_vonage_call_status_change_normalizes_invalid_to_notconnected(self) -> None:
-        from app.services.confevents.vonage.vonage_call_status_change_event import VonageCallStatusChangeEvent, VonageCallStatus
+        from app.services.confevents.vonage.vonage_call_status_change_event import (
+            VonageCallStatus,
+            VonageCallStatusChangeEvent,
+        )
 
         event = VonageCallStatusChangeEvent(
             status="unknown_invalid",
@@ -252,7 +259,10 @@ class TestVonageConfevents:
         assert event.status == VonageCallStatus.NOTCONNECTED
 
     def test_vonage_call_status_completed(self) -> None:
-        from app.services.confevents.vonage.vonage_call_status_change_event import VonageCallStatusChangeEvent, VonageCallStatus
+        from app.services.confevents.vonage.vonage_call_status_change_event import (
+            VonageCallStatus,
+            VonageCallStatusChangeEvent,
+        )
 
         event = VonageCallStatusChangeEvent(status="completed", to="+222")
         assert event.status == VonageCallStatus.COMPLETED
@@ -279,6 +289,7 @@ class TestClassroomModel:
 
     def test_classroom_from_mongo_with_id(self) -> None:
         from bson import ObjectId
+
         from app.models.classroom import Classroom
 
         doc = {
@@ -332,7 +343,7 @@ class TestConferenceStateModel:
 
     def test_conference_call_state_with_participants(self) -> None:
         from app.models.conference_state import ConferenceCallState
-        from app.models.participant import Participant, Role, CallStatus
+        from app.models.participant import CallStatus, Participant, Role
 
         p1 = Participant(phone_number="+111", name="Teacher", role=Role.TEACHER, call_status=CallStatus.CONNECTED)
         state = ConferenceCallState(conference_id="conf1", participants={"+111": p1})
@@ -359,8 +370,8 @@ class TestClassroomRepository:
 
     @pytest.mark.asyncio
     async def test_create_and_find_classroom(self, db) -> None:
-        from app.repositories.classroom_repository import ClassroomRepository
         from app.models.requests.school_requests import ClassroomCreate
+        from app.repositories.classroom_repository import ClassroomRepository
 
         repo = ClassroomRepository(db)
         classroom = ClassroomCreate(name="Class 1", schoolId="s1", teacher="t1")
@@ -370,8 +381,8 @@ class TestClassroomRepository:
 
     @pytest.mark.asyncio
     async def test_find_classrooms_by_school(self, db) -> None:
-        from app.repositories.classroom_repository import ClassroomRepository
         from app.models.requests.school_requests import ClassroomCreate
+        from app.repositories.classroom_repository import ClassroomRepository
 
         repo = ClassroomRepository(db)
         await repo.create(ClassroomCreate(name="Class A", schoolId="s1", teacher="t1"))
@@ -383,8 +394,8 @@ class TestClassroomRepository:
 
     @pytest.mark.asyncio
     async def test_find_classrooms_by_teacher(self, db) -> None:
-        from app.repositories.classroom_repository import ClassroomRepository
         from app.models.requests.school_requests import ClassroomCreate
+        from app.repositories.classroom_repository import ClassroomRepository
 
         repo = ClassroomRepository(db)
         await repo.create(ClassroomCreate(name="Class X", schoolId="s1", teacher="t1"))
@@ -409,8 +420,9 @@ class TestIVRRepository:
     @pytest.mark.asyncio
     async def test_save_and_find_fsm(self, db) -> None:
         import time
-        from app.repositories.ivr_repository import IVRRepository
+
         from app.models.ivr_state import IVRfsmDoc
+        from app.repositories.ivr_repository import IVRRepository
 
         repo = IVRRepository(db)
         doc = IVRfsmDoc(
@@ -530,7 +542,9 @@ class TestFSMOperations:
         assert op.score == 1
 
     def test_quiz_process_final_state_output(self) -> None:
-        from app.services.fsm.operations.quiz_process_state_output import QuizProcessFinalStateOutput
+        from app.services.fsm.operations.quiz_process_state_output import (
+            QuizProcessFinalStateOutput,
+        )
 
         op = QuizProcessFinalStateOutput()
         assert op is not None

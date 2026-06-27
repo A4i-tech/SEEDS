@@ -6,16 +6,14 @@ Uses httpx.AsyncClient with ASGI transport - no real DB or consumers needed.
 
 from __future__ import annotations
 
-import importlib
 import sys
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
-
 
 # ---------------------------------------------------------------------------
 # Helpers

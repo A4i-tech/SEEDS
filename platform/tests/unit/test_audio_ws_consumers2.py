@@ -5,9 +5,9 @@ websocket_client message class, and call_webhook_consumer.
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 
 # ---------------------------------------------------------------------------
 # AudioCaptureService — disabled mode (safe, no file I/O)
@@ -188,8 +188,9 @@ class TestWebsocketClientProviderMessage:
         assert "position_seconds" not in d  # None omitted
 
     def test_message_model_dump_json(self) -> None:
-        from app.providers.websocket_client import WebsocketServiceMessage
         import json
+
+        from app.providers.websocket_client import WebsocketServiceMessage
 
         msg = WebsocketServiceMessage(
             websocket_id="ws3",
@@ -280,7 +281,7 @@ class TestCallWebhookConsumer:
 
 class TestTeacherDisconnectTimerDeeper:
     def _mock_conf_call(self, auto_end_enabled=True, timeout_minutes=2):
-        from unittest.mock import MagicMock, AsyncMock
+        from unittest.mock import AsyncMock, MagicMock
         conf_call = MagicMock()
         conf_call.conf_id = "conf_timer_1"
         conf_call.state = MagicMock()
@@ -291,7 +292,9 @@ class TestTeacherDisconnectTimerDeeper:
         return conf_call
 
     def test_start_event_auto_end_enabled_attr(self) -> None:
-        from app.services.confevents.teacher_disconnect_timer_event import StartTeacherDisconnectTimerEvent
+        from app.services.confevents.teacher_disconnect_timer_event import (
+            StartTeacherDisconnectTimerEvent,
+        )
 
         mock_settings = MagicMock()
         mock_settings.auto_end_timeout_minutes = 2
@@ -304,7 +307,9 @@ class TestTeacherDisconnectTimerDeeper:
 
     @pytest.mark.asyncio
     async def test_cancel_timer_event_no_active_timer(self) -> None:
-        from app.services.confevents.teacher_disconnect_timer_event import CancelTeacherDisconnectTimerEvent
+        from app.services.confevents.teacher_disconnect_timer_event import (
+            CancelTeacherDisconnectTimerEvent,
+        )
 
         conf_call = self._mock_conf_call()
         conf_call.state.auto_end_state.is_active = False
@@ -315,7 +320,9 @@ class TestTeacherDisconnectTimerDeeper:
     @pytest.mark.asyncio
     async def test_start_timer_enabled_no_teacher(self) -> None:
         """Timer enabled but no teacher phone — should complete without hanging."""
-        from app.services.confevents.teacher_disconnect_timer_event import StartTeacherDisconnectTimerEvent
+        from app.services.confevents.teacher_disconnect_timer_event import (
+            StartTeacherDisconnectTimerEvent,
+        )
 
         mock_settings = MagicMock()
         mock_settings.auto_end_timeout_minutes = 1

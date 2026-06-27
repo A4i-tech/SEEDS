@@ -5,8 +5,8 @@ from datetime import UTC, datetime
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.models.school import School
 from app.models.requests.school_requests import SchoolCreate
+from app.models.school import School
 from app.repositories.base_repository import BaseRepository
 
 

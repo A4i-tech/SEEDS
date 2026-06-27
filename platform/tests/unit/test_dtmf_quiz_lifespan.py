@@ -4,9 +4,9 @@ Coverage for dtmf_consumer, quiz FSM builder, lifespan helpers.
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 
 # ---------------------------------------------------------------------------
 # DtmfConsumer
@@ -135,8 +135,8 @@ class TestQuizBuilder:
         assert quiz.move_forward_key == "1"
 
     def test_quiz_generate_states(self) -> None:
-        from app.services.fsm.instantiation.quiz import Quiz
         from app.services.fsm.fsm import FSM
+        from app.services.fsm.instantiation.quiz import Quiz
         from app.services.fsm.state import State
 
         quiz_data = self._make_quiz_data()
@@ -240,8 +240,9 @@ class TestWebsocketClientDispatch:
 
     @pytest.mark.asyncio
     async def test_dispatch_no_conf_manager_returns_early(self) -> None:
-        from app.providers.websocket_client import WebsocketClientProvider
         import json
+
+        from app.providers.websocket_client import WebsocketClientProvider
 
         provider = WebsocketClientProvider()
         provider._conference_manager = None
@@ -252,8 +253,9 @@ class TestWebsocketClientDispatch:
 
     @pytest.mark.asyncio
     async def test_dispatch_conf_not_found_returns_early(self) -> None:
-        from app.providers.websocket_client import WebsocketClientProvider
         import json
+
+        from app.providers.websocket_client import WebsocketClientProvider
 
         provider = WebsocketClientProvider()
         provider._conference_manager = MagicMock()

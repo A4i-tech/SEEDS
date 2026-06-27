@@ -4,8 +4,9 @@ Extra unit coverage for school_service.py and school_controller helper paths.
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 
 class TestSchoolServiceExtra:
@@ -40,8 +41,8 @@ class TestSchoolServiceExtra:
 
     @pytest.mark.asyncio
     async def test_create_school_duplicate_email(self) -> None:
-        from app.services.school_service import SchoolService
         from app.platform.error_handling import ConflictError
+        from app.services.school_service import SchoolService
 
         mock_db = MagicMock()
         existing_school = MagicMock()
@@ -78,8 +79,8 @@ class TestSchoolServiceExtra:
 
     @pytest.mark.asyncio
     async def test_get_school_not_found(self) -> None:
-        from app.services.school_service import SchoolService
         from app.platform.error_handling import NotFoundError
+        from app.services.school_service import SchoolService
 
         mock_db = MagicMock()
 
@@ -94,8 +95,8 @@ class TestSchoolServiceExtra:
 
     @pytest.mark.asyncio
     async def test_get_school_tenant_mismatch(self) -> None:
-        from app.services.school_service import SchoolService
         from app.platform.error_handling import NotFoundError
+        from app.services.school_service import SchoolService
 
         mock_db = MagicMock()
 
@@ -111,9 +112,9 @@ class TestSchoolServiceExtra:
 
     @pytest.mark.asyncio
     async def test_update_school_not_found(self) -> None:
-        from app.services.school_service import SchoolService
         from app.models.requests.school_requests import SchoolUpdateRequest
         from app.platform.error_handling import NotFoundError
+        from app.services.school_service import SchoolService
 
         mock_db = MagicMock()
 
@@ -129,9 +130,9 @@ class TestSchoolServiceExtra:
 
     @pytest.mark.asyncio
     async def test_update_school_tenant_mismatch(self) -> None:
-        from app.services.school_service import SchoolService
         from app.models.requests.school_requests import SchoolUpdateRequest
         from app.platform.error_handling import NotFoundError
+        from app.services.school_service import SchoolService
 
         mock_db = MagicMock()
 
@@ -146,8 +147,8 @@ class TestSchoolServiceExtra:
 
     @pytest.mark.asyncio
     async def test_transfer_teacher_cross_tenant_blocked(self) -> None:
-        from app.services.school_service import SchoolService
         from app.platform.error_handling import NotFoundError
+        from app.services.school_service import SchoolService
 
         mock_db = MagicMock()
         mock_teacher = MagicMock()
@@ -168,8 +169,8 @@ class TestSchoolServiceExtra:
 
     @pytest.mark.asyncio
     async def test_transfer_teacher_cross_tenant_target_school_blocked(self) -> None:
-        from app.services.school_service import SchoolService
         from app.platform.error_handling import NotFoundError
+        from app.services.school_service import SchoolService
 
         mock_db = MagicMock()
         mock_teacher = MagicMock()
@@ -240,8 +241,8 @@ class TestSchoolServiceExtra:
 
     @pytest.mark.asyncio
     async def test_delete_school_not_found(self) -> None:
-        from app.services.school_service import SchoolService
         from app.platform.error_handling import NotFoundError
+        from app.services.school_service import SchoolService
 
         mock_db = MagicMock()
 
@@ -308,8 +309,8 @@ class TestSchoolServiceExtra:
 
     @pytest.mark.asyncio
     async def test_get_classroom_not_found(self) -> None:
-        from app.services.school_service import SchoolService
         from app.platform.error_handling import NotFoundError
+        from app.services.school_service import SchoolService
 
         mock_db = MagicMock()
 

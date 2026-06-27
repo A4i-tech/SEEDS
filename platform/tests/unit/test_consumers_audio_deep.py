@@ -5,9 +5,10 @@ hold_detector deeper methods.
 
 from __future__ import annotations
 
-import pytest
+import contextlib
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 
 # ---------------------------------------------------------------------------
 # CallEventConsumer
@@ -203,8 +204,8 @@ class TestPureAudioBuilder:
         assert pa.speechRate == "1.0"
 
     def test_pure_audio_generate_state(self) -> None:
-        from app.services.fsm.instantiation.pure_audio import PureAudio
         from app.services.fsm.fsm import FSM
+        from app.services.fsm.instantiation.pure_audio import PureAudio
         from app.services.fsm.state import State
 
         pa_data = self._make_pure_audio_data()
@@ -311,7 +312,5 @@ class TestConferenceConfeventsDeeper:
         conf.update_state = AsyncMock()
 
         event = DTMFInputEvent(phone_number="+111", digit="2", conf_call=conf)
-        try:
+        with contextlib.suppress(Exception):
             await event.execute_event()
-        except Exception:
-            pass  # OK — no FSM state in mock

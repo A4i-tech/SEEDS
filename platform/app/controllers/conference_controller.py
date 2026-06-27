@@ -10,12 +10,9 @@ from fastapi import APIRouter, Depends
 from app.controllers._conference_helpers import get_conf_or_404
 from app.models.requests.call_requests import CreateConferenceRequest
 from app.models.responses.common import ConferenceStatusResponse, EventQueuedResponse
-from app.models.responses.login import MessageResponse
 from app.platform.auth.dependencies import (
-    get_current_user,
     require_conference_owner,
     require_role,
-    require_teacher,
 )
 from app.platform.lifespan import get_conference_manager
 from app.services.conference_service import (

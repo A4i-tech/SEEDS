@@ -4,14 +4,15 @@ Extra coverage for audio_recording_consumer.py.
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 
 class TestAudioRecordingConsumerExtra:
     @pytest.mark.asyncio
     async def test_handle_audio_frame_with_session(self) -> None:
-        from app.consumers.audio_recording_consumer import AudioRecordingConsumer, AudioFrame
+        from app.consumers.audio_recording_consumer import AudioFrame, AudioRecordingConsumer
 
         consumer = AudioRecordingConsumer()
         frame = AudioFrame(conference_id="conf1", audio_bytes=b"\x00" * 100)
@@ -25,20 +26,23 @@ class TestAudioRecordingConsumerExtra:
 
     @pytest.mark.asyncio
     async def test_handle_audio_frame_write_error(self) -> None:
-        from app.consumers.audio_recording_consumer import AudioRecordingConsumer, AudioFrame
+        from app.consumers.audio_recording_consumer import AudioFrame, AudioRecordingConsumer
 
         consumer = AudioRecordingConsumer()
         frame = AudioFrame(conference_id="conf1", audio_bytes=b"\x00" * 100)
 
         mock_session = MagicMock()
-        mock_session.write_chunk = MagicMock(side_effect=IOError("disk error"))
+        mock_session.write_chunk = MagicMock(side_effect=OSError("disk error"))
         consumer._capture_sessions["conf1"] = mock_session
 
         await consumer._handle_audio_frame(frame)  # Should not raise
 
     @pytest.mark.asyncio
     async def test_handle_finalize_no_session(self) -> None:
-        from app.consumers.audio_recording_consumer import AudioRecordingConsumer, FinalizeConference
+        from app.consumers.audio_recording_consumer import (
+            AudioRecordingConsumer,
+            FinalizeConference,
+        )
 
         consumer = AudioRecordingConsumer()
         msg = FinalizeConference(conference_id="gone_conf")
@@ -47,7 +51,10 @@ class TestAudioRecordingConsumerExtra:
 
     @pytest.mark.asyncio
     async def test_handle_finalize_with_url(self) -> None:
-        from app.consumers.audio_recording_consumer import AudioRecordingConsumer, FinalizeConference
+        from app.consumers.audio_recording_consumer import (
+            AudioRecordingConsumer,
+            FinalizeConference,
+        )
 
         consumer = AudioRecordingConsumer()
         msg = FinalizeConference(conference_id="conf1")
@@ -61,7 +68,10 @@ class TestAudioRecordingConsumerExtra:
 
     @pytest.mark.asyncio
     async def test_handle_finalize_finalize_error(self) -> None:
-        from app.consumers.audio_recording_consumer import AudioRecordingConsumer, FinalizeConference
+        from app.consumers.audio_recording_consumer import (
+            AudioRecordingConsumer,
+            FinalizeConference,
+        )
 
         consumer = AudioRecordingConsumer()
         msg = FinalizeConference(conference_id="conf1")
@@ -75,8 +85,12 @@ class TestAudioRecordingConsumerExtra:
     @pytest.mark.asyncio
     async def test_handle_finalize_with_url_analysis_queue_full(self) -> None:
         """When analysis queue is full, should log warning and not crash."""
-        from app.consumers.audio_recording_consumer import AudioRecordingConsumer, FinalizeConference
         import asyncio
+
+        from app.consumers.audio_recording_consumer import (
+            AudioRecordingConsumer,
+            FinalizeConference,
+        )
 
         consumer = AudioRecordingConsumer()
         msg = FinalizeConference(conference_id="conf_full")
