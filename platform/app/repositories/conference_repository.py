@@ -30,7 +30,7 @@ class ConferenceOwnershipRepository:
         teacher_phone: str,
     ) -> None:
         await self._col.insert_one({
-            "_id": conf_id,
+            "conference_id": conf_id,
             "created_by": created_by,
             "tenant_id": tenant_id,
             "teacher_phone": teacher_phone,
@@ -38,7 +38,7 @@ class ConferenceOwnershipRepository:
         })
 
     async def find_by_id(self, conf_id: str) -> dict[str, Any] | None:
-        return await self._col.find_one({"_id": conf_id})
+        return await self._col.find_one({"conference_id": conf_id})
 
 
 class ConferenceRepository(BaseRepository):

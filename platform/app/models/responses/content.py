@@ -40,5 +40,3 @@ class ContentResponse(BaseModel):
         return self.model_dump(by_alias=False, exclude_none=True)
 
 
-class QuizResponse(ContentResponse):
-    pass

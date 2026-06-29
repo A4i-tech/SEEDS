@@ -68,6 +68,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+
+from bson import ObjectId
 import os
 import subprocess  # nosec B404 — used safely with list form, no shell=True
 import tempfile
@@ -311,7 +313,7 @@ async def _process_tts_for_content(content_doc: dict, blob_provider) -> None:
         url = await blob_provider.upload_file(
             "experience-titles", f"{content_id}/1.0.mp3", audio_bytes, "audio/mpeg"
         )
-        content_doc["title"] = {**title, "audioUrl": url}
+        content_doc["title"] = {**title, "audio_url": url}
 
     # Theme TTS
     theme = content_doc.get("theme", {})
@@ -326,7 +328,7 @@ async def _process_tts_for_content(content_doc: dict, blob_provider) -> None:
             blob_client = container_client.get_blob_client(theme_blob_name)
             blob_client.get_blob_properties()
             # Exists — reuse
-            content_doc["theme"] = {**theme, "audioUrl": blob_client.url}
+            content_doc["theme"] = {**theme, "audio_url": blob_client.url}
             logger.info("content_job: reusing existing theme audio theme=%s", theme_english)
         except Exception:  # noqa: BLE001
             # Does not exist — generate
@@ -336,12 +338,44 @@ async def _process_tts_for_content(content_doc: dict, blob_provider) -> None:
                 url = await blob_provider.upload_file(
                     "theme-titles", theme_blob_name, audio_bytes, "audio/mpeg"
                 )
-                content_doc["theme"] = {**theme, "audioUrl": url}
+                content_doc["theme"] = {**theme, "audio_url": url}
 
 
 # ---------------------------------------------------------------------------
 # Job processing
 # ---------------------------------------------------------------------------
+
+async def _process_quiz_job(content_doc: dict, blob_provider) -> None:
+    """Generate TTS audio for each quiz question and option, mutating content_doc in-place."""
+    from app.services import tts_service  # noqa: PLC0415
+
+    language = content_doc.get("language", "")
+    content_id = str(content_doc.get("_id", ""))
+    questions = content_doc.get("questions", [])
+
+    for qi, item in enumerate(questions):
+        q_text = (item.get("question") or {}).get("text", "").strip()
+        if q_text:
+            audio_bytes = await tts_service.synthesize(q_text, language)
+            url = await blob_provider.upload_file(
+                "output-container", f"{content_id}/question_{qi + 1}/1.0.mp3", audio_bytes, "audio/mpeg"
+            )
+            item["question"] = {**item["question"], "url": url}
+
+        opts = item.get("options", [])
+        for oi, opt in enumerate(opts):
+            opt_text = opt.get("text", "").strip()
+            if opt_text:
+                audio_bytes = await tts_service.synthesize(opt_text, language)
+                url = await blob_provider.upload_file(
+                    "output-container", f"{content_id}/question_{qi + 1}_option_{oi + 1}/1.0.mp3", audio_bytes, "audio/mpeg"
+                )
+                opts[oi] = {**opt, "url": url}
+
+        item["options"] = opts
+
+    content_doc["questions"] = questions
+
 
 async def _process_audio_content_job(job_doc: dict, db: AsyncIOMotorDatabase, blob_provider) -> None:
     """Process a single audio content job with retry and dead-letter handling.
@@ -370,47 +404,52 @@ async def _process_audio_content_job(job_doc: dict, db: AsyncIOMotorDatabase, bl
     last_exc: Exception | None = None
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            content_doc = await content_col.find_one({"_id": content_id})
+            content_id_query = ObjectId(content_id) if ObjectId.is_valid(str(content_id)) else content_id
+            content_doc = await content_col.find_one({"_id": content_id_query})
             if not content_doc:
                 raise RuntimeError(f"Content document not found: {content_id}")
 
-            # Process each audio item
-            audio_content = content_doc.get("audioContent", [])
-            updated_audio = []
-            for item in audio_content:
-                audio_url = item.get("audioUrl", "")
-                if not audio_url:
-                    updated_audio.append(item)
-                    continue
-                # Skip non-mp3 files
-                if not audio_url.lower().endswith(".mp3"):
-                    logger.warning("content_job: skipping non-mp3 url=%s", audio_url)
-                    updated_audio.append(item)
-                    continue
+            if content_doc.get("type") == "quiz":
+                await _process_quiz_job(content_doc, blob_provider)
+                update_fields: dict = {
+                    "questions": content_doc["questions"],
+                    "is_processed": True,
+                }
+                if content_doc.get("is_pull_model"):
+                    await _process_tts_for_content(content_doc, blob_provider)
+                    update_fields["title"] = content_doc["title"]
+                    update_fields["theme"] = content_doc["theme"]
+            else:
+                # Process each audio item
+                audio_content = content_doc.get("audio_content", [])
+                updated_audio = []
+                for item in audio_content:
+                    audio_url = item.get("audio_url", "")
+                    if not audio_url:
+                        updated_audio.append(item)
+                        continue
+                    if not audio_url.lower().endswith(".mp3"):
+                        logger.warning("content_job: skipping non-mp3 url=%s", audio_url)
+                        updated_audio.append(item)
+                        continue
+                    new_url, duration = await _process_audio_item(audio_url, str(content_id), blob_provider)
+                    updated_item = {**item, "audio_url": new_url}
+                    if duration is not None:
+                        updated_item["duration_seconds"] = duration
+                    updated_audio.append(updated_item)
 
-                new_url, duration = await _process_audio_item(audio_url, str(content_id), blob_provider)
-                updated_item = {**item, "audioUrl": new_url}
-                if duration is not None:
-                    updated_item["durationSeconds"] = duration
-                updated_audio.append(updated_item)
+                content_doc["audio_content"] = updated_audio
+                update_fields = {
+                    "audio_content": content_doc["audio_content"],
+                    "is_processed": True,
+                }
 
-            content_doc["audioContent"] = updated_audio
+                if content_doc.get("is_pull_model"):
+                    await _process_tts_for_content(content_doc, blob_provider)
+                    update_fields["title"] = content_doc["title"]
+                    update_fields["theme"] = content_doc["theme"]
 
-            # TTS for pull-model content
-            if content_doc.get("isPullModel"):
-                await _process_tts_for_content(content_doc, blob_provider)
-
-            # Save updated content
-            update_fields = {
-                "audioContent": content_doc["audioContent"],
-                "isProcessed": True,
-            }
-            if "title" in content_doc:
-                update_fields["title"] = content_doc["title"]
-            if "theme" in content_doc:
-                update_fields["theme"] = content_doc["theme"]
-
-            await content_col.update_one({"_id": content_id}, {"$set": update_fields})
+            await content_col.update_one({"_id": content_id_query}, {"$set": update_fields})
 
             # Mark job complete
             await jobs_col.update_one(

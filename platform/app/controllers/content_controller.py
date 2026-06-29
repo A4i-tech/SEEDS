@@ -36,7 +36,7 @@ from app.models.responses.common import (
     SasUrlResponse,
     ThemeResponse,
 )
-from app.models.responses.content import ContentResponse, QuizResponse
+from app.models.responses.content import ContentResponse
 from app.models.user import UserRole
 from app.platform.auth.dependencies import get_current_user
 from app.platform.error_handling import ForbiddenError, NotFoundError
@@ -104,12 +104,14 @@ def _read_school_filter(user: dict[str, Any]) -> Any | None:
 
 
 def _write_school_filter(user: dict[str, Any]) -> dict:
-    """Return a school_id dict for write operations — spread into query/document."""
+    """Return a school_id filter for write operations — spread into query.
+    Mirrors _read_school_filter: only add school_id constraint when the user
+    is actually school-scoped; tenant users have no school restriction."""
     role = user.get("role")
-    school_id: str | None = None
     if role in (UserRole.SCHOOL.value, UserRole.CONTENT_CREATOR.value):
         school_id = user.get("school_id")
-    return {"school_id": _to_oid(school_id)}
+        return {"school_id": _to_oid(school_id)}
+    return {}
 
 
 # ---------------------------------------------------------------------------
@@ -274,36 +276,24 @@ async def list_content(
         if len(ids) == 0:
             raise HTTPException(status_code=400, detail="ids query parameter must be a non-empty array")
         id_query = {**base_query, "_id": {"$in": ids}}
-        contents = await service.fetch_contents(id_query)
-        quizzes = await service.fetch_quizzes(id_query)
-        all_items = sorted(
-            [ContentResponse.model_validate(d).model_dump(by_alias=False, exclude_none=True) for d in contents]
-            + [{**QuizResponse.model_validate(d).model_dump(by_alias=False, exclude_none=True), "type": "quiz"} for d in quizzes],
+        docs = await service.fetch_contents(id_query)
+        return sorted(
+            [ContentResponse.model_validate(d).model_dump(by_alias=False, exclude_none=True) for d in docs],
             key=lambda x: (-x.get("creation_time", 0), str(x.get("id", ""))),
         )
-        return all_items
 
     content_query = {**base_query}
-    quiz_query = {**base_query}
-    fetch_content = True
-    fetch_quizzes = True
 
     if only_teacher_app:
         content_query["is_teacher_app"] = True
-        quiz_query["is_teacher_app"] = True
     elif language and theme and exp_name:
         decoded_theme = urllib.parse.unquote(theme)
-        if exp_name.lower() == "quiz":
-            fetch_content = False
-            quiz_query.update({"is_pull_model": True, "language": language, "theme.english": decoded_theme})
-        else:
-            fetch_quizzes = False
-            content_query.update({
-                "is_pull_model": True,
-                "language": language,
-                "theme.english": decoded_theme,
-                "type": exp_name.lower(),
-            })
+        content_query.update({
+            "is_pull_model": True,
+            "language": language,
+            "theme.english": decoded_theme,
+            "type": exp_name.lower(),
+        })
 
     # Cursor-based pagination
     if cursor:
@@ -311,23 +301,15 @@ async def list_content(
         if len(parts) == 2:
             try:
                 last_ct = int(parts[0])
-                cursor_filter = {"creation_time": {"$lte": last_ct}}
-                if fetch_content:
-                    content_query = {**content_query, **cursor_filter}
-                if fetch_quizzes:
-                    quiz_query = {**quiz_query, **cursor_filter}
+                content_query = {**content_query, "creation_time": {"$lte": last_ct}}
             except ValueError:
                 pass
 
-    # Fetch limit+1 per collection to bound memory; Python sort only needed for
-    # the combined content+quiz case (cross-collection ordering).
     fetch_limit = limit + 1
-    contents = await service.fetch_contents(content_query, limit=fetch_limit) if fetch_content else []
-    quizzes = await service.fetch_quizzes(quiz_query, limit=fetch_limit) if fetch_quizzes else []
+    docs = await service.fetch_contents(content_query, limit=fetch_limit)
 
     all_results = sorted(
-        [ContentResponse.model_validate(d).model_dump(by_alias=True, exclude_none=True) for d in contents]
-        + [{**QuizResponse.model_validate(d).model_dump(by_alias=True, exclude_none=True), "type": "quiz"} for d in quizzes],
+        [ContentResponse.model_validate(d).model_dump(by_alias=True, exclude_none=True) for d in docs],
         key=lambda x: (-x.get("creation_time", 0), str(x.get("_id", ""))),
     )
 
@@ -358,7 +340,7 @@ async def get_content(
     school_filter = _read_school_filter(user)
 
     query: dict = {
-        "_id": content_id,
+        "_id": _to_oid(content_id),
         "tenant_id": _to_oid(tenant_id),
         "is_deleted": {"$ne": True},
     }
@@ -366,14 +348,9 @@ async def get_content(
         query["school_id"] = school_filter
 
     doc = await service.get_content_doc(query)
-    if doc:
-        return ContentResponse.model_validate(doc).model_dump(by_alias=False, exclude_none=True)
-
-    quiz = await service.get_quiz_doc(query)
-    if quiz:
-        return {**QuizResponse.model_validate(quiz).model_dump(by_alias=False, exclude_none=True), "type": "quiz"}
-
-    raise NotFoundError("Content", content_id)
+    if not doc:
+        raise NotFoundError("Content", content_id)
+    return ContentResponse.model_validate(doc).model_dump(by_alias=False, exclude_none=True)
 
 
 # ---------------------------------------------------------------------------
@@ -430,15 +407,20 @@ async def update_content(
     content_id = body.id
 
     write_filter: dict = {
-        "_id": content_id,
+        "_id": _to_oid(content_id),
         "tenant_id": _to_oid(tenant_id),
         "is_deleted": {"$ne": True},
         **_write_school_filter(user),
     }
 
-    allowed = {"title", "theme", "description", "type", "language", "is_pull_model", "is_teacher_app"}
+    allowed = {
+        "title", "theme", "description", "type", "language", "is_pull_model", "is_teacher_app",
+        "positive_marks", "negative_marks",
+    }
     body_dict = body.model_dump(by_alias=False, exclude_unset=True)
     update: dict = {k: v for k, v in body_dict.items() if k in allowed}
+    if body.questions is not None:
+        update["questions"] = [q.model_dump() for q in body.questions]
 
     if is_audio_uploaded:
         if "audio_content" in body.model_fields_set:
@@ -452,15 +434,16 @@ async def update_content(
     update["updated_at"] = datetime.now(UTC)
 
     result = await service.update_content_doc(write_filter, update)
-
     if result:
-        if is_audio_uploaded:
-            content_id_str = str(result.get("_id", ""))
-            job_id = await service.enqueue_content_job(content_id_str)
-            out = ContentResponse.model_validate(result).model_dump(by_alias=False, exclude_none=True)
+        should_enqueue = is_audio_uploaded or (
+            body.is_pull_model is True and not result.model_dump().get("is_processed")
+        )
+        if should_enqueue:
+            job_id = await service.enqueue_content_job(result.id)
+            out = result.model_dump(by_alias=False, exclude_none=True)
             out["job_id"] = job_id
             return out
-        return ContentResponse.model_validate(result).model_dump(by_alias=False, exclude_none=True)
+        return result.model_dump(by_alias=False, exclude_none=True)
 
     raise NotFoundError("Content", str(content_id))
 
@@ -478,20 +461,15 @@ async def delete_content(
     """Soft-delete a content item (sets is_deleted=true)."""
     tenant_id = _tenant_id(user)
     write_filter: dict = {
-        "_id": content_id,
+        "_id": _to_oid(content_id),
         "tenant_id": _to_oid(tenant_id),
         **_write_school_filter(user),
     }
 
     matched = await service.soft_delete_content(write_filter)
-    if matched > 0:
-        return DeleteMatchedResponse(matched=matched)
-
-    quiz_matched = await service.soft_delete_quiz(write_filter)
-    if quiz_matched > 0:
-        return DeleteMatchedResponse(matched=quiz_matched)
-
-    raise NotFoundError("Content", content_id)
+    if matched == 0:
+        raise NotFoundError("Content", content_id)
+    return DeleteMatchedResponse(matched=matched)
 
 
 # ---------------------------------------------------------------------------
@@ -509,10 +487,17 @@ async def create_quiz(
     user_id = user.get("sub", "")
 
     now_ts = int(time.time())
-    body_dict = body.model_dump(by_alias=False, exclude_unset=True)
     school_id = user.get("school_id") if user.get("role") in (UserRole.SCHOOL.value, UserRole.CONTENT_CREATOR.value) else None
     doc: dict = {
-        **body_dict,
+        "type": body.type,
+        "language": body.language,
+        "title": body.title,
+        "theme": body.theme,
+        "is_pull_model": body.is_pull_model,
+        "is_teacher_app": body.is_teacher_app,
+        "positive_marks": body.positive_marks,
+        "negative_marks": body.negative_marks,
+        "questions": [q.model_dump() for q in body.questions] if body.questions is not None else [],
         "tenant_id": _to_oid(tenant_id),
         "created_by": _to_oid(user_id),
         "creation_time": now_ts,
@@ -520,7 +505,7 @@ async def create_quiz(
         "is_deleted": False,
     }
 
-    quiz_id = await service.insert_quiz(doc)
+    quiz_id = await service.insert_content(doc)
     job_id = await service.enqueue_content_job(quiz_id)
 
     return JobScheduledResponse(message="Processing New Content job scheduled!", job_id=job_id)
