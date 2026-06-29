@@ -18,7 +18,7 @@ class ContentRepository(BaseRepository):
         self._col = db[self.COLLECTION]
 
     async def find_by_id(self, id: str) -> Content | None:
-        doc = await self._col.find_one({"_id": id})
+        doc = await self._col.find_one({"_id": self._to_id(id)})
         return Content.from_mongo(doc) if doc else None
 
     async def find_by_tenant(self, tenant_id: str, include_deleted: bool = False) -> list[Content]:
@@ -31,7 +31,7 @@ class ContentRepository(BaseRepository):
 
     async def find_by_class(self, content_ids: list[str]) -> list[Content]:
         """Fetch a batch of content items by their IDs (as used in Classroom.contentIds)."""
-        cursor = self._col.find({"_id": {"$in": content_ids}})
+        cursor = self._col.find({"_id": {"$in": [self._to_id(i) for i in content_ids]}})
         docs = await cursor.to_list(length=None)
         return [Content.from_mongo(d) for d in docs]
 
@@ -46,19 +46,18 @@ class ContentRepository(BaseRepository):
         return [Content.from_mongo(d) for d in docs]
 
     async def create(self, content: ContentCreate) -> Content:
-        import uuid
         now = datetime.now(UTC)
         doc = content.model_dump(by_alias=False)
-        doc["_id"] = str(uuid.uuid4())
         doc["created_at"] = now
         doc["updated_at"] = now
-        await self._col.insert_one(doc)
+        result = await self._col.insert_one(doc)
+        doc["_id"] = str(result.inserted_id)
         return Content.from_mongo(doc)
 
     async def update(self, id: str, updates: dict) -> Content | None:
         updates["updated_at"] = datetime.now(UTC)
         result = await self._col.find_one_and_update(
-            {"_id": id},
+            {"_id": self._to_id(id)},
             {"$set": updates},
             return_document=True,
         )
@@ -66,11 +65,11 @@ class ContentRepository(BaseRepository):
 
     async def soft_delete(self, id: str) -> bool:
         result = await self._col.update_one(
-            {"_id": id},
+            {"_id": self._to_id(id)},
             {"$set": {"is_deleted": True, "updated_at": datetime.now(UTC)}},
         )
         return result.modified_count > 0
 
     async def delete(self, id: str) -> bool:
-        result = await self._col.delete_one({"_id": id})
+        result = await self._col.delete_one({"_id": self._to_id(id)})
         return result.deleted_count > 0

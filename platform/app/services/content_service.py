@@ -1,4 +1,4 @@
-"""Content service — business logic and data access for content/quiz/job collections."""
+"""Content service — business logic and data access for content/job collections."""
 from __future__ import annotations
 
 import uuid
@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from app.models.responses.content import ContentResponse
 from app.platform.auth.dependencies import get_db
 
 
@@ -16,7 +17,6 @@ class ContentService:
         self._db = db
 
     async def enqueue_content_job(self, content_id: str) -> str:
-        """Insert a pending content job document and return its string _id."""
         job_doc: dict = {
             "_id": str(uuid.uuid4()),
             "content_id": content_id,
@@ -43,15 +43,8 @@ class ContentService:
         cursor = self._db["contentsV3"].find(query).sort("creation_time", -1)
         return await cursor.to_list(length=limit)
 
-    async def fetch_quizzes(self, query: dict[str, Any], limit: int | None = None) -> list[dict[str, Any]]:
-        cursor = self._db["quizData"].find(query).sort("creation_time", -1)
-        return await cursor.to_list(length=limit)
-
     async def get_content_doc(self, query: dict[str, Any]) -> dict[str, Any] | None:
         return await self._db["contentsV3"].find_one(query)
-
-    async def get_quiz_doc(self, query: dict[str, Any]) -> dict[str, Any] | None:
-        return await self._db["quizData"].find_one(query)
 
     async def insert_content(self, doc: dict[str, Any]) -> str:
         result = await self._db["contentsV3"].insert_one(doc)
@@ -59,22 +52,15 @@ class ContentService:
 
     async def update_content_doc(
         self, filter_: dict[str, Any], update: dict[str, Any]
-    ) -> dict[str, Any] | None:
-        return await self._db["contentsV3"].find_one_and_update(
+    ) -> ContentResponse | None:
+        doc = await self._db["contentsV3"].find_one_and_update(
             filter_, {"$set": update}, return_document=True
         )
+        return ContentResponse.model_validate(doc) if doc else None
 
     async def soft_delete_content(self, filter_: dict[str, Any]) -> int:
         result = await self._db["contentsV3"].update_one(filter_, {"$set": {"is_deleted": True}})
         return result.matched_count
-
-    async def soft_delete_quiz(self, filter_: dict[str, Any]) -> int:
-        result = await self._db["quizData"].update_one(filter_, {"$set": {"is_deleted": True}})
-        return result.matched_count
-
-    async def insert_quiz(self, doc: dict[str, Any]) -> str:
-        result = await self._db["quizData"].insert_one(doc)
-        return str(result.inserted_id)
 
 
 def get_content_service(db: AsyncIOMotorDatabase[Any] = Depends(get_db)) -> ContentService:

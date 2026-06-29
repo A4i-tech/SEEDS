@@ -3,7 +3,23 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
+
+
+class QuizOptionDTO(BaseModel):
+    id: str
+    text: str
+
+
+class QuizQuestionTextDTO(BaseModel):
+    id: str
+    text: str
+
+
+class QuizQuestionItemDTO(BaseModel):
+    question: QuizQuestionTextDTO
+    options: list[QuizOptionDTO]
+    correct_option_id: str
 
 
 class ContentCreateRequest(BaseModel):
@@ -22,7 +38,7 @@ class ContentCreateRequest(BaseModel):
 class ContentUpdateRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
-    id: str = Field(..., alias="_id")
+    id: str
     title: dict[str, Any] | None = None
     theme: dict[str, Any] | None = None
     description: str | None = None
@@ -31,6 +47,9 @@ class ContentUpdateRequest(BaseModel):
     audio_content: list[Any] | None = None
     is_pull_model: bool | None = None
     is_teacher_app: bool | None = None
+    questions: list[QuizQuestionItemDTO] | None = None
+    positive_marks: float | None = None
+    negative_marks: float | None = None
 
 
 class QuizCreateRequest(BaseModel):
@@ -40,14 +59,8 @@ class QuizCreateRequest(BaseModel):
     language: str
     title: dict[str, Any] | None = None
     theme: dict[str, Any] | None = None
-    audio_content: list[Any] | None = None
-    description: str | None = None
     is_pull_model: bool | None = None
     is_teacher_app: bool | None = None
-    local_title: str | None = None
-    local_theme: str | None = None
+    questions: list[QuizQuestionItemDTO] | None = None
     positive_marks: float | None = None
     negative_marks: float | None = None
-    questions: list[Any] | None = None
-    options: list[Any] | None = None
-    correct_answers: list[Any] | None = None
