@@ -39,11 +39,11 @@ const DashboardStats = ({ dashboard }) => {
               </thead>
               <tbody>
                 {schools.map((school) => (
-                  <tr key={school._id} className="table-row-white">
+                  <tr key={school.id} className="table-row-white">
                     <td className="table-cell">{school.name}</td>
-                    <td className="table-cell">{school.teacherCount}</td>
-                    <td className="table-cell">{school.studentCount}</td>
-                    <td className="table-cell">{school.classCount}</td>
+                    <td className="table-cell">{school.teacher_count ?? "—"}</td>
+                    <td className="table-cell">{school.student_count ?? "—"}</td>
+                    <td className="table-cell">{school.class_count ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>
