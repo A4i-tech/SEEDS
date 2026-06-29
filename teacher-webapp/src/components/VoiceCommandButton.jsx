@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   Box,
   IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
+  Tooltip,
   Typography,
   CircularProgress,
   Paper,
@@ -52,6 +51,8 @@ const STATUS_LABELS = {
   [STATUS.ERROR]: "Something went wrong",
 };
 
+const PANEL_WIDTH = 420;
+
 export default function VoiceCommandButton() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -95,10 +96,18 @@ export default function VoiceCommandButton() {
     historyRef.current = [];
   }, []);
 
+  // Toggle the global partition class so the app shrinks left and any
+  // right-anchored drawer is inset (see App.css). Independent of route.
+  useEffect(() => {
+    document.body.classList.toggle("seeds-open", open);
+    return () => document.body.classList.remove("seeds-open");
+  }, [open]);
+
   const handleOpen = useCallback(() => {
+    if (status === STATUS.PLANNING || status === STATUS.EXECUTING || status === STATUS.TRANSCRIBING) return;
     reset();
     setOpen(true);
-  }, [reset]);
+  }, [reset, status]);
 
   const handleClose = () => {
     if (isRecording) stopRecording();
@@ -107,25 +116,37 @@ export default function VoiceCommandButton() {
     reset();
   };
 
-  // R-key hotkey to open Seeds AI and start recording
+  // Spacebar hold-to-record: open dialog + record while held, stop on release
   useEffect(() => {
     const onKeyDown = (e) => {
-      if ((e.key === "r" || e.key === "R") && !e.repeat) {
+      if (e.code === "Space" && !e.repeat) {
         const tag = e.target.tagName;
         if (tag === "INPUT" || tag === "TEXTAREA" || e.target.isContentEditable) return;
         e.preventDefault();
         handleOpen();
-        
-        // Auto-start recording
-        if (!isRecording) {
+        if (!isRecording && !(status === STATUS.PLANNING || status === STATUS.EXECUTING || status === STATUS.TRANSCRIBING)) {
           startRecording();
           setStatus(STATUS.RECORDING);
         }
       }
     };
+    const onKeyUp = (e) => {
+      if (e.code === "Space") {
+        const tag = e.target.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || e.target.isContentEditable) return;
+        if (isRecording) {
+          stopRecording();
+          setStatus(STATUS.TRANSCRIBING);
+        }
+      }
+    };
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isRecording, startRecording, handleOpen]);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+    };
+  }, [isRecording, startRecording, stopRecording, handleOpen, status]);
 
   // Play "thinking" audio when AI is processing
   useEffect(() => {
@@ -279,16 +300,15 @@ export default function VoiceCommandButton() {
     }
   }, [status, result?.audioBase64]);
 
-  // Auto-navigate or open content drawer when command result says to
+  // Auto-navigate or open content drawer when command result says to.
+  // Panel stays open — navigation happens in the main partition beside it.
   useEffect(() => {
     if (status !== STATUS.DONE) return;
     if (navTarget?.action === "OPEN_CONTENT_DRAWER") {
-      handleClose();
       window.dispatchEvent(new CustomEvent("open-content-drawer"));
       return;
     }
     if (navTarget?.autoNavigate) {
-      handleClose();
       navigate(navTarget.path, navTarget.state ? { state: navTarget.state } : undefined);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -296,10 +316,8 @@ export default function VoiceCommandButton() {
 
   const handleNavigate = () => {
     if (navTarget?.action === "OPEN_CONTENT_DRAWER") {
-      handleClose();
       window.dispatchEvent(new CustomEvent("open-content-drawer"));
     } else if (navTarget?.path) {
-      handleClose();
       navigate(navTarget.path, navTarget.state ? { state: navTarget.state } : undefined);
     }
   };
@@ -309,30 +327,76 @@ export default function VoiceCommandButton() {
     setResult(null);
   };
 
-  return (
+  return createPortal(
     <>
-      <IconButton
-        onClick={handleOpen}
+      {/* Floating trigger button — hidden while panel is open */}
+      {!open && (
+        <Tooltip
+          title={<Typography variant="caption">Hold <b>Space</b> to talk to Seeds AI</Typography>}
+          arrow
+          placement="left"
+        >
+          <Box sx={{ position: "fixed", bottom: 24, right: 24, zIndex: 1300 }}>
+            <IconButton
+              onClick={handleOpen}
+              sx={{
+                bgcolor: "primary.main",
+                color: "white",
+                "&:hover": { bgcolor: "primary.dark" },
+                width: 48,
+                height: 48,
+              }}
+            >
+              <MicIcon />
+            </IconButton>
+          </Box>
+        </Tooltip>
+      )}
+
+      {/* Side partition — fixed strip on the right, slides in/out */}
+      <Box
         sx={{
-          bgcolor: "primary.main",
-          color: "white",
-          "&:hover": { bgcolor: "primary.dark" },
-          width: 48,
-          height: 48,
+          position: "fixed",
+          top: 0,
+          right: 0,
+          bottom: 0,
+          width: PANEL_WIDTH,
+          bgcolor: "background.paper",
+          borderLeft: 1,
+          borderColor: "divider",
+          boxShadow: "-4px 0 24px rgba(0,0,0,0.12)",
+          // Above the play-content drawer (MUI modal = 1300) so its slide-in
+          // sweeps BEHIND the panel and emerges from the panel's left edge,
+          // instead of crossing over the panel from the viewport edge.
+          zIndex: 1301,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+          transform: open ? "translateX(0)" : "translateX(100%)",
+          transition: "transform 0.25s ease",
         }}
       >
-        <MicIcon />
-      </IconButton>
-
-      <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          🌱 Seeds AI
+        {/* Panel header */}
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            px: 2,
+            py: 1.5,
+            borderBottom: 1,
+            borderColor: "divider",
+            flexShrink: 0,
+          }}
+        >
+          <Typography variant="h6">🌱 Seeds AI</Typography>
           <IconButton onClick={handleClose} size="small">
             <CloseIcon />
           </IconButton>
-        </DialogTitle>
+        </Box>
 
-        <DialogContent>
+        {/* Panel content */}
+        <Box sx={{ flex: 1, overflow: "auto", p: 2 }}>
           {recorderError && (
             <Alert severity="error" sx={{ mb: 2 }}>
               {recorderError}
@@ -521,8 +585,9 @@ export default function VoiceCommandButton() {
               </Button>
             </Box>
           )}
-        </DialogContent>
-      </Dialog>
-    </>
+        </Box>
+      </Box>
+    </>,
+    document.body
   );
 }

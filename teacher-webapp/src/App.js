@@ -3,7 +3,7 @@ import "./App.css";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
-import { Box, Tooltip, Typography } from "@mui/material";
+import { Box } from "@mui/material";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { ROUTES } from "./constants/routes";
@@ -85,18 +85,8 @@ function AppContent() {
         />
       </Routes>
 
-      {/* Floating Seeds AI button — only visible when logged in */}
-      {isLoggedIn && (
-        <Tooltip
-          title={<Typography variant="caption">Press <b>R</b> to talk to Seeds AI</Typography>}
-          arrow
-          placement="left"
-        >
-          <Box sx={{ position: "fixed", bottom: 24, right: 24, zIndex: 1300 }}>
-            <VoiceCommandButton />
-          </Box>
-        </Tooltip>
-      )}
+      {/* Seeds AI voice panel + floating trigger */}
+      {isLoggedIn && <VoiceCommandButton />}
     </>
   );
 }
