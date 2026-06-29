@@ -51,6 +51,7 @@ export const setAuth = (token, role, schoolId = null) => {
   localStorage.setItem("authToken", token);
   localStorage.setItem("userRole", role);
   if (schoolId) localStorage.setItem("schoolId", schoolId);
+  else localStorage.removeItem("schoolId");
 };
 
 /**

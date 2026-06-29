@@ -1,13 +1,11 @@
 import React from "react";
-import { transformQuizItem, extractQuestionText, extractQuestionOptions, getCorrectOptionIndex } from "../utils/quizDataTransform";
 
 const QuizDetails = ({ quiz }) => {
-  const transformed = transformQuizItem(quiz);
-  const titleEnglish = transformed.title?.english ?? transformed.title;
-  const titleLocal = transformed.title?.local ?? quiz.localTitle;
-  const themeEnglish = transformed.theme?.english ?? transformed.theme;
-  const themeLocal = transformed.theme?.local ?? quiz.localTheme;
-  const questions = transformed.questions || [];
+  const titleEnglish = quiz.title.english;
+  const titleLocal = quiz.title.local;
+  const themeEnglish = quiz.theme.english;
+  const themeLocal = quiz.theme.local;
+  const questions = quiz.questions;
 
   return (
     <>
@@ -29,7 +27,7 @@ const QuizDetails = ({ quiz }) => {
         <div>
           <div>Language</div>
           <p>
-            <b>{transformed.language}</b>
+            <b>{quiz.language}</b>
           </p>
         </div>
 
@@ -49,19 +47,20 @@ const QuizDetails = ({ quiz }) => {
         <div>
           <label>Positive Marks</label>
           <br />
-          <p className="mintgreen marks-badge">{transformed.positiveMarks}</p>
+          <p className="mintgreen marks-badge">{quiz.positiveMarks}</p>
         </div>
 
         <div>
           <label>Negative Marks</label>
           <br />
-          <p className="mintgreen marks-badge">{transformed.negativeMarks}</p>
+          <p className="mintgreen marks-badge">{quiz.negativeMarks}</p>
         </div>
       </div>
       {questions.map((questionItem, index) => {
-        const questionText = extractQuestionText(questionItem);
-        const options = extractQuestionOptions(questionItem);
-        const correctIndex = getCorrectOptionIndex(questionItem, options);
+        const questionText = questionItem.question.text;
+        const opts = questionItem.options;
+        const options = opts.map((o) => o.text);
+        const correctIndex = opts.findIndex((o) => o.id === questionItem.correct_option_id);
         const optionLabels = ["A", "B", "C", "D"];
         return (
           <div key={index} className="quiz-question-block">
