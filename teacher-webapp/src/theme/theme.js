@@ -31,9 +31,9 @@ const theme = createTheme({
     fontFamily: [
       "-apple-system",
       "BlinkMacSystemFont",
-      "\"Segoe UI\"",
+      "Segoe UI",
       "Roboto",
-      "\"Helvetica Neue\"",
+      "Helvetica Neue",
       "Arial",
       "sans-serif",
     ].join(","),

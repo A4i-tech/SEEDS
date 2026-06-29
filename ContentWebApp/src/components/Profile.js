@@ -137,7 +137,7 @@ const Profile = () => {
                     <input
                       className="profile-input profile-input-disabled"
                       type="text"
-                      value={profile.name || ""}
+                      value={profile.name}
                       disabled
                     />
                   </div>
@@ -146,7 +146,7 @@ const Profile = () => {
                     <input
                       className="profile-input profile-input-disabled"
                       type="tel"
-                      value={profile.phoneNumber || ""}
+                      value={profile.phoneNumber}
                       disabled
                     />
                   </div>
@@ -155,7 +155,7 @@ const Profile = () => {
                     <input
                       className="profile-input profile-input-disabled"
                       type="text"
-                      value={profile.schoolName || ""}
+                      value={profile.schoolName}
                       disabled
                     />
                   </div>
@@ -179,7 +179,7 @@ const Profile = () => {
                     <input
                       className="profile-input profile-input-disabled"
                       type="text"
-                      value={profile.name || ""}
+                      value={profile.name}
                       disabled
                     />
                   </div>
@@ -188,7 +188,7 @@ const Profile = () => {
                     <input
                       className="profile-input profile-input-disabled"
                       type="email"
-                      value={profile.email || ""}
+                      value={profile.email}
                       disabled
                     />
                   </div>

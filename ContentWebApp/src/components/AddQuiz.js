@@ -1,13 +1,6 @@
 import { useState, useEffect } from "react";
-import { v4 as uuidv4 } from "uuid";
 import { useNavigate } from "react-router-dom";
 import { contentService } from "../services/contentService";
-import {
-  transformQuizItem,
-  extractQuestionText,
-  extractQuestionOptions,
-  getCorrectOptionIndex,
-} from "../utils/quizDataTransform";
 
 const ANSWER_OPTION_CONFIG = [
   { name: "optionA", label: "Option A", idx: 0 },
@@ -28,55 +21,35 @@ const AddQuiz = ({ quiz }) => {
     theme: "",
     localTheme: "",
     language: "kannada",
-    positiveMark: 1,
-    negativeMark: 0,
+    positive_marks: 1,
+    negative_marks: 0,
+    is_pull_model: false,
   });
 
   useEffect(() => {
     if (quiz && Object.keys(quiz).length > 0) {
-      const transformedQuiz = transformQuizItem(quiz);
-      const titleSource = transformedQuiz.title;
-      const themeSource = transformedQuiz.theme;
-
-      const title =
-        typeof titleSource === "object" ? titleSource.english : titleSource;
-      const localTitle =
-        typeof titleSource === "object" ? titleSource.local : undefined;
-      const theme =
-        typeof themeSource === "object" ? themeSource.english : themeSource;
-      const localTheme =
-        typeof themeSource === "object" ? themeSource.local : undefined;
-      const quizMetadata = {
-        title: title,
-        localTitle: localTitle,
-        theme: theme,
-        localTheme: localTheme,
-        language: transformedQuiz.language,
-        positiveMark: transformedQuiz.positiveMarks ?? 1,
-        negativeMark: transformedQuiz.negativeMarks ?? 0,
-      };
-      setMetadata(quizMetadata);
-      const questions = transformedQuiz.questions;
-      const inputFieldsData = questions.map((questionItem) => {
-        const questionText = extractQuestionText(questionItem);
-        const options = extractQuestionOptions(questionItem);
-        const optionTexts = [...options];
-        while (optionTexts.length < 4) optionTexts.push("");
-        const correctIndex = getCorrectOptionIndex(questionItem, optionTexts);
-        return {
-          question: questionText,
-          optionA: optionTexts[0],
-          optionB: optionTexts[1],
-          optionC: optionTexts[2],
-          optionD: optionTexts[3],
-          correctAnswer: correctIndex,
-        };
+      setMetadata({
+        title: quiz.title.english,
+        localTitle: quiz.title.local,
+        theme: quiz.theme.english,
+        localTheme: quiz.theme.local,
+        language: quiz.language,
+        positive_marks: quiz.positive_marks,
+        negative_marks: quiz.negative_marks,
+        is_pull_model: quiz.is_pull_model,
       });
-      setInputFields(
-        inputFieldsData.length > 0
-          ? inputFieldsData
-          : [{ question: "", optionA: "", optionB: "", optionC: "", optionD: "", correctAnswer: 0 }]
-      );
+      setInputFields(quiz.questions.map((q) => {
+        const opts = q.options.map((o) => o.text);
+        const correctIdx = q.options.findIndex((o) => o.id === q.correct_option_id);
+        return {
+          question: q.question.text,
+          optionA: opts[0],
+          optionB: opts[1],
+          optionC: opts[2],
+          optionD: opts[3],
+          correctAnswer: correctIdx >= 0 ? correctIdx : 0,
+        };
+      }));
     }
   }, [quiz]);
 
@@ -98,42 +71,40 @@ const AddQuiz = ({ quiz }) => {
   };
 
   const createQuizJson = () => {
-    const languageLower = (metadata.language || "").toLowerCase();
-
-    const questions = inputFields.map((mcq) => mcq.question);
-    const options = inputFields.map((mcq) => [
-      mcq.optionA,
-      mcq.optionB,
-      mcq.optionC,
-      mcq.optionD,
-    ]);
-    const correctAnswers = inputFields.map((mcq) =>
-      mcq.correctAnswer !== undefined ? mcq.correctAnswer : 0
-    );
-
-    const payload = {
-      ...metadata,
-      questions,
-      options,
-      correctAnswers,
-      // Theme fields expected by backend quiz creation (mirror AddStory behavior)
-      theme: metadata.theme,
-      localTheme:
-        languageLower === "english" ? metadata.theme : metadata.localTheme,
-      // Title fields expected by backend quiz creation (mirror AddStory behavior)
-      title: metadata.title,
-      localTitle:
-        languageLower === "english" ? metadata.title : metadata.localTitle,
+    const languageLower = metadata.language.toLowerCase();
+    const questions = inputFields.map((mcq, qi) => {
+      const opts = [mcq.optionA, mcq.optionB, mcq.optionC, mcq.optionD].map((text, oi) => ({
+        id: `q${qi + 1}-opt${oi + 1}`,
+        text,
+      }));
+      return {
+        question: { id: `q${qi + 1}`, text: mcq.question },
+        options: opts,
+        correct_option_id: opts[mcq.correctAnswer].id,
+      };
+    });
+    return {
       type: "quiz",
-      id: quiz ? (quiz._id || quiz.id) : uuidv4(),
+      language: metadata.language,
+      title: {
+        english: metadata.title,
+        local: languageLower === "english" ? metadata.title : metadata.localTitle,
+      },
+      theme: {
+        english: metadata.theme,
+        local: languageLower === "english" ? metadata.theme : metadata.localTheme,
+      },
+      is_pull_model: metadata.is_pull_model,
+      is_teacher_app: false,
+      positive_marks: metadata.positive_marks,
+      negative_marks: metadata.negative_marks,
+      questions,
     };
-
-    return payload;
   };
 
   const isValid = () => {
     var valid = true;
-    const languageLower = (metadata.language || "").toLowerCase();
+    const languageLower = metadata.language.toLowerCase();
 
     if (metadata.title.length === 0) {
       valid = false;
@@ -156,10 +127,10 @@ const AddQuiz = ({ quiz }) => {
     ) {
       valid = false;
       alert("Local theme cannot be empty for non-English languages");
-    } else if (metadata.positiveMark.length === 0) {
+    } else if (metadata.positive_marks === "" || metadata.positive_marks === undefined) {
       valid = false;
       alert("Positive marks cannot be empty");
-    } else if (metadata.negativeMark.length === 0) {
+    } else if (metadata.negative_marks === "" || metadata.negative_marks === undefined) {
       valid = false;
       alert("Negative marks cannot be empty");
     } else {
@@ -190,12 +161,11 @@ const AddQuiz = ({ quiz }) => {
     }
 
     try {
-      const quizId = quiz && (quiz._id || quiz.id);
+      const quizId = quiz && quiz.id;
       const isEditing = Boolean(quizId);
       let result;
       if (isEditing) {
-        // PATCH existing quiz — backend requires _id in the body
-        result = await contentService.updateContent({ ...payload, _id: quizId });
+        result = await contentService.updateContent({ ...payload, id: quizId });
       } else {
         result = await contentService.createQuiz(payload);
       }
@@ -233,7 +203,7 @@ const AddQuiz = ({ quiz }) => {
   };
 
   const getLocalizedLabelPrefix = () => {
-    const language = (metadata.language || "").toLowerCase();
+    const language = metadata.language.toLowerCase();
     switch (language) {
       case "kannada":
         return "Kannada";
@@ -259,7 +229,7 @@ const AddQuiz = ({ quiz }) => {
             Language
             <br />
             <select
-              value={metadata.language || ""}
+              value={metadata.language}
               onChange={handleLanguageChange}
               className="mintgreen"
               style={{ width: "200px" }}
@@ -283,7 +253,7 @@ const AddQuiz = ({ quiz }) => {
             type="text"
             name="title"
             placeholder=" Add Title"
-            value={metadata.title || ""}
+            value={metadata.title}
             onChange={(event) => setMetadata({ ...metadata, title: event.target.value })}
           />
         </div>
@@ -296,7 +266,7 @@ const AddQuiz = ({ quiz }) => {
             type="text"
             name="theme"
             placeholder=" Add Theme"
-            value={metadata.theme || ""}
+            value={metadata.theme}
             onChange={(event) => setMetadata({ ...metadata, theme: event.target.value })}
           />
         </div>
@@ -311,7 +281,7 @@ const AddQuiz = ({ quiz }) => {
                 type="text"
                 name="localTitle"
                 placeholder=" Add Local Title"
-                value={metadata.localTitle || ""}
+                value={metadata.localTitle}
                 onChange={(event) => setMetadata({ ...metadata, localTitle: event.target.value })}
               />
             </div>
@@ -324,7 +294,7 @@ const AddQuiz = ({ quiz }) => {
                 type="text"
                 name="localTheme"
                 placeholder=" Add Local Theme"
-                value={metadata.localTheme || ""}
+                value={metadata.localTheme}
                 onChange={(event) => setMetadata({ ...metadata, localTheme: event.target.value })}
               />
             </div>
@@ -337,10 +307,10 @@ const AddQuiz = ({ quiz }) => {
           <input
             type="number"
             className="mintgreen"
-            name="positiveMark"
+            name="positive_marks"
             placeholder="Add Positive Marks"
-            value={metadata.positiveMark || 1}
-            onChange={(event) => setMetadata({ ...metadata, positiveMark: event.target.value })}
+            value={metadata.positive_marks}
+            onChange={(event) => setMetadata({ ...metadata, positive_marks: Number(event.target.value) })}
           />
         </div>
 
@@ -350,11 +320,21 @@ const AddQuiz = ({ quiz }) => {
           <input
             type="number"
             className="mintgreen"
-            name="negativeMark"
+            name="negative_marks"
             placeholder="Add Negative Marks"
-            value={metadata.negativeMark || 0}
-            onChange={(event) => setMetadata({ ...metadata, negativeMark: event.target.value })}
+            value={metadata.negative_marks}
+            onChange={(event) => setMetadata({ ...metadata, negative_marks: Number(event.target.value) })}
           />
+        </div>
+        <div>
+          <input
+            type="checkbox"
+            name="is_pull_model"
+            id="is_pull_model"
+            checked={metadata.is_pull_model}
+            onChange={() => setMetadata({ ...metadata, is_pull_model: !metadata.is_pull_model })}
+          />
+          <label htmlFor="is_pull_model">Add to IVR</label>
         </div>
       </div>
       {inputFields.map((input, index) => {

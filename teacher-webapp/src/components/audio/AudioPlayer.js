@@ -1,9 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import {
-  Box,
-  Slider,
-  Typography,
-} from "@mui/material";
+import { Box, Slider, Typography } from "@mui/material";
 import { formatTimeWithLeadingZero } from "../../utils/formatTime";
 import SpeedSelector from "./SpeedSelector";
 import TransportControls from "./TransportControls";
@@ -185,7 +181,12 @@ const AudioPlayer = ({ audioUrl, onTimeUpdate, onEnded, autoPlay = false, varian
 
         <Typography
           variant="body2"
-          sx={{ color: isLight ? "text.secondary" : "white", minWidth: "40px", ml: 0.5, fontSize: "0.75rem" }}
+          sx={{
+            color: isLight ? "text.secondary" : "white",
+            minWidth: "40px",
+            ml: 0.5,
+            fontSize: "0.75rem",
+          }}
         >
           {formatTimeWithLeadingZero(currentTime)}
         </Typography>
@@ -206,7 +207,12 @@ const AudioPlayer = ({ audioUrl, onTimeUpdate, onEnded, autoPlay = false, varian
 
         <Typography
           variant="body2"
-          sx={{ color: isLight ? "text.secondary" : "white", minWidth: "40px", ml: 0.5, fontSize: "0.75rem" }}
+          sx={{
+            color: isLight ? "text.secondary" : "white",
+            minWidth: "40px",
+            ml: 0.5,
+            fontSize: "0.75rem",
+          }}
         >
           {formatTimeWithLeadingZero(duration)}
         </Typography>

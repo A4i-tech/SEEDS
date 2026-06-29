@@ -44,7 +44,7 @@ export const useAuth = () => {
    * Logout user and clear all auth data
    */
   const logout = useCallback(() => {
-    clearAuthHelper(); // Clears token 
+    clearAuthHelper(); // Clears token
     clearSessionHistory(); // Clear session history
     resetTeacherCache();
     navigate("/");

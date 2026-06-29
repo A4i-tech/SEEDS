@@ -1,13 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import {
-  Box,
-  Slider,
-  Typography,
-  Chip,
-} from "@mui/material";
-import {
-  MusicNote as MusicNoteIcon,
-} from "@mui/icons-material";
+import { Box, Slider, Typography, Chip } from "@mui/material";
+import { MusicNote as MusicNoteIcon } from "@mui/icons-material";
 import {
   pauseAudio,
   resumeAudio,
@@ -25,7 +18,7 @@ function parseDurationStr(str) {
   if (typeof str === "number") return Number.isFinite(str) ? str : 0;
   // Handle string durations (M:SS or H:MM:SS format)
   const parts = String(str).split(":").map(Number);
-  
+
   if (!parts.every(Number.isFinite)) return 0;
   if (parts.length === 2) return parts[0] * 60 + parts[1];
   if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
@@ -54,9 +47,7 @@ const ConferenceAudioPlayer = ({
   const serverSpeed = audioContentState?.speed || 1.0;
 
   const totalDuration =
-    serverDuration != null && serverDuration > 0
-      ? serverDuration
-      : parseDurationStr(durationStr);
+    serverDuration != null && serverDuration > 0 ? serverDuration : parseDurationStr(durationStr);
 
   const [estimatedPosition, setEstimatedPosition] = useState(0);
   const [isSeeking, setIsSeeking] = useState(false);
@@ -160,17 +151,20 @@ const ConferenceAudioPlayer = ({
   const isPlaying = status === "Playing";
   const canControl = isActive && !isStarting && Boolean(confId);
 
-  const handleSpeedChange = useCallback(async (event) => {
-    if (!confId) return;
-    const newSpeed = event.target.value;
-    setPendingSpeed(newSpeed);
-    try {
-      await setPlaybackSpeedApi(confId, newSpeed);
-    } catch (err) {
-      console.error("Error setting playback speed:", err);
-      setPendingSpeed(null);
-    }
-  }, [confId]);
+  const handleSpeedChange = useCallback(
+    async (event) => {
+      if (!confId) return;
+      const newSpeed = event.target.value;
+      setPendingSpeed(newSpeed);
+      try {
+        await setPlaybackSpeedApi(confId, newSpeed);
+      } catch (err) {
+        console.error("Error setting playback speed:", err);
+        setPendingSpeed(null);
+      }
+    },
+    [confId]
+  );
 
   if (!isActive) return null;
 
@@ -218,7 +212,12 @@ const ConferenceAudioPlayer = ({
             <Typography
               variant="caption"
               color="text.secondary"
-              sx={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+              sx={{
+                display: "block",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
             >
               {trackLocal}
             </Typography>
@@ -274,7 +273,9 @@ const ConferenceAudioPlayer = ({
       </Box>
 
       {/* Controls row */}
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1.5, mt: 0.5 }}>
+      <Box
+        sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1.5, mt: 0.5 }}
+      >
         <TransportControls
           isPlaying={isPlaying}
           isLoading={actionLoading || isLoadingMusic || isStarting}

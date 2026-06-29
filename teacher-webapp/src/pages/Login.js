@@ -18,6 +18,7 @@ import { useNavigation } from "../hooks/useNavigation";
 import { showToast } from "../utils/toast";
 import { isLocalStorageAvailable } from "../utils/authHelpers";
 import { isValidPhoneNumber } from "../utils/phoneUtils";
+import { buildTeacherLoginRequest } from "../dto/auth.dto.js";
 
 function Login() {
   const navigate = useNavigation();
@@ -49,10 +50,10 @@ function Login() {
     setIsSubmitting(true);
     setShowError(null);
     try {
-      const response = await axiosInstance.post(API_ENDPOINTS.LOGIN, {
-        phoneNumber,
-        password,
-      });
+      const response = await axiosInstance.post(
+        API_ENDPOINTS.LOGIN,
+        buildTeacherLoginRequest({ phone_number: phoneNumber, password })
+      );
       if (response.status === STATUS_CODES.SUCCESS) {
         localStorage.setItem("authToken", response.data.token);
         showToast.success("Login successful!");
@@ -60,8 +61,7 @@ function Login() {
       }
     } catch (error) {
       console.error("Login error:", error);
-      const errorMessage =
-        error.response?.data?.message || "Username or password incorrect";
+      const errorMessage = error.response?.data?.message || "Username or password incorrect";
       setShowError(errorMessage);
       showToast.error("Login failed");
     } finally {
@@ -155,7 +155,6 @@ function Login() {
             >
               {isSubmitting ? <CircularProgress size={24} color="inherit" /> : "Login"}
             </Button>
-
           </Box>
         </Paper>
       </Box>

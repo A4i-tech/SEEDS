@@ -49,30 +49,18 @@ const ContentTable = ({ content, isLoading, onEdit, onView, onDelete }) => {
               return (
                 <tr key={itemId} className="table-row-white">
                   <td className="table-cell">
-                    {item.title && typeof item.title === "object"
-                      ? item.title.english
-                      : item.title}
+                    {item.title.english}
                     <br />
-                    <span className="table-cell-secondary">
-                      {item.title && typeof item.title === "object"
-                        ? item.title.local
-                        : item.localTitle}
-                    </span>
+                    <span className="table-cell-secondary">{item.title.local}</span>
                   </td>
                   <td className="table-cell">
-                    {item.theme && typeof item.theme === "object"
-                      ? item.theme.english
-                      : item.theme}
+                    {item.theme.english}
                     <br />
-                    <span className="table-cell-secondary">
-                      {item.theme && typeof item.theme === "object"
-                        ? item.theme.local
-                        : item.localTheme}
-                    </span>
+                    <span className="table-cell-secondary">{item.theme.local}</span>
                   </td>
                   <td className="table-cell">
-                    {item.isTeacherApp && "TA"}
-                    {item.isPullModel && ", IVR"}
+                    {item.is_teacher_app && "TA"}
+                    {item.is_pull_model && ", IVR"}
                     {itemType === "quiz" && " IVR"}
                   </td>
                   <td className="table-cell">{item.language}</td>

@@ -17,4 +17,3 @@ export const FormSkeleton = ({ fieldCount = 3 }) => {
     </Paper>
   );
 };
-

@@ -1,11 +1,5 @@
 import React from "react";
-import {
-  Box,
-  Typography,
-  Chip,
-  CircularProgress,
-  LinearProgress,
-} from "@mui/material";
+import { Box, Typography, Chip, CircularProgress, LinearProgress } from "@mui/material";
 import {
   MusicNote as MusicNoteIcon,
   MenuBook as MenuBookIcon,
@@ -15,15 +9,8 @@ import {
 /**
  * ContentListItem - renders individual content card in the library
  */
-const ContentListItem = ({
-  item,
-  index,
-  isLoading,
-  conferenceActive,
-  onPlay,
-  color,
-}) => {
-  const isStory = item.type?.toLowerCase() === "story";
+const ContentListItem = ({ item, index, isLoading, conferenceActive, onPlay, color }) => {
+  const isStory = item.type.toLowerCase() === "story";
 
   return (
     <Box
@@ -79,9 +66,9 @@ const ContentListItem = ({
             whiteSpace: "nowrap",
           }}
         >
-          {item.title?.english || item.title?.local || "Untitled"}
+          {item.title.english}
         </Typography>
-        {item.title?.local && item.title?.english !== item.title?.local && (
+        {item.title.local && item.title.english !== item.title.local && (
           <Typography
             variant="caption"
             color="text.secondary"
@@ -104,28 +91,20 @@ const ContentListItem = ({
             flexWrap: "wrap",
           }}
         >
-          {item.type && (
-            <Chip
-              label={item.type.toUpperCase()}
-              size="small"
-              sx={{
-                height: 18,
-                fontSize: "0.65rem",
-                fontWeight: 700,
-                borderRadius: 1,
-                bgcolor: color,
-                color: "#fff",
-              }}
-            />
-          )}
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            sx={{ fontSize: "0.7rem" }}
-          >
-            {[item.language, typeof item.theme === "string" ? item.theme : item.theme?.english]
-              .filter(Boolean)
-              .join(" \u00B7 ")}
+          <Chip
+            label={item.type.toUpperCase()}
+            size="small"
+            sx={{
+              height: 18,
+              fontSize: "0.65rem",
+              fontWeight: 700,
+              borderRadius: 1,
+              bgcolor: color,
+              color: "#fff",
+            }}
+          />
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>
+            {[item.language, item.theme.english].filter(Boolean).join(" \u00B7 ")}
           </Typography>
         </Box>
       </Box>
@@ -141,11 +120,7 @@ const ContentListItem = ({
         }}
       >
         {item.duration && (
-          <Typography
-            variant="body2"
-            color="text.secondary"
-            sx={{ fontSize: "0.8rem" }}
-          >
+          <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.8rem" }}>
             {item.duration}
           </Typography>
         )}

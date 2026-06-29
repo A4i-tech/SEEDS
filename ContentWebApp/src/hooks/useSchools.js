@@ -58,7 +58,7 @@ export const useSchools = (activeTab) => {
     }
     try {
       const updated = await schoolService.updateSchool(schoolId, name, email, password);
-      setSchools((prev) => prev.map((s) => (String(s._id) === String(schoolId) ? updated : s)));
+      setSchools((prev) => prev.map((s) => (String(s.id) === String(schoolId) ? updated : s)));
       flash("School updated successfully!", "success");
       return true;
     } catch (error) {
@@ -71,7 +71,7 @@ export const useSchools = (activeTab) => {
     if (!window.confirm("Delete this school?")) return;
     try {
       await schoolService.deleteSchool(schoolId);
-      setSchools((prev) => prev.filter((s) => String(s._id) !== String(schoolId)));
+      setSchools((prev) => prev.filter((s) => String(s.id) !== String(schoolId)));
       flash("School deleted successfully!", "success");
     } catch (error) {
       flash(error.message || "Failed to delete school.", "error");

@@ -20,7 +20,7 @@ export const ivrService = {
     });
 
     return {
-      message: response.message || "IVR updated successfully",
+      message: response.message,
     };
   },
 };

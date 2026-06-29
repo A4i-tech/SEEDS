@@ -3,34 +3,37 @@ package com.example.seeds.network
 import android.content.Context
 import com.example.seeds.model.Classroom
 import com.example.seeds.model.Student
+import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 import se.ansman.kotshi.JsonSerializable
 
 @JsonSerializable
 @JsonClass(generateAdapter = true)
 data class StudentRefDto(
-    var _id: String,
-    var name: String,
-    var phoneNumber: String,
+    val id: String,
+    val name: String,
+    @Json(name = "phone_number") val phoneNumber: String,
 )
 
+@JsonClass(generateAdapter = true)
 data class ClassroomDto(
-    var _id: String? = null,
-    var name: String,
-    var teacher: String,
-    var students: List<StudentRefDto>,
-    var leaders: List<StudentRefDto>,
-    var contentIds: List<String>? = null,
+    val id: String? = null,
+    val name: String,
+    val teacher: String,
+    val students: List<StudentRefDto>,
+    val leaders: List<StudentRefDto>,
+    @Json(name = "content_ids") val contentIds: List<String>? = null,
 )
 
 /** Separate DTO used when saving (POST /class) — sends student ObjectIds as plain strings */
+@JsonClass(generateAdapter = true)
 data class ClassroomSaveDto(
-    var _id: String? = null,
-    var name: String,
-    var teacher: String,
-    var students: List<String>,
-    var leaders: List<String>,
-    var contentIds: List<String>? = null,
+    val id: String? = null,
+    val name: String,
+    val teacher: String,
+    val students: List<String>,
+    val leaders: List<String>,
+    @Json(name = "content_ids") val contentIds: List<String>? = null,
 )
 
 fun ClassroomDto.asDomainModel(
@@ -40,11 +43,11 @@ fun ClassroomDto.asDomainModel(
     val teacherId = prefs.getString("teacher_id", "") ?: ""
 
     return Classroom(
-        _id,
+        id,
         name,
         teacherId,
-        students.map { Student(phoneNumber = it.phoneNumber, name = it.name, _id = it._id) },
-        leaders.map { Student(phoneNumber = it.phoneNumber, name = it.name, _id = it._id) },
+        students.map { Student(phoneNumber = it.phoneNumber, name = it.name, _id = it.id) },
+        leaders.map { Student(phoneNumber = it.phoneNumber, name = it.name, _id = it.id) },
         contentIds ?: emptyList()
     )
 }

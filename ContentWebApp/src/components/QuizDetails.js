@@ -1,13 +1,7 @@
 import React from "react";
-import { transformQuizItem, extractQuestionText, extractQuestionOptions, getCorrectOptionIndex } from "../utils/quizDataTransform";
 
 const QuizDetails = ({ quiz }) => {
-  const transformed = transformQuizItem(quiz);
-  const titleEnglish = transformed.title?.english ?? transformed.title;
-  const titleLocal = transformed.title?.local ?? quiz.localTitle;
-  const themeEnglish = transformed.theme?.english ?? transformed.theme;
-  const themeLocal = transformed.theme?.local ?? quiz.localTheme;
-  const questions = transformed.questions || [];
+  const optionLabels = ["A", "B", "C", "D"];
 
   return (
     <>
@@ -16,66 +10,54 @@ const QuizDetails = ({ quiz }) => {
         <div>
           <div>Title</div>
           <p>
-            <b>{titleEnglish}</b>
-            {titleLocal && (
-              <>
-                <br />
-                <b>{titleLocal}</b>
-              </>
-            )}
+            <b>{quiz.title.english}</b>
+            <br />
+            <b>{quiz.title.local}</b>
           </p>
         </div>
 
         <div>
           <div>Language</div>
-          <p>
-            <b>{transformed.language}</b>
-          </p>
+          <p><b>{quiz.language}</b></p>
         </div>
 
         <div>
           <div>Theme</div>
           <p>
-            <b>{themeEnglish}</b>
-            {themeLocal && (
-              <>
-                <br />
-                <b>{themeLocal}</b>
-              </>
-            )}
+            <b>{quiz.theme.english}</b>
+            <br />
+            <b>{quiz.theme.local}</b>
           </p>
         </div>
 
         <div>
           <label>Positive Marks</label>
           <br />
-          <p className="mintgreen marks-badge">{transformed.positiveMarks}</p>
+          <p className="mintgreen marks-badge">{quiz.positive_marks}</p>
         </div>
 
         <div>
           <label>Negative Marks</label>
           <br />
-          <p className="mintgreen marks-badge">{transformed.negativeMarks}</p>
+          <p className="mintgreen marks-badge">{quiz.negative_marks}</p>
         </div>
       </div>
-      {questions.map((questionItem, index) => {
-        const questionText = extractQuestionText(questionItem);
-        const options = extractQuestionOptions(questionItem);
-        const correctIndex = getCorrectOptionIndex(questionItem, options);
-        const optionLabels = ["A", "B", "C", "D"];
+
+      {quiz.questions.map((q, i) => {
+        const correctIdx = q.options.findIndex((o) => o.id === q.correct_option_id);
         return (
-          <div key={index} className="quiz-question-block">
+          <div key={i} className="quiz-question-block">
             <div>
-              <label>Question {index + 1}</label>
+              <label>Question {i + 1}</label>
               <br />
-              <p className="quiz-question-text">{questionText}</p>
+              <p className="quiz-question-text">{q.question.text}</p>
             </div>
             <div className="optionsDetailsGrid">
-              {options.map((opt, optIdx) => (
+              {q.options.map((opt, optIdx) => (
                 <div key={optIdx}>
-                  <label>Option {optionLabels[optIdx]}{optIdx === correctIndex ? " (Correct Answer)" : ""}</label>
+                  <label>Option {optionLabels[optIdx]}{optIdx === correctIdx ? " (Correct Answer)" : ""}</label>
                   <br />
-                  <p className="mintgreen">{opt}</p>
+                  <p className="mintgreen">{opt.text}</p>
                 </div>
               ))}
             </div>

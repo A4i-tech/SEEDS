@@ -1,9 +1,9 @@
 /**
  * Content History Service
- * 
+ *
  * Manages playback history for audio content, matching Android app behavior.
  * Uses localStorage for persistence across browser sessions.
- * 
+ *
  * Architecture mirrors Android's UserPreferencesRepository.saveContentToHistory():
  * - Move-to-top deduplication (if content already exists, remove old and add new at top)
  * - Limited to DEFAULT_CONTENT_HISTORY_SIZE items
@@ -80,12 +80,12 @@ export function getContentHistory() {
 
 /**
  * Save content to history with move-to-top deduplication.
- * 
+ *
  * If the content already exists in history, it's moved to the top with updated timestamp.
  * Otherwise, it's added to the top and the list is trimmed to DEFAULT_CONTENT_HISTORY_SIZE.
- * 
+ *
  * Mirrors Android's saveContentToHistory() behavior.
- * 
+ *
  * @param {Object} content - Content object with at minimum: id, name/title, url
  * @param {Object} options - Optional metadata
  * @param {string} options.classroomName - Classroom/group name where content was played
@@ -107,7 +107,12 @@ export function saveContentToHistory(content, options = {}) {
 
     // Extract content metadata
     const contentId = content.id || content._id || content.url; // Use URL as fallback ID
-    const title = content.name || content.title?.english || content.title?.local || content.title || "Unnamed Audio";
+    const title =
+      content.name ||
+      content.title?.english ||
+      content.title?.local ||
+      content.title ||
+      "Unnamed Audio";
     const contentType = content.type || "Audio";
     const url = content.url || content.audioUrl;
     const description = content.description || null;

@@ -39,8 +39,5 @@ export const normalizePhoneNumber = (phoneNumber) => {
  * @returns {Array<string>} - Array of normalized 10-digit phone numbers
  */
 export const formatStudentPhones = (students) => {
-  if (!Array.isArray(students)) return [];
-  return students
-    .map((s) => (s?.phoneNumber ? normalizePhoneNumber(s.phoneNumber) : null))
-    .filter(Boolean);
+  return students.map((s) => normalizePhoneNumber(s.phoneNumber));
 };

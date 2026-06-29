@@ -3,6 +3,7 @@ package com.example.seeds.model
 import android.os.Parcelable
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 import kotlinx.android.parcel.Parcelize
 import se.ansman.kotshi.JsonSerializable
@@ -13,10 +14,10 @@ import se.ansman.kotshi.JsonSerializable
 @JsonClass(generateAdapter = true)
 data class Student(
     @PrimaryKey
-    var phoneNumber: String,
+    @Json(name = "phone_number") var phoneNumber: String,
     var name: String,
     var isLeader: Boolean = false,
-    var _id: String? = null): Parcelable
+    @Json(name = "id") var _id: String? = null): Parcelable
 
 @JsonSerializable
 @JsonClass(generateAdapter = true)

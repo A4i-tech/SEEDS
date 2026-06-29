@@ -136,11 +136,7 @@ export const ParticipantCard = ({
               sx={{ color: "#f44336" }}
               aria-label="Remove participant"
             >
-              {isRemoving ? (
-                <CircularProgress size={20} />
-              ) : (
-                <PersonRemoveIcon />
-              )}
+              {isRemoving ? <CircularProgress size={20} /> : <PersonRemoveIcon />}
             </IconButton>
           </Tooltip>
         )}

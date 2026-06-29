@@ -25,17 +25,14 @@ export const ControlButtonGroup = ({
   onUnmuteAll,
   disabled,
 }) => {
-  const connectedStudents = activeStudents.filter(
-    (s) => s.call_status === "connected"
-  );
+  const connectedStudents = activeStudents.filter((s) => s.call_status === "connected");
   // Determine if all connected students are muted
   const allStudentsMuted =
-    connectedStudents.length > 0 &&
-    connectedStudents.every((student) => student.is_muted === true);
+    connectedStudents.length > 0 && connectedStudents.every((student) => student.is_muted === true);
 
   // Show mute/unmute all buttons only when call is running and there are students
   const showBulkMuteControls = isConfCallRunning && activeStudents.length > 0;
-  
+
   const hasConnectedStudents = connectedStudents.length > 0;
   return (
     <Box
@@ -154,12 +151,7 @@ export const ControlButtonGroup = ({
             )
           }
           onClick={allStudentsMuted ? onUnmuteAll : onMuteAll}
-          disabled={
-            isMutingAll ||
-            isUnmutingAll ||
-            !isConfCallRunning ||
-            !hasConnectedStudents
-          }
+          disabled={isMutingAll || isUnmutingAll || !isConfCallRunning || !hasConnectedStudents}
           sx={{
             borderColor: allStudentsMuted ? "#2e7d32" : "#d32f2f",
             color: allStudentsMuted ? "#2e7d32" : "#d32f2f",

@@ -9,10 +9,7 @@ import {
   CircularProgress,
   Button,
 } from "@mui/material";
-import {
-  Close as CloseIcon,
-  VolumeUp as VolumeUpIcon,
-} from "@mui/icons-material";
+import { Close as CloseIcon, VolumeUp as VolumeUpIcon } from "@mui/icons-material";
 import { getContent, getContentById, getContentSasUrl } from "../services/contentService";
 import { showToast } from "../utils/toast";
 import { saveContentToHistory } from "../services/contentHistoryService";
@@ -47,13 +44,7 @@ const ITEM_COLORS = [
  * so the caller can stream it into the active conference and display a
  * conference media player.
  */
-const ContentDrawer = ({
-  open,
-  onClose,
-  onPlay,
-  audioContentState,
-  conferenceActive = false,
-}) => {
+const ContentDrawer = ({ open, onClose, onPlay, audioContentState, conferenceActive = false }) => {
   const [content, setContent] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -94,8 +85,8 @@ const ContentDrawer = ({
         setContent(response.data);
       }
       setPagination({
-        nextCursor: response.pagination?.nextCursor || null,
-        hasMore: response.pagination?.hasMore || false,
+        nextCursor: response.pagination ? response.pagination.next_cursor : null,
+        hasMore: response.pagination ? response.pagination.has_more : false,
       });
     } catch (err) {
       setError("Failed to load content. Please try again.");
@@ -108,19 +99,15 @@ const ContentDrawer = ({
 
   const handleItemPlay = async (item) => {
     if (loadingItemId) return;
-    if (!onPlay && selectedItem?._id === item._id) return;
+    if (!onPlay && selectedItem && selectedItem.id === item.id) return;
 
-    setLoadingItemId(item._id);
+    setLoadingItemId(item.id);
     setSelectedItem(item);
     setAudioUrl(null);
     setLoadingAudio(true);
     try {
-      const fullItem = await getContentById(item._id);
-      const audioSource =
-        fullItem.audioContent?.[0]?.audioUrl ||
-        fullItem.title?.audioUrl ||
-        fullItem.theme?.audioUrl ||
-        null;
+      const fullItem = await getContentById(item.id);
+      const audioSource = fullItem.audio_content.length > 0 ? fullItem.audio_content[0].audio_url : null;
 
       if (!audioSource) {
         showToast.error("No audio available for this content");
@@ -128,17 +115,19 @@ const ContentDrawer = ({
       }
 
       const sasUrl = await getContentSasUrl(audioSource);
-      const title = item.title?.english || item.title?.local || "Untitled";
+      const title = item.title.english;
 
-      // Track in content history
       try {
-        saveContentToHistory({
-          id: item._id,
-          name: title,
-          type: item.type,
-          language: item.language,
-          url: sasUrl,
-        }, { wasConference: conferenceActive });
+        saveContentToHistory(
+          {
+            id: item.id,
+            name: title,
+            type: item.type,
+            language: item.language,
+            url: sasUrl,
+          },
+          { wasConference: conferenceActive }
+        );
       } catch (_) {
         // Non-critical
       }
@@ -147,7 +136,7 @@ const ContentDrawer = ({
         onPlay({
           url: sasUrl,
           title,
-          durationStr: item.duration || fullItem.duration || null,
+          durationStr: item.duration,
           type: item.type,
         });
         onClose();
@@ -165,9 +154,7 @@ const ContentDrawer = ({
 
   // Derive filter tabs from fetched content types
   const availableTabs = useMemo(() => {
-    const types = [
-      ...new Set(content.map((item) => item.type?.toLowerCase()).filter(Boolean)),
-    ];
+    const types = [...new Set(content.map((item) => item.type.toLowerCase()))];
     return ["all", ...types];
   }, [content]);
 
@@ -179,12 +166,12 @@ const ContentDrawer = ({
 
   // Client-side search + tab filter
   const filteredContent = content.filter((item) => {
-    const matchesTab = activeTab === "all" || item.type?.toLowerCase() === activeTab;
+    const matchesTab = activeTab === "all" || item.type.toLowerCase() === activeTab;
     const query = searchQuery.toLowerCase();
     const matchesSearch =
       !query ||
-      item.title?.english?.toLowerCase().includes(query) ||
-      item.title?.local?.toLowerCase().includes(query);
+      item.title.english.toLowerCase().includes(query) ||
+      (item.title.local && item.title.local.toLowerCase().includes(query));
     return matchesTab && matchesSearch;
   });
 
@@ -234,9 +221,7 @@ const ContentDrawer = ({
       </Box>
 
       {/* Conference streaming banner */}
-      {conferenceActive && (
-        <NowPlayingBanner audioContentState={audioContentState} />
-      )}
+      {conferenceActive && <NowPlayingBanner audioContentState={audioContentState} />}
 
       {/* Search and filters */}
       <ContentSearchBar
@@ -275,10 +260,10 @@ const ContentDrawer = ({
 
         {filteredContent.map((item, index) => (
           <ContentListItem
-            key={item._id || index}
+            key={item.id || index}
             item={item}
             index={index}
-            isLoading={loadingItemId === item._id}
+            isLoading={loadingItemId === item.id}
             conferenceActive={conferenceActive}
             onPlay={handleItemPlay}
             color={getItemColor(index)}

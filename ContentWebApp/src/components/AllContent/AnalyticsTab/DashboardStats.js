@@ -6,10 +6,10 @@ const DashboardStats = ({ dashboard }) => {
   const { statistics, schools } = dashboard;
 
   const statCards = [
-    { label: "Total Schools", value: statistics.totalSchools, color: "#0ea5e9" },
-    { label: "Total Teachers", value: statistics.totalTeachers, color: "#16a34a" },
-    { label: "Total Students", value: statistics.totalStudents, color: "#f59e0b" },
-    { label: "Total Classes", value: statistics.totalClasses, color: "#8b5cf6" },
+    { label: "Total Schools", value: statistics.total_schools, color: "#0ea5e9" },
+    { label: "Total Teachers", value: statistics.total_teachers, color: "#16a34a" },
+    { label: "Total Students", value: statistics.total_students, color: "#f59e0b" },
+    { label: "Total Classes", value: statistics.total_classes, color: "#8b5cf6" },
   ];
 
   return (
@@ -39,11 +39,11 @@ const DashboardStats = ({ dashboard }) => {
               </thead>
               <tbody>
                 {schools.map((school) => (
-                  <tr key={school._id} className="table-row-white">
+                  <tr key={school.id} className="table-row-white">
                     <td className="table-cell">{school.name}</td>
-                    <td className="table-cell">{school.teacherCount}</td>
-                    <td className="table-cell">{school.studentCount}</td>
-                    <td className="table-cell">{school.classCount}</td>
+                    <td className="table-cell">{school.teacher_count}</td>
+                    <td className="table-cell">{school.student_count}</td>
+                    <td className="table-cell">{school.class_count}</td>
                   </tr>
                 ))}
               </tbody>

@@ -1,31 +1,40 @@
 import { SEEDS_URL } from "../Constants";
 import { apiFetch } from "./api";
 import { getAuthHeaders } from "../utils/authHelpers";
+import {
+  parseSchoolListResponse,
+  parseSchoolResponse,
+  buildSchoolCreateRequest,
+  buildSchoolUpdateRequest,
+} from "../dto/index.js";
 
 export const schoolService = {
   async getSchools() {
-    return apiFetch(`${SEEDS_URL}/school`, {
+    const raw = await apiFetch(`${SEEDS_URL}/school`, {
       method: "GET",
       headers: getAuthHeaders(),
     });
+    return parseSchoolListResponse(raw);
   },
 
   async createSchool(name, email, password) {
-    return apiFetch(`${SEEDS_URL}/school`, {
+    const body = buildSchoolCreateRequest(name, email, password);
+    const raw = await apiFetch(`${SEEDS_URL}/school`, {
       method: "POST",
       headers: getAuthHeaders(),
-      body: JSON.stringify({ name, email, password }),
+      body: JSON.stringify(body),
     });
+    return parseSchoolResponse(raw);
   },
 
   async updateSchool(schoolId, name, email, password) {
-    const body = { name, email };
-    if (password) body.password = password;
-    return apiFetch(`${SEEDS_URL}/school/${schoolId}`, {
+    const body = buildSchoolUpdateRequest(name, email, password);
+    const raw = await apiFetch(`${SEEDS_URL}/school/${schoolId}`, {
       method: "PATCH",
       headers: getAuthHeaders(),
       body: JSON.stringify(body),
     });
+    return parseSchoolResponse(raw);
   },
 
   async deleteSchool(schoolId) {
