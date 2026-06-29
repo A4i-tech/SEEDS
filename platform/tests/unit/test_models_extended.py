@@ -701,6 +701,8 @@ class TestContentJobConsumerDeadLetter:
 
 
 class TestSchoolService:
+    TENANT_ID = "690dbc1b3b41c70deffa2761"  # valid ObjectId hex for test fixture
+
     @pytest.fixture
     def db(self):
         import mongomock_motor
@@ -715,7 +717,7 @@ class TestSchoolService:
         school = await SchoolService(db).create_school(
             name="Test School",
             email="school@test.com",
-            tenant_id="t1",
+            tenant_id=self.TENANT_ID,
             plain_password="secret123",
         )
         assert school.name == "Test School"
@@ -727,10 +729,10 @@ class TestSchoolService:
         from app.services.school_service import SchoolService
 
         svc = SchoolService(db)
-        await svc.create_school(name="Dup School", email="dup@test.com", tenant_id="t1", plain_password="pass")
+        await svc.create_school(name="Dup School", email="dup@test.com", tenant_id=self.TENANT_ID, plain_password="pass")
 
         with pytest.raises(ConflictError):
-            await svc.create_school(name="Dup School", email="dup@test.com", tenant_id="t1", plain_password="pass")
+            await svc.create_school(name="Dup School", email="dup@test.com", tenant_id=self.TENANT_ID, plain_password="pass")
 
     @pytest.mark.asyncio
     async def test_get_school_not_found(self, db) -> None:
@@ -738,7 +740,7 @@ class TestSchoolService:
         from app.services.school_service import SchoolService
 
         with pytest.raises(NotFoundError):
-            await SchoolService(db).get_school("nonexistent123456789012", "tenant-x")
+            await SchoolService(db).get_school("000000000000000000000000", self.TENANT_ID)
 
     @pytest.mark.asyncio
     async def test_create_school_with_password(self, db) -> None:
@@ -747,7 +749,7 @@ class TestSchoolService:
         school = await SchoolService(db).create_school(
             name="Pwd School",
             email="pwd@test.com",
-            tenant_id="t1",
+            tenant_id=self.TENANT_ID,
             plain_password="secret123",
         )
         assert school.name == "Pwd School"

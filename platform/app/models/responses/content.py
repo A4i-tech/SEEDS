@@ -32,6 +32,12 @@ class ContentResponse(BaseModel):
     def to_response(self) -> dict:
         return self.model_dump(by_alias=True, exclude_none=True)
 
+    @classmethod
+    def from_doc(cls, doc: dict) -> dict:
+        return cls.model_validate(doc).model_dump(by_alias=True)
+
 
 class QuizResponse(ContentResponse):
-    pass
+    @classmethod
+    def from_doc(cls, doc: dict) -> dict:
+        return {**cls.model_validate(doc).model_dump(by_alias=True), "type": "quiz"}

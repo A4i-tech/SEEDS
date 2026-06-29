@@ -164,11 +164,14 @@ async def login(
         auth_failures.add(1, {"reason": "wrong_password"})
         raise UnauthorizedError("Invalid email or password")
 
+    # Tenant users are the root of their own tenant scope — their _id IS the
+    # tenantId used in content/school documents, but tenant_id is not stored on
+    # their own user record (they don't reference themselves). Use sub as tenant_id.
     token = create_access_token(
         {
             "sub": str(user.id),
             "role": user.role.value,
-            "tenant_id": user.tenant_id,
+            "tenant_id": user.tenant_id or str(user.id),
             "school_id": user.school_id,
         }
     )
@@ -413,9 +416,17 @@ async def get_tenant_dashboard(
 
     class_count = 0
     classroom_repo = ClassroomRepository(db)
+    school_rows = []
     for school in schools:
-        classes = await classroom_repo.find_by_school(str(school.id))
+        sid = str(school.id)
+        classes = await classroom_repo.find_by_school(sid)
         class_count += len(classes)
+        school_rows.append({
+            **school.model_dump(by_alias=False, exclude_none=True),
+            "teacher_count": sum(1 for u in all_users if str(u.school_id) == sid and u.role == UserRole.TEACHER),
+            "student_count": sum(1 for u in all_users if str(u.school_id) == sid and u.role == UserRole.STUDENT),
+            "class_count": len(classes),
+        })
 
     return {
         "statistics": {
@@ -424,7 +435,7 @@ async def get_tenant_dashboard(
             "totalStudents": student_count,
             "totalClasses": class_count,
         },
-        "schools": [s.model_dump(by_alias=False, exclude_none=True) for s in schools],
+        "schools": school_rows,
     }
 
 

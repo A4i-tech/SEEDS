@@ -15,18 +15,13 @@ SECURITY:
 from __future__ import annotations
 
 import logging
-import time
-import urllib.parse
-from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.models.requests.content_requests import (
-    ContentCreate,
     ContentCreateRequest,
     ContentUpdateRequest,
-    QuizCreate,
     QuizCreateRequest,
 )
 from app.models.responses.content import ContentResponse, QuizResponse
@@ -41,15 +36,19 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/content", tags=["Content"])
 
-# Roles allowed for content operations (mirrors JS authorizeRole calls)
-_WRITE_ROLES = {UserRole.TENANT.value, UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value}
-_READ_ROLES = {
+_WRITE_ROLES = frozenset({UserRole.TENANT.value, UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value})
+_READ_ROLES = frozenset({
     UserRole.TENANT.value,
     UserRole.SCHOOL_ADMIN.value,
     UserRole.TEACHER.value,
     UserRole.CONTENT_CREATOR.value,
-}
-
+})
+_SCHOOL_READ_ROLES = frozenset({
+    UserRole.SCHOOL_ADMIN.value,
+    UserRole.TEACHER.value,
+    UserRole.CONTENT_CREATOR.value,
+})
+_SCHOOL_WRITE_ROLES = frozenset({UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value})
 
 # ---------------------------------------------------------------------------
 # Auth dependency helpers
@@ -73,34 +72,40 @@ async def _require_content_write(
 
 
 # ---------------------------------------------------------------------------
-# School-ID filter helpers (mirrors JS getReadSchoolIdFilter / getWriteSchoolIdFilter)
+# JWT extraction helpers — no query logic here
 # ---------------------------------------------------------------------------
 
 
-def _read_school_filter(user: dict[str, Any]) -> Any | None:
-    """For reads: school-scoped users see their school's content + tenant-wide content."""
-    role = user.get("role")
-    school_id = user.get("school_id")
-    if school_id and role in (
-        UserRole.SCHOOL_ADMIN.value,
-        UserRole.TEACHER.value,
-        UserRole.CONTENT_CREATOR.value,
-    ):
-        return {"$in": [school_id, None]}
-    return None
+def _read_school_id(user: dict[str, Any]) -> str | None:
+    """Return school_id for school-scoped roles; None for tenant (sees all)."""
+    return user.get("school_id") or None if user.get("role") in _SCHOOL_READ_ROLES else None
 
 
-def _write_school_filter(user: dict[str, Any]) -> dict:
-    """Return a schoolId dict for write operations — spread into query/document."""
-    role = user.get("role")
-    school_id: str | None = None
-    if role in (UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value):
-        school_id = user.get("school_id")
-    return {"schoolId": school_id}
+def _write_school_id(user: dict[str, Any]) -> str | None:
+    """Return school_id for write-scoped roles; None for tenant."""
+    return user.get("school_id") or None if user.get("role") in _SCHOOL_WRITE_ROLES else None
+
+
+# Aliases used by existing tests
+def _read_school_filter(user: dict[str, Any]) -> str | None:
+    return _read_school_id(user)
+
+
+def _write_school_filter(user: dict[str, Any]) -> dict[str, str | None]:
+    return {"schoolId": _write_school_id(user)}
 
 
 # ---------------------------------------------------------------------------
-# Blob SAS helper
+# Response serialisation helpers
+# ---------------------------------------------------------------------------
+
+
+def _sort_key(item: dict) -> tuple:
+    return (-item.get("creation_time", 0), str(item.get("_id", "")))
+
+
+# ---------------------------------------------------------------------------
+# Blob SAS helpers
 # ---------------------------------------------------------------------------
 
 
@@ -108,7 +113,8 @@ async def _get_sas_url(url: str) -> str:
     try:
         provider = BlobStorageProvider()
         return await provider.get_sas_url_from_blob_url(url, expiry_hours=1)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
+        logger.error("_get_sas_url failed", extra={"err": str(exc)})
         raise HTTPException(status_code=500, detail=f"Failed to generate SAS URL: {exc}") from exc
 
 
@@ -123,7 +129,6 @@ async def get_job_status(
     user: dict[str, Any] = Depends(_require_content_write),
     service: ContentService = Depends(get_content_service),
 ) -> dict[str, Any]:
-    """Return the status document for a content processing job."""
     doc = await service.get_job(job_id)
     if not doc:
         raise NotFoundError("Job", job_id)
@@ -142,21 +147,17 @@ async def list_jobs(
     user: dict[str, Any] = Depends(_require_content_write),
     service: ContentService = Depends(get_content_service),
 ) -> dict[str, Any]:
-    """Return content jobs that are in-progress or failed."""
     docs = await service.list_active_jobs()
-
-    jobs = []
-    for doc in docs:
-        jobs.append(
-            {
-                "jobId": str(doc.get("_id", "")),
-                "status": "ERROR" if doc.get("status") == "failed" else "IN PROGRESS",
-                "contentId": doc.get("content_id"),
-                "startedAt": doc.get("started_at"),
-                "reason": doc.get("reason"),
-            }
-        )
-
+    jobs = [
+        {
+            "jobId": str(doc.get("_id", "")),
+            "status": "ERROR" if doc.get("status") == "failed" else "IN PROGRESS",
+            "contentId": doc.get("content_id"),
+            "startedAt": doc.get("started_at"),
+            "reason": doc.get("reason"),
+        }
+        for doc in docs
+    ]
     return {"jobs": jobs}
 
 
@@ -170,11 +171,9 @@ async def get_sas_url(
     url: str = Query(..., description="Blob URL to generate SAS token for"),
     user: dict[str, Any] = Depends(_require_content_read),
 ) -> dict[str, Any]:
-    """Return a read-only SAS URL for the given Azure Blob Storage URL."""
     if not url:
         raise HTTPException(status_code=400, detail="URL parameter is required.")
-    sas_url = await _get_sas_url(url)
-    return {"url": sas_url}
+    return {"url": await _get_sas_url(url)}
 
 
 # ---------------------------------------------------------------------------
@@ -187,13 +186,13 @@ async def get_sas_token(
     blob_name: str = Query(..., alias="blobName"),
     user: dict[str, Any] = Depends(_require_content_write),
 ) -> dict[str, Any]:
-    """Return a read-write SAS token URL for direct client upload of an MP3."""
     if not blob_name or not blob_name.lower().endswith(".mp3"):
         raise HTTPException(status_code=400, detail="Only .mp3 files are allowed.")
     try:
         provider = BlobStorageProvider()
         sas_url = await provider.get_upload_sas_url("input-container", blob_name, expiry_hours=1)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
+        logger.error("get_sas_token failed", extra={"blob_name": blob_name, "err": str(exc)})
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return {"sasToken": sas_url}
 
@@ -209,34 +208,21 @@ async def get_themes(
     user: dict[str, Any] = Depends(get_current_user),
     service: ContentService = Depends(get_content_service),
 ) -> list[dict]:
-    """Return distinct themes with audio URLs for the given language + tenant."""
     tenant_id = user.get("tenant_id", "")
-    school_filter = _read_school_filter(user)
+    school_id = _read_school_id(user)
 
-    query: dict = {
-        "tenantId": tenant_id,
-        "language": language,
-        "isPullModel": True,
-        "isDeleted": {"$ne": True},
-    }
-    if school_filter is not None:
-        query["schoolId"] = school_filter
-
-    docs = await service.get_themes(query)
+    docs = await service.get_themes(tenant_id, language, school_id)
 
     seen: set = set()
     themes: list = []
     for doc in docs:
         theme = (doc.get("theme") or {}).get("english", "")
         if theme and theme not in seen:
-            themes.append(
-                {
-                    "name": theme,
-                    "audioUrl": (doc.get("theme") or {}).get("audioUrl", ""),
-                }
-            )
+            themes.append({
+                "name": theme,
+                "audioUrl": (doc.get("theme") or {}).get("audioUrl", ""),
+            })
             seen.add(theme)
-
     return themes
 
 
@@ -257,95 +243,40 @@ async def list_content(
     user: dict[str, Any] = Depends(_require_content_read),
     service: ContentService = Depends(get_content_service),
 ) -> Any:
-    """Return paginated content items, optionally filtered by language/theme/type."""
     tenant_id = user.get("tenant_id", "")
-    school_filter = _read_school_filter(user)
-
-    base_query: dict = {"isDeleted": {"$ne": True}, "tenantId": tenant_id}
-    if school_filter is not None:
-        base_query["schoolId"] = school_filter
+    school_id = _read_school_id(user)
 
     # Fetch by specific IDs
     if ids is not None:
-        if len(ids) == 0:
-            raise HTTPException(
-                status_code=400, detail="ids query parameter must be a non-empty array"
-            )
-        id_query = {**base_query, "_id": {"$in": ids}}
-        contents = await service.fetch_contents(id_query)
-        quizzes = await service.fetch_quizzes(id_query)
-        all_items = sorted(
-            [ContentResponse.model_validate(d).model_dump(by_alias=True) for d in contents]
-            + [
-                {**QuizResponse.model_validate(d).model_dump(by_alias=True), "type": "quiz"}
-                for d in quizzes
-            ],
-            key=lambda x: (-x.get("creation_time", 0), str(x.get("_id", ""))),
+        if not ids:
+            raise HTTPException(status_code=400, detail="ids must be a non-empty array")
+        contents, quizzes = await service.list_content_by_ids(ids, tenant_id, school_id)
+        return sorted(
+            [ContentResponse.from_doc(d) for d in contents] + [QuizResponse.from_doc(d) for d in quizzes],
+            key=_sort_key,
         )
-        return all_items
 
-    content_query = {**base_query}
-    quiz_query = {**base_query}
-    fetch_content = True
-    fetch_quizzes = True
-
-    if only_teacher_app:
-        content_query["isTeacherApp"] = True
-        quiz_query["isTeacherApp"] = True
-    elif language and theme and exp_name:
-        decoded_theme = urllib.parse.unquote(theme)
-        if exp_name.lower() == "quiz":
-            fetch_content = False
-            quiz_query.update(
-                {"isPullModel": True, "language": language, "theme.english": decoded_theme}
-            )
-        else:
-            fetch_quizzes = False
-            content_query.update(
-                {
-                    "isPullModel": True,
-                    "language": language,
-                    "theme.english": decoded_theme,
-                    "type": exp_name.lower(),
-                }
-            )
-
-    # Cursor-based pagination
-    if cursor:
-        parts = cursor.split("_", 1)
-        if len(parts) == 2:
-            try:
-                last_ct = int(parts[0])
-                cursor_filter = {"creation_time": {"$lte": last_ct}}
-                if fetch_content:
-                    content_query = {**content_query, **cursor_filter}
-                if fetch_quizzes:
-                    quiz_query = {**quiz_query, **cursor_filter}
-            except ValueError:
-                pass
-
-    # Fetch limit+1 per collection to bound memory; Python sort only needed for
-    # the combined content+quiz case (cross-collection ordering).
-    fetch_limit = limit + 1
-    contents = (
-        await service.fetch_contents(content_query, limit=fetch_limit) if fetch_content else []
+    contents, quizzes = await service.list_content(
+        tenant_id=tenant_id,
+        school_id=school_id,
+        language=language,
+        theme=theme,
+        exp_name=exp_name,
+        only_teacher_app=bool(only_teacher_app),
+        cursor=cursor,
+        limit=limit,
     )
-    quizzes = await service.fetch_quizzes(quiz_query, limit=fetch_limit) if fetch_quizzes else []
 
     all_results = sorted(
-        [ContentResponse.model_validate(d).model_dump(by_alias=True) for d in contents]
-        + [
-            {**QuizResponse.model_validate(d).model_dump(by_alias=True), "type": "quiz"}
-            for d in quizzes
-        ],
-        key=lambda x: (-x.get("creation_time", 0), str(x.get("_id", ""))),
+        [ContentResponse.from_doc(d) for d in contents] + [QuizResponse.from_doc(d) for d in quizzes],
+        key=_sort_key,
     )
 
     has_more = len(all_results) > limit
     data = all_results[:limit]
-    last_item = data[-1] if data else None
+    last = data[-1] if data else None
     next_cursor = (
-        f"{last_item['creation_time']}_{last_item['_id']}" if has_more and last_item else None
+        f"{last['creation_time']}_{last['_id']}" if has_more and last else None
     )
 
     return {
@@ -365,31 +296,19 @@ async def get_content(
     user: dict[str, Any] = Depends(_require_content_read),
     service: ContentService = Depends(get_content_service),
 ) -> Any:
-    """Return a content item by ID, scoped to the authenticated tenant."""
     tenant_id = user.get("tenant_id", "")
-    school_filter = _read_school_filter(user)
+    school_id = _read_school_id(user)
 
-    query: dict = {
-        "_id": content_id,
-        "tenantId": tenant_id,
-        "isDeleted": {"$ne": True},
-    }
-    if school_filter is not None:
-        query["schoolId"] = school_filter
-
-    doc = await service.get_content_doc(query)
+    doc, quiz = await service.get_content_by_id(content_id, tenant_id, school_id)
     if doc:
-        return ContentResponse.model_validate(doc).model_dump(by_alias=True)
-
-    quiz = await service.get_quiz_doc(query)
+        return ContentResponse.from_doc(doc)
     if quiz:
-        return {**QuizResponse.model_validate(quiz).model_dump(by_alias=True), "type": "quiz"}
-
+        return QuizResponse.from_doc(quiz)
     raise NotFoundError("Content", content_id)
 
 
 # ---------------------------------------------------------------------------
-# POST /content — create + trigger job
+# POST /content
 # ---------------------------------------------------------------------------
 
 
@@ -399,50 +318,26 @@ async def create_content(
     user: dict[str, Any] = Depends(_require_content_write),
     service: ContentService = Depends(get_content_service),
 ) -> JobScheduledResponse:
-    """Create a new content document and enqueue a processing job.
-
-    Returns ``{"message": "...", "jobId": "..."}``.
-    """
     tenant_id = user.get("tenant_id", "")
     user_id = user.get("sub", "")
+    school_id = _write_school_id(user)
 
-    for item in body.audioContent or []:
-        au = item.get("audioUrl", "")
-        if au and not au.lower().endswith(".mp3"):
-            raise HTTPException(status_code=400, detail="Only .mp3 audio files are allowed.")
-
-    now_ts = int(time.time())
     body_dict = body.model_dump(by_alias=True, exclude_unset=True)
-    school_filter = _write_school_filter(user)
-    content_create = ContentCreate(
-        type=body.type,
-        language=body.language,
-        title=body.title,
-        theme=body.theme,
-        audioContent=body.audioContent or [],
-        description=body.description or "",
-        isPullModel=body.isPullModel or False,
-        isTeacherApp=body.isTeacherApp or False,
-        tenantId=tenant_id,
-        createdBy=user_id,
-        creation_time=now_ts,
-        schoolId=school_filter.get("schoolId"),
-        isDeleted=False,
-        isProcessed=False,
-    )
-    doc = content_create.model_dump()
-    if "_id" in body_dict:
-        doc["_id"] = body_dict["_id"]
+    override_id = body_dict.get("_id")
 
-    content_id = await service.insert_content(doc)
+    try:
+        content_id = await service.create_content(body, tenant_id, user_id, school_id, override_id)
+    except ValueError as exc:
+        logger.error("create_content failed", extra={"tenant_id": tenant_id, "user_id": user_id, "err": str(exc)})
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     job_id = await service.enqueue_content_job(content_id)
-
     logger.info("content_controller: created content_id=%s job_id=%s", content_id, job_id)
     return JobScheduledResponse(message="Processing New Content job scheduled!", jobId=job_id)
 
 
 # ---------------------------------------------------------------------------
-# PATCH /content — update + optionally re-trigger job
+# PATCH /content
 # ---------------------------------------------------------------------------
 
 
@@ -453,46 +348,24 @@ async def update_content(
     user: dict[str, Any] = Depends(_require_content_write),
     service: ContentService = Depends(get_content_service),
 ) -> Any:
-    """Update a content item. Re-triggers processing job if isAudioUploaded=true."""
     tenant_id = user.get("tenant_id", "")
-    content_id = body.id
+    school_id = _write_school_id(user)
 
-    write_filter: dict = {
-        "_id": content_id,
-        "tenantId": tenant_id,
-        "isDeleted": {"$ne": True},
-        **_write_school_filter(user),
-    }
-
-    allowed = {"title", "theme", "description", "type", "language", "isPullModel", "isTeacherApp"}
-    body_dict = body.model_dump(by_alias=True, exclude_unset=True)
-    update: dict = {k: v for k, v in body_dict.items() if k in allowed}
-
-    if is_audio_uploaded:
-        if "audioContent" in body.model_fields_set:
-            for item in body.audioContent or []:
-                au = item.get("audioUrl", "")
-                if au and not au.lower().endswith(".mp3"):
-                    raise HTTPException(
-                        status_code=400, detail="Only .mp3 audio files are allowed."
-                    )
-            update["audioContent"] = body.audioContent
-        update["isProcessed"] = False
-
-    update["updatedAt"] = datetime.now(UTC)
-
-    result = await service.update_content_doc(write_filter, update)
+    try:
+        result = await service.update_content(body, tenant_id, school_id, is_audio_uploaded)
+    except ValueError as exc:
+        logger.error("update_content failed", extra={"tenant_id": tenant_id, "content_id": str(body.id), "err": str(exc)})
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     if result:
         if is_audio_uploaded:
-            content_id_str = str(result.get("_id", ""))
-            job_id = await service.enqueue_content_job(content_id_str)
-            out = ContentResponse.model_validate(result).model_dump(by_alias=True)
+            job_id = await service.enqueue_content_job(str(result.get("_id", "")))
+            out = ContentResponse.from_doc(result)
             out["jobId"] = job_id
             return out
-        return ContentResponse.model_validate(result).model_dump(by_alias=True)
+        return ContentResponse.from_doc(result)
 
-    raise NotFoundError("Content", str(content_id))
+    raise NotFoundError("Content", str(body.id))
 
 
 # ---------------------------------------------------------------------------
@@ -506,27 +379,17 @@ async def delete_content(
     user: dict[str, Any] = Depends(_require_content_write),
     service: ContentService = Depends(get_content_service),
 ) -> DeleteMatchedResponse:
-    """Soft-delete a content item (sets isDeleted=true)."""
     tenant_id = user.get("tenant_id", "")
-    write_filter: dict = {
-        "_id": content_id,
-        "tenantId": tenant_id,
-        **_write_school_filter(user),
-    }
+    school_id = _write_school_id(user)
 
-    matched = await service.soft_delete_content(write_filter)
-    if matched > 0:
+    matched = await service.delete_content(content_id, tenant_id, school_id)
+    if matched:
         return {"matched": matched}
-
-    quiz_matched = await service.soft_delete_quiz(write_filter)
-    if quiz_matched > 0:
-        return {"matched": quiz_matched}
-
     raise NotFoundError("Content", content_id)
 
 
 # ---------------------------------------------------------------------------
-# POST /content/quiz — create quiz + trigger job
+# POST /content/quiz
 # ---------------------------------------------------------------------------
 
 
@@ -536,36 +399,13 @@ async def create_quiz(
     user: dict[str, Any] = Depends(_require_content_write),
     service: ContentService = Depends(get_content_service),
 ) -> JobScheduledResponse:
-    """Create a new quiz document and enqueue a processing job."""
     tenant_id = user.get("tenant_id", "")
     user_id = user.get("sub", "")
+    school_id = _write_school_id(user)
 
-    now_ts = int(time.time())
     body_dict = body.model_dump(by_alias=True, exclude_unset=True)
-    school_filter = _write_school_filter(user)
-    quiz_create = QuizCreate(
-        type=body.type,
-        language=body.language,
-        title=body_dict.get("title") or "",
-        localTitle=body_dict.get("localTitle") or "",
-        theme=body_dict.get("theme") or "",
-        localTheme=body_dict.get("localTheme") or "",
-        positiveMarks=body.positiveMarks or 1.0,
-        negativeMarks=body.negativeMarks or 0.0,
-        questions=body.questions or [],
-        options=body.options or [],
-        correctAnswers=body.correctAnswers or [],
-        tenantId=tenant_id,
-        createdBy=user_id,
-        creation_time=now_ts,
-        schoolId=school_filter.get("schoolId"),
-        isDeleted=False,
-    )
-    doc = quiz_create.model_dump()
-    if "id" in body_dict:
-        doc["_id"] = body_dict["id"]
+    override_id = body_dict.get("id")
 
-    quiz_id = await service.insert_quiz(doc)
+    quiz_id = await service.create_quiz(body, tenant_id, user_id, school_id, override_id)
     job_id = await service.enqueue_content_job(quiz_id)
-
     return JobScheduledResponse(message="Processing New Content job scheduled!", jobId=job_id)

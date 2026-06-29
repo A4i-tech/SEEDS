@@ -179,9 +179,11 @@ class TestCallControllerExtra:
     async def test_get_access_token_with_valid_auth(self, client, mock_db):
         teacher = await _seed_teacher(mock_db)
         token = _teacher_token(teacher["_id"])
-        resp = await client.get("/call/accessToken", headers={"Authorization": f"Bearer {token}"})
-        # May return 200 with token or 503 if service not configured
-        assert resp.status_code in (200, 503, 500)
+        with patch("app.controllers.call_controller.get_settings") as mock_settings:
+            mock_settings.return_value.ivr_server_url = None
+            resp = await client.get("/call/accessToken", headers={"Authorization": f"Bearer {token}"})
+        # IVR not configured — just check auth passes
+        assert resp.status_code in (200, 503)
 
     @pytest.mark.asyncio
     async def test_start_call_requires_auth(self, client, mock_db):

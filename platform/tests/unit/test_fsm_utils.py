@@ -245,6 +245,9 @@ class TestRedisConferenceStore:
 
 
 class TestSchoolServiceExtended:
+    TENANT_ID_A = "690dbc1b3b41c70deffa2761"  # valid ObjectId hex
+    TENANT_ID_B = "690dbc1b3b41c70deffa2762"
+
     @pytest.fixture
     def db(self):
         import mongomock_motor
@@ -257,11 +260,11 @@ class TestSchoolServiceExtended:
         from app.services.school_service import SchoolService
 
         svc = SchoolService(db)
-        await svc.create_school(name="School A", email="a@school.com", tenant_id="t1", plain_password="p")
-        await svc.create_school(name="School B", email="b@school.com", tenant_id="t1", plain_password="p")
-        await svc.create_school(name="School C", email="c@school.com", tenant_id="t2", plain_password="p")
+        await svc.create_school(name="School A", email="a@school.com", tenant_id=self.TENANT_ID_A, plain_password="p")
+        await svc.create_school(name="School B", email="b@school.com", tenant_id=self.TENANT_ID_A, plain_password="p")
+        await svc.create_school(name="School C", email="c@school.com", tenant_id=self.TENANT_ID_B, plain_password="p")
 
-        schools = await svc.list_schools_by_tenant("t1")
+        schools = await svc.list_schools_by_tenant(self.TENANT_ID_A)
         assert len(schools) == 2
         names = {s.name for s in schools}
         assert "School A" in names

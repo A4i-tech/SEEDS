@@ -140,8 +140,8 @@ class SchoolService:
 
         Raises NotFoundError if not found. Raises ValidationError if still has members.
         """
-        school = await self._repo.find_by_id(school_id)
-        if school is None or school.tenant_id != tenant_id:
+        school = await self._repo.find_by_id_and_tenant(school_id, tenant_id)
+        if school is None:
             raise NotFoundError("School", school_id)
 
         if await self._user_repo.count_by_school_and_role(school_id, "teacher") > 0:
@@ -153,8 +153,8 @@ class SchoolService:
 
     async def get_school_dashboard(self, school_id: str, tenant_id: str) -> dict[str, Any]:
         """Return summary counts for a school's dashboard."""
-        school = await self._repo.find_by_id(school_id)
-        if school is None or school.tenant_id != tenant_id:
+        school = await self._repo.find_by_id_and_tenant(school_id, tenant_id)
+        if school is None:
             raise NotFoundError("School", school_id)
 
         teacher_count = await self._user_repo.count_by_school_and_role(school_id, "teacher")
