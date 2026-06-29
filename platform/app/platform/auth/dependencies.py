@@ -64,6 +64,10 @@ async def get_current_user(
     settings = get_settings()
     auth_failures = get_counter("auth.failures")
 
+    # EventSource (SSE) cannot send headers — accept token from query param as fallback
+    if not token:
+        token = request.query_params.get("token")
+
     if not token:
         _log_auth_failure(request, "missing_token")
         auth_failures.add(1, {"reason": "missing_token"})

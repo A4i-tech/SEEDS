@@ -416,9 +416,17 @@ async def get_tenant_dashboard(
 
     class_count = 0
     classroom_repo = ClassroomRepository(db)
+    school_rows = []
     for school in schools:
-        classes = await classroom_repo.find_by_school(str(school.id))
+        sid = str(school.id)
+        classes = await classroom_repo.find_by_school(sid)
         class_count += len(classes)
+        school_rows.append({
+            **school.model_dump(by_alias=False, exclude_none=True),
+            "teacher_count": sum(1 for u in all_users if str(u.school_id) == sid and u.role == UserRole.TEACHER),
+            "student_count": sum(1 for u in all_users if str(u.school_id) == sid and u.role == UserRole.STUDENT),
+            "class_count": len(classes),
+        })
 
     return {
         "statistics": {
@@ -427,7 +435,7 @@ async def get_tenant_dashboard(
             "totalStudents": student_count,
             "totalClasses": class_count,
         },
-        "schools": [s.model_dump(by_alias=False, exclude_none=True) for s in schools],
+        "schools": school_rows,
     }
 
 
