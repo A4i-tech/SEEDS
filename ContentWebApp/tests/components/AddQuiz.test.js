@@ -73,28 +73,12 @@ describe("AddQuiz", () => {
       language: "en",
       positiveMarks: 2,
       negativeMarks: 1,
-      questions: [
-        {
-          question: { text: "Q1?" },
-          options: [
-            { id: "opt1", text: "A1" },
-            { id: "opt2", text: "B1" },
-            { id: "opt3", text: "C1" },
-            { id: "opt4", text: "D1" },
-          ],
-          correct_option_id: "opt1",
-        },
-        {
-          question: { text: "Q2?" },
-          options: [
-            { id: "opt5", text: "A2" },
-            { id: "opt6", text: "B2" },
-            { id: "opt7", text: "C2" },
-            { id: "opt8", text: "D2" },
-          ],
-          correct_option_id: "opt5",
-        },
+      questions: ["Q1?", "Q2?"],
+      options: [
+        ["A1", "B1", "C1", "D1"],
+        ["A2", "B2", "C2", "D2"],
       ],
+      correctAnswers: [0, 0],
       id: "quiz-1",
     };
     render(
