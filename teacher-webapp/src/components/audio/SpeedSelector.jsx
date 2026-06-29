@@ -6,13 +6,7 @@ const SPEED_OPTIONS = [0.75, 1.0, 1.25, 1.5, 2.0];
 /**
  * SpeedSelector - reusable playback speed control
  */
-const SpeedSelector = ({
-  value,
-  onChange,
-  disabled = false,
-  variant = "dark",
-  size = "small",
-}) => {
+const SpeedSelector = ({ value, onChange, disabled = false, variant = "dark", size = "small" }) => {
   const isLight = variant === "light";
 
   return (

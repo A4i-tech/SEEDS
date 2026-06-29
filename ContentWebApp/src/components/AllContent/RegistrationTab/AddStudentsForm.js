@@ -19,20 +19,20 @@ const AddStudentsForm = ({
           <input
             placeholder="Name"
             value={student.name}
-            onChange={(e) => onSetNewStudentValue(teacher._id, index, "name", e.target.value)}
+            onChange={(e) => onSetNewStudentValue(teacher.id, index, "name", e.target.value)}
             className="add-students-input"
           />
           <PhoneNumberInput
             placeholder="Phone number"
             value={student.phoneNumber}
             onChange={(value) =>
-              onSetNewStudentValue(teacher._id, index, "phoneNumber", value)
+              onSetNewStudentValue(teacher.id, index, "phoneNumber", value)
             }
             className="add-students-input"
           />
           <button
             type="button"
-            onClick={() => onRemoveStudentRow(teacher._id, index)}
+            onClick={() => onRemoveStudentRow(teacher.id, index)}
             className="action-ghost-button"
           >
             Remove
@@ -43,7 +43,7 @@ const AddStudentsForm = ({
       <div className="add-students-buttons">
         <button
           type="button"
-          onClick={() => onAddStudentRow(teacher._id)}
+          onClick={() => onAddStudentRow(teacher.id)}
           className="secondary-button"
         >
           + Add another student

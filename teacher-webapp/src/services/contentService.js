@@ -1,5 +1,6 @@
 import { API_ENDPOINTS } from "../constants/apiEndpoints";
 import axiosInstance from "./axiosInstance";
+import { parseContentResponse, parseSasUrlResponse } from "../dto/content.dto.js";
 
 /**
  * Build query string from parameters object
@@ -34,15 +35,7 @@ const buildQueryString = (params) => {
  * @throws {Error} If API call fails
  */
 export const getContent = async (options = {}) => {
-  const {
-    language,
-    theme,
-    expName,
-    onlyTeacherApp,
-    ids,
-    limit = 15,
-    cursor,
-  } = options;
+  const { language, theme, expName, onlyTeacherApp, ids, limit = 15, cursor } = options;
 
   const params = {};
 
@@ -62,6 +55,16 @@ export const getContent = async (options = {}) => {
     : API_ENDPOINTS.GET_CONTENT;
 
   const response = await axiosInstance.get(url);
+  // response.data may be a paginated envelope { data: [...], ... } or a plain array
+  if (Array.isArray(response.data)) {
+    return response.data.map(parseContentResponse);
+  }
+  if (Array.isArray(response.data?.data)) {
+    return {
+      ...response.data,
+      data: response.data.data.map(parseContentResponse),
+    };
+  }
   return response.data;
 };
 
@@ -81,14 +84,14 @@ export const getContentSasUrl = async (audioUrl) => {
   const url = `${API_ENDPOINTS.GET_CONTENT_SAS_URL}?${queryString}`;
 
   const response = await axiosInstance.get(url);
-  return response.data.url;
+  return parseSasUrlResponse(response.data).url;
 };
 
 /**
  * Fetch a single content item by ID
  *
- * @param {string} contentId - The content ID (_id)
- * @returns {Promise<Object>} Content object
+ * @param {string} contentId - The content id
+ * @returns {Promise<import('../dto/content.dto.js').ContentResponse>} Content object
  * @throws {Error} If API call fails
  */
 export const getContentById = async (contentId) => {
@@ -97,5 +100,5 @@ export const getContentById = async (contentId) => {
   }
 
   const response = await axiosInstance.get(`${API_ENDPOINTS.GET_CONTENT}/${contentId}`);
-  return response.data;
+  return parseContentResponse(response.data);
 };

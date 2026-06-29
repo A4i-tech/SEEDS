@@ -1,51 +1,62 @@
 import { SEEDS_URL } from "../Constants";
 import { apiFetch } from "./api";
+import {
+  parseUserPublicResponse,
+  parseTeacherTransferResponse,
+  buildStudentCreateRequest,
+  buildStudentUpdateRequest,
+  buildTeacherUpdateRequest,
+  buildTeacherRegisterRequest,
+  buildTeacherTransferRequest,
+} from "../dto/index.js";
 
 export const teacherService = {
   async getTeachers(headers = {}, signal = null) {
-    const response = await apiFetch(`${SEEDS_URL}/school/teachers`, {
+    const raw = await apiFetch(`${SEEDS_URL}/school/teachers`, {
       method: "GET",
       headers,
       signal,
     });
 
-    return response.data || response || [];
+    if (!Array.isArray(raw.data)) throw new Error("getTeachers: expected array");
+    return raw.data.map(parseUserPublicResponse);
   },
 
-  async registerTeacher(phoneNumber, password, name, role, headers = {}) {
+  async registerTeacher(phone_number, password, name, role, headers = {}) {
+    const body = buildTeacherRegisterRequest(phone_number, name, password, role);
     return await apiFetch(`${SEEDS_URL}/teacher/register`, {
       method: "POST",
       headers,
-      body: JSON.stringify({
-        phoneNumber,
-        password,
-        name,
-        role,
-      }),
+      body: JSON.stringify(body),
     });
   },
 
   async getStudents(headers = {}, signal = null) {
-    return apiFetch(`${SEEDS_URL}/student`, {
+    const raw = await apiFetch(`${SEEDS_URL}/student`, {
       method: "GET",
       headers,
       signal,
     });
+
+    if (!Array.isArray(raw.data)) throw new Error("getStudents: expected array");
+    return raw.data.map(parseUserPublicResponse);
   },
 
-  async createStudent(name, phoneNumber, headers = {}) {
+  async createStudent(name, phone_number, headers = {}) {
+    const body = buildStudentCreateRequest(name, phone_number);
     return apiFetch(`${SEEDS_URL}/student`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ name, phoneNumber }),
+      body: JSON.stringify(body),
     });
   },
 
-  async updateStudentById(studentId, name, phoneNumber, headers = {}) {
+  async updateStudentById(studentId, name, phone_number, headers = {}) {
+    const body = buildStudentUpdateRequest(name, phone_number);
     return apiFetch(`${SEEDS_URL}/student/${studentId}`, {
       method: "PATCH",
       headers,
-      body: JSON.stringify({ name, phoneNumber }),
+      body: JSON.stringify(body),
     });
   },
 
@@ -56,15 +67,8 @@ export const teacherService = {
     });
   },
 
-  async updateTeacher(teacherId, name, phoneNumber, password, headers = {}) {
-    const body = {
-      name: (name || "").trim(),
-      phoneNumber: (phoneNumber || "").trim(),
-    };
-
-    if (password) {
-      body.password = password;
-    }
+  async updateTeacher(teacherId, name, phone_number, password, headers = {}) {
+    const body = buildTeacherUpdateRequest(name.trim(), phone_number.trim(), password);
 
     return await apiFetch(`${SEEDS_URL}/teacher/${teacherId}`, {
       method: "PATCH",
@@ -81,10 +85,12 @@ export const teacherService = {
   },
 
   async transferTeacher(teacherId, targetSchoolId, headers = {}) {
-    return await apiFetch(`${SEEDS_URL}/school/transfer`, {
+    const body = buildTeacherTransferRequest(teacherId, targetSchoolId);
+    const raw = await apiFetch(`${SEEDS_URL}/school/transfer`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ teacherId, targetSchoolId }),
+      body: JSON.stringify(body),
     });
+    return parseTeacherTransferResponse(raw);
   },
 };

@@ -49,8 +49,9 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
     getAllParticipants,
   } = useConference();
 
-  const { status: connectivityStatus, prevStatus: prevConnectivityStatus } =
-    useConnectivity({ isSessionActive: isConfCallRunning });
+  const { status: connectivityStatus, prevStatus: prevConnectivityStatus } = useConnectivity({
+    isSessionActive: isConfCallRunning,
+  });
 
   const [loadingIds, setLoadingIds] = useState([]);
   const [reconnectingIds, setReconnectingIds] = useState([]);
@@ -387,10 +388,7 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
 
   return (
     <PageContainer maxWidth="md">
-      <ConnectionBanner
-        status={connectivityStatus}
-        prevStatus={prevConnectivityStatus}
-      />
+      <ConnectionBanner status={connectivityStatus} prevStatus={prevConnectivityStatus} />
       <Box
         sx={{
           bgcolor: "#f5f5f5",

@@ -94,14 +94,14 @@ export const useTeachers = (activeTab) => {
   const updateTeacherState = useCallback((id, patch) => {
     setTeachers((prev) =>
       prev.map((teacher) =>
-        String(teacher._id) === String(id) ? { ...teacher, ...patch } : teacher
+        String(teacher.id) === String(id) ? { ...teacher, ...patch } : teacher
       )
     );
   }, []);
 
   const isTeacherSubmitting = useCallback(
     (teacherId) =>
-      teachers.some((teacher) => String(teacher._id) === String(teacherId) && Boolean(teacher.submitting)),
+      teachers.some((teacher) => String(teacher.id) === String(teacherId) && Boolean(teacher.submitting)),
     [teachers]
   );
 
@@ -136,7 +136,7 @@ export const useTeachers = (activeTab) => {
 
         setTeachers((prev) =>
           prev.map((teacher) =>
-            String(teacher._id) === String(teacherId) ? { ...teacher, ...updated } : teacher
+            String(teacher.id) === String(teacherId) ? { ...teacher, ...updated } : teacher
           )
         );
 
@@ -164,7 +164,7 @@ export const useTeachers = (activeTab) => {
 
       try {
         await teacherService.deleteTeacher(teacherId, getAuthHeaders());
-        setTeachers((prev) => prev.filter((teacher) => String(teacher._id) !== String(teacherId)));
+        setTeachers((prev) => prev.filter((teacher) => String(teacher.id) !== String(teacherId)));
         flashMessage("Teacher deleted successfully.", "success");
       } catch (error) {
         flashMessage(error.message || "Failed to delete teacher.", "error");
@@ -190,7 +190,7 @@ export const useTeachers = (activeTab) => {
 
       try {
         await teacherService.transferTeacher(teacherId, targetSchoolId, getAuthHeaders());
-        setTeachers((prev) => prev.filter((teacher) => String(teacher._id) !== String(teacherId)));
+        setTeachers((prev) => prev.filter((teacher) => String(teacher.id) !== String(teacherId)));
         flashMessage("Teacher transferred successfully.", "success");
         return true;
       } catch (error) {
@@ -237,7 +237,7 @@ export const useTeachers = (activeTab) => {
         );
         setStudents((prev) =>
           prev.map((student) =>
-            String(student._id) === String(studentId) ? updated : student
+            String(student.id) === String(studentId) ? updated : student
           )
         );
         flashMessage("Student updated successfully.", "success");
@@ -255,7 +255,7 @@ export const useTeachers = (activeTab) => {
       try {
         await teacherService.deleteStudentById(studentId, getAuthHeaders());
         setStudents((prev) =>
-          prev.filter((student) => String(student._id) !== String(studentId))
+          prev.filter((student) => String(student.id) !== String(studentId))
         );
         flashMessage("Student deleted successfully.", "success");
       } catch (error) {

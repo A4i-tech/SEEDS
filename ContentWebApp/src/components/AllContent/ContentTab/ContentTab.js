@@ -70,7 +70,7 @@ const ContentTab = ({
         onDelete={onDelete}
       />
 
-      {!isFiltered && paginationInfo.hasMore && (
+      {!isFiltered && paginationInfo.has_more && (
         <div className="load-more-wrapper">
           <button
             type="button"

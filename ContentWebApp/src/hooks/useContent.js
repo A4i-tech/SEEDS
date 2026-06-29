@@ -7,8 +7,8 @@ export const useContent = () => {
   const [content, setContent] = useState([]);
   const [allContent, setAllContent] = useState([]);
   const [paginationInfo, setPaginationInfo] = useState({
-    nextCursor: null,
-    hasMore: false,
+    next_cursor: null,
+    has_more: false,
     limit: 0,
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -37,9 +37,9 @@ export const useContent = () => {
         setAllContent(data);
         setContent(data);
         setPaginationInfo({
-          nextCursor: pagination?.nextCursor || null,
-          hasMore: !!pagination?.hasMore,
-          limit: pagination?.limit || 0,
+          nextCursor: pagination.next_cursor,
+          hasMore: pagination.has_more,
+          limit: pagination.limit,
         });
         setIsFiltered(false);
       } catch (error) {
@@ -60,7 +60,7 @@ export const useContent = () => {
    * Load more content (pagination)
    */
   const loadMore = useCallback(async () => {
-    if (!paginationInfo.hasMore || !paginationInfo.nextCursor || isLoading) {
+    if (!paginationInfo.has_more || !paginationInfo.next_cursor || isLoading) {
       return;
     }
 
@@ -68,7 +68,7 @@ export const useContent = () => {
     const ac = new AbortController();
 
     try {
-      const { data, pagination } = await fetchContent(paginationInfo.nextCursor, ac.signal);
+      const { data, pagination } = await fetchContent(paginationInfo.next_cursor, ac.signal);
 
       if (!data.length) {
         setPaginationInfo((prev) => ({
@@ -94,9 +94,9 @@ export const useContent = () => {
       });
 
       setPaginationInfo({
-        nextCursor: pagination?.nextCursor || null,
-        hasMore: !!pagination?.hasMore,
-        limit: pagination?.limit || paginationInfo.limit,
+        nextCursor: pagination.next_cursor,
+        hasMore: pagination.has_more,
+        limit: pagination.limit,
       });
     } catch (error) {
       if (error.name !== "AbortError") {
@@ -128,15 +128,7 @@ export const useContent = () => {
         alert(`${contentType.charAt(0).toUpperCase() + contentType.slice(1)} deleted successfully.`);
       } catch (error) {
         console.error("Error deleting content:", error);
-        let errorMessage = error.response?.data?.error || error.message || "Failed to delete content";
-        try {
-          const parsed = JSON.parse(errorMessage);
-          errorMessage = parsed?.error || parsed?.message || errorMessage;
-        } catch (_) {}
-        if (errorMessage === "Content not found" || errorMessage === "Unauthorized") {
-          errorMessage = "You do not have permission to delete this item.";
-        }
-        alert(`Error deleting ${contentType}: ${errorMessage}`);
+        alert(`Error deleting ${contentType}: ${error.message}`);
       }
     },
     []

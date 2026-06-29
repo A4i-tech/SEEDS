@@ -8,12 +8,12 @@ const StoryDetails = ({ type, story }) => {
   const [answerAudioSrc, setAnswerAudioSrc] = useState("");
 
   const storyId = story.id;
-  const titleEnglish = story.title?.english ?? story.title;
-  const titleLocal = story.title?.local ?? story.localTitle;
-  const themeEnglish = story.theme?.english ?? story.theme;
-  const themeLocal = story.theme?.local ?? story.localTheme;
-  const isProcessed = story.isProcessed ?? Boolean(story.audioContent?.length);
-  const primaryAudio = story.audioContent?.[0]?.audioUrl;
+  const titleEnglish = story.title.english;
+  const titleLocal = story.title.local;
+  const themeEnglish = story.theme.english;
+  const themeLocal = story.theme.local;
+  const isProcessed = story.is_processed !== false && story.audio_content.length > 0;
+  const primaryAudio = story.audio_content[0].audio_url;
 
   useEffect(() => {
     const fetchSASUrl = async (url) => {
@@ -63,8 +63,8 @@ const StoryDetails = ({ type, story }) => {
         <div style={{ paddingBottom: "30px" }}>
           <div>Uploaded on</div>
           <div />
-          {story.isPullModel && <h4>IVR</h4>}
-          {story.isTeacherApp && <h4>Teacher App</h4>}
+          {story.is_pull_model && <h4>IVR</h4>}
+          {story.is_teacher_app && <h4>Teacher App</h4>}
         </div>
       </div>
       {story.description && (
@@ -83,9 +83,9 @@ const StoryDetails = ({ type, story }) => {
       {isProcessed && (
         <div style={{ paddingBottom: "30px" }}>
           Audio: <br /> <audio controls src={audioSrc} />
-          {story.audioContent?.[0]?.description && (
+          {story.audio_content[0].description && (
             <div className="table-cell-secondary" style={{ marginTop: "8px" }}>
-              {story.audioContent[0].description}
+              {story.audio_content[0].description}
             </div>
           )}
         </div>

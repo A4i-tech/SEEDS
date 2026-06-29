@@ -20,12 +20,12 @@ const StudentsTable = ({ students = [], onEditStudent, onRemoveStudent }) => {
             </tr>
           ) : (
             students.map((student) => (
-              <tr key={student._id}>
+              <tr key={student.id}>
                 <td>{student.name}</td>
                 <td>{student.phoneNumber}</td>
                 <td>
                   <button type="button" className="action-ghost-button" onClick={() => onEditStudent(student)}>Edit</button>
-                  <button type="button" className="action-ghost-button" onClick={() => onRemoveStudent(student._id)}>Remove</button>
+                  <button type="button" className="action-ghost-button" onClick={() => onRemoveStudent(student.id)}>Remove</button>
                 </td>
               </tr>
             ))

@@ -1,10 +1,5 @@
 import React from "react";
-import {
-  Box,
-  Paper,
-  InputBase,
-  Chip,
-} from "@mui/material";
+import { Box, Paper, InputBase, Chip } from "@mui/material";
 import {
   Search as SearchIcon,
   MusicNote as MusicNoteIcon,

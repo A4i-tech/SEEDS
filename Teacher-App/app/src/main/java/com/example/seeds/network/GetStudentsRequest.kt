@@ -1,8 +1,11 @@
 package com.example.seeds.network
 
-import se.ansman.kotshi.JsonSerializable 
+import com.squareup.moshi.Json
+import com.squareup.moshi.JsonClass
+import se.ansman.kotshi.JsonSerializable
 
-@JsonSerializable 
+@JsonSerializable
+@JsonClass(generateAdapter = true)
 data class GetStudentsRequest(
-    val phoneNumber: String
+    @Json(name = "phone_number") val phoneNumber: String
 )

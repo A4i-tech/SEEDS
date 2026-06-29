@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { SEEDS_URL } from "../Constants";
 import { getAuthHeaders, isAuthenticated, clearAuth } from "../utils/authHelpers";
 import { apiFetch } from "../services/api";
+import { parseUserPublicResponse, parseTenantProfileResponse } from "../dto/index.js";
 
 let cachedUserProfile = null;
 let cachedUserPromise = null;
@@ -67,11 +68,15 @@ export const useAuth = () => {
       method: "GET",
       headers: getAuthHeaders(),
     })
-      .then((req) => {
+      .then((raw) => {
+        // Tenant /me returns TenantProfileResponse; teacher/school_admin /me returns UserPublicResponse
+        const parsed = role === "tenant"
+          ? parseTenantProfileResponse(raw)
+          : parseUserPublicResponse(raw);
         const profile = {
-          ...req,
+          ...parsed,
           role,
-          name: nameFromToken || req.name || req.tenantName || req.schoolName,
+          name: nameFromToken || parsed.name || parsed.tenant_name,
         };
         cachedUserProfile = profile;
         cachedUserPromise = null;
@@ -86,7 +91,7 @@ export const useAuth = () => {
   }, []);
 
   const getCurrentUserName = useCallback(async () => {
-    if (cachedUserProfile?.name) {
+    if (cachedUserProfile && cachedUserProfile.name) {
       return cachedUserProfile.name;
     }
     const tokenPayload = getTokenPayload();
@@ -95,7 +100,7 @@ export const useAuth = () => {
     }
     try {
       const profile = await getCurrentUser();
-      return profile?.name || "";
+      return profile.name;
     } catch (err) {
       return "";
     }

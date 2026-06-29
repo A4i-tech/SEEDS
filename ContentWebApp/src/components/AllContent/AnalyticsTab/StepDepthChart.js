@@ -104,7 +104,7 @@ const StepDepthChart = ({ data }) => {
         <strong>Total calls analyzed:</strong> {data.reduce((sum, d) => sum + d.count, 0)}
         <br />
         <strong>Most common depth:</strong>{" "}
-        {data.reduce((max, d) => (d.count > max.count ? d : max))?.label || "N/A"}
+        {data.reduce((max, d) => (d.count > max.count ? d : max)).label}
       </div>
     </div>
   );

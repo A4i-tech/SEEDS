@@ -1,6 +1,7 @@
 import { SEEDS_URL } from "../Constants";
 import { getAuthHeaders } from "../utils/authHelpers";
 import { apiFetch, buildQueryString } from "./api";
+import { parseContentListResponse, parseContentResponse } from "../dto/index.js";
 
 export const contentService = {
   /**
@@ -8,7 +9,7 @@ export const contentService = {
    * @param {string|null} cursor - Pagination cursor
    * @param {number} limit - Page size
    * @param {AbortSignal} signal - Abort signal for cancellation
-   * @returns {Promise<{data: Array, pagination: Object}>}
+   * @returns {Promise<import('../dto/content.dto.js').ContentListResponse>}
    */
   async getContent(cursor = null, limit = 50, signal = null) {
     const params = { limit };
@@ -19,24 +20,13 @@ export const contentService = {
     const queryString = buildQueryString(params);
     const url = `${SEEDS_URL}/content?${queryString}`;
 
-    const response = await apiFetch(url, {
+    const raw = await apiFetch(url, {
       method: "GET",
       headers: getAuthHeaders(),
       signal,
     });
 
-    // Normalize data: ensure all items have "id" field
-    const normalizedData = response.data.map((item) => {
-      if (!item.id && item._id) {
-        return { ...item, id: item._id };
-      }
-      return item;
-    });
-
-    return {
-      data: normalizedData,
-      pagination: response.pagination,
-    };
+    return parseContentListResponse(raw);
   },
 
   /**
@@ -77,7 +67,7 @@ export const contentService = {
 
   /**
    * Update existing content (quiz or story) via PATCH
-   * @param {Object} contentData - Content with _id field required
+   * @param {Object} contentData - Content with id field required
    * @param {boolean} isAudioUploaded - Whether a new audio file was uploaded
    * @returns {Promise<Object>}
    */
@@ -98,31 +88,23 @@ export const contentService = {
 
   /**
    * Fetch all content (without pagination) - for bulk operations
-   * @returns {Promise<Array>}
+   * @returns {Promise<import('../dto/content.dto.js').ContentResponse[]>}
    */
   async getAllContent() {
     const url = `${SEEDS_URL}/content`;
 
-    const response = await apiFetch(url, {
+    const raw = await apiFetch(url, {
       method: "GET",
       headers: getAuthHeaders(),
     });
 
-    // Normalize data: ensure all items have "id" field
-    const normalizedData = (response.data || response || []).map((item) => {
-      if (!item.id && item._id) {
-        return { ...item, id: item._id };
-      }
-      return item;
-    });
-
-    return normalizedData;
+    return parseContentListResponse(raw).data;
   },
 
   /**
    * Fetch content by ID
    * @param {string} id - Content ID
-   * @returns {Promise<Object>}
+   * @returns {Promise<import('../dto/content.dto.js').ContentResponse>}
    */
   async getContentById(id) {
     if (!id || !String(id).trim()) {
@@ -132,11 +114,11 @@ export const contentService = {
     const contentId = encodeURIComponent(String(id).trim());
     const url = `${SEEDS_URL}/content/${contentId}`;
 
-    const response = await apiFetch(url, {
+    const raw = await apiFetch(url, {
       method: "GET",
       headers: getAuthHeaders(),
     });
 
-    return response;
+    return parseContentResponse(raw);
   },
 };

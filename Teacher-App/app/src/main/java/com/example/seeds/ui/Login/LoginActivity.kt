@@ -164,14 +164,21 @@ class LoginActivity : AppCompatActivity() {
                     return
                 }
 
+                // Extract user fields from the nested user block (new API: { token, user: { id, phone_number, ... } })
+                val userObj = json.optJSONObject("user")
+                val teacherId = userObj?.optString("id", "") ?: ""
+
                 // Encrypt the auth token
                 val (encryptedToken, iv) = Encryptor.encrypt(token)
 
                 try {
                     val prefs = getSharedPreferences("sharedPref", MODE_PRIVATE).edit()
                     prefs.putString("auth_token", encryptedToken)
-                    prefs.putString("auth_iv",iv)
+                    prefs.putString("auth_iv", iv)
                     prefs.putString("teacher_phone", phoneNumber)
+                    if (teacherId.isNotEmpty()) {
+                        prefs.putString("teacher_id", teacherId)
+                    }
                     prefs.putBoolean("is_logged_in", true)
                     prefs.apply()
 

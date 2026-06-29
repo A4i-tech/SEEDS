@@ -23,11 +23,7 @@ import {
   School as SchoolIcon,
 } from "@mui/icons-material";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-  getClassroomById,
-  createClassroom,
-  updateClassroom,
-} from "../services/classroomService";
+import { getClassroomById, createClassroom, updateClassroom } from "../services/classroomService";
 import { getSchoolStudents } from "../services/teacherService";
 import { showToast } from "../utils/toast";
 import { LoadingSpinner } from "../components/common/LoadingSpinner";
@@ -70,11 +66,11 @@ const ClassroomForm = () => {
       setErrorMsg("");
       const data = await getClassroomById(classroomId);
       setFormData({
-        _id: data._id,
+        id: data.id,
         name: data.name || "",
-        students: (data.students || []).map((s) => (typeof s === "object" ? s._id : s)),
-        leaders: (data.leaders || []).map((l) => (typeof l === "object" ? l._id : l)),
-        contentIds: data.contentIds || [],
+        students: data.students,
+        leaders: data.leaders,
+        contentIds: data.content_ids || [],
       });
     } catch (err) {
       setErrorMsg("Failed to load classroom. Please try again.");
@@ -117,7 +113,7 @@ const ClassroomForm = () => {
   const handleAddStudent = (event, value) => {
     if (!value) return;
 
-    const studentId = value._id;
+    const studentId = value.id;
 
     if (formData.students.includes(studentId)) {
       showToast.error("Student already added to classroom");
@@ -173,9 +169,12 @@ const ClassroomForm = () => {
     navigate("/classrooms");
   };
 
-  const getStudentById = useCallback((id) => {
-    return teacherStudentsList.find((s) => s._id === id);
-  }, [teacherStudentsList]);
+  const getStudentById = useCallback(
+    (id) => {
+      return teacherStudentsList.find((s) => s.id === id);
+    },
+    [teacherStudentsList]
+  );
 
   if (loading || isLoadingStudents) {
     return <LoadingSpinner />;
@@ -241,10 +240,8 @@ const ClassroomForm = () => {
 
             <Box sx={{ mb: 3 }}>
               <Autocomplete
-                options={teacherStudentsList.filter(
-                  (s) => !formData.students.includes(s._id)
-                )}
-                getOptionLabel={(option) => `${option.name} - ${option.phoneNumber}`}
+                options={teacherStudentsList.filter((s) => !formData.students.includes(s.id))}
+                getOptionLabel={(option) => `${option.name} - ${option.phone_number}`}
                 onChange={handleAddStudent}
                 renderInput={(params) => (
                   <TextField

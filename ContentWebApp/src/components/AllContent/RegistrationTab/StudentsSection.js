@@ -32,7 +32,7 @@ const StudentsSection = ({ students, onAddStudent, onUpdateStudent, onDeleteStud
   const closeEdit = () => setEditingStudent(null);
 
   const saveEdit = async () => {
-    const success = await onUpdateStudent(editingStudent._id, editName, editPhone);
+    const success = await onUpdateStudent(editingStudent.id, editName, editPhone);
     if (success) closeEdit();
   };
 

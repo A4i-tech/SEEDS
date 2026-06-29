@@ -2,13 +2,21 @@ import { API_ENDPOINTS } from "../constants/apiEndpoints";
 import { APP_CONFIG } from "../config/appConfig";
 import axiosInstance from "./axiosInstance";
 import { normalizePhoneNumber } from "../utils/phoneUtils";
+import { parseConferenceStatusResponse } from "../dto/call.dto.js";
+import { parseContentResponse } from "../dto/content.dto.js";
 
 /**
  * All network requests use the centralized axios instance with
  * network-layer timeout (5 seconds) configured in axiosInstance.js
  */
 
-export const createConference = async (teacherPhone, studentPhones, leaderPhone = null, teacherName = null, studentNames = null) => {
+export const createConference = async (
+  teacherPhone,
+  studentPhones,
+  leaderPhone = null,
+  teacherName = null,
+  studentNames = null
+) => {
   // Normalize phone numbers to ensure consistent format (91XXXXXXXXXX)
   const normalizedTeacherPhone = normalizePhoneNumber(teacherPhone);
   const normalizedStudentPhones = studentPhones.map((phone) => normalizePhoneNumber(phone));
@@ -32,7 +40,7 @@ export const createConference = async (teacherPhone, studentPhones, leaderPhone 
   try {
     const response = await axiosInstance.post(API_ENDPOINTS.CONFERENCE.CREATE, requestBody);
     console.log("Conference created successfully:", response.data);
-    return response.data;
+    return parseConferenceStatusResponse(response.data);
   } catch (error) {
     console.error("Conference creation failed:", {
       status: error.response?.status,
@@ -88,9 +96,7 @@ export const sinkConferenceCall = async (confId) => {
 export const muteParticipant = async (confId, phone_number) => {
   // Normalize phone number to ensure consistent format (91XXXXXXXXXX)
   const normalizedPhone = normalizePhoneNumber(phone_number);
-  const response = await axiosInstance.put(
-    API_ENDPOINTS.CONFERENCE.MUTE(confId, normalizedPhone)
-  );
+  const response = await axiosInstance.put(API_ENDPOINTS.CONFERENCE.MUTE(confId, normalizedPhone));
   return response.data;
 };
 
@@ -207,5 +213,8 @@ export const removeParticipant = async (confId, phone_number, name = null) => {
 export const fetchAudioContent = async () => {
   // Note: Auth token is automatically added by axios interceptor
   const response = await axiosInstance.get(API_ENDPOINTS.GET_AUDIO_CONTENT);
+  if (Array.isArray(response.data)) {
+    return response.data.map(parseContentResponse);
+  }
   return response.data;
 };

@@ -23,7 +23,13 @@ const NowPlayingFooter = ({ selectedItem, audioUrl, loadingAudio }) => {
         </Typography>
         <Typography
           variant="body2"
-          sx={{ fontWeight: 600, mt: 0.25, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+          sx={{
+            fontWeight: 600,
+            mt: 0.25,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
         >
           {selectedItem.title?.english || selectedItem.title?.local || "Untitled"}
         </Typography>

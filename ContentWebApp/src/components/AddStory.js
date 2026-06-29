@@ -37,13 +37,8 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
   const [loadError, setLoadError] = useState(null);
 
   const populateThemes = (content) => {
-    if (!Array.isArray(content)) {
-      console.warn("populateThemes: content is not an array", content);
-      return;
-    }
     const newThemes = {};
     content.forEach((item) => {
-      if (!item || !item.theme) return;
       const themeEnglish = item.theme.english;
       const themeLocal = item.theme.local;
       if (item.language && themeEnglish && themeLocal) {
@@ -100,16 +95,17 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
   const fetchTitlesUnderTheme = useCallback(
     (language, theme) => {
       const filteredContent = allContent.filter((item) => {
-        const itemTheme = item.theme?.english;
+        const itemTheme = item.theme.english;
         return (
+          item.id !== (content && content.id) &&
           item.language.toLowerCase() === language.toLowerCase() &&
           itemTheme.toLowerCase() === theme.toLowerCase()
         );
       });
       const titleMap = {};
       filteredContent.forEach((item) => {
-        const titleEnglish = item.title?.english;
-        const titleLocal = item.title?.local;
+        const titleEnglish = item.title.english;
+        const titleLocal = item.title.local;
         if (titleEnglish && titleLocal) {
           titleMap[titleEnglish.toLowerCase()] = titleLocal;
         }
@@ -149,31 +145,25 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
     if (content) {
       const quizMetadata = {
         id: content.id,
-        type: content.type || "Story",
-        description: content.description || "",
-        language: (content.language || "kannada").toLowerCase(),
+        type: content.type,
+        description: content.description,
+        language: content.language.toLowerCase(),
         title: {
-          english: content.title?.english || "",
-          local:
-            (content.language || "").toLowerCase() === "english"
-              ? content.title?.english || ""
-              : content.title?.local || "",
-          audioUrl: content.title?.audioUrl || "",
+          english: content.title.english,
+          local: content.language.toLowerCase() === "english" ? content.title.english : content.title.local,
+          audioUrl: content.title.audio_url,
         },
         theme: {
-          english: content.theme?.english || "",
-          local:
-            (content.language || "").toLowerCase() === "english"
-              ? content.theme?.english || ""
-              : content.theme?.local || "",
-          audioUrl: content.theme?.audioUrl || "",
+          english: content.theme.english,
+          local: content.language.toLowerCase() === "english" ? content.theme.english : content.theme.local,
+          audioUrl: content.theme.audio_url,
         },
-        audioContent: content.audioContent || [],
-        createdBy: content.createdBy || "",
-        isPullModel: content.isPullModel ?? false,
-        isTeacherApp: content.isTeacherApp ?? true,
-        isProcessed: content.isProcessed ?? false,
-        isDeleted: content.isDeleted ?? false,
+        audioContent: content.audio_content,
+        createdBy: content.created_by,
+        isPullModel: content.is_pull_model,
+        isTeacherApp: content.is_teacher_app,
+        isProcessed: content.is_processed,
+        isDeleted: content.is_deleted,
         audioFile: "",
         answerAudioFile: "",
       };
@@ -196,7 +186,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
 
   const isValid = () => {
     var valid = true;
-    const languageLower = (metadata.language || "").toLowerCase();
+    const languageLower = metadata.language.toLowerCase();
     const inputTitleLower = (metadata.title.english || "").toLowerCase();
     const inputLocalTitleLower = (metadata.title.local || "").toLowerCase();
     // Check if title is empty
@@ -261,12 +251,12 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
   };
 
   const sendStory = async () => {
-    const _id = content ? (content._id || content.id) : uuidv4();
-    const languageLower = (metadata.language || "").toLowerCase();
+    const id = content ? content.id : uuidv4();
+    const languageLower = metadata.language.toLowerCase();
     // Always send title and theme as objects
     var newMetadata = {
       ...metadata,
-      _id,
+      id,
       type: contentType,
       title: {
         english: metadata.title.english,
@@ -297,9 +287,9 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
 
     if (metadata.audioFile) {
       const extname = metadata.audioFile.split(".").pop();
-      filename = `${_id}.${extname}`;
+      filename = `${id}.${extname}`;
       if (contentType === "Riddle") {
-        filename = `${_id}_question.${extname}`;
+        filename = `${id}_question.${extname}`;
       }
       const res = await fetch(
         `${SEEDS_URL}/content/sasToken?` +
@@ -322,7 +312,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
 
     if (metadata.answerAudioFile) {
       const answerExtname = metadata.answerAudioFile.split(".").pop();
-      answerFilename = `${_id}_answer.${answerExtname}`;
+      answerFilename = `${id}_answer.${answerExtname}`;
       const resAnswer = await fetch(
         `${SEEDS_URL}/content/sasToken?` +
           new URLSearchParams({
@@ -382,8 +372,8 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
 
     // Send metadata to backend with populated audioContent AFTER files are uploaded
     if (content) {
-      newMetadata = { ...newMetadata, _id: content._id };
-      const seedsRes = await fetch(`${SEEDS_URL}/content/${content._id}?isAudioUploaded=${isAudioUploaded}`, {
+      newMetadata = { ...newMetadata, id };
+      const seedsRes = await fetch(`${SEEDS_URL}/content?isAudioUploaded=${isAudioUploaded}`, {
         method: "PATCH",
         headers: getAuthHeaders(),
         body: JSON.stringify(newMetadata),
@@ -491,12 +481,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
                   {theme}
                 </option>
               ))}
-            <option
-              value="new-theme"
-              selected={metadata.theme.local === "new-theme"}
-            >
-              Choose New Theme
-            </option>
+            <option value="new-theme">Choose New Theme</option>
           </select>
         </div>
         {metadata.language !== "english" && (
@@ -707,7 +692,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
               type="checkbox"
               name="isPullModel"
               id="isPullModel"
-              checked={metadata.isPullModel || false}
+              checked={metadata.isPullModel}
               onChange={(event) =>
                 setMetadata({ ...metadata, isPullModel: !metadata.isPullModel })
               }
@@ -719,7 +704,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
               type="checkbox"
               name="isTeacherApp"
               id="isTeacherApp"
-              checked={metadata.isTeacherApp || false}
+              checked={metadata.isTeacherApp}
               onChange={(event) =>
                 setMetadata({ ...metadata, isTeacherApp: !metadata.isTeacherApp })
               }

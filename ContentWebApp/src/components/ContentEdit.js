@@ -38,17 +38,6 @@ const ContentEdit = () => {
     setExperience(event.target.value);
   };
 
-  const experienceLower = (experience || "").toLowerCase();
-  const isQuiz = experienceLower === "quiz";
-  // Quiz content has no isProcessed/audioContent — treat it as always ready
-  const isProcessed = isQuiz
-    ? true
-    : (content?.isProcessed ?? Boolean(content?.audioContent?.length));
-  const titleText =
-    typeof content?.title === "object"
-      ? content.title.english || content.title.local || "Untitled"
-      : content?.title || "Untitled";
-
   if (isLoading) {
     return (
       <div className="content-details-message">
@@ -56,6 +45,11 @@ const ContentEdit = () => {
       </div>
     );
   }
+
+  const experienceLower = experience.toLowerCase();
+  const isQuiz = experienceLower === "quiz";
+  const isProcessed = content.is_processed !== false && (isQuiz ? content.questions.length > 0 : content.audio_content.length > 0);
+  const titleText = content.title.english;
 
   if (content && !isProcessed) {
     return (

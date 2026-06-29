@@ -50,11 +50,7 @@ const NowPlayingBanner = ({ audioContentState }) => {
       )}
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography variant="body2" sx={{ fontWeight: 600, fontSize: "0.8rem" }}>
-          {isPlaying
-            ? "Streaming to participants"
-            : isPaused
-              ? "Paused"
-              : "Starting playback..."}
+          {isPlaying ? "Streaming to participants" : isPaused ? "Paused" : "Starting playback..."}
         </Typography>
         {audioContentState?.position_seconds != null && (
           <Typography variant="caption" color="text.secondary">

@@ -83,7 +83,7 @@ const ClassroomList = () => {
 
   const handleDeleteConfirm = async () => {
     try {
-      await deleteClassroom(classroomToDelete._id);
+      await deleteClassroom(classroomToDelete.id);
       showToast.success("Classroom deleted successfully");
       setDeleteDialogOpen(false);
       setClassroomToDelete(null);
@@ -126,10 +126,10 @@ const ClassroomList = () => {
   const handleSessionClick = (sessionItem) => {
     // Find classroom by ID or name and navigate to it
     const matchingClassroom = classrooms.find(
-      (c) => c._id === sessionItem.groupId || c.name === sessionItem.groupName
+      (c) => c.id === sessionItem.groupId || c.name === sessionItem.groupName
     );
     if (matchingClassroom) {
-      navigate(ROUTES.CLASSROOM_DETAIL(matchingClassroom._id));
+      navigate(ROUTES.CLASSROOM_DETAIL(matchingClassroom.id));
     } else {
       showToast.info(`Classroom "${sessionItem.groupName}" not found`);
     }
@@ -231,16 +231,18 @@ const ClassroomList = () => {
                       <Typography variant="caption" color="text.secondary">
                         {formatTimestamp(sessionItem.timestamp)}
                       </Typography>
-                      {sessionItem.studentCount !== null && sessionItem.studentCount !== undefined && (
-                        <>
-                          <Typography variant="caption" color="text.secondary">
-                            •
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {sessionItem.studentCount} student{sessionItem.studentCount !== 1 ? "s" : ""}
-                          </Typography>
-                        </>
-                      )}
+                      {sessionItem.studentCount !== null &&
+                        sessionItem.studentCount !== undefined && (
+                          <>
+                            <Typography variant="caption" color="text.secondary">
+                              •
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {sessionItem.studentCount} student
+                              {sessionItem.studentCount !== 1 ? "s" : ""}
+                            </Typography>
+                          </>
+                        )}
                     </Box>
                   </Box>
                   <IconButton
@@ -284,7 +286,7 @@ const ClassroomList = () => {
       ) : (
         <Grid container spacing={3}>
           {classrooms.map((classroom) => (
-            <Grid item xs={12} sm={6} md={4} key={classroom._id}>
+            <Grid item xs={12} sm={6} md={4} key={classroom.id}>
               <Card
                 sx={{
                   height: "100%",
@@ -298,40 +300,32 @@ const ClassroomList = () => {
                 }}
               >
                 <CardContent sx={{ flexGrow: 1 }}>
-                  <Typography
-                    variant="h6"
-                    component="h2"
-                    gutterBottom
-                    sx={{ fontWeight: 600 }}
-                  >
+                  <Typography variant="h6" component="h2" gutterBottom sx={{ fontWeight: 600 }}>
                     {classroom.name}
                   </Typography>
                   <Box sx={{ mt: 2, display: "flex", flexDirection: "column", gap: 1 }}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                       <PeopleIcon sx={{ fontSize: 20, color: "text.secondary" }} />
                       <Typography variant="body2" color="text.secondary">
-                        {classroom.students?.length || 0} Students
+                        {classroom.students.length} Students
                       </Typography>
                     </Box>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                       <SchoolIcon sx={{ fontSize: 20, color: "text.secondary" }} />
                       <Typography variant="body2" color="text.secondary">
-                        {classroom.leaders?.length || 0} Leaders
+                        {classroom.leaders.length} Leaders
                       </Typography>
                     </Box>
                   </Box>
                 </CardContent>
                 <CardActions sx={{ justifyContent: "space-between", px: 2, pb: 2 }}>
-                  <Button
-                    size="small"
-                    onClick={() => handleView(classroom._id)}
-                  >
+                  <Button size="small" onClick={() => handleView(classroom.id)}>
                     View
                   </Button>
                   <Box>
                     <IconButton
                       size="small"
-                      onClick={() => handleEdit(classroom._id)}
+                      onClick={() => handleEdit(classroom.id)}
                       sx={{ color: "primary.main" }}
                     >
                       <EditIcon />
@@ -355,7 +349,8 @@ const ClassroomList = () => {
         <DialogTitle>Delete Classroom</DialogTitle>
         <DialogContent>
           <Typography>
-            Are you sure you want to delete "{classroomToDelete?.name}"? This action cannot be undone.
+            Are you sure you want to delete "{classroomToDelete && classroomToDelete.name}"? This action cannot be
+            undone.
           </Typography>
         </DialogContent>
         <DialogActions>
@@ -366,10 +361,7 @@ const ClassroomList = () => {
         </DialogActions>
       </Dialog>
 
-      <ContentDrawer
-        open={contentDrawerOpen}
-        onClose={() => setContentDrawerOpen(false)}
-      />
+      <ContentDrawer open={contentDrawerOpen} onClose={() => setContentDrawerOpen(false)} />
     </PageContainer>
   );
 };

@@ -4,15 +4,10 @@
  * @returns {Array} Array of filter options with category, name, and id
  */
 export const generateFilterOptions = (contentList) => {
-  if (!Array.isArray(contentList)) {
-    throw new Error("generateFilterOptions: contentList must be an array");
-  }
-  
   const languageSet = new Set();
   const experienceSet = new Set();
 
   contentList.forEach((contentItem) => {
-    if (!contentItem) return;
     if (contentItem.language) {
       languageSet.add(contentItem.language.charAt(0).toUpperCase() + contentItem.language.slice(1));
     }
@@ -44,43 +39,30 @@ export const generateFilterOptions = (contentList) => {
  * @returns {Array} Filtered content list
  */
 export const applyFilters = (allContent, selectedFilters, allOptions) => {
-  if (!Array.isArray(allContent)) {
-    throw new Error("applyFilters: allContent must be an array");
-  }
-  
-  if (!Array.isArray(selectedFilters)) {
-    selectedFilters = [];
-  }
-  
-  if (!Array.isArray(allOptions)) {
-    allOptions = [];
-  }
-  
   let langs = selectedFilters
-    .filter((option) => option && option.category === "Language")
+    .filter((option) => option.category === "Language")
     .map((option) => option.name.toLowerCase());
 
   let exps = selectedFilters
-    .filter((option) => option && option.category === "Experience")
+    .filter((option) => option.category === "Experience")
     .map((option) => option.name.toLowerCase());
 
   // If no experience filters selected, include all
   if (exps.length === 0) {
     exps = allOptions
-      .filter((value) => value && value.category === "Experience")
+      .filter((value) => value.category === "Experience")
       .map((value) => value.name.toLowerCase());
   }
 
   // If no language filters selected, include all
   if (langs.length === 0) {
     langs = allOptions
-      .filter((value) => value && value.category === "Language")
+      .filter((value) => value.category === "Language")
       .map((value) => value.name.toLowerCase());
   }
 
   return allContent.filter(
     (contentItem) =>
-      contentItem &&
       contentItem.language &&
       contentItem.type &&
       langs.includes(contentItem.language.toLowerCase()) &&
