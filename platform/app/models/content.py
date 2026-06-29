@@ -8,21 +8,17 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class TextContent(BaseModel):
-    """Bilingual text with optional audio URL."""
-
     english: str
     local: str = ""
-    audio_url: str = Field(default="", alias="audioUrl")
+    audio_url: str = ""
 
     model_config = ConfigDict(populate_by_name=True)
 
 
 class AudioContent(BaseModel):
-    """A single audio segment within a content item."""
-
     description: str = ""
-    audio_url: str = Field(..., alias="audioUrl")
-    duration_seconds: float | None = Field(None, alias="durationSeconds")
+    audio_url: str = ""
+    duration_seconds: float | None = None
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -38,8 +34,8 @@ class Content(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: str | None = Field(None, alias="_id")
-    version: str = "v3"  # "v2" or "v3"
-    tenant_id: str | None = None  # ObjectId stored as str; ref Tenant
+    version: str = "v3"
+    tenant_id: str | None = None
     description: str = ""
     type: str
     language: str
@@ -54,14 +50,14 @@ class Content(BaseModel):
     local_theme: str | None = Field(None, alias="localTheme")
     theme_audio: str | None = Field(None, alias="themeAudio")
     # Audio content (v3)
-    audio_content: list[AudioContent] = Field(default_factory=list, alias="audioContent")
+    audio_content: list[AudioContent] = Field(default_factory=list)
     # Flags
-    school_id: str | None = Field(None, alias="schoolId")
-    created_by: str = Field(default="", alias="createdBy")
-    is_pull_model: bool = Field(default=False, alias="isPullModel")
-    is_teacher_app: bool = Field(default=False, alias="isTeacherApp")
-    is_processed: bool = Field(default=False, alias="isProcessed")
-    is_deleted: bool = Field(default=False, alias="isDeleted")
+    school_id: str | None = None
+    created_by: str = ""
+    is_pull_model: bool = False
+    is_teacher_app: bool = False
+    is_processed: bool = False
+    is_deleted: bool = False
     creation_time: int = -1
     created_at: datetime | None = None
     updated_at: datetime | None = None
@@ -71,10 +67,9 @@ class Content(BaseModel):
         if doc is None:
             return None  # type: ignore[return-value]
         d = dict(doc)
-        if "_id" in d and isinstance(d["_id"], ObjectId):
-            d["_id"] = str(d["_id"])
-        if "tenant_id" in d and isinstance(d["tenant_id"], ObjectId):
-            d["tenant_id"] = str(d["tenant_id"])
+        for key in ("_id", "tenant_id", "school_id"):
+            if key in d and isinstance(d[key], ObjectId):
+                d[key] = str(d[key])
         return cls.model_validate(d)
 
 
@@ -90,9 +85,9 @@ class ContentCreate(BaseModel):
     version: str = "v3"
     title: TextContent | None = None
     theme: TextContent | None = None
-    audio_content: list[AudioContent] = Field(default_factory=list, alias="audioContent")
-    school_id: str | None = Field(None, alias="schoolId")
-    created_by: str = Field(default="", alias="createdBy")
-    is_pull_model: bool = Field(default=False, alias="isPullModel")
-    is_teacher_app: bool = Field(default=False, alias="isTeacherApp")
+    audio_content: list[AudioContent] = Field(default_factory=list)
+    school_id: str | None = None
+    created_by: str = ""
+    is_pull_model: bool = False
+    is_teacher_app: bool = False
     creation_time: int = -1

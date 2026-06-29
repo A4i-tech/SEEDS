@@ -46,7 +46,7 @@ class UserRole(StrEnum):
     TEACHER = "teacher"
     STUDENT = "student"
     TENANT = "tenant"
-    SCHOOL_ADMIN = "school_admin"
+    SCHOOL = "school"
     CONTENT_CREATOR = "content_creator"
 
 

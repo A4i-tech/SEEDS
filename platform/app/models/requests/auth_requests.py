@@ -1,30 +1,24 @@
-"""Request schemas for auth endpoints."""
+"""Request schemas for auth endpoints — snake_case only."""
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class TeacherLoginRequest(BaseModel):
-    phone_number: str = Field(..., alias="phoneNumber")
+    phone_number: str
     password: str
-    school_id: str | None = Field(None, alias="schoolId")
-
-    model_config = {"populate_by_name": True}
+    school_id: str | None = None
 
 
 class TeacherRegisterRequest(BaseModel):
-    phone_number: str = Field(..., alias="phoneNumber")
+    phone_number: str
     password: str
     name: str
     role: str = "teacher"
 
-    model_config = {"populate_by_name": True}
-
 
 class TeacherUpdatePasswordRequest(BaseModel):
-    new_password: str = Field(..., alias="newPassword")
-
-    model_config = {"populate_by_name": True}
+    new_password: str
 
 
 class TenantLoginRequest(BaseModel):
@@ -35,16 +29,17 @@ class TenantLoginRequest(BaseModel):
 class TenantRegisterRequest(BaseModel):
     email: str
     password: str
-    tenant_name: str = Field(..., alias="tenantName")
+    tenant_name: str
     name: str = ""
-
-    model_config = {"populate_by_name": True}
 
 
 class TenantChangePasswordRequest(BaseModel):
-    new_password: str = Field(..., alias="newPassword")
+    new_password: str
 
-    model_config = {"populate_by_name": True}
+
+class TenantAnalyticsRequest(BaseModel):
+    start_date: str
+    end_date: str
 
 
 class SchoolAdminLoginRequest(BaseModel):

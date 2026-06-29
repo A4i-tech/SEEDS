@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from bson import ObjectId
+from bson.errors import InvalidId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.user import User, UserCreate
@@ -43,15 +45,25 @@ class UserRepository(BaseRepository):
         doc = await self._col.find_one({"firebase_uid": uid})
         return User.from_mongo(doc) if doc else None
 
+    @staticmethod
+    def _id_query(field: str, value: str) -> dict:
+        # ponytail: $in covers both string and ObjectId stored forms (migration 002 left ObjectIds)
+        try:
+            return {field: {"$in": [value, ObjectId(value)]}}
+        except InvalidId:
+            return {field: value}
+
     async def find_all_by_tenant(self, tenant_id: str) -> list[User]:
         """Return all users belonging to a tenant."""
-        cursor = self._col.find({"tenant_id": tenant_id})
+        cursor = self._col.find(self._id_query("tenant_id", tenant_id))
         docs = await cursor.to_list(length=None)
         return [User.from_mongo(d) for d in docs]
 
     async def count_by_school_and_role(self, school_id: str, role: str) -> int:
         """Return count of users with the given school_id and role."""
-        return await self._col.count_documents({"school_id": school_id, "role": role})
+        query = self._id_query("school_id", school_id)
+        query["role"] = role
+        return await self._col.count_documents(query)
 
     # ------------------------------------------------------------------
     # Write

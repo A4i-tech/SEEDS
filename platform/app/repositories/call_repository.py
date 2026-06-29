@@ -18,7 +18,7 @@ class CallsLogRepository:
     tracking missed-call webhook receipts and their processing status.
     """
 
-    COLLECTION = "callsLog"
+    COLLECTION = "callsLogs"
 
     def __init__(self, db: AsyncIOMotorDatabase) -> None:  # type: ignore[type-arg]
         self._col = db[self.COLLECTION]
@@ -73,7 +73,7 @@ class CallRepository(BaseRepository):
     # Call log documents
     # ------------------------------------------------------------------
     async def find_log_by_fsm_context(self, fsm_context_id: str) -> CallLog | None:
-        doc = await self._log_col.find_one({"fsmContextId": fsm_context_id})
+        doc = await self._log_col.find_one({"fsm_context_id": fsm_context_id})
         return CallLog.from_mongo(doc) if doc else None
 
     async def find_logs_by_tenant(self, tenant_id: str) -> list[CallLog]:
@@ -87,7 +87,7 @@ class CallRepository(BaseRepository):
         return [CallLog.from_mongo(d) for d in docs]
 
     async def create_log(self, log: CallLog) -> CallLog:
-        doc = log.model_dump(by_alias=True, exclude_none=True)
+        doc = log.model_dump(by_alias=False, exclude_none=True)
         doc.pop("_id", None)
         result = await self._log_col.insert_one(doc)
         doc["_id"] = str(result.inserted_id)

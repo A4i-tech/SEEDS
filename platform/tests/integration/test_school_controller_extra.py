@@ -82,7 +82,7 @@ def _tenant_token(uid):
 
 
 def _school_admin_token(uid, tid="t1", sid="s1"):
-    return create_access_token({"sub": uid, "role": "school_admin", "tenant_id": tid, "school_id": sid})
+    return create_access_token({"sub": uid, "role": "school", "tenant_id": tid, "school_id": sid})
 
 
 class TestSchoolControllerExtra:

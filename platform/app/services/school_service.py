@@ -138,7 +138,7 @@ class SchoolService:
             {
                 "_id": str(u.id),
                 "name": u.name,
-                "phoneNumber": u.phone,
+                "phone": u.phone,
                 "role": u.role.value,
             }
             for u in all_users

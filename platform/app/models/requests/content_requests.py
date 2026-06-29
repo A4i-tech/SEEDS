@@ -13,10 +13,10 @@ class ContentCreateRequest(BaseModel):
     language: str
     title: dict[str, Any] | None = None
     theme: dict[str, Any] | None = None
-    audio_content: list[Any] | None = Field(None, alias="audioContent")
+    audio_content: list[Any] | None = None
     description: str | None = None
-    is_pull_model: bool | None = Field(None, alias="isPullModel")
-    is_teacher_app: bool | None = Field(None, alias="isTeacherApp")
+    is_pull_model: bool | None = None
+    is_teacher_app: bool | None = None
 
 
 class ContentUpdateRequest(BaseModel):
@@ -28,9 +28,9 @@ class ContentUpdateRequest(BaseModel):
     description: str | None = None
     type: str | None = None
     language: str | None = None
-    audio_content: list[Any] | None = Field(None, alias="audioContent")
-    is_pull_model: bool | None = Field(None, alias="isPullModel")
-    is_teacher_app: bool | None = Field(None, alias="isTeacherApp")
+    audio_content: list[Any] | None = None
+    is_pull_model: bool | None = None
+    is_teacher_app: bool | None = None
 
 
 class QuizCreateRequest(BaseModel):
@@ -40,14 +40,14 @@ class QuizCreateRequest(BaseModel):
     language: str
     title: dict[str, Any] | None = None
     theme: dict[str, Any] | None = None
-    audio_content: list[Any] | None = Field(None, alias="audioContent")
+    audio_content: list[Any] | None = None
     description: str | None = None
-    is_pull_model: bool | None = Field(None, alias="isPullModel")
-    is_teacher_app: bool | None = Field(None, alias="isTeacherApp")
-    local_title: str | None = Field(None, alias="localTitle")
-    local_theme: str | None = Field(None, alias="localTheme")
-    positive_marks: float | None = Field(None, alias="positiveMarks")
-    negative_marks: float | None = Field(None, alias="negativeMarks")
+    is_pull_model: bool | None = None
+    is_teacher_app: bool | None = None
+    local_title: str | None = None
+    local_theme: str | None = None
+    positive_marks: float | None = None
+    negative_marks: float | None = None
     questions: list[Any] | None = None
     options: list[Any] | None = None
-    correct_answers: list[Any] | None = Field(None, alias="correctAnswers")
+    correct_answers: list[Any] | None = None

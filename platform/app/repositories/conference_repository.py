@@ -44,7 +44,7 @@ class ConferenceOwnershipRepository:
 class ConferenceRepository(BaseRepository):
     """Async Motor repository for the 'conference_states' collection."""
 
-    COLLECTION = "conference_states"
+    COLLECTION = "conferenceState"
 
     def __init__(self, db: AsyncIOMotorDatabase) -> None:
         self._col = db[self.COLLECTION]

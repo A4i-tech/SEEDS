@@ -20,13 +20,15 @@ from app.models.requests.school_requests import (
     SchoolUpdateRequest,
     TeacherTransferRequest,
 )
+from app.models.responses.common import MessageResponse, TeacherTransferResponse
+from app.models.responses.school import SchoolResponse
+from app.models.responses.user import UserPublicResponse
 from app.platform.auth.dependencies import (
     get_current_user,
+    require_role,
     require_teacher,
     require_tenant,
 )
-from app.models.responses.school import SchoolResponse
-from app.models.responses.user import UserPublicResponse
 from app.platform.auth.hashing import hash_password
 from app.services.school_service import SchoolService, get_school_service
 
@@ -44,14 +46,14 @@ async def create_school(
     body: SchoolCreateRequest,
     current_user: dict[str, Any] = Depends(require_tenant),
     service: SchoolService = Depends(get_school_service),
-) -> dict[str, Any]:
+) -> SchoolResponse:
     school = await service.create_school(
         name=body.name,
         email=body.email,
         tenant_id=current_user["sub"],
         plain_password=body.password,
     )
-    return SchoolResponse.from_domain(school).to_response()
+    return SchoolResponse.from_domain(school)
 
 
 @router.get(
@@ -62,14 +64,14 @@ async def create_school(
 async def list_schools(
     current_user: dict[str, Any] = Depends(get_current_user),
     service: SchoolService = Depends(get_school_service),
-) -> list[dict]:
+) -> list[SchoolResponse]:
     if current_user.get("role") == "tenant":
         tenant_id: str = current_user.get("sub", "")
     else:
         tenant_id = current_user.get("tenant_id", "")
 
     schools = await service.list_schools_by_tenant(tenant_id)
-    return [SchoolResponse.from_domain(s).to_response() for s in schools]
+    return [SchoolResponse.from_domain(s) for s in schools]
 
 
 @router.get(
@@ -80,7 +82,7 @@ async def list_schools(
 async def school_teachers(
     current_user: dict[str, Any] = Depends(require_teacher),
     service: SchoolService = Depends(get_school_service),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     school_id = current_user.get("school_id", "")
     tenant_id = current_user.get("tenant_id", "")
     if not school_id:
@@ -97,9 +99,12 @@ async def transfer_teacher(
     body: TeacherTransferRequest,
     current_user: dict[str, Any] = Depends(require_teacher),
     service: SchoolService = Depends(get_school_service),
-) -> dict[str, Any]:
+) -> TeacherTransferResponse:
     teacher = await service.transfer_teacher(body.teacher_id, body.target_school_id, current_user["tenant_id"])
-    return {"message": "Teacher transferred successfully", "teacher": UserPublicResponse.from_domain(teacher).to_response()}
+    return TeacherTransferResponse(
+        message="Teacher transferred successfully",
+        teacher=UserPublicResponse.from_domain(teacher).to_response(),
+    )
 
 
 @router.get(
@@ -108,7 +113,7 @@ async def transfer_teacher(
     status_code=status.HTTP_200_OK,
 )
 async def school_dashboard(
-    current_user: dict[str, Any] = Depends(require_teacher),
+    current_user: dict[str, Any] = Depends(require_role("school")),
     service: SchoolService = Depends(get_school_service),
 ) -> dict[str, Any]:
     school_id = current_user.get("school_id", "")
@@ -123,7 +128,7 @@ async def school_dashboard(
 )
 async def school_analytics(
     body: SchoolAnalyticsRequest,
-    current_user: dict[str, Any] = Depends(require_teacher),
+    current_user: dict[str, Any] = Depends(require_role("school")),
     service: SchoolService = Depends(get_school_service),
 ) -> dict[str, Any]:
     start = datetime.fromisoformat(body.start_date)
@@ -133,9 +138,12 @@ async def school_analytics(
     data = await service.get_school_analytics(
         school_id, start.isoformat(), end.isoformat()
     )
+    for doc in data:
+        if "_id" in doc:
+            doc["id"] = str(doc.pop("_id"))
     return {
-        "startDate": body.start_date,
-        "endDate": body.end_date,
+        "start_date": body.start_date,
+        "end_date": body.end_date,
         "count": len(data),
         "data": data,
     }
@@ -150,9 +158,9 @@ async def get_school(
     school_id: str,
     current_user: dict[str, Any] = Depends(require_tenant),
     service: SchoolService = Depends(get_school_service),
-) -> dict[str, Any]:
+) -> SchoolResponse:
     school = await service.get_school(school_id, current_user["sub"])
-    return SchoolResponse.from_domain(school).to_response()
+    return SchoolResponse.from_domain(school)
 
 
 @router.patch(
@@ -165,7 +173,7 @@ async def update_school(
     body: SchoolUpdateRequest,
     current_user: dict[str, Any] = Depends(require_tenant),
     service: SchoolService = Depends(get_school_service),
-) -> dict[str, Any]:
+) -> SchoolResponse:
     tenant_id: str = current_user["sub"]
     updates: dict[str, Any] = {}
     if body.name:
@@ -173,10 +181,10 @@ async def update_school(
     if body.email:
         updates["email"] = body.email.strip()
     if body.password:
-        updates["password"] = hash_password(body.password)
+        updates["hashed_password"] = hash_password(body.password)
 
     school = await service.update_school(school_id, updates, tenant_id)
-    return SchoolResponse.from_domain(school).to_response()
+    return SchoolResponse.from_domain(school)
 
 
 @router.delete(
@@ -188,6 +196,6 @@ async def delete_school(
     school_id: str,
     current_user: dict[str, Any] = Depends(require_tenant),
     service: SchoolService = Depends(get_school_service),
-) -> dict[str, Any]:
+) -> MessageResponse:
     await service.delete_school(school_id, current_user["sub"])
-    return {"message": "School deleted successfully"}
+    return MessageResponse(message="School deleted successfully")

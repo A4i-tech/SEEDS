@@ -44,14 +44,14 @@ class ContentService:
         return await cursor.to_list(length=limit)
 
     async def fetch_quizzes(self, query: dict[str, Any], limit: int | None = None) -> list[dict[str, Any]]:
-        cursor = self._db["quizdata"].find(query).sort("creation_time", -1)
+        cursor = self._db["quizData"].find(query).sort("creation_time", -1)
         return await cursor.to_list(length=limit)
 
     async def get_content_doc(self, query: dict[str, Any]) -> dict[str, Any] | None:
         return await self._db["contentsV3"].find_one(query)
 
     async def get_quiz_doc(self, query: dict[str, Any]) -> dict[str, Any] | None:
-        return await self._db["quizdata"].find_one(query)
+        return await self._db["quizData"].find_one(query)
 
     async def insert_content(self, doc: dict[str, Any]) -> str:
         result = await self._db["contentsV3"].insert_one(doc)
@@ -65,15 +65,15 @@ class ContentService:
         )
 
     async def soft_delete_content(self, filter_: dict[str, Any]) -> int:
-        result = await self._db["contentsV3"].update_one(filter_, {"$set": {"isDeleted": True}})
+        result = await self._db["contentsV3"].update_one(filter_, {"$set": {"is_deleted": True}})
         return result.matched_count
 
     async def soft_delete_quiz(self, filter_: dict[str, Any]) -> int:
-        result = await self._db["quizdata"].update_one(filter_, {"$set": {"isDeleted": True}})
+        result = await self._db["quizData"].update_one(filter_, {"$set": {"is_deleted": True}})
         return result.matched_count
 
     async def insert_quiz(self, doc: dict[str, Any]) -> str:
-        result = await self._db["quizdata"].insert_one(doc)
+        result = await self._db["quizData"].insert_one(doc)
         return str(result.inserted_id)
 
 

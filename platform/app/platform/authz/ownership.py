@@ -30,7 +30,7 @@ async def assert_conference_owner(
     """
     Verify that *current_user* is the creator of *conference_id*.
 
-    Fetches the conference from the 'conference_states' collection and checks
+    Fetches the conference from the 'conferenceState' collection and checks
     that conference.created_by == current_user["sub"].
 
     Raises NotFoundError if the conference does not exist.
@@ -38,12 +38,12 @@ async def assert_conference_owner(
     """
     # Try both plain-string and ObjectId lookups.
     query: dict[str, Any] = {"conference_id": conference_id}
-    conference = await db["conference_states"].find_one(query)
+    conference = await db["conferenceState"].find_one(query)
     if conference is None:
         # Fallback: treat conference_id as the MongoDB _id.
         try:
             oid = ObjectId(conference_id)
-            conference = await db["conference_states"].find_one({"_id": oid})
+            conference = await db["conferenceState"].find_one({"_id": oid})
         except Exception:  # nosec B110 — intentional fallback when id is not a valid ObjectId
             logger.debug("ownership: conference_id %r is not a valid ObjectId", conference_id)
 

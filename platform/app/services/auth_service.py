@@ -18,7 +18,7 @@ from fastapi import Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.responses.school import SchoolResponse
-from app.models.responses.user import UserPublicResponse
+from app.models.responses.user import TenantProfileResponse, UserPublicResponse
 from app.models.user import User, UserCreate, UserRole
 from app.platform.auth.dependencies import get_db
 from app.platform.auth.hashing import hash_password, verify_password
@@ -334,7 +334,7 @@ async def school_admin_login(
     token = create_access_token(
         {
             "sub": school_id,
-            "role": "school_admin",
+            "role": "school",
             "school_id": school_id,
             "tenant_id": school.tenant_id,
         }
@@ -357,6 +357,17 @@ async def get_user_profile(
     if user is None:
         raise NotFoundError(entity_label, user_id)
     return user
+
+
+async def get_tenant_profile(
+    user_id: str,
+    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+) -> TenantProfileResponse:
+    """Fetch a tenant user by ID and return its public profile."""
+    user = await UserRepository(db).find_by_id(user_id)
+    if user is None:
+        raise NotFoundError("Tenant", user_id)
+    return TenantProfileResponse.from_domain(user)
 
 
 async def change_password(
@@ -402,23 +413,39 @@ async def get_tenant_dashboard(
     """Return aggregated dashboard statistics for a tenant."""
     schools = await SchoolRepository(db).find_all_by_tenant(tenant_id)
     all_users = await UserRepository(db).find_all_by_tenant(tenant_id)
-    teacher_count = sum(1 for u in all_users if u.role == UserRole.TEACHER)
-    student_count = sum(1 for u in all_users if u.role == UserRole.STUDENT)
 
-    class_count = 0
+    # Index users by school_id for O(1) per-school counts
+    teachers_by_school: dict[str, int] = {}
+    students_by_school: dict[str, int] = {}
+    for u in all_users:
+        sid = str(u.school_id) if u.school_id else "__none__"
+        if u.role == UserRole.TEACHER:
+            teachers_by_school[sid] = teachers_by_school.get(sid, 0) + 1
+        elif u.role == UserRole.STUDENT:
+            students_by_school[sid] = students_by_school.get(sid, 0) + 1
+
     classroom_repo = ClassroomRepository(db)
+    school_rows = []
+    total_classes = 0
     for school in schools:
-        classes = await classroom_repo.find_by_school(str(school.id))
-        class_count += len(classes)
+        sid = str(school.id)
+        classes = await classroom_repo.find_by_school(sid)
+        class_count = len(classes)
+        total_classes += class_count
+        row = SchoolResponse.from_domain(school).to_response()
+        row["teacher_count"] = teachers_by_school.get(sid, 0)
+        row["student_count"] = students_by_school.get(sid, 0)
+        row["class_count"] = class_count
+        school_rows.append(row)
 
     return {
         "statistics": {
-            "totalSchools": len(schools),
-            "totalTeachers": teacher_count,
-            "totalStudents": student_count,
-            "totalClasses": class_count,
+            "total_schools": len(schools),
+            "total_teachers": sum(1 for u in all_users if u.role == UserRole.TEACHER),
+            "total_students": sum(1 for u in all_users if u.role == UserRole.STUDENT),
+            "total_classes": total_classes,
         },
-        "schools": [s.model_dump(by_alias=False, exclude_none=True) for s in schools],
+        "schools": school_rows,
     }
 
 
@@ -454,6 +481,9 @@ class AuthService:
 
     async def get_user_profile(self, user_id: str, entity_label: str) -> User:
         return await get_user_profile(user_id, entity_label, self._db)
+
+    async def get_tenant_profile(self, user_id: str) -> TenantProfileResponse:
+        return await get_tenant_profile(user_id, self._db)
 
     async def change_password(self, user_id: str, new_password: str) -> None:
         return await change_password(user_id, new_password, self._db)

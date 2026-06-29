@@ -23,7 +23,7 @@ router = APIRouter(prefix="/user", tags=["Users"])
 async def get_participants(
     current_user: dict[str, Any] = Depends(require_teacher),
     service: UserService = Depends(get_user_service),
-) -> list[dict]:
+) -> list[Any]:
     """SECURITY FIX: was unprotected in legacy backend-server (userRouter.js)."""
     tenant_id = current_user.get("tenant_id", "")
     school_id = current_user.get("school_id", "")

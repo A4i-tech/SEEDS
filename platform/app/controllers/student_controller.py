@@ -6,8 +6,10 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
 
+from app.models.requests.user_requests import StudentCreateRequest, StudentUpdateRequest
+from app.models.responses.common import MessageResponse
+from app.models.responses.user import UserPublicResponse
 from app.platform.auth.dependencies import require_teacher
 from app.services.user_service import UserService, get_user_service
 
@@ -16,28 +18,14 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/student", tags=["Students"])
 
 
-class StudentCreateRequest(BaseModel):
-    name: str
-    phone_number: str = Field(..., alias="phoneNumber")
-
-    model_config = {"populate_by_name": True}
-
-
-class StudentUpdateRequest(BaseModel):
-    name: str | None = None
-    phone_number: str | None = Field(None, alias="phoneNumber")
-
-    model_config = {"populate_by_name": True}
-
-
 @router.post("", summary="Create a student (school_admin only)", status_code=status.HTTP_201_CREATED)
 async def create_student(
     body: StudentCreateRequest,
     current_user: dict[str, Any] = Depends(require_teacher),
     service: UserService = Depends(get_user_service),
-) -> dict[str, Any]:
+) -> UserPublicResponse:
     if not body.name.strip():
-        raise HTTPException(status_code=400, detail="name and phoneNumber are required")
+        raise HTTPException(status_code=400, detail="name and phone_number are required")
 
     school_id = current_user.get("school_id", "")
     tenant_id = current_user.get("tenant_id", "")
@@ -47,29 +35,22 @@ async def create_student(
         school_id=school_id,
         tenant_id=tenant_id,
     )
-    return {
-        "_id": str(user.id),
-        "name": user.name,
-        "phoneNumber": user.phone,
-        "schoolId": user.school_id or "",
-    }
+    return UserPublicResponse.from_domain(user)
 
 
 @router.get("", summary="List students in admin's school", status_code=status.HTTP_200_OK)
 async def list_students(
     current_user: dict[str, Any] = Depends(require_teacher),
     service: UserService = Depends(get_user_service),
-) -> list[dict]:
+) -> list[UserPublicResponse]:
     school_id = current_user.get("school_id", "")
     tenant_id = current_user.get("tenant_id", "")
     if not school_id:
         return []
     students = await service.list_students_for_school(school_id, tenant_id)
-    result = [
-        {"_id": str(u.id), "name": u.name, "phoneNumber": u.phone}
-        for u in students
-    ]
-    return sorted(result, key=lambda s: s["name"])
+    result = [UserPublicResponse.from_domain(u) for u in students]
+    result.sort(key=lambda u: u.name)
+    return result
 
 
 @router.patch("/{student_id}", summary="Update a student (school_admin only)", status_code=status.HTTP_200_OK)
@@ -78,9 +59,9 @@ async def update_student(
     body: StudentUpdateRequest,
     current_user: dict[str, Any] = Depends(require_teacher),
     service: UserService = Depends(get_user_service),
-) -> dict[str, Any]:
+) -> UserPublicResponse:
     if not body.name and not body.phone_number:
-        raise HTTPException(status_code=400, detail="name or phoneNumber is required")
+        raise HTTPException(status_code=400, detail="name or phone_number is required")
 
     caller_school = current_user.get("school_id", "")
     updates: dict[str, Any] = {}
@@ -90,12 +71,7 @@ async def update_student(
         updates["phone"] = body.phone_number
 
     updated = await service.update_student(student_id, updates, caller_school)
-    return {
-        "_id": str(updated.id),
-        "name": updated.name,
-        "phoneNumber": updated.phone,
-        "schoolId": updated.school_id or "",
-    }
+    return UserPublicResponse.from_domain(updated)
 
 
 @router.delete("/{student_id}", summary="Delete a student (school_admin only)", status_code=status.HTTP_200_OK)
@@ -103,7 +79,7 @@ async def delete_student(
     student_id: str,
     current_user: dict[str, Any] = Depends(require_teacher),
     service: UserService = Depends(get_user_service),
-) -> dict[str, str]:
+) -> MessageResponse:
     caller_school = current_user.get("school_id", "")
     await service.delete_student(student_id, caller_school)
-    return {"message": "Student deleted successfully"}
+    return MessageResponse(message="Student deleted successfully")
