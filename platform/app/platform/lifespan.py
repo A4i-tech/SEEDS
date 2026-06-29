@@ -52,6 +52,9 @@ def _init_conference_manager() -> ConferenceCallManager:
 
     import base64
 
+    from app.providers.smartphone_connection import (
+        SmartphoneConnectionManagerFactory,  # noqa: PLC0415
+    )
     from app.providers.vonage_api import VonageAPIProvider  # noqa: PLC0415
     from app.services.conference_service import ConferenceCallManager  # noqa: PLC0415
 
@@ -77,8 +80,6 @@ def _init_conference_manager() -> ConferenceCallManager:
                 events_webhook_url=settings.events_webhook_ep,
                 call_timeout_seconds=settings.vonage_call_timeout_seconds,
             )
-
-    from app.providers.smartphone_connection import SmartphoneConnectionManagerFactory  # noqa: PLC0415
 
     class _NoopStorageManager:
         """Placeholder storage manager (MongoDB integration in future phase)."""

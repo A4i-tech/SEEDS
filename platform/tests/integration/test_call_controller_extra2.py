@@ -172,12 +172,14 @@ class TestCallRoutes:
     async def test_start_call_with_valid_body(self, client, mock_db):
         teacher = await _seed_teacher(mock_db)
         token = _teacher_token(teacher["_id"])
-        resp = await client.post("/call/start", json={
-            "phone_number": "+919999999999",
-            "tenant_id": "t1",
-        }, headers={"Authorization": f"Bearer {token}"})
-        # IVR may not be configured — just check auth passes
-        assert resp.status_code in (200, 422, 500, 503)
+        with patch("app.controllers.call_controller.get_settings") as mock_settings:
+            mock_settings.return_value.ivr_server_url = None
+            resp = await client.post("/call/start", json={
+                "phone_number": "+919999999999",
+                "tenant_id": "t1",
+            }, headers={"Authorization": f"Bearer {token}"})
+        # IVR not configured — just check auth passes
+        assert resp.status_code in (200, 422, 503)
 
     @pytest.mark.asyncio
     async def test_get_fsm_context_requires_auth(self, client, mock_db):
