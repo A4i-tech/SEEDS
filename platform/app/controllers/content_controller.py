@@ -36,13 +36,19 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/content", tags=["Content"])
 
-_WRITE_ROLES = {UserRole.TENANT.value, UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value}
-_READ_ROLES = {
+_WRITE_ROLES = frozenset({UserRole.TENANT.value, UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value})
+_READ_ROLES = frozenset({
     UserRole.TENANT.value,
     UserRole.SCHOOL_ADMIN.value,
     UserRole.TEACHER.value,
     UserRole.CONTENT_CREATOR.value,
-}
+})
+_SCHOOL_READ_ROLES = frozenset({
+    UserRole.SCHOOL_ADMIN.value,
+    UserRole.TEACHER.value,
+    UserRole.CONTENT_CREATOR.value,
+})
+_SCHOOL_WRITE_ROLES = frozenset({UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value})
 
 # ---------------------------------------------------------------------------
 # Auth dependency helpers
@@ -72,33 +78,26 @@ async def _require_content_write(
 
 def _read_school_id(user: dict[str, Any]) -> str | None:
     """Return school_id for school-scoped roles; None for tenant (sees all)."""
-    if user.get("role") in (
-        UserRole.SCHOOL_ADMIN.value,
-        UserRole.TEACHER.value,
-        UserRole.CONTENT_CREATOR.value,
-    ):
-        return user.get("school_id") or None
-    return None
+    return user.get("school_id") or None if user.get("role") in _SCHOOL_READ_ROLES else None
 
 
 def _write_school_id(user: dict[str, Any]) -> str | None:
     """Return school_id for write-scoped roles; None for tenant."""
-    if user.get("role") in (UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value):
-        return user.get("school_id") or None
-    return None
+    return user.get("school_id") or None if user.get("role") in _SCHOOL_WRITE_ROLES else None
+
+
+# Aliases used by existing tests
+def _read_school_filter(user: dict[str, Any]) -> str | None:
+    return _read_school_id(user)
+
+
+def _write_school_filter(user: dict[str, Any]) -> dict[str, str | None]:
+    return {"schoolId": _write_school_id(user)}
 
 
 # ---------------------------------------------------------------------------
 # Response serialisation helpers
 # ---------------------------------------------------------------------------
-
-
-def _to_content(doc: dict) -> dict:
-    return ContentResponse.model_validate(doc).model_dump(by_alias=True)
-
-
-def _to_quiz(doc: dict) -> dict:
-    return {**QuizResponse.model_validate(doc).model_dump(by_alias=True), "type": "quiz"}
 
 
 def _sort_key(item: dict) -> tuple:
@@ -115,6 +114,7 @@ async def _get_sas_url(url: str) -> str:
         provider = BlobStorageProvider()
         return await provider.get_sas_url_from_blob_url(url, expiry_hours=1)
     except Exception as exc:
+        logger.error("_get_sas_url failed", extra={"err": str(exc)})
         raise HTTPException(status_code=500, detail=f"Failed to generate SAS URL: {exc}") from exc
 
 
@@ -192,6 +192,7 @@ async def get_sas_token(
         provider = BlobStorageProvider()
         sas_url = await provider.get_upload_sas_url("input-container", blob_name, expiry_hours=1)
     except Exception as exc:
+        logger.error("get_sas_token failed", extra={"blob_name": blob_name, "err": str(exc)})
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return {"sasToken": sas_url}
 
@@ -251,7 +252,7 @@ async def list_content(
             raise HTTPException(status_code=400, detail="ids must be a non-empty array")
         contents, quizzes = await service.list_content_by_ids(ids, tenant_id, school_id)
         return sorted(
-            [_to_content(d) for d in contents] + [_to_quiz(d) for d in quizzes],
+            [ContentResponse.from_doc(d) for d in contents] + [QuizResponse.from_doc(d) for d in quizzes],
             key=_sort_key,
         )
 
@@ -267,7 +268,7 @@ async def list_content(
     )
 
     all_results = sorted(
-        [_to_content(d) for d in contents] + [_to_quiz(d) for d in quizzes],
+        [ContentResponse.from_doc(d) for d in contents] + [QuizResponse.from_doc(d) for d in quizzes],
         key=_sort_key,
     )
 
@@ -300,9 +301,9 @@ async def get_content(
 
     doc, quiz = await service.get_content_by_id(content_id, tenant_id, school_id)
     if doc:
-        return _to_content(doc)
+        return ContentResponse.from_doc(doc)
     if quiz:
-        return _to_quiz(quiz)
+        return QuizResponse.from_doc(quiz)
     raise NotFoundError("Content", content_id)
 
 
@@ -327,6 +328,7 @@ async def create_content(
     try:
         content_id = await service.create_content(body, tenant_id, user_id, school_id, override_id)
     except ValueError as exc:
+        logger.error("create_content failed", extra={"tenant_id": tenant_id, "user_id": user_id, "err": str(exc)})
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     job_id = await service.enqueue_content_job(content_id)
@@ -352,15 +354,16 @@ async def update_content(
     try:
         result = await service.update_content(body, tenant_id, school_id, is_audio_uploaded)
     except ValueError as exc:
+        logger.error("update_content failed", extra={"tenant_id": tenant_id, "content_id": str(body.id), "err": str(exc)})
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     if result:
         if is_audio_uploaded:
             job_id = await service.enqueue_content_job(str(result.get("_id", "")))
-            out = _to_content(result)
+            out = ContentResponse.from_doc(result)
             out["jobId"] = job_id
             return out
-        return _to_content(result)
+        return ContentResponse.from_doc(result)
 
     raise NotFoundError("Content", str(body.id))
 

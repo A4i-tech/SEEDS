@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.requests.school_requests import SchoolCreate
@@ -50,6 +51,7 @@ class SchoolRepository(BaseRepository):
         doc = school.model_dump()
         doc["createdAt"] = now
         doc["updatedAt"] = now
+        doc["tenantId"] = ObjectId(doc["tenantId"])
         result = await self._col.insert_one(doc)
         doc["_id"] = str(result.inserted_id)
         return School.from_mongo(doc)

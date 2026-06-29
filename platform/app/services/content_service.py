@@ -6,6 +6,7 @@ No raw query dicts cross the service boundary.
 
 from __future__ import annotations
 
+import logging
 import time
 import uuid
 from datetime import UTC, datetime
@@ -23,6 +24,8 @@ from app.platform.auth.dependencies import get_db
 from app.repositories.content_job_repository import ContentJobRepository
 from app.repositories.content_repository import ContentRepository
 from app.repositories.quiz_repository import QuizRepository
+
+logger = logging.getLogger(__name__)
 
 
 class ContentService:
@@ -247,7 +250,10 @@ class ContentService:
 
 
 def _parse_cursor(cursor: str | None) -> int | None:
-    """Extract creation_time int from cursor string '{creation_time}_{id}'."""
+    """Extract creation_time int from cursor string '{creation_time}_{id}'.
+
+    Returns None on malformed cursor (restarts pagination from beginning).
+    """
     if not cursor:
         return None
     parts = cursor.split("_", 1)
@@ -256,6 +262,7 @@ def _parse_cursor(cursor: str | None) -> int | None:
             return int(parts[0])
         except ValueError:
             pass
+    logger.warning("Malformed pagination cursor ignored: %r", cursor)
     return None
 
 

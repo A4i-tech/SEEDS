@@ -2525,6 +2525,28 @@ packaging = ">=21.0"
 instruments = ["flask (>=1.0)"]
 
 [[package]]
+name = "opentelemetry-instrumentation-httpx"
+version = "0.61b0"
+description = "OpenTelemetry HTTPX Instrumentation"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "opentelemetry_instrumentation_httpx-0.61b0-py3-none-any.whl", hash = "sha256:dee05c93a6593a5dc3ae5d9d5c01df8b4e2c5d02e49275e5558534ee46343d5e"},
+    {file = "opentelemetry_instrumentation_httpx-0.61b0.tar.gz", hash = "sha256:6569ec097946c5551c2a4252f74c98666addd1bf047c1dde6b4ef426719ff8dd"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.12,<2.0"
+opentelemetry-instrumentation = "0.61b0"
+opentelemetry-semantic-conventions = "0.61b0"
+opentelemetry-util-http = "0.61b0"
+wrapt = ">=1.0.0,<2.0.0"
+
+[package.extras]
+instruments = ["httpx (>=0.18.0)"]
+
+[[package]]
 name = "opentelemetry-instrumentation-logging"
 version = "0.61b0"
 description = "OpenTelemetry Logging instrumentation"
@@ -4797,4 +4819,4 @@ type = ["pytest-mypy (>=1.0.1) ; platform_python_implementation != \"PyPy\""]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<4.0"
-content-hash = "52cdb1ef36b0c950b6a35106e42c84d11f5ed2832f8145d8f6276e547e044b1b"
+content-hash = "27bf6fe41200a0de8a8cdf72864c716c00eccd265f70409ea33e12246f705839"

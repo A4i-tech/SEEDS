@@ -206,14 +206,15 @@ async def test_user_repository_delete(user_repo):
 @pytest.mark.asyncio
 async def test_content_repository_find_by_tenant(content_repo):
     """find_by_tenant applies the tenant_id filter and skips deleted items."""
-    tenant_id = str(ObjectId())
-    other_tenant = str(ObjectId())
+    tenant_oid = ObjectId()
+    tenant_id = str(tenant_oid)
+    other_oid = ObjectId()
 
     await content_repo._col.insert_many(
         [
             {
                 "_id": "content-1",
-                "tenantId": tenant_id,
+                "tenantId": tenant_oid,
                 "type": "story",
                 "language": "en",
                 "isDeleted": False,
@@ -221,7 +222,7 @@ async def test_content_repository_find_by_tenant(content_repo):
             },
             {
                 "_id": "content-2",
-                "tenantId": tenant_id,
+                "tenantId": tenant_oid,
                 "type": "song",
                 "language": "hi",
                 "isDeleted": True,
@@ -229,7 +230,7 @@ async def test_content_repository_find_by_tenant(content_repo):
             },
             {
                 "_id": "content-3",
-                "tenantId": other_tenant,
+                "tenantId": other_oid,  # noqa: F821
                 "type": "story",
                 "language": "en",
                 "isDeleted": False,

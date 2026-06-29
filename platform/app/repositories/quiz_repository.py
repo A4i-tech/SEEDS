@@ -97,8 +97,8 @@ class QuizRepository(BaseRepository):
             doc["tenantId"] = _oid(doc["tenantId"])
         if doc.get("schoolId"):
             doc["schoolId"] = _oid(doc["schoolId"])
-        await self._col.insert_one(doc)
-        return str(doc.get("_id", ""))
+        result = await self._col.insert_one(doc)
+        return str(result.inserted_id)
 
     async def soft_delete_by_id_and_tenant(
         self,
@@ -106,6 +106,9 @@ class QuizRepository(BaseRepository):
         tenant_id: str,
         school_id: str | None = None,
     ) -> int:
+        from datetime import UTC, datetime
         q = {**self._tenant_query(tenant_id, school_id), "_id": content_id}
-        result = await self._col.update_one(q, {"$set": {"isDeleted": True}})
+        result = await self._col.update_one(
+            q, {"$set": {"isDeleted": True, "updatedAt": datetime.now(UTC)}}
+        )
         return result.matched_count

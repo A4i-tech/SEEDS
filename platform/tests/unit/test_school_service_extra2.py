@@ -248,7 +248,7 @@ class TestSchoolServiceExtra:
 
         with patch("app.services.school_service.SchoolRepository") as MockSchoolRepo:
             mock_school_repo = AsyncMock()
-            mock_school_repo.find_by_id = AsyncMock(return_value=None)
+            mock_school_repo.find_by_id_and_tenant = AsyncMock(return_value=None)
             MockSchoolRepo.return_value = mock_school_repo
 
             svc = SchoolService(mock_db)

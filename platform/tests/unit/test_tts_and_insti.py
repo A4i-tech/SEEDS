@@ -507,20 +507,23 @@ class TestContentRepository:
 
     @pytest.mark.asyncio
     async def test_create_and_find_content(self, db) -> None:
+        from bson import ObjectId
+
         from app.models.requests.content_requests import ContentCreate
         from app.repositories.content_repository import ContentRepository
 
+        tenant_id = str(ObjectId())
         repo = ContentRepository(db)
         content_create = ContentCreate(
             type="audio",
             language="english",
-            tenantId="t1",
+            tenantId=tenant_id,
             createdBy="teacher1",
         )
         created = await repo.create(content_create)
         assert created is not None
 
-        items = await repo.find_by_tenant("t1")
+        items = await repo.find_by_tenant(tenant_id)
         assert len(items) >= 1
 
     @pytest.mark.asyncio
@@ -579,6 +582,8 @@ class TestConferenceCallManager:
 
 
 class TestSchoolServiceAdditional:
+    TENANT_ID = "690dbc1b3b41c70deffa2761"  # valid 24-char ObjectId hex for test fixture
+
     @pytest.fixture
     def db(self):
         import mongomock_motor
@@ -590,9 +595,9 @@ class TestSchoolServiceAdditional:
         from app.services.school_service import SchoolService
 
         svc = SchoolService(db)
-        school = await svc.create_school(name="Get By ID", email="getbyid@school.com", tenant_id="t1", plain_password="pass")
+        school = await svc.create_school(name="Get By ID", email="getbyid@school.com", tenant_id=self.TENANT_ID, plain_password="pass")
 
-        result = await svc.get_school(school.id, "t1")
+        result = await svc.get_school(school.id, self.TENANT_ID)
         assert result is not None
         assert result.name == "Get By ID"
 
@@ -602,16 +607,16 @@ class TestSchoolServiceAdditional:
         from app.services.school_service import SchoolService
 
         with pytest.raises(NotFoundError):
-            await SchoolService(db).get_school("000000000000000000000000", "t1")
+            await SchoolService(db).get_school("000000000000000000000000", self.TENANT_ID)
 
     @pytest.mark.asyncio
     async def test_get_school_dashboard(self, db) -> None:
         from app.services.school_service import SchoolService
 
         svc = SchoolService(db)
-        school = await svc.create_school(name="Dashboard School", email="dash@school.com", tenant_id="t1", plain_password="pass")
+        school = await svc.create_school(name="Dashboard School", email="dash@school.com", tenant_id=self.TENANT_ID, plain_password="pass")
 
-        result = await svc.get_school_dashboard(school.id, "t1")
+        result = await svc.get_school_dashboard(school.id, self.TENANT_ID)
         assert result is not None
 
     @pytest.mark.asyncio
@@ -620,9 +625,9 @@ class TestSchoolServiceAdditional:
         from app.services.school_service import SchoolService
 
         svc = SchoolService(db)
-        school = await svc.create_school(name="Old Name", email="old@school.com", tenant_id="t1", plain_password="pass")
+        school = await svc.create_school(name="Old Name", email="old@school.com", tenant_id=self.TENANT_ID, plain_password="pass")
 
-        updated = await svc.update_school(school.id, SchoolUpdateRequest(name="New Name"), "t1")
+        updated = await svc.update_school(school.id, SchoolUpdateRequest(name="New Name"), self.TENANT_ID)
         assert updated is not None
         assert updated.name == "New Name"
 

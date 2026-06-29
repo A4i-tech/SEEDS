@@ -136,6 +136,30 @@ class ContentRepository(BaseRepository):
         docs = await self._col.find({"_id": {"$in": content_ids}}).to_list(length=None)
         return [Content.from_mongo(d) for d in docs]
 
+    async def find_by_tenant(
+        self,
+        tenant_id: str,
+        include_deleted: bool = False,
+    ) -> list[Content]:
+        """Return all content for a tenant as Content model objects."""
+        q = self._tenant_query(tenant_id, include_deleted=include_deleted)
+        docs = await self._col.find(q).to_list(length=None)
+        return [Content.from_mongo(d) for d in docs]
+
+    async def create(self, content: Any) -> Content:
+        """Insert a ContentCreate DTO and return the resulting Content model."""
+        import time as _time
+        doc = content.model_dump() if hasattr(content, "model_dump") else dict(content)
+        doc.setdefault("_id", str(uuid.uuid4()))
+        doc.setdefault("creation_time", int(_time.time()))
+        if doc.get("tenantId"):
+            doc["tenantId"] = _oid(doc["tenantId"])
+        if doc.get("schoolId"):
+            doc["schoolId"] = _oid(doc["schoolId"])
+        await self._col.insert_one(doc)
+        doc["_id"] = str(doc["_id"])
+        return Content.from_mongo(doc)
+
     # ------------------------------------------------------------------
     # Writes
     # ------------------------------------------------------------------
