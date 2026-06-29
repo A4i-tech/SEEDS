@@ -26,9 +26,8 @@ class School(BaseModel):
     def from_mongo(cls, doc: dict) -> School:
         if doc is None:
             return None  # type: ignore[return-value]
-        d = dict(doc)
-        if "_id" in d and isinstance(d["_id"], ObjectId):
-            d["_id"] = str(d["_id"])
+        # Coerce any ObjectId field to str — schools collection stores tenantId as ObjectId
+        d = {k: str(v) if isinstance(v, ObjectId) else v for k, v in doc.items()}
         return cls.model_validate(d)
 
 

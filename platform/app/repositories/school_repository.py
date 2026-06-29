@@ -26,7 +26,7 @@ class SchoolRepository(BaseRepository):
 
     async def find_by_id_and_tenant(self, id: str, tenant_id: str) -> School | None:
         doc = await self._col.find_one(
-            {"_id": self._to_id(id), "tenantId": tenant_id}, self._NO_PWD
+            {"_id": self._to_id(id), "tenantId": self._to_id(tenant_id)}, self._NO_PWD
         )
         return School.from_mongo(doc) if doc else None
 
@@ -36,12 +36,12 @@ class SchoolRepository(BaseRepository):
         return School.from_mongo(doc) if doc else None
 
     async def find_all_by_tenant(self, tenant_id: str) -> list[School]:
-        cursor = self._col.find({"tenantId": tenant_id}, self._NO_PWD)
+        cursor = self._col.find({"tenantId": self._to_id(tenant_id)}, self._NO_PWD)
         docs = await cursor.to_list(length=None)
         return [School.from_mongo(d) for d in docs]
 
     async def find_active_by_tenant(self, tenant_id: str) -> list[School]:
-        cursor = self._col.find({"tenantId": tenant_id, "isActive": True}, self._NO_PWD)
+        cursor = self._col.find({"tenantId": self._to_id(tenant_id), "isActive": True}, self._NO_PWD)
         docs = await cursor.to_list(length=None)
         return [School.from_mongo(d) for d in docs]
 

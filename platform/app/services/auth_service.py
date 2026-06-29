@@ -164,11 +164,14 @@ async def login(
         auth_failures.add(1, {"reason": "wrong_password"})
         raise UnauthorizedError("Invalid email or password")
 
+    # Tenant users are the root of their own tenant scope — their _id IS the
+    # tenantId used in content/school documents, but tenant_id is not stored on
+    # their own user record (they don't reference themselves). Use sub as tenant_id.
     token = create_access_token(
         {
             "sub": str(user.id),
             "role": user.role.value,
-            "tenant_id": user.tenant_id,
+            "tenant_id": user.tenant_id or str(user.id),
             "school_id": user.school_id,
         }
     )

@@ -71,9 +71,7 @@ class Content(BaseModel):
     def from_mongo(cls, doc: dict) -> Content:
         if doc is None:
             return None  # type: ignore[return-value]
-        d = dict(doc)
-        if "_id" in d and isinstance(d["_id"], ObjectId):
-            d["_id"] = str(d["_id"])
+        d = {k: str(v) if isinstance(v, ObjectId) else v for k, v in doc.items()}
         return cls.model_validate(d)
 
 
