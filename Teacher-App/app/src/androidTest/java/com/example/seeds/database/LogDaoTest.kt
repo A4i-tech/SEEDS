@@ -31,7 +31,7 @@ class LogDaoTest {
 
     @Test
     fun insert_and_getAll_returnsInsertedLog() = runBlocking {
-        dao.insert(LogEntity(logText = "Test log", time = "2024-01-01", user = "teacher-1", priority = 1))
+        dao.insert(LogEntity(id = "1", logText = "Test log", time = "2024-01-01", user = "teacher-1", priority = 1))
         val result = dao.getAll()
         assertThat(result).hasSize(1)
         assertThat(result.first().logText).isEqualTo("Test log")
@@ -39,7 +39,7 @@ class LogDaoTest {
 
     @Test
     fun delete_removesSpecifiedIds() = runBlocking {
-        dao.insert(LogEntity(logText = "To delete", time = "2024-01-01", user = "teacher-1", priority = 1))
+        dao.insert(LogEntity(id = "1", logText = "To delete", time = "2024-01-01", user = "teacher-1", priority = 1))
         val all = dao.getAll()
         dao.delete(all.map { it.id })
         assertThat(dao.getAll()).isEmpty()
@@ -47,15 +47,15 @@ class LogDaoTest {
 
     @Test
     fun insert_multipleEntries_allPersisted() = runBlocking {
-        dao.insert(LogEntity(logText = "Log 1", time = "2024-01-01", user = "t1", priority = 1))
-        dao.insert(LogEntity(logText = "Log 2", time = "2024-01-02", user = "t1", priority = 2))
+        dao.insert(LogEntity(id = "1", logText = "Log 1", time = "2024-01-01", user = "t1", priority = 1))
+        dao.insert(LogEntity(id = "2", logText = "Log 2", time = "2024-01-02", user = "t1", priority = 2))
         assertThat(dao.getAll()).hasSize(2)
     }
 
     @Test
     fun delete_onlyRemovesSpecifiedIds() = runBlocking {
-        dao.insert(LogEntity(logText = "Keep", time = "2024-01-01", user = "t1", priority = 1))
-        dao.insert(LogEntity(logText = "Remove", time = "2024-01-02", user = "t1", priority = 2))
+        dao.insert(LogEntity(id = "1", logText = "Keep", time = "2024-01-01", user = "t1", priority = 1))
+        dao.insert(LogEntity(id = "2", logText = "Remove", time = "2024-01-02", user = "t1", priority = 2))
         val toRemove = dao.getAll().filter { it.logText == "Remove" }.map { it.id }
         dao.delete(toRemove)
         val remaining = dao.getAll()

@@ -85,14 +85,16 @@ class CallSettingsViewModel @Inject constructor(
     private suspend fun repairClassroomNames(classroom: Classroom): Classroom {
         return try {
             val directoryMap = teacherStudentsDirectory.studentsByPhone()
-            
+            val byId = directoryMap.values.filter { it._id != null }.associateBy { it._id!! }
+
             val fixedStudents = classroom.students.map { student ->
-                val correctDetails = directoryMap[student.phoneNumber] 
+                val correctDetails = directoryMap[student.phoneNumber]
                     ?: directoryMap[student.phoneNumber.removePrefix("91")]
                     ?: directoryMap["91${student.phoneNumber}"]
+                    ?: byId[student._id]
 
                 if (correctDetails != null) {
-                    student.copy(name = correctDetails.name)
+                    student.copy(name = correctDetails.name, phoneNumber = correctDetails.phoneNumber)
                 } else {
                     student
                 }
