@@ -89,7 +89,7 @@ android {
         def finalVersionCode = (versionCodeProp ?: versionCodeEnv)?.toInteger() ?: 1
         versionCode finalVersionCode
 
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner "com.example.seeds.HiltTestRunner"
 
         buildConfigField "String", "BASE_URL", "\"${baseUrl}\""
         buildConfigField "String", "CONTENT_URL", "\"${contentUrl}\""
@@ -128,6 +128,7 @@ android {
             }
         }
         debug {
+            testCoverageEnabled true
             if (stagingKeystoreFile != null && stagingKeystoreFile.exists()) {
                 signingConfig signingConfigs.debug
             }
@@ -151,6 +152,7 @@ android {
     lintOptions {
         abortOnError false
     }
+
 }
 configurations.all {
     resolutionStrategy {
@@ -227,10 +229,29 @@ dependencies {
     implementation 'com.launchdarkly:okhttp-eventsource:2.5.0'
     // Timber
     implementation "com.jakewharton.timber:timber:5.0.1"
-    // Testing
+    // Testing — Unit
     testImplementation 'junit:junit:4.13.2'
-    androidTestImplementation 'androidx.test.ext:junit:1.1.3'
-    androidTestImplementation 'androidx.test.espresso:espresso-core:3.4.0'
+    testImplementation "io.mockk:mockk:1.12.5"
+    testImplementation "org.jetbrains.kotlinx:kotlinx-coroutines-test:1.6.4"
+    testImplementation "com.google.truth:truth:1.1.3"
+    testImplementation "org.robolectric:robolectric:4.9"
+    testImplementation "androidx.test:core-ktx:1.5.0"
+    testImplementation "androidx.arch.core:core-testing:2.1.0"
+    // Testing — Instrumented
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+    androidTestImplementation 'androidx.test.espresso:espresso-contrib:3.5.1'
+    androidTestImplementation "androidx.fragment:fragment-testing:1.5.7"
+    androidTestImplementation "androidx.room:room-testing:2.4.1"
+    androidTestImplementation "com.squareup.okhttp3:mockwebserver:4.9.3"
+    androidTestImplementation "com.google.truth:truth:1.1.3"
+    androidTestImplementation "androidx.arch.core:core-testing:2.1.0"
+    testImplementation "com.squareup.okhttp3:mockwebserver:4.9.3"
+    // Hilt testing
+    androidTestImplementation "com.google.dagger:hilt-android-testing:2.37"
+    kaptAndroidTest "com.google.dagger:hilt-android-compiler:2.37"
+    // Navigation testing
+    androidTestImplementation "androidx.navigation:navigation-testing:$version_navigation"
 }
 
 detekt {

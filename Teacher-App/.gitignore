@@ -15,3 +15,4 @@
 local.properties
 .idea
 fastlane/.env.staging
+*.exec
