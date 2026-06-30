@@ -255,15 +255,16 @@ class CallViewModel @Inject constructor(
 
             viewModelScope.launch {
                 val allContentList = mutableListOf<Content>()
+                val seenIds = mutableSetOf<String>()
                 var nextCursor: String? = null
-                var hasMore: Boolean
 
                 do {
                     val response = contentRepository.getAllContent(cursor = nextCursor)
-                    allContentList.addAll(response.data)
+                    val newItems = response.data.filter { it.id != null && seenIds.add(it.id.toString()) }
+                    if (newItems.isEmpty()) break        // no new items — stop regardless of hasMore
+                    allContentList.addAll(newItems)
                     nextCursor = response.pagination.nextCursor
-                    hasMore = response.pagination.hasMore
-                } while (hasMore)
+                } while (nextCursor != null)            // trust cursor presence, not hasMore flag
 
                 val selectedContentListIds = args.classroom.contentIds
                 val filteredListContent = allContentList.filter {
@@ -460,6 +461,13 @@ class CallViewModel @Inject constructor(
         }
     }
 
+    fun reconnectSSEIfNeeded() {
+        val confId = _callToken.value?.confId ?: return
+        conferenceEverRunning.set(false)
+        Log.i(TAG, "SSE: Reconnecting after connectivity recovery")
+        startSSE(confId)
+    }
+
     private fun handleSSEUpdate(data: String) {
         try {
             val json = gson.fromJson(data, com.google.gson.JsonObject::class.java)
@@ -502,9 +510,12 @@ class CallViewModel @Inject constructor(
 
             for ((phone, el) in participantsObj.entrySet()) {
                 val p = el.asJsonObject
-                val callerState = try {
+                val rawState = try {
                     CallerState.valueOf(p.get("call_status")?.asString?.uppercase() ?: "UNDEFINED")
                 } catch (e: IllegalArgumentException) { CallerState.UNDEFINED }
+                // Platform has no RINGING state — CONNECTING means "dialing, not yet answered".
+                // Map to RINGING so teacher sees phone-ringing UI until student picks up.
+                val callerState = if (rawState == CallerState.CONNECTING) CallerState.RINGING else rawState
 
                 val status = StudentCallStatus(
                     callerState = callerState,
@@ -517,7 +528,16 @@ class CallViewModel @Inject constructor(
                 else students.add(status)
             }
 
-            _callState.postValue(students)
+            // Preserve pre-answer students (RINGING) not yet in SSE participants.
+            // SSE only includes participants who have joined; a student still ringing
+            // externally won't appear until they answer, so we keep them in current state.
+            val normalize = { p: String -> if (p.startsWith("91") && p.length > 10) p.substring(2) else p }
+            val sseKeys = students.mapNotNull { it.phoneNumber?.let(normalize) }.toSet()
+            val preAnswerStudents = (_callState.value ?: emptyList()).filter { existing ->
+                val key = existing.phoneNumber?.let(normalize) ?: return@filter false
+                key !in sseKeys && participantTrackers[existing.phoneNumber]?.hasBeenInCall != true
+            }
+            _callState.postValue((students + preAnswerStudents).sortedByDescending { it.raiseHand })
             teacherStatus?.let { _teacherCallStatus.postValue(it) }
 
             // --- Audio state ---

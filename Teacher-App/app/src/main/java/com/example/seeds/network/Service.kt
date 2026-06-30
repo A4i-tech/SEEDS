@@ -47,7 +47,7 @@ interface SeedsService {
     @POST("tenant/logout")
     suspend fun logout(@Header("Authorization") token: String): Response<Unit>
 
-    @GET("health/ping")
+    @GET("health")
     suspend fun healthPing(): Response<Unit>
 
     @POST
