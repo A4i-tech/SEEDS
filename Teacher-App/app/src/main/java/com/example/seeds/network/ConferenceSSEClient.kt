@@ -6,7 +6,6 @@ import com.launchdarkly.eventsource.EventSource
 import com.launchdarkly.eventsource.MessageEvent
 import java.net.URI
 import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
 import java.time.Duration
 
 class ConferenceSSEClient {
@@ -43,7 +42,7 @@ class ConferenceSSEClient {
             }
         }
 
-        val urlWithToken = "$url?token=${URLEncoder.encode(authToken, StandardCharsets.UTF_8)}"
+        val urlWithToken = "$url?token=${URLEncoder.encode(authToken, "UTF-8")}"
         eventSource = EventSource.Builder(handler, URI.create(urlWithToken))
             .reconnectTime(Duration.ofSeconds(3))
             .build()
