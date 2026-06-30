@@ -24,7 +24,7 @@ class TimberRemoteTree(val database: LogDao,
         val timestamp = System.currentTimeMillis()
         val time = timeFormat.format(Date(timestamp))
         try {
-            val remoteLog = LogEntity(logText = "$tag $message", time = time,
+            val remoteLog = LogEntity(id = UUID.randomUUID().toString(), logText = "$tag $message", time = time,
              user = teacherPhoneNumber, priority = priority)
             coroutineScope.launch {
                 database.insert(remoteLog)

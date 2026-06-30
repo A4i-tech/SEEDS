@@ -17,12 +17,13 @@ export const createClassroom = async (classroomData) => {
 };
 
 export const updateClassroom = async (classroomData) => {
-  try {
-    const response = await axiosInstance.post(API_ENDPOINTS.CLASSROOM.UPDATE, classroomData);
-    return response.data;
-  } catch (error) {
-    throw new Error("Failed to update classroom");
-  }
+  const payload = {
+    ...classroomData,
+    students: classroomData.students.map((s) => (typeof s === "object" ? s.id : s)),
+    leaders: classroomData.leaders.map((l) => (typeof l === "object" ? l.id : l)),
+  };
+  const response = await axiosInstance.post(API_ENDPOINTS.CLASSROOM.UPDATE, payload);
+  return response.data;
 };
 
 export const deleteClassroom = async (classId) => {

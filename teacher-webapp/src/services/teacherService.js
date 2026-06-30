@@ -20,5 +20,5 @@ export const getCurrentTeacher = async () => {
  */
 export const getSchoolStudents = async () => {
   const response = await axiosInstance.get(API_ENDPOINTS.GET_STUDENTS);
-  return response.data;
+  return response.data.map((s) => (s.id ? s : { ...s, id: s._id }));
 };

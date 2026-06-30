@@ -22,8 +22,8 @@ class ClassroomRepositoryTest {
 
     @Test
     fun `getAllClassrooms returns list sorted descending by id`() = runTest {
-        val dto1 = ClassroomDto(_id = "cls-1", name = "Alpha", teacher = "t", students = emptyList(), leaders = emptyList())
-        val dto2 = ClassroomDto(_id = "cls-2", name = "Beta", teacher = "t", students = emptyList(), leaders = emptyList())
+        val dto1 = ClassroomDto(id = "cls-1", name = "Alpha", teacher = "t", students = emptyList(), leaders = emptyList())
+        val dto2 = ClassroomDto(id = "cls-2", name = "Beta", teacher = "t", students = emptyList(), leaders = emptyList())
         coEvery { mockService.getAllClassrooms() } returns listOf(dto1, dto2)
 
         val result = repository.getAllClassrooms()
@@ -44,7 +44,7 @@ class ClassroomRepositoryTest {
     @Test
     fun `saveClassroom calls network and returns domain model`() = runTest {
         val classroom = ClassroomTestBuilder.build(id = "cls-1", name = "Test Class")
-        val returnedDto = ClassroomDto(_id = "cls-1", name = "Test Class", teacher = "", students = emptyList(), leaders = emptyList())
+        val returnedDto = ClassroomDto(id = "cls-1", name = "Test Class", teacher = "", students = emptyList(), leaders = emptyList())
         coEvery { mockService.saveClassroom(any()) } returns returnedDto
 
         val result = repository.saveClassroom(classroom)
@@ -66,8 +66,9 @@ class ClassroomRepositoryTest {
 
     @Test
     fun `getClassroomById returns mapped domain model`() = runTest {
-        val dto = ClassroomDto(_id = "cls-99", name = "Room 99", teacher = "t", students = emptyList(), leaders = emptyList())
+        val dto = ClassroomDto(id = "cls-99", name = "Room 99", teacher = "t", students = emptyList(), leaders = emptyList())
         coEvery { mockService.getClassroomById("cls-99") } returns dto
+
 
         val result = repository.getClassroomById("cls-99")
 
