@@ -4,8 +4,9 @@ import android.util.Log
 import com.launchdarkly.eventsource.EventHandler
 import com.launchdarkly.eventsource.EventSource
 import com.launchdarkly.eventsource.MessageEvent
-import okhttp3.Headers
 import java.net.URI
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import java.time.Duration
 
 class ConferenceSSEClient {
@@ -42,12 +43,8 @@ class ConferenceSSEClient {
             }
         }
 
-        eventSource = EventSource.Builder(handler, URI.create(url))
-            .headers(
-                Headers.Builder()
-                    .add("Authorization", "Bearer $authToken")
-                    .build()
-            )
+        val urlWithToken = "$url?token=${URLEncoder.encode(authToken, StandardCharsets.UTF_8)}"
+        eventSource = EventSource.Builder(handler, URI.create(urlWithToken))
             .reconnectTime(Duration.ofSeconds(3))
             .build()
 
