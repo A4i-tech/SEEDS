@@ -15,5 +15,5 @@ interface LogDao {
     suspend fun getAll(): List<LogEntity>
 
     @Query("delete from log where id in (:logs)")
-    suspend fun delete(logs: List<Int>)
+    suspend fun delete(logs: List<String>)
 }
