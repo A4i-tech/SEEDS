@@ -5,12 +5,13 @@ import com.google.common.truth.Truth.assertThat
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
-import kotlin.test.assertFailsWith
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 import retrofit2.HttpException
@@ -68,9 +69,11 @@ class SeedsServiceTest {
     }
 
     @Test
-    fun `500 response throws HttpException`() = runTest {
+    fun `500 response throws HttpException`() {
         mockWebServer.enqueue(MockResponse().setResponseCode(500))
-        assertFailsWith<HttpException> { service.getSchoolStudents() }
+        assertThrows(HttpException::class.java) {
+            runBlocking { service.getSchoolStudents() }
+        }
     }
 
     @Test
