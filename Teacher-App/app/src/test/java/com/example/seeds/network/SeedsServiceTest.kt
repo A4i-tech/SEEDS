@@ -5,13 +5,12 @@ import com.google.common.truth.Truth.assertThat
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlin.test.assertFailsWith
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
-import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 import retrofit2.HttpException
@@ -26,6 +25,7 @@ class SeedsServiceTest {
     private lateinit var service: SeedsService
 
     private val moshi = Moshi.Builder()
+        .add(ClassroomDto.Companion)
         .add(ApplicationJsonAdapterFactory)
         .add(KotlinJsonAdapterFactory())
         .build()
@@ -49,11 +49,11 @@ class SeedsServiceTest {
     fun teardown() = mockWebServer.shutdown()
 
     @Test
-    fun `healthPing sends GET to health_ping`() = runTest {
+    fun `healthPing sends GET to health`() = runTest {
         mockWebServer.enqueue(MockResponse().setResponseCode(200))
         service.healthPing()
         val request = mockWebServer.takeRequest()
-        assertThat(request.path).isEqualTo("/health/ping")
+        assertThat(request.path).isEqualTo("/health")
         assertThat(request.method).isEqualTo("GET")
     }
 
@@ -68,11 +68,9 @@ class SeedsServiceTest {
     }
 
     @Test
-    fun `500 response throws HttpException`() {
+    fun `500 response throws HttpException`() = runTest {
         mockWebServer.enqueue(MockResponse().setResponseCode(500))
-        assertThrows(HttpException::class.java) {
-            runBlocking { service.getSchoolStudents() }
-        }
+        assertFailsWith<HttpException> { service.getSchoolStudents() }
     }
 
     @Test

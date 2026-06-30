@@ -300,6 +300,7 @@ class CallFragment : BaseFragment() {
             }
             ConnectivityStatus.ONLINE -> {
                 container.visibility = View.GONE
+                viewModel.reconnectSSEIfNeeded()
             }
         }
     }

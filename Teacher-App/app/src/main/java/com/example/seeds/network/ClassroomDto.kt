@@ -5,8 +5,6 @@ import com.example.seeds.model.Classroom
 import com.example.seeds.model.Student
 import com.squareup.moshi.FromJson
 import com.squareup.moshi.JsonReader
-import com.squareup.moshi.JsonWriter
-import com.squareup.moshi.ToJson
 
 data class ClassroomDto(
     var id: String? = null,
@@ -29,15 +27,14 @@ data class ClassroomDto(
             reader.beginObject()
             while (reader.hasNext()) {
                 when (reader.nextName()) {
-                    "id" -> id = reader.nextString()
+                    "id", "_id" -> id = reader.nextString()
                     "name" -> name = reader.nextString()
                     "teacher" -> teacher = reader.nextString()
                     "students" -> readFlexibleIds(reader, students)
                     "leaders" -> readFlexibleIds(reader, leaders)
-                    "contentIds" -> contentIds = mutableListOf<String>().also { list ->
-                        reader.beginArray()
-                        while (reader.hasNext()) list.add(reader.nextString())
-                        reader.endArray()
+                    "contentIds" -> mutableListOf<String>().also { list ->
+                        readFlexibleIds(reader, list)
+                        contentIds = list
                     }
                     else -> reader.skipValue()
                 }
@@ -67,25 +64,12 @@ data class ClassroomDto(
             reader.endArray()
         }
 
-        @ToJson
-        fun toJson(writer: JsonWriter, value: ClassroomDto) {
-            writer.beginObject()
-            writer.name("id").value(value.id)
-            writer.name("name").value(value.name)
-            writer.name("teacher").value(value.teacher)
-            writer.name("students").beginArray(); value.students.forEach { writer.value(it) }; writer.endArray()
-            writer.name("leaders").beginArray(); value.leaders.forEach { writer.value(it) }; writer.endArray()
-            value.contentIds?.let { ids ->
-                writer.name("contentIds").beginArray(); ids.forEach { writer.value(it) }; writer.endArray()
-            }
-            writer.endObject()
-        }
     }
 }
 
 /** Separate DTO used when saving (POST /class) — sends student ObjectIds as plain strings */
 data class ClassroomSaveDto(
-    var _id: String? = null,
+    var id: String? = null,
     var name: String,
     var teacher: String,
     var students: List<String>,
@@ -100,6 +84,7 @@ fun ClassroomDto.asDomainModel(context: Context): Classroom {
         id,
         name,
         teacherId,
+        // ponytail: name/phone blank — API returns only IDs here; UI resolves from allStudents list
         students.map { Student(phoneNumber = "", name = "", _id = it) },
         leaders.map { Student(phoneNumber = "", name = "", _id = it) },
         contentIds ?: emptyList()
