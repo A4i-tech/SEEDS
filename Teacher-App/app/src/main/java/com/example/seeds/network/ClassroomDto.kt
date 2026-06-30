@@ -84,7 +84,7 @@ fun ClassroomDto.asDomainModel(context: Context): Classroom {
         id,
         name,
         teacherId,
-        // ponytail: name/phone blank — API returns only IDs here; UI resolves from allStudents list
+        // name/phone blank — API returns only IDs here; UI resolves from allStudents list
         students.map { Student(phoneNumber = "", name = "", _id = it) },
         leaders.map { Student(phoneNumber = "", name = "", _id = it) },
         contentIds ?: emptyList()
