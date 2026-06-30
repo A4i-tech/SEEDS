@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">Seeds</string>
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+    <string name="starting_call">Initiating call!</string>
+    <string name="seeds">SEEDS</string>
+    <string name="number_of_students">%d students</string>
+
+    <string name="connectivity_offline">No internet connection</string>
+    <string name="connectivity_degraded">Weak connection detected</string>
+
+    <string name="navigation_drawer_open">Open navigation drawer</string>
+    <string name="navigation_drawer_close">Close navigation drawer</string>
+    <string name="content_icon">Content icon</string>
+    <string name="play_content">Play content</string>
+    
+</resources>

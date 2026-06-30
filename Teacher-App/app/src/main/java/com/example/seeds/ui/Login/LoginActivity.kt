@@ -1,0 +1,194 @@
+package com.example.seeds.ui.Login
+
+import android.content.Intent
+import android.os.Bundle
+import android.widget.Toast
+import androidx.activity.viewModels
+import androidx.appcompat.app.AppCompatActivity
+import com.example.seeds.MainActivity
+import com.example.seeds.databinding.ActivityLoginBinding
+import com.example.seeds.network.TIMEOUT
+import com.example.seeds.repository.TeacherRepository
+import com.example.seeds.ui.call.CallViewModel
+import com.example.seeds.utils.Constants
+import com.example.seeds.utils.Encryptor
+import org.json.JSONObject
+import java.io.IOException
+import javax.inject.Inject
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody
+import okhttp3.Response
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import com.google.android.gms.auth.api.credentials.Credential
+import com.google.android.gms.auth.api.credentials.Credentials
+import com.google.android.gms.auth.api.credentials.HintRequest
+import android.util.Log
+import java.util.concurrent.TimeUnit
+
+class LoginActivity : AppCompatActivity() {
+
+    companion object {
+        private const val PHONE_NUMBER_LENGTH = 10
+    }
+
+    private lateinit var binding: ActivityLoginBinding
+    private lateinit var phoneHintLauncher: ActivityResultLauncher<IntentSenderRequest>
+    private var isLoginInProgress = false
+
+    @Inject
+    lateinit var teacherRepository: TeacherRepository
+
+    private val viewModel: CallViewModel by viewModels()
+
+    private val LOGIN_URL = Constants.BASE_URL + "/teacher/login"
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityLoginBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        val phoneNumberField = binding.editTextPhoneNumber
+        val passwordField = binding.editTextPassword
+        val loginBtn = binding.phoneNumberLoginBtn
+
+        // Hint launcher initialization
+        phoneHintLauncher =
+            registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+                if (result.resultCode == RESULT_OK) {
+                    val credential = result.data?.getParcelableExtra<Credential>(Credential.EXTRA_KEY)
+                    credential?.id?.let {
+                        val digitsOnly = it.replace(Regex("[^0-9]"), "")
+                        val phoneNumber = digitsOnly.takeLast(PHONE_NUMBER_LENGTH)
+                        phoneNumberField.setText(phoneNumber)
+                    }
+                } else {
+                    Log.d("LoginActivity", "Phone number hint was not selected.")
+                }
+            }
+
+        // Listeners
+        phoneNumberField.setOnClickListener { requestPhoneNumberHint() }
+        phoneNumberField.setOnFocusChangeListener { _, hasFocus -> if (hasFocus) requestPhoneNumberHint() }
+
+        // Login click listener
+        loginBtn.setOnClickListener {
+            if (isLoginInProgress) {
+                return@setOnClickListener
+            }
+
+            val phoneNumber = phoneNumberField.text.toString().trim()
+            val password = passwordField.text.toString().trim()
+            if (phoneNumber.isEmpty() || password.isEmpty()) {
+                Toast.makeText(this, "Please fill phone number and password", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            setLoginLoadingState(true)
+            loginWithPhoneNumber(phoneNumber, password)
+        }
+    }
+
+    private fun setLoginLoadingState(isLoading: Boolean) {
+        isLoginInProgress = isLoading
+        binding.phoneNumberLoginBtn.isEnabled = !isLoading
+    }
+
+    private fun requestPhoneNumberHint() {
+        val hintRequest = HintRequest.Builder()
+            .setPhoneNumberIdentifierSupported(true)
+            .build()
+        
+        val credentialsClient = Credentials.getClient(this)
+        val intent = credentialsClient.getHintPickerIntent(hintRequest)
+
+        try {
+            val intentSenderRequest = IntentSenderRequest.Builder(intent.intentSender).build()
+            phoneHintLauncher.launch(intentSenderRequest)
+        } catch (e: Exception) {
+            Log.e("LoginActivity", "Could not start hint picker", e)
+        }
+    }
+
+    private fun loginWithPhoneNumber(phoneNumber: String, password: String) {
+        val client = OkHttpClient.Builder()
+            .connectTimeout(TIMEOUT, TimeUnit.SECONDS)
+            .readTimeout(TIMEOUT, TimeUnit.SECONDS)
+            .writeTimeout(TIMEOUT, TimeUnit.SECONDS)
+            .build()
+        val json = JSONObject().apply {
+            put("phoneNumber", phoneNumber)
+            put("password", password)
+        }
+
+        val body = RequestBody.create(
+            "application/json; charset=utf-8".toMediaType(),
+            json.toString()
+        )
+
+        val loginRequest = Request.Builder()
+            .url(LOGIN_URL)
+            .post(body)
+            .build()
+
+        client.newCall(loginRequest).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                runOnUiThread {
+                    setLoginLoadingState(false)
+                    Toast.makeText(this@LoginActivity, "Network error", Toast.LENGTH_SHORT).show()
+                }
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                if (!response.isSuccessful) {
+                    runOnUiThread {
+                        setLoginLoadingState(false)
+                        Toast.makeText(this@LoginActivity, "Invalid credentials", Toast.LENGTH_SHORT).show()
+                    }
+                    return
+                }
+
+                val responseBody = response.body?.string() ?: "{}"
+                val json = JSONObject(responseBody)
+                val token = json.optString("token", "")
+
+                if (token.isEmpty()) {
+                    runOnUiThread {
+                        setLoginLoadingState(false)
+                        Toast.makeText(this@LoginActivity, "Failed to retrieve token", Toast.LENGTH_SHORT).show()
+                    }
+                    return
+                }
+
+                // Encrypt the auth token
+                val (encryptedToken, iv) = Encryptor.encrypt(token)
+
+                try {
+                    val prefs = getSharedPreferences("sharedPref", MODE_PRIVATE).edit()
+                    prefs.putString("auth_token", encryptedToken)
+                    prefs.putString("auth_iv",iv)
+                    prefs.putString("teacher_phone", phoneNumber)
+                    prefs.putBoolean("is_logged_in", true)
+                    prefs.apply()
+
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    runOnUiThread {
+                        setLoginLoadingState(false)
+                        Toast.makeText(this@LoginActivity, "Could not save token", Toast.LENGTH_SHORT).show()
+                    }
+                    return
+                }
+                runOnUiThread {
+                    setLoginLoadingState(false)
+                    startActivity(Intent(this@LoginActivity, MainActivity::class.java))
+                    finish()
+                }
+            }
+        })
+    }
+}

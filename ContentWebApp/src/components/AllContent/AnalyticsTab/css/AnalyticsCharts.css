@@ -1,0 +1,81 @@
+.chart-block {
+  margin-top: 30px;
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chart-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.export-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.export-button {
+  border: 1px solid #e2e8f0;
+  background: white;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #0f172a;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.export-button:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.export-button:active {
+  background: #e2e8f0;
+}
+
+.chart-card {
+  background-color: #ffffff;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  padding: 20px;
+  min-height: 300px;
+}
+
+.chart-tooltip {
+  background-color: #0f172a;
+  padding: 8px 12px;
+  border-radius: 6px;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.chart-tooltip-date {
+  margin: 0 0 4px 0;
+}
+
+.chart-tooltip-accent {
+  margin: 0;
+  color: #4caf50;
+}
+
+.chart-summary {
+  margin-top: 15px;
+  padding: 12px;
+  background-color: #f9fafb;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #666;
+  line-height: 1.5;
+}

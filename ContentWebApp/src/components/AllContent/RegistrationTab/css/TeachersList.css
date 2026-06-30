@@ -1,0 +1,110 @@
+/* Teachers list pane */
+.teachers-list-pane {
+  width: 100%;
+  border: 1px solid var(--reg-border, #d7deea);
+  border-radius: 8px;
+  padding: 10px;
+  background: #ffffff;
+  max-height: 420px;
+  overflow-y: auto;
+  margin-left: auto;
+}
+
+@media (min-width: 768px) {
+  .teachers-list-pane {
+    width: 320px;
+    max-height: 540px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .teachers-list-pane {
+    width: 330px;
+    max-height: 560px;
+  }
+}
+
+.teachers-list-title {
+  font-weight: 700;
+  margin-bottom: 10px;
+  color: var(--reg-text, #0f172a);
+}
+
+.teachers-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.teacher-list-item {
+  margin-bottom: 8px;
+}
+
+.teacher-button {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--reg-border, #d7deea);
+  background: var(--reg-panel, #f8fafc);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--reg-text, #0f172a);
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.teacher-button-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.teacher-name {
+  font-weight: 600;
+  text-align: left;
+}
+
+.teacher-meta {
+  color: var(--reg-subtext, #64748b);
+  font-size: 13px;
+  text-align: left;
+}
+
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 4px 8px;
+  letter-spacing: 0.02em;
+}
+
+.teacher-role-badge {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.creator-role-badge {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.teacher-button:hover {
+  background: #eef2ff;
+}
+
+.teacher-button.selected {
+  border-color: var(--reg-accent, #2563eb);
+  background: #eff6ff;
+  color: #1e3a8a;
+}

@@ -1,0 +1,262 @@
+import java.util.Base64
+
+plugins {
+    id 'com.android.application'
+    id 'kotlin-android'
+    id 'androidx.navigation.safeargs'
+    id 'kotlin-kapt'
+    id 'kotlin-parcelize'
+    id 'dagger.hilt.android.plugin'
+    id 'io.gitlab.arturbosch.detekt' version '1.21.0'
+}
+
+
+File stagingKeystoreFile = null
+File releaseKeystoreFile = null
+
+def stagingBase64 = project.findProperty('STAGING_KEYSTORE_BASE64') ?: ""
+if (!stagingBase64.toString().isEmpty()) {
+    try {
+        byte[] decoded = Base64.getDecoder().decode(stagingBase64.toString())
+        File tempFile = rootProject.file("temp_staging_keystore.jks")
+        new FileOutputStream(tempFile).write(decoded)
+        stagingKeystoreFile = tempFile
+        println "✅ Successfully created staging keystore file"
+    } catch (Exception e) {
+        println "⚠️ Failed to decode staging keystore: " + e.message
+    }
+}
+
+def releaseBase64 = project.findProperty('SIGNING_KEYSTORE_BASE64') ?: ""
+if (!releaseBase64.toString().isEmpty()) {
+    try {
+        byte[] decoded = Base64.getDecoder().decode(releaseBase64.toString())
+        File tempFile = rootProject.file("temp_release_keystore.jks")
+        new FileOutputStream(tempFile).write(decoded)
+        releaseKeystoreFile = tempFile
+        println "✅ Successfully created release keystore file"
+    } catch (Exception e) {
+        println "⚠️ Failed to decode release keystore: " + e.message
+    }
+}
+
+def stagingPass = project.findProperty('STAGING_KEYSTORE_PASSWORD') ?: ""
+def stagingAlias = project.findProperty('STAGING_KEY_ALIAS') ?: ""
+def stagingKeyPass = project.findProperty('STAGING_KEY_PASSWORD') ?: ""
+
+def releasePass = project.findProperty('SIGNING_KEYSTORE_PASSWORD') ?: ""
+def releaseAlias = project.findProperty('SIGNING_KEY_ALIAS') ?: ""
+def releaseKeyPass = project.findProperty('SIGNING_KEY_PASSWORD') ?: ""
+
+// Load fastlane .env.staging for local development (overridden by Fastlane -P flags in CI)
+def stagingEnv = [:]
+def stagingEnvFile = rootProject.file("fastlane/.env.staging")
+if (stagingEnvFile.exists()) {
+    stagingEnvFile.eachLine { line ->
+        def trimmed = line.trim()
+        if (!trimmed.isEmpty() && !trimmed.startsWith('#') && trimmed.contains('=')) {
+            def parts = trimmed.split('=', 2)
+            stagingEnv[parts[0].trim()] = parts[1].trim()
+        }
+    }
+}
+
+def baseUrl = project.findProperty('BASE_URL') ?: stagingEnv['STAGING_BASE_URL'] ?: ""
+def contentUrl = project.findProperty('CONTENT_URL') ?: stagingEnv['STAGING_CONTENT_URL'] ?: ""
+def tenantName = project.findProperty('TENANT_NAME') ?: stagingEnv['STAGING_TENANT_NAME'] ?: ""
+
+android {
+    compileSdk 32
+
+    defaultConfig {
+        applicationId "com.example.seeds"
+        minSdk 23
+        targetSdk 32
+        def versionProp = project.findProperty("VERSION_NAME") as String
+        def versionEnv = System.getenv("CI_VERSION_NAME")
+
+        def finalVersionName = versionProp ?: versionEnv
+
+        if (finalVersionName == null || finalVersionName.isEmpty()) {
+             finalVersionName = "2025-DEV"
+             println "No Version found. Using default: $finalVersionName"
+        }
+
+        versionName finalVersionName
+
+        def versionCodeProp = project.findProperty("VERSION_CODE")?.toString()
+        def versionCodeEnv = System.getenv("CI_VERSION_CODE")
+        def finalVersionCode = (versionCodeProp ?: versionCodeEnv)?.toInteger() ?: 1
+        versionCode finalVersionCode
+
+        testInstrumentationRunner "com.example.seeds.HiltTestRunner"
+
+        buildConfigField "String", "BASE_URL", "\"${baseUrl}\""
+        buildConfigField "String", "CONTENT_URL", "\"${contentUrl}\""
+        buildConfigField "String", "TENANT_NAME", "\"${tenantName}\""
+        
+        def displayAlias = stagingAlias ?: releaseAlias ?: "none"
+        buildConfigField "String", "KEY_ALIAS", "\"${displayAlias}\""
+    }
+
+    signingConfigs {
+        debug {
+            if (stagingKeystoreFile != null && stagingKeystoreFile.exists()) {
+                storeFile stagingKeystoreFile
+                storePassword stagingPass
+                keyAlias stagingAlias
+                keyPassword stagingKeyPass
+            }
+        }
+        release {
+            if (releaseKeystoreFile != null && releaseKeystoreFile.exists()) {
+                storeFile releaseKeystoreFile
+                storePassword releasePass
+                keyAlias releaseAlias
+                keyPassword releaseKeyPass
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            
+            if (releaseKeystoreFile != null && releaseKeystoreFile.exists()) {
+                signingConfig signingConfigs.release
+            }
+        }
+        debug {
+            testCoverageEnabled true
+            if (stagingKeystoreFile != null && stagingKeystoreFile.exists()) {
+                signingConfig signingConfigs.debug
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+
+    buildFeatures {
+        dataBinding true
+        viewBinding true
+    }
+
+    lintOptions {
+        abortOnError false
+    }
+
+}
+configurations.all {
+    resolutionStrategy {
+        force "org.jetbrains.kotlin:kotlin-stdlib:1.6.10"
+        force "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.6.10"
+        force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.6.10"
+        force "org.jetbrains.kotlin:kotlin-reflect:1.6.10"
+    }
+}
+
+dependencies {
+    implementation 'com.google.code.gson:gson:2.10.1'
+    implementation 'com.google.android.gms:play-services-auth:20.0.0'
+    implementation 'androidx.datastore:datastore-preferences:1.0.0'
+    // Kotlin
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:1.6.10"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.6.10"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.6.10"
+    implementation "org.jetbrains.kotlin:kotlin-reflect:1.6.10"
+    implementation 'com.squareup.okhttp3:logging-interceptor:4.9.3'
+    implementation 'androidx.legacy:legacy-support-v4:1.0.0'
+    implementation 'androidx.core:core-ktx:1.3.2'
+    implementation 'androidx.appcompat:appcompat:1.2.0'
+    implementation 'com.google.android.material:material:1.4.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.0.4'
+    implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.3.1'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.3.1'
+    // Navigation
+    def version_navigation = "2.4.0"
+    implementation "androidx.navigation:navigation-fragment-ktx:$version_navigation"
+    implementation "androidx.navigation:navigation-ui-ktx:$version_navigation"
+    implementation "androidx.hilt:hilt-navigation-fragment:1.0.0"
+    // RecyclerView
+    def version_recyclerview = "1.2.1"
+    implementation "androidx.recyclerview:recyclerview:$version_recyclerview"
+    // Hilt
+    implementation "com.google.dagger:hilt-android:2.37"
+    implementation "androidx.hilt:hilt-lifecycle-viewmodel:1.0.0-alpha03"
+    kapt "com.google.dagger:hilt-android-compiler:2.37"
+    kapt "androidx.hilt:hilt-compiler:1.0.0-alpha03"
+    implementation 'androidx.hilt:hilt-work:1.0.0'
+    kapt 'androidx.hilt:hilt-compiler:1.0.0'
+    // Retrofit & Moshi
+    def version_retrofit = "2.9.0"
+    def version_moshi = "1.8.0"
+    implementation "com.squareup.retrofit2:retrofit:$version_retrofit"
+    implementation "com.squareup.retrofit2:converter-moshi:$version_retrofit"
+    implementation "com.squareup.moshi:moshi:$version_moshi"
+    implementation "com.squareup.moshi:moshi-kotlin:$version_moshi"
+    // Kotshi
+    def kotshiVersion = "2.7.0"
+    implementation "se.ansman.kotshi:api:$kotshiVersion"
+    kapt "se.ansman.kotshi:compiler:$kotshiVersion"
+    // Room
+    def room_version = "2.4.1"
+    implementation "androidx.room:room-runtime:$room_version"
+    implementation "androidx.room:room-ktx:$room_version"
+    kapt "androidx.room:room-compiler:$room_version"
+    // ExoPlayer
+    def version_exoplayer = "2.16.1"
+    implementation "com.google.android.exoplayer:exoplayer-core:$version_exoplayer"
+    implementation "com.google.android.exoplayer:exoplayer-ui:$version_exoplayer"
+    // WorkManager
+    def work_version = "2.7.1"
+    implementation "androidx.work:work-runtime-ktx:$work_version"
+    // Firebase
+    implementation platform('com.google.firebase:firebase-bom:29.1.0')
+    implementation 'com.google.firebase:firebase-analytics-ktx'
+    implementation 'com.google.firebase:firebase-auth-ktx'
+    implementation 'com.google.firebase:firebase-crashlytics-ktx'
+    // Browser
+    implementation "androidx.browser:browser:1.3.0"
+    // SSE (Server-Sent Events)
+    implementation 'com.launchdarkly:okhttp-eventsource:2.5.0'
+    // Timber
+    implementation "com.jakewharton.timber:timber:5.0.1"
+    // Testing — Unit
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation "io.mockk:mockk:1.12.5"
+    testImplementation "org.jetbrains.kotlinx:kotlinx-coroutines-test:1.6.4"
+    testImplementation "com.google.truth:truth:1.1.3"
+    testImplementation "org.robolectric:robolectric:4.9"
+    testImplementation "androidx.test:core-ktx:1.5.0"
+    testImplementation "androidx.arch.core:core-testing:2.1.0"
+    // Testing — Instrumented
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+    androidTestImplementation 'androidx.test.espresso:espresso-contrib:3.5.1'
+    androidTestImplementation "androidx.fragment:fragment-testing:1.5.7"
+    androidTestImplementation "androidx.room:room-testing:2.4.1"
+    androidTestImplementation "com.squareup.okhttp3:mockwebserver:4.9.3"
+    androidTestImplementation "com.google.truth:truth:1.1.3"
+    androidTestImplementation "androidx.arch.core:core-testing:2.1.0"
+    testImplementation "com.squareup.okhttp3:mockwebserver:4.9.3"
+    // Hilt testing
+    androidTestImplementation "com.google.dagger:hilt-android-testing:2.37"
+    kaptAndroidTest "com.google.dagger:hilt-android-compiler:2.37"
+    // Navigation testing
+    androidTestImplementation "androidx.navigation:navigation-testing:$version_navigation"
+}
+
+detekt {
+    toolVersion = "1.21.0"
+    config = files("$rootDir/config/detekt/detekt.yml")
+    buildUponDefaultConfig = true
+    source = files("src/main/java", "src/main/kotlin")
+}

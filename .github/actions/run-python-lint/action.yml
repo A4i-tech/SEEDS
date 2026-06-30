@@ -1,0 +1,13 @@
+name: Run Python Lint
+description: Run ruff linter for a Python project
+inputs:
+  directory:
+    description: "Directory of the Python project"
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Lint with ruff
+      shell: bash
+      working-directory: ${{ inputs.directory }}
+      run: poetry run ruff check .

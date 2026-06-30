@@ -1,0 +1,13 @@
+name: Run Node.js Lint
+description: Run ESLint for a Node.js project
+inputs:
+  directory:
+    description: "Directory of the Node.js project"
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Lint with ESLint
+      shell: bash
+      working-directory: ${{ inputs.directory }}
+      run: npm run lint --if-present

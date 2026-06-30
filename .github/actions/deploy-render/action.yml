@@ -1,0 +1,22 @@
+name: Deploy to Render
+description: Deploy application to Render.com
+inputs:
+  deploy_hook_url:
+    description: "Render deploy hook URL"
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Deploy to Render
+      shell: bash
+      run: |
+        echo "Triggering deploy to Render..."
+        http_code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ inputs.deploy_hook_url }}")
+        echo "HTTP response code: $http_code"
+        if [[ $http_code == "200" || $http_code == "202" ]]; then
+            echo "Deployment triggered successfully"
+          else
+            echo "Failed to trigger deployment (HTTP $http_code)"
+            exit 1
+          fi

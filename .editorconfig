@@ -1,0 +1,15 @@
+# Top-level settings
+root = true
+
+# Default for all files
+[*]
+indent_style = space
+indent_size = 4
+
+# For JavaScript and TypeScript files
+[*.{js,ts,jsx,tsx}]
+indent_size = 2
+
+# For web files
+[*.{html,css,json}]
+indent_size = 2

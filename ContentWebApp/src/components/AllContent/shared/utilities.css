@@ -1,0 +1,177 @@
+/* Text and typography utilities  */
+.label {
+  font-size: 13px;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.filter-label {
+  margin-bottom: 6px;
+  color: #0f172a;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.placeholder-text {
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+/* Status messages  */
+.status-message {
+  font-size: 13px;
+  color: #16a34a;
+  padding: 10px 16px;
+}
+
+.success-message {
+  color: #16a34a;
+  font-size: 12px;
+  margin: 0;
+}
+
+/* No content states  */
+.no-content {
+  padding: 24px 16px;
+  text-align: center;
+  color: #64748b;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.no-teachers {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 20px 16px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+/* Layout utilities  */
+.load-more-wrapper {
+  margin-top: 12px;
+  display: flex;
+  justify-content: center;
+}
+
+/* Icon styles  */
+.seed-icon {
+  width: 24px;
+  height: 24px;
+  display: inline-block;
+  object-fit: contain;
+}
+
+/* Input fields  */
+.input-field {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid #cbd5f5;
+  background-color: #ffffff;
+  padding: 10px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.add-students-input {
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+/* Tablet+ */
+@media (min-width: 768px) {
+  .label {
+    font-size: 13px;
+  }
+
+  .filter-label {
+    margin-bottom: 7px;
+    font-size: 13px;
+  }
+
+  .status-message {
+    font-size: 13px;
+    padding: 11px 24px;
+  }
+
+  .success-message {
+    font-size: 12px;
+  }
+
+  .no-content {
+    padding: 28px 24px;
+    font-size: 15px;
+  }
+
+  .no-teachers {
+    border-radius: 14px;
+    padding: 22px 20px;
+    font-size: 15px;
+  }
+
+  .load-more-wrapper {
+    margin-top: 14px;
+  }
+
+  .seed-icon {
+    width: 26px;
+    height: 26px;
+  }
+
+  .input-field {
+    border-radius: 9px;
+    padding: 11px;
+    font-size: 14px;
+  }
+}
+
+/* Desktop+ */
+@media (min-width: 1024px) {
+  .label,
+  .filter-label {
+    font-size: 14px;
+  }
+
+  .filter-label {
+    margin-bottom: 8px;
+  }
+
+  .status-message {
+    font-size: 14px;
+    padding: 12px 32px;
+  }
+
+  .success-message {
+    font-size: 13px;
+  }
+
+  .no-content {
+    padding: 32px;
+    font-size: 16px;
+  }
+
+  .no-teachers {
+    border-radius: 16px;
+    padding: 24px;
+    font-size: 16px;
+  }
+
+  .load-more-wrapper {
+    margin-top: 16px;
+  }
+
+  .seed-icon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .input-field {
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 15px;
+  }
+}

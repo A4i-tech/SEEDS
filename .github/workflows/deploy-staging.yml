@@ -1,0 +1,50 @@
+name: Deploy Staging Services
+
+on:
+  push:
+    branches: a4i/staging
+  workflow_call:
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - name: platform
+            context: platform
+            image: platform
+            render_deploy_hook_url: PLATFORM_RENDER_DEPLOY_HOOK_URL
+
+          - name: content-webapp
+            context: ContentWebApp
+            image: content-webapp
+            render_deploy_hook_url: CONTENT_WEBAPP_RENDER_DEPLOY_HOOK_URL
+
+          - name: teacher-webapp
+            context: teacher-webapp
+            image: teacher-webapp
+            render_deploy_hook_url: TEACHER_WEBAPP_RENDER_DEPLOY_HOOK_URL
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build & push image
+        uses: ./.github/actions/deploy-docker
+        with:
+          context: ${{ matrix.service.context }}
+          image: ${{ matrix.service.image }}
+          registry: ${{ env.REGISTRY }}
+          repository: ${{ github.repository }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ github.actor }}
+          environment_tag: staging
+
+      - name: Deploy to Render
+        uses: ./.github/actions/deploy-render
+        with:
+          deploy_hook_url: ${{ secrets[matrix.service.render_deploy_hook_url] }}

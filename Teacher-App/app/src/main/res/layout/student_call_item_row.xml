@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools">
+    <data>
+        <import type="android.view.View"/>
+        <import type="com.example.seeds.model.CallerState"/>
+
+        <variable
+            name="viewModel"
+            type="com.example.seeds.ui.call.CallViewModel" />
+        <variable
+            name="removeClickListener"
+            type="com.example.seeds.adapters.StudentCallStatusAdapter.OnClickListener" />
+        <variable
+            name="studentCallStatus"
+            type="com.example.seeds.model.StudentCallStatus" />
+        
+        <!-- 1. ADD THIS VARIABLE -->
+        <variable 
+            name="student"
+            type="com.example.seeds.model.Student" />
+    </data>
+
+    <androidx.cardview.widget.CardView
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:layout_marginBottom="8dp"
+        app:cardCornerRadius="12dp"
+        app:cardElevation="0dp">
+
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp">
+
+            <TextView
+                android:id="@+id/contact_name"
+                style="@style/RecyclerViewItemTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:text="@{student.name}"
+                android:textSize="18sp"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toStartOf="@+id/status_ringing_text"
+                app:layout_constraintTop_toTopOf="parent"
+                android:layout_marginEnd="8dp"
+                tools:text="Very Long Student Name Here" />
+
+            <TextView
+                android:id="@+id/status_ringing_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Ringing..."
+                android:visibility="@{studentCallStatus.callerState == CallerState.RINGING ? View.VISIBLE : View.GONE}"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <TextView
+                android:id="@+id/status_connecting_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Connecting..."
+                android:visibility="@{studentCallStatus.callerState == CallerState.CONNECTING ? View.VISIBLE : View.GONE}"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+
+            <ImageButton
+                android:id="@+id/mic"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@{studentCallStatus.isMuted ? `unmute`: `mute`}"
+                android:onClick="@{() -> viewModel.onMuteToggle(studentCallStatus)}"
+                android:padding="8dp"
+                android:src="@{!studentCallStatus.isMuted ? @drawable/ic_mic : @drawable/ic_mic_off, default=@drawable/ic_mic}"
+                android:visibility="@{studentCallStatus.callerState == CallerState.CONNECTED ? View.VISIBLE: View.GONE}"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toStartOf="@+id/remove_user_btn"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <ImageButton
+                android:id="@+id/remove_user_btn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Remove student"
+                android:onClick="@{() -> removeClickListener.onClick(studentCallStatus)}"
+                android:padding="8dp"
+                android:src="@drawable/ic_remove_student"
+                android:visibility="@{studentCallStatus.callerState == CallerState.CONNECTED ? View.VISIBLE: View.GONE}"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <ImageButton
+                android:id="@+id/retry_student"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Retry call"
+                android:onClick="@{() -> viewModel.connectParticipant(student.name, studentCallStatus.phoneNumber)}"
+                android:padding="8dp"
+                android:src="@drawable/ic_retry"
+                android:visibility="@{studentCallStatus.callerState == CallerState.DISCONNECTED || studentCallStatus.callerState == CallerState.UNANSWERED || studentCallStatus.callerState == CallerState.BUSY || studentCallStatus.callerState == CallerState.TIMEOUT || studentCallStatus.callerState == CallerState.COMPLETED || studentCallStatus.callerState == CallerState.FAILED || studentCallStatus.callerState == CallerState.CANCELLED || studentCallStatus.callerState == CallerState.REJECTED ? View.VISIBLE: View.GONE}"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+    </androidx.cardview.widget.CardView>
+</layout>

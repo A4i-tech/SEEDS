@@ -1,0 +1,103 @@
+name: Dispatch Teams Notification
+description: Send an Adaptive Card to Microsoft Teams via an incoming webhook.
+inputs:
+  summary:
+    description: Short summary shown in the Teams notification.
+    required: true
+  activity-title:
+    description: Main title rendered inside the Teams card.
+    required: true
+  theme-color:
+    description: Hex color used to highlight the notification.
+    required: false
+    default: '0076D7'
+  custom-sections:
+    description: "JSON string for custom Adaptive Card body sections."
+    required: false
+    default: '[]'
+  facts:
+    description: "JSON array of facts."
+    required: false
+    default: '[]'
+  teams-webhook-url:
+    description: Incoming Microsoft Teams webhook URL.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Dispatch notification to Microsoft Teams
+      shell: bash
+      env:
+        FACTS_INPUT: ${{ inputs.facts }}
+        SECTIONS_INPUT: ${{ inputs.custom-sections }}
+        WEBHOOK_URL_INPUT: ${{ inputs.teams-webhook-url }}
+        SUMMARY_INPUT: ${{ inputs.summary }}
+        ACTIVITY_INPUT: ${{ inputs.activity-title }}
+        COLOR_INPUT: ${{ inputs.theme-color }}
+      run: |
+        set -euo pipefail
+
+        if [ -z "$WEBHOOK_URL_INPUT" ]; then
+          echo "Error: TEAMS_WEBHOOK_URL input not provided."
+          exit 1
+        fi
+
+        PAYLOAD="$(jq -cn \
+          --arg title "$ACTIVITY_INPUT" \
+          --arg summary "$SUMMARY_INPUT" \
+          --arg color "$COLOR_INPUT" \
+          --argjson facts "$FACTS_INPUT" \
+          --argjson sections "$SECTIONS_INPUT" \
+          --arg branch "${{ github.ref_name }}" \
+          --arg actor "${{ github.actor }}" \
+          --arg sha "${{ github.sha }}" \
+          '{
+            "type": "message",
+            "attachments": [
+              {
+                "contentType": "application/vnd.microsoft.card.adaptive",
+                "contentUrl": null,
+                "content": {
+                  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                  "type": "AdaptiveCard",
+                  "version": "1.2",
+                  "body": (
+                    [
+                      {
+                        "type": "TextBlock",
+                        "text": $title,
+                        "weight": "Bolder",
+                        "size": "Medium",
+                        "color": (if $color == "FF0000" then "Attention" else "Good" end)
+                      },
+                      {
+                        "type": "TextBlock",
+                        "text": "\($branch) · by \($actor)",
+                        "isSubtle": true,
+                        "wrap": true,
+                        "size": "Small"
+                      },
+                      {
+                        "type": "TextBlock",
+                        "text": "[View commit](https://github.com/${{ github.repository }}/commit/\($sha))",
+                        "size": "Small",
+                        "wrap": true,
+                        "spacing": "None"
+                      }
+                    ] + (
+                      if ($sections | length > 0) then 
+                        $sections 
+                      else 
+                        [{ "type": "FactSet", "facts": ($facts | map({title: .name, value: .value})) }] 
+                      end
+                    )
+                  )
+                }
+              }
+            ]
+          }' \
+        )"
+
+        echo "Sending payload..."
+        curl -v -f -H "Content-Type: application/json" -d "$PAYLOAD" "$WEBHOOK_URL_INPUT"

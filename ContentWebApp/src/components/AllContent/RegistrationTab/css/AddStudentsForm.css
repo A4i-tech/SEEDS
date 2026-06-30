@@ -1,0 +1,46 @@
+/* Add students section */
+.add-students-section {
+  margin-top: 12px;
+}
+
+.add-students-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  align-items: stretch;
+}
+
+@media (min-width: 640px) {
+  .add-students-row {
+    flex-direction: row;
+    align-items: center;
+  }
+}
+
+.add-students-input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.add-students-input:focus {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+  border-color: #2563eb;
+}
+
+.add-students-buttons {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (min-width: 1024px) {
+  .add-students-buttons {
+    gap: 12px;
+  }
+}

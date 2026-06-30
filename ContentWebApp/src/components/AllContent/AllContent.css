@@ -1,0 +1,41 @@
+/* Main page layout */
+.page {
+  min-height: 100vh;
+  background-color: #f4f6f8;
+  padding: 12px 8px 24px;
+}
+
+/* Main container layout */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  padding: 0 4px;
+}
+
+/* Tablet breakpoint (768px+) */
+@media (min-width: 768px) {
+  .page {
+    padding: 24px 16px 36px;
+  }
+
+  .container {
+    gap: 20px;
+    padding: 0 8px;
+  }
+}
+
+/* Desktop breakpoint (1024px+) */
+@media (min-width: 1024px) {
+  .page {
+    padding: 32px 24px 48px;
+  }
+
+  .container {
+    gap: 24px;
+    padding: 0;
+  }
+}

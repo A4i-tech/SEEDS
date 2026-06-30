@@ -1,0 +1,106 @@
+name: Coverage Summary
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+
+jobs:
+  aggregate-coverage:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    outputs:
+      overall_coverage: ${{ steps.aggregate.outputs.overall_coverage }}
+      services_tested: ${{ steps.aggregate.outputs.services_tested }}
+      total_services: ${{ steps.aggregate.outputs.total_services }}
+    permissions:
+      pull-requests: write
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download coverage artifacts
+        uses: dawidd6/action-download-artifact@v3
+        continue-on-error: true
+        with:
+          workflow: ci.yml
+          workflow_conclusion: success
+          path: coverage-artifacts
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          run_id: ${{ github.event.workflow_run.id }}
+          if_no_artifact_found: warn
+
+      - name: List downloaded artifacts
+        run: |
+          echo "Checking for coverage artifacts..."
+          if [ -d "coverage-artifacts" ]; then
+            echo "Artifacts directory exists. Contents:"
+            ls -la coverage-artifacts/ || echo "No artifacts found"
+          else
+            echo "⚠️ No coverage artifacts directory found"
+            echo "This is expected if running manually without previous workflow runs"
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          npm install -g istanbul-merge
+          pip install lxml beautifulsoup4
+
+      - name: Aggregate coverage data
+        id: aggregate
+        run: python .github/scripts/aggregate_coverage.py
+
+      - name: Determine overall badge color
+        id: overall-badge-color
+        run: |
+          COVERAGE=${{ steps.aggregate.outputs.overall_coverage }}
+          if (( $(echo "$COVERAGE >= 80" | bc -l) )); then
+            echo "color=brightgreen" >> $GITHUB_OUTPUT
+          elif (( $(echo "$COVERAGE >= 60" | bc -l) )); then
+            echo "color=yellow" >> $GITHUB_OUTPUT
+          else
+            echo "color=red" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create overall coverage badge
+        uses: schneegans/dynamic-badges-action@v1.7.0
+        with:
+          auth: ${{ secrets.COVERAGE_GIST_TOKEN }}
+          gistID: ${{ vars.COVERAGE_GIST_ID }}
+          filename: overall-coverage.json
+          label: Overall Coverage
+          message: ${{ steps.aggregate.outputs.overall_coverage }}%
+          color: ${{ steps.overall-badge-color.outputs.color }}
+
+      - name: Comment PR with coverage
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const commentScript = require('./.github/scripts/comment-pr-coverage.js');
+            await commentScript({github, context});
+
+      - name: Upload aggregated coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: aggregated-coverage-report
+          path: |
+            coverage_report.md
+            coverage-artifacts/
+          retention-days: 30
