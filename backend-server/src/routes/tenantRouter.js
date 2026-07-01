@@ -2,6 +2,7 @@ const express = require("express");
 const tenantAuthProvider = require("../auth/tenant/tenantAuthProviderMiddleware");
 const { authenticateToken, authorizeRole } = require("../auth/authenticateToken");
 const tenantController = require("../controllers/tenant.controller");
+const analyticsController = require("../controllers/analytics.controller");
 const tenantService = require("../services/tenant.service");
 const { STATUS } = require("../config/constants");
 const TENANT_ROLE = "tenant";
@@ -167,6 +168,96 @@ router.post("/register", tenantAuthProvider.register);
  *         description: Unauthorized
  */
 router.post("/analytics", authenticateToken, authorizeRole(TENANT_ROLE), tenantController.getAnalytics);
+
+/**
+ * @swagger
+ * /tenant/analytics/ivr:
+ *   get:
+ *     summary: IVR usage analytics for a date range (Tenant only)
+ *     tags: [Tenant]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         required: true
+ *         schema: { type: string, format: date-time }
+ *       - in: query
+ *         name: endDate
+ *         required: true
+ *         schema: { type: string, format: date-time }
+ *       - in: query
+ *         name: schoolId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: teacherId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: format
+ *         schema: { type: string, enum: [json, csv] }
+ *       - in: query
+ *         name: section
+ *         schema: { type: string, enum: [calls, byTeacher, bySchool, contentUsage] }
+ *         description: CSV section to export (used with format=csv)
+ *     responses:
+ *       200:
+ *         description: IVR analytics (JSON metrics or CSV export)
+ *       400:
+ *         description: Missing or invalid parameters
+ *       401:
+ *         description: Unauthorized
+ */
+router.get(
+    "/analytics/ivr",
+    authenticateToken,
+    authorizeRole(TENANT_ROLE),
+    analyticsController.getIvrAnalytics
+);
+
+/**
+ * @swagger
+ * /tenant/analytics/conference:
+ *   get:
+ *     summary: Conference usage analytics for a date range (Tenant only)
+ *     tags: [Tenant]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         required: true
+ *         schema: { type: string, format: date-time }
+ *       - in: query
+ *         name: endDate
+ *         required: true
+ *         schema: { type: string, format: date-time }
+ *       - in: query
+ *         name: schoolId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: teacherId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: format
+ *         schema: { type: string, enum: [json, csv] }
+ *       - in: query
+ *         name: section
+ *         schema: { type: string, enum: [conferences, byTeacher] }
+ *         description: CSV section to export (used with format=csv)
+ *     responses:
+ *       200:
+ *         description: Conference analytics (JSON metrics or CSV export)
+ *       400:
+ *         description: Missing or invalid parameters
+ *       401:
+ *         description: Unauthorized
+ */
+router.get(
+    "/analytics/conference",
+    authenticateToken,
+    authorizeRole(TENANT_ROLE),
+    analyticsController.getConferenceAnalytics
+);
 
 /**
  * @swagger

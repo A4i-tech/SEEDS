@@ -17,6 +17,19 @@ class IvrV2LogMongoDao extends IIvrV2LogDao {
             created_at: { $gte: startStr, $lte: endStr },
         }).lean();
     }
+
+    async findForAnalytics({ tenantId, startStr, endStr, phoneNumbers }) {
+        const query = {
+            tenant_id: tenantId,
+            created_at: { $gte: startStr, $lte: endStr },
+        };
+        if (phoneNumbers) {
+            query.phone_number = { $in: phoneNumbers };
+        }
+        return IvrV2Log.find(query)
+            .select("phone_number created_at stopped_at duration stream_playback call_status_updates")
+            .lean();
+    }
 }
 
 module.exports = new IvrV2LogMongoDao();

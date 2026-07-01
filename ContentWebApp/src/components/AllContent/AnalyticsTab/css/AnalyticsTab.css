@@ -94,3 +94,49 @@
     width: 100%;
   }
 }
+
+/* Analytics sub-tabs (Overview / Conferences / IVR) */
+.analytics-subtabs {
+  width: auto;
+  margin: 12px 20px;
+}
+
+/* School/teacher filter selects in the filters modal */
+.analytics-filter-selects {
+  display: flex;
+  gap: 16px;
+  padding: 16px 24px 0;
+  flex-wrap: wrap;
+}
+
+.analytics-filter-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: #475569;
+}
+
+.analytics-filter-select {
+  min-width: 220px;
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background-color: #ffffff;
+  font-size: 14px;
+  color: #0f172a;
+}
+
+/* Section header with title + export button */
+.analytics-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.analytics-footnote {
+  margin-top: 16px;
+  font-size: 13px;
+  color: #64748b;
+}

@@ -9,3 +9,7 @@ exports.findBySchoolIdInDateRange = async (schoolId, startStr, endStr) => {
 exports.findByTenantIdInDateRange = async (tenantId, startStr, endStr) => {
     return ivrV2LogDao.findByTenantIdInDateRange(tenantId, startStr, endStr);
 };
+
+exports.findForAnalytics = async (params) => {
+    return ivrV2LogDao.findForAnalytics(params);
+};

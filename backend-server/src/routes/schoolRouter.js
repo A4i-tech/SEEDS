@@ -4,6 +4,7 @@ const { authenticateToken, authorizeRole } = require("../auth/authenticateToken"
 const schoolController = require("../controllers/school.controller");
 const schoolAdminAuthProvider = require("../auth/schoolAdmin/schoolAdminAuthProviderMiddleware");
 const teacherController = require("../controllers/teacher.controller");
+const analyticsController = require("../controllers/analytics.controller");
 const router = express.Router();
 
 const TENANT_ROLE = "tenant";
@@ -278,6 +279,90 @@ router.post(
   authenticateToken,
   authorizeRole(SCHOOL_ADMIN_ROLE),
   schoolController.getSchoolAnalytics
+);
+
+/**
+ * @swagger
+ * /school/analytics/ivr:
+ *   get:
+ *     summary: IVR usage analytics for the admin's school (School Admin only)
+ *     tags: [School]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         required: true
+ *         schema: { type: string, format: date-time }
+ *       - in: query
+ *         name: endDate
+ *         required: true
+ *         schema: { type: string, format: date-time }
+ *       - in: query
+ *         name: teacherId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: format
+ *         schema: { type: string, enum: [json, csv] }
+ *       - in: query
+ *         name: section
+ *         schema: { type: string, enum: [calls, byTeacher, bySchool, contentUsage] }
+ *         description: CSV section to export (used with format=csv)
+ *     responses:
+ *       200:
+ *         description: IVR analytics (JSON metrics or CSV export)
+ *       400:
+ *         description: Missing or invalid parameters
+ *       401:
+ *         description: Unauthorized
+ */
+router.get(
+  "/analytics/ivr",
+  authenticateToken,
+  authorizeRole(SCHOOL_ADMIN_ROLE),
+  analyticsController.getIvrAnalytics
+);
+
+/**
+ * @swagger
+ * /school/analytics/conference:
+ *   get:
+ *     summary: Conference usage analytics for the admin's school (School Admin only)
+ *     tags: [School]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         required: true
+ *         schema: { type: string, format: date-time }
+ *       - in: query
+ *         name: endDate
+ *         required: true
+ *         schema: { type: string, format: date-time }
+ *       - in: query
+ *         name: teacherId
+ *         schema: { type: string }
+ *       - in: query
+ *         name: format
+ *         schema: { type: string, enum: [json, csv] }
+ *       - in: query
+ *         name: section
+ *         schema: { type: string, enum: [conferences, byTeacher] }
+ *         description: CSV section to export (used with format=csv)
+ *     responses:
+ *       200:
+ *         description: Conference analytics (JSON metrics or CSV export)
+ *       400:
+ *         description: Missing or invalid parameters
+ *       401:
+ *         description: Unauthorized
+ */
+router.get(
+  "/analytics/conference",
+  authenticateToken,
+  authorizeRole(SCHOOL_ADMIN_ROLE),
+  analyticsController.getConferenceAnalytics
 );
 
 /**
