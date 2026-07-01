@@ -2,12 +2,6 @@ import { useState, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { useNavigate } from "react-router-dom";
 import { contentService } from "../services/contentService";
-import {
-  transformQuizItem,
-  extractQuestionText,
-  extractQuestionOptions,
-  getCorrectOptionIndex,
-} from "../utils/quizDataTransform";
 
 const ANSWER_OPTION_CONFIG = [
   { name: "optionA", label: "Option A", idx: 0 },
@@ -34,42 +28,28 @@ const AddQuiz = ({ quiz }) => {
 
   useEffect(() => {
     if (quiz && Object.keys(quiz).length > 0) {
-      const transformedQuiz = transformQuizItem(quiz);
-      const titleSource = transformedQuiz.title;
-      const themeSource = transformedQuiz.theme;
-
-      const title =
-        typeof titleSource === "object" ? titleSource.english : titleSource;
-      const localTitle =
-        typeof titleSource === "object" ? titleSource.local : undefined;
-      const theme =
-        typeof themeSource === "object" ? themeSource.english : themeSource;
-      const localTheme =
-        typeof themeSource === "object" ? themeSource.local : undefined;
-      const quizMetadata = {
-        title: title,
-        localTitle: localTitle,
-        theme: theme,
-        localTheme: localTheme,
-        language: transformedQuiz.language,
-        positiveMark: transformedQuiz.positiveMarks ?? 1,
-        negativeMark: transformedQuiz.negativeMarks ?? 0,
-      };
-      setMetadata(quizMetadata);
-      const questions = transformedQuiz.questions;
+      setMetadata({
+        title: quiz.title?.english,
+        localTitle: quiz.title?.local,
+        theme: quiz.theme?.english,
+        localTheme: quiz.theme?.local,
+        language: quiz.language,
+        positiveMark: quiz.positiveMarks,
+        negativeMark: quiz.negativeMarks,
+      });
+      const questions = quiz.questions;
       const inputFieldsData = questions.map((questionItem) => {
-        const questionText = extractQuestionText(questionItem);
-        const options = extractQuestionOptions(questionItem);
-        const optionTexts = [...options];
+        const opts = questionItem.options;
+        const optionTexts = opts.map((o) => o.text);
         while (optionTexts.length < 4) optionTexts.push("");
-        const correctIndex = getCorrectOptionIndex(questionItem, optionTexts);
+        const idx = opts.findIndex((o) => o.id === questionItem.correct_option_id);
         return {
-          question: questionText,
+          question: questionItem.question.text,
           optionA: optionTexts[0],
           optionB: optionTexts[1],
           optionC: optionTexts[2],
           optionD: optionTexts[3],
-          correctAnswer: correctIndex,
+          correctAnswer: idx,
         };
       });
       setInputFields(
@@ -173,6 +153,9 @@ const AddQuiz = ({ quiz }) => {
         ) {
           valid = false;
           alert(`Question ${index + 1} is incomplete`);
+        } else if (mcq.correctAnswer < 0) {
+          valid = false;
+          alert(`Question ${index + 1} has no correct answer selected`);
         }
       });
     }
