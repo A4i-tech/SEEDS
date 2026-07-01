@@ -86,8 +86,12 @@ class ConnectivityRepository @Inject constructor(
     private suspend fun ping() {
         val start = System.currentTimeMillis()
         try {
-            withTimeout(ABORT_TIMEOUT_MS) {
+            val response = withTimeout(ABORT_TIMEOUT_MS) {
                 service.healthPing()
+            }
+            if (!response.isSuccessful) {
+                applyStatus(ConnectivityStatus.OFFLINE)
+                return
             }
             val elapsed = System.currentTimeMillis() - start
             applyStatus(
