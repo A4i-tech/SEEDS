@@ -260,11 +260,14 @@ class CallViewModel @Inject constructor(
 
                 do {
                     val response = contentRepository.getAllContent(cursor = nextCursor)
-                    val newItems = response.data.filter { it.id != null && seenIds.add(it.id.toString()) }
-                    if (newItems.isEmpty()) break        // no new items — stop regardless of hasMore
-                    allContentList.addAll(newItems)
-                    nextCursor = response.pagination.nextCursor
-                } while (nextCursor != null)            // trust cursor presence, not hasMore flag
+                    // Dedup only on insertion; a page of all-duplicate IDs must NOT stop
+                    // pagination while the cursor still points to more pages.
+                    response.data.filter { it.id != null && seenIds.add(it.id.toString()) }
+                        .let { allContentList.addAll(it) }
+                    val next = response.pagination.nextCursor
+                    if (next == null || next == nextCursor) break  // stop on end, or non-advancing cursor
+                    nextCursor = next
+                } while (true)
 
                 val selectedContentListIds = args.classroom.contentIds
                 val filteredListContent = allContentList.filter {
