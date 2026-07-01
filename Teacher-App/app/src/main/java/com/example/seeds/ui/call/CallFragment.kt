@@ -300,7 +300,9 @@ class CallFragment : BaseFragment() {
             }
             ConnectivityStatus.ONLINE -> {
                 container.visibility = View.GONE
-                viewModel.reconnectSSEIfNeeded()
+                // SSE reconnects itself: EventSource is built with reconnectTime(3s), so no
+                // manual reconnect is needed here. Resetting SSE state on every ONLINE tick
+                // also risked bouncing the teacher out of a live call on a transient is_running=false.
             }
         }
     }

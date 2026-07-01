@@ -461,13 +461,6 @@ class CallViewModel @Inject constructor(
         }
     }
 
-    fun reconnectSSEIfNeeded() {
-        val confId = _callToken.value?.confId ?: return
-        conferenceEverRunning.set(false)
-        Log.i(TAG, "SSE: Reconnecting after connectivity recovery")
-        startSSE(confId)
-    }
-
     private fun handleSSEUpdate(data: String) {
         try {
             val json = gson.fromJson(data, com.google.gson.JsonObject::class.java)
@@ -531,11 +524,14 @@ class CallViewModel @Inject constructor(
             // Preserve pre-answer students (RINGING) not yet in SSE participants.
             // SSE only includes participants who have joined; a student still ringing
             // externally won't appear until they answer, so we keep them in current state.
-            val normalize = { p: String -> if (p.startsWith("91") && p.length > 10) p.substring(2) else p }
+            val normalize = { p: String -> if (p.length == 12 && p.startsWith("91")) p.substring(2) else p }
             val sseKeys = students.mapNotNull { it.phoneNumber?.let(normalize) }.toSet()
             val preAnswerStudents = (_callState.value ?: emptyList()).filter { existing ->
                 val key = existing.phoneNumber?.let(normalize) ?: return@filter false
-                key !in sseKeys && participantTrackers[existing.phoneNumber]?.hasBeenInCall != true
+                // participantTrackers may be keyed in server (E.164) form while existing.phoneNumber
+                // is local — match on the normalized key so hasBeenInCall isn't silently missed.
+                val trackerKey = participantTrackers.keys.firstOrNull { normalize(it) == key }
+                key !in sseKeys && participantTrackers[trackerKey]?.hasBeenInCall != true
             }
             _callState.postValue((students + preAnswerStudents).sortedByDescending { it.raiseHand })
             teacherStatus?.let { _teacherCallStatus.postValue(it) }
