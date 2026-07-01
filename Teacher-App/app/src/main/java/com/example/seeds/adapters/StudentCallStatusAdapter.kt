@@ -12,7 +12,9 @@ import com.example.seeds.ui.call.CallViewModel
 
 private fun strip91(p: String?): String {
     val s = p ?: return ""
-    return if (s.startsWith("91") && s.length > 10) s.substring(2) else s
+    // Strip only the E.164 India country code: exactly 12 digits (91 + 10-digit number).
+    // Using length > 10 would truncate any 11-digit number starting with 91 and match nobody.
+    return if (s.length == 12 && s.startsWith("91")) s.substring(2) else s
 }
 
 class StudentCallStatusAdapter(
