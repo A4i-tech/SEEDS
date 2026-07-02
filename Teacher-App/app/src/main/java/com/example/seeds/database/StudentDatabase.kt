@@ -9,7 +9,7 @@ import com.example.seeds.dao.StudentsDao
 import com.example.seeds.model.Student
 
 
-@Database(entities = [Student::class, LogEntity::class], version = 1, exportSchema = false)
+@Database(entities = [Student::class, LogEntity::class], version = 2, exportSchema = false)
 abstract class StudentDatabase : RoomDatabase() {
 
     abstract val studentDao : StudentsDao

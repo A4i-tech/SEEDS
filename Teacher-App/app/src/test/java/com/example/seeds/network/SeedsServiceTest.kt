@@ -26,6 +26,7 @@ class SeedsServiceTest {
     private lateinit var service: SeedsService
 
     private val moshi = Moshi.Builder()
+        .add(ClassroomDto.Companion)
         .add(ApplicationJsonAdapterFactory)
         .add(KotlinJsonAdapterFactory())
         .build()
@@ -49,11 +50,11 @@ class SeedsServiceTest {
     fun teardown() = mockWebServer.shutdown()
 
     @Test
-    fun `healthPing sends GET to health_ping`() = runTest {
+    fun `healthPing sends GET to health`() = runTest {
         mockWebServer.enqueue(MockResponse().setResponseCode(200))
         service.healthPing()
         val request = mockWebServer.takeRequest()
-        assertThat(request.path).isEqualTo("/health/ping")
+        assertThat(request.path).isEqualTo("/health")
         assertThat(request.method).isEqualTo("GET")
     }
 
