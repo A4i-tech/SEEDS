@@ -12,11 +12,11 @@ data class Content(
     val title: LocalizedContent?,       // JSON object
     val theme: LocalizedContent?,
     val audioContent: List<AudioContent> = emptyList(),
-    val isPullModel: Boolean = false,
-    val isTeacherApp: Boolean = false,
-    val createdBy: String = "",
-    val creation_time: Long = 0L,
-    val isDeleted: Boolean = false
+    val isPullModel: Boolean,
+    val isTeacherApp: Boolean,
+    val createdBy: String,
+    val creation_time: Long,
+    val isDeleted: Boolean
 ) : Parcelable {
     val id: String get() = _id
     val titleText: String get() = title?.english ?: "Unknown Title"   

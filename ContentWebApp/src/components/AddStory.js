@@ -104,8 +104,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
         const itemTheme = item.theme?.english;
         return (
           item.language.toLowerCase() === language.toLowerCase() &&
-          itemTheme.toLowerCase() === theme.toLowerCase() &&
-          item.id !== content?.id
+          itemTheme.toLowerCase() === theme.toLowerCase()
         );
       });
       const titleMap = {};
@@ -118,7 +117,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
       });
       setTitlesUnderTheme(titleMap);
     },
-    [allContent, content],
+    [allContent],
   );
 
   const handleLanguageChange = (event) => {

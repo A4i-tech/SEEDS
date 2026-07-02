@@ -217,7 +217,6 @@ fun provideService(@ApplicationContext context: Context): SeedsService {
     }
 
     val moshi = Moshi.Builder()
-        .add(ClassroomDto.Companion)
         .add(ApplicationJsonAdapterFactory)
         .build()
 

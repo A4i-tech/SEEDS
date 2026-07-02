@@ -83,7 +83,7 @@ const ClassroomList = () => {
 
   const handleDeleteConfirm = async () => {
     try {
-      await deleteClassroom(classroomToDelete.id);
+      await deleteClassroom(classroomToDelete._id);
       showToast.success("Classroom deleted successfully");
       setDeleteDialogOpen(false);
       setClassroomToDelete(null);
@@ -284,7 +284,7 @@ const ClassroomList = () => {
       ) : (
         <Grid container spacing={3}>
           {classrooms.map((classroom) => (
-            <Grid item xs={12} sm={6} md={4} key={classroom.id}>
+            <Grid item xs={12} sm={6} md={4} key={classroom._id}>
               <Card
                 sx={{
                   height: "100%",
@@ -324,14 +324,14 @@ const ClassroomList = () => {
                 <CardActions sx={{ justifyContent: "space-between", px: 2, pb: 2 }}>
                   <Button
                     size="small"
-                    onClick={() => handleView(classroom.id)}
+                    onClick={() => handleView(classroom._id)}
                   >
                     View
                   </Button>
                   <Box>
                     <IconButton
                       size="small"
-                      onClick={() => handleEdit(classroom.id)}
+                      onClick={() => handleEdit(classroom._id)}
                       sx={{ color: "primary.main" }}
                     >
                       <EditIcon />

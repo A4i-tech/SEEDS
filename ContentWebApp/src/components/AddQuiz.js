@@ -2,7 +2,12 @@ import { useState, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { useNavigate } from "react-router-dom";
 import { contentService } from "../services/contentService";
-import { transformQuizItem, extractQuestionText } from "../utils/quizDataTransform";
+import {
+  transformQuizItem,
+  extractQuestionText,
+  extractQuestionOptions,
+  getCorrectOptionIndex,
+} from "../utils/quizDataTransform";
 
 const ANSWER_OPTION_CONFIG = [
   { name: "optionA", label: "Option A", idx: 0 },
@@ -52,13 +57,12 @@ const AddQuiz = ({ quiz }) => {
       };
       setMetadata(quizMetadata);
       const questions = transformedQuiz.questions;
-      const quizOptions = transformedQuiz.options;
-      const quizCorrectAnswers = transformedQuiz.correctAnswers;
-      const inputFieldsData = questions.map((questionItem, index) => {
+      const inputFieldsData = questions.map((questionItem) => {
         const questionText = extractQuestionText(questionItem);
-        const optionTexts = [...quizOptions[index]];
+        const options = extractQuestionOptions(questionItem);
+        const optionTexts = [...options];
         while (optionTexts.length < 4) optionTexts.push("");
-        const correctIndex = quizCorrectAnswers[index];
+        const correctIndex = getCorrectOptionIndex(questionItem, optionTexts);
         return {
           question: questionText,
           optionA: optionTexts[0],
@@ -107,24 +111,19 @@ const AddQuiz = ({ quiz }) => {
       mcq.correctAnswer !== undefined ? mcq.correctAnswer : 0
     );
 
-    const titleObj = {
-      english: metadata.title,
-      local: languageLower === "en" ? metadata.title : metadata.localTitle,
-    };
-    const themeObj = {
-      english: metadata.theme,
-      local: languageLower === "en" ? metadata.theme : metadata.localTheme,
-    };
-
     const payload = {
       ...metadata,
       questions,
       options,
       correctAnswers,
-      title: titleObj,
-      theme: themeObj,
-      localTitle: titleObj.local,
-      localTheme: themeObj.local,
+      // Theme fields expected by backend quiz creation (mirror AddStory behavior)
+      theme: metadata.theme,
+      localTheme:
+        languageLower === "en" ? metadata.theme : metadata.localTheme,
+      // Title fields expected by backend quiz creation (mirror AddStory behavior)
+      title: metadata.title,
+      localTitle:
+        languageLower === "en" ? metadata.title : metadata.localTitle,
       type: "quiz",
       id: quiz ? (quiz._id || quiz.id) : uuidv4(),
     };

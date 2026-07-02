@@ -137,9 +137,6 @@ export const contentService = {
       headers: getAuthHeaders(),
     });
 
-    if (response && !response.id && response._id) {
-      return { ...response, id: response._id };
-    }
     return response;
   },
 };

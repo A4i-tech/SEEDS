@@ -4,8 +4,8 @@ import androidx.room.PrimaryKey
 
 @Entity(tableName = "log")
 class LogEntity(
-    @PrimaryKey
-    val id: String,
+    @PrimaryKey(autoGenerate = true)
+    val id: Int = 0,
     val logText: String,
     val time: String,
     val user: String,

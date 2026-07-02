@@ -207,7 +207,6 @@ class CallViewModel @Inject constructor(
         get() = _conferenceHoldDetected
 
     private val holdState = AtomicBoolean(false)
-    private val conferenceEverRunning = AtomicBoolean(false)
     private val _holdDetectedEvent = MutableLiveData<Event<Unit>>()
     val holdDetectedEvent: LiveData<Event<Unit>>
         get() = _holdDetectedEvent
@@ -466,8 +465,7 @@ class CallViewModel @Inject constructor(
 
             // --- Check if conference is still running ---
             val isRunning = json.get("is_running")?.asBoolean
-            if (isRunning == true) conferenceEverRunning.set(true)
-            if (isRunning == false && conferenceEverRunning.get()) {
+            if (isRunning == false) {
                 Log.i(TAG, "Conference has ended (is_running=false), navigating back")
                 _navigateBack.postValue(true)
                 return

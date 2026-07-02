@@ -70,11 +70,11 @@ const ClassroomForm = () => {
       setErrorMsg("");
       const data = await getClassroomById(classroomId);
       setFormData({
-        id: data.id,
-        name: data.name,
-        students: data.students,
-        leaders: data.leaders,
-        contentIds: data.contentIds,
+        _id: data._id,
+        name: data.name || "",
+        students: (data.students || []).map((s) => (typeof s === "object" ? s._id : s)),
+        leaders: (data.leaders || []).map((l) => (typeof l === "object" ? l._id : l)),
+        contentIds: data.contentIds || [],
       });
     } catch (err) {
       setErrorMsg("Failed to load classroom. Please try again.");
@@ -98,7 +98,7 @@ const ClassroomForm = () => {
       errors.name = "Class name is required";
     }
 
-    const studentSet = new Set(formData.students.map((s) => s.id));
+    const studentSet = new Set(formData.students);
     if (studentSet.size !== formData.students.length) {
       errors.students = "Duplicate students are not allowed";
     }
@@ -117,24 +117,26 @@ const ClassroomForm = () => {
   const handleAddStudent = (event, value) => {
     if (!value) return;
 
-    if (formData.students.some((s) => s.id === value.id)) {
+    const studentId = value._id;
+
+    if (formData.students.includes(studentId)) {
       showToast.error("Student already added to classroom");
       return;
     }
 
     setFormData({
       ...formData,
-      students: [...formData.students, value],
+      students: [...formData.students, studentId],
     });
     if (validationErrors.students) {
       setValidationErrors({ ...validationErrors, students: "" });
     }
   };
 
-  const handleRemoveStudent = (studentId) => {
+  const handleRemoveStudent = (studentPhone) => {
     setFormData({
       ...formData,
-      students: formData.students.filter((s) => s.id !== studentId),
+      students: formData.students.filter((s) => s !== studentPhone),
     });
   };
 
@@ -170,6 +172,10 @@ const ClassroomForm = () => {
   const handleBack = () => {
     navigate("/classrooms");
   };
+
+  const getStudentById = useCallback((id) => {
+    return teacherStudentsList.find((s) => s._id === id);
+  }, [teacherStudentsList]);
 
   if (loading || isLoadingStudents) {
     return <LoadingSpinner />;
@@ -236,7 +242,7 @@ const ClassroomForm = () => {
             <Box sx={{ mb: 3 }}>
               <Autocomplete
                 options={teacherStudentsList.filter(
-                  (s) => !formData.students.some((fs) => fs.id === s.id)
+                  (s) => !formData.students.includes(s._id)
                 )}
                 getOptionLabel={(option) => `${option.name} - ${option.phoneNumber}`}
                 onChange={handleAddStudent}
@@ -279,28 +285,31 @@ const ClassroomForm = () => {
               </Paper>
             ) : (
               <List sx={{ bgcolor: "background.paper", borderRadius: 1 }}>
-                {formData.students.map((student, index) => (
-                  <React.Fragment key={student.id}>
-                    {index > 0 && <Divider />}
-                    <ListItem
-                      secondaryAction={
-                        <IconButton
-                          edge="end"
-                          onClick={() => handleRemoveStudent(student.id)}
-                          sx={{ color: "error.main" }}
-                        >
-                          <DeleteIcon />
-                        </IconButton>
-                      }
-                    >
-                      <ListItemText
-                        primary={student.name}
-                        secondary={student.phoneNumber}
-                        primaryTypographyProps={{ fontWeight: 500 }}
-                      />
-                    </ListItem>
-                  </React.Fragment>
-                ))}
+                {formData.students.map((id, index) => {
+                  const student = getStudentById(id);
+                  return (
+                    <React.Fragment key={id}>
+                      {index > 0 && <Divider />}
+                      <ListItem
+                        secondaryAction={
+                          <IconButton
+                            edge="end"
+                            onClick={() => handleRemoveStudent(id)}
+                            sx={{ color: "error.main" }}
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        }
+                      >
+                        <ListItemText
+                          primary={student ? student.name : id}
+                          secondary={student ? student.phoneNumber : id}
+                          primaryTypographyProps={{ fontWeight: 500 }}
+                        />
+                      </ListItem>
+                    </React.Fragment>
+                  );
+                })}
               </List>
             )}
           </CardContent>

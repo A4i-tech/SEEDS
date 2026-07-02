@@ -56,9 +56,9 @@ class ClassroomToCallE2ETest {
         IdlingRegistry.getInstance().register(TestAppModule.fakeService.idlingResource)
         hiltRule.inject()
         TestAppModule.fakeService.classroomsToReturn = listOf(
-            ClassroomDto(id = "cls-1", name = "Alpha Class", teacher = "teacher-1",
+            ClassroomDto(_id = "cls-1", name = "Alpha Class", teacher = "teacher-1",
                 students = emptyList(), leaders = emptyList()),
-            ClassroomDto(id = "cls-2", name = "Beta Group", teacher = "teacher-1",
+            ClassroomDto(_id = "cls-2", name = "Beta Group", teacher = "teacher-1",
                 students = emptyList(), leaders = emptyList())
         )
         scenario = ActivityScenario.launch(MainActivity::class.java)
