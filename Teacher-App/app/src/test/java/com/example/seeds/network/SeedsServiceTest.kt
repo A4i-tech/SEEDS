@@ -105,7 +105,7 @@ class SeedsServiceTest {
 
     @Test
     fun `getClassroomById sends GET with classId in path`() = runTest {
-        val json = """{"_id":"cls-1","name":"Test","teacher":"t1","students":[],"leaders":[]}"""
+        val json = """{"id":"cls-1","name":"Test","teacher":"t1","students":[],"leaders":[]}"""
         mockWebServer.enqueue(MockResponse().setBody(json).setResponseCode(200))
         service.getClassroomById("cls-1")
         val request = mockWebServer.takeRequest()

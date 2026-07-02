@@ -185,8 +185,20 @@ class ContentService:
                 updates["audioContent"] = body.audioContent
             updates["isProcessed"] = False
 
-        return await self._content_repo.update_by_id_and_tenant(
+        result = await self._content_repo.update_by_id_and_tenant(
             body.id, tenant_id, updates, school_id
+        )
+        if result:
+            return result
+
+        # Quiz lives in a separate collection; mirror delete_content's fallback.
+        quiz_allowed = allowed | {
+            "localTitle", "localTheme", "positiveMarks", "negativeMarks",
+            "questions", "options", "correctAnswers",
+        }
+        quiz_updates = {k: v for k, v in body_dict.items() if k in quiz_allowed}
+        return await self._quiz_repo.update_by_id_and_tenant(
+            body.id, tenant_id, quiz_updates, school_id
         )
 
     async def delete_content(

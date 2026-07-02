@@ -56,11 +56,9 @@ const QuizDetails = ({ quiz }) => {
           <p className="mintgreen marks-badge">{quiz.negativeMarks}</p>
         </div>
       </div>
-      {questions.map((questionItem, index) => {
-        const questionText = questionItem.question.text;
-        const opts = questionItem.options;
-        const options = opts.map((o) => o.text);
-        const correctIndex = opts.findIndex((o) => o.id === questionItem.correct_option_id);
+      {questions.map((questionText, index) => {
+        const options = quiz.options[index];
+        const correctIndex = quiz.correctAnswers[index];
         const optionLabels = ["A", "B", "C", "D"];
         return (
           <div key={index} className="quiz-question-block">
