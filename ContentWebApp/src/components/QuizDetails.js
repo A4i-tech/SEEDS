@@ -1,5 +1,5 @@
 import React from "react";
-import { transformQuizItem, extractQuestionText, extractQuestionOptions, getCorrectOptionIndex } from "../utils/quizDataTransform";
+import { transformQuizItem, extractQuestionText } from "../utils/quizDataTransform";
 
 const QuizDetails = ({ quiz }) => {
   const transformed = transformQuizItem(quiz);
@@ -7,7 +7,9 @@ const QuizDetails = ({ quiz }) => {
   const titleLocal = transformed.title?.local ?? quiz.localTitle;
   const themeEnglish = transformed.theme?.english ?? transformed.theme;
   const themeLocal = transformed.theme?.local ?? quiz.localTheme;
-  const questions = transformed.questions || [];
+  const questions = transformed.questions;
+  const quizOptions = quiz.options;
+  const quizCorrectAnswers = quiz.correctAnswers;
 
   return (
     <>
@@ -17,7 +19,7 @@ const QuizDetails = ({ quiz }) => {
           <div>Title</div>
           <p>
             <b>{titleEnglish}</b>
-            {titleLocal && (
+            {titleLocal && titleLocal !== titleEnglish && (
               <>
                 <br />
                 <b>{titleLocal}</b>
@@ -37,7 +39,7 @@ const QuizDetails = ({ quiz }) => {
           <div>Theme</div>
           <p>
             <b>{themeEnglish}</b>
-            {themeLocal && (
+            {themeLocal && themeLocal !== themeEnglish && (
               <>
                 <br />
                 <b>{themeLocal}</b>
@@ -60,8 +62,8 @@ const QuizDetails = ({ quiz }) => {
       </div>
       {questions.map((questionItem, index) => {
         const questionText = extractQuestionText(questionItem);
-        const options = extractQuestionOptions(questionItem);
-        const correctIndex = getCorrectOptionIndex(questionItem, options);
+        const options = quizOptions[index];
+        const correctIndex = quizCorrectAnswers[index];
         const optionLabels = ["A", "B", "C", "D"];
         return (
           <div key={index} className="quiz-question-block">
