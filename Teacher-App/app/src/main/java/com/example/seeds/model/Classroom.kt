@@ -38,11 +38,11 @@ data class Classroom(
 
 fun Classroom.asDto(): ClassroomSaveDto {
     return ClassroomSaveDto(
-        _id,
-        name,
-        teacher,
-        students.map { requireNotNull(it._id) { "Student ${it.name} missing _id" } },
-        leaders.map { requireNotNull(it._id) { "Leader ${it.name} missing _id" } },
-        contentIds
+        id = _id,
+        name = name,
+        teacher = teacher,
+        students = students.map { requireNotNull(it._id) { "Student ${it.name} missing _id" } },
+        leaders = leaders.map { requireNotNull(it._id) { "Leader ${it.name} missing _id" } },
+        contentIds = contentIds
     )
 }

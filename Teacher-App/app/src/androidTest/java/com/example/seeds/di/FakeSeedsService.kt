@@ -61,7 +61,7 @@ class FakeSeedsService : SeedsService {
     override suspend fun getParticipants(): List<Student> = emptyList()
 
     override suspend fun saveClassroom(classroom: ClassroomSaveDto): ClassroomDto =
-        ClassroomDto(id = classroom._id ?: "new-id", name = classroom.name, teacher = classroom.teacher,
+        ClassroomDto(id = classroom.id ?: "new-id", name = classroom.name, teacher = classroom.teacher,
             students = emptyList(), leaders = emptyList())
 
     override suspend fun deleteClassroom(classId: String) = Unit
