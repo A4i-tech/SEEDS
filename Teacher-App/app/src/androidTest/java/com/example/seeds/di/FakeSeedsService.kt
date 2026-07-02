@@ -45,8 +45,7 @@ class FakeSeedsService : SeedsService {
     }
 
     override suspend fun getClassroomById(classId: String): ClassroomDto =
-        classroomsToReturn.firstOrNull { it._id == classId }
-            ?: ClassroomDto(_id = classId, name = "Unknown", teacher = "", students = emptyList(), leaders = emptyList())
+        ClassroomDto(id = classId, name = "Unknown", teacher = "", students = emptyList(), leaders = emptyList())
 
     override suspend fun getAllContent(limit: Int, cursor: String?): PaginatedResponse<Content> {
         idlingResource.increment()
@@ -62,7 +61,7 @@ class FakeSeedsService : SeedsService {
     override suspend fun getParticipants(): List<Student> = emptyList()
 
     override suspend fun saveClassroom(classroom: ClassroomSaveDto): ClassroomDto =
-        ClassroomDto(_id = classroom._id ?: "new-id", name = classroom.name, teacher = classroom.teacher,
+        ClassroomDto(id = classroom._id ?: "new-id", name = classroom.name, teacher = classroom.teacher,
             students = emptyList(), leaders = emptyList())
 
     override suspend fun deleteClassroom(classId: String) = Unit

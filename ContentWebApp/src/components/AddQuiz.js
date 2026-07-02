@@ -38,18 +38,16 @@ const AddQuiz = ({ quiz }) => {
         negativeMark: quiz.negativeMarks,
       });
       const questions = quiz.questions;
-      const inputFieldsData = questions.map((questionItem) => {
-        const opts = questionItem.options;
-        const optionTexts = opts.map((o) => o.text);
+      const inputFieldsData = questions.map((questionText, index) => {
+        const optionTexts = [...quiz.options[index]];
         while (optionTexts.length < 4) optionTexts.push("");
-        const idx = opts.findIndex((o) => o.id === questionItem.correct_option_id);
         return {
-          question: questionItem.question.text,
+          question: questionText,
           optionA: optionTexts[0],
           optionB: optionTexts[1],
           optionC: optionTexts[2],
           optionD: optionTexts[3],
-          correctAnswer: idx,
+          correctAnswer: quiz.correctAnswers[index],
         };
       });
       setInputFields(
@@ -91,19 +89,24 @@ const AddQuiz = ({ quiz }) => {
       mcq.correctAnswer !== undefined ? mcq.correctAnswer : 0
     );
 
+    const titleObj = {
+      english: metadata.title,
+      local: languageLower === "en" ? metadata.title : metadata.localTitle,
+    };
+    const themeObj = {
+      english: metadata.theme,
+      local: languageLower === "en" ? metadata.theme : metadata.localTheme,
+    };
+
     const payload = {
       ...metadata,
       questions,
       options,
       correctAnswers,
-      // Theme fields expected by backend quiz creation (mirror AddStory behavior)
-      theme: metadata.theme,
-      localTheme:
-        languageLower === "en" ? metadata.theme : metadata.localTheme,
-      // Title fields expected by backend quiz creation (mirror AddStory behavior)
-      title: metadata.title,
-      localTitle:
-        languageLower === "en" ? metadata.title : metadata.localTitle,
+      title: titleObj,
+      theme: themeObj,
+      localTitle: titleObj.local,
+      localTheme: themeObj.local,
       type: "quiz",
       id: quiz ? (quiz._id || quiz.id) : uuidv4(),
     };
@@ -177,8 +180,14 @@ const AddQuiz = ({ quiz }) => {
       const isEditing = Boolean(quizId);
       let result;
       if (isEditing) {
-        // PATCH existing quiz — backend requires _id in the body
-        result = await contentService.updateContent({ ...payload, _id: quizId });
+        // PATCH existing quiz — backend requires _id and the content fields it validates
+        result = await contentService.updateContent({
+          audioContent: quiz.audioContent ?? [],
+          isPullModel: quiz.isPullModel ?? false,
+          isTeacherApp: quiz.isTeacherApp ?? false,
+          ...payload,
+          _id: quizId,
+        });
       } else {
         result = await contentService.createQuiz(payload);
       }
