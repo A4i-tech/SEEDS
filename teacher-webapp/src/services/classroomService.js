@@ -12,7 +12,12 @@ export const getClassroomById = async (classId) => {
 };
 
 export const createClassroom = async (classroomData) => {
-  const response = await axiosInstance.post(API_ENDPOINTS.CLASSROOM.CREATE, classroomData);
+  const payload = {
+    ...classroomData,
+    students: classroomData.students.map((s) => s.id),
+    leaders: classroomData.leaders.map((l) => l.id),
+  };
+  const response = await axiosInstance.post(API_ENDPOINTS.CLASSROOM.CREATE, payload);
   return response.data;
 };
 
