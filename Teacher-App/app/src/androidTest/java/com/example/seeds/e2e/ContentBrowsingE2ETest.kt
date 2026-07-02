@@ -1,7 +1,6 @@
 package com.example.seeds.e2e
 
 import android.view.View
-import androidx.navigation.findNavController
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.Espresso.closeSoftKeyboard
 import androidx.test.espresso.Espresso.onView
@@ -85,30 +84,23 @@ class ContentBrowsingE2ETest {
 
     @Test
     fun homeTab_displaysContentFromApi() {
-        openHomeTab()
+        onView(withId(R.id.homeFragment)).perform(performClickAction)
         onView(withText("Sparrow Song")).check(matches(isDisplayed()))
     }
 
     @Test
     fun clickContent_navigatesToDetailsFragment() {
-        openHomeTab()
+        onView(withId(R.id.homeFragment)).perform(performClickAction)
         onView(withText("Sparrow Song")).perform(performClickAction)
         onView(withId(R.id.contact_name)).check(matches(withText("Sparrow Song")))
     }
 
     @Test
     fun searchContent_filtersResults() {
-        openHomeTab()
+        onView(withId(R.id.homeFragment)).perform(performClickAction)
         onView(withText("Sparrow Song")).check(matches(isDisplayed()))
         onView(withId(R.id.content_search_text_box)).perform(typeText("xyz"))
         closeSoftKeyboard()
         onView(withText("Sparrow Song")).check(doesNotExist())
-    }
-
-    private fun openHomeTab() {
-        scenario.onActivity { activity ->
-            activity.findNavController(R.id.nav_host_fragment_activity_main)
-                .navigate(R.id.homeFragment)
-        }
     }
 }
