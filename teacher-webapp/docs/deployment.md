@@ -13,7 +13,7 @@
 ## 3. Environment Variables
 Set these in the platform dashboard (do NOT commit secrets):
 ```
-REACT_APP_CONF_SERVER_BASE_URI = <your-backend-api-url>
+REACT_APP_API_BASE_URL = <your-backend-api-url>
 ```
 
 > **Note:** Only include variables relevant to your service. Do not commit secrets to version control.

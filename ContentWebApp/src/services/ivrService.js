@@ -2,20 +2,20 @@ import { apiFetch } from "./api";
 
 export const ivrService = {
   /**
-   * Update IVR configuration
-   * @param {string} ivrURL - Base IVR service URL
+   * Rebuild the IVR FSM from latest content (platform: PATCH /ivr)
+   * @param {string} baseURL - Platform API base URL
    * @param {Object} headers - Auth headers
    * @returns {Promise<{message: string}>}
    */
-  async updateIVR(ivrURL, headers = {}) {
-    if (!ivrURL) {
-      throw new Error("IVR URL not configured");
+  async updateIVR(baseURL, headers = {}) {
+    if (!baseURL) {
+      throw new Error("API URL not configured");
     }
 
-    const url = `${ivrURL}/updateivr`;
+    const url = `${baseURL}/ivr`;
 
     const response = await apiFetch(url, {
-      method: "POST",
+      method: "PATCH",
       headers,
     });
 

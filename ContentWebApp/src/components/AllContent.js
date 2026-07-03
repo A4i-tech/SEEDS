@@ -69,7 +69,7 @@ const AllContent = () => {
     deleteSchool,
   } = useSchools(activeTab);
 
-  const ivrURL = process.env.REACT_APP_API_IVRV2_URL;
+  const ivrURL = process.env.REACT_APP_API_BASE_URL;
   const canViewRegistration =
     currentUserRole === USER_ROLES.TENANT || currentUserRole === USER_ROLES.SCHOOL_ADMIN;
   const canViewAnalytics = canViewRegistration;

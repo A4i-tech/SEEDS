@@ -1,7 +1,7 @@
 import { APP_CONFIG } from "../config/appConfig";
 
 const BASE_URL = APP_CONFIG.BASE_URL;
-const CONF_BASE = `${APP_CONFIG.CONF_SERVER_BASE_URI}/conference`;
+const CONF_BASE = `${BASE_URL}/conference`;
 export const API_ENDPOINTS = {
   LOGIN: `${BASE_URL}/teacher/login`,
   GET_TEACHER_ME: `${BASE_URL}/teacher/me`,
