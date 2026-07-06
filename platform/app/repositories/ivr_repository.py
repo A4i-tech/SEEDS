@@ -145,3 +145,33 @@ class IVRRepository(BaseRepository):
             }
         )
         return await cursor.to_list(length=None)
+
+    async def find_for_analytics(
+        self,
+        tenant_id: str,
+        start_iso: str,
+        end_iso: str,
+        phone_numbers: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return raw log docs for a tenant within an ISO date range, optionally
+        restricted to a set of phone numbers.
+
+        Ported from backend-server IvrV2LogMongoDao.findForAnalytics — projects
+        only the fields the analytics service needs.
+        """
+        query: dict[str, Any] = {
+            "tenant_id": tenant_id,
+            "created_at": {"$gte": start_iso, "$lte": end_iso},
+        }
+        if phone_numbers is not None:
+            query["phone_number"] = {"$in": phone_numbers}
+        projection = {
+            "phone_number": 1,
+            "created_at": 1,
+            "stopped_at": 1,
+            "duration": 1,
+            "stream_playback": 1,
+            "call_status_updates": 1,
+        }
+        cursor = self._log_col.find(query, projection)
+        return await cursor.to_list(length=None)

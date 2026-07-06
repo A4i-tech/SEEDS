@@ -1,0 +1,291 @@
+"""
+Integration tests for the analytics endpoints (IVR + conference).
+
+Ported from backend-server/tests/integration/analyticsIvr.test.js and
+analyticsConference.test.js. Verifies role guards, tenant/school scoping,
+date-range validation, and the camelCase response contract consumed by
+ContentWebApp.
+"""
+
+from __future__ import annotations
+
+import os
+
+os.environ.setdefault("SECRET_KEY", "test-secret-key-for-integration-tests-32ch")
+os.environ.setdefault("APP_MODE", "api")
+os.environ.setdefault("ENV", "development")
+
+import pytest
+import pytest_asyncio
+from bson import ObjectId
+from httpx import ASGITransport, AsyncClient
+from mongomock_motor import AsyncMongoMockClient
+
+from app.main import app
+from app.models.user import UserRole
+from app.platform.auth.dependencies import get_db
+from app.platform.auth.jwt import create_access_token
+from app.repositories.conference_repository import ConferenceRepository
+from app.repositories.ivr_repository import IVRRepository
+
+CONF_COLLECTION = ConferenceRepository.COLLECTION
+IVR_COLLECTION = IVRRepository.LOG_COLLECTION
+
+TENANT_ID = "tenant-1"
+SCHOOL_OID = ObjectId()
+SCHOOL_ID = str(SCHOOL_OID)
+TEACHER_OID = ObjectId()
+TEACHER_ID = str(TEACHER_OID)
+TEACHER_PHONE = "+919876543210"
+STUDENT_PHONE = "+919812345678"
+
+START = "2026-06-01T00:00:00"
+END = "2026-06-30T23:59:59"
+
+
+@pytest_asyncio.fixture
+async def mock_db():
+    client = AsyncMongoMockClient()
+    db = client["seeds_test_analytics"]
+    await _seed(db)
+    yield db
+    client.close()
+
+
+@pytest_asyncio.fixture
+async def client(mock_db):
+    async def _override_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = _override_db
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+    app.dependency_overrides.clear()
+
+
+async def _seed(db):
+    await db["schools"].insert_one(
+        {
+            "_id": SCHOOL_OID,
+            "tenantId": TENANT_ID,
+            "name": "Test School",
+            "email": "school@test.com",
+            "isActive": True,
+        }
+    )
+    await db["users"].insert_many(
+        [
+            {
+                "_id": TEACHER_OID,
+                "role": UserRole.TEACHER.value,
+                "name": "Mr Teacher",
+                "phone": TEACHER_PHONE,
+                "tenant_id": TENANT_ID,
+                "school_id": SCHOOL_ID,
+                "is_active": True,
+            },
+            {
+                "_id": ObjectId(),
+                "role": UserRole.STUDENT.value,
+                "name": "Student One",
+                "phone": STUDENT_PHONE,
+                "tenant_id": TENANT_ID,
+                "school_id": SCHOOL_ID,
+                "is_active": True,
+            },
+        ]
+    )
+    # Two IVR logs: one completed (by student), one failed (by teacher).
+    await db[IVR_COLLECTION].insert_many(
+        [
+            {
+                "tenant_id": TENANT_ID,
+                "phone_number": STUDENT_PHONE,
+                "created_at": "2026-06-10T10:00:00",
+                "stopped_at": "2026-06-10T10:02:00",
+                "duration": "120",
+                "stream_playback": [
+                    {"play_id": "p1", "stream_url": "https://cdn/lesson1.mp3", "done_at": "2026-06-10T10:01:50"}
+                ],
+                "call_status_updates": {
+                    "2026-06-10T10:00:00": "started",
+                    "2026-06-10T10:02:00": "completed",
+                },
+            },
+            {
+                "tenant_id": TENANT_ID,
+                "phone_number": TEACHER_PHONE,
+                "created_at": "2026-06-11T09:00:00",
+                "stopped_at": "2026-06-11T09:00:05",
+                "duration": "0",
+                "stream_playback": [],
+                "call_status_updates": {"2026-06-11T09:00:00": "busy"},
+            },
+        ]
+    )
+    # One completed conference run by the teacher with 1 student + 1 raised hand.
+    await db[CONF_COLLECTION].insert_one(
+        {
+            "_id": "conf-1",
+            "tenant_id": TENANT_ID,
+            "teacher_phone_number": TEACHER_PHONE,
+            "is_running": False,
+            "participants": {
+                TEACHER_PHONE: {"role": "Teacher", "name": "Mr Teacher", "phone_number": TEACHER_PHONE},
+                STUDENT_PHONE: {"role": "Student", "name": "Student One", "phone_number": STUDENT_PHONE},
+            },
+            "action_history": [
+                {"action_type": "Conference-Start", "timestamp": "2026-06-12T10:00:00", "metadata": {}, "owner": TEACHER_PHONE},
+                {
+                    "action_type": "Student-RaiseHandStateChange",
+                    "timestamp": "2026-06-12T10:05:00",
+                    "metadata": {"raised_hand": True},
+                    "owner": STUDENT_PHONE,
+                },
+                {"action_type": "Conference-End", "timestamp": "2026-06-12T10:20:00", "metadata": {}, "owner": TEACHER_PHONE},
+            ],
+        }
+    )
+
+
+def _tenant_token():
+    return create_access_token({"sub": "tenant-uid", "role": "tenant", "tenant_id": TENANT_ID})
+
+
+def _school_admin_token():
+    return create_access_token(
+        {"sub": "sa-uid", "role": "school_admin", "tenant_id": TENANT_ID, "school_id": SCHOOL_ID}
+    )
+
+
+def _auth(token):
+    return {"Authorization": f"Bearer {token}"}
+
+
+# ---------------------------------------------------------------------------
+# Auth / validation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_ivr_requires_tenant_role(client):
+    resp = await client.get(
+        "/tenant/analytics/ivr",
+        params={"startDate": START, "endDate": END},
+        headers=_auth(_school_admin_token()),
+    )
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_missing_dates_returns_400(client):
+    resp = await client.get("/tenant/analytics/ivr", headers=_auth(_tenant_token()))
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_invalid_date_returns_400(client):
+    resp = await client.get(
+        "/tenant/analytics/ivr",
+        params={"startDate": "garbage", "endDate": END},
+        headers=_auth(_tenant_token()),
+    )
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_teacher_not_in_scope_returns_404(client):
+    resp = await client.get(
+        "/tenant/analytics/ivr",
+        params={"startDate": START, "endDate": END, "teacherId": str(ObjectId())},
+        headers=_auth(_tenant_token()),
+    )
+    assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# IVR analytics
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_tenant_ivr_analytics_totals(client):
+    resp = await client.get(
+        "/tenant/analytics/ivr",
+        params={"startDate": START, "endDate": END},
+        headers=_auth(_tenant_token()),
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["totals"]["totalCalls"] == 2
+    assert body["totals"]["completedCalls"] == 1
+    assert body["totals"]["failedCalls"] == 1
+    # contract: camelCase top-level keys
+    for key in ("sessionLength", "statusBreakdown", "bySchool", "byTeacher", "contentUsage", "calls"):
+        assert key in body
+    # content usage picked up the played lesson
+    assert any(u["streamUrl"] == "https://cdn/lesson1.mp3" for u in body["contentUsage"])
+
+
+@pytest.mark.asyncio
+async def test_tenant_ivr_teacher_attribution(client):
+    resp = await client.get(
+        "/tenant/analytics/ivr",
+        params={"startDate": START, "endDate": END},
+        headers=_auth(_tenant_token()),
+    )
+    body = resp.json()
+    teacher_rows = [t for t in body["byTeacher"] if t["teacherId"] == TEACHER_ID]
+    assert len(teacher_rows) == 1
+    assert teacher_rows[0]["totalCalls"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Conference analytics
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_tenant_conference_analytics(client):
+    resp = await client.get(
+        "/tenant/analytics/conference",
+        params={"startDate": START, "endDate": END},
+        headers=_auth(_tenant_token()),
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["totals"]["totalConferences"] == 1
+    assert body["totals"]["completedConferences"] == 1
+    assert body["duration"]["totalSeconds"] == 1200.0
+    assert body["classSize"]["average"] == 1
+    assert body["raisedHands"]["totalEvents"] == 1
+    assert len(body["conferences"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# School-admin scoping
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_school_admin_ivr_scoped_to_own_school(client):
+    resp = await client.get(
+        "/school/analytics/ivr",
+        params={"startDate": START, "endDate": END},
+        headers=_auth(_school_admin_token()),
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["filters"]["schoolId"] == SCHOOL_ID
+    assert body["totals"]["totalCalls"] == 2
+
+
+@pytest.mark.asyncio
+async def test_school_admin_cannot_use_tenant_route(client):
+    resp = await client.get(
+        "/tenant/analytics/conference",
+        params={"startDate": START, "endDate": END},
+        headers=_auth(_school_admin_token()),
+    )
+    assert resp.status_code == 403

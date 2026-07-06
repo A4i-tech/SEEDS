@@ -9,6 +9,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.controllers import (
+    analytics_controller,
     audit_controller,
     # Unified ContentWebApp login
     auth_controller,
@@ -62,6 +63,9 @@ api_router.include_router(class_controller.router)
 api_router.include_router(content_controller.router)
 api_router.include_router(audit_controller.router)
 api_router.include_router(content_aggregator_controller.router)
+
+# Analytics (IVR + conference usage)
+api_router.include_router(analytics_controller.router)
 
 # Calls
 api_router.include_router(conference_controller.router)
