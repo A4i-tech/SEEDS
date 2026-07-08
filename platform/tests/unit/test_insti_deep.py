@@ -231,9 +231,9 @@ class TestHandleLanguageDeeper:
         from app.services.fsm.instantiation.insti import handle_language
 
         content = [
-            {"language": "english", "theme": {}, "title": {}},
-            {"language": "hindi", "theme": {}, "title": {}},
-            {"language": "tamil", "theme": {}, "title": {}},
+            {"language": "en", "theme": {}, "title": {}},
+            {"language": "hi", "theme": {}, "title": {}},
+            {"language": "ta", "theme": {}, "title": {}},
         ]
         sorted_cats, values_to_urls, sorted_keys = handle_language(content, "1.0", {})
         # Should include valid languages

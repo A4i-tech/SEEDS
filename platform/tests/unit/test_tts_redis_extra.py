@@ -228,11 +228,11 @@ class TestInstiGenerateAllStates:
         from app.services.fsm.instantiation.insti import handle_language
 
         content = [
-            {"language": "english"},
-            {"language": "hindi"},
-            {"language": "marathi"},
+            {"language": "en"},
+            {"language": "hi"},
+            {"language": "mr"},
             {"language": "telugu"},
-            {"language": "tamil"},
+            {"language": "ta"},
         ]
         sorted_cats, values_to_urls, sorted_keys = handle_language(content, "1.0", {})
         assert len(sorted_cats) >= 1
@@ -242,7 +242,7 @@ class TestInstiGenerateAllStates:
 
         # "invalid_lang" should be filtered out
         content = [
-            {"language": "english"},
+            {"language": "en"},
             {"language": "invalid_lang"},
         ]
         sorted_cats, values_to_urls, sorted_keys = handle_language(content, "1.0", {})

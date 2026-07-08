@@ -241,24 +241,24 @@ class TestInstiHelpers:
         from app.services.fsm.instantiation.insti import handle_language
 
         content = [
-            {"language": "english", "theme": {"local": "Math"}, "title": {}},
-            {"language": "english", "theme": {"local": "Science"}, "title": {}},
+            {"language": "en", "theme": {"local": "Math"}, "title": {}},
+            {"language": "en", "theme": {"local": "Science"}, "title": {}},
         ]
         sorted_cats, values_to_urls, sorted_keys = handle_language(content, "1.0", {})
-        assert "english" in sorted_keys
+        assert "en" in sorted_keys
         assert len(sorted_cats) == len(sorted_keys)
 
     def test_handle_language_multiple_langs(self) -> None:
         from app.services.fsm.instantiation.insti import handle_language
 
         content = [
-            {"language": "english", "theme": {}, "title": {}},
-            {"language": "kannada", "theme": {}, "title": {}},
-            {"language": "kannada", "theme": {}, "title": {}},
+            {"language": "en", "theme": {}, "title": {}},
+            {"language": "kn", "theme": {}, "title": {}},
+            {"language": "kn", "theme": {}, "title": {}},
         ]
         _, _, sorted_keys = handle_language(content, "1.0", {})
-        # kannada has more items, should be first
-        assert sorted_keys[0] == "kannada"
+        # kn has more items, should be first
+        assert sorted_keys[0] == "kn"
 
     def test_handle_language_unknown_filters_out(self) -> None:
         from app.services.fsm.instantiation.insti import handle_language

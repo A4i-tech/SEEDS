@@ -18,7 +18,7 @@ class TestPauseAnnouncement:
     def test_get_pause_instruction_english(self) -> None:
         from app.services.fsm.instantiation.pause_announcement import get_pause_instruction
 
-        result = get_pause_instruction("english")
+        result = get_pause_instruction("en")
         assert "zero" in result.lower() or "0" in result
 
     def test_get_pause_instruction_unknown_language(self) -> None:
@@ -31,14 +31,14 @@ class TestPauseAnnouncement:
     def test_get_paused_announcement(self) -> None:
         from app.services.fsm.instantiation.pause_announcement import get_paused_announcement
 
-        result = get_paused_announcement("english")
+        result = get_paused_announcement("en")
         assert isinstance(result, str)
         assert len(result) > 0
 
     def test_get_resuming_announcement(self) -> None:
         from app.services.fsm.instantiation.pause_announcement import get_resuming_announcement
 
-        result = get_resuming_announcement("english")
+        result = get_resuming_announcement("en")
         assert isinstance(result, str)
 
     def test_all_languages_have_pause(self) -> None:
@@ -63,7 +63,7 @@ class TestDurationAnnouncement:
             format_duration_announcement,
         )
 
-        result = format_duration_announcement(120.0, "english")
+        result = format_duration_announcement(120.0, "en")
         assert "2" in result
         assert "minutes" in result.lower()
 
@@ -72,7 +72,7 @@ class TestDurationAnnouncement:
             format_duration_announcement,
         )
 
-        result = format_duration_announcement(45.0, "english")
+        result = format_duration_announcement(45.0, "en")
         assert "45" in result
         assert "seconds" in result.lower()
 
@@ -81,7 +81,7 @@ class TestDurationAnnouncement:
             format_duration_announcement,
         )
 
-        result = format_duration_announcement(90.5, "english")
+        result = format_duration_announcement(90.5, "en")
         assert "1" in result  # 1 minute
         assert "30" in result or "seconds" in result.lower()
 
@@ -90,7 +90,7 @@ class TestDurationAnnouncement:
             format_duration_announcement,
         )
 
-        result = format_duration_announcement(None, "english")
+        result = format_duration_announcement(None, "en")
         assert result == ""
 
     def test_format_zero_returns_empty(self) -> None:
@@ -98,7 +98,7 @@ class TestDurationAnnouncement:
             format_duration_announcement,
         )
 
-        result = format_duration_announcement(0.0, "english")
+        result = format_duration_announcement(0.0, "en")
         assert result == ""
 
     def test_format_kannada(self) -> None:
@@ -106,7 +106,7 @@ class TestDurationAnnouncement:
             format_duration_announcement,
         )
 
-        result = format_duration_announcement(60.0, "kannada")
+        result = format_duration_announcement(60.0, "kn")
         assert isinstance(result, str)
         assert len(result) > 0
 

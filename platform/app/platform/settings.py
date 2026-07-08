@@ -132,7 +132,7 @@ class Settings(BaseSettings):
     my_number: str = ""
     call_duration_limit: int = 0
     ivr_daily_listening_limit_seconds: int = 7200
-    default_welcome_language: str = "kannada"
+    default_welcome_language: str = "kn"
 
     # ---------------------------------------------------------------------------
     # Conference auto-end
