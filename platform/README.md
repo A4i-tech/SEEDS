@@ -63,8 +63,10 @@ cp env.example .env
 | `JWT_EXPIRES_IN` | no | Token expiry in ms or duration string (default: `3000000`) |
 | `VONAGE_API_KEY` | for calls | Vonage API key |
 | `VONAGE_API_SECRET` | for calls | Vonage API secret |
-| `VONAGE_APPLICATION_ID` | for calls | Vonage application ID |
-| `VONAGE_APPLICATION_PRIVATE_KEY64` | for webhooks | Base64-encoded Vonage private key (HMAC verification) |
+| `VONAGE_CONFERENCE_APPLICATION_ID` | for calls | Vonage application ID for the Conference application |
+| `VONAGE_CONFERENCE_APPLICATION_PRIVATE_KEY64` | for calls | Base64-encoded private key for the Conference application |
+| `VONAGE_IVR_APPLICATION_ID` | for calls | Vonage application ID for the IVR application |
+| `VONAGE_IVR_APPLICATION_PRIVATE_KEY64` | for calls | Base64-encoded private key for the IVR application |
 | `AZURE_SERVICE_BUS_CONNECTION_STRING` | for consumers | Azure Service Bus connection string |
 | `AZURE_STORAGE_CONNECTION_STRING` | for content/audio | Azure Blob Storage connection string |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | no | App Insights (telemetry disabled if absent) |
