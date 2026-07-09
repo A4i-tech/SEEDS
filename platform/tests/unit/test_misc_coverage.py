@@ -73,7 +73,7 @@ class TestIVRConstants:
     def test_language_dialog_urls_has_all_languages(self) -> None:
         from app.services.fsm.instantiation.ivr_constants import languageDialogUrls
 
-        expected = ["english", "kannada", "hindi", "bengali", "tamil", "odia", "marathi"]
+        expected = ["en", "kn", "hi", "bn", "ta", "or", "mr"]
         for lang in expected:
             assert lang in languageDialogUrls
 
@@ -94,7 +94,7 @@ class TestIVRConstants:
     def test_speed_control_instruction(self) -> None:
         from app.services.fsm.instantiation.speed_control import get_speed_instruction
 
-        instruction = get_speed_instruction("english")
+        instruction = get_speed_instruction("en")
         assert isinstance(instruction, str)
         assert len(instruction) > 0
 

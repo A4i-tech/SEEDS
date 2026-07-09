@@ -59,7 +59,7 @@ def _init_conference_manager() -> ConferenceCallManager:
     from app.services.conference_service import ConferenceCallManager  # noqa: PLC0415
 
     # Decode base64 private key if set
-    private_key_raw = settings.vonage_application_private_key64
+    private_key_raw = settings.vonage_conference_application_private_key64
     private_key: str
     if private_key_raw:
         try:

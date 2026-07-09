@@ -255,12 +255,12 @@ class TestInstiGenerateStates:
         from app.services.fsm.instantiation.insti import handle_language
 
         content = [
-            {"language": "english", "theme": {}, "title": {}},
+            {"language": "en", "theme": {}, "title": {}},
             {"language": "invalidlang", "theme": {}, "title": {}},
         ]
         _, _, keys = handle_language(content, "1.0", {})
         assert "invalidlang" not in keys
-        assert "english" in keys
+        assert "en" in keys
 
     def test_add_nav_action_imports_ok(self) -> None:
         """Just importing the _add_nav_action function covers its definition."""

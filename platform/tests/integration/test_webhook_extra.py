@@ -61,8 +61,8 @@ class TestWebhookControllerExtra:
 
     @pytest.mark.asyncio
     async def test_ivr_dtmf_webhook_requires_body(self, client, mock_db):
-        """POST /dtmf — DTMF input requires valid body."""
-        resp = await client.post("/dtmf", json={})  # Empty body
+        """POST /input — DTMF input requires valid body."""
+        resp = await client.post("/input", json={})  # Empty body
         assert resp.status_code in (200, 204, 422, 500)
 
     @pytest.mark.asyncio
@@ -70,8 +70,9 @@ class TestWebhookControllerExtra:
         """POST /webhook with non-missed call status returns detail."""
         with patch("app.controllers.webhook_controller.verify_vonage_signature", AsyncMock()):
             resp = await client.post("/webhook", json={
-                "_su": 1,  # Not 2 (missed call)
-                "_cl": "+919999999990",
+                "event_type": "call.end",
+                "customer_identifier": "+919999999990",
+                "payload": {"status": "bridged", "customer_number": "+919999999990"},  # Not "missed"
             })
             assert resp.status_code in (200, 422)
             if resp.status_code == 200:

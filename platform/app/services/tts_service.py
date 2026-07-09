@@ -18,16 +18,6 @@ logger = logging.getLogger(__name__)
 # Language / voice mappings (from ttsService.js)
 # ---------------------------------------------------------------------------
 
-_HUMAN_TO_TRANSLATION: dict[str, str] = {
-    "english": "en",
-    "kannada": "kn",
-    "hindi": "hi",
-    "marathi": "mr",
-    "tamil": "ta",
-    "bengali": "bn",
-    "odia": "or",
-}
-
 _TRANSLATION_TO_AZURE: dict[str, str] = {
     "kn": "kn-IN",
     "en": "en-IN",
@@ -51,10 +41,7 @@ _VOICE_NAME: dict[str, str] = {
 
 def _get_tts_attributes(language: str) -> tuple[str, str] | None:
     """Return (language_code, voice_name) for *language*, or None if unsupported."""
-    translation_code = _HUMAN_TO_TRANSLATION.get(language.lower())
-    if not translation_code:
-        return None
-    lang_code = _TRANSLATION_TO_AZURE.get(translation_code)
+    lang_code = _TRANSLATION_TO_AZURE.get(language.lower())
     if not lang_code:
         return None
     voice = _VOICE_NAME.get(lang_code)
@@ -89,7 +76,7 @@ async def synthesize(
 
     Args:
         text:     Text to synthesise.
-        language: Human language name (e.g. "kannada", "english").
+        language: ISO 639-1 language code (e.g. "kn", "en").
         voice:    Override voice name. If None, the default for *language* is used.
         rate:     Prosody rate string (e.g. "1.0", "slow").
 
@@ -203,14 +190,14 @@ def add_for_in_option_audio(lang: str, option: str) -> str:
     """
     res = option.strip()
     match lang.lower():
-        case "kannada":
+        case "kn":
             res += "ಗಾಗಿ"
-        case "english":
+        case "en":
             res = "for " + res
-        case "marathi":
+        case "mr":
             res += "साठी"
-        case "hindi":
+        case "hi":
             res += " के लिए"
-        case "bengali":
+        case "bn":
             res += " জন্য"
     return res

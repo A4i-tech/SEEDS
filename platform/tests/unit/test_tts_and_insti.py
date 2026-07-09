@@ -19,7 +19,7 @@ class TestTTSServiceHelpers:
     def test_get_tts_attributes_english(self) -> None:
         from app.services.tts_service import _get_tts_attributes
 
-        result = _get_tts_attributes("english")
+        result = _get_tts_attributes("en")
         assert result is not None
         lang_code, voice = result
         assert lang_code == "en-IN"
@@ -28,7 +28,7 @@ class TestTTSServiceHelpers:
     def test_get_tts_attributes_kannada(self) -> None:
         from app.services.tts_service import _get_tts_attributes
 
-        result = _get_tts_attributes("kannada")
+        result = _get_tts_attributes("kn")
         assert result is not None
         lang_code, voice = result
         assert lang_code == "kn-IN"
@@ -37,7 +37,7 @@ class TestTTSServiceHelpers:
     def test_get_tts_attributes_hindi(self) -> None:
         from app.services.tts_service import _get_tts_attributes
 
-        result = _get_tts_attributes("hindi")
+        result = _get_tts_attributes("hi")
         assert result is not None
         lang_code, _ = result
         assert lang_code == "hi-IN"
@@ -45,7 +45,7 @@ class TestTTSServiceHelpers:
     def test_get_tts_attributes_marathi(self) -> None:
         from app.services.tts_service import _get_tts_attributes
 
-        result = _get_tts_attributes("marathi")
+        result = _get_tts_attributes("mr")
         assert result is not None
         lang_code, _ = result
         assert lang_code == "mr-IN"
@@ -53,7 +53,7 @@ class TestTTSServiceHelpers:
     def test_get_tts_attributes_tamil(self) -> None:
         from app.services.tts_service import _get_tts_attributes
 
-        result = _get_tts_attributes("tamil")
+        result = _get_tts_attributes("ta")
         assert result is not None
         lang_code, _ = result
         assert lang_code == "ta-IN"
@@ -61,7 +61,7 @@ class TestTTSServiceHelpers:
     def test_get_tts_attributes_bengali(self) -> None:
         from app.services.tts_service import _get_tts_attributes
 
-        result = _get_tts_attributes("bengali")
+        result = _get_tts_attributes("bn")
         assert result is not None
         lang_code, _ = result
         assert lang_code == "bn-IN"
@@ -69,7 +69,7 @@ class TestTTSServiceHelpers:
     def test_get_tts_attributes_odia(self) -> None:
         from app.services.tts_service import _get_tts_attributes
 
-        result = _get_tts_attributes("odia")
+        result = _get_tts_attributes("or")
         assert result is not None
         lang_code, _ = result
         assert lang_code == "or-IN"
@@ -83,7 +83,7 @@ class TestTTSServiceHelpers:
     def test_get_tts_attributes_case_insensitive(self) -> None:
         from app.services.tts_service import _get_tts_attributes
 
-        result = _get_tts_attributes("ENGLISH")
+        result = _get_tts_attributes("EN")
         assert result is not None
 
     def test_build_ssml_contains_voice(self) -> None:
@@ -111,38 +111,38 @@ class TestTTSServiceHelpers:
     def test_add_for_in_option_audio_kannada(self) -> None:
         from app.services.tts_service import add_for_in_option_audio
 
-        result = add_for_in_option_audio("kannada", "Option A")
+        result = add_for_in_option_audio("kn", "Option A")
         assert "Option A" in result
         assert "ಗಾಗಿ" in result
 
     def test_add_for_in_option_audio_english(self) -> None:
         from app.services.tts_service import add_for_in_option_audio
 
-        result = add_for_in_option_audio("english", "Math")
+        result = add_for_in_option_audio("en", "Math")
         assert result == "for Math"
 
     def test_add_for_in_option_audio_marathi(self) -> None:
         from app.services.tts_service import add_for_in_option_audio
 
-        result = add_for_in_option_audio("marathi", "Math")
+        result = add_for_in_option_audio("mr", "Math")
         assert "साठी" in result
 
     def test_add_for_in_option_audio_hindi(self) -> None:
         from app.services.tts_service import add_for_in_option_audio
 
-        result = add_for_in_option_audio("hindi", "Math")
+        result = add_for_in_option_audio("hi", "Math")
         assert "के लिए" in result
 
     def test_add_for_in_option_audio_bengali(self) -> None:
         from app.services.tts_service import add_for_in_option_audio
 
-        result = add_for_in_option_audio("bengali", "Math")
+        result = add_for_in_option_audio("bn", "Math")
         assert "জন্য" in result
 
     def test_add_for_in_option_audio_unknown_lang(self) -> None:
         from app.services.tts_service import add_for_in_option_audio
 
-        result = add_for_in_option_audio("tamil", "Math")
+        result = add_for_in_option_audio("ta", "Math")
         assert result == "Math"  # no prefix/suffix for tamil in this func
 
     @pytest.mark.asyncio
@@ -167,7 +167,7 @@ class TestTTSServiceHelpers:
             with patch("app.services.tts_service.get_settings", return_value=mock_settings) if False else patch("builtins.__import__", side_effect=lambda name, *a, **k: (_ for _ in ()).throw(ImportError(f"No module {name}")) if name == "azure.cognitiveservices.speech" else __import__(name, *a, **k)):
                 # No SDK available, no key → should raise RuntimeError
                 with pytest.raises((RuntimeError, Exception)):
-                    await synthesize("Hello world", "english")
+                    await synthesize("Hello world", "en")
 
 
 # ---------------------------------------------------------------------------
@@ -241,24 +241,24 @@ class TestInstiHelpers:
         from app.services.fsm.instantiation.insti import handle_language
 
         content = [
-            {"language": "english", "theme": {"local": "Math"}, "title": {}},
-            {"language": "english", "theme": {"local": "Science"}, "title": {}},
+            {"language": "en", "theme": {"local": "Math"}, "title": {}},
+            {"language": "en", "theme": {"local": "Science"}, "title": {}},
         ]
         sorted_cats, values_to_urls, sorted_keys = handle_language(content, "1.0", {})
-        assert "english" in sorted_keys
+        assert "en" in sorted_keys
         assert len(sorted_cats) == len(sorted_keys)
 
     def test_handle_language_multiple_langs(self) -> None:
         from app.services.fsm.instantiation.insti import handle_language
 
         content = [
-            {"language": "english", "theme": {}, "title": {}},
-            {"language": "kannada", "theme": {}, "title": {}},
-            {"language": "kannada", "theme": {}, "title": {}},
+            {"language": "en", "theme": {}, "title": {}},
+            {"language": "kn", "theme": {}, "title": {}},
+            {"language": "kn", "theme": {}, "title": {}},
         ]
         _, _, sorted_keys = handle_language(content, "1.0", {})
-        # kannada has more items, should be first
-        assert sorted_keys[0] == "kannada"
+        # kn has more items, should be first
+        assert sorted_keys[0] == "kn"
 
     def test_handle_language_unknown_filters_out(self) -> None:
         from app.services.fsm.instantiation.insti import handle_language

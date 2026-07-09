@@ -10,13 +10,14 @@ MAX_SPEED = 2.0
 SPEED_INCREMENT = 0.25
 SUPPORTED_SPEEDS = [0.75, 1.0, 1.25, 1.5, 2.0]
 
+# Keyed by ISO 639-1 codes to match the `language` field stored on contentsV3 documents.
 _SPEED_ANNOUNCEMENTS: dict[str, dict] = {
-    "kannada": {"instruction": "ನಿಧಾನಗೊಳಿಸಲು ಸ್ಟಾರ್ ಒತ್ತಿರಿ, ವೇಗಗೊಳಿಸಲು ಹ್ಯಾಶ್ ಒತ್ತಿರಿ"},
-    "english": {"instruction": "Press star to slow down, press hash to speed up"},
-    "hindi": {"instruction": "धीमा करने के लिए स्टार दबाएं, तेज करने के लिए हैश दबाएं"},
-    "bengali": {"instruction": "ধীর করতে স্টার চাপুন, দ্রুত করতে হ্যাশ চাপুন"},
-    "tamil": {"instruction": "மெதுவாக்க ஸ்டார் அழுத்தவும், வேகமாக்க ஹாஷ் அழுத்தவும்"},
-    "marathi": {"instruction": "हळू करण्यासाठी स्टार दाबा, वेगवान करण्यासाठी हॅश दाबा"},
+    "kn": {"instruction": "ನಿಧಾನಗೊಳಿಸಲು ಸ್ಟಾರ್ ಒತ್ತಿರಿ, ವೇಗಗೊಳಿಸಲು ಹ್ಯಾಶ್ ಒತ್ತಿರಿ"},
+    "en": {"instruction": "Press star to slow down, press hash to speed up"},
+    "hi": {"instruction": "धीमा करने के लिए स्टार दबाएं, तेज करने के लिए हैश दबाएं"},
+    "bn": {"instruction": "ধীর করতে স্টার চাপুন, দ্রুত করতে হ্যাশ চাপুন"},
+    "ta": {"instruction": "மெதுவாக்க ஸ்டார் அழுத்தவும், வேகமாக்க ஹாஷ் அழுத்தவும்"},
+    "mr": {"instruction": "हळू करण्यासाठी स्टार दाबा, वेगवान करण्यासाठी हॅश दाबा"},
 }
 
 
@@ -41,5 +42,5 @@ def decrease_speed(current_speed: float) -> tuple[float, bool]:
 
 
 def get_speed_instruction(language: str) -> str:
-    lang = _SPEED_ANNOUNCEMENTS.get(language.lower(), _SPEED_ANNOUNCEMENTS["english"])
+    lang = _SPEED_ANNOUNCEMENTS.get(language.lower(), _SPEED_ANNOUNCEMENTS["en"])
     return lang["instruction"]

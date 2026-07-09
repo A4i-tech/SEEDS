@@ -229,7 +229,7 @@ class FSM:
                 )
                 if has_connect:
                     return (
-                        [InputAction(type_=["dtmf"], eventApi="/dtmf", timeOut=10)],
+                        [InputAction(type_=["dtmf"], eventApi="/input", timeOut=10)],
                         current_state_id,
                     )
                 error_actions = self.empty_input_error_actions

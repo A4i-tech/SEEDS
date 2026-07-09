@@ -297,7 +297,7 @@ class TestWebhookControllerDeep:
         app.dependency_overrides[get_db] = _override_db
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as ac:
-            resp = await ac.post("/dtmf", json={
+            resp = await ac.post("/input", json={
                 "dtmf": {"digits": "1"},
                 "uuid": "leg-uuid-3",
             })
