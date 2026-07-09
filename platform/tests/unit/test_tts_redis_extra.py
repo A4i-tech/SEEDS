@@ -17,7 +17,7 @@ class TestTTSServicePure:
     def test_get_tts_attributes_english(self) -> None:
         from app.services.tts_service import _get_tts_attributes
 
-        result = _get_tts_attributes("english")
+        result = _get_tts_attributes("en")
         assert result is not None
         lang_code, voice_name = result
         assert "en" in lang_code.lower() or "en" in voice_name.lower()
@@ -25,7 +25,7 @@ class TestTTSServicePure:
     def test_get_tts_attributes_hindi(self) -> None:
         from app.services.tts_service import _get_tts_attributes
 
-        result = _get_tts_attributes("hindi")
+        result = _get_tts_attributes("hi")
         assert result is not None
 
     def test_get_tts_attributes_unsupported(self) -> None:
@@ -37,7 +37,7 @@ class TestTTSServicePure:
     def test_get_tts_attributes_kannada(self) -> None:
         from app.services.tts_service import _get_tts_attributes
 
-        result = _get_tts_attributes("kannada")
+        result = _get_tts_attributes("kn")
         # May or may not be supported — just check no crash
         assert result is None or isinstance(result, tuple)
 
@@ -60,7 +60,7 @@ class TestTTSServicePure:
     def test_add_for_in_option_audio_english(self) -> None:
         from app.services.tts_service import add_for_in_option_audio
 
-        result = add_for_in_option_audio("english", "Math")
+        result = add_for_in_option_audio("en", "Math")
         assert isinstance(result, str)
         assert len(result) > 0
 
@@ -73,7 +73,7 @@ class TestTTSServicePure:
     def test_add_for_in_option_audio_hindi(self) -> None:
         from app.services.tts_service import add_for_in_option_audio
 
-        result = add_for_in_option_audio("hindi", "English")
+        result = add_for_in_option_audio("hi", "English")
         assert isinstance(result, str)
 
     @pytest.mark.asyncio
@@ -88,7 +88,7 @@ class TestTTSServicePure:
         from app.services.tts_service import synthesize
 
         try:
-            result = await synthesize("", "english")
+            result = await synthesize("", "en")
             assert isinstance(result, bytes)
         except Exception:
             pass  # Azure not available in test env
