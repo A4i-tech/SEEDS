@@ -73,7 +73,7 @@ def _build_simple_fsm() -> Any:
     with a back-to-root key "9".
     """
     with patch("app.services.fsm.fsm.get_settings") as mock_settings:
-        mock_settings.return_value.storage_account_name = ""
+        mock_settings.return_value.azure_storage_account_name = ""
         mock_settings.return_value.ivr_daily_listening_limit_seconds = 1800
         fsm = FSM(fsm_id="test_fsm")
 
@@ -116,7 +116,7 @@ class TestFSMTransitions:
             patch("app.platform.database.get_database") as mock_db,
         ):
             mock_settings.return_value.ivr_daily_listening_limit_seconds = 1800
-            mock_settings.return_value.storage_account_name = ""
+            mock_settings.return_value.azure_storage_account_name = ""
             mock_col = AsyncMock()
             mock_col.find_one = AsyncMock(return_value=None)
             mock_col.update_one = AsyncMock(return_value=None)
@@ -138,7 +138,7 @@ class TestFSMTransitions:
             patch("app.platform.database.get_database") as mock_db,
         ):
             mock_settings.return_value.ivr_daily_listening_limit_seconds = 1800
-            mock_settings.return_value.storage_account_name = ""
+            mock_settings.return_value.azure_storage_account_name = ""
             mock_col = AsyncMock()
             mock_col.find_one = AsyncMock(return_value=None)
             mock_col.update_one = AsyncMock(return_value=None)
@@ -159,7 +159,7 @@ class TestFSMTransitions:
             patch("app.platform.database.get_database") as mock_db,
         ):
             mock_settings.return_value.ivr_daily_listening_limit_seconds = 1800
-            mock_settings.return_value.storage_account_name = ""
+            mock_settings.return_value.azure_storage_account_name = ""
             mock_col = AsyncMock()
             mock_col.find_one = AsyncMock(return_value=None)
             mock_col.update_one = AsyncMock(return_value=None)
@@ -187,7 +187,7 @@ class TestFSMTransitions:
             patch("app.platform.database.get_database") as mock_db,
         ):
             mock_settings.return_value.ivr_daily_listening_limit_seconds = 1800
-            mock_settings.return_value.storage_account_name = ""
+            mock_settings.return_value.azure_storage_account_name = ""
             mock_col = AsyncMock()
             mock_col.find_one = AsyncMock(return_value=None)
             mock_col.update_one = AsyncMock(return_value=None)
@@ -209,7 +209,7 @@ class TestFSMTransitions:
             patch("app.platform.database.get_database") as mock_db,
         ):
             mock_settings.return_value.ivr_daily_listening_limit_seconds = 1800
-            mock_settings.return_value.storage_account_name = ""
+            mock_settings.return_value.azure_storage_account_name = ""
             mock_col = AsyncMock()
             mock_col.find_one = AsyncMock(return_value=None)
             mock_col.update_one = AsyncMock(return_value=None)
@@ -226,7 +226,7 @@ class TestFSMSerializationRoundTrip:
     def test_serialize_produces_ivr_fsm_doc(self):
         fsm = _build_simple_fsm()
         with patch("app.services.fsm.fsm.get_settings") as mock_settings:
-            mock_settings.return_value.storage_account_name = ""
+            mock_settings.return_value.azure_storage_account_name = ""
             doc = fsm.serialize()
 
         assert doc.id == "test_fsm"
@@ -238,12 +238,12 @@ class TestFSMSerializationRoundTrip:
     def test_deserialize_round_trip(self):
         fsm = _build_simple_fsm()
         with patch("app.services.fsm.fsm.get_settings") as mock_settings:
-            mock_settings.return_value.storage_account_name = ""
+            mock_settings.return_value.azure_storage_account_name = ""
             mock_settings.return_value.ivr_daily_listening_limit_seconds = 1800
             doc = fsm.serialize()
 
             # Deserialize into new FSM
-            mock_settings.return_value.storage_account_name = ""
+            mock_settings.return_value.azure_storage_account_name = ""
             fsm2 = FSM.deserialize(doc)
 
         assert set(fsm2.states.keys()) == set(fsm.states.keys())
@@ -312,7 +312,7 @@ class TestDailyLimitPreOperation:
             patch("app.platform.database.get_database") as mock_db,
         ):
             mock_settings.return_value.ivr_daily_listening_limit_seconds = 1800
-            mock_settings.return_value.storage_account_name = ""
+            mock_settings.return_value.azure_storage_account_name = ""
             mock_col = AsyncMock()
             # Return existing usage that exceeds limit
             mock_col.find_one = AsyncMock(
@@ -346,7 +346,7 @@ class TestDailyLimitPreOperation:
             patch("app.platform.database.get_database") as mock_db,
         ):
             mock_settings.return_value.ivr_daily_listening_limit_seconds = 1800
-            mock_settings.return_value.storage_account_name = ""
+            mock_settings.return_value.azure_storage_account_name = ""
             mock_col = AsyncMock()
             mock_col.find_one = AsyncMock(
                 return_value={"phone_number": "+1234567890", "date": "2026-06-14", "total_seconds": 100}
@@ -385,7 +385,7 @@ class TestDTMFNavigation:
             patch("app.platform.database.get_database") as _mock_db,
         ):
             mock_settings.return_value.ivr_daily_listening_limit_seconds = 1800
-            mock_settings.return_value.storage_account_name = ""
+            mock_settings.return_value.azure_storage_account_name = ""
             _mock_db.return_value = _make_db_mock()
             # Stub the websocket stop helper for key "9"
             fsm._stop_websocket_audio_for_state = AsyncMock(return_value=None)  # type: ignore[method-assign]
@@ -418,7 +418,7 @@ class TestDTMFNavigation:
             patch("app.platform.database.get_database") as _mock_db,
         ):
             mock_settings.return_value.ivr_daily_listening_limit_seconds = 1800
-            mock_settings.return_value.storage_account_name = ""
+            mock_settings.return_value.azure_storage_account_name = ""
             _mock_db.return_value = _make_db_mock()
 
             # Step 1: press 2 → LA2

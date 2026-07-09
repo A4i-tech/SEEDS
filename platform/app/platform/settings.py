@@ -77,7 +77,6 @@ class Settings(BaseSettings):
     azure_storage_account_key: str = Field(default="", repr=False)
     azure_storage_connection_string: str = Field(default="", repr=False)
     azure_storage_container: str = "seedsstagingblob"
-    storage_account_name: str = ""
     accountkey: str = Field(default="", repr=False)
 
     # Audio blob capture

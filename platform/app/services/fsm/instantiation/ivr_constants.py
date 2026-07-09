@@ -16,10 +16,7 @@ def _get_base_urls() -> tuple[str, str]:
     """Return (storage_account_base_url, pullMenuMainUrl) from settings."""
 
     settings = get_settings()
-    storage_account_name = settings.storage_account_name
-    if not storage_account_name:
-        # Allow empty in test environments
-        storage_account_name = ""
+    storage_account_name = settings.azure_storage_account_name
     base = f"https://{storage_account_name}.blob.core.windows.net/"
     pull_menu = f"{base}pull-model-menus/"
     return base, pull_menu
