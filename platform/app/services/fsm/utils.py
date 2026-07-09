@@ -78,5 +78,5 @@ _DEFAULT_DAILY_LIMIT_LANG = "kn"
 def get_daily_limit_announcement(language: str) -> str:
     """Return the daily-limit-reached announcement for *language*."""
     return _DAILY_LIMIT_TEMPLATES.get(
-        language, _DAILY_LIMIT_TEMPLATES[_DEFAULT_DAILY_LIMIT_LANG]
+        language.lower(), _DAILY_LIMIT_TEMPLATES[_DEFAULT_DAILY_LIMIT_LANG]
     )

@@ -94,7 +94,7 @@ class TestIVRConstants:
     def test_speed_control_instruction(self) -> None:
         from app.services.fsm.instantiation.speed_control import get_speed_instruction
 
-        instruction = get_speed_instruction("english")
+        instruction = get_speed_instruction("en")
         assert isinstance(instruction, str)
         assert len(instruction) > 0
 
