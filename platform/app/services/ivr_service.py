@@ -273,7 +273,7 @@ class IVRService:
         _keep_listening_ncco: list[dict[str, Any]] = [{
             "type": ["dtmf"],
             "action": "input",
-            "eventUrl": [get_settings().base_url + "/dtmf"],
+            "eventUrl": [get_settings().base_url + "/input"],
             "dtmf": {"maxDigits": 1, "submitOnHash": False, "timeOut": 10},
         }]
 

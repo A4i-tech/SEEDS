@@ -61,8 +61,8 @@ class TestWebhookControllerExtra:
 
     @pytest.mark.asyncio
     async def test_ivr_dtmf_webhook_requires_body(self, client, mock_db):
-        """POST /dtmf — DTMF input requires valid body."""
-        resp = await client.post("/dtmf", json={})  # Empty body
+        """POST /input — DTMF input requires valid body."""
+        resp = await client.post("/input", json={})  # Empty body
         assert resp.status_code in (200, 204, 422, 500)
 
     @pytest.mark.asyncio

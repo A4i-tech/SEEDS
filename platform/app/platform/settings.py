@@ -72,7 +72,7 @@ class Settings(BaseSettings):
     # ---------------------------------------------------------------------------
     # Azure Blob Storage
     # ---------------------------------------------------------------------------
-    azure_blob_sas_enabled: bool = False
+    azure_blob_sas_enabled: bool = True
     azure_storage_account_name: str = ""
     azure_storage_account_key: str = Field(default="", repr=False)
     azure_storage_connection_string: str = Field(default="", repr=False)

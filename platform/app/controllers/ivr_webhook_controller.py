@@ -5,7 +5,7 @@ IVR webhooks (from IVRv2 routers/call_events.py):
   POST /event      — Vonage call lifecycle events (queued to Service Bus)
   POST /webhook    — missed-call webhook (triggers IVR start via queue)
   POST /rtc-event  — Vonage RTC/conversation events
-  POST /dtmf       — DTMF input (enqueued to Service Bus dtmf_input queue)
+  POST /input      — DTMF input (enqueued to Service Bus dtmf_input queue)
 
 Security: all POST routes validate Vonage JWT via verify_vonage_signature.
 """
@@ -100,21 +100,21 @@ async def ivr_rtc_event_webhook(request: Request, background_tasks: BackgroundTa
 
 
 @router.post(
-    "/dtmf",
+    "/input",
     summary="Vonage DTMF input webhook (IVR)",
     dependencies=[Depends(verify_vonage_signature)],
 )
 async def ivr_dtmf_webhook(request: Request, background_tasks: BackgroundTasks) -> Any:
     """Receives DTMF input from Vonage and enqueues for async processing."""
     req_data = await request.json()
-    logger.debug("ivr /dtmf received: %s", req_data)
+    logger.debug("ivr /input received: %s", req_data)
 
     try:
         dtmf_input = DTMFInput.model_validate(req_data)
         digits = dtmf_input.dtmf.digits
         conv_id = dtmf_input.conversation_uuid
     except Exception as exc:
-        logger.warning("ivr /dtmf parse error: %s", exc)
+        logger.warning("ivr /input parse error: %s", exc)
         return []
 
     payload = {"conversation_uuid": conv_id, "digits": digits}
