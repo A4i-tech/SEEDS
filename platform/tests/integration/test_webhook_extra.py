@@ -70,8 +70,9 @@ class TestWebhookControllerExtra:
         """POST /webhook with non-missed call status returns detail."""
         with patch("app.controllers.webhook_controller.verify_vonage_signature", AsyncMock()):
             resp = await client.post("/webhook", json={
-                "_so": 1,  # Not 2 (missed call)
-                "_cl": "+919999999990",
+                "event_type": "call.end",
+                "customer_identifier": "+919999999990",
+                "payload": {"status": "bridged", "customer_number": "+919999999990"},  # Not "missed"
             })
             assert resp.status_code in (200, 422)
             if resp.status_code == 200:

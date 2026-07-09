@@ -62,11 +62,16 @@ async def ivr_call_webhook(request: Request, background_tasks: BackgroundTasks) 
     """Receives a missed-call webhook and enqueues IVR call initiation."""
     call_data = await request.json()
     query_params = request.query_params
-    call_status = call_data.get("_so")
-    phone_number = call_data.get("_cl")
+
+    if call_data.get("event_type") != "call.end":
+        logger.debug("ivr /webhook: ignoring event_type=%s", call_data.get("event_type"))
+        return {"detail": "Event ignored — not call.end"}
+
+    call_status = call_data["payload"]["status"]
+    phone_number = call_data["customer_identifier"]
     tenant_id = query_params.get("tenant_id", "")
 
-    if call_status != 2:
+    if call_status != "missed":
         logger.warning("ivr /webhook: not a missed call (status=%s)", call_status)
         return {"detail": "Invalid call data — not a missed call"}
 
