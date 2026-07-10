@@ -121,7 +121,6 @@ class TestSASGeneratorDisabled:
         from app.providers.blob_storage import SASGenerator
 
         mock_settings = MagicMock()
-        mock_settings.storage_account_name = ""
         mock_settings.azure_storage_account_name = ""
         mock_settings.accountkey = ""
         mock_settings.azure_storage_account_key = ""

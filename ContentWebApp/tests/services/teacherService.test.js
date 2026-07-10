@@ -5,6 +5,8 @@ jest.mock("../../src/services/api");
 jest.mock("../../src/Constants", () => ({ SEEDS_URL: "http://test-api" }));
 
 describe("teacherService", () => {
+  const mockHeaders = { Authorization: "Bearer t" };
+
   beforeEach(() => {
     jest.clearAllMocks();
   });
@@ -108,6 +110,78 @@ describe("teacherService", () => {
         }),
       });
       expect(result).toEqual(mockResponse);
+    });
+
+    test("includes password when present", async () => {
+      apiFetch.mockResolvedValue({});
+      await teacherService.updateTeacher("te1", "N", "1", "secret", mockHeaders);
+      expect(JSON.parse(apiFetch.mock.calls[0][1].body).password).toBe("secret");
+    });
+
+    test("handles undefined name/phone", async () => {
+      apiFetch.mockResolvedValue({});
+      await teacherService.updateTeacher("te1", undefined, undefined, undefined, mockHeaders);
+      expect(JSON.parse(apiFetch.mock.calls[0][1].body)).toEqual({ name: "", phoneNumber: "" });
+    });
+  });
+
+  describe("getTeachers", () => {
+    test("returns response.data", async () => {
+      apiFetch.mockResolvedValue({ data: [{ id: "te1" }] });
+      await expect(teacherService.getTeachers(mockHeaders)).resolves.toEqual([{ id: "te1" }]);
+    });
+
+    test("falls back to the bare response when no data field", async () => {
+      apiFetch.mockResolvedValue([{ id: "te2" }]);
+      await expect(teacherService.getTeachers()).resolves.toEqual([{ id: "te2" }]);
+    });
+  });
+
+  describe("registerTeacher", () => {
+    test("POSTs body", async () => {
+      apiFetch.mockResolvedValue({ ok: true });
+      await teacherService.registerTeacher("1", "p", "N", "teacher", mockHeaders);
+      const opts = apiFetch.mock.calls[0][1];
+      expect(JSON.parse(opts.body)).toEqual({
+        phoneNumber: "1",
+        password: "p",
+        name: "N",
+        role: "teacher",
+      });
+    });
+  });
+
+  describe("getStudents", () => {
+    test("returns list from apiFetch", async () => {
+      apiFetch.mockResolvedValue([{ id: "st1" }]);
+      await expect(teacherService.getStudents(mockHeaders)).resolves.toEqual([{ id: "st1" }]);
+    });
+  });
+
+  describe("deleteStudentById", () => {
+    test("calls DELETE method", async () => {
+      apiFetch.mockResolvedValue({});
+      await teacherService.deleteStudentById("st1", mockHeaders);
+      expect(apiFetch.mock.calls[0][1].method).toBe("DELETE");
+    });
+  });
+
+  describe("deleteTeacher", () => {
+    test("calls DELETE method", async () => {
+      apiFetch.mockResolvedValue({});
+      await teacherService.deleteTeacher("te1", mockHeaders);
+      expect(apiFetch.mock.calls[0][1].method).toBe("DELETE");
+    });
+  });
+
+  describe("transferTeacher", () => {
+    test("POSTs teacherId and targetSchoolId", async () => {
+      apiFetch.mockResolvedValue({});
+      await teacherService.transferTeacher("te1", "s2", mockHeaders);
+      expect(JSON.parse(apiFetch.mock.calls[0][1].body)).toEqual({
+        teacherId: "te1",
+        targetSchoolId: "s2",
+      });
     });
   });
 });

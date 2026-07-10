@@ -96,7 +96,7 @@ async def _make_vonage_call(
     ncco_actions: list[dict],
     settings: Any,
 ) -> dict[str, Any] | None:
-    raw_key = base64.b64decode(settings.vonage_application_private_key64).decode("utf-8")
+    raw_key = base64.b64decode(settings.vonage_ivr_application_private_key64).decode("utf-8")
     client = vonage.Client(
         application_id=settings.vonage_ivr_application_id,
         private_key=raw_key,
@@ -273,7 +273,7 @@ class IVRService:
         _keep_listening_ncco: list[dict[str, Any]] = [{
             "type": ["dtmf"],
             "action": "input",
-            "eventUrl": [get_settings().base_url + "/dtmf"],
+            "eventUrl": [get_settings().base_url + "/input"],
             "dtmf": {"maxDigits": 1, "submitOnHash": False, "timeOut": 10},
         }]
 

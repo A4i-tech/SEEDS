@@ -47,7 +47,7 @@ interface SeedsService {
     @POST("tenant/logout")
     suspend fun logout(@Header("Authorization") token: String): Response<Unit>
 
-    @GET("health/ping")
+    @GET("health")
     suspend fun healthPing(): Response<Unit>
 
     @POST
@@ -217,6 +217,7 @@ fun provideService(@ApplicationContext context: Context): SeedsService {
     }
 
     val moshi = Moshi.Builder()
+        .add(ClassroomDto.Companion)
         .add(ApplicationJsonAdapterFactory)
         .build()
 

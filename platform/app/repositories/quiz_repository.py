@@ -100,6 +100,18 @@ class QuizRepository(BaseRepository):
         result = await self._col.insert_one(doc)
         return str(result.inserted_id)
 
+    async def update_by_id_and_tenant(
+        self,
+        content_id: str,
+        tenant_id: str,
+        updates: dict,
+        school_id: str | None = None,
+    ) -> dict | None:
+        from datetime import UTC, datetime
+        q = {**self._tenant_query(tenant_id, school_id), "_id": content_id}
+        updates["updatedAt"] = datetime.now(UTC)
+        return await self._col.find_one_and_update(q, {"$set": updates}, return_document=True)
+
     async def soft_delete_by_id_and_tenant(
         self,
         content_id: str,

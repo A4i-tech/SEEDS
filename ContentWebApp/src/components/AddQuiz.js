@@ -2,12 +2,6 @@ import { useState, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { useNavigate } from "react-router-dom";
 import { contentService } from "../services/contentService";
-import {
-  transformQuizItem,
-  extractQuestionText,
-  extractQuestionOptions,
-  getCorrectOptionIndex,
-} from "../utils/quizDataTransform";
 
 const ANSWER_OPTION_CONFIG = [
   { name: "optionA", label: "Option A", idx: 0 },
@@ -34,42 +28,26 @@ const AddQuiz = ({ quiz }) => {
 
   useEffect(() => {
     if (quiz && Object.keys(quiz).length > 0) {
-      const transformedQuiz = transformQuizItem(quiz);
-      const titleSource = transformedQuiz.title;
-      const themeSource = transformedQuiz.theme;
-
-      const title =
-        typeof titleSource === "object" ? titleSource.english : titleSource;
-      const localTitle =
-        typeof titleSource === "object" ? titleSource.local : undefined;
-      const theme =
-        typeof themeSource === "object" ? themeSource.english : themeSource;
-      const localTheme =
-        typeof themeSource === "object" ? themeSource.local : undefined;
-      const quizMetadata = {
-        title: title,
-        localTitle: localTitle,
-        theme: theme,
-        localTheme: localTheme,
-        language: transformedQuiz.language,
-        positiveMark: transformedQuiz.positiveMarks ?? 1,
-        negativeMark: transformedQuiz.negativeMarks ?? 0,
-      };
-      setMetadata(quizMetadata);
-      const questions = transformedQuiz.questions;
-      const inputFieldsData = questions.map((questionItem) => {
-        const questionText = extractQuestionText(questionItem);
-        const options = extractQuestionOptions(questionItem);
-        const optionTexts = [...options];
+      setMetadata({
+        title: quiz.title?.english,
+        localTitle: quiz.title?.local,
+        theme: quiz.theme?.english,
+        localTheme: quiz.theme?.local,
+        language: quiz.language,
+        positiveMark: quiz.positiveMarks,
+        negativeMark: quiz.negativeMarks,
+      });
+      const questions = quiz.questions;
+      const inputFieldsData = questions.map((questionText, index) => {
+        const optionTexts = [...quiz.options[index]];
         while (optionTexts.length < 4) optionTexts.push("");
-        const correctIndex = getCorrectOptionIndex(questionItem, optionTexts);
         return {
           question: questionText,
           optionA: optionTexts[0],
           optionB: optionTexts[1],
           optionC: optionTexts[2],
           optionD: optionTexts[3],
-          correctAnswer: correctIndex,
+          correctAnswer: quiz.correctAnswers[index],
         };
       });
       setInputFields(
@@ -111,19 +89,24 @@ const AddQuiz = ({ quiz }) => {
       mcq.correctAnswer !== undefined ? mcq.correctAnswer : 0
     );
 
+    const titleObj = {
+      english: metadata.title,
+      local: languageLower === "en" ? metadata.title : metadata.localTitle,
+    };
+    const themeObj = {
+      english: metadata.theme,
+      local: languageLower === "en" ? metadata.theme : metadata.localTheme,
+    };
+
     const payload = {
       ...metadata,
       questions,
       options,
       correctAnswers,
-      // Theme fields expected by backend quiz creation (mirror AddStory behavior)
-      theme: metadata.theme,
-      localTheme:
-        languageLower === "en" ? metadata.theme : metadata.localTheme,
-      // Title fields expected by backend quiz creation (mirror AddStory behavior)
-      title: metadata.title,
-      localTitle:
-        languageLower === "en" ? metadata.title : metadata.localTitle,
+      title: titleObj,
+      theme: themeObj,
+      localTitle: titleObj.local,
+      localTheme: themeObj.local,
       type: "quiz",
       id: quiz ? (quiz._id || quiz.id) : uuidv4(),
     };
@@ -173,6 +156,9 @@ const AddQuiz = ({ quiz }) => {
         ) {
           valid = false;
           alert(`Question ${index + 1} is incomplete`);
+        } else if (mcq.correctAnswer < 0) {
+          valid = false;
+          alert(`Question ${index + 1} has no correct answer selected`);
         }
       });
     }
@@ -194,8 +180,14 @@ const AddQuiz = ({ quiz }) => {
       const isEditing = Boolean(quizId);
       let result;
       if (isEditing) {
-        // PATCH existing quiz — backend requires _id in the body
-        result = await contentService.updateContent({ ...payload, _id: quizId });
+        // PATCH existing quiz — backend requires _id and the content fields it validates
+        result = await contentService.updateContent({
+          audioContent: quiz.audioContent ?? [],
+          isPullModel: quiz.isPullModel ?? false,
+          isTeacherApp: quiz.isTeacherApp ?? false,
+          ...payload,
+          _id: quizId,
+        });
       } else {
         result = await contentService.createQuiz(payload);
       }

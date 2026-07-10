@@ -130,7 +130,8 @@ const ClassroomDetail = () => {
     }
 
     try {
-      const sseEp = SSE_ENDPOINTS.CONFERENCE.TEACHER_CONNECT(conferenceId);
+      const token = localStorage.getItem("authToken");
+      const sseEp = `${SSE_ENDPOINTS.CONFERENCE.TEACHER_CONNECT(conferenceId)}?token=${encodeURIComponent(token || "")}`;
       const eventSource = new EventSource(sseEp);
       eventSourceRef.current = eventSource;
 
@@ -320,10 +321,10 @@ const ClassroomDetail = () => {
   };
 
 
-  const isLeader = (studentId) => classroom.leaders?.some((l) => l._id === studentId);
+  const isLeader = (studentId) => classroom.leaders?.some((l) => l.id === studentId);
 
   if (conferenceStarted) {
-    return <DetailsPage classroomName={classroom?.name} classroomId={classroom?._id} />;
+    return <DetailsPage classroomName={classroom?.name} classroomId={classroom?.id} />;
   }
 
   if (loading) {
@@ -457,10 +458,10 @@ const ClassroomDetail = () => {
             <List sx={{ mt: 2 }}>
               {classroom.students.map((student, index) => {
                 const selected = isStudentSelected(student.phoneNumber);
-                const studentIsLeader = isLeader(student._id);
+                const studentIsLeader = isLeader(student.id);
 
                 return (
-                  <React.Fragment key={student._id}>
+                  <React.Fragment key={student.id}>
                     {index > 0 && <Divider />}
                     <ListItem
                       sx={{
@@ -502,7 +503,7 @@ const ClassroomDetail = () => {
             <Box sx={{ mt: 2, display: "flex", flexWrap: "wrap", gap: 1 }}>
               {classroom.leaders.map((leader) => (
                 <Chip
-                  key={leader._id}
+                  key={leader.id}
                   label={leader.name}
                   color="secondary"
                   icon={<SchoolIcon />}
@@ -547,7 +548,7 @@ const ClassroomDetail = () => {
               <FormControlLabel value="" control={<Radio />} label="No leader" />
               {selectedStudents.map((student) => {
                 const normalizedPhone = normalizePhoneNumber(student.phoneNumber);
-                const studentIsLeader = isLeader(student._id);
+                const studentIsLeader = isLeader(student.id);
                 return (
                   <FormControlLabel
                     key={normalizedPhone}
