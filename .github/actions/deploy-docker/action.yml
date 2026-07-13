@@ -47,7 +47,9 @@ runs:
           with:
               context: ${{ inputs.context }}
               push: true
-              tags: ${{ steps.meta.outputs.tags }}
+              tags: |
+                  ${{ steps.meta.outputs.tags }}
+                  ${{ inputs.registry }}/${{ inputs.repository }}/${{ inputs.image }}:${{ github.sha }}
               labels: ${{ steps.meta.outputs.labels }}
               build-args: |
                   ${{ inputs.build_args }}
