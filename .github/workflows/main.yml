@@ -37,14 +37,14 @@ jobs:
     secrets: inherit
 
   deploy-android:
-    needs: ci-workflow
+    needs: run-android-tests
     if: github.ref == 'refs/heads/a4i/staging' || github.ref == 'refs/heads/a4i/main'
     uses: ./.github/workflows/android-deploy.yml
     secrets: inherit
 
   run-coverage-summary:
     needs: ci-workflow
-    if: github.ref == 'refs/heads/a4i/staging'
+    if: github.ref == 'refs/heads/a4i/main'
     uses: ./.github/workflows/coverage-summary.yml
     secrets: inherit
 
