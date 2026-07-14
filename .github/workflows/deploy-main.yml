@@ -10,7 +10,7 @@ env:
     REGISTRY: ghcr.io
 
 jobs:
-    deploy:
+    build:
         runs-on: ubuntu-latest
         strategy:
             matrix:
@@ -61,9 +61,38 @@ jobs:
                       ${{ matrix.service.build_arg_ivr_api_url && format('REACT_APP_API_IVRV2_URL={0}', vars[matrix.service.build_arg_ivr_api_url]) || '' }}
                       ${{ matrix.service.build_arg_google_site_verification && format('REACT_APP_GOOGLE_SITE_VERIFICATION={0}', vars[matrix.service.build_arg_google_site_verification]) || '' }}
 
+    deploy:
+        needs: build
+        runs-on: ubuntu-latest
+        strategy:
+            max-parallel: 1
+            matrix:
+                service:
+                    - name: platform-service
+                      image: platform
+                      azure_publish_profile: PLATFORM_AZURE_PUBLISH_PROFILE
+
+                    - name: content-webapp-service
+                      image: content-webapp
+                      azure_publish_profile: CONTENT_WEBAPP_AZURE_PUBLISH_PROFILE
+
+                    - name: teacher-webapp-service
+                      image: teacher-webapp
+                      azure_publish_profile: TEACHER_WEBAPP_AZURE_PUBLISH_PROFILE
+
+                    - name: web-socket-service-main
+                      image: websocket-service
+                      azure_publish_profile: WEBSOCKET_SERVICE_AZURE_PUBLISH_PROFILE
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
             - name: Normalize repo name to lowercase
               id: repo
               run: echo "repository_lowercase=${GITHUB_REPOSITORY,,}" >> $GITHUB_OUTPUT
+
+            - name: Sleep before deploying (stagger Azure deploys)
+              run: sleep 5
 
             - name: Deploy to Azure
               uses: ./.github/actions/deploy-azure
