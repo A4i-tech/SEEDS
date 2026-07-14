@@ -145,9 +145,15 @@ class LoginActivity : AppCompatActivity() {
 
             override fun onResponse(call: Call, response: Response) {
                 if (!response.isSuccessful) {
+                    val msg = when (response.code) {
+                        401, 403 -> "Invalid credentials"
+                        404 -> "Server unreachable (check backend URL)"
+                        in 500..599 -> "Server error (${response.code})"
+                        else -> "Login failed (${response.code})"
+                    }
                     runOnUiThread {
                         setLoginLoadingState(false)
-                        Toast.makeText(this@LoginActivity, "Invalid credentials", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@LoginActivity, msg, Toast.LENGTH_SHORT).show()
                     }
                     return
                 }

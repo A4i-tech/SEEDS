@@ -3,23 +3,16 @@ package com.example.seeds.network
 import android.content.Context
 import com.example.seeds.model.Classroom
 import com.example.seeds.model.Student
-import com.squareup.moshi.JsonClass
+import com.squareup.moshi.Json
 import se.ansman.kotshi.JsonSerializable
 
 @JsonSerializable
-@JsonClass(generateAdapter = true)
-data class StudentRefDto(
-    var _id: String,
-    var name: String,
-    var phoneNumber: String,
-)
-
 data class ClassroomDto(
-    var _id: String? = null,
+    @Json(name = "id") var _id: String? = null,
     var name: String,
     var teacher: String,
-    var students: List<StudentRefDto>,
-    var leaders: List<StudentRefDto>,
+    var students: List<String>,
+    var leaders: List<String>,
     var contentIds: List<String>? = null,
 )
 
@@ -43,8 +36,8 @@ fun ClassroomDto.asDomainModel(
         _id,
         name,
         teacherId,
-        students.map { Student(phoneNumber = it.phoneNumber, name = it.name, _id = it._id) },
-        leaders.map { Student(phoneNumber = it.phoneNumber, name = it.name, _id = it._id) },
+        students.map { Student(phoneNumber = "", name = "", _id = it) },
+        leaders.map { Student(phoneNumber = "", name = "", _id = it) },
         contentIds ?: emptyList()
     )
 }

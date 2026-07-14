@@ -7,6 +7,7 @@ import com.example.seeds.network.SeedsService
 import com.example.seeds.network.asDomainModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import retrofit2.HttpException
 import javax.inject.Inject
 
 class ClassroomRepository @Inject constructor(
@@ -31,7 +32,9 @@ class ClassroomRepository @Inject constructor(
 
     suspend fun saveClassroom(classroom: Classroom): Classroom {
         return withContext(Dispatchers.IO) {
-            network.saveClassroom(classroom.asDto()).asDomainModel(context)
+            val response = network.saveClassroom(classroom.asDto())
+            if (!response.isSuccessful) throw HttpException(response)
+            classroom
         }
     }
 

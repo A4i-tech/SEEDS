@@ -28,12 +28,16 @@ import retrofit2.Response
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
+import okhttp3.MultipartBody
+import okhttp3.RequestBody
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Header
+import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.PUT
+import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
 import retrofit2.http.Url
@@ -156,13 +160,26 @@ interface SeedsService {
     suspend fun getSchoolStudents(): List<Student>
 
     @POST("class")
-    suspend fun saveClassroom(@Body classroom: ClassroomSaveDto): ClassroomDto
+    suspend fun saveClassroom(@Body classroom: ClassroomSaveDto): Response<ResponseBody>
 
     @DELETE("class/{classId}")
     suspend fun deleteClassroom(@Path("classId") classId: String)
 
     @POST("log")
     suspend fun uploadLogs(@Body logs: List<LogEntity>)
+
+    @Multipart
+    @POST("meta/voice-command")
+    suspend fun sendVoiceCommand(
+        @Part audio: MultipartBody.Part,
+        @Part("context") context: RequestBody
+    ): VoiceCommandResponse
+
+    @POST("meta/text-command")
+    suspend fun sendTextCommand(@Body body: TextCommandRequest): VoiceCommandResponse
+
+    @POST("meta/tts-prompt")
+    suspend fun fetchTtsPrompt(@Body body: TtsPromptRequest): TtsPromptResponse
 
 }
 

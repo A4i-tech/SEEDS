@@ -7,6 +7,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import com.example.seeds.R
 import com.example.seeds.adapters.ClassroomListAdapter
@@ -14,7 +15,12 @@ import com.example.seeds.adapters.UnifiedHistoryAdapter
 import com.example.seeds.databinding.FragmentClassroomBinding
 import com.example.seeds.model.Classroom
 import com.example.seeds.ui.BaseFragment
+import com.example.seeds.utils.VoiceCommandEvent
+import com.example.seeds.utils.VoiceCommandEventBus
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class ClassroomFragment : BaseFragment() {
@@ -22,6 +28,9 @@ class ClassroomFragment : BaseFragment() {
     private val viewModel: ClassroomViewModel by viewModels()
     override var bottomNavigationViewVisibility = View.VISIBLE
     private lateinit var binding: FragmentClassroomBinding
+
+    // Phase 8: refresh the list when a voice command mutates classrooms.
+    @Inject lateinit var eventBus: VoiceCommandEventBus
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -36,8 +45,19 @@ class ClassroomFragment : BaseFragment() {
         setupSearchBox()
         setupListeners()
         setupObservers()
+        observeVoiceMutations()
 
         return binding.root
+    }
+
+    private fun observeVoiceMutations() {
+        // lifecycle 2.3.1 has no repeatOnLifecycle; onEach+launchIn on the view scope
+        // cancels at onDestroyView, which is enough for a refresh trigger.
+        eventBus.events
+            .onEach { event ->
+                if (event is VoiceCommandEvent.ClassroomMutated) viewModel.refreshClassrooms()
+            }
+            .launchIn(viewLifecycleOwner.lifecycleScope)
     }
 
     private fun setupRecyclerView() {

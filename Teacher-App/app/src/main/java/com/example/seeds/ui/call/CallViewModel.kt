@@ -439,132 +439,6 @@ class CallViewModel @Inject constructor(
         _allContent.value = content
     }
 
-    fun startPollingForCallerState(confId: String) {
-        if (isPollingStarted) return
-        isPollingStarted = true
-        Log.i(TAG, ">>>> POLLING STARTED for conference ID: $confId <<<<")
-
-        viewModelScope.launch(Dispatchers.IO) {
-            while (isActive) {
-                try {
-                    val fullUrl = "$conferenceUrl/callerstate/$confId"
-                    val response = network.getCallerState(fullUrl)
-
-                    if (response.isSuccessful) {
-                        when (response.code()) {
-                            200 -> {
-                                val partialStateMap = response.body()
-                                val newVersion = response.headers()["X-State-Version"]?.toIntOrNull()
-
-                                if (partialStateMap != null && newVersion != null) {
-                                    if (newVersion > knownStateVersion) {
-                                        knownStateVersion = newVersion
-                                        
-                                        val teacherPartialUpdate = partialStateMap[teacherPhoneNumber]
-                                        if (teacherPartialUpdate != null) {
-                                            val currentTeacherStatus = _teacherCallStatus.value
-                                            if(currentTeacherStatus != null) {
-                                                val newTeacherStatus = currentTeacherStatus.copy(
-                                                    callerState = teacherPartialUpdate.callerState,
-                                                    isMuted = teacherPartialUpdate.isMuted,
-                                                    onHold = teacherPartialUpdate.onHold,
-                                                    raiseHand = teacherPartialUpdate.raiseHand
-                                                )
-                                                _teacherCallStatus.postValue(newTeacherStatus)
-                                            }
-                                        }
-
-            // --- Check if conference is still running ---
-            val isRunning = json.get("is_running")?.asBoolean
-            if (isRunning == false) {
-                Log.i(TAG, "Conference has ended (is_running=false), navigating back")
-                _navigateBack.postValue(true)
-                return
-            }
-
-            // --- Hold detection (parsed early, before participants guard) ---
-            val holdDetected = json.get("hold_detected")
-                ?.takeUnless { it.isJsonNull }
-                ?.asBoolean
-                ?: false
-            val firstHold = if (holdDetected) {
-                holdState.compareAndSet(false, true)
-            } else {
-                holdState.set(false)
-                false
-            }
-            Log.d(TAG, "handleSSEUpdate: hold_detected=$holdDetected, firstHold=$firstHold")
-            _conferenceHoldDetected.postValue(holdDetected)
-            if (firstHold) {
-                _holdDetectedEvent.postValue(Event(Unit))
-            }
-
-            // --- Participants ---
-            val participantsObj = json.getAsJsonObject("participants")
-            if (participantsObj == null || participantsObj.entrySet().isEmpty()) {
-                Log.i(TAG, "Conference has ended (empty participants), navigating back")
-                _navigateBack.postValue(true)
-                return
-            }
-            val students = mutableListOf<StudentCallStatus>()
-            var teacherStatus: StudentCallStatus? = null
-
-                                        partialStateMap
-                                            .filter { it.key != teacherPhoneNumber }
-                                            .forEach { (phoneNumber, partialUpdate) ->
-                                                val previousState = updateTrackerFromServerState(phoneNumber, partialUpdate.callerState ?: CallerState.UNDEFINED)
-                                                val currentState = partialUpdate.callerState
-                                                Log.d("STUDENT_STATE", "Student $phoneNumber: $previousState -> $currentState")
-                                                if (previousState == CallerState.CONNECTED && currentState == CallerState.DISCONNECTED) {
-                                                    Log.d("STUDENT_DROP", "Student $phoneNumber disconnected, posting notification")
-                                                    _participantDropped.postValue(phoneNumber)
-                                                }
-                                            }
-
-                val status = StudentCallStatus(
-                    callerState = callerState,
-                    isMuted = p.get("is_muted")?.asBoolean ?: false,
-                    phoneNumber = phone,
-                    name = p.get("name")?.asString,
-                    raiseHand = p.get("is_raised")?.asBoolean ?: false
-                )
-                if (p.get("role")?.asString == "Teacher") teacherStatus = status
-                else students.add(status)
-            }
-
-            _callState.postValue(students)
-            teacherStatus?.let { _teacherCallStatus.postValue(it) }
-
-            // --- Audio state ---
-            val audioStateObj = json.getAsJsonObject("audio_content_state")
-            val audioStatusStr = audioStateObj?.get("status")?.asString ?: "Stopped"
-            val newPlayerState = when (audioStatusStr) {
-                "Playing", "Starting" -> PlayerState.PLAYING
-                "Paused"              -> PlayerState.PAUSED
-                else                  -> PlayerState.STOPPED
-            }
-            // Grace period: ignore SSE "Stopped" events for 5 s after a play command.
-            // This prevents staging backend lag (confv2server reconnecting) from
-            // immediately reverting the optimistic PLAYING state.
-            val inGracePeriod = newPlayerState == PlayerState.STOPPED &&
-                (System.currentTimeMillis() - lastPlayCommandMs) < 5_000L
-            if (!inGracePeriod && _playerState.value != newPlayerState) {
-                _playerState.postValue(newPlayerState)
-            }
-            // publish position/duration if present
-            val posEl = audioStateObj?.get("position_seconds")
-            val durEl = audioStateObj?.get("duration_seconds")
-            val pos = if (posEl != null && !posEl.isJsonNull) posEl.asDouble.toFloat() else null
-            val dur = if (durEl != null && !durEl.isJsonNull) durEl.asDouble.toFloat() else null
-            _audioPositionSeconds.postValue(pos)
-            _audioDurationSeconds.postValue(dur)
-
-
-        } catch (e: Exception) {
-            Log.e(TAG, "SSE: Failed to parse update", e)
-        }
-    }
-
     private fun startCall(confId: String) {
         viewModelScope.launch {
             try {
@@ -668,6 +542,24 @@ class CallViewModel @Inject constructor(
         }
     }
 
+    fun startSSE(confId: String) {
+        val encryptedToken = sharedPreferences.getString("auth_token", null)
+        val iv = sharedPreferences.getString("auth_iv", null)
+        val authToken = if (encryptedToken != null && iv != null) {
+            try { Encryptor.decrypt(encryptedToken, iv) } catch (e: Exception) { null }
+        } else null
+
+        if (authToken == null) {
+            Log.e(TAG, "Cannot start SSE: no auth token")
+            return
+        }
+
+        val url = "$conferenceUrl/sse/$confId"
+        sseClient.connect(url, authToken) { _ ->
+            refreshCallState()
+        }
+    }
+
     override fun onCleared() {
         closeSocket()
         sseClient.disconnect()
@@ -723,7 +615,7 @@ class CallViewModel @Inject constructor(
                     .forEach { status ->
                         status.phoneNumber?.let {
                             val previousState = updateTrackerFromServerState(it, status.callerState ?: CallerState.UNDEFINED)
-                            if (status.callerState == CallerState.ON_HOLD && previousState != CallerState.ON_HOLD) {
+                            if (status.onHold && previousState == CallerState.CONNECTED) {
                                 _participantOnHold.postValue(it)
                             }
                         }
