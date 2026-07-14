@@ -31,12 +31,10 @@ def extract_python_coverage(coverage_dir):
 
 # Services and their types
 services = {
-    'backend-server': 'node',
+    'platform': 'python',
     'teacher-webapp': 'node',
     'ContentWebApp': 'node',
-    'websocket-service': 'node',
-    'ConferenceV2': 'python',
-    'IVRv2': 'python'
+    'websocket-service': 'node'
 }
 
 coverage_data = {}

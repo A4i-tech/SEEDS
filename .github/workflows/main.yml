@@ -13,22 +13,10 @@ jobs:
       upload_coverage: true
     secrets: inherit
 
-  deploy-websocket-service-main-workflow:
-    needs: ci-workflow
-    if: github.ref == 'refs/heads/a4i/main'
-    uses: ./.github/workflows/deploy-websocket-service-main.yml
-    secrets: inherit
-
   deploy-websocket-service-staging-workflow:
     needs: ci-workflow
     if: github.ref == 'refs/heads/a4i/staging'
     uses: ./.github/workflows/deploy-websocket-service-staging.yml
-    secrets: inherit
-
-  deploy-staging-workflow:
-    needs: ci-workflow
-    if: github.ref == 'refs/heads/a4i/staging'
-    uses: ./.github/workflows/deploy-staging.yml
     secrets: inherit
 
   deploy-main-workflow:
@@ -43,14 +31,14 @@ jobs:
     secrets: inherit
 
   deploy-android:
-    needs: ci-workflow
+    needs: run-android-tests
     if: github.ref == 'refs/heads/a4i/staging' || github.ref == 'refs/heads/a4i/main'
     uses: ./.github/workflows/android-deploy.yml
     secrets: inherit
 
   run-coverage-summary:
     needs: ci-workflow
-    if: github.ref == 'refs/heads/a4i/staging'
+    if: github.ref == 'refs/heads/a4i/main'
     uses: ./.github/workflows/coverage-summary.yml
     secrets: inherit
 
@@ -59,9 +47,7 @@ jobs:
     if: always()
     needs:
       - ci-workflow
-      - deploy-websocket-service-main-workflow
       - deploy-websocket-service-staging-workflow
-      - deploy-staging-workflow
       - deploy-main-workflow
       - run-android-tests
       - deploy-android
@@ -79,9 +65,7 @@ jobs:
         run: |
           JOB_MAPPING='{
             "ci-workflow": "CI",
-            "deploy-websocket-service-main-workflow": "Websocket",
             "deploy-websocket-service-staging-workflow": "Websocket",
-            "deploy-staging-workflow": "Backend",
             "deploy-main-workflow": "Backend",
             "deploy-android": "Android"
           }'
@@ -138,3 +122,4 @@ jobs:
           summary: "Deployment details for ${{ github.ref_name }}"
           theme-color: "${{ contains(needs.*.result, 'failure') && 'FF0000' || '00FF00' }}"
           custom-sections: ${{ steps.layout.outputs.columns_json }}
+          facts: '[]'

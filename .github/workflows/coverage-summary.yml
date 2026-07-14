@@ -27,25 +27,18 @@ jobs:
 
       - name: Download coverage artifacts
         uses: dawidd6/action-download-artifact@v3
-        continue-on-error: true
         with:
           workflow: ci.yml
           workflow_conclusion: success
           path: coverage-artifacts
           github_token: ${{ secrets.GITHUB_TOKEN }}
           run_id: ${{ github.event.workflow_run.id }}
-          if_no_artifact_found: warn
+          if_no_artifact_found: fail
 
       - name: List downloaded artifacts
         run: |
           echo "Checking for coverage artifacts..."
-          if [ -d "coverage-artifacts" ]; then
-            echo "Artifacts directory exists. Contents:"
-            ls -la coverage-artifacts/ || echo "No artifacts found"
-          else
-            echo "⚠️ No coverage artifacts directory found"
-            echo "This is expected if running manually without previous workflow runs"
-          fi
+          ls -la coverage-artifacts/
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
