@@ -17,7 +17,7 @@ Flags:
 Indexes created:
     users:
         {tenant_id: 1, _id: 1}
-        {tenant_id: 1, email: 1}  (unique, partial — email exists and non-empty)
+        {tenant_id: 1, email: 1}  (unique)
     schools:
         {tenant_id: 1, _id: 1}
     classrooms:
@@ -65,14 +65,7 @@ if _PROJECT_ROOT not in sys.path:
 INDEX_SPECS: list[tuple[str, list[tuple[str, int]], dict[str, Any]]] = [
     # users
     ("users", [("tenant_id", 1), ("_id", 1)], {}),
-    (
-        "users",
-        [("tenant_id", 1), ("email", 1)],
-        {
-            "unique": True,
-            "partialFilterExpression": {"email": {"$exists": True, "$type": "string", "$gt": ""}},
-        },
-    ),
+    ("users", [("tenant_id", 1), ("email", 1)], {"unique": True, "sparse": True}),
     # schools
     ("schools", [("tenant_id", 1), ("_id", 1)], {}),
     # classrooms
