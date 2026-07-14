@@ -16,12 +16,10 @@ inputs:
         required: true
     environment_tag:
         description: "Environment tag (e.g., prod, staging)"
-        required: false
-        default: "latest"
+        required: true
     build_args:
         description: "Docker build arguments as newline-separated KEY=VALUE pairs"
-        required: false
-        default: ""
+        required: true
 runs:
     using: composite
     steps:
@@ -47,7 +45,9 @@ runs:
           with:
               context: ${{ inputs.context }}
               push: true
-              tags: ${{ steps.meta.outputs.tags }}
+              tags: |
+                  ${{ steps.meta.outputs.tags }}
+                  ${{ inputs.registry }}/${{ inputs.repository }}/${{ inputs.image }}:${{ github.sha }}
               labels: ${{ steps.meta.outputs.labels }}
               build-args: |
                   ${{ inputs.build_args }}
