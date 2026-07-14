@@ -122,3 +122,4 @@ jobs:
           summary: "Deployment details for ${{ github.ref_name }}"
           theme-color: "${{ contains(needs.*.result, 'failure') && 'FF0000' || '00FF00' }}"
           custom-sections: ${{ steps.layout.outputs.columns_json }}
+          facts: '[]'

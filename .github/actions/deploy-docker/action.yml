@@ -16,12 +16,10 @@ inputs:
         required: true
     environment_tag:
         description: "Environment tag (e.g., prod, staging)"
-        required: false
-        default: "latest"
+        required: true
     build_args:
         description: "Docker build arguments as newline-separated KEY=VALUE pairs"
-        required: false
-        default: ""
+        required: true
 runs:
     using: composite
     steps:

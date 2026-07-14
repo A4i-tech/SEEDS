@@ -7,7 +7,7 @@ on:
       upload_coverage:
         description: "Upload coverage results to gist"
         type: boolean
-        default: false
+        required: true
   workflow_dispatch:
 
 jobs:
