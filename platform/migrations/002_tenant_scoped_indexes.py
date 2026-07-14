@@ -125,8 +125,6 @@ async def migrate(mongo_uri: str, dry_run: bool) -> None:
                 created += 1
             except Exception as exc:
                 print(f"  ERROR: {collection_name} index failed — {exc}")
-                await client.close()
-                sys.exit(1)
 
     if dry_run:
         print(f"\n[DRY-RUN] {len(INDEX_SPECS)} index command(s) would be executed (no writes performed).")
