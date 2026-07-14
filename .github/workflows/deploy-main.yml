@@ -35,6 +35,11 @@ jobs:
                       build_arg_conf_uri: TEACHER_WEBAPP_CONF_SERVER_BASE_URI
                       build_arg_storage: TEACHER_WEBAPP_STORAGE_ACCOUNT_NAME
                       build_arg_api_url: TEACHER_WEBAPP_API_BASE_URL
+
+                    - name: web-socket-service-main
+                      context: websocket-service
+                      image: websocket-service
+                      azure_publish_profile: WEBSOCKET_SERVICE_AZURE_PUBLISH_PROFILE
         steps:
             - name: Checkout repository
               uses: actions/checkout@v4
