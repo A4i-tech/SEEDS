@@ -60,7 +60,7 @@ interface SeedsService {
     suspend fun startCall(
         @Url fullUrl: String,
         @Body callDetails: CallDetails
-    ): Response<Unit> 
+    ): Response<Unit>
 
     @PUT
     suspend fun endCall(
@@ -83,13 +83,13 @@ interface SeedsService {
 
     @PUT
     suspend fun muteParticipant(
-        @Url url: String, 
+        @Url url: String,
         @Query("phone_number") phoneNumber: String
     ): Response<Any>
 
     @PUT
     suspend fun unmuteParticipant(
-        @Url url: String, 
+        @Url url: String,
         @Query("phone_number") phoneNumber: String
     ): Response<Any>
 
@@ -179,14 +179,14 @@ fun provideService(@ApplicationContext context: Context): SeedsService {
             loggingInterceptor.setLevel(HttpLoggingInterceptor.Level.BODY)
             addInterceptor(loggingInterceptor) // Add the logger
         }
-        
+
         // This interceptor will watch for 403 errors on the response.
         addInterceptor(AuthInterceptor(context))
         // This interceptor adds headers to each request.
         addInterceptor(
             Interceptor { chain ->
                 val sharedPreferences = context.getSharedPreferences("sharedPref", Context.MODE_PRIVATE)
-        
+
                 val encryptedToken = sharedPreferences.getString("auth_token", null)
                 val iv = sharedPreferences.getString("auth_iv", null)
 
@@ -197,11 +197,11 @@ fun provideService(@ApplicationContext context: Context): SeedsService {
                     } catch (e: Exception) {
                         Log.e("SeedsService", "Failed to decrypt auth token", e)
 
-                        // Clear corrupt data 
+                        // Clear corrupt data
                         sharedPreferences.edit().remove("auth_token").remove("auth_iv").apply()
                 }
             }
-        
+
                 val builder = chain.request().newBuilder()
                 authToken?.let {
                     builder.header("Authorization", "Bearer $it")
@@ -210,6 +210,15 @@ fun provideService(@ApplicationContext context: Context): SeedsService {
                 chain.proceed(builder.build())
             }
         )
+
+        // Debug-only upload throttle. Set ThrottleConfig.uploadBytesPerSec > 0 to
+        // simulate low-upload networks. Added last so it wraps the body closest to
+        // the socket and the logging interceptor still logs the original body.
+        if (BuildConfig.DEBUG) {
+            addInterceptor(NetworkThrottleInterceptor())
+            // Per-request metrics -> <externalFilesDir>/throttle-metrics.csv
+            MetricsLogger.factory(context)?.let { eventListenerFactory(it) }
+        }
 
         readTimeout(TIMEOUT, TimeUnit.SECONDS)
         connectTimeout(TIMEOUT, TimeUnit.SECONDS)
