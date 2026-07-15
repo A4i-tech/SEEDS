@@ -69,7 +69,7 @@ cp env.example .env
 | `VONAGE_IVR_APPLICATION_PRIVATE_KEY64` | for calls | Base64-encoded private key for the IVR application |
 | `AZURE_SERVICE_BUS_CONNECTION_STRING` | for consumers | Azure Service Bus connection string |
 | `AZURE_STORAGE_CONNECTION_STRING` | for content/audio | Azure Blob Storage connection string |
-| `APPLICATIONINSIGHTS_CONNECTION_STRING` | no | App Insights (telemetry disabled if absent) |
+| `APPLICATIONINSIGHTS_CONNECTION_STRING` | **yes** | Application Insights connection string — required in every environment; `configure_telemetry()` raises `RuntimeError` at startup if absent |
 | `WS_CONTROL_SECRET` | for prod | Shared secret for websocket-service control channel |
 | `CORS_ALLOWED_ORIGINS` | for prod | Comma-separated allowed origins (ignored in development) |
 

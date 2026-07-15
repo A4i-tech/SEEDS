@@ -132,7 +132,7 @@ class TestSchoolControllerDeep:
 
     @pytest.mark.asyncio
     async def test_transfer_teacher_requires_auth(self, client, mock_db):
-        resp = await client.post("/school/transferTeacher", json={})
+        resp = await client.post("/school/transfer", json={})
         assert resp.status_code in (401, 404, 405, 422)
 
     @pytest.mark.asyncio
