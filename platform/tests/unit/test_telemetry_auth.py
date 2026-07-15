@@ -49,7 +49,18 @@ _FAKE_CONNECTION_STRING = (
 # ===========================================================================
 
 
-class TestTelemetryMandatory:
+class TestTelemetry:
+    def test_disabled_without_connection_string(self) -> None:
+        """configure_telemetry with no connection string must not raise, counters stay no-op."""
+        tel_mod._telemetry_configured = False
+        tel_mod._metrics = {}
+
+        settings = Settings(applicationinsights_connection_string="")
+        configure_telemetry(settings)
+
+        assert tel_mod._telemetry_configured is True
+        get_counter("auth.failures").add(1, {"reason": "test"})  # must not raise
+
     def test_configures_real_metrics_with_connection_string(self) -> None:
         """configure_telemetry with a connection string registers real counters."""
         tel_mod._telemetry_configured = False
