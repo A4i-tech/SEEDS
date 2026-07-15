@@ -68,20 +68,20 @@ async def upsert_class(
             updates["students"] = body.students
         if body.leaders is not None:
             updates["leaders"] = body.leaders
-        if body.contentIds is not None:
-            updates["contentIds"] = body.contentIds
+        if body.content_ids is not None:
+            updates["content_ids"] = body.content_ids
         classroom = await repo.update(body.id, updates)
         if classroom is None:
             raise NotFoundError("Classroom", body.id)
     else:
         classroom = await repo.create(
             ClassroomCreate(
-                schoolId=school_id,
+                school_id=school_id,
                 name=body.name or "",
                 teacher=teacher_id,
                 students=body.students,
                 leaders=body.leaders,
-                contentIds=body.contentIds,
+                content_ids=body.content_ids,
             )
         )
 

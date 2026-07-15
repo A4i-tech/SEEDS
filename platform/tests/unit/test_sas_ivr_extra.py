@@ -277,9 +277,9 @@ class TestClassroomModel:
     def test_classroom_create(self) -> None:
         from app.models.requests.school_requests import ClassroomCreate
 
-        c = ClassroomCreate(name="Class 5A", schoolId="s1", teacher="teacher1")
+        c = ClassroomCreate(name="Class 5A", school_id="s1", teacher="teacher1")
         assert c.name == "Class 5A"
-        assert c.schoolId == "s1"
+        assert c.school_id == "s1"
 
     def test_classroom_from_mongo_none(self) -> None:
         from app.models.classroom import Classroom
@@ -321,7 +321,7 @@ class TestContentModel:
         c = ContentCreate(
             type="audio",
             language="english",
-            tenantId="t1",
+            tenant_id="t1",
         )
         assert c.type == "audio"
         assert c.language == "english"
@@ -374,7 +374,7 @@ class TestClassroomRepository:
         from app.repositories.classroom_repository import ClassroomRepository
 
         repo = ClassroomRepository(db)
-        classroom = ClassroomCreate(name="Class 1", schoolId="s1", teacher="t1")
+        classroom = ClassroomCreate(name="Class 1", school_id="s1", teacher="t1")
         created = await repo.create(classroom)
         assert created is not None
         assert created.name == "Class 1"
@@ -385,9 +385,9 @@ class TestClassroomRepository:
         from app.repositories.classroom_repository import ClassroomRepository
 
         repo = ClassroomRepository(db)
-        await repo.create(ClassroomCreate(name="Class A", schoolId="s1", teacher="t1"))
-        await repo.create(ClassroomCreate(name="Class B", schoolId="s1", teacher="t1"))
-        await repo.create(ClassroomCreate(name="Class C", schoolId="s2", teacher="t1"))
+        await repo.create(ClassroomCreate(name="Class A", school_id="s1", teacher="t1"))
+        await repo.create(ClassroomCreate(name="Class B", school_id="s1", teacher="t1"))
+        await repo.create(ClassroomCreate(name="Class C", school_id="s2", teacher="t1"))
 
         results = await repo.find_by_school("s1")
         assert len(results) == 2
@@ -398,8 +398,8 @@ class TestClassroomRepository:
         from app.repositories.classroom_repository import ClassroomRepository
 
         repo = ClassroomRepository(db)
-        await repo.create(ClassroomCreate(name="Class X", schoolId="s1", teacher="t1"))
-        await repo.create(ClassroomCreate(name="Class Y", schoolId="s1", teacher="t2"))
+        await repo.create(ClassroomCreate(name="Class X", school_id="s1", teacher="t1"))
+        await repo.create(ClassroomCreate(name="Class Y", school_id="s1", teacher="t2"))
 
         results = await repo.find_by_teacher("t1")
         assert len(results) == 1

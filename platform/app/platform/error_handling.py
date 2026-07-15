@@ -13,6 +13,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from fastapi import Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
@@ -118,13 +119,14 @@ async def _validation_error_handler(
 ) -> JSONResponse:
     request_id = _get_request_id()
     logger.warning("RequestValidationError (request_id=%s): %s", request_id, exc.errors())
+    safe_errors = jsonable_encoder(exc.errors(), custom_encoder={Exception: str})
     return JSONResponse(
         status_code=422,
         content=_error_envelope(
             "VALIDATION_ERROR",
             "Request validation failed",
             request_id,
-            {"validation_errors": exc.errors()},
+            {"validation_errors": safe_errors},
         ),
     )
 

@@ -24,7 +24,13 @@ from app.models.requests.content_requests import (
     ContentUpdateRequest,
     QuizCreateRequest,
 )
-from app.models.responses.content import ContentResponse, QuizResponse
+from app.models.responses.content import (
+    ContentPageResponse,
+    ContentResponse,
+    PaginationInfo,
+    QuizResponse,
+    SasUrlResponse,
+)
 from app.models.responses.job import DeleteMatchedResponse, JobScheduledResponse
 from app.models.user import UserRole
 from app.platform.auth.dependencies import get_current_user
@@ -100,8 +106,8 @@ def _write_school_filter(user: dict[str, Any]) -> dict[str, str | None]:
 # ---------------------------------------------------------------------------
 
 
-def _sort_key(item: dict) -> tuple:
-    return (-item.get("creation_time", 0), str(item.get("_id", "")))
+def _sort_key(item: ContentResponse) -> tuple:
+    return (-(item.creation_time or 0), str(item.id or ""))
 
 
 # ---------------------------------------------------------------------------
@@ -133,7 +139,7 @@ async def get_job_status(
     if not doc:
         raise NotFoundError("Job", job_id)
     doc.pop("_id", None)
-    doc["jobId"] = job_id
+    doc["job_id"] = job_id
     return doc
 
 
@@ -150,10 +156,10 @@ async def list_jobs(
     docs = await service.list_active_jobs()
     jobs = [
         {
-            "jobId": str(doc.get("_id", "")),
+            "job_id": str(doc.get("_id", "")),
             "status": "ERROR" if doc.get("status") == "failed" else "IN PROGRESS",
-            "contentId": doc.get("content_id"),
-            "startedAt": doc.get("started_at"),
+            "content_id": doc.get("content_id"),
+            "started_at": doc.get("started_at"),
             "reason": doc.get("reason"),
         }
         for doc in docs
@@ -170,10 +176,10 @@ async def list_jobs(
 async def get_sas_url(
     url: str = Query(..., description="Blob URL to generate SAS token for"),
     user: dict[str, Any] = Depends(_require_content_read),
-) -> dict[str, Any]:
+) -> SasUrlResponse:
     if not url:
         raise HTTPException(status_code=400, detail="URL parameter is required.")
-    return {"url": await _get_sas_url(url)}
+    return SasUrlResponse(url=await _get_sas_url(url))
 
 
 # ---------------------------------------------------------------------------
@@ -194,7 +200,7 @@ async def get_sas_token(
     except Exception as exc:
         logger.error("get_sas_token failed", extra={"blob_name": blob_name, "err": str(exc)})
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return {"sasToken": sas_url}
+    return {"sas_token": sas_url}
 
 
 # ---------------------------------------------------------------------------
@@ -220,7 +226,7 @@ async def get_themes(
         if theme and theme not in seen:
             themes.append({
                 "name": theme,
-                "audioUrl": (doc.get("theme") or {}).get("audioUrl", ""),
+                "audio_url": (doc.get("theme") or {}).get("audio_url", ""),
             })
             seen.add(theme)
     return themes
@@ -231,7 +237,7 @@ async def get_themes(
 # ---------------------------------------------------------------------------
 
 
-@router.get("", summary="List content (cursor pagination)")
+@router.get("", summary="List content (cursor pagination)", response_model_exclude_none=True)
 async def list_content(
     language: str | None = None,
     theme: str | None = None,
@@ -242,7 +248,7 @@ async def list_content(
     cursor: str | None = None,
     user: dict[str, Any] = Depends(_require_content_read),
     service: ContentService = Depends(get_content_service),
-) -> Any:
+) -> ContentPageResponse:
     tenant_id = user.get("tenant_id", "")
     school_id = _read_school_id(user)
 
@@ -251,9 +257,13 @@ async def list_content(
         if not ids:
             raise HTTPException(status_code=400, detail="ids must be a non-empty array")
         contents, quizzes = await service.list_content_by_ids(ids, tenant_id, school_id)
-        return sorted(
+        data = sorted(
             [ContentResponse.from_doc(d) for d in contents] + [QuizResponse.from_doc(d) for d in quizzes],
             key=_sort_key,
+        )
+        return ContentPageResponse(
+            data=data,
+            pagination=PaginationInfo(next_cursor=None, has_more=False, limit=len(data)),
         )
 
     contents, quizzes = await service.list_content(
@@ -275,14 +285,12 @@ async def list_content(
     has_more = len(all_results) > limit
     data = all_results[:limit]
     last = data[-1] if data else None
-    next_cursor = (
-        f"{last['creation_time']}_{last['_id']}" if has_more and last else None
-    )
+    next_cursor = f"{last.creation_time}_{last.id}" if has_more and last else None
 
-    return {
-        "data": data,
-        "pagination": {"nextCursor": next_cursor, "hasMore": has_more, "limit": limit},
-    }
+    return ContentPageResponse(
+        data=data,
+        pagination=PaginationInfo(next_cursor=next_cursor, has_more=has_more, limit=limit),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -290,12 +298,12 @@ async def list_content(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/{content_id}", summary="Get content by ID")
+@router.get("/{content_id}", summary="Get content by ID", response_model_exclude_none=True)
 async def get_content(
     content_id: str,
     user: dict[str, Any] = Depends(_require_content_read),
     service: ContentService = Depends(get_content_service),
-) -> Any:
+) -> ContentResponse:
     tenant_id = user.get("tenant_id", "")
     school_id = _read_school_id(user)
 
@@ -333,7 +341,7 @@ async def create_content(
 
     job_id = await service.enqueue_content_job(content_id)
     logger.info("content_controller: created content_id=%s job_id=%s", content_id, job_id)
-    return JobScheduledResponse(message="Processing New Content job scheduled!", jobId=job_id)
+    return JobScheduledResponse(message="Processing New Content job scheduled!", job_id=job_id)
 
 
 # ---------------------------------------------------------------------------
@@ -341,13 +349,13 @@ async def create_content(
 # ---------------------------------------------------------------------------
 
 
-@router.patch("", summary="Update content")
+@router.patch("", summary="Update content", response_model_exclude_none=True)
 async def update_content(
     body: ContentUpdateRequest,
     is_audio_uploaded: bool = Query(False, alias="isAudioUploaded"),
     user: dict[str, Any] = Depends(_require_content_write),
     service: ContentService = Depends(get_content_service),
-) -> Any:
+) -> ContentResponse:
     tenant_id = user.get("tenant_id", "")
     school_id = _write_school_id(user)
 
@@ -358,12 +366,10 @@ async def update_content(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     if result:
+        out = ContentResponse.from_doc(result)
         if is_audio_uploaded:
-            job_id = await service.enqueue_content_job(str(result.get("_id", "")))
-            out = ContentResponse.from_doc(result)
-            out["jobId"] = job_id
-            return out
-        return ContentResponse.from_doc(result)
+            out.job_id = await service.enqueue_content_job(str(result.get("_id", "")))
+        return out
 
     raise NotFoundError("Content", str(body.id))
 
@@ -408,4 +414,4 @@ async def create_quiz(
 
     quiz_id = await service.create_quiz(body, tenant_id, user_id, school_id, override_id)
     job_id = await service.enqueue_content_job(quiz_id)
-    return JobScheduledResponse(message="Processing New Content job scheduled!", jobId=job_id)
+    return JobScheduledResponse(message="Processing New Content job scheduled!", job_id=job_id)

@@ -1,7 +1,7 @@
 """Content repository — Motor async data access for the contentsV3 collection.
 
 All public methods accept plain string IDs. ObjectId conversion for Mongoose-created
-fields (tenantId, schoolId) is handled here — callers never construct raw query dicts.
+fields (tenant_id, school_id) is handled here — callers never construct raw query dicts.
 """
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ from app.repositories.base_repository import BaseRepository
 def _oid(id_str: str | None) -> Any:
     """Convert string to BSON ObjectId for querying Mongoose-created documents.
 
-    contentsV3 stores tenantId and schoolId as ObjectId (Mongoose schema type).
+    contentsV3 stores tenant_id and school_id as ObjectId (Mongoose schema type).
     Falls back to the original value when conversion fails (e.g. UUID _ids).
     """
     if id_str is None:
@@ -49,14 +49,14 @@ class ContentRepository(BaseRepository):
     ) -> dict:
         """Base query scoped to tenant.
 
-        school_id=None  → no schoolId filter (tenant-wide; e.g. role=tenant)
-        school_id=<id>  → schoolId in [ObjectId(id), null] (school + unscoped content)
+        school_id=None  → no school_id filter (tenant-wide; e.g. role=tenant)
+        school_id=<id>  → school_id in [ObjectId(id), null] (school + unscoped content)
         """
-        q: dict = {"tenantId": _oid(tenant_id)}
+        q: dict = {"tenant_id": _oid(tenant_id)}
         if not include_deleted:
-            q["isDeleted"] = {"$ne": True}
+            q["is_deleted"] = {"$ne": True}
         if school_id is not None:
-            q["schoolId"] = {"$in": [_oid(school_id), None]}
+            q["school_id"] = {"$in": [_oid(school_id), None]}
         return q
 
     # ------------------------------------------------------------------
@@ -64,11 +64,11 @@ class ContentRepository(BaseRepository):
     # ------------------------------------------------------------------
 
     async def find_by_id(self, content_id: str) -> Content | None:
-        doc = await self._col.find_one({"_id": content_id})
+        doc = await self._col.find_one({"_id": self._to_id(content_id)})
         return Content.from_mongo(doc) if doc else None
 
     async def find_raw_by_id(self, content_id: str) -> dict | None:
-        return await self._col.find_one({"_id": content_id})
+        return await self._col.find_one({"_id": self._to_id(content_id)})
 
     async def find_by_id_and_tenant(
         self,
@@ -76,7 +76,7 @@ class ContentRepository(BaseRepository):
         tenant_id: str,
         school_id: str | None = None,
     ) -> dict | None:
-        q = {**self._tenant_query(tenant_id, school_id), "_id": content_id}
+        q = {**self._tenant_query(tenant_id, school_id), "_id": self._to_id(content_id)}
         return await self._col.find_one(q)
 
     # ------------------------------------------------------------------
@@ -98,10 +98,10 @@ class ContentRepository(BaseRepository):
         q = self._tenant_query(tenant_id, school_id)
 
         if only_teacher_app:
-            q["isTeacherApp"] = True
+            q["is_teacher_app"] = True
         elif language and theme and exp_name and exp_name.lower() != "quiz":
             q.update({
-                "isPullModel": True,
+                "is_pull_model": True,
                 "language": language,
                 "theme.english": urllib.parse.unquote(theme),
                 "type": exp_name.lower(),
@@ -119,7 +119,7 @@ class ContentRepository(BaseRepository):
         school_id: str | None = None,
     ) -> list[dict]:
         q = self._tenant_query(tenant_id, school_id)
-        q.update({"language": language, "isPullModel": True})
+        q.update({"language": language, "is_pull_model": True})
         return await self._col.find(q).sort("_id", -1).to_list(length=None)
 
     async def find_by_ids(
@@ -128,12 +128,12 @@ class ContentRepository(BaseRepository):
         tenant_id: str,
         school_id: str | None = None,
     ) -> list[dict]:
-        q = {**self._tenant_query(tenant_id, school_id), "_id": {"$in": content_ids}}
+        q = {**self._tenant_query(tenant_id, school_id), "_id": self._ids_query(content_ids)}
         return await self._col.find(q).to_list(length=None)
 
     async def find_by_class(self, content_ids: list[str]) -> list[Content]:
         """Fetch content items by IDs for Classroom hydration (no tenant scope)."""
-        docs = await self._col.find({"_id": {"$in": content_ids}}).to_list(length=None)
+        docs = await self._col.find({"_id": self._ids_query(content_ids)}).to_list(length=None)
         return [Content.from_mongo(d) for d in docs]
 
     async def find_by_tenant(
@@ -152,10 +152,10 @@ class ContentRepository(BaseRepository):
         doc = content.model_dump() if hasattr(content, "model_dump") else dict(content)
         doc.setdefault("_id", str(uuid.uuid4()))
         doc.setdefault("creation_time", int(_time.time()))
-        if doc.get("tenantId"):
-            doc["tenantId"] = _oid(doc["tenantId"])
-        if doc.get("schoolId"):
-            doc["schoolId"] = _oid(doc["schoolId"])
+        if doc.get("tenant_id"):
+            doc["tenant_id"] = _oid(doc["tenant_id"])
+        if doc.get("school_id"):
+            doc["school_id"] = _oid(doc["school_id"])
         await self._col.insert_one(doc)
         doc["_id"] = str(doc["_id"])
         return Content.from_mongo(doc)
@@ -165,12 +165,12 @@ class ContentRepository(BaseRepository):
     # ------------------------------------------------------------------
 
     async def insert_raw(self, doc: dict) -> str:
-        """Insert a raw content document, coercing tenantId/schoolId to ObjectId."""
+        """Insert a raw content document, coercing tenant_id/school_id to ObjectId."""
         doc.setdefault("_id", str(uuid.uuid4()))
-        if doc.get("tenantId"):
-            doc["tenantId"] = _oid(doc["tenantId"])
-        if doc.get("schoolId"):
-            doc["schoolId"] = _oid(doc["schoolId"])
+        if doc.get("tenant_id"):
+            doc["tenant_id"] = _oid(doc["tenant_id"])
+        if doc.get("school_id"):
+            doc["school_id"] = _oid(doc["school_id"])
         await self._col.insert_one(doc)
         return str(doc["_id"])
 
@@ -181,8 +181,8 @@ class ContentRepository(BaseRepository):
         updates: dict,
         school_id: str | None = None,
     ) -> dict | None:
-        q = {**self._tenant_query(tenant_id, school_id), "_id": content_id}
-        updates["updatedAt"] = datetime.now(UTC)
+        q = {**self._tenant_query(tenant_id, school_id), "_id": self._to_id(content_id)}
+        updates["updated_at"] = datetime.now(UTC)
         return await self._col.find_one_and_update(q, {"$set": updates}, return_document=True)
 
     async def soft_delete_by_id_and_tenant(
@@ -191,11 +191,11 @@ class ContentRepository(BaseRepository):
         tenant_id: str,
         school_id: str | None = None,
     ) -> int:
-        q = {**self._tenant_query(tenant_id, school_id), "_id": content_id}
+        q = {**self._tenant_query(tenant_id, school_id), "_id": self._to_id(content_id)}
         result = await self._col.update_one(
-            q, {"$set": {"isDeleted": True, "updatedAt": datetime.now(UTC)}}
+            q, {"$set": {"is_deleted": True, "updated_at": datetime.now(UTC)}}
         )
         return result.matched_count
 
     async def save_processed(self, content_id: str, fields: dict) -> None:
-        await self._col.update_one({"_id": content_id}, {"$set": fields})
+        await self._col.update_one({"_id": self._to_id(content_id)}, {"$set": fields})

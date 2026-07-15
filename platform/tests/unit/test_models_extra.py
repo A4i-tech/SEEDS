@@ -12,12 +12,12 @@ class TestModelsCoverage:
         from app.models.requests.school_requests import ClassroomCreate
 
         c = ClassroomCreate(
-            schoolId="s1",
+            school_id="s1",
             name="My Class",
             teacher="t1",
             students=["s1", "s2"],
             leaders=["l1"],
-            contentIds=["c1"],
+            content_ids=["c1"],
         )
         assert c.name == "My Class"
         assert c.teacher == "t1"
@@ -47,7 +47,7 @@ class TestModelsCoverage:
         from app.models.requests.school_requests import SchoolCreate
 
         s = SchoolCreate(
-            tenantId="t1",
+            tenant_id="t1",
             name="School A",
             email="school@test.com",
             password="hashed",

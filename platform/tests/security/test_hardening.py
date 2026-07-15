@@ -371,8 +371,8 @@ async def test_content_job_retry_on_transient():
     job_id = job_result.inserted_id
     await content_col.insert_one({
         "_id": "content-trans",
-        "audioContent": [{"audioUrl": "https://blob/input.mp3"}],
-        "isPullModel": False,
+        "audio_content": [{"audio_url": "https://blob/input.mp3"}],
+        "is_pull_model": False,
     })
 
     job_doc = await jobs_col.find_one({"_id": job_id})
@@ -422,8 +422,8 @@ async def test_content_job_dead_letter_on_permanent():
     job_id = job_result.inserted_id
     await content_col.insert_one({
         "_id": "content-perm",
-        "audioContent": [{"audioUrl": "https://blob/corrupt.mp3"}],
-        "isPullModel": False,
+        "audio_content": [{"audio_url": "https://blob/corrupt.mp3"}],
+        "is_pull_model": False,
     })
 
     job_doc = await jobs_col.find_one({"_id": job_id})

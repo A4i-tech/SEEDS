@@ -323,11 +323,11 @@ class TestInstiHandlers:
     ):
         return {
             "language": language,
-            "theme": {"local": theme_local, "english": theme_local, "audioUrl": theme_audio},
+            "theme": {"local": theme_local, "english": theme_local, "audio_url": theme_audio},
             "type": content_type,  # handle_type uses item["type"].lower()
-            "title": {"local": title_local, "english": title_local, "audioUrl": title_audio},
-            "contentId": "c1",
-            "audioUrl": "http://example.com/audio.mp3",
+            "title": {"local": title_local, "english": title_local, "audio_url": title_audio},
+            "content_id": "c1",
+            "audio_url": "http://example.com/audio.mp3",
         }
 
     def test_handle_theme_returns_sorted(self) -> None:
@@ -440,8 +440,8 @@ class TestCallRepository:
         log = CallLog(
             type="ivr",
             time="2026-01-01T00:00:00Z",
-            fsmContextId="ctx1",
-            isCompleted=False,
+            fsm_context_id="ctx1",
+            is_completed=False,
         )
         created = await repo.create_log(log)
         assert created is not None
@@ -517,8 +517,8 @@ class TestContentRepository:
         content_create = ContentCreate(
             type="audio",
             language="english",
-            tenantId=tenant_id,
-            createdBy="teacher1",
+            tenant_id=tenant_id,
+            created_by="teacher1",
         )
         created = await repo.create(content_create)
         assert created is not None
@@ -637,8 +637,8 @@ class TestSchoolServiceAdditional:
         from app.services.school_service import SchoolService
 
         svc = SchoolService(db)
-        c1 = ClassroomCreate(name="Class 1A", schoolId="s1", teacher="t1")
-        c2 = ClassroomCreate(name="Class 1B", schoolId="s1", teacher="t1")
+        c1 = ClassroomCreate(name="Class 1A", school_id="s1", teacher="t1")
+        c2 = ClassroomCreate(name="Class 1B", school_id="s1", teacher="t1")
         await svc.create_classroom(c1)
         await svc.create_classroom(c2)
 
@@ -741,24 +741,24 @@ class TestAuthServiceTenant:
 
     @pytest.mark.asyncio
     async def test_login_tenant_success(self, db) -> None:
-        from app.services.auth_service import TenantCreate, login, register_tenant
+        from app.services.auth_service import TenantCreate, login_unified, register_tenant
 
         data = TenantCreate(name="Login Org", email="login@test.com", password="loginpass")
         await register_tenant(data, db)
 
-        result = await login("login@test.com", "loginpass", "native", db)
+        result = await login_unified("login@test.com", "loginpass", True, db)
         assert "token" in result
 
     @pytest.mark.asyncio
     async def test_login_wrong_password_raises(self, db) -> None:
         from app.platform.error_handling import UnauthorizedError
-        from app.services.auth_service import TenantCreate, login, register_tenant
+        from app.services.auth_service import TenantCreate, login_unified, register_tenant
 
         data = TenantCreate(name="Wrong Pass Org", email="wrong@test.com", password="correctpass")
         await register_tenant(data, db)
 
         with pytest.raises(UnauthorizedError):
-            await login("wrong@test.com", "wrongpass", "native", db)
+            await login_unified("wrong@test.com", "wrongpass", True, db)
 
     @pytest.mark.asyncio
     async def test_update_user_password(self, db) -> None:

@@ -271,7 +271,7 @@ class TestUsersControllerExtra:
 
     @pytest.mark.asyncio
     async def test_create_student_requires_auth(self, client, mock_db):
-        resp = await client.post("/student", json={"name": "Student", "phoneNumber": "+111"})
+        resp = await client.post("/student", json={"name": "Student", "phone_number": "+111"})
         assert resp.status_code == 401
 
     @pytest.mark.asyncio
@@ -280,7 +280,7 @@ class TestUsersControllerExtra:
         token = _school_admin_token(teacher["_id"])
         resp = await client.post("/student", json={
             "name": "Test Student",
-            "phoneNumber": "+919999999999",
+            "phone_number": "+919999999999",
         }, headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code in (201, 200, 409, 422)
 

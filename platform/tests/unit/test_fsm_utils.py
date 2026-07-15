@@ -278,7 +278,7 @@ class TestSchoolServiceExtended:
         svc = SchoolService(db)
         data = ClassroomCreate(
             name="Class 1A",
-            schoolId="s1",
+            school_id="s1",
             teacher="teacher1",
         )
         classroom = await svc.create_classroom(data)
@@ -290,9 +290,9 @@ class TestSchoolServiceExtended:
         from app.services.school_service import SchoolService
 
         svc = SchoolService(db)
-        c1 = ClassroomCreate(name="Class 1A", schoolId="s1", teacher="t1")
-        c2 = ClassroomCreate(name="Class 1B", schoolId="s1", teacher="t1")
-        c3 = ClassroomCreate(name="Class 2A", schoolId="s2", teacher="t1")
+        c1 = ClassroomCreate(name="Class 1A", school_id="s1", teacher="t1")
+        c2 = ClassroomCreate(name="Class 1B", school_id="s1", teacher="t1")
+        c3 = ClassroomCreate(name="Class 2A", school_id="s2", teacher="t1")
 
         await svc.create_classroom(c1)
         await svc.create_classroom(c2)

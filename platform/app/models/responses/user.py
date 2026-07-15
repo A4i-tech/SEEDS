@@ -2,9 +2,8 @@
 
 Maps platform User (snake_case domain) → API wire format.
 
-UserPublicResponse matches user.model_dump(by_alias=True, exclude_none=True) minus
-hashed_password and firebase_uid. The User model has no camelCase aliases (only
-_id), so all fields are snake_case except _id — matching PR #237's staging shape.
+UserPublicResponse matches user.model_dump(exclude_none=True) minus
+hashed_password and firebase_uid — snake_case end-to-end.
 
 Sensitive fields excluded: hashed_password, firebase_uid, encrypted_phone_number,
 encryption_iv, encryption_salt.
@@ -14,17 +13,13 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 from app.models.user import User
 
 
 class UserPublicResponse(BaseModel):
-    """Safe user representation for login, profile, register, and update responses.
-
-    All fields use camelCase aliases so to_response() emits the wire format the
-    ContentWebApp expects (phoneNumber, tenantName, schoolId, etc.).
-    """
+    """Safe user representation for login, profile, register, and update responses."""
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -32,15 +27,15 @@ class UserPublicResponse(BaseModel):
     role: str
     name: str
     email: str | None = None
-    phone_number: str | None = Field(None, alias="phoneNumber")
-    tenant_id: str | None = Field(None, alias="tenantId")
-    school_id: str | None = Field(None, alias="schoolId")
-    tenant_name: str | None = Field(None, alias="tenantName")
+    phone_number: str | None = None
+    tenant_id: str | None = None
+    school_id: str | None = None
+    tenant_name: str | None = None
     organisation: str | None = None
-    language_preference: str | None = Field(None, alias="languagePreference")
-    is_active: bool = Field(True, alias="isActive")
-    created_at: datetime | None = Field(None, alias="createdAt")
-    updated_at: datetime | None = Field(None, alias="updatedAt")
+    language_preference: str | None = None
+    is_active: bool = True
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     @classmethod
     def from_domain(cls, user: User) -> UserPublicResponse:
@@ -61,4 +56,4 @@ class UserPublicResponse(BaseModel):
         )
 
     def to_response(self) -> dict:
-        return self.model_dump(by_alias=True, exclude_none=True)
+        return self.model_dump(exclude_none=True)
