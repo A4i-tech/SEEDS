@@ -26,7 +26,7 @@ settings = get_settings()
 # Configure structured JSON logging before any log calls are made.
 configure_logging(log_level=settings.log_level)
 
-# Configure Azure Monitor telemetry (mandatory — raises RuntimeError if connection string is absent).
+# Configure Azure Monitor telemetry (no-op when connection string is absent).
 configure_telemetry(settings)
 
 app = FastAPI(
