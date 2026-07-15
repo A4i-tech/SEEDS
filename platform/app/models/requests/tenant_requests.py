@@ -6,5 +6,5 @@ from pydantic import BaseModel
 
 
 class TenantAnalyticsRequest(BaseModel):
-    startDate: str
-    endDate: str
+    start_date: str
+    end_date: str

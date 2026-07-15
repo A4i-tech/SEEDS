@@ -82,9 +82,9 @@ class PureAudio:
         actions.append(StreamAction(pullMenuMainUrl + going_to_play_url))
 
         # Duration + speed + pause announcements
-        if self.content_data.audioContent:
+        if self.content_data.audio_content:
             vonage_language = get_vonage_language_code(self.language)
-            duration = self.content_data.audioContent[0].durationSeconds
+            duration = self.content_data.audio_content[0].duration_seconds
 
             if duration:
                 from app.services.fsm.instantiation.duration_announcement import (  # noqa: PLC0415
@@ -115,7 +115,7 @@ class PureAudio:
             )
 
             # WebSocket connect action for streaming
-            audio_url = self.content_data.audioContent[0].audioUrl
+            audio_url = self.content_data.audio_content[0].audio_url
             query_params = urlencode({"id": state_id, "audio_url": audio_url, "speed": "1.0"})
             websocket_url = f"{settings.websocket_service_url}/?{query_params}"
             actions.append(
@@ -140,11 +140,11 @@ class PureAudio:
         # Daily limit pre-operation
         daily_limit_pre_op = None
         if (
-            self.content_data.audioContent
-            and self.content_data.audioContent[0].durationSeconds
+            self.content_data.audio_content
+            and self.content_data.audio_content[0].duration_seconds
         ):
             daily_limit_pre_op = DailyLimitPreOperation(
-                duration_seconds=self.content_data.audioContent[0].durationSeconds,
+                duration_seconds=self.content_data.audio_content[0].duration_seconds,
                 language=self.language,
                 school_id=getattr(self.content_data, "school_id", ""),
             )

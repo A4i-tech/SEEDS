@@ -31,7 +31,7 @@ class TestAuditLogModel:
         doc = {
             "_id": oid,
             "user": "teacher1",
-            "logText": "login",
+            "log_text": "login",
             "time": "10:00",
             "priority": 1,
         }
@@ -52,7 +52,7 @@ class TestAuditLogModel:
         from app.models.audit_log import LogEntry
 
         oid = ObjectId()
-        doc = {"_id": oid, "path": "/test", "method": "GET", "statusCode": 200}
+        doc = {"_id": oid, "path": "/test", "method": "GET", "status_code": 200}
         entry = LogEntry.from_mongo(doc)
         assert entry.path == "/test"
         assert entry.status_code == 200
@@ -806,12 +806,12 @@ class TestAuthService:
 
     @pytest.mark.asyncio
     async def test_login_native_success(self, db) -> None:
-        from app.services.auth_service import TenantCreate, login, register_tenant
+        from app.services.auth_service import TenantCreate, login_unified, register_tenant
 
         tc = TenantCreate(name="Carol", email="carol@example.com", password="mypassword")
         await register_tenant(tc, db)
 
-        result = await login("carol@example.com", "mypassword", "native", db)
+        result = await login_unified("carol@example.com", "mypassword", True, db)
         assert "token" in result
         assert result["user"]["email"] == "carol@example.com"
         # password must not be in response
@@ -820,18 +820,18 @@ class TestAuthService:
     @pytest.mark.asyncio
     async def test_login_native_wrong_password(self, db) -> None:
         from app.platform.error_handling import UnauthorizedError
-        from app.services.auth_service import TeacherCreate, login, register_teacher
+        from app.services.auth_service import TenantCreate, login_unified, register_tenant
 
-        tc = TeacherCreate(name="Dave", email="dave@example.com", password="rightpass")
-        await register_teacher(tc, db)
+        tc = TenantCreate(name="Dave", email="dave@example.com", password="rightpass")
+        await register_tenant(tc, db)
 
         with pytest.raises(UnauthorizedError):
-            await login("dave@example.com", "wrongpass", "native", db)
+            await login_unified("dave@example.com", "wrongpass", True, db)
 
     @pytest.mark.asyncio
     async def test_login_native_unknown_user(self, db) -> None:
         from app.platform.error_handling import UnauthorizedError
-        from app.services.auth_service import login
+        from app.services.auth_service import login_unified
 
         with pytest.raises(UnauthorizedError):
-            await login("nobody@example.com", "pass", "native", db)
+            await login_unified("nobody@example.com", "pass", True, db)

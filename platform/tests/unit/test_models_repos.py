@@ -214,26 +214,26 @@ async def test_content_repository_find_by_tenant(content_repo):
         [
             {
                 "_id": "content-1",
-                "tenantId": tenant_oid,
+                "tenant_id": tenant_oid,
                 "type": "story",
                 "language": "en",
-                "isDeleted": False,
+                "is_deleted": False,
                 "creation_time": 100,
             },
             {
                 "_id": "content-2",
-                "tenantId": tenant_oid,
+                "tenant_id": tenant_oid,
                 "type": "song",
                 "language": "hi",
-                "isDeleted": True,
+                "is_deleted": True,
                 "creation_time": 200,
             },
             {
                 "_id": "content-3",
-                "tenantId": other_oid,  # noqa: F821
+                "tenant_id": other_oid,  # noqa: F821
                 "type": "story",
                 "language": "en",
-                "isDeleted": False,
+                "is_deleted": False,
                 "creation_time": 150,
             },
         ]

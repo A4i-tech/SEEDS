@@ -73,7 +73,7 @@ class CallRepository(BaseRepository):
     # Call log documents
     # ------------------------------------------------------------------
     async def find_log_by_fsm_context(self, fsm_context_id: str) -> CallLog | None:
-        doc = await self._log_col.find_one({"fsmContextId": fsm_context_id})
+        doc = await self._log_col.find_one({"fsm_context_id": fsm_context_id})
         return CallLog.from_mongo(doc) if doc else None
 
     async def find_logs_by_tenant(self, tenant_id: str) -> list[CallLog]:

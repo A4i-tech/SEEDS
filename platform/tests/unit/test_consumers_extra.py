@@ -226,13 +226,13 @@ class TestInstiGenerateStates:
     def _make_content_item(self, idx=0, lang="english", theme="Math", content_type="audio", title="Lesson"):
         return {
             "language": lang,
-            "theme": {"local": theme, "english": theme, "audioUrl": f"http://example.com/theme_{idx}.mp3"},
+            "theme": {"local": theme, "english": theme, "audio_url": f"http://example.com/theme_{idx}.mp3"},
             "type": content_type,
-            "title": {"local": title, "english": title, "audioUrl": f"http://example.com/title_{idx}.mp3"},
-            "contentId": f"content_{idx}",
-            "audioUrl": f"http://example.com/audio_{idx}.mp3",
-            "localTitle": title,
-            "titleAudio": f"http://example.com/title_{idx}.mp3",
+            "title": {"local": title, "english": title, "audio_url": f"http://example.com/title_{idx}.mp3"},
+            "content_id": f"content_{idx}",
+            "audio_url": f"http://example.com/audio_{idx}.mp3",
+            "local_title": title,
+            "title_audio": f"http://example.com/title_{idx}.mp3",
         }
 
     def test_get_key_press_url_for_various_keys(self) -> None:
@@ -375,7 +375,7 @@ class TestAuditLogModel:
 
         log = AuditLog(
             user="user1",
-            logText="User logged in",
+            log_text="User logged in",
             time="12:00",
             priority=1,
         )
@@ -389,7 +389,7 @@ class TestAuditLogModel:
         entry = LogEntry(
             path="/api/test",
             method="GET",
-            statusCode=200,
+            status_code=200,
         )
         assert entry.path == "/api/test"
         assert entry.status_code == 200
@@ -418,7 +418,7 @@ class TestAuditRepositoryExtra:
         from app.repositories.audit_repository import AuditRepository
 
         repo = AuditRepository(db)
-        log = AuditLog(user="u1", logText="action1", time="10:00", priority=1, tenant_id="t1")
+        log = AuditLog(user="u1", log_text="action1", time="10:00", priority=1, tenant_id="t1")
         await repo.create_log(log)
 
         logs = await repo.find_logs_by_user_and_tenant("u1", "t1")

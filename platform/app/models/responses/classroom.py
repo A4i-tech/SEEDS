@@ -1,8 +1,7 @@
 """Response DTO for classroom endpoints.
 
 Decouples the API response shape from the DB domain model (Classroom).
-Field aliases match the legacy Mongoose document keys so the wire format
-is identical to what classRouter.js returned.
+Field names and the wire format are snake_case end-to-end.
 """
 
 from __future__ import annotations
@@ -18,11 +17,11 @@ from app.models.user import User
 class ClassMemberResponse(BaseModel):
     id: str
     name: str
-    phoneNumber: str | None = None
+    phone_number: str | None = None
 
     @classmethod
     def from_domain(cls, user: User) -> ClassMemberResponse:
-        return cls(id=str(user.id), name=user.name, phoneNumber=user.phone)
+        return cls(id=str(user.id), name=user.name, phone_number=user.phone)
 
 
 class ClassroomDetailResponse(BaseModel):
@@ -36,9 +35,9 @@ class ClassroomDetailResponse(BaseModel):
     teacher: str
     students: list[ClassMemberResponse] = []
     leaders: list[ClassMemberResponse] = []
-    contentIds: list[str] = []
-    createdAt: datetime | None = Field(None, alias="createdAt")
-    updatedAt: datetime | None = Field(None, alias="updatedAt")
+    content_ids: list[str] = []
+    created_at: datetime | None = Field(None)
+    updated_at: datetime | None = Field(None)
 
     def to_response(self) -> dict:
         return self.model_dump(exclude_none=True)
@@ -53,9 +52,9 @@ class ClassroomResponse(BaseModel):
     teacher: str
     students: list[str] = []
     leaders: list[str] = []
-    contentIds: list[str] = []
-    createdAt: datetime | None = Field(None, alias="createdAt")
-    updatedAt: datetime | None = Field(None, alias="updatedAt")
+    content_ids: list[str] = []
+    created_at: datetime | None = Field(None)
+    updated_at: datetime | None = Field(None)
 
     @classmethod
     def from_domain(cls, classroom: Classroom) -> ClassroomResponse:
@@ -66,9 +65,9 @@ class ClassroomResponse(BaseModel):
             teacher=classroom.teacher,
             students=classroom.students,
             leaders=classroom.leaders,
-            contentIds=classroom.content_ids,
-            createdAt=classroom.created_at,
-            updatedAt=classroom.updated_at,
+            content_ids=classroom.content_ids,
+            created_at=classroom.created_at,
+            updated_at=classroom.updated_at,
         )
 
     def to_response(self) -> dict:

@@ -5,9 +5,11 @@ Migration 006 — Normalise classes collection field names.
 Changes:
   schoolId    -> school_id
   contentIds  -> content_ids
+  createdAt   -> created_at
+  updatedAt   -> updated_at
   __v         -> removed
 
-Idempotent: documents without 'schoolId' are already migrated and skipped.
+Idempotent: documents without any camelCase fields are skipped.
 
 Usage:
     python migrations/006_classes_snake_case.py [--dry-run] [--mongo-uri URI]
@@ -30,6 +32,8 @@ COLLECTION = "classes"
 _RENAMES = {
     "schoolId": "school_id",
     "contentIds": "content_ids",
+    "createdAt": "created_at",
+    "updatedAt": "updated_at",
 }
 
 
@@ -45,7 +49,9 @@ async def migrate(mongo_uri: str, dry_run: bool) -> None:
     db = client[db_name]
     col = db[COLLECTION]
 
-    pending = await col.find({"schoolId": {"$exists": True}}).to_list(length=None)
+    pending = await col.find(
+        {"$or": [{k: {"$exists": True}} for k in _RENAMES]}
+    ).to_list(length=None)
     total = await col.count_documents({})
 
     print(f"Collection '{COLLECTION}': {total} total, {len(pending)} need migration.\n")

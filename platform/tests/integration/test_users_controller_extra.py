@@ -73,7 +73,7 @@ class TestUsersControllerExtra:
         token = _school_admin_token(teacher["_id"])
         resp = await client.post("/student", json={
             "name": "",
-            "phoneNumber": "+919999999995",
+            "phone_number": "+919999999995",
         }, headers={"Authorization": f"Bearer {token}"})
         # Empty name should fail
         assert resp.status_code in (400, 422)
@@ -84,7 +84,7 @@ class TestUsersControllerExtra:
         token = _school_admin_token(teacher["_id"])
         resp = await client.post("/student", json={
             "name": "New Student",
-            "phoneNumber": "+919999999993",
+            "phone_number": "+919999999993",
         }, headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code in (200, 201, 409)
         if resp.status_code in (200, 201):
@@ -128,11 +128,11 @@ class TestUsersControllerExtra:
         # Create a student first
         resp = await client.post("/student", json={
             "name": "Update Target",
-            "phoneNumber": "+919999999992",
+            "phone_number": "+919999999992",
         }, headers={"Authorization": f"Bearer {token}"})
 
         if resp.status_code in (200, 201):
-            student_id = resp.json().get("_id")
+            student_id = resp.json().get("id")
             if student_id:
                 # Update the student
                 update_resp = await client.patch(f"/student/{student_id}", json={
@@ -148,11 +148,11 @@ class TestUsersControllerExtra:
         # Create then delete
         resp = await client.post("/student", json={
             "name": "Delete Target",
-            "phoneNumber": "+919999999991",
+            "phone_number": "+919999999991",
         }, headers={"Authorization": f"Bearer {token}"})
 
         if resp.status_code in (200, 201):
-            student_id = resp.json().get("_id")
+            student_id = resp.json().get("id")
             if student_id:
                 del_resp = await client.delete(f"/student/{student_id}", headers={"Authorization": f"Bearer {token}"})
                 assert del_resp.status_code in (200, 204, 404)

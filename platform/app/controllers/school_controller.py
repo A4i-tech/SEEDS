@@ -22,7 +22,11 @@ from app.models.requests.school_requests import (
 )
 from app.models.responses.analytics_response import AnalyticsResponse
 from app.models.responses.login import MessageResponse
-from app.models.responses.school_response import SchoolResponse
+from app.models.responses.school_response import (
+    SchoolDashboardResponse,
+    SchoolResponse,
+    SchoolTeacherResponse,
+)
 from app.models.responses.teacher import TeacherTransferResponse
 from app.models.responses.user import UserPublicResponse
 from app.platform.auth.dependencies import (
@@ -80,9 +84,9 @@ async def list_schools(
     status_code=status.HTTP_200_OK,
 )
 async def school_teachers(
-    current_user: dict[str, Any] = Depends(require_role("school_admin", "content_creator")),
+    current_user: dict[str, Any] = Depends(require_role("school_admin")),
     service: SchoolService = Depends(get_school_service),
-) -> list[dict[str, Any]]:
+) -> list[SchoolTeacherResponse]:
     school_id = current_user.get("school_id", "")
     tenant_id = current_user.get("tenant_id", "")
     if not school_id:
@@ -97,11 +101,11 @@ async def school_teachers(
 )
 async def transfer_teacher(
     body: TeacherTransferRequest,
-    current_user: dict[str, Any] = Depends(require_role("school_admin", "content_creator")),
+    current_user: dict[str, Any] = Depends(require_role("school_admin")),
     service: SchoolService = Depends(get_school_service),
 ) -> TeacherTransferResponse:
     teacher = await service.transfer_teacher(
-        body.teacherId, body.targetSchoolId, current_user["tenant_id"]
+        body.teacher_id, body.target_school_id, current_user["tenant_id"]
     )
     return TeacherTransferResponse(
         message="Teacher transferred successfully",
@@ -115,9 +119,9 @@ async def transfer_teacher(
     status_code=status.HTTP_200_OK,
 )
 async def school_dashboard(
-    current_user: dict[str, Any] = Depends(require_role("school_admin", "content_creator")),
+    current_user: dict[str, Any] = Depends(require_role("school_admin")),
     service: SchoolService = Depends(get_school_service),
-) -> dict[str, Any]:
+) -> SchoolDashboardResponse:
     school_id = current_user.get("school_id", "")
     tenant_id = current_user.get("tenant_id", "")
     return await service.get_school_dashboard(school_id, tenant_id)
@@ -130,16 +134,16 @@ async def school_dashboard(
 )
 async def school_analytics(
     body: SchoolAnalyticsRequest,
-    current_user: dict[str, Any] = Depends(require_role("school_admin", "content_creator")),
+    current_user: dict[str, Any] = Depends(require_role("school_admin")),
     service: SchoolService = Depends(get_school_service),
 ) -> AnalyticsResponse:
-    start = datetime.fromisoformat(body.startDate)
-    end = datetime.fromisoformat(body.endDate)
+    start = datetime.fromisoformat(body.start_date)
+    end = datetime.fromisoformat(body.end_date)
     school_id = current_user.get("school_id", "")
 
     data = await service.get_school_analytics(school_id, start.isoformat(), end.isoformat())
     return AnalyticsResponse(
-        startDate=body.startDate, endDate=body.endDate, count=len(data), data=data
+        start_date=body.start_date, end_date=body.end_date, count=len(data), data=data
     )
 
 

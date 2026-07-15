@@ -92,13 +92,13 @@ class TestLoginNative:
     @pytest.mark.asyncio
     async def test_login_native_success_returns_jwt(self, mock_db):
         """Correct credentials must return a bearer token and user info."""
-        from app.services.auth_service import TenantCreate, login, register_tenant
+        from app.services.auth_service import TenantCreate, login_unified, register_tenant
 
         plain = "Correct$1"
         data = TenantCreate(name="Login User", email="login@example.com", password=plain)
         await register_tenant(data, mock_db)
 
-        result = await login("login@example.com", plain, "native", mock_db)
+        result = await login_unified("login@example.com", plain, True, mock_db)
 
         assert "token" in result
         assert "user" in result
@@ -112,13 +112,13 @@ class TestLoginNative:
         return None, but auth_service raises to ensure uniform behavior).
         """
         from app.platform.error_handling import UnauthorizedError
-        from app.services.auth_service import TeacherCreate, login, register_teacher
+        from app.services.auth_service import TenantCreate, login_unified, register_tenant
 
-        data = TeacherCreate(name="Wrong PW User", email="wrong@example.com", password="Right$1")
-        await register_teacher(data, mock_db)
+        data = TenantCreate(name="Wrong PW User", email="wrong@example.com", password="Right$1")
+        await register_tenant(data, mock_db)
 
         with pytest.raises(UnauthorizedError):
-            await login("wrong@example.com", "BadPassword!", "jwt", mock_db)
+            await login_unified("wrong@example.com", "BadPassword!", True, mock_db)
 
     @pytest.mark.asyncio
     async def test_login_wrong_password_increments_auth_failures(self, mock_db):
@@ -129,14 +129,14 @@ class TestLoginNative:
         This test verifies the exception type (not silence).
         """
         from app.platform.error_handling import UnauthorizedError
-        from app.services.auth_service import TeacherCreate, login, register_teacher
+        from app.services.auth_service import TenantCreate, login_unified, register_tenant
 
-        data = TeacherCreate(name="Inc Failures", email="inc@example.com", password="Right$1")
-        await register_teacher(data, mock_db)
+        data = TenantCreate(name="Inc Failures", email="inc@example.com", password="Right$1")
+        await register_tenant(data, mock_db)
 
         result = None
         try:
-            result = await login("inc@example.com", "WrongPwd!", "jwt", mock_db)
+            result = await login_unified("inc@example.com", "WrongPwd!", True, mock_db)
         except UnauthorizedError:
             result = None  # expected
 

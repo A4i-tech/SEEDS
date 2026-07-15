@@ -16,8 +16,10 @@ from fastapi import Depends
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.requests.content_requests import (
+    ContentCreate,
     ContentCreateRequest,
     ContentUpdateRequest,
+    QuizCreate,
     QuizCreateRequest,
 )
 from app.platform.auth.dependencies import get_db
@@ -138,31 +140,29 @@ class ContentService:
         school_id: str | None,
         override_id: str | None = None,
     ) -> str:
-        for item in body.audioContent or []:
-            au = item.get("audioUrl", "")
+        for item in body.audio_content or []:
+            au = item.get("audio_url", "")
             if au and not au.lower().endswith(".mp3"):
                 raise ValueError("Only .mp3 audio files are allowed.")
 
-        doc: dict[str, Any] = {
-            "_id": override_id or str(uuid.uuid4()),
-            "type": body.type,
-            "language": body.language,
-            "title": body.title,
-            "theme": body.theme,
-            "audioContent": body.audioContent or [],
-            "description": body.description or "",
-            "isPullModel": body.isPullModel or False,
-            "isTeacherApp": body.isTeacherApp or False,
-            "tenantId": tenant_id,
-            "createdBy": user_id,
-            "creation_time": int(time.time()),
-            "schoolId": school_id,
-            "isDeleted": False,
-            "isProcessed": False,
-            "version": "v3",
-            "createdAt": datetime.now(UTC),
-            "updatedAt": datetime.now(UTC),
-        }
+        dto = ContentCreate(
+            tenant_id=tenant_id,
+            type=body.type,
+            language=body.language,
+            created_by=user_id,
+            school_id=school_id,
+            title=body.title,
+            theme=body.theme,
+            audio_content=body.audio_content or [],
+            description=body.description or "",
+            is_pull_model=body.is_pull_model or False,
+            is_teacher_app=body.is_teacher_app or False,
+            creation_time=int(time.time()),
+        )
+        doc: dict[str, Any] = dto.model_dump()
+        doc["_id"] = override_id or str(uuid.uuid4())
+        doc["created_at"] = datetime.now(UTC)
+        doc["updated_at"] = datetime.now(UTC)
         return await self._content_repo.insert_raw(doc)
 
     async def update_content(
@@ -172,18 +172,18 @@ class ContentService:
         school_id: str | None,
         is_audio_uploaded: bool,
     ) -> dict[str, Any] | None:
-        allowed = {"title", "theme", "description", "type", "language", "isPullModel", "isTeacherApp"}
-        body_dict = body.model_dump(by_alias=True, exclude_unset=True)
+        allowed = {"title", "theme", "description", "type", "language", "is_pull_model", "is_teacher_app"}
+        body_dict = body.model_dump(exclude_unset=True)
         updates: dict[str, Any] = {k: v for k, v in body_dict.items() if k in allowed}
 
         if is_audio_uploaded:
-            if "audioContent" in body.model_fields_set:
-                for item in body.audioContent or []:
-                    au = item.get("audioUrl", "")
+            if "audio_content" in body.model_fields_set:
+                for item in body.audio_content or []:
+                    au = item.get("audio_url", "")
                     if au and not au.lower().endswith(".mp3"):
                         raise ValueError("Only .mp3 audio files are allowed.")
-                updates["audioContent"] = body.audioContent
-            updates["isProcessed"] = False
+                updates["audio_content"] = body.audio_content
+            updates["is_processed"] = False
 
         result = await self._content_repo.update_by_id_and_tenant(
             body.id, tenant_id, updates, school_id
@@ -193,8 +193,8 @@ class ContentService:
 
         # Quiz lives in a separate collection; mirror delete_content's fallback.
         quiz_allowed = allowed | {
-            "localTitle", "localTheme", "positiveMarks", "negativeMarks",
-            "questions", "options", "correctAnswers",
+            "local_title", "local_theme", "positive_marks", "negative_marks",
+            "questions", "options", "correct_answers",
         }
         quiz_updates = {k: v for k, v in body_dict.items() if k in quiz_allowed}
         return await self._quiz_repo.update_by_id_and_tenant(
@@ -229,25 +229,25 @@ class ContentService:
         override_id: str | None = None,
     ) -> str:
         body_dict = body.model_dump(by_alias=True, exclude_unset=True)
-        doc: dict[str, Any] = {
-            "_id": override_id or str(uuid.uuid4()),
-            "type": body.type,
-            "language": body.language,
-            "title": body_dict.get("title") or "",
-            "localTitle": body_dict.get("localTitle") or "",
-            "theme": body_dict.get("theme") or "",
-            "localTheme": body_dict.get("localTheme") or "",
-            "positiveMarks": body.positiveMarks or 1.0,
-            "negativeMarks": body.negativeMarks or 0.0,
-            "questions": body.questions or [],
-            "options": body.options or [],
-            "correctAnswers": body.correctAnswers or [],
-            "tenantId": tenant_id,
-            "createdBy": user_id,
-            "creation_time": int(time.time()),
-            "schoolId": school_id,
-            "isDeleted": False,
-        }
+        dto = QuizCreate(
+            tenant_id=tenant_id,
+            type=body.type,
+            language=body.language,
+            created_by=user_id,
+            school_id=school_id,
+            title=body_dict.get("title") or "",
+            local_title=body_dict.get("localTitle") or "",
+            theme=body_dict.get("theme") or "",
+            local_theme=body_dict.get("localTheme") or "",
+            positive_marks=body.positive_marks or 1.0,
+            negative_marks=body.negative_marks or 0.0,
+            questions=body.questions or [],
+            options=body.options or [],
+            correct_answers=body.correct_answers or [],
+            creation_time=int(time.time()),
+        )
+        doc: dict[str, Any] = dto.model_dump()
+        doc["_id"] = override_id or str(uuid.uuid4())
         return await self._quiz_repo.insert(doc)
 
     # ------------------------------------------------------------------

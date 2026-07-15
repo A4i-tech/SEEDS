@@ -216,7 +216,7 @@ class TestUsersControllerDeep:
         token = _school_admin_token(teacher["_id"])
         resp = await client.post("/student", json={
             "name": "Test Student",
-            "phoneNumber": "+919999999998",
+            "phone_number": "+919999999998",
         }, headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code in (200, 201, 409, 422)
 
@@ -228,13 +228,13 @@ class TestUsersControllerDeep:
         # Create first
         await client.post("/student", json={
             "name": "Student A",
-            "phoneNumber": "+919999999997",
+            "phone_number": "+919999999997",
         }, headers={"Authorization": f"Bearer {token}"})
 
         # Try to create duplicate
         resp2 = await client.post("/student", json={
             "name": "Student B",
-            "phoneNumber": "+919999999997",
+            "phone_number": "+919999999997",
         }, headers={"Authorization": f"Bearer {token}"})
         # Second should fail with conflict
         assert resp2.status_code in (200, 201, 409, 422)

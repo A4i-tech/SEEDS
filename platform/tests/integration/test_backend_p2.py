@@ -134,11 +134,11 @@ async def test_create_content_triggers_job(client, mock_db):
 
     assert resp.status_code == 201, f"Expected 201, got {resp.status_code}: {resp.text}"
     body = resp.json()
-    assert "jobId" in body, "Response must include jobId"
+    assert "job_id" in body, "Response must include job_id"
     assert body.get("message") == "Processing New Content job scheduled!"
 
     # Verify job record created in DB
-    job_doc = await mock_db["content_jobs"].find_one({"_id": body["jobId"]})
+    job_doc = await mock_db["content_jobs"].find_one({"_id": body["job_id"]})
     assert job_doc is not None, "Job document must exist in content_jobs collection"
     assert job_doc["status"] == "pending"
 
@@ -155,14 +155,14 @@ async def test_content_tenant_scoped(client, mock_db):
     content_id = str(uuid.uuid4())
     await mock_db["contentsV3"].insert_one({
         "_id": content_id,
-        "tenantId": "tenant_b",
+        "tenant_id": "tenant_b",
         "type": "Story",
         "language": "english",
         "title": {"english": "B Story"},
         "theme": {"english": "Animals"},
-        "audioContent": [],
-        "isPullModel": False,
-        "isDeleted": False,
+        "audio_content": [],
+        "is_pull_model": False,
+        "is_deleted": False,
         "creation_time": 1000,
     })
 
@@ -173,7 +173,7 @@ async def test_content_tenant_scoped(client, mock_db):
         headers={"Authorization": f"Bearer {token_a}"},
     )
     # Should return 404 (not found in tenant scope) which is the expected behavior
-    # since tenant scoping filters by tenantId = "tenant_a" but the doc has "tenant_b"
+    # since tenant scoping filters by tenant_id = "tenant_a" but the doc has "tenant_b"
     assert resp.status_code == 404, (
         f"Expected 404 (tenant isolation), got {resp.status_code}: {resp.text}"
     )
@@ -214,14 +214,14 @@ async def test_content_job_consumer_process_audio(mock_db):
     # Seed a content document
     await mock_db["contentsV3"].insert_one({
         "_id": content_id,
-        "tenantId": "tenant001",
+        "tenant_id": "tenant001",
         "type": "Story",
         "language": "kannada",
         "title": {"english": "Test", "local": "ಪರೀಕ್ಷೆ"},
         "theme": {"english": "Animals", "local": "ಪ್ರಾಣಿಗಳು"},
-        "audioContent": [{"audioUrl": "https://myaccount.blob.core.windows.net/input-container/test.mp3"}],
-        "isPullModel": False,
-        "isDeleted": False,
+        "audio_content": [{"audio_url": "https://myaccount.blob.core.windows.net/input-container/test.mp3"}],
+        "is_pull_model": False,
+        "is_deleted": False,
         "creation_time": 1000,
     })
 
@@ -287,14 +287,14 @@ async def test_content_job_dead_letter_on_failure(mock_db):
     # Seed content with a bad audio URL (not a valid blob URL)
     await mock_db["contentsV3"].insert_one({
         "_id": content_id,
-        "tenantId": "tenant001",
+        "tenant_id": "tenant001",
         "type": "Story",
         "language": "english",
         "title": {"english": "Broken"},
         "theme": {"english": "Errors"},
-        "audioContent": [{"audioUrl": "https://myaccount.blob.core.windows.net/input-container/corrupt.mp3"}],
-        "isPullModel": False,
-        "isDeleted": False,
+        "audio_content": [{"audio_url": "https://myaccount.blob.core.windows.net/input-container/corrupt.mp3"}],
+        "is_pull_model": False,
+        "is_deleted": False,
         "creation_time": 1000,
     })
 

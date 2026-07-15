@@ -14,10 +14,10 @@ class ContentCreateRequest(BaseModel):
     language: str
     title: dict[str, Any] | None = None
     theme: dict[str, Any] | None = None
-    audioContent: list[Any] | None = None
+    audio_content: list[Any] | None = Field(default=None, alias="audioContent")
     description: str | None = None
-    isPullModel: bool | None = None
-    isTeacherApp: bool | None = None
+    is_pull_model: bool | None = Field(default=None, alias="isPullModel")
+    is_teacher_app: bool | None = Field(default=None, alias="isTeacherApp")
 
 
 class ContentUpdateRequest(BaseModel):
@@ -29,9 +29,9 @@ class ContentUpdateRequest(BaseModel):
     description: str | None = None
     type: str | None = None
     language: str | None = None
-    audioContent: list[Any] | None
-    isPullModel: bool | None
-    isTeacherApp: bool | None
+    audio_content: list[Any] | None = Field(default=None, alias="audioContent")
+    is_pull_model: bool | None = Field(default=None, alias="isPullModel")
+    is_teacher_app: bool | None = Field(default=None, alias="isTeacherApp")
 
 
 class QuizCreateRequest(BaseModel):
@@ -41,55 +41,57 @@ class QuizCreateRequest(BaseModel):
     language: str
     title: dict[str, Any] | None = None
     theme: dict[str, Any] | None = None
-    audioContent: list[Any] | None = None
+    audio_content: list[Any] | None = Field(default=None, alias="audioContent")
     description: str | None = None
-    isPullModel: bool | None = None
-    isTeacherApp: bool | None = None
-    localTitle: str | None = None
-    localTheme: str | None = None
-    positiveMarks: float | None = None
-    negativeMarks: float | None = None
+    is_pull_model: bool | None = Field(default=None, alias="isPullModel")
+    is_teacher_app: bool | None = Field(default=None, alias="isTeacherApp")
+    local_title: str | None = Field(default=None, alias="localTitle")
+    local_theme: str | None = Field(default=None, alias="localTheme")
+    positive_marks: float | None = Field(default=None, alias="positiveMarks")
+    negative_marks: float | None = Field(default=None, alias="negativeMarks")
     questions: list[Any] | None = None
     options: list[Any] | None = None
-    correctAnswers: list[Any] | None = None
+    correct_answers: list[Any] | None = Field(default=None, alias="correctAnswers")
 
 
 class ContentCreate(BaseModel):
-    """CamelCase DB document DTO for content creation — model_dump() writes correct DB keys."""
+    """Snake_case DB document DTO for content creation — model_dump() writes correct DB keys
+    matching the Content domain model (app/models/content.py)."""
 
-    tenantId: str
+    tenant_id: str
     type: str
     language: str
-    createdBy: str = ""
-    schoolId: str | None = None
+    created_by: str = ""
+    school_id: str | None = None
     title: dict[str, Any] | None = None
     theme: dict[str, Any] | None = None
-    audioContent: list[Any] = Field(default_factory=list)
+    audio_content: list[Any] = Field(default_factory=list)
     description: str = ""
-    isPullModel: bool = False
-    isTeacherApp: bool = False
-    isDeleted: bool = False
-    isProcessed: bool = False
-    creation_time: int = -1  # DB stores this field as snake_case
+    is_pull_model: bool = False
+    is_teacher_app: bool = False
+    is_deleted: bool = False
+    is_processed: bool = False
+    creation_time: int = -1
     version: str = "v3"
 
 
 class QuizCreate(BaseModel):
-    """CamelCase DB document DTO for quiz creation — model_dump() writes correct DB keys."""
+    """Snake_case DB document DTO for quiz creation — model_dump() writes correct DB keys
+    matching the Quiz domain model."""
 
-    tenantId: str
+    tenant_id: str
     type: str
     language: str
-    createdBy: str = ""
-    schoolId: str | None = None
+    created_by: str = ""
+    school_id: str | None = None
     title: str = ""
-    localTitle: str = ""
+    local_title: str = ""
     theme: str = ""
-    localTheme: str = ""
-    positiveMarks: float = 1.0
-    negativeMarks: float = 0.0
+    local_theme: str = ""
+    positive_marks: float = 1.0
+    negative_marks: float = 0.0
     questions: list[Any] = Field(default_factory=list)
     options: list[Any] = Field(default_factory=list)
-    correctAnswers: list[Any] = Field(default_factory=list)
-    isDeleted: bool = False
-    creation_time: int = -1  # DB stores this field as snake_case
+    correct_answers: list[Any] = Field(default_factory=list)
+    is_deleted: bool = False
+    creation_time: int = -1
