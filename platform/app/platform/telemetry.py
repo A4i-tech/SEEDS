@@ -72,12 +72,14 @@ def configure_telemetry(settings: Settings) -> None:
 
         PymongoInstrumentor().instrument()
         HTTPXClientInstrumentor().instrument()
+
+        _metrics = _build_metrics()
+        logger.info("Azure Monitor telemetry configured successfully")
     else:
         logger.warning("APPLICATIONINSIGHTS_CONNECTION_STRING not set — telemetry disabled")
+        _metrics = _build_metrics()
 
-    _metrics = _build_metrics()
     _telemetry_configured = True
-    logger.info("Azure Monitor telemetry configured successfully")
 
 
 def get_counter(name: str) -> Any:
