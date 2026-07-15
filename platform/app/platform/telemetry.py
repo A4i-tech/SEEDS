@@ -49,28 +49,31 @@ def configure_telemetry(settings: Settings) -> None:
 
     Args:
         settings: Platform settings carrying the Application Insights
-            connection string. `Settings` itself guarantees this is
-            non-empty — Application Insights is mandatory for this service,
-            matching ConferenceV2/IVRv2, and there is no degraded/no-op mode.
+            connection string. Optional — if empty, telemetry is skipped
+            and metric getters return no-op instruments.
     """
     global _telemetry_configured, _metrics  # noqa: PLW0603
 
     if _telemetry_configured:
         return
 
-    configure_azure_monitor(
-        connection_string=settings.applicationinsights_connection_string,
-    )
+    if settings.applicationinsights_connection_string:
+        configure_azure_monitor(
+            connection_string=settings.applicationinsights_connection_string,
+            instrumentation_options={"fastapi": {"enabled": False}},
+        )
 
-    root_logger = logging.getLogger()
-    for handler in list(root_logger.handlers):
-        if isinstance(handler, _OTelLoggingHandler):
-            root_logger.removeHandler(handler)
+        root_logger = logging.getLogger()
+        for handler in list(root_logger.handlers):
+            if isinstance(handler, _OTelLoggingHandler):
+                root_logger.removeHandler(handler)
 
-    logging.getLogger("app").addHandler(AppInsightsEventHandler())
+        logging.getLogger("app").addHandler(AppInsightsEventHandler())
 
-    PymongoInstrumentor().instrument()
-    HTTPXClientInstrumentor().instrument()
+        PymongoInstrumentor().instrument()
+        HTTPXClientInstrumentor().instrument()
+    else:
+        logger.warning("APPLICATIONINSIGHTS_CONNECTION_STRING not set — telemetry disabled")
 
     _metrics = _build_metrics()
     _telemetry_configured = True

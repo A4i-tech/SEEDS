@@ -103,7 +103,7 @@ class Settings(BaseSettings):
     # ---------------------------------------------------------------------------
     # Application Insights / OpenTelemetry
     # ---------------------------------------------------------------------------
-    applicationinsights_connection_string: str = Field(repr=False)
+    applicationinsights_connection_string: str = Field(default="", repr=False)
 
     # ---------------------------------------------------------------------------
     # Redis
