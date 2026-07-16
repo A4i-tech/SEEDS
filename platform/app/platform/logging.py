@@ -103,8 +103,11 @@ class AppInsightsEventHandler(logging.Handler):
         else:
             extra_details = {}
         for key, value in extra_details.items():
-            details[key] = _mask_sensitive(value) if isinstance(value, str) else value
-        track_event(record.name, details)
+            details[key] = _mask_sensitive(value)
+        try:
+            track_event(record.name, details)
+        except Exception:
+            self.handleError(record)
 
 
 # ---------------------------------------------------------------------------

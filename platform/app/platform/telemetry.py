@@ -19,7 +19,6 @@ from typing import TYPE_CHECKING, Any
 from azure.monitor.opentelemetry import configure_azure_monitor
 from opentelemetry import metrics as otel_metrics
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
-from opentelemetry.instrumentation.logging.handler import LoggingHandler as _OTelLoggingHandler
 from opentelemetry.instrumentation.pymongo import PymongoInstrumentor
 
 from app.platform.logging import AppInsightsEventHandler
@@ -61,12 +60,8 @@ def configure_telemetry(settings: Settings) -> None:
         configure_azure_monitor(
             connection_string=settings.applicationinsights_connection_string,
             instrumentation_options={"fastapi": {"enabled": False}},
+            disable_logging=True,
         )
-
-        root_logger = logging.getLogger()
-        for handler in list(root_logger.handlers):
-            if isinstance(handler, _OTelLoggingHandler):
-                root_logger.removeHandler(handler)
 
         logging.getLogger("app").addHandler(AppInsightsEventHandler())
 
