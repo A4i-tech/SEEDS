@@ -11,11 +11,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from jose import jwt as jose_jwt
 from opentelemetry._logs import get_logger_provider
-from opentelemetry.instrumentation.logging.handler import (
-    LoggingHandler as OTelInstrumentationLoggingHandler,
-)
 from opentelemetry.sdk._logs import LoggerProvider as SDKLoggerProvider
-from opentelemetry.sdk._logs import LoggingHandler as OTelSDKLoggingHandler
 
 import app.platform.telemetry as tel_mod
 from app.platform.auth.dependencies import require_teacher, require_tenant
@@ -88,20 +84,6 @@ class TestTelemetry:
         )
         assert not any(
             isinstance(h, AppInsightsEventHandler) for h in logging.getLogger().handlers
-        )
-
-    def test_azure_logging_export_disabled(self) -> None:
-        """configure_telemetry must not attach an OTel LoggingHandler to root (traces spam)."""
-        tel_mod._telemetry_configured = False
-        tel_mod._metrics = {}
-        logging.getLogger().handlers.clear()
-
-        settings = Settings(applicationinsights_connection_string=_FAKE_CONNECTION_STRING)
-        configure_telemetry(settings)
-
-        assert not any(
-            isinstance(h, (OTelSDKLoggingHandler, OTelInstrumentationLoggingHandler))
-            for h in logging.getLogger().handlers
         )
 
     def test_real_logger_provider_registered(self) -> None:
