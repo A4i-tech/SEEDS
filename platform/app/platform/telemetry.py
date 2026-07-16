@@ -16,6 +16,13 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+from azure.monitor.opentelemetry import configure_azure_monitor
+from opentelemetry import metrics as otel_metrics
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from opentelemetry.instrumentation.pymongo import PymongoInstrumentor
+
+from app.platform.logging import AppInsightsEventHandler
+
 if TYPE_CHECKING:
     from app.platform.settings import Settings
 
@@ -30,96 +37,71 @@ _metrics: dict[str, Any] = {}
 
 
 # ---------------------------------------------------------------------------
-# No-op instruments (used when telemetry is disabled)
-# ---------------------------------------------------------------------------
-
-
-class _NoopCounter:
-    def add(self, amount: float, attributes: dict | None = None) -> None:
-        pass
-
-
-class _NoopHistogram:
-    def record(self, amount: float, attributes: dict | None = None) -> None:
-        pass
-
-
-class _NoopUpDownCounter:
-    def add(self, amount: float, attributes: dict | None = None) -> None:
-        pass
-
-
-# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
 
 def configure_telemetry(settings: Settings) -> None:
-    """
-    Configure Azure Monitor telemetry and register custom metrics.
+    """Configure Azure Monitor telemetry and register custom metrics.
 
     This function is idempotent — subsequent calls are no-ops.
 
-    If *settings.applicationinsights_connection_string* is empty/None the
-    function registers no-op instruments so callers never have to branch.
+    Args:
+        settings: Platform settings carrying the Application Insights
+            connection string. Optional — if empty, telemetry is skipped
+            and metric getters return no-op instruments.
     """
     global _telemetry_configured, _metrics  # noqa: PLW0603
 
     if _telemetry_configured:
         return
 
-    conn_str: str = settings.applicationinsights_connection_string or ""
-
-    if conn_str:
-        try:
-            from azure.monitor.opentelemetry import configure_azure_monitor  # noqa: PLC0415
-            from opentelemetry.instrumentation.fastapi import (  # noqa: PLC0415
-                FastAPIInstrumentor,
-            )
-            from opentelemetry.instrumentation.httpx import (  # noqa: PLC0415
-                HTTPXClientInstrumentor,
-            )
-            from opentelemetry.instrumentation.logging import (  # noqa: PLC0415
-                LoggingInstrumentor,
-            )
-            from opentelemetry.instrumentation.pymongo import (  # noqa: PLC0415
-                PymongoInstrumentor,
-            )
-
-            configure_azure_monitor(connection_string=conn_str)
-
-            FastAPIInstrumentor().instrument()
-            PymongoInstrumentor().instrument()
-            HTTPXClientInstrumentor().instrument()
-            LoggingInstrumentor().instrument()
-
-            _metrics = _build_real_metrics()
-            _telemetry_configured = True
-            logger.info("Azure Monitor telemetry configured successfully")
-        except Exception as exc:  # noqa: BLE001
-            logger.error("Failed to configure Azure Monitor telemetry: %s", exc)
-            # Leave _telemetry_configured=False so it can be retried
-    else:
-        logger.warning(
-            "Application Insights connection string not set — telemetry disabled (no-op instruments registered)"
+    if settings.applicationinsights_connection_string:
+        configure_azure_monitor(
+            connection_string=settings.applicationinsights_connection_string,
+            instrumentation_options={"fastapi": {"enabled": False}},
+            disable_logging=True,
         )
-        _metrics = _build_noop_metrics()
-        _telemetry_configured = True
+
+        logging.getLogger("app").addHandler(AppInsightsEventHandler())
+
+        PymongoInstrumentor().instrument()
+        HTTPXClientInstrumentor().instrument()
+
+        _metrics = _build_metrics()
+        logger.info("Azure Monitor telemetry configured successfully")
+    else:
+        logger.warning("APPLICATIONINSIGHTS_CONNECTION_STRING not set — telemetry disabled")
+        _metrics = _build_metrics()
+
+    _telemetry_configured = True
 
 
 def get_counter(name: str) -> Any:
-    """Return the named Counter, or a no-op Counter if telemetry is not active."""
-    return _metrics.get(name, _NoopCounter())
+    """Return the named Counter.
+
+    Args:
+        name: Registered counter name (see `_COUNTER_NAMES`).
+    """
+    return _metrics[name]
 
 
 def get_histogram(name: str) -> Any:
-    """Return the named Histogram, or a no-op Histogram if telemetry is not active."""
-    return _metrics.get(name, _NoopHistogram())
+    """Return the named Histogram.
+
+    Args:
+        name: Registered histogram name (see `_HISTOGRAM_NAMES_WITH_UNITS`).
+    """
+    return _metrics[name]
 
 
 def get_updown_counter(name: str) -> Any:
-    """Return the named UpDownCounter, or a no-op UpDownCounter if telemetry is not active."""
-    return _metrics.get(name, _NoopUpDownCounter())
+    """Return the named UpDownCounter.
+
+    Args:
+        name: Registered up-down-counter name (see `_UPDOWN_COUNTER_NAMES`).
+    """
+    return _metrics[name]
 
 
 # ---------------------------------------------------------------------------
@@ -127,22 +109,8 @@ def get_updown_counter(name: str) -> Any:
 # ---------------------------------------------------------------------------
 
 
-def _build_noop_metrics() -> dict[str, Any]:
-    """Return a dict of no-op metric instruments keyed by name."""
-    metrics: dict[str, Any] = {}
-    for name in _COUNTER_NAMES:
-        metrics[name] = _NoopCounter()
-    for name in _HISTOGRAM_NAMES:
-        metrics[name] = _NoopHistogram()
-    for name in _UPDOWN_COUNTER_NAMES:
-        metrics[name] = _NoopUpDownCounter()
-    return metrics
-
-
-def _build_real_metrics() -> dict[str, Any]:
-    """Create real OTel metric instruments backed by Azure Monitor."""
-    from opentelemetry import metrics as otel_metrics  # noqa: PLC0415
-
+def _build_metrics() -> dict[str, Any]:
+    """Create OTel metric instruments backed by Azure Monitor."""
     meter = otel_metrics.get_meter("seeds.platform")
     result: dict[str, Any] = {}
 
@@ -190,8 +158,6 @@ _HISTOGRAM_NAMES_WITH_UNITS: list[tuple[str, str]] = [
     ("blob.download.duration_ms", "ms"),
     ("job.processing.duration_ms", "ms"),
 ]
-
-_HISTOGRAM_NAMES: list[str] = [name for name, _ in _HISTOGRAM_NAMES_WITH_UNITS]
 
 _UPDOWN_COUNTER_NAMES: list[str] = [
     "conferences.active",

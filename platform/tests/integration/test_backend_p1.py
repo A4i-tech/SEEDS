@@ -39,6 +39,13 @@ from app.platform.auth.dependencies import get_db
 from app.platform.auth.hashing import hash_password
 from app.platform.auth.jwt import create_access_token
 
+
+def test_app_is_instrumented_with_opentelemetry() -> None:
+    """app.main.app must be instrumented via FastAPIInstrumentor (sets http.route on spans),
+    matching IVRv2/ConferenceV2."""
+    assert getattr(app, "_is_instrumented_by_opentelemetry", False) is True
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

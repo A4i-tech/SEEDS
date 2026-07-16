@@ -2,17 +2,10 @@ name: Coverage Summary
 
 on:
   workflow_call:
-  workflow_dispatch:
-  workflow_run:
-    workflows:
-      - CI
-    types:
-      - completed
 
 jobs:
   aggregate-coverage:
     runs-on: ubuntu-latest
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     outputs:
       overall_coverage: ${{ steps.aggregate.outputs.overall_coverage }}
       services_tested: ${{ steps.aggregate.outputs.services_tested }}
@@ -26,26 +19,15 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download coverage artifacts
-        uses: dawidd6/action-download-artifact@v3
-        continue-on-error: true
+        uses: actions/download-artifact@v4
         with:
-          workflow: ci.yml
-          workflow_conclusion: success
+          pattern: "*-coverage"
           path: coverage-artifacts
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          run_id: ${{ github.event.workflow_run.id }}
-          if_no_artifact_found: warn
 
       - name: List downloaded artifacts
         run: |
           echo "Checking for coverage artifacts..."
-          if [ -d "coverage-artifacts" ]; then
-            echo "Artifacts directory exists. Contents:"
-            ls -la coverage-artifacts/ || echo "No artifacts found"
-          else
-            echo "⚠️ No coverage artifacts directory found"
-            echo "This is expected if running manually without previous workflow runs"
-          fi
+          ls -la coverage-artifacts/
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

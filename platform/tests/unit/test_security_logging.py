@@ -17,6 +17,8 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
+from app.platform import logging as logging_mod
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -293,3 +295,53 @@ def test_configure_logging_sets_json_handler() -> None:
     root = logging.getLogger()
     assert any(isinstance(h.formatter, _JsonFormatter) for h in root.handlers)
     assert root.level == logging.DEBUG
+
+
+def test_app_insights_event_handler_calls_track_event(monkeypatch) -> None:
+    """AppInsightsEventHandler.emit() must forward records to track_event as customEvents."""
+    calls = []
+    monkeypatch.setattr(
+        logging_mod, "track_event", lambda name, details: calls.append((name, details))
+    )
+
+    handler_logger = logging.getLogger("test.app_insights_event")
+    handler_logger.handlers.clear()
+    handler_logger.addHandler(logging_mod.AppInsightsEventHandler())
+    handler_logger.propagate = False
+
+    handler_logger.info(
+        "user_login",
+        extra={logging_mod.AppInsightsEventHandler.DETAILS: {"user_id": "123"}},
+    )
+
+    assert len(calls) == 1
+    name, details = calls[0]
+    assert name == "test.app_insights_event"
+    assert details["log_message"] == "user_login"
+    assert details["user_id"] == "123"
+
+
+def test_app_insights_event_handler_masks_sensitive_data(monkeypatch) -> None:
+    """AppInsightsEventHandler.emit() must mask sensitive data before forwarding to track_event."""
+    calls = []
+    monkeypatch.setattr(
+        logging_mod, "track_event", lambda name, details: calls.append((name, details))
+    )
+
+    handler_logger = logging.getLogger("test.app_insights_masking")
+    handler_logger.handlers.clear()
+    handler_logger.addHandler(logging_mod.AppInsightsEventHandler())
+    handler_logger.propagate = False
+
+    handler_logger.info(
+        "Calling +919876543210 now",
+        extra={logging_mod.AppInsightsEventHandler.DETAILS: {"phone": "+919876543210"}},
+    )
+
+    assert len(calls) == 1
+    name, details = calls[0]
+    assert name == "test.app_insights_masking"
+    assert "+919876543210" not in details["log_message"]
+    assert "***PHONE***" in details["log_message"]
+    assert "+919876543210" not in details["phone"]
+    assert "***PHONE***" in details["phone"]

@@ -10,6 +10,7 @@ APP_MODE controls what is mounted:
 from __future__ import annotations
 
 from fastapi import FastAPI
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 from app.platform.error_handling import register_error_handlers
 from app.platform.health import health_router
@@ -37,6 +38,8 @@ app = FastAPI(
     redoc_url=None if settings.env == "production" else "/redoc",
     openapi_url=None if settings.env == "production" else "/openapi.json",
 )
+
+FastAPIInstrumentor.instrument_app(app)
 
 # ---------------------------------------------------------------------------
 # Middleware (order matters – FastAPI reverses add_middleware calls, so the

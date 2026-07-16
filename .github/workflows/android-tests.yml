@@ -32,14 +32,12 @@ jobs:
         run: ./gradlew testDebugUnitTest
 
       - name: Upload test report
-        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: unit-test-report
           path: Teacher-App/app/build/reports/tests/testDebugUnitTest/
 
   instrumented-tests:
-    needs: unit-tests
     name: Instrumented Tests
     runs-on: ubuntu-latest
 
@@ -74,7 +72,6 @@ jobs:
           script: ./gradlew connectedDebugAndroidTest
 
       - name: Upload test report
-        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: instrumented-test-report
