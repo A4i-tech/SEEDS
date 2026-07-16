@@ -9,16 +9,13 @@ inputs:
     required: true
   theme-color:
     description: Hex color used to highlight the notification.
-    required: false
-    default: '0076D7'
+    required: true
   custom-sections:
     description: "JSON string for custom Adaptive Card body sections."
-    required: false
-    default: '[]'
+    required: true
   facts:
     description: "JSON array of facts."
-    required: false
-    default: '[]'
+    required: true
   teams-webhook-url:
     description: Incoming Microsoft Teams webhook URL.
     required: true

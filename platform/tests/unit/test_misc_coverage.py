@@ -9,6 +9,22 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+import app.platform.telemetry as tel_mod
+from app.platform.settings import Settings
+from app.platform.telemetry import configure_telemetry, get_counter, get_histogram
+
+tel_mod._telemetry_configured = False
+tel_mod._metrics = {}
+with patch.object(tel_mod, "configure_azure_monitor"):
+    configure_telemetry(
+        Settings(
+            applicationinsights_connection_string=(
+                "InstrumentationKey=00000000-0000-0000-0000-000000000000;"
+                "IngestionEndpoint=https://fake.example.com/"
+            )
+        )
+    )
+
 # ---------------------------------------------------------------------------
 # Quiz model
 # ---------------------------------------------------------------------------
@@ -136,17 +152,13 @@ class TestJWTUtilities:
 
 class TestTelemetry:
     def test_get_counter_returns_something(self) -> None:
-        from app.platform.telemetry import get_counter
-
-        counter = get_counter("test.counter")
+        counter = get_counter("auth.failures")
         assert counter is not None
         # add should not raise
         counter.add(1, {"test": "attr"})
 
     def test_get_histogram_returns_something(self) -> None:
-        from app.platform.telemetry import get_histogram
-
-        hist = get_histogram("test.histogram")
+        hist = get_histogram("http.request.duration_ms")
         assert hist is not None
         hist.record(1.5)
 
