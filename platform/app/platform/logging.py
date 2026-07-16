@@ -19,6 +19,8 @@ import time
 import uuid
 from typing import TYPE_CHECKING
 
+from azure.monitor.events.extension import track_event
+
 if TYPE_CHECKING:
     pass
 
@@ -86,6 +88,26 @@ class _JsonFormatter(logging.Formatter):
             "tenant_id": tenant_id_ctx_var.get(""),
         }
         return json.dumps(payload, ensure_ascii=False)
+
+
+class AppInsightsEventHandler(logging.Handler):
+    DETAILS = "app_insights_event_details"
+
+    def emit(self, record: logging.LogRecord) -> None:
+        details = {
+            "level": record.levelname,
+            "log_message": _mask_sensitive(record.getMessage()),
+        }
+        if AppInsightsEventHandler.DETAILS in record.__dict__:
+            extra_details = record.__dict__[AppInsightsEventHandler.DETAILS]
+        else:
+            extra_details = {}
+        for key, value in extra_details.items():
+            details[key] = _mask_sensitive(value)
+        try:
+            track_event(record.name, details)
+        except Exception:
+            self.handleError(record)
 
 
 # ---------------------------------------------------------------------------

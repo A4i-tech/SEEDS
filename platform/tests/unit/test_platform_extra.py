@@ -4,10 +4,30 @@ Extra coverage for platform/database.py and school_controller endpoints.
 
 from __future__ import annotations
 
-import contextlib
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+import app.platform.telemetry as tel_mod
+from app.platform.settings import Settings
+from app.platform.telemetry import (
+    configure_telemetry,
+    get_counter,
+    get_histogram,
+    get_updown_counter,
+)
+
+tel_mod._telemetry_configured = False
+tel_mod._metrics = {}
+with patch.object(tel_mod, "configure_azure_monitor"):
+    configure_telemetry(
+        Settings(
+            applicationinsights_connection_string=(
+                "InstrumentationKey=00000000-0000-0000-0000-000000000000;"
+                "IngestionEndpoint=https://fake.example.com/"
+            )
+        )
+    )
 
 # ---------------------------------------------------------------------------
 # database.py — pure function coverage
@@ -173,34 +193,19 @@ class TestTeacherDisconnectDeeper:
 
 class TestTelemetry:
     def test_telemetry_module_importable(self) -> None:
-        import app.platform.telemetry as t
-        assert t is not None
+        assert tel_mod is not None
 
     def test_telemetry_has_configure(self) -> None:
-        from app.platform.telemetry import configure_telemetry
         assert callable(configure_telemetry)
 
     def test_get_counter(self) -> None:
-        from app.platform.telemetry import get_counter
-        result = get_counter("test.counter")
+        result = get_counter("auth.failures")
         assert result is not None
 
     def test_get_histogram(self) -> None:
-        from app.platform.telemetry import get_histogram
-        result = get_histogram("test.histogram")
+        result = get_histogram("http.request.duration_ms")
         assert result is not None
 
     def test_get_updown_counter(self) -> None:
-        from app.platform.telemetry import get_updown_counter
-        result = get_updown_counter("test.updown")
+        result = get_updown_counter("conferences.active")
         assert result is not None
-
-    def test_configure_telemetry_disabled(self) -> None:
-        from app.platform.telemetry import configure_telemetry
-
-        mock_settings = MagicMock()
-        mock_settings.azure_monitor_connection_string = ""
-        mock_settings.telemetry_sampling_ratio = 1.0
-
-        with contextlib.suppress(Exception):
-            configure_telemetry(mock_settings)
