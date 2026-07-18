@@ -157,7 +157,7 @@ const Register = () => {
       const response = await axios.post(`${SEEDS_URL}/tenant/register`, {
         email: formData.email,
         password: formData.password,
-        tenantName: formData.tenantName,
+        tenant_name: formData.tenantName,
       });
 
       if (response.status === 201) {

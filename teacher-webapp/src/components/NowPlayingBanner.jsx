@@ -5,16 +5,7 @@ import {
   VolumeUp as VolumeUpIcon,
   GraphicEq as GraphicEqIcon,
 } from "@mui/icons-material";
-
-/**
- * Formats seconds as M:SS
- */
-function formatSeconds(totalSeconds) {
-  if (totalSeconds == null || !isFinite(totalSeconds)) return "0:00";
-  const mins = Math.floor(totalSeconds / 60);
-  const secs = Math.floor(totalSeconds % 60);
-  return `${mins}:${secs.toString().padStart(2, "0")}`;
-}
+import { formatSeconds } from "../utils/formatSeconds";
 
 /**
  * NowPlayingBanner - displays current streaming status in conference mode

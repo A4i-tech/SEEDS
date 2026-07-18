@@ -43,7 +43,7 @@ const ITEM_COLORS = [
  * it locally in a "Now Playing" footer via the AudioPlayer component.
  *
  * Inside conference (onPlay provided): clicking an item resolves its SAS URL
- * and passes a metadata object { url, title, durationStr, type } to onPlay
+ * and passes a metadata object { url, title, duration_seconds, type } to onPlay
  * so the caller can stream it into the active conference and display a
  * conference media player.
  */
@@ -58,7 +58,7 @@ const ContentDrawer = ({
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(null);
-  const [pagination, setPagination] = useState({ nextCursor: null, hasMore: false });
+  const [pagination, setPagination] = useState({ next_cursor: null, has_more: false });
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
 
@@ -87,16 +87,13 @@ const ContentDrawer = ({
         setLoading(true);
         setError(null);
       }
-      const response = await getContent({ limit: 15, cursor });
+      const page = await getContent({ limit: 15, cursor });
       if (cursor) {
-        setContent((prev) => [...prev, ...response.data]);
+        setContent((prev) => [...prev, ...page.items]);
       } else {
-        setContent(response.data);
+        setContent(page.items);
       }
-      setPagination({
-        nextCursor: response.pagination?.nextCursor || null,
-        hasMore: response.pagination?.hasMore || false,
-      });
+      setPagination({ next_cursor: page.next_cursor, has_more: page.has_more });
     } catch (err) {
       setError("Failed to load content. Please try again.");
       showToast.error("Failed to load content");
@@ -108,19 +105,15 @@ const ContentDrawer = ({
 
   const handleItemPlay = async (item) => {
     if (loadingItemId) return;
-    if (!onPlay && selectedItem?._id === item._id) return;
+    if (!onPlay && selectedItem?.id === item.id) return;
 
-    setLoadingItemId(item._id);
+    setLoadingItemId(item.id);
     setSelectedItem(item);
     setAudioUrl(null);
     setLoadingAudio(true);
     try {
-      const fullItem = await getContentById(item._id);
-      const audioSource =
-        fullItem.audioContent?.[0]?.audioUrl ||
-        fullItem.title?.audioUrl ||
-        fullItem.theme?.audioUrl ||
-        null;
+      const fullItem = await getContentById(item.id);
+      const audioSource = fullItem.primary_audio_url;
 
       if (!audioSource) {
         showToast.error("No audio available for this content");
@@ -128,17 +121,17 @@ const ContentDrawer = ({
       }
 
       const sasUrl = await getContentSasUrl(audioSource);
-      const title = item.title?.english || item.title?.local || "Untitled";
+      const title = item.display_title;
 
       // Track in content history
       try {
         saveContentToHistory({
-          id: item._id,
+          id: item.id,
           name: title,
           type: item.type,
           language: item.language,
           url: sasUrl,
-        }, { wasConference: conferenceActive });
+        }, { was_conference: conferenceActive });
       } catch (_) {
         // Non-critical
       }
@@ -147,7 +140,7 @@ const ContentDrawer = ({
         onPlay({
           url: sasUrl,
           title,
-          durationStr: item.duration || fullItem.duration || null,
+          duration_seconds: fullItem.duration_seconds,
           type: item.type,
         });
         onClose();
@@ -183,8 +176,8 @@ const ContentDrawer = ({
     const query = searchQuery.toLowerCase();
     const matchesSearch =
       !query ||
-      item.title?.english?.toLowerCase().includes(query) ||
-      item.title?.local?.toLowerCase().includes(query);
+      item.title.english?.toLowerCase().includes(query) ||
+      item.title.local?.toLowerCase().includes(query);
     return matchesTab && matchesSearch;
   });
 
@@ -275,10 +268,10 @@ const ContentDrawer = ({
 
         {filteredContent.map((item, index) => (
           <ContentListItem
-            key={item._id || index}
+            key={item.id}
             item={item}
             index={index}
-            isLoading={loadingItemId === item._id}
+            isLoading={loadingItemId === item.id}
             conferenceActive={conferenceActive}
             onPlay={handleItemPlay}
             color={getItemColor(index)}
@@ -286,12 +279,12 @@ const ContentDrawer = ({
         ))}
 
         {/* Load more */}
-        {pagination.hasMore && (
+        {pagination.has_more && (
           <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
             <Button
               variant="outlined"
               size="small"
-              onClick={() => fetchContent(pagination.nextCursor)}
+              onClick={() => fetchContent(pagination.next_cursor)}
               disabled={loadingMore}
               startIcon={loadingMore ? <CircularProgress size={14} /> : null}
             >

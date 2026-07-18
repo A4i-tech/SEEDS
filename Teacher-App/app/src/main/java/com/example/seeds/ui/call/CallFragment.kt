@@ -66,9 +66,7 @@ class CallFragment : BaseFragment() {
                 viewModel,
                 emptyList(), 
                 StudentCallStatusAdapter.OnClickListener { student ->
-                    student.phoneNumber?.let { phoneNumber ->
-                        removeUser(phoneNumber)
-                    }
+                    removeUser(student.phoneNumber)
                 }
             )
         }
@@ -88,9 +86,7 @@ class CallFragment : BaseFragment() {
                 viewModel,
                 fixedStudents, 
                 StudentCallStatusAdapter.OnClickListener { student ->
-                    student.phoneNumber?.let { phoneNumber ->
-                        removeUser(phoneNumber)
-                    }
+                    removeUser(student.phoneNumber)
                 }
             )
             binding.myStudentsList.adapter = studentAdapter

@@ -124,14 +124,12 @@ const ClassroomList = () => {
   };
 
   const handleSessionClick = (sessionItem) => {
-    // Find classroom by ID or name and navigate to it
-    const matchingClassroom = classrooms.find(
-      (c) => c._id === sessionItem.groupId || c.name === sessionItem.groupName
-    );
+    // Find classroom by ID and navigate to it
+    const matchingClassroom = classrooms.find((c) => c.id === sessionItem.group_id);
     if (matchingClassroom) {
-      navigate(ROUTES.CLASSROOM_DETAIL(matchingClassroom._id));
+      navigate(ROUTES.CLASSROOM_DETAIL(matchingClassroom.id));
     } else {
-      showToast.info(`Classroom "${sessionItem.groupName}" not found`);
+      showToast.info(`Classroom "${sessionItem.group_name}" not found`);
     }
   };
 
@@ -207,7 +205,7 @@ const ClassroomList = () => {
             <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
               {recentSessions.map((sessionItem) => (
                 <Box
-                  key={`${sessionItem.groupId}-${sessionItem.timestamp}`}
+                  key={`${sessionItem.group_id}-${sessionItem.timestamp}`}
                   sx={{
                     display: "flex",
                     alignItems: "center",
@@ -225,22 +223,18 @@ const ClassroomList = () => {
                 >
                   <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Typography variant="body1" fontWeight={500}>
-                      {sessionItem.groupName}
+                      {sessionItem.group_name}
                     </Typography>
                     <Box sx={{ display: "flex", gap: 1, mt: 0.5, flexWrap: "wrap" }}>
                       <Typography variant="caption" color="text.secondary">
                         {formatTimestamp(sessionItem.timestamp)}
                       </Typography>
-                      {sessionItem.studentCount !== null && sessionItem.studentCount !== undefined && (
-                        <>
-                          <Typography variant="caption" color="text.secondary">
-                            •
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {sessionItem.studentCount} student{sessionItem.studentCount !== 1 ? "s" : ""}
-                          </Typography>
-                        </>
-                      )}
+                      <Typography variant="caption" color="text.secondary">
+                        •
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {sessionItem.student_count} student{sessionItem.student_count !== 1 ? "s" : ""}
+                      </Typography>
                     </Box>
                   </Box>
                   <IconButton
@@ -310,13 +304,13 @@ const ClassroomList = () => {
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                       <PeopleIcon sx={{ fontSize: 20, color: "text.secondary" }} />
                       <Typography variant="body2" color="text.secondary">
-                        {classroom.students?.length || 0} Students
+                        {classroom.students.length} Students
                       </Typography>
                     </Box>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                       <SchoolIcon sx={{ fontSize: 20, color: "text.secondary" }} />
                       <Typography variant="body2" color="text.secondary">
-                        {classroom.leaders?.length || 0} Leaders
+                        {classroom.leaders.length} Leaders
                       </Typography>
                     </Box>
                   </Box>

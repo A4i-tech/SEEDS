@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import validator from "validator";
 import { setAuth, getTokenPayload } from "../utils/authHelpers";
+import { resetUserCache } from "../hooks/useAuth";
 
 const baseURL = process.env.REACT_APP_API_BASE_URL;
 
@@ -113,25 +114,10 @@ const Login = () => {
     setFormData((prev) => ({ ...prev, [field]: event.target.value }));
   };
 
-  const loginAsTenant = async (email, password) => {
-    const { data } = await axios.post(`${baseURL}/tenant/login`, { email, password });
+  const login = async (identifier, password) => {
+    const { data } = await axios.post(`${baseURL}/auth/login`, { identifier, password });
     localStorage.setItem("authToken", data.token);
-    const { name } = getTokenPayload();
-    setAuth(data.token, "tenant");
-    navigate("/content", { state: { name } });
-  };
-
-  const loginAsSchoolAdmin = async (email, password) => {
-    const { data } = await axios.post(`${baseURL}/school/admin/login`, { email, password });
-    localStorage.setItem("authToken", data.token);
-    const { schoolId, name } = getTokenPayload();
-    setAuth(data.token, "school_admin", schoolId);
-    navigate("/content", { state: { name } });
-  };
-
-  const loginAsTeacher = async (phoneNumber, password) => {
-    const { data } = await axios.post(`${baseURL}/teacher/login`, { phoneNumber, password });
-    localStorage.setItem("authToken", data.token);
+    resetUserCache();
     const { role, schoolId, name } = getTokenPayload();
     setAuth(data.token, role, schoolId);
     navigate("/content", { state: { name } });
@@ -159,19 +145,7 @@ const Login = () => {
 
     try {
       setIsSubmitting(true);
-
-      if (looksLikeEmail) {
-        try {
-          await loginAsTenant(identifier, password);
-          return;
-        } catch (error) {
-          if (error?.response?.status !== 401) throw error;
-        }
-        await loginAsSchoolAdmin(identifier, password);
-        return;
-      }
-
-      await loginAsTeacher(identifier, password);
+      await login(identifier, password);
     } catch (error) {
       console.error("Login error:", error);
       if (error?.response?.status === 401) {

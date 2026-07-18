@@ -1,6 +1,7 @@
 import { SEEDS_URL } from "../Constants";
 import { getAuthHeaders } from "../utils/authHelpers";
 import { apiFetch, buildQueryString } from "./api";
+import { ContentDto, ContentPageDto } from "../dto/ContentDto";
 
 export const contentService = {
   /**
@@ -25,18 +26,7 @@ export const contentService = {
       signal,
     });
 
-    // Normalize data: ensure all items have "id" field
-    const normalizedData = response.data.map((item) => {
-      if (!item.id && item._id) {
-        return { ...item, id: item._id };
-      }
-      return item;
-    });
-
-    return {
-      data: normalizedData,
-      pagination: response.pagination,
-    };
+    return ContentPageDto.fromApi(response);
   },
 
   /**
@@ -108,15 +98,7 @@ export const contentService = {
       headers: getAuthHeaders(),
     });
 
-    // Normalize data: ensure all items have "id" field
-    const normalizedData = (response.data || response || []).map((item) => {
-      if (!item.id && item._id) {
-        return { ...item, id: item._id };
-      }
-      return item;
-    });
-
-    return normalizedData;
+    return ContentDto.listFromApi(response.data);
   },
 
   /**
@@ -125,21 +107,13 @@ export const contentService = {
    * @returns {Promise<Object>}
    */
   async getContentById(id) {
-    if (!id || !String(id).trim()) {
-      throw new Error("Content ID is required");
-    }
-
-    const contentId = encodeURIComponent(String(id).trim());
-    const url = `${SEEDS_URL}/content/${contentId}`;
+    const url = `${SEEDS_URL}/content/${encodeURIComponent(id)}`;
 
     const response = await apiFetch(url, {
       method: "GET",
       headers: getAuthHeaders(),
     });
 
-    if (response && !response.id && response._id) {
-      return { ...response, id: response._id };
-    }
-    return response;
+    return ContentDto.fromApi(response);
   },
 };

@@ -1,5 +1,7 @@
 import { SEEDS_URL } from "../Constants";
 import { apiFetch } from "./api";
+import { SchoolTeacherDto, TeacherDto } from "../dto/TeacherDto";
+import { StudentDto } from "../dto/StudentDto";
 
 export const teacherService = {
   async getTeachers(headers = {}, signal = null) {
@@ -9,44 +11,48 @@ export const teacherService = {
       signal,
     });
 
-    return response.data || response || [];
+    return SchoolTeacherDto.listFromApi(response);
   },
 
   async registerTeacher(phoneNumber, password, name, role, headers = {}) {
-    return await apiFetch(`${SEEDS_URL}/teacher/register`, {
+    const response = await apiFetch(`${SEEDS_URL}/teacher/register`, {
       method: "POST",
       headers,
       body: JSON.stringify({
-        phoneNumber,
+        phone_number: phoneNumber,
         password,
         name,
         role,
       }),
     });
+    return TeacherDto.fromApi(response);
   },
 
   async getStudents(headers = {}, signal = null) {
-    return apiFetch(`${SEEDS_URL}/student`, {
+    const response = await apiFetch(`${SEEDS_URL}/student`, {
       method: "GET",
       headers,
       signal,
     });
+    return StudentDto.listFromApi(response);
   },
 
   async createStudent(name, phoneNumber, headers = {}) {
-    return apiFetch(`${SEEDS_URL}/student`, {
+    const response = await apiFetch(`${SEEDS_URL}/student`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ name, phoneNumber }),
+      body: JSON.stringify({ name, phone_number: phoneNumber }),
     });
+    return StudentDto.fromApi(response);
   },
 
   async updateStudentById(studentId, name, phoneNumber, headers = {}) {
-    return apiFetch(`${SEEDS_URL}/student/${studentId}`, {
+    const response = await apiFetch(`${SEEDS_URL}/student/${studentId}`, {
       method: "PATCH",
       headers,
-      body: JSON.stringify({ name, phoneNumber }),
+      body: JSON.stringify({ name, phone_number: phoneNumber }),
     });
+    return StudentDto.fromApi(response);
   },
 
   async deleteStudentById(studentId, headers = {}) {
@@ -59,18 +65,19 @@ export const teacherService = {
   async updateTeacher(teacherId, name, phoneNumber, password, headers = {}) {
     const body = {
       name: (name || "").trim(),
-      phoneNumber: (phoneNumber || "").trim(),
+      phone_number: (phoneNumber || "").trim(),
     };
 
     if (password) {
       body.password = password;
     }
 
-    return await apiFetch(`${SEEDS_URL}/teacher/${teacherId}`, {
+    const response = await apiFetch(`${SEEDS_URL}/teacher/${teacherId}`, {
       method: "PATCH",
       headers,
       body: JSON.stringify(body),
     });
+    return TeacherDto.fromApi(response);
   },
 
   async deleteTeacher(teacherId, headers = {}) {
@@ -81,10 +88,11 @@ export const teacherService = {
   },
 
   async transferTeacher(teacherId, targetSchoolId, headers = {}) {
-    return await apiFetch(`${SEEDS_URL}/school/transfer`, {
+    const response = await apiFetch(`${SEEDS_URL}/school/transfer`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ teacherId, targetSchoolId }),
+      body: JSON.stringify({ teacher_id: teacherId, target_school_id: targetSchoolId }),
     });
+    return { message: response.message, teacher: TeacherDto.fromApi(response.teacher) };
   },
 };

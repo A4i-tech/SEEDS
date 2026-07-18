@@ -12,7 +12,7 @@ const SchoolDashboardStats = ({ dashboard }) => {
 
   return (
     <div className="stats-container">
-      <h3 className="stats-title">{school?.name || "School"} Overview</h3>
+      <h3 className="stats-title">{school.name} Overview</h3>
       <div className="stat-cards">
         {statCards.map((stat) => (
           <div key={stat.label} className="stat-card" style={{ borderLeftColor: stat.color }}>

@@ -65,11 +65,11 @@ const ContentDetails = () => {
 
   const contentType = content.type.toLowerCase();
   const isQuiz = contentType === "quiz";
-  const isProcessed = content.isProcessed !== false && (isQuiz ? (content.questions?.length > 0) : true);
+  const isProcessed = isQuiz ? true : content.is_processed;
 
   if (!isProcessed && !isQuiz) {
-    const titleEnglish = content.title?.english ?? content.title;
-    const titleLocal = content.title?.local ?? content.localTitle;
+    const titleEnglish = content.title.english;
+    const titleLocal = content.title.local;
     return (
       <div className="content-details-message">
         <button onClick={() => navigate("/content")} className="primary-button">

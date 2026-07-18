@@ -9,7 +9,6 @@ export const useContent = () => {
   const [paginationInfo, setPaginationInfo] = useState({
     nextCursor: null,
     hasMore: false,
-    limit: 0,
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isFiltered, setIsFiltered] = useState(false);
@@ -18,13 +17,10 @@ export const useContent = () => {
    * Fetch content with optional cursor for pagination
    * Error handling is delegated to contentService
    */
-  const fetchContent = useCallback(
-    async (cursor = null, signal = null) => {
-      const { data, pagination } = await contentService.getContent(cursor, PAGE_SIZE, signal);
-      return { data, pagination };
-    },
-    [],
-  );
+  const fetchContent = useCallback(async (cursor = null, signal = null) => {
+    const page = await contentService.getContent(cursor, PAGE_SIZE, signal);
+    return { data: page.items, nextCursor: page.next_cursor, hasMore: page.has_more };
+  }, []);
 
   /**
    * Load initial content
@@ -33,14 +29,10 @@ export const useContent = () => {
     const loadInitialContent = async () => {
       setIsLoading(true);
       try {
-        const { data, pagination } = await fetchContent(null);
+        const { data, nextCursor, hasMore } = await fetchContent(null);
         setAllContent(data);
         setContent(data);
-        setPaginationInfo({
-          nextCursor: pagination?.nextCursor || null,
-          hasMore: !!pagination?.hasMore,
-          limit: pagination?.limit || 0,
-        });
+        setPaginationInfo({ nextCursor, hasMore });
         setIsFiltered(false);
       } catch (error) {
         if (error.name !== "AbortError") {
@@ -68,14 +60,10 @@ export const useContent = () => {
     const ac = new AbortController();
 
     try {
-      const { data, pagination } = await fetchContent(paginationInfo.nextCursor, ac.signal);
+      const { data, nextCursor, hasMore } = await fetchContent(paginationInfo.nextCursor, ac.signal);
 
       if (!data.length) {
-        setPaginationInfo((prev) => ({
-          nextCursor: null,
-          hasMore: false,
-          limit: prev.limit,
-        }));
+        setPaginationInfo({ nextCursor: null, hasMore: false });
         return;
       }
 
@@ -93,11 +81,7 @@ export const useContent = () => {
         return merged;
       });
 
-      setPaginationInfo({
-        nextCursor: pagination?.nextCursor || null,
-        hasMore: !!pagination?.hasMore,
-        limit: pagination?.limit || paginationInfo.limit,
-      });
+      setPaginationInfo({ nextCursor, hasMore });
     } catch (error) {
       if (error.name !== "AbortError") {
         console.error("Error loading more content:", error);

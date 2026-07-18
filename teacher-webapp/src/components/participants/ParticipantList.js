@@ -76,7 +76,7 @@ export const ParticipantList = ({
                 onRemove={onRemove}
                 isLoading={isLoading(teacher.phoneNumber)}
                 isReconnecting={isReconnecting(teacher.phoneNumber)}
-                isRemoving={isRemoving && isRemoving(teacher.phoneNumber)}
+                isRemoving={isRemoving(teacher.phoneNumber)}
                 canReconnect={canReconnect(teacher)}
               />
             </Box>
@@ -100,7 +100,7 @@ export const ParticipantList = ({
                   onRemove={onRemove}
                   isLoading={isLoading(student.phoneNumber)}
                   isReconnecting={isReconnecting(student.phoneNumber)}
-                  isRemoving={isRemoving && isRemoving(student.phoneNumber)}
+                  isRemoving={isRemoving(student.phoneNumber)}
                   canReconnect={canReconnect(student)}
                 />
               ))}

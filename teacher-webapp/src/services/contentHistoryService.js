@@ -1,13 +1,12 @@
 /**
  * Content History Service
- * 
+ *
  * Manages playback history for audio content, matching Android app behavior.
  * Uses localStorage for persistence across browser sessions.
- * 
+ *
  * Architecture mirrors Android's UserPreferencesRepository.saveContentToHistory():
  * - Move-to-top deduplication (if content already exists, remove old and add new at top)
  * - Limited to DEFAULT_CONTENT_HISTORY_SIZE items
- * - Stores: contentId, title, contentType, url, lastPlayedAt, classroomName, studentCount, wasConference
  */
 
 const STORAGE_KEY = "seeds_content_history";
@@ -19,25 +18,25 @@ const DEFAULT_CONTENT_HISTORY_SIZE = 10; // Configurable, default 10 (Android us
  */
 export class ContentHistoryItem {
   constructor({
-    contentId,
+    content_id,
     title,
-    contentType,
+    content_type,
     url,
-    lastPlayedAt,
-    classroomName = null,
-    studentCount = null,
-    wasConference = false,
+    last_played_at,
+    classroom_name = null,
+    student_count = null,
+    was_conference = false,
     description = null,
     language = null,
   }) {
-    this.contentId = contentId;
+    this.content_id = content_id;
     this.title = title;
-    this.contentType = contentType;
+    this.content_type = content_type;
     this.url = url;
-    this.lastPlayedAt = lastPlayedAt; // Unix timestamp in milliseconds
-    this.classroomName = classroomName;
-    this.studentCount = studentCount;
-    this.wasConference = wasConference;
+    this.last_played_at = last_played_at; // Unix timestamp in milliseconds
+    this.classroom_name = classroom_name;
+    this.student_count = student_count;
+    this.was_conference = was_conference;
     this.description = description;
     this.language = language;
   }
@@ -46,11 +45,8 @@ export class ContentHistoryItem {
    * Check if this history item refers to the same content as another.
    * Used for move-to-top deduplication strategy.
    */
-  isSameContent(other) {
-    if (typeof other === "string") {
-      return this.contentId === other;
-    }
-    return this.contentId === other.contentId;
+  isSameContent(contentId) {
+    return this.content_id === contentId;
   }
 }
 
@@ -66,9 +62,6 @@ export function getContentHistory() {
     }
 
     const historyData = JSON.parse(historyJson);
-    if (!Array.isArray(historyData)) {
-      return [];
-    }
 
     // Convert plain objects back to ContentHistoryItem instances
     return historyData.map((item) => new ContentHistoryItem(item));
@@ -80,60 +73,52 @@ export function getContentHistory() {
 
 /**
  * Save content to history with move-to-top deduplication.
- * 
+ *
  * If the content already exists in history, it's moved to the top with updated timestamp.
  * Otherwise, it's added to the top and the list is trimmed to DEFAULT_CONTENT_HISTORY_SIZE.
- * 
+ *
  * Mirrors Android's saveContentToHistory() behavior.
- * 
- * @param {Object} content - Content object with at minimum: id, name/title, url
+ *
+ * @param {Object} content - { id, name, type, language, url, description }
  * @param {Object} options - Optional metadata
- * @param {string} options.classroomName - Classroom/group name where content was played
- * @param {number} options.studentCount - Number of students in the session
- * @param {boolean} options.wasConference - Whether this was a conference call
+ * @param {string} options.classroom_name - Classroom/group name where content was played
+ * @param {number} options.student_count - Number of students in the session
+ * @param {boolean} options.was_conference - Whether this was a conference call
  * @param {number} options.maxSize - Maximum history size (defaults to DEFAULT_CONTENT_HISTORY_SIZE)
  */
 export function saveContentToHistory(content, options = {}) {
   try {
     const {
-      classroomName = null,
-      studentCount = null,
-      wasConference = false,
+      classroom_name = null,
+      student_count = null,
+      was_conference = false,
       maxSize = DEFAULT_CONTENT_HISTORY_SIZE,
     } = options;
 
-    // Get current history
-    const currentHistory = getContentHistory();
-
-    // Extract content metadata
-    const contentId = content.id || content._id || content.url; // Use URL as fallback ID
-    const title = content.name || content.title?.english || content.title?.local || content.title || "Unnamed Audio";
-    const contentType = content.type || "Audio";
-    const url = content.url || content.audioUrl;
-    const description = content.description || null;
-    const language = content.language || null;
-
-    if (!url) {
+    if (!content.url) {
       console.warn("Cannot save content to history: missing URL", content);
       return;
     }
 
+    // Get current history
+    const currentHistory = getContentHistory();
+
     // Create new history item with current timestamp
     const newItem = new ContentHistoryItem({
-      contentId,
-      title,
-      contentType,
-      url,
-      lastPlayedAt: Date.now(),
-      classroomName,
-      studentCount,
-      wasConference,
-      description,
-      language,
+      content_id: content.id,
+      title: content.name,
+      content_type: content.type,
+      url: content.url,
+      last_played_at: Date.now(),
+      classroom_name,
+      student_count,
+      was_conference,
+      description: content.description,
+      language: content.language,
     });
 
     // Remove existing entry for this content (move-to-top deduplication)
-    const filteredList = currentHistory.filter((item) => !item.isSameContent(contentId));
+    const filteredList = currentHistory.filter((item) => !item.isSameContent(content.id));
 
     // Add new item at the top and limit to configured size
     const newList = [newItem, ...filteredList].slice(0, maxSize);

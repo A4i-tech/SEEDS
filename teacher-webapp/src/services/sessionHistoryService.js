@@ -1,13 +1,12 @@
 /**
  * Session History Service
- * 
+ *
  * Manages conference session history, matching Android app behavior.
  * Uses localStorage for persistence across browser sessions.
- * 
+ *
  * Architecture mirrors Android's UserPreferencesRepository.addSessionToHistory():
  * - Most recent first
  * - Limited to DEFAULT_SESSION_HISTORY_SIZE items
- * - Stores: groupId, groupName, timestamp, studentCount, wasConference
  */
 
 import { isLocalStorageAvailable } from "../utils/authHelpers";
@@ -21,17 +20,17 @@ const DEFAULT_SESSION_HISTORY_SIZE = 10; // Configurable, default 10 (Android us
  */
 export class SessionHistoryItem {
   constructor({
-    groupId,
-    groupName,
+    group_id,
+    group_name,
     timestamp,
-    studentCount,
-    wasConference = true,
+    student_count,
+    was_conference = true,
   }) {
-    this.groupId = groupId;
-    this.groupName = groupName;
+    this.group_id = group_id;
+    this.group_name = group_name;
     this.timestamp = timestamp; // Unix timestamp in milliseconds
-    this.studentCount = studentCount;
-    this.wasConference = wasConference;
+    this.student_count = student_count;
+    this.was_conference = was_conference;
   }
 }
 
@@ -52,9 +51,6 @@ export function getSessionHistory() {
     }
 
     const historyData = JSON.parse(historyJson);
-    if (!Array.isArray(historyData)) {
-      return [];
-    }
 
     // Convert plain objects back to SessionHistoryItem instances
     return historyData.map((item) => new SessionHistoryItem(item));
@@ -66,14 +62,14 @@ export function getSessionHistory() {
 
 /**
  * Add a conference session to history.
- * 
+ *
  * Mirrors Android's addSessionToHistory() behavior.
- * 
+ *
  * @param {Object} sessionData - Session data
- * @param {string} sessionData.groupId - Classroom/group ID
- * @param {string} sessionData.groupName - Classroom/group name
- * @param {number} sessionData.studentCount - Number of students in the session
- * @param {boolean} sessionData.wasConference - Whether this was a conference call (default: true)
+ * @param {string} sessionData.group_id - Classroom/group ID
+ * @param {string} sessionData.group_name - Classroom/group name
+ * @param {number} sessionData.student_count - Number of students in the session
+ * @param {Object} options - Optional metadata
  * @param {number} options.maxSize - Maximum history size (defaults to DEFAULT_SESSION_HISTORY_SIZE)
  */
 export function addSessionToHistory(sessionData, options = {}) {
@@ -83,19 +79,11 @@ export function addSessionToHistory(sessionData, options = {}) {
   }
 
   try {
-    const {
-      maxSize = DEFAULT_SESSION_HISTORY_SIZE,
-    } = options;
+    const { maxSize = DEFAULT_SESSION_HISTORY_SIZE } = options;
+    const { group_id, group_name, student_count } = sessionData;
 
-    const {
-      groupId,
-      groupName,
-      studentCount,
-      wasConference = true,
-    } = sessionData;
-
-    if (!groupId || !groupName) {
-      console.warn("Cannot save session to history: missing groupId or groupName", sessionData);
+    if (!group_id || !group_name) {
+      console.warn("Cannot save session to history: missing group_id or group_name", sessionData);
       return;
     }
 
@@ -104,11 +92,11 @@ export function addSessionToHistory(sessionData, options = {}) {
 
     // Create new session item with current timestamp
     const newItem = new SessionHistoryItem({
-      groupId,
-      groupName,
+      group_id,
+      group_name,
       timestamp: Date.now(),
-      studentCount: studentCount || 0,
-      wasConference,
+      student_count: student_count ?? 0,
+      was_conference: true,
     });
 
     // Add new item at the top and limit to configured size

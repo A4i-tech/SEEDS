@@ -1,5 +1,6 @@
 import { API_ENDPOINTS } from "../constants/apiEndpoints";
 import axiosInstance from "./axiosInstance";
+import { ContentDto, ContentPageDto } from "../dto/ContentDto";
 
 /**
  * Build query string from parameters object
@@ -62,7 +63,7 @@ export const getContent = async (options = {}) => {
     : API_ENDPOINTS.GET_CONTENT;
 
   const response = await axiosInstance.get(url);
-  return response.data;
+  return ContentPageDto.fromApi(response.data);
 };
 
 /**
@@ -87,8 +88,8 @@ export const getContentSasUrl = async (audioUrl) => {
 /**
  * Fetch a single content item by ID
  *
- * @param {string} contentId - The content ID (_id)
- * @returns {Promise<Object>} Content object
+ * @param {string} contentId - The content id
+ * @returns {Promise<ContentDto>} Content DTO
  * @throws {Error} If API call fails
  */
 export const getContentById = async (contentId) => {
@@ -97,5 +98,5 @@ export const getContentById = async (contentId) => {
   }
 
   const response = await axiosInstance.get(`${API_ENDPOINTS.GET_CONTENT}/${contentId}`);
-  return response.data;
+  return ContentDto.fromApi(response.data);
 };

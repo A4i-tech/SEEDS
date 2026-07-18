@@ -38,8 +38,8 @@ export const analyticsService = {
       method: "POST",
       headers,
       body: JSON.stringify({
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
+        start_date: startDate.toISOString(),
+        end_date: endDate.toISOString(),
       }),
     });
 

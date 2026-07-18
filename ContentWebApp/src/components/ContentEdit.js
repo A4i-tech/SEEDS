@@ -40,14 +40,9 @@ const ContentEdit = () => {
 
   const experienceLower = (experience || "").toLowerCase();
   const isQuiz = experienceLower === "quiz";
-  // Quiz content has no isProcessed/audioContent — treat it as always ready
-  const isProcessed = isQuiz
-    ? true
-    : (content?.isProcessed ?? Boolean(content?.audioContent?.length));
-  const titleText =
-    typeof content?.title === "object"
-      ? content.title.english || content.title.local || "Untitled"
-      : content?.title || "Untitled";
+  // Quiz content has no is_processed — treat it as always ready
+  const isProcessed = isQuiz ? true : content?.is_processed;
+  const titleText = content?.display_title ?? "Untitled";
 
   if (isLoading) {
     return (
