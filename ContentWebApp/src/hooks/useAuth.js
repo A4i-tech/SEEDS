@@ -3,11 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { SEEDS_URL } from "../Constants";
 import { getAuthHeaders, isAuthenticated, clearAuth } from "../utils/authHelpers";
 import { apiFetch } from "../services/api";
+import { TeacherDto } from "../dto/TeacherDto";
 
 let cachedUserProfile = null;
 let cachedUserPromise = null;
 
-const resetUserCache = () => {
+export const resetUserCache = () => {
   cachedUserProfile = null;
   cachedUserPromise = null;
 };
@@ -68,11 +69,9 @@ export const useAuth = () => {
       headers: getAuthHeaders(),
     })
       .then((req) => {
-        const profile = {
-          ...req,
-          role,
-          name: nameFromToken || req.name || req.tenantName || req.schoolName,
-        };
+        const profile = TeacherDto.fromApi(req);
+        profile.role = role;
+        profile.name = nameFromToken || profile.name || profile.tenant_name;
         cachedUserProfile = profile;
         cachedUserPromise = null;
         return cachedUserProfile;
@@ -95,7 +94,7 @@ export const useAuth = () => {
     }
     try {
       const profile = await getCurrentUser();
-      return profile?.name || "";
+      return profile.name || "";
     } catch (err) {
       return "";
     }

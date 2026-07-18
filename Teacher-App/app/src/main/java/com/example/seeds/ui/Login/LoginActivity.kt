@@ -121,7 +121,7 @@ class LoginActivity : AppCompatActivity() {
             .writeTimeout(TIMEOUT, TimeUnit.SECONDS)
             .build()
         val json = JSONObject().apply {
-            put("phoneNumber", phoneNumber)
+            put("phone_number", phoneNumber)
             put("password", password)
         }
 

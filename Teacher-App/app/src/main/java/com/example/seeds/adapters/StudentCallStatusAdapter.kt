@@ -10,11 +10,10 @@ import com.example.seeds.model.StudentCallStatus
 import com.example.seeds.model.Student
 import com.example.seeds.ui.call.CallViewModel
 
-private fun strip91(p: String?): String {
-    val s = p ?: return ""
+private fun strip91(p: String): String {
     // Strip only the E.164 India country code: exactly 12 digits (91 + 10-digit number).
     // Using length > 10 would truncate any 11-digit number starting with 91 and match nobody.
-    return if (s.length == 12 && s.startsWith("91")) s.substring(2) else s
+    return if (p.length == 12 && p.startsWith("91")) p.substring(2) else p
 }
 
 class StudentCallStatusAdapter(
@@ -38,8 +37,8 @@ class StudentCallStatusAdapter(
         val statusKey = strip91(status.phoneNumber)
         val matchingStudent = allStudents.find { strip91(it.phoneNumber) == statusKey }
             ?: com.example.seeds.model.Student(
-                phoneNumber = status.phoneNumber ?: "",
-                name = status.name ?: status.phoneNumber ?: "",
+                phoneNumber = status.phoneNumber,
+                name = status.name,
                 _id = null,
                 isLeader = false
             )

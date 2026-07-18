@@ -155,7 +155,7 @@ export const ConferenceProvider = ({ children }) => {
               detail: {
                 type: "participant_dropped",
                 participantName: participantData.name,
-                participantPhone: participantData.phone_number || phoneNumber,
+                participantPhone: participantData.phone_number,
                 timestamp: new Date().toISOString(),
               },
             })
@@ -170,7 +170,7 @@ export const ConferenceProvider = ({ children }) => {
         if (!existingParticipant) {
           if (participantData.role === "Student") {
             const student = allClassroomStudents.find(
-              (s) => s && normalizePhoneNumber(s.phoneNumber || s.phone_number) === normalizedPhone
+              (s) => normalizePhoneNumber(s.phoneNumber) === normalizedPhone
             );
             name = student?.name;
           } else if (participantData.role === "Teacher" && selectedTeacher) {
@@ -184,23 +184,13 @@ export const ConferenceProvider = ({ children }) => {
           ...(existingParticipant || {}),
           name: name,
           phoneNumber: phoneNumber,
-          phone_number: participantData.phone_number || phoneNumber,
-          role: existingParticipant?.role || participantData.role || "Student",
+          phone_number: participantData.phone_number,
+          role: existingParticipant?.role || participantData.role,
           // Only update dynamic state from SSE (ignore name)
-          call_status:
-            participantData.call_status || existingParticipant?.call_status || "disconnected",
-          is_muted:
-            participantData.is_muted !== undefined
-              ? Boolean(participantData.is_muted)
-              : (existingParticipant?.is_muted ?? false),
-          is_raised:
-            participantData.is_raised === true ||
-            participantData.is_raised === "true" ||
-            participantData.is_raised === 1,
-          raised_at:
-            participantData.raised_at !== undefined
-              ? Number(participantData.raised_at)
-              : (existingParticipant?.raised_at ?? -1),
+          call_status: participantData.call_status,
+          is_muted: Boolean(participantData.is_muted),
+          is_raised: Boolean(participantData.is_raised),
+          raised_at: Number(participantData.raised_at),
         });
 
         newMap.set(normalizedPhone, participant);

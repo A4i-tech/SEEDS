@@ -6,10 +6,10 @@ const DashboardStats = ({ dashboard }) => {
   const { statistics, schools } = dashboard;
 
   const statCards = [
-    { label: "Total Schools", value: statistics.totalSchools, color: "#0ea5e9" },
-    { label: "Total Teachers", value: statistics.totalTeachers, color: "#16a34a" },
-    { label: "Total Students", value: statistics.totalStudents, color: "#f59e0b" },
-    { label: "Total Classes", value: statistics.totalClasses, color: "#8b5cf6" },
+    { label: "Total Schools", value: statistics.total_schools, color: "#0ea5e9" },
+    { label: "Total Teachers", value: statistics.total_teachers, color: "#16a34a" },
+    { label: "Total Students", value: statistics.total_students, color: "#f59e0b" },
+    { label: "Total Classes", value: statistics.total_classes, color: "#8b5cf6" },
   ];
 
   return (

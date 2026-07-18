@@ -30,7 +30,7 @@ export const useAnalytics = () => {
       try {
         const response = await analyticsService.getAnalytics(startDate, endDate, getAuthHeaders());
 
-        setAnalyticsData(response.data || []);
+        setAnalyticsData(response.data);
         setDateRange({ startDate, endDate });
       } catch (err) {
         if (err.name !== "AbortError") {

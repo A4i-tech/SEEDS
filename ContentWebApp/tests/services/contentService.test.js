@@ -76,15 +76,16 @@ describe("contentService", () => {
   });
 
   describe("getContent", () => {
-    it("fetches with default limit and normalizes _id -> id", async () => {
+    it("fetches with default limit and returns a ContentPageDto", async () => {
       apiFetch.mockResolvedValue({
-        data: [{ _id: "a1", name: "x" }, { id: "b2" }],
-        pagination: { nextCursor: "c" },
+        data: [{ id: "a1", title: { english: "A" } }, { id: "b2", title: { english: "B" } }],
+        pagination: { next_cursor: "c", has_more: true },
       });
       const out = await contentService.getContent();
-      expect(out.data[0].id).toBe("a1");
-      expect(out.data[1].id).toBe("b2");
-      expect(out.pagination).toEqual({ nextCursor: "c" });
+      expect(out.items[0].id).toBe("a1");
+      expect(out.items[1].id).toBe("b2");
+      expect(out.next_cursor).toBe("c");
+      expect(out.has_more).toBe(true);
     });
 
     it("includes cursor when provided", async () => {
@@ -108,44 +109,36 @@ describe("contentService", () => {
   describe("updateContent", () => {
     it("PATCHes with isAudioUploaded flag", async () => {
       apiFetch.mockResolvedValue({ ok: true });
-      await contentService.updateContent({ _id: "x" }, true);
+      await contentService.updateContent({ id: "x" }, true);
       const opts = apiFetch.mock.calls[0][1];
       expect(opts.method).toBe("PATCH");
     });
     it("defaults isAudioUploaded to false", async () => {
       apiFetch.mockResolvedValue({});
-      await contentService.updateContent({ _id: "x" });
+      await contentService.updateContent({ id: "x" });
       expect(apiFetch).toHaveBeenCalled();
     });
   });
 
   describe("getAllContent", () => {
-    it("normalizes array response", async () => {
-      apiFetch.mockResolvedValue({ data: [{ _id: "a" }] });
+    it("returns a list of ContentDto", async () => {
+      apiFetch.mockResolvedValue({ data: [{ id: "a", title: { english: "A" } }] });
       const out = await contentService.getAllContent();
       expect(out[0].id).toBe("a");
     });
-    it("handles bare array response", async () => {
-      apiFetch.mockResolvedValue([{ id: "b" }]);
-      const out = await contentService.getAllContent();
-      expect(out[0].id).toBe("b");
-    });
-    it("handles empty array response", async () => {
-      apiFetch.mockResolvedValue([]);
+    it("handles empty data", async () => {
+      apiFetch.mockResolvedValue({ data: [] });
       const out = await contentService.getAllContent();
       expect(out).toEqual([]);
     });
   });
 
   describe("getContentById", () => {
-    it("throws when id is missing", async () => {
-      await expect(contentService.getContentById("")).rejects.toThrow(/required/i);
-      await expect(contentService.getContentById("   ")).rejects.toThrow(/required/i);
-    });
     it("encodes id and fetches", async () => {
-      apiFetch.mockResolvedValue({ id: "x y" });
+      apiFetch.mockResolvedValue({ id: "x y", title: { english: "X" } });
       const out = await contentService.getContentById("x y");
-      expect(out).toEqual({ id: "x y" });
+      expect(out.id).toBe("x y");
+      expect(out.title.english).toBe("X");
     });
   });
 });

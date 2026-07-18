@@ -50,7 +50,7 @@ function Login() {
     setShowError(null);
     try {
       const response = await axiosInstance.post(API_ENDPOINTS.LOGIN, {
-        phoneNumber,
+        phone_number: phoneNumber,
         password,
       });
       if (response.status === STATUS_CODES.SUCCESS) {

@@ -45,7 +45,7 @@ const ClassroomForm = () => {
     name: "",
     students: [],
     leaders: [],
-    contentIds: [],
+    content_ids: [],
   });
   const [teacherStudentsList, setTeacherStudentsList] = useState([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
@@ -74,7 +74,7 @@ const ClassroomForm = () => {
         name: data.name,
         students: data.students,
         leaders: data.leaders,
-        contentIds: data.contentIds,
+        content_ids: data.content_ids,
       });
     } catch (err) {
       setErrorMsg("Failed to load classroom. Please try again.");
@@ -238,7 +238,7 @@ const ClassroomForm = () => {
                 options={teacherStudentsList.filter(
                   (s) => !formData.students.some((fs) => fs.id === s.id)
                 )}
-                getOptionLabel={(option) => `${option.name} - ${option.phoneNumber}`}
+                getOptionLabel={(option) => `${option.name} - ${option.phone_number}`}
                 onChange={handleAddStudent}
                 renderInput={(params) => (
                   <TextField
@@ -259,7 +259,7 @@ const ClassroomForm = () => {
                   />
                 )}
                 value={null}
-                isOptionEqualToValue={(option, value) => option.phoneNumber === value?.phoneNumber}
+                isOptionEqualToValue={(option, value) => option.phone_number === value?.phone_number}
               />
             </Box>
 
@@ -295,7 +295,7 @@ const ClassroomForm = () => {
                     >
                       <ListItemText
                         primary={student.name}
-                        secondary={student.phoneNumber}
+                        secondary={student.phone_number}
                         primaryTypographyProps={{ fontWeight: 500 }}
                       />
                     </ListItem>

@@ -18,15 +18,17 @@ describe("contentService", () => {
     const mockContentResponse = {
       data: [
         {
-          _id: "content-1",
+          id: "content-1",
           title: { english: "Test Content", local: "Test Local" },
+          theme: {},
+          audio_content: [],
           type: "Story",
           language: "en",
         },
       ],
       pagination: {
-        nextCursor: "cursor-123",
-        hasMore: true,
+        next_cursor: "cursor-123",
+        has_more: true,
         limit: 15,
       },
     };
@@ -37,7 +39,10 @@ describe("contentService", () => {
       const result = await contentService.getContent();
 
       expect(axiosInstance.get).toHaveBeenCalledWith(`${API_ENDPOINTS.GET_CONTENT}?limit=15`);
-      expect(result).toEqual(mockContentResponse);
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].id).toBe("content-1");
+      expect(result.next_cursor).toBe("cursor-123");
+      expect(result.has_more).toBe(true);
     });
 
     test("fetches content with query parameters", async () => {
@@ -53,7 +58,8 @@ describe("contentService", () => {
 
       const expectedUrl = `${API_ENDPOINTS.GET_CONTENT}?language=en&theme=Science&expName=Story&limit=20&cursor=cursor-123`;
       expect(axiosInstance.get).toHaveBeenCalledWith(expectedUrl);
-      expect(result).toEqual(mockContentResponse);
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].id).toBe("content-1");
     });
 
     test("fetches content with onlyTeacherApp flag", async () => {
@@ -112,8 +118,10 @@ describe("contentService", () => {
 
   describe("getContentById", () => {
     const mockContent = {
-      _id: "content-123",
+      id: "content-123",
       title: { english: "Test Content", local: "Test Local" },
+      theme: {},
+      audio_content: [],
       type: "Story",
       language: "en",
       description: "Test description",
@@ -125,7 +133,9 @@ describe("contentService", () => {
       const result = await contentService.getContentById("content-123");
 
       expect(axiosInstance.get).toHaveBeenCalledWith(`${API_ENDPOINTS.GET_CONTENT}/content-123`);
-      expect(result).toEqual(mockContent);
+      expect(result.id).toBe("content-123");
+      expect(result.title.english).toBe("Test Content");
+      expect(result.description).toBe("Test description");
     });
 
     test("throws error when contentId is missing", async () => {
