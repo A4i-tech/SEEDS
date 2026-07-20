@@ -82,6 +82,57 @@
   color: #64748b;
 }
 
+/* Sub-tabs (IVR / Conference) */
+.analytics-subtabs {
+  display: flex;
+  gap: 8px;
+  padding: 16px 20px 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.subtab-button {
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  padding: 10px 16px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.subtab-button:hover {
+  color: #0f172a;
+}
+
+.subtab-button.active {
+  color: #0f172a;
+  border-bottom-color: #2196f3;
+}
+
+/* Filter fields in the filters modal */
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 20px 0;
+}
+
+.filter-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.filter-select {
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 14px;
+  background: #fff;
+  color: #0f172a;
+}
+
 @media (max-width: 768px) {
   .filters-inline {
     flex-direction: column;
@@ -95,5 +146,9 @@
 
   .filters-modal {
     width: 100%;
+  }
+
+  .analytics-subtabs {
+    padding: 12px 12px 0;
   }
 }
