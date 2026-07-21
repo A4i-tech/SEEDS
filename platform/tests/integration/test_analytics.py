@@ -191,19 +191,20 @@ async def test_ivr_requires_tenant_role(client):
 
 
 @pytest.mark.asyncio
-async def test_missing_dates_returns_400(client):
+async def test_missing_dates_returns_422(client):
+    # Required datetime query params — FastAPI raises 422 when absent.
     resp = await client.get("/tenant/analytics/ivr", headers=_auth(_tenant_token()))
-    assert resp.status_code == 400
+    assert resp.status_code == 422
 
 
 @pytest.mark.asyncio
-async def test_invalid_date_returns_400(client):
+async def test_invalid_date_returns_422(client):
     resp = await client.get(
         "/tenant/analytics/ivr",
         params={"startDate": "garbage", "endDate": END},
         headers=_auth(_tenant_token()),
     )
-    assert resp.status_code == 400
+    assert resp.status_code == 422
 
 
 @pytest.mark.asyncio

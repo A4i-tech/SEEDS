@@ -394,9 +394,14 @@ class AnalyticsService:
                 {c for phone in phone_map for c in phone_candidates(phone)}
             )
 
-        logs = await self._ivr_repo.find_for_analytics(
-            tenant_id, start, end, phone_numbers
-        )
+        if phone_numbers is not None:
+            logs = await self._ivr_repo.find_analytics_logs_for_phones(
+                tenant_id, start, end, phone_numbers
+            )
+        else:
+            logs = await self._ivr_repo.find_analytics_logs_for_tenant(
+                tenant_id, start, end
+            )
 
         attributed = [
             {"log": log, "person": phone_map.get(normalize_phone(log.get("phone_number")))}

@@ -9,7 +9,6 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.controllers import (
-    analytics_controller,
     audit_controller,
     # Unified ContentWebApp login
     auth_controller,
@@ -36,6 +35,8 @@ from app.controllers import (
     # Users (split from users_controller)
     teacher_controller,
     tenant_auth_controller,
+    # Tenant-scoped resources (analytics)
+    tenant_controller,
     user_controller,
     # Webhooks (split from webhook_controller)
     webhook_controller,
@@ -55,17 +56,17 @@ api_router.include_router(teacher_controller.router)
 api_router.include_router(student_controller.router)
 api_router.include_router(user_controller.router)
 
-# School + Classes
+# School + Classes (school_controller also owns /school/analytics/*)
 api_router.include_router(school_controller.router)
 api_router.include_router(class_controller.router)
+
+# Tenant-scoped resources (/tenant/analytics/*)
+api_router.include_router(tenant_controller.router)
 
 # Content
 api_router.include_router(content_controller.router)
 api_router.include_router(audit_controller.router)
 api_router.include_router(content_aggregator_controller.router)
-
-# Analytics (IVR + conference usage)
-api_router.include_router(analytics_controller.router)
 
 # Calls
 api_router.include_router(conference_controller.router)
