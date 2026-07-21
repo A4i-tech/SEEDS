@@ -110,6 +110,17 @@
   border-bottom-color: #2196f3;
 }
 
+/* Non-blocking warning shown when a filter list fails to load */
+.filter-warning {
+  margin: 12px 20px 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+  font-size: 13px;
+}
+
 /* Filter fields in the filters modal */
 .filter-field {
   display: flex;

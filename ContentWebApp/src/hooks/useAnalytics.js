@@ -47,7 +47,15 @@ export const useAnalytics = () => {
         setConference(conferenceData);
         setDateRange({ startDate, endDate });
       } catch (err) {
-        console.error("Unable to fetch analytics:", err);
+        console.error("[useAnalytics.fetchAnalytics] request failed", {
+          fn: "fetchAnalytics",
+          startDate: startDate?.toISOString?.() ?? String(startDate),
+          endDate: endDate?.toISOString?.() ?? String(endDate),
+          schoolId: filters.schoolId ?? null,
+          teacherId: filters.teacherId ?? null,
+          status: err?.status ?? null,
+          message: err?.message ?? String(err),
+        });
         setError(err.message || "Unable to fetch analytics data");
         setIvr(null);
         setConference(null);

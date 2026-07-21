@@ -11,11 +11,26 @@ import {
 import "./css/AnalyticsCharts.css";
 
 /**
+ * Normalize varied backend distribution shapes to the canonical {label, count}.
+ * Tolerates {bucket, count} arrays and {key: count} objects so callers don't
+ * have to reshape before rendering.
+ * @param {Array|Object} data
+ * @returns {{label: string, count: number}[]}
+ */
+const normalizeDistribution = (data) => {
+  const rows = Array.isArray(data)
+    ? data
+    : Object.entries(data || {}).map(([label, count]) => ({ label, count }));
+  return rows.map((d) => ({ label: d.label ?? d.bucket ?? "", count: d.count ?? 0 }));
+};
+
+/**
  * Simple labelled bar chart for distributions (class size, status breakdown).
  * @param {{title: string, data: {label: string, count: number}[], color?: string}} props
  */
 const DistributionChart = ({ title, data, color = "#2196F3" }) => {
-  if (!data || data.length === 0) {
+  const chartData = normalizeDistribution(data);
+  if (chartData.length === 0) {
     return null;
   }
 
@@ -39,7 +54,7 @@ const DistributionChart = ({ title, data, color = "#2196F3" }) => {
       </div>
       <div className="chart-card">
         <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={data} margin={{ top: 5, right: 30, left: 0, bottom: 50 }}>
+          <BarChart data={chartData} margin={{ top: 5, right: 30, left: 0, bottom: 50 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
             <XAxis
               dataKey="label"

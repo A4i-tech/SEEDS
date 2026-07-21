@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useAnalytics } from "../../../hooks/useAnalytics";
 import { useDashboard } from "../../../hooks/useDashboard";
 import { getRole, getAuthHeaders } from "../../../utils/authHelpers";
@@ -24,8 +24,9 @@ const AnalyticsTab = () => {
   const [teacherId, setTeacherId] = useState("");
   const [schools, setSchools] = useState([]);
   const [teachers, setTeachers] = useState([]);
+  const [filterError, setFilterError] = useState(null);
 
-  const { ivr, conference, isLoading, error, fetchAnalytics } = useAnalytics();
+  const { ivr, conference, isLoading, error, dateRange, fetchAnalytics } = useAnalytics();
   const {
     dashboard,
     schoolDashboard,
@@ -54,34 +55,66 @@ const AnalyticsTab = () => {
     [fetchAnalytics, schoolId, teacherId]
   );
 
-  // Default to last 7 days on first load
+  // Default to last 7 days on first load. Run-once semantics come from a stable
+  // init ref, not a disabled dependency check, so real dep changes stay honest.
+  const initialized = useRef(false);
   useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
+
     const { start, end } = getLastNDaysRange(7);
     setStartDate(start);
     setEndDate(end);
     fetchAnalytics(start, end);
     if (isTenant) fetchDashboard();
     if (isSchoolAdmin) fetchSchoolDashboard();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [
+    getLastNDaysRange,
+    fetchAnalytics,
+    fetchDashboard,
+    fetchSchoolDashboard,
+    isTenant,
+    isSchoolAdmin,
+  ]);
 
-  // Load filter option lists (tenant sees all schools; both roles list teachers)
+  // Load filter option lists. Tenants list all schools; only school_admins can
+  // hit GET /school/teachers — calling it as a tenant 403s, and apiFetch treats
+  // any 403 as session-expired and force-logs the user out. So the teacher fetch
+  // is gated on the role that owns that route.
   useEffect(() => {
     let cancelled = false;
+    const failed = [];
+
     if (isTenant) {
       schoolService
         .getSchools()
         .then((data) => !cancelled && setSchools(Array.isArray(data) ? data : data?.data || []))
-        .catch((e) => console.error("Unable to load schools:", e));
+        .catch((e) => {
+          console.error("[AnalyticsTab] unable to load schools", { message: e?.message });
+          if (!cancelled) {
+            failed.push("schools");
+            setFilterError(`Could not load filter options (${failed.join(", ")}).`);
+          }
+        });
     }
-    teacherService
-      .getTeachers(getAuthHeaders())
-      .then((data) => !cancelled && setTeachers(Array.isArray(data) ? data : []))
-      .catch((e) => console.error("Unable to load teachers:", e));
+
+    if (isSchoolAdmin) {
+      teacherService
+        .getTeachers(getAuthHeaders())
+        .then((data) => !cancelled && setTeachers(Array.isArray(data) ? data : []))
+        .catch((e) => {
+          console.error("[AnalyticsTab] unable to load teachers", { message: e?.message });
+          if (!cancelled) {
+            failed.push("teachers");
+            setFilterError(`Could not load filter options (${failed.join(", ")}).`);
+          }
+        });
+    }
+
     return () => {
       cancelled = true;
     };
-  }, [isTenant]);
+  }, [isTenant, isSchoolAdmin]);
 
   const selectedRangeLabel = useMemo(() => {
     if (startDate && endDate) {
@@ -90,12 +123,19 @@ const AnalyticsTab = () => {
     return "Last 7 days";
   }, [startDate, endDate]);
 
-  const hasData = Boolean(ivr || conference);
+  // A fetch has completed at least once when the hook records a date range.
+  const hasFetched = Boolean(dateRange?.startDate && dateRange?.endDate);
   const activeData = subTab === "ivr" ? ivr : conference;
-  const activeIsEmpty =
+  const activeCount =
     subTab === "ivr"
-      ? ivr && (ivr.totals?.totalCalls ?? 0) === 0
-      : conference && (conference.totals?.totalConferences ?? 0) === 0;
+      ? activeData?.totals?.totalCalls ?? 0
+      : activeData?.totals?.totalConferences ?? 0;
+
+  // Drive messaging from the active request state, not object truthiness.
+  // Precedence: loading > populated > empty (only after a completed fetch).
+  const showLoading = isLoading && !activeData;
+  const showData = !isLoading && activeData && activeCount > 0;
+  const showEmpty = !isLoading && hasFetched && activeCount === 0;
 
   return (
     <div className="card">
@@ -132,6 +172,12 @@ const AnalyticsTab = () => {
               </button>
             </div>
 
+            {filterError && (
+              <div className="filter-warning" role="status">
+                {filterError}
+              </div>
+            )}
+
             {isTenant && (
               <div className="filter-field">
                 <label className="filter-label" htmlFor="analytics-school">
@@ -153,24 +199,26 @@ const AnalyticsTab = () => {
               </div>
             )}
 
-            <div className="filter-field">
-              <label className="filter-label" htmlFor="analytics-teacher">
-                Teacher
-              </label>
-              <select
-                id="analytics-teacher"
-                className="filter-select"
-                value={teacherId}
-                onChange={(e) => setTeacherId(e.target.value)}
-              >
-                <option value="">All teachers</option>
-                {teachers.map((t) => (
-                  <option key={t._id || t.id} value={t._id || t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {isSchoolAdmin && (
+              <div className="filter-field">
+                <label className="filter-label" htmlFor="analytics-teacher">
+                  Teacher
+                </label>
+                <select
+                  id="analytics-teacher"
+                  className="filter-select"
+                  value={teacherId}
+                  onChange={(e) => setTeacherId(e.target.value)}
+                >
+                  <option value="">All teachers</option>
+                  {teachers.map((t) => (
+                    <option key={t._id || t.id} value={t._id || t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <DateRangeSelector
               startDate={startDate}
@@ -213,18 +261,16 @@ const AnalyticsTab = () => {
 
       {error && <div className="error-message">{error}</div>}
 
-      {!error && isLoading && !hasData && (
-        <div className="initial-message">Loading analytics…</div>
-      )}
+      {!error && showLoading && <div className="initial-message">Loading analytics…</div>}
 
-      {!error && activeData && !activeIsEmpty && (
+      {!error && showData && (
         <>
           {subTab === "ivr" && <IvrAnalytics data={ivr} />}
           {subTab === "conference" && <ConferenceAnalytics data={conference} />}
         </>
       )}
 
-      {!error && !isLoading && activeIsEmpty && (
+      {!error && showEmpty && (
         <div className="no-data-message">
           No {subTab === "ivr" ? "IVR call" : "conference"} data for the selected filters. Try a
           different date range.

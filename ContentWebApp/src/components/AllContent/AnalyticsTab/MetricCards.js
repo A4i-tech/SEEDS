@@ -7,9 +7,9 @@ import "./css/AnalyticsStats.css";
  */
 const MetricCards = ({ cards }) => (
   <div className="stat-cards">
-    {cards.map((card, index) => (
+    {cards.map((card) => (
       <div
-        key={index}
+        key={card.label}
         className="stat-card"
         style={card.color ? { borderLeftColor: card.color } : undefined}
       >
