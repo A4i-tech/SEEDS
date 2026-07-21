@@ -262,8 +262,8 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
       is_deleted: isDeleted,
       created_by: createdBy,
       audio_content: audioContent,
-      title: title && { ...title, audio_url: title.audioUrl, audioUrl: undefined },
-      theme: theme && { ...theme, audio_url: theme.audioUrl, audioUrl: undefined },
+      title: title && { english: title.english, local: title.local, audio_url: title.audioUrl },
+      theme: theme && { english: theme.english, local: theme.local, audio_url: theme.audioUrl },
     };
   };
 

@@ -29,6 +29,7 @@ from app.models.responses.content import (
     ContentResponse,
     PaginationInfo,
     QuizResponse,
+    SasTokenResponse,
     SasUrlResponse,
 )
 from app.models.responses.job import DeleteMatchedResponse, JobScheduledResponse
@@ -191,7 +192,7 @@ async def get_sas_url(
 async def get_sas_token(
     blob_name: str = Query(..., alias="blobName"),
     user: dict[str, Any] = Depends(_require_content_write),
-) -> dict[str, Any]:
+) -> SasTokenResponse:
     if not blob_name or not blob_name.lower().endswith(".mp3"):
         raise HTTPException(status_code=400, detail="Only .mp3 files are allowed.")
     try:
@@ -200,7 +201,7 @@ async def get_sas_token(
     except Exception as exc:
         logger.error("get_sas_token failed", extra={"blob_name": blob_name, "err": str(exc)})
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return {"sas_token": sas_url}
+    return SasTokenResponse(sas_token=sas_url)
 
 
 # ---------------------------------------------------------------------------
@@ -330,7 +331,7 @@ async def create_content(
     user_id = user.get("sub", "")
     school_id = _write_school_id(user)
 
-    body_dict = body.model_dump(by_alias=True, exclude_unset=True)
+    body_dict = body.model_dump(exclude_unset=True)
     override_id = body_dict.get("_id")
 
     try:
@@ -409,7 +410,7 @@ async def create_quiz(
     user_id = user.get("sub", "")
     school_id = _write_school_id(user)
 
-    body_dict = body.model_dump(by_alias=True, exclude_unset=True)
+    body_dict = body.model_dump(exclude_unset=True)
     override_id = body_dict.get("id")
 
     quiz_id = await service.create_quiz(body, tenant_id, user_id, school_id, override_id)

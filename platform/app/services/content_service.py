@@ -145,18 +145,17 @@ class ContentService:
             if au and not au.lower().endswith(".mp3"):
                 raise ValueError("Only .mp3 audio files are allowed.")
 
+        given = body.model_dump(
+            exclude_unset=True,
+            exclude={"type", "language", "tenant_id", "created_by", "school_id", "creation_time"},
+        )
         dto = ContentCreate(
+            **given,
             tenant_id=tenant_id,
             type=body.type,
             language=body.language,
             created_by=user_id,
             school_id=school_id,
-            title=body.title,
-            theme=body.theme,
-            audio_content=body.audio_content or [],
-            description=body.description or "",
-            is_pull_model=body.is_pull_model or False,
-            is_teacher_app=body.is_teacher_app or False,
             creation_time=int(time.time()),
         )
         doc: dict[str, Any] = dto.model_dump()
@@ -228,22 +227,17 @@ class ContentService:
         school_id: str | None,
         override_id: str | None = None,
     ) -> str:
-        body_dict = body.model_dump(by_alias=True, exclude_unset=True)
+        given = body.model_dump(
+            exclude_unset=True,
+            exclude={"type", "language", "tenant_id", "created_by", "school_id", "creation_time"},
+        )
         dto = QuizCreate(
+            **given,
             tenant_id=tenant_id,
             type=body.type,
             language=body.language,
             created_by=user_id,
             school_id=school_id,
-            title=body_dict.get("title") or "",
-            local_title=body_dict.get("localTitle") or "",
-            theme=body_dict.get("theme") or "",
-            local_theme=body_dict.get("localTheme") or "",
-            positive_marks=body.positive_marks or 1.0,
-            negative_marks=body.negative_marks or 0.0,
-            questions=body.questions or [],
-            options=body.options or [],
-            correct_answers=body.correct_answers or [],
             creation_time=int(time.time()),
         )
         doc: dict[str, Any] = dto.model_dump()

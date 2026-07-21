@@ -33,6 +33,10 @@ class SasUrlResponse(BaseModel):
     url: str
 
 
+class SasTokenResponse(BaseModel):
+    sas_token: str
+
+
 class ContentResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -81,6 +85,9 @@ class QuizResponse(ContentResponse):
     strictly typing positive_marks/questions/options/correct_answers etc."""
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+    title: str | TitleText | None = None
+    theme: str | TitleText | None = None
 
     @classmethod
     def from_doc(cls, doc: dict) -> QuizResponse:
