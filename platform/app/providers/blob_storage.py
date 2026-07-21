@@ -8,12 +8,11 @@ SECURITY:
   - Connection string / account key are never returned to callers.
   - Short expiry defaults (1 hour) to minimise token exposure window.
 
-NOTE (deferred): upload_file, download_file, and delete_blob call the synchronous
-azure-storage-blob SDK inside async methods, which blocks the event loop under
-concurrent load. The correct fix is to migrate to azure.storage.blob.aio
-(BlobServiceClient from the aio submodule) for true non-blocking I/O. This is
-deferred as it requires replacing the sync client construction and all call sites;
-tracked as a follow-up task.
+``BlobStorageProvider`` uses the ``azure.storage.blob.aio`` async client so
+upload/download/delete/user-delegation-key calls never block the event loop
+(see A4i-tech/.github#430). ``SASGenerator`` below stays on the synchronous
+``azure.storage.blob`` client since it is called from the non-async Vonage
+NCCO-building code path (``VonageStreamAction.get()`` / ``ActionAccumulator``).
 """
 
 from __future__ import annotations
@@ -23,13 +22,9 @@ from datetime import UTC, datetime, timedelta
 from urllib.parse import unquote, urlparse
 
 from azure.identity import DefaultAzureCredential
-from azure.storage.blob import (
-    BlobSasPermissions,
-    BlobServiceClient,
-    ContainerClient,
-    ContentSettings,
-    generate_blob_sas,
-)
+from azure.storage.blob import BlobSasPermissions, ContentSettings, generate_blob_sas
+from azure.storage.blob import BlobServiceClient as SyncBlobServiceClient
+from azure.storage.blob.aio import BlobServiceClient, ContainerClient
 
 from app.platform.settings import get_settings
 
@@ -92,7 +87,7 @@ class BlobStorageProvider:
         """
         container_client = self._client.get_container_client(container)
         blob_client = container_client.get_blob_client(blob_name)
-        blob_client.upload_blob(
+        await blob_client.upload_blob(
             data,
             overwrite=True,
             content_settings=ContentSettings(content_type=content_type),
@@ -105,8 +100,8 @@ class BlobStorageProvider:
         """Download blob *blob_name* from *container* and return raw bytes."""
         container_client = self._client.get_container_client(container)
         blob_client = container_client.get_blob_client(blob_name)
-        stream = blob_client.download_blob()
-        data: bytes = stream.readall()
+        stream = await blob_client.download_blob()
+        data: bytes = await stream.readall()
         logger.debug("blob_storage: downloaded blob container=%s name=%s size=%d", container, blob_name, len(data))
         return data
 
@@ -123,7 +118,7 @@ class BlobStorageProvider:
         try:
             container_client = self._client.get_container_client(container)
             blob_client = container_client.get_blob_client(blob_name)
-            blob_client.delete_blob(delete_snapshots="include")
+            await blob_client.delete_blob(delete_snapshots="include")
             logger.info("blob_storage: deleted blob container=%s name=%s", container, blob_name)
             return True
         except Exception as exc:  # noqa: BLE001
@@ -160,7 +155,7 @@ class BlobStorageProvider:
             )
         else:
             # User delegation SAS via managed identity
-            user_delegation_key = self._client.get_user_delegation_key(start, expiry)
+            user_delegation_key = await self._client.get_user_delegation_key(start, expiry)
             sas_token = generate_blob_sas(
                 account_name=self._account_name,
                 container_name=container,
@@ -263,7 +258,7 @@ class SASGenerator:
                     start=start,
                 )
             else:
-                client = BlobServiceClient(
+                client = SyncBlobServiceClient(
                     account_url=f"https://{self._account_name}.blob.core.windows.net",
                     credential=DefaultAzureCredential(),
                 )

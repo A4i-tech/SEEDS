@@ -67,7 +67,7 @@ async def theme_audio_exists(theme_english: str) -> bool:
     try:
         container_client = provider.get_container_client(_THEME_CONTAINER)
         blob_client = container_client.get_blob_client(blob_name)
-        blob_client.get_blob_properties()
+        await blob_client.get_blob_properties()
         return True
     except Exception:  # noqa: BLE001
         return False

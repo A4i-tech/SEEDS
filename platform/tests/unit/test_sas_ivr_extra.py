@@ -30,13 +30,15 @@ class TestSASService:
         svc._key_expiry_time = None
         return svc
 
-    def test_disabled_returns_original(self) -> None:
+    @pytest.mark.asyncio
+    async def test_disabled_returns_original(self) -> None:
         svc = self._make_sas(enabled=False)
         url = "https://example.blob.core.windows.net/container/file.mp3"
-        result = svc.get_url_with_sas(url)
+        result = await svc.get_url_with_sas(url)
         assert result == url
 
-    def test_disabled_any_url_passthrough(self) -> None:
+    @pytest.mark.asyncio
+    async def test_disabled_any_url_passthrough(self) -> None:
         svc = self._make_sas(enabled=False)
         urls = [
             "https://myaccount.blob.core.windows.net/audio/test.mp3",
@@ -44,27 +46,30 @@ class TestSASService:
             "",
         ]
         for url in urls:
-            assert svc.get_url_with_sas(url) == url
+            assert await svc.get_url_with_sas(url) == url
 
-    def test_enabled_malformed_url_falls_back(self) -> None:
+    @pytest.mark.asyncio
+    async def test_enabled_malformed_url_falls_back(self) -> None:
         svc = self._make_sas(enabled=True, use_key=True)
         # URL with fewer than 2 path parts — should fall back to original
         url = "https://myaccount.blob.core.windows.net/onlycontainer"
-        result = svc.get_url_with_sas(url)
+        result = await svc.get_url_with_sas(url)
         # Either fell back to original or raised ValueError, either way no crash
         assert isinstance(result, str)
 
-    def test_get_user_delegation_key_uses_account_key(self) -> None:
+    @pytest.mark.asyncio
+    async def test_get_user_delegation_key_uses_account_key(self) -> None:
         svc = self._make_sas(enabled=True, use_key=True)
         # Should return None when using account key
-        result = svc._get_user_delegation_key(MagicMock())
+        result = await svc._get_user_delegation_key(AsyncMock())
         assert result is None
 
-    def test_enabled_with_bad_azure_import_falls_back(self) -> None:
+    @pytest.mark.asyncio
+    async def test_enabled_with_bad_azure_import_falls_back(self) -> None:
         svc = self._make_sas(enabled=True, use_key=True)
         url = "https://myaccount.blob.core.windows.net/container/file.mp3"
         # Azure not configured in test env → should fall back to original URL
-        result = svc.get_url_with_sas(url)
+        result = await svc.get_url_with_sas(url)
         # Result is the original URL (fallback on exception)
         assert isinstance(result, str)
 

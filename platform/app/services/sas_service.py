@@ -24,8 +24,12 @@ logger = logging.getLogger(__name__)
 class SASService:
     """Generate short-lived read SAS tokens for Azure Blob URLs.
 
-    Supports both account-key auth (fast, synchronous) and DefaultAzureCredential
-    user-delegation SAS (requires an extra API call, cached for the key lifetime).
+    Supports both account-key auth (fast, no network call) and DefaultAzureCredential
+    user-delegation SAS (requires an extra async API call, cached for the key lifetime).
+
+    Uses the ``azure.storage.blob.aio`` async client so the user-delegation-key
+    fetch never blocks the event loop (see A4i-tech/.github#430). ``get_url_with_sas``
+    is therefore a coroutine — callers must ``await`` it.
 
     Instantiate once at lifespan startup and reuse throughout the process.
     """
@@ -53,7 +57,7 @@ class SASService:
 
     def _get_blob_service_client(self, url: str):
         """Return (or create) a BlobServiceClient for the storage account in *url*."""
-        from azure.storage.blob import BlobServiceClient  # noqa: PLC0415
+        from azure.storage.blob.aio import BlobServiceClient  # noqa: PLC0415
 
         if self._blob_service_client is None:
             parsed = urlparse(url)
@@ -70,7 +74,7 @@ class SASService:
                 )
         return self._blob_service_client
 
-    def _get_user_delegation_key(self, client):
+    async def _get_user_delegation_key(self, client):
         """Return a cached user-delegation key, refreshing if near expiry."""
         if self._use_account_key:
             return None  # Not needed for account-key SAS
@@ -79,10 +83,12 @@ class SASService:
             self._key_expiry_time and now >= self._key_expiry_time
         ):
             self._key_expiry_time = now + datetime.timedelta(hours=self._sas_expiry_hours)
-            self._user_delegation_key = client.get_user_delegation_key(now, self._key_expiry_time)
+            self._user_delegation_key = await client.get_user_delegation_key(
+                now, self._key_expiry_time
+            )
         return self._user_delegation_key
 
-    def get_url_with_sas(self, url: str) -> str:
+    async def get_url_with_sas(self, url: str) -> str:
         """Return *url* appended with a short-lived read SAS token.
 
         Falls back to the original *url* if Azure is disabled or on any error.
@@ -117,7 +123,7 @@ class SASService:
                     expiry=expiry,
                 )
             else:
-                delegation_key = self._get_user_delegation_key(client)
+                delegation_key = await self._get_user_delegation_key(client)
                 sas_token = generate_blob_sas(
                     account_name=client.account_name,
                     container_name=container_name,

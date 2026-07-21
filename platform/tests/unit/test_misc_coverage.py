@@ -366,7 +366,8 @@ class TestFSMStateTransition:
 
 
 class TestSASServiceOffline:
-    def test_sas_service_azure_disabled_returns_original_url(self) -> None:
+    @pytest.mark.asyncio
+    async def test_sas_service_azure_disabled_returns_original_url(self) -> None:
         """When Azure is disabled, get_url_with_sas returns the original URL."""
         mock_settings = MagicMock()
         mock_settings.azure_storage_account_name = ""
@@ -389,5 +390,5 @@ class TestSASServiceOffline:
             svc._key_expiry_time = None
 
             original_url = "https://example.blob.core.windows.net/container/file.mp3"
-            result = svc.get_url_with_sas(original_url)
+            result = await svc.get_url_with_sas(original_url)
             assert result == original_url
