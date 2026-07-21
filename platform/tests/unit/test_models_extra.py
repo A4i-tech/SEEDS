@@ -126,6 +126,21 @@ class TestModelsCoverage:
         except Exception:
             pass
 
+    def test_quiz_response_from_doc_with_plain_string_title(self) -> None:
+        from app.models.responses.content import QuizResponse
+
+        doc = {
+            "_id": "quiz1",
+            "tenant_id": "t1",
+            "title": "Plain string title",
+            "theme": "Plain string theme",
+            "language": "english",
+        }
+        resp = QuizResponse.from_doc(doc)
+        assert resp.title == "Plain string title"
+        assert resp.theme == "Plain string theme"
+        assert resp.type == "quiz"
+
     def test_settings_extra_properties(self) -> None:
         from app.platform.settings import get_settings
 
