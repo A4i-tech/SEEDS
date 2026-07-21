@@ -14,8 +14,8 @@ SECURITY:
 from __future__ import annotations
 
 import logging
-from datetime import datetime
-from typing import Any
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 from fastapi import Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -28,7 +28,20 @@ from app.repositories.ivr_repository import IVRRepository
 from app.repositories.school_repository import SchoolRepository
 from app.repositories.user_repository import UserRepository
 
+# Motor's database class isn't parameterized anywhere in this codebase; alias it
+# once so the sole type-arg workaround lives here, not at every annotation site.
+if TYPE_CHECKING:
+    MotorDatabase = AsyncIOMotorDatabase[Any]
+else:
+    MotorDatabase = AsyncIOMotorDatabase
+
 logger = logging.getLogger(__name__)
+
+# Cap on the per-response `calls`/`conferences` detail lists so a broad date
+# range on a large tenant can't return an unbounded, PII-heavy payload. Totals
+# and aggregates are still computed over every matched row; only the row-level
+# detail list is truncated, and the response flags when that happens.
+MAX_ANALYTICS_ROWS = 5000
 
 SUCCESS_STATUSES = {"completed"}
 FAILURE_STATUSES = {"failed", "busy", "unanswered", "rejected", "cancelled", "timeout"}
@@ -58,6 +71,12 @@ def normalize_phone(phone: Any) -> str:
     """Last 10 digits of a phone number, ignoring formatting and country code."""
     digits = "".join(ch for ch in str(phone or "") if ch.isdigit())
     return digits[-10:]
+
+
+def conference_teacher_phone(doc: dict) -> Any:
+    """Teacher phone from a conferenceState doc, tolerating the live field-name
+    split: teacher_phone_number is canonical, teacher_phone is legacy."""
+    return doc.get("teacher_phone_number") or doc.get("teacher_phone")
 
 
 def phone_candidates(phone: Any) -> list[str]:
@@ -90,9 +109,12 @@ def average(values: list[float]) -> float | None:
 
 
 def parse_date(value: Any) -> datetime | None:
-    """Parse a date written by the Python services (ISO, with or without 'T').
+    """Parse a date field into a datetime.
 
-    Accepts datetime passthrough (Motor may return BSON dates as datetime).
+    Fields flow in as two real shapes: BSON date columns (created_at/stopped_at)
+    arrive from Motor already as datetime, while action_history timestamps are
+    ISO strings. Both are first-class inputs here — the datetime branch is not
+    defensive padding.
     """
     if value is None or value == "":
         return None
@@ -108,22 +130,33 @@ def parse_date(value: Any) -> datetime | None:
 
 
 def _delta_seconds(start: datetime, end: datetime) -> float | None:
-    """Seconds between two datetimes, tolerating mixed tz-aware/naive values."""
-    if start.tzinfo is not None and end.tzinfo is None:
-        start = start.replace(tzinfo=None)
-    elif start.tzinfo is None and end.tzinfo is not None:
-        end = end.replace(tzinfo=None)
+    """Seconds between two datetimes.
+
+    Normalizes both sides to UTC-aware before subtracting: a naive datetime is
+    assumed to be UTC (Mongo stores BSON dates in UTC) rather than having its
+    tzinfo stripped off the aware side, which would shift the represented
+    instant and corrupt the duration.
+    """
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=UTC)
+    if end.tzinfo is None:
+        end = end.replace(tzinfo=UTC)
     if end <= start:
         return None
     return (end - start).total_seconds()
 
 
 def final_call_status(call_status_updates: dict | None) -> str | None:
-    """Final status from call_status_updates ({isoTimestamp: status}); ISO keys
-    sort chronologically.
+    """Final status from call_status_updates ({isoTimestamp: status}).
 
-    Some IVRv2 writes used dotted $set paths, nesting the fractional-second part
-    one level deep ({"...T10:02:36": {"173000+00:00": "started"}}) — flatten those.
+    Keys are parsed to datetimes and the chronologically-last status is
+    returned — parsing (not raw string sort) so that mixed tz-aware/naive or
+    offset variants order correctly rather than lexicographically.
+
+    Some IVRv2 writes use dotted $set paths that nest the fractional-second part
+    one level deep ({"...T10:02:36": {"173000+00:00": "started"}}). This shape
+    is still produced by the live write path (observed in staging in 2026), so
+    the flattening below is required, not legacy handling.
     """
     entries: list[tuple[str, Any]] = []
     for key, value in (call_status_updates or {}).items():
@@ -134,7 +167,18 @@ def final_call_status(call_status_updates: dict | None) -> str | None:
             entries.append((key, value))
     if not entries:
         return None
-    entries.sort(key=lambda kv: kv[0])
+
+    def sort_key(kv: tuple[str, Any]) -> tuple[int, Any]:
+        # Sort by parsed timestamp; unparsable keys fall back to their raw
+        # string but sort before parsed ones so a bad key never wins "last".
+        # Flattened nested keys ("...T10:02:36.173000+00:00") are valid ISO too.
+        parsed = parse_date(kv[0])
+        if parsed is None:
+            logger.warning("final_call_status: unparsable timestamp key %r", kv[0])
+            return (0, kv[0])
+        return (1, parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed)
+
+    entries.sort(key=sort_key)
     return entries[-1][1]
 
 
@@ -173,6 +217,11 @@ def extract_conference_metrics(doc: dict) -> dict:
     """Extract per-conference metrics from a conferenceState document."""
     history = doc.get("action_history") or []
     if not isinstance(history, list):
+        logger.warning(
+            "extract_conference_metrics: action_history is %s not list for conf %s — treating as empty",
+            type(history).__name__,
+            doc.get("_id"),
+        )
         history = []
     start_action = next((a for a in history if a.get("action_type") == ACTION_CONFERENCE_START), None)
     end_actions = [a for a in history if a.get("action_type") == ACTION_CONFERENCE_END]
@@ -229,7 +278,7 @@ def round_or_null(value: float | None, decimals: int = 1) -> float | None:
 
 
 class AnalyticsService:
-    def __init__(self, db: AsyncIOMotorDatabase[Any]) -> None:  # type: ignore[type-arg]
+    def __init__(self, db: MotorDatabase) -> None:
         self._db = db
         self._school_repo = SchoolRepository(db)
         self._user_repo = UserRepository(db)
@@ -329,8 +378,13 @@ class AnalyticsService:
         phone_numbers: list[str] | None = None
         if teacher_id:
             teacher = await self._user_repo.find_by_id(teacher_id)
-            in_scope = teacher is not None and any(
-                str(s.id) == str(teacher.school_id) for s in schools
+            # Validate tenant first: in the tenant-wide case (school_id is None)
+            # a teacher from another tenant could otherwise pass on a matching
+            # school_id alone, leaking cross-tenant attribution.
+            in_scope = (
+                teacher is not None
+                and str(teacher.tenant_id) == str(tenant_id)
+                and any(str(s.id) == str(teacher.school_id) for s in schools)
             )
             if not in_scope:
                 raise NotFoundError("Teacher", teacher_id)
@@ -341,7 +395,7 @@ class AnalyticsService:
             )
 
         logs = await self._ivr_repo.find_for_analytics(
-            tenant_id, start.isoformat(), end.isoformat(), phone_numbers
+            tenant_id, start, end, phone_numbers
         )
 
         attributed = [
@@ -436,7 +490,8 @@ class AnalyticsService:
                 usage["playCount"] += 1
                 if playback.get("done_at"):
                     usage["completedPlays"] += 1
-                usage["callers"].add(log.get("phone_number"))
+                if caller := log.get("phone_number"):
+                    usage["callers"].add(caller)
 
             calls.append(
                 {
@@ -511,7 +566,8 @@ class AnalyticsService:
                 for e in by_teacher.values()
             ],
             "contentUsage": content_usage,
-            "calls": calls,
+            "calls": calls[:MAX_ANALYTICS_ROWS],
+            "callsTruncated": len(calls) > MAX_ANALYTICS_ROWS,
         }
 
     async def get_conference_analytics(self, scope: dict, date_range: dict) -> dict:
@@ -552,7 +608,8 @@ class AnalyticsService:
 
         for doc in docs:
             metrics = extract_conference_metrics(doc)
-            person = phone_map.get(normalize_phone(doc.get("teacher_phone_number")))
+            teacher_phone = conference_teacher_phone(doc)
+            person = phone_map.get(normalize_phone(teacher_phone))
 
             if metrics["isRunning"]:
                 live_conferences += 1
@@ -567,12 +624,12 @@ class AnalyticsService:
                 class_sizes.append(metrics["studentCount"])
             total_raised_hands += metrics["raisedHandEvents"]
 
-            teacher_key = person["id"] if person else normalize_phone(doc.get("teacher_phone_number"))
+            teacher_key = person["id"] if person else normalize_phone(teacher_phone)
             teacher_entry = by_teacher.setdefault(
                 teacher_key,
                 {
                     "teacherId": person["id"] if person else None,
-                    "teacherName": person["name"] if person else doc.get("teacher_phone_number"),
+                    "teacherName": person["name"] if person else teacher_phone,
                     "schoolId": person["schoolId"] if person else None,
                     "schoolName": person["schoolName"] if person else None,
                     "totalConferences": 0,
@@ -591,7 +648,7 @@ class AnalyticsService:
             conferences.append(
                 {
                     "conferenceId": metrics["conferenceId"],
-                    "teacherName": person["name"] if person else doc.get("teacher_phone_number"),
+                    "teacherName": person["name"] if person else teacher_phone,
                     "schoolName": person["schoolName"] if person else None,
                     "startedAt": metrics["startedAt"],
                     "endedAt": metrics["endedAt"],
@@ -648,7 +705,8 @@ class AnalyticsService:
                 }
                 for e in by_teacher.values()
             ],
-            "conferences": conferences,
+            "conferences": conferences[:MAX_ANALYTICS_ROWS],
+            "conferencesTruncated": len(conferences) > MAX_ANALYTICS_ROWS,
         }
 
 
@@ -660,6 +718,6 @@ def _iso_or_value(value: Any) -> Any:
 
 
 def get_analytics_service(
-    db: AsyncIOMotorDatabase[Any] = Depends(get_db),  # type: ignore[type-arg]
+    db: MotorDatabase = Depends(get_db),
 ) -> AnalyticsService:
     return AnalyticsService(db)

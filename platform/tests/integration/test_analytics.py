@@ -15,6 +15,8 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key-for-integration-tests-32ch"
 os.environ.setdefault("APP_MODE", "api")
 os.environ.setdefault("ENV", "development")
 
+from datetime import datetime
+
 import pytest
 import pytest_asyncio
 from bson import ObjectId
@@ -31,7 +33,11 @@ from app.repositories.ivr_repository import IVRRepository
 CONF_COLLECTION = ConferenceRepository.COLLECTION
 IVR_COLLECTION = IVRRepository.LOG_COLLECTION
 
-TENANT_ID = "tenant-1"
+# tenant_id / school_id are stored as ObjectId in the real collections (schools,
+# users). Seed them that way so the repo queries are exercised against the real
+# stored type, not a string that masks type-mismatch bugs.
+TENANT_OID = ObjectId()
+TENANT_ID = str(TENANT_OID)
 SCHOOL_OID = ObjectId()
 SCHOOL_ID = str(SCHOOL_OID)
 TEACHER_OID = ObjectId()
@@ -58,17 +64,21 @@ async def client(mock_db):
         yield mock_db
 
     app.dependency_overrides[get_db] = _override_db
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac
-    app.dependency_overrides.clear()
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            yield ac
+    finally:
+        # Guarantee override cleanup even if setup/body raises, so a failed test
+        # can't leak stale overrides into later tests.
+        app.dependency_overrides.clear()
 
 
 async def _seed(db):
     await db["schools"].insert_one(
         {
             "_id": SCHOOL_OID,
-            "tenantId": TENANT_ID,
+            "tenantId": TENANT_OID,  # stored as ObjectId, as in real data
             "name": "Test School",
             "email": "school@test.com",
             "isActive": True,
@@ -81,8 +91,8 @@ async def _seed(db):
                 "role": UserRole.TEACHER.value,
                 "name": "Mr Teacher",
                 "phone": TEACHER_PHONE,
-                "tenant_id": TENANT_ID,
-                "school_id": SCHOOL_ID,
+                "tenant_id": TENANT_OID,  # ObjectId, not string
+                "school_id": SCHOOL_OID,
                 "is_active": True,
             },
             {
@@ -90,20 +100,22 @@ async def _seed(db):
                 "role": UserRole.STUDENT.value,
                 "name": "Student One",
                 "phone": STUDENT_PHONE,
-                "tenant_id": TENANT_ID,
-                "school_id": SCHOOL_ID,
+                "tenant_id": TENANT_OID,
+                "school_id": SCHOOL_OID,
                 "is_active": True,
             },
         ]
     )
     # Two IVR logs: one completed (by student), one failed (by teacher).
+    # created_at/stopped_at seeded as BSON datetimes (real stored type) so the
+    # datetime-bounded query is exercised — string bounds would silently miss.
     await db[IVR_COLLECTION].insert_many(
         [
             {
                 "tenant_id": TENANT_ID,
                 "phone_number": STUDENT_PHONE,
-                "created_at": "2026-06-10T10:00:00",
-                "stopped_at": "2026-06-10T10:02:00",
+                "created_at": datetime(2026, 6, 10, 10, 0, 0),
+                "stopped_at": datetime(2026, 6, 10, 10, 2, 0),
                 "duration": "120",
                 "stream_playback": [
                     {"play_id": "p1", "stream_url": "https://cdn/lesson1.mp3", "done_at": "2026-06-10T10:01:50"}
@@ -116,8 +128,8 @@ async def _seed(db):
             {
                 "tenant_id": TENANT_ID,
                 "phone_number": TEACHER_PHONE,
-                "created_at": "2026-06-11T09:00:00",
-                "stopped_at": "2026-06-11T09:00:05",
+                "created_at": datetime(2026, 6, 11, 9, 0, 0),
+                "stopped_at": datetime(2026, 6, 11, 9, 0, 5),
                 "duration": "0",
                 "stream_playback": [],
                 "call_status_updates": {"2026-06-11T09:00:00": "busy"},
@@ -289,3 +301,44 @@ async def test_school_admin_cannot_use_tenant_route(client):
         headers=_auth(_school_admin_token()),
     )
     assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_school_admin_without_school_id_is_denied(client):
+    # A school_admin token lacking school_id (as produced on the Firebase auth
+    # path) must be rejected, not silently widened to tenant-wide data.
+    token = create_access_token({"sub": "sa-uid", "role": "school_admin", "tenant_id": TENANT_ID})
+    resp = await client.get(
+        "/school/analytics/ivr",
+        params={"startDate": START, "endDate": END},
+        headers=_auth(token),
+    )
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_conference_matches_legacy_teacher_phone_field(mock_db, client):
+    # A conference doc using the legacy `teacher_phone` field (instead of
+    # `teacher_phone_number`) must still be counted — field-name drift seen live.
+    await mock_db[CONF_COLLECTION].insert_one(
+        {
+            "_id": "conf-legacy",
+            "tenant_id": TENANT_ID,
+            "teacher_phone": TEACHER_PHONE,
+            "is_running": False,
+            "participants": {
+                STUDENT_PHONE: {"role": "Student", "name": "Student One"},
+            },
+            "action_history": [
+                {"action_type": "Conference-Start", "timestamp": "2026-06-13T10:00:00", "metadata": {}},
+                {"action_type": "Conference-End", "timestamp": "2026-06-13T10:10:00", "metadata": {}},
+            ],
+        }
+    )
+    resp = await client.get(
+        "/tenant/analytics/conference",
+        params={"startDate": START, "endDate": END},
+        headers=_auth(_tenant_token()),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["totals"]["totalConferences"] == 2

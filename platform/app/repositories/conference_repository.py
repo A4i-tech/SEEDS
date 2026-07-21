@@ -107,18 +107,29 @@ class ConferenceRepository(BaseRepository):
         return result.deleted_count > 0
 
     async def find_by_teacher_phones_in_date_range(
-        self, phone_candidates: list[str], start_iso: str, end_iso: str
+        self,
+        phone_candidates: list[str],
+        start_iso: str,
+        end_iso: str,
+        limit: int | None = None,
     ) -> list[dict[str, Any]]:
         """Return raw conference state docs for the given teacher phone numbers
         whose first action_history entry falls within [start_iso, end_iso].
 
         Ported from backend-server ConferenceStateMongoDao
         .findByTeacherPhonesInDateRange — returns raw dicts for analytics.
+
+        Live data has a field-name split: most docs use teacher_phone_number,
+        but some legacy docs use teacher_phone. Match either so no conference is
+        silently dropped from the query.
         """
         cursor = self._col.find(
             {
-                "teacher_phone_number": {"$in": phone_candidates},
+                "$or": [
+                    {"teacher_phone_number": {"$in": phone_candidates}},
+                    {"teacher_phone": {"$in": phone_candidates}},
+                ],
                 "action_history.0.timestamp": {"$gte": start_iso, "$lte": end_iso},
             }
         )
-        return await cursor.to_list(length=None)
+        return await cursor.to_list(length=limit)

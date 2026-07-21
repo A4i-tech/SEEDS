@@ -32,10 +32,16 @@ router = APIRouter(tags=["Analytics"])
 
 def _parse_range(start_date: str | None, end_date: str | None) -> dict[str, datetime]:
     if not start_date or not end_date:
+        logger.warning("analytics: date range rejected — startDate/endDate missing")
         raise AppError("BAD_REQUEST", "Both startDate and endDate are required", 400)
     start = _parse_iso(start_date)
     end = _parse_iso(end_date)
     if start is None or end is None:
+        logger.warning(
+            "analytics: date range rejected — unparsable startDate=%r endDate=%r",
+            start_date,
+            end_date,
+        )
         raise AppError("BAD_REQUEST", "Invalid date format", 400)
     return {"start": start, "end": end}
 
@@ -49,8 +55,43 @@ def _parse_iso(value: str) -> datetime | None:
 
 
 def _tenant_id_of(user: dict[str, Any]) -> str:
-    """For tenant-role users the JWT 'sub' is the tenant id (see tenant_scope)."""
+    """Tenant id for a user. Tenant-role tokens carry the tenant id in 'sub'
+    (not tenant_id), so fall back to it; all other roles set tenant_id."""
     return user.get("tenant_id") or user.get("sub") or ""
+
+
+def _require_school_id(user: dict[str, Any]) -> str:
+    """School id for a school_admin, or fail loud.
+
+    school_id is only populated on the native-JWT auth path; the Firebase path
+    never sets it. Without this guard a school_admin whose token lacks school_id
+    would fall through to an unscoped (tenant-wide) query — silently widening
+    their access to every school in the tenant. Fail closed instead.
+    """
+    school_id = user.get("school_id")
+    if not school_id:
+        logger.warning("analytics: school_admin token missing school_id — denying")
+        raise AppError("FORBIDDEN", "school_admin token is missing a school scope", 403)
+    return school_id
+
+
+async def _invoke(route: str, scope: dict, date_range: dict, awaitable: Any) -> dict:
+    """Await an analytics service call, logging structured failure context
+    (route, scope, date range) at ERROR before re-raising — per the repo's
+    error-handling standard. Never swallows the error."""
+    try:
+        return await awaitable
+    except Exception:
+        logger.exception(
+            "analytics: %s failed tenantId=%s schoolId=%s teacherId=%s range=%s..%s",
+            route,
+            scope.get("tenantId"),
+            scope.get("schoolId"),
+            scope.get("teacherId"),
+            date_range["start"].isoformat(),
+            date_range["end"].isoformat(),
+        )
+        raise
 
 
 def _respond(scope: dict, date_range: dict, result: dict) -> dict:
@@ -80,11 +121,13 @@ async def school_ivr_analytics(
 ) -> dict:
     date_range = _parse_range(start_date, end_date)
     scope = {
-        "tenantId": user.get("tenant_id", ""),
-        "schoolId": user.get("school_id") or None,
+        "tenantId": _tenant_id_of(user),
+        "schoolId": _require_school_id(user),
         "teacherId": teacher_id or None,
     }
-    result = await service.get_ivr_analytics(scope, date_range)
+    result = await _invoke(
+        "school_ivr_analytics", scope, date_range, service.get_ivr_analytics(scope, date_range)
+    )
     return _respond(scope, date_range, result)
 
 
@@ -101,11 +144,16 @@ async def school_conference_analytics(
 ) -> dict:
     date_range = _parse_range(start_date, end_date)
     scope = {
-        "tenantId": user.get("tenant_id", ""),
-        "schoolId": user.get("school_id") or None,
+        "tenantId": _tenant_id_of(user),
+        "schoolId": _require_school_id(user),
         "teacherId": teacher_id or None,
     }
-    result = await service.get_conference_analytics(scope, date_range)
+    result = await _invoke(
+        "school_conference_analytics",
+        scope,
+        date_range,
+        service.get_conference_analytics(scope, date_range),
+    )
     return _respond(scope, date_range, result)
 
 
@@ -129,7 +177,9 @@ async def tenant_ivr_analytics(
         "schoolId": school_id or None,
         "teacherId": teacher_id or None,
     }
-    result = await service.get_ivr_analytics(scope, date_range)
+    result = await _invoke(
+        "tenant_ivr_analytics", scope, date_range, service.get_ivr_analytics(scope, date_range)
+    )
     return _respond(scope, date_range, result)
 
 
@@ -150,5 +200,10 @@ async def tenant_conference_analytics(
         "schoolId": school_id or None,
         "teacherId": teacher_id or None,
     }
-    result = await service.get_conference_analytics(scope, date_range)
+    result = await _invoke(
+        "tenant_conference_analytics",
+        scope,
+        date_range,
+        service.get_conference_analytics(scope, date_range),
+    )
     return _respond(scope, date_range, result)

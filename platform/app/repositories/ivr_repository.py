@@ -149,19 +149,24 @@ class IVRRepository(BaseRepository):
     async def find_for_analytics(
         self,
         tenant_id: str,
-        start_iso: str,
-        end_iso: str,
+        start: datetime,
+        end: datetime,
         phone_numbers: list[str] | None = None,
+        limit: int | None = None,
     ) -> list[dict[str, Any]]:
-        """Return raw log docs for a tenant within an ISO date range, optionally
+        """Return raw log docs for a tenant within a date range, optionally
         restricted to a set of phone numbers.
 
         Ported from backend-server IvrV2LogMongoDao.findForAnalytics — projects
         only the fields the analytics service needs.
+
+        created_at/stopped_at are stored as BSON datetimes (via
+        IVRCallStateMongoDoc), so the range bounds are passed as datetime
+        objects — a String bound never matches a Date-typed field in Mongo.
         """
         query: dict[str, Any] = {
             "tenant_id": tenant_id,
-            "created_at": {"$gte": start_iso, "$lte": end_iso},
+            "created_at": {"$gte": start, "$lte": end},
         }
         if phone_numbers is not None:
             query["phone_number"] = {"$in": phone_numbers}
@@ -174,4 +179,4 @@ class IVRRepository(BaseRepository):
             "call_status_updates": 1,
         }
         cursor = self._log_col.find(query, projection)
-        return await cursor.to_list(length=None)
+        return await cursor.to_list(length=limit)

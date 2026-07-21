@@ -66,8 +66,16 @@ class UserRepository(BaseRepository):
         return User.from_mongo(doc) if doc else None
 
     async def find_all_by_tenant(self, tenant_id: str) -> list[User]:
-        """Return all users belonging to a tenant."""
-        cursor = self._col.find({"tenant_id": self._to_id(tenant_id)})
+        """Return all users belonging to a tenant.
+
+        The users collection stores tenant_id as an ObjectId, but some legacy
+        docs (and test fixtures) hold it as a plain string. Match both so the
+        query is correct regardless of stored type — a raw-string bound never
+        matches an ObjectId-typed field and would otherwise return zero users.
+        """
+        oid = self._to_id(tenant_id)
+        candidates = [tenant_id] if oid == tenant_id else [tenant_id, oid]
+        cursor = self._col.find({"tenant_id": {"$in": candidates}})
         docs = await cursor.to_list(length=None)
         return [User.from_mongo(d) for d in docs]
 
