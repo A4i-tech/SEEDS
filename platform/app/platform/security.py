@@ -2,13 +2,14 @@
 Security middleware for SEEDS Platform.
 
 Provides:
-  - CORS policy (wildcard in dev/staging, restricted in production)
+  - CORS policy (wildcard in development only, explicit allow-list in staging/production)
   - Security headers on every response
   - Global + per-route rate limiting via slowapi
 """
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from fastapi import Request
@@ -22,6 +23,8 @@ if TYPE_CHECKING:
     from fastapi import FastAPI
 
     from app.platform.settings import Settings
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -38,13 +41,17 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["5000/15minutes"]
 
 def _cors_origins(settings: Settings) -> list[str]:
     """Return the list of allowed origins based on the active environment."""
-    if settings.env in ("development", "staging"):
+    if settings.env == "development":
         return ["*"]
     raw = settings.cors_allowed_origins.strip()
-    if not raw or raw == "*":
-        # production should be explicit – return ["*"] only if explicitly set
-        return [o.strip() for o in raw.split(",") if o.strip()] or ["*"]
-    return [o.strip() for o in raw.split(",") if o.strip()]
+    origins = [o.strip() for o in raw.split(",") if o.strip()]
+    if not origins:
+        logger.warning(
+            "CORS_ALLOWED_ORIGINS is not set for env=%r; no cross-origin requests "
+            "will be allowed until it is configured.",
+            settings.env,
+        )
+    return origins
 
 
 # ---------------------------------------------------------------------------

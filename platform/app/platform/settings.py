@@ -173,9 +173,9 @@ class Settings(BaseSettings):
     # ---------------------------------------------------------------------------
     # CORS
     # ---------------------------------------------------------------------------
-    # Comma-separated list of allowed origins for production.
-    # In development/staging "*" is always used regardless of this value.
-    cors_allowed_origins: str = "*"
+    # Comma-separated list of allowed origins for staging/production.
+    # In development "*" is always used regardless of this value.
+    cors_allowed_origins: str = ""
 
     # ---------------------------------------------------------------------------
     # WebSocket control secret (Phase 11 security hardening)
