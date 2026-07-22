@@ -12,6 +12,7 @@ import ContentTab from "./AllContent/ContentTab/ContentTab";
 import IVRTab from "./AllContent/IVRTab/IVRTab";
 import RegistrationTab from "./AllContent/RegistrationTab/RegistrationTab";
 import AnalyticsTab from "./AllContent/AnalyticsTab/AnalyticsTab";
+import LocalizationTab from "./AllContent/LocalizationTab/LocalizationTab";
 import { USER_ROLES } from "../Constants";
 import "./AllContent/AllContent.css";
 import "./AllContent/shared/responsive.css";
@@ -143,11 +144,12 @@ const AllContent = () => {
           showContent={canViewContent}
           showRegistration={canViewRegistration}
           showAnalytics={canViewAnalytics}
+          showLocalization={true}
         />
 
         {updateIVRStatus && <div className="status-message">{updateIVRStatus}</div>}
 
-        {canViewContent && activeTab !== "registration" && activeTab !== "analytics" && (
+        {canViewContent && activeTab !== "registration" && activeTab !== "analytics" && activeTab !== "localization" && (
           <div className="tabs-container">
             <button
               type="button"
@@ -190,6 +192,8 @@ const AllContent = () => {
         {canViewContent && activeTab === "ivr" && <IVRTab />}
 
         {canViewAnalytics && activeTab === "analytics" && <AnalyticsTab />}
+
+        {canViewContent && activeTab === "localization" && <LocalizationTab />}
 
         {canViewRegistration && activeTab === "registration" && (
           <RegistrationTab

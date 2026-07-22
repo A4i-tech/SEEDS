@@ -92,6 +92,20 @@ class QuizCreate(BaseModel):
     negative_marks: float = 0.0
     questions: list[Any] = Field(default_factory=list)
     options: list[Any] = Field(default_factory=list)
-    correct_answers: list[Any] = Field(default_factory=list)
-    is_deleted: bool = False
-    creation_time: int = -1
+    correctAnswers: list[Any] = Field(default_factory=list)
+    isDeleted: bool = False
+    creation_time: int = -1  # DB stores this field as snake_case
+
+
+from pydantic import BaseModel, HttpUrl
+
+
+class WebsiteExtractRequest(BaseModel):
+    url: HttpUrl
+
+
+from pydantic import BaseModel, HttpUrl
+
+
+class WebsiteExtractRequest(BaseModel):
+    url: HttpUrl

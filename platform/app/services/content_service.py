@@ -26,30 +26,54 @@ from app.platform.auth.dependencies import get_db
 from app.repositories.content_job_repository import ContentJobRepository
 from app.repositories.content_repository import ContentRepository
 from app.repositories.quiz_repository import QuizRepository
+from app.services.website_extractor import WebsiteExtractor
 
 logger = logging.getLogger(__name__)
 
 
 class ContentService:
-    def __init__(self, db: AsyncIOMotorDatabase[Any]) -> None:
+
+    def __init__(
+        self,
+        db: AsyncIOMotorDatabase[Any],
+    ) -> None:
+
         self._content_repo = ContentRepository(db)
+
         self._quiz_repo = QuizRepository(db)
+
         self._job_repo = ContentJobRepository(db)
+
+        self._website_extractor = WebsiteExtractor()
 
     # ------------------------------------------------------------------
     # Jobs
     # ------------------------------------------------------------------
 
-    async def enqueue_content_job(self, content_id: str) -> str:
+    async def enqueue_content_job(
+        self,
+        content_id: str,
+    ) -> str:
+
         return await self._job_repo.create(content_id)
 
-    async def get_job(self, job_id: str) -> dict[str, Any] | None:
+    async def get_job(
+        self,
+        job_id: str,
+    ) -> dict[str, Any] | None:
+
         return await self._job_repo.find_by_id(job_id)
 
-    async def list_active_jobs(self) -> list[dict[str, Any]]:
+    async def list_active_jobs(
+        self,
+    ) -> list[dict[str, Any]]:
+
         return await self._job_repo.find_active()
 
     # ------------------------------------------------------------------
+    # Content reads
+    # ------------------------------------------------------------------
+        # ------------------------------------------------------------------
     # Content reads
     # ------------------------------------------------------------------
 
@@ -59,7 +83,12 @@ class ContentService:
         language: str,
         school_id: str | None = None,
     ) -> list[dict[str, Any]]:
-        return await self._content_repo.find_themes(tenant_id, language, school_id)
+
+        return await self._content_repo.find_themes(
+            tenant_id,
+            language,
+            school_id,
+        )
 
     async def list_content(
         self,
@@ -72,37 +101,64 @@ class ContentService:
         cursor: str | None,
         limit: int,
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-        """Return (content_docs, quiz_docs) for paginated list, each of length limit+1.
 
-        Callers use len > limit to determine hasMore and slice to limit.
         """
+        Return (content_docs, quiz_docs)
+        """
+
         after_ct = _parse_cursor(cursor)
+
         fetch_limit = limit + 1
 
-        fetch_content = not (exp_name and exp_name.lower() == "quiz")
-        fetch_quizzes = not (exp_name and exp_name.lower() not in (None, "quiz"))
+        fetch_content = not (
+            exp_name and exp_name.lower() == "quiz"
+        )
 
-        # When language+theme+expName all set, only one collection is relevant
+        fetch_quizzes = not (
+            exp_name
+            and exp_name.lower() not in (None, "quiz")
+        )
+
         if language and theme and exp_name:
+
             if exp_name.lower() == "quiz":
+
                 fetch_content = False
+
             else:
+
                 fetch_quizzes = False
 
         contents = (
             await self._content_repo.list_paginated(
-                tenant_id, school_id, language, theme, exp_name,
-                only_teacher_app, after_ct, fetch_limit,
+                tenant_id,
+                school_id,
+                language,
+                theme,
+                exp_name,
+                only_teacher_app,
+                after_ct,
+                fetch_limit,
             )
-            if fetch_content else []
+            if fetch_content
+            else []
         )
+
         quizzes = (
             await self._quiz_repo.list_paginated(
-                tenant_id, school_id, language, theme, exp_name,
-                only_teacher_app, after_ct, fetch_limit,
+                tenant_id,
+                school_id,
+                language,
+                theme,
+                exp_name,
+                only_teacher_app,
+                after_ct,
+                fetch_limit,
             )
-            if fetch_quizzes else []
+            if fetch_quizzes
+            else []
         )
+
         return contents, quizzes
 
     async def list_content_by_ids(
@@ -111,8 +167,19 @@ class ContentService:
         tenant_id: str,
         school_id: str | None,
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-        contents = await self._content_repo.find_by_ids(content_ids, tenant_id, school_id)
-        quizzes = await self._quiz_repo.find_by_ids(content_ids, tenant_id, school_id)
+
+        contents = await self._content_repo.find_by_ids(
+            content_ids,
+            tenant_id,
+            school_id,
+        )
+
+        quizzes = await self._quiz_repo.find_by_ids(
+            content_ids,
+            tenant_id,
+            school_id,
+        )
+
         return contents, quizzes
 
     async def get_content_by_id(
@@ -121,14 +188,38 @@ class ContentService:
         tenant_id: str,
         school_id: str | None,
     ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
-        """Return (content_doc, quiz_doc) — at most one is non-None."""
-        doc = await self._content_repo.find_by_id_and_tenant(content_id, tenant_id, school_id)
+
+        doc = await self._content_repo.find_by_id_and_tenant(
+            content_id,
+            tenant_id,
+            school_id,
+        )
+
         if doc:
             return doc, None
-        quiz = await self._quiz_repo.find_by_id_and_tenant(content_id, tenant_id, school_id)
+
+        quiz = await self._quiz_repo.find_by_id_and_tenant(
+            content_id,
+            tenant_id,
+            school_id,
+        )
+
         return None, quiz
 
+    async def extract_website(
+        self,
+        url: str,
+    ) -> dict[str, Any]:
+        """
+        Extract readable content from a public website.
+        """
+
+        return await self._website_extractor.extract(url)
+
     # ------------------------------------------------------------------
+    # Content writes
+    # ------------------------------------------------------------------
+        # ------------------------------------------------------------------
     # Content writes
     # ------------------------------------------------------------------
 
@@ -140,28 +231,36 @@ class ContentService:
         school_id: str | None,
         override_id: str | None = None,
     ) -> str:
-        for item in body.audio_content or []:
-            au = item.get("audio_url", "")
-            if au and not au.lower().endswith(".mp3"):
-                raise ValueError("Only .mp3 audio files are allowed.")
 
-        given = body.model_dump(
-            exclude_unset=True,
-            exclude={"type", "language", "tenant_id", "created_by", "school_id", "creation_time"},
-        )
-        dto = ContentCreate(
-            **given,
-            tenant_id=tenant_id,
-            type=body.type,
-            language=body.language,
-            created_by=user_id,
-            school_id=school_id,
-            creation_time=int(time.time()),
-        )
-        doc: dict[str, Any] = dto.model_dump()
-        doc["_id"] = override_id or str(uuid.uuid4())
-        doc["created_at"] = datetime.now(UTC)
-        doc["updated_at"] = datetime.now(UTC)
+        for item in body.audioContent or []:
+            audio_url = item.get("audioUrl", "")
+
+            if audio_url and not audio_url.lower().endswith(".mp3"):
+                raise ValueError(
+                    "Only .mp3 audio files are allowed."
+                )
+
+        doc: dict[str, Any] = {
+            "_id": override_id or str(uuid.uuid4()),
+            "type": body.type,
+            "language": body.language,
+            "title": body.title,
+            "theme": body.theme,
+            "audioContent": body.audioContent or [],
+            "description": body.description or "",
+            "isPullModel": body.isPullModel or False,
+            "isTeacherApp": body.isTeacherApp or False,
+            "tenantId": tenant_id,
+            "createdBy": user_id,
+            "creation_time": int(time.time()),
+            "schoolId": school_id,
+            "isDeleted": False,
+            "isProcessed": False,
+            "version": "v3",
+            "createdAt": datetime.now(UTC),
+            "updatedAt": datetime.now(UTC),
+        }
+
         return await self._content_repo.insert_raw(doc)
 
     async def update_content(
@@ -171,51 +270,87 @@ class ContentService:
         school_id: str | None,
         is_audio_uploaded: bool,
     ) -> dict[str, Any] | None:
-        allowed = {"title", "theme", "description", "type", "language", "is_pull_model", "is_teacher_app"}
-        body_dict = body.model_dump(exclude_unset=True)
-        updates: dict[str, Any] = {k: v for k, v in body_dict.items() if k in allowed}
 
-        if is_audio_uploaded:
-            if "audio_content" in body.model_fields_set:
-                for item in body.audio_content or []:
-                    au = item.get("audio_url", "")
-                    if au and not au.lower().endswith(".mp3"):
-                        raise ValueError("Only .mp3 audio files are allowed.")
-                updates["audio_content"] = body.audio_content
-            updates["is_processed"] = False
+        allowed = {
+            "title",
+            "theme",
+            "description",
+            "type",
+            "language",
+            "isPullModel",
+            "isTeacherApp",
+        }
+
+
+                for item in body.audioContent or []:
+
+                    audio_url = item.get("audioUrl", "")
+
+                    if (
+                        audio_url
+                        and not audio_url.lower().endswith(".mp3")
+                    ):
+                        raise ValueError(
+                            "Only .mp3 audio files are allowed."
+                        )
+
+                updates["audioContent"] = body.audioContent
+
+            updates["isProcessed"] = False
 
         result = await self._content_repo.update_by_id_and_tenant(
-            body.id, tenant_id, updates, school_id
+            body.id,
+            tenant_id,
+            updates,
+            school_id,
         )
+
         if result:
             return result
 
-        # Quiz lives in a separate collection; mirror delete_content's fallback.
         quiz_allowed = allowed | {
-            "local_title", "local_theme", "positive_marks", "negative_marks",
-            "questions", "options", "correct_answers",
-        }
-        quiz_updates = {k: v for k, v in body_dict.items() if k in quiz_allowed}
+            "localTitle",
+            "localTheme",
+            "positiveMarks",
+            "negativeMarks",
+            "questions",
+            "options",
+            "correctAnswers",
+
+        quiz_updates = {
+            k: v
         return await self._quiz_repo.update_by_id_and_tenant(
-            body.id, tenant_id, quiz_updates, school_id
+            body.id,
+            tenant_id,
+            quiz_updates,
+            school_id,
         )
 
-    async def delete_content(
         self,
         content_id: str,
         tenant_id: str,
         school_id: str | None,
     ) -> int:
+
         matched = await self._content_repo.soft_delete_by_id_and_tenant(
-            content_id, tenant_id, school_id
+            content_id,
+            tenant_id,
+            school_id,
         )
+
         if matched:
             return matched
+
         return await self._quiz_repo.soft_delete_by_id_and_tenant(
-            content_id, tenant_id, school_id
+            content_id,
+            tenant_id,
+            school_id,
         )
 
     # ------------------------------------------------------------------
+    # Quiz writes
+    # ------------------------------------------------------------------
+        # ------------------------------------------------------------------
     # Quiz writes
     # ------------------------------------------------------------------
 
@@ -227,50 +362,89 @@ class ContentService:
         school_id: str | None,
         override_id: str | None = None,
     ) -> str:
-        given = body.model_dump(
+
+        body_dict = body.model_dump(
+            by_alias=True,
             exclude_unset=True,
-            exclude={"type", "language", "tenant_id", "created_by", "school_id", "creation_time"},
         )
-        dto = QuizCreate(
-            **given,
-            tenant_id=tenant_id,
-            type=body.type,
-            language=body.language,
-            created_by=user_id,
-            school_id=school_id,
-            creation_time=int(time.time()),
-        )
-        doc: dict[str, Any] = dto.model_dump()
-        doc["_id"] = override_id or str(uuid.uuid4())
+
+        doc: dict[str, Any] = {
+            "_id": override_id or str(uuid.uuid4()),
+            "type": body.type,
+            "language": body.language,
+            "title": body_dict.get("title") or "",
+            "localTitle": body_dict.get("localTitle") or "",
+            "theme": body_dict.get("theme") or "",
+            "localTheme": body_dict.get("localTheme") or "",
+            "positiveMarks": body.positiveMarks or 1.0,
+            "negativeMarks": body.negativeMarks or 0.0,
+            "questions": body.questions or [],
+            "options": body.options or [],
+            "correctAnswers": body.correctAnswers or [],
+            "tenantId": tenant_id,
+            "createdBy": user_id,
+            "creation_time": int(time.time()),
+            "schoolId": school_id,
+            "isDeleted": False,
+        }
+
         return await self._quiz_repo.insert(doc)
 
     # ------------------------------------------------------------------
-    # Low-level passthrough (used by content job consumer)
+    # Low-level passthrough
     # ------------------------------------------------------------------
 
-    async def get_raw_content_by_id(self, content_id: str) -> dict[str, Any] | None:
-        return await self._content_repo.find_raw_by_id(content_id)
+    async def get_raw_content_by_id(
+        self,
+        content_id: str,
+    ) -> dict[str, Any] | None:
 
-    async def save_processed(self, content_id: str, fields: dict[str, Any]) -> None:
-        await self._content_repo.save_processed(content_id, fields)
+        return await self._content_repo.find_raw_by_id(
+            content_id
+        )
+
+    async def save_processed(
+        self,
+        content_id: str,
+        fields: dict[str, Any],
+    ) -> None:
+
+        await self._content_repo.save_processed(
+            content_id,
+            fields,
+        )
 
 
-def _parse_cursor(cursor: str | None) -> int | None:
-    """Extract creation_time int from cursor string '{creation_time}_{id}'.
-
-    Returns None on malformed cursor (restarts pagination from beginning).
+def _parse_cursor(
+    cursor: str | None,
+) -> int | None:
     """
+    Extract creation_time from pagination cursor.
+    """
+
     if not cursor:
         return None
+
     parts = cursor.split("_", 1)
+
     if len(parts) == 2:
+
         try:
             return int(parts[0])
+
         except ValueError:
             pass
-    logger.warning("Malformed pagination cursor ignored: %r", cursor)
+
+    logger.warning(
+        "Malformed pagination cursor ignored: %r",
+        cursor,
+    )
+
     return None
 
 
-def get_content_service(db: AsyncIOMotorDatabase[Any] = Depends(get_db)) -> ContentService:
+def get_content_service(
+    db: AsyncIOMotorDatabase[Any] = Depends(get_db),
+) -> ContentService:
+
     return ContentService(db)

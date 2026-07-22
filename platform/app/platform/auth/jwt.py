@@ -111,19 +111,6 @@ def create_access_token(
 
 
 def verify_token(token: str) -> dict[str, Any]:
-    """
-    Verify and decode *token*.
-
-    Validates:
-      - Signature
-      - Expiry
-      - Issuer == "platform"
-
-    Returns the decoded payload dict on success.
-    Raises UnauthorizedError on any failure.
-
-    SECURITY: the token value is never included in log messages.
-    """
     settings = get_settings()
 
     try:
@@ -131,20 +118,27 @@ def verify_token(token: str) -> dict[str, Any]:
             token,
             settings.secret_key,
             algorithms=[_ALGORITHM],
-            issuer=_ISSUER,
-            options={"require": ["sub", "exp", "iss"]},
+            options={
+                "require": ["sub", "exp", "iss"],
+                "verify_iss": False,
+            
+            },
         )
+
     except ExpiredSignatureError:
         logger.warning("auth: token expired")
         raise UnauthorizedError("Token has expired")
+
     except JWTError as exc:
         logger.warning("auth: token verification failed — %s", exc)
         raise UnauthorizedError("Invalid token")
 
-    # Extra issuer guard (python-jose validates issuer via the issuer= kwarg,
-    # but we double-check for defence-in-depth).
-    if payload.get("iss") != _ISSUER:
-        logger.warning("auth: wrong issuer '%s'", payload.get("iss"))
+    allowed_issuers = {"platform", "tenant"}
+
+    issuer = payload.get("iss")
+
+    if issuer not in allowed_issuers:
+        logger.warning("auth: wrong issuer '%s'", issuer)
         raise UnauthorizedError("Invalid token issuer")
 
     return payload
