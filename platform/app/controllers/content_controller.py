@@ -23,6 +23,8 @@ from app.models.requests.content_requests import (
     ContentCreateRequest,
     ContentUpdateRequest,
     QuizCreateRequest,
+
+    WebsiteExtractRequest,
 )
 from app.models.responses.content import ContentResponse, QuizResponse
 from app.models.responses.job import DeleteMatchedResponse, JobScheduledResponse
@@ -31,6 +33,8 @@ from app.platform.auth.dependencies import get_current_user
 from app.platform.error_handling import ForbiddenError, NotFoundError
 from app.providers.blob_storage import BlobStorageProvider
 from app.services.content_service import ContentService, get_content_service
+from app.models.requests.translation_requests import WebsiteTranslationRequest
+from app.services.translation_service import TranslationService
 
 logger = logging.getLogger(__name__)
 
@@ -306,6 +310,43 @@ async def get_content(
         return QuizResponse.from_doc(quiz)
     raise NotFoundError("Content", content_id)
 
+
+
+# ---------------------------------------------------------------------------
+# POST /content/extract-website
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/extract-website",
+    summary="Extract readable content from a website",
+)
+async def extract_website(
+    body: WebsiteExtractRequest,
+    user: dict[str, Any] = Depends(_require_content_read),
+    service: ContentService = Depends(get_content_service),
+) -> dict[str, Any]:
+
+    return await service.extract_website(str(body.url))
+
+@router.post(
+    "/translate-website",
+    summary="Translate extracted website content",
+)
+async def translate_website(
+    body: WebsiteTranslationRequest,
+    user: dict[str, Any] = Depends(_require_content_read),
+) -> dict[str, Any]:
+
+    service = TranslationService()
+
+    translated = await service.translate(
+        body.content,
+        body.targetLanguage,
+    )
+
+    return {
+        "translatedContent": translated
+    }
 
 # ---------------------------------------------------------------------------
 # POST /content

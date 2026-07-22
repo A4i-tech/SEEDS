@@ -1,4 +1,4 @@
-import { SEEDS_URL } from "../Constants";
+import { SEEDS_URL, PLATFORM_URL } from "../Constants";
 import { getAuthHeaders } from "../utils/authHelpers";
 import { apiFetch, buildQueryString } from "./api";
 
@@ -46,7 +46,6 @@ export const contentService = {
    * @returns {Promise<void>}
    */
   async deleteContent(type, id) {
-    // All content (including quizzes) is now deleted through the main endpoint
     const url = `${SEEDS_URL}/content/${id}`;
 
     await apiFetch(url, {
@@ -57,7 +56,7 @@ export const contentService = {
 
   /**
    * Create or update a quiz
-   * @param {Object} quizData - Quiz metadata and questions
+   * @param {Object} quizData
    * @returns {Promise<Object>}
    */
   async createQuiz(quizData) {
@@ -76,9 +75,9 @@ export const contentService = {
   },
 
   /**
-   * Update existing content (quiz or story) via PATCH
-   * @param {Object} contentData - Content with _id field required
-   * @param {boolean} isAudioUploaded - Whether a new audio file was uploaded
+   * Update existing content
+   * @param {Object} contentData
+   * @param {boolean} isAudioUploaded
    * @returns {Promise<Object>}
    */
   async updateContent(contentData, isAudioUploaded = false) {
@@ -97,7 +96,7 @@ export const contentService = {
   },
 
   /**
-   * Fetch all content (without pagination) - for bulk operations
+   * Fetch all content
    * @returns {Promise<Array>}
    */
   async getAllContent() {
@@ -108,7 +107,6 @@ export const contentService = {
       headers: getAuthHeaders(),
     });
 
-    // Normalize data: ensure all items have "id" field
     const normalizedData = (response.data || response || []).map((item) => {
       if (!item.id && item._id) {
         return { ...item, id: item._id };
@@ -121,7 +119,7 @@ export const contentService = {
 
   /**
    * Fetch content by ID
-   * @param {string} id - Content ID
+   * @param {string} id
    * @returns {Promise<Object>}
    */
   async getContentById(id) {
@@ -140,6 +138,53 @@ export const contentService = {
     if (response && !response.id && response._id) {
       return { ...response, id: response._id };
     }
+
     return response;
+  },
+
+  /**
+   * Extract readable content from a website.
+   * @param {string} url - Website URL
+   * @returns {Promise<Object>}
+   */
+  async extractWebsite(url) {
+    if (!url || !url.trim()) {
+      throw new Error("Website URL is required");
+    }
+
+    return await apiFetch(`${PLATFORM_URL}/content/extract-website`, {
+      method: "POST",
+      headers: {
+        ...getAuthHeaders(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        url: url.trim(),
+      }),
+    });
+  },
+
+  /**
+   * Translate extracted website content.
+   * @param {string} content - Extracted website text
+   * @param {string} targetLanguage - Target language
+   * @returns {Promise<Object>}
+   */
+  async translateWebsite(content, targetLanguage) {
+    if (!content || !content.trim()) {
+      throw new Error("Content is required");
+    }
+
+    return await apiFetch(`${PLATFORM_URL}/content/translate-website`, {
+      method: "POST",
+      headers: {
+        ...getAuthHeaders(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        content,
+        targetLanguage,
+      }),
+    });
   },
 };

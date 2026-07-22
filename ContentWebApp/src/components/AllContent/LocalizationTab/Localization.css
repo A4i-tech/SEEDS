@@ -1,0 +1,373 @@
+/* ===========================
+   Localization Container
+=========================== */
+
+.localization-container {
+    padding: 30px;
+}
+
+.localization-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+}
+
+.localization-header h2 {
+    margin: 0;
+    color: #1f2937;
+    font-size: 30px;
+    font-weight: 600;
+}
+
+.localization-header p {
+    margin-top: 8px;
+    color: #6b7280;
+    font-size: 15px;
+}
+
+/* ===========================
+   Navigation
+=========================== */
+
+.localization-nav {
+    display: flex;
+    gap: 15px;
+    padding: 15px;
+    background: #f8fafc;
+    border-radius: 12px;
+    margin-bottom: 30px;
+}
+
+.nav-btn {
+    border: none;
+    background: transparent;
+    padding: 12px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.nav-btn:hover {
+    background: #dbeafe;
+}
+
+.nav-btn.active {
+    background: #2563eb;
+    color: #ffffff;
+}
+
+/* ===========================
+   Dashboard Cards
+=========================== */
+
+.dashboard-cards {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 40px;
+}
+
+.dashboard-card {
+    flex: 1;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 30px;
+    text-align: center;
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s ease;
+}
+
+.dashboard-card:hover {
+    transform: translateY(-6px);
+}
+
+.dashboard-icon {
+    font-size: 40px;
+    margin-bottom: 15px;
+}
+
+.dashboard-card h3 {
+    margin: 0;
+    color: #1f2937;
+    font-size: 22px;
+    font-weight: 600;
+}
+
+.dashboard-card h1 {
+    margin: 15px 0;
+    font-size: 46px;
+    color: #2563eb;
+}
+
+.dashboard-card p {
+    color: #6b7280;
+    font-size: 15px;
+}
+
+/* ===========================
+   Quick Actions
+=========================== */
+
+.quick-actions {
+    background: #ffffff;
+    border-radius: 14px;
+    padding: 25px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.08);
+}
+
+.quick-actions h2 {
+    margin-bottom: 20px;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.action-buttons button {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    background: #2563eb;
+    color: white;
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 600;
+    transition: all .3s ease;
+}
+
+.action-buttons button:hover {
+    background: #1d4ed8;
+}
+
+/* ===========================
+   Tables
+=========================== */
+
+.table-container {
+    background: #ffffff;
+    padding: 30px;
+    border-radius: 14px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.08);
+}
+
+.table-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.table-header h2 {
+    margin: 0;
+}
+
+.primary-btn{
+    background:#2563eb;
+    color:#fff;
+    border:none;
+    padding:12px 22px;
+    border-radius:8px;
+    cursor:pointer;
+    font-size:15px;
+    font-weight:600;
+}
+
+.primary-btn:hover{
+    background:#1d4ed8;
+}
+
+.secondary-btn{
+    background:#e5e7eb;
+    color:#111827;
+    border:none;
+    padding:12px 22px;
+    border-radius:8px;
+    cursor:pointer;
+    font-size:15px;
+    font-weight:600;
+}
+
+.secondary-btn:hover{
+    background:#d1d5db;
+}
+.search-box {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    font-size: 15px;
+    outline: none;
+}
+
+.search-box:focus {
+    border-color: #2563eb;
+}
+
+/* ===========================
+   Table
+=========================== */
+
+.project-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.project-table th {
+    background: #1f2937;
+    color: white;
+    padding: 16px;
+    text-align: left;
+}
+
+.project-table td {
+    padding: 16px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.project-table tr:hover {
+    background: #f9fafb;
+}
+
+.empty-row {
+    text-align: center;
+    color: #9ca3af;
+    padding: 30px;
+}
+
+/* ===========================
+   Responsive
+=========================== */
+
+@media (max-width: 992px) {
+
+    .dashboard-cards {
+        flex-direction: column;
+    }
+
+    .localization-nav {
+        flex-wrap: wrap;
+    }
+
+    .table-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+    }
+
+    .action-buttons {
+        flex-direction: column;
+    }
+
+    .action-buttons button {
+        width: 100%;
+    }
+
+}
+
+/* Modal */
+
+.modal-overlay{
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,.45);
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    z-index:999;
+}
+
+.modal{
+    background:#fff;
+    width:500px;
+    border-radius:12px;
+    padding:25px;
+}
+
+.modal h2{
+    margin-bottom:20px;
+}
+
+.modal input,
+.modal textarea,
+.modal select{
+    width:100%;
+    margin-bottom:15px;
+    padding:12px;
+    border:1px solid #ddd;
+    border-radius:8px;
+}
+
+.modal-actions{
+    display:flex;
+    justify-content:flex-end;
+    gap:10px;
+}
+
+.secondary-btn{
+    padding:12px 20px;
+    border:none;
+    border-radius:8px;
+    background:#6b7280;
+    color:white;
+    cursor:pointer;
+}
+
+/* ========================================
+   Project Status
+======================================== */
+
+.status-active {
+    background: #dcfce7;
+    color: #166534;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.status-inactive {
+    background: #fee2e2;
+    color: #991b1b;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+/* ========================================
+   Table Action Buttons
+======================================== */
+
+.table-action-btn {
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    margin-right: 8px;
+    transition: 0.3s;
+}
+
+.edit-btn {
+    background: #2563eb;
+    color: white;
+}
+
+.edit-btn:hover {
+    background: #1d4ed8;
+}
+
+.delete-btn {
+    background: #dc2626;
+    color: white;
+}
+
+.delete-btn:hover {
+    background: #b91c1c;
+}

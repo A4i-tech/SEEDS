@@ -21,10 +21,9 @@ export const apiFetch = async (url, options = {}) => {
 
     if (!response.ok) {
       if (response.status === 401 || response.status === 403) {
-        clearAuth();
-        if (typeof window !== "undefined" && window.location.pathname !== "/") {
-          window.location.href = "/";
-        }
+        console.error("Unauthorized:", await response.text());
+        throw new ApiError("Unauthorized", response.status, response);  
+        
       }
       const text = await response.text();
       throw new ApiError(
