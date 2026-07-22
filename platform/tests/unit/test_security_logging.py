@@ -157,6 +157,23 @@ async def test_cors_restricted_prod() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("env", ["staging", "production"])
+async def test_cors_fails_closed_when_unset(env: str) -> None:
+    """If CORS_ALLOWED_ORIGINS is unset in staging/production, no origin is allowed."""
+    app = _make_app(env=env, cors_origins="")
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.options(
+            "/ping",
+            headers={"Origin": "https://app.seeds.org", "Access-Control-Request-Method": "GET"},
+        )
+
+    ac_origin = response.headers.get("access-control-allow-origin", "")
+    assert ac_origin != "https://app.seeds.org"
+    assert ac_origin != "*"
+
+
+@pytest.mark.asyncio
 async def test_error_envelope_format() -> None:
     """AppError must be wrapped in the standard error envelope."""
     app = _make_app(include_error_route=True)

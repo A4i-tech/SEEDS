@@ -71,7 +71,7 @@ cp env.example .env
 | `AZURE_STORAGE_CONNECTION_STRING` | for content/audio | Azure Blob Storage connection string |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | no | App Insights (telemetry disabled if absent) |
 | `WS_CONTROL_SECRET` | for prod | Shared secret for websocket-service control channel |
-| `CORS_ALLOWED_ORIGINS` | for prod | Comma-separated allowed origins (ignored in development) |
+| `CORS_ALLOWED_ORIGINS` | for staging/prod | Comma-separated allowed origins (ignored in development; if unset, staging/prod reject all cross-origin requests) |
 
 ## Run
 
