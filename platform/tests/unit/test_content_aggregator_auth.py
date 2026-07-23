@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from app.controllers import content_aggregator_auth_controller
 from app.platform.auth.hashing import hash_password
 from app.platform.error_handling import AppError, UnauthorizedError
 from app.platform.settings import Settings
