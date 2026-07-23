@@ -10,6 +10,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.support import mongomock_async
+
 # ---------------------------------------------------------------------------
 # Audio recording consumer — pure message classes + queue
 # ---------------------------------------------------------------------------
@@ -64,7 +66,6 @@ class TestAudioRecordingConsumer:
 class TestContentJobConsumerUtils:
     def test_content_job_consumer_instantiation(self) -> None:
         from app.consumers.content_job_consumer import ContentJobConsumer
-        from tests.support import mongomock_async
 
         client = mongomock_async.AsyncMongoMockClient()
         db = client["test_cjc"]
@@ -75,7 +76,6 @@ class TestContentJobConsumerUtils:
     async def test_content_job_consumer_process_unknown_raises(self) -> None:
         from app.consumers.base_consumer import PermanentError
         from app.consumers.content_job_consumer import ContentJobConsumer
-        from tests.support import mongomock_async
 
         client = mongomock_async.AsyncMongoMockClient()
         db = client["test_cjc_stop"]
@@ -278,7 +278,6 @@ class TestInstiGenerateStates:
 class TestIVRServiceEnsureLoaded:
     @pytest.fixture
     def db(self):
-        from tests.support import mongomock_async
         client = mongomock_async.AsyncMongoMockClient()
         return client["test_ivr_ensure"]
 
@@ -410,7 +409,6 @@ class TestAuditLogModel:
 class TestAuditRepositoryExtra:
     @pytest.fixture
     def db(self):
-        from tests.support import mongomock_async
         client = mongomock_async.AsyncMongoMockClient()
         return client["test_audit_repo"]
 

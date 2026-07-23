@@ -26,6 +26,8 @@ import os
 import sys
 from typing import Any
 
+from pymongo import AsyncMongoClient
+
 # ---------------------------------------------------------------------------
 # Allow running from project root without installing the package.
 # ---------------------------------------------------------------------------
@@ -66,9 +68,7 @@ async def verify(mongo_uri: str) -> bool:
 
     Returns True if all checks pass, False otherwise.
     """
-    from pymongo import AsyncMongoClient  # noqa: PLC0415
-
-    client: AsyncMongoClient = AsyncMongoClient(mongo_uri)  # type: ignore[type-arg]
+    client: AsyncMongoClient = AsyncMongoClient(mongo_uri)
     try:
         db_name = client.get_default_database().name if "/" in mongo_uri.rsplit("?", 1)[0] else "seeds"
     except Exception:

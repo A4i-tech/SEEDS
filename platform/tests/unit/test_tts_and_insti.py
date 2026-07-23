@@ -10,6 +10,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.support import mongomock_async
+
 # ---------------------------------------------------------------------------
 # TTS service — pure helper functions (no network / SDK needed)
 # ---------------------------------------------------------------------------
@@ -427,7 +429,6 @@ class TestConferenceEventDispatcher:
 class TestCallRepository:
     @pytest.fixture
     def db(self):
-        from tests.support import mongomock_async
         client = mongomock_async.AsyncMongoMockClient()
         return client["test_call_repo"]
 
@@ -466,7 +467,6 @@ class TestCallRepository:
 class TestConferenceRepository:
     @pytest.fixture
     def db(self):
-        from tests.support import mongomock_async
         client = mongomock_async.AsyncMongoMockClient()
         return client["test_conf_repo"]
 
@@ -501,7 +501,6 @@ class TestConferenceRepository:
 class TestContentRepository:
     @pytest.fixture
     def db(self):
-        from tests.support import mongomock_async
         client = mongomock_async.AsyncMongoMockClient()
         return client["test_content_repo"]
 
@@ -586,7 +585,6 @@ class TestSchoolServiceAdditional:
 
     @pytest.fixture
     def db(self):
-        from tests.support import mongomock_async
         client = mongomock_async.AsyncMongoMockClient()
         return client["test_school_svc"]
 
@@ -654,7 +652,6 @@ class TestSchoolServiceAdditional:
 class TestUserServiceAdditional:
     @pytest.fixture
     def db(self):
-        from tests.support import mongomock_async
         client = mongomock_async.AsyncMongoMockClient()
         return client["test_user_svc"]
 
@@ -716,7 +713,6 @@ class TestUserServiceAdditional:
 class TestAuthServiceTenant:
     @pytest.fixture
     def db(self):
-        from tests.support import mongomock_async
         client = mongomock_async.AsyncMongoMockClient()
         return client["test_auth_svc"]
 

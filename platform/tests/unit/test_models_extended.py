@@ -14,6 +14,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.support import mongomock_async
+
 # ---------------------------------------------------------------------------
 # Models — audit_log
 # ---------------------------------------------------------------------------
@@ -438,7 +440,6 @@ class TestBaseConsumer:
 class TestAuditRepository:
     @pytest.fixture
     def db(self):
-        from tests.support import mongomock_async
         client = mongomock_async.AsyncMongoMockClient()
         return client["test_db"]
 
@@ -498,7 +499,6 @@ class TestAuditRepository:
 class TestIVRRepository:
     @pytest.fixture
     def db(self):
-        from tests.support import mongomock_async
         client = mongomock_async.AsyncMongoMockClient()
         return client["test_db"]
 
@@ -553,7 +553,6 @@ class TestIVRRepository:
 class TestComprehensionRepository:
     @pytest.fixture
     def db(self):
-        from tests.support import mongomock_async
         client = mongomock_async.AsyncMongoMockClient()
         return client["test_db"]
 
@@ -665,7 +664,6 @@ class TestContentJobConsumerUtils:
 class TestContentJobConsumerDeadLetter:
     @pytest.fixture
     def db(self):
-        from tests.support import mongomock_async
         client = mongomock_async.AsyncMongoMockClient()
         return client["test_db"]
 
@@ -701,7 +699,6 @@ class TestSchoolService:
 
     @pytest.fixture
     def db(self):
-        from tests.support import mongomock_async
         client = mongomock_async.AsyncMongoMockClient()
         return client["test_db"]
 
@@ -758,7 +755,6 @@ class TestSchoolService:
 class TestUserService:
     @pytest.fixture
     def db(self):
-        from tests.support import mongomock_async
         client = mongomock_async.AsyncMongoMockClient()
         return client["test_db"]
 
@@ -780,7 +776,6 @@ class TestUserService:
 class TestAuthService:
     @pytest.fixture
     def db(self):
-        from tests.support import mongomock_async
         client = mongomock_async.AsyncMongoMockClient()
         return client["test_db"]
 

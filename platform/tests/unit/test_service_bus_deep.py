@@ -9,6 +9,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.support.mongomock_async import AsyncMongoMockClient
+
 # ---------------------------------------------------------------------------
 # ServiceBusProvider — methods with handle=None (no Azure)
 # ---------------------------------------------------------------------------
@@ -209,7 +211,6 @@ class TestWebhookControllerDeep:
 
         from app.main import app
         from app.platform.auth.dependencies import get_db
-        from tests.support.mongomock_async import AsyncMongoMockClient
 
         client = AsyncMongoMockClient()
         db = client["test_wh_deep"]
@@ -230,7 +231,6 @@ class TestWebhookControllerDeep:
 
         from app.main import app
         from app.platform.auth.dependencies import get_db
-        from tests.support.mongomock_async import AsyncMongoMockClient
 
         client = AsyncMongoMockClient()
         db = client["test_wh_event"]
@@ -258,7 +258,6 @@ class TestWebhookControllerDeep:
 
         from app.main import app
         from app.platform.auth.dependencies import get_db
-        from tests.support.mongomock_async import AsyncMongoMockClient
 
         client = AsyncMongoMockClient()
         db = client["test_wh_answered"]
@@ -286,7 +285,6 @@ class TestWebhookControllerDeep:
 
         from app.main import app
         from app.platform.auth.dependencies import get_db
-        from tests.support.mongomock_async import AsyncMongoMockClient
 
         client = AsyncMongoMockClient()
         db = client["test_wh_dtmf"]

@@ -9,6 +9,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.support import mongomock_async
+
 # ---------------------------------------------------------------------------
 # Pause announcement
 # ---------------------------------------------------------------------------
@@ -250,7 +252,6 @@ class TestSchoolServiceExtended:
 
     @pytest.fixture
     def db(self):
-        from tests.support import mongomock_async
         client = mongomock_async.AsyncMongoMockClient()
         return client["test_db_school"]
 
@@ -309,7 +310,6 @@ class TestSchoolServiceExtended:
 class TestUserServiceExtended:
     @pytest.fixture
     def db(self):
-        from tests.support import mongomock_async
         client = mongomock_async.AsyncMongoMockClient()
         return client["test_db_user"]
 

@@ -9,6 +9,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from tests.support import mongomock_async
+
 # ---------------------------------------------------------------------------
 # SAS service — offline path coverage
 # ---------------------------------------------------------------------------
@@ -77,7 +79,6 @@ class TestSASService:
 class TestIVRServiceStructure:
     @pytest.fixture
     def db(self):
-        from tests.support import mongomock_async
         client = mongomock_async.AsyncMongoMockClient()
         return client["test_ivr_svc"]
 
@@ -131,7 +132,6 @@ class TestIVRServiceStructure:
 class TestIVRStartCallFlow:
     @pytest.fixture
     def db(self):
-        from tests.support import mongomock_async
         client = mongomock_async.AsyncMongoMockClient()
         return client["test_ivr_start"]
 
@@ -364,7 +364,6 @@ class TestConferenceStateModel:
 class TestClassroomRepository:
     @pytest.fixture
     def db(self):
-        from tests.support import mongomock_async
         client = mongomock_async.AsyncMongoMockClient()
         return client["test_classroom_repo"]
 
@@ -413,7 +412,6 @@ class TestClassroomRepository:
 class TestIVRRepository:
     @pytest.fixture
     def db(self):
-        from tests.support import mongomock_async
         client = mongomock_async.AsyncMongoMockClient()
         return client["test_ivr_repo"]
 
@@ -463,7 +461,6 @@ class TestIVRRepository:
 class TestComprehensionRepository:
     @pytest.fixture
     def db(self):
-        from tests.support import mongomock_async
         client = mongomock_async.AsyncMongoMockClient()
         return client["test_comp_repo"]
 

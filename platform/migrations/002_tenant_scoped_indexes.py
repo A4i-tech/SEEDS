@@ -45,6 +45,8 @@ import os
 import sys
 from typing import Any
 
+from pymongo import ASCENDING, DESCENDING, AsyncMongoClient
+
 # ---------------------------------------------------------------------------
 # Allow running from project root without installing the package.
 # ---------------------------------------------------------------------------
@@ -97,15 +99,9 @@ def _describe_index(collection: str, key_spec: list[tuple[str, int]], options: d
 
 async def migrate(mongo_uri: str, dry_run: bool) -> None:
     """Create all tenant-scoped compound indexes."""
-    from pymongo import (  # noqa: PLC0415
-        ASCENDING,
-        DESCENDING,
-        AsyncMongoClient,  # noqa: PLC0415
-    )
-
     direction_map = {1: ASCENDING, -1: DESCENDING}
 
-    client: AsyncMongoClient = AsyncMongoClient(mongo_uri)  # type: ignore[type-arg]
+    client: AsyncMongoClient = AsyncMongoClient(mongo_uri)
     try:
         db_name = client.get_default_database().name if "/" in mongo_uri.rsplit("?", 1)[0] else "seeds"
     except Exception:
