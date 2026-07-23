@@ -149,6 +149,7 @@ _COUNTER_NAMES: list[str] = [
     "jobs.content.failed",
     "auth.failures",
     "vonage.api.errors",
+    "content_aggregator_auth.reuse_detected",
 ]
 
 # (name, unit) pairs
