@@ -17,7 +17,7 @@ Flags:
 Indexes created:
     users:
         {tenant_id: 1, _id: 1}
-        {tenant_id: 1, email: 1}  (unique)
+        {tenant_id: 1, email: 1}  (unique, partial — email exists and non-empty)
     schools:
         {tenant_id: 1, _id: 1}
     classrooms:
@@ -65,7 +65,14 @@ if _PROJECT_ROOT not in sys.path:
 INDEX_SPECS: list[tuple[str, list[tuple[str, int]], dict[str, Any]]] = [
     # users
     ("users", [("tenant_id", 1), ("_id", 1)], {}),
-    ("users", [("tenant_id", 1), ("email", 1)], {"unique": True, "sparse": True}),
+    (
+        "users",
+        [("tenant_id", 1), ("email", 1)],
+        {
+            "unique": True,
+            "partialFilterExpression": {"email": {"$exists": True, "$type": "string", "$gt": ""}},
+        },
+    ),
     # schools
     ("schools", [("tenant_id", 1), ("_id", 1)], {}),
     # classrooms
@@ -103,6 +110,7 @@ async def migrate(mongo_uri: str, dry_run: bool) -> None:
     db = client[db_name]
 
     created = 0
+    failures = 0
     for collection_name, key_spec, options in INDEX_SPECS:
         pymongo_keys = [(field, direction_map[direction]) for field, direction in key_spec]
         description = _describe_index(collection_name, key_spec, options)
@@ -126,6 +134,9 @@ async def migrate(mongo_uri: str, dry_run: bool) -> None:
         print(f"\nMigration complete — {created}/{len(INDEX_SPECS)} index(es) created/verified.")
 
     await client.close()
+
+    if failures:
+        sys.exit(1)
 
 
 def _resolve_mongo_uri(cli_uri: str | None) -> str:
