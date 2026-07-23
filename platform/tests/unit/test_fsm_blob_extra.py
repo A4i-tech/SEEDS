@@ -15,6 +15,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.support import mongomock_async
+from tests.support.mongomock_async import AsyncMongoMockClient
+
 # ---------------------------------------------------------------------------
 # FSM debug methods
 # ---------------------------------------------------------------------------
@@ -203,7 +206,6 @@ class TestAudioAnalysisConsumer:
 class TestContentJobConsumerDeeper:
     @pytest.fixture
     def db(self):
-        from tests.support import mongomock_async
         client = mongomock_async.AsyncMongoMockClient()
         return client["test_cj_deeper"]
 
@@ -291,7 +293,6 @@ class TestSchoolControllerEndpoints:
 
     @pytest.fixture
     def db(self):
-        from tests.support import mongomock_async
         client = mongomock_async.AsyncMongoMockClient()
         return client["test_school_ctrl"]
 
@@ -305,7 +306,6 @@ class TestSchoolControllerEndpoints:
 
         from app.main import app
         from app.platform.auth.dependencies import get_db
-        from tests.support.mongomock_async import AsyncMongoMockClient
 
         client = AsyncMongoMockClient()
         mock_db = client["test_school_ctrl_http"]
@@ -330,7 +330,6 @@ class TestSchoolControllerEndpoints:
 
         from app.main import app
         from app.platform.auth.dependencies import get_db
-        from tests.support.mongomock_async import AsyncMongoMockClient
 
         client = AsyncMongoMockClient()
         mock_db = client["test_ivr_ctrl_http"]
