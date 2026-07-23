@@ -392,7 +392,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
       });
       await seedsRes.json();
     } else {
-      const seedsRes = await fetch(`${SEEDS_URL}/content/`, {
+      const seedsRes = await fetch(`${SEEDS_URL}/content`, {
         method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify(newMetadata),
