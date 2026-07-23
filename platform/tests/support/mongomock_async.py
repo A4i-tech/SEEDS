@@ -1,14 +1,4 @@
-"""In-repo async shim over sync `mongomock`, standing in for PyMongo's async API in tests.
-
-`mongomock` has no native support for `pymongo`'s async API (mongomock/mongomock#916,
-open/unresolved). This wraps the existing sync `mongomock.MongoClient`: `find()` returns
-a cursor wrapper with async iteration/`to_list`, and every other collection/database
-method (`insert_one`, `replace_one`, `insert_many`, `command`, ...) is proxied generically
-through `__getattr__` into a same-named `async def` that calls straight through to the
-sync mongomock method — matching how Motor auto-wraps the full pymongo sync surface.
-Tests swap `mongomock_motor.AsyncMongoMockClient` for `AsyncMongoMockClient` here with a
-one-line import change and no fixture rewrites.
-"""
+"""Async wrapper over `mongomock` because it does not support async PyMongo APIs."""
 
 from __future__ import annotations
 
