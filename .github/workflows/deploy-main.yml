@@ -1,14 +1,6 @@
 name: Deploy Main Services
 
 on:
-    pull_request:
-        types: [opened, synchronize, reopened]
-        branches: a4i/staging
-        paths:
-            - ContentWebApp/**
-            - .github/actions/deploy-azure/**
-            - .github/actions/deploy-docker/**
-            - .github/workflows/deploy-main.yml
     push:
         branches: a4i/main
     workflow_call:
@@ -19,7 +11,6 @@ env:
 
 jobs:
     build:
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         runs-on: ubuntu-latest
         strategy:
             matrix:
@@ -35,7 +26,6 @@ jobs:
                       azure_publish_profile: CONTENT_WEBAPP_AZURE_PUBLISH_PROFILE
                       build_arg_api_url: CONTENT_WEBAPP_REACT_APP_API_BASE_URL
                       build_arg_google_site_verification: CONTENT_WEBAPP_REACT_APP_GOOGLE_SITE_VERIFICATION
-                      deploy_on_pr: true
 
                     - name: teacher-webapp-service
                       context: teacher-webapp
@@ -53,7 +43,6 @@ jobs:
               uses: actions/checkout@v4
 
             - name: Build & push image
-              if: github.event_name != 'pull_request' || matrix.service.deploy_on_pr
               uses: ./.github/actions/deploy-docker
               with:
                   context: ${{ matrix.service.context }}
@@ -62,7 +51,7 @@ jobs:
                   repository: ${{ github.repository }}
                   github_token: ${{ secrets.GITHUB_TOKEN }}
                   username: ${{ github.actor }}
-                  environment_tag: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'prod' }}
+                  environment_tag: prod
                   build_args: |
                       ${{ matrix.service.build_arg_storage && format('REACT_APP_STORAGE_ACCOUNT_NAME={0}', vars[matrix.service.build_arg_storage]) }}
                       ${{ matrix.service.build_arg_api_url && format('REACT_APP_API_BASE_URL={0}', vars[matrix.service.build_arg_api_url]) }}
@@ -70,7 +59,6 @@ jobs:
 
     deploy:
         needs: build
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         runs-on: ubuntu-latest
         strategy:
             max-parallel: 1
@@ -83,7 +71,6 @@ jobs:
                     - name: content-webapp-service
                       image: content-webapp
                       azure_publish_profile: CONTENT_WEBAPP_AZURE_PUBLISH_PROFILE
-                      deploy_on_pr: true
 
                     - name: teacher-webapp-service
                       image: teacher-webapp
@@ -94,20 +81,16 @@ jobs:
                       azure_publish_profile: WEBSOCKET_SERVICE_AZURE_PUBLISH_PROFILE
         steps:
             - name: Checkout repository
-              if: github.event_name != 'pull_request' || matrix.service.deploy_on_pr
               uses: actions/checkout@v4
 
             - name: Normalize repo name to lowercase
-              if: github.event_name != 'pull_request' || matrix.service.deploy_on_pr
               id: repo
               run: echo "repository_lowercase=${GITHUB_REPOSITORY,,}" >> $GITHUB_OUTPUT
 
             - name: Sleep before deploying (stagger Azure deploys)
-              if: github.event_name != 'pull_request' || matrix.service.deploy_on_pr
               run: sleep 5
 
             - name: Deploy to Azure
-              if: github.event_name != 'pull_request' || matrix.service.deploy_on_pr
               uses: ./.github/actions/deploy-azure
               with:
                   app_name: ${{ matrix.service.name }}
