@@ -74,6 +74,9 @@ api_router.include_router(content_aggregator_auth_controller.router)
 # Content Aggregator
 api_router.include_router(content_aggregator_auth_controller.router)
 
+# Content Aggregator
+api_router.include_router(content_aggregator_auth_controller.router)
+
 # Calls
 api_router.include_router(conference_controller.router)
 api_router.include_router(call_controller.router)
