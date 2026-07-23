@@ -52,9 +52,9 @@ if _PROJECT_ROOT not in sys.path:
 
 async def migrate(mongo_uri: str, dry_run: bool) -> None:
     """Main migration coroutine."""
-    from motor.motor_asyncio import AsyncIOMotorClient  # noqa: PLC0415
+    from pymongo import AsyncMongoClient  # noqa: PLC0415
 
-    client: AsyncIOMotorClient = AsyncIOMotorClient(mongo_uri)  # type: ignore[type-arg]
+    client: AsyncMongoClient = AsyncMongoClient(mongo_uri)  # type: ignore[type-arg]
     try:
         # Infer DB name from URI or fall back to "seeds"
         db_name = (
@@ -160,7 +160,7 @@ async def migrate(mongo_uri: str, dry_run: bool) -> None:
         f"({'no writes performed' if dry_run else 'written to users collection'})."
     )
 
-    client.close()
+    await client.close()
 
 
 def _resolve_mongo_uri(cli_uri: str | None) -> str:

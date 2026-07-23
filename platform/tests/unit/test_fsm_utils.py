@@ -250,9 +250,8 @@ class TestSchoolServiceExtended:
 
     @pytest.fixture
     def db(self):
-        import mongomock_motor
-
-        client = mongomock_motor.AsyncMongoMockClient()
+        from tests.support import mongomock_async
+        client = mongomock_async.AsyncMongoMockClient()
         return client["test_db_school"]
 
     @pytest.mark.asyncio
@@ -310,9 +309,8 @@ class TestSchoolServiceExtended:
 class TestUserServiceExtended:
     @pytest.fixture
     def db(self):
-        import mongomock_motor
-
-        client = mongomock_motor.AsyncMongoMockClient()
+        from tests.support import mongomock_async
+        client = mongomock_async.AsyncMongoMockClient()
         return client["test_db_user"]
 
     @pytest.mark.asyncio

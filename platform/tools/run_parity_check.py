@@ -20,10 +20,10 @@ os.environ.setdefault("MONGO_DB_CONNECTION_STRING", "")
 os.environ.setdefault("DB_CONNECTION", "")
 
 import httpx
-from mongomock_motor import AsyncMongoMockClient
 
 # Patch the database module to use mongomock
 import app.platform.database as _db_mod
+from tests.support.mongomock_async import AsyncMongoMockClient
 
 _mock_client = AsyncMongoMockClient()
 _mock_db = _mock_client["seeds_parity"]
@@ -68,7 +68,7 @@ async def run() -> int:
     endpoints = contract.get("endpoints", [])
 
     print(f"Parity check: {contract.get('description', 'backend_p1')}")
-    print("Transport:    in-process ASGITransport (mongomock-motor)")
+    print("Transport:    in-process ASGITransport (mongomock async shim)")
     print(f"Endpoints:    {len(endpoints)}")
     print("-" * 70)
 

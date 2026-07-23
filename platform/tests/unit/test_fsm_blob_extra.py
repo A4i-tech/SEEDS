@@ -203,8 +203,8 @@ class TestAudioAnalysisConsumer:
 class TestContentJobConsumerDeeper:
     @pytest.fixture
     def db(self):
-        import mongomock_motor
-        client = mongomock_motor.AsyncMongoMockClient()
+        from tests.support import mongomock_async
+        client = mongomock_async.AsyncMongoMockClient()
         return client["test_cj_deeper"]
 
     @pytest.mark.asyncio
@@ -291,8 +291,8 @@ class TestSchoolControllerEndpoints:
 
     @pytest.fixture
     def db(self):
-        import mongomock_motor
-        client = mongomock_motor.AsyncMongoMockClient()
+        from tests.support import mongomock_async
+        client = mongomock_async.AsyncMongoMockClient()
         return client["test_school_ctrl"]
 
     @pytest.mark.asyncio
@@ -302,10 +302,10 @@ class TestSchoolControllerEndpoints:
         os.environ.setdefault("APP_MODE", "api")
 
         from httpx import ASGITransport, AsyncClient
-        from mongomock_motor import AsyncMongoMockClient
 
         from app.main import app
         from app.platform.auth.dependencies import get_db
+        from tests.support.mongomock_async import AsyncMongoMockClient
 
         client = AsyncMongoMockClient()
         mock_db = client["test_school_ctrl_http"]
@@ -327,10 +327,10 @@ class TestSchoolControllerEndpoints:
         os.environ.setdefault("APP_MODE", "api")
 
         from httpx import ASGITransport, AsyncClient
-        from mongomock_motor import AsyncMongoMockClient
 
         from app.main import app
         from app.platform.auth.dependencies import get_db
+        from tests.support.mongomock_async import AsyncMongoMockClient
 
         client = AsyncMongoMockClient()
         mock_db = client["test_ivr_ctrl_http"]

@@ -15,7 +15,7 @@ import logging
 from typing import Any
 
 from fastapi import Depends
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.responses.user import UserPublicResponse
 from app.models.user import User, UserCreate, UserRole
@@ -99,7 +99,7 @@ async def login(
     email: str,
     password: str,
     auth_type: str,
-    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+    db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> dict[str, Any]:
     """
     Authenticate a user and return a JWT bearer token plus public user data.
@@ -189,7 +189,7 @@ async def login(
 async def login_by_phone(
     phone: str,
     password: str,
-    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+    db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> dict[str, Any]:
     """Authenticate a teacher by phone number and return a JWT + public user data.
 
@@ -231,7 +231,7 @@ async def login_by_phone(
 
 async def register_teacher(
     data: TeacherCreate,
-    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+    db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> User:
     """
     Register a new teacher user.
@@ -275,7 +275,7 @@ async def register_teacher(
 
 async def register_tenant(
     data: TenantCreate,
-    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+    db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> User:
     """
     Register a new tenant (admin) user.
@@ -312,7 +312,7 @@ async def register_tenant(
 async def school_admin_login(
     email: str,
     password: str,
-    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+    db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> dict[str, Any]:
     """Authenticate a school admin from the users collection (role=school_admin).
 
@@ -359,7 +359,7 @@ async def school_admin_login(
 async def get_user_profile(
     user_id: str,
     entity_label: str,
-    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+    db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> User:
     """Fetch a user document by ID; raise NotFoundError if absent."""
     user = await UserRepository(db).find_by_id(user_id)
@@ -371,7 +371,7 @@ async def get_user_profile(
 async def change_password(
     user_id: str,
     new_password: str,
-    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+    db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> None:
     """Hash *new_password* and persist it for *user_id*. Raises NotFoundError if absent."""
     repo = UserRepository(db)
@@ -383,7 +383,7 @@ async def change_password(
 async def get_school_admin_profile(
     school_id: str,
     tenant_id: str,
-    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+    db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> UserPublicResponse:
     """Return the school document for a school admin (parity with backend-server getMe).
 
@@ -396,7 +396,7 @@ async def get_school_admin_profile(
 
 
 async def get_tenant_names(
-    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+    db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> list[str]:
     """Return a list of all tenant names (public endpoint)."""
     cursor = db["users"].find({"role": UserRole.TENANT.value}, {"tenant_name": 1, "name": 1})
@@ -406,7 +406,7 @@ async def get_tenant_names(
 
 async def get_tenant_dashboard(
     tenant_id: str,
-    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+    db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> dict[str, Any]:
     """Return aggregated dashboard statistics for a tenant."""
     schools = await SchoolRepository(db).find_all_by_tenant(tenant_id)
@@ -451,7 +451,7 @@ class AuthService:
     All module-level functions are preserved for backward compatibility.
     """
 
-    def __init__(self, db: AsyncIOMotorDatabase[Any]) -> None:
+    def __init__(self, db: AsyncDatabase[Any]) -> None:
         self._db = db
 
     async def login(self, email: str, password: str, auth_type: str) -> dict:
@@ -485,5 +485,5 @@ class AuthService:
         return await get_tenant_dashboard(tenant_id, self._db)
 
 
-def get_auth_service(db: AsyncIOMotorDatabase[Any] = Depends(get_db)) -> AuthService:
+def get_auth_service(db: AsyncDatabase[Any] = Depends(get_db)) -> AuthService:
     return AuthService(db)

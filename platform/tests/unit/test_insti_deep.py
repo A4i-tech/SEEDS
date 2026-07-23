@@ -285,11 +285,10 @@ class TestContentModels:
 class TestIVRServiceUtils:
     @pytest.mark.asyncio
     async def test_get_ivr_structure_empty_db(self) -> None:
-        import mongomock_motor
-
         from app.services.ivr_service import IVRService
+        from tests.support import mongomock_async
 
-        client = mongomock_motor.AsyncMongoMockClient()
+        client = mongomock_async.AsyncMongoMockClient()
         db = client["test_ivr_struct"]
 
         try:
@@ -300,11 +299,10 @@ class TestIVRServiceUtils:
 
     @pytest.mark.asyncio
     async def test_process_dtmf_nonexistent_call(self) -> None:
-        import mongomock_motor
-
         from app.services.ivr_service import IVRService
+        from tests.support import mongomock_async
 
-        client = mongomock_motor.AsyncMongoMockClient()
+        client = mongomock_async.AsyncMongoMockClient()
         db = client["test_dtmf"]
 
         try:
@@ -316,11 +314,10 @@ class TestIVRServiceUtils:
 
     @pytest.mark.asyncio
     async def test_process_call_event_nonexistent(self) -> None:
-        import mongomock_motor
-
         from app.services.ivr_service import IVRService
+        from tests.support import mongomock_async
 
-        client = mongomock_motor.AsyncMongoMockClient()
+        client = mongomock_async.AsyncMongoMockClient()
         db = client["test_call_event"]
 
         mock_event = MagicMock()

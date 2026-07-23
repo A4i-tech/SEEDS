@@ -1,18 +1,18 @@
 """Unit tests for domain models and repositories.
 
-Uses mongomock-motor for all repository tests — no real MongoDB required.
+Uses the mongomock-based async shim for all repository tests — no real MongoDB required.
 """
 from __future__ import annotations
 
 import pytest
 from bson import ObjectId
-from mongomock_motor import AsyncMongoMockClient
 from pydantic import ValidationError
 
 from app.models.user import User, UserCreate, UserRole
 from app.repositories.conference_repository import ConferenceRepository
 from app.repositories.content_repository import ContentRepository
 from app.repositories.user_repository import UserRepository
+from tests.support.mongomock_async import AsyncMongoMockClient
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -21,7 +21,7 @@ from app.repositories.user_repository import UserRepository
 
 @pytest.fixture
 def mock_db():
-    """Return an in-memory mongomock-motor database."""
+    """Return an in-memory mongomock-backed async database."""
     client = AsyncMongoMockClient()
     return client["test_seeds"]
 

@@ -258,8 +258,8 @@ class TestFSMQuizInstantiation:
 class TestIVRUpdateStructure:
     @pytest.fixture
     def db(self):
-        import mongomock_motor
-        client = mongomock_motor.AsyncMongoMockClient()
+        from tests.support import mongomock_async
+        client = mongomock_async.AsyncMongoMockClient()
         return client["test_ivr_update"]
 
     @pytest.mark.asyncio

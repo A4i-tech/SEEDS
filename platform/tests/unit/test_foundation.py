@@ -149,7 +149,7 @@ async def test_settings_defaults() -> None:
 
 def test_database_not_init_at_import() -> None:
     """
-    Importing database module must NOT create a Motor client.
+    Importing database module must NOT create a PyMongo async client.
     The _client and _database module-level vars should remain None until
     init_database() is explicitly called.
     """

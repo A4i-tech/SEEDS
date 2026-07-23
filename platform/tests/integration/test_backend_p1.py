@@ -1,7 +1,7 @@
 """
 Integration tests for backend Phase 1 — identity, users, school, classroom endpoints.
 
-Uses mongomock-motor to avoid needing a real MongoDB instance.
+Uses the mongomock-based async shim to avoid needing a real MongoDB instance.
 Uses httpx.AsyncClient with the FastAPI app to test HTTP layer.
 
 Coverage:
@@ -31,13 +31,13 @@ os.environ.setdefault("DB_CONNECTION", "")
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from mongomock_motor import AsyncMongoMockClient
 
 from app.main import app
 from app.models.user import UserRole
 from app.platform.auth.dependencies import get_db
 from app.platform.auth.hashing import hash_password
 from app.platform.auth.jwt import create_access_token
+from tests.support.mongomock_async import AsyncMongoMockClient
 
 
 def test_app_is_instrumented_with_opentelemetry() -> None:
@@ -53,11 +53,11 @@ def test_app_is_instrumented_with_opentelemetry() -> None:
 
 @pytest_asyncio.fixture
 async def mock_db():
-    """Return a mongomock-motor in-memory database."""
+    """Return a mongomock-backed in-memory async database."""
     client = AsyncMongoMockClient()
     db = client["seeds_test"]
     yield db
-    client.close()
+    await client.close()
 
 
 @pytest_asyncio.fixture

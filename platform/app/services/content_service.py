@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import Depends
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.requests.content_requests import (
     ContentCreateRequest,
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 class ContentService:
-    def __init__(self, db: AsyncIOMotorDatabase[Any]) -> None:
+    def __init__(self, db: AsyncDatabase[Any]) -> None:
         self._content_repo = ContentRepository(db)
         self._quiz_repo = QuizRepository(db)
         self._job_repo = ContentJobRepository(db)
@@ -278,5 +278,5 @@ def _parse_cursor(cursor: str | None) -> int | None:
     return None
 
 
-def get_content_service(db: AsyncIOMotorDatabase[Any] = Depends(get_db)) -> ContentService:
+def get_content_service(db: AsyncDatabase[Any] = Depends(get_db)) -> ContentService:
     return ContentService(db)

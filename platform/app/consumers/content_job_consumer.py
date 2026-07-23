@@ -73,7 +73,7 @@ import subprocess  # nosec B404 — used safely with list form, no shell=True
 import tempfile
 from pathlib import Path
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.repositories.content_job_repository import ContentJobRepository
 from app.repositories.content_repository import ContentRepository
@@ -459,7 +459,7 @@ class ContentJobConsumer:
     To be started as an asyncio background task from the lifespan.
     """
 
-    def __init__(self, db: AsyncIOMotorDatabase) -> None:
+    def __init__(self, db: AsyncDatabase) -> None:
         self._db = db
         self._running = False
 

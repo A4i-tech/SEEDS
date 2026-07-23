@@ -1,10 +1,10 @@
-"""School repository — Motor async data access for the schools collection."""
+"""School repository — PyMongo async data access for the schools collection."""
 from __future__ import annotations
 
 from datetime import UTC, datetime
 
 from bson import ObjectId
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.requests.school_requests import SchoolCreate
 from app.models.school import School
@@ -12,13 +12,13 @@ from app.repositories.base_repository import BaseRepository
 
 
 class SchoolRepository(BaseRepository):
-    """Async Motor repository for the 'schools' collection."""
+    """Async PyMongo repository for the 'schools' collection."""
 
     COLLECTION = "schools"
     # Exclude password from all reads except find_by_email (used for auth)
     _NO_PWD: dict = {"password": 0}
 
-    def __init__(self, db: AsyncIOMotorDatabase) -> None:
+    def __init__(self, db: AsyncDatabase) -> None:
         self._col = db[self.COLLECTION]
 
     async def find_by_id(self, id: str) -> School | None:

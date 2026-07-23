@@ -1,4 +1,4 @@
-"""Content repository — Motor async data access for the contentsV3 collection.
+"""Content repository — PyMongo async data access for the contentsV3 collection.
 
 All public methods accept plain string IDs. ObjectId conversion for Mongoose-created
 fields (tenantId, schoolId) is handled here — callers never construct raw query dicts.
@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from bson import ObjectId
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.content import Content
 from app.repositories.base_repository import BaseRepository
@@ -34,7 +34,7 @@ def _oid(id_str: str | None) -> Any:
 class ContentRepository(BaseRepository):
     COLLECTION = "contentsV3"
 
-    def __init__(self, db: AsyncIOMotorDatabase) -> None:
+    def __init__(self, db: AsyncDatabase) -> None:
         self._col = db[self.COLLECTION]
 
     # ------------------------------------------------------------------

@@ -1,24 +1,24 @@
-"""User repository — Motor async data access for the users collection."""
+"""User repository — PyMongo async data access for the users collection."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.user import User, UserCreate
 from app.repositories.base_repository import BaseRepository
 
 
 class UserRepository(BaseRepository):
-    """Async Motor repository for the 'users' collection.
+    """Async PyMongo repository for the 'users' collection.
 
     Never raises on not-found; callers decide to raise HTTPException / NotFoundError.
     """
 
     COLLECTION = "users"
 
-    def __init__(self, db: AsyncIOMotorDatabase) -> None:
+    def __init__(self, db: AsyncDatabase) -> None:
         self._col = db[self.COLLECTION]
 
     # ------------------------------------------------------------------

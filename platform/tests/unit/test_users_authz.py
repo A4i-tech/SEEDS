@@ -1,7 +1,7 @@
 """
 Unit tests for unified users service, auth service, and authz guardrails.
 
-Uses mongomock-motor for all repository tests — no real MongoDB required.
+Uses the mongomock-based async shim for all repository tests — no real MongoDB required.
 """
 
 from __future__ import annotations
@@ -10,7 +10,8 @@ import os
 
 import pytest
 from bson import ObjectId
-from mongomock_motor import AsyncMongoMockClient
+
+from tests.support.mongomock_async import AsyncMongoMockClient
 
 # ---------------------------------------------------------------------------
 # Force safe test settings before any app imports.
@@ -28,7 +29,7 @@ os.environ.setdefault("PASSWORD_SALT_ROUNDS", "4")  # fast for tests
 
 @pytest.fixture
 def mock_db():
-    """Return an in-memory mongomock-motor database."""
+    """Return an in-memory mongomock-backed async database."""
     client = AsyncMongoMockClient()
     return client["test_seeds"]
 

@@ -77,8 +77,8 @@ class TestSASService:
 class TestIVRServiceStructure:
     @pytest.fixture
     def db(self):
-        import mongomock_motor
-        client = mongomock_motor.AsyncMongoMockClient()
+        from tests.support import mongomock_async
+        client = mongomock_async.AsyncMongoMockClient()
         return client["test_ivr_svc"]
 
     @pytest.mark.asyncio
@@ -131,8 +131,8 @@ class TestIVRServiceStructure:
 class TestIVRStartCallFlow:
     @pytest.fixture
     def db(self):
-        import mongomock_motor
-        client = mongomock_motor.AsyncMongoMockClient()
+        from tests.support import mongomock_async
+        client = mongomock_async.AsyncMongoMockClient()
         return client["test_ivr_start"]
 
     @pytest.mark.asyncio
@@ -364,8 +364,8 @@ class TestConferenceStateModel:
 class TestClassroomRepository:
     @pytest.fixture
     def db(self):
-        import mongomock_motor
-        client = mongomock_motor.AsyncMongoMockClient()
+        from tests.support import mongomock_async
+        client = mongomock_async.AsyncMongoMockClient()
         return client["test_classroom_repo"]
 
     @pytest.mark.asyncio
@@ -413,8 +413,8 @@ class TestClassroomRepository:
 class TestIVRRepository:
     @pytest.fixture
     def db(self):
-        import mongomock_motor
-        client = mongomock_motor.AsyncMongoMockClient()
+        from tests.support import mongomock_async
+        client = mongomock_async.AsyncMongoMockClient()
         return client["test_ivr_repo"]
 
     @pytest.mark.asyncio
@@ -463,8 +463,8 @@ class TestIVRRepository:
 class TestComprehensionRepository:
     @pytest.fixture
     def db(self):
-        import mongomock_motor
-        client = mongomock_motor.AsyncMongoMockClient()
+        from tests.support import mongomock_async
+        client = mongomock_async.AsyncMongoMockClient()
         return client["test_comp_repo"]
 
     @pytest.mark.asyncio

@@ -206,10 +206,10 @@ class TestWebhookControllerDeep:
     @pytest.mark.asyncio
     async def test_answer_endpoint_public(self) -> None:
         from httpx import ASGITransport, AsyncClient
-        from mongomock_motor import AsyncMongoMockClient
 
         from app.main import app
         from app.platform.auth.dependencies import get_db
+        from tests.support.mongomock_async import AsyncMongoMockClient
 
         client = AsyncMongoMockClient()
         db = client["test_wh_deep"]
@@ -227,10 +227,10 @@ class TestWebhookControllerDeep:
     @pytest.mark.asyncio
     async def test_event_endpoint_completed_status(self) -> None:
         from httpx import ASGITransport, AsyncClient
-        from mongomock_motor import AsyncMongoMockClient
 
         from app.main import app
         from app.platform.auth.dependencies import get_db
+        from tests.support.mongomock_async import AsyncMongoMockClient
 
         client = AsyncMongoMockClient()
         db = client["test_wh_event"]
@@ -255,10 +255,10 @@ class TestWebhookControllerDeep:
     @pytest.mark.asyncio
     async def test_event_endpoint_answered_status(self) -> None:
         from httpx import ASGITransport, AsyncClient
-        from mongomock_motor import AsyncMongoMockClient
 
         from app.main import app
         from app.platform.auth.dependencies import get_db
+        from tests.support.mongomock_async import AsyncMongoMockClient
 
         client = AsyncMongoMockClient()
         db = client["test_wh_answered"]
@@ -283,10 +283,10 @@ class TestWebhookControllerDeep:
     @pytest.mark.asyncio
     async def test_dtmf_webhook_no_auth_404_or_200(self) -> None:
         from httpx import ASGITransport, AsyncClient
-        from mongomock_motor import AsyncMongoMockClient
 
         from app.main import app
         from app.platform.auth.dependencies import get_db
+        from tests.support.mongomock_async import AsyncMongoMockClient
 
         client = AsyncMongoMockClient()
         db = client["test_wh_dtmf"]

@@ -1,4 +1,4 @@
-"""Quiz repository — Motor async data access for the quizData collection.
+"""Quiz repository — PyMongo async data access for the quizData collection.
 
 All public methods accept plain string IDs. ObjectId conversion for Mongoose-created
 fields (tenantId, schoolId) is handled here via the shared _oid helper.
@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import urllib.parse
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.repositories.base_repository import BaseRepository
 from app.repositories.content_repository import _oid
@@ -17,7 +17,7 @@ from app.repositories.content_repository import _oid
 class QuizRepository(BaseRepository):
     COLLECTION = "quizData"
 
-    def __init__(self, db: AsyncIOMotorDatabase) -> None:
+    def __init__(self, db: AsyncDatabase) -> None:
         self._col = db[self.COLLECTION]
 
     # ------------------------------------------------------------------

@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 import uuid
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.ivr_state import IVRfsmDoc
 from app.platform.settings import get_settings
@@ -468,13 +468,13 @@ def generate_states(
 
 async def instantiate_from_latest_content(
     content_ids: list[str] | None = None,
-    db: AsyncIOMotorDatabase | None = None,
+    db: AsyncDatabase | None = None,
 ) -> FSM:
     """Build an FSM from MongoDB pull-model content.
 
     Args:
         content_ids: Optional list of content IDs to restrict to.
-        db: Motor database instance.  If None, retrieves from app.platform.database.
+        db: PyMongo async database instance.  If None, retrieves from app.platform.database.
 
     Returns:
         A fully constructed FSM instance.

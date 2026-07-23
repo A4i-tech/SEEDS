@@ -427,8 +427,8 @@ class TestConferenceEventDispatcher:
 class TestCallRepository:
     @pytest.fixture
     def db(self):
-        import mongomock_motor
-        client = mongomock_motor.AsyncMongoMockClient()
+        from tests.support import mongomock_async
+        client = mongomock_async.AsyncMongoMockClient()
         return client["test_call_repo"]
 
     @pytest.mark.asyncio
@@ -466,8 +466,8 @@ class TestCallRepository:
 class TestConferenceRepository:
     @pytest.fixture
     def db(self):
-        import mongomock_motor
-        client = mongomock_motor.AsyncMongoMockClient()
+        from tests.support import mongomock_async
+        client = mongomock_async.AsyncMongoMockClient()
         return client["test_conf_repo"]
 
     @pytest.mark.asyncio
@@ -501,8 +501,8 @@ class TestConferenceRepository:
 class TestContentRepository:
     @pytest.fixture
     def db(self):
-        import mongomock_motor
-        client = mongomock_motor.AsyncMongoMockClient()
+        from tests.support import mongomock_async
+        client = mongomock_async.AsyncMongoMockClient()
         return client["test_content_repo"]
 
     @pytest.mark.asyncio
@@ -586,8 +586,8 @@ class TestSchoolServiceAdditional:
 
     @pytest.fixture
     def db(self):
-        import mongomock_motor
-        client = mongomock_motor.AsyncMongoMockClient()
+        from tests.support import mongomock_async
+        client = mongomock_async.AsyncMongoMockClient()
         return client["test_school_svc"]
 
     @pytest.mark.asyncio
@@ -654,8 +654,8 @@ class TestSchoolServiceAdditional:
 class TestUserServiceAdditional:
     @pytest.fixture
     def db(self):
-        import mongomock_motor
-        client = mongomock_motor.AsyncMongoMockClient()
+        from tests.support import mongomock_async
+        client = mongomock_async.AsyncMongoMockClient()
         return client["test_user_svc"]
 
     @pytest.mark.asyncio
@@ -716,8 +716,8 @@ class TestUserServiceAdditional:
 class TestAuthServiceTenant:
     @pytest.fixture
     def db(self):
-        import mongomock_motor
-        client = mongomock_motor.AsyncMongoMockClient()
+        from tests.support import mongomock_async
+        client = mongomock_async.AsyncMongoMockClient()
         return client["test_auth_svc"]
 
     @pytest.mark.asyncio

@@ -1,4 +1,4 @@
-"""Audit repository — Motor async data access for application logs and log entries.
+"""Audit repository — PyMongo async data access for application logs and log entries.
 
 IVR session logs (ivrv2logs collection) are owned by IVRRepository.
 """
@@ -6,14 +6,14 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.audit_log import AuditLog, LogEntry
 from app.repositories.base_repository import BaseRepository
 
 
 class AuditRepository(BaseRepository):
-    """Async Motor repository for application audit log documents.
+    """Async PyMongo repository for application audit log documents.
 
     Collections:
       - 'logs'       : AuditLog (from Log.js)
@@ -23,7 +23,7 @@ class AuditRepository(BaseRepository):
     AUDIT_COLLECTION = "logs"
     ENTRY_COLLECTION = "logentries"
 
-    def __init__(self, db: AsyncIOMotorDatabase) -> None:
+    def __init__(self, db: AsyncDatabase) -> None:
         self._audit_col = db[self.AUDIT_COLLECTION]
         self._entry_col = db[self.ENTRY_COLLECTION]
 
