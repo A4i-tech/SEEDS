@@ -9,3 +9,7 @@ class ContentAggregatorTokenRequest(BaseModel):
     client_secret: str
     tenant_id: str | None = None
     scopes: list[str] | None = None
+
+
+class ContentAggregatorRefreshRequest(BaseModel):
+    refresh_token: str
