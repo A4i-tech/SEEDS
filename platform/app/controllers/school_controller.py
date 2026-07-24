@@ -14,23 +14,14 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Query, status
 
-from app.controllers._analytics_helpers import (
-    analytics_envelope,
-    date_range,
-    require_school_scope,
-    run_analytics,
-)
+from app.controllers._analytics_helpers import require_school_scope
 from app.models.requests.school_requests import (
     SchoolAnalyticsRequest,
     SchoolCreateRequest,
     SchoolUpdateRequest,
     TeacherTransferRequest,
 )
-from app.models.responses.analytics_response import (
-    AnalyticsResponse,
-    ConferenceAnalyticsResponse,
-    IvrAnalyticsResponse,
-)
+from app.models.responses.analytics_response import AnalyticsResponse
 from app.models.responses.login import MessageResponse
 from app.models.responses.school_response import (
     SchoolDashboardResponse,
@@ -169,17 +160,14 @@ async def school_ivr_analytics(
     teacher_id: str | None = Query(None, alias="teacherId"),
     current_user: dict[str, Any] = Depends(require_role("school_admin")),
     service: AnalyticsService = Depends(get_analytics_service),
-) -> IvrAnalyticsResponse:
-    dr = date_range(start_date, end_date)
-    scope = {
-        "tenantId": current_user.get("tenant_id", ""),
-        "schoolId": require_school_scope(current_user),
-        "teacherId": teacher_id or None,
-    }
-    result = await run_analytics(
-        "school_ivr_analytics", scope, dr, service.get_ivr_analytics(scope, dr)
+) -> dict[str, Any]:
+    return await service.ivr_analytics_report(
+        tenant_id=current_user.get("tenant_id", ""),
+        school_id=require_school_scope(current_user),
+        teacher_id=teacher_id or None,
+        start=start_date,
+        end=end_date,
     )
-    return IvrAnalyticsResponse.model_validate(analytics_envelope(scope, dr, result))
 
 
 @router.get(
@@ -193,17 +181,14 @@ async def school_conference_analytics(
     teacher_id: str | None = Query(None, alias="teacherId"),
     current_user: dict[str, Any] = Depends(require_role("school_admin")),
     service: AnalyticsService = Depends(get_analytics_service),
-) -> ConferenceAnalyticsResponse:
-    dr = date_range(start_date, end_date)
-    scope = {
-        "tenantId": current_user.get("tenant_id", ""),
-        "schoolId": require_school_scope(current_user),
-        "teacherId": teacher_id or None,
-    }
-    result = await run_analytics(
-        "school_conference_analytics", scope, dr, service.get_conference_analytics(scope, dr)
+) -> dict[str, Any]:
+    return await service.conference_analytics_report(
+        tenant_id=current_user.get("tenant_id", ""),
+        school_id=require_school_scope(current_user),
+        teacher_id=teacher_id or None,
+        start=start_date,
+        end=end_date,
     )
-    return ConferenceAnalyticsResponse.model_validate(analytics_envelope(scope, dr, result))
 
 
 @router.get(

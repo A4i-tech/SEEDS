@@ -118,17 +118,10 @@ class ConferenceRepository(BaseRepository):
 
         Ported from backend-server ConferenceStateMongoDao
         .findByTeacherPhonesInDateRange — returns raw dicts for analytics.
-
-        Live data has a field-name split: most docs use teacher_phone_number,
-        but some legacy docs use teacher_phone. Match either so no conference is
-        silently dropped from the query.
         """
         cursor = self._col.find(
             {
-                "$or": [
-                    {"teacher_phone_number": {"$in": phone_candidates}},
-                    {"teacher_phone": {"$in": phone_candidates}},
-                ],
+                "teacher_phone_number": {"$in": phone_candidates},
                 "action_history.0.timestamp": {"$gte": start_iso, "$lte": end_iso},
             }
         )

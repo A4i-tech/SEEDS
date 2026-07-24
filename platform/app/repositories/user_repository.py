@@ -68,14 +68,11 @@ class UserRepository(BaseRepository):
     async def find_all_by_tenant(self, tenant_id: str) -> list[User]:
         """Return all users belonging to a tenant.
 
-        The users collection stores tenant_id as an ObjectId, but some legacy
-        docs (and test fixtures) hold it as a plain string. Match both so the
-        query is correct regardless of stored type — a raw-string bound never
-        matches an ObjectId-typed field and would otherwise return zero users.
+        The users collection stores tenant_id as an ObjectId; ``_to_id`` coerces
+        the incoming id to ObjectId (or leaves it a plain string for the
+        string-id collections), so a single typed query matches the stored field.
         """
-        oid = self._to_id(tenant_id)
-        candidates = [tenant_id] if oid == tenant_id else [tenant_id, oid]
-        cursor = self._col.find({"tenant_id": {"$in": candidates}})
+        cursor = self._col.find({"tenant_id": self._to_id(tenant_id)})
         docs = await cursor.to_list(length=None)
         return [User.from_mongo(d) for d in docs]
 

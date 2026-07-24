@@ -1,15 +1,10 @@
-"""Shared helpers for the analytics routes on school_controller and
-tenant_controller.
-
-Kept in one place so the two controllers (which serve the same analytics
-service under different role scopes) don't duplicate the scope guard, the
-structured error-logging wrapper, or the response envelope.
-"""
+"""Shared helper for the school analytics routes — the scope guard both the IVR
+and conference routes on school_controller apply before delegating to the
+service."""
 
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 from typing import Any
 
 from app.platform.error_handling import AppError
@@ -30,42 +25,3 @@ def require_school_scope(user: dict[str, Any]) -> str:
         logger.warning("analytics: school_admin token missing school_id — denying")
         raise AppError("FORBIDDEN", "school_admin token is missing a school scope", 403)
     return school_id
-
-
-async def run_analytics(route: str, scope: dict, date_range: dict, awaitable: Any) -> dict:
-    """Await an analytics service call, logging structured failure context
-    (route, scope, date range) at ERROR before re-raising — per the repo's
-    error-handling standard. Never swallows the error."""
-    try:
-        return await awaitable
-    except Exception:
-        logger.exception(
-            "analytics: %s failed tenantId=%s schoolId=%s teacherId=%s range=%s..%s",
-            route,
-            scope.get("tenantId"),
-            scope.get("schoolId"),
-            scope.get("teacherId"),
-            date_range["start"].isoformat(),
-            date_range["end"].isoformat(),
-        )
-        raise
-
-
-def analytics_envelope(scope: dict, date_range: dict, result: dict) -> dict:
-    """Wrap a service result in the shared response envelope."""
-    return {
-        "startDate": date_range["start"].isoformat(),
-        "endDate": date_range["end"].isoformat(),
-        "filters": {
-            "schoolId": scope.get("schoolId"),
-            "teacherId": scope.get("teacherId"),
-        },
-        **result,
-    }
-
-
-def date_range(start_date: datetime, end_date: datetime) -> dict[str, datetime]:
-    """Normalize FastAPI-parsed datetime query params into the service's
-    ``{start, end}`` shape. Parsing/validation (incl. 422 on bad input) is
-    handled by FastAPI from the ``datetime`` param type, not hand-rolled here."""
-    return {"start": start_date, "end": end_date}

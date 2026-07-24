@@ -318,14 +318,16 @@ async def test_school_admin_without_school_id_is_denied(client):
 
 
 @pytest.mark.asyncio
-async def test_conference_matches_legacy_teacher_phone_field(mock_db, client):
-    # A conference doc using the legacy `teacher_phone` field (instead of
-    # `teacher_phone_number`) must still be counted — field-name drift seen live.
+async def test_conference_ignores_legacy_teacher_phone_only_doc(mock_db, client):
+    # Deliberate contract: conferenceState is queried on `teacher_phone_number`
+    # only (staging canonical field). A doc carrying just the legacy
+    # `teacher_phone` must NOT be counted — guards against re-introducing the
+    # dual-field ($or) match. Baseline seed has exactly 1 real conference.
     await mock_db[CONF_COLLECTION].insert_one(
         {
-            "_id": "conf-legacy",
+            "_id": "conf-legacy-only",
             "tenant_id": TENANT_ID,
-            "teacher_phone": TEACHER_PHONE,
+            "teacher_phone": TEACHER_PHONE,  # legacy field only, no teacher_phone_number
             "is_running": False,
             "participants": {
                 STUDENT_PHONE: {"role": "Student", "name": "Student One"},
@@ -342,4 +344,4 @@ async def test_conference_matches_legacy_teacher_phone_field(mock_db, client):
         headers=_auth(_tenant_token()),
     )
     assert resp.status_code == 200
-    assert resp.json()["totals"]["totalConferences"] == 2
+    assert resp.json()["totals"]["totalConferences"] == 1

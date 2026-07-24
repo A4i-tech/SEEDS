@@ -74,9 +74,8 @@ def normalize_phone(phone: Any) -> str:
 
 
 def conference_teacher_phone(doc: dict) -> Any:
-    """Teacher phone from a conferenceState doc, tolerating the live field-name
-    split: teacher_phone_number is canonical, teacher_phone is legacy."""
-    return doc.get("teacher_phone_number") or doc.get("teacher_phone")
+    """Teacher phone from a conferenceState doc (canonical staging field)."""
+    return doc.get("teacher_phone_number")
 
 
 def phone_candidates(phone: Any) -> list[str]:
@@ -108,13 +107,13 @@ def average(values: list[float]) -> float | None:
     return sum(values) / len(values)
 
 
-def parse_date(value: Any) -> datetime | None:
-    """Parse a date field into a datetime.
+def parse_date(value: str | datetime | None) -> datetime | None:
+    """Parse a stored timestamp into a datetime.
 
-    Fields flow in as two real shapes: BSON date columns (created_at/stopped_at)
-    arrive from Motor already as datetime, while action_history timestamps are
-    ISO strings. Both are first-class inputs here — the datetime branch is not
-    defensive padding.
+    The two producers are typed at the model layer, not by request DTOs:
+    ivr_state.created_at/stopped_at are BSON ``datetime`` (passed through), while
+    ActionHistory.timestamp and call_status_updates keys are ISO ``str`` — so
+    both shapes are real inputs, not defensive padding.
     """
     if value is None or value == "":
         return None
@@ -193,8 +192,11 @@ def classify_call(final_status: Any) -> str:
 
 def session_seconds(log: dict) -> float | None:
     """Session length in seconds: Vonage-reported duration, else stopped_at - created_at."""
+    # duration is a Vonage-reported string that can be "", None, or non-numeric;
+    # the guard is on the int() cast of that value, not on the dict access.
+    raw_duration = log.get("duration")
     try:
-        reported = int(log.get("duration"))
+        reported = int(raw_duration)
     except (TypeError, ValueError):
         reported = None
     if reported is not None and reported > 0:
@@ -216,13 +218,6 @@ def bucket_class_size(size: int) -> str | None:
 def extract_conference_metrics(doc: dict) -> dict:
     """Extract per-conference metrics from a conferenceState document."""
     history = doc.get("action_history") or []
-    if not isinstance(history, list):
-        logger.warning(
-            "extract_conference_metrics: action_history is %s not list for conf %s — treating as empty",
-            type(history).__name__,
-            doc.get("_id"),
-        )
-        history = []
     start_action = next((a for a in history if a.get("action_type") == ACTION_CONFERENCE_START), None)
     end_actions = [a for a in history if a.get("action_type") == ACTION_CONFERENCE_END]
     end_action = end_actions[-1] if end_actions else None
@@ -239,8 +234,7 @@ def extract_conference_metrics(doc: dict) -> dict:
         1
         for a in history
         if a.get("action_type") == ACTION_RAISE_HAND
-        and isinstance(a.get("metadata"), dict)
-        and a["metadata"].get("raised_hand") is True
+        and (a.get("metadata") or {}).get("raised_hand") is True
     )
 
     return {
@@ -286,6 +280,45 @@ class AnalyticsService:
         self._conf_repo = ConferenceRepository(db)
         self._content_repo = ContentRepository(db)
 
+    @staticmethod
+    def _report_envelope(
+        school_id: str | None, teacher_id: str | None, start: datetime, end: datetime, result: dict
+    ) -> dict:
+        return {
+            "startDate": start.isoformat(),
+            "endDate": end.isoformat(),
+            "filters": {"schoolId": school_id, "teacherId": teacher_id},
+            **result,
+        }
+
+    async def ivr_analytics_report(
+        self,
+        *,
+        tenant_id: str,
+        school_id: str | None,
+        teacher_id: str | None,
+        start: datetime,
+        end: datetime,
+    ) -> dict:
+        """IVR analytics wrapped in the ContentWebApp response envelope."""
+        scope = {"tenantId": tenant_id, "schoolId": school_id, "teacherId": teacher_id}
+        result = await self.get_ivr_analytics(scope, {"start": start, "end": end})
+        return self._report_envelope(school_id, teacher_id, start, end, result)
+
+    async def conference_analytics_report(
+        self,
+        *,
+        tenant_id: str,
+        school_id: str | None,
+        teacher_id: str | None,
+        start: datetime,
+        end: datetime,
+    ) -> dict:
+        """Conference analytics wrapped in the ContentWebApp response envelope."""
+        scope = {"tenantId": tenant_id, "schoolId": school_id, "teacherId": teacher_id}
+        result = await self.get_conference_analytics(scope, {"start": start, "end": end})
+        return self._report_envelope(school_id, teacher_id, start, end, result)
+
     async def _build_attribution_map(
         self, tenant_id: str, school_id: str | None
     ) -> dict[str, Any]:
@@ -308,34 +341,21 @@ class AnalyticsService:
         def role_value(u: Any) -> str:
             return u.role.value if hasattr(u.role, "value") else str(u.role)
 
-        # Students first so teachers overwrite on phone collisions.
+        # Single pass. Teachers use `=` and students `setdefault`, so a teacher
+        # always wins a phone collision regardless of iteration order.
         for u in in_scope:
-            if role_value(u) != "student":
-                continue
-            key = normalize_phone(u.phone)
-            if key:
-                school = school_by_id[u.school_id]
-                phone_map[key] = {
-                    "kind": "student",
-                    "id": str(u.id),
-                    "name": u.name,
-                    "schoolId": str(school.id),
-                    "schoolName": school.name,
-                }
-        for u in in_scope:
-            if role_value(u) not in TEACHER_ROLES:
-                continue
+            role = role_value(u)
             school = school_by_id[u.school_id]
-            teachers.append(
-                {
-                    "_id": str(u.id),
-                    "name": u.name,
-                    "phoneNumber": u.phone,
-                    "schoolId": str(school.id),
-                }
-            )
             key = normalize_phone(u.phone)
-            if key:
+            if role in TEACHER_ROLES:
+                teachers.append(
+                    {
+                        "_id": str(u.id),
+                        "name": u.name,
+                        "phoneNumber": u.phone,
+                        "schoolId": str(school.id),
+                    }
+                )
                 phone_map[key] = {
                     "kind": "teacher",
                     "id": str(u.id),
@@ -343,6 +363,17 @@ class AnalyticsService:
                     "schoolId": str(school.id),
                     "schoolName": school.name,
                 }
+            elif role == "student":
+                phone_map.setdefault(
+                    key,
+                    {
+                        "kind": "student",
+                        "id": str(u.id),
+                        "name": u.name,
+                        "schoolId": str(school.id),
+                        "schoolName": school.name,
+                    },
+                )
         return {"map": phone_map, "schools": schools, "teachers": teachers}
 
     async def _build_content_url_index(self, tenant_id: str) -> list[dict]:
@@ -350,9 +381,9 @@ class AnalyticsService:
         contents = await self._content_repo.find_by_tenant(tenant_id)
         index: list[dict] = []
         for content in contents:
-            title = content.title.english if content.title else ""
+            title = content.title.english
             urls: list[str] = []
-            if content.title and content.title.audio_url:
+            if content.title.audio_url:
                 urls.append(content.title.audio_url)
             if content.theme and content.theme.audio_url:
                 urls.append(content.theme.audio_url)

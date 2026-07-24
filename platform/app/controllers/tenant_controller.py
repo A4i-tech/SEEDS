@@ -16,15 +16,6 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Query, status
 
-from app.controllers._analytics_helpers import (
-    analytics_envelope,
-    date_range,
-    run_analytics,
-)
-from app.models.responses.analytics_response import (
-    ConferenceAnalyticsResponse,
-    IvrAnalyticsResponse,
-)
 from app.platform.auth.dependencies import require_tenant
 from app.services.analytics_service import AnalyticsService, get_analytics_service
 
@@ -45,19 +36,15 @@ async def tenant_ivr_analytics(
     teacher_id: str | None = Query(None, alias="teacherId"),
     current_user: dict[str, Any] = Depends(require_tenant),
     service: AnalyticsService = Depends(get_analytics_service),
-) -> IvrAnalyticsResponse:
-    dr = date_range(start_date, end_date)
-    scope = {
-        # Tenant tokens set tenant_id to the tenant's own id (auth_service),
-        # so no sub fallback is needed here.
-        "tenantId": current_user.get("tenant_id", ""),
-        "schoolId": school_id or None,
-        "teacherId": teacher_id or None,
-    }
-    result = await run_analytics(
-        "tenant_ivr_analytics", scope, dr, service.get_ivr_analytics(scope, dr)
+) -> dict[str, Any]:
+    # Tenant tokens set tenant_id to the tenant's own id (auth_service).
+    return await service.ivr_analytics_report(
+        tenant_id=current_user.get("tenant_id", ""),
+        school_id=school_id or None,
+        teacher_id=teacher_id or None,
+        start=start_date,
+        end=end_date,
     )
-    return IvrAnalyticsResponse.model_validate(analytics_envelope(scope, dr, result))
 
 
 @router.get(
@@ -72,14 +59,11 @@ async def tenant_conference_analytics(
     teacher_id: str | None = Query(None, alias="teacherId"),
     current_user: dict[str, Any] = Depends(require_tenant),
     service: AnalyticsService = Depends(get_analytics_service),
-) -> ConferenceAnalyticsResponse:
-    dr = date_range(start_date, end_date)
-    scope = {
-        "tenantId": current_user.get("tenant_id", ""),
-        "schoolId": school_id or None,
-        "teacherId": teacher_id or None,
-    }
-    result = await run_analytics(
-        "tenant_conference_analytics", scope, dr, service.get_conference_analytics(scope, dr)
+) -> dict[str, Any]:
+    return await service.conference_analytics_report(
+        tenant_id=current_user.get("tenant_id", ""),
+        school_id=school_id or None,
+        teacher_id=teacher_id or None,
+        start=start_date,
+        end=end_date,
     )
-    return ConferenceAnalyticsResponse.model_validate(analytics_envelope(scope, dr, result))
