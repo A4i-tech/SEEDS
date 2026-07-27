@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     jwt_expires_in: str = "1d"
     password_salt_rounds: int = 10
 
+    # Shared refresh-token flow (#459) — access-token lifetime stays
+    # jwt_expires_in (24h) until TWA/CWA/Android call /auth/token/refresh;
+    # lowering it later is a config-only change.
+    refresh_token_expires_in: str = "30d"
+
     # ---------------------------------------------------------------------------
     # Content Aggregator partner auth (#458) — short-lived tokens, distinct from
     # the internal jwt_expires_in above. Reuses secret_key, no new signing key.

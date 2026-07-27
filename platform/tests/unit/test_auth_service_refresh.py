@@ -1,0 +1,214 @@
+"""Unit tests for the shared refresh-token flow on AuthService (#459).
+
+Ports the rotation/reuse-detection/expiry/concurrency scenarios already
+proven against the Content Aggregator flow (test_content_aggregator_auth.py)
+onto the user auth flow (teacher/tenant/school_admin logins), which now
+shares the same app.platform.auth.refresh_tokens engine.
+
+Uses mongomock-motor — no real MongoDB required.
+"""
+from __future__ import annotations
+
+import asyncio
+from datetime import UTC, datetime, timedelta
+
+import pytest
+from mongomock_motor import AsyncMongoMockClient
+
+from app.models.user import UserCreate, UserRole
+from app.platform.auth.hashing import hash_password
+from app.platform.error_handling import AppError, UnauthorizedError
+from app.platform.settings import Settings
+from app.platform.telemetry import configure_telemetry
+from app.repositories.user_repository import UserRepository
+from app.services.auth_service import AuthService
+
+
+@pytest.fixture
+def mock_db():
+    client = AsyncMongoMockClient()
+    return client["test_seeds"]
+
+
+@pytest.fixture(autouse=True)
+def _telemetry():
+    configure_telemetry(Settings(secret_key="test-secret-key-for-tests-32chars!!"))
+
+
+async def _seed_tenant(mock_db, *, email: str = "tenant@example.com", password: str = "correct-horse") -> None:
+    await UserRepository(mock_db).create(
+        UserCreate(
+            role=UserRole.TENANT,
+            name="Tenant One",
+            email=email,
+            hashed_password=hash_password(password),
+        )
+    )
+
+
+class TestLoginIssuesRefreshToken:
+    async def test_native_login_returns_refresh_token_and_expires_in(self, mock_db):
+        await _seed_tenant(mock_db)
+        service = AuthService(mock_db)
+
+        result = await service.login(email="tenant@example.com", password="correct-horse", auth_type="native")
+
+        assert result["token"]
+        assert result["refresh_token"]
+        assert isinstance(result["expires_in"], int) and result["expires_in"] > 0
+
+    async def test_refresh_token_persisted_in_user_refresh_tokens_collection(self, mock_db):
+        await _seed_tenant(mock_db)
+        service = AuthService(mock_db)
+
+        result = await service.login(email="tenant@example.com", password="correct-horse", auth_type="native")
+
+        stored = await mock_db["userRefreshTokens"].find_one({"token_id": result["refresh_token"]})
+        assert stored is not None
+        assert stored["revoked"] is False
+        assert stored["claims"]["role"] == "tenant"
+
+
+class TestRefreshSuccess:
+    async def test_rotation_returns_new_pair_and_revokes_old(self, mock_db):
+        await _seed_tenant(mock_db)
+        service = AuthService(mock_db)
+        issued = await service.login(email="tenant@example.com", password="correct-horse", auth_type="native")
+        old_refresh = issued["refresh_token"]
+
+        result = await service.refresh(old_refresh)
+
+        assert set(result.keys()) == {"access_token", "refresh_token", "expires_in", "token_type"}
+        assert result["refresh_token"] != old_refresh
+
+        old_doc = await mock_db["userRefreshTokens"].find_one({"token_id": old_refresh})
+        assert old_doc["revoked"] is True
+
+        new_doc = await mock_db["userRefreshTokens"].find_one({"token_id": result["refresh_token"]})
+        assert new_doc is not None
+        assert new_doc["revoked"] is False
+        assert new_doc["family_id"] == old_refresh
+
+    async def test_old_refresh_token_unusable_after_rotation(self, mock_db):
+        await _seed_tenant(mock_db)
+        service = AuthService(mock_db)
+        issued = await service.login(email="tenant@example.com", password="correct-horse", auth_type="native")
+        old_refresh = issued["refresh_token"]
+
+        await service.refresh(old_refresh)
+
+        with pytest.raises(UnauthorizedError):
+            await service.refresh(old_refresh)
+
+
+class TestRefreshReuseDetection:
+    async def test_replaying_revoked_token_revokes_entire_family(self, mock_db):
+        await _seed_tenant(mock_db)
+        service = AuthService(mock_db)
+        issued = await service.login(email="tenant@example.com", password="correct-horse", auth_type="native")
+        root_refresh = issued["refresh_token"]
+        rotated = await service.refresh(root_refresh)
+
+        with pytest.raises(UnauthorizedError):
+            await service.refresh(root_refresh)  # replay of already-revoked token
+
+        with pytest.raises(UnauthorizedError):
+            await service.refresh(rotated["refresh_token"])
+
+        docs = [doc async for doc in mock_db["userRefreshTokens"].find({"family_id": root_refresh})]
+        assert len(docs) == 2
+        assert all(doc["revoked"] is True for doc in docs)
+
+
+class TestRefreshConcurrency:
+    async def test_concurrent_refresh_with_same_token_only_one_winner(self, mock_db):
+        await _seed_tenant(mock_db)
+        service = AuthService(mock_db)
+        issued = await service.login(email="tenant@example.com", password="correct-horse", auth_type="native")
+        root_refresh = issued["refresh_token"]
+
+        results = await asyncio.gather(
+            service.refresh(root_refresh),
+            service.refresh(root_refresh),
+            return_exceptions=True,
+        )
+
+        successes = [r for r in results if not isinstance(r, BaseException)]
+        failures = [r for r in results if isinstance(r, BaseException)]
+        assert len(successes) == 1
+        assert len(failures) == 1
+        assert isinstance(failures[0], UnauthorizedError)
+
+
+class TestRefreshExpired:
+    async def test_expired_token_raises_distinct_error_code(self, mock_db):
+        await _seed_tenant(mock_db)
+        service = AuthService(mock_db)
+        issued = await service.login(email="tenant@example.com", password="correct-horse", auth_type="native")
+
+        await mock_db["userRefreshTokens"].update_one(
+            {"token_id": issued["refresh_token"]},
+            {"$set": {"expires_at": datetime.now(tz=UTC) - timedelta(days=1)}},
+        )
+
+        with pytest.raises(AppError) as exc_info:
+            await service.refresh(issued["refresh_token"])
+        assert exc_info.value.code == "REFRESH_TOKEN_EXPIRED"
+        assert exc_info.value.status_code == 401
+
+
+class TestRefreshUnknownOrInactiveOwner:
+    async def test_unknown_token_raises_generic_unauthorized(self, mock_db):
+        service = AuthService(mock_db)
+        with pytest.raises(UnauthorizedError):
+            await service.refresh("does-not-exist")
+
+    async def test_inactive_user_rejected_at_refresh(self, mock_db):
+        await _seed_tenant(mock_db)
+        service = AuthService(mock_db)
+        issued = await service.login(email="tenant@example.com", password="correct-horse", auth_type="native")
+
+        await mock_db["users"].update_one({"email": "tenant@example.com"}, {"$set": {"is_active": False}})
+
+        with pytest.raises(AppError) as exc_info:
+            await service.refresh(issued["refresh_token"])
+        assert exc_info.value.code == "TENANT_NOT_ALLOWED"
+        assert exc_info.value.status_code == 403
+
+
+class TestSchoolAdminAndPhoneLoginAlsoIssueRefreshTokens:
+    async def test_school_admin_login_returns_refresh_token(self, mock_db):
+        await UserRepository(mock_db).create(
+            UserCreate(
+                role=UserRole.SCHOOL_ADMIN,
+                name="Admin",
+                email="admin@example.com",
+                hashed_password=hash_password("admin-pass"),
+                school_id="school-1",
+                tenant_id="tenant-1",
+            )
+        )
+        service = AuthService(mock_db)
+
+        result = await service.school_admin_login("admin@example.com", "admin-pass")
+
+        assert result["token"]
+        assert result["refresh_token"]
+        assert isinstance(result["expires_in"], int)
+
+    async def test_phone_login_returns_refresh_token(self, mock_db):
+        await UserRepository(mock_db).create(
+            UserCreate(
+                role=UserRole.TEACHER,
+                name="Teacher",
+                phone="+15550001111",
+                hashed_password=hash_password("teacher-pass"),
+            )
+        )
+        service = AuthService(mock_db)
+
+        result = await service.login_by_phone("+15550001111", "teacher-pass")
+
+        assert result["token"]
+        assert result["refresh_token"]
+        assert isinstance(result["expires_in"], int)
