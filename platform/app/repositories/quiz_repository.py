@@ -27,14 +27,15 @@ class QuizRepository(BaseRepository):
     def _tenant_query(
         self,
         tenant_id: str,
-        school_id: str | None = None,
+        school_id: str | None,
+        strict: bool,
         include_deleted: bool = False,
     ) -> dict:
         q: dict = {"tenantId": _oid(tenant_id)}
         if not include_deleted:
             q["isDeleted"] = {"$ne": True}
         if school_id is not None:
-            q["schoolId"] = {"$in": [_oid(school_id), None]}
+            q["schoolId"] = _oid(school_id) if strict else {"$in": [_oid(school_id), None]}
         return q
 
     # ------------------------------------------------------------------
@@ -47,7 +48,7 @@ class QuizRepository(BaseRepository):
         tenant_id: str,
         school_id: str | None = None,
     ) -> dict | None:
-        q = {**self._tenant_query(tenant_id, school_id), "_id": content_id}
+        q = {**self._tenant_query(tenant_id, school_id, strict=False), "_id": content_id}
         return await self._col.find_one(q)
 
     async def list_paginated(
@@ -62,7 +63,7 @@ class QuizRepository(BaseRepository):
         limit: int = 16,
     ) -> list[dict]:
         """Paginated quiz list — quiz items only."""
-        q = self._tenant_query(tenant_id, school_id)
+        q = self._tenant_query(tenant_id, school_id, strict=False)
 
         if only_teacher_app:
             q["isTeacherApp"] = True
@@ -84,7 +85,7 @@ class QuizRepository(BaseRepository):
         tenant_id: str,
         school_id: str | None = None,
     ) -> list[dict]:
-        q = {**self._tenant_query(tenant_id, school_id), "_id": {"$in": content_ids}}
+        q = {**self._tenant_query(tenant_id, school_id, strict=False), "_id": {"$in": content_ids}}
         return await self._col.find(q).to_list(length=None)
 
     # ------------------------------------------------------------------
@@ -108,7 +109,7 @@ class QuizRepository(BaseRepository):
         school_id: str | None = None,
     ) -> dict | None:
         from datetime import UTC, datetime
-        q = {**self._tenant_query(tenant_id, school_id), "_id": content_id}
+        q = {**self._tenant_query(tenant_id, school_id, strict=True), "_id": content_id}
         updates["updatedAt"] = datetime.now(UTC)
         return await self._col.find_one_and_update(q, {"$set": updates}, return_document=True)
 
@@ -119,7 +120,7 @@ class QuizRepository(BaseRepository):
         school_id: str | None = None,
     ) -> int:
         from datetime import UTC, datetime
-        q = {**self._tenant_query(tenant_id, school_id), "_id": content_id}
+        q = {**self._tenant_query(tenant_id, school_id, strict=True), "_id": content_id}
         result = await self._col.update_one(
             q, {"$set": {"isDeleted": True, "updatedAt": datetime.now(UTC)}}
         )

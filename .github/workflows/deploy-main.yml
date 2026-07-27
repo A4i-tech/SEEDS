@@ -24,6 +24,7 @@ jobs:
                       context: ContentWebApp
                       image: content-webapp
                       azure_publish_profile: CONTENT_WEBAPP_AZURE_PUBLISH_PROFILE
+                      build_arg_storage: CONTENT_WEBAPP_STORAGE_ACCOUNT_NAME
                       build_arg_api_url: CONTENT_WEBAPP_REACT_APP_API_BASE_URL
                       build_arg_google_site_verification: CONTENT_WEBAPP_REACT_APP_GOOGLE_SITE_VERIFICATION
 

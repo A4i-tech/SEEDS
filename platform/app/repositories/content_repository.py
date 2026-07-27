@@ -44,19 +44,21 @@ class ContentRepository(BaseRepository):
     def _tenant_query(
         self,
         tenant_id: str,
-        school_id: str | None = None,
+        school_id: str | None,
+        strict: bool,
         include_deleted: bool = False,
     ) -> dict:
         """Base query scoped to tenant.
 
         school_id=None  → no schoolId filter (tenant-wide; e.g. role=tenant)
-        school_id=<id>  → schoolId in [ObjectId(id), null] (school + unscoped content)
+        school_id=<id>, strict=False → schoolId in [ObjectId(id), null] (school + unscoped content; reads)
+        school_id=<id>, strict=True  → schoolId == ObjectId(id) only (writes; must not touch tenant-owned content)
         """
         q: dict = {"tenantId": _oid(tenant_id)}
         if not include_deleted:
             q["isDeleted"] = {"$ne": True}
         if school_id is not None:
-            q["schoolId"] = {"$in": [_oid(school_id), None]}
+            q["schoolId"] = _oid(school_id) if strict else {"$in": [_oid(school_id), None]}
         return q
 
     # ------------------------------------------------------------------
@@ -76,7 +78,7 @@ class ContentRepository(BaseRepository):
         tenant_id: str,
         school_id: str | None = None,
     ) -> dict | None:
-        q = {**self._tenant_query(tenant_id, school_id), "_id": content_id}
+        q = {**self._tenant_query(tenant_id, school_id, strict=False), "_id": content_id}
         return await self._col.find_one(q)
 
     # ------------------------------------------------------------------
@@ -95,7 +97,7 @@ class ContentRepository(BaseRepository):
         limit: int = 16,
     ) -> list[dict]:
         """Paginated content list — content-type items only (not quizzes)."""
-        q = self._tenant_query(tenant_id, school_id)
+        q = self._tenant_query(tenant_id, school_id, strict=False)
 
         if only_teacher_app:
             q["isTeacherApp"] = True
@@ -118,7 +120,7 @@ class ContentRepository(BaseRepository):
         language: str,
         school_id: str | None = None,
     ) -> list[dict]:
-        q = self._tenant_query(tenant_id, school_id)
+        q = self._tenant_query(tenant_id, school_id, strict=False)
         q.update({"language": language, "isPullModel": True})
         return await self._col.find(q).sort("_id", -1).to_list(length=None)
 
@@ -128,7 +130,7 @@ class ContentRepository(BaseRepository):
         tenant_id: str,
         school_id: str | None = None,
     ) -> list[dict]:
-        q = {**self._tenant_query(tenant_id, school_id), "_id": {"$in": content_ids}}
+        q = {**self._tenant_query(tenant_id, school_id, strict=False), "_id": {"$in": content_ids}}
         return await self._col.find(q).to_list(length=None)
 
     async def find_by_class(self, content_ids: list[str]) -> list[Content]:
@@ -142,7 +144,7 @@ class ContentRepository(BaseRepository):
         include_deleted: bool = False,
     ) -> list[Content]:
         """Return all content for a tenant as Content model objects."""
-        q = self._tenant_query(tenant_id, include_deleted=include_deleted)
+        q = self._tenant_query(tenant_id, school_id=None, strict=False, include_deleted=include_deleted)
         docs = await self._col.find(q).to_list(length=None)
         return [Content.from_mongo(d) for d in docs]
 
@@ -181,7 +183,7 @@ class ContentRepository(BaseRepository):
         updates: dict,
         school_id: str | None = None,
     ) -> dict | None:
-        q = {**self._tenant_query(tenant_id, school_id), "_id": content_id}
+        q = {**self._tenant_query(tenant_id, school_id, strict=True), "_id": content_id}
         updates["updatedAt"] = datetime.now(UTC)
         return await self._col.find_one_and_update(q, {"$set": updates}, return_document=True)
 
@@ -191,7 +193,7 @@ class ContentRepository(BaseRepository):
         tenant_id: str,
         school_id: str | None = None,
     ) -> int:
-        q = {**self._tenant_query(tenant_id, school_id), "_id": content_id}
+        q = {**self._tenant_query(tenant_id, school_id, strict=True), "_id": content_id}
         result = await self._col.update_one(
             q, {"$set": {"isDeleted": True, "updatedAt": datetime.now(UTC)}}
         )
