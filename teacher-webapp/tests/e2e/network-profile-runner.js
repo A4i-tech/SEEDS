@@ -16,8 +16,8 @@
  *   node tests/e2e/network-profile-runner.js
  *
  * Env vars:
- *   PLAYWRIGHT_BASE_URL, REACT_APP_API_BASE_URL, REACT_APP_CONF_SERVER_BASE_URI,
- *   TEST_PHONE, TEST_PASSWORD   (same as network-speed-search.js)
+ *   PLAYWRIGHT_BASE_URL, REACT_APP_API_BASE_URL, TEST_PHONE, TEST_PASSWORD
+ *   (REACT_APP_API_BASE_URL now points at the unified platform service)
  *   RUNS_PER_PROFILE   default 50
  *   HOLD_MS            default 30000 (the "wait during call" step)
  *   PROFILES           comma-separated subset of profile names to run, default = all
