@@ -10,6 +10,8 @@ from pydantic import BaseModel
 class LoginResponse(BaseModel):
     token: str
     user: dict[str, Any]
+    refresh_token: str | None = None
+    expires_in: int | None = None
 
 
 class MessageResponse(BaseModel):

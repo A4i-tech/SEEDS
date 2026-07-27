@@ -37,6 +37,8 @@ from app.controllers import (
     # Users (split from users_controller)
     teacher_controller,
     tenant_auth_controller,
+    # Shared refresh-token route (#459)
+    token_controller,
     user_controller,
     # Webhooks (split from webhook_controller)
     webhook_controller,
@@ -50,6 +52,7 @@ api_router.include_router(auth_controller.router)
 api_router.include_router(teacher_auth_controller.router)
 api_router.include_router(tenant_auth_controller.router)
 api_router.include_router(school_admin_auth_controller.router)
+api_router.include_router(token_controller.router)
 
 # Users
 api_router.include_router(teacher_controller.router)

@@ -8,7 +8,6 @@ SECURITY: token strings and claims are never logged.
 """
 from __future__ import annotations
 
-import secrets
 from datetime import UTC, datetime
 from typing import Any
 
@@ -59,12 +58,3 @@ def decode_access_token(token: str, *, secret_key: str) -> dict[str, Any]:
         raise UnauthorizedError("Token has expired")
     except JWTError:
         raise UnauthorizedError("Invalid token")
-
-
-def generate_refresh_token() -> str:
-    """Opaque, unguessable refresh token — also used as the integrationTokens token_id."""
-    return secrets.token_urlsafe(32)
-
-
-def refresh_token_expiry(expires_in: str) -> datetime:
-    return datetime.now(tz=UTC) + _parse_expires_delta(expires_in)
