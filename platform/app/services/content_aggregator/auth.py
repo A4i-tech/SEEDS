@@ -22,7 +22,6 @@ from app.platform.auth.refresh_tokens import (
 )
 from app.platform.error_handling import AppError, UnauthorizedError
 from app.platform.settings import Settings
-from app.platform.telemetry import get_counter
 from app.repositories.integration_client_repository import IntegrationClientRepository
 from app.repositories.integration_token_repository import (
     IntegrationTokenRepository,
