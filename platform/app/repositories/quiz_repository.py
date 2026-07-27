@@ -64,7 +64,7 @@ class QuizRepository(BaseRepository):
         limit: int = 16,
     ) -> list[dict]:
         """Paginated quiz list — quiz items only."""
-        q = self._tenant_query(tenant_id, school_id)
+        q = self._tenant_query(tenant_id, school_id, strict=False)
 
         if only_teacher_app:
             q["is_teacher_app"] = True
