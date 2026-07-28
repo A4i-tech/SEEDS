@@ -60,7 +60,7 @@ const ContentTab = ({
             onClick={onSyncAll}
             disabled={syncingAll}
           >
-            {syncingAll ? "Syncing..." : "Sync All (Subodha)"}
+            {syncingAll ? "Syncing..." : "Sync All"}
           </button>
           <button
             type="button"
