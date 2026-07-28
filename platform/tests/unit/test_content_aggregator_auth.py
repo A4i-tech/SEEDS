@@ -6,7 +6,9 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
+from app.models.requests.content_aggregator_requests import ContentAggregatorTokenRequest
 from app.platform.auth.hashing import hash_password
 from app.platform.error_handling import AppError, UnauthorizedError
 from app.platform.settings import Settings
@@ -74,7 +76,9 @@ class TestIssueTokenSuccess:
 
         result = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
 
-        stored = await mock_db["integrationTokens"].find_one({"token_id": result["refresh_token"]})
+        stored = await mock_db["integrationTokens"].find_one(
+            {"token_id": result["refresh_token"]}
+        )
         assert stored is not None
         assert stored["client_id"] == "partner-1"
         assert stored["type"] == "refresh"
@@ -140,6 +144,30 @@ class TestIssueTokenFailures:
             await auth.issue_token("partner-1", "super-secret", scopes=["content:write"])
         assert exc_info.value.status_code == 403
         assert exc_info.value.code == "SCOPE_INSUFFICIENT"
+
+    async def test_empty_allowed_scopes_rejected(self, mock_db, auth):
+        """A client with no allowed_scopes must not receive a zero-scope token."""
+        await _seed_client(mock_db, allowed_scopes=[])
+
+        with pytest.raises(AppError) as exc_info:
+            await auth.issue_token("partner-1", "super-secret")
+        assert exc_info.value.status_code == 403
+        assert exc_info.value.code == "SCOPE_INSUFFICIENT"
+
+
+# ---------------------------------------------------------------------------
+# Request model validation
+# ---------------------------------------------------------------------------
+
+
+class TestRequestValidation:
+    def test_empty_client_id_rejected(self):
+        with pytest.raises(ValidationError):
+            ContentAggregatorTokenRequest(client_id="", client_secret="x")
+
+    def test_empty_client_secret_rejected(self):
+        with pytest.raises(ValidationError):
+            ContentAggregatorTokenRequest(client_id="x", client_secret="")
 
 
 class TestVerifyToken:
