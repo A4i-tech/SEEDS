@@ -6,27 +6,23 @@ Ported from subodha/backend/src/server.ts. Preserves original route shapes.
 
 from __future__ import annotations
 
+import json
 import logging
 import time
-from datetime import UTC, datetime
 from typing import Any
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi.responses import StreamingResponse
 
 from app.models.user import UserRole
 from app.platform.auth.dependencies import get_current_user
 from app.platform.error_handling import ForbiddenError, NotFoundError
 from app.platform.settings import get_settings
 from app.providers.subodha_client import SubodhaClient, get_subodha_client
-from app.services.subodha_service import (
-    SubodhaService,
-    create_job,
-    get_job,
-    get_subodha_service,
-    list_jobs,
-    update_job,
-)
+from app.repositories.subodha_job_repository import SubodhaJobRepository, get_subodha_job_repo
+from app.services.subodha_jobs import create_job, finish_job, serialize_job, subscribe
+from app.services.subodha_service import SubodhaService, get_subodha_service
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +57,7 @@ async def _run_sync_job(
     job_id: str,
     service: SubodhaService,
     client: SubodhaClient,
+    job_repo: SubodhaJobRepository,
     *,
     only_new: bool,
     dry_run: bool,
@@ -72,25 +69,20 @@ async def _run_sync_job(
         if only_new:
             diff = await service.get_course_diff(client)
             course_ids = diff["newCourseIds"]
-            update_job(job_id, {"diff": diff})
             await _post_webhook(webhook_url, {"event": "diffing", "jobId": job_id, **diff})
-
-        async def on_progress(progress: dict[str, Any]) -> None:
-            update_job(job_id, {"progress": progress})
-            await _post_webhook(webhook_url, {"event": "progress", "jobId": job_id, **progress})
 
         result = await service.run_sync(
             client,
+            job_repo,
+            job_id,
             course_ids=course_ids,
             limit=limit if limit is not None else (len(course_ids) if course_ids is not None else None),
             dry_run=dry_run,
-            run_id=job_id,
-            on_progress=on_progress,
         )
-        update_job(job_id, {"status": "completed", "finishedAt": result["finishedAt"], "result": result})
+        await finish_job(job_repo, job_id, "completed")
         await _post_webhook(webhook_url, {"event": "completed", "jobId": job_id, **result})
     except Exception as exc:  # noqa: BLE001
-        update_job(job_id, {"status": "failed", "finishedAt": datetime.now(UTC).isoformat(), "error": str(exc)})
+        await finish_job(job_repo, job_id, "failed", error=str(exc))
         await _post_webhook(webhook_url, {"event": "failed", "jobId": job_id, "error": str(exc)})
 
 
@@ -98,17 +90,18 @@ async def _run_course_sync_job(
     job_id: str,
     service: SubodhaService,
     client: SubodhaClient,
+    job_repo: SubodhaJobRepository,
     course_id: str,
     *,
     dry_run: bool,
     webhook_url: str | None,
 ) -> None:
     try:
-        result = await service.run_single_course_sync(client, course_id, dry_run=dry_run, run_id=job_id)
-        update_job(job_id, {"status": "completed", "finishedAt": result["finishedAt"], "result": result})
+        result = await service.run_single_course_sync(client, job_repo, job_id, course_id, dry_run=dry_run)
+        await finish_job(job_repo, job_id, "completed")
         await _post_webhook(webhook_url, {"event": "completed", "jobId": job_id, "courseId": course_id, **result})
     except Exception as exc:  # noqa: BLE001
-        update_job(job_id, {"status": "failed", "finishedAt": datetime.now(UTC).isoformat(), "error": str(exc)})
+        await finish_job(job_repo, job_id, "failed", error=str(exc))
         await _post_webhook(webhook_url, {"event": "failed", "jobId": job_id, "courseId": course_id, "error": str(exc)})
 
 
@@ -128,20 +121,22 @@ async def start_sync(
     user: dict[str, Any] = Depends(_require_tenant),
     service: SubodhaService = Depends(get_subodha_service),
     client: SubodhaClient = Depends(get_subodha_client),
+    job_repo: SubodhaJobRepository = Depends(get_subodha_job_repo),
 ) -> dict[str, str]:
     body = body or {}
-    job = create_job()
+    job = await create_job(job_repo, scope="all", course_id=None, total_courses=0)
     background_tasks.add_task(
         _run_sync_job,
-        job["id"],
+        job["_id"],
         service,
         client,
+        job_repo,
         only_new=bool(body.get("onlyNew", False)),
         dry_run=bool(body.get("dryRun", False)),
         webhook_url=body.get("webhookUrl"),
         limit=body.get("limit"),
     )
-    return {"jobId": job["id"]}
+    return {"jobId": job["_id"]}
 
 
 @router.get("/courses", summary="List synced courses")
@@ -207,29 +202,64 @@ async def sync_course(
     user: dict[str, Any] = Depends(_require_tenant),
     service: SubodhaService = Depends(get_subodha_service),
     client: SubodhaClient = Depends(get_subodha_client),
+    job_repo: SubodhaJobRepository = Depends(get_subodha_job_repo),
 ) -> dict[str, str]:
     body = body or {}
-    job = create_job()
+    job = await create_job(job_repo, scope="course", course_id=course_id, total_courses=1)
     background_tasks.add_task(
         _run_course_sync_job,
-        job["id"],
+        job["_id"],
         service,
         client,
+        job_repo,
         course_id,
         dry_run=bool(body.get("dryRun", False)),
         webhook_url=body.get("webhookUrl"),
     )
-    return {"jobId": job["id"]}
+    return {"jobId": job["_id"]}
 
 
 @router.get("/sync/status/{job_id}", summary="Get sync job status")
-async def get_sync_status(job_id: str, user: dict[str, Any] = Depends(_require_tenant)) -> dict[str, Any]:
-    job = get_job(job_id)
+async def get_sync_status(
+    job_id: str,
+    user: dict[str, Any] = Depends(_require_tenant),
+    job_repo: SubodhaJobRepository = Depends(get_subodha_job_repo),
+) -> dict[str, Any]:
+    job = await job_repo.get_job(job_id)
     if job is None:
         raise NotFoundError("Job", job_id)
-    return job
+    return serialize_job(job)
 
 
-@router.get("/sync/jobs", summary="List tracked sync jobs")
-async def get_sync_jobs(user: dict[str, Any] = Depends(_require_tenant)) -> list[dict[str, Any]]:
-    return list_jobs()
+@router.get("/sync/jobs", summary="List past sync jobs (history)")
+async def get_sync_jobs(
+    limit: int = 20,
+    scope: str | None = None,
+    course_id: str | None = None,
+    user: dict[str, Any] = Depends(_require_tenant),
+    job_repo: SubodhaJobRepository = Depends(get_subodha_job_repo),
+) -> dict[str, Any]:
+    jobs = await job_repo.list_jobs(limit=limit, scope=scope, course_id=course_id)
+    return {"jobs": [serialize_job(j) for j in jobs]}
+
+
+@router.get("/sync/jobs/active", summary="List currently-running sync jobs (for resume after logout/login)")
+async def get_active_jobs(
+    user: dict[str, Any] = Depends(_require_tenant),
+    job_repo: SubodhaJobRepository = Depends(get_subodha_job_repo),
+) -> dict[str, Any]:
+    jobs = await job_repo.get_active_jobs()
+    return {"jobs": [serialize_job(j) for j in jobs]}
+
+
+@router.get("/sync/stream/{job_id}", summary="SSE stream of live job progress")
+async def stream_job(
+    job_id: str,
+    user: dict[str, Any] = Depends(_require_tenant),
+    job_repo: SubodhaJobRepository = Depends(get_subodha_job_repo),
+) -> StreamingResponse:
+    async def _format() -> Any:
+        async for event in subscribe(job_repo, job_id):
+            yield f"data: {json.dumps(event, default=str)}\n\n"
+
+    return StreamingResponse(_format(), media_type="text/event-stream")
