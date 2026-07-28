@@ -41,7 +41,7 @@ const AllContent = () => {
     setIsFiltered,
   } = useContent();
 
-  const { syncingAll, courseStates, syncAll, syncCourse } = useSubodhaSync(refreshSubodhaCourses);
+  const { syncingAll, syncAllProgress, courseStates, syncAll, syncCourse } = useSubodhaSync(refreshSubodhaCourses);
 
   const {
     options,
@@ -191,6 +191,7 @@ const AllContent = () => {
             multiselectRef={multiselectRef}
             onSyncAll={syncAll}
             syncingAll={syncingAll}
+            syncAllProgress={syncAllProgress}
             courseSyncStates={courseStates}
             onSyncCourse={syncCourse}
             onDeleteSubodhaCourse={deleteSubodhaCourse}

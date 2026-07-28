@@ -7,6 +7,7 @@ import { subodhaService } from "../services/subodhaService";
  */
 export const useSubodhaSync = (onSettled) => {
   const [syncingAll, setSyncingAll] = useState(false);
+  const [syncAllProgress, setSyncAllProgress] = useState(null);
   const [courseStates, setCourseStates] = useState({});
   const controllersRef = useRef({});
 
@@ -18,7 +19,7 @@ export const useSubodhaSync = (onSettled) => {
   useEffect(() => () => Object.values(controllersRef.current).forEach((c) => c.abort()), []);
 
   const followJob = useCallback(
-    (key, jobId, { setRunning, onDone }) => {
+    (key, jobId, { setRunning, onDone, onProgress }) => {
       const controller = new AbortController();
       controllersRef.current[key] = controller;
 
@@ -27,6 +28,9 @@ export const useSubodhaSync = (onSettled) => {
           await subodhaService.streamJob(
             jobId,
             (event) => {
+              if (event.event === "progress") {
+                onProgress?.(event.job);
+              }
               if (event.event === "done") {
                 stopFollowing(key);
                 setRunning(false);
@@ -60,11 +64,14 @@ export const useSubodhaSync = (onSettled) => {
 
   const syncAll = useCallback(async () => {
     setSyncingAll(true);
+    setSyncAllProgress(null);
     try {
       const { jobId } = await subodhaService.syncAll();
       followJob("__all__", jobId, {
         setRunning: setSyncingAll,
+        onProgress: (job) => setSyncAllProgress({ processed: job.processed, total: job.totalCourses }),
         onDone: (job) => {
+          setSyncAllProgress(null);
           if (job.status === "completed") {
             alert(`Subodha sync complete: ${job.processed ?? 0}/${job.totalCourses ?? 0} courses processed.`);
             onSettled?.();
@@ -113,9 +120,12 @@ export const useSubodhaSync = (onSettled) => {
         jobs.forEach((job) => {
           if (job.scope === "all") {
             setSyncingAll(true);
+            setSyncAllProgress({ processed: job.processed, total: job.totalCourses });
             followJob("__all__", job.jobId, {
               setRunning: setSyncingAll,
+              onProgress: (updated) => setSyncAllProgress({ processed: updated.processed, total: updated.totalCourses }),
               onDone: (finished) => {
+                setSyncAllProgress(null);
                 if (finished.status === "completed") onSettled?.();
               },
             });
@@ -141,5 +151,5 @@ export const useSubodhaSync = (onSettled) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { syncingAll, courseStates, syncAll, syncCourse };
+  return { syncingAll, syncAllProgress, courseStates, syncAll, syncCourse };
 };

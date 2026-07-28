@@ -27,6 +27,7 @@ const ContentTab = ({
   multiselectRef,
   onSyncAll,
   syncingAll,
+  syncAllProgress,
   courseSyncStates,
   onSyncCourse,
   onDeleteSubodhaCourse,
@@ -76,6 +77,20 @@ const ContentTab = ({
           </button>
         </div>
       </div>
+
+      {syncingAll && syncAllProgress && syncAllProgress.total > 0 && (
+        <div className="subodha-sync-all-progress">
+          <div className="subodha-sync-all-progress-track">
+            <div
+              className="subodha-sync-all-progress-fill"
+              style={{ width: `${Math.min(100, Math.round((syncAllProgress.processed / syncAllProgress.total) * 100))}%` }}
+            />
+          </div>
+          <span className="subodha-sync-all-progress-label">
+            {syncAllProgress.processed}/{syncAllProgress.total} courses synced
+          </span>
+        </div>
+      )}
 
       <ContentFilters
         options={options}

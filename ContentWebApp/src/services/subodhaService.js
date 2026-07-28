@@ -16,14 +16,15 @@ export const subodhaService = {
   },
 
   /**
-   * Kick off a sync of every Subodha course.
+   * Kick off a sync of new (not-yet-stored) Subodha courses only, via the
+   * backend's diff against live Subodha course list.
    * @returns {Promise<{jobId: string}>}
    */
   async syncAll() {
     return apiFetch(`${SEEDS_URL}/subodha/sync`, {
       method: "POST",
       headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ onlyNew: true }),
     });
   },
 
