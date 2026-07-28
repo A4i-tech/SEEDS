@@ -202,6 +202,7 @@ class Settings(BaseSettings):
     subodha_xblock_delay_ms: int = 30
     subodha_asset_concurrency: int = 10
     subodha_collection_name: str = "subodhaCourses"
+    subodha_jobs_collection_name: str = "subodhaSyncJobs"
     subodha_webhook_min_interval_ms: int = 10_000
     subodha_asset_container: str = "subodha"
 
