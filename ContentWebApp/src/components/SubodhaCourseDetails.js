@@ -436,9 +436,11 @@ function SequentialPlayer({ chapter, sequential, blockMap, courseId, onBlockChan
 }
 
 // Full outline visible at once (chapter cards, each listing its lessons) —
-// clicking a lesson opens SequentialPlayer for it.
+// clicking a lesson opens SequentialPlayer for it. Chapters can be individually
+// collapsed, or all at once via "Collapse all" (mirrors Subodha's own outline).
 function OutlineNavigator({ outline, blockMap, courseId, onBlockChange, onBackToContent }) {
   const [selected, setSelected] = useState(null);
+  const [collapsed, setCollapsed] = useState({});
 
   if (selected) {
     const chapter = outline[selected.chapterIdx];
@@ -455,31 +457,58 @@ function OutlineNavigator({ outline, blockMap, courseId, onBlockChange, onBackTo
     );
   }
 
+  const allCollapsed = outline.length > 0 && outline.every((chapter) => collapsed[chapter.blockId]);
+
+  const toggleAll = () => {
+    setCollapsed(allCollapsed ? {} : Object.fromEntries(outline.map((chapter) => [chapter.blockId, true])));
+  };
+
+  const toggleChapter = (blockId) => {
+    setCollapsed((prev) => ({ ...prev, [blockId]: !prev[blockId] }));
+  };
+
   return (
     <div className="subodha-outline-list">
       <div className="content-details-actions">
         <button onClick={onBackToContent} className="primary-button">
           ← Back
         </button>
+        <button type="button" className="secondary-button" onClick={toggleAll}>
+          {allCollapsed ? "Expand all" : "Collapse all"}
+        </button>
       </div>
-      {outline.map((chapter, chapterIdx) => (
-        <div key={chapter.blockId} className="subodha-outline-chapter-card">
-          <div className="subodha-outline-chapter-title">{chapter.displayName}</div>
-          <ul className="subodha-outline-sequential-list">
-            {chapter.sequentials.map((seq, seqIdx) => (
-              <li key={seq.blockId}>
-                <button
-                  type="button"
-                  className="subodha-outline-sequential-item"
-                  onClick={() => setSelected({ chapterIdx, seqIdx })}
-                >
-                  {seq.displayName}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
+      {outline.map((chapter, chapterIdx) => {
+        const isCollapsed = Boolean(collapsed[chapter.blockId]);
+        return (
+          <div key={chapter.blockId} className="subodha-outline-chapter-card">
+            <button
+              type="button"
+              className="subodha-outline-chapter-header"
+              onClick={() => toggleChapter(chapter.blockId)}
+            >
+              <span className="subodha-outline-check" aria-hidden="true">✓</span>
+              <span className="subodha-outline-chapter-title">{chapter.displayName}</span>
+              <span className="subodha-outline-toggle" aria-hidden="true">{isCollapsed ? "+" : "−"}</span>
+            </button>
+            {!isCollapsed && (
+              <ul className="subodha-outline-sequential-list">
+                {chapter.sequentials.map((seq, seqIdx) => (
+                  <li key={seq.blockId}>
+                    <button
+                      type="button"
+                      className="subodha-outline-sequential-item"
+                      onClick={() => setSelected({ chapterIdx, seqIdx })}
+                    >
+                      <span className="subodha-outline-check" aria-hidden="true">✓</span>
+                      {seq.displayName}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

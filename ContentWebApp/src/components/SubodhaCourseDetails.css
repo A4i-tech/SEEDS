@@ -63,10 +63,45 @@
   padding: 16px;
 }
 
+.subodha-outline-chapter-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  padding: 0;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+
 .subodha-outline-chapter-title {
   font-weight: 700;
   font-size: 16px;
-  margin-bottom: 8px;
+  flex: 1;
+}
+
+.subodha-outline-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid #22c55e;
+  color: #22c55e;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.subodha-outline-toggle {
+  font-size: 18px;
+  font-weight: 700;
+  color: #64748b;
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
 }
 
 .subodha-outline-sequential-list {
@@ -79,7 +114,9 @@
 }
 
 .subodha-outline-sequential-item {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   width: 100%;
   text-align: left;
   padding: 8px 12px;
