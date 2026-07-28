@@ -3,7 +3,16 @@ import "../shared/tables.css";
 import "../shared/buttons.css";
 import "../shared/utilities.css";
 
-const ContentTable = ({ content, isLoading, onEdit, onView, onDelete }) => {
+const ContentTable = ({
+  content,
+  isLoading,
+  onEdit,
+  onView,
+  onDelete,
+  courseSyncStates = {},
+  onSyncCourse,
+  onDeleteSubodhaCourse,
+}) => {
   return (
     <div className="table-wrapper">
       {isLoading && content.length === 0 ? (
@@ -44,6 +53,9 @@ const ContentTable = ({ content, isLoading, onEdit, onView, onDelete }) => {
             {content.map((item) => {
               const itemId = item.id;
               const itemType = item.type.toLowerCase();
+              const isSubodha = item.source === "subodha";
+              const syncState = courseSyncStates[itemId];
+              const syncing = syncState === "running";
               return (
                 <tr key={itemId} className="table-row-white">
                   <td className="table-cell">
@@ -57,14 +69,22 @@ const ContentTable = ({ content, isLoading, onEdit, onView, onDelete }) => {
                     <span className="table-cell-secondary">{item.theme.local}</span>
                   </td>
                   <td className="table-cell">
-                    {item.is_teacher_app && "TA"}
-                    {item.is_pull_model && ", IVR"}
-                    {itemType === "quiz" && " IVR"}
+                    {isSubodha
+                      ? item.synced
+                        ? "Synced"
+                        : "Never synced"
+                      : (
+                        <>
+                          {item.is_teacher_app && "TA"}
+                          {item.is_pull_model && ", IVR"}
+                          {itemType === "quiz" && " IVR"}
+                        </>
+                      )}
                   </td>
                   <td className="table-cell">{item.language}</td>
                   <td className="table-cell">
                     <span className="content-type">
-                      {itemType}
+                      {isSubodha ? "Subodha" : itemType}
                       {itemType === "quiz" && (
                         <span className="content-type-badge-quiz" title="Quiz Content">
                           Q
@@ -74,25 +94,53 @@ const ContentTable = ({ content, isLoading, onEdit, onView, onDelete }) => {
                   </td>
                   <td className="table-cell">
                     <div className="action-buttons-wrapper">
-                      <button
-                        onClick={() => onEdit(itemType, itemId)}
-                        className="action-button-base action-button-edit"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => onView(itemType, itemId)}
-                        className="action-button-base action-button-view"
-                      >
-                        View
-                      </button>
-                      {onDelete && (
-                        <button
-                          onClick={() => onDelete(itemType, itemId)}
-                          className="action-button-base action-button-delete"
-                        >
-                          Delete
-                        </button>
+                      {isSubodha ? (
+                        <>
+                          <button
+                            onClick={() => onSyncCourse(itemId, item.title.english)}
+                            disabled={syncing}
+                            className="action-button-base action-button-sync"
+                          >
+                            {syncing ? "Syncing..." : "Sync"}
+                          </button>
+                          <button
+                            onClick={() => onView(itemType, itemId)}
+                            className="action-button-base action-button-view"
+                          >
+                            View
+                          </button>
+                          {onDeleteSubodhaCourse && (
+                            <button
+                              onClick={() => onDeleteSubodhaCourse(itemId, item.title.english)}
+                              className="action-button-base action-button-delete"
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => onEdit(itemType, itemId)}
+                            className="action-button-base action-button-edit"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => onView(itemType, itemId)}
+                            className="action-button-base action-button-view"
+                          >
+                            View
+                          </button>
+                          {onDelete && (
+                            <button
+                              onClick={() => onDelete(itemType, itemId)}
+                              className="action-button-base action-button-delete"
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </>
                       )}
                     </div>
                   </td>

@@ -188,6 +188,24 @@ class Settings(BaseSettings):
     feature_ph: str = ""
 
     # ---------------------------------------------------------------------------
+    # Subodha LMS sync (ported from subodha/backend)
+    # ---------------------------------------------------------------------------
+    subodha_base_url: str = "https://subodha-lms.visionempowertrust.org"
+    subodha_username: str = Field(default="", repr=False)
+    subodha_password: str = Field(default="", repr=False)
+    subodha_page_size: int = 100
+    subodha_page_delay_ms: int = 300
+    subodha_course_concurrency: int = 5
+    subodha_course_delay_ms: int = 0
+    subodha_session_refresh_every: int = 200
+    subodha_xblock_concurrency: int = 10
+    subodha_xblock_delay_ms: int = 30
+    subodha_asset_concurrency: int = 10
+    subodha_collection_name: str = "subodhaCourses"
+    subodha_webhook_min_interval_ms: int = 10_000
+    subodha_asset_container: str = "subodha"
+
+    # ---------------------------------------------------------------------------
     # Derived queue names (IVRv2 pattern)
     # ---------------------------------------------------------------------------
     @property

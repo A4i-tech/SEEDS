@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useContent } from "../hooks/useContent";
+import { useSubodhaSync } from "../hooks/useSubodhaSync";
 import { useContentFilters } from "../hooks/useContentFilters";
 import { useTeachers } from "../hooks/useTeachers";
 import { useSchools } from "../hooks/useSchools";
@@ -34,9 +35,13 @@ const AllContent = () => {
     isFiltered,
     loadMore,
     deleteContent,
+    deleteSubodhaCourse,
+    refreshSubodhaCourses,
     setContent,
     setIsFiltered,
   } = useContent();
+
+  const { syncingAll, courseStates, syncAll, syncCourse } = useSubodhaSync(refreshSubodhaCourses);
 
   const {
     options,
@@ -184,6 +189,11 @@ const AllContent = () => {
             onLoadMore={loadMore}
             isUpdatingIVR={isUpdatingIVR}
             multiselectRef={multiselectRef}
+            onSyncAll={syncAll}
+            syncingAll={syncingAll}
+            courseSyncStates={courseStates}
+            onSyncCourse={syncCourse}
+            onDeleteSubodhaCourse={deleteSubodhaCourse}
           />
         )}
 
