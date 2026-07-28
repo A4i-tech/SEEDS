@@ -31,6 +31,11 @@
   margin-bottom: 12px;
 }
 
+.subodha-block-header-action {
+  margin-left: auto;
+  text-decoration: none;
+}
+
 .subodha-block-video {
   max-width: 100%;
 }

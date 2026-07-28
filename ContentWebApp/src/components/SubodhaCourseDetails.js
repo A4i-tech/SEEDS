@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import katex from "katex";
 import "katex/dist/katex.min.css";
 import { subodhaService } from "../services/subodhaService";
+import { getLanguageName } from "../utils/languageName";
 import "./SubodhaCourseDetails.css";
 
 function getYoutubeId(streams) {
@@ -236,8 +237,13 @@ function BlockCard({ block, courseId, onBlockChange }) {
           </>
         )}
         {block.lmsUrl && (
-          <a href={block.lmsUrl} target="_blank" rel="noreferrer">
-            Open in Subodha ↗
+          <a
+            href={block.lmsUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="secondary-button subodha-block-header-action"
+          >
+            Open in Subodha
           </a>
         )}
       </div>
@@ -588,7 +594,7 @@ const SubodhaCourseDetails = ({ courseId, onBack }) => {
       <h2>{course.title}</h2>
       <div className="subodha-course-meta">
         <span>{course.org} / {course.courseNumber}</span>
-        {course.language && <span>Language: {course.language}</span>}
+        {course.language && <span>Language: {getLanguageName(course.language)}</span>}
         <span>Pacing: {course.pacing}</span>
         {course.hidden && <span className="subodha-badge-hidden">Hidden</span>}
       </div>

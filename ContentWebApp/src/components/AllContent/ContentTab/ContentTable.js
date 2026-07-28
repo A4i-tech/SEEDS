@@ -1,4 +1,5 @@
 import React from "react";
+import { getLanguageName } from "../../../utils/languageName";
 import "../shared/tables.css";
 import "../shared/buttons.css";
 import "../shared/utilities.css";
@@ -81,7 +82,7 @@ const ContentTable = ({
                         </>
                       )}
                   </td>
-                  <td className="table-cell">{item.language}</td>
+                  <td className="table-cell">{getLanguageName(item.language)}</td>
                   <td className="table-cell">
                     <span className="content-type">
                       {isSubodha ? "Subodha" : itemType}
