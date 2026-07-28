@@ -1,6 +1,6 @@
 import { SEEDS_URL } from "../Constants";
 import { getAuthHeaders } from "../utils/authHelpers";
-import { apiFetch } from "./api";
+import { apiFetch, buildQueryString } from "./api";
 
 export const subodhaService = {
   /**
@@ -93,5 +93,66 @@ export const subodhaService = {
         body: JSON.stringify(payload),
       }
     );
+  },
+
+  /**
+   * List all currently-running sync jobs (all-scope + per-course) — used to
+   * reattach the progress UI after a logout/login or page reload.
+   * @returns {Promise<{jobs: Array<Object>}>}
+   */
+  async getActiveJobs() {
+    return apiFetch(`${SEEDS_URL}/subodha/sync/jobs/active`, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
+  },
+
+  /**
+   * List past sync runs for the history panel.
+   * @param {{limit?: number, scope?: "all"|"course", courseId?: string}} params
+   * @returns {Promise<{jobs: Array<Object>}>}
+   */
+  async getSyncJobs({ limit = 20, scope, courseId } = {}) {
+    const qs = buildQueryString({ limit, scope, courseId });
+    return apiFetch(`${SEEDS_URL}/subodha/sync/jobs${qs ? `?${qs}` : ""}`, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
+  },
+
+  /**
+   * Subscribe to live SSE progress for a job. Uses fetch()+ReadableStream
+   * (not native EventSource) so the JWT Authorization header can be sent.
+   * Resolves once the stream closes; call onEvent for each parsed event.
+   * @param {string} jobId
+   * @param {(event: {event: string, job: Object}) => void} onEvent
+   * @param {{signal?: AbortSignal}} [options]
+   * @returns {Promise<void>}
+   */
+  async streamJob(jobId, onEvent, { signal } = {}) {
+    const response = await fetch(
+      `${SEEDS_URL}/subodha/sync/stream/${encodeURIComponent(jobId)}`,
+      { headers: getAuthHeaders(), signal }
+    );
+    if (!response.ok || !response.body) {
+      throw new Error(`Failed to open sync stream (status ${response.status})`);
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let separatorIndex;
+      while ((separatorIndex = buffer.indexOf("\n\n")) !== -1) {
+        const rawEvent = buffer.slice(0, separatorIndex);
+        buffer = buffer.slice(separatorIndex + 2);
+        const dataLine = rawEvent.split("\n").find((line) => line.startsWith("data: "));
+        if (dataLine) {
+          onEvent(JSON.parse(dataLine.slice("data: ".length)));
+        }
+      }
+    }
   },
 };

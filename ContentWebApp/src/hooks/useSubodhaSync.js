@@ -1,57 +1,72 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { subodhaService } from "../services/subodhaService";
 
-const POLL_MS = 1500;
-
 /**
- * Tracks the "sync all" job plus per-course sync jobs kicked off from the
- * content table. Each course row polls its own job id independently.
+ * Tracks the "sync all" job plus per-course sync jobs via SSE. Reattaches to
+ * any job still running on mount (e.g. after a logout/login or page reload).
  */
 export const useSubodhaSync = (onSettled) => {
   const [syncingAll, setSyncingAll] = useState(false);
   const [courseStates, setCourseStates] = useState({});
-  const timersRef = useRef({});
+  const controllersRef = useRef({});
 
-  const stopPolling = useCallback((key) => {
-    if (timersRef.current[key]) {
-      clearInterval(timersRef.current[key]);
-      delete timersRef.current[key];
-    }
+  const stopFollowing = useCallback((key) => {
+    controllersRef.current[key]?.abort();
+    delete controllersRef.current[key];
   }, []);
 
-  useEffect(() => () => Object.values(timersRef.current).forEach(clearInterval), []);
+  useEffect(() => () => Object.values(controllersRef.current).forEach((c) => c.abort()), []);
 
-  const pollJob = useCallback(
-    (key, jobId, { onDone, setRunning }) => {
-      const check = async () => {
+  const followJob = useCallback(
+    (key, jobId, { setRunning, onDone }) => {
+      const controller = new AbortController();
+      controllersRef.current[key] = controller;
+
+      const attach = async () => {
         try {
-          const job = await subodhaService.getSyncStatus(jobId);
-          if (job.status === "completed" || job.status === "failed") {
-            stopPolling(key);
+          await subodhaService.streamJob(
+            jobId,
+            (event) => {
+              if (event.event === "done") {
+                stopFollowing(key);
+                setRunning(false);
+                onDone(event.job);
+              }
+            },
+            { signal: controller.signal }
+          );
+        } catch (error) {
+          if (controller.signal.aborted) return;
+          try {
+            const job = await subodhaService.getSyncStatus(jobId);
+            if (job.status === "running") {
+              attach();
+              return;
+            }
+            stopFollowing(key);
             setRunning(false);
             onDone(job);
+          } catch (statusError) {
+            stopFollowing(key);
+            setRunning(false);
+            onDone({ status: "failed", error: statusError.message });
           }
-        } catch (error) {
-          stopPolling(key);
-          setRunning(false);
-          onDone({ status: "failed", error: error.message });
         }
       };
-      timersRef.current[key] = setInterval(check, POLL_MS);
-      check();
+      attach();
     },
-    [stopPolling]
+    [stopFollowing]
   );
 
   const syncAll = useCallback(async () => {
     setSyncingAll(true);
     try {
       const { jobId } = await subodhaService.syncAll();
-      pollJob("__all__", jobId, {
+      followJob("__all__", jobId, {
         setRunning: setSyncingAll,
         onDone: (job) => {
           if (job.status === "completed") {
-            alert(`Subodha sync complete: ${job.result?.processed ?? 0}/${job.result?.totalCourses ?? 0} courses processed.`);
+            alert(`Subodha sync complete: ${job.processed ?? 0}/${job.totalCourses ?? 0} courses processed.`);
             onSettled?.();
           } else {
             alert(`Subodha sync failed: ${job.error || "Unknown error"}`);
@@ -62,14 +77,14 @@ export const useSubodhaSync = (onSettled) => {
       setSyncingAll(false);
       alert(`Failed to start Subodha sync: ${error.message}`);
     }
-  }, [onSettled, pollJob]);
+  }, [onSettled, followJob]);
 
   const syncCourse = useCallback(
     async (courseId, name) => {
       setCourseStates((prev) => ({ ...prev, [courseId]: "running" }));
       try {
         const { jobId } = await subodhaService.syncCourse(courseId);
-        pollJob(courseId, jobId, {
+        followJob(courseId, jobId, {
           setRunning: (running) =>
             setCourseStates((prev) => ({ ...prev, [courseId]: running ? "running" : prev[courseId] })),
           onDone: (job) => {
@@ -86,8 +101,45 @@ export const useSubodhaSync = (onSettled) => {
         alert(`Failed to start sync for ${name || courseId}: ${error.message}`);
       }
     },
-    [onSettled, pollJob]
+    [onSettled, followJob]
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { jobs } = await subodhaService.getActiveJobs();
+        if (cancelled) return;
+        jobs.forEach((job) => {
+          if (job.scope === "all") {
+            setSyncingAll(true);
+            followJob("__all__", job.jobId, {
+              setRunning: setSyncingAll,
+              onDone: (finished) => {
+                if (finished.status === "completed") onSettled?.();
+              },
+            });
+          } else if (job.scope === "course" && job.courseId) {
+            setCourseStates((prev) => ({ ...prev, [job.courseId]: "running" }));
+            followJob(job.courseId, job.jobId, {
+              setRunning: (running) =>
+                setCourseStates((prev) => ({ ...prev, [job.courseId]: running ? "running" : prev[job.courseId] })),
+              onDone: (finished) => {
+                setCourseStates((prev) => ({ ...prev, [job.courseId]: finished.status }));
+                if (finished.status === "completed") onSettled?.();
+              },
+            });
+          }
+        });
+      } catch (error) {
+        console.error("Failed to check active Subodha sync jobs:", error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return { syncingAll, courseStates, syncAll, syncCourse };
 };
