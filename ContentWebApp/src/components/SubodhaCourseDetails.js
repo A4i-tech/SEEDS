@@ -222,11 +222,19 @@ function BlockContent({ block, courseId, onBlockChange }) {
 
 function BlockCard({ block, courseId, onBlockChange }) {
   if (!block) return null;
+  // A generic displayName ("Video", "Multiple Choice", ...) tells the reader
+  // nothing the surrounding unit title doesn't already say — skip the
+  // redundant label + type badge and keep only the Subodha link.
+  const showLabel = !isGenericLabel(block);
   return (
     <div className="subodha-block-card">
       <div className="subodha-block-header">
-        <strong>{block.displayName || block.type}</strong>
-        <span className="content-type">{block.type}</span>
+        {showLabel && (
+          <>
+            <strong>{block.displayName}</strong>
+            <span className="content-type">{block.type}</span>
+          </>
+        )}
         {block.lmsUrl && (
           <a href={block.lmsUrl} target="_blank" rel="noreferrer">
             Open in Subodha ↗
