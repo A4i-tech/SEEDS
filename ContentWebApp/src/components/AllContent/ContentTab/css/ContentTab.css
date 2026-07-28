@@ -1,3 +1,30 @@
+.subodha-sync-all-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.subodha-sync-all-progress-track {
+  flex: 1;
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.subodha-sync-all-progress-fill {
+  height: 100%;
+  background: #1d4ed8;
+  transition: width 0.2s ease;
+}
+
+.subodha-sync-all-progress-label {
+  font-size: 12px;
+  color: #64748b;
+  white-space: nowrap;
+}
+
 .tabs-container {
   display: flex;
   gap: 6px;
