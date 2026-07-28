@@ -24,6 +24,11 @@ const ContentTab = ({
   onLoadMore,
   isUpdatingIVR,
   multiselectRef,
+  onSyncAll,
+  syncingAll,
+  courseSyncStates,
+  onSyncCourse,
+  onDeleteSubodhaCourse,
 }) => {
   const navigate = useNavigate();
 
@@ -47,6 +52,14 @@ const ContentTab = ({
             {isUpdatingIVR ? "Updating..." : "Update IVR"}
           </button>
           <button
+            type="button"
+            className="primary-button button-ml-8"
+            onClick={onSyncAll}
+            disabled={syncingAll}
+          >
+            {syncingAll ? "Syncing..." : "Sync All (Subodha)"}
+          </button>
+          <button
             className="primary-button button-add-content"
             onClick={() => navigate("/content/create")}
           >
@@ -68,6 +81,9 @@ const ContentTab = ({
         onEdit={onEdit}
         onView={onView}
         onDelete={onDelete}
+        courseSyncStates={courseSyncStates}
+        onSyncCourse={onSyncCourse}
+        onDeleteSubodhaCourse={onDeleteSubodhaCourse}
       />
 
       {!isFiltered && paginationInfo.hasMore && (

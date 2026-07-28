@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import QuizDetails from "./QuizDetails";
 import StoryDetails from "./StoryDetails";
+import SubodhaCourseDetails from "./SubodhaCourseDetails";
 import { contentService } from "../services/contentService";
 import "./ContentDetails.css";
 import "./AllContent/shared/buttons.css";
@@ -13,7 +14,13 @@ const ContentDetails = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const isSubodhaCourse = type === "subodha-course";
+
   const contentById = useCallback(async () => {
+    if (isSubodhaCourse) {
+      setIsLoading(false);
+      return null;
+    }
     try {
       setIsLoading(true);
       setError(null);
@@ -27,7 +34,7 @@ const ContentDetails = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [id, type]);
+  }, [id, type, isSubodhaCourse]);
 
   useEffect(() => {
     contentById();
@@ -48,6 +55,14 @@ const ContentDetails = () => {
         <button onClick={() => navigate("/content")} className="primary-button">
           ← Back to Content
         </button>
+      </div>
+    );
+  }
+
+  if (isSubodhaCourse) {
+    return (
+      <div className="content-details-page">
+        <SubodhaCourseDetails courseId={id} onBack={() => navigate("/content")} />
       </div>
     );
   }

@@ -116,6 +116,10 @@
   background-color: #ef4444;
 }
 
+.action-button-sync {
+  background-color: #22c55e;
+}
+
 /* Add content button variant */
 .button-add-content {
   background-color: #059669;

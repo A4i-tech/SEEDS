@@ -29,6 +29,7 @@ from app.controllers import (
     # School + Classes
     school_controller,
     student_controller,
+    subodha_controller,
     # Auth (split from auth_controller)
     teacher_auth_controller,
     # Users (split from users_controller)
@@ -60,6 +61,7 @@ api_router.include_router(class_controller.router)
 # Content
 api_router.include_router(content_controller.router)
 api_router.include_router(audit_controller.router)
+api_router.include_router(subodha_controller.router)
 
 # Calls
 api_router.include_router(conference_controller.router)
