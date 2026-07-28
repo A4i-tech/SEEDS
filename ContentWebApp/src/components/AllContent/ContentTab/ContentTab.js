@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ContentFilters from "./ContentFilters";
 import ContentTable from "./ContentTable";
+import SubodhaSyncHistory from "../../SubodhaSyncHistory";
 import "./css/ContentTab.css";
 import "../shared/buttons.css";
 import "../shared/cards.css";
@@ -31,6 +32,7 @@ const ContentTab = ({
   onDeleteSubodhaCourse,
 }) => {
   const navigate = useNavigate();
+  const [showSyncHistory, setShowSyncHistory] = useState(false);
 
   return (
     <div className="card">
@@ -58,6 +60,13 @@ const ContentTab = ({
             disabled={syncingAll}
           >
             {syncingAll ? "Syncing..." : "Sync All (Subodha)"}
+          </button>
+          <button
+            type="button"
+            className="secondary-button button-ml-8"
+            onClick={() => setShowSyncHistory(true)}
+          >
+            Sync History
           </button>
           <button
             className="primary-button button-add-content"
@@ -98,6 +107,8 @@ const ContentTab = ({
           </button>
         </div>
       )}
+
+      {showSyncHistory && <SubodhaSyncHistory onClose={() => setShowSyncHistory(false)} />}
     </div>
   );
 };
