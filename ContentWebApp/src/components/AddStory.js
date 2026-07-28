@@ -389,8 +389,8 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
 
     // Send metadata to backend with populated audioContent AFTER files are uploaded
     if (content) {
-      newMetadata = { ...newMetadata, _id: content._id };
-      const seedsRes = await fetch(`${SEEDS_URL}/content/${content._id}?isAudioUploaded=${isAudioUploaded}`, {
+      newMetadata = { ...newMetadata, _id: content.id };
+      const seedsRes = await fetch(`${SEEDS_URL}/content/${content.id}?isAudioUploaded=${isAudioUploaded}`, {
         method: "PATCH",
         headers: getAuthHeaders(),
         body: JSON.stringify(buildRequestBody(newMetadata)),
