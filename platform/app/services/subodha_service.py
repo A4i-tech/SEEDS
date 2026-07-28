@@ -12,7 +12,6 @@ import json
 import logging
 import mimetypes
 import re
-import uuid
 from datetime import UTC, datetime
 from pathlib import PurePosixPath
 from typing import Any
@@ -25,7 +24,9 @@ from app.platform.auth.dependencies import get_db
 from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider
 from app.providers.subodha_client import SubodhaClient
+from app.repositories.subodha_job_repository import SubodhaJobRepository
 from app.repositories.subodha_repository import SubodhaRepository
+from app.services.subodha_jobs import record_course_result, set_total
 
 logger = logging.getLogger(__name__)
 
@@ -203,47 +204,6 @@ async def fetch_and_store_assets(
 
 
 # ---------------------------------------------------------------------------
-# In-memory job tracker (mirrors jobs.ts — single-process, not durable)
-# ---------------------------------------------------------------------------
-
-_MAX_JOBS = 50
-_jobs: dict[str, dict[str, Any]] = {}
-
-
-def create_job() -> dict[str, Any]:
-    job = {
-        "id": str(uuid.uuid4()),
-        "status": "running",
-        "startedAt": datetime.now(UTC).isoformat(),
-        "finishedAt": None,
-        "diff": None,
-        "progress": None,
-        "result": None,
-        "error": None,
-    }
-    _jobs[job["id"]] = job
-    if len(_jobs) > _MAX_JOBS:
-        del _jobs[next(iter(_jobs))]
-    return job
-
-
-def update_job(job_id: str, patch: dict[str, Any]) -> dict[str, Any] | None:
-    job = _jobs.get(job_id)
-    if job is None:
-        return None
-    job.update(patch)
-    return job
-
-
-def get_job(job_id: str) -> dict[str, Any] | None:
-    return _jobs.get(job_id)
-
-
-def list_jobs() -> list[dict[str, Any]]:
-    return sorted(_jobs.values(), key=lambda j: j["startedAt"], reverse=True)
-
-
-# ---------------------------------------------------------------------------
 # Sync orchestration
 # ---------------------------------------------------------------------------
 
@@ -334,16 +294,15 @@ class SubodhaService:
     async def run_sync(
         self,
         client: SubodhaClient,
+        job_repo: SubodhaJobRepository,
+        job_id: str,
         *,
         course_ids: list[str] | None = None,
         limit: int | None = None,
         dry_run: bool = False,
-        run_id: str | None = None,
-        on_progress=None,
     ) -> dict[str, Any]:
-        run_id = run_id or str(uuid.uuid4())
         started_at = datetime.now(UTC).isoformat()
-        logger.info("[subodha] run %s started (dryRun=%s)", run_id, dry_run)
+        logger.info("[subodha] run %s started (dryRun=%s)", job_id, dry_run)
 
         session_cookie = await client.get_session()
         all_courses = await client.list_all_courses()
@@ -356,45 +315,52 @@ class SubodhaService:
             to_process = to_process[:limit]
 
         logger.info("[subodha] %d of %d courses queued", len(to_process), len(all_courses))
+        await set_total(job_repo, job_id, len(to_process))
 
-        stats: dict[str, int] = {"saved": 0, "skipped": 0, "empty": 0, "failed": 0}
-        permanent_failures: list[dict[str, str]] = []
-        processed = 0
         semaphore = asyncio.Semaphore(self._settings.subodha_course_concurrency)
         session_box = {"cookie": session_cookie}
         lock = asyncio.Lock()
+        processed_count = 0
 
         async def process_one(course: dict[str, Any]) -> None:
-            nonlocal processed
+            nonlocal processed_count
             async with semaphore:
                 async with lock:
-                    if processed and processed % self._settings.subodha_session_refresh_every == 0:
+                    if processed_count and processed_count % self._settings.subodha_session_refresh_every == 0:
                         client.clear_session_cache()
                         session_box["cookie"] = await client.get_session()
 
-                result = await self.process_course(client, course, session_box["cookie"], run_id, dry_run)
+                result = await self.process_course(client, course, session_box["cookie"], job_id, dry_run)
+                entry = {
+                    "courseId": result["courseId"],
+                    "name": course.get("name") or "",
+                    "status": result["status"],
+                    "error": result.get("error"),
+                    "at": datetime.now(UTC).isoformat(),
+                }
+                await record_course_result(job_repo, job_id, entry)
 
                 async with lock:
-                    stats[result["status"]] = stats.get(result["status"], 0) + 1
-                    if result["status"] == "failed":
-                        permanent_failures.append({"courseId": result["courseId"], "error": result.get("error", "")})
-                    processed += 1
-                    progress = {"processed": processed, "total": len(to_process), "courseId": result["courseId"], "status": result["status"]}
-
-                if on_progress:
-                    await on_progress(progress)
+                    processed_count += 1
 
                 if self._settings.subodha_course_delay_ms > 0:
                     await asyncio.sleep(self._settings.subodha_course_delay_ms / 1000)
 
         await asyncio.gather(*(process_one(c) for c in to_process))
 
+        doc = await job_repo.get_job(job_id)
+        stats = doc["stats"] if doc else {}
+        permanent_failures = [
+            {"courseId": c["courseId"], "error": c.get("error") or ""}
+            for c in (doc["courses"] if doc else [])
+            if c["status"] == "failed"
+        ]
         summary = {
-            "runId": run_id,
+            "runId": job_id,
             "startedAt": started_at,
             "finishedAt": datetime.now(UTC).isoformat(),
             "totalCourses": len(all_courses),
-            "processed": processed,
+            "processed": doc["processed"] if doc else processed_count,
             "stats": stats,
             "permanentFailures": permanent_failures,
             "dlqProcessed": 0,
@@ -402,8 +368,9 @@ class SubodhaService:
         logger.info("[subodha] done -> %s", stats)
         return summary
 
-    async def run_single_course_sync(self, client: SubodhaClient, course_id: str, *, dry_run: bool = False, run_id: str | None = None) -> dict[str, Any]:
-        run_id = run_id or str(uuid.uuid4())
+    async def run_single_course_sync(
+        self, client: SubodhaClient, job_repo: SubodhaJobRepository, job_id: str, course_id: str, *, dry_run: bool = False
+    ) -> dict[str, Any]:
         started_at = datetime.now(UTC).isoformat()
 
         session_cookie = await client.get_session()
@@ -412,13 +379,24 @@ class SubodhaService:
         if course is None:
             raise ValueError(f"Course not found on Subodha: {course_id}")
 
-        result = await self.process_course(client, course, session_cookie, run_id, dry_run)
-        stats = {"saved": 0, "skipped": 0, "empty": 0, "failed": 0}
-        stats[result["status"]] = 1
-        permanent_failures = [{"courseId": result["courseId"], "error": result["error"]}] if result["status"] == "failed" else []
+        await set_total(job_repo, job_id, 1)
+        result = await self.process_course(client, course, session_cookie, job_id, dry_run)
+        entry = {
+            "courseId": result["courseId"],
+            "name": course.get("name") or "",
+            "status": result["status"],
+            "error": result.get("error"),
+            "at": datetime.now(UTC).isoformat(),
+        }
+        await record_course_result(job_repo, job_id, entry)
 
+        doc = await job_repo.get_job(job_id)
+        stats = doc["stats"] if doc else {}
+        permanent_failures = (
+            [{"courseId": course_id, "error": result.get("error", "")}] if result["status"] == "failed" else []
+        )
         return {
-            "runId": run_id,
+            "runId": job_id,
             "startedAt": started_at,
             "finishedAt": datetime.now(UTC).isoformat(),
             "totalCourses": 1,
