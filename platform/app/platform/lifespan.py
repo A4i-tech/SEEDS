@@ -19,8 +19,9 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI
 
-from app.platform.database import close_database, init_database
+from app.platform.database import close_database, get_database, init_database
 from app.platform.settings import get_settings
+from app.repositories.subodha_job_repository import SubodhaJobRepository
 
 if TYPE_CHECKING:
     from app.services.conference_service import ConferenceCallManager
@@ -166,6 +167,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # STARTUP
     # ------------------------------------------------------------------
     await init_database()
+
+    reconciled = await SubodhaJobRepository(get_database()).reconcile_interrupted_jobs()
+    if reconciled:
+        logger.info("Reconciled %d interrupted Subodha sync jobs", reconciled)
 
     # Init conference manager (available in all modes)
     try:
