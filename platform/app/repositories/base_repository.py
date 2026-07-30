@@ -1,4 +1,4 @@
-"""Base repository — shared utilities for all Motor async repositories."""
+"""Base repository — shared utilities for all PyMongo async repositories."""
 from __future__ import annotations
 
 from bson import ObjectId

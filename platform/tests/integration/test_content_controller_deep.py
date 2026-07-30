@@ -14,13 +14,13 @@ os.environ.setdefault("ENV", "development")
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from mongomock_motor import AsyncMongoMockClient
 
 from app.main import app
 from app.models.user import UserRole
 from app.platform.auth.dependencies import get_db
 from app.platform.auth.hashing import hash_password
 from app.platform.auth.jwt import create_access_token
+from tests.support.mongomock_async import AsyncMongoMockClient
 
 
 @pytest_asyncio.fixture
@@ -28,7 +28,7 @@ async def mock_db():
     client = AsyncMongoMockClient()
     db = client["seeds_test_content_deep"]
     yield db
-    client.close()
+    await client.close()
 
 
 @pytest_asyncio.fixture

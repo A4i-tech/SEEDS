@@ -33,6 +33,8 @@ from httpx import ASGITransport, AsyncClient
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
+from tests.support import mongomock_async
+
 
 def _make_vonage_token(
     api_key: str = "test-api-key",
@@ -360,9 +362,7 @@ def test_websocket_valid_secret_connects():
 @pytest.mark.asyncio
 async def test_content_job_retry_on_transient():
     """First 2 attempts raise ConnectionError (transient), 3rd succeeds → completed."""
-    import mongomock_motor
-
-    db_client = mongomock_motor.AsyncMongoMockClient()
+    db_client = mongomock_async.AsyncMongoMockClient()
     db = db_client["seeds"]
     jobs_col = db["content_jobs"]
     content_col = db["contentsV3"]
@@ -411,9 +411,7 @@ async def test_content_job_retry_on_transient():
 @pytest.mark.asyncio
 async def test_content_job_dead_letter_on_permanent():
     """Permanent error (ValueError) → status=failed, reason set, failed_at set."""
-    import mongomock_motor
-
-    db_client = mongomock_motor.AsyncMongoMockClient()
+    db_client = mongomock_async.AsyncMongoMockClient()
     db = db_client["seeds"]
     jobs_col = db["content_jobs"]
     content_col = db["contentsV3"]

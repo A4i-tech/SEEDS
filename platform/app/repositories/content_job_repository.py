@@ -1,11 +1,11 @@
-"""Content job repository — Motor async data access for the 'content_jobs' collection."""
+"""Content job repository — PyMongo async data access for the 'content_jobs' collection."""
 from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.repositories.base_repository import BaseRepository
 
@@ -13,11 +13,11 @@ _ACTIVE_STATUSES = ["running", "failed", "claimed"]
 
 
 class ContentJobRepository(BaseRepository):
-    """Async Motor repository for the 'content_jobs' collection."""
+    """Async PyMongo repository for the 'content_jobs' collection."""
 
     COLLECTION = "content_jobs"
 
-    def __init__(self, db: AsyncIOMotorDatabase) -> None:
+    def __init__(self, db: AsyncDatabase) -> None:
         self._col = db[self.COLLECTION]
 
     async def create(self, content_id: str) -> str:

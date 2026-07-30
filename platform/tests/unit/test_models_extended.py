@@ -14,6 +14,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.support import mongomock_async
+
 # ---------------------------------------------------------------------------
 # Models — audit_log
 # ---------------------------------------------------------------------------
@@ -431,16 +433,14 @@ class TestBaseConsumer:
 
 
 # ---------------------------------------------------------------------------
-# Repositories — audit_repository (with mongomock-motor)
+# Repositories — audit_repository (with mongomock async shim)
 # ---------------------------------------------------------------------------
 
 
 class TestAuditRepository:
     @pytest.fixture
     def db(self):
-        import mongomock_motor
-
-        client = mongomock_motor.AsyncMongoMockClient()
+        client = mongomock_async.AsyncMongoMockClient()
         return client["test_db"]
 
     @pytest.mark.asyncio
@@ -499,9 +499,7 @@ class TestAuditRepository:
 class TestIVRRepository:
     @pytest.fixture
     def db(self):
-        import mongomock_motor
-
-        client = mongomock_motor.AsyncMongoMockClient()
+        client = mongomock_async.AsyncMongoMockClient()
         return client["test_db"]
 
     @pytest.mark.asyncio
@@ -555,9 +553,7 @@ class TestIVRRepository:
 class TestComprehensionRepository:
     @pytest.fixture
     def db(self):
-        import mongomock_motor
-
-        client = mongomock_motor.AsyncMongoMockClient()
+        client = mongomock_async.AsyncMongoMockClient()
         return client["test_db"]
 
     @pytest.mark.asyncio
@@ -668,9 +664,7 @@ class TestContentJobConsumerUtils:
 class TestContentJobConsumerDeadLetter:
     @pytest.fixture
     def db(self):
-        import mongomock_motor
-
-        client = mongomock_motor.AsyncMongoMockClient()
+        client = mongomock_async.AsyncMongoMockClient()
         return client["test_db"]
 
     @pytest.mark.asyncio
@@ -705,9 +699,7 @@ class TestSchoolService:
 
     @pytest.fixture
     def db(self):
-        import mongomock_motor
-
-        client = mongomock_motor.AsyncMongoMockClient()
+        client = mongomock_async.AsyncMongoMockClient()
         return client["test_db"]
 
     @pytest.mark.asyncio
@@ -763,9 +755,7 @@ class TestSchoolService:
 class TestUserService:
     @pytest.fixture
     def db(self):
-        import mongomock_motor
-
-        client = mongomock_motor.AsyncMongoMockClient()
+        client = mongomock_async.AsyncMongoMockClient()
         return client["test_db"]
 
     @pytest.mark.asyncio
@@ -786,9 +776,7 @@ class TestUserService:
 class TestAuthService:
     @pytest.fixture
     def db(self):
-        import mongomock_motor
-
-        client = mongomock_motor.AsyncMongoMockClient()
+        client = mongomock_async.AsyncMongoMockClient()
         return client["test_db"]
 
     @pytest.mark.asyncio

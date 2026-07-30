@@ -23,7 +23,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from fastapi import Depends, WebSocket
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.action_history import ActionHistory, ActionType
 from app.models.conference_state import ConferenceCallState
@@ -538,7 +538,7 @@ class ConferenceCallManager:
 
 
 class ConferenceOwnershipService:
-    def __init__(self, db: AsyncIOMotorDatabase[Any]) -> None:  # type: ignore[type-arg]
+    def __init__(self, db: AsyncDatabase[Any]) -> None:  # type: ignore[type-arg]
         from app.repositories.conference_repository import (
             ConferenceOwnershipRepository,  # noqa: PLC0415
         )
@@ -560,6 +560,6 @@ class ConferenceOwnershipService:
 
 
 def get_conference_ownership_service(
-    db: AsyncIOMotorDatabase = Depends(get_db),  # type: ignore[type-arg]
+    db: AsyncDatabase = Depends(get_db),  # type: ignore[type-arg]
 ) -> ConferenceOwnershipService:
     return ConferenceOwnershipService(db)

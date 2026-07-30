@@ -1,9 +1,9 @@
-"""Classroom repository — Motor async data access for the classes collection."""
+"""Classroom repository — PyMongo async data access for the classes collection."""
 from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.classroom import Classroom
 from app.models.requests.school_requests import ClassroomCreate
@@ -11,11 +11,11 @@ from app.repositories.base_repository import BaseRepository
 
 
 class ClassroomRepository(BaseRepository):
-    """Async Motor repository for the 'classes' collection."""
+    """Async PyMongo repository for the 'classes' collection."""
 
     COLLECTION = "classes"
 
-    def __init__(self, db: AsyncIOMotorDatabase) -> None:
+    def __init__(self, db: AsyncDatabase) -> None:
         self._col = db[self.COLLECTION]
 
     async def find_by_id(self, id: str) -> Classroom | None:

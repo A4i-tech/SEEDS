@@ -1,18 +1,18 @@
-"""Call repository — Motor async data access for call and call log collections."""
+"""Call repository — PyMongo async data access for call and call log collections."""
 from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Any
 
 from bson import ObjectId
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.call import Call, CallLog
 from app.repositories.base_repository import BaseRepository
 
 
 class CallsLogRepository:
-    """Async Motor repository for the 'callsLog' IVR missed-call log collection.
+    """Async PyMongo repository for the 'callsLog' IVR missed-call log collection.
 
     Distinct from CallRepository.calllogs — this is the IVRv2-origin collection
     tracking missed-call webhook receipts and their processing status.
@@ -20,7 +20,7 @@ class CallsLogRepository:
 
     COLLECTION = "callsLog"
 
-    def __init__(self, db: AsyncIOMotorDatabase) -> None:  # type: ignore[type-arg]
+    def __init__(self, db: AsyncDatabase) -> None:  # type: ignore[type-arg]
         self._col = db[self.COLLECTION]
 
     async def create_pending(self, phone_number: str) -> str:
@@ -44,13 +44,13 @@ class CallsLogRepository:
 
 
 class CallRepository(BaseRepository):
-    """Async Motor repository for call sequence, call log, and FSM context documents."""
+    """Async PyMongo repository for call sequence, call log, and FSM context documents."""
 
     CALL_COLLECTION = "calls"
     LOG_COLLECTION = "calllogs"
     FSM_COLLECTION = "fsmcontexts"
 
-    def __init__(self, db: AsyncIOMotorDatabase) -> None:
+    def __init__(self, db: AsyncDatabase) -> None:
         self._call_col = db[self.CALL_COLLECTION]
         self._log_col = db[self.LOG_COLLECTION]
         self._fsm_col = db[self.FSM_COLLECTION]

@@ -1,7 +1,7 @@
 """
 Integration tests for ConferenceV2 migration — Phase 9.
 
-Uses mongomock-motor to avoid needing a real MongoDB instance.
+Uses the mongomock-based async shim to avoid needing a real MongoDB instance.
 Uses httpx.AsyncClient with the FastAPI app to test HTTP layer.
 
 Coverage:
@@ -30,11 +30,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from mongomock_motor import AsyncMongoMockClient
 
 from app.main import app
 from app.platform.auth.dependencies import get_db
 from app.platform.auth.jwt import create_access_token
+from tests.support.mongomock_async import AsyncMongoMockClient
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -43,11 +43,11 @@ from app.platform.auth.jwt import create_access_token
 
 @pytest_asyncio.fixture
 async def mock_db():
-    """Return a mongomock-motor in-memory database."""
+    """Return a mongomock-backed in-memory async database."""
     client = AsyncMongoMockClient()
     db = client["seeds_test"]
     yield db
-    client.close()
+    await client.close()
 
 
 def _make_mock_conference_manager():

@@ -1,7 +1,7 @@
 """
 School service — ported from backend-server/src/services/school.service.js.
 
-Covers School CRUD and Classroom CRUD using Motor repositories.
+Covers School CRUD and Classroom CRUD using PyMongo async repositories.
 
 SECURITY:
   - Passwords are hashed with bcrypt before storage.
@@ -14,7 +14,7 @@ import logging
 from typing import Any
 
 from fastapi import Depends
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.classroom import Classroom
 from app.models.requests.school_requests import ClassroomCreate, SchoolCreate, SchoolUpdateRequest
@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 
 class SchoolService:
-    def __init__(self, db: AsyncIOMotorDatabase[Any]) -> None:  # type: ignore[type-arg]
+    def __init__(self, db: AsyncDatabase[Any]) -> None:  # type: ignore[type-arg]
         self._db = db
         self._repo = SchoolRepository(db)
         self._user_repo = UserRepository(db)
@@ -271,6 +271,6 @@ class SchoolService:
 
 
 def get_school_service(
-    db: AsyncIOMotorDatabase[Any] = Depends(get_db),  # type: ignore[type-arg]
+    db: AsyncDatabase[Any] = Depends(get_db),  # type: ignore[type-arg]
 ) -> SchoolService:
     return SchoolService(db)

@@ -12,7 +12,7 @@ from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.requests.call_requests import CallStartRequest, FsmContextRequest, LogCallRequest
 from app.platform.auth.dependencies import get_current_user, get_db, require_teacher
@@ -70,7 +70,7 @@ async def start_call(
 async def get_call_status(
     conf_id: str,
     user: dict[str, Any] = Depends(get_current_user),
-    db: AsyncIOMotorDatabase = Depends(get_db),  # type: ignore[type-arg]
+    db: AsyncDatabase = Depends(get_db),  # type: ignore[type-arg]
 ) -> Any:
     """Proxy status query to IVR server (backend-server callRouter.js:138)."""
     await assert_conference_owner(user, conf_id, db)
