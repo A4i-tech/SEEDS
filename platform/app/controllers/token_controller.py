@@ -9,6 +9,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 
 from app.models.requests.auth_requests import RefreshTokenRequest
+from app.models.responses.login import TokenRefreshResponse
 from app.services.auth_service import AuthService, get_auth_service
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -18,5 +19,5 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 async def refresh_token(
     body: RefreshTokenRequest,
     service: AuthService = Depends(get_auth_service),
-) -> dict:
-    return await service.refresh(body.refresh_token)
+) -> TokenRefreshResponse:
+    return TokenRefreshResponse(**await service.refresh(body.refresh_token))

@@ -17,7 +17,7 @@ from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.models.content_aggregator import IntegrationTokenType
+from app.models.content_aggregator import IntegrationToken, IntegrationTokenType
 from app.platform.auth import refresh_tokens
 from app.platform.auth.hashing import verify_password
 from app.platform.auth.refresh_tokens import ConsumedToken
@@ -41,7 +41,7 @@ class _IntegrationTokenStore:
         self._repo = repo
 
     @staticmethod
-    def _to_consumed(doc: Any) -> ConsumedToken | None:
+    def _to_consumed(doc: IntegrationToken | None) -> ConsumedToken | None:
         if doc is None or doc.type != IntegrationTokenType.REFRESH:
             return None
         return ConsumedToken(
