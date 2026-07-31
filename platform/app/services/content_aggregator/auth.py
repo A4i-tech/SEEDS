@@ -93,7 +93,7 @@ class _IntegrationTokenStore:
         self._repo = repo
 
     @staticmethod
-    def _to_consumed(doc: Any) -> ConsumedToken | None:
+    def _to_consumed(doc: IntegrationToken | None) -> ConsumedToken | None:
         if doc is None or doc.type != IntegrationTokenType.REFRESH:
             return None
         return ConsumedToken(
