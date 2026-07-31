@@ -176,6 +176,47 @@ class TestRefreshUnknownOrInactiveOwner:
         assert exc_info.value.status_code == 403
 
 
+class TestLoginAccountEnumeration:
+    """Inactive accounts must not be distinguishable from wrong-password failures (#459)."""
+
+    async def test_inactive_account_wrong_password_and_disabled_raise_same_error(self, mock_db):
+        await _seed_tenant(mock_db)
+        await mock_db["users"].update_one({"email": "tenant@example.com"}, {"$set": {"is_active": False}})
+        service = AuthService(mock_db)
+
+        with pytest.raises(UnauthorizedError) as wrong_password_exc:
+            await service.login_unified(
+                identifier="tenant@example.com", password="not-the-password", is_email=True
+            )
+        with pytest.raises(UnauthorizedError) as disabled_exc:
+            await service.login_unified(
+                identifier="tenant@example.com", password="correct-horse", is_email=True
+            )
+
+        assert wrong_password_exc.value.message == disabled_exc.value.message
+        assert wrong_password_exc.value.status_code == disabled_exc.value.status_code == 401
+
+    async def test_inactive_phone_login_wrong_password_and_disabled_raise_same_error(self, mock_db):
+        await UserRepository(mock_db).create(
+            UserCreate(
+                role=UserRole.TEACHER,
+                name="Teacher",
+                phone="+15550002222",
+                hashed_password=hash_password("teacher-pass"),
+                is_active=False,
+            )
+        )
+        service = AuthService(mock_db)
+
+        with pytest.raises(UnauthorizedError) as wrong_password_exc:
+            await service.login_by_phone("+15550002222", "not-the-password")
+        with pytest.raises(UnauthorizedError) as disabled_exc:
+            await service.login_by_phone("+15550002222", "teacher-pass")
+
+        assert wrong_password_exc.value.message == disabled_exc.value.message
+        assert wrong_password_exc.value.status_code == disabled_exc.value.status_code == 401
+
+
 class TestSchoolAdminAndPhoneLoginAlsoIssueRefreshTokens:
     async def test_school_admin_login_returns_refresh_token(self, mock_db):
         await UserRepository(mock_db).create(

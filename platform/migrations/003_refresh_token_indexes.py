@@ -20,9 +20,11 @@ Indexes created:
     userRefreshTokens:
         {token_id: 1}  (unique)
         {owner_id: 1, family_id: 1}
+        {expires_at: 1}  (TTL — expireAfterSeconds=0)
     integrationTokens:
         {token_id: 1}  (unique)
         {client_id: 1, family_id: 1}
+        {expires_at: 1}  (TTL — expireAfterSeconds=0)
 
 Idempotency:
     MongoDB's createIndex is idempotent — re-running this script for indexes
@@ -56,9 +58,11 @@ INDEX_SPECS: list[tuple[str, list[tuple[str, int]], dict[str, Any]]] = [
     # userRefreshTokens
     ("userRefreshTokens", [("token_id", 1)], {"unique": True}),
     ("userRefreshTokens", [("owner_id", 1), ("family_id", 1)], {}),
+    ("userRefreshTokens", [("expires_at", 1)], {"expireAfterSeconds": 0}),
     # integrationTokens
     ("integrationTokens", [("token_id", 1)], {"unique": True}),
     ("integrationTokens", [("client_id", 1), ("family_id", 1)], {}),
+    ("integrationTokens", [("expires_at", 1)], {"expireAfterSeconds": 0}),
 ]
 
 

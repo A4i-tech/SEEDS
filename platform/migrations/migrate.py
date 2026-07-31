@@ -34,6 +34,7 @@ _MIGRATIONS: list[tuple[str, str]] = [
     ("001", "001_unify_users.py"),
     ("002", "002_tenant_scoped_indexes.py"),
     ("003", "003_quizdata_objectid_to_string.py"),
+    ("003b", "003_refresh_token_indexes.py"),
     ("004", "004_users_snake_case_fields.py"),
     ("005", "005_contentsv3_snake_case.py"),
     ("005b", "005b_contentsv3_duration_seconds.py"),
