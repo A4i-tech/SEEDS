@@ -33,11 +33,15 @@ async def client(mock_db):
     app.dependency_overrides.clear()
 
 
+def _tenant_headers(tenant_id: str) -> dict[str, str]:
+    # get_current_user only decodes the JWT — no DB lookup — so no user seeding is needed.
+    token = create_access_token({"sub": tenant_id, "role": "tenant", "tenant_id": tenant_id})
+    return {"Authorization": f"Bearer {token}"}
+
+
 @pytest.fixture
 def auth_headers():
-    # get_current_user only decodes the JWT — no DB lookup — so no user seeding is needed.
-    token = create_access_token({"sub": "tenant-1", "role": "tenant"})
-    return {"Authorization": f"Bearer {token}"}
+    return _tenant_headers("tenant-a")
 
 
 @pytest.mark.asyncio
@@ -50,7 +54,7 @@ async def test_active_jobs_empty_when_none_running(client, auth_headers):
 @pytest.mark.asyncio
 async def test_active_jobs_returns_running_job(client, auth_headers, mock_db):
     job_repo = SubodhaJobRepository(mock_db)
-    await job_repo.create_job("job-1", scope="all", course_id=None, total_courses=3)
+    await job_repo.create_job("job-1", tenant_id="tenant-a", scope="all", course_id=None, total_courses=3)
 
     resp = await client.get("/subodha/sync/jobs/active", headers=auth_headers)
     assert resp.status_code == 200
@@ -61,10 +65,20 @@ async def test_active_jobs_returns_running_job(client, auth_headers, mock_db):
 
 
 @pytest.mark.asyncio
+async def test_active_jobs_does_not_leak_other_tenants_jobs(client, auth_headers, mock_db):
+    job_repo = SubodhaJobRepository(mock_db)
+    await job_repo.create_job("job-1", tenant_id="tenant-b", scope="all", course_id=None, total_courses=3)
+
+    resp = await client.get("/subodha/sync/jobs/active", headers=auth_headers)
+    assert resp.status_code == 200
+    assert resp.json() == {"jobs": []}
+
+
+@pytest.mark.asyncio
 async def test_jobs_history_filters_by_scope(client, auth_headers, mock_db):
     job_repo = SubodhaJobRepository(mock_db)
-    await job_repo.create_job("job-all", scope="all", course_id=None, total_courses=0)
-    await job_repo.create_job("job-course", scope="course", course_id="c1", total_courses=1)
+    await job_repo.create_job("job-all", tenant_id="tenant-a", scope="all", course_id=None, total_courses=0)
+    await job_repo.create_job("job-course", tenant_id="tenant-a", scope="course", course_id="c1", total_courses=1)
 
     resp = await client.get("/subodha/sync/jobs?scope=course", headers=auth_headers)
     assert resp.status_code == 200
@@ -79,10 +93,19 @@ async def test_sync_status_returns_404_for_unknown_job(client, auth_headers):
 
 
 @pytest.mark.asyncio
+async def test_sync_status_returns_404_for_other_tenants_job(client, auth_headers, mock_db):
+    job_repo = SubodhaJobRepository(mock_db)
+    await job_repo.create_job("job-1", tenant_id="tenant-b", scope="all", course_id=None, total_courses=0)
+
+    resp = await client.get("/subodha/sync/status/job-1", headers=auth_headers)
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_stream_replays_done_immediately_for_finished_job(client, auth_headers, mock_db):
     job_repo = SubodhaJobRepository(mock_db)
-    await job_repo.create_job("job-1", scope="all", course_id=None, total_courses=1)
-    await job_repo.set_job_status("job-1", "completed")
+    await job_repo.create_job("job-1", tenant_id="tenant-a", scope="all", course_id=None, total_courses=1)
+    await job_repo.set_job_status("tenant-a", "job-1", "completed")
 
     async with client.stream("GET", "/subodha/sync/stream/job-1", headers=auth_headers) as resp:
         assert resp.status_code == 200
@@ -98,3 +121,34 @@ async def test_stream_replays_done_immediately_for_finished_job(client, auth_hea
     assert payload["event"] == "done"
     assert payload["job"]["jobId"] == "job-1"
     assert payload["job"]["status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_stream_yields_nothing_for_other_tenants_job(client, auth_headers, mock_db):
+    job_repo = SubodhaJobRepository(mock_db)
+    await job_repo.create_job("job-1", tenant_id="tenant-b", scope="all", course_id=None, total_courses=1)
+    await job_repo.set_job_status("tenant-b", "job-1", "completed")
+
+    async with client.stream("GET", "/subodha/sync/stream/job-1", headers=auth_headers) as resp:
+        assert resp.status_code == 200
+        body = b"".join([chunk async for chunk in resp.aiter_bytes()])
+
+    assert body == b""
+
+
+@pytest.mark.asyncio
+async def test_courses_are_isolated_between_tenants(client, mock_db):
+    from app.repositories.subodha_repository import SubodhaRepository
+
+    repo = SubodhaRepository(mock_db)
+    await repo.save_course("tenant-a", "course-1", {"sourceId": "course-1", "title": "A's course"})
+
+    a_resp = await client.get("/subodha/courses", headers=_tenant_headers("tenant-a"))
+    b_resp = await client.get("/subodha/courses", headers=_tenant_headers("tenant-b"))
+    assert len(a_resp.json()["courses"]) == 1
+    assert len(b_resp.json()["courses"]) == 0
+
+    a_detail = await client.get("/subodha/courses/course-1", headers=_tenant_headers("tenant-a"))
+    b_detail = await client.get("/subodha/courses/course-1", headers=_tenant_headers("tenant-b"))
+    assert a_detail.status_code == 200
+    assert b_detail.status_code == 404

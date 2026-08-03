@@ -17,14 +17,19 @@ from app.platform.settings import get_settings
 
 
 class SubodhaJobRepository:
+    """Every read/write is scoped to `tenantId` (except the startup-only
+    `reconcile_interrupted_jobs` sweep) — job ids are globally unique uuids,
+    but that alone must not let one tenant read or mutate another's job."""
+
     def __init__(self, db: AsyncIOMotorDatabase) -> None:
         self._col = db[get_settings().subodha_jobs_collection_name]
 
     async def create_job(
-        self, job_id: str, *, scope: str, course_id: str | None, total_courses: int
+        self, job_id: str, *, tenant_id: str, scope: str, course_id: str | None, total_courses: int
     ) -> dict[str, Any]:
         doc = {
             "_id": job_id,
+            "tenantId": tenant_id,
             "scope": scope,
             "courseId": course_id,
             "status": "running",
@@ -39,44 +44,47 @@ class SubodhaJobRepository:
         await self._col.insert_one(doc)
         return doc
 
-    async def set_total_courses(self, job_id: str, total: int) -> dict[str, Any] | None:
+    async def set_total_courses(self, tenant_id: str, job_id: str, total: int) -> dict[str, Any] | None:
         return await self._col.find_one_and_update(
-            {"_id": job_id},
+            {"_id": job_id, "tenantId": tenant_id},
             {"$set": {"totalCourses": total}},
             return_document=ReturnDocument.AFTER,
         )
 
-    async def append_course_result(self, job_id: str, entry: dict[str, Any]) -> dict[str, Any] | None:
+    async def append_course_result(self, tenant_id: str, job_id: str, entry: dict[str, Any]) -> dict[str, Any] | None:
         return await self._col.find_one_and_update(
-            {"_id": job_id},
+            {"_id": job_id, "tenantId": tenant_id},
             {"$push": {"courses": entry}, "$inc": {"processed": 1, f"stats.{entry['status']}": 1}},
             return_document=ReturnDocument.AFTER,
         )
 
-    async def set_job_status(self, job_id: str, status: str, *, error: str | None = None) -> dict[str, Any] | None:
+    async def set_job_status(
+        self, tenant_id: str, job_id: str, status: str, *, error: str | None = None
+    ) -> dict[str, Any] | None:
         return await self._col.find_one_and_update(
-            {"_id": job_id},
+            {"_id": job_id, "tenantId": tenant_id},
             {"$set": {"status": status, "finishedAt": datetime.now(UTC).isoformat(), "error": error}},
             return_document=ReturnDocument.AFTER,
         )
 
-    async def get_job(self, job_id: str) -> dict[str, Any] | None:
-        return await self._col.find_one({"_id": job_id})
+    async def get_job(self, tenant_id: str, job_id: str) -> dict[str, Any] | None:
+        return await self._col.find_one({"_id": job_id, "tenantId": tenant_id})
 
     async def list_jobs(
-        self, *, limit: int = 20, scope: str | None = None, course_id: str | None = None
+        self, tenant_id: str, *, limit: int = 20, scope: str | None = None, course_id: str | None = None
     ) -> list[dict[str, Any]]:
-        query: dict[str, Any] = {}
+        query: dict[str, Any] = {"tenantId": tenant_id}
         if scope:
             query["scope"] = scope
         if course_id:
             query["courseId"] = course_id
         return await self._col.find(query).sort("startedAt", -1).to_list(length=limit)
 
-    async def get_active_jobs(self) -> list[dict[str, Any]]:
-        return await self._col.find({"status": "running"}).to_list(length=None)
+    async def get_active_jobs(self, tenant_id: str) -> list[dict[str, Any]]:
+        return await self._col.find({"tenantId": tenant_id, "status": "running"}).to_list(length=None)
 
     async def reconcile_interrupted_jobs(self) -> int:
+        """Startup-only maintenance sweep — intentionally not tenant-scoped."""
         result = await self._col.update_many(
             {"status": "running"},
             {"$set": {"status": "failed", "error": "interrupted by restart", "finishedAt": datetime.now(UTC).isoformat()}},

@@ -30,6 +30,7 @@ async def _require_tenant(user: dict[str, Any] = Depends(get_current_user)) -> d
 
 
 async def _run_sync_job(
+    tenant_id: str,
     job_id: str,
     service: SubodhaService,
     client: SubodhaClient,
@@ -42,10 +43,11 @@ async def _run_sync_job(
     try:
         course_ids = None
         if only_new:
-            diff = await service.get_course_diff(client)
+            diff = await service.get_course_diff(tenant_id, client)
             course_ids = diff["newCourseIds"]
 
         await service.run_sync(
+            tenant_id,
             client,
             job_repo,
             job_id,
@@ -53,12 +55,13 @@ async def _run_sync_job(
             limit=limit if limit is not None else (len(course_ids) if course_ids is not None else None),
             dry_run=dry_run,
         )
-        await finish_job(job_repo, job_id, "completed")
+        await finish_job(job_repo, tenant_id, job_id, "completed")
     except Exception as exc:  # noqa: BLE001
-        await finish_job(job_repo, job_id, "failed", error=str(exc))
+        await finish_job(job_repo, tenant_id, job_id, "failed", error=str(exc))
 
 
 async def _run_course_sync_job(
+    tenant_id: str,
     job_id: str,
     service: SubodhaService,
     client: SubodhaClient,
@@ -68,10 +71,10 @@ async def _run_course_sync_job(
     dry_run: bool,
 ) -> None:
     try:
-        await service.run_single_course_sync(client, job_repo, job_id, course_id, dry_run=dry_run)
-        await finish_job(job_repo, job_id, "completed")
+        await service.run_single_course_sync(tenant_id, client, job_repo, job_id, course_id, dry_run=dry_run)
+        await finish_job(job_repo, tenant_id, job_id, "completed")
     except Exception as exc:  # noqa: BLE001
-        await finish_job(job_repo, job_id, "failed", error=str(exc))
+        await finish_job(job_repo, tenant_id, job_id, "failed", error=str(exc))
 
 
 @router.get("/diff", summary="Diff live Subodha courses against stored courses")
@@ -80,7 +83,7 @@ async def get_diff(
     service: SubodhaService = Depends(get_subodha_service),
     client: SubodhaClient = Depends(get_subodha_client),
 ) -> dict[str, Any]:
-    return await service.get_course_diff(client)
+    return await service.get_course_diff(user.get("tenant_id", ""), client)
 
 
 @router.post("/sync", status_code=202, summary="Start a full (or new-only) course sync")
@@ -93,9 +96,11 @@ async def start_sync(
     job_repo: SubodhaJobRepository = Depends(get_subodha_job_repo),
 ) -> dict[str, str]:
     body = body or {}
-    job = await create_job(job_repo, scope="all", course_id=None, total_courses=0)
+    tenant_id = user.get("tenant_id", "")
+    job = await create_job(job_repo, tenant_id=tenant_id, scope="all", course_id=None, total_courses=0)
     background_tasks.add_task(
         _run_sync_job,
+        tenant_id,
         job["_id"],
         service,
         client,
@@ -112,7 +117,7 @@ async def list_courses(
     user: dict[str, Any] = Depends(_require_tenant),
     service: SubodhaService = Depends(get_subodha_service),
 ) -> dict[str, Any]:
-    return {"courses": await service.get_content_list()}
+    return {"courses": await service.get_content_list(user.get("tenant_id", ""))}
 
 
 @router.get("/courses/{course_id}", summary="Get a synced course's full content (blocks) for viewing")
@@ -121,7 +126,7 @@ async def get_course(
     user: dict[str, Any] = Depends(_require_tenant),
     service: SubodhaService = Depends(get_subodha_service),
 ) -> dict[str, Any]:
-    doc = await service.get_course(course_id)
+    doc = await service.get_course(user.get("tenant_id", ""), course_id)
     if doc is None:
         raise NotFoundError("Subodha course", course_id)
     doc.pop("_id", None)
@@ -134,7 +139,7 @@ async def delete_course(
     user: dict[str, Any] = Depends(_require_tenant),
     service: SubodhaService = Depends(get_subodha_service),
 ) -> dict[str, int]:
-    deleted = await service.delete_course(course_id)
+    deleted = await service.delete_course(user.get("tenant_id", ""), course_id)
     if not deleted:
         raise NotFoundError("Subodha course", course_id)
     return {"deleted": deleted}
@@ -152,6 +157,7 @@ async def update_problem_block(
     service: SubodhaService = Depends(get_subodha_service),
 ) -> dict[str, int]:
     modified = await service.update_problem_block(
+        user.get("tenant_id", ""),
         course_id,
         block_id,
         body.get("question", ""),
@@ -173,9 +179,11 @@ async def sync_course(
     job_repo: SubodhaJobRepository = Depends(get_subodha_job_repo),
 ) -> dict[str, str]:
     body = body or {}
-    job = await create_job(job_repo, scope="course", course_id=course_id, total_courses=1)
+    tenant_id = user.get("tenant_id", "")
+    job = await create_job(job_repo, tenant_id=tenant_id, scope="course", course_id=course_id, total_courses=1)
     background_tasks.add_task(
         _run_course_sync_job,
+        tenant_id,
         job["_id"],
         service,
         client,
@@ -192,7 +200,7 @@ async def get_sync_status(
     user: dict[str, Any] = Depends(_require_tenant),
     job_repo: SubodhaJobRepository = Depends(get_subodha_job_repo),
 ) -> dict[str, Any]:
-    job = await job_repo.get_job(job_id)
+    job = await job_repo.get_job(user.get("tenant_id", ""), job_id)
     if job is None:
         raise NotFoundError("Job", job_id)
     return serialize_job(job)
@@ -206,7 +214,7 @@ async def get_sync_jobs(
     user: dict[str, Any] = Depends(_require_tenant),
     job_repo: SubodhaJobRepository = Depends(get_subodha_job_repo),
 ) -> dict[str, Any]:
-    jobs = await job_repo.list_jobs(limit=limit, scope=scope, course_id=course_id)
+    jobs = await job_repo.list_jobs(user.get("tenant_id", ""), limit=limit, scope=scope, course_id=course_id)
     return {"jobs": [serialize_job(j) for j in jobs]}
 
 
@@ -215,7 +223,7 @@ async def get_active_jobs(
     user: dict[str, Any] = Depends(_require_tenant),
     job_repo: SubodhaJobRepository = Depends(get_subodha_job_repo),
 ) -> dict[str, Any]:
-    jobs = await job_repo.get_active_jobs()
+    jobs = await job_repo.get_active_jobs(user.get("tenant_id", ""))
     return {"jobs": [serialize_job(j) for j in jobs]}
 
 
@@ -225,8 +233,10 @@ async def stream_job(
     user: dict[str, Any] = Depends(_require_tenant),
     job_repo: SubodhaJobRepository = Depends(get_subodha_job_repo),
 ) -> StreamingResponse:
+    tenant_id = user.get("tenant_id", "")
+
     async def _format() -> Any:
-        async for event in subscribe(job_repo, job_id):
+        async for event in subscribe(job_repo, tenant_id, job_id):
             yield f"data: {json.dumps(event, default=str)}\n\n"
 
     return StreamingResponse(_format(), media_type="text/event-stream")

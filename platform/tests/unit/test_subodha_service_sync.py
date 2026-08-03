@@ -51,14 +51,14 @@ async def test_run_sync_persists_every_course_result(service, job_repo):
         {"id": "c2", "name": "Course Two"},
     ]
     client = FakeSubodhaClient(courses)
-    job = await subodha_jobs.create_job(job_repo, scope="all", course_id=None, total_courses=0)
+    job = await subodha_jobs.create_job(job_repo, tenant_id="tenant-a", scope="all", course_id=None, total_courses=0)
 
-    summary = await service.run_sync(client, job_repo, job["_id"])
+    summary = await service.run_sync("tenant-a", client, job_repo, job["_id"])
 
     assert summary["totalCourses"] == 2
     assert summary["processed"] == 2
 
-    doc = await job_repo.get_job(job["_id"])
+    doc = await job_repo.get_job("tenant-a", job["_id"])
     assert doc["totalCourses"] == 2
     assert doc["processed"] == 2
     assert {c["courseId"] for c in doc["courses"]} == {"c1", "c2"}
@@ -70,11 +70,11 @@ async def test_run_sync_persists_every_course_result(service, job_repo):
 async def test_run_single_course_sync_persists_one_result(service, job_repo):
     courses = [{"id": "c1", "name": "Course One"}]
     client = FakeSubodhaClient(courses)
-    job = await subodha_jobs.create_job(job_repo, scope="course", course_id="c1", total_courses=1)
+    job = await subodha_jobs.create_job(job_repo, tenant_id="tenant-a", scope="course", course_id="c1", total_courses=1)
 
-    summary = await service.run_single_course_sync(client, job_repo, job["_id"], "c1")
+    summary = await service.run_single_course_sync("tenant-a", client, job_repo, job["_id"], "c1")
 
     assert summary["processed"] == 1
-    doc = await job_repo.get_job(job["_id"])
+    doc = await job_repo.get_job("tenant-a", job["_id"])
     assert doc["courses"][0]["courseId"] == "c1"
     assert doc["courses"][0]["status"] == "empty"

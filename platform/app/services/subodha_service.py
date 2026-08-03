@@ -215,15 +215,16 @@ class SubodhaService:
 
     async def update_problem_block(
         self,
+        tenant_id: str,
         course_id: str,
         block_id: str,
         question: str,
         choices: list[dict[str, str]],
     ) -> int:
-        return await self._repo.update_block(course_id, block_id, {"question": question, "choices": choices})
+        return await self._repo.update_block(tenant_id, course_id, block_id, {"question": question, "choices": choices})
 
-    async def get_course_diff(self, client: SubodhaClient) -> dict[str, Any]:
-        live_courses, stored_ids = await asyncio.gather(client.list_all_courses(), self._repo.stored_source_ids())
+    async def get_course_diff(self, tenant_id: str, client: SubodhaClient) -> dict[str, Any]:
+        live_courses, stored_ids = await asyncio.gather(client.list_all_courses(), self._repo.stored_source_ids(tenant_id))
         live_ids = {c["id"] for c in live_courses}
         new_courses = [c for c in live_courses if c["id"] not in stored_ids]
         removed_ids = [i for i in stored_ids if i not in live_ids]
@@ -237,8 +238,8 @@ class SubodhaService:
             "liveCourses": live_courses,
         }
 
-    async def get_content_list(self) -> list[dict[str, Any]]:
-        docs = await self._repo.list_content()
+    async def get_content_list(self, tenant_id: str) -> list[dict[str, Any]]:
+        docs = await self._repo.list_content(tenant_id)
         return [
             {
                 "id": d["sourceId"],
@@ -254,14 +255,15 @@ class SubodhaService:
             for d in docs
         ]
 
-    async def get_course(self, source_id: str) -> dict[str, Any] | None:
-        return await self._repo.load_course(source_id)
+    async def get_course(self, tenant_id: str, source_id: str) -> dict[str, Any] | None:
+        return await self._repo.load_course(tenant_id, source_id)
 
-    async def delete_course(self, source_id: str) -> int:
-        return await self._repo.delete_course(source_id)
+    async def delete_course(self, tenant_id: str, source_id: str) -> int:
+        return await self._repo.delete_course(tenant_id, source_id)
 
     async def process_course(
         self,
+        tenant_id: str,
         client: SubodhaClient,
         course: dict[str, Any],
         session_cookie: str,
@@ -282,17 +284,18 @@ class SubodhaService:
             if dry_run:
                 return {"status": "skipped", "courseId": course_id}
 
-            existing = await self._repo.load_course(course_id)
+            existing = await self._repo.load_course(tenant_id, course_id)
             if existing and existing.get("contentHash") == mapped["contentHash"]:
                 return {"status": "skipped", "courseId": course_id}
 
-            await self._repo.save_course(course_id, mapped)
+            await self._repo.save_course(tenant_id, course_id, mapped)
             return {"status": "saved", "courseId": course_id}
         except Exception as exc:  # noqa: BLE001
             return {"status": "failed", "courseId": course_id, "error": str(exc)}
 
     async def run_sync(
         self,
+        tenant_id: str,
         client: SubodhaClient,
         job_repo: SubodhaJobRepository,
         job_id: str,
@@ -315,7 +318,7 @@ class SubodhaService:
             to_process = to_process[:limit]
 
         logger.info("[subodha] %d of %d courses queued", len(to_process), len(all_courses))
-        await set_total(job_repo, job_id, len(to_process))
+        await set_total(job_repo, tenant_id, job_id, len(to_process))
 
         semaphore = asyncio.Semaphore(self._settings.subodha_course_concurrency)
         session_box = {"cookie": session_cookie}
@@ -330,7 +333,7 @@ class SubodhaService:
                         client.clear_session_cache()
                         session_box["cookie"] = await client.get_session()
 
-                result = await self.process_course(client, course, session_box["cookie"], job_id, dry_run)
+                result = await self.process_course(tenant_id, client, course, session_box["cookie"], job_id, dry_run)
                 entry = {
                     "courseId": result["courseId"],
                     "name": course.get("name") or "",
@@ -338,7 +341,7 @@ class SubodhaService:
                     "error": result.get("error"),
                     "at": datetime.now(UTC).isoformat(),
                 }
-                await record_course_result(job_repo, job_id, entry)
+                await record_course_result(job_repo, tenant_id, job_id, entry)
 
                 async with lock:
                     processed_count += 1
@@ -348,7 +351,7 @@ class SubodhaService:
 
         await asyncio.gather(*(process_one(c) for c in to_process))
 
-        doc = await job_repo.get_job(job_id)
+        doc = await job_repo.get_job(tenant_id, job_id)
         stats = doc["stats"] if doc else {}
         permanent_failures = [
             {"courseId": c["courseId"], "error": c.get("error") or ""}
@@ -369,7 +372,14 @@ class SubodhaService:
         return summary
 
     async def run_single_course_sync(
-        self, client: SubodhaClient, job_repo: SubodhaJobRepository, job_id: str, course_id: str, *, dry_run: bool = False
+        self,
+        tenant_id: str,
+        client: SubodhaClient,
+        job_repo: SubodhaJobRepository,
+        job_id: str,
+        course_id: str,
+        *,
+        dry_run: bool = False,
     ) -> dict[str, Any]:
         started_at = datetime.now(UTC).isoformat()
 
@@ -379,8 +389,8 @@ class SubodhaService:
         if course is None:
             raise ValueError(f"Course not found on Subodha: {course_id}")
 
-        await set_total(job_repo, job_id, 1)
-        result = await self.process_course(client, course, session_cookie, job_id, dry_run)
+        await set_total(job_repo, tenant_id, job_id, 1)
+        result = await self.process_course(tenant_id, client, course, session_cookie, job_id, dry_run)
         entry = {
             "courseId": result["courseId"],
             "name": course.get("name") or "",
@@ -388,9 +398,9 @@ class SubodhaService:
             "error": result.get("error"),
             "at": datetime.now(UTC).isoformat(),
         }
-        await record_course_result(job_repo, job_id, entry)
+        await record_course_result(job_repo, tenant_id, job_id, entry)
 
-        doc = await job_repo.get_job(job_id)
+        doc = await job_repo.get_job(tenant_id, job_id)
         stats = doc["stats"] if doc else {}
         permanent_failures = (
             [{"courseId": course_id, "error": result.get("error", "")}] if result["status"] == "failed" else []
