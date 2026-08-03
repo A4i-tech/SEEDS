@@ -16,6 +16,8 @@ import datetime
 import logging
 from urllib.parse import unquote, urlparse
 
+from azure.identity.aio import DefaultAzureCredential
+
 from app.platform.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -44,8 +46,6 @@ class SASService:
         self._use_account_key: bool = bool(self._account_name and self._account_key)
         self._credential = None
         if not self._use_account_key:
-            from azure.identity import DefaultAzureCredential  # noqa: PLC0415
-
             self._credential = DefaultAzureCredential()
             logger.info("SASService: using DefaultAzureCredential for SAS generation")
         else:

@@ -5,7 +5,7 @@ FSM quiz/pure_audio instantiation stubs, and confevents event classes.
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -54,8 +54,7 @@ class TestSASService:
         # URL with fewer than 2 path parts — should fall back to original
         url = "https://myaccount.blob.core.windows.net/onlycontainer"
         result = await svc.get_url_with_sas(url)
-        # Either fell back to original or raised ValueError, either way no crash
-        assert isinstance(result, str)
+        assert result == url
 
     @pytest.mark.asyncio
     async def test_get_user_delegation_key_uses_account_key(self) -> None:
@@ -65,13 +64,21 @@ class TestSASService:
         assert result is None
 
     @pytest.mark.asyncio
+    async def test_get_user_delegation_key_awaits_client(self) -> None:
+        svc = self._make_sas(enabled=True, use_key=False)
+        client = AsyncMock()
+        client.get_user_delegation_key.return_value = "udk"
+        result = await svc._get_user_delegation_key(client)
+        client.get_user_delegation_key.assert_awaited_once()
+        assert result == "udk"
+
+    @pytest.mark.asyncio
     async def test_enabled_with_bad_azure_import_falls_back(self) -> None:
         svc = self._make_sas(enabled=True, use_key=True)
         url = "https://myaccount.blob.core.windows.net/container/file.mp3"
-        # Azure not configured in test env → should fall back to original URL
-        result = await svc.get_url_with_sas(url)
-        # Result is the original URL (fallback on exception)
-        assert isinstance(result, str)
+        with patch.object(svc, "_get_blob_service_client", side_effect=ImportError("azure sdk missing")):
+            result = await svc.get_url_with_sas(url)
+        assert result == url
 
 
 # ---------------------------------------------------------------------------

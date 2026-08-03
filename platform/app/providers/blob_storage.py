@@ -22,6 +22,7 @@ from datetime import UTC, datetime, timedelta
 from urllib.parse import unquote, urlparse
 
 from azure.identity import DefaultAzureCredential
+from azure.identity.aio import DefaultAzureCredential as AsyncDefaultAzureCredential
 from azure.storage.blob import BlobSasPermissions, ContentSettings, generate_blob_sas
 from azure.storage.blob import BlobServiceClient as SyncBlobServiceClient
 from azure.storage.blob.aio import BlobServiceClient, ContainerClient
@@ -55,7 +56,7 @@ class BlobStorageProvider:
                 credential=self._account_key,
             )
         else:
-            credential = DefaultAzureCredential()
+            credential = AsyncDefaultAzureCredential()
             self._use_shared_key = False
             self._client = BlobServiceClient(
                 account_url=f"https://{self._account_name}.blob.core.windows.net",
