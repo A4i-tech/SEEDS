@@ -5,12 +5,12 @@ import json
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from mongomock_motor import AsyncMongoMockClient
 
 from app.main import app
 from app.platform.auth.dependencies import get_db
 from app.platform.auth.jwt import create_access_token
 from app.repositories.subodha_job_repository import SubodhaJobRepository
+from tests.support.mongomock_async import AsyncMongoMockClient
 
 
 @pytest_asyncio.fixture
@@ -18,7 +18,7 @@ async def mock_db():
     mongo_client = AsyncMongoMockClient()
     db = mongo_client["seeds_test_subodha_jobs"]
     yield db
-    mongo_client.close()
+    await mongo_client.close()
 
 
 @pytest_asyncio.fixture

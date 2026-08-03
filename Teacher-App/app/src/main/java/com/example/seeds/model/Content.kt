@@ -13,8 +13,8 @@ data class Content(
     val type: String,
     val description: String? = null,
     val language: String,
-    val title: LocalizedContent?,       // JSON object
-    val theme: LocalizedContent?,
+    val title: LocalizedContent,       // JSON object
+    val theme: LocalizedContent,
     @Json(name = "audio_content")
     val audioContent: List<AudioContent> = emptyList(),
     @Json(name = "is_pull_model")
@@ -28,8 +28,8 @@ data class Content(
     val isDeleted: Boolean = false
 ) : Parcelable {
     val id: String get() = _id
-    val titleText: String get() = title?.english ?: "Unknown Title"
-    val themeText: String get() = theme?.english ?: "Unknown Theme"
+    val titleText: String get() = title.english ?: "Unknown Title"
+    val themeText: String get() = theme.english ?: "Unknown Theme"
 }
 
 

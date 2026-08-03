@@ -1,4 +1,4 @@
-"""Subodha sync job repository — Motor async data access for the subodhaSyncJobs collection.
+"""Subodha sync job repository — PyMongo async data access for the subodhaSyncJobs collection.
 
 Persists sync job state so progress survives backend restarts and a user
 logging out/in mid-sync, and so past runs can be reviewed later.
@@ -9,8 +9,8 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import Depends
-from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo import ReturnDocument
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.platform.auth.dependencies import get_db
 from app.platform.settings import get_settings
@@ -21,7 +21,7 @@ class SubodhaJobRepository:
     `reconcile_interrupted_jobs` sweep) — job ids are globally unique uuids,
     but that alone must not let one tenant read or mutate another's job."""
 
-    def __init__(self, db: AsyncIOMotorDatabase) -> None:
+    def __init__(self, db: AsyncDatabase) -> None:
         self._col = db[get_settings().subodha_jobs_collection_name]
 
     async def create_job(
@@ -92,5 +92,5 @@ class SubodhaJobRepository:
         return result.modified_count
 
 
-def get_subodha_job_repo(db: AsyncIOMotorDatabase = Depends(get_db)) -> SubodhaJobRepository:
+def get_subodha_job_repo(db: AsyncDatabase = Depends(get_db)) -> SubodhaJobRepository:
     return SubodhaJobRepository(db)

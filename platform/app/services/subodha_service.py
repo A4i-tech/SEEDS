@@ -18,7 +18,7 @@ from typing import Any
 from urllib.parse import unquote
 
 from fastapi import Depends
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.platform.auth.dependencies import get_db
 from app.platform.settings import get_settings
@@ -209,7 +209,7 @@ async def fetch_and_store_assets(
 
 
 class SubodhaService:
-    def __init__(self, db: AsyncIOMotorDatabase) -> None:
+    def __init__(self, db: AsyncDatabase) -> None:
         self._repo = SubodhaRepository(db)
         self._settings = get_settings()
 
@@ -417,5 +417,5 @@ class SubodhaService:
         }
 
 
-def get_subodha_service(db: AsyncIOMotorDatabase = Depends(get_db)) -> SubodhaService:
+def get_subodha_service(db: AsyncDatabase = Depends(get_db)) -> SubodhaService:
     return SubodhaService(db)

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import pytest
-from mongomock_motor import AsyncMongoMockClient
 
 from app.repositories.subodha_repository import SubodhaRepository
+from tests.support.mongomock_async import AsyncMongoMockClient
 
 
 @pytest.fixture

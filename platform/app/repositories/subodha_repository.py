@@ -1,4 +1,4 @@
-"""Subodha course repository — Motor async data access for the subodhaCourses collection.
+"""Subodha course repository — PyMongo async data access for the subodhaCourses collection.
 
 Every query is scoped to a `tenantId` — each tenant maintains its own synced
 copy of a Subodha course, keyed by (tenantId, sourceId).
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.platform.settings import get_settings
 from app.repositories.base_repository import BaseRepository
@@ -21,7 +21,7 @@ _PROJECTION = {
 
 
 class SubodhaRepository(BaseRepository):
-    def __init__(self, db: AsyncIOMotorDatabase) -> None:
+    def __init__(self, db: AsyncDatabase) -> None:
         self._col = db[get_settings().subodha_collection_name]
 
     async def save_course(self, tenant_id: str, source_id: str, doc: dict[str, Any]) -> None:

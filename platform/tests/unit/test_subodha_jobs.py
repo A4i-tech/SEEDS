@@ -3,10 +3,10 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-from mongomock_motor import AsyncMongoMockClient
 
 from app.repositories.subodha_job_repository import SubodhaJobRepository
 from app.services import subodha_jobs
+from tests.support.mongomock_async import AsyncMongoMockClient
 
 
 @pytest.fixture
