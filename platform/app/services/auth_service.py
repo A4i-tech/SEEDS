@@ -104,7 +104,7 @@ async def login_unified(
     identifier: str,
     password: str,
     is_email: bool,
-    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+    db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> dict[str, Any]:
     """Authenticate a ContentWebApp user (tenant/school_admin by email, content_creator by phone).
 
@@ -331,7 +331,7 @@ async def get_tenant_names(
 
 async def get_tenant_dashboard(
     tenant_id: str,
-    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+    db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> TenantDashboardResponse:
     """Return aggregated dashboard statistics for a tenant."""
     all_users = await UserRepository(db).find_all_by_tenant(tenant_id)

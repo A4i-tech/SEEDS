@@ -45,7 +45,6 @@ class ContentRepository(BaseRepository):
         self,
         tenant_id: str,
         school_id: str | None,
-        strict: bool,
         include_deleted: bool = False,
     ) -> dict:
         """Base query scoped to tenant.
@@ -96,7 +95,7 @@ class ContentRepository(BaseRepository):
         limit: int = 16,
     ) -> list[dict]:
         """Paginated content list — content-type items only (not quizzes)."""
-        q = self._tenant_query(tenant_id, school_id, strict=False)
+        q = self._tenant_query(tenant_id, school_id)
 
         if only_teacher_app:
             q["is_teacher_app"] = True
@@ -143,7 +142,7 @@ class ContentRepository(BaseRepository):
         include_deleted: bool = False,
     ) -> list[Content]:
         """Return all content for a tenant as Content model objects."""
-        q = self._tenant_query(tenant_id, school_id=None, strict=False, include_deleted=include_deleted)
+        q = self._tenant_query(tenant_id, school_id=None, include_deleted=include_deleted)
         docs = await self._col.find(q).to_list(length=None)
         return [Content.from_mongo(d) for d in docs]
 
