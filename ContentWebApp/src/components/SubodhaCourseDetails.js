@@ -441,6 +441,7 @@ function SequentialPlayer({ chapter, sequential, blockMap, courseId, onBlockChan
       </div>
       <h4>{vertical.displayName}</h4>
       <LanguageSelectableBlocks
+        key={vertical.blockId}
         blocks={vertical.blockIds.map((id) => blockMap[id]).filter(Boolean)}
         courseId={courseId}
         onBlockChange={onBlockChange}
