@@ -7,50 +7,26 @@ Ported from subodha/backend/src/server.ts. Preserves original route shapes.
 from __future__ import annotations
 
 import json
-import logging
-import time
 from typing import Any
 
-import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends
 from fastapi.responses import StreamingResponse
 
 from app.models.user import UserRole
 from app.platform.auth.dependencies import get_current_user
 from app.platform.error_handling import ForbiddenError, NotFoundError
-from app.platform.settings import get_settings
 from app.providers.subodha_client import SubodhaClient, get_subodha_client
 from app.repositories.subodha_job_repository import SubodhaJobRepository, get_subodha_job_repo
 from app.services.subodha_jobs import create_job, finish_job, serialize_job, subscribe
 from app.services.subodha_service import SubodhaService, get_subodha_service
 
-logger = logging.getLogger(__name__)
-
 router = APIRouter(prefix="/subodha", tags=["Subodha"])
-
-_last_webhook_at = 0.0
 
 
 async def _require_tenant(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     if user.get("role") != UserRole.TENANT.value:
         raise ForbiddenError("subodha sync is tenant-admin only")
     return user
-
-
-async def _post_webhook(webhook_url: str | None, payload: dict[str, Any]) -> None:
-    global _last_webhook_at  # noqa: PLW0603
-    if not webhook_url:
-        return
-    now = time.monotonic()
-    min_interval = get_settings().subodha_webhook_min_interval_ms / 1000
-    if now - _last_webhook_at < min_interval and payload.get("event") == "progress":
-        return
-    _last_webhook_at = now
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as http:
-            await http.post(webhook_url, json=payload)
-    except httpx.HTTPError as exc:
-        logger.warning("[subodha] webhook POST failed: %s", exc)
 
 
 async def _run_sync_job(
@@ -61,7 +37,6 @@ async def _run_sync_job(
     *,
     only_new: bool,
     dry_run: bool,
-    webhook_url: str | None,
     limit: int | None,
 ) -> None:
     try:
@@ -69,9 +44,8 @@ async def _run_sync_job(
         if only_new:
             diff = await service.get_course_diff(client)
             course_ids = diff["newCourseIds"]
-            await _post_webhook(webhook_url, {"event": "diffing", "jobId": job_id, **diff})
 
-        result = await service.run_sync(
+        await service.run_sync(
             client,
             job_repo,
             job_id,
@@ -80,10 +54,8 @@ async def _run_sync_job(
             dry_run=dry_run,
         )
         await finish_job(job_repo, job_id, "completed")
-        await _post_webhook(webhook_url, {"event": "completed", "jobId": job_id, **result})
     except Exception as exc:  # noqa: BLE001
         await finish_job(job_repo, job_id, "failed", error=str(exc))
-        await _post_webhook(webhook_url, {"event": "failed", "jobId": job_id, "error": str(exc)})
 
 
 async def _run_course_sync_job(
@@ -94,15 +66,12 @@ async def _run_course_sync_job(
     course_id: str,
     *,
     dry_run: bool,
-    webhook_url: str | None,
 ) -> None:
     try:
-        result = await service.run_single_course_sync(client, job_repo, job_id, course_id, dry_run=dry_run)
+        await service.run_single_course_sync(client, job_repo, job_id, course_id, dry_run=dry_run)
         await finish_job(job_repo, job_id, "completed")
-        await _post_webhook(webhook_url, {"event": "completed", "jobId": job_id, "courseId": course_id, **result})
     except Exception as exc:  # noqa: BLE001
         await finish_job(job_repo, job_id, "failed", error=str(exc))
-        await _post_webhook(webhook_url, {"event": "failed", "jobId": job_id, "courseId": course_id, "error": str(exc)})
 
 
 @router.get("/diff", summary="Diff live Subodha courses against stored courses")
@@ -133,7 +102,6 @@ async def start_sync(
         job_repo,
         only_new=bool(body.get("onlyNew", False)),
         dry_run=bool(body.get("dryRun", False)),
-        webhook_url=body.get("webhookUrl"),
         limit=body.get("limit"),
     )
     return {"jobId": job["_id"]}
@@ -214,7 +182,6 @@ async def sync_course(
         job_repo,
         course_id,
         dry_run=bool(body.get("dryRun", False)),
-        webhook_url=body.get("webhookUrl"),
     )
     return {"jobId": job["_id"]}
 
