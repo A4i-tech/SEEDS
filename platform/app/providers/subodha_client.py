@@ -105,7 +105,6 @@ class SubodhaClient:
         self._http = httpx.AsyncClient(timeout=30.0)
         self._session_cookie: str | None = None
         self._session_expires_at: datetime | None = None
-        self._asset_cache: dict[str, bytes] = {}
 
     async def aclose(self) -> None:
         await self._http.aclose()
@@ -220,12 +219,8 @@ class SubodhaClient:
     # ------------------------------------------------------------------
 
     async def fetch_asset(self, relative_url: str, session_cookie: str) -> bytes:
-        cached = self._asset_cache.get(relative_url)
-        if cached is not None:
-            return cached
         res = await self._http.get(f"{self._base_url}{relative_url}", headers={"Cookie": session_cookie})
         res.raise_for_status()
-        self._asset_cache[relative_url] = res.content
         return res.content
 
 
