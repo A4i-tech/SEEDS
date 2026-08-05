@@ -1,9 +1,10 @@
 """Response DTOs for content and quiz endpoints.
 
-ContentResponse strictly declares every field real story/song/poem content docs
-have (verified against contentsV3 directly — see this session's DTO audit).
-QuizResponse keeps extra="allow" since quiz editing is deprecated; no value in
-strictly typing a dead feature's fields (positive_marks, questions, etc.).
+AudioContent and QuizContent are separate, strictly-typed models — one per
+contentsV3 vs quizData collection. `type` is the discriminator FastAPI uses to
+pick the right variant when serializing a `ContentItem` (Annotated union), so
+a QuizContent instance keeps its quiz fields instead of being coerced down to
+AudioContent's schema.
 
 The only explicit id mapping is _id (parsed via validation_alias, always
 serialized as plain `id` — snake_case end-to-end), plus ObjectId coercion via
@@ -11,7 +12,7 @@ _strip_oids so callers never need to pre-process docs.
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any, Literal
 
 from bson import ObjectId
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -37,27 +38,38 @@ class SasTokenResponse(BaseModel):
     sas_token: str
 
 
-class ContentResponse(BaseModel):
+class QuizOptionItem(BaseModel):
+    id: str
+    text: str
+    url: str | None = None
+
+
+class QuizQuestionText(BaseModel):
+    id: str
+    text: str
+    url: str | None = None
+
+
+class QuizQuestion(BaseModel):
+    question: QuizQuestionText
+    options: list[QuizOptionItem] = Field(default_factory=list)
+    correct_option_id: str
+
+
+class ContentBase(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    id: str | None = Field(None, validation_alias="_id")
-    type: str
+    id: str = Field(validation_alias="_id")
     language: str
     title: TitleText
     theme: TitleText
-    audio_content: list[AudioTrack] = Field(default_factory=list)
-    description: str | None = None
     is_pull_model: bool = False
     is_teacher_app: bool = False
     is_deleted: bool = False
-    is_processed: bool = False
     created_by: str | None = None
     tenant_id: str | None = None
     school_id: str | None = None
     creation_time: int | None = None
-    version: str | None = None
-    # Only set on PATCH /content when isAudioUploaded=true (a fresh processing job was queued).
-    job_id: str | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -68,31 +80,40 @@ class ContentResponse(BaseModel):
 
     @field_validator("id", mode="before")
     @classmethod
-    def _coerce_id(cls, v: Any) -> str | None:
-        return str(v) if v is not None else None
+    def _coerce_id(cls, v: Any) -> str:
+        return str(v)
 
     def to_response(self) -> dict:
         return self.model_dump(exclude_none=True)
 
+
+class AudioContent(ContentBase):
+    type: Literal["story", "song", "poem", "snippet"]
+    audio_content: list[AudioTrack] = Field(default_factory=list)
+    description: str | None = None
+    is_processed: bool = False
+    version: str | None = None
+    # Only set on PATCH /content when isAudioUploaded=true (a fresh processing job was queued).
+    job_id: str | None = None
+
     @classmethod
-    def from_doc(cls, doc: dict) -> ContentResponse:
+    def from_doc(cls, doc: dict) -> AudioContent:
         return cls.model_validate(doc)
 
 
-class QuizResponse(ContentResponse):
-    """Quiz docs (quizData collection) — extra="allow" since quiz editing is
-    deprecated (backend-server/platform "quiz" role owns it now); no value in
-    strictly typing positive_marks/questions/options/correct_answers etc."""
-
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
-
-    title: str | TitleText | None = None
-    theme: str | TitleText | None = None
+class QuizContent(ContentBase):
+    type: Literal["quiz"] = "quiz"
+    positive_marks: float = 0.0
+    negative_marks: float = 0.0
+    questions: list[QuizQuestion] = Field(default_factory=list)
 
     @classmethod
-    def from_doc(cls, doc: dict) -> QuizResponse:
+    def from_doc(cls, doc: dict) -> QuizContent:
         # quizData docs never store a `type` field — this collection IS the type.
         return cls.model_validate({**doc, "type": "quiz"})
+
+
+ContentItem = Annotated[AudioContent | QuizContent, Field(discriminator="type")]
 
 
 class PaginationInfo(BaseModel):
@@ -102,5 +123,5 @@ class PaginationInfo(BaseModel):
 
 
 class ContentPageResponse(BaseModel):
-    data: list[ContentResponse]
+    data: list[ContentItem]
     pagination: PaginationInfo

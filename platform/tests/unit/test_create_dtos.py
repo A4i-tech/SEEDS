@@ -138,9 +138,10 @@ class TestQuizCreate:
         d = self._minimal().model_dump()
         snake_expected = {
             "tenant_id", "type", "language", "created_by", "school_id",
-            "title", "local_title", "theme", "local_theme",
+            "title", "theme",
+            "is_pull_model", "is_teacher_app",
             "positive_marks", "negative_marks",
-            "questions", "options", "correct_answers",
+            "questions",
             "is_deleted", "creation_time",
         }
         assert set(d.keys()) == snake_expected
@@ -151,8 +152,6 @@ class TestQuizCreate:
         assert "positiveMarks" not in d
         assert "negativeMarks" not in d
         assert "isDeleted" not in d
-        assert "correctAnswers" not in d
-        assert "localTitle" not in d
 
     def test_marks_use_plural_form(self):
         # UI sends positiveMark (singular) but backend stores positive_marks (plural)
@@ -168,8 +167,6 @@ class TestQuizCreate:
         assert dto.positive_marks == 1.0
         assert dto.negative_marks == 0.0
         assert dto.questions == []
-        assert dto.options == []
-        assert dto.correct_answers == []
         assert dto.is_deleted is False
 
     def test_missing_tenant_id_raises(self):

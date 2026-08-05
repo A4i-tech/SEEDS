@@ -22,12 +22,26 @@ from app.models.requests.content_requests import (
     QuizCreate,
     QuizCreateRequest,
 )
+from app.models.responses.content import AudioContent, QuizContent
 from app.platform.auth.dependencies import get_db
 from app.repositories.content_job_repository import ContentJobRepository
 from app.repositories.content_repository import ContentRepository
 from app.repositories.quiz_repository import QuizRepository
 
 logger = logging.getLogger(__name__)
+
+
+def _sort_key(item: AudioContent | QuizContent) -> tuple:
+    return (-(item.creation_time or 0), item.id)
+
+
+def _merge_sorted(
+    contents: list[dict[str, Any]], quizzes: list[dict[str, Any]]
+) -> list[AudioContent | QuizContent]:
+    items: list[AudioContent | QuizContent] = [AudioContent.from_doc(d) for d in contents]
+    items += [QuizContent.from_doc(d) for d in quizzes]
+    items.sort(key=_sort_key)
+    return items
 
 
 class ContentService:
@@ -71,8 +85,8 @@ class ContentService:
         only_teacher_app: bool,
         cursor: str | None,
         limit: int,
-    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-        """Return (content_docs, quiz_docs) for paginated list, each of length limit+1.
+    ) -> list[AudioContent | QuizContent]:
+        """Return merged, sorted results of length up to limit+1.
 
         Callers use len > limit to determine hasMore and slice to limit.
         """
@@ -103,30 +117,30 @@ class ContentService:
             )
             if fetch_quizzes else []
         )
-        return contents, quizzes
+        return _merge_sorted(contents, quizzes)
 
     async def list_content_by_ids(
         self,
         content_ids: list[str],
         tenant_id: str,
         school_id: str | None,
-    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    ) -> list[AudioContent | QuizContent]:
         contents = await self._content_repo.find_by_ids(content_ids, tenant_id, school_id)
         quizzes = await self._quiz_repo.find_by_ids(content_ids, tenant_id, school_id)
-        return contents, quizzes
+        return _merge_sorted(contents, quizzes)
 
     async def get_content_by_id(
         self,
         content_id: str,
         tenant_id: str,
         school_id: str | None,
-    ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
-        """Return (content_doc, quiz_doc) — at most one is non-None."""
+    ) -> AudioContent | QuizContent | None:
         doc = await self._content_repo.find_by_id_and_tenant(content_id, tenant_id, school_id)
         if doc:
-            return doc, None
+            return AudioContent.from_doc(doc)
         quiz = await self._quiz_repo.find_by_id_and_tenant(content_id, tenant_id, school_id)
-        return None, quiz
+        if quiz:
+            return QuizContent.from_doc(quiz)
 
     # ------------------------------------------------------------------
     # Content writes
@@ -170,7 +184,7 @@ class ContentService:
         tenant_id: str,
         school_id: str | None,
         is_audio_uploaded: bool,
-    ) -> dict[str, Any] | None:
+    ) -> AudioContent | QuizContent | None:
         allowed = {"title", "theme", "description", "type", "language", "is_pull_model", "is_teacher_app"}
         body_dict = body.model_dump(exclude_unset=True)
         updates: dict[str, Any] = {k: v for k, v in body_dict.items() if k in allowed}
@@ -188,17 +202,16 @@ class ContentService:
             body.id, tenant_id, updates, school_id
         )
         if result:
-            return result
+            return AudioContent.from_doc(result)
 
         # Quiz lives in a separate collection; mirror delete_content's fallback.
-        quiz_allowed = allowed | {
-            "local_title", "local_theme", "positive_marks", "negative_marks",
-            "questions", "options", "correct_answers",
-        }
+        quiz_allowed = allowed | {"positive_marks", "negative_marks", "questions"}
         quiz_updates = {k: v for k, v in body_dict.items() if k in quiz_allowed}
-        return await self._quiz_repo.update_by_id_and_tenant(
+        quiz_result = await self._quiz_repo.update_by_id_and_tenant(
             body.id, tenant_id, quiz_updates, school_id
         )
+        if quiz_result:
+            return QuizContent.from_doc(quiz_result)
 
     async def delete_content(
         self,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 
 
 class CallStartRequest(BaseModel):
@@ -30,16 +30,13 @@ class CreateConferenceRequest(BaseModel):
 
 
 class LogCallRequest(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
     type: str
     time: str
-    fsmContextId: str
+    fsm_context_id: str
     data: Any | None = None
-    isCompleted: bool
+    is_completed: bool
 
 
 class FsmContextRequest(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-    fsmContextId: str
-    phoneNumbers: list[str] | None
+    fsm_context_id: str
+    phone_numbers: list[str] | None

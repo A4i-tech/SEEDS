@@ -47,32 +47,30 @@ const QuizDetails = ({ quiz }) => {
         <div>
           <label>Positive Marks</label>
           <br />
-          <p className="mintgreen marks-badge">{quiz.positiveMarks}</p>
+          <p className="mintgreen marks-badge">{quiz.positive_marks}</p>
         </div>
 
         <div>
           <label>Negative Marks</label>
           <br />
-          <p className="mintgreen marks-badge">{quiz.negativeMarks}</p>
+          <p className="mintgreen marks-badge">{quiz.negative_marks}</p>
         </div>
       </div>
-      {questions.map((questionText, index) => {
-        const options = quiz.options[index];
-        const correctIndex = quiz.correctAnswers[index];
+      {questions.map((q, index) => {
         const optionLabels = ["A", "B", "C", "D"];
         return (
           <div key={index} className="quiz-question-block">
             <div>
               <label>Question {index + 1}</label>
               <br />
-              <p className="quiz-question-text">{questionText}</p>
+              <p className="quiz-question-text">{q.question.text}</p>
             </div>
             <div className="optionsDetailsGrid">
-              {options.map((opt, optIdx) => (
-                <div key={optIdx}>
-                  <label>Option {optionLabels[optIdx]}{optIdx === correctIndex ? " (Correct Answer)" : ""}</label>
+              {q.options.map((opt, optIdx) => (
+                <div key={opt.id}>
+                  <label>Option {optionLabels[optIdx]}{opt.id === q.correct_option_id ? " (Correct Answer)" : ""}</label>
                   <br />
-                  <p className="mintgreen">{opt}</p>
+                  <p className="mintgreen">{opt.text}</p>
                 </div>
               ))}
             </div>

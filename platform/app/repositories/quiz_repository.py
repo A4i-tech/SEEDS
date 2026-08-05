@@ -28,13 +28,14 @@ class QuizRepository(BaseRepository):
         self,
         tenant_id: str,
         school_id: str | None,
+        strict: bool = False,
         include_deleted: bool = False,
     ) -> dict:
         q: dict = {"tenant_id": _oid(tenant_id)}
         if not include_deleted:
             q["is_deleted"] = {"$ne": True}
         if school_id is not None:
-            q["school_id"] = {"$in": [_oid(school_id), None]}
+            q["school_id"] = _oid(school_id) if strict else {"$in": [_oid(school_id), None]}
         return q
 
     # ------------------------------------------------------------------
@@ -108,7 +109,7 @@ class QuizRepository(BaseRepository):
         school_id: str | None = None,
     ) -> dict | None:
         from datetime import UTC, datetime
-        q = {**self._tenant_query(tenant_id, school_id), "_id": self._to_id(content_id)}
+        q = {**self._tenant_query(tenant_id, school_id, strict=True), "_id": self._to_id(content_id)}
         updates["updated_at"] = datetime.now(UTC)
         return await self._col.find_one_and_update(q, {"$set": updates}, return_document=True)
 
@@ -119,7 +120,7 @@ class QuizRepository(BaseRepository):
         school_id: str | None = None,
     ) -> int:
         from datetime import UTC, datetime
-        q = {**self._tenant_query(tenant_id, school_id), "_id": self._to_id(content_id)}
+        q = {**self._tenant_query(tenant_id, school_id, strict=True), "_id": self._to_id(content_id)}
         result = await self._col.update_one(
             q, {"$set": {"is_deleted": True, "updated_at": datetime.now(UTC)}}
         )

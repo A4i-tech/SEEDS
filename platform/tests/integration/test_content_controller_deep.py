@@ -205,8 +205,8 @@ class TestContentCRUD:
     async def test_patch_content_not_found(self, client, mock_db):
         tenant = await _seed_tenant(mock_db)
         token = _tenant_token(tenant["_id"])
-        resp = await client.patch("/content", json={
-            "_id": "000000000000000000000000",
+        resp = await client.patch("/content/000000000000000000000000", json={
+            "id": "000000000000000000000000",
             "type": "audio",
         }, headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code in (200, 404, 422)
@@ -229,20 +229,20 @@ class TestSASTokenEndpoint:
     async def test_sas_token_requires_mp3(self, client, mock_db):
         tenant = await _seed_tenant(mock_db)
         token = _tenant_token(tenant["_id"])
-        resp = await client.get("/content/sasToken?blobName=test.wav", headers={"Authorization": f"Bearer {token}"})
+        resp = await client.get("/content/sasToken?blob_name=test.wav", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code in (400, 500)
 
     @pytest.mark.asyncio
     async def test_sas_token_valid_mp3(self, client, mock_db):
         tenant = await _seed_tenant(mock_db)
         token = _tenant_token(tenant["_id"])
-        resp = await client.get("/content/sasToken?blobName=test.mp3", headers={"Authorization": f"Bearer {token}"})
+        resp = await client.get("/content/sasToken?blob_name=test.mp3", headers={"Authorization": f"Bearer {token}"})
         # Will fail with Azure error, but should reach the endpoint
         assert resp.status_code in (200, 400, 500)
 
     @pytest.mark.asyncio
     async def test_sas_token_requires_auth(self, client, mock_db):
-        resp = await client.get("/content/sasToken?blobName=test.mp3")
+        resp = await client.get("/content/sasToken?blob_name=test.mp3")
         assert resp.status_code == 401
 
 

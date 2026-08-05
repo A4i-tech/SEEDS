@@ -3,7 +3,7 @@
 Migration 003 — Normalise quizData collection.
 
 Changes per document:
-  _id          UUID string → new ObjectId  (old UUID saved as legacy_id)
+  _id          UUID string → new ObjectId  (old UUID not preserved — intentional)
   tenantId     → tenant_id   value: already ObjectId — kept
   schoolId     → school_id   value: None or ObjectId — kept
   createdBy    → created_by
@@ -18,8 +18,8 @@ Changes per document:
 
   questions[].correct_option_id is already snake_case — no change.
 
-NOTE: content_jobs.content_id references the old UUID _id. Those will need a
-      separate migration (004) once this one is applied.
+NOTE: content_jobs.content_id references the old UUID _id. Those references
+      go stale once this runs — accepted, not fixed here.
 
 Idempotent: documents whose _id is already an ObjectId are skipped.
 

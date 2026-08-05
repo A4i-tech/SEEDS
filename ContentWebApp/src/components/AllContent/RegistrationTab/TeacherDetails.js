@@ -27,7 +27,7 @@ const TeacherDetails = ({
     <div className="teacher-details-pane">
       <div className="teacher-details-header">
         <div className="students-title">Students</div>
-        <div className="teacher-info-text">Teacher: {teacher.phoneNumber}</div>
+        <div className="teacher-info-text">Teacher: {teacher.phone_number}</div>
       </div>
 
       <StudentsTable

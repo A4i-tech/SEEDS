@@ -20,6 +20,9 @@ export class AudioTrack {
 
 export class ContentDto {
   constructor(raw) {
+    if (raw.type === "quiz") {
+      throw new Error("Quiz content is not supported in Teacher webapp.");
+    }
     this.id = raw.id;
     this.type = raw.type;
     this.language = raw.language;
@@ -48,7 +51,7 @@ export class ContentDto {
   }
 
   static listFromApi(rawList) {
-    return rawList.map(ContentDto.fromApi);
+    return rawList.filter((raw) => raw.type !== "quiz").map(ContentDto.fromApi);
   }
 }
 

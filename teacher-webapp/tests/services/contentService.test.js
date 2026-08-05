@@ -51,23 +51,23 @@ describe("contentService", () => {
       const result = await contentService.getContent({
         language: "en",
         theme: "Science",
-        expName: "Story",
+        exp_name: "Story",
         limit: 20,
         cursor: "cursor-123",
       });
 
-      const expectedUrl = `${API_ENDPOINTS.GET_CONTENT}?language=en&theme=Science&expName=Story&limit=20&cursor=cursor-123`;
+      const expectedUrl = `${API_ENDPOINTS.GET_CONTENT}?language=en&theme=Science&exp_name=Story&limit=20&cursor=cursor-123`;
       expect(axiosInstance.get).toHaveBeenCalledWith(expectedUrl);
       expect(result.items).toHaveLength(1);
       expect(result.items[0].id).toBe("content-1");
     });
 
-    test("fetches content with onlyTeacherApp flag", async () => {
+    test("fetches content with only_teacher_app flag", async () => {
       axiosInstance.get.mockResolvedValueOnce({ data: mockContentResponse });
 
-      await contentService.getContent({ onlyTeacherApp: true });
+      await contentService.getContent({ only_teacher_app: true });
 
-      const expectedUrl = `${API_ENDPOINTS.GET_CONTENT}?onlyTeacherApp=true&limit=15`;
+      const expectedUrl = `${API_ENDPOINTS.GET_CONTENT}?only_teacher_app=true&limit=15`;
       expect(axiosInstance.get).toHaveBeenCalledWith(expectedUrl);
     });
 

@@ -72,7 +72,7 @@ export const contentService = {
    * @returns {Promise<Object>}
    */
   async updateContent(contentData, isAudioUploaded = false) {
-    const url = `${SEEDS_URL}/content?isAudioUploaded=${isAudioUploaded}`;
+    const url = `${SEEDS_URL}/content/${contentData.id}?is_audio_uploaded=${isAudioUploaded}`;
 
     const response = await apiFetch(url, {
       method: "PATCH",

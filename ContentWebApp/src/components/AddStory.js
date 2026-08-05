@@ -274,7 +274,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
     var newMetadata = {
       ...metadata,
       _id,
-      type: contentType,
+      type: contentType.toLowerCase(),
       title: {
         english: metadata.title.english,
         local: languageLower === "en" ? metadata.title.english : metadata.title.local,
@@ -311,7 +311,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
       const res = await fetch(
         `${SEEDS_URL}/content/sasToken?` +
           new URLSearchParams({
-            blobName: filename,
+            blob_name: filename,
           }),
         {
           method: "GET",
@@ -333,7 +333,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
       const resAnswer = await fetch(
         `${SEEDS_URL}/content/sasToken?` +
           new URLSearchParams({
-            blobName: answerFilename,
+            blob_name: answerFilename,
           }),
         {
           method: "GET",
@@ -389,8 +389,8 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
 
     // Send metadata to backend with populated audioContent AFTER files are uploaded
     if (content) {
-      newMetadata = { ...newMetadata, _id: content.id };
-      const seedsRes = await fetch(`${SEEDS_URL}/content/${content.id}?isAudioUploaded=${isAudioUploaded}`, {
+      newMetadata = { ...newMetadata, id: content.id };
+      const seedsRes = await fetch(`${SEEDS_URL}/content/${content.id}?is_audio_uploaded=${isAudioUploaded}`, {
         method: "PATCH",
         headers: getAuthHeaders(),
         body: JSON.stringify(buildRequestBody(newMetadata)),

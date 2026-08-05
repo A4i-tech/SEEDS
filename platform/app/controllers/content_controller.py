@@ -25,10 +25,10 @@ from app.models.requests.content_requests import (
     QuizCreateRequest,
 )
 from app.models.responses.content import (
+    AudioContent,
+    ContentItem,
     ContentPageResponse,
-    ContentResponse,
     PaginationInfo,
-    QuizResponse,
     SasTokenResponse,
     SasUrlResponse,
 )
@@ -107,10 +107,6 @@ def _write_school_filter(user: dict[str, Any]) -> dict[str, str | None]:
 # ---------------------------------------------------------------------------
 
 
-def _sort_key(item: ContentResponse) -> tuple:
-    return (-(item.creation_time or 0), str(item.id or ""))
-
-
 # ---------------------------------------------------------------------------
 # Blob SAS helpers
 # ---------------------------------------------------------------------------
@@ -157,7 +153,7 @@ async def list_jobs(
     docs = await service.list_active_jobs()
     jobs = [
         {
-            "job_id": str(doc.get("_id", "")),
+            "job_id": str(doc["_id"]),
             "status": "ERROR" if doc.get("status") == "failed" else "IN PROGRESS",
             "content_id": doc.get("content_id"),
             "started_at": doc.get("started_at"),
@@ -190,7 +186,7 @@ async def get_sas_url(
 
 @router.get("/sasToken", summary="Get upload SAS token for MP3 blob")
 async def get_sas_token(
-    blob_name: str = Query(..., alias="blobName"),
+    blob_name: str = Query(...),
     user: dict[str, Any] = Depends(_require_content_write),
 ) -> SasTokenResponse:
     if not blob_name or not blob_name.lower().endswith(".mp3"):
@@ -242,9 +238,9 @@ async def get_themes(
 async def list_content(
     language: str | None = None,
     theme: str | None = None,
-    exp_name: str | None = Query(None, alias="expName"),
+    exp_name: str | None = Query(None),
     ids: list[str] | None = Query(None),
-    only_teacher_app: bool | None = Query(None, alias="onlyTeacherApp"),
+    only_teacher_app: bool | None = Query(None),
     limit: int = Query(15, ge=1, le=200),
     cursor: str | None = None,
     user: dict[str, Any] = Depends(_require_content_read),
@@ -257,17 +253,13 @@ async def list_content(
     if ids is not None:
         if not ids:
             raise HTTPException(status_code=400, detail="ids must be a non-empty array")
-        contents, quizzes = await service.list_content_by_ids(ids, tenant_id, school_id)
-        data = sorted(
-            [ContentResponse.from_doc(d) for d in contents] + [QuizResponse.from_doc(d) for d in quizzes],
-            key=_sort_key,
-        )
+        data = await service.list_content_by_ids(ids, tenant_id, school_id)
         return ContentPageResponse(
             data=data,
             pagination=PaginationInfo(next_cursor=None, has_more=False, limit=len(data)),
         )
 
-    contents, quizzes = await service.list_content(
+    all_results = await service.list_content(
         tenant_id=tenant_id,
         school_id=school_id,
         language=language,
@@ -276,11 +268,6 @@ async def list_content(
         only_teacher_app=bool(only_teacher_app),
         cursor=cursor,
         limit=limit,
-    )
-
-    all_results = sorted(
-        [ContentResponse.from_doc(d) for d in contents] + [QuizResponse.from_doc(d) for d in quizzes],
-        key=_sort_key,
     )
 
     has_more = len(all_results) > limit
@@ -304,16 +291,14 @@ async def get_content(
     content_id: str,
     user: dict[str, Any] = Depends(_require_content_read),
     service: ContentService = Depends(get_content_service),
-) -> ContentResponse:
+) -> ContentItem:
     tenant_id = user.get("tenant_id", "")
     school_id = _read_school_id(user)
 
-    doc, quiz = await service.get_content_by_id(content_id, tenant_id, school_id)
-    if doc:
-        return ContentResponse.from_doc(doc)
-    if quiz:
-        return QuizResponse.from_doc(quiz)
-    raise NotFoundError("Content", content_id)
+    result = await service.get_content_by_id(content_id, tenant_id, school_id)
+    if result is None:
+        raise NotFoundError("Content", content_id)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -346,19 +331,21 @@ async def create_content(
 
 
 # ---------------------------------------------------------------------------
-# PATCH /content
+# PATCH /content/{content_id}
 # ---------------------------------------------------------------------------
 
 
-@router.patch("", summary="Update content", response_model_exclude_none=True)
+@router.patch("/{content_id}", summary="Update content", response_model_exclude_none=True)
 async def update_content(
+    content_id: str,
     body: ContentUpdateRequest,
-    is_audio_uploaded: bool = Query(False, alias="isAudioUploaded"),
+    is_audio_uploaded: bool = Query(False),
     user: dict[str, Any] = Depends(_require_content_write),
     service: ContentService = Depends(get_content_service),
-) -> ContentResponse:
+) -> ContentItem:
     tenant_id = user.get("tenant_id", "")
     school_id = _write_school_id(user)
+    body.id = content_id
 
     try:
         result = await service.update_content(body, tenant_id, school_id, is_audio_uploaded)
@@ -366,13 +353,12 @@ async def update_content(
         logger.error("update_content failed", extra={"tenant_id": tenant_id, "content_id": str(body.id), "err": str(exc)})
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    if result:
-        out = ContentResponse.from_doc(result)
-        if is_audio_uploaded:
-            out.job_id = await service.enqueue_content_job(str(result.get("_id", "")))
-        return out
+    if result is None:
+        raise NotFoundError("Content", str(body.id))
 
-    raise NotFoundError("Content", str(body.id))
+    if is_audio_uploaded and isinstance(result, AudioContent):
+        result.job_id = await service.enqueue_content_job(result.id)
+    return result
 
 
 # ---------------------------------------------------------------------------

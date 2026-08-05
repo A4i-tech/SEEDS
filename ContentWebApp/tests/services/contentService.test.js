@@ -78,7 +78,10 @@ describe("contentService", () => {
   describe("getContent", () => {
     it("fetches with default limit and returns a ContentPageDto", async () => {
       apiFetch.mockResolvedValue({
-        data: [{ id: "a1", title: { english: "A" } }, { id: "b2", title: { english: "B" } }],
+        data: [
+          { id: "a1", title: { english: "A" }, audio_content: [] },
+          { id: "b2", title: { english: "B" }, audio_content: [] },
+        ],
         pagination: { next_cursor: "c", has_more: true },
       });
       const out = await contentService.getContent();
@@ -122,7 +125,7 @@ describe("contentService", () => {
 
   describe("getAllContent", () => {
     it("returns a list of ContentDto", async () => {
-      apiFetch.mockResolvedValue({ data: [{ id: "a", title: { english: "A" } }] });
+      apiFetch.mockResolvedValue({ data: [{ id: "a", title: { english: "A" }, audio_content: [] }] });
       const out = await contentService.getAllContent();
       expect(out[0].id).toBe("a");
     });
@@ -135,7 +138,7 @@ describe("contentService", () => {
 
   describe("getContentById", () => {
     it("encodes id and fetches", async () => {
-      apiFetch.mockResolvedValue({ id: "x y", title: { english: "X" } });
+      apiFetch.mockResolvedValue({ id: "x y", title: { english: "X" }, audio_content: [] });
       const out = await contentService.getContentById("x y");
       expect(out.id).toBe("x y");
       expect(out.title.english).toBe("X");

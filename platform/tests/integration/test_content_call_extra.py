@@ -148,7 +148,7 @@ class TestContentControllerExtra:
 
     @pytest.mark.asyncio
     async def test_patch_content_requires_auth(self, client, mock_db):
-        resp = await client.patch("/content", json={})
+        resp = await client.patch("/content/someid", json={})
         assert resp.status_code == 401
 
     @pytest.mark.asyncio

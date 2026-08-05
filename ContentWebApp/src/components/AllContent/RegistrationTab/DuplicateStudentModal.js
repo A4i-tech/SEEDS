@@ -20,9 +20,9 @@ const DuplicateStudentModal = ({ open, duplicates = [], onResolve = () => {}, on
 
   const handleConfirm = useCallback(() => {
     const resolution = duplicates.map((d, i) => ({
-      phoneNumber: d.phoneNumber,
-      existingName: d.existingName,
-      submittedName: d.submittedName,
+      phone_number: d.phone_number,
+      existing_name: d.existing_name,
+      submitted_name: d.submitted_name,
       keepName: choices[i] === "keep",
     }));
     onResolve(resolution);
@@ -70,9 +70,9 @@ const DuplicateStudentModal = ({ open, duplicates = [], onResolve = () => {}, on
           {duplicates.map((d, i) => (
             <div key={i} className="duplicate-modal-row">
               <div className="duplicate-modal-row-info">
-                <span className="duplicate-modal-phone">{d.phoneNumber}</span>
+                <span className="duplicate-modal-phone">{d.phone_number}</span>
                 <span className="duplicate-modal-names">
-                  Registered as <strong>"{d.existingName}"</strong>. You entered <strong>"{d.submittedName}"</strong>.
+                  Registered as <strong>"{d.existing_name}"</strong>. You entered <strong>"{d.submitted_name}"</strong>.
                 </span>
               </div>
               <div className="duplicate-modal-actions">
@@ -81,14 +81,14 @@ const DuplicateStudentModal = ({ open, duplicates = [], onResolve = () => {}, on
                   className={choices[i] === "keep" ? "primary-button" : "secondary-button"}
                   onClick={() => setChoice(i, true)}
                 >
-                  Keep "{d.existingName}"
+                  Keep "{d.existing_name}"
                 </button>
                 <button
                   type="button"
                   className={choices[i] === "update" ? "primary-button" : "secondary-button"}
                   onClick={() => setChoice(i, false)}
                 >
-                  Update to "{d.submittedName}"
+                  Update to "{d.submitted_name}"
                 </button>
               </div>
             </div>

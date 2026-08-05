@@ -39,11 +39,10 @@ except ImportError:
 _DUMMY_BODIES: dict[str, dict] = {
     "/teacher/login": {"phoneNumber": "0000000000", "password": "wrong"},
     "/teacher/register": {"phoneNumber": "0000000000", "password": "Wr0ng!pw", "name": "T"},
-    "/tenant/login": {"email": "no@example.com", "password": "wrong"},
+    "/auth/login": {"identifier": "no@example.com", "password": "wrong"},
     "/tenant/register": {"email": "x@x.com", "password": "Wr0ng!pw", "tenantName": "T", "name": "T"},
     "/tenant/analytics": {"startDate": "2024-01-01T00:00:00", "endDate": "2024-12-31T00:00:00"},
     "/tenant/change-password": {"newPassword": "Wr0ng!pw2"},
-    "/school/admin/login": {"email": "no@example.com", "password": "wrong"},
     "/school": {"name": "S", "email": "s@s.com", "password": "Wr0ng!pw"},
     "/school/transfer": {"teacherId": "000000000000000000000001", "targetSchoolId": "000000000000000000000002"},
     "/school/analytics": {"startDate": "2024-01-01T00:00:00", "endDate": "2024-12-31T00:00:00"},
