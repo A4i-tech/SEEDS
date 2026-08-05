@@ -1,7 +1,8 @@
 """Unit tests for the Content Aggregator partner auth flow (#458 issue/verify,
 #459 refresh/rotation/reuse-detection/revocation).
 
-Uses mongomock-motor for repository tests — no real MongoDB required.
+Uses the tests.support.mongomock_async shim for repository tests — no real
+MongoDB required.
 """
 from __future__ import annotations
 
@@ -11,7 +12,6 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from mongomock_motor import AsyncMongoMockClient
 
 from app.controllers import content_aggregator_auth_controller
 from app.platform.auth.hashing import hash_password
@@ -19,6 +19,7 @@ from app.platform.error_handling import AppError, UnauthorizedError
 from app.platform.settings import Settings
 from app.platform.telemetry import configure_telemetry
 from app.services.content_aggregator.auth import ContentAggregatorAuth
+from tests.support.mongomock_async import AsyncMongoMockClient
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[2] / "app"
 

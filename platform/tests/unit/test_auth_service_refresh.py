@@ -5,7 +5,7 @@ proven against the Content Aggregator flow (test_content_aggregator_auth.py)
 onto the user auth flow (teacher/tenant/school_admin logins), which now
 shares the same app.platform.auth.refresh_tokens engine.
 
-Uses mongomock-motor — no real MongoDB required.
+Uses the tests.support.mongomock_async shim — no real MongoDB required.
 """
 from __future__ import annotations
 
@@ -13,7 +13,6 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from mongomock_motor import AsyncMongoMockClient
 
 from app.models.user import UserCreate, UserRole
 from app.platform.auth.hashing import hash_password
@@ -22,6 +21,7 @@ from app.platform.settings import Settings
 from app.platform.telemetry import configure_telemetry
 from app.repositories.user_repository import UserRepository
 from app.services.auth_service import AuthService
+from tests.support.mongomock_async import AsyncMongoMockClient
 
 
 @pytest.fixture
