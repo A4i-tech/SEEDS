@@ -111,6 +111,10 @@ async def migrate(mongo_uri: str, dry_run: bool) -> None:
             if "schoolId" in new_doc and "school_id" not in new_doc:
                 new_doc["school_id"] = str(new_doc.pop("schoolId"))
 
+            # For school docs the document _id IS the school — set school_id explicitly.
+            if collection_name == "schools" and "school_id" not in new_doc:
+                new_doc["school_id"] = str(doc["_id"])
+
             # Schools carry tenantId directly.
             if "tenantId" in new_doc and "tenant_id" not in new_doc:
                 new_doc["tenant_id"] = new_doc.pop("tenantId")
@@ -121,7 +125,9 @@ async def migrate(mongo_uri: str, dry_run: bool) -> None:
                 new_doc["hashed_password"] = new_doc.pop("password")
 
             if not new_doc.get("name"):
-                new_doc["name"] = new_doc.get("phone") or str(new_doc["_id"])
+                new_doc["name"] = (
+                    new_doc.get("tenant_name") or new_doc.get("phone") or str(new_doc["_id"])
+                )
 
             # Preserve sub-roles (e.g. "content_creator").
             new_doc["role"] = doc.get("role") or role
