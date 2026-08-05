@@ -155,7 +155,7 @@ class TestRotate:
                 reuse_counter_name="auth.reuse_detected",
             )
 
-    async def test_replaying_consumed_token_revokes_entire_family(self):
+    async def test_replaying_consumed_token_revokes_all_tokens_for_owner(self):
         store = FakeStore()
         issued = await _issue(store)
         root_refresh = issued["refresh_token"]
@@ -189,6 +189,34 @@ class TestRotate:
             )
 
         assert all(doc["revoked"] for doc in store._tokens.values())
+
+    async def test_replay_revokes_other_families_for_same_owner(self):
+        """Reuse detection must revoke every token for the owner, not just the replayed family."""
+        store = FakeStore()
+        family_a = await _issue(store, owner_id="user-1")
+        family_b = await _issue(store, owner_id="user-1")
+
+        rotated_a = await rotate(
+            store,
+            family_a["refresh_token"],
+            verify_owner_active=_verify_owner_active,
+            build_access_token=_build_access_token,
+            refresh_ttl="30d",
+            reuse_counter_name="auth.reuse_detected",
+        )
+
+        with pytest.raises(UnauthorizedError):
+            await rotate(
+                store,
+                family_a["refresh_token"],
+                verify_owner_active=_verify_owner_active,
+                build_access_token=_build_access_token,
+                refresh_ttl="30d",
+                reuse_counter_name="auth.reuse_detected",
+            )
+
+        assert store._tokens[rotated_a["refresh_token"]]["revoked"] is True
+        assert store._tokens[family_b["refresh_token"]]["revoked"] is True
 
     async def test_concurrent_refresh_only_one_winner(self):
         store = FakeStore()

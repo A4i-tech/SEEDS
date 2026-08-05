@@ -1,4 +1,4 @@
-"""User refresh token repository — Motor async data access for 'userRefreshTokens'.
+"""User refresh token repository — PyMongo async data access for 'userRefreshTokens'.
 
 Native implementation of the shared ``RefreshTokenStore`` Protocol
 (``app.platform.auth.refresh_tokens``) — no adapter needed since this
@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.refresh_token import UserRefreshToken
 from app.platform.auth.refresh_tokens import ConsumedToken
@@ -19,7 +19,7 @@ from app.repositories.base_repository import BaseRepository
 class UserRefreshTokenRepository(BaseRepository):
     COLLECTION = "userRefreshTokens"
 
-    def __init__(self, db: AsyncIOMotorDatabase) -> None:
+    def __init__(self, db: AsyncDatabase) -> None:
         self._col = db[self.COLLECTION]
 
     @staticmethod

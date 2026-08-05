@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.requests.content_aggregator_requests import (
     ContentAggregatorRefreshRequest,
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/v1/auth", tags=["Content Aggregator Auth"])
 
 
 def get_content_aggregator_auth(
-    db: AsyncIOMotorDatabase = Depends(get_db),
+    db: AsyncDatabase = Depends(get_db),  # type: ignore[type-arg]
     settings: Settings = Depends(get_settings),
 ) -> ContentAggregatorAuth:
     return ContentAggregatorAuth(db, settings)

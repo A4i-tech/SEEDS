@@ -241,7 +241,7 @@ class TestRefreshTokenSuccess:
 
 
 class TestRefreshTokenReuseDetection:
-    async def test_replaying_revoked_token_revokes_entire_family(self, mock_db, auth, settings):
+    async def test_replaying_revoked_token_revokes_all_tokens_for_client(self, mock_db, auth, settings):
         configure_telemetry(settings)
         await _seed_client(mock_db)
         issued = await auth.issue_token("partner-1", "super-secret")
@@ -255,9 +255,26 @@ class TestRefreshTokenReuseDetection:
         with pytest.raises(UnauthorizedError):
             await auth.refresh_token(rotated["refresh_token"])
 
-        docs = [doc async for doc in mock_db["integrationTokens"].find({"family_id": root_refresh})]
+        docs = [doc async for doc in mock_db["integrationTokens"].find({"client_id": "partner-1"})]
         assert len(docs) == 2
         assert all(doc["revoked"] is True for doc in docs)
+
+    async def test_replay_revokes_other_families_for_same_client(self, mock_db, auth, settings):
+        """Reuse detection must revoke every token for the client, not just the replayed family."""
+        configure_telemetry(settings)
+        await _seed_client(mock_db)
+        family_a = await auth.issue_token("partner-1", "super-secret")
+        family_b = await auth.issue_token("partner-1", "super-secret")
+
+        await auth.refresh_token(family_a["refresh_token"])
+
+        with pytest.raises(UnauthorizedError):
+            await auth.refresh_token(family_a["refresh_token"])  # replay of already-revoked token
+
+        other_family_doc = await mock_db["integrationTokens"].find_one(
+            {"token_id": family_b["refresh_token"]}
+        )
+        assert other_family_doc["revoked"] is True
 
 
 class TestRefreshTokenConcurrency:
