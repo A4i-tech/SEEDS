@@ -119,8 +119,8 @@ async def rotate(
     (revoked=False -> True in one update) as part of a successful refresh, so
     two concurrent requests for the same token can never both win — the loser
     is treated as reuse. Replaying any already-consumed token (whether by a
-    prior rotation or a losing concurrent request) revokes the entire token
-    family and logs/counts a security event.
+    prior rotation or a losing concurrent request) revokes every token for
+    that owner, across all families, and logs/counts a security event.
 
     Raises:
         UnauthorizedError: token unknown, already consumed/revoked (including
@@ -151,7 +151,7 @@ async def rotate(
                 },
             )
             get_counter(reuse_counter_name).add(1, {"owner_id": existing.owner_id})
-            await store.revoke_family(existing.owner_id, existing.family_id)
+            await store.revoke_all_for_owner(existing.owner_id)
         raise UnauthorizedError("Invalid refresh token")
 
     now = datetime.now(tz=UTC)

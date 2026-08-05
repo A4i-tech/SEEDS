@@ -1,4 +1,4 @@
-"""Integration token repository — Motor async data access for 'integrationTokens'.
+"""Integration token repository — PyMongo async data access for 'integrationTokens'.
 
 Persists refresh tokens (access tokens are stateless JWTs, never stored).
 """
@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.content_aggregator import IntegrationToken, IntegrationTokenType
 from app.repositories.base_repository import BaseRepository
@@ -15,7 +15,7 @@ from app.repositories.base_repository import BaseRepository
 class IntegrationTokenRepository(BaseRepository):
     COLLECTION = "integrationTokens"
 
-    def __init__(self, db: AsyncIOMotorDatabase) -> None:
+    def __init__(self, db: AsyncDatabase) -> None:
         self._col = db[self.COLLECTION]
 
     async def insert_refresh_token(

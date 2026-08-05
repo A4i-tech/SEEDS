@@ -15,7 +15,7 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.content_aggregator import IntegrationToken, IntegrationTokenType
 from app.platform.auth import refresh_tokens
@@ -89,7 +89,7 @@ class ContentAggregatorAuth:
 
     def __init__(
         self,
-        db: AsyncIOMotorDatabase,
+        db: AsyncDatabase[Any],
         settings: Settings,
     ) -> None:
         self._clients = IntegrationClientRepository(db)

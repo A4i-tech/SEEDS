@@ -102,7 +102,7 @@ class TestRefreshSuccess:
 
 
 class TestRefreshReuseDetection:
-    async def test_replaying_revoked_token_revokes_entire_family(self, mock_db):
+    async def test_replaying_revoked_token_revokes_all_tokens_for_owner(self, mock_db):
         await _seed_tenant(mock_db)
         service = AuthService(mock_db)
         issued = await service.login(email="tenant@example.com", password="correct-horse", auth_type="native")
@@ -115,9 +115,30 @@ class TestRefreshReuseDetection:
         with pytest.raises(UnauthorizedError):
             await service.refresh(rotated["refresh_token"])
 
-        docs = [doc async for doc in mock_db["userRefreshTokens"].find({"family_id": root_refresh})]
+        docs = [doc async for doc in mock_db["userRefreshTokens"].find({"owner_id": issued["user"]["id"]})]
         assert len(docs) == 2
         assert all(doc["revoked"] is True for doc in docs)
+
+    async def test_replay_revokes_other_families_for_same_owner(self, mock_db):
+        """Reuse detection must revoke every token for the owner, not just the replayed family."""
+        await _seed_tenant(mock_db)
+        service = AuthService(mock_db)
+        family_a = await service.login_unified(
+            identifier="tenant@example.com", password="correct-horse", is_email=True
+        )
+        family_b = await service.login_unified(
+            identifier="tenant@example.com", password="correct-horse", is_email=True
+        )
+
+        await service.refresh(family_a["refresh_token"])
+
+        with pytest.raises(UnauthorizedError):
+            await service.refresh(family_a["refresh_token"])  # replay of already-revoked token
+
+        other_family_doc = await mock_db["userRefreshTokens"].find_one(
+            {"token_id": family_b["refresh_token"]}
+        )
+        assert other_family_doc["revoked"] is True
 
 
 class TestRefreshConcurrency:
