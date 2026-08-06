@@ -1,14 +1,9 @@
+"""Subodha sync service — orchestrates fetch -> adapt -> process -> persist,
+using the universal content_aggregators pipeline (SubodhaAdapter + strategies).
 """
-Subodha sync service — mappers, asset upload, and course-sync orchestration.
-
-Ported from subodha/backend/src/{mappers,assets,run,jobs,diff,contentList}.ts.
-"""
-
 from __future__ import annotations
 
 import asyncio
-import hashlib
-import json
 import logging
 import mimetypes
 import re
@@ -20,135 +15,21 @@ from urllib.parse import unquote
 from fastapi import Depends
 from pymongo.asynchronous.database import AsyncDatabase
 
+from app.aggregators.models import BlobContext, QuizContent
+from app.aggregators.subodha_adapter import SubodhaAdapter
+from app.aggregators.sync_job_models import SyncItemResult
 from app.platform.auth.dependencies import get_db
 from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider
 from app.providers.subodha_client import SubodhaClient
-from app.repositories.subodha_job_repository import SubodhaJobRepository
-from app.repositories.subodha_repository import SubodhaRepository
-from app.services.subodha_jobs import record_course_result, set_total
+from app.repositories.content_aggregator_repository import ContentAggregatorRepository
+from app.repositories.content_aggregator_sync_job_repository import ContentAggregatorSyncJobRepository
+from app.serializers.subodha_serializer import LegacyCourseDoc, to_course_doc
+from app.services.content_aggregator_sync_jobs import record_item_result, set_total
 
 logger = logging.getLogger(__name__)
 
-_CONTENT_TYPES_FOR_MAPPING = {"html", "video", "problem", "drag-and-drop-v2", "lti", "discussion"}
 _ASSET_URL_RE = re.compile(r'/asset-v1:[^"\'\s)>,;&]+')
-_REQUEST_TOKEN_RE = re.compile(r'\sdata-request-token="[^"]*"')
-
-# ---------------------------------------------------------------------------
-# Pure mappers
-# ---------------------------------------------------------------------------
-
-
-def is_empty(blocks_response: dict[str, Any] | None) -> bool:
-    if not blocks_response or not blocks_response.get("blocks"):
-        return True
-    return not any(b.get("type") in _CONTENT_TYPES_FOR_MAPPING for b in blocks_response["blocks"].values())
-
-
-def _rewrite_urls(html: str, url_map: dict[str, str]) -> str:
-    if not html or not url_map:
-        return html
-    for original, blob_url in url_map.items():
-        html = html.replace(original, blob_url)
-    return html
-
-
-def _strip_volatile(html: str) -> str:
-    return _REQUEST_TOKEN_RE.sub("", html) if html else html
-
-
-def normalize_blocks(blocks_response: dict[str, Any] | None, url_map: dict[str, str] | None = None) -> list[dict[str, Any]]:
-    url_map = url_map or {}
-    if not blocks_response or not blocks_response.get("blocks"):
-        return []
-    return [
-        {
-            "blockId": b["id"],
-            "type": b["type"],
-            "displayName": b.get("display_name") or "",
-            "html": _rewrite_urls(_strip_volatile(b.get("student_view_html") or ""), url_map),
-            "studentViewData": b.get("student_view_data"),
-            "lmsUrl": b.get("lms_web_url") or "",
-        }
-        for b in blocks_response["blocks"].values()
-        if b.get("type") in _CONTENT_TYPES_FOR_MAPPING
-    ]
-
-
-def _hash_blocks(blocks: list[dict[str, Any]]) -> str:
-    return hashlib.sha256(json.dumps(blocks).encode()).hexdigest()
-
-
-def build_outline(blocks_response: dict[str, Any] | None) -> list[dict[str, Any]]:
-    """Build the chapter -> sequential -> vertical outline tree.
-
-    Mirrors the real course navigator (chapters containing lessons containing
-    units). Units reference leaf content by blockId — actual block content
-    lives in the flat `blocks` array from normalize_blocks, looked up by id.
-    """
-    if not blocks_response or not blocks_response.get("blocks"):
-        return []
-    blocks = blocks_response["blocks"]
-    root = blocks_response.get("root")
-    course_block = blocks.get(root, {})
-
-    def children_of_type(block: dict[str, Any], child_type: str) -> list[str]:
-        return [c for c in block.get("children", []) if blocks.get(c, {}).get("type") == child_type]
-
-    def vertical_outline(vertical_id: str) -> dict[str, Any]:
-        vertical = blocks.get(vertical_id, {})
-        leaf_ids = [c for c in vertical.get("children", []) if blocks.get(c, {}).get("type") in _CONTENT_TYPES_FOR_MAPPING]
-        return {"blockId": vertical_id, "displayName": vertical.get("display_name") or "", "blockIds": leaf_ids}
-
-    def sequential_outline(sequential_id: str) -> dict[str, Any]:
-        sequential = blocks.get(sequential_id, {})
-        verticals = [vertical_outline(v) for v in children_of_type(sequential, "vertical")]
-        return {"blockId": sequential_id, "displayName": sequential.get("display_name") or "", "verticals": verticals}
-
-    def chapter_outline(chapter_id: str) -> dict[str, Any]:
-        chapter = blocks.get(chapter_id, {})
-        sequentials = [sequential_outline(s) for s in children_of_type(chapter, "sequential")]
-        return {"blockId": chapter_id, "displayName": chapter.get("display_name") or "", "sequentials": sequentials}
-
-    return [chapter_outline(c) for c in children_of_type(course_block, "chapter")]
-
-
-def _parse_iso(value: str) -> datetime:
-    return datetime.fromisoformat(value.replace("Z", "+00:00"))
-
-
-def map_course(
-    course: dict[str, Any],
-    blocks_response: dict[str, Any] | None,
-    run_id: str,
-    url_map: dict[str, str] | None = None,
-) -> dict[str, Any]:
-    blocks = normalize_blocks(blocks_response, url_map)
-    return {
-        "sourceId": course["id"],
-        "source": "subodha",
-        "contentHash": _hash_blocks(blocks),
-        "title": course["name"],
-        "org": course["org"],
-        "courseNumber": course["number"],
-        "description": course.get("short_description"),
-        "language": course.get("language"),
-        "start": _parse_iso(course["start"]),
-        "pacing": course["pacing"],
-        "hidden": course["hidden"],
-        "invitationOnly": course["invitation_only"],
-        "mobileAvailable": course["mobile_available"],
-        "blocks": blocks,
-        "outline": build_outline(blocks_response),
-        "assets": url_map or {},
-        "lastRunId": run_id,
-        "fetchedAt": datetime.now(UTC),
-    }
-
-
-# ---------------------------------------------------------------------------
-# Asset fetch + blob upload
-# ---------------------------------------------------------------------------
 
 
 def _asset_filename(asset_url: str) -> str:
@@ -164,10 +45,7 @@ def _blob_exists(blob_service_provider: BlobStorageProvider, container: str, blo
 
 
 async def fetch_and_store_assets(
-    client: SubodhaClient,
-    course_id: str,
-    blocks_response: dict[str, Any],
-    session_cookie: str,
+    client: SubodhaClient, course_id: str, blocks_response: dict[str, Any], session_cookie: str
 ) -> dict[str, str]:
     all_blocks = (blocks_response.get("blocks") or {}).values()
     asset_urls = sorted({m for b in all_blocks for m in _ASSET_URL_RE.findall(b.get("student_view_html") or "")})
@@ -203,28 +81,29 @@ async def fetch_and_store_assets(
     return url_map
 
 
-# ---------------------------------------------------------------------------
-# Sync orchestration
-# ---------------------------------------------------------------------------
-
-
 class SubodhaService:
-    def __init__(self, db: AsyncDatabase) -> None:
-        self._repo = SubodhaRepository(db)
+    SOURCE_TYPE = "subodha"
+
+    def __init__(self, db: AsyncDatabase, blob: BlobStorageProvider | None = None) -> None:
+        self._repo = ContentAggregatorRepository(db)
+        self._blob = blob if blob is not None else BlobStorageProvider()
         self._settings = get_settings()
+        self._adapter = SubodhaAdapter()
 
     async def update_problem_block(
-        self,
-        tenant_id: str,
-        course_id: str,
-        block_id: str,
-        question: str,
-        choices: list[dict[str, str]],
+        self, tenant_id: str, course_id: str, block_id: str, question: str, choices: list[dict[str, str]]
     ) -> int:
-        return await self._repo.update_block(tenant_id, course_id, block_id, {"question": question, "choices": choices})
+        tree = await self._repo.get_tree(tenant_id, self.SOURCE_TYPE, course_id)
+        existing = next((n for n in tree if n.source_id == block_id), None)
+        if existing is None or not isinstance(existing.content, QuizContent):
+            return 0
+        updated = QuizContent(raw_html_url=existing.content.raw_html_url, question=question, choices=choices)
+        return await self._repo.update_item_content(tenant_id, self.SOURCE_TYPE, block_id, updated)
 
     async def get_course_diff(self, tenant_id: str, client: SubodhaClient) -> dict[str, Any]:
-        live_courses, stored_ids = await asyncio.gather(client.list_all_courses(), self._repo.stored_source_ids(tenant_id))
+        live_courses, stored_ids = await asyncio.gather(
+            client.list_all_courses(), self._repo.stored_root_ids(tenant_id, self.SOURCE_TYPE)
+        )
         live_ids = {c["id"] for c in live_courses}
         new_courses = [c for c in live_courses if c["id"] not in stored_ids]
         removed_ids = [i for i in stored_ids if i not in live_ids]
@@ -239,56 +118,69 @@ class SubodhaService:
         }
 
     async def get_content_list(self, tenant_id: str) -> list[dict[str, Any]]:
-        docs = await self._repo.list_content(tenant_id)
+        roots = await self._repo.list_roots(tenant_id, self.SOURCE_TYPE)
         return [
             {
-                "id": d["sourceId"],
-                "name": d.get("title"),
-                "org": d.get("org"),
-                "number": d.get("courseNumber"),
-                "language": d.get("language"),
-                "hidden": d.get("hidden"),
+                "id": r.source_id,
+                "name": r.display_name,
+                "org": r.source_metadata.get("org"),
+                "number": r.source_metadata.get("course_number"),
+                "language": r.source_metadata.get("language"),
+                "hidden": r.source_metadata.get("hidden"),
                 "synced": True,
-                "lastSyncedAt": d.get("fetchedAt"),
-                "lastRunId": d.get("lastRunId"),
+                "lastSyncedAt": r.fetched_at,
+                "lastRunId": r.last_run_id,
             }
-            for d in docs
+            for r in roots
         ]
 
-    async def get_course(self, tenant_id: str, source_id: str) -> dict[str, Any] | None:
-        return await self._repo.load_course(tenant_id, source_id)
+    async def get_course(self, tenant_id: str, source_id: str) -> LegacyCourseDoc | None:
+        tree = await self._repo.get_tree(tenant_id, self.SOURCE_TYPE, source_id)
+        if not tree:
+            return None
+        return await to_course_doc(tree, self._blob)
 
     async def delete_course(self, tenant_id: str, source_id: str) -> int:
-        return await self._repo.delete_course(tenant_id, source_id)
+        return await self._repo.delete_tree(tenant_id, self.SOURCE_TYPE, source_id)
+
+    def _blob_ctx_factory(self, course_id: str):
+        safe_course_id = re.sub(r"[:/+]", "_", course_id)
+
+        def factory(node) -> BlobContext:
+            safe_block_id = re.sub(r"[:/+@]", "_", node.source_id)
+            return BlobContext(container=self._settings.subodha_asset_container, blob_prefix=f"courses/{safe_course_id}/items/{safe_block_id}")
+
+        return factory
 
     async def process_course(
-        self,
-        tenant_id: str,
-        client: SubodhaClient,
-        course: dict[str, Any],
-        session_cookie: str,
-        run_id: str,
-        dry_run: bool,
+        self, tenant_id: str, client: SubodhaClient, course: dict[str, Any], session_cookie: str, run_id: str, dry_run: bool
     ) -> dict[str, Any]:
         course_id = course["id"]
         try:
             blocks_response = await client.fetch_blocks(course_id, session_cookie)
 
-            if is_empty(blocks_response):
+            if self._adapter.is_empty(blocks_response):
                 return {"status": "empty", "courseId": course_id}
 
             await client.enrich_blocks_with_content(blocks_response, session_cookie)
             url_map = {} if dry_run else await fetch_and_store_assets(client, course_id, blocks_response, session_cookie)
-            mapped = map_course(course, blocks_response, run_id, url_map)
+            nodes = self._adapter.build_canonical_nodes(course, blocks_response, run_id, url_map)
+            content_hash = self._adapter.compute_content_hash(nodes)
 
             if dry_run:
                 return {"status": "skipped", "courseId": course_id}
 
-            existing = await self._repo.load_course(tenant_id, course_id)
-            if existing and existing.get("contentHash") == mapped["contentHash"]:
+            existing_root = await self._repo.get_root(tenant_id, self.SOURCE_TYPE, course_id)
+            if existing_root is not None and existing_root.source_metadata.get("content_hash") == content_hash:
                 return {"status": "skipped", "courseId": course_id}
 
-            await self._repo.save_course(tenant_id, course_id, mapped)
+            for node in nodes:
+                node.tenant_id = tenant_id
+            processed = await self._adapter.process_nodes(nodes, self._blob_ctx_factory(course_id), self._blob)
+            for node in processed:
+                if node.parent_id is None:
+                    node.source_metadata["content_hash"] = content_hash
+            await self._repo.upsert_tree(tenant_id, self.SOURCE_TYPE, course_id, processed)
             return {"status": "saved", "courseId": course_id}
         except Exception as exc:  # noqa: BLE001
             return {"status": "failed", "courseId": course_id, "error": str(exc)}
@@ -297,7 +189,7 @@ class SubodhaService:
         self,
         tenant_id: str,
         client: SubodhaClient,
-        job_repo: SubodhaJobRepository,
+        job_repo: ContentAggregatorSyncJobRepository,
         job_id: str,
         *,
         course_ids: list[str] | None = None,
@@ -334,14 +226,11 @@ class SubodhaService:
                         session_box["cookie"] = await client.get_session()
 
                 result = await self.process_course(tenant_id, client, course, session_box["cookie"], job_id, dry_run)
-                entry = {
-                    "courseId": result["courseId"],
-                    "name": course.get("name") or "",
-                    "status": result["status"],
-                    "error": result.get("error"),
-                    "at": datetime.now(UTC).isoformat(),
-                }
-                await record_course_result(job_repo, tenant_id, job_id, entry)
+                entry = SyncItemResult(
+                    source_id=result["courseId"], name=course.get("name") or "", status=result["status"],
+                    error=result.get("error"), at=datetime.now(UTC).isoformat(),
+                )
+                await record_item_result(job_repo, tenant_id, job_id, entry)
 
                 async with lock:
                     processed_count += 1
@@ -351,19 +240,19 @@ class SubodhaService:
 
         await asyncio.gather(*(process_one(c) for c in to_process))
 
-        doc = await job_repo.get_job(tenant_id, job_id)
-        stats = doc["stats"] if doc else {}
+        stored = await job_repo.get_job(tenant_id, job_id)
+        stats = stored.stats.to_doc() if stored else {}
         permanent_failures = [
-            {"courseId": c["courseId"], "error": c.get("error") or ""}
-            for c in (doc["courses"] if doc else [])
-            if c["status"] == "failed"
+            {"courseId": c.source_id, "error": c.error or ""}
+            for c in (stored.items if stored else [])
+            if c.status == "failed"
         ]
         summary = {
             "runId": job_id,
             "startedAt": started_at,
             "finishedAt": datetime.now(UTC).isoformat(),
             "totalCourses": len(all_courses),
-            "processed": doc["processed"] if doc else processed_count,
+            "processed": stored.processed if stored else processed_count,
             "stats": stats,
             "permanentFailures": permanent_failures,
             "dlqProcessed": 0,
@@ -375,7 +264,7 @@ class SubodhaService:
         self,
         tenant_id: str,
         client: SubodhaClient,
-        job_repo: SubodhaJobRepository,
+        job_repo: ContentAggregatorSyncJobRepository,
         job_id: str,
         course_id: str,
         *,
@@ -391,17 +280,14 @@ class SubodhaService:
 
         await set_total(job_repo, tenant_id, job_id, 1)
         result = await self.process_course(tenant_id, client, course, session_cookie, job_id, dry_run)
-        entry = {
-            "courseId": result["courseId"],
-            "name": course.get("name") or "",
-            "status": result["status"],
-            "error": result.get("error"),
-            "at": datetime.now(UTC).isoformat(),
-        }
-        await record_course_result(job_repo, tenant_id, job_id, entry)
+        entry = SyncItemResult(
+            source_id=result["courseId"], name=course.get("name") or "", status=result["status"],
+            error=result.get("error"), at=datetime.now(UTC).isoformat(),
+        )
+        await record_item_result(job_repo, tenant_id, job_id, entry)
 
-        doc = await job_repo.get_job(tenant_id, job_id)
-        stats = doc["stats"] if doc else {}
+        stored = await job_repo.get_job(tenant_id, job_id)
+        stats = stored.stats.to_doc() if stored else {}
         permanent_failures = (
             [{"courseId": course_id, "error": result.get("error", "")}] if result["status"] == "failed" else []
         )
