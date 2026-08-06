@@ -72,6 +72,21 @@ async def test_migrate_jobs_renames_fields_and_backfills_source_type():
 
 
 @pytest.mark.asyncio
+async def test_migrate_courses_skips_already_migrated_courses_on_resume():
+    db = AsyncMongoMockClient()["test_seeds"]
+    await db["subodhaCourses"].insert_one(dict(LEGACY_COURSE))
+
+    first = await migrate_courses(db, dry_run=False, blob=FakeBlobStorageProvider())
+    assert first == {"migrated": 1, "failed": 0}
+
+    resume_blob = FakeBlobStorageProvider()
+    second = await migrate_courses(db, dry_run=False, blob=resume_blob)
+
+    assert second == {"migrated": 1, "failed": 0}
+    assert resume_blob.uploaded == {}  # nothing re-uploaded — course-1 was skipped, not reprocessed
+
+
+@pytest.mark.asyncio
 async def test_migrate_courses_dry_run_writes_nothing():
     db = AsyncMongoMockClient()["test_seeds"]
     await db["subodhaCourses"].insert_one(dict(LEGACY_COURSE))

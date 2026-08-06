@@ -18,7 +18,7 @@ from pymongo.asynchronous.database import AsyncDatabase
 from app.aggregators.content_strategies import STRATEGY_REGISTRY
 from app.aggregators.models import BlobContext, CanonicalNode, ItemType, NodeKind
 from app.aggregators.sync_job_models import SyncItemResult, SyncJob, SyncStats
-from app.platform.database import get_database
+from app.platform.database import get_database, init_database
 from app.providers.blob_storage import BlobStorageProvider
 from app.repositories.content_aggregator_repository import ContentAggregatorRepository
 
@@ -72,7 +72,19 @@ async def migrate_courses(db: AsyncDatabase, *, dry_run: bool, blob: BlobStorage
     container = "subodha"
     counts = {"migrated": 0, "failed": 0}
 
-    async for course in db["subodhaCourses"].find({}):
+    already_migrated = {
+        d["source_id"]
+        async for d in db["contentAggregators"].find({"source_type": "subodha", "parent_id": None}, {"source_id": 1})
+    }
+    course_ids = [d["_id"] async for d in db["subodhaCourses"].find({}, {"_id": 1})]
+
+    for course_id in course_ids:
+        course = await db["subodhaCourses"].find_one({"_id": course_id})
+        if course is None:
+            continue
+        if course["sourceId"] in already_migrated and not dry_run:
+            counts["migrated"] += 1
+            continue
         try:
             tenant_id = course["tenantId"]
             root_id = course["sourceId"]
@@ -150,6 +162,7 @@ async def migrate_jobs(db: AsyncDatabase, *, dry_run: bool) -> dict[str, int]:
 
 
 async def _main(apply: bool) -> None:
+    await init_database()
     db = get_database()
     course_counts = await migrate_courses(db, dry_run=not apply)
     job_counts = await migrate_jobs(db, dry_run=not apply)
