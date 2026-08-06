@@ -8,15 +8,8 @@ const VARIANT_CLASS = {
   delete: "row-action row-action-delete",
 };
 
-// Traffic-light row actions: green = safe read, amber = caution/changes data,
-// red = destructive. The icon+label together carry meaning — color alone
-// never does (WCAG 1.4.1), and red/amber/green survives red-green color
-// blindness since it isn't a bare red/green pair.
-//
-// Plain inline-block buttons, no flex wrapper — a flex container here kept
-// collapsing to one-button-per-line inside the table cell.
 const RowActions = ({ actions }) => (
-  <span className="row-actions">
+  <div className="row-actions">
     {actions.map(({ key, label, icon: Icon, onClick, variant, disabled }) => (
       <button key={key} type="button" className={VARIANT_CLASS[variant]} onClick={onClick} disabled={disabled}>
         <span className="row-action-dot" aria-hidden="true">
@@ -25,7 +18,7 @@ const RowActions = ({ actions }) => (
         {label}
       </button>
     ))}
-  </span>
+  </div>
 );
 
 export default RowActions;
