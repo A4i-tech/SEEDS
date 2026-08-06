@@ -244,7 +244,7 @@ function BlockCard({ block, courseId, onBlockChange }) {
         {showLabel && (
           <>
             <strong>{block.display_name}</strong>
-            <span className="content-type">{block.type}</span>
+            <span className="content-type">{block.markdown ? "markdown" : block.type}</span>
           </>
         )}
         {block.lms_url && (
