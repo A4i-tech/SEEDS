@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+import time
 from datetime import UTC, datetime
 from typing import Any
 
@@ -136,10 +137,20 @@ async def migrate_courses(db: AsyncDatabase, *, dry_run: bool, blob: BlobStorage
     course_ids = [d["_id"] async for d in db["subodhaCourses"].find({}, {"_id": 1})]
 
     semaphore = asyncio.Semaphore(get_settings().subodha_course_concurrency)
+    total = len(course_ids)
+    done_count = 0
+    progress_lock = asyncio.Lock()
 
     async def run_one(course_id: object) -> str:
+        nonlocal done_count
         async with semaphore:
-            return await _migrate_one_course(db, repo, blob, container, course_id, already_migrated, dry_run=dry_run)
+            started = time.monotonic()
+            result = await _migrate_one_course(db, repo, blob, container, course_id, already_migrated, dry_run=dry_run)
+            elapsed = time.monotonic() - started
+        async with progress_lock:
+            done_count += 1
+            print(f"[migration] {done_count}/{total} {result} ({elapsed:.1f}s) course_id={course_id}", flush=True)
+        return result
 
     results = await asyncio.gather(*(run_one(cid) for cid in course_ids))
     return {"migrated": results.count("migrated"), "failed": results.count("failed")}
