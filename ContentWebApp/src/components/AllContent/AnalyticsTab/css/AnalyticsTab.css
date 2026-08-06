@@ -30,7 +30,10 @@
 }
 
 .range-pill {
-  padding: 8px 12px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 16px;
   border: 1px solid #e2e8f0;
   border-radius: 999px;
   background-color: #f8fafc;
@@ -52,7 +55,7 @@
 
 .filters-modal {
   width: min(960px, 100%);
-  background: #ffffff;
+  background: var(--color-on-accent);
   border-radius: 16px;
   box-shadow: 0 12px 40px rgba(15, 23, 42, 0.25);
   border: 1px solid #e2e8f0;

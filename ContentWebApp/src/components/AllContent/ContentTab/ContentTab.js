@@ -43,12 +43,12 @@ const ContentTab = ({
           <div className="card-description">Add and manage educational audio files</div>
         </div>
         <div className="button-group">
-          <button className="primary-button" onClick={onResetFilters}>
+          <button className="tertiary-button" onClick={onResetFilters}>
             Reset Filters
           </button>
           <button
             type="button"
-            className="primary-button button-ml-8"
+            className="tertiary-button button-ml-8"
             onClick={onUpdateIVR}
             disabled={isUpdatingIVR}
           >
@@ -56,7 +56,7 @@ const ContentTab = ({
           </button>
           <button
             type="button"
-            className="primary-button button-ml-8"
+            className="secondary-button button-ml-8"
             onClick={onSyncAll}
             disabled={syncingAll}
           >
@@ -64,13 +64,13 @@ const ContentTab = ({
           </button>
           <button
             type="button"
-            className="secondary-button button-ml-8"
+            className="tertiary-button button-ml-8"
             onClick={() => setShowSyncHistory(true)}
           >
             Sync History
           </button>
           <button
-            className="primary-button button-add-content"
+            className="success-button"
             onClick={() => navigate("/content/create")}
           >
             + Add Content

@@ -5,6 +5,17 @@
   gap: 6px;
 }
 
+.row-actions-horizontal {
+  flex-direction: row;
+  justify-content: center;
+  gap: 10px;
+}
+
+.row-actions-horizontal .row-action {
+  width: auto;
+  padding: 0 16px;
+}
+
 .row-action {
   display: inline-flex;
   align-items: center;
@@ -31,24 +42,13 @@
   outline-offset: 2px;
 }
 
-.row-action-dot {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
 .row-action-view {
   background: var(--color-success-bg);
   color: var(--color-success-fg);
 }
 
-.row-action-view .row-action-dot {
-  background: var(--color-success-dot);
-  color: #fff;
+.row-action-view:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-success-bg) 70%, var(--color-success-dot));
 }
 
 .row-action-edit {
@@ -56,9 +56,8 @@
   color: var(--color-warning-fg);
 }
 
-.row-action-edit .row-action-dot {
-  background: var(--color-warning-dot);
-  color: var(--color-warning-dot-fg);
+.row-action-edit:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-warning-bg) 70%, var(--color-warning-dot));
 }
 
 .row-action-delete {
@@ -66,7 +65,6 @@
   color: var(--color-danger-fg);
 }
 
-.row-action-delete .row-action-dot {
-  background: var(--color-danger-dot);
-  color: #fff;
+.row-action-delete:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-danger-bg) 70%, var(--color-danger-dot));
 }

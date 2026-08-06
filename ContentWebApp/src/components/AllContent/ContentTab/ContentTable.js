@@ -1,5 +1,4 @@
 import React from "react";
-import { Eye, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import { getLanguageName } from "../../../utils/languageName";
 import MiddleEllipsis from "../shared/MiddleEllipsis";
 import RowActions from "../shared/RowActions";
@@ -101,15 +100,14 @@ const ContentTable = ({
                           {
                             key: "sync",
                             label: syncing ? "Syncing…" : "Sync",
-                            icon: RefreshCw,
                             variant: "sync",
                             disabled: syncing,
                             onClick: () => onSyncCourse(itemId, item.title.english),
                           },
-                          { key: "view", label: "View", icon: Eye, variant: "view", onClick: () => onView(itemType, itemId) },
+                          { key: "view", label: "View", variant: "view", onClick: () => onView(itemType, itemId) },
                           ...(onDeleteSubodhaCourse
                             ? [{
-                                key: "delete", label: "Delete", icon: Trash2, variant: "delete",
+                                key: "delete", label: "Delete", variant: "delete",
                                 onClick: () => onDeleteSubodhaCourse(itemId, item.title.english),
                               }]
                             : []),
@@ -118,10 +116,10 @@ const ContentTable = ({
                     ) : (
                       <RowActions
                         actions={[
-                          { key: "edit", label: "Edit", icon: Pencil, variant: "edit", onClick: () => onEdit(itemType, itemId) },
-                          { key: "view", label: "View", icon: Eye, variant: "view", onClick: () => onView(itemType, itemId) },
+                          { key: "edit", label: "Edit", variant: "edit", onClick: () => onEdit(itemType, itemId) },
+                          { key: "view", label: "View", variant: "view", onClick: () => onView(itemType, itemId) },
                           ...(onDelete
-                            ? [{ key: "delete", label: "Delete", icon: Trash2, variant: "delete", onClick: () => onDelete(itemType, itemId) }]
+                            ? [{ key: "delete", label: "Delete", variant: "delete", onClick: () => onDelete(itemType, itemId) }]
                             : []),
                         ]}
                       />

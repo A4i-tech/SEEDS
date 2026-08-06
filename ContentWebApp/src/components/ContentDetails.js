@@ -6,6 +6,7 @@ import SubodhaCourseDetails from "./SubodhaCourseDetails";
 import { contentService } from "../services/contentService";
 import "./ContentDetails.css";
 import "./AllContent/shared/buttons.css";
+import "./AllContent/shared/pageShell.css";
 
 const ContentDetails = () => {
   const { type, id } = useParams();
@@ -61,7 +62,7 @@ const ContentDetails = () => {
 
   if (isSubodhaCourse) {
     return (
-      <div className="content-details-page">
+      <div className="page-shell">
         <SubodhaCourseDetails courseId={id} onBack={() => navigate("/content")} />
       </div>
     );
@@ -100,7 +101,7 @@ const ContentDetails = () => {
   }
 
   return (
-    <div className="content-details-page">
+    <div className="page-shell">
       <div className="content-details-actions">
         <button onClick={() => navigate("/content")} className="primary-button">
           ← Back
@@ -109,7 +110,7 @@ const ContentDetails = () => {
           onClick={() => navigate(`/content/edit/${type}/${id}`)}
           className="secondary-button"
         >
-          ✏️ Edit
+          Edit
         </button>
       </div>
       {isQuiz ? (

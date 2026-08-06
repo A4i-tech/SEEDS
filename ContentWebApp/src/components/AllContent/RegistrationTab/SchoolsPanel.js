@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import PasswordInput from "../../PasswordInput";
 import Modal from "../shared/Modal";
+import RowActions from "../shared/RowActions";
 import "./css/RegistrationTab.css";
 import "./css/TeacherRegistrationForm.css";
 import "../shared/buttons.css";
@@ -103,35 +104,28 @@ const SchoolsPanel = ({
         {schools.length === 0 ? (
           <div className="no-teachers">No schools yet.</div>
         ) : (
-          <div className="table-scroll">
-            <table className="students-table">
+          <div className="table-wrapper">
+            <table className="content-table">
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Actions</th>
+                  <th className="table-header">Name</th>
+                  <th className="table-header">Email</th>
+                  <th className="table-header">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {schools.map((school) => (
-                  <tr key={school.id}>
-                    <td>{school.name}</td>
-                    <td>{school.email}</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="action-ghost-button"
-                        onClick={() => openEdit(school)}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        className="action-ghost-button"
-                        onClick={() => onDeleteSchool(school.id)}
-                      >
-                        Delete
-                      </button>
+                  <tr key={school.id} className="table-row-white">
+                    <td className="table-cell">{school.name}</td>
+                    <td className="table-cell">{school.email}</td>
+                    <td className="table-cell">
+                      <RowActions
+                        horizontal
+                        actions={[
+                          { key: "edit", label: "Edit", variant: "edit", onClick: () => openEdit(school) },
+                          { key: "delete", label: "Delete", variant: "delete", onClick: () => onDeleteSchool(school.id) },
+                        ]}
+                      />
                     </td>
                   </tr>
                 ))}

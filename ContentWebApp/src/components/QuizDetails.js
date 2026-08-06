@@ -8,77 +8,54 @@ const QuizDetails = ({ quiz }) => {
   const questions = quiz.questions;
 
   return (
-    <>
-      <h2>Quiz</h2>
-      <div className="metadataGrid">
-        <div>
-          <div>Title</div>
-          <p>
-            <b>{titleEnglish}</b>
-            {titleLocal && (
-              <>
-                <br />
-                <b>{titleLocal}</b>
-              </>
-            )}
-          </p>
+    <div className="content-detail-card">
+      <h2 className="content-detail-title">Quiz</h2>
+      <div className="content-detail-grid">
+        <div className="content-detail-field">
+          <span className="content-detail-label">Title</span>
+          <span className="content-detail-value">{titleEnglish}</span>
+          {titleLocal && <span className="content-detail-value">{titleLocal}</span>}
         </div>
-
-        <div>
-          <div>Language</div>
-          <p>
-            <b>{quiz.language}</b>
-          </p>
+        <div className="content-detail-field">
+          <span className="content-detail-label">Language</span>
+          <span className="content-detail-value">{quiz.language}</span>
         </div>
-
-        <div>
-          <div>Theme</div>
-          <p>
-            <b>{themeEnglish}</b>
-            {themeLocal && (
-              <>
-                <br />
-                <b>{themeLocal}</b>
-              </>
-            )}
-          </p>
+        <div className="content-detail-field">
+          <span className="content-detail-label">Theme</span>
+          <span className="content-detail-value">{themeEnglish}</span>
+          {themeLocal && <span className="content-detail-value">{themeLocal}</span>}
         </div>
-
-        <div>
-          <label>Positive Marks</label>
-          <br />
-          <p className="mintgreen marks-badge">{quiz.positive_marks}</p>
+        <div className="content-detail-field">
+          <span className="content-detail-label">Positive Marks</span>
+          <span className="content-detail-badge">{quiz.positive_marks}</span>
         </div>
-
-        <div>
-          <label>Negative Marks</label>
-          <br />
-          <p className="mintgreen marks-badge">{quiz.negative_marks}</p>
+        <div className="content-detail-field">
+          <span className="content-detail-label">Negative Marks</span>
+          <span className="content-detail-badge">{quiz.negative_marks}</span>
         </div>
       </div>
+
       {questions.map((q, index) => {
         const optionLabels = ["A", "B", "C", "D"];
         return (
           <div key={index} className="quiz-question-block">
-            <div>
-              <label>Question {index + 1}</label>
-              <br />
-              <p className="quiz-question-text">{q.question.text}</p>
-            </div>
-            <div className="optionsDetailsGrid">
+            <span className="content-detail-label">Question {index + 1}</span>
+            <p className="quiz-question-text">{q.question.text}</p>
+            <div className="content-detail-options-grid">
               {q.options.map((opt, optIdx) => (
-                <div key={opt.id}>
-                  <label>Option {optionLabels[optIdx]}{opt.id === q.correct_option_id ? " (Correct Answer)" : ""}</label>
-                  <br />
-                  <p className="mintgreen">{opt.text}</p>
+                <div key={opt.id} className="content-detail-field">
+                  <span className="content-detail-label">
+                    Option {optionLabels[optIdx]}
+                    {opt.id === q.correct_option_id ? " (Correct Answer)" : ""}
+                  </span>
+                  <span className="content-detail-badge">{opt.text}</span>
                 </div>
               ))}
             </div>
-            <br />
           </div>
         );
       })}
-    </>
+    </div>
   );
 };
 

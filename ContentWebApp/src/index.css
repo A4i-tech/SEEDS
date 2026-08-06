@@ -14,6 +14,11 @@
   --color-danger-fg: #7f1d1d;
   --color-danger-dot: #dc2626;
   --color-focus-ring: #1d4ed8;
+  --color-stat-blue: #0ea5e9;
+  --color-stat-green: #16a34a;
+  --color-stat-orange: #f59e0b;
+  --color-stat-purple: #8b5cf6;
+  --color-on-accent: #ffffff;
 }
 
 body {

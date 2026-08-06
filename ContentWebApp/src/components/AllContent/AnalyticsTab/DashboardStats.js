@@ -6,10 +6,10 @@ const DashboardStats = ({ dashboard }) => {
   const { statistics, schools } = dashboard;
 
   const statCards = [
-    { label: "Total Schools", value: statistics.total_schools, color: "#0ea5e9" },
-    { label: "Total Teachers", value: statistics.total_teachers, color: "#16a34a" },
-    { label: "Total Students", value: statistics.total_students, color: "#f59e0b" },
-    { label: "Total Classes", value: statistics.total_classes, color: "#8b5cf6" },
+    { label: "Total Schools", value: statistics.total_schools, color: "var(--color-stat-blue)" },
+    { label: "Total Teachers", value: statistics.total_teachers, color: "var(--color-stat-green)" },
+    { label: "Total Students", value: statistics.total_students, color: "var(--color-stat-orange)" },
+    { label: "Total Classes", value: statistics.total_classes, color: "var(--color-stat-purple)" },
   ];
 
   return (
@@ -17,7 +17,7 @@ const DashboardStats = ({ dashboard }) => {
       <h3 className="stats-title">Organisation Overview</h3>
       <div className="stat-cards">
         {statCards.map((stat) => (
-          <div key={stat.label} className="stat-card" style={{ borderLeftColor: stat.color }}>
+          <div key={stat.label} className="stat-card" style={{ "--stat-accent": stat.color }}>
             <div className="stat-label">{stat.label}</div>
             <div className="stat-value">{stat.value}</div>
           </div>

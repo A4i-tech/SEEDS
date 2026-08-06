@@ -3,8 +3,8 @@ import katex from "katex";
 import "katex/dist/katex.min.css";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { ChevronLeft, LayoutGrid } from "lucide-react";
 import { subodhaService } from "../services/subodhaService";
-import { getLanguageName } from "../utils/languageName";
 import "./SubodhaCourseDetails.css";
 
 function getYoutubeId(streams) {
@@ -169,7 +169,7 @@ function MultipleChoiceProblem({ block, courseId, onBlockChange }) {
           </li>
         ))}
       </ul>
-      <button type="button" className="secondary-button" onClick={startEdit}>
+      <button type="button" className="secondary-button subodha-block-header-action" onClick={startEdit}>
         Edit
       </button>
     </div>
@@ -246,16 +246,6 @@ function BlockCard({ block, courseId, onBlockChange }) {
             <strong>{block.display_name}</strong>
             <span className="content-type">{block.markdown ? "markdown" : block.type}</span>
           </>
-        )}
-        {block.lms_url && (
-          <a
-            href={block.lms_url}
-            target="_blank"
-            rel="noreferrer"
-            className="secondary-button subodha-block-header-action"
-          >
-            Open in Subodha
-          </a>
         )}
       </div>
       <BlockContent block={block} courseId={courseId} onBlockChange={onBlockChange} />
@@ -405,24 +395,72 @@ function LanguageSelectableBlocks({ blocks, courseId, onBlockChange }) {
 // A sequential (lesson) selected from the outline list — shows its units as a
 // tab strip (like Subodha's own row of icons) with Previous/Next between
 // them, plus a breadcrumb back to the full outline list.
-function SequentialPlayer({ chapter, sequential, blockMap, courseId, onBlockChange, onBack }) {
+function SequentialPlayer({
+  chapter,
+  sequential,
+  seqIndex,
+  seqCount,
+  onNavigateSequential,
+  blockMap,
+  courseId,
+  onBlockChange,
+  onBack,
+}) {
   const [unitIndex, setUnitIndex] = useState(0);
   const verticals = sequential.verticals;
   const vertical = verticals[unitIndex];
+  const verticalBlocks = vertical.block_ids.map((id) => blockMap[id]).filter(Boolean);
+  const unitLmsUrl = verticalBlocks.find((b) => b.lms_url)?.lms_url;
 
   return (
     <div>
-      <div className="subodha-breadcrumb">
+      <div className="subodha-pager">
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={() => onNavigateSequential(seqIndex - 1)}
+          disabled={seqIndex === 0}
+        >
+          ← Previous
+        </button>
+        <span className="subodha-pager-position">
+          {seqIndex + 1} / {seqCount}: {sequential.display_name}
+        </span>
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={() => onNavigateSequential(seqIndex + 1)}
+          disabled={seqIndex === seqCount - 1}
+        >
+          Next →
+        </button>
+      </div>
+      <nav className="subodha-breadcrumb" aria-label="Breadcrumb">
         <button type="button" className="subodha-breadcrumb-link" onClick={() => onBack()}>
+          <LayoutGrid size={14} strokeWidth={2.5} />
           Course
         </button>
-        {" / "}
+        <ChevronLeft size={16} strokeWidth={2.5} className="subodha-breadcrumb-sep" aria-hidden="true" />
         <button type="button" className="subodha-breadcrumb-link" onClick={() => onBack(chapter.block_id)}>
           {chapter.display_name}
         </button>
-        {" / "}
-        {sequential.display_name}
+        <ChevronLeft size={16} strokeWidth={2.5} className="subodha-breadcrumb-sep" aria-hidden="true" />
+        <span className="subodha-breadcrumb-current">{sequential.display_name}</span>
+      </nav>
+      <div className="subodha-unit-title-row">
+        <h4>{vertical.display_name}</h4>
+        {unitLmsUrl && (
+          <a href={unitLmsUrl} target="_blank" rel="noreferrer" className="subodha-external-link">
+            Open in Subodha
+          </a>
+        )}
       </div>
+      <LanguageSelectableBlocks
+        key={vertical.block_id}
+        blocks={verticalBlocks}
+        courseId={courseId}
+        onBlockChange={onBlockChange}
+      />
       <div className="subodha-unit-tabs">
         <button
           type="button"
@@ -454,13 +492,6 @@ function SequentialPlayer({ chapter, sequential, blockMap, courseId, onBlockChan
           Next →
         </button>
       </div>
-      <h4>{vertical.display_name}</h4>
-      <LanguageSelectableBlocks
-        key={vertical.block_id}
-        blocks={vertical.block_ids.map((id) => blockMap[id]).filter(Boolean)}
-        courseId={courseId}
-        onBlockChange={onBlockChange}
-      />
     </div>
   );
 }
@@ -472,13 +503,25 @@ function OutlineNavigator({ outline, blockMap, courseId, onBlockChange, onBackTo
   const [selected, setSelected] = useState(null);
   const [collapsed, setCollapsed] = useState({});
 
+  const flatSequentials = useMemo(
+    () => outline.flatMap((chapter, chapterIdx) => chapter.sequentials.map((_, seqIdx) => ({ chapterIdx, seqIdx }))),
+    [outline]
+  );
+
   if (selected) {
     const chapter = outline[selected.chapterIdx];
     const sequential = chapter.sequentials[selected.seqIdx];
+    const flatIndex = flatSequentials.findIndex(
+      (s) => s.chapterIdx === selected.chapterIdx && s.seqIdx === selected.seqIdx
+    );
     return (
       <SequentialPlayer
+        key={sequential.block_id}
         chapter={chapter}
         sequential={sequential}
+        seqIndex={flatIndex}
+        seqCount={flatSequentials.length}
+        onNavigateSequential={(newFlatIndex) => setSelected(flatSequentials[newFlatIndex])}
         blockMap={blockMap}
         courseId={courseId}
         onBlockChange={onBlockChange}
@@ -611,12 +654,7 @@ const SubodhaCourseDetails = ({ courseId, onBack }) => {
   return (
     <div className="subodha-course-details">
       <h2>{course.title}</h2>
-      <div className="subodha-course-meta">
-        <span>{course.org} / {course.course_number}</span>
-        {course.language && <span>Language: {getLanguageName(course.language)}</span>}
-        <span>Pacing: {course.pacing}</span>
-        {course.hidden && <span className="subodha-badge-hidden">Hidden</span>}
-      </div>
+      {course.hidden && <span className="subodha-badge-hidden">Hidden</span>}
       {course.description && <p>{course.description}</p>}
 
       {hasOutline ? (

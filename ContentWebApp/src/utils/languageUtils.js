@@ -1,12 +1,14 @@
 export const LANGUAGE_LABELS = {
-  en: "English",
   kn: "Kannada",
   hi: "Hindi",
-  bn: "Bengali",
-  ta: "Tamil",
   mr: "Marathi",
   or: "Odia",
+  en: "English",
+  ta: "Tamil",
+  bn: "Bengali",
 };
+
+export const LANGUAGE_OPTIONS = Object.entries(LANGUAGE_LABELS).map(([value, label]) => ({ value, label }));
 
 /**
  * Returns the human-readable display label for an ISO 639-1 language code.

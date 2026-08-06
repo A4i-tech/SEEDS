@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { contentService } from "../services/contentService";
+import { LANGUAGE_OPTIONS } from "../utils/languageUtils";
+import Select from "./AllContent/shared/Select";
+import "./AddContent.css";
 
 const ANSWER_OPTION_CONFIG = [
   { name: "optionA", label: "Option A", idx: 0 },
@@ -244,181 +247,150 @@ const AddQuiz = ({ quiz }) => {
   };
 
   return (
-    <form onSubmit={onSubmit}>
-      <div className="metadataGrid">
-        <div>
-          <label>
-            Language
-            <br />
-            <select
-              value={metadata.language || ""}
-              onChange={handleLanguageChange}
-              className="mintgreen"
-              style={{ width: "200px" }}
-            >
-              <option value="kn">Kannada</option>
-              <option value="hi">Hindi</option>
-              <option value="mr">Marathi</option>
-              <option value="or">Odia</option>
-              <option value="en">English</option>
-              <option value="ta">Tamil</option>
-              <option value="bn">Bengali</option>
-            </select>
-          </label>
-        </div>
+    <form className="add-form" onSubmit={onSubmit}>
+      <div className="form-section">
+        <div className="form-section-title">Quiz Details</div>
+        <div className="quiz-metadata-grid">
+          <div>
+            <label>Language</label>
+            <Select
+              value={metadata.language}
+              onChange={(value) => handleLanguageChange({ target: { value } })}
+              options={LANGUAGE_OPTIONS}
+            />
+          </div>
 
-        <div>
-          <label>Title</label>
-          <br />
-          <input
-            className="mintgreen"
-            type="text"
-            name="title"
-            placeholder=" Add Title"
-            value={metadata.title || ""}
-            onChange={(event) => setMetadata({ ...metadata, title: event.target.value })}
-          />
-        </div>
+          <div>
+            <label>Title</label>
+            <input
+              className="form-input"
+              type="text"
+              name="title"
+              placeholder="Add Title"
+              value={metadata.title || ""}
+              onChange={(event) => setMetadata({ ...metadata, title: event.target.value })}
+            />
+          </div>
 
-        <div>
-          <label>Theme</label>
-          <br />
-          <input
-            className="mintgreen"
-            type="text"
-            name="theme"
-            placeholder=" Add Theme"
-            value={metadata.theme || ""}
-            onChange={(event) => setMetadata({ ...metadata, theme: event.target.value })}
-          />
-        </div>
+          <div>
+            <label>Theme</label>
+            <input
+              className="form-input"
+              type="text"
+              name="theme"
+              placeholder="Add Theme"
+              value={metadata.theme || ""}
+              onChange={(event) => setMetadata({ ...metadata, theme: event.target.value })}
+            />
+          </div>
 
-        {metadata.language.toLowerCase() !== "en" && (
-          <>
-            <div>
-              <label>{`${getLocalizedLabelPrefix()} Title`}</label>
-              <br />
-              <input
-                className="mintgreen"
-                type="text"
-                name="localTitle"
-                placeholder=" Add Local Title"
-                value={metadata.localTitle || ""}
-                onChange={(event) => setMetadata({ ...metadata, localTitle: event.target.value })}
-              />
-            </div>
+          {metadata.language.toLowerCase() !== "en" && (
+            <>
+              <div>
+                <label>{`${getLocalizedLabelPrefix()} Title`}</label>
+                <input
+                  className="form-input"
+                  type="text"
+                  name="localTitle"
+                  placeholder="Add Local Title"
+                  value={metadata.localTitle || ""}
+                  onChange={(event) => setMetadata({ ...metadata, localTitle: event.target.value })}
+                />
+              </div>
 
-            <div>
-              <label>{`${getLocalizedLabelPrefix()} Theme`}</label>
-              <br />
-              <input
-                className="mintgreen"
-                type="text"
-                name="localTheme"
-                placeholder=" Add Local Theme"
-                value={metadata.localTheme || ""}
-                onChange={(event) => setMetadata({ ...metadata, localTheme: event.target.value })}
-              />
-            </div>
-          </>
-        )}
+              <div>
+                <label>{`${getLocalizedLabelPrefix()} Theme`}</label>
+                <input
+                  className="form-input"
+                  type="text"
+                  name="localTheme"
+                  placeholder="Add Local Theme"
+                  value={metadata.localTheme || ""}
+                  onChange={(event) => setMetadata({ ...metadata, localTheme: event.target.value })}
+                />
+              </div>
+            </>
+          )}
 
-        <div>
-          <label>Positive Marks</label>
-          <br />
-          <input
-            type="number"
-            className="mintgreen"
-            name="positiveMark"
-            placeholder="Add Positive Marks"
-            value={metadata.positiveMark || 1}
-            onChange={(event) => setMetadata({ ...metadata, positiveMark: event.target.value })}
-          />
-        </div>
+          <div className="quiz-marks-field">
+            <label>Positive Marks</label>
+            <input
+              type="number"
+              className="form-input"
+              name="positiveMark"
+              placeholder="Add Positive Marks"
+              value={metadata.positiveMark || 1}
+              onChange={(event) => setMetadata({ ...metadata, positiveMark: event.target.value })}
+            />
+          </div>
 
-        <div>
-          <label>Negative Marks</label>
-          <br />
-          <input
-            type="number"
-            className="mintgreen"
-            name="negativeMark"
-            placeholder="Add Negative Marks"
-            value={metadata.negativeMark || 0}
-            onChange={(event) => setMetadata({ ...metadata, negativeMark: event.target.value })}
-          />
+          <div className="quiz-marks-field">
+            <label>Negative Marks</label>
+            <input
+              type="number"
+              className="form-input"
+              name="negativeMark"
+              placeholder="Add Negative Marks"
+              value={metadata.negativeMark || 0}
+              onChange={(event) => setMetadata({ ...metadata, negativeMark: event.target.value })}
+            />
+          </div>
         </div>
       </div>
-      {inputFields.map((input, index) => {
-        return (
-          <div key={index} style={{ marginTop: "1%" }}>
-            <div className="optionsGrid">
-              <div>
-                <label>Question {index + 1}</label>
-                <br />
+
+      {inputFields.map((input, index) => (
+        <div key={index} className="quiz-question-card">
+          <div className="quiz-options-grid">
+            <div>
+              <label>Question {index + 1}</label>
+              <input
+                type="text"
+                className="form-input"
+                name="question"
+                placeholder="Add Question"
+                value={input.question}
+                onChange={(event) => handleFormChange(index, event)}
+              />
+            </div>
+            <div className="quiz-remove-cell">
+              <button className="btn-danger" type="button" onClick={() => removeFields(index)}>
+                Remove
+              </button>
+            </div>
+            {ANSWER_OPTION_CONFIG.map(({ name, label, idx }) => (
+              <div key={name}>
+                <label>
+                  <input
+                    type="radio"
+                    name={`correctAnswer-${index}`}
+                    checked={input.correctAnswer === idx}
+                    onChange={() => handleCorrectAnswerChange(index, idx)}
+                    style={{ marginRight: "4px" }}
+                  />
+                  {label} {input.correctAnswer === idx ? "(Correct Answer)" : ""}
+                </label>
                 <input
                   type="text"
-                  className="mintgreen"
-                  name="question"
-                  placeholder=" Add Question"
-                  value={input.question}
+                  name={name}
+                  className="form-input"
+                  placeholder={`Add ${label}`}
+                  value={input[name]}
                   onChange={(event) => handleFormChange(index, event)}
                 />
               </div>
-              <div>
-                <button
-                  className="btn"
-                  type="button"
-                  style={{ backgroundColor: "#28574F", color: "white" }}
-                  onClick={() => removeFields(index)}
-                >
-                  Remove
-                </button>
-              </div>
-              {ANSWER_OPTION_CONFIG.map(({ name, label, idx }) => (
-                <div key={name}>
-                  <label>
-                    <input
-                      type="radio"
-                      name={`correctAnswer-${index}`}
-                      checked={input.correctAnswer === idx}
-                      onChange={() => handleCorrectAnswerChange(index, idx)}
-                      style={{ marginRight: "4px" }}
-                    />
-                    {label} {input.correctAnswer === idx ? "(Correct Answer)" : ""}
-                  </label>
-                  <br />
-                  <input
-                    type="text"
-                    name={name}
-                    className="mintgreen"
-                    placeholder={` Add ${label}`}
-                    value={input[name]}
-                    onChange={(event) => handleFormChange(index, event)}
-                  />
-                </div>
-              ))}
-            </div>
-            <br />
+            ))}
           </div>
-        );
-      })}
-      <button
-        type="button"
-        className="btn"
-        style={{ backgroundColor: "#28574F", color: "white" }}
-        onClick={addFields}
-      >
-        + Question
-      </button>
-      <br />
-      <br />
-      <input
-        type="submit"
-        style={{ backgroundColor: "#E5A83B", color: "white" }}
-        value="Save"
-        className="btn btn-block"
-      />
+        </div>
+      ))}
+
+      <div className="form-actions">
+        <button type="button" className="btn-secondary" onClick={addFields}>
+          + Question
+        </button>
+        <button type="submit" className="btn-primary">
+          Save
+        </button>
+      </div>
     </form>
   );
 };

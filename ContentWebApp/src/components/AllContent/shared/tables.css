@@ -2,7 +2,7 @@
 .table-wrapper {
   margin-top: 16px;
   border: 1px solid #e2e8f0;
-  border-radius: 8px;
+  border-radius: 16px;
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
@@ -29,7 +29,7 @@
 /* Table header  */
 .table-header {
   background-color: #0f172a;
-  color: #ffffff;
+  color: var(--color-on-accent);
   text-align: center;
   padding: 10px 12px;
   font-size: 11px;
@@ -50,6 +50,7 @@
   font-size: 13px;
   color: #0f172a;
   white-space: nowrap;
+  text-align: center;
 }
 
 .table-cell:last-child {
@@ -65,7 +66,7 @@
 
 .content-type-badge-quiz {
   background-color: #007bff;
-  color: #ffffff;
+  color: var(--color-on-accent);
   font-size: 10px;
   padding: 2px 6px;
   border-radius: 10px;
@@ -75,7 +76,7 @@
 @media (min-width: 768px) {
   .table-wrapper {
     margin-top: 20px;
-    border-radius: 12px;
+    border-radius: 16px;
   }
 
   .content-table {
@@ -113,41 +114,10 @@
 
 /* Table row variants */
 .table-row-white {
-  background-color: #ffffff;
+  background-color: var(--color-on-accent);
 }
 
 .table-cell-secondary {
-  color: #94a3b8;
-}
-
-/* Table scroll wrapper */
-.table-scroll {
-  overflow-x: auto;
-}
-
-/* Students table */
-.students-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.students-table th {
-  text-align: left;
-  padding: 8px;
-  border-bottom: 1px solid #e2e8f0;
-  color: #475569;
-  font-size: 13px;
-}
-
-.students-table td {
-  padding: 8px;
-  border-bottom: 1px solid #f1f5f9;
-  color: #334155;
-  font-size: 13px;
-}
-
-.no-students-cell {
-  padding: 12px;
   color: #94a3b8;
 }
 

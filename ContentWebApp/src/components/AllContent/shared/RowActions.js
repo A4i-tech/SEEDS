@@ -8,13 +8,10 @@ const VARIANT_CLASS = {
   delete: "row-action row-action-delete",
 };
 
-const RowActions = ({ actions }) => (
-  <div className="row-actions">
-    {actions.map(({ key, label, icon: Icon, onClick, variant, disabled }) => (
+const RowActions = ({ actions, horizontal = false }) => (
+  <div className={horizontal ? "row-actions row-actions-horizontal" : "row-actions"}>
+    {actions.map(({ key, label, onClick, variant, disabled }) => (
       <button key={key} type="button" className={VARIANT_CLASS[variant]} onClick={onClick} disabled={disabled}>
-        <span className="row-action-dot" aria-hidden="true">
-          <Icon size={16} strokeWidth={2.5} />
-        </span>
         {label}
       </button>
     ))}

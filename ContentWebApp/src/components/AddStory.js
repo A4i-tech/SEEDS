@@ -7,7 +7,9 @@ import { getAuthHeaders } from "../utils/authHelpers";
 import { useAuth } from "../hooks/useAuth";
 import { isMp3File } from "../utils/fileValidators";
 import { contentService } from "../services/contentService";
-import { getLanguageLabel } from "../utils/languageUtils";
+import { getLanguageLabel, LANGUAGE_OPTIONS } from "../utils/languageUtils";
+import Select from "./AllContent/shared/Select";
+import "./AddContent.css";
 
 const AddStory = ({ content, contentType, onContentTypeChange }) => {
   const { getCurrentUser } = useAuth();
@@ -446,96 +448,55 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
 
   return (
     <form className="add-form" onSubmit={onSubmit}>
-      <div style={{ marginBottom: "30px" }}>
-        <label
-          style={{ display: "block", marginBottom: "8px", fontWeight: "500" }}
-        >
-          Language:
-        </label>
-        <select
-          value={metadata.language}
-          onChange={handleLanguageChange}
-          className="mintgreen"
-          style={{ width: "100%", maxWidth: "300px", padding: "8px" }}
-        >
-          <option value="kn">Kannada</option>
-          <option value="hi">Hindi</option>
-          <option value="mr">Marathi</option>
-          <option value="or">Odia</option>
-          <option value="en">English</option>
-          <option value="ta">Tamil</option>
-          <option value="bn">Bengali</option>
-        </select>
+      <div className="form-section">
+        <div className="form-section-title">Language</div>
+        <div className="form-group form-group-narrow">
+          <Select
+            value={metadata.language}
+            onChange={(value) => handleLanguageChange({ target: { value } })}
+            options={LANGUAGE_OPTIONS}
+          />
+        </div>
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns:
-            metadata.language === "en" ? "1fr" : "1fr 1fr",
-          gap: "20px",
-          marginBottom: "25px",
-        }}
-      >
-        <div>
-          <label
-            style={{ display: "block", marginBottom: "8px", fontWeight: "500" }}
-          >
-            English Theme
-          </label>
-          <select
-            name="theme"
-            value={metadata.theme.english}
-            onChange={handleThemeChange}
-            className="mintgreen"
-            style={{ width: "100%", padding: "8px" }}
-          >
-            <option value="">Choose Theme</option>
-            {themes[metadata.language] &&
-              Object.keys(themes[metadata.language]).map((theme) => (
-                <option key={theme} value={theme}>
-                  {theme}
-                </option>
-              ))}
-            <option
-              value="new-theme"
-              selected={metadata.theme.local === "new-theme"}
-            >
-              Choose New Theme
-            </option>
-          </select>
-        </div>
-        {metadata.language !== "en" && (
-          <div>
-            <label
-              style={{
-                display: "block",
-                marginBottom: "8px",
-                fontWeight: "500",
-                textTransform: "capitalize",
-              }}
-            >
-              {getLanguageLabel(metadata.language)} Theme
-            </label>
-            <select
-              name="localTheme"
-              value={metadata.theme.local}
-              onChange={handleThemeChange}
-              className="mintgreen"
-              style={{ width: "100%", padding: "8px" }}
-            >
-              <option value="">Choose Theme</option>
-              {themes[metadata.language] &&
-                Object.values(themes[metadata.language]).map((localTheme) => (
-                  <option key={localTheme} value={localTheme}>
-                    {localTheme}
-                  </option>
-                ))}
-                <option value="new-theme">Create New Theme</option>
-              </select>
+      <div className="form-section">
+        <div className="form-section-title">Theme</div>
+        <div className="form-grid">
+          <div className="form-group">
+            <label className="form-label">English Theme</label>
+            <Select
+              value={metadata.theme.english}
+              onChange={(value) => handleThemeChange({ target: { value, name: "theme" } })}
+              placeholder="Choose Theme"
+              options={[
+                ...(themes[metadata.language]
+                  ? Object.keys(themes[metadata.language]).map((theme) => ({ value: theme, label: theme }))
+                  : []),
+                { value: "new-theme", label: "Choose New Theme" },
+              ]}
+            />
+          </div>
+          {metadata.language !== "en" && (
+            <div className="form-group">
+              <label className="form-label">{getLanguageLabel(metadata.language)} Theme</label>
+              <Select
+                value={metadata.theme.local}
+                onChange={(value) => handleThemeChange({ target: { value, name: "localTheme" } })}
+                placeholder="Choose Theme"
+                options={[
+                  ...(themes[metadata.language]
+                    ? Object.values(themes[metadata.language]).map((localTheme) => ({
+                        value: localTheme,
+                        label: localTheme,
+                      }))
+                    : []),
+                  { value: "new-theme", label: "Create New Theme" },
+                ]}
+              />
             </div>
           )}
         </div>
+      </div>
 
       {newTheme && (
         <div className="new-theme-section">
@@ -665,12 +626,10 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
               onChange={(event) => handleUploadFile(event)}
             />
             <label htmlFor="audioFile" className="form-file-label">
-              📁 Choose Audio File
+              Choose Audio File
             </label>
+            {file && <span className="form-file-selected">{file.name}</span>}
           </div>
-          {file && (
-            <div className="form-file-name">Selected: {file.name}</div>
-          )}
           {uploadError && (
             <div className="form-error">{uploadError}</div>
           )}
@@ -692,12 +651,10 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
                 onChange={(event) => handleUploadAnswerFile(event)}
               />
               <label htmlFor="answerAudioFile" className="form-file-label">
-                📁 Choose Answer Audio File
+                Choose Answer Audio File
               </label>
+              {answerFile && <span className="form-file-selected">{answerFile.name}</span>}
             </div>
-            {answerFile && (
-              <div className="form-file-name">Selected: {answerFile.name}</div>
-            )}
             {answerUploadError && (
               <div className="form-error">{answerUploadError}</div>
             )}
@@ -744,11 +701,11 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
         >
           {isSaveButtonDisabled ? (
             <>
-              <div className="loading-spinner" style={{ width: "20px", height: "20px", borderWidth: "2px" }}></div>
+              <div className="form-loading-spinner"></div>
               Saving...
             </>
           ) : (
-            "💾 Save Content"
+            "Save Content"
           )}
         </button>
       </div>

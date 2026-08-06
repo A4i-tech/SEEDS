@@ -1,31 +1,37 @@
 import React from "react";
+import RowActions from "../shared/RowActions";
 import "../shared/buttons.css";
 import "../shared/tables.css";
 
 const StudentsTable = ({ students = [], onEditStudent, onRemoveStudent }) => {
   return (
-    <div className="table-scroll">
-      <table className="students-table">
+    <div className="table-wrapper">
+      <table className="content-table">
         <thead>
           <tr>
-            <th>Name</th>
-            <th>Phone</th>
-            <th>Actions</th>
+            <th className="table-header">Name</th>
+            <th className="table-header">Phone</th>
+            <th className="table-header">Actions</th>
           </tr>
         </thead>
         <tbody>
           {students.length === 0 ? (
             <tr>
-              <td colSpan={3} className="no-content">No students</td>
+              <td colSpan={3} className="table-cell no-content">No students</td>
             </tr>
           ) : (
             students.map((student) => (
-              <tr key={student.id}>
-                <td>{student.name}</td>
-                <td>{student.phone_number}</td>
-                <td>
-                  <button type="button" className="action-ghost-button" onClick={() => onEditStudent(student)}>Edit</button>
-                  <button type="button" className="action-ghost-button" onClick={() => onRemoveStudent(student.id)}>Remove</button>
+              <tr key={student.id} className="table-row-white">
+                <td className="table-cell">{student.name}</td>
+                <td className="table-cell">{student.phone_number}</td>
+                <td className="table-cell">
+                  <RowActions
+                    horizontal
+                    actions={[
+                      { key: "edit", label: "Edit", variant: "edit", onClick: () => onEditStudent(student) },
+                      { key: "delete", label: "Remove", variant: "delete", onClick: () => onRemoveStudent(student.id) },
+                    ]}
+                  />
                 </td>
               </tr>
             ))

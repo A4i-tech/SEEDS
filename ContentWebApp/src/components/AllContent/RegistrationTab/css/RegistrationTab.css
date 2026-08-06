@@ -34,7 +34,7 @@
 
 .pill-tab--active {
   background-color: #0f172a;
-  color: #fff;
+  color: var(--color-on-accent);
   cursor: default;
 }
 
