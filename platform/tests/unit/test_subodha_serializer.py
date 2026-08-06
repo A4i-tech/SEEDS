@@ -40,17 +40,20 @@ def _nodes():
                  display_name="Unit 1", native_type="vertical")
     html_item = _node(source_id="html-1", parent_id="vert-1", node_kind=NodeKind.ITEM, item_type=ItemType.TEXT,
                       display_name="Welcome", lms_url="https://lms/html-1", native_type="html",
-                      content=TextContent(html_url="blob://x.html"))
+                      content=TextContent(markdown_url="blob://x.md"))
+    failed_item = _node(source_id="html-2", parent_id="vert-1", node_kind=NodeKind.ITEM, item_type=ItemType.TEXT,
+                        display_name="Broken", lms_url="https://lms/html-2", native_type="html", order=2,
+                        content=TextContent(raw_html_url="blob://x.raw.html", conversion_failed=True))
     video_item = _node(source_id="video-1", parent_id="vert-1", node_kind=NodeKind.ITEM, item_type=ItemType.VIDEO,
                        display_name="Intro video", lms_url="https://lms/video-1", native_type="video", order=1,
                        content=VideoContent(sources=["https://s3/v.mp4"], streams="1.00:abc", poster_url=None,
                                             transcript_languages={"en": "English"}))
-    return [course, chapter, seq, vert, html_item, video_item]
+    return [course, chapter, seq, vert, html_item, video_item, failed_item]
 
 
 @pytest.mark.asyncio
 async def test_to_course_doc_rebuilds_snake_case_shape():
-    blob = FakeBlob({"blob://x.html": b"<p>Hi</p>"})
+    blob = FakeBlob({"blob://x.md": b"**Hi**", "blob://x.raw.html": b"<p>raw</p>"})
     doc = (await to_course_doc(_nodes(), blob)).to_dict()
 
     assert doc["source_id"] == "course-1"
@@ -62,7 +65,10 @@ async def test_to_course_doc_rebuilds_snake_case_shape():
 
     blocks_by_id = {b["block_id"]: b for b in doc["blocks"]}
     assert blocks_by_id["html-1"]["type"] == "html"
-    assert blocks_by_id["html-1"]["html"] == "<p>Hi</p>"
+    assert blocks_by_id["html-1"]["markdown"] == "**Hi**"
+    assert blocks_by_id["html-1"]["html"] == ""
+    assert blocks_by_id["html-2"]["markdown"] is None
+    assert blocks_by_id["html-2"]["html"] == "<p>raw</p>"
     assert blocks_by_id["video-1"]["type"] == "video"
     assert blocks_by_id["video-1"]["student_view_data"] == {
         "sources": ["https://s3/v.mp4"], "streams": "1.00:abc", "poster": None,
@@ -75,4 +81,4 @@ async def test_to_course_doc_rebuilds_snake_case_shape():
     assert chapter["sequentials"][0]["block_id"] == "seq-1"
     vertical = chapter["sequentials"][0]["verticals"][0]
     assert vertical["block_id"] == "vert-1"
-    assert vertical["block_ids"] == ["html-1", "video-1"]
+    assert vertical["block_ids"] == ["html-1", "video-1", "html-2"]

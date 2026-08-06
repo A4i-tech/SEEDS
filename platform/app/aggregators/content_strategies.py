@@ -9,7 +9,7 @@ from __future__ import annotations
 import abc
 import logging
 
-from app.aggregators.html_to_markdown import html_to_markdown, markdown_to_html
+from app.aggregators.html_to_markdown import html_to_markdown
 from app.aggregators.models import (
     BlobContext,
     ContentPayload,
@@ -37,15 +37,13 @@ class TextStrategy(ContentStrategy):
         raw_html = raw or ""
         try:
             markdown = html_to_markdown(raw_html)
-            rendered_html = markdown_to_html(markdown)
         except Exception as exc:  # noqa: BLE001
             logger.warning("[content-strategies] pandoc conversion failed for %s: %s", ctx.blob_prefix, exc)
             raw_html_url = await blob.upload_file(ctx.container, f"{ctx.blob_prefix}.raw.html", raw_html.encode("utf-8"), "text/html")
             return TextContent(raw_html_url=raw_html_url, conversion_failed=True)
 
         markdown_url = await blob.upload_file(ctx.container, f"{ctx.blob_prefix}.md", markdown.encode("utf-8"), "text/markdown")
-        html_url = await blob.upload_file(ctx.container, f"{ctx.blob_prefix}.html", rendered_html.encode("utf-8"), "text/html")
-        return TextContent(markdown_url=markdown_url, html_url=html_url)
+        return TextContent(markdown_url=markdown_url)
 
 
 class VideoStrategy(ContentStrategy):

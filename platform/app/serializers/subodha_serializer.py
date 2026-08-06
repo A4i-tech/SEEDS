@@ -16,13 +16,15 @@ class LegacyBlock:
     type: str
     display_name: str
     html: str
+    markdown: str | None
     student_view_data: dict[str, object] | None
     lms_url: str
 
     def to_dict(self) -> dict[str, object]:
         return {
             "block_id": self.block_id, "type": self.type, "display_name": self.display_name,
-            "html": self.html, "student_view_data": self.student_view_data, "lms_url": self.lms_url,
+            "html": self.html, "markdown": self.markdown, "student_view_data": self.student_view_data,
+            "lms_url": self.lms_url,
         }
 
 
@@ -87,9 +89,16 @@ class LegacyCourseDoc:
         }
 
 
+async def _resolve_markdown(node: CanonicalNode, blob: BlobStorageProvider) -> str | None:
+    url = getattr(node.content, "markdown_url", None)
+    if not url:
+        return None
+    data = await blob.download_from_url(url)
+    return data.decode("utf-8")
+
+
 async def _resolve_html(node: CanonicalNode, blob: BlobStorageProvider) -> str:
-    content = node.content
-    url = getattr(content, "html_url", None) or getattr(content, "raw_html_url", None)
+    url = getattr(node.content, "raw_html_url", None)
     if not url:
         return ""
     data = await blob.download_from_url(url)
@@ -99,17 +108,22 @@ async def _resolve_html(node: CanonicalNode, blob: BlobStorageProvider) -> str:
 async def _to_legacy_block(node: CanonicalNode, blob: BlobStorageProvider) -> LegacyBlock:
     student_view_data = None
     html = ""
+    markdown = None
     if node.item_type == ItemType.VIDEO:
         content = node.content
         student_view_data = {
             "sources": content.sources, "streams": content.streams,
             "poster": content.poster_url, "transcript_languages": content.transcript_languages,
         }
+    elif node.item_type == ItemType.TEXT:
+        markdown = await _resolve_markdown(node, blob)
+        if markdown is None:
+            html = await _resolve_html(node, blob)  # pandoc-conversion-failure fallback
     else:
         html = await _resolve_html(node, blob)
     return LegacyBlock(
         block_id=node.source_id, type=node.native_type, display_name=node.display_name,
-        html=html, student_view_data=student_view_data, lms_url=node.lms_url or "",
+        html=html, markdown=markdown, student_view_data=student_view_data, lms_url=node.lms_url or "",
     )
 
 

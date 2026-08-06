@@ -16,17 +16,17 @@ class FakeBlob:
 
 
 @pytest.mark.asyncio
-async def test_text_strategy_uploads_markdown_and_html():
+async def test_text_strategy_uploads_markdown_only():
     blob = FakeBlob()
     ctx = BlobContext(container="subodha", blob_prefix="courses/c1/items/b1")
 
     content = await TextStrategy().process("<p><strong>Hi</strong></p>", ctx, blob)
 
     assert content.markdown_url == "https://blob.test/subodha/courses/c1/items/b1.md"
-    assert content.html_url == "https://blob.test/subodha/courses/c1/items/b1.html"
+    assert content.html_url is None
     assert content.conversion_failed is False
     assert b"**Hi**" in blob.uploaded["courses/c1/items/b1.md"]
-    assert b"<strong>Hi</strong>" in blob.uploaded["courses/c1/items/b1.html"]
+    assert "courses/c1/items/b1.html" not in blob.uploaded
 
 
 @pytest.mark.asyncio
