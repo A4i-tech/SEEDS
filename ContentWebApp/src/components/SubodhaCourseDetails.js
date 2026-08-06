@@ -105,7 +105,7 @@ function MultipleChoiceProblem({ block, courseId, onBlockChange }) {
     setSaving(true);
     const updatedChoices = current.choices.map((c, i) => ({ value: c.value, text: choiceDrafts[i] }));
     try {
-      await subodhaService.updateProblemBlock(courseId, block.blockId, {
+      await subodhaService.updateProblemBlock(courseId, block.block_id, {
         question: questionDraft,
         choices: updatedChoices,
       });
@@ -176,12 +176,12 @@ function MultipleChoiceProblem({ block, courseId, onBlockChange }) {
 
 function BlockContent({ block, courseId, onBlockChange }) {
   if (!block) return null;
-  const sources = block.studentViewData?.sources || [];
-  const youtubeId = sources.length === 0 ? getYoutubeId(block.studentViewData?.streams) : null;
+  const sources = block.student_view_data?.sources || [];
+  const youtubeId = sources.length === 0 ? getYoutubeId(block.student_view_data?.streams) : null;
 
   if (block.type === "video" && sources.length > 0) {
     return (
-      <video controls poster={block.studentViewData?.poster || undefined} className="subodha-block-video">
+      <video controls poster={block.student_view_data?.poster || undefined} className="subodha-block-video">
         <source src={sources[0]} />
       </video>
     );
@@ -192,7 +192,7 @@ function BlockContent({ block, courseId, onBlockChange }) {
       <iframe
         className="subodha-block-video subodha-block-video-embed"
         src={`https://www.youtube.com/embed/${youtubeId}`}
-        title={block.displayName || "Video"}
+        title={block.display_name || "Video"}
         allowFullScreen
       />
     );
@@ -232,13 +232,13 @@ function BlockCard({ block, courseId, onBlockChange }) {
       <div className="subodha-block-header">
         {showLabel && (
           <>
-            <strong>{block.displayName}</strong>
+            <strong>{block.display_name}</strong>
             <span className="content-type">{block.type}</span>
           </>
         )}
-        {block.lmsUrl && (
+        {block.lms_url && (
           <a
-            href={block.lmsUrl}
+            href={block.lms_url}
             target="_blank"
             rel="noreferrer"
             className="secondary-button subodha-block-header-action"
@@ -259,12 +259,12 @@ function BlockCard({ block, courseId, onBlockChange }) {
 function disambiguateLabels(blocks) {
   const totals = {};
   blocks.forEach((b) => {
-    const label = b.displayName || b.type;
+    const label = b.display_name || b.type;
     totals[label] = (totals[label] || 0) + 1;
   });
   const running = {};
   return blocks.map((b) => {
-    const label = b.displayName || b.type;
+    const label = b.display_name || b.type;
     if (totals[label] <= 1) return label;
     running[label] = (running[label] || 0) + 1;
     return `${label} ${running[label]}`;
@@ -294,7 +294,7 @@ function FlatBlockNavigator({ blocks, courseId, onBlockChange, onBack }) {
         </div>
         <ul className="subodha-section-list">
           {blocks.map((b, i) => (
-            <li key={b.blockId}>
+            <li key={b.block_id}>
               <button type="button" className="subodha-section-list-item" onClick={() => setIndex(i)}>
                 {i + 1}. {labels[i]}
               </button>
@@ -335,7 +335,7 @@ function FlatBlockNavigator({ blocks, courseId, onBlockChange, onBack }) {
           Next →
         </button>
       </div>
-      <BlockCard key={block.blockId} block={block} courseId={courseId} onBlockChange={onBlockChange} />
+      <BlockCard key={block.block_id} block={block} courseId={courseId} onBlockChange={onBlockChange} />
     </div>
   );
 }
@@ -349,7 +349,7 @@ function FlatBlockNavigator({ blocks, courseId, onBlockChange, onBack }) {
 // variants which the course author renamed to the language itself — filter
 // those generic ones out of the picker rather than hardcode a language list.
 function isGenericLabel(block) {
-  const label = (block.displayName || "").trim().toLowerCase();
+  const label = (block.display_name || "").trim().toLowerCase();
   return !label || label === block.type.toLowerCase();
 }
 
@@ -373,8 +373,8 @@ function LanguageSelectableBlocks({ blocks, courseId, onBlockChange }) {
           className="subodha-language-select"
         >
           {options.map((b, i) => (
-            <option key={b.blockId} value={i}>
-              {b.displayName || `${b.type} ${i + 1}`}
+            <option key={b.block_id} value={i}>
+              {b.display_name || `${b.type} ${i + 1}`}
             </option>
           ))}
         </select>
@@ -382,7 +382,7 @@ function LanguageSelectableBlocks({ blocks, courseId, onBlockChange }) {
       {/* key forces a full remount on selection change — <video><source> won't
           reload a new src on an existing element without one (browser quirk). */}
       <BlockCard
-        key={options[selectedIndex].blockId}
+        key={options[selectedIndex].block_id}
         block={options[selectedIndex]}
         courseId={courseId}
         onBlockChange={onBlockChange}
@@ -406,7 +406,7 @@ function SequentialPlayer({ chapter, sequential, blockMap, courseId, onBlockChan
           Course
         </button>
         {" / "}
-        {chapter.displayName} / {sequential.displayName}
+        {chapter.display_name} / {sequential.display_name}
       </div>
       <div className="subodha-unit-tabs">
         <button
@@ -420,10 +420,10 @@ function SequentialPlayer({ chapter, sequential, blockMap, courseId, onBlockChan
         <div className="subodha-unit-tab-list">
           {verticals.map((v, i) => (
             <button
-              key={v.blockId}
+              key={v.block_id}
               type="button"
               className={i === unitIndex ? "subodha-unit-tab active" : "subodha-unit-tab"}
-              title={v.displayName}
+              title={v.display_name}
               onClick={() => setUnitIndex(i)}
             >
               {i + 1}
@@ -439,10 +439,10 @@ function SequentialPlayer({ chapter, sequential, blockMap, courseId, onBlockChan
           Next →
         </button>
       </div>
-      <h4>{vertical.displayName}</h4>
+      <h4>{vertical.display_name}</h4>
       <LanguageSelectableBlocks
-        key={vertical.blockId}
-        blocks={vertical.blockIds.map((id) => blockMap[id]).filter(Boolean)}
+        key={vertical.block_id}
+        blocks={vertical.block_ids.map((id) => blockMap[id]).filter(Boolean)}
         courseId={courseId}
         onBlockChange={onBlockChange}
       />
@@ -472,10 +472,10 @@ function OutlineNavigator({ outline, blockMap, courseId, onBlockChange, onBackTo
     );
   }
 
-  const allCollapsed = outline.length > 0 && outline.every((chapter) => collapsed[chapter.blockId]);
+  const allCollapsed = outline.length > 0 && outline.every((chapter) => collapsed[chapter.block_id]);
 
   const toggleAll = () => {
-    setCollapsed(allCollapsed ? {} : Object.fromEntries(outline.map((chapter) => [chapter.blockId, true])));
+    setCollapsed(allCollapsed ? {} : Object.fromEntries(outline.map((chapter) => [chapter.block_id, true])));
   };
 
   const toggleChapter = (blockId) => {
@@ -493,29 +493,29 @@ function OutlineNavigator({ outline, blockMap, courseId, onBlockChange, onBackTo
         </button>
       </div>
       {outline.map((chapter, chapterIdx) => {
-        const isCollapsed = Boolean(collapsed[chapter.blockId]);
+        const isCollapsed = Boolean(collapsed[chapter.block_id]);
         return (
-          <div key={chapter.blockId} className="subodha-outline-chapter-card">
+          <div key={chapter.block_id} className="subodha-outline-chapter-card">
             <button
               type="button"
               className="subodha-outline-chapter-header"
-              onClick={() => toggleChapter(chapter.blockId)}
+              onClick={() => toggleChapter(chapter.block_id)}
             >
               <span className="subodha-outline-check" aria-hidden="true">✓</span>
-              <span className="subodha-outline-chapter-title">{chapter.displayName}</span>
+              <span className="subodha-outline-chapter-title">{chapter.display_name}</span>
               <span className="subodha-outline-toggle" aria-hidden="true">{isCollapsed ? "+" : "−"}</span>
             </button>
             {!isCollapsed && (
               <ul className="subodha-outline-sequential-list">
                 {chapter.sequentials.map((seq, seqIdx) => (
-                  <li key={seq.blockId}>
+                  <li key={seq.block_id}>
                     <button
                       type="button"
                       className="subodha-outline-sequential-item"
                       onClick={() => setSelected({ chapterIdx, seqIdx })}
                     >
                       <span className="subodha-outline-check" aria-hidden="true">✓</span>
-                      {seq.displayName}
+                      {seq.display_name}
                     </button>
                   </li>
                 ))}
@@ -553,7 +553,7 @@ const SubodhaCourseDetails = ({ courseId, onBack }) => {
   const handleBlockChange = useCallback((updatedBlock) => {
     setCourse((prev) => ({
       ...prev,
-      blocks: prev.blocks.map((b) => (b.blockId === updatedBlock.blockId ? updatedBlock : b)),
+      blocks: prev.blocks.map((b) => (b.block_id === updatedBlock.block_id ? updatedBlock : b)),
     }));
   }, []);
 
@@ -587,14 +587,14 @@ const SubodhaCourseDetails = ({ courseId, onBack }) => {
     );
   }
 
-  const blockMap = Object.fromEntries((course.blocks || []).map((b) => [b.blockId, b]));
+  const blockMap = Object.fromEntries((course.blocks || []).map((b) => [b.block_id, b]));
   const hasOutline = Array.isArray(course.outline) && course.outline.length > 0;
 
   return (
     <div className="subodha-course-details">
       <h2>{course.title}</h2>
       <div className="subodha-course-meta">
-        <span>{course.org} / {course.courseNumber}</span>
+        <span>{course.org} / {course.course_number}</span>
         {course.language && <span>Language: {getLanguageName(course.language)}</span>}
         <span>Pacing: {course.pacing}</span>
         {course.hidden && <span className="subodha-badge-hidden">Hidden</span>}

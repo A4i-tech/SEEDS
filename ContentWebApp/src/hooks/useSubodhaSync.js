@@ -19,14 +19,14 @@ export const useSubodhaSync = (onSettled) => {
   useEffect(() => () => Object.values(controllersRef.current).forEach((c) => c.abort()), []);
 
   const followJob = useCallback(
-    (key, jobId, { setRunning, onDone, onProgress }) => {
+    (key, job_id, { setRunning, onDone, onProgress }) => {
       const controller = new AbortController();
       controllersRef.current[key] = controller;
 
       const attach = async () => {
         try {
           await subodhaService.streamJob(
-            jobId,
+            job_id,
             (event) => {
               if (event.event === "progress") {
                 onProgress?.(event.job);
@@ -42,7 +42,7 @@ export const useSubodhaSync = (onSettled) => {
         } catch (error) {
           if (controller.signal.aborted) return;
           try {
-            const job = await subodhaService.getSyncStatus(jobId);
+            const job = await subodhaService.getSyncStatus(job_id);
             if (job.status === "running") {
               attach();
               return;
@@ -66,14 +66,14 @@ export const useSubodhaSync = (onSettled) => {
     setSyncingAll(true);
     setSyncAllProgress(null);
     try {
-      const { jobId } = await subodhaService.syncAll();
-      followJob("__all__", jobId, {
+      const { job_id } = await subodhaService.syncAll();
+      followJob("__all__", job_id, {
         setRunning: setSyncingAll,
-        onProgress: (job) => setSyncAllProgress({ processed: job.processed, total: job.totalCourses }),
+        onProgress: (job) => setSyncAllProgress({ processed: job.processed, total: job.total_courses }),
         onDone: (job) => {
           setSyncAllProgress(null);
           if (job.status === "completed") {
-            alert(`Subodha sync complete: ${job.processed ?? 0}/${job.totalCourses ?? 0} courses processed.`);
+            alert(`Subodha sync complete: ${job.processed ?? 0}/${job.total_courses ?? 0} courses processed.`);
             onSettled?.();
           } else {
             alert(`Subodha sync failed: ${job.error || "Unknown error"}`);
@@ -90,8 +90,8 @@ export const useSubodhaSync = (onSettled) => {
     async (courseId, name) => {
       setCourseStates((prev) => ({ ...prev, [courseId]: "running" }));
       try {
-        const { jobId } = await subodhaService.syncCourse(courseId);
-        followJob(courseId, jobId, {
+        const { job_id } = await subodhaService.syncCourse(courseId);
+        followJob(courseId, job_id, {
           setRunning: (running) =>
             setCourseStates((prev) => ({ ...prev, [courseId]: running ? "running" : prev[courseId] })),
           onDone: (job) => {
@@ -120,22 +120,22 @@ export const useSubodhaSync = (onSettled) => {
         jobs.forEach((job) => {
           if (job.scope === "all") {
             setSyncingAll(true);
-            setSyncAllProgress({ processed: job.processed, total: job.totalCourses });
-            followJob("__all__", job.jobId, {
+            setSyncAllProgress({ processed: job.processed, total: job.total_courses });
+            followJob("__all__", job.job_id, {
               setRunning: setSyncingAll,
-              onProgress: (updated) => setSyncAllProgress({ processed: updated.processed, total: updated.totalCourses }),
+              onProgress: (updated) => setSyncAllProgress({ processed: updated.processed, total: updated.total_courses }),
               onDone: (finished) => {
                 setSyncAllProgress(null);
                 if (finished.status === "completed") onSettled?.();
               },
             });
-          } else if (job.scope === "course" && job.courseId) {
-            setCourseStates((prev) => ({ ...prev, [job.courseId]: "running" }));
-            followJob(job.courseId, job.jobId, {
+          } else if (job.scope === "course" && job.course_id) {
+            setCourseStates((prev) => ({ ...prev, [job.course_id]: "running" }));
+            followJob(job.course_id, job.job_id, {
               setRunning: (running) =>
-                setCourseStates((prev) => ({ ...prev, [job.courseId]: running ? "running" : prev[job.courseId] })),
+                setCourseStates((prev) => ({ ...prev, [job.course_id]: running ? "running" : prev[job.course_id] })),
               onDone: (finished) => {
-                setCourseStates((prev) => ({ ...prev, [job.courseId]: finished.status }));
+                setCourseStates((prev) => ({ ...prev, [job.course_id]: finished.status }));
                 if (finished.status === "completed") onSettled?.();
               },
             });

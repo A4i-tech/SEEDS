@@ -43,21 +43,21 @@ const SubodhaSyncHistory = ({ onClose }) => {
 
         <ul className="subodha-sync-history-list">
           {jobs.map((job) => (
-            <li key={job.jobId} className="subodha-sync-history-item">
+            <li key={job.job_id} className="subodha-sync-history-item">
               <button
                 type="button"
                 className="subodha-sync-history-summary"
-                onClick={() => setExpandedId(expandedId === job.jobId ? null : job.jobId)}
+                onClick={() => setExpandedId(expandedId === job.job_id ? null : job.job_id)}
               >
-                <span>{job.scope === "course" ? job.courseId : "All courses"}</span>
+                <span>{job.scope === "course" ? job.course_id : "All courses"}</span>
                 <span>{job.status}</span>
-                <span>{job.startedAt}</span>
+                <span>{job.started_at}</span>
                 <span>
                   {job.stats?.saved ?? 0} saved / {job.stats?.skipped ?? 0} skipped /{" "}
                   {job.stats?.empty ?? 0} empty / {job.stats?.failed ?? 0} failed
                 </span>
               </button>
-              {expandedId === job.jobId && (
+              {expandedId === job.job_id && (
                 <table className="subodha-sync-history-detail">
                   <thead>
                     <tr>
@@ -69,9 +69,9 @@ const SubodhaSyncHistory = ({ onClose }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {(job.courses || []).map((c, i) => (
-                      <tr key={`${c.courseId}-${i}`}>
-                        <td>{c.courseId}</td>
+                    {(job.items || []).map((c, i) => (
+                      <tr key={`${c.source_id}-${i}`}>
+                        <td>{c.source_id}</td>
                         <td>{c.name}</td>
                         <td>{STATUS_LABEL[c.status] || c.status}</td>
                         <td>{c.error || "—"}</td>
