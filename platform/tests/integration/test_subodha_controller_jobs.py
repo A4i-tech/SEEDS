@@ -9,7 +9,7 @@ from httpx import ASGITransport, AsyncClient
 from app.main import app
 from app.platform.auth.dependencies import get_db
 from app.platform.auth.jwt import create_access_token
-from app.repositories.subodha_job_repository import SubodhaJobRepository
+from app.repositories.content_aggregator_sync_job_repository import ContentAggregatorSyncJobRepository
 from tests.support.mongomock_async import AsyncMongoMockClient
 
 
@@ -53,21 +53,21 @@ async def test_active_jobs_empty_when_none_running(client, auth_headers):
 
 @pytest.mark.asyncio
 async def test_active_jobs_returns_running_job(client, auth_headers, mock_db):
-    job_repo = SubodhaJobRepository(mock_db)
-    await job_repo.create_job("job-1", tenant_id="tenant-a", scope="all", course_id=None, total_courses=3)
+    job_repo = ContentAggregatorSyncJobRepository(mock_db)
+    await job_repo.create_job("job-1", tenant_id="tenant-a", source_type="subodha", scope="all", source_id=None, total_items=3)
 
     resp = await client.get("/subodha/sync/jobs/active", headers=auth_headers)
     assert resp.status_code == 200
     jobs = resp.json()["jobs"]
     assert len(jobs) == 1
-    assert jobs[0]["jobId"] == "job-1"
+    assert jobs[0]["job_id"] == "job-1"
     assert jobs[0]["scope"] == "all"
 
 
 @pytest.mark.asyncio
 async def test_active_jobs_does_not_leak_other_tenants_jobs(client, auth_headers, mock_db):
-    job_repo = SubodhaJobRepository(mock_db)
-    await job_repo.create_job("job-1", tenant_id="tenant-b", scope="all", course_id=None, total_courses=3)
+    job_repo = ContentAggregatorSyncJobRepository(mock_db)
+    await job_repo.create_job("job-1", tenant_id="tenant-b", source_type="subodha", scope="all", source_id=None, total_items=3)
 
     resp = await client.get("/subodha/sync/jobs/active", headers=auth_headers)
     assert resp.status_code == 200
@@ -76,14 +76,14 @@ async def test_active_jobs_does_not_leak_other_tenants_jobs(client, auth_headers
 
 @pytest.mark.asyncio
 async def test_jobs_history_filters_by_scope(client, auth_headers, mock_db):
-    job_repo = SubodhaJobRepository(mock_db)
-    await job_repo.create_job("job-all", tenant_id="tenant-a", scope="all", course_id=None, total_courses=0)
-    await job_repo.create_job("job-course", tenant_id="tenant-a", scope="course", course_id="c1", total_courses=1)
+    job_repo = ContentAggregatorSyncJobRepository(mock_db)
+    await job_repo.create_job("job-all", tenant_id="tenant-a", source_type="subodha", scope="all", source_id=None, total_items=0)
+    await job_repo.create_job("job-course", tenant_id="tenant-a", source_type="subodha", scope="course", source_id="c1", total_items=1)
 
     resp = await client.get("/subodha/sync/jobs?scope=course", headers=auth_headers)
     assert resp.status_code == 200
     jobs = resp.json()["jobs"]
-    assert [j["jobId"] for j in jobs] == ["job-course"]
+    assert [j["job_id"] for j in jobs] == ["job-course"]
 
 
 @pytest.mark.asyncio
@@ -94,8 +94,8 @@ async def test_sync_status_returns_404_for_unknown_job(client, auth_headers):
 
 @pytest.mark.asyncio
 async def test_sync_status_returns_404_for_other_tenants_job(client, auth_headers, mock_db):
-    job_repo = SubodhaJobRepository(mock_db)
-    await job_repo.create_job("job-1", tenant_id="tenant-b", scope="all", course_id=None, total_courses=0)
+    job_repo = ContentAggregatorSyncJobRepository(mock_db)
+    await job_repo.create_job("job-1", tenant_id="tenant-b", source_type="subodha", scope="all", source_id=None, total_items=0)
 
     resp = await client.get("/subodha/sync/status/job-1", headers=auth_headers)
     assert resp.status_code == 404
@@ -103,8 +103,8 @@ async def test_sync_status_returns_404_for_other_tenants_job(client, auth_header
 
 @pytest.mark.asyncio
 async def test_stream_replays_done_immediately_for_finished_job(client, auth_headers, mock_db):
-    job_repo = SubodhaJobRepository(mock_db)
-    await job_repo.create_job("job-1", tenant_id="tenant-a", scope="all", course_id=None, total_courses=1)
+    job_repo = ContentAggregatorSyncJobRepository(mock_db)
+    await job_repo.create_job("job-1", tenant_id="tenant-a", source_type="subodha", scope="all", source_id=None, total_items=1)
     await job_repo.set_job_status("tenant-a", "job-1", "completed")
 
     async with client.stream("GET", "/subodha/sync/stream/job-1", headers=auth_headers) as resp:
@@ -119,14 +119,14 @@ async def test_stream_replays_done_immediately_for_finished_job(client, auth_hea
     assert body.startswith("data: ")
     payload = json.loads(body[len("data: "):].strip())
     assert payload["event"] == "done"
-    assert payload["job"]["jobId"] == "job-1"
+    assert payload["job"]["job_id"] == "job-1"
     assert payload["job"]["status"] == "completed"
 
 
 @pytest.mark.asyncio
 async def test_stream_yields_nothing_for_other_tenants_job(client, auth_headers, mock_db):
-    job_repo = SubodhaJobRepository(mock_db)
-    await job_repo.create_job("job-1", tenant_id="tenant-b", scope="all", course_id=None, total_courses=1)
+    job_repo = ContentAggregatorSyncJobRepository(mock_db)
+    await job_repo.create_job("job-1", tenant_id="tenant-b", source_type="subodha", scope="all", source_id=None, total_items=1)
     await job_repo.set_job_status("tenant-b", "job-1", "completed")
 
     async with client.stream("GET", "/subodha/sync/stream/job-1", headers=auth_headers) as resp:
@@ -138,10 +138,17 @@ async def test_stream_yields_nothing_for_other_tenants_job(client, auth_headers,
 
 @pytest.mark.asyncio
 async def test_courses_are_isolated_between_tenants(client, mock_db):
-    from app.repositories.subodha_repository import SubodhaRepository
+    from app.aggregators.models import CanonicalNode, NodeKind
+    from app.repositories.content_aggregator_repository import ContentAggregatorRepository
 
-    repo = SubodhaRepository(mock_db)
-    await repo.save_course("tenant-a", "course-1", {"sourceId": "course-1", "title": "A's course"})
+    repo = ContentAggregatorRepository(mock_db)
+    node = CanonicalNode(
+        tenant_id="tenant-a", source_type="subodha", source_id="course-1", root_id="course-1", parent_id=None,
+        order=0, node_kind=NodeKind.CONTAINER, item_type=None, display_name="A's course", content=None,
+        lms_url=None, native_type="course", source_metadata={}, last_run_id="run-1",
+        fetched_at="x", created_at="x", updated_at="x",
+    )
+    await repo.upsert_tree("tenant-a", "subodha", "course-1", [node])
 
     a_resp = await client.get("/subodha/courses", headers=_tenant_headers("tenant-a"))
     b_resp = await client.get("/subodha/courses", headers=_tenant_headers("tenant-b"))

@@ -21,7 +21,7 @@ from fastapi import FastAPI
 
 from app.platform.database import close_database, get_database, init_database
 from app.platform.settings import get_settings
-from app.repositories.subodha_job_repository import SubodhaJobRepository
+from app.repositories.content_aggregator_sync_job_repository import ContentAggregatorSyncJobRepository
 
 if TYPE_CHECKING:
     from app.services.conference_service import ConferenceCallManager
@@ -168,9 +168,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # ------------------------------------------------------------------
     await init_database()
 
-    reconciled = await SubodhaJobRepository(get_database()).reconcile_interrupted_jobs()
+    reconciled = await ContentAggregatorSyncJobRepository(get_database()).reconcile_interrupted_jobs()
     if reconciled:
-        logger.info("Reconciled %d interrupted Subodha sync jobs", reconciled)
+        logger.info("Reconciled %d interrupted content aggregator sync jobs", reconciled)
 
     # Init conference manager (available in all modes)
     try:
