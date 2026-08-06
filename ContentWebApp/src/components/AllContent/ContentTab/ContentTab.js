@@ -17,14 +17,14 @@ const ContentTab = ({
   options,
   selectedValues,
   onFilterChange,
-  onResetFilters,
+  titleQuery,
+  onTitleQueryChange,
   onUpdateIVR,
   onEdit,
   onView,
   onDelete,
   onLoadMore,
   isUpdatingIVR,
-  multiselectRef,
   onSyncAll,
   syncingAll,
   syncAllProgress,
@@ -43,12 +43,9 @@ const ContentTab = ({
           <div className="card-description">Add and manage educational audio files</div>
         </div>
         <div className="button-group">
-          <button className="tertiary-button" onClick={onResetFilters}>
-            Reset Filters
-          </button>
           <button
             type="button"
-            className="tertiary-button button-ml-8"
+            className="tertiary-button"
             onClick={onUpdateIVR}
             disabled={isUpdatingIVR}
           >
@@ -96,7 +93,8 @@ const ContentTab = ({
         options={options}
         selectedValues={selectedValues}
         onFilterChange={onFilterChange}
-        multiselectRef={multiselectRef}
+        titleQuery={titleQuery}
+        onTitleQueryChange={onTitleQueryChange}
       />
 
       <ContentTable

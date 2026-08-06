@@ -1,37 +1,42 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { generateFilterOptions, applyFilters } from "../utils/filterHelpers";
+import { fuzzyMatch } from "../utils/fuzzyMatch";
+
+const matchesTitleQuery = (item, query) =>
+  fuzzyMatch(item.title?.english || "", query) || fuzzyMatch(item.title?.local || "", query);
 
 export const useContentFilters = (allContent, setContent, setIsFiltered) => {
   const [selectedValues, setSelectedValues] = useState([]);
-  const multiselectRef = useRef(null);
+  const [titleQuery, setTitleQuery] = useState("");
   const optionsRef = useRef([]);
 
   useEffect(() => {
     optionsRef.current = allContent.length > 0 ? generateFilterOptions(allContent) : [];
   }, [allContent]);
 
-  const handleFilterChange = useCallback(
-    (selectedList) => {
-      setSelectedValues(selectedList);
-      const filteredList = applyFilters(allContent, selectedList, optionsRef.current);
-      setIsFiltered(true);
-      setContent(filteredList);
-    },
-    [allContent, setContent, setIsFiltered]
-  );
+  useEffect(() => {
+    const hasChipFilters = selectedValues.length > 0;
+    const hasTitleQuery = titleQuery.trim().length > 0;
 
-  const resetFilters = useCallback(() => {
-    setSelectedValues([]);
-    multiselectRef.current?.resetSelectedValues();
-    setIsFiltered(false);
-    setContent(allContent);
-  }, [allContent, setContent, setIsFiltered]);
+    if (!hasChipFilters && !hasTitleQuery) {
+      setIsFiltered(false);
+      setContent(allContent);
+      return;
+    }
+
+    let list = hasChipFilters ? applyFilters(allContent, selectedValues, optionsRef.current) : allContent;
+    if (hasTitleQuery) {
+      list = list.filter((item) => matchesTitleQuery(item, titleQuery));
+    }
+    setIsFiltered(true);
+    setContent(list);
+  }, [allContent, selectedValues, titleQuery, setContent, setIsFiltered]);
 
   return {
     options: optionsRef.current,
     selectedValues,
-    handleFilterChange,
-    resetFilters,
-    multiselectRef,
+    handleFilterChange: setSelectedValues,
+    titleQuery,
+    setTitleQuery,
   };
 };

@@ -6,6 +6,7 @@ export const LANGUAGE_LABELS = {
   en: "English",
   ta: "Tamil",
   bn: "Bengali",
+  gu: "Gujarati",
 };
 
 export const LANGUAGE_OPTIONS = Object.entries(LANGUAGE_LABELS).map(([value, label]) => ({ value, label }));

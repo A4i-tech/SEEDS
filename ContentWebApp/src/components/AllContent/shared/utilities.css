@@ -5,13 +5,6 @@
   font-weight: 600;
 }
 
-.filter-label {
-  margin-bottom: 6px;
-  color: #0f172a;
-  font-weight: 600;
-  font-size: 13px;
-}
-
 .placeholder-text {
   color: #94a3b8;
   font-size: 13px;
@@ -88,11 +81,6 @@
     font-size: 13px;
   }
 
-  .filter-label {
-    margin-bottom: 7px;
-    font-size: 13px;
-  }
-
   .status-message {
     font-size: 13px;
     padding: 11px 24px;
@@ -129,13 +117,8 @@
 
 /* Desktop+ */
 @media (min-width: 1024px) {
-  .label,
-  .filter-label {
+  .label {
     font-size: 14px;
-  }
-
-  .filter-label {
-    margin-bottom: 8px;
   }
 
   .status-message {

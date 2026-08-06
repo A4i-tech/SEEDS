@@ -43,13 +43,11 @@ const AllContent = () => {
 
   const { syncingAll, syncAllProgress, courseStates, syncAll, syncCourse } = useSubodhaSync(refreshSubodhaCourses);
 
-  const {
-    options,
-    selectedValues,
-    handleFilterChange,
-    resetFilters: resetContentFilters,
-    multiselectRef,
-  } = useContentFilters(allContent, setContent, setIsFiltered);
+  const { options, selectedValues, handleFilterChange, titleQuery, setTitleQuery } = useContentFilters(
+    allContent,
+    setContent,
+    setIsFiltered
+  );
 
   const {
     teachers,
@@ -181,14 +179,14 @@ const AllContent = () => {
             options={options}
             selectedValues={selectedValues}
             onFilterChange={handleFilterChange}
-            onResetFilters={resetContentFilters}
+            titleQuery={titleQuery}
+            onTitleQueryChange={setTitleQuery}
             onUpdateIVR={handleUpdateIVR}
             onEdit={handleEdit}
             onView={handleView}
             onDelete={canDeleteContent ? deleteContent : null}
             onLoadMore={loadMore}
             isUpdatingIVR={isUpdatingIVR}
-            multiselectRef={multiselectRef}
             onSyncAll={syncAll}
             syncingAll={syncingAll}
             syncAllProgress={syncAllProgress}
