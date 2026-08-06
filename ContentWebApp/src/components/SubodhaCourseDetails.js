@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import katex from "katex";
 import "katex/dist/katex.min.css";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { subodhaService } from "../services/subodhaService";
 import { getLanguageName } from "../utils/languageName";
 import "./SubodhaCourseDetails.css";
@@ -212,9 +214,18 @@ function BlockContent({ block, courseId, onBlockChange }) {
     );
   }
 
+  if (block.markdown) {
+    return (
+      <div className="subodha-block-html">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{block.markdown}</ReactMarkdown>
+      </div>
+    );
+  }
+
   if (block.html) {
-    // Rendering already-published course content from the source LMS,
-    // exactly as it renders on Subodha itself (not user-submitted input).
+    // Fallback for the rare pandoc-conversion-failed case — rendering
+    // already-published course content from the source LMS, exactly as it
+    // renders on Subodha itself (not user-submitted input).
     return <div className="subodha-block-html" dangerouslySetInnerHTML={{ __html: block.html }} />;
   }
 
