@@ -17,7 +17,7 @@ const RowActions = ({ actions }) => (
     {actions.map(({ key, label, icon: Icon, onClick, variant, disabled }) => (
       <button key={key} type="button" className={VARIANT_CLASS[variant]} onClick={onClick} disabled={disabled}>
         <span className="row-action-dot" aria-hidden="true">
-          <Icon size={13} strokeWidth={2.5} />
+          <Icon size={16} strokeWidth={2.5} />
         </span>
         {label}
       </button>

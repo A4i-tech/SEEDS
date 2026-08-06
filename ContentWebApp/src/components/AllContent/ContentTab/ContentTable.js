@@ -28,7 +28,7 @@ const ContentTable = ({
               <th className="table-header">Uploaded</th>
               <th className="table-header">Language</th>
               <th className="table-header">Type</th>
-              <th className="table-header">Actions</th>
+              <th className="table-header table-header-actions">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -50,7 +50,7 @@ const ContentTable = ({
               <th className="table-header">Uploaded</th>
               <th className="table-header">Language</th>
               <th className="table-header">Type</th>
-              <th className="table-header">Actions</th>
+              <th className="table-header table-header-actions">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -94,7 +94,7 @@ const ContentTable = ({
                       )}
                     </span>
                   </td>
-                  <td className="table-cell">
+                  <td className="table-cell table-cell-actions">
                     {isSubodha ? (
                       <RowActions
                         actions={[

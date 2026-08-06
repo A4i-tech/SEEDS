@@ -20,6 +20,12 @@
   max-width: 220px;
 }
 
+.table-cell-actions,
+.table-header-actions {
+  width: 260px;
+  white-space: nowrap;
+}
+
 /* Table header  */
 .table-header {
   background-color: #0f172a;
