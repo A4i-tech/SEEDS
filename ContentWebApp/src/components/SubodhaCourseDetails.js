@@ -413,11 +413,15 @@ function SequentialPlayer({ chapter, sequential, blockMap, courseId, onBlockChan
   return (
     <div>
       <div className="subodha-breadcrumb">
-        <button type="button" className="subodha-breadcrumb-link" onClick={onBack}>
+        <button type="button" className="subodha-breadcrumb-link" onClick={() => onBack()}>
           Course
         </button>
         {" / "}
-        {chapter.display_name} / {sequential.display_name}
+        <button type="button" className="subodha-breadcrumb-link" onClick={() => onBack(chapter.block_id)}>
+          {chapter.display_name}
+        </button>
+        {" / "}
+        {sequential.display_name}
       </div>
       <div className="subodha-unit-tabs">
         <button
@@ -478,7 +482,10 @@ function OutlineNavigator({ outline, blockMap, courseId, onBlockChange, onBackTo
         blockMap={blockMap}
         courseId={courseId}
         onBlockChange={onBlockChange}
-        onBack={() => setSelected(null)}
+        onBack={(expandChapterId) => {
+          setSelected(null);
+          if (expandChapterId) setCollapsed((prev) => ({ ...prev, [expandChapterId]: false }));
+        }}
       />
     );
   }

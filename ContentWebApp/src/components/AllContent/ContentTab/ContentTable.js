@@ -1,5 +1,8 @@
 import React from "react";
+import { Eye, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import { getLanguageName } from "../../../utils/languageName";
+import MiddleEllipsis from "../shared/MiddleEllipsis";
+import RowActions from "../shared/RowActions";
 import "../shared/tables.css";
 import "../shared/buttons.css";
 import "../shared/utilities.css";
@@ -59,15 +62,13 @@ const ContentTable = ({
               const syncing = syncState === "running";
               return (
                 <tr key={itemId} className="table-row-white">
-                  <td className="table-cell">
-                    {item.title.english}
-                    <br />
-                    <span className="table-cell-secondary">{item.title.local}</span>
+                  <td className="table-cell table-cell-truncate">
+                    <MiddleEllipsis text={item.title.english} />
+                    <MiddleEllipsis text={item.title.local} className="table-cell-secondary" />
                   </td>
-                  <td className="table-cell">
-                    {item.theme.english}
-                    <br />
-                    <span className="table-cell-secondary">{item.theme.local}</span>
+                  <td className="table-cell table-cell-truncate">
+                    <MiddleEllipsis text={item.theme.english} />
+                    <MiddleEllipsis text={item.theme.local} className="table-cell-secondary" />
                   </td>
                   <td className="table-cell">
                     {isSubodha
@@ -94,56 +95,37 @@ const ContentTable = ({
                     </span>
                   </td>
                   <td className="table-cell">
-                    <div className="action-buttons-wrapper">
-                      {isSubodha ? (
-                        <>
-                          <button
-                            onClick={() => onSyncCourse(itemId, item.title.english)}
-                            disabled={syncing}
-                            className="action-button-base action-button-sync"
-                          >
-                            {syncing ? "Syncing..." : "Sync"}
-                          </button>
-                          <button
-                            onClick={() => onView(itemType, itemId)}
-                            className="action-button-base action-button-view"
-                          >
-                            View
-                          </button>
-                          {onDeleteSubodhaCourse && (
-                            <button
-                              onClick={() => onDeleteSubodhaCourse(itemId, item.title.english)}
-                              className="action-button-base action-button-delete"
-                            >
-                              Delete
-                            </button>
-                          )}
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            onClick={() => onEdit(itemType, itemId)}
-                            className="action-button-base action-button-edit"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => onView(itemType, itemId)}
-                            className="action-button-base action-button-view"
-                          >
-                            View
-                          </button>
-                          {onDelete && (
-                            <button
-                              onClick={() => onDelete(itemType, itemId)}
-                              className="action-button-base action-button-delete"
-                            >
-                              Delete
-                            </button>
-                          )}
-                        </>
-                      )}
-                    </div>
+                    {isSubodha ? (
+                      <RowActions
+                        actions={[
+                          {
+                            key: "sync",
+                            label: syncing ? "Syncing…" : "Sync",
+                            icon: RefreshCw,
+                            variant: "sync",
+                            disabled: syncing,
+                            onClick: () => onSyncCourse(itemId, item.title.english),
+                          },
+                          { key: "view", label: "View", icon: Eye, variant: "view", onClick: () => onView(itemType, itemId) },
+                          ...(onDeleteSubodhaCourse
+                            ? [{
+                                key: "delete", label: "Delete", icon: Trash2, variant: "delete",
+                                onClick: () => onDeleteSubodhaCourse(itemId, item.title.english),
+                              }]
+                            : []),
+                        ]}
+                      />
+                    ) : (
+                      <RowActions
+                        actions={[
+                          { key: "edit", label: "Edit", icon: Pencil, variant: "edit", onClick: () => onEdit(itemType, itemId) },
+                          { key: "view", label: "View", icon: Eye, variant: "view", onClick: () => onView(itemType, itemId) },
+                          ...(onDelete
+                            ? [{ key: "delete", label: "Delete", icon: Trash2, variant: "delete", onClick: () => onDelete(itemType, itemId) }]
+                            : []),
+                        ]}
+                      />
+                    )}
                   </td>
                 </tr>
               );

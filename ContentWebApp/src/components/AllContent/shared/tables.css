@@ -13,6 +13,11 @@
   width: 100%;
   min-width: 600px; /* Ensure horizontal scroll on mobile */
   border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.table-cell-truncate {
+  max-width: 220px;
 }
 
 /* Table header  */

@@ -1,0 +1,71 @@
+.row-actions {
+  display: inline-flex;
+  gap: 8px;
+  padding: 4px;
+  background: #f8fafc;
+  border-radius: 999px;
+}
+
+.row-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  border-radius: 999px;
+  height: 32px;
+  padding: 0 12px 0 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.row-action:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.row-action:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.row-action-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.row-action-view {
+  background: var(--color-success-bg);
+  color: var(--color-success-fg);
+}
+
+.row-action-view .row-action-dot {
+  background: var(--color-success-dot);
+  color: #fff;
+}
+
+.row-action-edit {
+  background: var(--color-warning-bg);
+  color: var(--color-warning-fg);
+}
+
+.row-action-edit .row-action-dot {
+  background: var(--color-warning-dot);
+  color: var(--color-warning-dot-fg);
+}
+
+.row-action-delete {
+  background: var(--color-danger-bg);
+  color: var(--color-danger-fg);
+}
+
+.row-action-delete .row-action-dot {
+  background: var(--color-danger-dot);
+  color: #fff;
+}
