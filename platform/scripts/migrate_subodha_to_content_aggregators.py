@@ -19,6 +19,7 @@ from app.aggregators.content_strategies import STRATEGY_REGISTRY
 from app.aggregators.models import BlobContext, CanonicalNode, ItemType, NodeKind
 from app.aggregators.sync_job_models import SyncItemResult, SyncJob, SyncStats
 from app.platform.database import get_database, init_database
+from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider
 from app.repositories.content_aggregator_repository import ContentAggregatorRepository
 
@@ -66,11 +67,67 @@ def _outline_container_nodes(
     return nodes, item_parent
 
 
+async def _migrate_one_course(
+    db: AsyncDatabase, repo: ContentAggregatorRepository, blob: BlobStorageProvider, container: str,
+    course_id: object, already_migrated: set[str], *, dry_run: bool,
+) -> str:
+    """Returns "migrated" or "failed" for one course."""
+    course = await db["subodhaCourses"].find_one({"_id": course_id})
+    if course is None:
+        return "migrated"
+    if course["sourceId"] in already_migrated and not dry_run:
+        return "migrated"
+    try:
+        tenant_id = course["tenantId"]
+        root_id = course["sourceId"]
+        run_id = course.get("lastRunId") or "migration"
+        now = datetime.now(UTC).isoformat()
+
+        container_nodes, item_parent = _outline_container_nodes(course.get("outline", []), tenant_id, root_id, run_id, now)
+
+        course_node = CanonicalNode(
+            tenant_id=tenant_id, source_type="subodha", source_id=root_id, root_id=root_id, parent_id=None,
+            order=0, node_kind=NodeKind.CONTAINER, item_type=None, display_name=course.get("title", ""),
+            content=None, lms_url=None, native_type="course",
+            source_metadata={
+                "org": course.get("org"), "course_number": course.get("courseNumber"),
+                "description": course.get("description"), "language": course.get("language"),
+                "start": course.get("start"), "pacing": course.get("pacing"), "hidden": course.get("hidden"),
+                "invitation_only": course.get("invitationOnly"), "mobile_available": course.get("mobileAvailable"),
+                "content_hash": course.get("contentHash"),
+            },
+            last_run_id=run_id, fetched_at=course.get("fetchedAt", now), created_at=now, updated_at=now,
+        )
+
+        item_nodes: list[CanonicalNode] = []
+        safe_course_id = _safe(root_id)
+        for block in course.get("blocks", []):
+            native_type = block["type"]
+            item_type = _LEGACY_TYPE_TO_ITEM_TYPE.get(native_type, ItemType.OTHER)
+            ctx = BlobContext(container=container, blob_prefix=f"courses/{safe_course_id}/items/{_safe(block['blockId'])}")
+            strategy = STRATEGY_REGISTRY[item_type]
+            raw = block.get("studentViewData") if item_type == ItemType.VIDEO else block.get("html", "")
+            content = None if dry_run else await strategy.process(raw, ctx, blob)
+            item_nodes.append(CanonicalNode(
+                tenant_id=tenant_id, source_type="subodha", source_id=block["blockId"], root_id=root_id,
+                parent_id=item_parent.get(block["blockId"], root_id), order=0, node_kind=NodeKind.ITEM,
+                item_type=item_type, display_name=block.get("displayName", ""), content=content,
+                lms_url=block.get("lmsUrl"), native_type=native_type, source_metadata={},
+                last_run_id=run_id, fetched_at=now, created_at=now, updated_at=now,
+            ))
+
+        if not dry_run:
+            await repo.upsert_tree(tenant_id, "subodha", root_id, [course_node, *container_nodes, *item_nodes])
+        return "migrated"
+    except Exception as exc:  # noqa: BLE001
+        logger.error("[migration] failed course %s: %s", course.get("sourceId"), exc)
+        return "failed"
+
+
 async def migrate_courses(db: AsyncDatabase, *, dry_run: bool, blob: BlobStorageProvider | None = None) -> dict[str, int]:
     repo = ContentAggregatorRepository(db)
     blob = blob if blob is not None else BlobStorageProvider()
     container = "subodha"
-    counts = {"migrated": 0, "failed": 0}
 
     already_migrated = {
         d["source_id"]
@@ -78,60 +135,14 @@ async def migrate_courses(db: AsyncDatabase, *, dry_run: bool, blob: BlobStorage
     }
     course_ids = [d["_id"] async for d in db["subodhaCourses"].find({}, {"_id": 1})]
 
-    for course_id in course_ids:
-        course = await db["subodhaCourses"].find_one({"_id": course_id})
-        if course is None:
-            continue
-        if course["sourceId"] in already_migrated and not dry_run:
-            counts["migrated"] += 1
-            continue
-        try:
-            tenant_id = course["tenantId"]
-            root_id = course["sourceId"]
-            run_id = course.get("lastRunId") or "migration"
-            now = datetime.now(UTC).isoformat()
+    semaphore = asyncio.Semaphore(get_settings().subodha_course_concurrency)
 
-            container_nodes, item_parent = _outline_container_nodes(course.get("outline", []), tenant_id, root_id, run_id, now)
+    async def run_one(course_id: object) -> str:
+        async with semaphore:
+            return await _migrate_one_course(db, repo, blob, container, course_id, already_migrated, dry_run=dry_run)
 
-            course_node = CanonicalNode(
-                tenant_id=tenant_id, source_type="subodha", source_id=root_id, root_id=root_id, parent_id=None,
-                order=0, node_kind=NodeKind.CONTAINER, item_type=None, display_name=course.get("title", ""),
-                content=None, lms_url=None, native_type="course",
-                source_metadata={
-                    "org": course.get("org"), "course_number": course.get("courseNumber"),
-                    "description": course.get("description"), "language": course.get("language"),
-                    "start": course.get("start"), "pacing": course.get("pacing"), "hidden": course.get("hidden"),
-                    "invitation_only": course.get("invitationOnly"), "mobile_available": course.get("mobileAvailable"),
-                    "content_hash": course.get("contentHash"),
-                },
-                last_run_id=run_id, fetched_at=course.get("fetchedAt", now), created_at=now, updated_at=now,
-            )
-
-            item_nodes: list[CanonicalNode] = []
-            safe_course_id = _safe(root_id)
-            for block in course.get("blocks", []):
-                native_type = block["type"]
-                item_type = _LEGACY_TYPE_TO_ITEM_TYPE.get(native_type, ItemType.OTHER)
-                ctx = BlobContext(container=container, blob_prefix=f"courses/{safe_course_id}/items/{_safe(block['blockId'])}")
-                strategy = STRATEGY_REGISTRY[item_type]
-                raw = block.get("studentViewData") if item_type == ItemType.VIDEO else block.get("html", "")
-                content = None if dry_run else await strategy.process(raw, ctx, blob)
-                item_nodes.append(CanonicalNode(
-                    tenant_id=tenant_id, source_type="subodha", source_id=block["blockId"], root_id=root_id,
-                    parent_id=item_parent.get(block["blockId"], root_id), order=0, node_kind=NodeKind.ITEM,
-                    item_type=item_type, display_name=block.get("displayName", ""), content=content,
-                    lms_url=block.get("lmsUrl"), native_type=native_type, source_metadata={},
-                    last_run_id=run_id, fetched_at=now, created_at=now, updated_at=now,
-                ))
-
-            if not dry_run:
-                await repo.upsert_tree(tenant_id, "subodha", root_id, [course_node, *container_nodes, *item_nodes])
-            counts["migrated"] += 1
-        except Exception as exc:  # noqa: BLE001
-            logger.error("[migration] failed course %s: %s", course.get("sourceId"), exc)
-            counts["failed"] += 1
-
-    return counts
+    results = await asyncio.gather(*(run_one(cid) for cid in course_ids))
+    return {"migrated": results.count("migrated"), "failed": results.count("failed")}
 
 
 async def migrate_jobs(db: AsyncDatabase, *, dry_run: bool) -> dict[str, int]:
