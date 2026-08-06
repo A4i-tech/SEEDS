@@ -51,6 +51,11 @@
   overflow-x: auto;
 }
 
+.subodha-block-html p,
+.subodha-block-html li {
+  text-align: justify !important;
+}
+
 .subodha-block-html img {
   max-width: 100%;
 }
