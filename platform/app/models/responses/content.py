@@ -61,8 +61,8 @@ class ContentBase(BaseModel):
 
     id: str = Field(validation_alias="_id")
     language: str
-    title: TitleText
-    theme: TitleText
+    title: TitleText = Field(default_factory=TitleText)
+    theme: TitleText = Field(default_factory=TitleText)
     is_pull_model: bool = False
     is_teacher_app: bool = False
     is_deleted: bool = False
