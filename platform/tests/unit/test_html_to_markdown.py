@@ -78,6 +78,33 @@ def test_dangling_hard_break_stripped_before_closing_math_delimiter():
     assert not cleaned.rstrip("*\r").endswith(chr(92))
 
 
+def test_html_to_markdown_unwraps_backtick_math_to_bare_dollars():
+    """pandoc's gfm writer emits inline math as `` $`\\latex`$ `` (backtick-
+    wrapped) for round-trip safety, but that convention isn't recognized by
+    most generic markdown+math tools (Pandoc itself, Obsidian, VS Code,
+    Jupyter, GitHub all expect plain $latex$) — and nesting backticks inside
+    emphasis (`*...$`\\sqrt{2}`$...*`) trips up some parsers' delimiter-run
+    detection, leaving literal asterisks in the output. Unwrap it at the
+    source so every consumer of the stored markdown gets a universal form."""
+    html = (
+        '<p><math xmlns="http://www.w3.org/1998/Math/MathML">'
+        "<msqrt><mn>2</mn></msqrt></math></p>"
+    )
+    md = html_to_markdown(html)
+    assert "`" not in md
+    assert "$" in md
+
+
+def test_html_to_markdown_unwraps_backtick_math_inside_emphasis():
+    html = (
+        '<p><i>This means 2 divides <math xmlns="http://www.w3.org/1998/Math/MathML">'
+        "<msup><mi>b</mi><mn>2</mn></msup></math></i></p>"
+    )
+    md = html_to_markdown(html)
+    assert "`" not in md
+    assert "*This means 2 divides $" in md
+
+
 def test_markdown_to_html_round_trip():
     html = markdown_to_html("**Hello** world")
     assert "<strong>Hello</strong>" in html

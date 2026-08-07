@@ -7,25 +7,21 @@ Ported from subodha/backend/src/{auth,listCourses,fetchBlocks,fetchXBlockContent
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
+from bs4 import BeautifulSoup
 
 from app.platform.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
 _CONTENT_TYPES_FOR_XBLOCK = {"html", "video", "problem", "drag-and-drop-v2"}
-_XBLOCK_JSON_INIT_RE = re.compile(r"<script[^>]+xblock-json-init-args[^>]*>.*?</script>", re.I | re.S)
-_XBLOCK_DIV_OPEN_RE = re.compile(r'<div[^>]+class="[^"]*\bxblock\b[^"]*"[^>]*>', re.I)
-_DIV_TAG_RE = re.compile(r"<div\b|</div>", re.I)
-_VIDEO_METADATA_RE = re.compile(r"data-metadata='([^']+)'")
-_STAFF_DEBUG_DIV_OPEN_RE = re.compile(
-    r'<div[^>]+class="[^"]*\b(?:wrap-instructor-info|xqa-modal|staff-modal|history-modal)\b[^"]*"[^>]*>', re.I
-)
+_STAFF_DEBUG_SELECTOR = ".wrap-instructor-info, .xqa-modal, .staff-modal, .history-modal"
 _MATHTYPE_ANNOTATION_RE = re.compile(r"MathType@MTEF@.*?@[0-9A-Fa-f]{4}@", re.S)
 
 
@@ -33,19 +29,10 @@ def _strip_staff_debug(html: str) -> str:
     """Remove staff-only debug/QA panels the LMS nests inside the xblock's own
     content div (not as trailing page siblings, but as siblings within the div
     `_extract_html` already isolates) — these are never part of the lesson."""
-    result = html
-    while True:
-        open_match = _STAFF_DEBUG_DIV_OPEN_RE.search(result)
-        if not open_match:
-            return result
-        depth = 1
-        end = len(result)
-        for tag in _DIV_TAG_RE.finditer(result, open_match.end()):
-            depth += -1 if tag.group().lower().startswith("</div") else 1
-            if depth == 0:
-                end = tag.end()
-                break
-        result = result[: open_match.start()] + result[end:]
+    soup = BeautifulSoup(html, "html.parser")
+    for tag in soup.select(_STAFF_DEBUG_SELECTOR):
+        tag.decompose()
+    return str(soup)
 
 
 def _extract_html(raw: str) -> str:
@@ -53,46 +40,27 @@ def _extract_html(raw: str) -> str:
 
     The xblock endpoint responds with an entire HTML document, not a fragment,
     and this instance's markup always has trailing siblings (staff-debug modals,
-    footer scripts, </body></html>) after the xblock div — so anchoring on the
-    *last* </div> in the document (as a naive regex would) never matches and
-    silently falls back to the whole 30KB+ page. Track div nesting depth from
-    the opening tag instead, to find the div's actual matching close.
+    footer scripts, </body></html>) after the xblock div.
     """
-    stripped = _XBLOCK_JSON_INIT_RE.sub("", raw)
-    open_match = _XBLOCK_DIV_OPEN_RE.search(stripped)
-    if not open_match:
-        return stripped.strip()
-
-    depth = 1
-    content_start = open_match.end()
-    for tag in _DIV_TAG_RE.finditer(stripped, content_start):
-        depth += -1 if tag.group().lower().startswith("</div") else 1
-        if depth == 0:
-            return stripped[content_start : tag.start()].strip()
-
-    return stripped[content_start:].strip()
+    soup = BeautifulSoup(raw, "html.parser")
+    for script in soup.find_all("script", class_="xblock-json-init-args"):
+        script.decompose()
+    xblock_div = soup.find("div", class_=lambda c: c == "xblock")
+    return xblock_div.decode_contents().strip()
 
 
-def _extract_video_data(raw: str) -> dict[str, Any] | None:
-    import json
-
-    m = _VIDEO_METADATA_RE.search(raw)
-    if not m:
+def _extract_video_data(raw: str) -> dict[str, object] | None:
+    soup = BeautifulSoup(raw, "html.parser")
+    tag = soup.find(attrs={"data-metadata": True})
+    if tag is None:
         return None
-    decoded = (
-        m.group(1)
-        .replace("&#34;", '"')
-        .replace("&quot;", '"')
-        .replace("&#39;", "'")
-        .replace("&amp;", "&")
-    )
     try:
-        meta = json.loads(decoded)
+        meta = json.loads(tag["data-metadata"])
     except (ValueError, TypeError):
         return None
     return {
         "sources": meta.get("sources") or [],
-        "streams": meta.get("streams") or "",
+        "streams": meta.get("streams"),
         "poster": meta.get("poster"),
         "transcriptLanguages": meta.get("transcriptLanguages") or {},
     }

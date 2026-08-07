@@ -5,9 +5,10 @@ SourceAdapter.process_nodes() runs them through a ContentStrategy.
 """
 from __future__ import annotations
 
-import re
 from datetime import UTC, datetime
 from typing import ClassVar
+
+from bs4 import BeautifulSoup
 
 from app.aggregators.base_adapter import SourceAdapter
 from app.aggregators.models import CanonicalNode, ItemType, NodeKind
@@ -16,7 +17,6 @@ _CONTENT_TYPES = {"html", "video", "problem", "drag-and-drop-v2", "lti", "discus
 _ITEM_TYPE_MAP: dict[str, ItemType] = {
     "html": ItemType.TEXT, "video": ItemType.VIDEO, "problem": ItemType.QUIZ, "discussion": ItemType.DISCUSSION,
 }
-_REQUEST_TOKEN_RE = re.compile(r'\sdata-request-token="[^"]*"')
 
 
 def _rewrite_urls(html: str, url_map: dict[str, str]) -> str:
@@ -28,7 +28,10 @@ def _rewrite_urls(html: str, url_map: dict[str, str]) -> str:
 
 
 def _strip_volatile(html: str) -> str:
-    return _REQUEST_TOKEN_RE.sub("", html) if html else html
+    soup = BeautifulSoup(html, "html.parser")
+    for tag in soup.find_all(attrs={"data-request-token": True}):
+        del tag["data-request-token"]
+    return str(soup)
 
 
 def _item_type_for(native_type: str) -> ItemType:

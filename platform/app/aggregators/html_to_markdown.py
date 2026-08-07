@@ -9,6 +9,8 @@ _MARKDOWN_TARGET = "gfm-raw_html-bracketed_spans-raw_attribute"
 
 _DANGLING_HARD_BREAK = re.compile(r"\\(?=\r?\n\r?\n|\r?\n?$|`\$)")
 
+_BACKTICK_MATH_RE = re.compile(r"\$`([^`]+)`\$")
+
 _CELL_PARAGRAPH_TAGS = ("p", "div")
 
 
@@ -56,7 +58,8 @@ def _flatten_multiblock_table_cells(html: str) -> str:
 
 def html_to_markdown(html: str) -> str:
     markdown = pypandoc.convert_text(_flatten_multiblock_table_cells(html), _MARKDOWN_TARGET, format="html")
-    return _DANGLING_HARD_BREAK.sub("", markdown)
+    markdown = _DANGLING_HARD_BREAK.sub("", markdown)
+    return _BACKTICK_MATH_RE.sub(lambda m: f"${m.group(1)}$", markdown)
 
 
 def markdown_to_html(markdown: str) -> str:
