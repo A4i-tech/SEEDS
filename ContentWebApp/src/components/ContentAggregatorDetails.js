@@ -34,6 +34,16 @@ function normalizeMathDelimiters(markdown) {
   return markdown.replace(BACKTICK_MATH_RE, (match, latex) => `$${latex}$`);
 }
 
+function MarkdownParagraph({ children, ...props }) {
+  const firstChild = React.Children.toArray(children)[0];
+  const isNestedBullet = typeof firstChild === "string" && firstChild.trimStart().startsWith("■");
+  return (
+    <p {...props} className={isNestedBullet ? "content-aggregator-nested-bullet" : undefined}>
+      {children}
+    </p>
+  );
+}
+
 function getYoutubeId(streams) {
   if (!streams) return null;
   const entries = streams.split(",");
@@ -244,7 +254,11 @@ function BlockContent({ block, courseId, onBlockChange }) {
   if (block.markdown) {
     return (
       <div className="content-aggregator-block-html">
-        <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm, remarkMath]}
+          rehypePlugins={[rehypeKatex]}
+          components={{ p: MarkdownParagraph }}
+        >
           {normalizeMathDelimiters(block.markdown)}
         </ReactMarkdown>
       </div>

@@ -57,6 +57,10 @@
   margin-bottom: 0;
 }
 
+.content-aggregator-block-html p.content-aggregator-nested-bullet {
+  padding-left: 24px;
+}
+
 .content-aggregator-block-html ul,
 .content-aggregator-block-html ol {
   margin: 0 0 20px;
