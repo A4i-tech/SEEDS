@@ -23,7 +23,12 @@ from app.repositories.content_aggregator_sync_job_repository import (
     ContentAggregatorSyncJobRepository,
     get_content_aggregator_sync_job_repo,
 )
-from app.services.content_aggregator_sync_jobs import create_job, finish_job, serialize_job, subscribe
+from app.services.content_aggregator_sync_jobs import (
+    create_job,
+    finish_job,
+    serialize_job,
+    subscribe,
+)
 from app.services.subodha_service import SubodhaService, get_subodha_service
 
 router = APIRouter(prefix="/content-aggregators", tags=["Content Aggregators"])

@@ -27,7 +27,7 @@ async def _sign_blob_image_urls(markdown: str, blob: BlobStorageProvider) -> str
     signed = await asyncio.gather(
         *(blob.get_sas_url_from_blob_url(url, expiry_hours=1) for url in urls), return_exceptions=True
     )
-    for original, result in zip(urls, signed):
+    for original, result in zip(urls, signed, strict=True):
         if isinstance(result, Exception):
             logger.warning("subodha_serializer: failed to sign image url %s — %s", original, result)
             continue
@@ -165,7 +165,7 @@ def _build_outline(
     def vertical_outline(vert: CanonicalNode) -> LegacyOutlineVertical:
         leaves = sorted(items_by_parent.get(vert.source_id, []), key=lambda n: n.order)
         ordered_items.extend(leaves)
-        return LegacyOutlineVertical(vert.source_id, vert.display_name, [l.source_id for l in leaves])
+        return LegacyOutlineVertical(vert.source_id, vert.display_name, [leaf.source_id for leaf in leaves])
 
     def sequential_outline(seq: CanonicalNode) -> LegacyOutlineSequential:
         verticals = sorted(containers_by_parent.get(seq.source_id, []), key=lambda n: n.order)

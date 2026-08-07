@@ -9,7 +9,9 @@ from httpx import ASGITransport, AsyncClient
 from app.main import app
 from app.platform.auth.dependencies import get_db
 from app.platform.auth.jwt import create_access_token
-from app.repositories.content_aggregator_sync_job_repository import ContentAggregatorSyncJobRepository
+from app.repositories.content_aggregator_sync_job_repository import (
+    ContentAggregatorSyncJobRepository,
+)
 from tests.support.mongomock_async import AsyncMongoMockClient
 
 

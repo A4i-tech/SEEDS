@@ -23,7 +23,9 @@ from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider
 from app.providers.subodha_client import SubodhaClient
 from app.repositories.content_aggregator_repository import ContentAggregatorRepository
-from app.repositories.content_aggregator_sync_job_repository import ContentAggregatorSyncJobRepository
+from app.repositories.content_aggregator_sync_job_repository import (
+    ContentAggregatorSyncJobRepository,
+)
 from app.serializers.subodha_serializer import LegacyCourseDoc, to_course_doc
 from app.services.content_aggregator_sync_jobs import record_item_result, set_total
 

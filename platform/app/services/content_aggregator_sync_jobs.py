@@ -9,7 +9,9 @@ import uuid
 from collections.abc import AsyncIterator
 
 from app.aggregators.sync_job_models import SyncItemResult, SyncJob
-from app.repositories.content_aggregator_sync_job_repository import ContentAggregatorSyncJobRepository
+from app.repositories.content_aggregator_sync_job_repository import (
+    ContentAggregatorSyncJobRepository,
+)
 
 _subscribers: dict[str, list[asyncio.Queue]] = {}
 

@@ -3,7 +3,9 @@ from __future__ import annotations
 import pytest
 
 from app.repositories.content_aggregator_repository import ContentAggregatorRepository
-from app.repositories.content_aggregator_sync_job_repository import ContentAggregatorSyncJobRepository
+from app.repositories.content_aggregator_sync_job_repository import (
+    ContentAggregatorSyncJobRepository,
+)
 from app.services import content_aggregator_sync_jobs as jobs
 from app.services.subodha_service import SubodhaService
 from tests.support.mongomock_async import AsyncMongoMockClient

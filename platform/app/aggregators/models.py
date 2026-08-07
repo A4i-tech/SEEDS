@@ -6,16 +6,15 @@ from_doc(); everything above that boundary works with these dataclasses.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
-from typing import Union
+from enum import StrEnum
 
 
-class NodeKind(str, Enum):
+class NodeKind(StrEnum):
     CONTAINER = "container"
     ITEM = "item"
 
 
-class ItemType(str, Enum):
+class ItemType(StrEnum):
     TEXT = "text"
     VIDEO = "video"
     IMAGE = "image"
@@ -136,8 +135,8 @@ class OtherContent:
         return cls(payload=dict(d))
 
 
-ContentPayload = Union[TextContent, VideoContent, ImageContent, QuizContent, DiscussionContent, OtherContent]
-RawItemPayload = Union[str, dict[str, object], None]
+ContentPayload = TextContent | VideoContent | ImageContent | QuizContent | DiscussionContent | OtherContent
+RawItemPayload = str | dict[str, object] | None
 
 _CONTENT_TYPE_BY_ITEM_TYPE: dict[ItemType, type] = {
     ItemType.TEXT: TextContent, ItemType.VIDEO: VideoContent, ItemType.IMAGE: ImageContent,

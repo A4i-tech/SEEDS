@@ -3,7 +3,9 @@ from __future__ import annotations
 import pytest
 
 from app.aggregators.sync_job_models import SyncItemResult
-from app.repositories.content_aggregator_sync_job_repository import ContentAggregatorSyncJobRepository
+from app.repositories.content_aggregator_sync_job_repository import (
+    ContentAggregatorSyncJobRepository,
+)
 from tests.support.mongomock_async import AsyncMongoMockClient
 
 

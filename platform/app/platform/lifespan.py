@@ -21,7 +21,9 @@ from fastapi import FastAPI
 
 from app.platform.database import close_database, get_database, init_database
 from app.platform.settings import get_settings
-from app.repositories.content_aggregator_sync_job_repository import ContentAggregatorSyncJobRepository
+from app.repositories.content_aggregator_sync_job_repository import (
+    ContentAggregatorSyncJobRepository,
+)
 
 if TYPE_CHECKING:
     from app.services.conference_service import ConferenceCallManager

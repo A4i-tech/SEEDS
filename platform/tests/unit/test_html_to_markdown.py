@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from app.aggregators.html_to_markdown import _DANGLING_HARD_BREAK, html_to_markdown, markdown_to_html
+from app.aggregators.html_to_markdown import (
+    _DANGLING_HARD_BREAK,
+    html_to_markdown,
+    markdown_to_html,
+)
 
 
 def test_html_to_markdown_converts_basic_tags():

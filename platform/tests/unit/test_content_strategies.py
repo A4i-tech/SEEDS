@@ -42,7 +42,7 @@ async def test_text_strategy_falls_back_on_pandoc_failure(monkeypatch):
 
     assert content.conversion_failed is True
     assert content.raw_html_url == "https://blob.test/subodha/courses/c1/items/b2.raw.html"
-    assert b"<p>raw</p>" == blob.uploaded["courses/c1/items/b2.raw.html"]
+    assert blob.uploaded["courses/c1/items/b2.raw.html"] == b"<p>raw</p>"
 
 
 @pytest.mark.asyncio

@@ -21,11 +21,11 @@ class FakeBlob:
 
 
 def _node(**overrides) -> CanonicalNode:
-    base = dict(
-        tenant_id="tenant-a", source_type="subodha", root_id="course-1", order=0,
-        content=None, lms_url=None, source_metadata={}, last_run_id="run-1",
-        fetched_at="2026-08-06T00:00:00Z", created_at="x", updated_at="x",
-    )
+    base = {
+        "tenant_id": "tenant-a", "source_type": "subodha", "root_id": "course-1", "order": 0,
+        "content": None, "lms_url": None, "source_metadata": {}, "last_run_id": "run-1",
+        "fetched_at": "2026-08-06T00:00:00Z", "created_at": "x", "updated_at": "x",
+    }
     base.update(overrides)
     return CanonicalNode(**base)
 
