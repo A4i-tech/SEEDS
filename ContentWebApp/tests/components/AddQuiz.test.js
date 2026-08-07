@@ -10,7 +10,7 @@ describe("AddQuiz", () => {
       </MemoryRouter>
     );
     expect(screen.getByPlaceholderText(/Add Title/i)).toBeInTheDocument();
-    expect(screen.getByRole("combobox")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Kannada/i })).toBeInTheDocument();
     expect(
       screen.getByPlaceholderText(/Add Positive Marks/i)
     ).toBeInTheDocument();
