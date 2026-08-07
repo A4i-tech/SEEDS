@@ -16,7 +16,6 @@ _CONTENT_TYPES = {"html", "video", "problem", "drag-and-drop-v2", "lti", "discus
 _ITEM_TYPE_MAP: dict[str, ItemType] = {
     "html": ItemType.TEXT, "video": ItemType.VIDEO, "problem": ItemType.QUIZ, "discussion": ItemType.DISCUSSION,
 }
-_ASSET_URL_RE = re.compile(r'/asset-v1:[^"\'\s)>,;&]+')
 _REQUEST_TOKEN_RE = re.compile(r'\sdata-request-token="[^"]*"')
 
 

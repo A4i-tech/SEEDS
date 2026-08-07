@@ -3,9 +3,36 @@ import katex from "katex";
 import "katex/dist/katex.min.css";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
+import "react-loading-skeleton/dist/skeleton.css";
 import { ChevronLeft, LayoutGrid } from "lucide-react";
-import { subodhaService } from "../services/subodhaService";
-import "./SubodhaCourseDetails.css";
+import { contentAggregatorService } from "../services/contentAggregatorService";
+import "./ContentAggregatorDetails.css";
+
+const CourseContentSkeleton = () => (
+  <SkeletonTheme baseColor="var(--color-skeleton-base)" highlightColor="var(--color-skeleton-highlight)">
+    <Skeleton width="40%" height={24} />
+    <ul className="content-aggregator-section-list">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <li key={i} className="content-aggregator-section-list-item">
+          <Skeleton width={`${70 - (i % 3) * 10}%`} />
+        </li>
+      ))}
+    </ul>
+  </SkeletonTheme>
+);
+
+// Our pandoc pipeline writes inline math as GFM's `` $`\latex`$ `` convention
+// (backtick-wrapped, to survive markdown parsers with no native math rule).
+// remark-math only understands plain `$latex$`, so unwrap the backticks
+// first — otherwise they'd render as stray literal backtick glyphs.
+const BACKTICK_MATH_RE = /\$`([^`]+)`\$/g;
+
+function normalizeMathDelimiters(markdown) {
+  return markdown.replace(BACKTICK_MATH_RE, (match, latex) => `$${latex}$`);
+}
 
 function getYoutubeId(streams) {
   if (!streams) return null;
@@ -107,7 +134,7 @@ function MultipleChoiceProblem({ block, courseId, onBlockChange }) {
     setSaving(true);
     const updatedChoices = current.choices.map((c, i) => ({ value: c.value, text: choiceDrafts[i] }));
     try {
-      await subodhaService.updateProblemBlock(courseId, block.block_id, {
+      await contentAggregatorService.updateProblemBlock(courseId, block.block_id, {
         question: questionDraft,
         choices: updatedChoices,
       });
@@ -122,21 +149,21 @@ function MultipleChoiceProblem({ block, courseId, onBlockChange }) {
 
   if (editing) {
     return (
-      <div className="subodha-problem-edit">
-        <label className="subodha-problem-edit-label">
+      <div className="content-aggregator-problem-edit">
+        <label className="content-aggregator-problem-edit-label">
           Question
           <textarea
-            className="subodha-problem-edit-input"
+            className="content-aggregator-problem-edit-input"
             value={questionDraft}
             onChange={(e) => setQuestionDraft(e.target.value)}
           />
         </label>
         {choiceDrafts.map((text, i) => (
           // eslint-disable-next-line react/no-array-index-key -- choices are a fixed-size draft array, index is stable here
-          <label key={i} className="subodha-problem-edit-label">
+          <label key={i} className="content-aggregator-problem-edit-label">
             {`Choice ${i + 1}`}
             <input
-              className="subodha-problem-edit-input"
+              className="content-aggregator-problem-edit-input"
               value={text}
               onChange={(e) => {
                 const next = e.target.value;
@@ -145,7 +172,7 @@ function MultipleChoiceProblem({ block, courseId, onBlockChange }) {
             />
           </label>
         ))}
-        <div className="subodha-problem-edit-actions">
+        <div className="content-aggregator-problem-edit-actions">
           <button type="button" className="primary-button" onClick={handleSave} disabled={saving}>
             {saving ? "Saving..." : "Save"}
           </button>
@@ -158,18 +185,18 @@ function MultipleChoiceProblem({ block, courseId, onBlockChange }) {
   }
 
   return (
-    <div className="subodha-problem-view">
-      <p className="subodha-problem-question">
+    <div className="content-aggregator-problem-view">
+      <p className="content-aggregator-problem-question">
         <MathText text={current.question} />
       </p>
-      <ul className="subodha-problem-choice-list">
+      <ul className="content-aggregator-problem-choice-list">
         {current.choices.map((choice) => (
           <li key={choice.value}>
             <MathText text={choice.text} />
           </li>
         ))}
       </ul>
-      <button type="button" className="secondary-button subodha-block-header-action" onClick={startEdit}>
+      <button type="button" className="secondary-button content-aggregator-block-header-action" onClick={startEdit}>
         Edit
       </button>
     </div>
@@ -183,7 +210,7 @@ function BlockContent({ block, courseId, onBlockChange }) {
 
   if (block.type === "video" && sources.length > 0) {
     return (
-      <video controls poster={block.student_view_data?.poster || undefined} className="subodha-block-video">
+      <video controls poster={block.student_view_data?.poster || undefined} className="content-aggregator-block-video">
         <source src={sources[0]} />
       </video>
     );
@@ -192,7 +219,7 @@ function BlockContent({ block, courseId, onBlockChange }) {
   if (block.type === "video" && youtubeId) {
     return (
       <iframe
-        className="subodha-block-video subodha-block-video-embed"
+        className="content-aggregator-block-video content-aggregator-block-video-embed"
         src={`https://www.youtube.com/embed/${youtubeId}`}
         title={block.display_name || "Video"}
         allowFullScreen
@@ -216,8 +243,10 @@ function BlockContent({ block, courseId, onBlockChange }) {
 
   if (block.markdown) {
     return (
-      <div className="subodha-block-html">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{block.markdown}</ReactMarkdown>
+      <div className="content-aggregator-block-html">
+        <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+          {normalizeMathDelimiters(block.markdown)}
+        </ReactMarkdown>
       </div>
     );
   }
@@ -226,7 +255,7 @@ function BlockContent({ block, courseId, onBlockChange }) {
     // Fallback for the rare pandoc-conversion-failed case — rendering
     // already-published course content from the source LMS, exactly as it
     // renders on Subodha itself (not user-submitted input).
-    return <div className="subodha-block-html" dangerouslySetInnerHTML={{ __html: block.html }} />;
+    return <div className="content-aggregator-block-html" dangerouslySetInnerHTML={{ __html: block.html }} />;
   }
 
   return <p className="table-cell-secondary">No preview available for this content type.</p>;
@@ -234,20 +263,8 @@ function BlockContent({ block, courseId, onBlockChange }) {
 
 function BlockCard({ block, courseId, onBlockChange }) {
   if (!block) return null;
-  // A generic displayName ("Video", "Multiple Choice", ...) tells the reader
-  // nothing the surrounding unit title doesn't already say — skip the
-  // redundant label + type badge and keep only the Subodha link.
-  const showLabel = !isGenericLabel(block);
   return (
-    <div className="subodha-block-card">
-      <div className="subodha-block-header">
-        {showLabel && (
-          <>
-            <strong>{block.display_name}</strong>
-            <span className="content-type">{block.markdown ? "markdown" : block.type}</span>
-          </>
-        )}
-      </div>
+    <div className="content-aggregator-block-card">
       <BlockContent block={block} courseId={courseId} onBlockChange={onBlockChange} />
     </div>
   );
@@ -293,10 +310,10 @@ function FlatBlockNavigator({ blocks, courseId, onBlockChange, onBack }) {
             ← Back
           </button>
         </div>
-        <ul className="subodha-section-list">
+        <ul className="content-aggregator-section-list">
           {blocks.map((b, i) => (
             <li key={b.block_id}>
-              <button type="button" className="subodha-section-list-item" onClick={() => setIndex(i)}>
+              <button type="button" className="content-aggregator-section-list-item" onClick={() => setIndex(i)}>
                 {i + 1}. {labels[i]}
               </button>
             </li>
@@ -315,7 +332,7 @@ function FlatBlockNavigator({ blocks, courseId, onBlockChange, onBack }) {
           ← Back to list
         </button>
       </div>
-      <div className="subodha-pager">
+      <div className="content-aggregator-pager">
         <button
           type="button"
           className="secondary-button"
@@ -324,7 +341,7 @@ function FlatBlockNavigator({ blocks, courseId, onBlockChange, onBack }) {
         >
           ← Previous
         </button>
-        <span className="subodha-pager-position">
+        <span className="content-aggregator-pager-position">
           {index + 1} / {blocks.length}: {labels[index]}
         </span>
         <button
@@ -341,53 +358,14 @@ function FlatBlockNavigator({ blocks, courseId, onBlockChange, onBack }) {
   );
 }
 
-// Sibling blocks in the same unit are typically the same content in different
-// languages (e.g. "Hindi", "Gujarati") — show one at a time via a picker
-// instead of rendering every language's video/content at once.
-//
-// The untranslated/default variant keeps the xblock's generic display name
-// (e.g. displayName "Video" on a block of type "video"), unlike real language
-// variants which the course author renamed to the language itself — filter
-// those generic ones out of the picker rather than hardcode a language list.
-function isGenericLabel(block) {
-  const label = (block.display_name || "").trim().toLowerCase();
-  return !label || label === block.type.toLowerCase();
-}
-
-function LanguageSelectableBlocks({ blocks, courseId, onBlockChange }) {
-  const [selectedIndex, setSelectedIndex] = useState(0);
-
+function UnitBlocks({ blocks, courseId, onBlockChange }) {
   if (!blocks || blocks.length === 0) return null;
 
-  const languageBlocks = blocks.filter((b) => !isGenericLabel(b));
-  const options = languageBlocks.length > 0 ? languageBlocks : blocks;
-
-  if (options.length === 1) return <BlockCard block={options[0]} courseId={courseId} onBlockChange={onBlockChange} />;
-
   return (
-    <div className="subodha-language-group">
-      <label className="subodha-language-label">
-        Language:{" "}
-        <select
-          value={selectedIndex}
-          onChange={(e) => setSelectedIndex(Number(e.target.value))}
-          className="subodha-language-select"
-        >
-          {options.map((b, i) => (
-            <option key={b.block_id} value={i}>
-              {b.display_name || `${b.type} ${i + 1}`}
-            </option>
-          ))}
-        </select>
-      </label>
-      {/* key forces a full remount on selection change — <video><source> won't
-          reload a new src on an existing element without one (browser quirk). */}
-      <BlockCard
-        key={options[selectedIndex].block_id}
-        block={options[selectedIndex]}
-        courseId={courseId}
-        onBlockChange={onBlockChange}
-      />
+    <div className="content-aggregator-unit-blocks">
+      {blocks.map((block) => (
+        <BlockCard key={block.block_id} block={block} courseId={courseId} onBlockChange={onBlockChange} />
+      ))}
     </div>
   );
 }
@@ -414,7 +392,7 @@ function SequentialPlayer({
 
   return (
     <div>
-      <div className="subodha-pager">
+      <div className="content-aggregator-pager">
         <button
           type="button"
           className="secondary-button"
@@ -423,7 +401,7 @@ function SequentialPlayer({
         >
           ← Previous
         </button>
-        <span className="subodha-pager-position">
+        <span className="content-aggregator-pager-position">
           {seqIndex + 1} / {seqCount}: {sequential.display_name}
         </span>
         <button
@@ -435,33 +413,33 @@ function SequentialPlayer({
           Next →
         </button>
       </div>
-      <nav className="subodha-breadcrumb" aria-label="Breadcrumb">
-        <button type="button" className="subodha-breadcrumb-link" onClick={() => onBack()}>
+      <nav className="content-aggregator-breadcrumb" aria-label="Breadcrumb">
+        <button type="button" className="content-aggregator-breadcrumb-link" onClick={() => onBack()}>
           <LayoutGrid size={14} strokeWidth={2.5} />
           Course
         </button>
-        <ChevronLeft size={16} strokeWidth={2.5} className="subodha-breadcrumb-sep" aria-hidden="true" />
-        <button type="button" className="subodha-breadcrumb-link" onClick={() => onBack(chapter.block_id)}>
+        <ChevronLeft size={16} strokeWidth={2.5} className="content-aggregator-breadcrumb-sep" aria-hidden="true" />
+        <button type="button" className="content-aggregator-breadcrumb-link" onClick={() => onBack(chapter.block_id)}>
           {chapter.display_name}
         </button>
-        <ChevronLeft size={16} strokeWidth={2.5} className="subodha-breadcrumb-sep" aria-hidden="true" />
-        <span className="subodha-breadcrumb-current">{sequential.display_name}</span>
+        <ChevronLeft size={16} strokeWidth={2.5} className="content-aggregator-breadcrumb-sep" aria-hidden="true" />
+        <span className="content-aggregator-breadcrumb-current">{sequential.display_name}</span>
       </nav>
-      <div className="subodha-unit-title-row">
+      <div className="content-aggregator-unit-title-row">
         <h4>{vertical.display_name}</h4>
         {unitLmsUrl && (
-          <a href={unitLmsUrl} target="_blank" rel="noreferrer" className="subodha-external-link">
+          <a href={unitLmsUrl} target="_blank" rel="noreferrer" className="content-aggregator-external-link">
             Open in Subodha
           </a>
         )}
       </div>
-      <LanguageSelectableBlocks
+      <UnitBlocks
         key={vertical.block_id}
         blocks={verticalBlocks}
         courseId={courseId}
         onBlockChange={onBlockChange}
       />
-      <div className="subodha-unit-tabs">
+      <div className="content-aggregator-unit-tabs">
         <button
           type="button"
           className="secondary-button"
@@ -470,12 +448,12 @@ function SequentialPlayer({
         >
           ← Previous
         </button>
-        <div className="subodha-unit-tab-list">
+        <div className="content-aggregator-unit-tab-list">
           {verticals.map((v, i) => (
             <button
               key={v.block_id}
               type="button"
-              className={i === unitIndex ? "subodha-unit-tab active" : "subodha-unit-tab"}
+              className={i === unitIndex ? "content-aggregator-unit-tab active" : "content-aggregator-unit-tab"}
               title={v.display_name}
               onClick={() => setUnitIndex(i)}
             >
@@ -544,7 +522,7 @@ function OutlineNavigator({ outline, blockMap, courseId, onBlockChange, onBackTo
   };
 
   return (
-    <div className="subodha-outline-list">
+    <div className="content-aggregator-outline-list">
       <div className="content-details-actions">
         <button onClick={onBackToContent} className="primary-button">
           ← Back
@@ -556,26 +534,26 @@ function OutlineNavigator({ outline, blockMap, courseId, onBlockChange, onBackTo
       {outline.map((chapter, chapterIdx) => {
         const isCollapsed = Boolean(collapsed[chapter.block_id]);
         return (
-          <div key={chapter.block_id} className="subodha-outline-chapter-card">
+          <div key={chapter.block_id} className="content-aggregator-outline-chapter-card">
             <button
               type="button"
-              className="subodha-outline-chapter-header"
+              className="content-aggregator-outline-chapter-header"
               onClick={() => toggleChapter(chapter.block_id)}
             >
-              <span className="subodha-outline-check" aria-hidden="true">✓</span>
-              <span className="subodha-outline-chapter-title">{chapter.display_name}</span>
-              <span className="subodha-outline-toggle" aria-hidden="true">{isCollapsed ? "+" : "−"}</span>
+              <span className="content-aggregator-outline-check" aria-hidden="true">✓</span>
+              <span className="content-aggregator-outline-chapter-title">{chapter.display_name}</span>
+              <span className="content-aggregator-outline-toggle" aria-hidden="true">{isCollapsed ? "+" : "−"}</span>
             </button>
             {!isCollapsed && (
-              <ul className="subodha-outline-sequential-list">
+              <ul className="content-aggregator-outline-sequential-list">
                 {chapter.sequentials.map((seq, seqIdx) => (
                   <li key={seq.block_id}>
                     <button
                       type="button"
-                      className="subodha-outline-sequential-item"
+                      className="content-aggregator-outline-sequential-item"
                       onClick={() => setSelected({ chapterIdx, seqIdx })}
                     >
-                      <span className="subodha-outline-check" aria-hidden="true">✓</span>
+                      <span className="content-aggregator-outline-check" aria-hidden="true">✓</span>
                       {seq.display_name}
                     </button>
                   </li>
@@ -589,7 +567,7 @@ function OutlineNavigator({ outline, blockMap, courseId, onBlockChange, onBackTo
   );
 }
 
-const SubodhaCourseDetails = ({ courseId, onBack }) => {
+const ContentAggregatorDetails = ({ courseId, onBack }) => {
   const [course, setCourse] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -598,7 +576,7 @@ const SubodhaCourseDetails = ({ courseId, onBack }) => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await subodhaService.getCourse(courseId);
+      const data = await contentAggregatorService.getCourse(courseId);
       setCourse(data);
     } catch (err) {
       setError(err.message);
@@ -619,7 +597,7 @@ const SubodhaCourseDetails = ({ courseId, onBack }) => {
   }, []);
 
   if (isLoading) {
-    return <p>Loading course content...</p>;
+    return <CourseContentSkeleton />;
   }
 
   if (error) {
@@ -648,13 +626,13 @@ const SubodhaCourseDetails = ({ courseId, onBack }) => {
     );
   }
 
-  const blockMap = Object.fromEntries((course.blocks || []).map((b) => [b.block_id, b]));
+  const blockMap = Object.fromEntries((course.blocks).map((b) => [b.block_id, b]));
   const hasOutline = Array.isArray(course.outline) && course.outline.length > 0;
 
   return (
-    <div className="subodha-course-details">
+    <div className="content-aggregator-course-details">
       <h2>{course.title}</h2>
-      {course.hidden && <span className="subodha-badge-hidden">Hidden</span>}
+      {course.hidden && <span className="content-aggregator-badge-hidden">Hidden</span>}
       {course.description && <p>{course.description}</p>}
 
       {hasOutline ? (
@@ -666,13 +644,9 @@ const SubodhaCourseDetails = ({ courseId, onBack }) => {
           onBackToContent={onBack}
         />
       ) : (
-        // Fallback for courses synced before outline capture was added: we have
-        // no vertical/unit boundaries, so blocks can't be reliably grouped as
-        // language variants of "the same" content — list them all instead of
-        // guessing (re-sync the course to get outline + real unit grouping).
-        <div className="subodha-blocks">
+        <div className="content-aggregator-blocks">
           <FlatBlockNavigator
-            blocks={course.blocks || []}
+            blocks={course.blocks}
             courseId={courseId}
             onBlockChange={handleBlockChange}
             onBack={onBack}
@@ -683,4 +657,4 @@ const SubodhaCourseDetails = ({ courseId, onBack }) => {
   );
 };
 
-export default SubodhaCourseDetails;
+export default ContentAggregatorDetails;

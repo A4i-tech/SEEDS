@@ -23,6 +23,29 @@ _XBLOCK_JSON_INIT_RE = re.compile(r"<script[^>]+xblock-json-init-args[^>]*>.*?</
 _XBLOCK_DIV_OPEN_RE = re.compile(r'<div[^>]+class="[^"]*\bxblock\b[^"]*"[^>]*>', re.I)
 _DIV_TAG_RE = re.compile(r"<div\b|</div>", re.I)
 _VIDEO_METADATA_RE = re.compile(r"data-metadata='([^']+)'")
+_STAFF_DEBUG_DIV_OPEN_RE = re.compile(
+    r'<div[^>]+class="[^"]*\b(?:wrap-instructor-info|xqa-modal|staff-modal|history-modal)\b[^"]*"[^>]*>', re.I
+)
+_MATHTYPE_ANNOTATION_RE = re.compile(r"MathType@MTEF@.*?@[0-9A-Fa-f]{4}@", re.S)
+
+
+def _strip_staff_debug(html: str) -> str:
+    """Remove staff-only debug/QA panels the LMS nests inside the xblock's own
+    content div (not as trailing page siblings, but as siblings within the div
+    `_extract_html` already isolates) — these are never part of the lesson."""
+    result = html
+    while True:
+        open_match = _STAFF_DEBUG_DIV_OPEN_RE.search(result)
+        if not open_match:
+            return result
+        depth = 1
+        end = len(result)
+        for tag in _DIV_TAG_RE.finditer(result, open_match.end()):
+            depth += -1 if tag.group().lower().startswith("</div") else 1
+            if depth == 0:
+                end = tag.end()
+                break
+        result = result[: open_match.start()] + result[end:]
 
 
 def _extract_html(raw: str) -> str:
@@ -204,7 +227,8 @@ class SubodhaClient:
                         block["student_view_data"] = _extract_video_data(raw)
                         block["student_view_html"] = ""
                     else:
-                        block["student_view_html"] = _extract_html(raw)
+                        extracted = _strip_staff_debug(_extract_html(raw))
+                        block["student_view_html"] = _MATHTYPE_ANNOTATION_RE.sub("", extracted)
                         block["student_view_data"] = None
                 except Exception:  # noqa: BLE001
                     block["student_view_html"] = ""

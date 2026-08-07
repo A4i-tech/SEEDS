@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { subodhaService } from "../services/subodhaService";
+import { contentAggregatorService } from "../services/contentAggregatorService";
 
 /**
  * Tracks the "sync all" job plus per-course sync jobs via SSE. Reattaches to
  * any job still running on mount (e.g. after a logout/login or page reload).
  */
-export const useSubodhaSync = (onSettled) => {
+export const useContentAggregatorSync = (onSettled) => {
   const [syncingAll, setSyncingAll] = useState(false);
   const [syncAllProgress, setSyncAllProgress] = useState(null);
   const [courseStates, setCourseStates] = useState({});
@@ -25,7 +25,7 @@ export const useSubodhaSync = (onSettled) => {
 
       const attach = async () => {
         try {
-          await subodhaService.streamJob(
+          await contentAggregatorService.streamJob(
             job_id,
             (event) => {
               if (event.event === "progress") {
@@ -42,7 +42,7 @@ export const useSubodhaSync = (onSettled) => {
         } catch (error) {
           if (controller.signal.aborted) return;
           try {
-            const job = await subodhaService.getSyncStatus(job_id);
+            const job = await contentAggregatorService.getSyncStatus(job_id);
             if (job.status === "running") {
               attach();
               return;
@@ -66,7 +66,7 @@ export const useSubodhaSync = (onSettled) => {
     setSyncingAll(true);
     setSyncAllProgress(null);
     try {
-      const { job_id } = await subodhaService.syncAll();
+      const { job_id } = await contentAggregatorService.syncAll();
       followJob("__all__", job_id, {
         setRunning: setSyncingAll,
         onProgress: (job) => setSyncAllProgress({ processed: job.processed, total: job.total_courses }),
@@ -90,7 +90,7 @@ export const useSubodhaSync = (onSettled) => {
     async (courseId, name) => {
       setCourseStates((prev) => ({ ...prev, [courseId]: "running" }));
       try {
-        const { job_id } = await subodhaService.syncCourse(courseId);
+        const { job_id } = await contentAggregatorService.syncCourse(courseId);
         followJob(courseId, job_id, {
           setRunning: (running) =>
             setCourseStates((prev) => ({ ...prev, [courseId]: running ? "running" : prev[courseId] })),
@@ -115,7 +115,7 @@ export const useSubodhaSync = (onSettled) => {
     let cancelled = false;
     (async () => {
       try {
-        const { jobs } = await subodhaService.getActiveJobs();
+        const { jobs } = await contentAggregatorService.getActiveJobs();
         if (cancelled) return;
         jobs.forEach((job) => {
           if (job.scope === "all") {

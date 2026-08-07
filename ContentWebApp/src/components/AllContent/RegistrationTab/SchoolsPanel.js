@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import PasswordInput from "../../PasswordInput";
 import Modal from "../shared/Modal";
 import RowActions from "../shared/RowActions";
+import TableSkeleton from "../shared/TableSkeleton";
 import "./css/RegistrationTab.css";
 import "./css/TeacherRegistrationForm.css";
 import "../shared/buttons.css";
@@ -11,6 +12,7 @@ import "../shared/utilities.css";
 
 const SchoolsPanel = ({
   schools,
+  isLoading,
   onCreateSchool,
   onUpdateSchool,
   onDeleteSchool,
@@ -101,7 +103,11 @@ const SchoolsPanel = ({
 
       <div className="teachers-section">
         <h3 className="teachers-section-title">Schools</h3>
-        {schools.length === 0 ? (
+        {isLoading && schools.length === 0 ? (
+          <div className="table-wrapper">
+            <TableSkeleton columns={["Name", "Email", "Actions"]} />
+          </div>
+        ) : schools.length === 0 ? (
           <div className="no-teachers">No schools yet.</div>
         ) : (
           <div className="table-wrapper">

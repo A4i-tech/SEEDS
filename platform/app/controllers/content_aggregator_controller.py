@@ -1,5 +1,7 @@
 """
-Subodha controller — /subodha/* endpoints for syncing Subodha (Open edX) courses.
+Content aggregator controller — /content-aggregators/* endpoints for syncing
+content from external sources. Subodha (Open edX) is the one concrete source
+today, wired via SubodhaAdapter/SubodhaClient/SubodhaService.
 
 Storage is the universal content_aggregators pipeline (source_type="subodha").
 JSON responses are snake_case.
@@ -24,14 +26,14 @@ from app.repositories.content_aggregator_sync_job_repository import (
 from app.services.content_aggregator_sync_jobs import create_job, finish_job, serialize_job, subscribe
 from app.services.subodha_service import SubodhaService, get_subodha_service
 
-router = APIRouter(prefix="/subodha", tags=["Subodha"])
+router = APIRouter(prefix="/content-aggregators", tags=["Content Aggregators"])
 
 SOURCE_TYPE = "subodha"
 
 
 async def _require_tenant(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     if user.get("role") != UserRole.TENANT.value:
-        raise ForbiddenError("subodha sync is tenant-admin only")
+        raise ForbiddenError("content aggregator sync is tenant-admin only")
     return user
 
 

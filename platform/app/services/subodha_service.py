@@ -29,7 +29,7 @@ from app.services.content_aggregator_sync_jobs import record_item_result, set_to
 
 logger = logging.getLogger(__name__)
 
-_ASSET_URL_RE = re.compile(r'/asset-v1:[^"\'\s)>,;&]+')
+_ASSET_URL_RE = re.compile(r'(?:/assets/courseware/v1/[^/"\']+)?/asset-v1:[^"\'\s)>,;&]+')
 
 
 def _asset_filename(asset_url: str) -> str:

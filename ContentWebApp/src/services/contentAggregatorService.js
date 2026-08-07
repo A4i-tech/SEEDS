@@ -2,17 +2,17 @@ import { SEEDS_URL } from "../Constants";
 import { getAuthHeaders } from "../utils/authHelpers";
 import { apiFetch, buildQueryString } from "./api";
 
-export const subodhaService = {
+export const contentAggregatorService = {
   /**
    * Fetch all courses previously synced from Subodha.
    * @returns {Promise<Array>}
    */
   async getCourses() {
-    const response = await apiFetch(`${SEEDS_URL}/subodha/courses`, {
+    const response = await apiFetch(`${SEEDS_URL}/content-aggregators/courses`, {
       method: "GET",
       headers: getAuthHeaders(),
     });
-    return response.courses || [];
+    return response.courses;
   },
 
   /**
@@ -21,7 +21,7 @@ export const subodhaService = {
    * @returns {Promise<{jobId: string}>}
    */
   async syncAll() {
-    return apiFetch(`${SEEDS_URL}/subodha/sync`, {
+    return apiFetch(`${SEEDS_URL}/content-aggregators/sync`, {
       method: "POST",
       headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
       body: JSON.stringify({ onlyNew: true }),
@@ -34,7 +34,7 @@ export const subodhaService = {
    * @returns {Promise<{jobId: string}>}
    */
   async syncCourse(courseId) {
-    return apiFetch(`${SEEDS_URL}/subodha/sync/course/${encodeURIComponent(courseId)}`, {
+    return apiFetch(`${SEEDS_URL}/content-aggregators/sync/course/${encodeURIComponent(courseId)}`, {
       method: "POST",
       headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
       body: JSON.stringify({}),
@@ -47,7 +47,7 @@ export const subodhaService = {
    * @returns {Promise<Object>}
    */
   async getSyncStatus(jobId) {
-    return apiFetch(`${SEEDS_URL}/subodha/sync/status/${encodeURIComponent(jobId)}`, {
+    return apiFetch(`${SEEDS_URL}/content-aggregators/sync/status/${encodeURIComponent(jobId)}`, {
       method: "GET",
       headers: getAuthHeaders(),
     });
@@ -59,7 +59,7 @@ export const subodhaService = {
    * @returns {Promise<Object>}
    */
   async getCourse(courseId) {
-    return apiFetch(`${SEEDS_URL}/subodha/courses/${encodeURIComponent(courseId)}`, {
+    return apiFetch(`${SEEDS_URL}/content-aggregators/courses/${encodeURIComponent(courseId)}`, {
       method: "GET",
       headers: getAuthHeaders(),
     });
@@ -71,7 +71,7 @@ export const subodhaService = {
    * @returns {Promise<Object>}
    */
   async deleteCourse(courseId) {
-    return apiFetch(`${SEEDS_URL}/subodha/courses/${encodeURIComponent(courseId)}`, {
+    return apiFetch(`${SEEDS_URL}/content-aggregators/courses/${encodeURIComponent(courseId)}`, {
       method: "DELETE",
       headers: getAuthHeaders(),
     });
@@ -87,7 +87,7 @@ export const subodhaService = {
    */
   async updateProblemBlock(courseId, blockId, payload) {
     return apiFetch(
-      `${SEEDS_URL}/subodha/courses/${encodeURIComponent(courseId)}/blocks/${encodeURIComponent(blockId)}`,
+      `${SEEDS_URL}/content-aggregators/courses/${encodeURIComponent(courseId)}/blocks/${encodeURIComponent(blockId)}`,
       {
         method: "PATCH",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
@@ -102,7 +102,7 @@ export const subodhaService = {
    * @returns {Promise<{jobs: Array<Object>}>}
    */
   async getActiveJobs() {
-    return apiFetch(`${SEEDS_URL}/subodha/sync/jobs/active`, {
+    return apiFetch(`${SEEDS_URL}/content-aggregators/sync/jobs/active`, {
       method: "GET",
       headers: getAuthHeaders(),
     });
@@ -115,7 +115,7 @@ export const subodhaService = {
    */
   async getSyncJobs({ limit = 20, scope, courseId } = {}) {
     const qs = buildQueryString({ limit, scope, courseId });
-    return apiFetch(`${SEEDS_URL}/subodha/sync/jobs${qs ? `?${qs}` : ""}`, {
+    return apiFetch(`${SEEDS_URL}/content-aggregators/sync/jobs${qs ? `?${qs}` : ""}`, {
       method: "GET",
       headers: getAuthHeaders(),
     });
@@ -132,7 +132,7 @@ export const subodhaService = {
    */
   async streamJob(jobId, onEvent, { signal } = {}) {
     const response = await fetch(
-      `${SEEDS_URL}/subodha/sync/stream/${encodeURIComponent(jobId)}`,
+      `${SEEDS_URL}/content-aggregators/sync/stream/${encodeURIComponent(jobId)}`,
       { headers: getAuthHeaders(), signal }
     );
     if (!response.ok || !response.body) {

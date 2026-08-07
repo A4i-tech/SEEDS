@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import QuizDetails from "./QuizDetails";
 import StoryDetails from "./StoryDetails";
-import SubodhaCourseDetails from "./SubodhaCourseDetails";
+import ContentAggregatorDetails from "./ContentAggregatorDetails";
 import { contentService } from "../services/contentService";
 import "./ContentDetails.css";
 import "./AllContent/shared/buttons.css";
@@ -15,10 +15,10 @@ const ContentDetails = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const isSubodhaCourse = type === "subodha-course";
+  const isContentAggregatorCourse = type === "content-aggregator";
 
   const contentById = useCallback(async () => {
-    if (isSubodhaCourse) {
+    if (isContentAggregatorCourse) {
       setIsLoading(false);
       return null;
     }
@@ -35,7 +35,7 @@ const ContentDetails = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [id, type, isSubodhaCourse]);
+  }, [id, type, isContentAggregatorCourse]);
 
   useEffect(() => {
     contentById();
@@ -60,10 +60,10 @@ const ContentDetails = () => {
     );
   }
 
-  if (isSubodhaCourse) {
+  if (isContentAggregatorCourse) {
     return (
       <div className="page-shell">
-        <SubodhaCourseDetails courseId={id} onBack={() => navigate("/content")} />
+        <ContentAggregatorDetails courseId={id} onBack={() => navigate("/content")} />
       </div>
     );
   }

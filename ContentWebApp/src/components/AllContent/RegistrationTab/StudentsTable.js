@@ -1,9 +1,22 @@
 import React from "react";
 import RowActions from "../shared/RowActions";
+import TableSkeleton from "../shared/TableSkeleton";
 import "../shared/buttons.css";
 import "../shared/tables.css";
 
-const StudentsTable = ({ students = [], onEditStudent, onRemoveStudent }) => {
+const StudentsTable = ({ students = [], isLoading, onEditStudent, onRemoveStudent }) => {
+  if (isLoading && students.length === 0) {
+    return (
+      <div className="table-wrapper">
+        <TableSkeleton columns={["Name", "Phone", "Actions"]} />
+      </div>
+    );
+  }
+
+  if (students.length === 0) {
+    return <div className="no-teachers">No students yet.</div>;
+  }
+
   return (
     <div className="table-wrapper">
       <table className="content-table">
@@ -15,27 +28,21 @@ const StudentsTable = ({ students = [], onEditStudent, onRemoveStudent }) => {
           </tr>
         </thead>
         <tbody>
-          {students.length === 0 ? (
-            <tr>
-              <td colSpan={3} className="table-cell no-content">No students</td>
+          {students.map((student) => (
+            <tr key={student.id} className="table-row-white">
+              <td className="table-cell">{student.name}</td>
+              <td className="table-cell">{student.phone_number}</td>
+              <td className="table-cell">
+                <RowActions
+                  horizontal
+                  actions={[
+                    { key: "edit", label: "Edit", variant: "edit", onClick: () => onEditStudent(student) },
+                    { key: "delete", label: "Remove", variant: "delete", onClick: () => onRemoveStudent(student.id) },
+                  ]}
+                />
+              </td>
             </tr>
-          ) : (
-            students.map((student) => (
-              <tr key={student.id} className="table-row-white">
-                <td className="table-cell">{student.name}</td>
-                <td className="table-cell">{student.phone_number}</td>
-                <td className="table-cell">
-                  <RowActions
-                    horizontal
-                    actions={[
-                      { key: "edit", label: "Edit", variant: "edit", onClick: () => onEditStudent(student) },
-                      { key: "delete", label: "Remove", variant: "delete", onClick: () => onRemoveStudent(student.id) },
-                    ]}
-                  />
-                </td>
-              </tr>
-            ))
-          )}
+          ))}
         </tbody>
       </table>
     </div>

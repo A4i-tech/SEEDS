@@ -2,13 +2,14 @@ import React, { useState } from "react";
 import Modal from "../shared/Modal";
 import RowActions from "../shared/RowActions";
 import PasswordInput from "../../PasswordInput";
+import TableSkeleton from "../shared/TableSkeleton";
 import { USER_ROLES } from "../../../Constants";
 import "../shared/buttons.css";
 import "../shared/tables.css";
 import "../shared/utilities.css";
 import "./css/TeachersList.css";
 
-const TeachersList = ({ teachers, schools = [], onUpdateTeacher, onDeleteTeacher, onTransferTeacher }) => {
+const TeachersList = ({ teachers, schools = [], isLoading, onUpdateTeacher, onDeleteTeacher, onTransferTeacher }) => {
   const [editingTeacher, setEditingTeacher] = useState(null);
   const [editName, setEditName] = useState("");
   const [editPhone, setEditPhone] = useState("");
@@ -45,7 +46,11 @@ const TeachersList = ({ teachers, schools = [], onUpdateTeacher, onDeleteTeacher
 
   return (
     <>
-      {teachers.length === 0 ? (
+      {isLoading && teachers.length === 0 ? (
+        <div className="table-wrapper">
+          <TableSkeleton columns={["Name", "Phone", "Actions"]} />
+        </div>
+      ) : teachers.length === 0 ? (
         <div className="no-teachers">No teachers registered yet.</div>
       ) : (
         <div className="table-wrapper">

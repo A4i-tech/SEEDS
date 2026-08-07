@@ -1,16 +1,16 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { contentService } from "../services/contentService";
-import { subodhaService } from "../services/subodhaService";
+import { contentAggregatorService } from "../services/contentAggregatorService";
 
 const PAGE_SIZE = 50;
 
-const mapSubodhaCourse = (course) => ({
+const mapContentAggregatorCourse = (course) => ({
   id: course.id,
   source: "subodha",
   title: { english: course.name, local: "" },
   theme: { english: "", local: "" },
   language: course.language,
-  type: "subodha-course",
+  type: "content-aggregator",
   is_teacher_app: false,
   is_pull_model: false,
   hidden: course.hidden,
@@ -31,27 +31,28 @@ export const useContent = () => {
   isFilteredRef.current = isFiltered;
 
   /**
-   * Fetch Subodha courses and merge them into the content list (source: "subodha").
-   * Safe to call repeatedly (e.g. after a sync completes) — replaces the prior
-   * Subodha slice each time rather than appending duplicates.
+   * Fetch content aggregator courses and merge them into the content list
+   * (source: "subodha"). Safe to call repeatedly (e.g. after a sync
+   * completes) — replaces the prior slice each time rather than appending
+   * duplicates.
    */
-  const loadSubodhaCourses = useCallback(async () => {
+  const loadContentAggregatorCourses = useCallback(async () => {
     try {
-      const courses = await subodhaService.getCourses();
-      const mapped = courses.map(mapSubodhaCourse);
+      const courses = await contentAggregatorService.getCourses();
+      const mapped = courses.map(mapContentAggregatorCourse);
       setAllContent((prevAll) => {
         const merged = [...prevAll.filter((item) => item.source !== "subodha"), ...mapped];
         if (!isFilteredRef.current) setContent(merged);
         return merged;
       });
     } catch (error) {
-      console.error("Error loading Subodha courses:", error);
+      console.error("Error loading content aggregator courses:", error);
     }
   }, []);
 
   useEffect(() => {
-    loadSubodhaCourses();
-  }, [loadSubodhaCourses]);
+    loadContentAggregatorCourses();
+  }, [loadContentAggregatorCourses]);
 
   /**
    * Fetch content with optional cursor for pagination
@@ -167,19 +168,20 @@ export const useContent = () => {
   );
 
   /**
-   * Delete a Subodha course's local synced copy (does not touch Subodha itself)
+   * Delete a content aggregator course's local synced copy (does not touch
+   * the source LMS itself)
    */
-  const deleteSubodhaCourse = useCallback(async (courseId, name) => {
+  const deleteContentAggregatorCourse = useCallback(async (courseId, name) => {
     if (!window.confirm(`Remove the synced copy of "${name || courseId}"? It can be re-synced later.`)) {
       return;
     }
     try {
-      await subodhaService.deleteCourse(courseId);
+      await contentAggregatorService.deleteCourse(courseId);
       setContent((prev) => prev.filter((item) => item.id !== courseId));
       setAllContent((prev) => prev.filter((item) => item.id !== courseId));
       alert("Course removed successfully.");
     } catch (error) {
-      console.error("Error deleting Subodha course:", error);
+      console.error("Error deleting content aggregator course:", error);
       alert(`Error deleting course: ${error.message}`);
     }
   }, []);
@@ -200,9 +202,9 @@ export const useContent = () => {
     isFiltered,
     loadMore,
     deleteContent,
-    deleteSubodhaCourse,
+    deleteContentAggregatorCourse,
     resetFilters,
-    refreshSubodhaCourses: loadSubodhaCourses,
+    refreshContentAggregatorCourses: loadContentAggregatorCourses,
     setContent,
     setAllContent,
     setIsFiltered,

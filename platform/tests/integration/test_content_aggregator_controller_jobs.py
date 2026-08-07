@@ -46,7 +46,7 @@ def auth_headers():
 
 @pytest.mark.asyncio
 async def test_active_jobs_empty_when_none_running(client, auth_headers):
-    resp = await client.get("/subodha/sync/jobs/active", headers=auth_headers)
+    resp = await client.get("/content-aggregators/sync/jobs/active", headers=auth_headers)
     assert resp.status_code == 200
     assert resp.json() == {"jobs": []}
 
@@ -56,7 +56,7 @@ async def test_active_jobs_returns_running_job(client, auth_headers, mock_db):
     job_repo = ContentAggregatorSyncJobRepository(mock_db)
     await job_repo.create_job("job-1", tenant_id="tenant-a", source_type="subodha", scope="all", source_id=None, total_items=3)
 
-    resp = await client.get("/subodha/sync/jobs/active", headers=auth_headers)
+    resp = await client.get("/content-aggregators/sync/jobs/active", headers=auth_headers)
     assert resp.status_code == 200
     jobs = resp.json()["jobs"]
     assert len(jobs) == 1
@@ -69,7 +69,7 @@ async def test_active_jobs_does_not_leak_other_tenants_jobs(client, auth_headers
     job_repo = ContentAggregatorSyncJobRepository(mock_db)
     await job_repo.create_job("job-1", tenant_id="tenant-b", source_type="subodha", scope="all", source_id=None, total_items=3)
 
-    resp = await client.get("/subodha/sync/jobs/active", headers=auth_headers)
+    resp = await client.get("/content-aggregators/sync/jobs/active", headers=auth_headers)
     assert resp.status_code == 200
     assert resp.json() == {"jobs": []}
 
@@ -80,7 +80,7 @@ async def test_jobs_history_filters_by_scope(client, auth_headers, mock_db):
     await job_repo.create_job("job-all", tenant_id="tenant-a", source_type="subodha", scope="all", source_id=None, total_items=0)
     await job_repo.create_job("job-course", tenant_id="tenant-a", source_type="subodha", scope="course", source_id="c1", total_items=1)
 
-    resp = await client.get("/subodha/sync/jobs?scope=course", headers=auth_headers)
+    resp = await client.get("/content-aggregators/sync/jobs?scope=course", headers=auth_headers)
     assert resp.status_code == 200
     jobs = resp.json()["jobs"]
     assert [j["job_id"] for j in jobs] == ["job-course"]
@@ -88,7 +88,7 @@ async def test_jobs_history_filters_by_scope(client, auth_headers, mock_db):
 
 @pytest.mark.asyncio
 async def test_sync_status_returns_404_for_unknown_job(client, auth_headers):
-    resp = await client.get("/subodha/sync/status/no-such-job", headers=auth_headers)
+    resp = await client.get("/content-aggregators/sync/status/no-such-job", headers=auth_headers)
     assert resp.status_code == 404
 
 
@@ -97,7 +97,7 @@ async def test_sync_status_returns_404_for_other_tenants_job(client, auth_header
     job_repo = ContentAggregatorSyncJobRepository(mock_db)
     await job_repo.create_job("job-1", tenant_id="tenant-b", source_type="subodha", scope="all", source_id=None, total_items=0)
 
-    resp = await client.get("/subodha/sync/status/job-1", headers=auth_headers)
+    resp = await client.get("/content-aggregators/sync/status/job-1", headers=auth_headers)
     assert resp.status_code == 404
 
 
@@ -107,7 +107,7 @@ async def test_stream_replays_done_immediately_for_finished_job(client, auth_hea
     await job_repo.create_job("job-1", tenant_id="tenant-a", source_type="subodha", scope="all", source_id=None, total_items=1)
     await job_repo.set_job_status("tenant-a", "job-1", "completed")
 
-    async with client.stream("GET", "/subodha/sync/stream/job-1", headers=auth_headers) as resp:
+    async with client.stream("GET", "/content-aggregators/sync/stream/job-1", headers=auth_headers) as resp:
         assert resp.status_code == 200
         assert "text/event-stream" in resp.headers["content-type"]
         body = ""
@@ -129,7 +129,7 @@ async def test_stream_yields_nothing_for_other_tenants_job(client, auth_headers,
     await job_repo.create_job("job-1", tenant_id="tenant-b", source_type="subodha", scope="all", source_id=None, total_items=1)
     await job_repo.set_job_status("tenant-b", "job-1", "completed")
 
-    async with client.stream("GET", "/subodha/sync/stream/job-1", headers=auth_headers) as resp:
+    async with client.stream("GET", "/content-aggregators/sync/stream/job-1", headers=auth_headers) as resp:
         assert resp.status_code == 200
         body = b"".join([chunk async for chunk in resp.aiter_bytes()])
 
@@ -150,12 +150,12 @@ async def test_courses_are_isolated_between_tenants(client, mock_db):
     )
     await repo.upsert_tree("tenant-a", "subodha", "course-1", [node])
 
-    a_resp = await client.get("/subodha/courses", headers=_tenant_headers("tenant-a"))
-    b_resp = await client.get("/subodha/courses", headers=_tenant_headers("tenant-b"))
+    a_resp = await client.get("/content-aggregators/courses", headers=_tenant_headers("tenant-a"))
+    b_resp = await client.get("/content-aggregators/courses", headers=_tenant_headers("tenant-b"))
     assert len(a_resp.json()["courses"]) == 1
     assert len(b_resp.json()["courses"]) == 0
 
-    a_detail = await client.get("/subodha/courses/course-1", headers=_tenant_headers("tenant-a"))
-    b_detail = await client.get("/subodha/courses/course-1", headers=_tenant_headers("tenant-b"))
+    a_detail = await client.get("/content-aggregators/courses/course-1", headers=_tenant_headers("tenant-a"))
+    b_detail = await client.get("/content-aggregators/courses/course-1", headers=_tenant_headers("tenant-b"))
     assert a_detail.status_code == 200
     assert b_detail.status_code == 404

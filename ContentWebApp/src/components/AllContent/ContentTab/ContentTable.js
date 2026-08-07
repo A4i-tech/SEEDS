@@ -1,4 +1,6 @@
 import React from "react";
+import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
+import "react-loading-skeleton/dist/skeleton.css";
 import { getLanguageName } from "../../../utils/languageName";
 import MiddleEllipsis from "../shared/MiddleEllipsis";
 import RowActions from "../shared/RowActions";
@@ -14,30 +16,51 @@ const ContentTable = ({
   onDelete,
   courseSyncStates = {},
   onSyncCourse,
-  onDeleteSubodhaCourse,
+  onDeleteContentAggregatorCourse,
 }) => {
   return (
     <div className="table-wrapper">
       {isLoading && content.length === 0 ? (
-        <table className="content-table">
-          <thead>
-            <tr>
-              <th className="table-header">Title</th>
-              <th className="table-header">Theme</th>
-              <th className="table-header">Uploaded</th>
-              <th className="table-header">Language</th>
-              <th className="table-header">Type</th>
-              <th className="table-header table-header-actions">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {Array.from({ length: 4 }).map((_, i) => (
-              <tr key={i} className="skeleton-row">
-                <td colSpan={6} className="skeleton-cell"></td>
+        <SkeletonTheme baseColor="var(--color-skeleton-base)" highlightColor="var(--color-skeleton-highlight)">
+          <table className="content-table">
+            <thead>
+              <tr>
+                <th className="table-header">Title</th>
+                <th className="table-header">Theme</th>
+                <th className="table-header">Uploaded</th>
+                <th className="table-header">Language</th>
+                <th className="table-header">Type</th>
+                <th className="table-header table-header-actions">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {Array.from({ length: 4 }).map((_, i) => (
+                <tr key={i} className="table-row-white">
+                  <td className="table-cell table-cell-truncate">
+                    <Skeleton width="80%" />
+                    <Skeleton width="60%" />
+                  </td>
+                  <td className="table-cell table-cell-truncate">
+                    <Skeleton width="80%" />
+                    <Skeleton width="60%" />
+                  </td>
+                  <td className="table-cell">
+                    <Skeleton width="70%" />
+                  </td>
+                  <td className="table-cell">
+                    <Skeleton width="70%" />
+                  </td>
+                  <td className="table-cell">
+                    <Skeleton width="70%" />
+                  </td>
+                  <td className="table-cell table-cell-actions">
+                    <Skeleton width="100%" height={28} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </SkeletonTheme>
       ) : !isLoading && content.length === 0 ? (
         <div className="no-content">No content found.</div>
       ) : (
@@ -56,7 +79,7 @@ const ContentTable = ({
             {content.map((item) => {
               const itemId = item.id;
               const itemType = item.type.toLowerCase();
-              const isSubodha = item.source === "subodha";
+              const isContentAggregatorItem = item.source === "subodha";
               const syncState = courseSyncStates[itemId];
               const syncing = syncState === "running";
               return (
@@ -70,7 +93,7 @@ const ContentTable = ({
                     <MiddleEllipsis text={item.theme.local} className="table-cell-secondary" />
                   </td>
                   <td className="table-cell">
-                    {isSubodha
+                    {isContentAggregatorItem
                       ? item.synced
                         ? "Synced"
                         : "Never synced"
@@ -85,7 +108,7 @@ const ContentTable = ({
                   <td className="table-cell">{getLanguageName(item.language)}</td>
                   <td className="table-cell">
                     <span className="content-type">
-                      {isSubodha ? "Subodha" : itemType}
+                      {isContentAggregatorItem ? "Subodha" : itemType}
                       {itemType === "quiz" && (
                         <span className="content-type-badge-quiz" title="Quiz Content">
                           Q
@@ -94,7 +117,7 @@ const ContentTable = ({
                     </span>
                   </td>
                   <td className="table-cell table-cell-actions">
-                    {isSubodha ? (
+                    {isContentAggregatorItem ? (
                       <RowActions
                         actions={[
                           {
@@ -105,10 +128,10 @@ const ContentTable = ({
                             onClick: () => onSyncCourse(itemId, item.title.english),
                           },
                           { key: "view", label: "View", variant: "view", onClick: () => onView(itemType, itemId) },
-                          ...(onDeleteSubodhaCourse
+                          ...(onDeleteContentAggregatorCourse
                             ? [{
                                 key: "delete", label: "Delete", variant: "delete",
-                                onClick: () => onDeleteSubodhaCourse(itemId, item.title.english),
+                                onClick: () => onDeleteContentAggregatorCourse(itemId, item.title.english),
                               }]
                             : []),
                         ]}

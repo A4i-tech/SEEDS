@@ -1,11 +1,11 @@
-.subodha-sync-all-progress {
+.content-aggregator-sync-all-progress {
   display: flex;
   align-items: center;
   gap: 10px;
   margin: 12px 0;
 }
 
-.subodha-sync-all-progress-track {
+.content-aggregator-sync-all-progress-track {
   flex: 1;
   height: 8px;
   background: #e2e8f0;
@@ -13,13 +13,13 @@
   overflow: hidden;
 }
 
-.subodha-sync-all-progress-fill {
+.content-aggregator-sync-all-progress-fill {
   height: 100%;
   background: var(--color-focus-ring);
   transition: width 0.2s ease;
 }
 
-.subodha-sync-all-progress-label {
+.content-aggregator-sync-all-progress-label {
   font-size: 12px;
   color: #64748b;
   white-space: nowrap;

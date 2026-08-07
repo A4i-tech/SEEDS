@@ -31,10 +31,10 @@ const AddQuiz = ({ quiz }) => {
   useEffect(() => {
     if (quiz && Object.keys(quiz).length > 0) {
       setMetadata({
-        title: quiz.title?.english,
-        localTitle: quiz.title?.local,
-        theme: quiz.theme?.english,
-        localTheme: quiz.theme?.local,
+        title: quiz.title.english,
+        localTitle: quiz.title.local,
+        theme: quiz.theme.english,
+        localTheme: quiz.theme.local,
         language: quiz.language,
         positiveMark: quiz.positive_marks,
         negativeMark: quiz.negative_marks,
@@ -72,7 +72,6 @@ const AddQuiz = ({ quiz }) => {
     setMetadata((prev) => ({
       ...prev,
       language: newLanguage,
-      // When language changes, clear local-specific fields so the user re-enters them if needed
       localTitle: "",
       localTheme: "",
     }));
@@ -218,7 +217,6 @@ const AddQuiz = ({ quiz }) => {
     updated[questionIndex].correctAnswer = optionIndex;
     setInputFields(updated);
   };
-  //     "positiveMark" : 1,    "negativeMark" : 0,    "id" : "Ramayana quiz 2",    "language" : "Kannada",
   const removeFields = (index) => {
     let data = [...inputFields];
     data.splice(index, 1);

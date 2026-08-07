@@ -4,6 +4,7 @@ import { getRole } from "../utils/authHelpers";
 
 export const useSchools = (activeTab) => {
   const [schools, setSchools] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("success");
 
@@ -17,11 +18,14 @@ export const useSchools = (activeTab) => {
   }, []);
 
   const fetchSchools = useCallback(async () => {
+    setIsLoading(true);
     try {
       const data = await schoolService.getSchools();
       setSchools(data);
     } catch (error) {
       console.error("Error fetching schools:", error);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
@@ -78,5 +82,5 @@ export const useSchools = (activeTab) => {
     }
   }, []);
 
-  return { schools, message, messageType, createSchool, updateSchool, deleteSchool };
+  return { schools, isLoading, message, messageType, createSchool, updateSchool, deleteSchool };
 };

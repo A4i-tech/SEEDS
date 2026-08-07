@@ -19,6 +19,8 @@
   --color-stat-orange: #f59e0b;
   --color-stat-purple: #8b5cf6;
   --color-on-accent: #ffffff;
+  --color-skeleton-base: #f1f5f9;
+  --color-skeleton-highlight: #e2e8f0;
 }
 
 *,

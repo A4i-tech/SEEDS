@@ -3,7 +3,7 @@ import { generateFilterOptions, applyFilters } from "../utils/filterHelpers";
 import { fuzzyMatch } from "../utils/fuzzyMatch";
 
 const matchesTitleQuery = (item, query) =>
-  fuzzyMatch(item.title?.english || "", query) || fuzzyMatch(item.title?.local || "", query);
+  fuzzyMatch(item.title.english, query) || fuzzyMatch(item.title.local, query);
 
 export const useContentFilters = (allContent, setContent, setIsFiltered) => {
   const [selectedValues, setSelectedValues] = useState([]);

@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useContent } from "../hooks/useContent";
-import { useSubodhaSync } from "../hooks/useSubodhaSync";
+import { useContentAggregatorSync } from "../hooks/useContentAggregatorSync";
 import { useContentFilters } from "../hooks/useContentFilters";
 import { useTeachers } from "../hooks/useTeachers";
 import { useSchools } from "../hooks/useSchools";
@@ -35,13 +35,14 @@ const AllContent = () => {
     isFiltered,
     loadMore,
     deleteContent,
-    deleteSubodhaCourse,
-    refreshSubodhaCourses,
+    deleteContentAggregatorCourse,
+    refreshContentAggregatorCourses,
     setContent,
     setIsFiltered,
   } = useContent();
 
-  const { syncingAll, syncAllProgress, courseStates, syncAll, syncCourse } = useSubodhaSync(refreshSubodhaCourses);
+  const { syncingAll, syncAllProgress, courseStates, syncAll, syncCourse } =
+    useContentAggregatorSync(refreshContentAggregatorCourses);
 
   const { options, selectedValues, handleFilterChange, titleQuery, setTitleQuery } = useContentFilters(
     allContent,
@@ -52,6 +53,7 @@ const AllContent = () => {
   const {
     teachers,
     students,
+    isLoading: isTeachersLoading,
     message,
     messageType,
     registerTeacher,
@@ -65,6 +67,7 @@ const AllContent = () => {
 
   const {
     schools,
+    isLoading: isSchoolsLoading,
     message: schoolMessage,
     messageType: schoolMessageType,
     createSchool,
@@ -192,7 +195,7 @@ const AllContent = () => {
             syncAllProgress={syncAllProgress}
             courseSyncStates={courseStates}
             onSyncCourse={syncCourse}
-            onDeleteSubodhaCourse={deleteSubodhaCourse}
+            onDeleteContentAggregatorCourse={deleteContentAggregatorCourse}
           />
         )}
 
@@ -204,6 +207,7 @@ const AllContent = () => {
           <RegistrationTab
             teachers={teachers}
             students={students}
+            isTeachersLoading={isTeachersLoading}
             onRegisterTeacher={registerTeacher}
             onAddStudent={addStudent}
             onUpdateStudent={updateStudentById}
@@ -214,6 +218,7 @@ const AllContent = () => {
             message={message}
             messageType={messageType}
             schools={schools}
+            isSchoolsLoading={isSchoolsLoading}
             onCreateSchool={createSchool}
             onUpdateSchool={updateSchool}
             onDeleteSchool={deleteSchool}

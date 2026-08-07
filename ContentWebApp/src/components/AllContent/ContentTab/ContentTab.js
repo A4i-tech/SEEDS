@@ -1,8 +1,7 @@
-import React, { useState } from "react";
+import React from "react";
 import { useNavigate } from "react-router-dom";
 import ContentFilters from "./ContentFilters";
 import ContentTable from "./ContentTable";
-import SubodhaSyncHistory from "../../SubodhaSyncHistory";
 import "./css/ContentTab.css";
 import "../shared/buttons.css";
 import "../shared/cards.css";
@@ -30,10 +29,9 @@ const ContentTab = ({
   syncAllProgress,
   courseSyncStates,
   onSyncCourse,
-  onDeleteSubodhaCourse,
+  onDeleteContentAggregatorCourse,
 }) => {
   const navigate = useNavigate();
-  const [showSyncHistory, setShowSyncHistory] = useState(false);
 
   return (
     <div className="card">
@@ -62,7 +60,7 @@ const ContentTab = ({
           <button
             type="button"
             className="tertiary-button button-ml-8"
-            onClick={() => setShowSyncHistory(true)}
+            onClick={() => navigate("/content/sync-history")}
           >
             Sync History
           </button>
@@ -76,14 +74,14 @@ const ContentTab = ({
       </div>
 
       {syncingAll && syncAllProgress && syncAllProgress.total > 0 && (
-        <div className="subodha-sync-all-progress">
-          <div className="subodha-sync-all-progress-track">
+        <div className="content-aggregator-sync-all-progress">
+          <div className="content-aggregator-sync-all-progress-track">
             <div
-              className="subodha-sync-all-progress-fill"
+              className="content-aggregator-sync-all-progress-fill"
               style={{ width: `${Math.min(100, Math.round((syncAllProgress.processed / syncAllProgress.total) * 100))}%` }}
             />
           </div>
-          <span className="subodha-sync-all-progress-label">
+          <span className="content-aggregator-sync-all-progress-label">
             {syncAllProgress.processed}/{syncAllProgress.total} courses synced
           </span>
         </div>
@@ -105,7 +103,7 @@ const ContentTab = ({
         onDelete={onDelete}
         courseSyncStates={courseSyncStates}
         onSyncCourse={onSyncCourse}
-        onDeleteSubodhaCourse={onDeleteSubodhaCourse}
+        onDeleteContentAggregatorCourse={onDeleteContentAggregatorCourse}
       />
 
       {!isFiltered && paginationInfo.hasMore && (
@@ -120,8 +118,6 @@ const ContentTab = ({
           </button>
         </div>
       )}
-
-      {showSyncHistory && <SubodhaSyncHistory onClose={() => setShowSyncHistory(false)} />}
     </div>
   );
 };
