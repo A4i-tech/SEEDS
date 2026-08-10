@@ -162,11 +162,13 @@ class ContentRepository(BaseRepository):
     # ------------------------------------------------------------------
 
     async def insert_raw(self, doc: dict) -> str:
-        """Insert a raw content document, coercing tenant_id/school_id to ObjectId."""
+        """Insert a raw content document, coercing tenant_id/school_id/created_by to ObjectId."""
         if doc.get("tenant_id"):
             doc["tenant_id"] = _oid(doc["tenant_id"])
         if doc.get("school_id"):
             doc["school_id"] = _oid(doc["school_id"])
+        if doc.get("created_by"):
+            doc["created_by"] = _oid(doc["created_by"])
         await self._col.insert_one(doc)
         return str(doc["_id"])
 
