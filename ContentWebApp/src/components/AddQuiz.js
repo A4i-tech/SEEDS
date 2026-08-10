@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { v4 as uuidv4 } from "uuid";
 import { useNavigate } from "react-router-dom";
 import { contentService } from "../services/contentService";
 
@@ -109,7 +108,6 @@ const AddQuiz = ({ quiz }) => {
       positive_marks: metadata.positiveMark,
       negative_marks: metadata.negativeMark,
       questions,
-      id: quiz ? quiz.id : uuidv4(),
     };
 
     return payload;

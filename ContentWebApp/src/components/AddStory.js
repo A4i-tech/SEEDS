@@ -273,7 +273,6 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
     // Always send title and theme as objects
     var newMetadata = {
       ...metadata,
-      _id,
       type: contentType.toLowerCase(),
       title: {
         english: metadata.title.english,
