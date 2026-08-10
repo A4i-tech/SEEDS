@@ -40,11 +40,6 @@ app = FastAPI(
     openapi_url=None if settings.env == "production" else "/openapi.json",
 )
 
-# opentelemetry-instrumentation-fastapi 0.61b0's _get_route_details() only
-# guards the AttributeError on Match.FULL routes, not Match.PARTIAL ones
-# (e.g. Mount-based routes without a .path attribute). Unpatched, that raises
-# on every request before CORSMiddleware runs, so browsers see it as a CORS
-# failure instead of a 500. Patch in the same guard for Match.PARTIAL.
 _otel_get_route_details = _otel_fastapi._get_route_details
 
 

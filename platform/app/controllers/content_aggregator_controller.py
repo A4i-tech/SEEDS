@@ -29,7 +29,7 @@ from app.services.content_aggregator_sync_jobs import (
     serialize_job,
     subscribe,
 )
-from app.services.subodha_service import SubodhaService, get_subodha_service
+from app.services.subodha_service import CourseDiffResult, SubodhaService, get_subodha_service
 
 router = APIRouter(prefix="/content-aggregators", tags=["Content Aggregators"])
 
@@ -91,7 +91,7 @@ async def get_diff(
     user: dict[str, Any] = Depends(_require_tenant),
     service: SubodhaService = Depends(get_subodha_service),
     client: SubodhaClient = Depends(get_subodha_client),
-) -> dict[str, Any]:
+) -> CourseDiffResult:
     return await service.get_course_diff(user.get("tenant_id", ""), client)
 
 

@@ -78,7 +78,7 @@ const AddQuiz = ({ quiz }) => {
   };
 
   const createQuizJson = () => {
-    const languageLower = (metadata.language || "").toLowerCase();
+    const languageLower = metadata.language.toLowerCase();
 
     const questions = inputFields.map((mcq, qIdx) => {
       const questionId = `q${qIdx + 1}`;
@@ -117,7 +117,7 @@ const AddQuiz = ({ quiz }) => {
 
   const isValid = () => {
     var valid = true;
-    const languageLower = (metadata.language || "").toLowerCase();
+    const languageLower = metadata.language.toLowerCase();
 
     if (metadata.title.length === 0) {
       valid = false;
@@ -224,7 +224,7 @@ const AddQuiz = ({ quiz }) => {
   };
 
   const getLocalizedLabelPrefix = () => {
-    const language = (metadata.language || "").toLowerCase();
+    const language = metadata.language.toLowerCase();
     switch (language) {
       case "kn":
         return "Kannada";
@@ -265,7 +265,7 @@ const AddQuiz = ({ quiz }) => {
               type="text"
               name="title"
               placeholder="Add Title"
-              value={metadata.title || ""}
+              value={metadata.title}
               onChange={(event) => setMetadata({ ...metadata, title: event.target.value })}
             />
           </div>
@@ -277,7 +277,7 @@ const AddQuiz = ({ quiz }) => {
               type="text"
               name="theme"
               placeholder="Add Theme"
-              value={metadata.theme || ""}
+              value={metadata.theme}
               onChange={(event) => setMetadata({ ...metadata, theme: event.target.value })}
             />
           </div>
@@ -291,7 +291,7 @@ const AddQuiz = ({ quiz }) => {
                   type="text"
                   name="localTitle"
                   placeholder="Add Local Title"
-                  value={metadata.localTitle || ""}
+                  value={metadata.localTitle}
                   onChange={(event) => setMetadata({ ...metadata, localTitle: event.target.value })}
                 />
               </div>
@@ -303,7 +303,7 @@ const AddQuiz = ({ quiz }) => {
                   type="text"
                   name="localTheme"
                   placeholder="Add Local Theme"
-                  value={metadata.localTheme || ""}
+                  value={metadata.localTheme}
                   onChange={(event) => setMetadata({ ...metadata, localTheme: event.target.value })}
                 />
               </div>
@@ -317,7 +317,7 @@ const AddQuiz = ({ quiz }) => {
               className="form-input"
               name="positiveMark"
               placeholder="Add Positive Marks"
-              value={metadata.positiveMark || 1}
+              value={metadata.positiveMark}
               onChange={(event) => setMetadata({ ...metadata, positiveMark: event.target.value })}
             />
           </div>
@@ -329,7 +329,7 @@ const AddQuiz = ({ quiz }) => {
               className="form-input"
               name="negativeMark"
               placeholder="Add Negative Marks"
-              value={metadata.negativeMark || 0}
+              value={metadata.negativeMark}
               onChange={(event) => setMetadata({ ...metadata, negativeMark: event.target.value })}
             />
           </div>

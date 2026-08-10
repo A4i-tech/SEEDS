@@ -37,7 +37,7 @@ class TextStrategy(ContentStrategy):
         raw_html = raw or ""
         try:
             markdown = html_to_markdown(raw_html)
-        except Exception as exc:  # noqa: BLE001
+        except (RuntimeError, OSError) as exc:
             logger.warning("[content-strategies] pandoc conversion failed for %s: %s", ctx.blob_prefix, exc)
             raw_html_url = await blob.upload_file(ctx.container, f"{ctx.blob_prefix}.raw.html", raw_html.encode("utf-8"), "text/html")
             return TextContent(raw_html_url=raw_html_url, conversion_failed=True)

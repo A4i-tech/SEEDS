@@ -30,12 +30,6 @@ export const useContent = () => {
   const isFilteredRef = useRef(isFiltered);
   isFilteredRef.current = isFiltered;
 
-  /**
-   * Fetch content aggregator courses and merge them into the content list
-   * (source: "subodha"). Safe to call repeatedly (e.g. after a sync
-   * completes) — replaces the prior slice each time rather than appending
-   * duplicates.
-   */
   const loadContentAggregatorCourses = useCallback(async () => {
     try {
       const courses = await contentAggregatorService.getCourses();
@@ -167,10 +161,6 @@ export const useContent = () => {
     []
   );
 
-  /**
-   * Delete a content aggregator course's local synced copy (does not touch
-   * the source LMS itself)
-   */
   const deleteContentAggregatorCourse = useCallback(async (courseId, name) => {
     if (!window.confirm(`Remove the synced copy of "${name || courseId}"? It can be re-synced later.`)) {
       return;

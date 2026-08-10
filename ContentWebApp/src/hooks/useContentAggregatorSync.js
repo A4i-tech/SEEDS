@@ -73,7 +73,7 @@ export const useContentAggregatorSync = (onSettled) => {
         onDone: (job) => {
           setSyncAllProgress(null);
           if (job.status === "completed") {
-            alert(`Subodha sync complete: ${job.processed ?? 0}/${job.total_courses ?? 0} courses processed.`);
+            alert(`Subodha sync complete: ${job.processed}/${job.total_courses} courses processed.`);
             onSettled?.();
           } else {
             alert(`Subodha sync failed: ${job.error || "Unknown error"}`);
@@ -148,8 +148,7 @@ export const useContentAggregatorSync = (onSettled) => {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [onSettled, followJob]);
 
   return { syncingAll, syncAllProgress, courseStates, syncAll, syncCourse };
 };

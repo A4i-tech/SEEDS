@@ -128,12 +128,10 @@ const ContentTable = ({
                             onClick: () => onSyncCourse(itemId, item.title.english),
                           },
                           { key: "view", label: "View", variant: "view", onClick: () => onView(itemType, itemId) },
-                          ...(onDeleteContentAggregatorCourse
-                            ? [{
-                                key: "delete", label: "Delete", variant: "delete",
-                                onClick: () => onDeleteContentAggregatorCourse(itemId, item.title.english),
-                              }]
-                            : []),
+                          {
+                            key: "delete", label: "Delete", variant: "delete",
+                            onClick: () => onDeleteContentAggregatorCourse(itemId, item.title.english),
+                          },
                         ]}
                       />
                     ) : (
@@ -141,9 +139,7 @@ const ContentTable = ({
                         actions={[
                           { key: "edit", label: "Edit", variant: "edit", onClick: () => onEdit(itemType, itemId) },
                           { key: "view", label: "View", variant: "view", onClick: () => onView(itemType, itemId) },
-                          ...(onDelete
-                            ? [{ key: "delete", label: "Delete", variant: "delete", onClick: () => onDelete(itemType, itemId) }]
-                            : []),
+                          { key: "delete", label: "Delete", variant: "delete", onClick: () => onDelete(itemType, itemId) },
                         ]}
                       />
                     )}

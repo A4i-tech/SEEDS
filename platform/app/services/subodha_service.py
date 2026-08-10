@@ -9,7 +9,7 @@ import mimetypes
 import re
 from datetime import UTC, datetime
 from pathlib import PurePosixPath
-from typing import Any
+from typing import Any, TypedDict
 from urllib.parse import unquote
 
 from fastapi import Depends
@@ -28,6 +28,17 @@ from app.repositories.content_aggregator_sync_job_repository import (
 )
 from app.serializers.subodha_serializer import LegacyCourseDoc, to_course_doc
 from app.services.content_aggregator_sync_jobs import record_item_result, set_total
+
+
+class CourseDiffResult(TypedDict):
+    totalLive: int
+    totalStored: int
+    newCount: int
+    removedCount: int
+    newCourseIds: list[str]
+    removedCourseIds: list[str]
+    liveCourses: list[dict[str, Any]]
+
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +113,7 @@ class SubodhaService:
         updated = QuizContent(raw_html_url=existing.content.raw_html_url, question=question, choices=choices)
         return await self._repo.update_item_content(tenant_id, self.SOURCE_TYPE, block_id, updated)
 
-    async def get_course_diff(self, tenant_id: str, client: SubodhaClient) -> dict[str, Any]:
+    async def get_course_diff(self, tenant_id: str, client: SubodhaClient) -> CourseDiffResult:
         live_courses, stored_ids = await asyncio.gather(
             client.list_all_courses(), self._repo.stored_root_ids(tenant_id, self.SOURCE_TYPE)
         )

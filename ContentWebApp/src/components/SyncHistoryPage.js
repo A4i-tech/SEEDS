@@ -41,9 +41,7 @@ const SyncHistoryJobListSkeleton = () => (
 );
 
 function formatLocal(isoString) {
-  if (!isoString) return "";
-  const date = new Date(isoString);
-  return Number.isNaN(date.getTime()) ? isoString : date.toLocaleString();
+  return new Date(isoString).toLocaleString();
 }
 
 const SyncHistoryPage = () => {
@@ -156,7 +154,7 @@ const SyncHistoryPage = () => {
                             <td className="table-cell table-cell-truncate">
                               <MiddleEllipsis text={c.name} />
                             </td>
-                            <td className="table-cell">{STATUS_LABEL[c.status] || c.status}</td>
+                            <td className="table-cell">{STATUS_LABEL[c.status]}</td>
                             <td className="table-cell table-cell-secondary">{c.error || "—"}</td>
                             <td className="table-cell">{formatLocal(c.at)}</td>
                           </tr>
