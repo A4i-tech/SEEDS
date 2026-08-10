@@ -49,6 +49,9 @@ _MIGRATIONS: list[tuple[str, str]] = [
     ("015", "015_conferences_oid.py"),
     ("016", "016_coerce_user_ref_ids_to_objectid.py"),
     ("017", "017_contentsv3_oid.py"),
+    ("018", "018_contentsv3_type_lowercase.py"),
+    ("019", "019_contentsv3_remove_quiz_docs.py"),
+    ("020", "020_contentsv3_fix_is_processed.py"),
 ]
 
 

@@ -219,7 +219,7 @@ class Quiz:
         return State(
             state_id=f"{prefix_state_id}_correct_state_{state_id_append}",
             actions=actions,
-            post_operation=QuizPostStateOperation(score=self.quiz_data.positiveMarks),
+            post_operation=QuizPostStateOperation(score=self.quiz_data.positive_marks),
         )
 
     def get_incorrect_option_state(
@@ -234,5 +234,5 @@ class Quiz:
         return State(
             state_id=f"{prefix_state_id}_incorrect_state_{state_id_append}",
             actions=actions,
-            post_operation=QuizPostStateOperation(score=-self.quiz_data.negativeMarks),
+            post_operation=QuizPostStateOperation(score=-self.quiz_data.negative_marks),
         )

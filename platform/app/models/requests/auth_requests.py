@@ -6,40 +6,34 @@ from pydantic import BaseModel
 
 
 class TeacherLoginRequest(BaseModel):
-    phoneNumber: str
+    phone_number: str
     password: str
-    schoolId: str | None = None
 
 
 class TeacherRegisterRequest(BaseModel):
-    phoneNumber: str
+    phone_number: str
     password: str
     name: str
     role: str = "teacher"
-
-    model_config = {"populate_by_name": True}
-
-
-class TenantLoginRequest(BaseModel):
-    email: str
-    password: str
 
 
 class TenantRegisterRequest(BaseModel):
     email: str
     password: str
-    tenantName: str
+    tenant_name: str
     name: str = ""
-
-    model_config = {"populate_by_name": True}
 
 
 class TenantChangePasswordRequest(BaseModel):
-    newPassword: str
-
-    model_config = {"populate_by_name": True}
+    new_password: str
 
 
-class SchoolAdminLoginRequest(BaseModel):
-    email: str
+class UnifiedLoginRequest(BaseModel):
+    """Login body for POST /auth/login — email (tenant/school_admin) or phone (content_creator)."""
+
+    identifier: str
     password: str
+
+    @property
+    def is_email(self) -> bool:
+        return "@" in self.identifier

@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict
 class AnalyticsResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    startDate: str
-    endDate: str
+    start_date: str
+    end_date: str
     count: int
     data: list[dict[str, Any]]

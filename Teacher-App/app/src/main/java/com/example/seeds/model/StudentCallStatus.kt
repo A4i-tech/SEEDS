@@ -17,8 +17,8 @@ data class StudentCallStatus (
     val isMuted: Boolean = false,
 
     val onHold: Boolean = false,
-    val phoneNumber: String? = null,
-    val name: String? = null,
+    val phoneNumber: String,
+    val name: String,
     val raiseHand: Boolean = false,
     var isMuteUnmuteDone: Boolean = true
 )

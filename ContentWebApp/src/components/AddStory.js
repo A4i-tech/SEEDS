@@ -38,13 +38,9 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
   const [loadError, setLoadError] = useState(null);
 
   const populateThemes = (content) => {
-    if (!Array.isArray(content)) {
-      console.warn("populateThemes: content is not an array", content);
-      return;
-    }
     const newThemes = {};
     content.forEach((item) => {
-      if (!item || !item.theme) return;
+      if (!item.theme) return;
       const themeEnglish = item.theme.english;
       const themeLocal = item.theme.local;
       if (item.language && themeEnglish && themeLocal) {
@@ -101,17 +97,16 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
   const fetchTitlesUnderTheme = useCallback(
     (language, theme) => {
       const filteredContent = allContent.filter((item) => {
-        const itemTheme = item.theme?.english;
         return (
           item.language.toLowerCase() === language.toLowerCase() &&
-          itemTheme.toLowerCase() === theme.toLowerCase() &&
+          item.theme.english.toLowerCase() === theme.toLowerCase() &&
           item.id !== content?.id
         );
       });
       const titleMap = {};
       filteredContent.forEach((item) => {
-        const titleEnglish = item.title?.english;
-        const titleLocal = item.title?.local;
+        const titleEnglish = item.title.english;
+        const titleLocal = item.title.local;
         if (titleEnglish && titleLocal) {
           titleMap[titleEnglish.toLowerCase()] = titleLocal;
         }
@@ -149,33 +144,28 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
 
   useEffect(() => {
     if (content) {
+      const languageLower = content.language.toLowerCase();
       const quizMetadata = {
         id: content.id,
-        type: content.type || "Story",
-        description: content.description || "",
-        language: (content.language || "kn").toLowerCase(),
+        type: content.type,
+        description: content.description,
+        language: languageLower,
         title: {
-          english: content.title?.english || "",
-          local:
-            (content.language || "").toLowerCase() === "en"
-              ? content.title?.english || ""
-              : content.title?.local || "",
-          audioUrl: content.title?.audioUrl || "",
+          english: content.title.english,
+          local: languageLower === "en" ? content.title.english : content.title.local,
+          audioUrl: content.title.audio_url,
         },
         theme: {
-          english: content.theme?.english || "",
-          local:
-            (content.language || "").toLowerCase() === "en"
-              ? content.theme?.english || ""
-              : content.theme?.local || "",
-          audioUrl: content.theme?.audioUrl || "",
+          english: content.theme.english,
+          local: languageLower === "en" ? content.theme.english : content.theme.local,
+          audioUrl: content.theme.audio_url,
         },
-        audioContent: content.audioContent || [],
-        createdBy: content.createdBy || "",
-        isPullModel: content.isPullModel ?? false,
-        isTeacherApp: content.isTeacherApp ?? true,
-        isProcessed: content.isProcessed ?? false,
-        isDeleted: content.isDeleted ?? false,
+        audioContent: content.audio_content,
+        createdBy: content.created_by,
+        isPullModel: content.is_pull_model,
+        isTeacherApp: content.is_teacher_app,
+        isProcessed: content.is_processed,
+        isDeleted: content.is_deleted,
         audioFile: "",
         answerAudioFile: "",
       };
@@ -262,14 +252,28 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
     }
   };
 
+  const buildRequestBody = (data) => {
+    const { isPullModel, isTeacherApp, isProcessed, isDeleted, createdBy, audioContent, title, theme, ...rest } = data;
+    return {
+      ...rest,
+      is_pull_model: isPullModel,
+      is_teacher_app: isTeacherApp,
+      is_processed: isProcessed,
+      is_deleted: isDeleted,
+      created_by: createdBy,
+      audio_content: audioContent,
+      title: title && { english: title.english, local: title.local, audio_url: title.audioUrl },
+      theme: theme && { english: theme.english, local: theme.local, audio_url: theme.audioUrl },
+    };
+  };
+
   const sendStory = async () => {
-    const _id = content ? (content._id || content.id) : uuidv4();
+    const _id = content ? content.id : uuidv4();
     const languageLower = (metadata.language || "").toLowerCase();
     // Always send title and theme as objects
     var newMetadata = {
       ...metadata,
-      _id,
-      type: contentType,
+      type: contentType.toLowerCase(),
       title: {
         english: metadata.title.english,
         local: languageLower === "en" ? metadata.title.english : metadata.title.local,
@@ -306,19 +310,19 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
       const res = await fetch(
         `${SEEDS_URL}/content/sasToken?` +
           new URLSearchParams({
-            blobName: filename,
+            blob_name: filename,
           }),
         {
           method: "GET",
           headers: getAuthHeaders(),
         }
       );
-      sasUrl = (await res.json()).sasToken;
+      sasUrl = (await res.json()).sas_token;
       // Extract base URL (input-container URL) without SAS token
       const inputContainerUrl = sasUrl.split("?")[0];
       audioContentArray.push({
         description: "",
-        audioUrl: inputContainerUrl,
+        audio_url: inputContainerUrl,
       });
     }
 
@@ -328,19 +332,19 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
       const resAnswer = await fetch(
         `${SEEDS_URL}/content/sasToken?` +
           new URLSearchParams({
-            blobName: answerFilename,
+            blob_name: answerFilename,
           }),
         {
           method: "GET",
           headers: getAuthHeaders(),
         }
       );
-      sasUrlAnswer = (await resAnswer.json()).sasToken;
+      sasUrlAnswer = (await resAnswer.json()).sas_token;
       // Extract base URL (input-container URL) without SAS token
       const inputContainerUrlAnswer = sasUrlAnswer.split("?")[0];
       audioContentArray.push({
         description: "",
-        audioUrl: inputContainerUrlAnswer,
+        audio_url: inputContainerUrlAnswer,
       });
     }
 
@@ -384,18 +388,18 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
 
     // Send metadata to backend with populated audioContent AFTER files are uploaded
     if (content) {
-      newMetadata = { ...newMetadata, _id: content._id };
-      const seedsRes = await fetch(`${SEEDS_URL}/content?isAudioUploaded=${isAudioUploaded}`, {
+      newMetadata = { ...newMetadata, id: content.id };
+      const seedsRes = await fetch(`${SEEDS_URL}/content/${content.id}?is_audio_uploaded=${isAudioUploaded}`, {
         method: "PATCH",
         headers: getAuthHeaders(),
-        body: JSON.stringify(newMetadata),
+        body: JSON.stringify(buildRequestBody(newMetadata)),
       });
       await seedsRes.json();
     } else {
       const seedsRes = await fetch(`${SEEDS_URL}/content`, {
         method: "POST",
         headers: getAuthHeaders(),
-        body: JSON.stringify(newMetadata),
+        body: JSON.stringify(buildRequestBody(newMetadata)),
       });
       await seedsRes.json();
     }

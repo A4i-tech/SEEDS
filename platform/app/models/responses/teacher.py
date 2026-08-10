@@ -18,11 +18,8 @@ from pydantic import BaseModel
 
 
 class TeacherTransferResponse(BaseModel):
-    """Safe user representation for login, profile, register, and update responses.
-
-    Output shape matches user.model_dump(by_alias=True) on the User domain model:
-    snake_case for all fields except _id (User model only aliases id → _id).
-    """
+    """Response for POST /school/transfer — message plus the transferred teacher
+    (a UserPublicResponse.to_response() dict, snake_case end-to-end)."""
 
     message: str
     teacher: dict[str, Any]

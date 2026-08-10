@@ -13,7 +13,7 @@ describe("teacherService", () => {
 
   describe("createStudent", () => {
     test("calls apiFetch with POST to /student and correct body", async () => {
-      const mockResponse = { _id: "s1", name: "A", phoneNumber: "911111111111" };
+      const mockResponse = { id: "s1", name: "A", phone_number: "911111111111" };
       apiFetch.mockResolvedValue(mockResponse);
 
       const result = await teacherService.createStudent("A", "911111111111", {
@@ -25,25 +25,28 @@ describe("teacherService", () => {
         headers: { Authorization: "Bearer x" },
         body: JSON.stringify({
           name: "A",
-          phoneNumber: "911111111111",
+          phone_number: "911111111111",
         }),
       });
-      expect(result).toEqual(mockResponse);
+      expect(result.id).toBe("s1");
+      expect(result.name).toBe("A");
+      expect(result.phone_number).toBe("911111111111");
     });
 
     test("returns created student on success", async () => {
-      const mockResponse = { _id: "s2", name: "New", phoneNumber: "912222222222" };
+      const mockResponse = { id: "s2", name: "New", phone_number: "912222222222" };
       apiFetch.mockResolvedValue(mockResponse);
 
       const result = await teacherService.createStudent("New", "912222222222", {});
 
-      expect(result).toEqual(mockResponse);
+      expect(result.id).toBe("s2");
+      expect(result.phone_number).toBe("912222222222");
     });
   });
 
   describe("updateStudentById", () => {
     test("calls apiFetch with PATCH and correct body", async () => {
-      const mockResponse = { name: "Updated", phoneNumber: "918888888882" };
+      const mockResponse = { id: "918888888881", name: "Updated", phone_number: "918888888882" };
       apiFetch.mockResolvedValue(mockResponse);
 
       const result = await teacherService.updateStudentById(
@@ -59,23 +62,11 @@ describe("teacherService", () => {
         headers: {},
         body: JSON.stringify({
           name: "Updated",
-          phoneNumber: "918888888882",
+          phone_number: "918888888882",
         }),
       });
-      expect(result).toEqual(mockResponse);
-    });
-
-    test("returns updated student on success", async () => {
-      apiFetch.mockResolvedValue({ name: "NewName", phoneNumber: "917777777777" });
-
-      const result = await teacherService.updateStudentById(
-        "916666666666",
-        "NewName",
-        "917777777777",
-        {}
-      );
-
-      expect(result).toEqual({ name: "NewName", phoneNumber: "917777777777" });
+      expect(result.name).toBe("Updated");
+      expect(result.phone_number).toBe("918888888882");
     });
 
     test("propagates error with status 409 when new phone already exists", async () => {
@@ -90,7 +81,7 @@ describe("teacherService", () => {
 
   describe("updateTeacher", () => {
     test("trims name and phone in PATCH body", async () => {
-      const mockResponse = { name: "Updated", phoneNumber: "918888888882" };
+      const mockResponse = { id: "teacher-1", name: "Updated", phone_number: "918888888882" };
       apiFetch.mockResolvedValue(mockResponse);
 
       const result = await teacherService.updateTeacher(
@@ -106,10 +97,11 @@ describe("teacherService", () => {
         headers: {},
         body: JSON.stringify({
           name: "Updated",
-          phoneNumber: "918888888882",
+          phone_number: "918888888882",
         }),
       });
-      expect(result).toEqual(mockResponse);
+      expect(result.name).toBe("Updated");
+      expect(result.phone_number).toBe("918888888882");
     });
 
     test("includes password when present", async () => {
@@ -121,40 +113,40 @@ describe("teacherService", () => {
     test("handles undefined name/phone", async () => {
       apiFetch.mockResolvedValue({});
       await teacherService.updateTeacher("te1", undefined, undefined, undefined, mockHeaders);
-      expect(JSON.parse(apiFetch.mock.calls[0][1].body)).toEqual({ name: "", phoneNumber: "" });
+      expect(JSON.parse(apiFetch.mock.calls[0][1].body)).toEqual({ name: "", phone_number: "" });
     });
   });
 
   describe("getTeachers", () => {
-    test("returns response.data", async () => {
-      apiFetch.mockResolvedValue({ data: [{ id: "te1" }] });
-      await expect(teacherService.getTeachers(mockHeaders)).resolves.toEqual([{ id: "te1" }]);
-    });
-
-    test("falls back to the bare response when no data field", async () => {
-      apiFetch.mockResolvedValue([{ id: "te2" }]);
-      await expect(teacherService.getTeachers()).resolves.toEqual([{ id: "te2" }]);
+    test("returns SchoolTeacherDto list from the raw array response", async () => {
+      apiFetch.mockResolvedValue([{ id: "te1", name: "N", phone_number: "911111111111", role: "teacher" }]);
+      const result = await teacherService.getTeachers(mockHeaders);
+      expect(result[0].id).toBe("te1");
+      expect(result[0].phone_number).toBe("911111111111");
     });
   });
 
   describe("registerTeacher", () => {
-    test("POSTs body", async () => {
-      apiFetch.mockResolvedValue({ ok: true });
-      await teacherService.registerTeacher("1", "p", "N", "teacher", mockHeaders);
+    test("POSTs body and returns a TeacherDto", async () => {
+      apiFetch.mockResolvedValue({ id: "te1", name: "N", phone_number: "1", role: "teacher" });
+      const result = await teacherService.registerTeacher("1", "p", "N", "teacher", mockHeaders);
       const opts = apiFetch.mock.calls[0][1];
       expect(JSON.parse(opts.body)).toEqual({
-        phoneNumber: "1",
+        phone_number: "1",
         password: "p",
         name: "N",
         role: "teacher",
       });
+      expect(result.id).toBe("te1");
     });
   });
 
   describe("getStudents", () => {
-    test("returns list from apiFetch", async () => {
-      apiFetch.mockResolvedValue([{ id: "st1" }]);
-      await expect(teacherService.getStudents(mockHeaders)).resolves.toEqual([{ id: "st1" }]);
+    test("returns StudentDto list from apiFetch", async () => {
+      apiFetch.mockResolvedValue([{ id: "st1", name: "S", phone_number: "922222222222" }]);
+      const result = await teacherService.getStudents(mockHeaders);
+      expect(result[0].id).toBe("st1");
+      expect(result[0].phone_number).toBe("922222222222");
     });
   });
 
@@ -175,13 +167,17 @@ describe("teacherService", () => {
   });
 
   describe("transferTeacher", () => {
-    test("POSTs teacherId and targetSchoolId", async () => {
-      apiFetch.mockResolvedValue({});
-      await teacherService.transferTeacher("te1", "s2", mockHeaders);
-      expect(JSON.parse(apiFetch.mock.calls[0][1].body)).toEqual({
-        teacherId: "te1",
-        targetSchoolId: "s2",
+    test("POSTs teacherId and targetSchoolId, returns TeacherDto", async () => {
+      apiFetch.mockResolvedValue({
+        message: "ok",
+        teacher: { id: "te1", name: "N", phone_number: "1", role: "teacher" },
       });
+      const result = await teacherService.transferTeacher("te1", "s2", mockHeaders);
+      expect(JSON.parse(apiFetch.mock.calls[0][1].body)).toEqual({
+        teacher_id: "te1",
+        target_school_id: "s2",
+      });
+      expect(result.teacher.id).toBe("te1");
     });
   });
 });

@@ -7,19 +7,11 @@ export const useContentFilters = (allContent, setContent, setIsFiltered) => {
   const optionsRef = useRef([]);
 
   useEffect(() => {
-    if (Array.isArray(allContent) && allContent.length > 0) {
-      optionsRef.current = generateFilterOptions(allContent);
-    } else {
-      optionsRef.current = [];
-    }
+    optionsRef.current = allContent.length > 0 ? generateFilterOptions(allContent) : [];
   }, [allContent]);
 
   const handleFilterChange = useCallback(
     (selectedList) => {
-      if (!Array.isArray(allContent)) {
-        console.warn("handleFilterChange: allContent is not an array", allContent);
-        return;
-      }
       setSelectedValues(selectedList);
       const filteredList = applyFilters(allContent, selectedList, optionsRef.current);
       setIsFiltered(true);

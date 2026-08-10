@@ -36,18 +36,18 @@ class Quiz(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: str | None = Field(None, alias="_id")
-    tenant_id: str | None = Field(None, alias="tenantId")
-    school_id: str | None = Field(None, alias="schoolId")
-    created_by: str = Field("", alias="createdBy")
+    tenant_id: str | None = None
+    school_id: str | None = None
+    created_by: str = ""
     creation_time: int = -1
-    is_pull_model: bool = Field(False, alias="isPullModel")
-    is_teacher_app: bool = Field(False, alias="isTeacherApp")
-    is_deleted: bool = Field(False, alias="isDeleted")
+    is_pull_model: bool = False
+    is_teacher_app: bool = False
+    is_deleted: bool = False
     language: str
     title: TextContent
     theme: TextContent
-    positive_marks: float = Field(alias="positiveMarks")
-    negative_marks: float = Field(alias="negativeMarks")
+    positive_marks: float
+    negative_marks: float
     questions: list[QuizQuestion] = Field(default_factory=list)
 
     @classmethod

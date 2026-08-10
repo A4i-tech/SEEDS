@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { v4 as uuidv4 } from "uuid";
 import { useNavigate } from "react-router-dom";
 import { contentService } from "../services/contentService";
 
@@ -34,20 +33,21 @@ const AddQuiz = ({ quiz }) => {
         theme: quiz.theme?.english,
         localTheme: quiz.theme?.local,
         language: quiz.language,
-        positiveMark: quiz.positiveMarks,
-        negativeMark: quiz.negativeMarks,
+        positiveMark: quiz.positive_marks,
+        negativeMark: quiz.negative_marks,
       });
       const questions = quiz.questions;
-      const inputFieldsData = questions.map((questionText, index) => {
-        const optionTexts = [...quiz.options[index]];
+      const inputFieldsData = questions.map((q) => {
+        const optionTexts = q.options.map((o) => o.text);
         while (optionTexts.length < 4) optionTexts.push("");
+        const correctIndex = q.options.findIndex((o) => o.id === q.correct_option_id);
         return {
-          question: questionText,
+          question: q.question.text,
           optionA: optionTexts[0],
           optionB: optionTexts[1],
           optionC: optionTexts[2],
           optionD: optionTexts[3],
-          correctAnswer: quiz.correctAnswers[index],
+          correctAnswer: correctIndex,
         };
       });
       setInputFields(
@@ -78,16 +78,18 @@ const AddQuiz = ({ quiz }) => {
   const createQuizJson = () => {
     const languageLower = (metadata.language || "").toLowerCase();
 
-    const questions = inputFields.map((mcq) => mcq.question);
-    const options = inputFields.map((mcq) => [
-      mcq.optionA,
-      mcq.optionB,
-      mcq.optionC,
-      mcq.optionD,
-    ]);
-    const correctAnswers = inputFields.map((mcq) =>
-      mcq.correctAnswer !== undefined ? mcq.correctAnswer : 0
-    );
+    const questions = inputFields.map((mcq, qIdx) => {
+      const questionId = `q${qIdx + 1}`;
+      const options = [mcq.optionA, mcq.optionB, mcq.optionC, mcq.optionD].map(
+        (text, optIdx) => ({ id: `${questionId}-opt${optIdx + 1}`, text })
+      );
+      const correctIndex = mcq.correctAnswer !== undefined ? mcq.correctAnswer : 0;
+      return {
+        question: { id: questionId, text: mcq.question },
+        options,
+        correct_option_id: options[correctIndex].id,
+      };
+    });
 
     const titleObj = {
       english: metadata.title,
@@ -99,16 +101,13 @@ const AddQuiz = ({ quiz }) => {
     };
 
     const payload = {
-      ...metadata,
-      questions,
-      options,
-      correctAnswers,
+      type: "quiz",
+      language: metadata.language,
       title: titleObj,
       theme: themeObj,
-      localTitle: titleObj.local,
-      localTheme: themeObj.local,
-      type: "quiz",
-      id: quiz ? (quiz._id || quiz.id) : uuidv4(),
+      positive_marks: metadata.positiveMark,
+      negative_marks: metadata.negativeMark,
+      questions,
     };
 
     return payload;
@@ -176,17 +175,16 @@ const AddQuiz = ({ quiz }) => {
     }
 
     try {
-      const quizId = quiz && (quiz._id || quiz.id);
+      const quizId = quiz && quiz.id;
       const isEditing = Boolean(quizId);
       let result;
       if (isEditing) {
-        // PATCH existing quiz — backend requires _id and the content fields it validates
+        // PATCH existing quiz — backend requires id and the content fields it validates
         result = await contentService.updateContent({
-          audioContent: quiz.audioContent ?? [],
-          isPullModel: quiz.isPullModel ?? false,
-          isTeacherApp: quiz.isTeacherApp ?? false,
+          is_pull_model: quiz.is_pull_model,
+          is_teacher_app: quiz.is_teacher_app,
           ...payload,
-          _id: quizId,
+          id: quizId,
         });
       } else {
         result = await contentService.createQuiz(payload);

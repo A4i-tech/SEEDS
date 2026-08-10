@@ -4,7 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import "@testing-library/jest-dom";
 import ContentDetails from "../../src/pages/ContentDetails";
 import * as contentService from "../../src/services/contentService";
-import { ROUTES } from "../../src/constants/routes";
+import { ContentDto } from "../../src/dto/ContentDto";
 
 // Mock dependencies
 jest.mock("../../src/services/contentService");
@@ -21,8 +21,8 @@ const mockParams = { contentId: "content-123" };
 const mockLocation = {
   state: {
     contentList: [
-      { _id: "content-123", title: { english: "Content 1" } },
-      { _id: "content-456", title: { english: "Content 2" } },
+      ContentDto.fromApi({ id: "content-123", title: { english: "Content 1" }, theme: {}, audio_content: [] }),
+      ContentDto.fromApi({ id: "content-456", title: { english: "Content 2" }, theme: {}, audio_content: [] }),
     ],
     currentIndex: 0,
   },
@@ -39,27 +39,30 @@ jest.mock("react-router-dom", () => ({
 }));
 
 describe("ContentDetails", () => {
-  const mockContent = {
-    _id: "content-123",
-    title: {
-      english: "Test Content",
-      local: "Test Local",
-    },
-    type: "Story",
-    language: "en",
-    description: "Test description",
-    audioContent: [
-      {
-        description: "Audio 1",
-        audioUrl: "https://storage.blob.core.windows.net/container/audio1.mp3",
+  const buildContent = (overrides = {}) =>
+    ContentDto.fromApi({
+      id: "content-123",
+      title: {
+        english: "Test Content",
+        local: "Test Local",
       },
-    ],
-    theme: {
-      english: "Science",
-      local: "विज्ञान",
-    },
-  };
+      type: "Story",
+      language: "en",
+      description: "Test description",
+      audio_content: [
+        {
+          description: "Audio 1",
+          audio_url: "https://storage.blob.core.windows.net/container/audio1.mp3",
+        },
+      ],
+      theme: {
+        english: "Science",
+        local: "विज्ञान",
+      },
+      ...overrides,
+    });
 
+  const mockContent = buildContent();
   const mockSasUrl = "https://storage.blob.core.windows.net/container/audio1.mp3?sv=2021-06-08&sig=...";
 
   beforeEach(() => {
@@ -111,15 +114,11 @@ describe("ContentDetails", () => {
     });
   });
 
-  test("prioritizes audioContent over title.audioUrl", async () => {
-    const contentWithTitleAudio = {
-      ...mockContent,
-      audioContent: [],
-      title: {
-        ...mockContent.title,
-        audioUrl: "https://storage.blob.core.windows.net/container/title.mp3",
-      },
-    };
+  test("prioritizes audio_content over title.audio_url", async () => {
+    const contentWithTitleAudio = buildContent({
+      audio_content: [],
+      title: { english: "Test Content", local: "Test Local", audio_url: "https://storage.blob.core.windows.net/container/title.mp3" },
+    });
 
     contentService.getContentById.mockResolvedValue(contentWithTitleAudio);
 
@@ -132,19 +131,12 @@ describe("ContentDetails", () => {
     });
   });
 
-  test("prioritizes title.audioUrl over theme.audioUrl", async () => {
-    const contentWithThemeAudio = {
-      ...mockContent,
-      audioContent: [],
-      title: {
-        ...mockContent.title,
-        audioUrl: null,
-      },
-      theme: {
-        ...mockContent.theme,
-        audioUrl: "https://storage.blob.core.windows.net/container/theme.mp3",
-      },
-    };
+  test("prioritizes title.audio_url over theme.audio_url", async () => {
+    const contentWithThemeAudio = buildContent({
+      audio_content: [],
+      title: { english: "Test Content", local: "Test Local", audio_url: null },
+      theme: { english: "Science", local: "विज्ञान", audio_url: "https://storage.blob.core.windows.net/container/theme.mp3" },
+    });
 
     contentService.getContentById.mockResolvedValue(contentWithThemeAudio);
 
@@ -158,12 +150,11 @@ describe("ContentDetails", () => {
   });
 
   test("shows error when no audio is available", async () => {
-    const contentWithoutAudio = {
-      ...mockContent,
-      audioContent: [],
-      title: { ...mockContent.title, audioUrl: null },
-      theme: { ...mockContent.theme, audioUrl: null },
-    };
+    const contentWithoutAudio = buildContent({
+      audio_content: [],
+      title: { english: "Test Content", local: "Test Local", audio_url: null },
+      theme: { english: "Science", local: "विज्ञान", audio_url: null },
+    });
 
     contentService.getContentById.mockResolvedValue(contentWithoutAudio);
 
@@ -223,10 +214,7 @@ describe("ContentDetails", () => {
   });
 
   test("shows music icon for Song type", async () => {
-    const songContent = {
-      ...mockContent,
-      type: "Song",
-    };
+    const songContent = buildContent({ type: "Song" });
 
     contentService.getContentById.mockResolvedValue(songContent);
 

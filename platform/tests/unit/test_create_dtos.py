@@ -1,4 +1,4 @@
-"""Unit tests for camelCase create DTOs — verifies model_dump() produces correct DB keys."""
+"""Unit tests for snake_case create DTOs — verifies model_dump() produces correct DB keys."""
 
 from __future__ import annotations
 
@@ -14,30 +14,30 @@ from app.models.requests.school_requests import ClassroomCreate, SchoolCreate
 
 
 class TestClassroomCreate:
-    def test_dump_keys_are_camel_case(self):
-        dto = ClassroomCreate(schoolId="s1", name="Class A", teacher="t1")
+    def test_dump_keys_are_snake_case(self):
+        dto = ClassroomCreate(school_id="s1", name="Class A", teacher="t1")
         d = dto.model_dump()
-        assert set(d.keys()) == {"schoolId", "name", "teacher", "students", "leaders", "contentIds"}
+        assert set(d.keys()) == {"school_id", "name", "teacher", "students", "leaders", "content_ids"}
 
-    def test_no_snake_case_keys_leak(self):
-        dto = ClassroomCreate(schoolId="s1", name="X", teacher="t1")
+    def test_no_camel_case_keys_leak(self):
+        dto = ClassroomCreate(school_id="s1", name="X", teacher="t1")
         d = dto.model_dump()
-        assert "school_id" not in d
-        assert "content_ids" not in d
+        assert "schoolId" not in d
+        assert "contentIds" not in d
 
     def test_defaults(self):
-        dto = ClassroomCreate(schoolId="s1", name="X", teacher="t1")
+        dto = ClassroomCreate(school_id="s1", name="X", teacher="t1")
         assert dto.students == []
         assert dto.leaders == []
-        assert dto.contentIds == []
+        assert dto.content_ids == []
 
     def test_missing_required_school_id_raises(self):
         with pytest.raises(ValidationError):
-            ClassroomCreate(name="X", teacher="t1")  # schoolId missing
+            ClassroomCreate(name="X", teacher="t1")  # school_id missing
 
     def test_missing_required_teacher_raises(self):
         with pytest.raises(ValidationError):
-            ClassroomCreate(schoolId="s1", name="X")  # teacher missing
+            ClassroomCreate(school_id="s1", name="X")  # teacher missing
 
 
 # ---------------------------------------------------------------------------
@@ -46,21 +46,21 @@ class TestClassroomCreate:
 
 
 class TestSchoolCreate:
-    def test_dump_keys_are_camel_case(self):
-        dto = SchoolCreate(tenantId="t1", name="S", email="s@s.com")
+    def test_dump_keys_are_snake_case(self):
+        dto = SchoolCreate(tenant_id="t1", name="S", email="s@s.com")
         d = dto.model_dump()
-        assert set(d.keys()) == {"tenantId", "name", "email", "password", "isActive"}
+        assert set(d.keys()) == {"tenant_id", "name", "email", "password", "is_active"}
 
-    def test_no_snake_case_keys_leak(self):
-        dto = SchoolCreate(tenantId="t1", name="S", email="s@s.com")
+    def test_no_camel_case_keys_leak(self):
+        dto = SchoolCreate(tenant_id="t1", name="S", email="s@s.com")
         d = dto.model_dump()
-        assert "tenant_id" not in d
-        assert "is_active" not in d
-        assert "hashed_password" not in d
+        assert "tenantId" not in d
+        assert "isActive" not in d
+        assert "hashedPassword" not in d
 
     def test_defaults(self):
-        dto = SchoolCreate(tenantId="t1", name="S", email="s@s.com")
-        assert dto.isActive is True
+        dto = SchoolCreate(tenant_id="t1", name="S", email="s@s.com")
+        assert dto.is_active is True
         assert dto.password is None
 
     def test_missing_required_tenant_id_raises(self):
@@ -68,7 +68,7 @@ class TestSchoolCreate:
             SchoolCreate(name="S", email="s@s.com")
 
     def test_password_round_trips(self):
-        dto = SchoolCreate(tenantId="t1", name="S", email="s@s.com", password="hashed")
+        dto = SchoolCreate(tenant_id="t1", name="S", email="s@s.com", password="hashed")
         assert dto.model_dump()["password"] == "hashed"
 
 
@@ -79,42 +79,41 @@ class TestSchoolCreate:
 
 class TestContentCreate:
     def _minimal(self, **kwargs) -> ContentCreate:
-        return ContentCreate(tenantId="t1", type="Story", language="english", **kwargs)
+        return ContentCreate(tenant_id="t1", type="Story", language="english", **kwargs)
 
-    def test_dump_keys_are_camel_case(self):
+    def test_dump_keys_are_snake_case(self):
         d = self._minimal().model_dump()
-        camel_expected = {
-            "tenantId", "type", "language", "createdBy", "schoolId",
-            "title", "theme", "audioContent", "description",
-            "isPullModel", "isTeacherApp", "isDeleted", "isProcessed",
+        snake_expected = {
+            "tenant_id", "type", "language", "created_by", "school_id",
+            "title", "theme", "audio_content", "description",
+            "is_pull_model", "is_teacher_app", "is_deleted", "is_processed",
             "creation_time", "version",
         }
-        assert set(d.keys()) == camel_expected
+        assert set(d.keys()) == snake_expected
 
-    def test_no_snake_case_keys_leak(self):
+    def test_no_camel_case_keys_leak(self):
         d = self._minimal().model_dump()
-        assert "tenant_id" not in d
-        assert "is_deleted" not in d
-        assert "is_processed" not in d
-        assert "audio_content" not in d
-        assert "is_pull_model" not in d
-        assert "is_teacher_app" not in d
+        assert "tenantId" not in d
+        assert "isDeleted" not in d
+        assert "isProcessed" not in d
+        assert "audioContent" not in d
+        assert "isPullModel" not in d
+        assert "isTeacherApp" not in d
 
     def test_creation_time_stays_snake_case(self):
-        # DB stores this field as snake_case — intentional exception
         d = self._minimal().model_dump()
         assert "creation_time" in d
         assert "creationTime" not in d
 
     def test_defaults(self):
         dto = self._minimal()
-        assert dto.createdBy == ""
-        assert dto.schoolId is None
-        assert dto.isDeleted is False
-        assert dto.isProcessed is False
-        assert dto.isPullModel is False
-        assert dto.isTeacherApp is False
-        assert dto.audioContent == []
+        assert dto.created_by == ""
+        assert dto.school_id is None
+        assert dto.is_deleted is False
+        assert dto.is_processed is False
+        assert dto.is_pull_model is False
+        assert dto.is_teacher_app is False
+        assert dto.audio_content == []
         assert dto.version == "v3"
 
     def test_missing_tenant_id_raises(self):
@@ -123,7 +122,7 @@ class TestContentCreate:
 
     def test_missing_type_raises(self):
         with pytest.raises(ValidationError):
-            ContentCreate(tenantId="t1", language="english")
+            ContentCreate(tenant_id="t1", language="english")
 
 
 # ---------------------------------------------------------------------------
@@ -133,45 +132,42 @@ class TestContentCreate:
 
 class TestQuizCreate:
     def _minimal(self, **kwargs) -> QuizCreate:
-        return QuizCreate(tenantId="t1", type="quiz", language="english", **kwargs)
+        return QuizCreate(tenant_id="t1", type="quiz", language="english", **kwargs)
 
-    def test_dump_keys_are_camel_case(self):
+    def test_dump_keys_are_snake_case(self):
         d = self._minimal().model_dump()
-        camel_expected = {
-            "tenantId", "type", "language", "createdBy", "schoolId",
-            "title", "localTitle", "theme", "localTheme",
-            "positiveMarks", "negativeMarks",
-            "questions", "options", "correctAnswers",
-            "isDeleted", "creation_time",
+        snake_expected = {
+            "tenant_id", "type", "language", "created_by", "school_id",
+            "title", "theme",
+            "is_pull_model", "is_teacher_app",
+            "positive_marks", "negative_marks",
+            "questions",
+            "is_deleted", "creation_time",
         }
-        assert set(d.keys()) == camel_expected
+        assert set(d.keys()) == snake_expected
 
-    def test_no_snake_case_keys_leak(self):
+    def test_no_camel_case_keys_leak(self):
         d = self._minimal().model_dump()
-        assert "tenant_id" not in d
-        assert "positive_marks" not in d
-        assert "negative_marks" not in d
-        assert "is_deleted" not in d
-        assert "correct_answers" not in d
-        assert "local_title" not in d
+        assert "tenantId" not in d
+        assert "positiveMarks" not in d
+        assert "negativeMarks" not in d
+        assert "isDeleted" not in d
 
     def test_marks_use_plural_form(self):
-        # UI sends positiveMark (singular) but backend stores positiveMarks (plural)
-        dto = self._minimal(positiveMarks=2.0, negativeMarks=0.5)
+        # UI sends positiveMark (singular) but backend stores positive_marks (plural)
+        dto = self._minimal(positive_marks=2.0, negative_marks=0.5)
         d = dto.model_dump()
-        assert d["positiveMarks"] == 2.0
-        assert d["negativeMarks"] == 0.5
+        assert d["positive_marks"] == 2.0
+        assert d["negative_marks"] == 0.5
         assert "positiveMark" not in d
         assert "negativeMark" not in d
 
     def test_defaults(self):
         dto = self._minimal()
-        assert dto.positiveMarks == 1.0
-        assert dto.negativeMarks == 0.0
+        assert dto.positive_marks == 1.0
+        assert dto.negative_marks == 0.0
         assert dto.questions == []
-        assert dto.options == []
-        assert dto.correctAnswers == []
-        assert dto.isDeleted is False
+        assert dto.is_deleted is False
 
     def test_missing_tenant_id_raises(self):
         with pytest.raises(ValidationError):

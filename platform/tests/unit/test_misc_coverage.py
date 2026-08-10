@@ -65,9 +65,9 @@ class TestQuizModel:
             "language": "english",
             "title": {"local": "Test Quiz", "english": "Test Quiz"},
             "theme": {"local": "Theme", "english": "Theme"},
-            "positiveMarks": 1.0,
-            "negativeMarks": 0.25,
-            "createdBy": "teacher1",
+            "positive_marks": 1.0,
+            "negative_marks": 0.25,
+            "created_by": "teacher1",
         }
         quiz = Quiz.from_mongo(doc)
         assert isinstance(quiz.id, str)
@@ -254,8 +254,8 @@ class TestCallModel:
         log = CallLog(
             type="ivr",
             time="2026-01-01T00:00:00Z",
-            fsmContextId="ctx1",
-            isCompleted=False,
+            fsm_context_id="ctx1",
+            is_completed=False,
         )
         assert log.type == "ivr"
         assert log.is_completed is False

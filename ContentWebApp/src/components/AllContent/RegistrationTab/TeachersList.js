@@ -18,15 +18,15 @@ const TeachersList = ({ teachers, schools = [], onUpdateTeacher, onDeleteTeacher
 
   const openEdit = (teacher) => {
     setEditingTeacher(teacher);
-    setEditName(teacher.name || "");
-    setEditPhone(teacher.phoneNumber || "");
+    setEditName(teacher.name);
+    setEditPhone(teacher.phone_number || "");
     setEditPassword("");
   };
 
   const closeEdit = () => setEditingTeacher(null);
 
   const saveEdit = async () => {
-    const success = await onUpdateTeacher(editingTeacher._id, editName, editPhone, editPassword || undefined);
+    const success = await onUpdateTeacher(editingTeacher.id, editName, editPhone, editPassword || undefined);
     if (success) closeEdit();
   };
 
@@ -38,7 +38,7 @@ const TeachersList = ({ teachers, schools = [], onUpdateTeacher, onDeleteTeacher
   const closeTransfer = () => setTransferringTeacher(null);
 
   const saveTransfer = async () => {
-    const success = await onTransferTeacher(transferringTeacher._id, targetSchoolId);
+    const success = await onTransferTeacher(transferringTeacher.id, targetSchoolId);
     if (success) closeTransfer();
   };
 
@@ -60,9 +60,9 @@ const TeachersList = ({ teachers, schools = [], onUpdateTeacher, onDeleteTeacher
               {teachers.map((teacher) => {
                 const isCreator = teacher.role === USER_ROLES.CONTENT_CREATOR;
                 return (
-                  <tr key={teacher._id}>
+                  <tr key={teacher.id}>
                     <td>
-                      <span className="teacher-cell-name">{teacher.name || "—"}</span>
+                      <span className="teacher-cell-name">{teacher.name}</span>
                       <span
                         className={`role-badge ${
                           isCreator ? "creator-role-badge" : "teacher-role-badge"
@@ -71,11 +71,11 @@ const TeachersList = ({ teachers, schools = [], onUpdateTeacher, onDeleteTeacher
                         {isCreator ? "Creator" : "Teacher"}
                       </span>
                     </td>
-                    <td>{teacher.phoneNumber}</td>
+                    <td>{teacher.phone_number}</td>
                     <td>
                       <button type="button" className="action-ghost-button" onClick={() => openEdit(teacher)}>Edit</button>
                       <button type="button" className="action-ghost-button" onClick={() => openTransfer(teacher)}>Transfer</button>
-                      <button type="button" className="action-ghost-button" onClick={() => onDeleteTeacher(teacher._id)}>Remove</button>
+                      <button type="button" className="action-ghost-button" onClick={() => onDeleteTeacher(teacher.id)}>Remove</button>
                     </td>
                   </tr>
                 );
@@ -123,7 +123,7 @@ const TeachersList = ({ teachers, schools = [], onUpdateTeacher, onDeleteTeacher
       {transferringTeacher && (
         <Modal title="Transfer Teacher" onClose={closeTransfer}>
           <p style={{ margin: "0 0 12px", fontSize: "14px", color: "#475569" }}>
-            Transfer <strong>{transferringTeacher.name || transferringTeacher.phoneNumber}</strong> to another school.
+            Transfer <strong>{transferringTeacher.name}</strong> to another school.
           </p>
           <label className="label" htmlFor="transfer-school-id">Target School</label>
           <select
@@ -134,7 +134,7 @@ const TeachersList = ({ teachers, schools = [], onUpdateTeacher, onDeleteTeacher
           >
             <option value="">Select a school</option>
             {schools.map((s) => (
-              <option key={s._id} value={s._id}>{s.name}</option>
+              <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
           <div className="modal-actions">

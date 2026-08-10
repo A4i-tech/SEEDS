@@ -45,7 +45,7 @@ const SchoolsPanel = ({
 
   const saveEdit = async () => {
     const success = await onUpdateSchool(
-      editingSchool._id,
+      editingSchool.id,
       editName,
       editEmail,
       editPassword || undefined
@@ -114,7 +114,7 @@ const SchoolsPanel = ({
               </thead>
               <tbody>
                 {schools.map((school) => (
-                  <tr key={school._id}>
+                  <tr key={school.id}>
                     <td>{school.name}</td>
                     <td>{school.email}</td>
                     <td>
@@ -128,7 +128,7 @@ const SchoolsPanel = ({
                       <button
                         type="button"
                         className="action-ghost-button"
-                        onClick={() => onDeleteSchool(school._id)}
+                        onClick={() => onDeleteSchool(school.id)}
                       >
                         Delete
                       </button>

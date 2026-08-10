@@ -95,10 +95,10 @@
     },
     {
       "method": "POST",
-      "path": "/tenant/login",
+      "path": "/auth/login",
       "required_auth": false,
       "expected_status_codes": [200, 400, 401],
-      "description": "Tenant login"
+      "description": "Unified login (tenant/school_admin by email, content_creator by phone)"
     },
     {
       "method": "POST",
@@ -141,13 +141,6 @@
       "required_auth": true,
       "expected_status_codes": [200, 401, 403],
       "description": "Tenant dashboard statistics"
-    },
-    {
-      "method": "POST",
-      "path": "/school/admin/login",
-      "required_auth": false,
-      "expected_status_codes": [200, 400, 401],
-      "description": "School admin login"
     },
     {
       "method": "GET",

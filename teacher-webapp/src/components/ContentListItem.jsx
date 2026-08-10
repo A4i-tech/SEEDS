@@ -12,6 +12,7 @@ import {
   PlayArrow as PlayArrowIcon,
 } from "@mui/icons-material";
 import { getLanguageLabel } from "../utils/languageUtils";
+import { formatSeconds } from "../utils/formatSeconds";
 
 /**
  * ContentListItem - renders individual content card in the library
@@ -80,9 +81,9 @@ const ContentListItem = ({
             whiteSpace: "nowrap",
           }}
         >
-          {item.title?.english || item.title?.local || "Untitled"}
+          {item.display_title}
         </Typography>
-        {item.title?.local && item.title?.english !== item.title?.local && (
+        {item.title.local && item.title.english !== item.title.local && (
           <Typography
             variant="caption"
             color="text.secondary"
@@ -124,7 +125,7 @@ const ContentListItem = ({
             color="text.secondary"
             sx={{ fontSize: "0.7rem" }}
           >
-            {[item.language ? getLanguageLabel(item.language) : null, typeof item.theme === "string" ? item.theme : item.theme?.english]
+            {[item.language ? getLanguageLabel(item.language) : null, item.theme?.english]
               .filter(Boolean)
               .join(" \u00B7 ")}
           </Typography>
@@ -141,13 +142,13 @@ const ContentListItem = ({
           flexShrink: 0,
         }}
       >
-        {item.duration && (
+        {item.duration_seconds != null && (
           <Typography
             variant="body2"
             color="text.secondary"
             sx={{ fontSize: "0.8rem" }}
           >
-            {item.duration}
+            {formatSeconds(item.duration_seconds)}
           </Typography>
         )}
         {conferenceActive && !isLoading && (

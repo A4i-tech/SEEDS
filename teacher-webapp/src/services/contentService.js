@@ -1,5 +1,6 @@
 import { API_ENDPOINTS } from "../constants/apiEndpoints";
 import axiosInstance from "./axiosInstance";
+import { ContentDto, ContentPageDto } from "../dto/ContentDto";
 
 /**
  * Build query string from parameters object
@@ -25,8 +26,8 @@ const buildQueryString = (params) => {
  * @param {Object} options - Query options
  * @param {string} options.language - Language code (e.g., 'en', 'hi')
  * @param {string} options.theme - Theme name in English (URL encoded)
- * @param {string} options.expName - Content type/experience name
- * @param {boolean} options.onlyTeacherApp - If true, returns only teacher app content
+ * @param {string} options.exp_name - Content type/experience name
+ * @param {boolean} options.only_teacher_app - If true, returns only teacher app content
  * @param {string|Array} options.ids - Comma-separated list of content IDs or array of IDs
  * @param {number} options.limit - Number of items to return per page (default: 15)
  * @param {string} options.cursor - Cursor ID for pagination (format: "timestamp_id")
@@ -37,8 +38,8 @@ export const getContent = async (options = {}) => {
   const {
     language,
     theme,
-    expName,
-    onlyTeacherApp,
+    exp_name,
+    only_teacher_app,
     ids,
     limit = 15,
     cursor,
@@ -48,8 +49,8 @@ export const getContent = async (options = {}) => {
 
   if (language) params.language = language;
   if (theme) params.theme = encodeURIComponent(theme);
-  if (expName) params.expName = expName;
-  if (onlyTeacherApp !== undefined) params.onlyTeacherApp = onlyTeacherApp;
+  if (exp_name) params.exp_name = exp_name;
+  if (only_teacher_app !== undefined) params.only_teacher_app = only_teacher_app;
   if (ids) {
     params.ids = Array.isArray(ids) ? ids.join(",") : ids;
   }
@@ -62,7 +63,7 @@ export const getContent = async (options = {}) => {
     : API_ENDPOINTS.GET_CONTENT;
 
   const response = await axiosInstance.get(url);
-  return response.data;
+  return ContentPageDto.fromApi(response.data);
 };
 
 /**
@@ -87,8 +88,8 @@ export const getContentSasUrl = async (audioUrl) => {
 /**
  * Fetch a single content item by ID
  *
- * @param {string} contentId - The content ID (_id)
- * @returns {Promise<Object>} Content object
+ * @param {string} contentId - The content id
+ * @returns {Promise<ContentDto>} Content DTO
  * @throws {Error} If API call fails
  */
 export const getContentById = async (contentId) => {
@@ -97,5 +98,5 @@ export const getContentById = async (contentId) => {
   }
 
   const response = await axiosInstance.get(`${API_ENDPOINTS.GET_CONTENT}/${contentId}`);
-  return response.data;
+  return ContentDto.fromApi(response.data);
 };

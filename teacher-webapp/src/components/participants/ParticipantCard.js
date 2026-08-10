@@ -30,11 +30,6 @@ export const ParticipantCard = ({
   isRemoving,
   canReconnect,
 }) => {
-  // Defensive check: return null if participant is not provided
-  if (!participant) {
-    return null;
-  }
-
   const getStatusColor = (status) => {
     switch (status) {
       case "connected":
@@ -99,12 +94,12 @@ export const ParticipantCard = ({
             )}
           </Box>
         </Box>
-        {participant?.is_raised && (
+        {participant.is_raised && (
           <Tooltip title="Raised hand">
             <RaisedHandIcon sx={{ color: "#ff9800", fontSize: 24 }} />
           </Tooltip>
         )}
-        {participant?.call_status === "on_hold" && (
+        {participant.call_status === "on_hold" && (
           <Tooltip title="Student is on hold">
             <HoldIcon sx={{ color: "#ef6c00", fontSize: 22 }} aria-label="On hold" />
           </Tooltip>

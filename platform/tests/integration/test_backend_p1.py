@@ -146,7 +146,7 @@ async def test_teacher_login_returns_token(client, mock_db):
 
     resp = await client.post(
         "/teacher/login",
-        json={"phoneNumber": "+911234567890", "password": "Test@1234"},
+        json={"phone_number": "+911234567890", "password": "Test@1234"},
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -160,7 +160,7 @@ async def test_teacher_login_wrong_password(client, mock_db):
 
     resp = await client.post(
         "/teacher/login",
-        json={"phoneNumber": "+911234567891", "password": "WrongPass@1"},
+        json={"phone_number": "+911234567891", "password": "WrongPass@1"},
     )
     assert resp.status_code == 401
 
@@ -173,7 +173,7 @@ async def test_teacher_register_success(client, mock_db):
     resp = await client.post(
         "/teacher/register",
         json={
-            "phoneNumber": "+919876543210",
+            "phone_number": "+919876543210",
             "password": "NewTeacher@1",
             "name": "New Teacher",
             "role": "teacher",
@@ -196,7 +196,7 @@ async def test_teacher_register_duplicate(client, mock_db):
     resp = await client.post(
         "/teacher/register",
         json={
-            "phoneNumber": "+919999999991",
+            "phone_number": "+919999999991",
             "password": "NewTeacher@1",
             "name": "Dup Teacher",
             "role": "teacher",
@@ -331,9 +331,13 @@ async def test_list_schools_with_tenant_token(client, mock_db):
     tenant = await _seed_tenant(mock_db)
     token = _tenant_token(tenant["_id"])
 
-    # Seed a school
-    await mock_db["schools"].insert_one({
-        "tenant_id": tenant["_id"],
+    # Seed a school (a school_admin user in the unified 'users' collection).
+    # tenant_id stored as ObjectId to match UserRepository's coerced writes/reads.
+    from bson import ObjectId
+
+    await mock_db["users"].insert_one({
+        "role": UserRole.SCHOOL_ADMIN.value,
+        "tenant_id": ObjectId(tenant["_id"]),
         "name": "Seeded School",
         "email": "seeded@school.com",
         "is_active": True,
@@ -346,6 +350,7 @@ async def test_list_schools_with_tenant_token(client, mock_db):
     assert resp.status_code == 200
     body = resp.json()
     assert isinstance(body, list)
+    assert any(s["name"] == "Seeded School" for s in body)
 
 
 # ---------------------------------------------------------------------------
@@ -388,7 +393,7 @@ async def test_create_class(client, mock_db):
 
     resp = await client.post(
         "/class",
-        json={"name": "New Class", "students": [], "leaders": [], "contentIds": []},
+        json={"name": "New Class", "students": ["s1"], "leaders": [], "content_ids": []},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 200
