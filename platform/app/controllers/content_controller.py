@@ -316,11 +316,8 @@ async def create_content(
     user_id = user.get("sub", "")
     school_id = _write_school_id(user)
 
-    body_dict = body.model_dump(exclude_unset=True)
-    override_id = body_dict.get("_id")
-
     try:
-        content_id = await service.create_content(body, tenant_id, user_id, school_id, override_id)
+        content_id = await service.create_content(body, tenant_id, user_id, school_id)
     except ValueError as exc:
         logger.error("create_content failed", extra={"tenant_id": tenant_id, "user_id": user_id, "err": str(exc)})
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -396,9 +393,6 @@ async def create_quiz(
     user_id = user.get("sub", "")
     school_id = _write_school_id(user)
 
-    body_dict = body.model_dump(exclude_unset=True)
-    override_id = body_dict.get("id")
-
-    quiz_id = await service.create_quiz(body, tenant_id, user_id, school_id, override_id)
+    quiz_id = await service.create_quiz(body, tenant_id, user_id, school_id)
     job_id = await service.enqueue_content_job(quiz_id)
     return JobScheduledResponse(message="Processing New Content job scheduled!", job_id=job_id)

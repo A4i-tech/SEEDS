@@ -151,7 +151,6 @@ class ContentService:
         tenant_id: str,
         user_id: str,
         school_id: str | None,
-        override_id: str | None = None,
     ) -> str:
         for item in body.audio_content or []:
             au = item.get("audio_url", "")
@@ -172,8 +171,6 @@ class ContentService:
             creation_time=int(time.time()),
         )
         doc: dict[str, Any] = dto.model_dump()
-        if override_id:
-            doc["_id"] = override_id
         doc["created_at"] = datetime.now(UTC)
         doc["updated_at"] = datetime.now(UTC)
         return await self._content_repo.insert_raw(doc)
@@ -238,7 +235,6 @@ class ContentService:
         tenant_id: str,
         user_id: str,
         school_id: str | None,
-        override_id: str | None = None,
     ) -> str:
         given = body.model_dump(
             exclude_unset=True,
@@ -254,8 +250,6 @@ class ContentService:
             creation_time=int(time.time()),
         )
         doc: dict[str, Any] = dto.model_dump()
-        if override_id:
-            doc["_id"] = override_id
         return await self._quiz_repo.insert(doc)
 
     # ------------------------------------------------------------------
