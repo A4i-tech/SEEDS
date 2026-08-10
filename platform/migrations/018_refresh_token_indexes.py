@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Migration 003 — Refresh-token collection indexes.
+Migration 018 — Refresh-token collection indexes.
 
 Adds indexes to the collections backing the shared refresh-token rotation
 engine (app.platform.auth.refresh_tokens, #459): the every-request
@@ -9,7 +9,7 @@ revoke_family / revoke_all_for_owner sweeps. Idempotent — running twice
 will not create duplicate indexes.
 
 Usage:
-    python migrations/003_refresh_token_indexes.py [--dry-run] [--mongo-uri URI]
+    python migrations/018_refresh_token_indexes.py [--dry-run] [--mongo-uri URI]
 
 Flags:
     --dry-run     Print the index create commands without executing them.
@@ -76,12 +76,11 @@ def _describe_index(collection: str, key_spec: list[tuple[str, int]], options: d
 
 async def migrate(mongo_uri: str, dry_run: bool) -> None:
     """Create all refresh-token collection indexes."""
-    from motor.motor_asyncio import AsyncIOMotorClient  # noqa: PLC0415
-    from pymongo import ASCENDING, DESCENDING  # noqa: PLC0415
+    from pymongo import ASCENDING, DESCENDING, AsyncMongoClient  # noqa: PLC0415
 
     direction_map = {1: ASCENDING, -1: DESCENDING}
 
-    client: AsyncIOMotorClient = AsyncIOMotorClient(mongo_uri)  # type: ignore[type-arg]
+    client: AsyncMongoClient = AsyncMongoClient(mongo_uri)  # type: ignore[type-arg]
     try:
         db_name = client.get_default_database().name if "/" in mongo_uri.rsplit("?", 1)[0] else "seeds"
     except Exception:
@@ -104,7 +103,7 @@ async def migrate(mongo_uri: str, dry_run: bool) -> None:
                 created += 1
             except Exception as exc:
                 print(f"  ERROR: {collection_name} index failed — {exc}")
-                client.close()
+                await client.close()
                 sys.exit(1)
 
     if dry_run:
@@ -112,7 +111,7 @@ async def migrate(mongo_uri: str, dry_run: bool) -> None:
     else:
         print(f"\nMigration complete — {created}/{len(INDEX_SPECS)} index(es) created/verified.")
 
-    client.close()
+    await client.close()
 
 
 def _resolve_mongo_uri(cli_uri: str | None) -> str:

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Migration 003 — Verify refresh-token collection indexes.
+Migration 018 — Verify refresh-token collection indexes.
 
 For each collection, verifies that the expected indexes exist and runs an
 EXPLAIN query to confirm MongoDB is using each index (not doing a collection
 scan).
 
 Usage:
-    python migrations/003_verify_refresh_token_indexes.py [--mongo-uri URI]
+    python migrations/018_verify_refresh_token_indexes.py [--mongo-uri URI]
 
 Flags:
     --mongo-uri   MongoDB connection string (default: reads MONGO_DB_CONNECTION_STRING
@@ -40,8 +40,8 @@ if _PROJECT_ROOT not in sys.path:
 import importlib.util as _ilu  # noqa: E402
 
 _create_spec = _ilu.spec_from_file_location(
-    "migration_003_create",
-    os.path.join(_HERE, "003_refresh_token_indexes.py"),
+    "migration_018_create",
+    os.path.join(_HERE, "018_refresh_token_indexes.py"),
 )
 _create_mod = _ilu.module_from_spec(_create_spec)  # type: ignore[arg-type]
 _create_spec.loader.exec_module(_create_mod)  # type: ignore[union-attr]
@@ -66,9 +66,9 @@ async def verify(mongo_uri: str) -> bool:
 
     Returns True if all checks pass, False otherwise.
     """
-    from motor.motor_asyncio import AsyncIOMotorClient  # noqa: PLC0415
+    from pymongo import AsyncMongoClient  # noqa: PLC0415
 
-    client: AsyncIOMotorClient = AsyncIOMotorClient(mongo_uri)  # type: ignore[type-arg]
+    client: AsyncMongoClient = AsyncMongoClient(mongo_uri)  # type: ignore[type-arg]
     try:
         db_name = client.get_default_database().name if "/" in mongo_uri.rsplit("?", 1)[0] else "seeds"
     except Exception:
@@ -159,7 +159,7 @@ async def verify(mongo_uri: str) -> bool:
             for label in passed:
                 print(f"  ✓ {label}")
 
-    client.close()
+    await client.close()
     return all_passed
 
 
