@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Migration 018 — Refresh-token collection indexes.
+Migration 021 — Refresh-token collection indexes.
 
 Adds indexes to the collections backing the shared refresh-token rotation
 engine (app.platform.auth.refresh_tokens, #459): the every-request
@@ -9,7 +9,7 @@ revoke_family / revoke_all_for_owner sweeps. Idempotent — running twice
 will not create duplicate indexes.
 
 Usage:
-    python migrations/018_refresh_token_indexes.py [--dry-run] [--mongo-uri URI]
+    python migrations/021_refresh_token_indexes.py [--dry-run] [--mongo-uri URI]
 
 Flags:
     --dry-run     Print the index create commands without executing them.
