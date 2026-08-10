@@ -28,37 +28,6 @@ export const useContent = () => {
   const [coursePaginationInfo, setCoursePaginationInfo] = useState({
     nextCursor: null,
     hasMore: false,
-  });
-  const [isLoading, setIsLoading] = useState(false);
-  const [isFiltered, setIsFiltered] = useState(false);
-  const isFilteredRef = useRef(isFiltered);
-  isFilteredRef.current = isFiltered;
-
-  const loadContentAggregatorCourses = useCallback(async (cursor = null) => {
-    const { courses, next_cursor: nextCursor, has_more: hasMore } = await contentAggregatorService.getCourses(
-      cursor
-    );
-    const mapped = courses.map(mapContentAggregatorCourse);
-    setAllContent((prevAll) => {
-      const merged = cursor
-        ? [...prevAll, ...mapped]
-        : [...prevAll.filter((item) => item.source !== "subodha"), ...mapped];
-      if (!isFilteredRef.current) setContent(merged);
-      return merged;
-    });
-    setCoursePaginationInfo({ nextCursor, hasMore });
-  }, []);
-
-  useEffect(() => {
-    loadContentAggregatorCourses();
-  }, [loadContentAggregatorCourses]);
-
-  /**
-   * Fetch content with optional cursor for pagination
-   * Error handling is delegated to contentService
-   */
-  const fetchContent = useCallback(async (cursor = null) => {
-    const page = await contentService.getContent(cursor, PAGE_SIZE);
     return { data: page.items, nextCursor: page.next_cursor, hasMore: page.has_more };
   }, []);
 
