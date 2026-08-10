@@ -6,7 +6,6 @@ fields (tenant_id, school_id) is handled here — callers never construct raw qu
 from __future__ import annotations
 
 import urllib.parse
-import uuid
 from datetime import UTC, datetime
 from typing import Any
 
@@ -17,18 +16,15 @@ from app.models.content import Content
 from app.repositories.base_repository import BaseRepository
 
 
-def _oid(id_str: str | None) -> Any:
+def _oid(id_str: str | None) -> ObjectId | None:
     """Convert string to BSON ObjectId for querying Mongoose-created documents.
 
     contentsV3 stores tenant_id and school_id as ObjectId (Mongoose schema type).
-    Falls back to the original value when conversion fails (e.g. UUID _ids).
+    Raises if id_str isn't a valid ObjectId — no silent string fallback.
     """
     if id_str is None:
         return None
-    try:
-        return ObjectId(id_str)
-    except Exception:
-        return id_str
+    return ObjectId(id_str)
 
 
 class ContentRepository(BaseRepository):
@@ -66,11 +62,11 @@ class ContentRepository(BaseRepository):
     # ------------------------------------------------------------------
 
     async def find_by_id(self, content_id: str) -> Content | None:
-        doc = await self._col.find_one({"_id": self._to_id(content_id)})
+        doc = await self._col.find_one({"_id": ObjectId(content_id)})
         return Content.from_mongo(doc) if doc else None
 
     async def find_raw_by_id(self, content_id: str) -> dict | None:
-        return await self._col.find_one({"_id": self._to_id(content_id)})
+        return await self._col.find_one({"_id": ObjectId(content_id)})
 
     async def find_by_id_and_tenant(
         self,
@@ -78,7 +74,7 @@ class ContentRepository(BaseRepository):
         tenant_id: str,
         school_id: str | None = None,
     ) -> dict | None:
-        q = {**self._tenant_query(tenant_id, school_id), "_id": self._to_id(content_id)}
+        q = {**self._tenant_query(tenant_id, school_id), "_id": ObjectId(content_id)}
         return await self._col.find_one(q)
 
     # ------------------------------------------------------------------
@@ -130,12 +126,12 @@ class ContentRepository(BaseRepository):
         tenant_id: str,
         school_id: str | None = None,
     ) -> list[dict]:
-        q = {**self._tenant_query(tenant_id, school_id), "_id": self._ids_query(content_ids)}
+        q = {**self._tenant_query(tenant_id, school_id), "_id": {"$in": [ObjectId(i) for i in content_ids]}}
         return await self._col.find(q).to_list(length=None)
 
     async def find_by_class(self, content_ids: list[str]) -> list[Content]:
         """Fetch content items by IDs for Classroom hydration (no tenant scope)."""
-        docs = await self._col.find({"_id": self._ids_query(content_ids)}).to_list(length=None)
+        docs = await self._col.find({"_id": {"$in": [ObjectId(i) for i in content_ids]}}).to_list(length=None)
         return [Content.from_mongo(d) for d in docs]
 
     async def find_by_tenant(
@@ -152,7 +148,6 @@ class ContentRepository(BaseRepository):
         """Insert a ContentCreate DTO and return the resulting Content model."""
         import time as _time
         doc = content.model_dump() if hasattr(content, "model_dump") else dict(content)
-        doc.setdefault("_id", str(uuid.uuid4()))
         doc.setdefault("creation_time", int(_time.time()))
         if doc.get("tenant_id"):
             doc["tenant_id"] = _oid(doc["tenant_id"])
@@ -168,7 +163,6 @@ class ContentRepository(BaseRepository):
 
     async def insert_raw(self, doc: dict) -> str:
         """Insert a raw content document, coercing tenant_id/school_id to ObjectId."""
-        doc.setdefault("_id", str(uuid.uuid4()))
         if doc.get("tenant_id"):
             doc["tenant_id"] = _oid(doc["tenant_id"])
         if doc.get("school_id"):
@@ -183,7 +177,7 @@ class ContentRepository(BaseRepository):
         updates: dict,
         school_id: str | None = None,
     ) -> dict | None:
-        q = {**self._tenant_query(tenant_id, school_id, strict=True), "_id": self._to_id(content_id)}
+        q = {**self._tenant_query(tenant_id, school_id, strict=True), "_id": ObjectId(content_id)}
         updates["updated_at"] = datetime.now(UTC)
         return await self._col.find_one_and_update(q, {"$set": updates}, return_document=True)
 
@@ -193,11 +187,11 @@ class ContentRepository(BaseRepository):
         tenant_id: str,
         school_id: str | None = None,
     ) -> int:
-        q = {**self._tenant_query(tenant_id, school_id, strict=True), "_id": self._to_id(content_id)}
+        q = {**self._tenant_query(tenant_id, school_id, strict=True), "_id": ObjectId(content_id)}
         result = await self._col.update_one(
             q, {"$set": {"is_deleted": True, "updated_at": datetime.now(UTC)}}
         )
         return result.matched_count
 
     async def save_processed(self, content_id: str, fields: dict) -> None:
-        await self._col.update_one({"_id": self._to_id(content_id)}, {"$set": fields})
+        await self._col.update_one({"_id": ObjectId(content_id)}, {"$set": fields})

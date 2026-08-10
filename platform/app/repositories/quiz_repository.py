@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import urllib.parse
 
+from bson import ObjectId
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.repositories.base_repository import BaseRepository
@@ -48,7 +49,7 @@ class QuizRepository(BaseRepository):
         tenant_id: str,
         school_id: str | None = None,
     ) -> dict | None:
-        q = {**self._tenant_query(tenant_id, school_id), "_id": self._to_id(content_id)}
+        q = {**self._tenant_query(tenant_id, school_id), "_id": ObjectId(content_id)}
         return await self._col.find_one(q)
 
     async def list_paginated(
@@ -85,7 +86,7 @@ class QuizRepository(BaseRepository):
         tenant_id: str,
         school_id: str | None = None,
     ) -> list[dict]:
-        q = {**self._tenant_query(tenant_id, school_id), "_id": self._ids_query(content_ids)}
+        q = {**self._tenant_query(tenant_id, school_id), "_id": {"$in": [ObjectId(i) for i in content_ids]}}
         return await self._col.find(q).to_list(length=None)
 
     # ------------------------------------------------------------------
@@ -109,7 +110,7 @@ class QuizRepository(BaseRepository):
         school_id: str | None = None,
     ) -> dict | None:
         from datetime import UTC, datetime
-        q = {**self._tenant_query(tenant_id, school_id, strict=True), "_id": self._to_id(content_id)}
+        q = {**self._tenant_query(tenant_id, school_id, strict=True), "_id": ObjectId(content_id)}
         updates["updated_at"] = datetime.now(UTC)
         return await self._col.find_one_and_update(q, {"$set": updates}, return_document=True)
 
@@ -120,7 +121,7 @@ class QuizRepository(BaseRepository):
         school_id: str | None = None,
     ) -> int:
         from datetime import UTC, datetime
-        q = {**self._tenant_query(tenant_id, school_id, strict=True), "_id": self._to_id(content_id)}
+        q = {**self._tenant_query(tenant_id, school_id, strict=True), "_id": ObjectId(content_id)}
         result = await self._col.update_one(
             q, {"$set": {"is_deleted": True, "updated_at": datetime.now(UTC)}}
         )

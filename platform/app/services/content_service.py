@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 import time
-import uuid
 from datetime import UTC, datetime
 from typing import Any
 
@@ -173,7 +172,8 @@ class ContentService:
             creation_time=int(time.time()),
         )
         doc: dict[str, Any] = dto.model_dump()
-        doc["_id"] = override_id or str(uuid.uuid4())
+        if override_id:
+            doc["_id"] = override_id
         doc["created_at"] = datetime.now(UTC)
         doc["updated_at"] = datetime.now(UTC)
         return await self._content_repo.insert_raw(doc)
@@ -254,7 +254,8 @@ class ContentService:
             creation_time=int(time.time()),
         )
         doc: dict[str, Any] = dto.model_dump()
-        doc["_id"] = override_id or str(uuid.uuid4())
+        if override_id:
+            doc["_id"] = override_id
         return await self._quiz_repo.insert(doc)
 
     # ------------------------------------------------------------------
