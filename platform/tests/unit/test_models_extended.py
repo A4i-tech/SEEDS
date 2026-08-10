@@ -676,7 +676,7 @@ class TestContentJobConsumerDeadLetter:
         from app.repositories.content_repository import ContentRepository
 
         job_id = ObjectId()
-        job_doc = {"_id": job_id, "content_id": "c1", "status": "claimed"}
+        job_doc = {"_id": job_id, "content_id": str(ObjectId()), "status": "claimed"}
         await db["content_jobs"].insert_one(job_doc)
 
         # content_col returns None => RuntimeError (permanent)

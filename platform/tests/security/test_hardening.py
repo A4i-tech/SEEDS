@@ -28,6 +28,7 @@ from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from bson import ObjectId
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from starlette.testclient import TestClient
@@ -367,10 +368,11 @@ async def test_content_job_retry_on_transient():
     jobs_col = db["content_jobs"]
     content_col = db["contentsV3"]
 
-    job_result = await jobs_col.insert_one({"status": "pending", "content_id": "content-trans"})
+    content_id = str(ObjectId())
+    job_result = await jobs_col.insert_one({"status": "pending", "content_id": content_id})
     job_id = job_result.inserted_id
     await content_col.insert_one({
-        "_id": "content-trans",
+        "_id": ObjectId(content_id),
         "audio_content": [{"audio_url": "https://blob/input.mp3"}],
         "is_pull_model": False,
     })
@@ -416,10 +418,11 @@ async def test_content_job_dead_letter_on_permanent():
     jobs_col = db["content_jobs"]
     content_col = db["contentsV3"]
 
-    job_result = await jobs_col.insert_one({"status": "pending", "content_id": "content-perm"})
+    content_id = str(ObjectId())
+    job_result = await jobs_col.insert_one({"status": "pending", "content_id": content_id})
     job_id = job_result.inserted_id
     await content_col.insert_one({
-        "_id": "content-perm",
+        "_id": ObjectId(content_id),
         "audio_content": [{"audio_url": "https://blob/corrupt.mp3"}],
         "is_pull_model": False,
     })

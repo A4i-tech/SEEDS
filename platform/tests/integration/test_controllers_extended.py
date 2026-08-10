@@ -17,6 +17,7 @@ os.environ.setdefault("DB_CONNECTION", "")
 
 import pytest
 import pytest_asyncio
+from bson import ObjectId
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
@@ -51,14 +52,18 @@ async def client(mock_db):
     app.dependency_overrides.clear()
 
 
-async def _seed_teacher(mock_db, email="teacher@ext.com", password="pass1234", tenant_id="t1"):
+_TENANT_ID = str(ObjectId())
+_SCHOOL_ID = str(ObjectId())
+
+
+async def _seed_teacher(mock_db, email="teacher@ext.com", password="pass1234", tenant_id=_TENANT_ID):
     doc = {
         "role": UserRole.TEACHER.value,
         "name": "Ext Teacher",
         "email": email,
         "hashed_password": hash_password(password),
         "tenant_id": tenant_id,
-        "school_id": "s1",
+        "school_id": _SCHOOL_ID,
         "is_active": True,
     }
     result = await mock_db["users"].insert_one(doc)
@@ -66,14 +71,14 @@ async def _seed_teacher(mock_db, email="teacher@ext.com", password="pass1234", t
     return doc
 
 
-async def _seed_school(mock_db, email="admin@school.com", password="adminpass123", tenant_id="t1"):
+async def _seed_school(mock_db, email="admin@school.com", password="adminpass123", tenant_id=_TENANT_ID):
     """Seed a school_admin user — schools are school_admin users in 'users', not a separate collection."""
     doc = {
         "role": UserRole.SCHOOL_ADMIN.value,
         "name": "Test School",
         "email": email,
         "hashed_password": hash_password(password),
-        "tenant_id": tenant_id,
+        "tenant_id": ObjectId(tenant_id),
         "is_active": True,
     }
     result = await mock_db["users"].insert_one(doc)
@@ -101,12 +106,12 @@ async def _seed_tenant(mock_db, email="tenant@ext.com", password="tenantpass"):
     return doc
 
 
-def _teacher_token(user_id, tenant_id="t1", school_id="s1"):
+def _teacher_token(user_id, tenant_id=_TENANT_ID, school_id=_SCHOOL_ID):
     return create_access_token({"sub": user_id, "role": "teacher", "tenant_id": tenant_id, "school_id": school_id})
 
 
 def _tenant_token(user_id):
-    return create_access_token({"sub": user_id, "role": "tenant"})
+    return create_access_token({"sub": user_id, "role": "tenant", "tenant_id": user_id})
 
 
 # ---------------------------------------------------------------------------
@@ -204,12 +209,12 @@ class TestTenantAuth:
 
     @pytest.mark.asyncio
     async def test_school_admin_me(self, client, mock_db):
-        school = await _seed_school(mock_db, email="admin2@school.com", tenant_id="t1")
+        school = await _seed_school(mock_db, email="admin2@school.com", tenant_id=_TENANT_ID)
         token = create_access_token({
             "sub": school["_id"],
             "role": "school_admin",
             "school_id": school["_id"],
-            "tenant_id": "t1",
+            "tenant_id": _TENANT_ID,
         })
         resp = await client.get("/school/admin/me", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 200

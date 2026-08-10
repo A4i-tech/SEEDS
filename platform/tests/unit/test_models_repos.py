@@ -251,16 +251,19 @@ async def test_content_repository_find_by_tenant(content_repo):
 @pytest.mark.asyncio
 async def test_content_repository_find_by_class(content_repo):
     """find_by_class returns only the requested content IDs."""
+    from bson import ObjectId
+
+    id_a, id_b, id_c = str(ObjectId()), str(ObjectId()), str(ObjectId())
     await content_repo._col.insert_many(
         [
-            {"_id": "c-a", "type": "story", "language": "en", "is_deleted": False},
-            {"_id": "c-b", "type": "quiz", "language": "hi", "is_deleted": False},
-            {"_id": "c-c", "type": "song", "language": "en", "is_deleted": False},
+            {"_id": ObjectId(id_a), "type": "story", "language": "en", "is_deleted": False},
+            {"_id": ObjectId(id_b), "type": "quiz", "language": "hi", "is_deleted": False},
+            {"_id": ObjectId(id_c), "type": "song", "language": "en", "is_deleted": False},
         ]
     )
-    results = await content_repo.find_by_class(["c-a", "c-c"])
+    results = await content_repo.find_by_class([id_a, id_c])
     ids = {r.id for r in results}
-    assert ids == {"c-a", "c-c"}
+    assert ids == {id_a, id_c}
 
 
 # ---------------------------------------------------------------------------

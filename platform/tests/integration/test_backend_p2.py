@@ -30,6 +30,7 @@ from datetime import UTC
 
 import pytest
 import pytest_asyncio
+from bson import ObjectId
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
@@ -72,28 +73,33 @@ async def client(mock_db):
 # ---------------------------------------------------------------------------
 
 
+_TENANT_A_ID = str(ObjectId())
+_TENANT_B_ID = str(ObjectId())
+_SCHOOL_ID = str(ObjectId())
+
+
 def _teacher_token(
     user_id: str = "user001",
-    tenant_id: str = "tenant001",
-    school_id: str = "school001",
+    tenant_id: str = _TENANT_A_ID,
+    school_id: str = _SCHOOL_ID,
 ) -> str:
     return create_access_token(
         {"sub": user_id, "role": "teacher", "tenant_id": tenant_id, "school_id": school_id}
     )
 
 
-def _tenant_token(user_id: str = "tenant001") -> str:
+def _tenant_token(user_id: str = _TENANT_A_ID) -> str:
     return create_access_token({"sub": user_id, "role": "tenant", "tenant_id": user_id})
 
 
 def _content_creator_token(
     user_id: str = "creator001",
-    tenant_id: str = "tenant001",
+    tenant_id: str = _TENANT_A_ID,
 ) -> str:
     return create_access_token({"sub": user_id, "role": "content_creator", "tenant_id": tenant_id})
 
 
-def _tenant_b_token(user_id: str = "tenant_b") -> str:
+def _tenant_b_token(user_id: str = _TENANT_B_ID) -> str:
     return create_access_token({"sub": user_id, "role": "tenant", "tenant_id": user_id})
 
 
@@ -152,10 +158,10 @@ async def test_create_content_triggers_job(client, mock_db):
 async def test_content_tenant_scoped(client, mock_db):
     """A user from tenant_A cannot read tenant_B content via GET /content/{id}."""
     # Seed content for tenant_b
-    content_id = str(uuid.uuid4())
+    content_id = str(ObjectId())
     await mock_db["contentsV3"].insert_one({
-        "_id": content_id,
-        "tenant_id": "tenant_b",
+        "_id": ObjectId(content_id),
+        "tenant_id": ObjectId(_TENANT_B_ID),
         "type": "Story",
         "language": "english",
         "title": {"english": "B Story"},
@@ -167,7 +173,7 @@ async def test_content_tenant_scoped(client, mock_db):
     })
 
     # Tenant A tries to fetch tenant B's content
-    token_a = _tenant_token(user_id="tenant_a")
+    token_a = _tenant_token(user_id=_TENANT_A_ID)
     resp = await client.get(
         f"/content/{content_id}",
         headers={"Authorization": f"Bearer {token_a}"},
@@ -208,13 +214,13 @@ async def test_content_job_consumer_process_audio(mock_db):
     import tempfile
     from datetime import datetime
 
-    content_id = str(uuid.uuid4())
+    content_id = str(ObjectId())
     job_id = str(uuid.uuid4())
 
     # Seed a content document
     await mock_db["contentsV3"].insert_one({
-        "_id": content_id,
-        "tenant_id": "tenant001",
+        "_id": ObjectId(content_id),
+        "tenant_id": ObjectId(_TENANT_A_ID),
         "type": "Story",
         "language": "kannada",
         "title": {"english": "Test", "local": "ಪರೀಕ್ಷೆ"},
@@ -281,13 +287,13 @@ async def test_content_job_dead_letter_on_failure(mock_db):
     """A job with a corrupt blob URL is dead-lettered: status=failed with reason set."""
     from datetime import datetime
 
-    content_id = str(uuid.uuid4())
+    content_id = str(ObjectId())
     job_id = str(uuid.uuid4())
 
     # Seed content with a bad audio URL (not a valid blob URL)
     await mock_db["contentsV3"].insert_one({
-        "_id": content_id,
-        "tenant_id": "tenant001",
+        "_id": ObjectId(content_id),
+        "tenant_id": ObjectId(_TENANT_A_ID),
         "type": "Story",
         "language": "english",
         "title": {"english": "Broken"},

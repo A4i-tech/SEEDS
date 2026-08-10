@@ -16,6 +16,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
+from bson import ObjectId
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
@@ -50,14 +51,18 @@ async def client(mock_db):
     app.dependency_overrides.clear()
 
 
-async def _seed_teacher(mock_db, email="t@content.com", password="pass1234", tenant_id="t1"):
+_TENANT_ID = str(ObjectId())
+_SCHOOL_ID = str(ObjectId())
+
+
+async def _seed_teacher(mock_db, email="t@content.com", password="pass1234", tenant_id=_TENANT_ID):
     doc = {
         "role": UserRole.TEACHER.value,
         "name": "Content Teacher",
         "email": email,
         "hashed_password": hash_password(password),
         "tenant_id": tenant_id,
-        "school_id": "s1",
+        "school_id": _SCHOOL_ID,
         "is_active": True,
     }
     result = await mock_db["users"].insert_one(doc)
@@ -65,11 +70,11 @@ async def _seed_teacher(mock_db, email="t@content.com", password="pass1234", ten
     return doc
 
 
-def _teacher_token(user_id, tenant_id="t1", school_id="s1"):
+def _teacher_token(user_id, tenant_id=_TENANT_ID, school_id=_SCHOOL_ID):
     return create_access_token({"sub": user_id, "role": "teacher", "tenant_id": tenant_id, "school_id": school_id})
 
 
-def _school_admin_token(user_id, tenant_id="t1", school_id="s1"):
+def _school_admin_token(user_id, tenant_id=_TENANT_ID, school_id=_SCHOOL_ID):
     return create_access_token({"sub": user_id, "role": "school_admin", "tenant_id": tenant_id, "school_id": school_id})
 
 
@@ -159,7 +164,7 @@ class TestContentControllerExtra:
     @pytest.mark.asyncio
     async def test_delete_content_not_found(self, client, mock_db):
         tenant = await _seed_tenant(mock_db)
-        token = create_access_token({"sub": tenant["_id"], "role": "tenant"})
+        token = create_access_token({"sub": tenant["_id"], "role": "tenant", "tenant_id": tenant["_id"]})
         resp = await client.delete("/content/000000000000000000000000", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code in (200, 404)
 

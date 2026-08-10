@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from bson.errors import InvalidId
 from fastapi import Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
@@ -131,6 +132,16 @@ async def _validation_error_handler(
     )
 
 
+async def _invalid_id_handler(request: Request, exc: InvalidId) -> JSONResponse:
+    """A path/query id that isn't a valid ObjectId can never match a document — 404, not 500."""
+    request_id = _get_request_id()
+    logger.warning("InvalidId (request_id=%s): %s", request_id, exc)
+    return JSONResponse(
+        status_code=404,
+        content=_error_envelope("NOT_FOUND", "Resource not found", request_id),
+    )
+
+
 async def _unhandled_exception_handler(
     request: Request, exc: Exception
 ) -> JSONResponse:
@@ -160,4 +171,5 @@ def register_error_handlers(app: FastAPI) -> None:
     """Wire all exception handlers onto *app*."""
     app.add_exception_handler(AppError, _app_error_handler)
     app.add_exception_handler(RequestValidationError, _validation_error_handler)
+    app.add_exception_handler(InvalidId, _invalid_id_handler)
     app.add_exception_handler(Exception, _unhandled_exception_handler)

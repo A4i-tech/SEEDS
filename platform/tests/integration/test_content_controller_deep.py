@@ -13,6 +13,7 @@ os.environ.setdefault("ENV", "development")
 
 import pytest
 import pytest_asyncio
+from bson import ObjectId
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
@@ -43,14 +44,18 @@ async def client(mock_db):
     app.dependency_overrides.clear()
 
 
-async def _seed_teacher(db, email="t@cdep.com", tenant_id="t1"):
+_TENANT_ID = str(ObjectId())
+_SCHOOL_ID = str(ObjectId())
+
+
+async def _seed_teacher(db, email="t@cdep.com", tenant_id=_TENANT_ID):
     doc = {
         "role": UserRole.TEACHER.value,
         "name": "Deep Teacher",
         "email": email,
         "hashed_password": hash_password("pass1234"),
         "tenant_id": tenant_id,
-        "school_id": "s1",
+        "school_id": _SCHOOL_ID,
         "is_active": True,
     }
     result = await db["users"].insert_one(doc)
@@ -58,7 +63,7 @@ async def _seed_teacher(db, email="t@cdep.com", tenant_id="t1"):
     return doc
 
 
-def _teacher_token(uid, tid="t1", sid="s1"):
+def _teacher_token(uid, tid=_TENANT_ID, sid=_SCHOOL_ID):
     return create_access_token({"sub": uid, "role": "teacher", "tenant_id": tid, "school_id": sid})
 
 
@@ -77,7 +82,7 @@ async def _seed_tenant(db, email="ten@cdep.com"):
 
 
 def _tenant_token(uid):
-    return create_access_token({"sub": uid, "role": "tenant"})
+    return create_access_token({"sub": uid, "role": "tenant", "tenant_id": uid})
 
 
 # ---------------------------------------------------------------------------
