@@ -3,6 +3,7 @@
  * appears in `text`, in order, not necessarily adjacent.
  */
 export const fuzzyMatch = (text, query) => {
+  if (!text) return false;
   const t = text.toLowerCase();
   const q = query.toLowerCase();
   let ti = 0;

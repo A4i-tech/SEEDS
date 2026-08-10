@@ -9,6 +9,8 @@ from __future__ import annotations
 import abc
 import logging
 
+from bs4 import BeautifulSoup
+
 from app.aggregators.html_to_markdown import html_to_markdown
 from app.aggregators.models import (
     BlobContext,
@@ -26,6 +28,23 @@ from app.providers.blob_storage import BlobStorageProvider
 
 logger = logging.getLogger(__name__)
 
+_DANGEROUS_URL_SCHEMES = ("javascript:", "vbscript:", "data:text/html")
+
+
+def _sanitize_html(html: str) -> str:
+    soup = BeautifulSoup(html, "html.parser")
+    for tag in soup.find_all("script"):
+        tag.decompose()
+    for tag in soup.find_all(True):
+        for attr in list(tag.attrs):
+            value = tag.attrs[attr]
+            is_dangerous_url = (
+                attr.lower() in ("href", "src") and isinstance(value, str) and value.strip().lower().startswith(_DANGEROUS_URL_SCHEMES)
+            )
+            if attr.lower().startswith("on") or is_dangerous_url:
+                del tag.attrs[attr]
+    return str(soup)
+
 
 class ContentStrategy(abc.ABC):
     @abc.abstractmethod
@@ -39,7 +58,8 @@ class TextStrategy(ContentStrategy):
             markdown = html_to_markdown(raw_html)
         except (RuntimeError, OSError) as exc:
             logger.warning("[content-strategies] pandoc conversion failed for %s: %s", ctx.blob_prefix, exc)
-            raw_html_url = await blob.upload_file(ctx.container, f"{ctx.blob_prefix}.raw.html", raw_html.encode("utf-8"), "text/html")
+            safe_html = _sanitize_html(raw_html)
+            raw_html_url = await blob.upload_file(ctx.container, f"{ctx.blob_prefix}.raw.html", safe_html.encode("utf-8"), "text/html")
             return TextContent(raw_html_url=raw_html_url, conversion_failed=True)
 
         markdown_url = await blob.upload_file(ctx.container, f"{ctx.blob_prefix}.md", markdown.encode("utf-8"), "text/markdown")
@@ -64,8 +84,8 @@ class ImageStrategy(ContentStrategy):
 
 
 async def _upload_raw_html(raw: RawItemPayload, ctx: BlobContext, blob: BlobStorageProvider) -> str:
-    raw_html = raw or ""
-    return await blob.upload_file(ctx.container, f"{ctx.blob_prefix}.raw.html", raw_html.encode("utf-8"), "text/html")
+    safe_html = _sanitize_html(raw or "")
+    return await blob.upload_file(ctx.container, f"{ctx.blob_prefix}.raw.html", safe_html.encode("utf-8"), "text/html")
 
 
 class QuizStrategy(ContentStrategy):

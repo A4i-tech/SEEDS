@@ -13,26 +13,26 @@ from app.providers.blob_storage import BlobStorageProvider
 
 logger = logging.getLogger(__name__)
 
-# Markdown images point at blob-storage URLs baked in at sync time, but the
-# storage account has public access disabled — every ![...](https://...) in
-# the text needs a fresh SAS token before the browser can load it.
-_BLOB_IMAGE_URL_RE = re.compile(r"!\[[^\]]*\]\((https://[^)\s]+\.blob\.core\.windows\.net/[^)\s]+)\)")
+# Both markdown (![...](url)) and raw-HTML (<img src="url">) content point at
+# blob-storage URLs baked in at sync time, but the storage account has public
+# access disabled — every blob URL needs a fresh SAS token before the browser
+# can load it, regardless of which syntax wraps it.
+_BLOB_URL_RE = re.compile(r"https://[^\s)\"'<>]+\.blob\.core\.windows\.net/[^\s)\"'<>]+")
 
 
-async def _sign_blob_image_urls(markdown: str, blob: BlobStorageProvider) -> str:
-    urls = set(_BLOB_IMAGE_URL_RE.findall(markdown))
+async def _sign_blob_urls(text: str, blob: BlobStorageProvider) -> str:
+    urls = list(set(_BLOB_URL_RE.findall(text)))
     if not urls:
-        return markdown
-    urls = list(urls)
+        return text
     signed = await asyncio.gather(
         *(blob.get_sas_url_from_blob_url(url, expiry_hours=1) for url in urls), return_exceptions=True
     )
     for original, result in zip(urls, signed, strict=True):
         if isinstance(result, Exception):
-            logger.warning("subodha_serializer: failed to sign image url %s — %s", original, result)
+            logger.warning("subodha_serializer: failed to sign blob url %s — %s", original, result)
             continue
-        markdown = markdown.replace(original, result)
-    return markdown
+        text = text.replace(original, result)
+    return text
 
 
 @dataclass(frozen=True)
@@ -119,7 +119,7 @@ async def _resolve_markdown(node: CanonicalNode, blob: BlobStorageProvider) -> s
     if not url:
         return None
     data = await blob.download_from_url(url)
-    return await _sign_blob_image_urls(data.decode("utf-8"), blob)
+    return await _sign_blob_urls(data.decode("utf-8"), blob)
 
 
 async def _resolve_html(node: CanonicalNode, blob: BlobStorageProvider) -> str:
@@ -127,7 +127,7 @@ async def _resolve_html(node: CanonicalNode, blob: BlobStorageProvider) -> str:
     if not url:
         return ""
     data = await blob.download_from_url(url)
-    return data.decode("utf-8")
+    return await _sign_blob_urls(data.decode("utf-8"), blob)
 
 
 async def _to_legacy_block(node: CanonicalNode, blob: BlobStorageProvider) -> LegacyBlock:

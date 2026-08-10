@@ -14,6 +14,7 @@ module.exports = {
   setupFilesAfterEnv: ["<rootDir>/tests/setupTests.js"],
   moduleNameMapper: {
     "\\.(css|less|scss|sass)$": "<rootDir>/tests/styleMock.js",
+    "\\.svg$": "<rootDir>/tests/svgMock.js",
   },
   coverageDirectory: "coverage",
   coverageReporters: ["json-summary", "text", "lcov", "html"],

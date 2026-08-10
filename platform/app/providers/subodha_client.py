@@ -68,6 +68,7 @@ def _extract_video_data(raw: str) -> dict[str, object] | None:
 
 async def _with_retry(fn, *, label: str = "", retries: int = 5, base_delay: float = 5.0):
     """Retry *fn* on 429/503/network errors with exponential backoff."""
+    last_exc: Exception | None = None
     for attempt in range(1, retries + 1):
         try:
             return await fn()
@@ -75,15 +76,17 @@ async def _with_retry(fn, *, label: str = "", retries: int = 5, base_delay: floa
             status = exc.response.status_code
             if status not in (429, 503):
                 raise
+            last_exc = exc
             retry_after = int(exc.response.headers.get("retry-after", "0") or "0")
             wait = retry_after if retry_after > 0 else base_delay * attempt
             logger.warning("[retry] %s %d — waiting %.1fs (attempt %d/%d)", label, status, wait, attempt, retries)
             await asyncio.sleep(wait)
         except httpx.TransportError as exc:
+            last_exc = exc
             wait = base_delay * attempt
             logger.warning("[retry] %s %s — waiting %.1fs (attempt %d/%d)", label, exc, wait, attempt, retries)
             await asyncio.sleep(wait)
-    raise RuntimeError(f"{label} failed after {retries} retries")
+    raise RuntimeError(f"{label} failed after {retries} retries") from last_exc
 
 
 class SubodhaClient:
@@ -147,8 +150,13 @@ class SubodhaClient:
 
         while url:
             current_url = url
-            res = await _with_retry(lambda u=current_url: self._http.get(u), label=f"courses page {page}")
-            res.raise_for_status()
+
+            async def _get(u=current_url):
+                res = await self._http.get(u)
+                res.raise_for_status()
+                return res
+
+            res = await _with_retry(_get, label=f"courses page {page}")
             data = res.json()
             courses.extend(data.get("results", []))
             url = (data.get("pagination") or {}).get("next")
@@ -165,15 +173,16 @@ class SubodhaClient:
             "all_blocks": "true",
             "requested_fields": "display_name,type,student_view_data,student_view_html,children",
         }
-        res = await _with_retry(
-            lambda: self._http.get(
+        async def _get():
+            res = await self._http.get(
                 f"{self._base_url}/api/courses/v2/blocks/",
                 params=params,
                 headers={"Cookie": session_cookie},
-            ),
-            label=f"blocks {course_id}",
-        )
-        res.raise_for_status()
+            )
+            res.raise_for_status()
+            return res
+
+        res = await _with_retry(_get, label=f"blocks {course_id}")
         return res.json()
 
     async def enrich_blocks_with_content(self, blocks_response: dict[str, Any], session_cookie: str) -> dict[str, Any]:
@@ -181,15 +190,17 @@ class SubodhaClient:
         entries = [b for b in blocks.values() if b.get("type") in _CONTENT_TYPES_FOR_XBLOCK and b.get("student_view_url")]
 
         semaphore = asyncio.Semaphore(self._settings.subodha_xblock_concurrency)
+        failures: list[str] = []
 
         async def enrich_one(block: dict[str, Any]) -> None:
             async with semaphore:
                 try:
-                    res = await _with_retry(
-                        lambda: self._http.get(block["student_view_url"], headers={"Cookie": session_cookie}),
-                        label=f"xblock {block.get('id')}",
-                    )
-                    res.raise_for_status()
+                    async def _get():
+                        res = await self._http.get(block["student_view_url"], headers={"Cookie": session_cookie})
+                        res.raise_for_status()
+                        return res
+
+                    res = await _with_retry(_get, label=f"xblock {block.get('id')}")
                     raw = res.text
                     if block.get("type") == "video":
                         block["student_view_data"] = _extract_video_data(raw)
@@ -198,12 +209,13 @@ class SubodhaClient:
                         extracted = _strip_staff_debug(_extract_html(raw))
                         block["student_view_html"] = _MATHTYPE_ANNOTATION_RE.sub("", extracted)
                         block["student_view_data"] = None
-                except Exception:  # noqa: BLE001
-                    block["student_view_html"] = ""
-                    block["student_view_data"] = None
+                except Exception as exc:  # noqa: BLE001
+                    failures.append(f"{block.get('id')}: {exc}")
                 await asyncio.sleep(self._settings.subodha_xblock_delay_ms / 1000)
 
         await asyncio.gather(*(enrich_one(b) for b in entries))
+        if failures:
+            raise RuntimeError(f"{len(failures)}/{len(entries)} xblocks failed to enrich: {'; '.join(failures)}")
         return blocks_response
 
     # ------------------------------------------------------------------

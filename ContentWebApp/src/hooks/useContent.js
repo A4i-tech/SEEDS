@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { contentService } from "../services/contentService";
 import { contentAggregatorService } from "../services/contentAggregatorService";
+import { getRole } from "../utils/authHelpers";
+import { USER_ROLES } from "../Constants";
 
 const PAGE_SIZE = 50;
 
@@ -45,7 +47,7 @@ export const useContent = () => {
   }, []);
 
   useEffect(() => {
-    loadContentAggregatorCourses();
+    if (getRole() === USER_ROLES.TENANT) loadContentAggregatorCourses();
   }, [loadContentAggregatorCourses]);
 
   /**
@@ -65,8 +67,12 @@ export const useContent = () => {
       setIsLoading(true);
       try {
         const { data, nextCursor, hasMore } = await fetchContent(null);
-        setAllContent(data);
-        setContent(data);
+        setAllContent((prevAll) => {
+          const freshIds = new Set(data.map((item) => item.id));
+          const merged = [...data, ...prevAll.filter((item) => !freshIds.has(item.id))];
+          if (!isFilteredRef.current) setContent(merged);
+          return merged;
+        });
         setPaginationInfo({ nextCursor, hasMore });
         setIsFiltered(false);
       } catch (error) {

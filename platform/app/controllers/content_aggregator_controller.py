@@ -17,7 +17,7 @@ from fastapi.responses import StreamingResponse
 
 from app.models.user import UserRole
 from app.platform.auth.dependencies import get_current_user
-from app.platform.error_handling import ForbiddenError, NotFoundError
+from app.platform.error_handling import ConflictError, ForbiddenError, NotFoundError
 from app.providers.subodha_client import SubodhaClient, get_subodha_client
 from app.repositories.content_aggregator_sync_job_repository import (
     ContentAggregatorSyncJobRepository,
@@ -106,6 +106,9 @@ async def start_sync(
 ) -> dict[str, str]:
     body = body or {}
     tenant_id = user.get("tenant_id", "")
+    active_jobs = await job_repo.get_active_jobs(tenant_id, source_type=SOURCE_TYPE)
+    if any(j.scope == "all" for j in active_jobs):
+        raise ConflictError("A Subodha sync-all job")
     job = await create_job(job_repo, tenant_id=tenant_id, source_type=SOURCE_TYPE, scope="all", source_id=None, total_items=0)
     background_tasks.add_task(
         _run_sync_job, tenant_id, job.job_id, service, client, job_repo,
@@ -177,6 +180,9 @@ async def sync_course(
 ) -> dict[str, str]:
     body = body or {}
     tenant_id = user.get("tenant_id", "")
+    active_jobs = await job_repo.get_active_jobs(tenant_id, source_type=SOURCE_TYPE)
+    if any(j.scope == "course" and j.source_id == course_id for j in active_jobs):
+        raise ConflictError(f'A sync for course "{course_id}"')
     job = await create_job(job_repo, tenant_id=tenant_id, source_type=SOURCE_TYPE, scope="course", source_id=course_id, total_items=1)
     background_tasks.add_task(
         _run_course_sync_job, tenant_id, job.job_id, service, client, job_repo, course_id, dry_run=bool(body.get("dryRun", False))

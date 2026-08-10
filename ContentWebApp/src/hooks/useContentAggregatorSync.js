@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { contentAggregatorService } from "../services/contentAggregatorService";
+import { getRole } from "../utils/authHelpers";
+import { USER_ROLES } from "../Constants";
 
 /**
  * Tracks the "sync all" job plus per-course sync jobs via SSE. Reattaches to
@@ -112,6 +114,7 @@ export const useContentAggregatorSync = (onSettled) => {
   );
 
   useEffect(() => {
+    if (getRole() !== USER_ROLES.TENANT) return undefined;
     let cancelled = false;
     (async () => {
       try {

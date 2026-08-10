@@ -37,9 +37,10 @@ def _safe(value: str) -> str:
 
 def _outline_container_nodes(
     outline: list[dict[str, Any]], tenant_id: str, root_id: str, run_id: str, now: str
-) -> tuple[list[CanonicalNode], dict[str, str]]:
+) -> tuple[list[CanonicalNode], dict[str, str], dict[str, int]]:
     nodes: list[CanonicalNode] = []
     item_parent: dict[str, str] = {}
+    item_order: dict[str, int] = {}
 
     for c_order, chapter in enumerate(outline):
         nodes.append(CanonicalNode(
@@ -62,10 +63,11 @@ def _outline_container_nodes(
                     display_name=vert["displayName"], content=None, lms_url=None, native_type="vertical",
                     source_metadata={}, last_run_id=run_id, fetched_at=now, created_at=now, updated_at=now,
                 ))
-                for block_id in vert.get("blockIds", []):
+                for b_order, block_id in enumerate(vert.get("blockIds", [])):
                     item_parent[block_id] = vert["blockId"]
+                    item_order[block_id] = b_order
 
-    return nodes, item_parent
+    return nodes, item_parent, item_order
 
 
 async def _migrate_one_course(
@@ -84,7 +86,7 @@ async def _migrate_one_course(
         run_id = course.get("lastRunId") or "migration"
         now = datetime.now(UTC).isoformat()
 
-        container_nodes, item_parent = _outline_container_nodes(course.get("outline", []), tenant_id, root_id, run_id, now)
+        container_nodes, item_parent, item_order = _outline_container_nodes(course.get("outline", []), tenant_id, root_id, run_id, now)
 
         course_node = CanonicalNode(
             tenant_id=tenant_id, source_type="subodha", source_id=root_id, root_id=root_id, parent_id=None,
@@ -109,9 +111,16 @@ async def _migrate_one_course(
             strategy = STRATEGY_REGISTRY[item_type]
             raw = block.get("studentViewData") if item_type == ItemType.VIDEO else block.get("html", "")
             content = None if dry_run else await strategy.process(raw, ctx, blob)
+            block_id = block["blockId"]
+            if block_id not in item_parent:
+                logger.warning(
+                    "[migration] course %s: block %s has no vertical parent in the outline — "
+                    "attaching to course root, which the outline-based UI never traverses (unreachable there)",
+                    root_id, block_id,
+                )
             item_nodes.append(CanonicalNode(
-                tenant_id=tenant_id, source_type="subodha", source_id=block["blockId"], root_id=root_id,
-                parent_id=item_parent.get(block["blockId"], root_id), order=0, node_kind=NodeKind.ITEM,
+                tenant_id=tenant_id, source_type="subodha", source_id=block_id, root_id=root_id,
+                parent_id=item_parent.get(block_id, root_id), order=item_order.get(block_id, 0), node_kind=NodeKind.ITEM,
                 item_type=item_type, display_name=block.get("displayName", ""), content=content,
                 lms_url=block.get("lmsUrl"), native_type=native_type, source_metadata={},
                 last_run_id=run_id, fetched_at=now, created_at=now, updated_at=now,
