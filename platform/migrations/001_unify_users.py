@@ -96,7 +96,10 @@ async def migrate(mongo_uri: str, dry_run: bool) -> None:
             # Normalise legacy field names.
             if "phoneNumber" in new_doc and "phone" not in new_doc:
                 new_doc["phone"] = new_doc.pop("phoneNumber")
-            new_doc.pop("tenantName", None)
+            if "tenantName" in new_doc and "tenant_name" not in new_doc:
+                new_doc["tenant_name"] = new_doc.pop("tenantName")
+            else:
+                new_doc.pop("tenantName", None)
             new_doc.pop("studentId", None)
 
             # Resolve tenant_id before renaming schoolId.
