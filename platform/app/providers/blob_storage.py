@@ -286,6 +286,21 @@ class SASGenerator:
 # ---------------------------------------------------------------------------
 
 
+_provider: BlobStorageProvider | None = None
+
+
+def get_blob_storage_provider() -> BlobStorageProvider:
+    """Return the process-wide BlobStorageProvider singleton.
+
+    Reuses one aio BlobServiceClient (and its aiohttp session) across calls
+    instead of opening a new session per request.
+    """
+    global _provider
+    if _provider is None:
+        _provider = BlobStorageProvider()
+    return _provider
+
+
 def _parse_blob_url(blob_url: str) -> tuple[str, str]:
     """Parse an Azure Blob Storage URL into (container_name, blob_path).
 

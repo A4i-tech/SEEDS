@@ -74,6 +74,15 @@ class SASService:
                 )
         return self._blob_service_client
 
+    async def close(self) -> None:
+        """Release aio resources (client session, credential transport)."""
+        if self._blob_service_client is not None:
+            await self._blob_service_client.close()
+            self._blob_service_client = None
+        if self._credential is not None:
+            await self._credential.close()
+            self._credential = None
+
     async def _get_user_delegation_key(self, client):
         """Return a cached user-delegation key, refreshing if near expiry."""
         if self._use_account_key:

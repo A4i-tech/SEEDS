@@ -29,7 +29,7 @@ from app.models.responses.job import DeleteMatchedResponse, JobScheduledResponse
 from app.models.user import UserRole
 from app.platform.auth.dependencies import get_current_user
 from app.platform.error_handling import ForbiddenError, NotFoundError
-from app.providers.blob_storage import BlobStorageProvider
+from app.providers.blob_storage import get_blob_storage_provider
 from app.services.content_service import ContentService, get_content_service
 
 logger = logging.getLogger(__name__)
@@ -111,7 +111,7 @@ def _sort_key(item: dict) -> tuple:
 
 async def _get_sas_url(url: str) -> str:
     try:
-        provider = BlobStorageProvider()
+        provider = get_blob_storage_provider()
         return await provider.get_sas_url_from_blob_url(url, expiry_hours=1)
     except Exception as exc:
         logger.error("_get_sas_url failed", extra={"err": str(exc)})
@@ -189,7 +189,7 @@ async def get_sas_token(
     if not blob_name or not blob_name.lower().endswith(".mp3"):
         raise HTTPException(status_code=400, detail="Only .mp3 files are allowed.")
     try:
-        provider = BlobStorageProvider()
+        provider = get_blob_storage_provider()
         sas_url = await provider.get_upload_sas_url("input-container", blob_name, expiry_hours=1)
     except Exception as exc:
         logger.error("get_sas_token failed", extra={"blob_name": blob_name, "err": str(exc)})

@@ -73,6 +73,20 @@ class TestSASService:
         assert result == "udk"
 
     @pytest.mark.asyncio
+    async def test_close_releases_client_and_credential(self) -> None:
+        svc = self._make_sas(enabled=True, use_key=False)
+        svc._blob_service_client = AsyncMock()
+        svc._credential = AsyncMock()
+        client, credential = svc._blob_service_client, svc._credential
+
+        await svc.close()
+
+        client.close.assert_awaited_once()
+        credential.close.assert_awaited_once()
+        assert svc._blob_service_client is None
+        assert svc._credential is None
+
+    @pytest.mark.asyncio
     async def test_enabled_with_bad_azure_import_falls_back(self) -> None:
         svc = self._make_sas(enabled=True, use_key=True)
         url = "https://myaccount.blob.core.windows.net/container/file.mp3"
