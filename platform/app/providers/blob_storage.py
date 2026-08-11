@@ -17,7 +17,6 @@ NCCO-building code path (``VonageStreamAction.get()`` / ``ActionAccumulator``).
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 from urllib.parse import unquote, urlparse
