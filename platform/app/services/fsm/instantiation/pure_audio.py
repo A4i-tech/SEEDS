@@ -128,7 +128,7 @@ class PureAudio:
         options = [
             _Option(key=8, value="repeat"),
             _Option(key=9, value="exit"),
-            _Option(key=0, value="pause/resume"),
+            _Option(key=0, value="next (instructions to exit)"),
         ]
         description = (
             f"{self.content_data.title.local} - {self.content_data.title.english} Audio Playing"
