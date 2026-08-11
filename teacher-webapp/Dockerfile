@@ -20,7 +20,6 @@ ENV REACT_APP_API_BASE_URL=$REACT_APP_API_BASE_URL
 RUN npm run build
 
 # ---- Serve stage ----
-# nginx-unprivileged runs as non-root (uid 101) out of the box, listens on 8080
 FROM nginxinc/nginx-unprivileged:alpine
 
 # Copy build output to nginx html directory

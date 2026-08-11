@@ -21,7 +21,6 @@ ENV REACT_APP_GOOGLE_SITE_VERIFICATION=$REACT_APP_GOOGLE_SITE_VERIFICATION
 RUN npm run build
 
 # ---- Production stage ----
-# nginx-unprivileged runs as non-root (uid 101) out of the box, listens on 8080
 FROM nginxinc/nginx-unprivileged:alpine
 
 # Copy React build output to Nginx
