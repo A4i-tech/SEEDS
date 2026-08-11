@@ -67,6 +67,31 @@ async def test_quiz_strategy_uploads_raw_html_as_is():
 
 
 @pytest.mark.asyncio
+async def test_quiz_strategy_strips_disallowed_tags_and_attributes():
+    blob = FakeBlob()
+    ctx = BlobContext(container="subodha", blob_prefix="courses/c1/items/q2")
+    payload = (
+        "<div onclick=\"alert(1)\">"
+        "<script>alert(1)</script>"
+        "<iframe srcdoc=\"x\"></iframe>"
+        "<style>a{}</style>"
+        "<img src=\"x\" onerror=\"alert(1)\">"
+        "<a href=\"javascript:alert(1)\">x</a>"
+        "</div>"
+    )
+    content = await STRATEGY_REGISTRY[ItemType.QUIZ].process(payload, ctx, blob)
+    sanitized = blob.uploaded["courses/c1/items/q2.raw.html"].decode("utf-8")
+
+    assert "<script" not in sanitized
+    assert "<iframe" not in sanitized
+    assert "<style" not in sanitized
+    assert "onclick" not in sanitized
+    assert "onerror" not in sanitized
+    assert "javascript:" not in sanitized
+    assert content.raw_html_url == "https://blob.test/subodha/courses/c1/items/q2.raw.html"
+
+
+@pytest.mark.asyncio
 async def test_other_strategy_passes_through_dict_unchanged():
     payload = {"whatever": "shape", "the": "adapter emits"}
     content = await STRATEGY_REGISTRY[ItemType.OTHER].process(payload, BlobContext("subodha", "x"), None)

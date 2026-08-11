@@ -6,6 +6,7 @@ only here (CanonicalNode.to_doc()/from_doc()) — callers work with CanonicalNod
 """
 from __future__ import annotations
 
+import asyncio
 from typing import ClassVar
 
 from pymongo.asynchronous.database import AsyncDatabase
@@ -20,9 +21,25 @@ class ContentAggregatorRepository:
         self._col = db[self.COLLECTION_NAME]
 
     async def upsert_tree(self, tenant_id: str, source_type: str, root_id: str, nodes: list[CanonicalNode]) -> None:
-        await self._col.delete_many({"tenant_id": tenant_id, "source_type": source_type, "root_id": root_id})
         if nodes:
-            await self._col.insert_many([n.to_doc() for n in nodes])
+            await asyncio.gather(
+                *(
+                    self._col.replace_one(
+                        {"tenant_id": tenant_id, "source_type": source_type, "root_id": root_id, "source_id": n.source_id},
+                        n.to_doc(),
+                        upsert=True,
+                    )
+                    for n in nodes
+                )
+            )
+        await self._col.delete_many(
+            {
+                "tenant_id": tenant_id,
+                "source_type": source_type,
+                "root_id": root_id,
+                "source_id": {"$nin": [n.source_id for n in nodes]},
+            }
+        )
 
     async def get_tree(self, tenant_id: str, source_type: str, root_id: str) -> list[CanonicalNode]:
         docs = await (

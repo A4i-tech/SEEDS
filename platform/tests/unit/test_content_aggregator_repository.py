@@ -70,6 +70,42 @@ async def test_get_root_returns_only_the_container_with_no_parent(repo):
 
 
 @pytest.mark.asyncio
+async def test_upsert_tree_survives_partial_write_failure(repo, monkeypatch):
+    await repo.upsert_tree("tenant-a", "subodha", "course-1", [_course_node(), _item_node()])
+
+    real_replace_one = repo._col.replace_one
+
+    async def flaky_replace_one(filter_, doc, **kwargs):
+        if filter_["source_id"] == "block-2":
+            raise RuntimeError("simulated write failure")
+        return await real_replace_one(filter_, doc, **kwargs)
+
+    monkeypatch.setattr(repo._col, "replace_one", flaky_replace_one)
+
+    with pytest.raises(RuntimeError):
+        await repo.upsert_tree(
+            "tenant-a", "subodha", "course-1",
+            [_course_node(), _item_node(source_id="block-2")],
+        )
+
+    # The previously-good tree must still be readable — never left fully absent.
+    tree = await repo.get_tree("tenant-a", "subodha", "course-1")
+    assert {n.source_id for n in tree} == {"course-1", "block-1"}
+
+
+@pytest.mark.asyncio
+async def test_upsert_tree_removes_only_stale_nodes(repo):
+    await repo.upsert_tree(
+        "tenant-a", "subodha", "course-1",
+        [_course_node(), _item_node(source_id="block-1"), _item_node(source_id="block-2")],
+    )
+    await repo.upsert_tree("tenant-a", "subodha", "course-1", [_course_node(), _item_node(source_id="block-1")])
+
+    tree = await repo.get_tree("tenant-a", "subodha", "course-1")
+    assert {n.source_id for n in tree} == {"course-1", "block-1"}
+
+
+@pytest.mark.asyncio
 async def test_list_roots_and_stored_root_ids_only_own_tenant(repo):
     await repo.upsert_tree("tenant-a", "subodha", "course-1", [_course_node("course-1")])
     await repo.upsert_tree("tenant-a", "subodha", "course-2", [_course_node("course-2")])

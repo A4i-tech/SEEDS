@@ -9,7 +9,7 @@ from __future__ import annotations
 import abc
 import logging
 
-from bs4 import BeautifulSoup
+import nh3
 
 from app.aggregators.html_to_markdown import html_to_markdown
 from app.aggregators.models import (
@@ -28,22 +28,30 @@ from app.providers.blob_storage import BlobStorageProvider
 
 logger = logging.getLogger(__name__)
 
-_DANGEROUS_URL_SCHEMES = ("javascript:", "vbscript:", "data:text/html")
+_ALLOWED_TAGS = {
+    "p", "br", "hr", "span", "div",
+    "h1", "h2", "h3", "h4", "h5", "h6",
+    "strong", "b", "em", "i", "u", "s", "sub", "sup", "blockquote", "pre", "code",
+    "ul", "ol", "li",
+    "table", "thead", "tbody", "tr", "th", "td",
+    "a", "img", "figure", "figcaption",
+}
+_ALLOWED_ATTRIBUTES = {
+    "a": {"href", "title"},
+    "img": {"src", "alt", "title", "width", "height"},
+    "*": {"class"},
+}
+_ALLOWED_URL_SCHEMES = {"http", "https", "mailto"}
 
 
 def _sanitize_html(html: str) -> str:
-    soup = BeautifulSoup(html, "html.parser")
-    for tag in soup.find_all("script"):
-        tag.decompose()
-    for tag in soup.find_all(True):
-        for attr in list(tag.attrs):
-            value = tag.attrs[attr]
-            is_dangerous_url = (
-                attr.lower() in ("href", "src") and isinstance(value, str) and value.strip().lower().startswith(_DANGEROUS_URL_SCHEMES)
-            )
-            if attr.lower().startswith("on") or is_dangerous_url:
-                del tag.attrs[attr]
-    return str(soup)
+    return nh3.clean(
+        html,
+        tags=_ALLOWED_TAGS,
+        attributes=_ALLOWED_ATTRIBUTES,
+        url_schemes=_ALLOWED_URL_SCHEMES,
+        link_rel="noopener noreferrer",
+    )
 
 
 class ContentStrategy(abc.ABC):

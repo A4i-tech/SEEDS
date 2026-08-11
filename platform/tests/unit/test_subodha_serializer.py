@@ -58,6 +58,13 @@ def _nodes():
 
 
 @pytest.mark.asyncio
+async def test_to_course_doc_raises_clear_error_when_root_missing():
+    blob = FakeBlob({})
+    with pytest.raises(ValueError, match="no root node"):
+        await to_course_doc(_nodes()[1:], blob)  # drop the root (parent_id is None) node
+
+
+@pytest.mark.asyncio
 async def test_to_course_doc_rebuilds_snake_case_shape():
     blob = FakeBlob({"blob://x.md": b"**Hi**", "blob://x.raw.html": b"<p>raw</p>"})
     doc = (await to_course_doc(_nodes(), blob)).to_dict()

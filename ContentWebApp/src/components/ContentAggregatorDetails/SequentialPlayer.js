@@ -15,8 +15,9 @@ export function SequentialPlayer({
 }) {
   const [unitIndex, setUnitIndex] = useState(0);
   const verticals = sequential.verticals;
+  const lastUnitIndex = Math.max(verticals.length - 1, 0);
   const vertical = verticals[unitIndex];
-  const verticalBlocks = vertical.block_ids.map((id) => blockMap[id]).filter(Boolean);
+  const verticalBlocks = vertical ? vertical.block_ids.map((id) => blockMap[id]).filter(Boolean) : [];
   const unitLmsUrl = verticalBlocks.find((b) => b.lms_url)?.lms_url;
 
   return (
@@ -55,19 +56,21 @@ export function SequentialPlayer({
         <span className="content-aggregator-breadcrumb-current">{sequential.display_name}</span>
       </nav>
       <div className="content-aggregator-unit-title-row">
-        <h4>{vertical.display_name}</h4>
+        <h4>{vertical ? vertical.display_name : "No content in this section"}</h4>
         {unitLmsUrl && (
           <a href={unitLmsUrl} target="_blank" rel="noreferrer" className="content-aggregator-external-link">
             Open in Subodha
           </a>
         )}
       </div>
-      <UnitBlocks
-        key={vertical.block_id}
-        blocks={verticalBlocks}
-        courseId={courseId}
-        onBlockChange={onBlockChange}
-      />
+      {vertical && (
+        <UnitBlocks
+          key={vertical.block_id}
+          blocks={verticalBlocks}
+          courseId={courseId}
+          onBlockChange={onBlockChange}
+        />
+      )}
       <div className="content-aggregator-unit-tabs">
         <button
           type="button"
@@ -93,8 +96,8 @@ export function SequentialPlayer({
         <button
           type="button"
           className="secondary-button"
-          onClick={() => setUnitIndex((i) => Math.min(verticals.length - 1, i + 1))}
-          disabled={unitIndex === verticals.length - 1}
+          onClick={() => setUnitIndex((i) => Math.min(lastUnitIndex, i + 1))}
+          disabled={unitIndex === lastUnitIndex}
         >
           Next →
         </button>

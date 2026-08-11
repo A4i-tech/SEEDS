@@ -181,7 +181,9 @@ def _build_outline(
 
 
 async def to_course_doc(nodes: list[CanonicalNode], blob: BlobStorageProvider) -> LegacyCourseDoc:
-    root = next(n for n in nodes if n.parent_id is None)
+    root = next((n for n in nodes if n.parent_id is None), None)
+    if root is None:
+        raise ValueError("course tree has no root node (parent_id is None)")
     meta = root.source_metadata
 
     containers_by_parent: dict[str | None, list[CanonicalNode]] = {}
