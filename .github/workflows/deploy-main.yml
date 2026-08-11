@@ -1,8 +1,11 @@
 name: Deploy Main Services
 
+# TODO: revert branch to a4i/main and restore the `deploy` job once
+# alex/seeds-docker merges — currently redirected to build kube-dev test
+# images only (no Azure deploy).
 on:
     push:
-        branches: a4i/main
+        branches: alex/seeds-docker
     workflow_call:
     workflow_dispatch:
 
@@ -25,7 +28,7 @@ jobs:
                       image: content-webapp
                       azure_publish_profile: CONTENT_WEBAPP_AZURE_PUBLISH_PROFILE
                       build_arg_storage: CONTENT_WEBAPP_STORAGE_ACCOUNT_NAME
-                      build_arg_api_url: CONTENT_WEBAPP_REACT_APP_API_BASE_URL
+                      build_arg_api_url: CONTENT_WEBAPP_REACT_APP_API_BASE_URL_STAGING
                       build_arg_google_site_verification: CONTENT_WEBAPP_REACT_APP_GOOGLE_SITE_VERIFICATION
 
                     - name: teacher-webapp-service
@@ -33,7 +36,7 @@ jobs:
                       image: teacher-webapp
                       azure_publish_profile: TEACHER_WEBAPP_AZURE_PUBLISH_PROFILE
                       build_arg_storage: TEACHER_WEBAPP_STORAGE_ACCOUNT_NAME
-                      build_arg_api_url: TEACHER_WEBAPP_API_BASE_URL
+                      build_arg_api_url: TEACHER_WEBAPP_API_BASE_URL_STAGING
 
                     - name: web-socket-service-main
                       context: websocket-service
@@ -52,48 +55,11 @@ jobs:
                   repository: ${{ github.repository }}
                   github_token: ${{ secrets.GITHUB_TOKEN }}
                   username: ${{ github.actor }}
-                  environment_tag: prod
+                  environment_tag: seeds-nonroot
                   build_args: |
                       ${{ matrix.service.build_arg_storage && format('REACT_APP_STORAGE_ACCOUNT_NAME={0}', vars[matrix.service.build_arg_storage]) }}
-                      ${{ matrix.service.build_arg_api_url && format('REACT_APP_API_BASE_URL={0}', vars[matrix.service.build_arg_api_url]) }}
+                      ${{ matrix.service.build_arg_api_url && format('REACT_APP_API_BASE_URL={0}', secrets[matrix.service.build_arg_api_url]) }}
                       ${{ matrix.service.build_arg_google_site_verification && format('REACT_APP_GOOGLE_SITE_VERIFICATION={0}', vars[matrix.service.build_arg_google_site_verification]) }}
 
-    deploy:
-        needs: build
-        runs-on: ubuntu-latest
-        strategy:
-            max-parallel: 1
-            matrix:
-                service:
-                    - name: platform-service
-                      image: platform
-                      azure_publish_profile: PLATFORM_AZURE_PUBLISH_PROFILE
-
-                    - name: content-webapp-service
-                      image: content-webapp
-                      azure_publish_profile: CONTENT_WEBAPP_AZURE_PUBLISH_PROFILE
-
-                    - name: teacher-webapp-service
-                      image: teacher-webapp
-                      azure_publish_profile: TEACHER_WEBAPP_AZURE_PUBLISH_PROFILE
-
-                    - name: web-socket-service-main
-                      image: websocket-service
-                      azure_publish_profile: WEBSOCKET_SERVICE_AZURE_PUBLISH_PROFILE
-        steps:
-            - name: Checkout repository
-              uses: actions/checkout@v4
-
-            - name: Normalize repo name to lowercase
-              id: repo
-              run: echo "repository_lowercase=${GITHUB_REPOSITORY,,}" >> $GITHUB_OUTPUT
-
-            - name: Sleep before deploying (stagger Azure deploys)
-              run: sleep 5
-
-            - name: Deploy to Azure
-              uses: ./.github/actions/deploy-azure
-              with:
-                  app_name: ${{ matrix.service.name }}
-                  publish_profile: ${{ secrets[matrix.service.azure_publish_profile] }}
-                  image: ${{ env.REGISTRY }}/${{ steps.repo.outputs.repository_lowercase }}/${{ matrix.service.image }}:${{ github.sha }}
+    # deploy job (Azure prod) disabled while trigger is redirected to alex/seeds-docker —
+    # restore alongside the branch/tag revert above.
