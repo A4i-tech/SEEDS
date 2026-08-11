@@ -323,7 +323,7 @@ async def _process_tts_for_content(content_doc: dict, blob_provider) -> None:
         try:
             container_client = blob_provider.get_container_client("theme-titles")
             blob_client = container_client.get_blob_client(theme_blob_name)
-            blob_client.get_blob_properties()
+            await blob_client.get_blob_properties()
             # Exists — reuse
             content_doc["theme"] = {**theme, "audio_url": blob_client.url}
             logger.info("content_job: reusing existing theme audio theme=%s", theme_english)
