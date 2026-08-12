@@ -1,9 +1,3 @@
-"""User refresh token repository — PyMongo async data access for 'userRefreshTokens'.
-
-Native implementation of the shared ``RefreshTokenStore`` Protocol
-(``app.platform.auth.refresh_tokens``) — no adapter needed since this
-collection was designed for it directly.
-"""
 from __future__ import annotations
 
 from datetime import datetime
@@ -61,15 +55,7 @@ class UserRefreshTokenRepository(BaseRepository):
         return self._to_consumed(doc)
 
     async def try_consume(self, token_id: str) -> ConsumedToken | None:
-        """Atomically claim an unrevoked token for rotation.
-
-        Concurrent callers racing the same token_id can only have one winner:
-        the filter requires revoked=False, so a second caller's update matches
-        nothing once the first has flipped the flag. Returns the pre-update
-        document on success, None if the token doesn't exist or was already
-        revoked (by a prior rotation, a race loser, or reuse) — callers must
-        treat None the same as "revoked" for reuse-detection purposes.
-        """
+        """Atomically claim an unrevoked token for rotation."""
         doc = await self._col.find_one_and_update(
             {"token_id": token_id, "revoked": False},
             {"$set": {"revoked": True}},
@@ -77,12 +63,10 @@ class UserRefreshTokenRepository(BaseRepository):
         return self._to_consumed(doc)
 
     async def revoke_family(self, owner_id: str, family_id: str) -> None:
-        """Revoke every token in a family (reuse detection / admin revoke)."""
         await self._col.update_many(
             {"owner_id": owner_id, "family_id": family_id},
             {"$set": {"revoked": True}},
         )
 
     async def revoke_all_for_owner(self, owner_id: str) -> None:
-        """Revoke every token for an owner, across all families (admin revoke)."""
         await self._col.update_many({"owner_id": owner_id}, {"$set": {"revoked": True}})

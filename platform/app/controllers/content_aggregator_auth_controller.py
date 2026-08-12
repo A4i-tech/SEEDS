@@ -34,7 +34,7 @@ async def issue_token(
         tenant_id=body.tenant_id,
         scopes=body.scopes,
     )
-    return ContentAggregatorTokenResponse(**result)
+    return ContentAggregatorTokenResponse.model_validate(result)
 
 
 @router.post("/token/refresh", summary="Exchange a refresh token for a new access token")
@@ -43,4 +43,4 @@ async def refresh_token(
     auth: ContentAggregatorAuth = Depends(get_content_aggregator_auth),
 ) -> ContentAggregatorTokenResponse:
     result = await auth.refresh_token(body.refresh_token)
-    return ContentAggregatorTokenResponse(**result)
+    return ContentAggregatorTokenResponse.model_validate(result)

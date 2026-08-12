@@ -1,7 +1,3 @@
-"""Integration token repository — PyMongo async data access for 'integrationTokens'.
-
-Persists refresh tokens (access tokens are stateless JWTs, never stored).
-"""
 from __future__ import annotations
 
 from datetime import datetime
@@ -44,23 +40,15 @@ class IntegrationTokenRepository(BaseRepository):
 
     async def find_by_token_id(self, token_id: str) -> IntegrationToken | None:
         doc = await self._col.find_one({"token_id": token_id})
-        return IntegrationToken.from_mongo(doc) if doc else None
+        return IntegrationToken.from_mongo(doc) if doc is not None else None
 
     async def try_consume(self, token_id: str) -> IntegrationToken | None:
-        """Atomically claim an unrevoked token for rotation.
-
-        Concurrent callers racing the same token_id can only have one winner:
-        the filter requires revoked=False, so a second caller's update matches
-        nothing once the first has flipped the flag. Returns the pre-update
-        document on success, None if the token doesn't exist or was already
-        revoked (by a prior rotation, a race loser, or reuse) — callers must
-        treat None the same as "revoked" for reuse-detection purposes.
-        """
+        """Atomically claim an unrevoked token for rotation."""
         doc = await self._col.find_one_and_update(
             {"token_id": token_id, "revoked": False},
             {"$set": {"revoked": True}},
         )
-        return IntegrationToken.from_mongo(doc) if doc else None
+        return IntegrationToken.from_mongo(doc) if doc is not None else None
 
     async def revoke_family(self, client_id: str, family_id: str) -> None:
         """Revoke every token in a family (reuse detection / admin revoke)."""

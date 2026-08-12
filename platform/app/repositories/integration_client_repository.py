@@ -1,7 +1,3 @@
-"""Integration client repository — PyMongo async data access for 'integrationClients'.
-
-Read-only for #458: client provisioning/CRUD is out of scope (see #457).
-"""
 from __future__ import annotations
 
 from pymongo.asynchronous.database import AsyncDatabase
@@ -18,4 +14,4 @@ class IntegrationClientRepository(BaseRepository):
 
     async def find_by_client_id(self, client_id: str) -> IntegrationClient | None:
         doc = await self._col.find_one({"client_id": client_id})
-        return IntegrationClient.from_mongo(doc) if doc else None
+        return IntegrationClient.from_mongo(doc) if doc is not None else None

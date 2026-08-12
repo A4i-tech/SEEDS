@@ -6,8 +6,6 @@ the Content Aggregator partner auth flow and the shared user auth flow
 callbacks (``verify_owner_active``, ``build_access_token``) — the rotation
 algorithm itself (atomic claim, reuse-triggered family revoke, expiry check)
 lives here exactly once.
-
-SECURITY: token strings are never logged.
 """
 from __future__ import annotations
 
@@ -45,12 +43,7 @@ class ConsumedToken:
 
 
 class RefreshTokenStore(Protocol):
-    """Storage seam the rotation engine is parameterized over.
-
-    Implementations may be a native repository (new collections) or an
-    adapter over a legacy schema (e.g. Content Aggregator's
-    ``integrationTokens``) — the engine only ever calls these five methods.
-    """
+    """Storage seam the rotation engine is parameterized over."""
 
     async def insert(
         self,
@@ -123,22 +116,14 @@ async def rotate(
     that owner, across all families, and logs/counts a security event.
 
     Raises:
-        UnauthorizedError: token unknown, already consumed/revoked (including
-            the losing side of a race) — one generic 401 body, no
-            distinction, to avoid enumeration/leaking replay detection.
-        AppError(code="REFRESH_TOKEN_EXPIRED"): token exists, was
-            successfully claimed, but was already past its expiry —
-            intentionally distinct per spec.
-        AppError: whatever ``verify_owner_active`` raises for an inactive
-            owner (e.g. code="TENANT_NOT_ALLOWED").
+        UnauthorizedError: token unknown or already consumed/revoked.
+        AppError(code="REFRESH_TOKEN_EXPIRED"): token was claimed but already
+            past its expiry.
+        AppError: whatever ``verify_owner_active`` raises for an inactive owner.
     """
     consumed = await store.try_consume(refresh_token)
 
     if consumed is None:
-        # Either unknown, or already consumed (prior rotation / genuine
-        # replay / a losing concurrent request racing this same token).
-        # Look up read-only, purely to attribute the reuse-detection event —
-        # the response itself never distinguishes the cases.
         existing = await store.find_by_token_id(refresh_token)
         if existing is not None:
             logger.warning(
