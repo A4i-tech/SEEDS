@@ -314,5 +314,12 @@ class SubodhaService:
         }
 
 
+_service: SubodhaService | None = None
+
+
 def get_subodha_service(db: AsyncDatabase = Depends(get_db)) -> SubodhaService:
-    return SubodhaService(db)
+    """Return the process-wide SubodhaService singleton."""
+    global _service  # noqa: PLW0603
+    if _service is None:
+        _service = SubodhaService(db)
+    return _service
