@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import html as html_lib
+
 import pytest
 
 from app.aggregators.content_strategies import STRATEGY_REGISTRY, TextStrategy
@@ -89,6 +91,25 @@ async def test_quiz_strategy_strips_disallowed_tags_and_attributes():
     assert "onerror" not in sanitized
     assert "javascript:" not in sanitized
     assert content.raw_html_url == "https://blob.test/subodha/courses/c1/items/q2.raw.html"
+
+
+@pytest.mark.asyncio
+async def test_quiz_strategy_extracts_question_and_choices_from_data_content():
+    blob = FakeBlob()
+    ctx = BlobContext(container="subodha", blob_prefix="courses/c1/items/q3")
+    inner = (
+        "<fieldset><legend>Pick one</legend>"
+        "<input type=\"radio\" id=\"c1\" value=\"a\"><label for=\"c1\">A</label>"
+        "<input type=\"radio\" id=\"c2\" value=\"b\"><label for=\"c2\">B</label>"
+        "</fieldset>"
+    )
+    encoded = html_lib.escape(html_lib.escape(inner, quote=True), quote=True)
+    payload = f'<div class="problems-wrapper" data-content="{encoded}"></div>'
+
+    content = await STRATEGY_REGISTRY[ItemType.QUIZ].process(payload, ctx, blob)
+
+    assert content.question == "Pick one"
+    assert content.choices == [{"value": "a", "text": "A"}, {"value": "b", "text": "B"}]
 
 
 @pytest.mark.asyncio

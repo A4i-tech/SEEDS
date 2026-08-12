@@ -2,7 +2,14 @@ from __future__ import annotations
 
 import pytest
 
-from app.aggregators.models import CanonicalNode, ItemType, NodeKind, TextContent, VideoContent
+from app.aggregators.models import (
+    CanonicalNode,
+    ItemType,
+    NodeKind,
+    QuizContent,
+    TextContent,
+    VideoContent,
+)
 from app.serializers.subodha_serializer import to_course_doc
 
 
@@ -95,6 +102,25 @@ async def test_to_course_doc_rebuilds_snake_case_shape():
     vertical = chapter["sequentials"][0]["verticals"][0]
     assert vertical["block_id"] == "vert-1"
     assert vertical["block_ids"] == ["html-1", "video-1", "html-2"]
+
+
+@pytest.mark.asyncio
+async def test_to_course_doc_passes_through_quiz_question_and_choices():
+    quiz_item = _node(
+        source_id="quiz-1", parent_id="vert-1", node_kind=NodeKind.ITEM, item_type=ItemType.QUIZ,
+        display_name="Q1", lms_url="https://lms/quiz-1", native_type="problem", order=3,
+        content=QuizContent(
+            raw_html_url="blob://quiz-1.raw.html",
+            question="Pick one",
+            choices=[{"value": "a", "text": "A"}, {"value": "b", "text": "B"}],
+        ),
+    )
+    blob = FakeBlob({"blob://x.md": b"**Hi**", "blob://x.raw.html": b"<p>raw</p>", "blob://quiz-1.raw.html": b"<div></div>"})
+    doc = (await to_course_doc([*_nodes(), quiz_item], blob)).to_dict()
+
+    quiz_block = next(b for b in doc["blocks"] if b["block_id"] == "quiz-1")
+    assert quiz_block["question"] == "Pick one"
+    assert quiz_block["choices"] == [{"value": "a", "text": "A"}, {"value": "b", "text": "B"}]
 
 
 @pytest.mark.asyncio

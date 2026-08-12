@@ -1,39 +1,11 @@
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import { contentAggregatorService } from "../../services/contentAggregatorService";
 import { MathText } from "./katexMath";
 
-function parseMultipleChoice(rawHtml) {
-  if (!rawHtml) return null;
-
-  const wrapper = document.createElement("div");
-  wrapper.innerHTML = rawHtml;
-  const encoded = wrapper.querySelector("[data-content]")?.getAttribute("data-content");
-  if (!encoded) return null;
-
-  // textarea.innerHTML → .value is the standard trick for decoding HTML entities.
-  const decoder = document.createElement("textarea");
-  decoder.innerHTML = encoded;
-
-  const inner = document.createElement("div");
-  inner.innerHTML = decoder.value;
-
-  const legend = inner.querySelector("legend");
-  const question = legend ? legend.textContent.trim() : "";
-
-  const choices = Array.from(inner.querySelectorAll("input[type=\"radio\"]")).map((input) => {
-    const label = inner.querySelector(`label[for="${input.id}"]`);
-    return { value: input.value, text: (label ? label.textContent : input.value).trim() };
-  });
-
-  if (!question || choices.length === 0) return null;
-  return { question, choices };
-}
-
 export function MultipleChoiceProblem({ block, courseId, onBlockChange }) {
-  const parsedFromHtml = useMemo(() => parseMultipleChoice(block.html), [block.html]);
-  // Prior edits are stored directly on the block (question/choices) and take
-  // priority over re-parsing the original Subodha markup.
-  const current = block.question && block.choices?.length ? { question: block.question, choices: block.choices } : parsedFromHtml;
+  // question/choices are extracted server-side at sync time (or by a prior
+  // edit) — the block itself carries them, no client-side HTML parsing needed.
+  const current = block.question && block.choices?.length ? { question: block.question, choices: block.choices } : null;
 
   const [editing, setEditing] = useState(false);
   const [questionDraft, setQuestionDraft] = useState("");

@@ -107,9 +107,6 @@ class QuizContent(ContentBase):
     negative_marks: float = 0.0
     questions: list[QuizQuestion] = Field(default_factory=list)
 
-    title: str | TitleText | None = None
-    theme: str | TitleText | None = None
-
     @classmethod
     def from_doc(cls, doc: dict) -> QuizContent:
         # quizData docs never store a `type` field — this collection IS the type.

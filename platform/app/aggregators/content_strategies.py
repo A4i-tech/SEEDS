@@ -7,9 +7,11 @@ future aggregators) the node came from — that's the adapter's job.
 from __future__ import annotations
 
 import abc
+import html as html_lib
 import logging
 
 import nh3
+from bs4 import BeautifulSoup
 
 from app.aggregators.html_to_markdown import html_to_markdown
 from app.aggregators.models import (
@@ -96,9 +98,44 @@ async def _upload_raw_html(raw: RawItemPayload, ctx: BlobContext, blob: BlobStor
     return await blob.upload_file(ctx.container, f"{ctx.blob_prefix}.raw.html", safe_html.encode("utf-8"), "text/html")
 
 
+def _parse_multiple_choice(raw_html: str) -> tuple[str, list[dict[str, str]]] | None:
+    """Extract question/choices out of Subodha's MCQ markup.
+
+    The question/choices live inside a `data-content` attribute, double
+    HTML-entity-encoded — this runs on the original unsanitized raw HTML
+    (before _sanitize_html strips that attribute), mirroring the same
+    extraction the frontend used to do client-side.
+    """
+    wrapper = BeautifulSoup(raw_html, "html.parser")
+    content_tag = wrapper.find(attrs={"data-content": True})
+    encoded = content_tag.get("data-content") if content_tag else None
+    if not encoded:
+        return None
+
+    inner = BeautifulSoup(html_lib.unescape(encoded), "html.parser")
+    legend = inner.find("legend")
+    question = legend.get_text(strip=True) if legend else ""
+
+    choices = []
+    for input_tag in inner.find_all("input", attrs={"type": "radio"}):
+        input_id = input_tag.get("id")
+        label = inner.find("label", attrs={"for": input_id}) if input_id else None
+        text = label.get_text(strip=True) if label else input_tag.get("value", "")
+        choices.append({"value": input_tag.get("value", ""), "text": text})
+
+    if not question or not choices:
+        return None
+    return question, choices
+
+
 class QuizStrategy(ContentStrategy):
     async def process(self, raw: RawItemPayload, ctx: BlobContext, blob: BlobStorageProvider) -> ContentPayload:
-        return QuizContent(raw_html_url=await _upload_raw_html(raw, ctx, blob))
+        raw_html_url = await _upload_raw_html(raw, ctx, blob)
+        parsed = _parse_multiple_choice(raw)
+        if parsed is None:
+            return QuizContent(raw_html_url=raw_html_url)
+        question, choices = parsed
+        return QuizContent(raw_html_url=raw_html_url, question=question, choices=choices)
 
 
 class DiscussionStrategy(ContentStrategy):

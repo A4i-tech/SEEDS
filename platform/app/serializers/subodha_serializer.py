@@ -44,12 +44,14 @@ class LegacyBlock:
     markdown: str | None
     student_view_data: dict[str, object] | None
     lms_url: str
+    question: str | None = None
+    choices: list[dict[str, str]] | None = None
 
     def to_dict(self) -> dict[str, object]:
         return {
             "block_id": self.block_id, "type": self.type, "display_name": self.display_name,
             "html": self.html, "markdown": self.markdown, "student_view_data": self.student_view_data,
-            "lms_url": self.lms_url,
+            "lms_url": self.lms_url, "question": self.question, "choices": self.choices,
         }
 
 
@@ -149,6 +151,7 @@ async def _to_legacy_block(node: CanonicalNode, blob: BlobStorageProvider) -> Le
     return LegacyBlock(
         block_id=node.source_id, type=node.native_type, display_name=node.display_name,
         html=html, markdown=markdown, student_view_data=student_view_data, lms_url=node.lms_url or "",
+        question=getattr(node.content, "question", None), choices=getattr(node.content, "choices", None),
     )
 
 
