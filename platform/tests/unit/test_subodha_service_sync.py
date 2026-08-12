@@ -88,7 +88,7 @@ async def test_run_sync_persists_every_course_result(service, job_repo, content_
     client = FakeSubodhaClient([_course("c1", "Course One"), _course("c2", "Course Two")])
     job = await jobs.create_job(job_repo, tenant_id="tenant-a", source_type="subodha", scope="all", source_id=None, total_items=0)
 
-    summary = await service.run_sync("tenant-a", client, job_repo, job.job_id)
+    summary = await service.run_sync("tenant-a", client, job_repo, job.job_id, await client.list_all_courses())
 
     assert summary["totalCourses"] == 2
     assert summary["processed"] == 2

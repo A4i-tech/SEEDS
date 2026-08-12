@@ -58,9 +58,12 @@ async def _run_sync_job(
         if only_new:
             diff = await service.get_course_diff(tenant_id, client)
             course_ids = diff["newCourseIds"]
+            all_courses = diff["liveCourses"]
+        else:
+            all_courses = await client.list_all_courses()
 
         await service.run_sync(
-            tenant_id, client, job_repo, job_id, course_ids=course_ids,
+            tenant_id, client, job_repo, job_id, all_courses, course_ids=course_ids,
             limit=limit if limit is not None else (len(course_ids) if course_ids is not None else None),
             dry_run=dry_run,
         )

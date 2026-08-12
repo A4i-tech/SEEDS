@@ -11,7 +11,7 @@ import json
 import logging
 import re
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, NotRequired, TypedDict
 
 import httpx
 from bs4 import BeautifulSoup
@@ -23,6 +23,20 @@ logger = logging.getLogger(__name__)
 _CONTENT_TYPES_FOR_XBLOCK = {"html", "video", "problem", "drag-and-drop-v2"}
 _STAFF_DEBUG_SELECTOR = ".wrap-instructor-info, .xqa-modal, .staff-modal, .history-modal"
 _MATHTYPE_ANNOTATION_RE = re.compile(r"MathType@MTEF@.*?@[0-9A-Fa-f]{4}@", re.S)
+
+
+class SubodhaCourse(TypedDict):
+    id: str
+    name: str
+    org: str
+    number: str
+    start: str
+    pacing: str
+    hidden: bool
+    invitation_only: bool
+    mobile_available: bool
+    short_description: NotRequired[str]
+    language: NotRequired[str]
 
 
 def _strip_staff_debug(html: str) -> str:
@@ -142,8 +156,8 @@ class SubodhaClient:
     # Courses
     # ------------------------------------------------------------------
 
-    async def list_all_courses(self) -> list[dict[str, Any]]:
-        courses: list[dict[str, Any]] = []
+    async def list_all_courses(self) -> list[SubodhaCourse]:
+        courses: list[SubodhaCourse] = []
         page_size = self._settings.subodha_page_size
         url: str | None = f"{self._base_url}/api/courses/v1/courses/?page=1&page_size={page_size}"
         page = 1
@@ -237,3 +251,11 @@ def get_subodha_client() -> SubodhaClient:
     if _client is None:
         _client = SubodhaClient()
     return _client
+
+
+async def close_subodha_client() -> None:
+    """Close the SubodhaClient singleton's HTTP connection pool, if one was ever created."""
+    global _client  # noqa: PLW0603
+    if _client is not None:
+        await _client.aclose()
+        _client = None

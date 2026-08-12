@@ -12,6 +12,7 @@ from bs4 import BeautifulSoup
 
 from app.aggregators.base_adapter import SourceAdapter
 from app.aggregators.models import CanonicalNode, ItemType, NodeKind
+from app.providers.subodha_client import SubodhaCourse
 
 _CONTENT_TYPES = {"html", "video", "problem", "drag-and-drop-v2", "lti", "discussion"}
 _ITEM_TYPE_MAP: dict[str, ItemType] = {
@@ -51,7 +52,7 @@ class SubodhaAdapter(SourceAdapter):
         return not any(b.get("type") in _CONTENT_TYPES for b in native_content["blocks"].values())
 
     def build_canonical_nodes(
-        self, native_course: dict, native_content: dict | None, run_id: str, url_map: dict[str, str]
+        self, native_course: SubodhaCourse, native_content: dict | None, run_id: str, url_map: dict[str, str]
     ) -> list[CanonicalNode]:
         course_source_id = native_course["id"]
         now = _now()

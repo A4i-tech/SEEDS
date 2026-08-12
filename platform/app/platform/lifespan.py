@@ -21,6 +21,7 @@ from fastapi import FastAPI
 
 from app.platform.database import close_database, get_database, init_database
 from app.platform.settings import get_settings
+from app.providers.subodha_client import close_subodha_client
 from app.repositories.content_aggregator_sync_job_repository import (
     ContentAggregatorSyncJobRepository,
 )
@@ -232,6 +233,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             await conf_mgr.close()
         except Exception as exc:
             logger.warning("Conference manager close failed: %s", exc)
+
+    try:
+        await close_subodha_client()
+    except Exception as exc:
+        logger.warning("Subodha client close failed: %s", exc)
 
     await close_database()
     logger.info("SEEDS Platform shut down.")

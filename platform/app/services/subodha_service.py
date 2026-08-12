@@ -21,7 +21,7 @@ from app.aggregators.sync_job_models import SyncItemResult
 from app.platform.auth.dependencies import get_db
 from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider
-from app.providers.subodha_client import SubodhaClient
+from app.providers.subodha_client import SubodhaClient, SubodhaCourse
 from app.repositories.content_aggregator_repository import ContentAggregatorRepository
 from app.repositories.content_aggregator_sync_job_repository import (
     ContentAggregatorSyncJobRepository,
@@ -37,7 +37,7 @@ class CourseDiffResult(TypedDict):
     removedCount: int
     newCourseIds: list[str]
     removedCourseIds: list[str]
-    liveCourses: list[dict[str, Any]]
+    liveCourses: list[SubodhaCourse]
 
 
 logger = logging.getLogger(__name__)
@@ -48,13 +48,6 @@ _ASSET_URL_RE = re.compile(r'(?:/assets/courseware/v1/[^/"\']+)?/asset-v1:[^"\'\
 def _asset_filename(asset_url: str) -> str:
     m = re.search(r"block@(.+)$", asset_url)
     return unquote(m.group(1)) if m else PurePosixPath(asset_url).name
-
-
-def _blob_exists(blob_service_provider: BlobStorageProvider, container: str, blob_name: str) -> bool:
-    try:
-        return blob_service_provider.get_container_client(container).get_blob_client(blob_name).exists()
-    except Exception:  # noqa: BLE001
-        return False
 
 
 async def fetch_and_store_assets(
@@ -78,7 +71,7 @@ async def fetch_and_store_assets(
             file_name = _asset_filename(relative_url)
             blob_name = f"courses/{safe_course_id}/assets/{file_name}"
             try:
-                if _blob_exists(blob_provider, container, blob_name):
+                if await blob_provider.exists(container, blob_name):
                     url_map[relative_url] = blob_provider.get_container_client(container).get_blob_client(blob_name).url
                 else:
                     data = await client.fetch_asset(relative_url, session_cookie)
@@ -166,7 +159,7 @@ class SubodhaService:
         return factory
 
     async def process_course(
-        self, tenant_id: str, client: SubodhaClient, course: dict[str, Any], session_cookie: str, run_id: str, dry_run: bool
+        self, tenant_id: str, client: SubodhaClient, course: SubodhaCourse, session_cookie: str, run_id: str, dry_run: bool
     ) -> dict[str, Any]:
         course_id = course["id"]
         try:
@@ -204,6 +197,7 @@ class SubodhaService:
         client: SubodhaClient,
         job_repo: ContentAggregatorSyncJobRepository,
         job_id: str,
+        all_courses: list[SubodhaCourse],
         *,
         course_ids: list[str] | None = None,
         limit: int | None = None,
@@ -213,8 +207,6 @@ class SubodhaService:
         logger.info("[subodha] run %s started (dryRun=%s)", job_id, dry_run)
 
         session_cookie = await client.get_session()
-        all_courses = await client.list_all_courses()
-
         to_process = all_courses
         if course_ids is not None:
             wanted = set(course_ids)
@@ -230,15 +222,21 @@ class SubodhaService:
         lock = asyncio.Lock()
         processed_count = 0
 
-        async def process_one(course: dict[str, Any]) -> None:
+        async def process_one(course: SubodhaCourse) -> None:
             nonlocal processed_count
             async with semaphore:
                 async with lock:
-                    if processed_count and processed_count % self._settings.subodha_session_refresh_every == 0:
-                        client.clear_session_cache()
-                        session_box["cookie"] = await client.get_session()
+                    needs_refresh = processed_count and processed_count % self._settings.subodha_session_refresh_every == 0
+                if needs_refresh:
+                    client.clear_session_cache()
+                    new_cookie = await client.get_session()
+                    async with lock:
+                        session_box["cookie"] = new_cookie
 
-                result = await self.process_course(tenant_id, client, course, session_box["cookie"], job_id, dry_run)
+                async with lock:
+                    cookie = session_box["cookie"]
+
+                result = await self.process_course(tenant_id, client, course, cookie, job_id, dry_run)
                 entry = SyncItemResult(
                     source_id=result["courseId"], name=course.get("name") or "", status=result["status"],
                     error=result.get("error"), at=datetime.now(UTC).isoformat(),
