@@ -17,7 +17,11 @@ from typing import Any
 
 from pymongo.asynchronous.database import AsyncDatabase
 
-from app.models.content_aggregator import IntegrationToken, IntegrationTokenType
+from app.models.content_aggregator import (
+    IntegrationClientStatus,
+    IntegrationToken,
+    IntegrationTokenType,
+)
 from app.platform.auth import refresh_tokens
 from app.platform.auth.hashing import verify_password
 from app.platform.auth.refresh_tokens import ConsumedToken
@@ -118,7 +122,7 @@ class ContentAggregatorAuth:
             logger.warning("content_aggregator auth: invalid credentials for client_id=%s", client_id)
             raise UnauthorizedError("Invalid client credentials")
 
-        if client.status != "active":
+        if client.status != IntegrationClientStatus.ACTIVE:
             raise AppError("TENANT_NOT_ALLOWED", "Client is not active", 403)
 
         if tenant_id is not None and tenant_id != client.tenant_id:
@@ -159,7 +163,7 @@ class ContentAggregatorAuth:
 
         async def verify_owner_active(owner_id: str, claims: dict[str, Any]) -> dict[str, Any]:
             client = await self._clients.find_by_client_id(owner_id)
-            if client is None or client.status != "active":
+            if client is None or client.status != IntegrationClientStatus.ACTIVE:
                 raise AppError("TENANT_NOT_ALLOWED", "Client is not active", 403)
             return claims
 
