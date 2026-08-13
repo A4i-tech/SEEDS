@@ -1,0 +1,68 @@
+.row-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.row-actions-horizontal {
+  flex-direction: row;
+  justify-content: center;
+  gap: 10px;
+}
+
+.row-actions-horizontal .row-action {
+  width: auto;
+  padding: 0 16px;
+}
+
+.row-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 92px;
+  border: none;
+  border-radius: 8px;
+  height: 36px;
+  padding: 0 10px;
+  font-size: 12.5px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  color: var(--color-on-accent);
+}
+
+.row-action:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.row-action:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.row-action-view {
+  background: color-mix(in srgb, var(--color-primary) 65%, black);
+}
+
+.row-action-view:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-primary) 45%, black);
+}
+
+.row-action-edit {
+  background: color-mix(in srgb, var(--color-secondary) 65%, black);
+}
+
+.row-action-edit:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-secondary) 45%, black);
+}
+
+.row-action-delete {
+  background: color-mix(in srgb, var(--color-neutral-dark) 55%, white);
+}
+
+.row-action-delete:hover:not(:disabled) {
+  background: var(--color-neutral-dark);
+}

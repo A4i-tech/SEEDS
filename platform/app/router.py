@@ -17,6 +17,7 @@ from app.controllers import (
     # Calls (split from call_controller)
     conference_controller,
     # Content
+    content_aggregator_controller,
     content_controller,
     ivr_controller,
     # Other
@@ -60,6 +61,7 @@ api_router.include_router(class_controller.router)
 # Content
 api_router.include_router(content_controller.router)
 api_router.include_router(audit_controller.router)
+api_router.include_router(content_aggregator_controller.router)
 
 # Calls
 api_router.include_router(conference_controller.router)

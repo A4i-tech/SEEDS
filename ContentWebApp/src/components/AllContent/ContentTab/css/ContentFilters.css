@@ -1,0 +1,129 @@
+.content-filters {
+  margin-top: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+  background-color: #f8fafc;
+}
+
+.content-filters-label {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #64748b;
+  margin-bottom: 12px;
+}
+
+.content-filters-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  border-radius: 999px;
+  padding: 6px 12px;
+  background-color: color-mix(in srgb, var(--color-primary) 12%, white);
+  color: var(--color-primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.filter-chip:hover {
+  background-color: color-mix(in srgb, var(--color-primary) 20%, white);
+}
+
+.filter-clear-all {
+  border: none;
+  background: none;
+  padding: 6px 4px;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.content-filters-search {
+  position: relative;
+}
+
+.filter-search-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  background-color: var(--color-on-accent);
+}
+
+.filter-search-input:focus {
+  outline: none;
+  border-color: var(--color-focus-ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-focus-ring) 12%, transparent);
+}
+
+.filter-search-results {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background-color: var(--color-on-accent);
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.14);
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.filter-group + .filter-group {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.filter-group-title {
+  padding: 6px 12px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #94a3b8;
+}
+
+.filter-group ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.filter-group button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  padding: 9px 12px;
+  font-size: 14px;
+  color: #0f172a;
+  text-align: left;
+  cursor: pointer;
+}
+
+.filter-group button:hover {
+  background-color: color-mix(in srgb, var(--color-primary) 8%, white);
+}

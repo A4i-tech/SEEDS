@@ -7,7 +7,7 @@ import "../shared/cards.css";
 import "../shared/tables.css";
 import "../shared/utilities.css";
 
-const StudentsSection = ({ students, onAddStudent, onUpdateStudent, onDeleteStudent }) => {
+const StudentsSection = ({ students, isLoading, onAddStudent, onUpdateStudent, onDeleteStudent }) => {
   const [name, setName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
 
@@ -71,6 +71,7 @@ const StudentsSection = ({ students, onAddStudent, onUpdateStudent, onDeleteStud
 
       <StudentsTable
         students={students}
+        isLoading={isLoading}
         onEditStudent={openEdit}
         onRemoveStudent={onDeleteStudent}
       />

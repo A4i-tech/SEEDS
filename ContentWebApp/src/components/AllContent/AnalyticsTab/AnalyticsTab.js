@@ -6,6 +6,7 @@ import DateRangeSelector from "./DateRangeSelector";
 import AnalyticsStats from "./AnalyticsStats";
 import DashboardStats from "./DashboardStats";
 import SchoolDashboardStats from "./SchoolDashboardStats";
+import StatCardsSkeleton from "../shared/StatCardsSkeleton";
 import "./css/AnalyticsTab.css";
 import "../shared/cards.css";
 
@@ -15,7 +16,13 @@ const AnalyticsTab = () => {
   const [showFilters, setShowFilters] = useState(false);
 
   const { analyticsData, isLoading, error, stats, fetchAnalytics } = useAnalytics();
-  const { dashboard, schoolDashboard, fetchDashboard, fetchSchoolDashboard } = useDashboard();
+  const {
+    dashboard,
+    schoolDashboard,
+    isLoading: isDashboardLoading,
+    fetchDashboard,
+    fetchSchoolDashboard,
+  } = useDashboard();
   const role = getRole();
   const isTenant = role === "tenant";
   const isSchoolAdmin = role === "school_admin";
@@ -98,7 +105,9 @@ const AnalyticsTab = () => {
         </div>
       )}
 
+      {isTenant && isDashboardLoading && !dashboard && <StatCardsSkeleton count={4} />}
       {isTenant && dashboard && <DashboardStats dashboard={dashboard} />}
+      {isSchoolAdmin && isDashboardLoading && !schoolDashboard && <StatCardsSkeleton count={3} />}
       {isSchoolAdmin && schoolDashboard && <SchoolDashboardStats dashboard={schoolDashboard} />}
 
       {error && <div className="error-message">{error}</div>}

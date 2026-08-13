@@ -27,8 +27,8 @@ describe("AddContent", () => {
         <AddContent />
       </MemoryRouter>
     );
-    const select = screen.getByRole("combobox");
-    fireEvent.change(select, { target: { value: "quiz" } });
+    fireEvent.click(screen.getByRole("button", { name: /Story/i }));
+    fireEvent.click(screen.getByRole("option", { name: "Quiz" }));
     expect(screen.getByTestId("add-quiz")).toBeInTheDocument();
     expect(screen.queryByTestId("add-story")).not.toBeInTheDocument();
   });
@@ -39,9 +39,9 @@ describe("AddContent", () => {
         <AddContent />
       </MemoryRouter>
     );
-    const select = screen.getByRole("combobox");
     ["Poem", "Song", "Snippet"].forEach((type) => {
-      fireEvent.change(select, { target: { value: type } });
+      fireEvent.click(screen.getByRole("button", { name: /Story|Poem|Song|Snippet/i }));
+      fireEvent.click(screen.getByRole("option", { name: type }));
       expect(screen.getByTestId("add-story")).toHaveTextContent(type);
       expect(screen.queryByTestId("add-quiz")).not.toBeInTheDocument();
     });

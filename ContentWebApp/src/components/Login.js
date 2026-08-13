@@ -118,7 +118,7 @@ const Login = () => {
     const { data } = await axios.post(`${baseURL}/auth/login`, { identifier, password });
     localStorage.setItem("authToken", data.token);
     resetUserCache();
-    const { role, schoolId, name } = getTokenPayload();
+    const { role, school_id: schoolId, name } = getTokenPayload();
     setAuth(data.token, role, schoolId);
     navigate("/content", { state: { name } });
   };

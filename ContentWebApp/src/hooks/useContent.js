@@ -1,7 +1,22 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { contentService } from "../services/contentService";
+import { contentAggregatorService } from "../services/contentAggregatorService";
 
 const PAGE_SIZE = 50;
+
+const mapContentAggregatorCourse = (course) => ({
+  id: course.id,
+  source: "subodha",
+  title: { english: course.name, local: "" },
+  theme: { english: "", local: "" },
+  language: course.language,
+  type: "content-aggregator",
+  is_teacher_app: false,
+  is_pull_model: false,
+  hidden: course.hidden,
+  synced: course.synced,
+  lastSyncedAt: course.lastSyncedAt,
+});
 
 export const useContent = () => {
   const [content, setContent] = useState([]);
@@ -12,6 +27,26 @@ export const useContent = () => {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isFiltered, setIsFiltered] = useState(false);
+  const isFilteredRef = useRef(isFiltered);
+  isFilteredRef.current = isFiltered;
+
+  const loadContentAggregatorCourses = useCallback(async () => {
+    try {
+      const courses = await contentAggregatorService.getCourses();
+      const mapped = courses.map(mapContentAggregatorCourse);
+      setAllContent((prevAll) => {
+        const merged = [...prevAll.filter((item) => item.source !== "subodha"), ...mapped];
+        if (!isFilteredRef.current) setContent(merged);
+        return merged;
+      });
+    } catch (error) {
+      console.error("Error loading content aggregator courses:", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadContentAggregatorCourses();
+  }, [loadContentAggregatorCourses]);
 
   /**
    * Fetch content with optional cursor for pagination
@@ -30,8 +65,12 @@ export const useContent = () => {
       setIsLoading(true);
       try {
         const { data, nextCursor, hasMore } = await fetchContent(null);
-        setAllContent(data);
-        setContent(data);
+        setAllContent((prevAll) => {
+          const freshIds = new Set(data.map((item) => item.id));
+          const merged = [...data, ...prevAll.filter((item) => !freshIds.has(item.id))];
+          if (!isFilteredRef.current) setContent(merged);
+          return merged;
+        });
         setPaginationInfo({ nextCursor, hasMore });
         setIsFiltered(false);
       } catch (error) {
@@ -126,6 +165,21 @@ export const useContent = () => {
     []
   );
 
+  const deleteContentAggregatorCourse = useCallback(async (courseId, name) => {
+    if (!window.confirm(`Remove the synced copy of "${name || courseId}"? It can be re-synced later.`)) {
+      return;
+    }
+    try {
+      await contentAggregatorService.deleteCourse(courseId);
+      setContent((prev) => prev.filter((item) => item.id !== courseId));
+      setAllContent((prev) => prev.filter((item) => item.id !== courseId));
+      alert("Course removed successfully.");
+    } catch (error) {
+      console.error("Error deleting content aggregator course:", error);
+      alert(`Error deleting course: ${error.message}`);
+    }
+  }, []);
+
   /**
    * Reset filters to show all content
    */
@@ -142,7 +196,9 @@ export const useContent = () => {
     isFiltered,
     loadMore,
     deleteContent,
+    deleteContentAggregatorCourse,
     resetFilters,
+    refreshContentAggregatorCourses: loadContentAggregatorCourses,
     setContent,
     setAllContent,
     setIsFiltered,

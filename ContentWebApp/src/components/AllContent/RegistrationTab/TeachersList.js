@@ -1,13 +1,15 @@
 import React, { useState } from "react";
 import Modal from "../shared/Modal";
+import RowActions from "../shared/RowActions";
 import PasswordInput from "../../PasswordInput";
+import TableSkeleton from "../shared/TableSkeleton";
 import { USER_ROLES } from "../../../Constants";
 import "../shared/buttons.css";
 import "../shared/tables.css";
 import "../shared/utilities.css";
 import "./css/TeachersList.css";
 
-const TeachersList = ({ teachers, schools = [], onUpdateTeacher, onDeleteTeacher, onTransferTeacher }) => {
+const TeachersList = ({ teachers, schools = [], isLoading, onUpdateTeacher, onDeleteTeacher, onTransferTeacher }) => {
   const [editingTeacher, setEditingTeacher] = useState(null);
   const [editName, setEditName] = useState("");
   const [editPhone, setEditPhone] = useState("");
@@ -44,24 +46,28 @@ const TeachersList = ({ teachers, schools = [], onUpdateTeacher, onDeleteTeacher
 
   return (
     <>
-      {teachers.length === 0 ? (
+      {isLoading && teachers.length === 0 ? (
+        <div className="table-wrapper">
+          <TableSkeleton columns={["Name", "Phone", "Actions"]} />
+        </div>
+      ) : teachers.length === 0 ? (
         <div className="no-teachers">No teachers registered yet.</div>
       ) : (
-        <div className="table-scroll">
-          <table className="students-table">
+        <div className="table-wrapper">
+          <table className="content-table">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Phone</th>
-                <th>Actions</th>
+                <th className="table-header">Name</th>
+                <th className="table-header">Phone</th>
+                <th className="table-header">Actions</th>
               </tr>
             </thead>
             <tbody>
               {teachers.map((teacher) => {
                 const isCreator = teacher.role === USER_ROLES.CONTENT_CREATOR;
                 return (
-                  <tr key={teacher.id}>
-                    <td>
+                  <tr key={teacher.id} className="table-row-white">
+                    <td className="table-cell">
                       <span className="teacher-cell-name">{teacher.name}</span>
                       <span
                         className={`role-badge ${
@@ -71,11 +77,16 @@ const TeachersList = ({ teachers, schools = [], onUpdateTeacher, onDeleteTeacher
                         {isCreator ? "Creator" : "Teacher"}
                       </span>
                     </td>
-                    <td>{teacher.phone_number}</td>
-                    <td>
-                      <button type="button" className="action-ghost-button" onClick={() => openEdit(teacher)}>Edit</button>
-                      <button type="button" className="action-ghost-button" onClick={() => openTransfer(teacher)}>Transfer</button>
-                      <button type="button" className="action-ghost-button" onClick={() => onDeleteTeacher(teacher.id)}>Remove</button>
+                    <td className="table-cell">{teacher.phone_number}</td>
+                    <td className="table-cell">
+                      <RowActions
+                        horizontal
+                        actions={[
+                          { key: "edit", label: "Edit", variant: "edit", onClick: () => openEdit(teacher) },
+                          { key: "sync", label: "Transfer", variant: "sync", onClick: () => openTransfer(teacher) },
+                          { key: "delete", label: "Remove", variant: "delete", onClick: () => onDeleteTeacher(teacher.id) },
+                        ]}
+                      />
                     </td>
                   </tr>
                 );

@@ -106,6 +106,12 @@ class BlobStorageProvider:
         logger.debug("blob_storage: downloaded blob container=%s name=%s size=%d", container, blob_name, len(data))
         return data
 
+    async def exists(self, container: str, blob_name: str) -> bool:
+        """Return True if *blob_name* already exists in *container*."""
+        container_client = self._client.get_container_client(container)
+        blob_client = container_client.get_blob_client(blob_name)
+        return await blob_client.exists()
+
     async def download_from_url(self, blob_url: str) -> bytes:
         """Download a blob given its full Azure URL and return raw bytes."""
         container, blob_path = _parse_blob_url(blob_url)
