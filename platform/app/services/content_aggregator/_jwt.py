@@ -9,7 +9,7 @@ SECURITY: token strings and claims are never logged.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import TypedDict
 
 from jose import ExpiredSignatureError, JWTError, jwt
 
@@ -20,10 +20,21 @@ _ALGORITHM = "HS256"
 _ISSUER = "content-aggregator"
 
 
+class AccessTokenClaims(TypedDict):
+    """Shape of the Content Aggregator access-token JWT payload."""
+
+    client_id: str
+    tenant_ids: list[str]
+    scopes: list[str]
+    iss: str
+    iat: datetime
+    exp: datetime
+
+
 def encode_access_token(
     *,
     client_id: str,
-    tenant_id: str,
+    tenant_ids: list[str],
     scopes: list[str],
     secret_key: str,
     expires_in: str,
@@ -33,9 +44,9 @@ def encode_access_token(
     now = datetime.now(tz=UTC)
     expire = now + delta
 
-    payload: dict[str, Any] = {
+    payload: AccessTokenClaims = {
         "client_id": client_id,
-        "tenant_id": tenant_id,
+        "tenant_ids": tenant_ids,
         "scopes": scopes,
         "iss": _ISSUER,
         "iat": now,
@@ -45,14 +56,14 @@ def encode_access_token(
     return token, int(delta.total_seconds())
 
 
-def decode_access_token(token: str, *, secret_key: str) -> dict[str, Any]:
+def decode_access_token(token: str, *, secret_key: str) -> AccessTokenClaims:
     try:
         return jwt.decode(
             token,
             secret_key,
             algorithms=[_ALGORITHM],
             issuer=_ISSUER,
-            options={"require": ["client_id", "tenant_id", "exp", "iss"]},
+            options={"require": ["client_id", "tenant_ids", "exp", "iss"]},
         )
     except ExpiredSignatureError:
         raise UnauthorizedError("Token has expired")

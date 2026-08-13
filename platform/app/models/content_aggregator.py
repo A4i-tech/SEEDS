@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class IntegrationClientStatus(StrEnum):
@@ -18,10 +18,10 @@ class IntegrationClient(BaseModel):
 
     client_id: str
     client_secret_hash: str
-    tenant_id: str
-    allowed_scopes: list[str] = []
+    tenant_ids: list[str]
+    allowed_scopes: list[str] = Field(default_factory=list)
     status: IntegrationClientStatus = IntegrationClientStatus.ACTIVE
-    created_at: datetime | None = None
+    created_at: datetime
 
     @classmethod
     def from_mongo(cls, doc: dict) -> IntegrationClient:
@@ -41,8 +41,7 @@ class IntegrationToken(BaseModel):
     token_id: str
     client_id: str
     type: IntegrationTokenType
-    family_id: str
-    tenant_id: str
+    tenant_ids: list[str]
     scopes: list[str] = []
     expires_at: datetime
     revoked: bool = False

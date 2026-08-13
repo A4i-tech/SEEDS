@@ -53,7 +53,7 @@ class TestLoginIssuesRefreshToken:
 
         result = await service.login(email="tenant@example.com", password="correct-horse", auth_type="native")
 
-        assert result["token"]
+        assert result["access_token"]
         assert result["refresh_token"]
         assert isinstance(result["expires_in"], int) and result["expires_in"] > 0
 
@@ -87,7 +87,6 @@ class TestRefreshSuccess:
         new_doc = await mock_db["userRefreshTokens"].find_one({"token_id": result["refresh_token"]})
         assert new_doc is not None
         assert new_doc["revoked"] is False
-        assert new_doc["family_id"] == old_refresh
 
     async def test_old_refresh_token_unusable_after_rotation(self, mock_db):
         await _seed_tenant(mock_db)
@@ -177,6 +176,31 @@ class TestRefreshExpired:
         assert exc_info.value.code == "REFRESH_TOKEN_EXPIRED"
         assert exc_info.value.status_code == 401
 
+    async def test_expired_unconsumed_token_does_not_trigger_mass_revocation(self, mock_db):
+        """A clean expiry (never rotated/replayed) must not be misread as reuse."""
+        await _seed_tenant(mock_db)
+        service = AuthService(mock_db)
+        expired = await service.login_unified(
+            identifier="tenant@example.com", password="correct-horse", is_email=True
+        )
+        sibling = await service.login_unified(
+            identifier="tenant@example.com", password="correct-horse", is_email=True
+        )
+
+        await mock_db["userRefreshTokens"].update_one(
+            {"token_id": expired["refresh_token"]},
+            {"$set": {"expires_at": datetime.now(tz=UTC) - timedelta(days=1)}},
+        )
+
+        with pytest.raises(AppError):
+            await service.refresh(expired["refresh_token"])
+
+        expired_doc = await mock_db["userRefreshTokens"].find_one({"token_id": expired["refresh_token"]})
+        assert expired_doc["revoked"] is False
+
+        sibling_doc = await mock_db["userRefreshTokens"].find_one({"token_id": sibling["refresh_token"]})
+        assert sibling_doc["revoked"] is False
+
 
 class TestRefreshUnknownOrInactiveOwner:
     async def test_unknown_token_raises_generic_unauthorized(self, mock_db):
@@ -254,7 +278,7 @@ class TestSchoolAdminAndPhoneLoginAlsoIssueRefreshTokens:
 
         result = await service.school_admin_login("admin@example.com", "admin-pass")
 
-        assert result["token"]
+        assert result["access_token"]
         assert result["refresh_token"]
         assert isinstance(result["expires_in"], int)
 
@@ -271,6 +295,6 @@ class TestSchoolAdminAndPhoneLoginAlsoIssueRefreshTokens:
 
         result = await service.login_by_phone("+15550001111", "teacher-pass")
 
-        assert result["token"]
+        assert result["access_token"]
         assert result["refresh_token"]
         assert isinstance(result["expires_in"], int)

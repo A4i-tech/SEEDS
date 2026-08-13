@@ -24,10 +24,9 @@ class FakeStore:
     def __init__(self) -> None:
         self._tokens: dict[str, dict[str, Any]] = {}
 
-    async def insert(self, *, token_id, owner_id, family_id, claims, expires_at, created_at) -> None:
+    async def insert(self, *, token_id, owner_id, claims, expires_at, created_at) -> None:
         self._tokens[token_id] = {
             "owner_id": owner_id,
-            "family_id": family_id,
             "claims": claims,
             "expires_at": expires_at,
             "revoked": False,
@@ -39,27 +38,22 @@ class FakeStore:
             return None
         return ConsumedToken(
             owner_id=doc["owner_id"],
-            family_id=doc["family_id"],
             claims=doc["claims"],
             expires_at=doc["expires_at"],
+            revoked=doc["revoked"],
         )
 
     async def try_consume(self, token_id: str) -> ConsumedToken | None:
         doc = self._tokens.get(token_id)
-        if doc is None or doc["revoked"]:
+        if doc is None or doc["revoked"] or doc["expires_at"] <= datetime.now(tz=UTC):
             return None
         doc["revoked"] = True
         return ConsumedToken(
             owner_id=doc["owner_id"],
-            family_id=doc["family_id"],
             claims=doc["claims"],
             expires_at=doc["expires_at"],
+            revoked=doc["revoked"],
         )
-
-    async def revoke_family(self, owner_id: str, family_id: str) -> None:
-        for doc in self._tokens.values():
-            if doc["owner_id"] == owner_id and doc["family_id"] == family_id:
-                doc["revoked"] = True
 
     async def revoke_all_for_owner(self, owner_id: str) -> None:
         for doc in self._tokens.values():
@@ -94,14 +88,13 @@ async def _issue(store: FakeStore, owner_id: str = "user-1", claims: dict[str, A
 
 
 class TestIssuePair:
-    async def test_persists_new_family_root(self):
+    async def test_persists_new_token(self):
         store = FakeStore()
         result = await _issue(store)
 
         assert set(result.keys()) == {"access_token", "refresh_token", "expires_in", "token_type"}
         assert result["token_type"] == "Bearer"
         stored = store._tokens[result["refresh_token"]]
-        assert stored["family_id"] == result["refresh_token"]
         assert stored["revoked"] is False
 
 
@@ -123,7 +116,6 @@ class TestRotate:
         assert result["refresh_token"] != old_refresh
         assert store._tokens[old_refresh]["revoked"] is True
         assert store._tokens[result["refresh_token"]]["revoked"] is False
-        assert store._tokens[result["refresh_token"]]["family_id"] == old_refresh
 
     async def test_claims_carried_forward_unmodified(self):
         store = FakeStore()
@@ -190,15 +182,15 @@ class TestRotate:
 
         assert all(doc["revoked"] for doc in store._tokens.values())
 
-    async def test_replay_revokes_other_families_for_same_owner(self):
-        """Reuse detection must revoke every token for the owner, not just the replayed family."""
+    async def test_replay_revokes_other_tokens_for_same_owner(self):
+        """Reuse detection must revoke every token for the owner, not just the replayed one."""
         store = FakeStore()
-        family_a = await _issue(store, owner_id="user-1")
-        family_b = await _issue(store, owner_id="user-1")
+        token_a = await _issue(store, owner_id="user-1")
+        token_b = await _issue(store, owner_id="user-1")
 
         rotated_a = await rotate(
             store,
-            family_a["refresh_token"],
+            token_a["refresh_token"],
             verify_owner_active=_verify_owner_active,
             build_access_token=_build_access_token,
             refresh_ttl="30d",
@@ -208,7 +200,7 @@ class TestRotate:
         with pytest.raises(UnauthorizedError):
             await rotate(
                 store,
-                family_a["refresh_token"],
+                token_a["refresh_token"],
                 verify_owner_active=_verify_owner_active,
                 build_access_token=_build_access_token,
                 refresh_ttl="30d",
@@ -216,7 +208,7 @@ class TestRotate:
             )
 
         assert store._tokens[rotated_a["refresh_token"]]["revoked"] is True
-        assert store._tokens[family_b["refresh_token"]]["revoked"] is True
+        assert store._tokens[token_b["refresh_token"]]["revoked"] is True
 
     async def test_concurrent_refresh_only_one_winner(self):
         store = FakeStore()
@@ -266,6 +258,27 @@ class TestRotate:
             )
         assert exc_info.value.code == "REFRESH_TOKEN_EXPIRED"
         assert exc_info.value.status_code == 401
+
+    async def test_expired_unconsumed_token_does_not_trigger_mass_revocation(self):
+        """A clean expiry (never rotated/replayed) must not be misread as reuse."""
+        store = FakeStore()
+        expired = await _issue(store, owner_id="user-1")
+        other_token = await _issue(store, owner_id="user-1")
+        expired_refresh = expired["refresh_token"]
+        store._tokens[expired_refresh] = replace_expiry(store._tokens[expired_refresh])
+
+        with pytest.raises(AppError) as exc_info:
+            await rotate(
+                store,
+                expired_refresh,
+                verify_owner_active=_verify_owner_active,
+                build_access_token=_build_access_token,
+                refresh_ttl="30d",
+                reuse_counter_name="auth.reuse_detected",
+            )
+        assert exc_info.value.code == "REFRESH_TOKEN_EXPIRED"
+        assert store._tokens[expired_refresh]["revoked"] is False
+        assert store._tokens[other_token["refresh_token"]]["revoked"] is False
 
     async def test_inactive_owner_rejected(self):
         store = FakeStore()
