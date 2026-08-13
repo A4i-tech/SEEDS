@@ -85,7 +85,7 @@ class _IntegrationTokenStore:
 class _IntegrationTokenStore:
     """Adapts ``IntegrationTokenRepository`` to the shared ``RefreshTokenStore`` Protocol.
 
-    Translates owner_id <-> client_id and claims <-> {tenant_id, scopes} so the
+    Translates owner_id <-> client_id and claims <-> {tenant_ids, scopes} so the
     legacy ``integrationTokens`` schema needs no changes.
     """
 
@@ -98,9 +98,9 @@ class _IntegrationTokenStore:
             return None
         return ConsumedToken(
             owner_id=doc.client_id,
-            family_id=doc.family_id,
-            claims={"tenant_id": doc.tenant_id, "scopes": doc.scopes},
+            claims={"tenant_ids": doc.tenant_ids, "scopes": doc.scopes},
             expires_at=doc.expires_at,
+            revoked=doc.revoked,
         )
 
     async def insert(
@@ -108,19 +108,19 @@ class _IntegrationTokenStore:
         *,
         token_id: str,
         owner_id: str,
-        family_id: str,
         claims: dict[str, Any],
         expires_at: datetime,
         created_at: datetime,
     ) -> None:
         await self._repo.insert_refresh_token(
-            token_id=token_id,
-            client_id=owner_id,
-            family_id=family_id,
-            tenant_id=claims["tenant_id"],
-            scopes=claims["scopes"],
-            expires_at=expires_at,
-            created_at=created_at,
+            NewRefreshToken(
+                token_id=token_id,
+                client_id=owner_id,
+                tenant_ids=claims["tenant_ids"],
+                scopes=claims["scopes"],
+                expires_at=expires_at,
+                created_at=created_at,
+            )
         )
 
     async def find_by_token_id(self, token_id: str) -> ConsumedToken | None:
@@ -128,9 +128,6 @@ class _IntegrationTokenStore:
 
     async def try_consume(self, token_id: str) -> ConsumedToken | None:
         return self._to_consumed(await self._repo.try_consume(token_id))
-
-    async def revoke_family(self, owner_id: str, family_id: str) -> None:
-        await self._repo.revoke_family(owner_id, family_id)
 
     async def revoke_all_for_owner(self, owner_id: str) -> None:
         await self._repo.revoke_all_for_client(owner_id)
