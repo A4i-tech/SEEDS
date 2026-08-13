@@ -81,6 +81,14 @@ Two persistent knowledge sources live at the SEEDS root (not `.claude/`) and sur
 
 **Using both for a task:** `/implement "<feature>"` pulls context from graphify (blast radius, integration points) and the wiki (architecture intent, constraints) before writing a plan. `/sync-knowledge` refreshes both after a merge/feature so the next session isn't working from stale context.
 
+## Planning & Spec Docs
+
+Default to the `superpowers` plugin (obra/superpowers-marketplace) for planning and spec-writing tasks:
+- New feature or non-trivial change → `superpowers:brainstorming` first to pin down intent/requirements before any plan.
+- Writing a plan or spec doc → `superpowers:writing-plans`.
+- Executing a written plan → `superpowers:executing-plans` or `superpowers:subagent-driven-development`.
+- Bug/unexpected behavior → `superpowers:systematic-debugging` before proposing a fix.
+
 ## Skills
 
 Project-specific skills live in `.claude/skills/`. **Before starting any relevant task, read the appropriate skill file and follow its instructions.**
