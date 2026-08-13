@@ -15,25 +15,18 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from fastapi import Depends
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
+from app.models.user import UserRole
 from app.platform.auth.dependencies import get_db
 from app.platform.error_handling import NotFoundError
 from app.repositories.conference_repository import ConferenceRepository
 from app.repositories.content_repository import ContentRepository
 from app.repositories.ivr_repository import IVRRepository
-from app.repositories.school_repository import SchoolRepository
 from app.repositories.user_repository import UserRepository
-
-# Motor's database class isn't parameterized anywhere in this codebase; alias it
-# once so the sole type-arg workaround lives here, not at every annotation site.
-if TYPE_CHECKING:
-    MotorDatabase = AsyncIOMotorDatabase[Any]
-else:
-    MotorDatabase = AsyncIOMotorDatabase
 
 logger = logging.getLogger(__name__)
 
@@ -272,9 +265,8 @@ def round_or_null(value: float | None, decimals: int = 1) -> float | None:
 
 
 class AnalyticsService:
-    def __init__(self, db: MotorDatabase) -> None:
+    def __init__(self, db: AsyncDatabase[Any]) -> None:
         self._db = db
-        self._school_repo = SchoolRepository(db)
         self._user_repo = UserRepository(db)
         self._ivr_repo = IVRRepository(db)
         self._conf_repo = ConferenceRepository(db)
@@ -326,7 +318,12 @@ class AnalyticsService:
 
         Teachers win collisions. Returns {map, schools, teachers}.
         """
-        schools = await self._school_repo.find_all_by_tenant(tenant_id)
+        # Schools are no longer a separate collection: migration 001 folded them
+        # into `users` as role="school_admin", where the admin's own _id *is* the
+        # school id that teachers/students carry in their school_id.
+        schools = await self._user_repo.find_all_by_tenant_and_role(
+            tenant_id, UserRole.SCHOOL_ADMIN.value
+        )
         if school_id:
             schools = [s for s in schools if str(s.id) == str(school_id)]
         school_by_id = {str(s.id): s for s in schools}
@@ -754,6 +751,6 @@ def _iso_or_value(value: Any) -> Any:
 
 
 def get_analytics_service(
-    db: MotorDatabase = Depends(get_db),
+    db: AsyncDatabase[Any] = Depends(get_db),
 ) -> AnalyticsService:
     return AnalyticsService(db)

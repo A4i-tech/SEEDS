@@ -33,9 +33,9 @@ from app.repositories.ivr_repository import IVRRepository
 CONF_COLLECTION = ConferenceRepository.COLLECTION
 IVR_COLLECTION = IVRRepository.LOG_COLLECTION
 
-# tenant_id / school_id are stored as ObjectId in the real collections (schools,
-# users). Seed them that way so the repo queries are exercised against the real
-# stored type, not a string that masks type-mismatch bugs.
+# tenant_id / school_id are stored as ObjectId in the real `users` collection.
+# Seed them that way so the repo queries are exercised against the real stored
+# type, not a string that masks type-mismatch bugs.
 TENANT_OID = ObjectId()
 TENANT_ID = str(TENANT_OID)
 SCHOOL_OID = ObjectId()
@@ -75,17 +75,20 @@ async def client(mock_db):
 
 
 async def _seed(db):
-    await db["schools"].insert_one(
-        {
-            "_id": SCHOOL_OID,
-            "tenantId": TENANT_OID,  # stored as ObjectId, as in real data
-            "name": "Test School",
-            "email": "school@test.com",
-            "isActive": True,
-        }
-    )
     await db["users"].insert_many(
         [
+            # Schools are no longer a separate collection: migration 001 folded
+            # them into `users` as role="school_admin", where the admin's own
+            # _id *is* the school id that teachers/students carry in school_id.
+            {
+                "_id": SCHOOL_OID,
+                "role": UserRole.SCHOOL_ADMIN.value,
+                "name": "Test School",
+                "email": "school@test.com",
+                "tenant_id": TENANT_OID,  # stored as ObjectId, as in real data
+                "school_id": SCHOOL_OID,
+                "is_active": True,
+            },
             {
                 "_id": TEACHER_OID,
                 "role": UserRole.TEACHER.value,
