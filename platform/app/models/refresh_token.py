@@ -2,9 +2,18 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict
+
+
+class UserTokenClaims(BaseModel):
+    """Claims carried on a user (teacher/tenant/school_admin) refresh token."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    role: str
+    tenant_id: str | None = None
+    school_id: str | None = None
 
 
 class UserRefreshToken(BaseModel):
@@ -14,8 +23,7 @@ class UserRefreshToken(BaseModel):
 
     token_id: str
     owner_id: str
-    family_id: str
-    claims: dict[str, Any] = {}
+    claims: UserTokenClaims
     expires_at: datetime
     revoked: bool = False
     created_at: datetime

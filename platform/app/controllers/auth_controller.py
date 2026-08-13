@@ -22,4 +22,4 @@ async def login(
     service: AuthService = Depends(get_auth_service),
 ) -> LoginResponse:
     result = await service.login_unified(body.identifier, body.password, body.is_email)
-    return LoginResponse(token=result["token"], user=result["user"])
+    return LoginResponse(token=result["access_token"], user=result["user"])

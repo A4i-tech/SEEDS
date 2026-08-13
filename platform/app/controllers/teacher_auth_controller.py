@@ -27,7 +27,7 @@ async def teacher_login(
         phone=body.phone_number,
         password=body.password,
     )
-    return LoginResponse(token=result["token"], user=result["user"])
+    return LoginResponse(token=result["access_token"], user=result["user"])
 
 
 @router.post(
