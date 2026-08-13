@@ -44,25 +44,25 @@
 }
 
 .row-action-view {
-  background: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 65%, black);
 }
 
 .row-action-view:hover:not(:disabled) {
-  background: var(--color-primary-hover);
+  background: color-mix(in srgb, var(--color-primary) 45%, black);
 }
 
 .row-action-edit {
-  background: var(--color-secondary);
+  background: color-mix(in srgb, var(--color-secondary) 65%, black);
 }
 
 .row-action-edit:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-secondary) 85%, black);
+  background: color-mix(in srgb, var(--color-secondary) 45%, black);
 }
 
 .row-action-delete {
-  background: var(--color-neutral-dark);
+  background: color-mix(in srgb, var(--color-neutral-dark) 55%, white);
 }
 
 .row-action-delete:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-neutral-dark) 85%, black);
+  background: var(--color-neutral-dark);
 }
