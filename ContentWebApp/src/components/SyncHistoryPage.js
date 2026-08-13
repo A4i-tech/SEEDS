@@ -5,6 +5,7 @@ import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import { contentAggregatorService } from "../services/contentAggregatorService";
 import { useContentAggregatorSync } from "../hooks/useContentAggregatorSync";
+import { Breadcrumb } from "./AllContent/shared/Breadcrumb";
 import MiddleEllipsis from "./AllContent/shared/MiddleEllipsis";
 import "./AllContent/shared/pageShell.css";
 import "./AllContent/shared/cards.css";
@@ -75,11 +76,10 @@ const SyncHistoryPage = () => {
 
   return (
     <div className="page-shell">
-      <div className="content-details-actions">
-        <button type="button" className="tertiary-button" onClick={() => navigate("/content")}>
-          ← Back
-        </button>
-      </div>
+      <Breadcrumb
+        className="breadcrumb-standalone"
+        items={[{ label: "Home", onClick: () => navigate("/content") }, { label: "Sync History" }]}
+      />
       <div className="card">
         <div className="card-header">
           <div>
