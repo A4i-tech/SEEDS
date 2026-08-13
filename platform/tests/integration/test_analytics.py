@@ -21,7 +21,6 @@ import pytest
 import pytest_asyncio
 from bson import ObjectId
 from httpx import ASGITransport, AsyncClient
-from mongomock_motor import AsyncMongoMockClient
 
 from app.main import app
 from app.models.user import UserRole
@@ -29,6 +28,7 @@ from app.platform.auth.dependencies import get_db
 from app.platform.auth.jwt import create_access_token
 from app.repositories.conference_repository import ConferenceRepository
 from app.repositories.ivr_repository import IVRRepository
+from tests.support.mongomock_async import AsyncMongoMockClient
 
 CONF_COLLECTION = ConferenceRepository.COLLECTION
 IVR_COLLECTION = IVRRepository.LOG_COLLECTION
@@ -55,7 +55,7 @@ async def mock_db():
     db = client["seeds_test_analytics"]
     await _seed(db)
     yield db
-    client.close()
+    await client.close()
 
 
 @pytest_asyncio.fixture
