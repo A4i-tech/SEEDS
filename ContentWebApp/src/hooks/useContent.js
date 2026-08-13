@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { contentService } from "../services/contentService";
 import { contentAggregatorService } from "../services/contentAggregatorService";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 50;
 
 const mapContentAggregatorCourse = (course) => ({
   id: course.id,
@@ -78,6 +78,10 @@ export const useContent = () => {
         });
         setPaginationInfo({ nextCursor, hasMore });
         setIsFiltered(false);
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          console.error("Error loading initial content:", error);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -92,7 +96,7 @@ export const useContent = () => {
    * Load more content (pagination)
    */
   const loadMore = useCallback(async () => {
-    if (isLoading) {
+    if (!paginationInfo.hasMore || !paginationInfo.nextCursor || isLoading) {
       return;
     }
 
@@ -103,41 +107,34 @@ export const useContent = () => {
       try {
         const { data, nextCursor, hasMore } = await fetchContent(paginationInfo.nextCursor, ac.signal);
 
-        if (!data.length) {
-          setPaginationInfo({ nextCursor: null, hasMore: false });
-          return;
-        }
+      if (!data.length) {
+        setPaginationInfo({ nextCursor: null, hasMore: false });
+        return;
+      }
 
-        setAllContent((prevAll) => {
-          const existingIds = new Set(prevAll.map((c) => c.id));
-          const merged = [...prevAll];
-          data.forEach((item) => {
-            if (!existingIds.has(item.id)) {
-              merged.push(item);
-            }
-          });
-          if (!isFiltered) {
-            setContent(merged);
+      setAllContent((prevAll) => {
+        const existingIds = new Set(prevAll.map((c) => c.id));
+        const merged = [...prevAll];
+        data.forEach((item) => {
+          if (!existingIds.has(item.id)) {
+            merged.push(item);
           }
-          return merged;
         });
+        if (!isFiltered) {
+          setContent(merged);
+        }
+        return merged;
+      });
 
-        setPaginationInfo({ nextCursor, hasMore });
-      } finally {
-        setIsLoading(false);
+      setPaginationInfo({ nextCursor, hasMore });
+    } catch (error) {
+      if (error.name !== "AbortError") {
+        console.error("Error loading more content:", error);
       }
-      return;
+    } finally {
+      setIsLoading(false);
     }
-
-    if (coursePaginationInfo.hasMore && coursePaginationInfo.nextCursor) {
-      setIsLoading(true);
-      try {
-        await loadContentAggregatorCourses(coursePaginationInfo.nextCursor);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-  }, [paginationInfo, coursePaginationInfo, fetchContent, isFiltered, isLoading, loadContentAggregatorCourses]);
+  }, [paginationInfo, fetchContent, isFiltered, isLoading]);
 
   /**
    * Delete content item
@@ -159,7 +156,16 @@ export const useContent = () => {
         // Show success message
         alert(`${contentType.charAt(0).toUpperCase() + contentType.slice(1)} deleted successfully.`);
       } catch (error) {
-        alert(`Error deleting ${contentType}: ${error.message}`);
+        console.error("Error deleting content:", error);
+        let errorMessage = error.response?.data?.error || error.message || "Failed to delete content";
+        try {
+          const parsed = JSON.parse(errorMessage);
+          errorMessage = parsed?.error || parsed?.message || errorMessage;
+        } catch (_) {}
+        if (errorMessage === "Content not found" || errorMessage === "Unauthorized") {
+          errorMessage = "You do not have permission to delete this item.";
+        }
+        alert(`Error deleting ${contentType}: ${errorMessage}`);
       }
     },
     []
@@ -192,10 +198,7 @@ export const useContent = () => {
     content,
     allContent,
     isLoading,
-    paginationInfo: {
-      nextCursor: paginationInfo.nextCursor,
-      hasMore: paginationInfo.hasMore || coursePaginationInfo.hasMore,
-    },
+    paginationInfo,
     isFiltered,
     loadMore,
     deleteContent,

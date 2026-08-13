@@ -258,6 +258,10 @@ async def list_content(
             data=data,
             pagination=PaginationInfo(next_cursor=None, has_more=False, limit=len(data)),
         )
+        return ContentPageResponse(
+            data=data,
+            pagination=PaginationInfo(next_cursor=None, has_more=False, limit=len(data)),
+        )
 
     all_results = await service.list_content(
         tenant_id=tenant_id,
