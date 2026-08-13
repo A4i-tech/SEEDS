@@ -33,6 +33,7 @@ class ContentBase {
     this.is_teacher_app = raw.is_teacher_app;
     this.is_deleted = raw.is_deleted;
     this.created_by = raw.created_by;
+    this.school_id = raw.school_id;
   }
 
   get display_title() {

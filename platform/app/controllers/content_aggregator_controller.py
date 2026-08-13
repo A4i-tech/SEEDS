@@ -42,6 +42,17 @@ async def _require_tenant(user: dict[str, Any] = Depends(get_current_user)) -> d
     return user
 
 
+_AGGREGATOR_ACCESS_ROLES = frozenset(
+    {UserRole.TENANT.value, UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value}
+)
+
+
+async def _require_aggregator_access(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    if user.get("role") not in _AGGREGATOR_ACCESS_ROLES:
+        raise ForbiddenError("content aggregator access requires tenant, school admin, or content creator role")
+    return user
+
+
 async def _run_sync_job(
     tenant_id: str,
     job_id: str,
@@ -122,7 +133,7 @@ async def start_sync(
 
 @router.get("/courses", summary="List synced courses")
 async def list_courses(
-    user: dict[str, Any] = Depends(_require_tenant),
+    user: dict[str, Any] = Depends(_require_aggregator_access),
     service: SubodhaService = Depends(get_subodha_service),
 ) -> dict[str, Any]:
     return {"courses": await service.get_content_list(user.get("tenant_id", ""))}
@@ -131,7 +142,7 @@ async def list_courses(
 @router.get("/courses/{course_id}", summary="Get a synced course's full content (blocks) for viewing")
 async def get_course(
     course_id: str,
-    user: dict[str, Any] = Depends(_require_tenant),
+    user: dict[str, Any] = Depends(_require_aggregator_access),
     service: SubodhaService = Depends(get_subodha_service),
 ) -> dict[str, Any]:
     doc = await service.get_course(user.get("tenant_id", ""), course_id)
@@ -176,7 +187,7 @@ async def sync_course(
     course_id: str,
     background_tasks: BackgroundTasks,
     body: dict[str, Any] | None = None,
-    user: dict[str, Any] = Depends(_require_tenant),
+    user: dict[str, Any] = Depends(_require_aggregator_access),
     service: SubodhaService = Depends(get_subodha_service),
     client: SubodhaClient = Depends(get_subodha_client),
     job_repo: ContentAggregatorSyncJobRepository = Depends(get_content_aggregator_sync_job_repo),
@@ -196,7 +207,7 @@ async def sync_course(
 @router.get("/sync/status/{job_id}", summary="Get sync job status")
 async def get_sync_status(
     job_id: str,
-    user: dict[str, Any] = Depends(_require_tenant),
+    user: dict[str, Any] = Depends(_require_aggregator_access),
     job_repo: ContentAggregatorSyncJobRepository = Depends(get_content_aggregator_sync_job_repo),
 ) -> dict[str, Any]:
     job = await job_repo.get_job(user.get("tenant_id", ""), job_id)
@@ -229,7 +240,7 @@ async def get_active_jobs(
 @router.get("/sync/stream/{job_id}", summary="SSE stream of live job progress")
 async def stream_job(
     job_id: str,
-    user: dict[str, Any] = Depends(_require_tenant),
+    user: dict[str, Any] = Depends(_require_aggregator_access),
     job_repo: ContentAggregatorSyncJobRepository = Depends(get_content_aggregator_sync_job_repo),
 ) -> StreamingResponse:
     tenant_id = user.get("tenant_id", "")

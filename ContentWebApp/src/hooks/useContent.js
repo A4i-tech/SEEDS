@@ -1,8 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { contentService } from "../services/contentService";
 import { contentAggregatorService } from "../services/contentAggregatorService";
-import { getRole } from "../utils/authHelpers";
-import { USER_ROLES } from "../Constants";
 
 const PAGE_SIZE = 50;
 
@@ -47,7 +45,7 @@ export const useContent = () => {
   }, []);
 
   useEffect(() => {
-    if (getRole() === USER_ROLES.TENANT) loadContentAggregatorCourses();
+    loadContentAggregatorCourses();
   }, [loadContentAggregatorCourses]);
 
   /**

@@ -190,7 +190,7 @@ const AllContent = () => {
             onLoadMore={loadMore}
             isUpdatingIVR={isUpdatingIVR}
             onSyncAll={syncAll}
-            canSync={currentUserRole === USER_ROLES.TENANT}
+            isTenant={currentUserRole === USER_ROLES.TENANT}
             syncingAll={syncingAll}
             syncAllProgress={syncAllProgress}
             courseSyncStates={courseStates}

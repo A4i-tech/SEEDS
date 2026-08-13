@@ -26,7 +26,7 @@ const ContentTab = ({
   onLoadMore,
   isUpdatingIVR,
   onSyncAll,
-  canSync,
+  isTenant,
   syncingAll,
   syncAllProgress,
   courseSyncStates,
@@ -51,7 +51,7 @@ const ContentTab = ({
           >
             {isUpdatingIVR ? "Updating..." : "Update IVR"}
           </button>
-          {canSync && (
+          {isTenant && (
             <>
               <button
                 type="button"
@@ -95,6 +95,7 @@ const ContentTab = ({
         onEdit={onEdit}
         onView={onView}
         onDelete={onDelete}
+        isTenant={isTenant}
         courseSyncStates={courseSyncStates}
         onSyncCourse={onSyncCourse}
         onDeleteContentAggregatorCourse={onDeleteContentAggregatorCourse}

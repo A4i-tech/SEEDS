@@ -2,6 +2,7 @@ import React from "react";
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import { getLanguageName } from "../../../utils/languageName";
+import { getSchoolId } from "../../../utils/authHelpers";
 import MiddleEllipsis from "../shared/MiddleEllipsis";
 import RowActions from "../shared/RowActions";
 import "../shared/tables.css";
@@ -14,6 +15,7 @@ const ContentTable = ({
   onEdit,
   onView,
   onDelete,
+  isTenant,
   courseSyncStates = {},
   onSyncCourse,
   onDeleteContentAggregatorCourse,
@@ -82,6 +84,7 @@ const ContentTable = ({
               const isContentAggregatorItem = item.source === "subodha";
               const syncState = courseSyncStates[itemId];
               const syncing = syncState === "running";
+              const isOwnContent = isTenant || item.school_id === getSchoolId();
               return (
                 <tr key={itemId} className="table-row-white">
                   <td className="table-cell table-cell-truncate">
@@ -128,19 +131,19 @@ const ContentTable = ({
                             onClick: () => onSyncCourse(itemId, item.title.english),
                           },
                           { key: "view", label: "View", variant: "view", onClick: () => onView(itemType, itemId) },
-                          {
+                          isTenant && {
                             key: "delete", label: "Delete", variant: "delete",
                             onClick: () => onDeleteContentAggregatorCourse(itemId, item.title.english),
                           },
-                        ]}
+                        ].filter(Boolean)}
                       />
                     ) : (
                       <RowActions
                         actions={[
-                          { key: "edit", label: "Edit", variant: "edit", onClick: () => onEdit(itemType, itemId) },
+                          isOwnContent && { key: "edit", label: "Edit", variant: "edit", onClick: () => onEdit(itemType, itemId) },
                           { key: "view", label: "View", variant: "view", onClick: () => onView(itemType, itemId) },
-                          { key: "delete", label: "Delete", variant: "delete", onClick: () => onDelete(itemType, itemId) },
-                        ]}
+                          isOwnContent && { key: "delete", label: "Delete", variant: "delete", onClick: () => onDelete(itemType, itemId) },
+                        ].filter(Boolean)}
                       />
                     )}
                   </td>
