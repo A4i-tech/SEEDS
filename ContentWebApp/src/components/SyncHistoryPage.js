@@ -7,6 +7,7 @@ import { contentAggregatorService } from "../services/contentAggregatorService";
 import { useContentAggregatorSync } from "../hooks/useContentAggregatorSync";
 import { Breadcrumb } from "./AllContent/shared/Breadcrumb";
 import MiddleEllipsis from "./AllContent/shared/MiddleEllipsis";
+import { SyncAllProgress } from "./AllContent/shared/SyncAllProgress";
 import "./AllContent/shared/pageShell.css";
 import "./AllContent/shared/cards.css";
 import "./AllContent/shared/buttons.css";
@@ -88,19 +89,7 @@ const SyncHistoryPage = () => {
           </div>
         </div>
 
-        {syncingAll && syncAllProgress && syncAllProgress.total > 0 && (
-          <div className="content-aggregator-sync-all-progress">
-            <div className="content-aggregator-sync-all-progress-track">
-              <div
-                className="content-aggregator-sync-all-progress-fill"
-                style={{ width: `${Math.min(100, Math.round((syncAllProgress.processed / syncAllProgress.total) * 100))}%` }}
-              />
-            </div>
-            <span className="content-aggregator-sync-all-progress-label">
-              {syncAllProgress.processed}/{syncAllProgress.total} courses synced
-            </span>
-          </div>
-        )}
+        <SyncAllProgress syncingAll={syncingAll} syncAllProgress={syncAllProgress} />
 
         {isLoading && jobs.length === 0 && <SyncHistoryJobListSkeleton />}
         {error && <p className="content-details-error">Error: {error}</p>}

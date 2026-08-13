@@ -2,6 +2,7 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import ContentFilters from "./ContentFilters";
 import ContentTable from "./ContentTable";
+import { SyncAllProgress } from "../shared/SyncAllProgress";
 import "./css/ContentTab.css";
 import "../shared/buttons.css";
 import "../shared/cards.css";
@@ -25,6 +26,7 @@ const ContentTab = ({
   onLoadMore,
   isUpdatingIVR,
   onSyncAll,
+  canSync,
   syncingAll,
   syncAllProgress,
   courseSyncStates,
@@ -49,21 +51,25 @@ const ContentTab = ({
           >
             {isUpdatingIVR ? "Updating..." : "Update IVR"}
           </button>
-          <button
-            type="button"
-            className="secondary-button button-ml-8"
-            onClick={onSyncAll}
-            disabled={syncingAll}
-          >
-            {syncingAll ? "Syncing..." : "Sync All"}
-          </button>
-          <button
-            type="button"
-            className="tertiary-button button-ml-8"
-            onClick={() => navigate("/content/sync-history")}
-          >
-            Sync History
-          </button>
+          {canSync && (
+            <>
+              <button
+                type="button"
+                className="secondary-button button-ml-8"
+                onClick={onSyncAll}
+                disabled={syncingAll}
+              >
+                {syncingAll ? "Syncing..." : "Sync All"}
+              </button>
+              <button
+                type="button"
+                className="tertiary-button button-ml-8"
+                onClick={() => navigate("/content/sync-history")}
+              >
+                Sync History
+              </button>
+            </>
+          )}
           <button
             className="success-button"
             onClick={() => navigate("/content/create")}
@@ -73,19 +79,7 @@ const ContentTab = ({
         </div>
       </div>
 
-      {syncingAll && syncAllProgress && syncAllProgress.total > 0 && (
-        <div className="content-aggregator-sync-all-progress">
-          <div className="content-aggregator-sync-all-progress-track">
-            <div
-              className="content-aggregator-sync-all-progress-fill"
-              style={{ width: `${Math.min(100, Math.round((syncAllProgress.processed / syncAllProgress.total) * 100))}%` }}
-            />
-          </div>
-          <span className="content-aggregator-sync-all-progress-label">
-            {syncAllProgress.processed}/{syncAllProgress.total} courses synced
-          </span>
-        </div>
-      )}
+      <SyncAllProgress syncingAll={syncingAll} syncAllProgress={syncAllProgress} />
 
       <ContentFilters
         options={options}

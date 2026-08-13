@@ -66,7 +66,7 @@ export const useContentAggregatorSync = (onSettled) => {
 
   const syncAll = useCallback(async () => {
     setSyncingAll(true);
-    setSyncAllProgress(null);
+    setSyncAllProgress({ processed: 0, total: 0 });
     try {
       const { job_id } = await contentAggregatorService.syncAll();
       followJob("__all__", job_id, {
