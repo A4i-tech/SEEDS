@@ -71,7 +71,7 @@ const ContentEdit = () => {
     return (
       <div className="page-shell">
         <div className="add-content-header">
-          <button type="button" className="primary-button" onClick={() => navigate(-1)}>
+          <button type="button" className="tertiary-button" onClick={() => navigate(-1)}>
             ← Back
           </button>
         </div>

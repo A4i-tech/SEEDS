@@ -22,7 +22,7 @@ const AddContent = () => {
   return (
     <div className="page-shell">
       <div className="add-content-header">
-        <button type="button" className="primary-button" onClick={() => navigate("/content")}>
+        <button type="button" className="tertiary-button" onClick={() => navigate("/content")}>
           ← Back
         </button>
       </div>

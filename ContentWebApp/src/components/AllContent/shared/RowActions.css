@@ -23,13 +23,14 @@
   gap: 6px;
   width: 92px;
   border: none;
-  border-radius: 999px;
-  height: 44px;
+  border-radius: 8px;
+  height: 36px;
   padding: 0 10px;
   font-size: 12.5px;
   font-weight: 700;
   font-family: inherit;
   cursor: pointer;
+  color: var(--color-on-accent);
 }
 
 .row-action:disabled {
@@ -43,28 +44,25 @@
 }
 
 .row-action-view {
-  background: var(--color-success-bg);
-  color: var(--color-success-fg);
+  background: var(--color-primary);
 }
 
 .row-action-view:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-success-bg) 70%, var(--color-success-dot));
+  background: var(--color-primary-hover);
 }
 
 .row-action-edit {
-  background: var(--color-warning-bg);
-  color: var(--color-warning-fg);
+  background: var(--color-secondary);
 }
 
 .row-action-edit:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-warning-bg) 70%, var(--color-warning-dot));
+  background: color-mix(in srgb, var(--color-secondary) 85%, black);
 }
 
 .row-action-delete {
-  background: var(--color-danger-bg);
-  color: var(--color-danger-fg);
+  background: var(--color-neutral-dark);
 }
 
 .row-action-delete:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-danger-bg) 70%, var(--color-danger-dot));
+  background: color-mix(in srgb, var(--color-neutral-dark) 85%, black);
 }
