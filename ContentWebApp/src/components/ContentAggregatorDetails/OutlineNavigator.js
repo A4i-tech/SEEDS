@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from "react";
+import { Breadcrumb } from "../AllContent/shared/Breadcrumb";
 import { SequentialPlayer } from "./SequentialPlayer";
 
-export function OutlineNavigator({ outline, blockMap, courseId, onBlockChange, onBackToContent }) {
+export function OutlineNavigator({ outline, blockMap, courseId, courseTitle, onBlockChange, onBackToContent }) {
   const [selected, setSelected] = useState(null);
   const [collapsed, setCollapsed] = useState({});
 
@@ -26,7 +27,9 @@ export function OutlineNavigator({ outline, blockMap, courseId, onBlockChange, o
         onNavigateSequential={(newFlatIndex) => setSelected(flatSequentials[newFlatIndex])}
         blockMap={blockMap}
         courseId={courseId}
+        courseTitle={courseTitle}
         onBlockChange={onBlockChange}
+        onBackToContent={onBackToContent}
         onBack={(expandChapterId) => {
           setSelected(null);
           if (expandChapterId) setCollapsed((prev) => ({ ...prev, [expandChapterId]: false }));
@@ -48,9 +51,7 @@ export function OutlineNavigator({ outline, blockMap, courseId, onBlockChange, o
   return (
     <div className="content-aggregator-outline-list">
       <div className="content-details-actions">
-        <button onClick={onBackToContent} className="primary-button">
-          ← Back
-        </button>
+        <Breadcrumb items={[{ label: "Home", onClick: onBackToContent }, { label: courseTitle }]} />
         <button type="button" className="secondary-button" onClick={toggleAll}>
           {allCollapsed ? "Expand all" : "Collapse all"}
         </button>

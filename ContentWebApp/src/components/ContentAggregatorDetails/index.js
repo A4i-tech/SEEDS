@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { contentAggregatorService } from "../../services/contentAggregatorService";
+import { Breadcrumb } from "../AllContent/shared/Breadcrumb";
 import { CourseContentSkeleton } from "./CourseContentSkeleton";
 import { FlatBlockNavigator } from "./FlatBlockNavigator";
 import { OutlineNavigator } from "./OutlineNavigator";
@@ -41,11 +42,7 @@ const ContentAggregatorDetails = ({ courseId, onBack }) => {
   if (error) {
     return (
       <>
-        <div className="content-details-actions">
-          <button onClick={onBack} className="primary-button">
-            ← Back
-          </button>
-        </div>
+        <Breadcrumb items={[{ label: "Home", onClick: onBack }]} />
         <p className="content-details-error">Error: {error}</p>
       </>
     );
@@ -54,11 +51,7 @@ const ContentAggregatorDetails = ({ courseId, onBack }) => {
   if (!course) {
     return (
       <>
-        <div className="content-details-actions">
-          <button onClick={onBack} className="primary-button">
-            ← Back
-          </button>
-        </div>
+        <Breadcrumb items={[{ label: "Home", onClick: onBack }]} />
         <p>Course not found.</p>
       </>
     );
@@ -78,6 +71,7 @@ const ContentAggregatorDetails = ({ courseId, onBack }) => {
           outline={course.outline}
           blockMap={blockMap}
           courseId={courseId}
+          courseTitle={course.title}
           onBlockChange={handleBlockChange}
           onBackToContent={onBack}
         />
@@ -86,6 +80,7 @@ const ContentAggregatorDetails = ({ courseId, onBack }) => {
           <FlatBlockNavigator
             blocks={course.blocks}
             courseId={courseId}
+            courseTitle={course.title}
             onBlockChange={handleBlockChange}
             onBack={onBack}
           />

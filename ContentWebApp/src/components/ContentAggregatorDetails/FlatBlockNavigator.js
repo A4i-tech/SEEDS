@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from "react";
+import { Breadcrumb } from "../AllContent/shared/Breadcrumb";
 import { disambiguateLabels } from "./disambiguateLabels";
 import { BlockCard } from "./BlockContent";
 
-export function FlatBlockNavigator({ blocks, courseId, onBlockChange, onBack }) {
+export function FlatBlockNavigator({ blocks, courseId, courseTitle, onBlockChange, onBack }) {
   const [index, setIndex] = useState(null);
   const labels = useMemo(() => disambiguateLabels(blocks), [blocks]);
 
@@ -14,9 +15,7 @@ export function FlatBlockNavigator({ blocks, courseId, onBlockChange, onBack }) 
     return (
       <>
         <div className="content-details-actions">
-          <button onClick={onBack} className="primary-button">
-            ← Back
-          </button>
+          <Breadcrumb items={[{ label: "Home", onClick: onBack }, { label: courseTitle }]} />
         </div>
         <ul className="content-aggregator-section-list">
           {blocks.map((b, i) => (
@@ -35,16 +34,19 @@ export function FlatBlockNavigator({ blocks, courseId, onBlockChange, onBack }) 
 
   return (
     <div>
-      <div className="content-details-actions">
-        <button type="button" className="primary-button" onClick={() => setIndex(null)}>
-          ← Back to list
-        </button>
-      </div>
+      <Breadcrumb
+        className="breadcrumb-standalone"
+        items={[
+          { label: "Home", onClick: onBack },
+          { label: courseTitle, onClick: () => setIndex(null) },
+          { label: labels[index] },
+        ]}
+      />
       <div className="content-aggregator-pager">
         <button
           type="button"
           className="secondary-button"
-          onClick={() => setIndex((i) => Math.max(0, i - 1))}
+          onClick={() => setIndex(index - 1)}
           disabled={index === 0}
         >
           ← Previous
@@ -55,13 +57,15 @@ export function FlatBlockNavigator({ blocks, courseId, onBlockChange, onBack }) 
         <button
           type="button"
           className="secondary-button"
-          onClick={() => setIndex((i) => Math.min(blocks.length - 1, i + 1))}
+          onClick={() => setIndex(index + 1)}
           disabled={index === blocks.length - 1}
         >
           Next →
         </button>
       </div>
-      <BlockCard key={block.block_id} block={block} courseId={courseId} onBlockChange={onBlockChange} />
+      <div key={index} className="content-aggregator-unit-fade">
+        <BlockCard block={block} courseId={courseId} onBlockChange={onBlockChange} />
+      </div>
     </div>
   );
 }

@@ -19,7 +19,9 @@ describe("SequentialPlayer", () => {
         onNavigateSequential={() => {}}
         blockMap={{}}
         courseId="course-1"
+        courseTitle="Demo Course"
         onBlockChange={() => {}}
+        onBackToContent={() => {}}
         onBack={() => {}}
       />
     );

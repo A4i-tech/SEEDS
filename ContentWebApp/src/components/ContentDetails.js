@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import QuizDetails from "./QuizDetails";
 import StoryDetails from "./StoryDetails";
 import ContentAggregatorDetails from "./ContentAggregatorDetails";
+import { Breadcrumb } from "./AllContent/shared/Breadcrumb";
 import { contentService } from "../services/contentService";
 import "./ContentDetails.css";
 import "./AllContent/shared/buttons.css";
@@ -14,6 +15,7 @@ const ContentDetails = () => {
   const [content, setContent] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const homeBreadcrumb = [{ label: "Home", onClick: () => navigate("/content") }];
 
   const isContentAggregatorCourse = type === "content-aggregator";
 
@@ -52,10 +54,8 @@ const ContentDetails = () => {
   if (error) {
     return (
       <div className="content-details-message">
+        <Breadcrumb items={homeBreadcrumb} />
         <p className="content-details-error">Error: {error}</p>
-        <button onClick={() => navigate("/content")} className="primary-button">
-          ← Back to Content
-        </button>
       </div>
     );
   }
@@ -71,10 +71,8 @@ const ContentDetails = () => {
   if (!content) {
     return (
       <div className="content-details-message">
+        <Breadcrumb items={homeBreadcrumb} />
         <p>Content not found.</p>
-        <button onClick={() => navigate("/content")} className="primary-button">
-          ← Back to Content
-        </button>
       </div>
     );
   }
@@ -82,15 +80,13 @@ const ContentDetails = () => {
   const contentType = content.type.toLowerCase();
   const isQuiz = contentType === "quiz";
   const isProcessed = isQuiz ? true : content.is_processed;
+  const titleEnglish = content.title.english;
+  const titleLocal = content.title.local;
 
   if (!isProcessed && !isQuiz) {
-    const titleEnglish = content.title.english;
-    const titleLocal = content.title.local;
     return (
       <div className="content-details-message">
-        <button onClick={() => navigate("/content")} className="primary-button">
-          ← Back
-        </button>
+        <Breadcrumb items={homeBreadcrumb} />
         <h3>
           Title: {titleEnglish}
           {titleLocal ? ` / ${titleLocal}` : ""}
@@ -103,9 +99,7 @@ const ContentDetails = () => {
   return (
     <div className="page-shell">
       <div className="content-details-actions">
-        <button onClick={() => navigate("/content")} className="primary-button">
-          ← Back
-        </button>
+        <Breadcrumb items={[...homeBreadcrumb, { label: titleEnglish || titleLocal || contentType }]} />
         <button
           onClick={() => navigate(`/content/edit/${type}/${id}`)}
           className="secondary-button"

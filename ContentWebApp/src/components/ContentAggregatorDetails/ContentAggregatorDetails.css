@@ -1,3 +1,18 @@
+@keyframes content-aggregator-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.content-aggregator-unit-fade {
+  animation: content-aggregator-fade-in 0.22s ease-out;
+}
+
 .content-aggregator-badge-hidden {
   display: inline-block;
   color: var(--color-danger-dot);
@@ -32,7 +47,9 @@
 }
 
 .content-aggregator-block-video {
-  max-width: 100%;
+  display: block;
+  width: 100%;
+  border-radius: 16px;
 }
 
 .content-aggregator-block-video-embed {
@@ -159,47 +176,6 @@
   margin: 0 0 24px;
 }
 
-.content-aggregator-breadcrumb {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px;
-  margin-bottom: 24px;
-}
-
-.content-aggregator-breadcrumb-sep {
-  color: #cbd5e1;
-  flex-shrink: 0;
-}
-
-.content-aggregator-breadcrumb-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border: none;
-  background: none;
-  padding: 6px 10px;
-  border-radius: 999px;
-  color: #475569;
-  cursor: pointer;
-  text-decoration: none;
-  font-size: 13.5px;
-  font-weight: 600;
-  transition: background-color 0.15s ease, color 0.15s ease;
-}
-
-.content-aggregator-breadcrumb-link:hover {
-  background-color: #f0f4f3;
-  color: var(--color-primary);
-}
-
-.content-aggregator-breadcrumb-current {
-  padding: 6px 10px;
-  color: var(--color-primary);
-  font-weight: 700;
-  font-size: 13.5px;
-}
-
 .content-aggregator-unit-title-row {
   display: flex;
   align-items: center;
@@ -220,39 +196,6 @@
   text-decoration: underline;
 }
 
-.content-aggregator-unit-tabs {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 24px 32px 0;
-  margin-bottom: 16px;
-}
-
-.content-aggregator-unit-tab-list {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 4px;
-  flex: 1;
-}
-
-.content-aggregator-unit-tab {
-  min-width: 40px;
-  padding: 10px 14px;
-  font-size: 14px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  background: var(--color-on-accent);
-  cursor: pointer;
-}
-
-.content-aggregator-unit-tab.active {
-  background: var(--color-secondary);
-  color: white;
-  border-color: var(--color-secondary);
-}
-
 .content-aggregator-unit-blocks {
   display: flex;
   flex-direction: column;
@@ -264,7 +207,6 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 0 32px;
   margin-bottom: 24px;
 }
 

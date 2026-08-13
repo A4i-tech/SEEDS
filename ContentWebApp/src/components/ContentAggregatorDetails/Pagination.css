@@ -1,0 +1,73 @@
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 24px;
+}
+
+.pagination-pages {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 32px;
+  /* Fixed regardless of how many page/ellipsis slots render (max 7: first,
+     gap, 3-window, gap, last) so the arrows never shift position. */
+  min-width: 252px;
+}
+
+.pagination-active-pill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--color-secondary);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 0;
+}
+
+.pagination-arrow,
+.pagination-page,
+.pagination-ellipsis {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+}
+
+.pagination-arrow,
+.pagination-page {
+  position: relative;
+  z-index: 1;
+  padding: 0 8px;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  color: var(--color-secondary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.2s ease;
+}
+
+.pagination-arrow:hover:not(:disabled),
+.pagination-page:hover:not(.active) {
+  background-color: color-mix(in srgb, var(--color-secondary) 12%, transparent);
+}
+
+.pagination-arrow:disabled {
+  color: #cbd5e1;
+  cursor: default;
+}
+
+.pagination-page.active {
+  color: white;
+}
+
+.pagination-ellipsis {
+  color: #94a3b8;
+}
