@@ -10,7 +10,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends
 
-from app.models.responses.login import TokenRefreshResponse
+from app.models.responses.login import TokenResponse
 from app.services.auth_service import AuthService, get_auth_service
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -20,5 +20,5 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 async def refresh_token(
     refresh_token: Annotated[str, Body(embed=True)],
     service: AuthService = Depends(get_auth_service),
-) -> TokenRefreshResponse:
-    return TokenRefreshResponse(**await service.refresh(refresh_token))
+) -> TokenResponse:
+    return TokenResponse(**await service.refresh(refresh_token))
