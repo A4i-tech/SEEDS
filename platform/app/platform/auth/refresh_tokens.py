@@ -16,6 +16,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Protocol, TypedDict
 
+from pydantic import PositiveInt
+
 from app.platform.auth.jwt import _parse_expires_delta
 from app.platform.error_handling import AppError, UnauthorizedError
 from app.platform.telemetry import get_counter
@@ -37,7 +39,7 @@ class TokenPair(TypedDict):
 
     access_token: str
     refresh_token: str
-    expires_in: int
+    expires_in: PositiveInt
     token_type: str
 
 

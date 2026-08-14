@@ -11,19 +11,15 @@ class LoginResponse(BaseModel):
     token: str
     user: dict[str, Any]
     refresh_token: str | None = None
-    expires_in: int | None = None
+    expires_in: PositiveInt | None = None
 
 
 class MessageResponse(BaseModel):
     message: str
 
 
-class TokenPairResponse(BaseModel):
+class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
     expires_in: PositiveInt
     token_type: Literal["Bearer"] = "Bearer"
-
-
-class TokenRefreshResponse(TokenPairResponse):
-    pass
