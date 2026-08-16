@@ -96,12 +96,6 @@ class IntegrationTokenPair(TokenPair):
 
 
 class _IntegrationTokenStore:
-    """Adapts ``IntegrationTokenRepository`` to the shared ``RefreshTokenStore`` Protocol.
-
-    Translates owner_id <-> client_id and claims <-> {tenant_ids, scope} so the
-    legacy ``integrationTokens`` schema needs no changes.
-    """
-
     def __init__(self, repo: IntegrationTokenRepository) -> None:
         self._repo = repo
 
