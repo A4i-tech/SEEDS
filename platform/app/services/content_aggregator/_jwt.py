@@ -1,9 +1,3 @@
-"""Private JWT helper for the Content Aggregator partner auth flow.
-
-Not imported anywhere outside this package — ``auth.py`` is the only caller.
-
-SECURITY: token strings and claims are never logged.
-"""
 from __future__ import annotations
 
 import secrets

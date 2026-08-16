@@ -45,7 +45,6 @@ class Settings(BaseSettings):
 
     refresh_token_expires_in: str = "30d"
 
-    # Content Aggregator partner auth (reuses secret_key, no separate signing key)
     content_aggregator_access_token_expires_in: str = "15m"
     content_aggregator_refresh_token_expires_in: str = "30d"
 
