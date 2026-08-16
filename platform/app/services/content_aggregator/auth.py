@@ -82,10 +82,23 @@ class _IntegrationTokenStore:
         await self._repo.revoke_all_for_client(owner_id)
 
 
+class IntegrationClaims(TypedDict):
+    """Refresh-token claims carried for a Content Aggregator partner client."""
+
+    tenant_ids: list[str]
+    scope: str
+
+
+class IntegrationTokenPair(TokenPair):
+    """``TokenPair`` plus the granted ``scope`` (space-separated, spec §2.3.2)."""
+
+    scope: str
+
+
 class _IntegrationTokenStore:
     """Adapts ``IntegrationTokenRepository`` to the shared ``RefreshTokenStore`` Protocol.
 
-    Translates owner_id <-> client_id and claims <-> {tenant_ids, scopes} so the
+    Translates owner_id <-> client_id and claims <-> {tenant_ids, scope} so the
     legacy ``integrationTokens`` schema needs no changes.
     """
 
@@ -93,12 +106,10 @@ class _IntegrationTokenStore:
         self._repo = repo
 
     @staticmethod
-    def _to_consumed(doc: IntegrationToken | None) -> ConsumedToken | None:
-        if doc is None or doc.type != IntegrationTokenType.REFRESH:
-            return None
+    def _to_consumed(doc: IntegrationToken) -> ConsumedToken[IntegrationClaims]:
         return ConsumedToken(
             owner_id=doc.client_id,
-            claims={"tenant_ids": doc.tenant_ids, "scopes": doc.scopes},
+            claims={"tenant_ids": doc.tenant_ids, "scope": doc.scope},
             expires_at=doc.expires_at,
             revoked=doc.revoked,
         )
@@ -108,7 +119,7 @@ class _IntegrationTokenStore:
         *,
         token_id: str,
         owner_id: str,
-        claims: dict[str, Any],
+        claims: IntegrationClaims,
         expires_at: datetime,
         created_at: datetime,
     ) -> None:
@@ -117,17 +128,22 @@ class _IntegrationTokenStore:
                 token_id=token_id,
                 client_id=owner_id,
                 tenant_ids=claims["tenant_ids"],
-                scopes=claims["scopes"],
+                scope=claims["scope"],
                 expires_at=expires_at,
                 created_at=created_at,
             )
         )
 
-    async def find_by_token_id(self, token_id: str) -> ConsumedToken | None:
-        return self._to_consumed(await self._repo.find_by_token_id(token_id))
+    async def try_consume(self, token_id: str) -> ConsumedToken[IntegrationClaims]:
+        """Atomically claim an unrevoked, unexpired refresh token.
 
-    async def try_consume(self, token_id: str) -> ConsumedToken | None:
-        return self._to_consumed(await self._repo.try_consume(token_id))
+        Raises:
+            RefreshTokenNotFoundError: no matching REFRESH token.
+            RefreshTokenExpiredError: token exists, never consumed, past expiry.
+            RefreshTokenReusedError: token exists but already consumed/revoked.
+        """
+        doc = await self._repo.try_consume(token_id)
+        return self._to_consumed(doc)
 
     async def revoke_all_for_owner(self, owner_id: str) -> None:
         await self._repo.revoke_all_for_client(owner_id)
