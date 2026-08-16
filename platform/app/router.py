@@ -70,7 +70,6 @@ api_router.include_router(language_controller.router)
 
 api_router.include_router(content_aggregator_auth_controller.router)
 
-# Content Aggregator
 api_router.include_router(content_aggregator_auth_controller.router)
 
 # Calls
