@@ -1,9 +1,3 @@
-"""Unit tests for the shared refresh-token rotation engine (#459).
-
-Exercises app.platform.auth.refresh_tokens directly against an in-memory
-fake RefreshTokenStore, independent of any specific caller (Content
-Aggregator or the shared user auth flow both delegate here).
-"""
 from __future__ import annotations
 
 import asyncio

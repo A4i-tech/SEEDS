@@ -1,9 +1,3 @@
-"""Unit tests for the Content Aggregator partner auth flow (#458 issue/verify,
-#459 refresh/rotation/reuse-detection/revocation).
-
-Uses the tests.support.mongomock_async shim for repository tests — no real
-MongoDB required.
-"""
 from __future__ import annotations
 
 import ast

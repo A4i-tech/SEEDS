@@ -1,12 +1,3 @@
-"""Unit tests for the shared refresh-token flow on AuthService (#459).
-
-Ports the rotation/reuse-detection/expiry/concurrency scenarios already
-proven against the Content Aggregator flow (test_content_aggregator_auth.py)
-onto the user auth flow (teacher/tenant/school_admin logins), which now
-shares the same app.platform.auth.refresh_tokens engine.
-
-Uses the tests.support.mongomock_async shim — no real MongoDB required.
-"""
 from __future__ import annotations
 
 import asyncio
@@ -51,7 +42,9 @@ class TestLoginIssuesRefreshToken:
         await _seed_tenant(mock_db)
         service = AuthService(mock_db)
 
-        result = await service.login(email="tenant@example.com", password="correct-horse", auth_type="native")
+        result = await service.login_unified(
+            identifier="tenant@example.com", password="correct-horse", is_email=True
+        )
 
         assert result["access_token"]
         assert result["refresh_token"]
@@ -61,7 +54,9 @@ class TestLoginIssuesRefreshToken:
         await _seed_tenant(mock_db)
         service = AuthService(mock_db)
 
-        result = await service.login(email="tenant@example.com", password="correct-horse", auth_type="native")
+        result = await service.login_unified(
+            identifier="tenant@example.com", password="correct-horse", is_email=True
+        )
 
         stored = await mock_db["userRefreshTokens"].find_one({"token_id": result["refresh_token"]})
         assert stored is not None
@@ -73,7 +68,9 @@ class TestRefreshSuccess:
     async def test_rotation_returns_new_pair_and_revokes_old(self, mock_db):
         await _seed_tenant(mock_db)
         service = AuthService(mock_db)
-        issued = await service.login(email="tenant@example.com", password="correct-horse", auth_type="native")
+        issued = await service.login_unified(
+            identifier="tenant@example.com", password="correct-horse", is_email=True
+        )
         old_refresh = issued["refresh_token"]
 
         result = await service.refresh(old_refresh)
@@ -91,7 +88,9 @@ class TestRefreshSuccess:
     async def test_old_refresh_token_unusable_after_rotation(self, mock_db):
         await _seed_tenant(mock_db)
         service = AuthService(mock_db)
-        issued = await service.login(email="tenant@example.com", password="correct-horse", auth_type="native")
+        issued = await service.login_unified(
+            identifier="tenant@example.com", password="correct-horse", is_email=True
+        )
         old_refresh = issued["refresh_token"]
 
         await service.refresh(old_refresh)
@@ -104,7 +103,9 @@ class TestRefreshReuseDetection:
     async def test_replaying_revoked_token_revokes_all_tokens_for_owner(self, mock_db):
         await _seed_tenant(mock_db)
         service = AuthService(mock_db)
-        issued = await service.login(email="tenant@example.com", password="correct-horse", auth_type="native")
+        issued = await service.login_unified(
+            identifier="tenant@example.com", password="correct-horse", is_email=True
+        )
         root_refresh = issued["refresh_token"]
         rotated = await service.refresh(root_refresh)
 
@@ -144,7 +145,9 @@ class TestRefreshConcurrency:
     async def test_concurrent_refresh_with_same_token_only_one_winner(self, mock_db):
         await _seed_tenant(mock_db)
         service = AuthService(mock_db)
-        issued = await service.login(email="tenant@example.com", password="correct-horse", auth_type="native")
+        issued = await service.login_unified(
+            identifier="tenant@example.com", password="correct-horse", is_email=True
+        )
         root_refresh = issued["refresh_token"]
 
         results = await asyncio.gather(
@@ -164,7 +167,9 @@ class TestRefreshExpired:
     async def test_expired_token_raises_distinct_error_code(self, mock_db):
         await _seed_tenant(mock_db)
         service = AuthService(mock_db)
-        issued = await service.login(email="tenant@example.com", password="correct-horse", auth_type="native")
+        issued = await service.login_unified(
+            identifier="tenant@example.com", password="correct-horse", is_email=True
+        )
 
         await mock_db["userRefreshTokens"].update_one(
             {"token_id": issued["refresh_token"]},
@@ -211,7 +216,9 @@ class TestRefreshUnknownOrInactiveOwner:
     async def test_inactive_user_rejected_at_refresh(self, mock_db):
         await _seed_tenant(mock_db)
         service = AuthService(mock_db)
-        issued = await service.login(email="tenant@example.com", password="correct-horse", auth_type="native")
+        issued = await service.login_unified(
+            identifier="tenant@example.com", password="correct-horse", is_email=True
+        )
 
         await mock_db["users"].update_one({"email": "tenant@example.com"}, {"$set": {"is_active": False}})
 
@@ -276,7 +283,9 @@ class TestSchoolAdminAndPhoneLoginAlsoIssueRefreshTokens:
         )
         service = AuthService(mock_db)
 
-        result = await service.school_admin_login("admin@example.com", "admin-pass")
+        result = await service.login_unified(
+            identifier="admin@example.com", password="admin-pass", is_email=True
+        )
 
         assert result["access_token"]
         assert result["refresh_token"]

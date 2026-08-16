@@ -16,7 +16,6 @@ from app.controllers import (
     class_controller,
     # Calls (split from call_controller)
     conference_controller,
-    # Content Aggregator
     content_aggregator_auth_controller,
     # Content
     content_aggregator_controller,
@@ -37,7 +36,6 @@ from app.controllers import (
     # Users (split from users_controller)
     teacher_controller,
     tenant_auth_controller,
-    # Shared refresh-token route (#459)
     token_controller,
     user_controller,
     # Webhooks (split from webhook_controller)
@@ -68,7 +66,6 @@ api_router.include_router(content_controller.router)
 api_router.include_router(audit_controller.router)
 api_router.include_router(content_aggregator_controller.router)
 
-# Content Aggregator
 api_router.include_router(content_aggregator_auth_controller.router)
 
 # Calls

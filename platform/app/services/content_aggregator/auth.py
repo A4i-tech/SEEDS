@@ -1,14 +1,3 @@
-"""Content Aggregator partner auth — the only file (besides ``_jwt.py``) that
-touches JWT internals. Controllers/services must only call
-``ContentAggregatorAuth.issue_token`` / ``.verify_token``.
-
-Refresh-token rotation/reuse-detection is delegated to the shared
-``app.platform.auth.refresh_tokens`` engine via ``_IntegrationTokenStore``,
-an adapter over the existing ``integrationTokens`` collection/schema — the
-storage layer and its shape are unchanged from #458/#459.
-
-SECURITY: client_secret and issued tokens are never logged.
-"""
 from __future__ import annotations
 
 import logging
@@ -53,12 +42,6 @@ class IntegrationTokenPair(TokenPair):
 
 
 class _IntegrationTokenStore:
-    """Adapts ``IntegrationTokenRepository`` to the shared ``RefreshTokenStore`` Protocol.
-
-    Translates owner_id <-> client_id and claims <-> {tenant_ids, scope} so the
-    legacy ``integrationTokens`` schema needs no changes.
-    """
-
     def __init__(self, repo: IntegrationTokenRepository) -> None:
         self._repo = repo
 
@@ -124,24 +107,6 @@ class ContentAggregatorAuth:
         client_secret: str,
         scopes: list[str],
     ) -> IntegrationTokenPair:
-        """Exchange client_id/client_secret for an access + refresh token.
-
-        Per the Content Aggregators Integration spec (§2.3.1/§2.3.4), the
-        token request carries no tenant_ids — the access token is always
-        granted the client's full registered tenant_ids[]. Per-tenant
-        authorization happens at the Content API layer (§3.2), not here.
-
-        Least privilege: ``scope`` is a required request field (§2.3.1) —
-        the caller must ask for exactly the scopes it needs. There is no
-        "omit scope, get everything" fallback.
-
-        Raises:
-            UnauthorizedError: unknown client_id or wrong secret (401, no
-                distinction in the response — avoids user enumeration).
-            AppError(code="TENANT_NOT_ALLOWED"): client disabled.
-            AppError(code="SCOPE_INSUFFICIENT"): requested scopes exceed the
-                client's allowed_scopes.
-        """
         client = await self._clients.find_by_client_id(client_id)
         if client is None or not verify_password(client_secret, client.client_secret_hash):
             logger.warning("content_aggregator auth: invalid credentials for client_id=%s", client_id)
