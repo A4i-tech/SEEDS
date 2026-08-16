@@ -30,7 +30,7 @@ async def issue_token(
     result = await auth.issue_token(
         client_id=body.client_id,
         client_secret=body.client_secret,
-        scopes=body.scope.split() if body.scope else None,
+        scopes=body.scope.split(),
     )
     return TokenResponse.model_validate(result)
 

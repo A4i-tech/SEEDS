@@ -10,8 +10,8 @@ from pydantic import BaseModel, PositiveInt
 class LoginResponse(BaseModel):
     token: str
     user: dict[str, Any]
-    refresh_token: str | None = None
-    expires_in: PositiveInt | None = None
+    refresh_token: str
+    expires_in: PositiveInt
 
 
 class MessageResponse(BaseModel):
@@ -23,3 +23,4 @@ class TokenResponse(BaseModel):
     refresh_token: str
     expires_in: PositiveInt
     token_type: Literal["Bearer"] = "Bearer"
+    scope: str | None = None

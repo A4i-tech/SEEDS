@@ -18,6 +18,7 @@ class IntegrationClient(BaseModel):
 
     client_id: str
     client_secret_hash: str
+    name: str
     tenant_ids: list[str]
     allowed_scopes: list[str] = Field(default_factory=list)
     status: IntegrationClientStatus = IntegrationClientStatus.ACTIVE
@@ -42,7 +43,7 @@ class IntegrationToken(BaseModel):
     client_id: str
     type: IntegrationTokenType
     tenant_ids: list[str]
-    scopes: list[str] = []
+    scope: str
     expires_at: datetime
     revoked: bool = False
     created_at: datetime
