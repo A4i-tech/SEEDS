@@ -12,7 +12,14 @@ from typing import Any
 
 import pytest
 
-from app.platform.auth.refresh_tokens import ConsumedToken, issue_pair, rotate
+from app.platform.auth.refresh_tokens import (
+    ConsumedToken,
+    RefreshTokenExpiredError,
+    RefreshTokenNotFoundError,
+    RefreshTokenReusedError,
+    issue_pair,
+    rotate,
+)
 from app.platform.error_handling import AppError, UnauthorizedError
 from app.platform.settings import Settings
 from app.platform.telemetry import configure_telemetry
@@ -32,21 +39,14 @@ class FakeStore:
             "revoked": False,
         }
 
-    async def find_by_token_id(self, token_id: str) -> ConsumedToken | None:
+    async def try_consume(self, token_id: str) -> ConsumedToken:
         doc = self._tokens.get(token_id)
         if doc is None:
-            return None
-        return ConsumedToken(
-            owner_id=doc["owner_id"],
-            claims=doc["claims"],
-            expires_at=doc["expires_at"],
-            revoked=doc["revoked"],
-        )
-
-    async def try_consume(self, token_id: str) -> ConsumedToken | None:
-        doc = self._tokens.get(token_id)
-        if doc is None or doc["revoked"] or doc["expires_at"] <= datetime.now(tz=UTC):
-            return None
+            raise RefreshTokenNotFoundError
+        if doc["revoked"]:
+            raise RefreshTokenReusedError(doc["owner_id"])
+        if doc["expires_at"] <= datetime.now(tz=UTC):
+            raise RefreshTokenExpiredError
         doc["revoked"] = True
         return ConsumedToken(
             owner_id=doc["owner_id"],

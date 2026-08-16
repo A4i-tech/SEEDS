@@ -1,9 +1,3 @@
-"""Shared refresh-token route — /auth/token/refresh.
-
-Single endpoint for teacher/tenant/school_admin: role/tenant_id/school_id
-travel in the persisted refresh-token claims, so one route serves all three.
-"""
-
 from __future__ import annotations
 
 from typing import Annotated

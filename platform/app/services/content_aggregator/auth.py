@@ -13,18 +13,20 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any
+from typing import Any, TypedDict
 
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.content_aggregator import (
     IntegrationClientStatus,
     IntegrationToken,
-    IntegrationTokenType,
 )
 from app.platform.auth import refresh_tokens
 from app.platform.auth.hashing import verify_password
-from app.platform.auth.refresh_tokens import ConsumedToken
+from app.platform.auth.refresh_tokens import (
+    ConsumedToken,
+    TokenPair,
+)
 from app.platform.error_handling import AppError, UnauthorizedError
 from app.platform.settings import Settings
 from app.repositories.integration_client_repository import IntegrationClientRepository
@@ -37,10 +39,23 @@ from app.services.content_aggregator import _jwt
 logger = logging.getLogger(__name__)
 
 
+class IntegrationClaims(TypedDict):
+    """Refresh-token claims carried for a Content Aggregator partner client."""
+
+    tenant_ids: list[str]
+    scope: str
+
+
+class IntegrationTokenPair(TokenPair):
+    """``TokenPair`` plus the granted ``scope`` (space-separated, spec §2.3.2)."""
+
+    scope: str
+
+
 class _IntegrationTokenStore:
     """Adapts ``IntegrationTokenRepository`` to the shared ``RefreshTokenStore`` Protocol.
 
-    Translates owner_id <-> client_id and claims <-> {tenant_ids, scopes} so the
+    Translates owner_id <-> client_id and claims <-> {tenant_ids, scope} so the
     legacy ``integrationTokens`` schema needs no changes.
     """
 
@@ -48,12 +63,10 @@ class _IntegrationTokenStore:
         self._repo = repo
 
     @staticmethod
-    def _to_consumed(doc: IntegrationToken | None) -> ConsumedToken | None:
-        if doc is None or doc.type != IntegrationTokenType.REFRESH:
-            return None
+    def _to_consumed(doc: IntegrationToken) -> ConsumedToken[IntegrationClaims]:
         return ConsumedToken(
             owner_id=doc.client_id,
-            claims={"tenant_ids": doc.tenant_ids, "scopes": doc.scopes},
+            claims={"tenant_ids": doc.tenant_ids, "scope": doc.scope},
             expires_at=doc.expires_at,
             revoked=doc.revoked,
         )
@@ -63,7 +76,7 @@ class _IntegrationTokenStore:
         *,
         token_id: str,
         owner_id: str,
-        claims: dict[str, Any],
+        claims: IntegrationClaims,
         expires_at: datetime,
         created_at: datetime,
     ) -> None:
@@ -72,17 +85,22 @@ class _IntegrationTokenStore:
                 token_id=token_id,
                 client_id=owner_id,
                 tenant_ids=claims["tenant_ids"],
-                scopes=claims["scopes"],
+                scope=claims["scope"],
                 expires_at=expires_at,
                 created_at=created_at,
             )
         )
 
-    async def find_by_token_id(self, token_id: str) -> ConsumedToken | None:
-        return self._to_consumed(await self._repo.find_by_token_id(token_id))
+    async def try_consume(self, token_id: str) -> ConsumedToken[IntegrationClaims]:
+        """Atomically claim an unrevoked, unexpired refresh token.
 
-    async def try_consume(self, token_id: str) -> ConsumedToken | None:
-        return self._to_consumed(await self._repo.try_consume(token_id))
+        Raises:
+            RefreshTokenNotFoundError: no matching REFRESH token.
+            RefreshTokenExpiredError: token exists, never consumed, past expiry.
+            RefreshTokenReusedError: token exists but already consumed/revoked.
+        """
+        doc = await self._repo.try_consume(token_id)
+        return self._to_consumed(doc)
 
     async def revoke_all_for_owner(self, owner_id: str) -> None:
         await self._repo.revoke_all_for_client(owner_id)
@@ -104,14 +122,18 @@ class ContentAggregatorAuth:
         self,
         client_id: str,
         client_secret: str,
-        scopes: list[str] | None = None,
-    ) -> dict[str, Any]:
+        scopes: list[str],
+    ) -> IntegrationTokenPair:
         """Exchange client_id/client_secret for an access + refresh token.
 
         Per the Content Aggregators Integration spec (§2.3.1/§2.3.4), the
         token request carries no tenant_ids — the access token is always
         granted the client's full registered tenant_ids[]. Per-tenant
         authorization happens at the Content API layer (§3.2), not here.
+
+        Least privilege: ``scope`` is a required request field (§2.3.1) —
+        the caller must ask for exactly the scopes it needs. There is no
+        "omit scope, get everything" fallback.
 
         Raises:
             UnauthorizedError: unknown client_id or wrong secret (401, no
@@ -130,55 +152,64 @@ class ContentAggregatorAuth:
 
         granted_tenant_ids = list(client.tenant_ids)
 
-        requested_scopes = scopes if scopes is not None else list(client.allowed_scopes)
-        if not set(requested_scopes).issubset(client.allowed_scopes):
+        if not set(scopes).issubset(client.allowed_scopes):
             raise AppError("SCOPE_INSUFFICIENT", "Requested scopes exceed allowed scopes", 403)
+        requested_scopes = scopes
 
         access_token, expires_in = _jwt.encode_access_token(
             client_id=client.client_id,
             tenant_ids=granted_tenant_ids,
             scopes=requested_scopes,
+            client_name=client.name,
             secret_key=self._settings.secret_key,
             expires_in=self._settings.content_aggregator_access_token_expires_in,
         )
 
-        return await refresh_tokens.issue_pair(
+        granted_scope = " ".join(requested_scopes)
+        pair = await refresh_tokens.issue_pair(
             self._store,
             owner_id=client.client_id,
-            claims={"tenant_ids": granted_tenant_ids, "scopes": requested_scopes},
+            claims={"tenant_ids": granted_tenant_ids, "scope": granted_scope},
             access_token=access_token,
             access_expires_in=expires_in,
             refresh_ttl=self._settings.content_aggregator_refresh_token_expires_in,
         )
+        return {**pair, "scope": granted_scope}
 
-    async def verify_token(self, token: str) -> dict[str, Any]:
+    async def verify_token(self, token: str) -> _jwt.AccessTokenClaims:
         """Verify and decode an access token. Raises UnauthorizedError on failure."""
         return _jwt.decode_access_token(token, secret_key=self._settings.secret_key)
 
-    async def refresh_token(self, refresh_token: str) -> dict[str, Any]:
+    async def refresh_token(self, refresh_token: str) -> IntegrationTokenPair:
         """Exchange a refresh token for a new access + refresh token pair.
 
         See ``app.platform.auth.refresh_tokens.rotate`` for the rotation/
         reuse-detection algorithm — this is a thin Content-Aggregator-specific
         wrapper supplying the owner-active check and access-token builder.
         """
+        granted_scope = ""
 
-        async def verify_owner_active(owner_id: str, claims: dict[str, Any]) -> dict[str, Any]:
+        async def verify_owner_active(owner_id: str, claims: IntegrationClaims) -> IntegrationClaims:
             client = await self._clients.find_by_client_id(owner_id)
             if client is None or client.status != IntegrationClientStatus.ACTIVE:
                 raise AppError("TENANT_NOT_ALLOWED", "Client is not active", 403)
             return claims
 
-        async def build_access_token(owner_id: str, claims: dict[str, Any]) -> tuple[str, int]:
+        async def build_access_token(owner_id: str, claims: IntegrationClaims) -> tuple[str, int]:
+            nonlocal granted_scope
+            granted_scope = claims["scope"]
+            client = await self._clients.find_by_client_id(owner_id)
+            client_name = client.name if client is not None else owner_id
             return _jwt.encode_access_token(
                 client_id=owner_id,
                 tenant_ids=claims["tenant_ids"],
-                scopes=claims["scopes"],
+                scopes=claims["scope"].split(),
+                client_name=client_name,
                 secret_key=self._settings.secret_key,
                 expires_in=self._settings.content_aggregator_access_token_expires_in,
             )
 
-        return await refresh_tokens.rotate(
+        pair = await refresh_tokens.rotate(
             self._store,
             refresh_token,
             verify_owner_active=verify_owner_active,
@@ -186,3 +217,4 @@ class ContentAggregatorAuth:
             refresh_ttl=self._settings.content_aggregator_refresh_token_expires_in,
             reuse_counter_name="content_aggregator_auth.reuse_detected",
         )
+        return {**pair, "scope": granted_scope}

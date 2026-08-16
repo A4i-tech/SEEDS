@@ -1,12 +1,3 @@
-"""Shared refresh-token rotation engine.
-
-Single implementation of single-use rotation + reuse detection, used by both
-the Content Aggregator partner auth flow and the shared user auth flow
-(teacher/tenant/school_admin). Callers supply a ``RefreshTokenStore`` plus two
-callbacks (``verify_owner_active``, ``build_access_token``) — the rotation
-algorithm itself (atomic claim, reuse-triggered owner-wide revoke, expiry
-check) lives here exactly once.
-"""
 from __future__ import annotations
 
 import logging
@@ -14,7 +5,7 @@ import secrets
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Protocol, TypedDict
+from typing import Protocol, TypedDict
 
 from pydantic import PositiveInt
 
@@ -44,16 +35,32 @@ class TokenPair(TypedDict):
 
 
 @dataclass(frozen=True)
-class ConsumedToken:
-    """What a store returns for a claimed/looked-up refresh token."""
+class ConsumedToken[ClaimsT]:
+    """What a store returns for a claimed refresh token."""
 
     owner_id: str
-    claims: dict[str, Any]
+    claims: ClaimsT
     expires_at: datetime
     revoked: bool
 
 
-class RefreshTokenStore(Protocol):
+class RefreshTokenNotFoundError(Exception):
+    """Raised by ``try_consume`` for an unknown token_id."""
+
+
+class RefreshTokenExpiredError(Exception):
+    """Raised by ``try_consume`` for an expired, never-consumed token."""
+
+
+class RefreshTokenReusedError(Exception):
+    """Raised by ``try_consume`` for an already-consumed/revoked token."""
+
+    def __init__(self, owner_id: str) -> None:
+        super().__init__(f"Refresh token already consumed — owner_id={owner_id}")
+        self.owner_id = owner_id
+
+
+class RefreshTokenStore[ClaimsT](Protocol):
     """Storage seam the rotation engine is parameterized over."""
 
     async def insert(
@@ -61,27 +68,33 @@ class RefreshTokenStore(Protocol):
         *,
         token_id: str,
         owner_id: str,
-        claims: dict[str, Any],
+        claims: ClaimsT,
         expires_at: datetime,
         created_at: datetime,
     ) -> None: ...
 
-    async def find_by_token_id(self, token_id: str) -> ConsumedToken | None: ...
+    async def try_consume(self, token_id: str) -> ConsumedToken[ClaimsT]:
+        """Atomically claim an unrevoked, unexpired token for rotation.
 
-    async def try_consume(self, token_id: str) -> ConsumedToken | None: ...
+        Raises:
+            RefreshTokenNotFoundError: no token matches ``token_id``.
+            RefreshTokenExpiredError: token exists, never consumed, past expiry.
+            RefreshTokenReusedError: token exists but already consumed/revoked.
+        """
+        ...
 
     async def revoke_all_for_owner(self, owner_id: str) -> None: ...
 
 
-VerifyOwnerActive = Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]]
-BuildAccessToken = Callable[[str, dict[str, Any]], Awaitable[tuple[str, int]]]
+type VerifyOwnerActive[ClaimsT] = Callable[[str, ClaimsT], Awaitable[ClaimsT]]
+type BuildAccessToken[ClaimsT] = Callable[[str, ClaimsT], Awaitable[tuple[str, int]]]
 
 
-async def issue_pair(
-    store: RefreshTokenStore,
+async def issue_pair[ClaimsT](
+    store: RefreshTokenStore[ClaimsT],
     *,
     owner_id: str,
-    claims: dict[str, Any],
+    claims: ClaimsT,
     access_token: str,
     access_expires_in: int,
     refresh_ttl: str,
@@ -104,12 +117,12 @@ async def issue_pair(
     }
 
 
-async def rotate(
-    store: RefreshTokenStore,
+async def rotate[ClaimsT](
+    store: RefreshTokenStore[ClaimsT],
     refresh_token: str,
     *,
-    verify_owner_active: VerifyOwnerActive,
-    build_access_token: BuildAccessToken,
+    verify_owner_active: VerifyOwnerActive[ClaimsT],
+    build_access_token: BuildAccessToken[ClaimsT],
     refresh_ttl: str,
     reuse_counter_name: str,
 ) -> TokenPair:
@@ -128,27 +141,24 @@ async def rotate(
             past its expiry.
         AppError: whatever ``verify_owner_active`` raises for an inactive owner.
     """
-    consumed = await store.try_consume(refresh_token)
-
-    if consumed is None:
-        existing = await store.find_by_token_id(refresh_token)
-        if existing is None:
-            raise UnauthorizedError("Invalid refresh token")
-        if not existing.revoked:
-            # Unrevoked but excluded by try_consume's expiry filter: a clean
-            # expiry, not a replay — do not treat it as reuse.
-            raise AppError("REFRESH_TOKEN_EXPIRED", "Refresh token has expired", 401)
+    try:
+        consumed = await store.try_consume(refresh_token)
+    except RefreshTokenNotFoundError:
+        raise UnauthorizedError("Invalid refresh token") from None
+    except RefreshTokenExpiredError:
+        raise AppError("REFRESH_TOKEN_EXPIRED", "Refresh token has expired", 401) from None
+    except RefreshTokenReusedError as exc:
         logger.warning(
             "refresh_tokens: revoked refresh token replayed — owner_id=%s",
-            existing.owner_id,
+            exc.owner_id,
             extra={
                 "event": "refresh_token_reuse_detected",
-                "owner_id": existing.owner_id,
+                "owner_id": exc.owner_id,
             },
         )
-        get_counter(reuse_counter_name).add(1, {"owner_id": existing.owner_id})
-        await store.revoke_all_for_owner(existing.owner_id)
-        raise UnauthorizedError("Invalid refresh token")
+        get_counter(reuse_counter_name).add(1, {"owner_id": exc.owner_id})
+        await store.revoke_all_for_owner(exc.owner_id)
+        raise UnauthorizedError("Invalid refresh token") from None
 
     now = datetime.now(tz=UTC)
     claims = await verify_owner_active(consumed.owner_id, consumed.claims)

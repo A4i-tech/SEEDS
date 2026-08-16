@@ -2,8 +2,17 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import TypedDict
 
 from pydantic import BaseModel, ConfigDict
+
+
+class UserClaims(TypedDict):
+    """Refresh-token claims carried for a user (teacher/tenant/school_admin)."""
+
+    role: str
+    tenant_id: str | None
+    school_id: str | None
 
 
 class UserTokenClaims(BaseModel):
