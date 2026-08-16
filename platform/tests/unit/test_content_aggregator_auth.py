@@ -209,7 +209,7 @@ class TestRefreshTokenSuccess:
 
     async def test_rotated_access_token_carries_original_tenant_ids(self, mock_db, auth):
         await _seed_client(mock_db, tenant_ids=["tenant-a", "tenant-b"])
-        issued = await auth.issue_token("partner-1", "super-secret")
+        issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
 
         result = await auth.refresh_token(issued["refresh_token"])
         payload = await auth.verify_token(result["access_token"])
