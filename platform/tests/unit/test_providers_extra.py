@@ -9,6 +9,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.support import mongomock_async
+
 # ---------------------------------------------------------------------------
 # service_bus — QueueMessage and MessageType (no Azure SDK calls)
 # ---------------------------------------------------------------------------
@@ -258,8 +260,7 @@ class TestFSMQuizInstantiation:
 class TestIVRUpdateStructure:
     @pytest.fixture
     def db(self):
-        import mongomock_motor
-        client = mongomock_motor.AsyncMongoMockClient()
+        client = mongomock_async.AsyncMongoMockClient()
         return client["test_ivr_update"]
 
     @pytest.mark.asyncio

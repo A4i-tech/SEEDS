@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
-import { v4 as uuidv4 } from "uuid";
 import { useNavigate } from "react-router-dom";
 import { contentService } from "../services/contentService";
+import { LANGUAGE_OPTIONS } from "../utils/languageUtils";
+import Select from "./AllContent/shared/Select";
+import "./AddContent.css";
 
 const ANSWER_OPTION_CONFIG = [
   { name: "optionA", label: "Option A", idx: 0 },
@@ -29,25 +31,26 @@ const AddQuiz = ({ quiz }) => {
   useEffect(() => {
     if (quiz && Object.keys(quiz).length > 0) {
       setMetadata({
-        title: quiz.title?.english,
-        localTitle: quiz.title?.local,
-        theme: quiz.theme?.english,
-        localTheme: quiz.theme?.local,
+        title: quiz.title.english,
+        localTitle: quiz.title.local,
+        theme: quiz.theme.english,
+        localTheme: quiz.theme.local,
         language: quiz.language,
-        positiveMark: quiz.positiveMarks,
-        negativeMark: quiz.negativeMarks,
+        positiveMark: quiz.positive_marks,
+        negativeMark: quiz.negative_marks,
       });
       const questions = quiz.questions;
-      const inputFieldsData = questions.map((questionText, index) => {
-        const optionTexts = [...quiz.options[index]];
+      const inputFieldsData = questions.map((q) => {
+        const optionTexts = q.options.map((o) => o.text);
         while (optionTexts.length < 4) optionTexts.push("");
+        const correctIndex = q.options.findIndex((o) => o.id === q.correct_option_id);
         return {
-          question: questionText,
+          question: q.question.text,
           optionA: optionTexts[0],
           optionB: optionTexts[1],
           optionC: optionTexts[2],
           optionD: optionTexts[3],
-          correctAnswer: quiz.correctAnswers[index],
+          correctAnswer: correctIndex,
         };
       });
       setInputFields(
@@ -69,25 +72,26 @@ const AddQuiz = ({ quiz }) => {
     setMetadata((prev) => ({
       ...prev,
       language: newLanguage,
-      // When language changes, clear local-specific fields so the user re-enters them if needed
       localTitle: "",
       localTheme: "",
     }));
   };
 
   const createQuizJson = () => {
-    const languageLower = (metadata.language || "").toLowerCase();
+    const languageLower = metadata.language.toLowerCase();
 
-    const questions = inputFields.map((mcq) => mcq.question);
-    const options = inputFields.map((mcq) => [
-      mcq.optionA,
-      mcq.optionB,
-      mcq.optionC,
-      mcq.optionD,
-    ]);
-    const correctAnswers = inputFields.map((mcq) =>
-      mcq.correctAnswer !== undefined ? mcq.correctAnswer : 0
-    );
+    const questions = inputFields.map((mcq, qIdx) => {
+      const questionId = `q${qIdx + 1}`;
+      const options = [mcq.optionA, mcq.optionB, mcq.optionC, mcq.optionD].map(
+        (text, optIdx) => ({ id: `${questionId}-opt${optIdx + 1}`, text })
+      );
+      const correctIndex = mcq.correctAnswer !== undefined ? mcq.correctAnswer : 0;
+      return {
+        question: { id: questionId, text: mcq.question },
+        options,
+        correct_option_id: options[correctIndex].id,
+      };
+    });
 
     const titleObj = {
       english: metadata.title,
@@ -99,16 +103,13 @@ const AddQuiz = ({ quiz }) => {
     };
 
     const payload = {
-      ...metadata,
-      questions,
-      options,
-      correctAnswers,
+      type: "quiz",
+      language: metadata.language,
       title: titleObj,
       theme: themeObj,
-      localTitle: titleObj.local,
-      localTheme: themeObj.local,
-      type: "quiz",
-      id: quiz ? (quiz._id || quiz.id) : uuidv4(),
+      positive_marks: metadata.positiveMark,
+      negative_marks: metadata.negativeMark,
+      questions,
     };
 
     return payload;
@@ -116,7 +117,7 @@ const AddQuiz = ({ quiz }) => {
 
   const isValid = () => {
     var valid = true;
-    const languageLower = (metadata.language || "").toLowerCase();
+    const languageLower = metadata.language.toLowerCase();
 
     if (metadata.title.length === 0) {
       valid = false;
@@ -176,17 +177,16 @@ const AddQuiz = ({ quiz }) => {
     }
 
     try {
-      const quizId = quiz && (quiz._id || quiz.id);
+      const quizId = quiz && quiz.id;
       const isEditing = Boolean(quizId);
       let result;
       if (isEditing) {
-        // PATCH existing quiz — backend requires _id and the content fields it validates
+        // PATCH existing quiz — backend requires id and the content fields it validates
         result = await contentService.updateContent({
-          audioContent: quiz.audioContent ?? [],
-          isPullModel: quiz.isPullModel ?? false,
-          isTeacherApp: quiz.isTeacherApp ?? false,
+          is_pull_model: quiz.is_pull_model,
+          is_teacher_app: quiz.is_teacher_app,
           ...payload,
-          _id: quizId,
+          id: quizId,
         });
       } else {
         result = await contentService.createQuiz(payload);
@@ -217,7 +217,6 @@ const AddQuiz = ({ quiz }) => {
     updated[questionIndex].correctAnswer = optionIndex;
     setInputFields(updated);
   };
-  //     "positiveMark" : 1,    "negativeMark" : 0,    "id" : "Ramayana quiz 2",    "language" : "Kannada",
   const removeFields = (index) => {
     let data = [...inputFields];
     data.splice(index, 1);
@@ -225,7 +224,7 @@ const AddQuiz = ({ quiz }) => {
   };
 
   const getLocalizedLabelPrefix = () => {
-    const language = (metadata.language || "").toLowerCase();
+    const language = metadata.language.toLowerCase();
     switch (language) {
       case "kn":
         return "Kannada";
@@ -246,181 +245,150 @@ const AddQuiz = ({ quiz }) => {
   };
 
   return (
-    <form onSubmit={onSubmit}>
-      <div className="metadataGrid">
-        <div>
-          <label>
-            Language
-            <br />
-            <select
-              value={metadata.language || ""}
-              onChange={handleLanguageChange}
-              className="mintgreen"
-              style={{ width: "200px" }}
-            >
-              <option value="kn">Kannada</option>
-              <option value="hi">Hindi</option>
-              <option value="mr">Marathi</option>
-              <option value="or">Odia</option>
-              <option value="en">English</option>
-              <option value="ta">Tamil</option>
-              <option value="bn">Bengali</option>
-            </select>
-          </label>
-        </div>
+    <form className="add-form" onSubmit={onSubmit}>
+      <div className="form-section">
+        <div className="form-section-title">Quiz Details</div>
+        <div className="quiz-metadata-grid">
+          <div>
+            <label>Language</label>
+            <Select
+              value={metadata.language}
+              onChange={(value) => handleLanguageChange({ target: { value } })}
+              options={LANGUAGE_OPTIONS}
+            />
+          </div>
 
-        <div>
-          <label>Title</label>
-          <br />
-          <input
-            className="mintgreen"
-            type="text"
-            name="title"
-            placeholder=" Add Title"
-            value={metadata.title || ""}
-            onChange={(event) => setMetadata({ ...metadata, title: event.target.value })}
-          />
-        </div>
+          <div>
+            <label>Title</label>
+            <input
+              className="form-input"
+              type="text"
+              name="title"
+              placeholder="Add Title"
+              value={metadata.title}
+              onChange={(event) => setMetadata({ ...metadata, title: event.target.value })}
+            />
+          </div>
 
-        <div>
-          <label>Theme</label>
-          <br />
-          <input
-            className="mintgreen"
-            type="text"
-            name="theme"
-            placeholder=" Add Theme"
-            value={metadata.theme || ""}
-            onChange={(event) => setMetadata({ ...metadata, theme: event.target.value })}
-          />
-        </div>
+          <div>
+            <label>Theme</label>
+            <input
+              className="form-input"
+              type="text"
+              name="theme"
+              placeholder="Add Theme"
+              value={metadata.theme}
+              onChange={(event) => setMetadata({ ...metadata, theme: event.target.value })}
+            />
+          </div>
 
-        {metadata.language.toLowerCase() !== "en" && (
-          <>
-            <div>
-              <label>{`${getLocalizedLabelPrefix()} Title`}</label>
-              <br />
-              <input
-                className="mintgreen"
-                type="text"
-                name="localTitle"
-                placeholder=" Add Local Title"
-                value={metadata.localTitle || ""}
-                onChange={(event) => setMetadata({ ...metadata, localTitle: event.target.value })}
-              />
-            </div>
+          {metadata.language.toLowerCase() !== "en" && (
+            <>
+              <div>
+                <label>{`${getLocalizedLabelPrefix()} Title`}</label>
+                <input
+                  className="form-input"
+                  type="text"
+                  name="localTitle"
+                  placeholder="Add Local Title"
+                  value={metadata.localTitle}
+                  onChange={(event) => setMetadata({ ...metadata, localTitle: event.target.value })}
+                />
+              </div>
 
-            <div>
-              <label>{`${getLocalizedLabelPrefix()} Theme`}</label>
-              <br />
-              <input
-                className="mintgreen"
-                type="text"
-                name="localTheme"
-                placeholder=" Add Local Theme"
-                value={metadata.localTheme || ""}
-                onChange={(event) => setMetadata({ ...metadata, localTheme: event.target.value })}
-              />
-            </div>
-          </>
-        )}
+              <div>
+                <label>{`${getLocalizedLabelPrefix()} Theme`}</label>
+                <input
+                  className="form-input"
+                  type="text"
+                  name="localTheme"
+                  placeholder="Add Local Theme"
+                  value={metadata.localTheme}
+                  onChange={(event) => setMetadata({ ...metadata, localTheme: event.target.value })}
+                />
+              </div>
+            </>
+          )}
 
-        <div>
-          <label>Positive Marks</label>
-          <br />
-          <input
-            type="number"
-            className="mintgreen"
-            name="positiveMark"
-            placeholder="Add Positive Marks"
-            value={metadata.positiveMark || 1}
-            onChange={(event) => setMetadata({ ...metadata, positiveMark: event.target.value })}
-          />
-        </div>
+          <div className="quiz-marks-field">
+            <label>Positive Marks</label>
+            <input
+              type="number"
+              className="form-input"
+              name="positiveMark"
+              placeholder="Add Positive Marks"
+              value={metadata.positiveMark}
+              onChange={(event) => setMetadata({ ...metadata, positiveMark: event.target.value })}
+            />
+          </div>
 
-        <div>
-          <label>Negative Marks</label>
-          <br />
-          <input
-            type="number"
-            className="mintgreen"
-            name="negativeMark"
-            placeholder="Add Negative Marks"
-            value={metadata.negativeMark || 0}
-            onChange={(event) => setMetadata({ ...metadata, negativeMark: event.target.value })}
-          />
+          <div className="quiz-marks-field">
+            <label>Negative Marks</label>
+            <input
+              type="number"
+              className="form-input"
+              name="negativeMark"
+              placeholder="Add Negative Marks"
+              value={metadata.negativeMark}
+              onChange={(event) => setMetadata({ ...metadata, negativeMark: event.target.value })}
+            />
+          </div>
         </div>
       </div>
-      {inputFields.map((input, index) => {
-        return (
-          <div key={index} style={{ marginTop: "1%" }}>
-            <div className="optionsGrid">
-              <div>
-                <label>Question {index + 1}</label>
-                <br />
+
+      {inputFields.map((input, index) => (
+        <div key={index} className="quiz-question-card">
+          <div className="quiz-options-grid">
+            <div>
+              <label>Question {index + 1}</label>
+              <input
+                type="text"
+                className="form-input"
+                name="question"
+                placeholder="Add Question"
+                value={input.question}
+                onChange={(event) => handleFormChange(index, event)}
+              />
+            </div>
+            <div className="quiz-remove-cell">
+              <button className="btn-danger" type="button" onClick={() => removeFields(index)}>
+                Remove
+              </button>
+            </div>
+            {ANSWER_OPTION_CONFIG.map(({ name, label, idx }) => (
+              <div key={name}>
+                <label>
+                  <input
+                    type="radio"
+                    name={`correctAnswer-${index}`}
+                    checked={input.correctAnswer === idx}
+                    onChange={() => handleCorrectAnswerChange(index, idx)}
+                    style={{ marginRight: "4px" }}
+                  />
+                  {label} {input.correctAnswer === idx ? "(Correct Answer)" : ""}
+                </label>
                 <input
                   type="text"
-                  className="mintgreen"
-                  name="question"
-                  placeholder=" Add Question"
-                  value={input.question}
+                  name={name}
+                  className="form-input"
+                  placeholder={`Add ${label}`}
+                  value={input[name]}
                   onChange={(event) => handleFormChange(index, event)}
                 />
               </div>
-              <div>
-                <button
-                  className="btn"
-                  type="button"
-                  style={{ backgroundColor: "#28574F", color: "white" }}
-                  onClick={() => removeFields(index)}
-                >
-                  Remove
-                </button>
-              </div>
-              {ANSWER_OPTION_CONFIG.map(({ name, label, idx }) => (
-                <div key={name}>
-                  <label>
-                    <input
-                      type="radio"
-                      name={`correctAnswer-${index}`}
-                      checked={input.correctAnswer === idx}
-                      onChange={() => handleCorrectAnswerChange(index, idx)}
-                      style={{ marginRight: "4px" }}
-                    />
-                    {label} {input.correctAnswer === idx ? "(Correct Answer)" : ""}
-                  </label>
-                  <br />
-                  <input
-                    type="text"
-                    name={name}
-                    className="mintgreen"
-                    placeholder={` Add ${label}`}
-                    value={input[name]}
-                    onChange={(event) => handleFormChange(index, event)}
-                  />
-                </div>
-              ))}
-            </div>
-            <br />
+            ))}
           </div>
-        );
-      })}
-      <button
-        type="button"
-        className="btn"
-        style={{ backgroundColor: "#28574F", color: "white" }}
-        onClick={addFields}
-      >
-        + Question
-      </button>
-      <br />
-      <br />
-      <input
-        type="submit"
-        style={{ backgroundColor: "#E5A83B", color: "white" }}
-        value="Save"
-        className="btn btn-block"
-      />
+        </div>
+      ))}
+
+      <div className="form-actions">
+        <button type="button" className="btn-secondary" onClick={addFields}>
+          + Question
+        </button>
+        <button type="submit" className="btn-primary">
+          Save
+        </button>
+      </div>
     </form>
   );
 };

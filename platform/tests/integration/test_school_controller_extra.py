@@ -14,13 +14,13 @@ os.environ.setdefault("ENV", "development")
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from mongomock_motor import AsyncMongoMockClient
 
 from app.main import app
 from app.models.user import UserRole
 from app.platform.auth.dependencies import get_db
 from app.platform.auth.hashing import hash_password
 from app.platform.auth.jwt import create_access_token
+from tests.support.mongomock_async import AsyncMongoMockClient
 
 
 @pytest_asyncio.fixture
@@ -28,7 +28,7 @@ async def mock_db():
     client = AsyncMongoMockClient()
     db = client["seeds_test_school_extra"]
     yield db
-    client.close()
+    await client.close()
 
 
 @pytest_asyncio.fixture
@@ -175,8 +175,8 @@ class TestSchoolControllerExtra:
         victim = await _seed_teacher(mock_db, email="victim@t.com", tid="tenant-b", sid="school-b")
         token = _school_admin_token(caller["_id"], tid="tenant-a", sid="school-a")
         resp = await client.post("/school/transfer", json={
-            "teacherId": victim["_id"],
-            "targetSchoolId": "000000000000000000000001",
+            "teacher_id": victim["_id"],
+            "target_school_id": "000000000000000000000001",
         }, headers={"Authorization": f"Bearer {token}"})
         # Service raises NotFoundError (cross-tenant teacher not visible)
         assert resp.status_code in (404, 403)
@@ -187,6 +187,7 @@ class TestSchoolControllerExtra:
         token = _teacher_token(teacher["_id"])
         resp = await client.post("/class", json={
             "name": "Test Class",
+            "students": ["s1"],
         }, headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code in (200, 201, 422)
 
@@ -208,7 +209,7 @@ class TestSchoolControllerExtra:
         cls_id = ObjectId()
         await mock_db["classes"].insert_one({
             "_id": cls_id,
-            "schoolId": "s1",
+            "school_id": "s1",
             "name": "Private Class",
             "teacher": owner["_id"],
             "students": [],
@@ -228,7 +229,7 @@ class TestSchoolControllerExtra:
         cls_id = ObjectId()
         await mock_db["classes"].insert_one({
             "_id": cls_id,
-            "schoolId": "s1",
+            "school_id": "s1",
             "name": "My Class",
             "teacher": teacher["_id"],
             "students": [],

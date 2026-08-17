@@ -29,9 +29,9 @@ if _PROJECT_ROOT not in sys.path:
 
 
 async def verify(mongo_uri: str) -> bool:
-    from motor.motor_asyncio import AsyncIOMotorClient  # noqa: PLC0415
+    from pymongo import AsyncMongoClient  # noqa: PLC0415
 
-    client: AsyncIOMotorClient = AsyncIOMotorClient(mongo_uri)  # type: ignore[type-arg]
+    client: AsyncMongoClient = AsyncMongoClient(mongo_uri)  # type: ignore[type-arg]
     try:
         db_name = client.get_default_database().name if "/" in mongo_uri.rsplit("?", 1)[0] else "seeds"
     except Exception:
@@ -98,7 +98,7 @@ async def verify(mongo_uri: str) -> bool:
     print(f"\nOverall: {overall}")
     print("=========================================\n")
 
-    client.close()
+    await client.close()
     return passed
 
 

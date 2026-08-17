@@ -19,13 +19,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from mongomock_motor import AsyncMongoMockClient
 
 from app.main import app
 from app.models.user import UserRole
 from app.platform.auth.dependencies import get_db
 from app.platform.auth.hashing import hash_password
 from app.platform.auth.jwt import create_access_token
+from tests.support.mongomock_async import AsyncMongoMockClient
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -37,7 +37,7 @@ async def mock_db():
     client = AsyncMongoMockClient()
     db = client["seeds_test_helpers"]
     yield db
-    client.close()
+    await client.close()
 
 
 @pytest_asyncio.fixture
@@ -180,7 +180,7 @@ class TestTenantAuthGapEndpoints:
 
     @pytest.mark.asyncio
     async def test_analytics_requires_auth(self, client, mock_db):
-        resp = await client.post("/tenant/analytics", json={"startDate": "2026-01-01", "endDate": "2026-06-01"})
+        resp = await client.post("/tenant/analytics", json={"start_date": "2026-01-01", "end_date": "2026-06-01"})
         assert resp.status_code == 401
 
     @pytest.mark.asyncio
@@ -200,7 +200,7 @@ class TestTenantAuthGapEndpoints:
         token = _tenant_token(tenant["_id"])
         resp = await client.post(
             "/tenant/analytics",
-            json={"startDate": "2026-01-01T00:00:00", "endDate": "2026-06-01T00:00:00"},
+            json={"start_date": "2026-01-01T00:00:00", "end_date": "2026-06-01T00:00:00"},
             headers={"Authorization": f"Bearer {token}"},
         )
         assert resp.status_code == 200
@@ -210,7 +210,7 @@ class TestTenantAuthGapEndpoints:
 
     @pytest.mark.asyncio
     async def test_change_password_requires_auth(self, client, mock_db):
-        resp = await client.post("/tenant/change-password", json={"newPassword": "newpass123"})
+        resp = await client.post("/tenant/change-password", json={"new_password": "newpass123"})
         assert resp.status_code == 401
 
     @pytest.mark.asyncio
@@ -219,7 +219,7 @@ class TestTenantAuthGapEndpoints:
         token = _tenant_token(tenant["_id"])
         resp = await client.post(
             "/tenant/change-password",
-            json={"newPassword": "newpass456"},
+            json={"new_password": "newpass456"},
             headers={"Authorization": f"Bearer {token}"},
         )
         assert resp.status_code == 200

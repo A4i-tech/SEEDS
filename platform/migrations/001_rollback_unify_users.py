@@ -27,9 +27,9 @@ if _PROJECT_ROOT not in sys.path:
 
 
 async def rollback(mongo_uri: str, dry_run: bool) -> None:
-    from motor.motor_asyncio import AsyncIOMotorClient  # noqa: PLC0415
+    from pymongo import AsyncMongoClient  # noqa: PLC0415
 
-    client: AsyncIOMotorClient = AsyncIOMotorClient(mongo_uri)  # type: ignore[type-arg]
+    client: AsyncMongoClient = AsyncMongoClient(mongo_uri)  # type: ignore[type-arg]
     try:
         db_name = client.get_default_database().name if "/" in mongo_uri.rsplit("?", 1)[0] else "seeds"
     except Exception:
@@ -48,7 +48,7 @@ async def rollback(mongo_uri: str, dry_run: bool) -> None:
 
     if count == 0:
         print("Nothing to rollback.")
-        client.close()
+        await client.close()
         return
 
     if dry_run:
@@ -66,7 +66,7 @@ async def rollback(mongo_uri: str, dry_run: bool) -> None:
         result = await db["users"].delete_many(filter_query)
         print(f"Rollback complete — {result.deleted_count} document(s) removed from users.")
 
-    client.close()
+    await client.close()
 
 
 def _resolve_mongo_uri(cli_uri: str | None) -> str:

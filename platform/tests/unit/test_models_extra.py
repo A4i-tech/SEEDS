@@ -12,12 +12,12 @@ class TestModelsCoverage:
         from app.models.requests.school_requests import ClassroomCreate
 
         c = ClassroomCreate(
-            schoolId="s1",
+            school_id="s1",
             name="My Class",
             teacher="t1",
             students=["s1", "s2"],
             leaders=["l1"],
-            contentIds=["c1"],
+            content_ids=["c1"],
         )
         assert c.name == "My Class"
         assert c.teacher == "t1"
@@ -47,7 +47,7 @@ class TestModelsCoverage:
         from app.models.requests.school_requests import SchoolCreate
 
         s = SchoolCreate(
-            tenantId="t1",
+            tenant_id="t1",
             name="School A",
             email="school@test.com",
             password="hashed",
@@ -125,6 +125,21 @@ class TestModelsCoverage:
             pass
         except Exception:
             pass
+
+    def test_quiz_content_from_doc(self) -> None:
+        from app.models.responses.content import QuizContent
+
+        doc = {
+            "_id": "quiz1",
+            "tenant_id": "t1",
+            "title": {"english": "Quiz title", "local": "Quiz title"},
+            "theme": {"english": "Quiz theme", "local": "Quiz theme"},
+            "language": "english",
+        }
+        resp = QuizContent.from_doc(doc)
+        assert resp.title.english == "Quiz title"
+        assert resp.theme.english == "Quiz theme"
+        assert resp.type == "quiz"
 
     def test_settings_extra_properties(self) -> None:
         from app.platform.settings import get_settings

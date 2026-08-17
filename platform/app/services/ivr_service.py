@@ -20,7 +20,7 @@ from typing import Any
 
 import vonage
 from fastapi import Depends
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.ivr_state import (
     ConversationRTCEventType,
@@ -118,7 +118,7 @@ async def _make_vonage_call(
 # ---------------------------------------------------------------------------
 
 class IVRService:
-    def __init__(self, db: AsyncIOMotorDatabase[Any]) -> None:  # type: ignore[type-arg]
+    def __init__(self, db: AsyncDatabase[Any]) -> None:  # type: ignore[type-arg]
         self._db = db
 
     # ------------------------------------------------------------------
@@ -586,6 +586,6 @@ class IVRService:
 
 
 def get_ivr_service(
-    db: AsyncIOMotorDatabase[Any] = Depends(get_db),  # type: ignore[type-arg]
+    db: AsyncDatabase[Any] = Depends(get_db),  # type: ignore[type-arg]
 ) -> IVRService:
     return IVRService(db)

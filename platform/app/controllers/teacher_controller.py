@@ -21,7 +21,7 @@ router = APIRouter(prefix="/teacher", tags=["Teachers"])
 
 @router.get("/teachers", summary="List teachers in admin's school", status_code=status.HTTP_200_OK)
 async def list_teachers_by_school(
-    current_user: dict[str, Any] = Depends(require_role("school_admin", "content_creator")),
+    current_user: dict[str, Any] = Depends(require_role("school_admin")),
     service: UserService = Depends(get_user_service),
 ) -> list[UserPublicResponse]:
     school_id = current_user.get("school_id", "")
@@ -39,20 +39,20 @@ async def list_teachers_by_school(
 async def update_teacher(
     teacher_id: str,
     body: TeacherUpdateRequest,
-    current_user: dict[str, Any] = Depends(require_role("school_admin", "content_creator")),
+    current_user: dict[str, Any] = Depends(require_role("school_admin")),
     service: UserService = Depends(get_user_service),
 ) -> UserPublicResponse:
-    if not body.name and not body.phoneNumber and not body.password:
+    if not body.name and not body.phone_number and not body.password:
         raise HTTPException(
-            status_code=400, detail="At least one field (name, phoneNumber, password) is required"
+            status_code=400, detail="At least one field (name, phone_number, password) is required"
         )
 
     caller_school = current_user.get("school_id", "")
     updates: dict[str, Any] = {}
     if body.name:
         updates["name"] = body.name.strip()
-    if body.phoneNumber:
-        updates["phone"] = body.phoneNumber
+    if body.phone_number:
+        updates["phone"] = body.phone_number
     if body.password:
         updates["hashed_password"] = hash_password(body.password)
 
@@ -65,7 +65,7 @@ async def update_teacher(
 )
 async def delete_teacher(
     teacher_id: str,
-    current_user: dict[str, Any] = Depends(require_role("school_admin", "content_creator")),
+    current_user: dict[str, Any] = Depends(require_role("school_admin")),
     service: UserService = Depends(get_user_service),
 ) -> MessageResponse:
     caller_school = current_user.get("school_id", "")

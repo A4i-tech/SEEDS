@@ -7,15 +7,15 @@ from pydantic import BaseModel
 
 class StudentCreateRequest(BaseModel):
     name: str
-    phoneNumber: str
+    phone_number: str
 
 
 class StudentUpdateRequest(BaseModel):
     name: str | None = None
-    phoneNumber: str | None = None
+    phone_number: str | None = None
 
 
 class TeacherUpdateRequest(BaseModel):
     name: str | None = None
-    phoneNumber: str | None = None
+    phone_number: str | None = None
     password: str | None = None

@@ -9,7 +9,7 @@ export const API_ENDPOINTS = {
   GET_AUDIO_CONTENT: `${BASE_URL}/content`,
   GET_CONTENT: `${BASE_URL}/content`,
   GET_CONTENT_SAS_URL: `${BASE_URL}/content/sasUrl`,
-  HEALTH_PING: `${BASE_URL}/health/ping`,
+  HEALTH_PING: `${BASE_URL}/health`,
   CLASSROOM: {
     GET_ALL: `${BASE_URL}/class`,
     GET_BY_ID: (classId) => `${BASE_URL}/class/${classId}`,
@@ -26,7 +26,7 @@ export const API_ENDPOINTS = {
     UNMUTE: (confId, phone) => `${CONF_BASE}/unmuteparticipant/${confId}?phone_number=${phone}`,
     MUTE_ALL: (confId) => `${CONF_BASE}/muteall/${confId}`,
     UNMUTE_ALL: (confId) => `${CONF_BASE}/unmuteall/${confId}`,
-    PLAY_AUDIO: (confId, url) => `${CONF_BASE}/playaudio/${confId}?url=${url}`,
+    PLAY_AUDIO: (confId, url) => `${CONF_BASE}/playaudio/${confId}?url=${encodeURIComponent(url)}`,
     PAUSE_AUDIO: (confId) => `${CONF_BASE}/pauseaudio/${confId}`,
     RESUME_AUDIO: (confId) => `${CONF_BASE}/resumeaudio/${confId}`,
     SEEK_AUDIO: (confId) => `${CONF_BASE}/seekaudio/${confId}`,

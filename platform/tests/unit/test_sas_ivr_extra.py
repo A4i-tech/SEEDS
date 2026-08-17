@@ -5,9 +5,11 @@ FSM quiz/pure_audio instantiation stubs, and confevents event classes.
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+from tests.support import mongomock_async
 
 # ---------------------------------------------------------------------------
 # SAS service — offline path coverage
@@ -30,13 +32,15 @@ class TestSASService:
         svc._key_expiry_time = None
         return svc
 
-    def test_disabled_returns_original(self) -> None:
+    @pytest.mark.asyncio
+    async def test_disabled_returns_original(self) -> None:
         svc = self._make_sas(enabled=False)
         url = "https://example.blob.core.windows.net/container/file.mp3"
-        result = svc.get_url_with_sas(url)
+        result = await svc.get_url_with_sas(url)
         assert result == url
 
-    def test_disabled_any_url_passthrough(self) -> None:
+    @pytest.mark.asyncio
+    async def test_disabled_any_url_passthrough(self) -> None:
         svc = self._make_sas(enabled=False)
         urls = [
             "https://myaccount.blob.core.windows.net/audio/test.mp3",
@@ -44,29 +48,53 @@ class TestSASService:
             "",
         ]
         for url in urls:
-            assert svc.get_url_with_sas(url) == url
+            assert await svc.get_url_with_sas(url) == url
 
-    def test_enabled_malformed_url_falls_back(self) -> None:
+    @pytest.mark.asyncio
+    async def test_enabled_malformed_url_falls_back(self) -> None:
         svc = self._make_sas(enabled=True, use_key=True)
         # URL with fewer than 2 path parts — should fall back to original
         url = "https://myaccount.blob.core.windows.net/onlycontainer"
-        result = svc.get_url_with_sas(url)
-        # Either fell back to original or raised ValueError, either way no crash
-        assert isinstance(result, str)
+        result = await svc.get_url_with_sas(url)
+        assert result == url
 
-    def test_get_user_delegation_key_uses_account_key(self) -> None:
+    @pytest.mark.asyncio
+    async def test_get_user_delegation_key_uses_account_key(self) -> None:
         svc = self._make_sas(enabled=True, use_key=True)
         # Should return None when using account key
-        result = svc._get_user_delegation_key(MagicMock())
+        result = await svc._get_user_delegation_key(AsyncMock())
         assert result is None
 
-    def test_enabled_with_bad_azure_import_falls_back(self) -> None:
+    @pytest.mark.asyncio
+    async def test_get_user_delegation_key_awaits_client(self) -> None:
+        svc = self._make_sas(enabled=True, use_key=False)
+        client = AsyncMock()
+        client.get_user_delegation_key.return_value = "udk"
+        result = await svc._get_user_delegation_key(client)
+        client.get_user_delegation_key.assert_awaited_once()
+        assert result == "udk"
+
+    @pytest.mark.asyncio
+    async def test_close_releases_client_and_credential(self) -> None:
+        svc = self._make_sas(enabled=True, use_key=False)
+        svc._blob_service_client = AsyncMock()
+        svc._credential = AsyncMock()
+        client, credential = svc._blob_service_client, svc._credential
+
+        await svc.close()
+
+        client.close.assert_awaited_once()
+        credential.close.assert_awaited_once()
+        assert svc._blob_service_client is None
+        assert svc._credential is None
+
+    @pytest.mark.asyncio
+    async def test_enabled_with_bad_azure_import_falls_back(self) -> None:
         svc = self._make_sas(enabled=True, use_key=True)
         url = "https://myaccount.blob.core.windows.net/container/file.mp3"
-        # Azure not configured in test env → should fall back to original URL
-        result = svc.get_url_with_sas(url)
-        # Result is the original URL (fallback on exception)
-        assert isinstance(result, str)
+        with patch.object(svc, "_get_blob_service_client", side_effect=ImportError("azure sdk missing")):
+            result = await svc.get_url_with_sas(url)
+        assert result == url
 
 
 # ---------------------------------------------------------------------------
@@ -77,8 +105,7 @@ class TestSASService:
 class TestIVRServiceStructure:
     @pytest.fixture
     def db(self):
-        import mongomock_motor
-        client = mongomock_motor.AsyncMongoMockClient()
+        client = mongomock_async.AsyncMongoMockClient()
         return client["test_ivr_svc"]
 
     @pytest.mark.asyncio
@@ -131,8 +158,7 @@ class TestIVRServiceStructure:
 class TestIVRStartCallFlow:
     @pytest.fixture
     def db(self):
-        import mongomock_motor
-        client = mongomock_motor.AsyncMongoMockClient()
+        client = mongomock_async.AsyncMongoMockClient()
         return client["test_ivr_start"]
 
     @pytest.mark.asyncio
@@ -277,9 +303,9 @@ class TestClassroomModel:
     def test_classroom_create(self) -> None:
         from app.models.requests.school_requests import ClassroomCreate
 
-        c = ClassroomCreate(name="Class 5A", schoolId="s1", teacher="teacher1")
+        c = ClassroomCreate(name="Class 5A", school_id="s1", teacher="teacher1")
         assert c.name == "Class 5A"
-        assert c.schoolId == "s1"
+        assert c.school_id == "s1"
 
     def test_classroom_from_mongo_none(self) -> None:
         from app.models.classroom import Classroom
@@ -321,7 +347,7 @@ class TestContentModel:
         c = ContentCreate(
             type="audio",
             language="english",
-            tenantId="t1",
+            tenant_id="t1",
         )
         assert c.type == "audio"
         assert c.language == "english"
@@ -364,8 +390,7 @@ class TestConferenceStateModel:
 class TestClassroomRepository:
     @pytest.fixture
     def db(self):
-        import mongomock_motor
-        client = mongomock_motor.AsyncMongoMockClient()
+        client = mongomock_async.AsyncMongoMockClient()
         return client["test_classroom_repo"]
 
     @pytest.mark.asyncio
@@ -374,7 +399,7 @@ class TestClassroomRepository:
         from app.repositories.classroom_repository import ClassroomRepository
 
         repo = ClassroomRepository(db)
-        classroom = ClassroomCreate(name="Class 1", schoolId="s1", teacher="t1")
+        classroom = ClassroomCreate(name="Class 1", school_id="s1", teacher="t1")
         created = await repo.create(classroom)
         assert created is not None
         assert created.name == "Class 1"
@@ -385,9 +410,9 @@ class TestClassroomRepository:
         from app.repositories.classroom_repository import ClassroomRepository
 
         repo = ClassroomRepository(db)
-        await repo.create(ClassroomCreate(name="Class A", schoolId="s1", teacher="t1"))
-        await repo.create(ClassroomCreate(name="Class B", schoolId="s1", teacher="t1"))
-        await repo.create(ClassroomCreate(name="Class C", schoolId="s2", teacher="t1"))
+        await repo.create(ClassroomCreate(name="Class A", school_id="s1", teacher="t1"))
+        await repo.create(ClassroomCreate(name="Class B", school_id="s1", teacher="t1"))
+        await repo.create(ClassroomCreate(name="Class C", school_id="s2", teacher="t1"))
 
         results = await repo.find_by_school("s1")
         assert len(results) == 2
@@ -398,8 +423,8 @@ class TestClassroomRepository:
         from app.repositories.classroom_repository import ClassroomRepository
 
         repo = ClassroomRepository(db)
-        await repo.create(ClassroomCreate(name="Class X", schoolId="s1", teacher="t1"))
-        await repo.create(ClassroomCreate(name="Class Y", schoolId="s1", teacher="t2"))
+        await repo.create(ClassroomCreate(name="Class X", school_id="s1", teacher="t1"))
+        await repo.create(ClassroomCreate(name="Class Y", school_id="s1", teacher="t2"))
 
         results = await repo.find_by_teacher("t1")
         assert len(results) == 1
@@ -413,8 +438,7 @@ class TestClassroomRepository:
 class TestIVRRepository:
     @pytest.fixture
     def db(self):
-        import mongomock_motor
-        client = mongomock_motor.AsyncMongoMockClient()
+        client = mongomock_async.AsyncMongoMockClient()
         return client["test_ivr_repo"]
 
     @pytest.mark.asyncio
@@ -463,8 +487,7 @@ class TestIVRRepository:
 class TestComprehensionRepository:
     @pytest.fixture
     def db(self):
-        import mongomock_motor
-        client = mongomock_motor.AsyncMongoMockClient()
+        client = mongomock_async.AsyncMongoMockClient()
         return client["test_comp_repo"]
 
     @pytest.mark.asyncio

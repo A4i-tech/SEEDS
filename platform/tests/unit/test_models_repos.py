@@ -1,18 +1,18 @@
 """Unit tests for domain models and repositories.
 
-Uses mongomock-motor for all repository tests — no real MongoDB required.
+Uses the mongomock-based async shim for all repository tests — no real MongoDB required.
 """
 from __future__ import annotations
 
 import pytest
 from bson import ObjectId
-from mongomock_motor import AsyncMongoMockClient
 from pydantic import ValidationError
 
 from app.models.user import User, UserCreate, UserRole
 from app.repositories.conference_repository import ConferenceRepository
 from app.repositories.content_repository import ContentRepository
 from app.repositories.user_repository import UserRepository
+from tests.support.mongomock_async import AsyncMongoMockClient
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -21,7 +21,7 @@ from app.repositories.user_repository import UserRepository
 
 @pytest.fixture
 def mock_db():
-    """Return an in-memory mongomock-motor database."""
+    """Return an in-memory mongomock-backed async database."""
     client = AsyncMongoMockClient()
     return client["test_seeds"]
 
@@ -214,26 +214,26 @@ async def test_content_repository_find_by_tenant(content_repo):
         [
             {
                 "_id": "content-1",
-                "tenantId": tenant_oid,
+                "tenant_id": tenant_oid,
                 "type": "story",
                 "language": "en",
-                "isDeleted": False,
+                "is_deleted": False,
                 "creation_time": 100,
             },
             {
                 "_id": "content-2",
-                "tenantId": tenant_oid,
+                "tenant_id": tenant_oid,
                 "type": "song",
                 "language": "hi",
-                "isDeleted": True,
+                "is_deleted": True,
                 "creation_time": 200,
             },
             {
                 "_id": "content-3",
-                "tenantId": other_oid,  # noqa: F821
+                "tenant_id": other_oid,  # noqa: F821
                 "type": "story",
                 "language": "en",
-                "isDeleted": False,
+                "is_deleted": False,
                 "creation_time": 150,
             },
         ]
@@ -251,16 +251,19 @@ async def test_content_repository_find_by_tenant(content_repo):
 @pytest.mark.asyncio
 async def test_content_repository_find_by_class(content_repo):
     """find_by_class returns only the requested content IDs."""
+    from bson import ObjectId
+
+    id_a, id_b, id_c = str(ObjectId()), str(ObjectId()), str(ObjectId())
     await content_repo._col.insert_many(
         [
-            {"_id": "c-a", "type": "story", "language": "en", "is_deleted": False},
-            {"_id": "c-b", "type": "quiz", "language": "hi", "is_deleted": False},
-            {"_id": "c-c", "type": "song", "language": "en", "is_deleted": False},
+            {"_id": ObjectId(id_a), "type": "story", "language": "en", "is_deleted": False},
+            {"_id": ObjectId(id_b), "type": "quiz", "language": "hi", "is_deleted": False},
+            {"_id": ObjectId(id_c), "type": "song", "language": "en", "is_deleted": False},
         ]
     )
-    results = await content_repo.find_by_class(["c-a", "c-c"])
+    results = await content_repo.find_by_class([id_a, id_c])
     ids = {r.id for r in results}
-    assert ids == {"c-a", "c-c"}
+    assert ids == {id_a, id_c}
 
 
 # ---------------------------------------------------------------------------

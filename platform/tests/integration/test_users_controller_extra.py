@@ -14,13 +14,13 @@ os.environ.setdefault("ENV", "development")
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from mongomock_motor import AsyncMongoMockClient
 
 from app.main import app
 from app.models.user import UserRole
 from app.platform.auth.dependencies import get_db
 from app.platform.auth.hashing import hash_password
 from app.platform.auth.jwt import create_access_token
+from tests.support.mongomock_async import AsyncMongoMockClient
 
 
 @pytest_asyncio.fixture
@@ -28,7 +28,7 @@ async def mock_db():
     client = AsyncMongoMockClient()
     db = client["seeds_test_users_extra"]
     yield db
-    client.close()
+    await client.close()
 
 
 @pytest_asyncio.fixture
@@ -73,7 +73,7 @@ class TestUsersControllerExtra:
         token = _school_admin_token(teacher["_id"])
         resp = await client.post("/student", json={
             "name": "",
-            "phoneNumber": "+919999999995",
+            "phone_number": "+919999999995",
         }, headers={"Authorization": f"Bearer {token}"})
         # Empty name should fail
         assert resp.status_code in (400, 422)
@@ -84,7 +84,7 @@ class TestUsersControllerExtra:
         token = _school_admin_token(teacher["_id"])
         resp = await client.post("/student", json={
             "name": "New Student",
-            "phoneNumber": "+919999999993",
+            "phone_number": "+919999999993",
         }, headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code in (200, 201, 409)
         if resp.status_code in (200, 201):
@@ -128,11 +128,11 @@ class TestUsersControllerExtra:
         # Create a student first
         resp = await client.post("/student", json={
             "name": "Update Target",
-            "phoneNumber": "+919999999992",
+            "phone_number": "+919999999992",
         }, headers={"Authorization": f"Bearer {token}"})
 
         if resp.status_code in (200, 201):
-            student_id = resp.json().get("_id")
+            student_id = resp.json().get("id")
             if student_id:
                 # Update the student
                 update_resp = await client.patch(f"/student/{student_id}", json={
@@ -148,11 +148,11 @@ class TestUsersControllerExtra:
         # Create then delete
         resp = await client.post("/student", json={
             "name": "Delete Target",
-            "phoneNumber": "+919999999991",
+            "phone_number": "+919999999991",
         }, headers={"Authorization": f"Bearer {token}"})
 
         if resp.status_code in (200, 201):
-            student_id = resp.json().get("_id")
+            student_id = resp.json().get("id")
             if student_id:
                 del_resp = await client.delete(f"/student/{student_id}", headers={"Authorization": f"Bearer {token}"})
                 assert del_resp.status_code in (200, 204, 404)

@@ -1,13 +1,13 @@
 """Comprehension repository (ported from IVRv2 comprehension_repository.py).
 
-Adapted to use Motor AsyncIOMotorDatabase directly rather than the IDatabase interface.
+Adapted to use PyMongo's AsyncDatabase directly rather than the IDatabase interface.
 """
 from __future__ import annotations
 
 from typing import Any
 
 from bson import ObjectId
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.repositories.base_repository import BaseRepository
 
@@ -17,7 +17,7 @@ class ComprehensionRepository(BaseRepository):
 
     COLLECTION = "comprehensions"
 
-    def __init__(self, db: AsyncIOMotorDatabase) -> None:
+    def __init__(self, db: AsyncDatabase) -> None:
         self._col = db[self.COLLECTION]
 
     async def get_all_comprehensions(self) -> list[dict[str, Any]]:

@@ -8,6 +8,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from tests.support import mongomock_async
+
 # ---------------------------------------------------------------------------
 # _SimpleQuizData, _SimpleQuizQuestion, _SimpleURLText, _SimplePureAudioData
 # ---------------------------------------------------------------------------
@@ -51,12 +53,12 @@ class TestInstiDataClasses:
             "id": "quiz1",
             "language": "english",
             "theme": "Math",
-            "themeAudio": "http://theme.mp3",
+            "theme_audio": "http://theme.mp3",
             "title": "Quiz 1",
-            "localTitle": "Quiz 1",
-            "titleAudio": "http://title.mp3",
-            "positiveMarks": 2,
-            "negativeMarks": 0,
+            "local_title": "Quiz 1",
+            "title_audio": "http://title.mp3",
+            "positive_marks": 2,
+            "negative_marks": 0,
             "questions": [
                 {
                     "question": {"id": "q1", "url": "http://q1.mp3", "text": "1+1?"},
@@ -68,20 +70,20 @@ class TestInstiDataClasses:
         quiz = _SimpleQuizData(data)
         assert quiz.id == "quiz1"
         assert quiz.language == "english"
-        assert quiz.positiveMarks == 2
+        assert quiz.positive_marks == 2
         assert len(quiz.questions) == 1
 
     def test_simple_pure_audio_data(self) -> None:
         from app.services.fsm.instantiation.insti import _SimplePureAudioData
 
-        data = {"_id": "audio1", "audioUrl": "http://audio.mp3"}
+        data = {"_id": "audio1", "audio_url": "http://audio.mp3"}
         pa = _SimplePureAudioData(data)
         assert pa.id == "audio1"
 
     def test_simple_pure_audio_data_fallback_id(self) -> None:
         from app.services.fsm.instantiation.insti import _SimplePureAudioData
 
-        data = {"id": "audio2", "audioUrl": "http://audio2.mp3"}
+        data = {"id": "audio2", "audio_url": "http://audio2.mp3"}
         pa = _SimplePureAudioData(data)
         assert pa.id == "audio2"
 
@@ -147,8 +149,8 @@ class TestHandleTheme:
         from app.services.fsm.instantiation.insti import handle_theme
 
         content = [
-            {"language": "english", "theme": {"local": "Math", "english": "Math", "audioUrl": "http://math.mp3"}, "type": "audio"},
-            {"language": "english", "theme": {"local": "Science", "english": "Science", "audioUrl": "http://science.mp3"}, "type": "audio"},
+            {"language": "english", "theme": {"local": "Math", "english": "Math", "audio_url": "http://math.mp3"}, "type": "audio"},
+            {"language": "english", "theme": {"local": "Science", "english": "Science", "audio_url": "http://science.mp3"}, "type": "audio"},
         ]
         sorted_cats, values_to_urls, sorted_keys = handle_theme(content, "1.0", {"language": "english"})
         assert len(sorted_cats) >= 1
@@ -158,8 +160,8 @@ class TestHandleTheme:
         from app.services.fsm.instantiation.insti import handle_theme
 
         content = [
-            {"language": "english", "theme": {"local": "Math", "english": "Math", "audioUrl": "http://math.mp3"}, "type": "audio"},
-            {"language": "english", "theme": {"local": "Math", "english": "Math", "audioUrl": "http://math2.mp3"}, "type": "audio"},
+            {"language": "english", "theme": {"local": "Math", "english": "Math", "audio_url": "http://math.mp3"}, "type": "audio"},
+            {"language": "english", "theme": {"local": "Math", "english": "Math", "audio_url": "http://math2.mp3"}, "type": "audio"},
         ]
         sorted_cats, values_to_urls, sorted_keys = handle_theme(content, "1.0", {"language": "english"})
         # Should deduplicate Math
@@ -176,8 +178,8 @@ class TestHandleTitle:
         from app.services.fsm.instantiation.insti import handle_title
 
         content = [
-            {"language": "english", "theme": {"english": "Math"}, "title": {"local": "L1", "english": "L1", "audioUrl": "http://l1.mp3"}, "type": "audio", "audioUrl": "http://audio.mp3"},
-            {"language": "english", "theme": {"english": "Math"}, "title": {"local": "L2", "english": "L2", "audioUrl": "http://l2.mp3"}, "type": "audio", "audioUrl": "http://audio2.mp3"},
+            {"language": "english", "theme": {"english": "Math"}, "title": {"local": "L1", "english": "L1", "audio_url": "http://l1.mp3"}, "type": "audio", "audio_url": "http://audio.mp3"},
+            {"language": "english", "theme": {"english": "Math"}, "title": {"local": "L2", "english": "L2", "audio_url": "http://l2.mp3"}, "type": "audio", "audio_url": "http://audio2.mp3"},
         ]
         sorted_cats, values_to_urls, sorted_keys = handle_title(content, "1.0", {"language": "english", "theme": "Math"})
         assert len(sorted_cats) >= 1
@@ -272,7 +274,7 @@ class TestContentModels:
     def test_text_content_creation(self) -> None:
         from app.models.content import TextContent
 
-        tc = TextContent(english="Math", local="Ganit", audioUrl="http://math.mp3")
+        tc = TextContent(english="Math", local="Ganit", audio_url="http://math.mp3")
         assert tc.english == "Math"
         assert tc.local == "Ganit"
 
@@ -285,11 +287,9 @@ class TestContentModels:
 class TestIVRServiceUtils:
     @pytest.mark.asyncio
     async def test_get_ivr_structure_empty_db(self) -> None:
-        import mongomock_motor
-
         from app.services.ivr_service import IVRService
 
-        client = mongomock_motor.AsyncMongoMockClient()
+        client = mongomock_async.AsyncMongoMockClient()
         db = client["test_ivr_struct"]
 
         try:
@@ -300,11 +300,9 @@ class TestIVRServiceUtils:
 
     @pytest.mark.asyncio
     async def test_process_dtmf_nonexistent_call(self) -> None:
-        import mongomock_motor
-
         from app.services.ivr_service import IVRService
 
-        client = mongomock_motor.AsyncMongoMockClient()
+        client = mongomock_async.AsyncMongoMockClient()
         db = client["test_dtmf"]
 
         try:
@@ -316,11 +314,9 @@ class TestIVRServiceUtils:
 
     @pytest.mark.asyncio
     async def test_process_call_event_nonexistent(self) -> None:
-        import mongomock_motor
-
         from app.services.ivr_service import IVRService
 
-        client = mongomock_motor.AsyncMongoMockClient()
+        client = mongomock_async.AsyncMongoMockClient()
         db = client["test_call_event"]
 
         mock_event = MagicMock()

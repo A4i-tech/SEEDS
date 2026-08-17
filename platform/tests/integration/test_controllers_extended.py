@@ -17,14 +17,15 @@ os.environ.setdefault("DB_CONNECTION", "")
 
 import pytest
 import pytest_asyncio
+from bson import ObjectId
 from httpx import ASGITransport, AsyncClient
-from mongomock_motor import AsyncMongoMockClient
 
 from app.main import app
 from app.models.user import UserRole
 from app.platform.auth.dependencies import get_db
 from app.platform.auth.hashing import hash_password
 from app.platform.auth.jwt import create_access_token
+from tests.support.mongomock_async import AsyncMongoMockClient
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -36,7 +37,7 @@ async def mock_db():
     client = AsyncMongoMockClient()
     db = client["seeds_test_ext"]
     yield db
-    client.close()
+    await client.close()
 
 
 @pytest_asyncio.fixture
@@ -51,14 +52,18 @@ async def client(mock_db):
     app.dependency_overrides.clear()
 
 
-async def _seed_teacher(mock_db, email="teacher@ext.com", password="pass1234", tenant_id="t1"):
+_TENANT_ID = str(ObjectId())
+_SCHOOL_ID = str(ObjectId())
+
+
+async def _seed_teacher(mock_db, email="teacher@ext.com", password="pass1234", tenant_id=_TENANT_ID):
     doc = {
         "role": UserRole.TEACHER.value,
         "name": "Ext Teacher",
         "email": email,
         "hashed_password": hash_password(password),
         "tenant_id": tenant_id,
-        "school_id": "s1",
+        "school_id": _SCHOOL_ID,
         "is_active": True,
     }
     result = await mock_db["users"].insert_one(doc)
@@ -66,28 +71,24 @@ async def _seed_teacher(mock_db, email="teacher@ext.com", password="pass1234", t
     return doc
 
 
-async def _seed_school(mock_db, email="admin@school.com", password="adminpass123", tenant_id="t1"):
+async def _seed_school(mock_db, email="admin@school.com", password="adminpass123", tenant_id=_TENANT_ID):
+    """Seed a school_admin user — schools are school_admin users in 'users', not a separate collection."""
     doc = {
-        "name": "Test School",
-        "email": email,
-        "password": hash_password(password),
-        "tenantId": tenant_id,
-        "isActive": True,
-    }
-    result = await mock_db["schools"].insert_one(doc)
-    school_id = str(result.inserted_id)
-    doc["_id"] = school_id
-    # Also seed a users record so get_school_admin_profile (UserRepository) can find it.
-    await mock_db["users"].insert_one({
-        "_id": result.inserted_id,
         "role": UserRole.SCHOOL_ADMIN.value,
         "name": "Test School",
         "email": email,
         "hashed_password": hash_password(password),
-        "school_id": school_id,
-        "tenant_id": tenant_id,
+        "tenant_id": ObjectId(tenant_id),
         "is_active": True,
-    })
+    }
+    result = await mock_db["users"].insert_one(doc)
+    doc["_id"] = str(result.inserted_id)
+    # A school_admin's own school_id self-references its user id (ObjectId, matching
+    # how UserRepository.create()/update() coerce tenant_id/school_id on write).
+    await mock_db["users"].update_one(
+        {"_id": result.inserted_id}, {"$set": {"school_id": result.inserted_id}}
+    )
+    doc["school_id"] = doc["_id"]
     return doc
 
 
@@ -105,12 +106,12 @@ async def _seed_tenant(mock_db, email="tenant@ext.com", password="tenantpass"):
     return doc
 
 
-def _teacher_token(user_id, tenant_id="t1", school_id="s1"):
+def _teacher_token(user_id, tenant_id=_TENANT_ID, school_id=_SCHOOL_ID):
     return create_access_token({"sub": user_id, "role": "teacher", "tenant_id": tenant_id, "school_id": school_id})
 
 
 def _tenant_token(user_id):
-    return create_access_token({"sub": user_id, "role": "tenant"})
+    return create_access_token({"sub": user_id, "role": "tenant", "tenant_id": user_id})
 
 
 # ---------------------------------------------------------------------------
@@ -124,7 +125,7 @@ class TestTenantAuth:
         resp = await client.post("/tenant/register", json={
             "email": "newt@ext.com",
             "password": "tenantpass",
-            "tenantName": "New Org",
+            "tenant_name": "New Org",
         })
         assert resp.status_code == 201
         data = resp.json()
@@ -134,8 +135,8 @@ class TestTenantAuth:
     @pytest.mark.asyncio
     async def test_tenant_login_success(self, client, mock_db):
         await _seed_tenant(mock_db)
-        resp = await client.post("/tenant/login", json={
-            "email": "tenant@ext.com",
+        resp = await client.post("/auth/login", json={
+            "identifier": "tenant@ext.com",
             "password": "tenantpass",
         })
         assert resp.status_code == 200
@@ -144,8 +145,8 @@ class TestTenantAuth:
     @pytest.mark.asyncio
     async def test_tenant_login_wrong_password(self, client, mock_db):
         await _seed_tenant(mock_db)
-        resp = await client.post("/tenant/login", json={
-            "email": "tenant@ext.com",
+        resp = await client.post("/auth/login", json={
+            "identifier": "tenant@ext.com",
             "password": "wrongpass",
         })
         assert resp.status_code == 401
@@ -163,7 +164,7 @@ class TestTenantAuth:
         assert resp.status_code == 200
         data = resp.json()
         assert data["email"] == "tenant@ext.com"
-        assert "tenantName" in data
+        assert "tenant_name" in data
 
     @pytest.mark.asyncio
     async def test_tenant_logout_requires_auth(self, client, mock_db):
@@ -197,22 +198,23 @@ class TestTenantAuth:
     @pytest.mark.asyncio
     async def test_school_admin_login(self, client, mock_db):
         await _seed_school(mock_db, email="admin@school.com", password="adminpass123")
-        resp = await client.post("/school/admin/login", json={
-            "email": "admin@school.com",
+        resp = await client.post("/auth/login", json={
+            "identifier": "admin@school.com",
             "password": "adminpass123",
         })
         assert resp.status_code == 200
         data = resp.json()
         assert "token" in data
+        assert "user" in data
 
     @pytest.mark.asyncio
     async def test_school_admin_me(self, client, mock_db):
-        school = await _seed_school(mock_db, email="admin2@school.com", tenant_id="t1")
+        school = await _seed_school(mock_db, email="admin2@school.com", tenant_id=_TENANT_ID)
         token = create_access_token({
             "sub": school["_id"],
             "role": "school_admin",
             "school_id": school["_id"],
-            "tenant_id": "t1",
+            "tenant_id": _TENANT_ID,
         })
         resp = await client.get("/school/admin/me", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 200
@@ -259,6 +261,7 @@ class TestSchoolController:
         token = _teacher_token(teacher["_id"])
         resp = await client.post("/class", json={
             "name": "Class 5A",
+            "students": ["s1"],
         }, headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 200
 
@@ -359,7 +362,7 @@ class TestAuditController:
         token = _teacher_token(teacher["_id"])
         resp = await client.post("/log", json=[{
             "user": teacher["_id"],
-            "logText": "test action",
+            "log_text": "test action",
             "time": "12:00",
             "priority": 1,
         }], headers={"Authorization": f"Bearer {token}"})
@@ -393,6 +396,6 @@ class TestTenantDashboard:
         tenant = await _seed_tenant(mock_db)
         token = _tenant_token(tenant["_id"])
         resp = await client.post("/tenant/change-password", json={
-            "newPassword": "newSecurePass123",
+            "new_password": "newSecurePass123",
         }, headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 200

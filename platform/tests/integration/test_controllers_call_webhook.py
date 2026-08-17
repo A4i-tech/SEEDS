@@ -18,13 +18,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from mongomock_motor import AsyncMongoMockClient
 
 from app.main import app
 from app.models.user import UserRole
 from app.platform.auth.dependencies import get_db
 from app.platform.auth.hashing import hash_password
 from app.platform.auth.jwt import create_access_token
+from tests.support.mongomock_async import AsyncMongoMockClient
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -36,7 +36,7 @@ async def mock_db():
     client = AsyncMongoMockClient()
     db = client["seeds_test_call"]
     yield db
-    client.close()
+    await client.close()
 
 
 @pytest_asyncio.fixture
@@ -270,7 +270,7 @@ class TestSchoolControllerCRUD:
             "password": "schoolpass",
         }, headers={"Authorization": f"Bearer {token}"})
         assert create_resp.status_code == 201
-        school_id = create_resp.json()["_id"]
+        school_id = create_resp.json()["id"]
 
         # Fetch it
         get_resp = await client.get(f"/school/{school_id}", headers={"Authorization": f"Bearer {token}"})
@@ -291,7 +291,7 @@ class TestSchoolControllerCRUD:
             "password": "schoolpass",
         }, headers={"Authorization": f"Bearer {token}"})
         assert create_resp.status_code == 201
-        school_id = create_resp.json()["_id"]
+        school_id = create_resp.json()["id"]
 
         del_resp = await client.delete(f"/school/{school_id}", headers={"Authorization": f"Bearer {token}"})
         assert del_resp.status_code in (200, 204)

@@ -1,4 +1,4 @@
-"""Quiz repository — Motor async data access for the quizData collection.
+"""Quiz repository — PyMongo async data access for the quizData collection.
 
 All public methods accept plain string IDs. ObjectId conversion for Mongoose-created
 fields (tenantId, schoolId) is handled here via the shared _oid helper.
@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import urllib.parse
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from bson import ObjectId
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.repositories.base_repository import BaseRepository
 from app.repositories.content_repository import _oid
@@ -17,7 +18,7 @@ from app.repositories.content_repository import _oid
 class QuizRepository(BaseRepository):
     COLLECTION = "quizData"
 
-    def __init__(self, db: AsyncIOMotorDatabase) -> None:
+    def __init__(self, db: AsyncDatabase) -> None:
         self._col = db[self.COLLECTION]
 
     # ------------------------------------------------------------------
@@ -27,14 +28,15 @@ class QuizRepository(BaseRepository):
     def _tenant_query(
         self,
         tenant_id: str,
-        school_id: str | None = None,
+        school_id: str | None,
+        strict: bool = False,
         include_deleted: bool = False,
     ) -> dict:
-        q: dict = {"tenantId": _oid(tenant_id)}
+        q: dict = {"tenant_id": _oid(tenant_id)}
         if not include_deleted:
-            q["isDeleted"] = {"$ne": True}
+            q["is_deleted"] = {"$ne": True}
         if school_id is not None:
-            q["schoolId"] = {"$in": [_oid(school_id), None]}
+            q["school_id"] = _oid(school_id) if strict else {"$in": [_oid(school_id), None]}
         return q
 
     # ------------------------------------------------------------------
@@ -47,7 +49,7 @@ class QuizRepository(BaseRepository):
         tenant_id: str,
         school_id: str | None = None,
     ) -> dict | None:
-        q = {**self._tenant_query(tenant_id, school_id), "_id": content_id}
+        q = {**self._tenant_query(tenant_id, school_id), "_id": ObjectId(content_id)}
         return await self._col.find_one(q)
 
     async def list_paginated(
@@ -65,10 +67,10 @@ class QuizRepository(BaseRepository):
         q = self._tenant_query(tenant_id, school_id)
 
         if only_teacher_app:
-            q["isTeacherApp"] = True
+            q["is_teacher_app"] = True
         elif language and theme and exp_name and exp_name.lower() == "quiz":
             q.update({
-                "isPullModel": True,
+                "is_pull_model": True,
                 "language": language,
                 "theme.english": urllib.parse.unquote(theme),
             })
@@ -84,7 +86,7 @@ class QuizRepository(BaseRepository):
         tenant_id: str,
         school_id: str | None = None,
     ) -> list[dict]:
-        q = {**self._tenant_query(tenant_id, school_id), "_id": {"$in": content_ids}}
+        q = {**self._tenant_query(tenant_id, school_id), "_id": {"$in": [ObjectId(i) for i in content_ids]}}
         return await self._col.find(q).to_list(length=None)
 
     # ------------------------------------------------------------------
@@ -92,11 +94,13 @@ class QuizRepository(BaseRepository):
     # ------------------------------------------------------------------
 
     async def insert(self, doc: dict) -> str:
-        """Insert a quiz document, coercing tenantId/schoolId to ObjectId."""
-        if doc.get("tenantId"):
-            doc["tenantId"] = _oid(doc["tenantId"])
-        if doc.get("schoolId"):
-            doc["schoolId"] = _oid(doc["schoolId"])
+        """Insert a quiz document, coercing tenant_id/school_id/created_by to ObjectId."""
+        if doc.get("tenant_id"):
+            doc["tenant_id"] = _oid(doc["tenant_id"])
+        if doc.get("school_id"):
+            doc["school_id"] = _oid(doc["school_id"])
+        if doc.get("created_by"):
+            doc["created_by"] = _oid(doc["created_by"])
         result = await self._col.insert_one(doc)
         return str(result.inserted_id)
 
@@ -108,8 +112,8 @@ class QuizRepository(BaseRepository):
         school_id: str | None = None,
     ) -> dict | None:
         from datetime import UTC, datetime
-        q = {**self._tenant_query(tenant_id, school_id), "_id": content_id}
-        updates["updatedAt"] = datetime.now(UTC)
+        q = {**self._tenant_query(tenant_id, school_id, strict=True), "_id": ObjectId(content_id)}
+        updates["updated_at"] = datetime.now(UTC)
         return await self._col.find_one_and_update(q, {"$set": updates}, return_document=True)
 
     async def soft_delete_by_id_and_tenant(
@@ -119,8 +123,8 @@ class QuizRepository(BaseRepository):
         school_id: str | None = None,
     ) -> int:
         from datetime import UTC, datetime
-        q = {**self._tenant_query(tenant_id, school_id), "_id": content_id}
+        q = {**self._tenant_query(tenant_id, school_id, strict=True), "_id": ObjectId(content_id)}
         result = await self._col.update_one(
-            q, {"$set": {"isDeleted": True, "updatedAt": datetime.now(UTC)}}
+            q, {"$set": {"is_deleted": True, "updated_at": datetime.now(UTC)}}
         )
         return result.matched_count

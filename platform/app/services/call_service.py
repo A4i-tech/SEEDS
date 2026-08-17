@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import Depends
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.platform.auth.dependencies import get_db
 from app.platform.error_handling import NotFoundError
@@ -13,7 +13,7 @@ from app.repositories.call_repository import CallRepository
 
 
 class CallService:
-    def __init__(self, db: AsyncIOMotorDatabase[Any]) -> None:
+    def __init__(self, db: AsyncDatabase[Any]) -> None:
         self._repo = CallRepository(db)
 
     async def log_call(self, body: dict[str, Any]) -> dict[str, Any]:
@@ -37,5 +37,5 @@ class CallService:
         return doc
 
 
-def get_call_service(db: AsyncIOMotorDatabase[Any] = Depends(get_db)) -> CallService:
+def get_call_service(db: AsyncDatabase[Any] = Depends(get_db)) -> CallService:
     return CallService(db)

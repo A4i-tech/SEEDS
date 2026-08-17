@@ -7,10 +7,10 @@ import StepDepthChart from "./StepDepthChart";
 
 const AnalyticsStats = ({ stats }) => {
   const statCards = [
-    { label: "Total Calls", value: stats.totalCalls, color: "#4CAF50" },
-    { label: "Unique Users", value: stats.uniqueUsers, color: "#2196F3" },
-    { label: "Average Duration", value: stats.avgDuration, color: "#FF9800" },
-    { label: "Total Duration", value: stats.totalDuration, color: "#9C27B0" },
+    { label: "Total Calls", value: stats.totalCalls, color: "var(--color-stat-green)" },
+    { label: "Unique Users", value: stats.uniqueUsers, color: "var(--color-stat-blue)" },
+    { label: "Average Duration", value: stats.avgDuration, color: "var(--color-stat-orange)" },
+    { label: "Total Duration", value: stats.totalDuration, color: "var(--color-stat-purple)" },
   ];
 
   const hasCallsByDate = Object.keys(stats.callsByDate).length > 0;
@@ -21,7 +21,7 @@ const AnalyticsStats = ({ stats }) => {
       <h3 className="stats-title">Summary Statistics</h3>
       <div className="stat-cards">
         {statCards.map((stat, index) => (
-          <div key={index} className="stat-card" style={{ borderLeftColor: stat.color }}>
+          <div key={index} className="stat-card" style={{ "--stat-accent": stat.color }}>
             <div className="stat-label">{stat.label}</div>
             <div className="stat-value">{stat.value}</div>
           </div>

@@ -16,64 +16,27 @@ import {
 } from "@mui/material";
 import { fetchAudioContent } from "../services/apiService";
 
-const extractItems = (response) => {
-  if (!response) {
-    return [];
-  }
-
-  if (Array.isArray(response)) {
-    return response;
-  }
-
-  const candidateArrays = ["data", "content", "items", "results"];
-
-  for (const key of candidateArrays) {
-    const collection = response?.[key];
-    if (Array.isArray(collection)) {
-      return collection;
-    }
-  }
-
-  return [];
-};
-
-const buildContentList = (response) => {
-  const rawItems = extractItems(response).filter((item) => item && item.isDeleted !== true);
-
+const buildContentList = (page) => {
   const contentList = [];
 
-  rawItems.forEach((item) => {
-    const itemId = item?._id;
-    const baseName = item?.title?.english || item?.title?.local || item?.title || "Unnamed Audio";
-
-    if (item?.audioContent && Array.isArray(item.audioContent)) {
-      item.audioContent.forEach((audio, index) => {
-        if (!audio?.audioUrl) {
+  page.items
+    .filter((item) => !item.is_deleted)
+    .forEach((item) => {
+      item.audio_content.forEach((audio, index) => {
+        if (!audio.audio_url) {
           return;
         }
 
         contentList.push({
-          id: `${itemId || "nested"}-${index}`,
-          name: audio?.title || `${baseName} #${index + 1}`,
-          url: audio.audioUrl,
-          description: audio?.description || item?.description,
-          type: audio?.type || item?.type,
-          language: audio?.language || item?.language,
+          id: `${item.id}-${index}`,
+          name: `${item.display_title} #${index + 1}`,
+          url: audio.audio_url,
+          description: audio.description || item.description,
+          type: item.type,
+          language: item.language,
         });
       });
-    }
-
-    if (item?.audioUrl) {
-      contentList.push({
-        id: `${itemId || "main"}-main`,
-        name: `${baseName} (Main)`,
-        url: item.audioUrl,
-        description: item?.description,
-        type: item?.type,
-        language: item?.language,
-      });
-    }
-  });
+    });
 
   return contentList;
 };

@@ -7,14 +7,14 @@ from pydantic import BaseModel
 
 class JobScheduledResponse(BaseModel):
     message: str
-    jobId: str
+    job_id: str
 
 
 class JobStatusResponse(BaseModel):
-    jobId: str | None = None
+    job_id: str | None = None
     status: str | None = "UNKNOWN"
-    contentId: str | None
-    startedAt: str | None
+    content_id: str | None
+    started_at: str | None
     reason: str | None
 
 
@@ -23,7 +23,7 @@ class SasUrlResponse(BaseModel):
 
 
 class SasTokenResponse(BaseModel):
-    sasToken: str | None = None
+    sas_token: str | None = None
 
 
 class DeleteMatchedResponse(BaseModel):
@@ -32,4 +32,4 @@ class DeleteMatchedResponse(BaseModel):
 
 class ThemeResponse(BaseModel):
     name: str | None
-    audioUrl: str | None = ""
+    audio_url: str | None = ""

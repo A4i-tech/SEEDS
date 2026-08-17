@@ -24,9 +24,9 @@ const AddStudentsForm = ({
           />
           <PhoneNumberInput
             placeholder="Phone number"
-            value={student.phoneNumber}
+            value={student.phone_number}
             onChange={(value) =>
-              onSetNewStudentValue(teacher._id, index, "phoneNumber", value)
+              onSetNewStudentValue(teacher._id, index, "phone_number", value)
             }
             className="add-students-input"
           />

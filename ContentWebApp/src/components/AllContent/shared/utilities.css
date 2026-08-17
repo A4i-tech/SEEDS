@@ -5,13 +5,6 @@
   font-weight: 600;
 }
 
-.filter-label {
-  margin-bottom: 6px;
-  color: #0f172a;
-  font-weight: 600;
-  font-size: 13px;
-}
-
 .placeholder-text {
   color: #94a3b8;
   font-size: 13px;
@@ -68,7 +61,7 @@
   width: 100%;
   border-radius: 8px;
   border: 1px solid #cbd5f5;
-  background-color: #ffffff;
+  background-color: var(--color-on-accent);
   padding: 10px;
   font-size: 14px;
   box-sizing: border-box;
@@ -88,11 +81,6 @@
     font-size: 13px;
   }
 
-  .filter-label {
-    margin-bottom: 7px;
-    font-size: 13px;
-  }
-
   .status-message {
     font-size: 13px;
     padding: 11px 24px;
@@ -108,7 +96,6 @@
   }
 
   .no-teachers {
-    border-radius: 14px;
     padding: 22px 20px;
     font-size: 15px;
   }
@@ -123,7 +110,6 @@
   }
 
   .input-field {
-    border-radius: 9px;
     padding: 11px;
     font-size: 14px;
   }
@@ -131,13 +117,8 @@
 
 /* Desktop+ */
 @media (min-width: 1024px) {
-  .label,
-  .filter-label {
+  .label {
     font-size: 14px;
-  }
-
-  .filter-label {
-    margin-bottom: 8px;
   }
 
   .status-message {
@@ -155,7 +136,6 @@
   }
 
   .no-teachers {
-    border-radius: 16px;
     padding: 24px;
     font-size: 16px;
   }
@@ -170,7 +150,6 @@
   }
 
   .input-field {
-    border-radius: 10px;
     padding: 12px;
     font-size: 15px;
   }

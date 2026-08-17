@@ -83,7 +83,6 @@ class User(BaseModel):
     # Timestamps
     created_at: datetime | None = None
     updated_at: datetime | None = None
-    legacy_created_at: int | None = Field(None, alias="creation_time")  # epoch ms
 
     @classmethod
     def from_mongo(cls, doc: dict) -> User:

@@ -1,18 +1,18 @@
-"""Conference repository — Motor async data access for conference state documents."""
+"""Conference repository — PyMongo async data access for conference state documents."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Any
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.conference_state import ConferenceCallState
 from app.repositories.base_repository import BaseRepository
 
 
 class ConferenceOwnershipRepository:
-    """Async Motor repository for the 'conferences' collection.
+    """Async PyMongo repository for the 'conferences' collection.
 
     Stores lightweight ownership metadata (created_by, tenant_id) used by
     auth dependencies to enforce conference ownership checks.
@@ -20,7 +20,7 @@ class ConferenceOwnershipRepository:
 
     COLLECTION = "conferences"
 
-    def __init__(self, db: AsyncIOMotorDatabase) -> None:  # type: ignore[type-arg]
+    def __init__(self, db: AsyncDatabase) -> None:  # type: ignore[type-arg]
         self._col = db[self.COLLECTION]
 
     async def create(
@@ -45,11 +45,11 @@ class ConferenceOwnershipRepository:
 
 
 class ConferenceRepository(BaseRepository):
-    """Async Motor repository for the 'conferenceState' collection."""
+    """Async PyMongo repository for the 'conferenceState' collection."""
 
     COLLECTION = "conferenceState"
 
-    def __init__(self, db: AsyncIOMotorDatabase) -> None:
+    def __init__(self, db: AsyncDatabase) -> None:
         self._col = db[self.COLLECTION]
 
     async def find_by_id(self, id: str) -> ConferenceCallState | None:

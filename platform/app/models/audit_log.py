@@ -18,13 +18,13 @@ class AuditLog(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: str | None = Field(None, alias="_id")
-    log_id: int | None = Field(None, alias="logId")
+    log_id: int | None = None
     user: str
-    log_text: str = Field(alias="logText")
+    log_text: str
     time: str
     priority: int
-    tenant_id: str | None = Field(None, alias="tenantId")
-    created_at: datetime | None = Field(None, alias="createdAt")
+    tenant_id: str | None = None
+    created_at: datetime | None = None
 
     @classmethod
     def from_mongo(cls, doc: dict) -> AuditLog:
@@ -47,11 +47,11 @@ class LogEntry(BaseModel):
     id: str | None = Field(None, alias="_id")
     path: str | None = None
     method: str | None = None
-    request_body: Any | None = Field(None, alias="requestBody")
-    response_body: Any | None = Field(None, alias="responseBody")
-    status_code: int | None = Field(None, alias="statusCode")
+    request_body: Any | None = None
+    response_body: Any | None = None
+    status_code: int | None = None
     timestamp: datetime | None = None
-    tenant_id: str | None = Field(None, alias="tenantId")
+    tenant_id: str | None = None
 
     @classmethod
     def from_mongo(cls, doc: dict) -> LogEntry:

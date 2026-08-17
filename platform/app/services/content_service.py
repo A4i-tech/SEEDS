@@ -8,18 +8,20 @@ from __future__ import annotations
 
 import logging
 import time
-import uuid
 from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import Depends
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.requests.content_requests import (
+    ContentCreate,
     ContentCreateRequest,
     ContentUpdateRequest,
+    QuizCreate,
     QuizCreateRequest,
 )
+from app.models.responses.content import AudioContent, QuizContent
 from app.platform.auth.dependencies import get_db
 from app.repositories.content_job_repository import ContentJobRepository
 from app.repositories.content_repository import ContentRepository
@@ -28,8 +30,21 @@ from app.repositories.quiz_repository import QuizRepository
 logger = logging.getLogger(__name__)
 
 
+def _sort_key(item: AudioContent | QuizContent) -> tuple:
+    return (-(item.creation_time or 0), item.id)
+
+
+def _merge_sorted(
+    contents: list[dict[str, Any]], quizzes: list[dict[str, Any]]
+) -> list[AudioContent | QuizContent]:
+    items: list[AudioContent | QuizContent] = [AudioContent.from_doc(d) for d in contents]
+    items += [QuizContent.from_doc(d) for d in quizzes]
+    items.sort(key=_sort_key)
+    return items
+
+
 class ContentService:
-    def __init__(self, db: AsyncIOMotorDatabase[Any]) -> None:
+    def __init__(self, db: AsyncDatabase[Any]) -> None:
         self._content_repo = ContentRepository(db)
         self._quiz_repo = QuizRepository(db)
         self._job_repo = ContentJobRepository(db)
@@ -69,8 +84,8 @@ class ContentService:
         only_teacher_app: bool,
         cursor: str | None,
         limit: int,
-    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-        """Return (content_docs, quiz_docs) for paginated list, each of length limit+1.
+    ) -> list[AudioContent | QuizContent]:
+        """Return merged, sorted results of length up to limit+1.
 
         Callers use len > limit to determine hasMore and slice to limit.
         """
@@ -101,30 +116,30 @@ class ContentService:
             )
             if fetch_quizzes else []
         )
-        return contents, quizzes
+        return _merge_sorted(contents, quizzes)
 
     async def list_content_by_ids(
         self,
         content_ids: list[str],
         tenant_id: str,
         school_id: str | None,
-    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    ) -> list[AudioContent | QuizContent]:
         contents = await self._content_repo.find_by_ids(content_ids, tenant_id, school_id)
         quizzes = await self._quiz_repo.find_by_ids(content_ids, tenant_id, school_id)
-        return contents, quizzes
+        return _merge_sorted(contents, quizzes)
 
     async def get_content_by_id(
         self,
         content_id: str,
         tenant_id: str,
         school_id: str | None,
-    ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
-        """Return (content_doc, quiz_doc) — at most one is non-None."""
+    ) -> AudioContent | QuizContent | None:
         doc = await self._content_repo.find_by_id_and_tenant(content_id, tenant_id, school_id)
         if doc:
-            return doc, None
+            return AudioContent.from_doc(doc)
         quiz = await self._quiz_repo.find_by_id_and_tenant(content_id, tenant_id, school_id)
-        return None, quiz
+        if quiz:
+            return QuizContent.from_doc(quiz)
 
     # ------------------------------------------------------------------
     # Content writes
@@ -136,33 +151,28 @@ class ContentService:
         tenant_id: str,
         user_id: str,
         school_id: str | None,
-        override_id: str | None = None,
     ) -> str:
-        for item in body.audioContent or []:
-            au = item.get("audioUrl", "")
+        for item in body.audio_content or []:
+            au = item.get("audio_url", "")
             if au and not au.lower().endswith(".mp3"):
                 raise ValueError("Only .mp3 audio files are allowed.")
 
-        doc: dict[str, Any] = {
-            "_id": override_id or str(uuid.uuid4()),
-            "type": body.type,
-            "language": body.language,
-            "title": body.title,
-            "theme": body.theme,
-            "audioContent": body.audioContent or [],
-            "description": body.description or "",
-            "isPullModel": body.isPullModel or False,
-            "isTeacherApp": body.isTeacherApp or False,
-            "tenantId": tenant_id,
-            "createdBy": user_id,
-            "creation_time": int(time.time()),
-            "schoolId": school_id,
-            "isDeleted": False,
-            "isProcessed": False,
-            "version": "v3",
-            "createdAt": datetime.now(UTC),
-            "updatedAt": datetime.now(UTC),
-        }
+        given = body.model_dump(
+            exclude_unset=True,
+            exclude={"type", "language", "tenant_id", "created_by", "school_id", "creation_time"},
+        )
+        dto = ContentCreate(
+            **given,
+            tenant_id=tenant_id,
+            type=body.type,
+            language=body.language,
+            created_by=user_id,
+            school_id=school_id,
+            creation_time=int(time.time()),
+        )
+        doc: dict[str, Any] = dto.model_dump()
+        doc["created_at"] = datetime.now(UTC)
+        doc["updated_at"] = datetime.now(UTC)
         return await self._content_repo.insert_raw(doc)
 
     async def update_content(
@@ -171,35 +181,34 @@ class ContentService:
         tenant_id: str,
         school_id: str | None,
         is_audio_uploaded: bool,
-    ) -> dict[str, Any] | None:
-        allowed = {"title", "theme", "description", "type", "language", "isPullModel", "isTeacherApp"}
-        body_dict = body.model_dump(by_alias=True, exclude_unset=True)
+    ) -> AudioContent | QuizContent | None:
+        allowed = {"title", "theme", "description", "type", "language", "is_pull_model", "is_teacher_app"}
+        body_dict = body.model_dump(exclude_unset=True)
         updates: dict[str, Any] = {k: v for k, v in body_dict.items() if k in allowed}
 
         if is_audio_uploaded:
-            if "audioContent" in body.model_fields_set:
-                for item in body.audioContent or []:
-                    au = item.get("audioUrl", "")
+            if "audio_content" in body.model_fields_set:
+                for item in body.audio_content or []:
+                    au = item.get("audio_url", "")
                     if au and not au.lower().endswith(".mp3"):
                         raise ValueError("Only .mp3 audio files are allowed.")
-                updates["audioContent"] = body.audioContent
-            updates["isProcessed"] = False
+                updates["audio_content"] = body.audio_content
+            updates["is_processed"] = False
 
         result = await self._content_repo.update_by_id_and_tenant(
             body.id, tenant_id, updates, school_id
         )
         if result:
-            return result
+            return AudioContent.from_doc(result)
 
         # Quiz lives in a separate collection; mirror delete_content's fallback.
-        quiz_allowed = allowed | {
-            "localTitle", "localTheme", "positiveMarks", "negativeMarks",
-            "questions", "options", "correctAnswers",
-        }
+        quiz_allowed = allowed | {"positive_marks", "negative_marks", "questions"}
         quiz_updates = {k: v for k, v in body_dict.items() if k in quiz_allowed}
-        return await self._quiz_repo.update_by_id_and_tenant(
+        quiz_result = await self._quiz_repo.update_by_id_and_tenant(
             body.id, tenant_id, quiz_updates, school_id
         )
+        if quiz_result:
+            return QuizContent.from_doc(quiz_result)
 
     async def delete_content(
         self,
@@ -226,28 +235,21 @@ class ContentService:
         tenant_id: str,
         user_id: str,
         school_id: str | None,
-        override_id: str | None = None,
     ) -> str:
-        body_dict = body.model_dump(by_alias=True, exclude_unset=True)
-        doc: dict[str, Any] = {
-            "_id": override_id or str(uuid.uuid4()),
-            "type": body.type,
-            "language": body.language,
-            "title": body_dict.get("title") or "",
-            "localTitle": body_dict.get("localTitle") or "",
-            "theme": body_dict.get("theme") or "",
-            "localTheme": body_dict.get("localTheme") or "",
-            "positiveMarks": body.positiveMarks or 1.0,
-            "negativeMarks": body.negativeMarks or 0.0,
-            "questions": body.questions or [],
-            "options": body.options or [],
-            "correctAnswers": body.correctAnswers or [],
-            "tenantId": tenant_id,
-            "createdBy": user_id,
-            "creation_time": int(time.time()),
-            "schoolId": school_id,
-            "isDeleted": False,
-        }
+        given = body.model_dump(
+            exclude_unset=True,
+            exclude={"type", "language", "tenant_id", "created_by", "school_id", "creation_time"},
+        )
+        dto = QuizCreate(
+            **given,
+            tenant_id=tenant_id,
+            type=body.type,
+            language=body.language,
+            created_by=user_id,
+            school_id=school_id,
+            creation_time=int(time.time()),
+        )
+        doc: dict[str, Any] = dto.model_dump()
         return await self._quiz_repo.insert(doc)
 
     # ------------------------------------------------------------------
@@ -278,5 +280,5 @@ def _parse_cursor(cursor: str | None) -> int | None:
     return None
 
 
-def get_content_service(db: AsyncIOMotorDatabase[Any] = Depends(get_db)) -> ContentService:
+def get_content_service(db: AsyncDatabase[Any] = Depends(get_db)) -> ContentService:
     return ContentService(db)

@@ -2,7 +2,7 @@
 Integration tests for backend Phase 2 — content, calls, audit controllers +
 content job consumer.
 
-Uses mongomock-motor (no real MongoDB) and httpx.AsyncClient.
+Uses the mongomock-based async shim (no real MongoDB) and httpx.AsyncClient.
 
 Coverage:
   - test_list_content_requires_auth
@@ -30,12 +30,13 @@ from datetime import UTC
 
 import pytest
 import pytest_asyncio
+from bson import ObjectId
 from httpx import ASGITransport, AsyncClient
-from mongomock_motor import AsyncMongoMockClient
 
 from app.main import app
 from app.platform.auth.dependencies import get_db
 from app.platform.auth.jwt import create_access_token
+from tests.support.mongomock_async import AsyncMongoMockClient
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -44,11 +45,11 @@ from app.platform.auth.jwt import create_access_token
 
 @pytest_asyncio.fixture
 async def mock_db():
-    """Return a mongomock-motor in-memory database."""
+    """Return a mongomock-backed in-memory async database."""
     client = AsyncMongoMockClient()
     db = client["seeds_test"]
     yield db
-    client.close()
+    await client.close()
 
 
 @pytest_asyncio.fixture
@@ -72,28 +73,33 @@ async def client(mock_db):
 # ---------------------------------------------------------------------------
 
 
+_TENANT_A_ID = str(ObjectId())
+_TENANT_B_ID = str(ObjectId())
+_SCHOOL_ID = str(ObjectId())
+
+
 def _teacher_token(
     user_id: str = "user001",
-    tenant_id: str = "tenant001",
-    school_id: str = "school001",
+    tenant_id: str = _TENANT_A_ID,
+    school_id: str = _SCHOOL_ID,
 ) -> str:
     return create_access_token(
         {"sub": user_id, "role": "teacher", "tenant_id": tenant_id, "school_id": school_id}
     )
 
 
-def _tenant_token(user_id: str = "tenant001") -> str:
+def _tenant_token(user_id: str = _TENANT_A_ID) -> str:
     return create_access_token({"sub": user_id, "role": "tenant", "tenant_id": user_id})
 
 
 def _content_creator_token(
     user_id: str = "creator001",
-    tenant_id: str = "tenant001",
+    tenant_id: str = _TENANT_A_ID,
 ) -> str:
     return create_access_token({"sub": user_id, "role": "content_creator", "tenant_id": tenant_id})
 
 
-def _tenant_b_token(user_id: str = "tenant_b") -> str:
+def _tenant_b_token(user_id: str = _TENANT_B_ID) -> str:
     return create_access_token({"sub": user_id, "role": "tenant", "tenant_id": user_id})
 
 
@@ -134,11 +140,11 @@ async def test_create_content_triggers_job(client, mock_db):
 
     assert resp.status_code == 201, f"Expected 201, got {resp.status_code}: {resp.text}"
     body = resp.json()
-    assert "jobId" in body, "Response must include jobId"
+    assert "job_id" in body, "Response must include job_id"
     assert body.get("message") == "Processing New Content job scheduled!"
 
     # Verify job record created in DB
-    job_doc = await mock_db["content_jobs"].find_one({"_id": body["jobId"]})
+    job_doc = await mock_db["content_jobs"].find_one({"_id": body["job_id"]})
     assert job_doc is not None, "Job document must exist in content_jobs collection"
     assert job_doc["status"] == "pending"
 
@@ -152,28 +158,28 @@ async def test_create_content_triggers_job(client, mock_db):
 async def test_content_tenant_scoped(client, mock_db):
     """A user from tenant_A cannot read tenant_B content via GET /content/{id}."""
     # Seed content for tenant_b
-    content_id = str(uuid.uuid4())
+    content_id = str(ObjectId())
     await mock_db["contentsV3"].insert_one({
-        "_id": content_id,
-        "tenantId": "tenant_b",
+        "_id": ObjectId(content_id),
+        "tenant_id": ObjectId(_TENANT_B_ID),
         "type": "Story",
         "language": "english",
         "title": {"english": "B Story"},
         "theme": {"english": "Animals"},
-        "audioContent": [],
-        "isPullModel": False,
-        "isDeleted": False,
+        "audio_content": [],
+        "is_pull_model": False,
+        "is_deleted": False,
         "creation_time": 1000,
     })
 
     # Tenant A tries to fetch tenant B's content
-    token_a = _tenant_token(user_id="tenant_a")
+    token_a = _tenant_token(user_id=_TENANT_A_ID)
     resp = await client.get(
         f"/content/{content_id}",
         headers={"Authorization": f"Bearer {token_a}"},
     )
     # Should return 404 (not found in tenant scope) which is the expected behavior
-    # since tenant scoping filters by tenantId = "tenant_a" but the doc has "tenant_b"
+    # since tenant scoping filters by tenant_id = "tenant_a" but the doc has "tenant_b"
     assert resp.status_code == 404, (
         f"Expected 404 (tenant isolation), got {resp.status_code}: {resp.text}"
     )
@@ -208,20 +214,20 @@ async def test_content_job_consumer_process_audio(mock_db):
     import tempfile
     from datetime import datetime
 
-    content_id = str(uuid.uuid4())
+    content_id = str(ObjectId())
     job_id = str(uuid.uuid4())
 
     # Seed a content document
     await mock_db["contentsV3"].insert_one({
-        "_id": content_id,
-        "tenantId": "tenant001",
+        "_id": ObjectId(content_id),
+        "tenant_id": ObjectId(_TENANT_A_ID),
         "type": "Story",
         "language": "kannada",
         "title": {"english": "Test", "local": "ಪರೀಕ್ಷೆ"},
         "theme": {"english": "Animals", "local": "ಪ್ರಾಣಿಗಳು"},
-        "audioContent": [{"audioUrl": "https://myaccount.blob.core.windows.net/input-container/test.mp3"}],
-        "isPullModel": False,
-        "isDeleted": False,
+        "audio_content": [{"audio_url": "https://myaccount.blob.core.windows.net/input-container/test.mp3"}],
+        "is_pull_model": False,
+        "is_deleted": False,
         "creation_time": 1000,
     })
 
@@ -281,20 +287,20 @@ async def test_content_job_dead_letter_on_failure(mock_db):
     """A job with a corrupt blob URL is dead-lettered: status=failed with reason set."""
     from datetime import datetime
 
-    content_id = str(uuid.uuid4())
+    content_id = str(ObjectId())
     job_id = str(uuid.uuid4())
 
     # Seed content with a bad audio URL (not a valid blob URL)
     await mock_db["contentsV3"].insert_one({
-        "_id": content_id,
-        "tenantId": "tenant001",
+        "_id": ObjectId(content_id),
+        "tenant_id": ObjectId(_TENANT_A_ID),
         "type": "Story",
         "language": "english",
         "title": {"english": "Broken"},
         "theme": {"english": "Errors"},
-        "audioContent": [{"audioUrl": "https://myaccount.blob.core.windows.net/input-container/corrupt.mp3"}],
-        "isPullModel": False,
-        "isDeleted": False,
+        "audio_content": [{"audio_url": "https://myaccount.blob.core.windows.net/input-container/corrupt.mp3"}],
+        "is_pull_model": False,
+        "is_deleted": False,
         "creation_time": 1000,
     })
 

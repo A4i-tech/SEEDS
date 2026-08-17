@@ -1,17 +1,17 @@
-"""IVR repository — Motor async data access for IVR FSM state and logs."""
+"""IVR repository — PyMongo async data access for IVR FSM state and logs."""
 from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.ivr_state import IVRCallStateMongoDoc, IVRfsmDoc
 from app.repositories.base_repository import BaseRepository
 
 
 class IVRRepository(BaseRepository):
-    """Async Motor repository for IVR FSM documents and call state logs.
+    """Async PyMongo repository for IVR FSM documents and call state logs.
 
     Collections:
       - 'ivrfsms'         : compiled FSM definitions (IVRfsmDoc)
@@ -25,7 +25,7 @@ class IVRRepository(BaseRepository):
     LOG_COLLECTION = "ivrv2logs"
     ONGOING_COLLECTION = "ongoingIVRState"
 
-    def __init__(self, db: AsyncIOMotorDatabase) -> None:
+    def __init__(self, db: AsyncDatabase) -> None:
         self._fsm_col = db[self.FSM_COLLECTION]
         self._radio_col = db[self.RADIO_COLLECTION]
         self._log_col = db[self.LOG_COLLECTION]

@@ -14,7 +14,7 @@ import logging
 from typing import Any
 
 from bson import ObjectId
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.platform.authz.audit import log_denial
 from app.platform.error_handling import ForbiddenError, NotFoundError
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 async def assert_conference_owner(
     current_user: dict[str, Any],
     conference_id: str,
-    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+    db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> None:
     """
     Verify that *current_user* is the creator of *conference_id*.

@@ -12,7 +12,7 @@ platform/
 │   ├── platform/                # Cross-cutting: settings, auth, logging, telemetry, error handling
 │   │   └── auth/                # JWT, bcrypt, Firebase + native providers, FastAPI deps
 │   ├── models/                  # Pydantic domain models (user, conference, ivr_state, content, …)
-│   ├── repositories/            # Motor async data access (one file per domain)
+│   ├── repositories/            # PyMongo async data access (one file per domain)
 │   ├── services/                # Business logic
 │   │   └── fsm/                 # IVR finite state machine engine
 │   ├── controllers/             # HTTP handlers grouped by function (not origin service)

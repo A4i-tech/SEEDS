@@ -1,4 +1,4 @@
-"""Base repository — shared utilities for all Motor async repositories."""
+"""Base repository — shared utilities for all PyMongo async repositories."""
 from __future__ import annotations
 
 from bson import ObjectId
@@ -18,3 +18,8 @@ class BaseRepository:
             return ObjectId(id_str)
         except Exception:
             return id_str
+
+    @classmethod
+    def _ids_query(cls, ids: list[str]) -> dict:
+        """$in match for a list of ids, coercing each to ObjectId when valid."""
+        return {"$in": [cls._to_id(i) for i in ids]}

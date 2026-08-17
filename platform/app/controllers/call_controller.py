@@ -12,7 +12,7 @@ from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.requests.call_requests import CallStartRequest, FsmContextRequest, LogCallRequest
 from app.platform.auth.dependencies import get_current_user, get_db, require_teacher
@@ -70,7 +70,7 @@ async def start_call(
 async def get_call_status(
     conf_id: str,
     user: dict[str, Any] = Depends(get_current_user),
-    db: AsyncIOMotorDatabase = Depends(get_db),  # type: ignore[type-arg]
+    db: AsyncDatabase = Depends(get_db),  # type: ignore[type-arg]
 ) -> Any:
     """Proxy status query to IVR server (backend-server callRouter.js:138)."""
     await assert_conference_owner(user, conf_id, db)
@@ -96,7 +96,7 @@ async def log_call(
     service: CallService = Depends(get_call_service),
 ) -> Any:
     """Save a call log entry (backend-server callRouter.js:171)."""
-    return await service.log_call(body.model_dump(by_alias=True))
+    return await service.log_call(body.model_dump())
 
 
 @router.post("/fsmContext", summary="Save FSM context for a call")
@@ -106,7 +106,7 @@ async def save_fsm_context(
     service: CallService = Depends(get_call_service),
 ) -> Any:
     """Save an FSM context document (backend-server callRouter.js:203)."""
-    return await service.save_fsm_context(body.model_dump(by_alias=True))
+    return await service.save_fsm_context(body.model_dump())
 
 
 @router.get("/fsmContext/{context_id}", summary="Get FSM context by ID")

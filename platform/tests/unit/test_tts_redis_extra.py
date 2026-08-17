@@ -253,8 +253,8 @@ class TestInstiGenerateAllStates:
         from app.services.fsm.instantiation.insti import handle_theme
 
         content = [
-            {"language": "english", "theme": {"local": "Math", "english": "Math", "audioUrl": "http://math.mp3"}, "type": "audio"},
-            {"language": "hindi", "theme": {"local": "Ganit", "english": "Math", "audioUrl": "http://math_hi.mp3"}, "type": "audio"},
+            {"language": "english", "theme": {"local": "Math", "english": "Math", "audio_url": "http://math.mp3"}, "type": "audio"},
+            {"language": "hindi", "theme": {"local": "Ganit", "english": "Math", "audio_url": "http://math_hi.mp3"}, "type": "audio"},
         ]
         sorted_cats, values_to_urls, sorted_keys = handle_theme(content, "1.0", {"language": "english"})
         # Only English content should be included

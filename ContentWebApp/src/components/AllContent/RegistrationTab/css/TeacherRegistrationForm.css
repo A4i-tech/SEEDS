@@ -4,7 +4,7 @@
   padding: 14px 16px;
   border: 1px solid var(--reg-border, #dbe2ef);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--color-on-accent);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -179,8 +179,8 @@
 
 .registration-select:focus {
   outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+  border-color: var(--color-focus-ring);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-focus-ring) 20%, transparent);
 }
 
 @media (min-width: 768px) {

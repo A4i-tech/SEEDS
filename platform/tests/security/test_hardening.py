@@ -28,10 +28,13 @@ from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from bson import ObjectId
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
+
+from tests.support import mongomock_async
 
 
 def _make_vonage_token(
@@ -360,19 +363,18 @@ def test_websocket_valid_secret_connects():
 @pytest.mark.asyncio
 async def test_content_job_retry_on_transient():
     """First 2 attempts raise ConnectionError (transient), 3rd succeeds → completed."""
-    import mongomock_motor
-
-    db_client = mongomock_motor.AsyncMongoMockClient()
+    db_client = mongomock_async.AsyncMongoMockClient()
     db = db_client["seeds"]
     jobs_col = db["content_jobs"]
     content_col = db["contentsV3"]
 
-    job_result = await jobs_col.insert_one({"status": "pending", "content_id": "content-trans"})
+    content_id = str(ObjectId())
+    job_result = await jobs_col.insert_one({"status": "pending", "content_id": content_id})
     job_id = job_result.inserted_id
     await content_col.insert_one({
-        "_id": "content-trans",
-        "audioContent": [{"audioUrl": "https://blob/input.mp3"}],
-        "isPullModel": False,
+        "_id": ObjectId(content_id),
+        "audio_content": [{"audio_url": "https://blob/input.mp3"}],
+        "is_pull_model": False,
     })
 
     job_doc = await jobs_col.find_one({"_id": job_id})
@@ -411,19 +413,18 @@ async def test_content_job_retry_on_transient():
 @pytest.mark.asyncio
 async def test_content_job_dead_letter_on_permanent():
     """Permanent error (ValueError) → status=failed, reason set, failed_at set."""
-    import mongomock_motor
-
-    db_client = mongomock_motor.AsyncMongoMockClient()
+    db_client = mongomock_async.AsyncMongoMockClient()
     db = db_client["seeds"]
     jobs_col = db["content_jobs"]
     content_col = db["contentsV3"]
 
-    job_result = await jobs_col.insert_one({"status": "pending", "content_id": "content-perm"})
+    content_id = str(ObjectId())
+    job_result = await jobs_col.insert_one({"status": "pending", "content_id": content_id})
     job_id = job_result.inserted_id
     await content_col.insert_one({
-        "_id": "content-perm",
-        "audioContent": [{"audioUrl": "https://blob/corrupt.mp3"}],
-        "isPullModel": False,
+        "_id": ObjectId(content_id),
+        "audio_content": [{"audio_url": "https://blob/corrupt.mp3"}],
+        "is_pull_model": False,
     })
 
     job_doc = await jobs_col.find_one({"_id": job_id})

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class SchoolCreateRequest(BaseModel):
@@ -18,17 +18,13 @@ class SchoolUpdateRequest(BaseModel):
 
 
 class TeacherTransferRequest(BaseModel):
-    teacherId: str
-    targetSchoolId: str
-
-    model_config = {"populate_by_name": True}
+    teacher_id: str
+    target_school_id: str
 
 
 class SchoolAnalyticsRequest(BaseModel):
-    startDate: str
-    endDate: str
-
-    model_config = {"populate_by_name": True}
+    start_date: str
+    end_date: str
 
 
 class ClassroomUpsertRequest(BaseModel):
@@ -36,27 +32,37 @@ class ClassroomUpsertRequest(BaseModel):
     name: str | None = None
     students: list[str] = Field(default_factory=list)
     leaders: list[str] = Field(default_factory=list)
-    contentIds: list[str] = Field(default_factory=list)
+    content_ids: list[str] = Field(default_factory=list)
 
     model_config = {"populate_by_name": True}
 
+    @model_validator(mode="after")
+    def _require_name_and_students_on_create(self) -> ClassroomUpsertRequest:
+        """Only enforced for create (id is None) — update is a partial patch."""
+        if self.id is None:
+            if not (self.name or "").strip():
+                raise ValueError("name is required")
+            if not self.students:
+                raise ValueError("at least one student is required")
+        return self
+
 
 class ClassroomCreate(BaseModel):
-    """CamelCase create DTO — model_dump() writes correct DB keys directly."""
+    """Snake_case create DTO — model_dump() writes correct DB keys directly."""
 
-    schoolId: str
+    school_id: str
     name: str
     teacher: str
     students: list[str] = Field(default_factory=list)
     leaders: list[str] = Field(default_factory=list)
-    contentIds: list[str] = Field(default_factory=list)
+    content_ids: list[str] = Field(default_factory=list)
 
 
 class SchoolCreate(BaseModel):
-    """CamelCase create DTO — model_dump() writes correct DB keys directly."""
+    """Snake_case create DTO — model_dump() writes correct DB keys directly."""
 
-    tenantId: str
+    tenant_id: str
     name: str
     email: str
     password: str | None = None
-    isActive: bool = True
+    is_active: bool = True

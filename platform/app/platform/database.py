@@ -1,5 +1,5 @@
 """
-Database module - AsyncIOMotorClient singleton.
+Database module - AsyncMongoClient singleton.
 
 SECURITY: Connection string is never logged; errors mask the full URI.
 """
@@ -9,14 +9,15 @@ from __future__ import annotations
 import logging
 from urllib.parse import urlparse
 
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+from pymongo import AsyncMongoClient
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.platform.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
-_client: AsyncIOMotorClient | None = None  # type: ignore[type-arg]
-_database: AsyncIOMotorDatabase | None = None  # type: ignore[type-arg]
+_client: AsyncMongoClient | None = None  # type: ignore[type-arg]
+_database: AsyncDatabase | None = None  # type: ignore[type-arg]
 
 
 def _extract_db_name(connection_string: str) -> str:
@@ -35,7 +36,7 @@ def _extract_db_name(connection_string: str) -> str:
 
 
 async def init_database() -> None:
-    """Initialise the Motor client.  Called once from lifespan startup."""
+    """Initialise the PyMongo async client.  Called once from lifespan startup."""
     global _client, _database  # noqa: PLW0603
 
     settings = get_settings()
@@ -48,7 +49,7 @@ async def init_database() -> None:
         return
 
     try:
-        _client = AsyncIOMotorClient(
+        _client = AsyncMongoClient(
             conn_str,
             maxPoolSize=settings.mongo_max_pool_size,
             serverSelectionTimeoutMS=5_000,
@@ -66,17 +67,17 @@ async def init_database() -> None:
 
 
 async def close_database() -> None:
-    """Close the Motor client.  Called once from lifespan shutdown."""
+    """Close the PyMongo async client.  Called once from lifespan shutdown."""
     global _client, _database  # noqa: PLW0603
 
     if _client is not None:
-        _client.close()
+        await _client.close()
         logger.info("MongoDB connection closed.")
         _client = None
         _database = None
 
 
-def get_database() -> AsyncIOMotorDatabase:  # type: ignore[type-arg]
+def get_database() -> AsyncDatabase:  # type: ignore[type-arg]
     """
     Return the active database instance.
 

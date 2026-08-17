@@ -78,8 +78,8 @@ const Profile = () => {
         method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify({
-          currentPassword: passwordData.currentPassword,
-          newPassword: passwordData.newPassword,
+          current_password: passwordData.currentPassword,
+          new_password: passwordData.newPassword,
         }),
       });
 
@@ -137,7 +137,7 @@ const Profile = () => {
                     <input
                       className="profile-input profile-input-disabled"
                       type="text"
-                      value={profile.name || ""}
+                      value={profile.name}
                       disabled
                     />
                   </div>
@@ -146,7 +146,7 @@ const Profile = () => {
                     <input
                       className="profile-input profile-input-disabled"
                       type="tel"
-                      value={profile.phoneNumber || ""}
+                      value={profile.phone_number || ""}
                       disabled
                     />
                   </div>
@@ -179,7 +179,7 @@ const Profile = () => {
                     <input
                       className="profile-input profile-input-disabled"
                       type="text"
-                      value={profile.name || ""}
+                      value={profile.name}
                       disabled
                     />
                   </div>

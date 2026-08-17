@@ -44,8 +44,7 @@ const ContentDetails = () => {
       const contentData = await getContentById(contentId);
       setContent(contentData);
 
-      // Determine audio URL priority
-      const audioSource = getAudioSource(contentData);
+      const audioSource = contentData.primary_audio_url;
       if (audioSource) {
         await fetchSasUrl(audioSource);
       } else {
@@ -63,20 +62,6 @@ const ContentDetails = () => {
   useEffect(() => {
     fetchContent();
   }, [fetchContent]);
-
-  const getAudioSource = (contentData) => {
-    // Priority: audioContent[0] > title.audioUrl > theme.audioUrl
-    if (contentData.audioContent && contentData.audioContent.length > 0) {
-      return contentData.audioContent[0].audioUrl;
-    }
-    if (contentData.title?.audioUrl) {
-      return contentData.title.audioUrl;
-    }
-    if (contentData.theme?.audioUrl) {
-      return contentData.theme.audioUrl;
-    }
-    return null;
-  };
 
   const fetchSasUrl = async (url) => {
     try {
@@ -111,7 +96,7 @@ const ContentDetails = () => {
     const nextContent = contentList[nextIndex];
 
     // Navigate to next content
-    navigate(ROUTES.CONTENT_DETAILS(nextContent._id), {
+    navigate(ROUTES.CONTENT_DETAILS(nextContent.id), {
       state: {
         contentList,
         currentIndex: nextIndex,
@@ -120,8 +105,6 @@ const ContentDetails = () => {
   };
 
   const getContentIcon = () => {
-    if (!content) return <MenuBookIcon />;
-
     const type = content.type?.toLowerCase() || "";
     if (type === "song" || type === "rhyme" || type === "poem") {
       return <LibraryMusicIcon />;
@@ -130,20 +113,19 @@ const ContentDetails = () => {
   };
 
   const formatContentTitle = () => {
-    if (!content) return "Unknown";
-    if (content.title?.english && content.title?.local) {
+    if (content.title.english && content.title.local) {
       return `${content.title.english} (${content.title.local})`;
     }
-    return content.title?.english || content.title?.local || "Untitled Content";
+    return content.display_title;
   };
 
   const formatContentType = () => {
-    if (!content || !content.type) return "";
+    if (!content.type) return "";
     return content.type.charAt(0).toUpperCase() + content.type.slice(1).toLowerCase();
   };
 
   const formatLanguage = () => {
-    if (!content || !content.language) return "";
+    if (!content.language) return "";
     return getLanguageLabel(content.language);
   };
 

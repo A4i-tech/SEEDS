@@ -15,10 +15,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from mongomock_motor import AsyncMongoMockClient
 
 from app.main import app
 from app.platform.auth.dependencies import get_db
+from tests.support.mongomock_async import AsyncMongoMockClient
 
 
 @pytest_asyncio.fixture
@@ -26,7 +26,7 @@ async def mock_db():
     client = AsyncMongoMockClient()
     db = client["seeds_test_webhook_extra"]
     yield db
-    client.close()
+    await client.close()
 
 
 @pytest_asyncio.fixture

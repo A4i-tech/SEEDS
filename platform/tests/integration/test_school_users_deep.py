@@ -14,13 +14,13 @@ os.environ.setdefault("ENV", "development")
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from mongomock_motor import AsyncMongoMockClient
 
 from app.main import app
 from app.models.user import UserRole
 from app.platform.auth.dependencies import get_db
 from app.platform.auth.hashing import hash_password
 from app.platform.auth.jwt import create_access_token
+from tests.support.mongomock_async import AsyncMongoMockClient
 
 
 @pytest_asyncio.fixture
@@ -28,7 +28,7 @@ async def mock_db():
     client = AsyncMongoMockClient()
     db = client["seeds_test_su_deep"]
     yield db
-    client.close()
+    await client.close()
 
 
 @pytest_asyncio.fixture
@@ -216,7 +216,7 @@ class TestUsersControllerDeep:
         token = _school_admin_token(teacher["_id"])
         resp = await client.post("/student", json={
             "name": "Test Student",
-            "phoneNumber": "+919999999998",
+            "phone_number": "+919999999998",
         }, headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code in (200, 201, 409, 422)
 
@@ -228,13 +228,13 @@ class TestUsersControllerDeep:
         # Create first
         await client.post("/student", json={
             "name": "Student A",
-            "phoneNumber": "+919999999997",
+            "phone_number": "+919999999997",
         }, headers={"Authorization": f"Bearer {token}"})
 
         # Try to create duplicate
         resp2 = await client.post("/student", json={
             "name": "Student B",
-            "phoneNumber": "+919999999997",
+            "phone_number": "+919999999997",
         }, headers={"Authorization": f"Bearer {token}"})
         # Second should fail with conflict
         assert resp2.status_code in (200, 201, 409, 422)

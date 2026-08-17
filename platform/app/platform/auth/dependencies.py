@@ -15,7 +15,7 @@ from typing import Any
 
 from fastapi import Depends, Request
 from fastapi.security import OAuth2PasswordBearer
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.platform.auth.jwt import verify_token
 from app.platform.auth.providers.firebase_provider import verify_firebase_token
@@ -35,8 +35,8 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token", auto_error=False)
 # ---------------------------------------------------------------------------
 
 
-async def get_db() -> AsyncGenerator[AsyncIOMotorDatabase, None]:  # type: ignore[type-arg]
-    """Yield the active Motor database instance."""
+async def get_db() -> AsyncGenerator[AsyncDatabase, None]:  # type: ignore[type-arg]
+    """Yield the active PyMongo async database instance."""
     yield get_database()
 
 
@@ -139,7 +139,7 @@ require_tenant = require_role("tenant")
 async def require_conference_owner(
     conference_id: str,
     user: dict[str, Any] = Depends(get_current_user),
-    db: AsyncIOMotorDatabase = Depends(get_db),  # type: ignore[type-arg]
+    db: AsyncDatabase = Depends(get_db),  # type: ignore[type-arg]
 ) -> dict[str, Any]:
     """
     Verify that the authenticated user is the owner (created_by) of the

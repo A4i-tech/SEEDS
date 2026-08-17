@@ -73,7 +73,7 @@ import subprocess  # nosec B404 — used safely with list form, no shell=True
 import tempfile
 from pathlib import Path
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.repositories.content_job_repository import ContentJobRepository
 from app.repositories.content_repository import ContentRepository
@@ -293,7 +293,7 @@ async def _extract_duration(wav_path: str) -> float | None:
 async def _process_tts_for_content(content_doc: dict, blob_provider) -> None:
     """Generate and upload TTS audio for title and theme of *content_doc*.
 
-    Mutates *content_doc* in-place with updated audioUrl fields.
+    Mutates *content_doc* in-place with updated audio_url fields.
     """
     from app.services import tts_service  # noqa: PLC0415
 
@@ -310,7 +310,7 @@ async def _process_tts_for_content(content_doc: dict, blob_provider) -> None:
         url = await blob_provider.upload_file(
             "experience-titles", f"{content_id}/1.0.mp3", audio_bytes, "audio/mpeg"
         )
-        content_doc["title"] = {**title, "audioUrl": url}
+        content_doc["title"] = {**title, "audio_url": url}
 
     # Theme TTS
     theme = content_doc.get("theme", {})
@@ -323,9 +323,9 @@ async def _process_tts_for_content(content_doc: dict, blob_provider) -> None:
         try:
             container_client = blob_provider.get_container_client("theme-titles")
             blob_client = container_client.get_blob_client(theme_blob_name)
-            blob_client.get_blob_properties()
+            await blob_client.get_blob_properties()
             # Exists — reuse
-            content_doc["theme"] = {**theme, "audioUrl": blob_client.url}
+            content_doc["theme"] = {**theme, "audio_url": blob_client.url}
             logger.info("content_job: reusing existing theme audio theme=%s", theme_english)
         except Exception:  # noqa: BLE001
             # Does not exist — generate
@@ -335,7 +335,7 @@ async def _process_tts_for_content(content_doc: dict, blob_provider) -> None:
                 url = await blob_provider.upload_file(
                     "theme-titles", theme_blob_name, audio_bytes, "audio/mpeg"
                 )
-                content_doc["theme"] = {**theme, "audioUrl": url}
+                content_doc["theme"] = {**theme, "audio_url": url}
 
 
 # ---------------------------------------------------------------------------
@@ -371,10 +371,10 @@ async def _process_audio_content_job(
                 raise RuntimeError(f"Content document not found: {content_id}")
 
             # Process each audio item
-            audio_content = content_doc.get("audioContent", [])
+            audio_content = content_doc.get("audio_content", [])
             updated_audio = []
             for item in audio_content:
-                audio_url = item.get("audioUrl", "")
+                audio_url = item.get("audio_url", "")
                 if not audio_url:
                     updated_audio.append(item)
                     continue
@@ -385,21 +385,21 @@ async def _process_audio_content_job(
                     continue
 
                 new_url, duration = await _process_audio_item(audio_url, str(content_id), blob_provider)
-                updated_item = {**item, "audioUrl": new_url}
+                updated_item = {**item, "audio_url": new_url}
                 if duration is not None:
-                    updated_item["durationSeconds"] = duration
+                    updated_item["duration_seconds"] = duration
                 updated_audio.append(updated_item)
 
-            content_doc["audioContent"] = updated_audio
+            content_doc["audio_content"] = updated_audio
 
             # TTS for pull-model content
-            if content_doc.get("isPullModel"):
+            if content_doc.get("is_pull_model"):
                 await _process_tts_for_content(content_doc, blob_provider)
 
             # Save updated content
             update_fields: dict = {
-                "audioContent": content_doc["audioContent"],
-                "isProcessed": True,
+                "audio_content": content_doc["audio_content"],
+                "is_processed": True,
             }
             if "title" in content_doc:
                 update_fields["title"] = content_doc["title"]
@@ -459,7 +459,7 @@ class ContentJobConsumer:
     To be started as an asyncio background task from the lifespan.
     """
 
-    def __init__(self, db: AsyncIOMotorDatabase) -> None:
+    def __init__(self, db: AsyncDatabase) -> None:
         self._db = db
         self._running = False
 

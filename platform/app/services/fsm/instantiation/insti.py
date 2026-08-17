@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 import uuid
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.ivr_state import IVRfsmDoc
 from app.platform.settings import get_settings
@@ -118,7 +118,7 @@ def handle_theme(
     sorted_keys: list = []
     for theme in themes:
         theme_items = [item for item in filtered_content if item["theme"]["local"] == theme]
-        complete_url = theme_items[0]["theme"]["audioUrl"]
+        complete_url = theme_items[0]["theme"]["audio_url"]
         values_to_urls[theme] = complete_url
         sorted_categories.append(complete_url)
         sorted_keys.append(theme)
@@ -165,10 +165,10 @@ def handle_title(
     sorted_keys: list = []
 
     if is_quiz:
-        titles = sorted({item["localTitle"] for item in filtered_content})
+        titles = sorted({item["local_title"] for item in filtered_content})
         for title in titles:
-            quiz_items = [item for item in filtered_content if item["localTitle"] == title]
-            complete_url = quiz_items[0]["titleAudio"]
+            quiz_items = [item for item in filtered_content if item["local_title"] == title]
+            complete_url = quiz_items[0]["title_audio"]
             values_to_urls[title] = complete_url
             sorted_categories.append(complete_url)
             sorted_keys.append(title)
@@ -176,7 +176,7 @@ def handle_title(
         titles = sorted({item["title"]["local"] for item in filtered_content})
         for title in titles:
             title_items = [item for item in filtered_content if item["title"]["local"] == title]
-            complete_url = title_items[0]["title"]["audioUrl"]
+            complete_url = title_items[0]["title"]["audio_url"]
             values_to_urls[title] = complete_url
             sorted_categories.append(complete_url)
             sorted_keys.append(title)
@@ -468,13 +468,13 @@ def generate_states(
 
 async def instantiate_from_latest_content(
     content_ids: list[str] | None = None,
-    db: AsyncIOMotorDatabase | None = None,
+    db: AsyncDatabase | None = None,
 ) -> FSM:
     """Build an FSM from MongoDB pull-model content.
 
     Args:
         content_ids: Optional list of content IDs to restrict to.
-        db: Motor database instance.  If None, retrieves from app.platform.database.
+        db: PyMongo async database instance.  If None, retrieves from app.platform.database.
 
     Returns:
         A fully constructed FSM instance.
@@ -486,11 +486,11 @@ async def instantiate_from_latest_content(
     if content_ids:
         query: dict = {
             "_id": {"$in": content_ids},
-            "isPullModel": True,
-            "isDeleted": {"$ne": True},
+            "is_pull_model": True,
+            "is_deleted": {"$ne": True},
         }
     else:
-        query = {"isPullModel": True, "isDeleted": {"$ne": True}}
+        query = {"is_pull_model": True, "is_deleted": {"$ne": True}}
 
     cursor = db["contentsV3"].find(query)
     content = await cursor.to_list(length=None)
@@ -520,12 +520,12 @@ class _SimpleQuizData:
         self.id = data.get("id", "")
         self.language = data.get("language", "")
         self.theme = data.get("theme", "")
-        self.themeAudio = data.get("themeAudio", "")
+        self.theme_audio = data.get("theme_audio", "")
         self.title = data.get("title", "")
-        self.localTitle = data.get("localTitle", "")
-        self.titleAudio = data.get("titleAudio", "")
-        self.positiveMarks = data.get("positiveMarks", 1)
-        self.negativeMarks = data.get("negativeMarks", 0)
+        self.local_title = data.get("local_title", "")
+        self.title_audio = data.get("title_audio", "")
+        self.positive_marks = data.get("positive_marks", 1)
+        self.negative_marks = data.get("negative_marks", 0)
         self.questions = [_SimpleQuizQuestion(q) for q in data.get("questions", [])]
 
 
@@ -553,26 +553,26 @@ class _SimplePureAudioData:
         self.title = type("_T", (), {
             "english": title_data.get("english", ""),
             "local": title_data.get("local", ""),
-            "audioUrl": title_data.get("audioUrl", ""),
+            "audio_url": title_data.get("audio_url", ""),
         })()
         theme_data = data.get("theme", {})
         self.theme = type("_Th", (), {
             "english": theme_data.get("english", ""),
             "local": theme_data.get("local", ""),
-            "audioUrl": theme_data.get("audioUrl", ""),
+            "audio_url": theme_data.get("audio_url", ""),
         })()
-        audio_content = data.get("audioContent", [])
-        self.audioContent = [
+        audio_content = data.get("audio_content", [])
+        self.audio_content = [
             type("_AC", (), {
                 "description": ac.get("description", ""),
-                "audioUrl": ac.get("audioUrl", ""),
-                "durationSeconds": ac.get("durationSeconds"),
+                "audio_url": ac.get("audio_url", ""),
+                "duration_seconds": ac.get("duration_seconds"),
             })()
             for ac in audio_content
         ]
-        self.isPullModel = data.get("isPullModel", False)
-        self.isTeacherApp = data.get("isTeacherApp", False)
-        self.createdBy = data.get("createdBy", "")
+        self.is_pull_model = data.get("is_pull_model", False)
+        self.is_teacher_app = data.get("is_teacher_app", False)
+        self.created_by = data.get("created_by", "")
         self.creation_time = data.get("creation_time", 0)
-        self.isDeleted = data.get("isDeleted", False)
+        self.is_deleted = data.get("is_deleted", False)
         self.school_id = data.get("school_id", "")

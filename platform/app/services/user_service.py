@@ -13,7 +13,7 @@ import logging
 from typing import Any
 
 from fastapi import Depends
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.user import User, UserCreate, UserRole
 from app.platform.auth.dependencies import get_db
@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 async def get_user(
     user_id: str,
     current_user: dict[str, Any],
-    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+    db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> User:
     """
     Fetch a single user by ID.
@@ -55,7 +55,7 @@ async def get_user(
 async def list_users_by_tenant(
     tenant_id: str,
     current_user: dict[str, Any],
-    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+    db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> list[User]:
     """Return all users belonging to *tenant_id*.
 
@@ -70,7 +70,7 @@ async def list_users_by_tenant(
 async def get_participants(
     conference_id: str,
     current_user: dict[str, Any],
-    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+    db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> list[User]:
     """
     Return participant users for a given conference.
@@ -112,7 +112,7 @@ async def update_user(
     user_id: str,
     updates: dict[str, Any],
     current_user: dict[str, Any],
-    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+    db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> User:
     """
     Apply *updates* to the user identified by *user_id*.
@@ -138,7 +138,7 @@ async def update_user(
 async def delete_user(
     user_id: str,
     current_user: dict[str, Any],
-    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+    db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> bool:
     """
     Delete a user by ID.
@@ -162,7 +162,7 @@ async def delete_user(
 
 
 class UserService:
-    def __init__(self, db: AsyncIOMotorDatabase[Any]) -> None:
+    def __init__(self, db: AsyncDatabase[Any]) -> None:
         self._db = db
         self._repo = UserRepository(db)
 
@@ -258,5 +258,5 @@ class UserService:
         ]
 
 
-def get_user_service(db: AsyncIOMotorDatabase[Any] = Depends(get_db)) -> UserService:
+def get_user_service(db: AsyncDatabase[Any] = Depends(get_db)) -> UserService:
     return UserService(db)

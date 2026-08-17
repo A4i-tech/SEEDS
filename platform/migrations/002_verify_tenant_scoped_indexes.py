@@ -26,6 +26,8 @@ import os
 import sys
 from typing import Any
 
+from pymongo import AsyncMongoClient
+
 # ---------------------------------------------------------------------------
 # Allow running from project root without installing the package.
 # ---------------------------------------------------------------------------
@@ -66,9 +68,7 @@ async def verify(mongo_uri: str) -> bool:
 
     Returns True if all checks pass, False otherwise.
     """
-    from motor.motor_asyncio import AsyncIOMotorClient  # noqa: PLC0415
-
-    client: AsyncIOMotorClient = AsyncIOMotorClient(mongo_uri)  # type: ignore[type-arg]
+    client: AsyncMongoClient = AsyncMongoClient(mongo_uri)
     try:
         db_name = client.get_default_database().name if "/" in mongo_uri.rsplit("?", 1)[0] else "seeds"
     except Exception:
@@ -159,7 +159,7 @@ async def verify(mongo_uri: str) -> bool:
             for label in passed:
                 print(f"  ✓ {label}")
 
-    client.close()
+    await client.close()
     return all_passed
 
 

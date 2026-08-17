@@ -1,24 +1,24 @@
-"""User repository — Motor async data access for the users collection."""
+"""User repository — PyMongo async data access for the users collection."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.user import User, UserCreate
 from app.repositories.base_repository import BaseRepository
 
 
 class UserRepository(BaseRepository):
-    """Async Motor repository for the 'users' collection.
+    """Async PyMongo repository for the 'users' collection.
 
     Never raises on not-found; callers decide to raise HTTPException / NotFoundError.
     """
 
     COLLECTION = "users"
 
-    def __init__(self, db: AsyncIOMotorDatabase) -> None:
+    def __init__(self, db: AsyncDatabase) -> None:
         self._col = db[self.COLLECTION]
 
     # ------------------------------------------------------------------
@@ -45,8 +45,19 @@ class UserRepository(BaseRepository):
         return User.from_mongo(doc) if doc else None
 
     async def find_by_school_id_and_tenant_id(self, school_id: str, tenant_id: str) -> User | None:
-        """Find a user by their Firebase UID."""
-        doc = await self._col.find_one({"school_id": school_id, "tenant_id": tenant_id})
+        """Find the school_admin user for a school_id and tenant_id.
+
+        Filters by role="school_admin" — teachers/students share the same
+        school_id/tenant_id as their school's admin, so without this filter
+        find_one() can return any of them, not necessarily the admin.
+        """
+        doc = await self._col.find_one(
+            {
+                "school_id": self._to_id(school_id),
+                "tenant_id": self._to_id(tenant_id),
+                "role": "school_admin",
+            }
+        )
         return User.from_mongo(doc) if doc else None
 
     async def find_by_firebase_uid(self, uid: str) -> User | None:
@@ -56,7 +67,13 @@ class UserRepository(BaseRepository):
 
     async def find_all_by_tenant(self, tenant_id: str) -> list[User]:
         """Return all users belonging to a tenant."""
-        cursor = self._col.find({"tenant_id": tenant_id})
+        cursor = self._col.find({"tenant_id": self._to_id(tenant_id)})
+        docs = await cursor.to_list(length=None)
+        return [User.from_mongo(d) for d in docs]
+
+    async def find_all_by_tenant_and_role(self, tenant_id: str, role: str) -> list[User]:
+        """Return all users belonging to a tenant, filtered to a single role."""
+        cursor = self._col.find({"tenant_id": self._to_id(tenant_id), "role": role})
         docs = await cursor.to_list(length=None)
         return [User.from_mongo(d) for d in docs]
 
@@ -71,15 +88,25 @@ class UserRepository(BaseRepository):
 
     async def count_by_school_and_role(self, school_id: str, role: str) -> int:
         """Return count of users with the given school_id and role."""
-        return await self._col.count_documents({"school_id": school_id, "role": role})
+        return await self._col.count_documents({"school_id": self._to_id(school_id), "role": role})
 
     # ------------------------------------------------------------------
     # Write
     # ------------------------------------------------------------------
+    @classmethod
+    def _coerce_refs(cls, doc: dict) -> dict:
+        """Coerce tenant_id/school_id to ObjectId when present — matches how
+        _to_id()-based read queries (find_all_by_tenant, count_by_school_and_role,
+        find_all_by_tenant_and_role) filter on these fields."""
+        for key in ("tenant_id", "school_id"):
+            if doc.get(key) is not None:
+                doc[key] = cls._to_id(doc[key])
+        return doc
+
     async def create(self, user: UserCreate) -> User:
         """Insert a new user and return the persisted document."""
         now = datetime.now(UTC)
-        doc = user.model_dump(by_alias=False)
+        doc = self._coerce_refs(user.model_dump(by_alias=False))
         doc["created_at"] = now
         doc["updated_at"] = now
         result = await self._col.insert_one(doc)
@@ -91,6 +118,7 @@ class UserRepository(BaseRepository):
 
         Returns None when the document is not found.
         """
+        updates = self._coerce_refs(updates)
         updates["updated_at"] = datetime.now(UTC)
         result = await self._col.find_one_and_update(
             {"_id": self._to_id(id)},

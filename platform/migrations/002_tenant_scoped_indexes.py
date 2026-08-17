@@ -45,6 +45,8 @@ import os
 import sys
 from typing import Any
 
+from pymongo import ASCENDING, DESCENDING, AsyncMongoClient
+
 # ---------------------------------------------------------------------------
 # Allow running from project root without installing the package.
 # ---------------------------------------------------------------------------
@@ -97,12 +99,9 @@ def _describe_index(collection: str, key_spec: list[tuple[str, int]], options: d
 
 async def migrate(mongo_uri: str, dry_run: bool) -> None:
     """Create all tenant-scoped compound indexes."""
-    from motor.motor_asyncio import AsyncIOMotorClient  # noqa: PLC0415
-    from pymongo import ASCENDING, DESCENDING  # noqa: PLC0415
-
     direction_map = {1: ASCENDING, -1: DESCENDING}
 
-    client: AsyncIOMotorClient = AsyncIOMotorClient(mongo_uri)  # type: ignore[type-arg]
+    client: AsyncMongoClient = AsyncMongoClient(mongo_uri)
     try:
         db_name = client.get_default_database().name if "/" in mongo_uri.rsplit("?", 1)[0] else "seeds"
     except Exception:
@@ -111,6 +110,7 @@ async def migrate(mongo_uri: str, dry_run: bool) -> None:
     db = client[db_name]
 
     created = 0
+    failures = 0
     for collection_name, key_spec, options in INDEX_SPECS:
         pymongo_keys = [(field, direction_map[direction]) for field, direction in key_spec]
         description = _describe_index(collection_name, key_spec, options)
@@ -125,7 +125,7 @@ async def migrate(mongo_uri: str, dry_run: bool) -> None:
                 created += 1
             except Exception as exc:
                 print(f"  ERROR: {collection_name} index failed — {exc}")
-                client.close()
+                await client.close()
                 sys.exit(1)
 
     if dry_run:
@@ -133,7 +133,10 @@ async def migrate(mongo_uri: str, dry_run: bool) -> None:
     else:
         print(f"\nMigration complete — {created}/{len(INDEX_SPECS)} index(es) created/verified.")
 
-    client.close()
+    await client.close()
+
+    if failures:
+        sys.exit(1)
 
 
 def _resolve_mongo_uri(cli_uri: str | None) -> str:

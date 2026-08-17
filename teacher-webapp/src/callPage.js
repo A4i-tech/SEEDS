@@ -102,7 +102,7 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
     } catch (error) {
       console.error("Error toggling mute:", error);
       showToast.error(
-        `Failed to ${userToUpdate.is_muted ? "unmute" : "mute"} ${userToUpdate.name || "Participant"}. Please try again.`
+        `Failed to ${userToUpdate.is_muted ? "unmute" : "mute"} ${userToUpdate.name}. Please try again.`
       );
     } finally {
       setLoadingIds((prev) => prev.filter((id) => id !== phoneNumber));
@@ -130,13 +130,12 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
       // Track conference session in history
       if (classroomId && classroomName) {
         const allParticipants = getAllParticipants();
-        const studentCount = allParticipants.filter((p) => p?.role === "Student").length;
+        const student_count = allParticipants.filter((p) => p.role === "Student").length;
 
         addSessionToHistory({
-          groupId: classroomId,
-          groupName: classroomName,
-          studentCount: studentCount > 0 ? studentCount : 0,
-          wasConference: true,
+          group_id: classroomId,
+          group_name: classroomName,
+          student_count,
         });
       }
 
@@ -157,13 +156,12 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
       // Track conference session in history
       if (classroomId && classroomName) {
         const allParticipants = getAllParticipants();
-        const studentCount = allParticipants.filter((p) => p?.role === "Student").length;
+        const student_count = allParticipants.filter((p) => p.role === "Student").length;
 
         addSessionToHistory({
-          groupId: classroomId,
-          groupName: classroomName,
-          studentCount: studentCount > 0 ? studentCount : 0,
-          wasConference: true,
+          group_id: classroomId,
+          group_name: classroomName,
+          student_count,
         });
       }
 
@@ -234,7 +232,7 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
       return;
     }
 
-    if (!Array.isArray(selectedPhoneNumbers) || selectedPhoneNumbers.length === 0) {
+    if (selectedPhoneNumbers.length === 0) {
       showToast.error("No participants selected");
       return;
     }
@@ -319,10 +317,6 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
       showToast.error("Conference ID is missing");
       return;
     }
-    if (!participant || !participant.phoneNumber) {
-      showToast.error("Invalid participant");
-      return;
-    }
     setRemoveConfirmParticipant(participant);
   };
 
@@ -332,7 +326,7 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
     const participant = removeConfirmParticipant;
     if (!participant || !confId) return;
 
-    const participantName = participant.name || participant.phoneNumber;
+    const participantName = participant.name;
     const phoneNumber = participant.phoneNumber;
     setRemovingIds((prev) => [...prev, phoneNumber]);
     setRemoveConfirmParticipant(null);
@@ -351,15 +345,12 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
 
   // Filter out students who are already in the call (using centralized participantsMap)
   const allParticipants = getAllParticipants();
-  const availableStudents = (allClassroomStudents || []).filter((student) => {
-    if (!student) return false;
-
-    const studentPhone = normalizePhoneNumber(student.phoneNumber || student.phone_number);
+  const availableStudents = allClassroomStudents.filter((student) => {
+    const studentPhone = normalizePhoneNumber(student.phone_number);
     if (!studentPhone) return false;
 
     // Check if student is already in the call using centralized state
     const isAlreadyInCall = allParticipants.some((participant) => {
-      if (!participant) return false;
       const participantPhone = normalizePhoneNumber(participant.phoneNumber);
       return participantPhone && participantPhone === studentPhone;
     });
@@ -483,7 +474,7 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
         <DialogContent>
           <DialogContentText id="remove-participant-dialog-description">
             {removeConfirmParticipant
-              ? `Are you sure you want to remove ${removeConfirmParticipant.name || removeConfirmParticipant.phoneNumber} from the conference?`
+              ? `Are you sure you want to remove ${removeConfirmParticipant.name} from the conference?`
               : ""}
           </DialogContentText>
         </DialogContent>

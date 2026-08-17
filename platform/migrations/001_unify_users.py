@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Migration 001 — Unify teachers, students, and tenants into the users collection.
+Migration 001 — Unify teachers, students, tenants, and schools into the users collection.
 
 Usage:
     python migrations/001_unify_users.py [--dry-run] [--mongo-uri URI]
@@ -16,12 +16,13 @@ Idempotent:
 
 Field renames applied:
     phoneNumber  -> phone
-    tenantName   -> (dropped)
+    tenantName   -> tenant_name
+    studentId    -> (dropped, not needed)
     schoolId     -> school_id  (string)
     tenantId     -> tenant_id  (ObjectId, schools only)
     password     -> hashed_password  (legacy stored bcrypt hash under "password")
 
-    tenant_id resolution:
+tenant_id resolution:
     schools   — taken from schools.tenantId directly
     teachers  — resolved via schools lookup: teacher.schoolId -> school.tenantId
     students  — resolved via schools lookup: student.schoolId -> school.tenantId
@@ -29,7 +30,7 @@ Field renames applied:
 
 Traceability:
     Each migrated document receives:
-        role          = preserved from source doc, or default "teacher" | "student" | "tenant" | "school_admin"
+        role          = preserved from source doc, or default "teacher" | "student" | "tenant" | "school"
         migrated_from = "teachers" | "students" | "tenants" | "school_admin"
 """
 
@@ -52,14 +53,11 @@ if _PROJECT_ROOT not in sys.path:
 
 async def migrate(mongo_uri: str, dry_run: bool) -> None:
     """Main migration coroutine."""
-    from motor.motor_asyncio import AsyncIOMotorClient  # noqa: PLC0415
+    from pymongo import AsyncMongoClient  # noqa: PLC0415
 
-    client: AsyncIOMotorClient = AsyncIOMotorClient(mongo_uri)  # type: ignore[type-arg]
+    client: AsyncMongoClient = AsyncMongoClient(mongo_uri)  # type: ignore[type-arg]
     try:
-        # Infer DB name from URI or fall back to "seeds"
-        db_name = (
-            client.get_default_database().name if "/" in mongo_uri.rsplit("?", 1)[0] else "seeds"
-        )
+        db_name = client.get_default_database().name if "/" in mongo_uri.rsplit("?", 1)[0] else "seeds"
     except Exception:
         db_name = "seeds"
 
@@ -84,7 +82,6 @@ async def migrate(mongo_uri: str, dry_run: bool) -> None:
         src_col = db[collection_name]
         dst_col = db["users"]
 
-        # Only migrate docs that haven't been migrated yet.
         cursor = src_col.find({"migrated_from": {"$exists": False}})
         docs: list[dict[str, Any]] = await cursor.to_list(length=None)
 
@@ -92,51 +89,61 @@ async def migrate(mongo_uri: str, dry_run: bool) -> None:
         skipped = 0
 
         for doc in docs:
-            # Build the destination document.
             new_doc: dict[str, Any] = dict(doc)
             new_doc["role"] = role
             new_doc["migrated_from"] = collection_name
 
-            # Normalise legacy field names to unified schema.
+            # Normalise legacy field names.
             if "phoneNumber" in new_doc and "phone" not in new_doc:
                 new_doc["phone"] = new_doc.pop("phoneNumber")
             if "tenantName" in new_doc and "tenant_name" not in new_doc:
                 new_doc["tenant_name"] = new_doc.pop("tenantName")
-            if "isActive" in new_doc and "is_active" not in new_doc:
-                new_doc["is_active"] = new_doc.pop("isActive")
-            # schoolId → school_id; also resolve tenant_id for teachers/students
-            # who have no tenantId of their own (must look up via school).
+            else:
+                new_doc.pop("tenantName", None)
+            new_doc.pop("studentId", None)
+
+            # Resolve tenant_id before renaming schoolId.
+            if "schoolId" in new_doc and "tenant_id" not in new_doc:
+                tid = school_tenant_map.get(new_doc["schoolId"])
+                if tid is not None:
+                    new_doc["tenant_id"] = tid
+
             if "schoolId" in new_doc and "school_id" not in new_doc:
-                raw_school_id = new_doc.pop("schoolId")
-                new_doc["school_id"] = str(raw_school_id)
-                if "tenant_id" not in new_doc and raw_school_id in school_tenant_map:
-                    new_doc["tenant_id"] = str(school_tenant_map[raw_school_id])
-            # tenantId → tenant_id (present on school and tenant docs directly).
-            if "tenantId" in new_doc and "tenant_id" not in new_doc:
-                raw = new_doc.pop("tenantId")
-                new_doc["tenant_id"] = str(raw) if raw is not None else None
+                new_doc["school_id"] = str(new_doc.pop("schoolId"))
+
             # For school docs the document _id IS the school — set school_id explicitly.
-            if collection_name == "schools":
+            if collection_name == "schools" and "school_id" not in new_doc:
                 new_doc["school_id"] = str(doc["_id"])
-            # Rename plain-text password field to hashed_password (legacy stored bcrypt hash as "password").
+
+            # Schools carry tenantId directly.
+            if "tenantId" in new_doc and "tenant_id" not in new_doc:
+                new_doc["tenant_id"] = new_doc.pop("tenantId")
+            else:
+                new_doc.pop("tenantId", None)
+
             if "password" in new_doc and "hashed_password" not in new_doc:
                 new_doc["hashed_password"] = new_doc.pop("password")
-            # Ensure name is always populated — legacy tenants had no name field, only tenantName.
+
             if not new_doc.get("name"):
                 new_doc["name"] = (
                     new_doc.get("tenant_name") or new_doc.get("phone") or str(new_doc["_id"])
                 )
-            # Preserve sub-roles (e.g. "content_creator") — only set default if doc has no role.
+
+            # Preserve sub-roles (e.g. "content_creator").
             new_doc["role"] = doc.get("role") or role
 
-            existing = await dst_col.find_one({"migrated_from": collection_name, "_id": doc["_id"]})
+            existing = await dst_col.find_one(
+                {"migrated_from": collection_name, "_id": doc["_id"]}
+            )
             if existing is not None:
                 skipped += 1
                 continue
 
             if dry_run:
+                tenant_id = new_doc.get("tenant_id", "-")
                 print(
-                    f"[DRY-RUN] Would migrate {collection_name}/{doc['_id']} → users (role={role})"
+                    f"[DRY-RUN] Would migrate {collection_name}/{doc['_id']} "
+                    f"-> users (role={new_doc['role']}, tenant_id={tenant_id})"
                 )
             else:
                 await dst_col.replace_one(
@@ -156,11 +163,11 @@ async def migrate(mongo_uri: str, dry_run: bool) -> None:
     total = sum(totals.values())
     print(
         f"\n{'[DRY-RUN] ' if dry_run else ''}"
-        f"Migration complete — {total} document(s) total "
+        f"Migration complete - {total} document(s) total "
         f"({'no writes performed' if dry_run else 'written to users collection'})."
     )
 
-    client.close()
+    await client.close()
 
 
 def _resolve_mongo_uri(cli_uri: str | None) -> str:
@@ -172,7 +179,6 @@ def _resolve_mongo_uri(cli_uri: str | None) -> str:
         if val:
             return val
 
-    # Try loading from .env in project root.
     env_path = os.path.join(_PROJECT_ROOT, ".env")
     if os.path.exists(env_path):
         with open(env_path) as f:
@@ -192,7 +198,7 @@ def _resolve_mongo_uri(cli_uri: str | None) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Migrate teachers/students/tenants → unified users collection."
+        description="Migrate teachers/students/tenants/schools -> unified users collection."
     )
     parser.add_argument("--dry-run", action="store_true", help="Preview changes without writing.")
     parser.add_argument("--mongo-uri", default=None, help="MongoDB connection URI.")

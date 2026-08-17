@@ -13,7 +13,7 @@ import logging
 from typing import Any
 
 from bson import ObjectId
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.platform.auth.hashing import verify_password
 
@@ -25,7 +25,7 @@ _USERS_COLLECTION = "users"
 async def get_user_by_credentials(
     email: str,
     password: str,
-    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+    db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> dict[str, Any] | None:
     """
     Look up a user by *email* and verify *password* against the stored bcrypt hash.
@@ -52,7 +52,7 @@ async def get_user_by_credentials(
 
 async def get_user_by_id(
     user_id: str,
-    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+    db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> dict[str, Any] | None:
     """
     Look up a user by *user_id* (ObjectId string).

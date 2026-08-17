@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"]
+    },
+    "docmost": {
+      "command": "npx",
+      "args": ["-y", "@wisflux/docmost-local-mcp", "--base-url=https://docmost.a4i-lab.in"]
+    }
+  }
+}
