@@ -146,7 +146,7 @@ class ContentAggregatorAuth:
         self,
         client_id: str,
         client_secret: str,
-        scopes: list[str],
+        scopes: list[str] | None = None,
     ) -> IntegrationTokenPair:
         client = await self._clients.find_by_client_id(client_id)
         if client is None or not verify_password(client_secret, client.client_secret_hash):
@@ -158,6 +158,7 @@ class ContentAggregatorAuth:
 
         granted_tenant_ids = list(client.tenant_ids)
 
+        scopes = scopes or []
         if not set(scopes).issubset(client.allowed_scopes):
             raise AppError("SCOPE_INSUFFICIENT", "Requested scopes exceed allowed scopes", 403)
         requested_scopes = scopes
