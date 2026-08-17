@@ -4,12 +4,9 @@ name: Deploy Main Services Staging
 # via k8s manifests, no Azure App Service exists for staging content-webapp/
 # teacher-webapp/platform, so there's no deploy step here (unlike
 # deploy-websocket-service-staging.yml, which does have one).
-#
-# TODO: drop "alex/seeds-docker" below once verified on kube-dev — added
-# only to trigger a test build from this feature branch.
 on:
     push:
-        branches: [a4i/staging, alex/seeds-docker]
+        branches: a4i/staging
     workflow_call:
     workflow_dispatch:
 
