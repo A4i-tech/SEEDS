@@ -1,37 +1,18 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
-import { getAuthHeaders } from "../utils/authHelpers";
-
-// Define your API's base URL
-const baseURL = process.env.REACT_APP_API_BASE_URL;
+import { useAuthContext } from "../contexts/AuthContext";
+import { clearAuth } from "../utils/authHelpers";
 
 const LogoutButton = () => {
   const navigate = useNavigate();
+  const { logout } = useAuthContext();
 
   const handleLogout = async () => {
     try {
-      const token = localStorage.getItem("authToken");
-
-      if (token) {
-        await axios.post(
-          `${baseURL}/tenant/logout`,
-          {},
-          {
-            headers: getAuthHeaders(),
-          }
-        );
-        console.log("Successfully logged out on server.");
-      }
-    } catch (error) {
-      // Log the error for debugging, but don't block the user from logging out
-      console.error("Server logout failed:", error);
+      await logout();
     } finally {
-      // Clear all local and session storage
-      localStorage.clear();
+      clearAuth();
       sessionStorage.clear();
-
-      // Navigate to the login page
       navigate("/");
     }
   };
