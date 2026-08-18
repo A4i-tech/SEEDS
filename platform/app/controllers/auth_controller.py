@@ -7,10 +7,11 @@ POST /teacher/login (phone-only, teacher/content_creator) — untouched.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Response, status
 
 from app.models.requests.auth_requests import UnifiedLoginRequest
 from app.models.responses.login import LoginResponse
+from app.platform.auth.dependencies import set_refresh_cookie
 from app.services.auth_service import AuthService, get_auth_service
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -19,12 +20,13 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 @router.post("/login", summary="ContentWebApp login", status_code=status.HTTP_200_OK)
 async def login(
     body: UnifiedLoginRequest,
+    response: Response,
     service: AuthService = Depends(get_auth_service),
 ) -> LoginResponse:
     result = await service.login_unified(body.identifier, body.password, body.is_email)
+    set_refresh_cookie(response, result["refresh_token"])
     return LoginResponse(
         token=result["access_token"],
         user=result["user"],
-        refresh_token=result["refresh_token"],
         expires_in=result["expires_in"],
     )
