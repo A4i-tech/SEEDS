@@ -10,7 +10,6 @@ from pydantic import BaseModel, PositiveInt
 class LoginResponse(BaseModel):
     token: str
     user: dict[str, Any]
-    refresh_token: str
     expires_in: PositiveInt
 
 
