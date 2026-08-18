@@ -11,16 +11,15 @@ import {
   InputAdornment,
 } from "@mui/material";
 import { Phone as PhoneIcon, Lock as LockIcon } from "@mui/icons-material";
-import axiosInstance from "../services/axiosInstance";
-import { API_ENDPOINTS } from "../constants/apiEndpoints";
-import { STATUS_CODES } from "../constants/statusCodes";
 import { useNavigation } from "../hooks/useNavigation";
 import { showToast } from "../utils/toast";
 import { isLocalStorageAvailable } from "../utils/authHelpers";
 import { isValidPhoneNumber } from "../utils/phoneUtils";
+import { useAuthContext } from "../contexts/AuthContext";
 
 function Login() {
   const navigate = useNavigation();
+  const { login } = useAuthContext();
   const [showError, setShowError] = useState(null);
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
@@ -49,15 +48,9 @@ function Login() {
     setIsSubmitting(true);
     setShowError(null);
     try {
-      const response = await axiosInstance.post(API_ENDPOINTS.LOGIN, {
-        phone_number: phoneNumber,
-        password,
-      });
-      if (response.status === STATUS_CODES.SUCCESS) {
-        localStorage.setItem("authToken", response.data.token);
-        showToast.success("Login successful!");
-        navigate.goToClassroom();
-      }
+      await login(phoneNumber, password);
+      showToast.success("Login successful!");
+      navigate.goToClassroom();
     } catch (error) {
       console.error("Login error:", error);
       const errorMessage =

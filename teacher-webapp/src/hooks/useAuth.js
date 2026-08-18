@@ -1,8 +1,9 @@
 import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { getCurrentTeacher as fetchCurrentTeacher } from "../services/teacherService";
-import { isAuthenticated, clearAuth as clearAuthHelper } from "../utils/authHelpers";
+import { isAuthenticated } from "../utils/authHelpers";
 import { clearSessionHistory } from "../services/sessionHistoryService";
+import { useAuthContext } from "../contexts/AuthContext";
 
 // Module-level cache to prevent redundant API calls
 let cachedTeacher = null;
@@ -28,6 +29,7 @@ const resetTeacherCache = () => {
  */
 export const useAuth = () => {
   const navigate = useNavigate();
+  const { logout: contextLogout } = useAuthContext();
 
   /**
    * Get authentication headers
@@ -43,12 +45,12 @@ export const useAuth = () => {
   /**
    * Logout user and clear all auth data
    */
-  const logout = useCallback(() => {
-    clearAuthHelper(); // Clears token 
+  const logout = useCallback(async () => {
+    await contextLogout();
     clearSessionHistory(); // Clear session history
     resetTeacherCache();
-    navigate("/");
-  }, [navigate]);
+    navigate("/", { replace: true });
+  }, [navigate, contextLogout]);
 
   /**
    * Get current teacher information
