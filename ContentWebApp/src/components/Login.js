@@ -1,11 +1,9 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
 import validator from "validator";
 import { setAuth, getTokenPayload } from "../utils/authHelpers";
 import { resetUserCache } from "../hooks/useAuth";
-
-const baseURL = process.env.REACT_APP_API_BASE_URL;
+import { useAuthContext } from "../contexts/AuthContext";
 
 const pageStyle = {
   minHeight: "100vh",
@@ -103,6 +101,7 @@ const footerStyle = {
 
 const Login = () => {
   const navigate = useNavigate();
+  const { login } = useAuthContext();
   const [showError, setShowError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
@@ -112,15 +111,6 @@ const Login = () => {
 
   const handleChange = (field) => (event) => {
     setFormData((prev) => ({ ...prev, [field]: event.target.value }));
-  };
-
-  const login = async (identifier, password) => {
-    const { data } = await axios.post(`${baseURL}/auth/login`, { identifier, password });
-    localStorage.setItem("authToken", data.token);
-    resetUserCache();
-    const { role, school_id: schoolId, name } = getTokenPayload();
-    setAuth(data.token, role, schoolId);
-    navigate("/content", { state: { name } });
   };
 
   const handleLogin = async (event) => {
@@ -145,7 +135,11 @@ const Login = () => {
 
     try {
       setIsSubmitting(true);
-      await login(identifier, password);
+      const data = await login({ identifier, password, is_email: looksLikeEmail });
+      resetUserCache();
+      const { role, school_id: schoolId, name } = getTokenPayload();
+      setAuth(data.token, role, schoolId);
+      navigate("/content", { state: { name } });
     } catch (error) {
       console.error("Login error:", error);
       if (error?.response?.status === 401) {
