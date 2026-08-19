@@ -13,7 +13,7 @@ export class ApiError extends Error {
 
 let refreshPromise = null;
 
-const refreshAccessToken = async () => {
+export const refreshAccessToken = async () => {
   if (!refreshPromise) {
     refreshPromise = (async () => {
       try {
