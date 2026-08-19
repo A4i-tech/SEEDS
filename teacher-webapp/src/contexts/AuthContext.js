@@ -1,6 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
-import axios from "axios";
-import axiosInstance from "../services/axiosInstance";
+import axiosInstance, { refreshAccessToken } from "../services/axiosInstance";
 import { API_ENDPOINTS } from "../constants/apiEndpoints";
 import { getAccessToken, setAccessToken, clearAccessToken } from "../utils/tokenStore";
 
@@ -13,8 +12,7 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const initAuth = async () => {
       try {
-        const response = await axios.post(API_ENDPOINTS.REFRESH, {}, { withCredentials: true });
-        setAccessToken(response.data.access_token);
+        await refreshAccessToken();
         setIsAuthenticated(true);
       } catch (_error) {
         clearAccessToken();

@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { SEEDS_URL } from "../Constants";
-import { apiFetch } from "../services/api";
+import { apiFetch, refreshAccessToken } from "../services/api";
 import { setAccessToken, getAccessToken, clearAccessToken } from "../utils/tokenStore";
 
 const AuthContext = createContext(null);
@@ -12,13 +12,7 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const refresh = async () => {
       try {
-        const response = await fetch(`${SEEDS_URL}/auth/token/refresh`, {
-          method: "POST",
-          credentials: "include",
-        });
-        if (!response.ok) throw new Error("refresh failed");
-        const data = await response.json();
-        setAccessToken(data.access_token);
+        await refreshAccessToken();
         setIsAuthenticated(true);
       } catch (_error) {
         clearAccessToken();
