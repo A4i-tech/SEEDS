@@ -51,12 +51,10 @@ class ContentDetailsViewModel @Inject constructor(
         // ------------------------------
 
         // Prefer the first audioContent entry if available
-        val src = when {
-            content.audioContent.isNotEmpty() -> content.audioContent.first().audioUrl
-            content.title?.audioUrl != null -> content.title.audioUrl
-            content.theme?.audioUrl != null -> content.theme.audioUrl
-            else -> null
-        } ?: return  // No URL found
+        val src = content.audioContent.firstOrNull()?.audioUrl
+            ?: content.title.audioUrl
+            ?: content.theme.audioUrl
+            ?: return  // No URL found
 
         viewModelScope.launch {
             try {

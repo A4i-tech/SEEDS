@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useContent } from "../hooks/useContent";
+import { useContentAggregatorSync } from "../hooks/useContentAggregatorSync";
 import { useContentFilters } from "../hooks/useContentFilters";
 import { useTeachers } from "../hooks/useTeachers";
 import { useSchools } from "../hooks/useSchools";
@@ -34,21 +35,25 @@ const AllContent = () => {
     isFiltered,
     loadMore,
     deleteContent,
+    deleteContentAggregatorCourse,
+    refreshContentAggregatorCourses,
     setContent,
     setIsFiltered,
   } = useContent();
 
-  const {
-    options,
-    selectedValues,
-    handleFilterChange,
-    resetFilters: resetContentFilters,
-    multiselectRef,
-  } = useContentFilters(allContent, setContent, setIsFiltered);
+  const { syncingAll, syncAllProgress, courseStates, syncAll, syncCourse } =
+    useContentAggregatorSync(refreshContentAggregatorCourses);
+
+  const { options, selectedValues, handleFilterChange, titleQuery, setTitleQuery } = useContentFilters(
+    allContent,
+    setContent,
+    setIsFiltered
+  );
 
   const {
     teachers,
     students,
+    isLoading: isTeachersLoading,
     message,
     messageType,
     registerTeacher,
@@ -62,6 +67,7 @@ const AllContent = () => {
 
   const {
     schools,
+    isLoading: isSchoolsLoading,
     message: schoolMessage,
     messageType: schoolMessageType,
     createSchool,
@@ -73,7 +79,6 @@ const AllContent = () => {
   const canViewRegistration =
     currentUserRole === USER_ROLES.TENANT || currentUserRole === USER_ROLES.SCHOOL_ADMIN;
   const canViewAnalytics = canViewRegistration;
-  const canDeleteContent = currentUserRole !== USER_ROLES.TEACHER;
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -176,14 +181,21 @@ const AllContent = () => {
             options={options}
             selectedValues={selectedValues}
             onFilterChange={handleFilterChange}
-            onResetFilters={resetContentFilters}
+            titleQuery={titleQuery}
+            onTitleQueryChange={setTitleQuery}
             onUpdateIVR={handleUpdateIVR}
             onEdit={handleEdit}
             onView={handleView}
-            onDelete={canDeleteContent ? deleteContent : null}
+            onDelete={deleteContent}
             onLoadMore={loadMore}
             isUpdatingIVR={isUpdatingIVR}
-            multiselectRef={multiselectRef}
+            onSyncAll={syncAll}
+            isTenant={currentUserRole === USER_ROLES.TENANT}
+            syncingAll={syncingAll}
+            syncAllProgress={syncAllProgress}
+            courseSyncStates={courseStates}
+            onSyncCourse={syncCourse}
+            onDeleteContentAggregatorCourse={deleteContentAggregatorCourse}
           />
         )}
 
@@ -195,6 +207,7 @@ const AllContent = () => {
           <RegistrationTab
             teachers={teachers}
             students={students}
+            isTeachersLoading={isTeachersLoading}
             onRegisterTeacher={registerTeacher}
             onAddStudent={addStudent}
             onUpdateStudent={updateStudentById}
@@ -205,6 +218,7 @@ const AllContent = () => {
             message={message}
             messageType={messageType}
             schools={schools}
+            isSchoolsLoading={isSchoolsLoading}
             onCreateSchool={createSchool}
             onUpdateSchool={updateSchool}
             onDeleteSchool={deleteSchool}

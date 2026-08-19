@@ -1,5 +1,5 @@
 """
-Auth service — login, register_teacher, register_tenant, school_admin_login, profiles.
+Auth service — login_unified, login_by_phone, register_teacher, register_tenant, profiles.
 
 Ported from backend-server/src/auth/authenticateToken.js and teacher/tenant services.
 
@@ -17,6 +17,12 @@ from typing import Any
 from fastapi import Depends
 from pymongo.asynchronous.database import AsyncDatabase
 
+from app.models.responses.dashboard import (
+    DashboardStatistics,
+    SchoolDashboardRow,
+    TenantDashboardResponse,
+)
+from app.models.responses.school_response import SchoolResponse
 from app.models.responses.user import UserPublicResponse
 from app.models.user import User, UserCreate, UserRole
 from app.platform.auth.dependencies import get_db
@@ -25,7 +31,6 @@ from app.platform.auth.jwt import create_access_token
 from app.platform.error_handling import ConflictError, NotFoundError, UnauthorizedError
 from app.platform.telemetry import get_counter
 from app.repositories.classroom_repository import ClassroomRepository
-from app.repositories.school_repository import SchoolRepository
 from app.repositories.user_repository import UserRepository
 
 logger = logging.getLogger(__name__)
@@ -37,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 
 def _user_public(user: User) -> dict[str, Any]:
-    """Return a safe user dict — camelCase, no password or firebase internals."""
+    """Return a safe user dict — snake_case, no password or firebase internals."""
     return UserPublicResponse.from_domain(user).to_response()
 
 
@@ -95,17 +100,13 @@ class TenantCreate:
 # ---------------------------------------------------------------------------
 
 
-async def login(
-    email: str,
+async def login_unified(
+    identifier: str,
     password: str,
-    auth_type: str,
+    is_email: bool,
     db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> dict[str, Any]:
-    """
-    Authenticate a user and return a JWT bearer token plus public user data.
-
-    auth_type="native"  — look up by email, verify bcrypt password, issue JWT.
-    auth_type="firebase" — verify firebase token (passed as *password* arg), find/create user.
+    """Authenticate a ContentWebApp user (tenant/school_admin by email, content_creator by phone).
 
     Raises UnauthorizedError on failure and increments auth.failures counter.
     SECURITY: plain password is never logged.
@@ -113,56 +114,27 @@ async def login(
     auth_failures = get_counter("auth.failures")
     repo = UserRepository(db)
 
-    if auth_type == "firebase":
-        from app.platform.auth.providers.firebase_provider import (
-            verify_firebase_token,  # noqa: PLC0415
-        )
+    if is_email:
+        user = await repo.find_by_email(identifier)
+        allowed_roles = (UserRole.TENANT, UserRole.SCHOOL_ADMIN)
+    else:
+        user = await repo.find_by_phone(identifier)
+        allowed_roles = (UserRole.CONTENT_CREATOR,)
 
-        try:
-            firebase_payload = await verify_firebase_token(password)  # password = ID token
-        except Exception as exc:
-            logger.warning("auth: firebase token verification failed — %s", type(exc).__name__)
-            auth_failures.add(1, {"reason": "firebase_invalid_token"})
-            raise UnauthorizedError("Invalid Firebase token") from exc
-
-        uid: str = firebase_payload["uid"]
-        user = await repo.find_by_firebase_uid(uid)
-        if user is None:
-            # Auto-provision the user from Firebase claims
-            user = await repo.create(
-                UserCreate(
-                    role=UserRole.TEACHER,
-                    name=firebase_payload.get("email", uid),
-                    email=firebase_payload.get("email"),
-                    firebase_uid=uid,
-                    tenant_id=firebase_payload.get("tenant_id") or None,
-                )
-            )
-
-        token = create_access_token(
-            {
-                "sub": str(user.id),
-                "role": user.role.value,
-                "tenant_id": user.tenant_id,
-                "school_id": user.school_id,
-            }
-        )
-        return {
-            "token": token,
-            "user": _user_public(user),
-        }
-
-    # --- native auth ---
-    user = await repo.find_by_email_and_role(email, UserRole.TENANT.value)
-    if user is None or not user.hashed_password:
-        logger.warning("auth: login failed — tenant not found or no password set")
+    if user is None or user.role not in allowed_roles or not user.hashed_password:
+        logger.warning("auth: login failed — user not found or wrong role")
         auth_failures.add(1, {"reason": "user_not_found"})
-        raise UnauthorizedError("Invalid email or password")
+        raise UnauthorizedError("Invalid credentials")
+
+    if not user.is_active:
+        logger.warning("auth: login failed — inactive account %s", user.id)
+        auth_failures.add(1, {"reason": "inactive_account"})
+        raise UnauthorizedError("Account is inactive")
 
     if not verify_password(password, user.hashed_password):
         logger.warning("auth: login failed — wrong password for user %s", user.id)
         auth_failures.add(1, {"reason": "wrong_password"})
-        raise UnauthorizedError("Invalid email or password")
+        raise UnauthorizedError("Invalid credentials")
 
     # Tenant users are the root of their own tenant scope — their _id IS the
     # tenantId used in content/school documents, but tenant_id is not stored on
@@ -305,53 +277,6 @@ async def register_tenant(
 
 
 # ---------------------------------------------------------------------------
-# School admin login
-# ---------------------------------------------------------------------------
-
-
-async def school_admin_login(
-    email: str,
-    password: str,
-    db: AsyncDatabase,  # type: ignore[type-arg]
-) -> dict[str, Any]:
-    """Authenticate a school admin from the users collection (role=school_admin).
-
-    School admin docs are migrated from the schools collection into users by
-    migration 001. Issues a JWT with role=school_admin.
-
-    SECURITY: plain password is never logged.
-    """
-    auth_failures = get_counter("auth.failures")
-    repo = UserRepository(db)
-
-    user = await repo.find_by_email_and_role(email, UserRole.SCHOOL_ADMIN.value)
-    if user is None or not user.hashed_password:
-        logger.warning("auth: school_admin login failed — email not found or no password")
-        auth_failures.add(1, {"reason": "school_not_found"})
-        raise UnauthorizedError("Invalid credentials")
-
-    if not user.is_active:
-        logger.warning("auth: school_admin login failed — inactive account %s", user.id)
-        auth_failures.add(1, {"reason": "inactive_account"})
-        raise UnauthorizedError("Account is inactive")
-
-    if not verify_password(password, user.hashed_password):
-        logger.warning("auth: school_admin login failed — wrong password for school_admin %s", user.id)
-        auth_failures.add(1, {"reason": "wrong_password"})
-        raise UnauthorizedError("Invalid credentials")
-
-    token = create_access_token(
-        {
-            "sub": str(user.id),
-            "role": "school_admin",
-            "tenant_id": user.tenant_id,
-            "school_id": user.school_id,
-        }
-    )
-    return {"token": token}
-
-
-# ---------------------------------------------------------------------------
 # Profile helpers
 # ---------------------------------------------------------------------------
 
@@ -407,10 +332,10 @@ async def get_tenant_names(
 async def get_tenant_dashboard(
     tenant_id: str,
     db: AsyncDatabase,  # type: ignore[type-arg]
-) -> dict[str, Any]:
+) -> TenantDashboardResponse:
     """Return aggregated dashboard statistics for a tenant."""
-    schools = await SchoolRepository(db).find_all_by_tenant(tenant_id)
     all_users = await UserRepository(db).find_all_by_tenant(tenant_id)
+    schools = [u for u in all_users if u.role == UserRole.SCHOOL_ADMIN]
     teacher_count = sum(1 for u in all_users if u.role == UserRole.TEACHER)
     student_count = sum(1 for u in all_users if u.role == UserRole.STUDENT)
 
@@ -421,22 +346,24 @@ async def get_tenant_dashboard(
         sid = str(school.id)
         classes = await classroom_repo.find_by_school(sid)
         class_count += len(classes)
-        school_rows.append({
-            **school.model_dump(by_alias=False, exclude_none=True),
-            "teacher_count": sum(1 for u in all_users if str(u.school_id) == sid and u.role == UserRole.TEACHER),
-            "student_count": sum(1 for u in all_users if str(u.school_id) == sid and u.role == UserRole.STUDENT),
-            "class_count": len(classes),
-        })
+        school_rows.append(
+            SchoolDashboardRow(
+                **SchoolResponse.from_domain(school).to_response(),
+                teacher_count=sum(1 for u in all_users if str(u.school_id) == sid and u.role == UserRole.TEACHER),
+                student_count=sum(1 for u in all_users if str(u.school_id) == sid and u.role == UserRole.STUDENT),
+                class_count=len(classes),
+            )
+        )
 
-    return {
-        "statistics": {
-            "totalSchools": len(schools),
-            "totalTeachers": teacher_count,
-            "totalStudents": student_count,
-            "totalClasses": class_count,
-        },
-        "schools": school_rows,
-    }
+    return TenantDashboardResponse(
+        statistics=DashboardStatistics(
+            total_schools=len(schools),
+            total_teachers=teacher_count,
+            total_students=student_count,
+            total_classes=class_count,
+        ),
+        schools=school_rows,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -454,8 +381,8 @@ class AuthService:
     def __init__(self, db: AsyncDatabase[Any]) -> None:
         self._db = db
 
-    async def login(self, email: str, password: str, auth_type: str) -> dict:
-        return await login(email, password, auth_type, self._db)
+    async def login_unified(self, identifier: str, password: str, is_email: bool) -> dict:
+        return await login_unified(identifier, password, is_email, self._db)
 
     async def login_by_phone(self, phone: str, password: str) -> dict:
         return await login_by_phone(phone, password, self._db)
@@ -466,22 +393,19 @@ class AuthService:
     async def register_tenant(self, data: TenantCreate) -> User:
         return await register_tenant(data, self._db)
 
-    async def school_admin_login(self, email: str, password: str) -> dict:
-        return await school_admin_login(email, password, self._db)
-
     async def get_user_profile(self, user_id: str, entity_label: str) -> User:
         return await get_user_profile(user_id, entity_label, self._db)
 
     async def change_password(self, user_id: str, new_password: str) -> None:
         return await change_password(user_id, new_password, self._db)
 
-    async def get_school_admin_profile(self, school_id: str, tenant_id: str) -> dict:
+    async def get_school_admin_profile(self, school_id: str, tenant_id: str) -> UserPublicResponse:
         return await get_school_admin_profile(school_id, tenant_id, self._db)
 
     async def get_tenant_names(self) -> list:
         return await get_tenant_names(self._db)
 
-    async def get_tenant_dashboard(self, tenant_id: str) -> dict:
+    async def get_tenant_dashboard(self, tenant_id: str) -> TenantDashboardResponse:
         return await get_tenant_dashboard(tenant_id, self._db)
 
 

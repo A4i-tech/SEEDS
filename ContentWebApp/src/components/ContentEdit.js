@@ -1,8 +1,18 @@
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useLocation } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import AddQuiz from "./AddQuiz";
 import AddStory from "./AddStory";
+import Select from "./AllContent/shared/Select";
 import { contentService } from "../services/contentService";
+import "./AddContent.css";
+import "./AllContent/shared/buttons.css";
+import "./AllContent/shared/pageShell.css";
+
+const EXPERIENCE_OPTIONS = [
+  { value: "Story", label: "Story" },
+  { value: "Poem", label: "Poem" },
+  { value: "Song", label: "Song" },
+];
 
 const ContentEdit = () => {
   const { type, id } = useParams();
@@ -32,22 +42,13 @@ const ContentEdit = () => {
     getContentById();
   }, [contentById, type]);
 
-  const location = useLocation();
-
-  const handleChange = (event) => {
-    setExperience(event.target.value);
-  };
+  const navigate = useNavigate();
 
   const experienceLower = (experience || "").toLowerCase();
   const isQuiz = experienceLower === "quiz";
-  // Quiz content has no isProcessed/audioContent — treat it as always ready
-  const isProcessed = isQuiz
-    ? true
-    : (content?.isProcessed ?? Boolean(content?.audioContent?.length));
-  const titleText =
-    typeof content?.title === "object"
-      ? content.title.english || content.title.local || "Untitled"
-      : content?.title || "Untitled";
+  // Quiz content has no is_processed — treat it as always ready
+  const isProcessed = isQuiz ? true : content?.is_processed;
+  const titleText = content?.display_title ?? "Untitled";
 
   if (isLoading) {
     return (
@@ -68,34 +69,26 @@ const ContentEdit = () => {
     );
   } else {
     return (
-      <>
-        <div className="content-details-page">
-          <h3>Edit Content</h3>
-          {content && !isQuiz && (
-            <form>
-              <label>
-                Experience:
-                <select
-                  value={experience}
-                  onChange={(event) => handleChange(event)}
-                  className="mintgreen"
-                >
-                  <option value="Story">Story</option>
-                  <option value="Poem">Poem</option>
-                  <option value="Song">Song</option>
-                </select>
-              </label>
-            </form>
-          )}
-          {content && isQuiz && (
-            <AddQuiz quiz={content} />
-          )}
-          {content && !isQuiz && isProcessed && (
-            <AddStory content={content} contentType={experience} />
-          )}
-          <div />
+      <div className="page-shell">
+        <div className="add-content-header">
+          <button type="button" className="tertiary-button" onClick={() => navigate(-1)}>
+            ← Back
+          </button>
         </div>
-      </>
+        <h1 className="add-content-title">Edit Content</h1>
+        <div className="add-content-card">
+          {content && !isQuiz && (
+            <div className="form-section">
+              <div className="form-section-title">Experience</div>
+              <div className="form-group-narrow">
+                <Select value={experience} onChange={setExperience} options={EXPERIENCE_OPTIONS} />
+              </div>
+            </div>
+          )}
+          {content && isQuiz && <AddQuiz quiz={content} />}
+          {content && !isQuiz && isProcessed && <AddStory content={content} contentType={experience} />}
+        </div>
+      </div>
     );
   }
 };

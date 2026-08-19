@@ -4,6 +4,66 @@
   background-color: #fafafa;
 }
 
+.date-range-selector .react-datepicker {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  font-family: inherit;
+  overflow: hidden;
+}
+
+.date-range-selector .react-datepicker__header {
+  background-color: #f0f4f3;
+  border-bottom: 1px solid #e2e8f0;
+  padding-top: 12px;
+}
+
+.date-range-selector .react-datepicker__current-month {
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+.date-range-selector .react-datepicker__day-name {
+  color: #64748b;
+  font-weight: 600;
+}
+
+.date-range-selector .react-datepicker__navigation-icon::before {
+  border-color: var(--color-primary);
+}
+
+.date-range-selector .react-datepicker__day:hover {
+  background-color: #e6efee;
+}
+
+.date-range-selector .react-datepicker__day--keyboard-selected {
+  background-color: transparent;
+  box-shadow: inset 0 0 0 2px var(--color-focus-ring);
+  border-radius: 999px;
+}
+
+.date-range-selector .react-datepicker__day--selected,
+.date-range-selector .react-datepicker__day--range-start,
+.date-range-selector .react-datepicker__day--range-end {
+  background-color: var(--color-primary);
+  color: var(--color-on-accent);
+}
+
+.date-range-selector .react-datepicker__day--selected:hover,
+.date-range-selector .react-datepicker__day--range-start:hover,
+.date-range-selector .react-datepicker__day--range-end:hover {
+  background-color: var(--color-primary-hover);
+}
+
+.date-range-selector .react-datepicker__day--in-range,
+.date-range-selector .react-datepicker__day--in-selecting-range {
+  background-color: #cfe3e0;
+  color: var(--color-primary);
+}
+
+.date-range-selector .react-datepicker__day--today {
+  font-weight: 700;
+}
+
 .date-range-selector .quick-select-row {
   display: flex;
   flex-direction: column;
@@ -27,11 +87,11 @@
 
 .date-range-selector .quick-select-button,
 .date-range-selector .toggle-button {
-  border: 1px solid #0f172a;
-  border-radius: 8px;
+  border: 1px solid var(--color-primary);
+  border-radius: 999px;
   padding: 10px 16px;
-  background-color: #ffffff;
-  color: #0f172a;
+  background-color: var(--color-on-accent);
+  color: var(--color-primary);
   font-weight: 600;
   cursor: pointer;
   font-size: 14px;
@@ -51,13 +111,23 @@
 }
 
 .date-range-selector .toggle-button.active {
-  background-color: #0f172a;
-  color: #ffffff;
+  background-color: var(--color-primary);
+  color: var(--color-on-accent);
 }
 
 .date-range-selector .quick-select-button.active {
-  background-color: #0f172a;
-  color: #ffffff;
+  background-color: var(--color-primary);
+  color: var(--color-on-accent);
+}
+
+.date-range-selector .quick-select-button:hover:not(:disabled):not(.active),
+.date-range-selector .toggle-button:hover:not(:disabled):not(.active) {
+  background-color: color-mix(in srgb, var(--color-primary) 8%, var(--color-on-accent));
+}
+
+.date-range-selector .quick-select-button.active:hover:not(:disabled),
+.date-range-selector .toggle-button.active:hover:not(:disabled) {
+  background-color: var(--color-primary-hover);
 }
 
 .date-range-selector .quick-select-button:disabled,
@@ -68,7 +138,7 @@
 
 .date-range-selector .range-picker-box {
   padding: 16px;
-  background-color: #fff;
+  background-color: var(--color-on-accent);
   border-radius: 8px;
   border: 1px solid #e0e0e0;
 }
@@ -119,8 +189,8 @@
 
 .date-range-selector .date-text-input:focus {
   outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  border-color: var(--color-focus-ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-focus-ring) 10%, transparent);
 }
 
 .date-range-selector .date-text-input::placeholder {

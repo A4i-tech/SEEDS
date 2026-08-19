@@ -1,4 +1,4 @@
-"""Tenant auth routes — /tenant/*."""
+"""Tenant auth routes — /tenant/*. Login is at POST /auth/login."""
 
 from __future__ import annotations
 
@@ -8,14 +8,11 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.models.requests.auth_requests import (
-    TenantChangePasswordRequest,
-    TenantLoginRequest,
-    TenantRegisterRequest,
-)
+from app.models.requests.auth_requests import TenantChangePasswordRequest, TenantRegisterRequest
 from app.models.requests.tenant_requests import TenantAnalyticsRequest
 from app.models.responses.analytics_response import AnalyticsResponse
-from app.models.responses.login import LoginResponse, MessageResponse
+from app.models.responses.dashboard import TenantDashboardResponse
+from app.models.responses.login import MessageResponse
 from app.models.responses.user import UserPublicResponse
 from app.platform.auth.dependencies import get_current_user, require_tenant
 from app.repositories.ivr_repository import IVRRepository
@@ -33,32 +30,24 @@ async def tenant_names(
     return await service.get_tenant_names()
 
 
-@router.post("/login", summary="Tenant login", status_code=status.HTTP_200_OK)
-async def tenant_login(
-    body: TenantLoginRequest,
-    service: AuthService = Depends(get_auth_service),
-) -> LoginResponse:
-    result = await service.login(
-        email=body.email,
-        password=body.password,
-        auth_type="native",
-    )
-    return LoginResponse(token=result["token"], user=result["user"])
-
-
-@router.post("/register", summary="Register a new tenant", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register",
+    summary="Register a new tenant",
+    status_code=status.HTTP_201_CREATED,
+    response_model_exclude_none=True,
+)
 async def tenant_register(
     body: TenantRegisterRequest,
     service: AuthService = Depends(get_auth_service),
-) -> dict[str, Any]:
+) -> UserPublicResponse:
     data = TenantCreate(
-        name=body.name or body.tenantName,
+        name=body.name or body.tenant_name,
         email=body.email,
         password=body.password,
-        tenant_name=body.tenantName,
+        tenant_name=body.tenant_name,
     )
     user = await service.register_tenant(data)
-    return UserPublicResponse.from_domain(user).to_response()
+    return UserPublicResponse.from_domain(user)
 
 
 @router.post(
@@ -71,13 +60,18 @@ async def tenant_logout() -> MessageResponse:
     return MessageResponse(message="Logout successful")
 
 
-@router.get("/me", summary="Get current tenant", status_code=status.HTTP_200_OK)
+@router.get(
+    "/me",
+    summary="Get current tenant",
+    status_code=status.HTTP_200_OK,
+    response_model_exclude_none=True,
+)
 async def tenant_me(
     current_user: dict[str, Any] = Depends(require_tenant),
     service: AuthService = Depends(get_auth_service),
-) -> dict[str, Any]:
+) -> UserPublicResponse:
     user = await service.get_user_profile(current_user.get("sub", ""), "Tenant")
-    return UserPublicResponse.from_domain(user).to_response()
+    return UserPublicResponse.from_domain(user)
 
 
 @router.post("/analytics", summary="Tenant analytics", status_code=status.HTTP_200_OK)
@@ -86,10 +80,10 @@ async def tenant_analytics(
     current_user: dict[str, Any] = Depends(require_tenant),
     service: AuthService = Depends(get_auth_service),
 ) -> AnalyticsResponse:
-    start_date = body.startDate
-    end_date = body.endDate
+    start_date = body.start_date
+    end_date = body.end_date
     if not start_date or not end_date:
-        raise HTTPException(status_code=400, detail="startDate and endDate are required")
+        raise HTTPException(status_code=400, detail="start_date and end_date are required")
 
     start = datetime.fromisoformat(start_date)
     end = datetime.fromisoformat(end_date)
@@ -97,7 +91,7 @@ async def tenant_analytics(
 
     data = await IVRRepository(service._db).find_logs_by_tenant_date_range(tenant_id, start, end)
     return AnalyticsResponse(
-        startDate=body.startDate, endDate=body.endDate, count=len(data), data=data
+        start_date=body.start_date, end_date=body.end_date, count=len(data), data=data
     )
 
 
@@ -107,7 +101,7 @@ async def tenant_change_password(
     current_user: dict[str, Any] = Depends(require_tenant),
     service: AuthService = Depends(get_auth_service),
 ) -> MessageResponse:
-    await service.change_password(current_user.get("sub", ""), body.newPassword)
+    await service.change_password(current_user.get("sub", ""), body.new_password)
     return MessageResponse(message="Password changed successfully")
 
 
@@ -115,5 +109,5 @@ async def tenant_change_password(
 async def tenant_dashboard(
     current_user: dict[str, Any] = Depends(require_tenant),
     service: AuthService = Depends(get_auth_service),
-) -> dict[str, Any]:
+) -> TenantDashboardResponse:
     return await service.get_tenant_dashboard(current_user.get("sub", ""))

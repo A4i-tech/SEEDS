@@ -10,7 +10,7 @@ describe("AddQuiz", () => {
       </MemoryRouter>
     );
     expect(screen.getByPlaceholderText(/Add Title/i)).toBeInTheDocument();
-    expect(screen.getByRole("combobox")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Kannada/i })).toBeInTheDocument();
     expect(
       screen.getByPlaceholderText(/Add Positive Marks/i)
     ).toBeInTheDocument();
@@ -65,5 +65,43 @@ describe("AddQuiz", () => {
         .getAllByRole("textbox", { name: "" })
         .filter((input) => input.getAttribute("name") === "question").length
     ).toBe(1);
+  });
+
+  it("hydrates form fields from a quiz with the real nested questions shape", () => {
+    const quiz = {
+      id: "quiz1",
+      title: { english: "Animals", local: "Animals" },
+      theme: { english: "Nature", local: "Nature" },
+      language: "en",
+      positive_marks: 2,
+      negative_marks: 1,
+      questions: [
+        {
+          question: { id: "q1", text: "Which animal barks?" },
+          options: [
+            { id: "q1-opt1", text: "Cat" },
+            { id: "q1-opt2", text: "Dog" },
+            { id: "q1-opt3", text: "Cow" },
+            { id: "q1-opt4", text: "Fish" },
+          ],
+          correct_option_id: "q1-opt2",
+        },
+      ],
+    };
+
+    render(
+      <MemoryRouter>
+        <AddQuiz quiz={quiz} />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByDisplayValue("Which animal barks?")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Cat")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Dog")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Cow")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Fish")).toBeInTheDocument();
+
+    const dogRadio = screen.getByRole("radio", { name: /Option B \(Correct Answer\)/i });
+    expect(dogRadio.checked).toBe(true);
   });
 });

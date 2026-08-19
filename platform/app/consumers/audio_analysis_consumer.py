@@ -95,9 +95,9 @@ class AudioAnalysisConsumer(BaseConsumer):
 
         # Download WAV
         try:
-            from app.providers.blob_storage import BlobStorageProvider  # noqa: PLC0415
+            from app.providers.blob_storage import get_blob_storage_provider  # noqa: PLC0415
 
-            blob_provider = BlobStorageProvider()
+            blob_provider = get_blob_storage_provider()
             audio_bytes = await blob_provider.download_from_url(wav_url)
         except Exception as exc:
             logger.error(

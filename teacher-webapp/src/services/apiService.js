@@ -2,6 +2,7 @@ import { API_ENDPOINTS } from "../constants/apiEndpoints";
 import { APP_CONFIG } from "../config/appConfig";
 import axiosInstance from "./axiosInstance";
 import { normalizePhoneNumber } from "../utils/phoneUtils";
+import { ContentPageDto } from "../dto/ContentDto";
 
 /**
  * All network requests use the centralized axios instance with
@@ -207,5 +208,5 @@ export const removeParticipant = async (confId, phone_number, name = null) => {
 export const fetchAudioContent = async () => {
   // Note: Auth token is automatically added by axios interceptor
   const response = await axiosInstance.get(API_ENDPOINTS.GET_AUDIO_CONTENT);
-  return response.data;
+  return ContentPageDto.fromApi(response.data);
 };

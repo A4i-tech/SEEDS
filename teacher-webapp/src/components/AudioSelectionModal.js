@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { fetchAudioContent } from "../services/apiService";
+import { formatSeconds } from "../utils/formatSeconds";
 
-const getTrackId = (track) =>
-  track?.id ?? track?._id ?? track?.audioId ?? track?.url ?? track?.name;
+const getTrackId = (track) => track.id;
 
 export const AudioSelectionModal = ({ open, onClose, onConfirm }) => {
   const [tracks, setTracks] = useState([]);
@@ -21,12 +21,11 @@ export const AudioSelectionModal = ({ open, onClose, onConfirm }) => {
       setError(null);
 
       try {
-        const response = await fetchAudioContent();
-        const content = Array.isArray(response) ? response : (response?.content ?? []);
+        const page = await fetchAudioContent();
 
         if (isActive) {
-          setTracks(content);
-          setSelectedTrackId(getTrackId(content[0]) ?? null);
+          setTracks(page.items);
+          setSelectedTrackId(page.items[0] ? getTrackId(page.items[0]) : null);
         }
       } catch (err) {
         if (isActive) {
@@ -88,8 +87,10 @@ export const AudioSelectionModal = ({ open, onClose, onConfirm }) => {
                       checked={selectedTrackId === trackId}
                       onChange={() => setSelectedTrackId(trackId)}
                     />
-                    <span className="track-name">{track?.name || track?.title || "Untitled"}</span>
-                    {track?.duration && <span className="track-duration">{track.duration}</span>}
+                    <span className="track-name">{track.display_title}</span>
+                    {track.duration_seconds != null && (
+                      <span className="track-duration">{formatSeconds(track.duration_seconds)}</span>
+                    )}
                   </label>
                 </li>
               );

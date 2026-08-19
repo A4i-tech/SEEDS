@@ -4,6 +4,7 @@ import { getRole } from "../utils/authHelpers";
 
 export const useSchools = (activeTab) => {
   const [schools, setSchools] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("success");
 
@@ -17,11 +18,14 @@ export const useSchools = (activeTab) => {
   }, []);
 
   const fetchSchools = useCallback(async () => {
+    setIsLoading(true);
     try {
       const data = await schoolService.getSchools();
       setSchools(data);
     } catch (error) {
       console.error("Error fetching schools:", error);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
@@ -58,7 +62,7 @@ export const useSchools = (activeTab) => {
     }
     try {
       const updated = await schoolService.updateSchool(schoolId, name, email, password);
-      setSchools((prev) => prev.map((s) => (String(s._id) === String(schoolId) ? updated : s)));
+      setSchools((prev) => prev.map((s) => (s.id === schoolId ? updated : s)));
       flash("School updated successfully!", "success");
       return true;
     } catch (error) {
@@ -71,12 +75,12 @@ export const useSchools = (activeTab) => {
     if (!window.confirm("Delete this school?")) return;
     try {
       await schoolService.deleteSchool(schoolId);
-      setSchools((prev) => prev.filter((s) => String(s._id) !== String(schoolId)));
+      setSchools((prev) => prev.filter((s) => s.id !== schoolId));
       flash("School deleted successfully!", "success");
     } catch (error) {
       flash(error.message || "Failed to delete school.", "error");
     }
   }, []);
 
-  return { schools, message, messageType, createSchool, updateSchool, deleteSchool };
+  return { schools, isLoading, message, messageType, createSchool, updateSchool, deleteSchool };
 };

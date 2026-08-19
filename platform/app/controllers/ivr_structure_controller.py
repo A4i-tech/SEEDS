@@ -18,6 +18,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.models.requests.call_requests import StartIVRRequest
+from app.models.responses.ivr import IVRUpdateResponse
 from app.platform.auth.dependencies import get_current_user
 from app.services.ivr_service import IVRService, get_ivr_service
 
@@ -127,11 +128,11 @@ async def start_ivr(
 async def update_ivr(
     user: dict[str, Any] = Depends(_require_tenant),
     service: IVRService = Depends(get_ivr_service),
-) -> Any:
+) -> IVRUpdateResponse:
     result = await service.update_ivr_structure(
         tenant_id=user.get("tenant_id", "") if isinstance(user, dict) else "",
         structure={},
     )
     if result.get("status_code", 200) >= 400:
         raise HTTPException(status_code=result["status_code"], detail=result.get("message"))
-    return result
+    return IVRUpdateResponse(**result)

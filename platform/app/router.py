@@ -10,11 +10,14 @@ from fastapi import APIRouter
 
 from app.controllers import (
     audit_controller,
+    # Unified ContentWebApp login
+    auth_controller,
     call_controller,
     class_controller,
     # Calls (split from call_controller)
     conference_controller,
     # Content
+    content_aggregator_controller,
     content_controller,
     ivr_controller,
     # Other
@@ -41,6 +44,7 @@ from app.controllers import (
 api_router = APIRouter()
 
 # Auth
+api_router.include_router(auth_controller.router)
 api_router.include_router(teacher_auth_controller.router)
 api_router.include_router(tenant_auth_controller.router)
 api_router.include_router(school_admin_auth_controller.router)
@@ -57,6 +61,7 @@ api_router.include_router(class_controller.router)
 # Content
 api_router.include_router(content_controller.router)
 api_router.include_router(audit_controller.router)
+api_router.include_router(content_aggregator_controller.router)
 
 # Calls
 api_router.include_router(conference_controller.router)

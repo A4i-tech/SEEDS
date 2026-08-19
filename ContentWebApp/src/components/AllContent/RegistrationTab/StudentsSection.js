@@ -7,7 +7,7 @@ import "../shared/cards.css";
 import "../shared/tables.css";
 import "../shared/utilities.css";
 
-const StudentsSection = ({ students, onAddStudent, onUpdateStudent, onDeleteStudent }) => {
+const StudentsSection = ({ students, isLoading, onAddStudent, onUpdateStudent, onDeleteStudent }) => {
   const [name, setName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
 
@@ -26,13 +26,13 @@ const StudentsSection = ({ students, onAddStudent, onUpdateStudent, onDeleteStud
   const openEdit = (student) => {
     setEditingStudent(student);
     setEditName(student.name);
-    setEditPhone(student.phoneNumber);
+    setEditPhone(student.phone_number);
   };
 
   const closeEdit = () => setEditingStudent(null);
 
   const saveEdit = async () => {
-    const success = await onUpdateStudent(editingStudent._id, editName, editPhone);
+    const success = await onUpdateStudent(editingStudent.id, editName, editPhone);
     if (success) closeEdit();
   };
 
@@ -71,6 +71,7 @@ const StudentsSection = ({ students, onAddStudent, onUpdateStudent, onDeleteStud
 
       <StudentsTable
         students={students}
+        isLoading={isLoading}
         onEditStudent={openEdit}
         onRemoveStudent={onDeleteStudent}
       />

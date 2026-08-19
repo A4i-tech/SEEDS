@@ -38,9 +38,9 @@ class CallLog(BaseModel):
     id: str | None = Field(None, alias="_id")
     type: str
     time: str
-    fsmContextId: str
+    fsm_context_id: str
     data: dict[str, Any] | None = None
-    is_completed: bool = Field(alias="isCompleted")
+    is_completed: bool
 
     @classmethod
     def from_mongo(cls, doc: dict) -> CallLog:

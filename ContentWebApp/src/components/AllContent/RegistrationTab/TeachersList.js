@@ -1,13 +1,15 @@
 import React, { useState } from "react";
 import Modal from "../shared/Modal";
+import RowActions from "../shared/RowActions";
 import PasswordInput from "../../PasswordInput";
+import TableSkeleton from "../shared/TableSkeleton";
 import { USER_ROLES } from "../../../Constants";
 import "../shared/buttons.css";
 import "../shared/tables.css";
 import "../shared/utilities.css";
 import "./css/TeachersList.css";
 
-const TeachersList = ({ teachers, schools = [], onUpdateTeacher, onDeleteTeacher, onTransferTeacher }) => {
+const TeachersList = ({ teachers, schools = [], isLoading, onUpdateTeacher, onDeleteTeacher, onTransferTeacher }) => {
   const [editingTeacher, setEditingTeacher] = useState(null);
   const [editName, setEditName] = useState("");
   const [editPhone, setEditPhone] = useState("");
@@ -18,15 +20,15 @@ const TeachersList = ({ teachers, schools = [], onUpdateTeacher, onDeleteTeacher
 
   const openEdit = (teacher) => {
     setEditingTeacher(teacher);
-    setEditName(teacher.name || "");
-    setEditPhone(teacher.phoneNumber || "");
+    setEditName(teacher.name);
+    setEditPhone(teacher.phone_number || "");
     setEditPassword("");
   };
 
   const closeEdit = () => setEditingTeacher(null);
 
   const saveEdit = async () => {
-    const success = await onUpdateTeacher(editingTeacher._id, editName, editPhone, editPassword || undefined);
+    const success = await onUpdateTeacher(editingTeacher.id, editName, editPhone, editPassword || undefined);
     if (success) closeEdit();
   };
 
@@ -38,31 +40,35 @@ const TeachersList = ({ teachers, schools = [], onUpdateTeacher, onDeleteTeacher
   const closeTransfer = () => setTransferringTeacher(null);
 
   const saveTransfer = async () => {
-    const success = await onTransferTeacher(transferringTeacher._id, targetSchoolId);
+    const success = await onTransferTeacher(transferringTeacher.id, targetSchoolId);
     if (success) closeTransfer();
   };
 
   return (
     <>
-      {teachers.length === 0 ? (
+      {isLoading && teachers.length === 0 ? (
+        <div className="table-wrapper">
+          <TableSkeleton columns={["Name", "Phone", "Actions"]} />
+        </div>
+      ) : teachers.length === 0 ? (
         <div className="no-teachers">No teachers registered yet.</div>
       ) : (
-        <div className="table-scroll">
-          <table className="students-table">
+        <div className="table-wrapper">
+          <table className="content-table">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Phone</th>
-                <th>Actions</th>
+                <th className="table-header">Name</th>
+                <th className="table-header">Phone</th>
+                <th className="table-header">Actions</th>
               </tr>
             </thead>
             <tbody>
               {teachers.map((teacher) => {
                 const isCreator = teacher.role === USER_ROLES.CONTENT_CREATOR;
                 return (
-                  <tr key={teacher._id}>
-                    <td>
-                      <span className="teacher-cell-name">{teacher.name || "—"}</span>
+                  <tr key={teacher.id} className="table-row-white">
+                    <td className="table-cell">
+                      <span className="teacher-cell-name">{teacher.name}</span>
                       <span
                         className={`role-badge ${
                           isCreator ? "creator-role-badge" : "teacher-role-badge"
@@ -71,11 +77,16 @@ const TeachersList = ({ teachers, schools = [], onUpdateTeacher, onDeleteTeacher
                         {isCreator ? "Creator" : "Teacher"}
                       </span>
                     </td>
-                    <td>{teacher.phoneNumber}</td>
-                    <td>
-                      <button type="button" className="action-ghost-button" onClick={() => openEdit(teacher)}>Edit</button>
-                      <button type="button" className="action-ghost-button" onClick={() => openTransfer(teacher)}>Transfer</button>
-                      <button type="button" className="action-ghost-button" onClick={() => onDeleteTeacher(teacher._id)}>Remove</button>
+                    <td className="table-cell">{teacher.phone_number}</td>
+                    <td className="table-cell">
+                      <RowActions
+                        horizontal
+                        actions={[
+                          { key: "edit", label: "Edit", variant: "edit", onClick: () => openEdit(teacher) },
+                          { key: "sync", label: "Transfer", variant: "sync", onClick: () => openTransfer(teacher) },
+                          { key: "delete", label: "Remove", variant: "delete", onClick: () => onDeleteTeacher(teacher.id) },
+                        ]}
+                      />
                     </td>
                   </tr>
                 );
@@ -123,7 +134,7 @@ const TeachersList = ({ teachers, schools = [], onUpdateTeacher, onDeleteTeacher
       {transferringTeacher && (
         <Modal title="Transfer Teacher" onClose={closeTransfer}>
           <p style={{ margin: "0 0 12px", fontSize: "14px", color: "#475569" }}>
-            Transfer <strong>{transferringTeacher.name || transferringTeacher.phoneNumber}</strong> to another school.
+            Transfer <strong>{transferringTeacher.name}</strong> to another school.
           </p>
           <label className="label" htmlFor="transfer-school-id">Target School</label>
           <select
@@ -134,7 +145,7 @@ const TeachersList = ({ teachers, schools = [], onUpdateTeacher, onDeleteTeacher
           >
             <option value="">Select a school</option>
             {schools.map((s) => (
-              <option key={s._id} value={s._id}>{s.name}</option>
+              <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
           <div className="modal-actions">

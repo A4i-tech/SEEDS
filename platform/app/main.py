@@ -9,6 +9,7 @@ APP_MODE controls what is mounted:
 
 from __future__ import annotations
 
+import opentelemetry.instrumentation.fastapi as _otel_fastapi
 from fastapi import FastAPI
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
@@ -38,6 +39,18 @@ app = FastAPI(
     redoc_url=None if settings.env == "production" else "/redoc",
     openapi_url=None if settings.env == "production" else "/openapi.json",
 )
+
+_otel_get_route_details = _otel_fastapi._get_route_details
+
+
+def _safe_get_route_details(scope):
+    try:
+        return _otel_get_route_details(scope)
+    except AttributeError:
+        return scope.get("path")
+
+
+_otel_fastapi._get_route_details = _safe_get_route_details
 
 FastAPIInstrumentor.instrument_app(app)
 

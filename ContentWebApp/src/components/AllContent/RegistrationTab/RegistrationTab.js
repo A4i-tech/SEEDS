@@ -13,6 +13,7 @@ import "../shared/utilities.css";
 const RegistrationTab = ({
   teachers,
   students,
+  isTeachersLoading,
   onRegisterTeacher,
   onAddStudent,
   onUpdateStudent,
@@ -23,6 +24,7 @@ const RegistrationTab = ({
   message,
   messageType,
   schools,
+  isSchoolsLoading,
   onCreateSchool,
   onUpdateSchool,
   onDeleteSchool,
@@ -35,6 +37,7 @@ const RegistrationTab = ({
     return (
       <SchoolsPanel
         schools={schools}
+        isLoading={isSchoolsLoading}
         onCreateSchool={onCreateSchool}
         onUpdateSchool={onUpdateSchool}
         onDeleteSchool={onDeleteSchool}
@@ -83,6 +86,7 @@ const RegistrationTab = ({
             <TeachersList
               teachers={teachers}
               schools={schools}
+              isLoading={isTeachersLoading}
               onUpdateTeacher={onUpdateTeacher}
               onDeleteTeacher={onDeleteTeacher}
               onTransferTeacher={onTransferTeacher}
@@ -94,6 +98,7 @@ const RegistrationTab = ({
       {activeSection === "students" && (
         <StudentsSection
           students={students}
+          isLoading={isTeachersLoading}
           onAddStudent={onAddStudent}
           onUpdateStudent={onUpdateStudent}
           onDeleteStudent={onDeleteStudent}

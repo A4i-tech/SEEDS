@@ -18,9 +18,9 @@ _INPUT_CONTAINER = "input-container"
 
 def _get_provider():
     """Lazily import and return the BlobStorageProvider singleton."""
-    from app.providers.blob_storage import BlobStorageProvider  # noqa: PLC0415
+    from app.providers.blob_storage import get_blob_storage_provider  # noqa: PLC0415
 
-    return BlobStorageProvider()
+    return get_blob_storage_provider()
 
 
 async def upload_content_audio(content_id: str, audio_bytes: bytes, suffix: str = "1.0.mp3") -> str:
@@ -67,7 +67,7 @@ async def theme_audio_exists(theme_english: str) -> bool:
     try:
         container_client = provider.get_container_client(_THEME_CONTAINER)
         blob_client = container_client.get_blob_client(blob_name)
-        blob_client.get_blob_properties()
+        await blob_client.get_blob_properties()
         return True
     except Exception:  # noqa: BLE001
         return False

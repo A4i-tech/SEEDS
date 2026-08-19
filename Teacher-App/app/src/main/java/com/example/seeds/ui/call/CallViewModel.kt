@@ -507,7 +507,7 @@ class CallViewModel @Inject constructor(
             for ((phone, el) in participantsObj.entrySet()) {
                 val p = el.asJsonObject
                 val rawState = try {
-                    CallerState.valueOf(p.get("call_status")?.asString?.uppercase() ?: "UNDEFINED")
+                    CallerState.valueOf(p.get("call_status").asString.uppercase())
                 } catch (e: IllegalArgumentException) { CallerState.UNDEFINED }
                 // Platform has no RINGING state — CONNECTING means "dialing, not yet answered".
                 // Map to RINGING so teacher sees phone-ringing UI until student picks up.
@@ -515,10 +515,10 @@ class CallViewModel @Inject constructor(
 
                 val status = StudentCallStatus(
                     callerState = callerState,
-                    isMuted = p.get("is_muted")?.asBoolean ?: false,
+                    isMuted = p.get("is_muted").asBoolean,
                     phoneNumber = phone,
-                    name = p.get("name")?.asString,
-                    raiseHand = p.get("is_raised")?.asBoolean ?: false
+                    name = p.get("name").asString,
+                    raiseHand = p.get("is_raised").asBoolean
                 )
                 if (p.get("role")?.asString == "Teacher") teacherStatus = status
                 else students.add(status)
@@ -528,9 +528,9 @@ class CallViewModel @Inject constructor(
             // SSE only includes participants who have joined; a student still ringing
             // externally won't appear until they answer, so we keep them in current state.
             val normalize = { p: String -> if (p.length == 12 && p.startsWith("91")) p.substring(2) else p }
-            val sseKeys = students.mapNotNull { it.phoneNumber?.let(normalize) }.toSet()
+            val sseKeys = students.map { normalize(it.phoneNumber) }.toSet()
             val preAnswerStudents = (_callState.value ?: emptyList()).filter { existing ->
-                val key = existing.phoneNumber?.let(normalize) ?: return@filter false
+                val key = normalize(existing.phoneNumber)
                 // participantTrackers may be keyed in server (E.164) form while existing.phoneNumber
                 // is local — match on the normalized key so hasBeenInCall isn't silently missed.
                 val trackerKey = participantTrackers.keys.firstOrNull { normalize(it) == key }
@@ -721,11 +721,11 @@ class CallViewModel @Inject constructor(
                     _playerState.postValue(newPlayerState)
                 }
 
-                val serverParticipantPhones = networkCallState.mapNotNull { it.phoneNumber }.filter { it != teacherPhoneNumber }.toSet()
+                val serverParticipantPhones = networkCallState.map { it.phoneNumber }.filter { it != teacherPhoneNumber }.toSet()
                 networkCallState
-                    .filter { it.phoneNumber != null && it.phoneNumber != teacherPhoneNumber }
+                    .filter { it.phoneNumber != teacherPhoneNumber }
                     .forEach { status ->
-                        status.phoneNumber?.let { updateTrackerFromServerState(it, status.callerState ?: CallerState.UNDEFINED) }
+                        updateTrackerFromServerState(status.phoneNumber, status.callerState ?: CallerState.UNDEFINED)
                     }
 
                 val currentStudentList = _callState.value ?: emptyList()
@@ -774,11 +774,10 @@ class CallViewModel @Inject constructor(
     ): List<StudentCallStatus> {
         val logSuffix = if (fromRefresh) " in refresh" else ""
         return currentStudentList
-            .filter { it.phoneNumber != null }
             .filter { it.phoneNumber !in serverParticipantPhones }
             .filter { participant -> participantTrackers[participant.phoneNumber]?.hasBeenInCall == true }
             .mapNotNull { participant ->
-                val phoneNumber = participant.phoneNumber ?: return@mapNotNull null
+                val phoneNumber = participant.phoneNumber
                 val tracker = participantTrackers[phoneNumber] ?: return@mapNotNull null
                 val wasConnected = tracker.previousState == CallerState.CONNECTED || participant.callerState == CallerState.CONNECTED
                 if (wasConnected) {
@@ -1122,12 +1121,9 @@ class CallViewModel @Inject constructor(
                     return@launch
                 }
 
-                val audioUrl = when {
-                    selectedContentObj.audioContent.isNotEmpty() -> selectedContentObj.audioContent.first().audioUrl
-                    selectedContentObj.title?.audioUrl != null -> selectedContentObj.title.audioUrl
-                    selectedContentObj.theme?.audioUrl != null -> selectedContentObj.theme.audioUrl
-                    else -> null
-                }
+                val audioUrl = selectedContentObj.audioContent.firstOrNull()?.audioUrl
+                    ?: selectedContentObj.title.audioUrl
+                    ?: selectedContentObj.theme.audioUrl
 
                 if (audioUrl.isNullOrEmpty()) {
                     _isErrorFromIVR.postValue("No audio available")

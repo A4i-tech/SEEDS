@@ -1,26 +1,39 @@
 import React from "react";
-import Multiselect from "multiselect-react-dropdown";
-import "../shared/cards.css";
-import "../shared/utilities.css";
+import FilterChip from "./FilterChip";
+import FilterSearchDropdown from "./FilterSearchDropdown";
+import "./css/ContentFilters.css";
 
-const ContentFilters = ({ options, onFilterChange, selectedValues, multiselectRef }) => (
-  <div className="filter-wrapper">
-    <p className="filter-label">Filter content</p>
-    <Multiselect
-      ref={multiselectRef}
-      options={options}
-      selectedValues={selectedValues}
-      onSelect={onFilterChange}
-      onRemove={onFilterChange}
-      displayValue="name"
-      groupBy="category"
-      style={{
-        chips: { background: "#0f172a" },
-        multiselectContainer: { color: "#0f172a" },
-        option: { color: "#0f172a" },
-      }}
-    />
-  </div>
-);
+const sameOption = (a, b) => a.category === b.category && a.id === b.id;
+
+const ContentFilters = ({ options, selectedValues, onFilterChange, titleQuery, onTitleQueryChange }) => {
+  const available = options.filter((opt) => !selectedValues.some((v) => sameOption(v, opt)));
+
+  const addFilter = (opt) => onFilterChange([...selectedValues, opt]);
+  const removeFilter = (opt) => onFilterChange(selectedValues.filter((v) => !sameOption(v, opt)));
+
+  return (
+    <div className="content-filters">
+      <div className="content-filters-label">Filter content</div>
+
+      {selectedValues.length > 0 && (
+        <div className="content-filters-chips">
+          {selectedValues.map((v) => (
+            <FilterChip key={`${v.category}-${v.id}`} label={v.name} onRemove={() => removeFilter(v)} />
+          ))}
+          <button type="button" className="filter-clear-all" onClick={() => onFilterChange([])}>
+            Clear all
+          </button>
+        </div>
+      )}
+
+      <FilterSearchDropdown
+        options={available}
+        onSelect={addFilter}
+        query={titleQuery}
+        onQueryChange={onTitleQueryChange}
+      />
+    </div>
+  );
+};
 
 export default ContentFilters;

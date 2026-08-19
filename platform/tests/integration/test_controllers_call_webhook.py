@@ -270,7 +270,7 @@ class TestSchoolControllerCRUD:
             "password": "schoolpass",
         }, headers={"Authorization": f"Bearer {token}"})
         assert create_resp.status_code == 201
-        school_id = create_resp.json()["_id"]
+        school_id = create_resp.json()["id"]
 
         # Fetch it
         get_resp = await client.get(f"/school/{school_id}", headers={"Authorization": f"Bearer {token}"})
@@ -291,7 +291,7 @@ class TestSchoolControllerCRUD:
             "password": "schoolpass",
         }, headers={"Authorization": f"Bearer {token}"})
         assert create_resp.status_code == 201
-        school_id = create_resp.json()["_id"]
+        school_id = create_resp.json()["id"]
 
         del_resp = await client.delete(f"/school/{school_id}", headers={"Authorization": f"Bearer {token}"})
         assert del_resp.status_code in (200, 204)

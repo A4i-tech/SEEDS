@@ -40,7 +40,7 @@ class Content(BaseModel):
 
     id: str | None = Field(None, alias="_id")
     version: str = "v3"
-    tenant_id: str | None = Field(None, alias="tenantId")
+    tenant_id: str | None = None
     description: str = ""
     type: str
     language: str
@@ -48,21 +48,21 @@ class Content(BaseModel):
     title: TextContent | None = None
     theme: TextContent | None = None
     # V2 flat title/theme fields
-    title_text: str | None = Field(None, alias="titleText")
-    local_title: str | None = Field(None, alias="localTitle")
-    title_audio: str | None = Field(None, alias="titleAudio")
-    theme_text: str | None = Field(None, alias="themeText")
-    local_theme: str | None = Field(None, alias="localTheme")
-    theme_audio: str | None = Field(None, alias="themeAudio")
+    title_text: str | None = None
+    local_title: str | None = None
+    title_audio: str | None = None
+    theme_text: str | None = None
+    local_theme: str | None = None
+    theme_audio: str | None = None
     # Audio content (v3)
-    audio_content: list[AudioContent] = Field(default_factory=list, alias="audioContent")
+    audio_content: list[AudioContent] = Field(default_factory=list)
     # Flags
-    school_id: str | None = Field(None, alias="schoolId")
-    created_by: str = Field("", alias="createdBy")
-    is_pull_model: bool = Field(False, alias="isPullModel")
-    is_teacher_app: bool = Field(False, alias="isTeacherApp")
-    is_processed: bool = Field(False, alias="isProcessed")
-    is_deleted: bool = Field(False, alias="isDeleted")
+    school_id: str | None = None
+    created_by: str = ""
+    is_pull_model: bool = False
+    is_teacher_app: bool = False
+    is_processed: bool = False
+    is_deleted: bool = False
     creation_time: int = -1
     created_at: datetime | None = None
     updated_at: datetime | None = None

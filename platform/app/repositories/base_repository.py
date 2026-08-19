@@ -18,3 +18,8 @@ class BaseRepository:
             return ObjectId(id_str)
         except Exception:
             return id_str
+
+    @classmethod
+    def _ids_query(cls, ids: list[str]) -> dict:
+        """$in match for a list of ids, coercing each to ObjectId when valid."""
+        return {"$in": [cls._to_id(i) for i in ids]}

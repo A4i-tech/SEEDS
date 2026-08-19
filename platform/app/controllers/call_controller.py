@@ -96,7 +96,7 @@ async def log_call(
     service: CallService = Depends(get_call_service),
 ) -> Any:
     """Save a call log entry (backend-server callRouter.js:171)."""
-    return await service.log_call(body.model_dump(by_alias=True))
+    return await service.log_call(body.model_dump())
 
 
 @router.post("/fsmContext", summary="Save FSM context for a call")
@@ -106,7 +106,7 @@ async def save_fsm_context(
     service: CallService = Depends(get_call_service),
 ) -> Any:
     """Save an FSM context document (backend-server callRouter.js:203)."""
-    return await service.save_fsm_context(body.model_dump(by_alias=True))
+    return await service.save_fsm_context(body.model_dump())
 
 
 @router.get("/fsmContext/{context_id}", summary="Get FSM context by ID")
