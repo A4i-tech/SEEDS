@@ -1,9 +1,5 @@
 name: Deploy Main Services Staging
 
-# Image push only — kube-dev (seeds-dev.a4i-lab.in) pulls straight from GHCR
-# via k8s manifests, no Azure App Service exists for staging content-webapp/
-# teacher-webapp/platform, so there's no deploy step here (unlike
-# deploy-websocket-service-staging.yml, which does have one).
 on:
     push:
         branches: a4i/staging

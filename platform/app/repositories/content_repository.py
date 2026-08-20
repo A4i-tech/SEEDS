@@ -93,7 +93,7 @@ class ContentRepository(BaseRepository):
         limit: int = 16,
     ) -> list[dict]:
         """Paginated content list — content-type items only (not quizzes)."""
-        q = self._tenant_query(tenant_id, school_id, strict=False)
+        q = self._tenant_query(tenant_id, school_id)
 
         if only_teacher_app:
             q["is_teacher_app"] = True
