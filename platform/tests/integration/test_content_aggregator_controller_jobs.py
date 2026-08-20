@@ -145,7 +145,7 @@ async def test_courses_are_isolated_between_tenants(client, mock_db):
 
     repo = ContentAggregatorRepository(mock_db)
     node = CanonicalNode(
-        tenant_id="tenant-a", source_type="subodha", source_id="course-1", root_id="course-1", parent_id=None,
+        source_type="subodha", source_id="course-1", root_id="course-1", parent_id=None,
         order=0, node_kind=NodeKind.CONTAINER, item_type=None, display_name="A's course", content=None,
         lms_url=None, native_type="course", source_metadata={}, last_run_id="run-1",
         fetched_at="x", created_at="x", updated_at="x",

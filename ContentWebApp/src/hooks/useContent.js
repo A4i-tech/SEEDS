@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { contentService } from "../services/contentService";
 import { contentAggregatorService } from "../services/contentAggregatorService";
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 20;
 
 const mapContentAggregatorCourse = (course) => ({
   id: course.id,
@@ -25,20 +25,29 @@ export const useContent = () => {
     nextCursor: null,
     hasMore: false,
   });
+  const [coursePaginationInfo, setCoursePaginationInfo] = useState({
+    nextCursor: null,
+    hasMore: false,
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [isFiltered, setIsFiltered] = useState(false);
   const isFilteredRef = useRef(isFiltered);
   isFilteredRef.current = isFiltered;
 
-  const loadContentAggregatorCourses = useCallback(async () => {
+  const loadContentAggregatorCourses = useCallback(async (cursor = null) => {
     try {
-      const courses = await contentAggregatorService.getCourses();
+      const { courses, next_cursor: nextCursor, has_more: hasMore } = await contentAggregatorService.getCourses(
+        cursor
+      );
       const mapped = courses.map(mapContentAggregatorCourse);
       setAllContent((prevAll) => {
-        const merged = [...prevAll.filter((item) => item.source !== "subodha"), ...mapped];
+        const merged = cursor
+          ? [...prevAll, ...mapped]
+          : [...prevAll.filter((item) => item.source !== "subodha"), ...mapped];
         if (!isFilteredRef.current) setContent(merged);
         return merged;
       });
+      setCoursePaginationInfo({ nextCursor, hasMore });
     } catch (error) {
       console.error("Error loading content aggregator courses:", error);
     }
@@ -91,44 +100,56 @@ export const useContent = () => {
    * Load more content (pagination)
    */
   const loadMore = useCallback(async () => {
-    if (!paginationInfo.hasMore || !paginationInfo.nextCursor || isLoading) {
+    if (isLoading) {
       return;
     }
 
-    setIsLoading(true);
-    const ac = new AbortController();
+    if (paginationInfo.hasMore && paginationInfo.nextCursor) {
+      setIsLoading(true);
+      const ac = new AbortController();
 
-    try {
-      const { data, nextCursor, hasMore } = await fetchContent(paginationInfo.nextCursor, ac.signal);
+      try {
+        const { data, nextCursor, hasMore } = await fetchContent(paginationInfo.nextCursor, ac.signal);
 
-      if (!data.length) {
-        setPaginationInfo({ nextCursor: null, hasMore: false });
-        return;
-      }
-
-      setAllContent((prevAll) => {
-        const existingIds = new Set(prevAll.map((c) => c.id));
-        const merged = [...prevAll];
-        data.forEach((item) => {
-          if (!existingIds.has(item.id)) {
-            merged.push(item);
-          }
-        });
-        if (!isFiltered) {
-          setContent(merged);
+        if (!data.length) {
+          setPaginationInfo({ nextCursor: null, hasMore: false });
+          return;
         }
-        return merged;
-      });
 
-      setPaginationInfo({ nextCursor, hasMore });
-    } catch (error) {
-      if (error.name !== "AbortError") {
-        console.error("Error loading more content:", error);
+        setAllContent((prevAll) => {
+          const existingIds = new Set(prevAll.map((c) => c.id));
+          const merged = [...prevAll];
+          data.forEach((item) => {
+            if (!existingIds.has(item.id)) {
+              merged.push(item);
+            }
+          });
+          if (!isFiltered) {
+            setContent(merged);
+          }
+          return merged;
+        });
+
+        setPaginationInfo({ nextCursor, hasMore });
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          console.error("Error loading more content:", error);
+        }
+      } finally {
+        setIsLoading(false);
       }
-    } finally {
-      setIsLoading(false);
+      return;
     }
-  }, [paginationInfo, fetchContent, isFiltered, isLoading]);
+
+    if (coursePaginationInfo.hasMore && coursePaginationInfo.nextCursor) {
+      setIsLoading(true);
+      try {
+        await loadContentAggregatorCourses(coursePaginationInfo.nextCursor);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  }, [paginationInfo, coursePaginationInfo, fetchContent, isFiltered, isLoading, loadContentAggregatorCourses]);
 
   /**
    * Delete content item
@@ -192,7 +213,10 @@ export const useContent = () => {
     content,
     allContent,
     isLoading,
-    paginationInfo,
+    paginationInfo: {
+      nextCursor: paginationInfo.nextCursor,
+      hasMore: paginationInfo.hasMore || coursePaginationInfo.hasMore,
+    },
     isFiltered,
     loadMore,
     deleteContent,

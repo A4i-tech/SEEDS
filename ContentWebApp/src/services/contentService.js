@@ -11,7 +11,7 @@ export const contentService = {
    * @param {AbortSignal} signal - Abort signal for cancellation
    * @returns {Promise<{data: Array, pagination: Object}>}
    */
-  async getContent(cursor = null, limit = 50, signal = null) {
+  async getContent(cursor = null, limit = 20, signal = null) {
     const params = { limit };
     if (cursor) {
       params.cursor = cursor;

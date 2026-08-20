@@ -146,7 +146,6 @@ _CONTENT_TYPE_BY_ITEM_TYPE: dict[ItemType, type] = {
 
 @dataclass
 class CanonicalNode:
-    tenant_id: str
     source_type: str
     source_id: str
     root_id: str
@@ -166,7 +165,7 @@ class CanonicalNode:
 
     def to_doc(self) -> dict[str, object]:
         return {
-            "tenant_id": self.tenant_id, "source_type": self.source_type, "source_id": self.source_id,
+            "source_type": self.source_type, "source_id": self.source_id,
             "root_id": self.root_id, "parent_id": self.parent_id, "order": self.order,
             "node_kind": self.node_kind.value, "item_type": self.item_type.value if self.item_type else None,
             "display_name": self.display_name, "content": self.content.to_dict() if self.content else None,
@@ -182,7 +181,7 @@ class CanonicalNode:
         if doc["content"] is not None and item_type is not None:
             content = _CONTENT_TYPE_BY_ITEM_TYPE[item_type].from_dict(doc["content"])
         return cls(
-            tenant_id=doc["tenant_id"], source_type=doc["source_type"], source_id=doc["source_id"],
+            source_type=doc["source_type"], source_id=doc["source_id"],
             root_id=doc["root_id"], parent_id=doc["parent_id"], order=doc["order"],
             node_kind=NodeKind(doc["node_kind"]), item_type=item_type, display_name=doc["display_name"],
             content=content, lms_url=doc["lms_url"], native_type=doc["native_type"],

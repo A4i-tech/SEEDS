@@ -58,7 +58,7 @@ class SubodhaAdapter(SourceAdapter):
         now = _now()
 
         course_node = CanonicalNode(
-            tenant_id="", source_type=self.source_type, source_id=course_source_id, root_id=course_source_id,
+            source_type=self.source_type, source_id=course_source_id, root_id=course_source_id,
             parent_id=None, order=0, node_kind=NodeKind.CONTAINER, item_type=None,
             display_name=native_course["name"], content=None, lms_url=None, native_type="course",
             source_metadata={
@@ -84,7 +84,7 @@ class SubodhaAdapter(SourceAdapter):
         def make_container(block_id: str, parent_id: str, native_type: str, order: int) -> CanonicalNode:
             block = blocks.get(block_id, {})
             return CanonicalNode(
-                tenant_id="", source_type=self.source_type, source_id=block_id, root_id=course_source_id,
+                source_type=self.source_type, source_id=block_id, root_id=course_source_id,
                 parent_id=parent_id, order=order, node_kind=NodeKind.CONTAINER, item_type=None,
                 display_name=block.get("display_name") or "", content=None, lms_url=None,
                 native_type=native_type, source_metadata={}, last_run_id=run_id, fetched_at=now, created_at=now, updated_at=now,
@@ -99,7 +99,7 @@ class SubodhaAdapter(SourceAdapter):
             else:
                 raw = block.get("student_view_data")
             node = CanonicalNode(
-                tenant_id="", source_type=self.source_type, source_id=block_id, root_id=course_source_id,
+                source_type=self.source_type, source_id=block_id, root_id=course_source_id,
                 parent_id=parent_id, order=order, node_kind=NodeKind.ITEM, item_type=item_type,
                 display_name=block.get("display_name") or "", content=None, lms_url=block.get("lms_web_url") or "",
                 native_type=native_type, source_metadata={}, last_run_id=run_id, fetched_at=now, created_at=now, updated_at=now,

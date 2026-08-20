@@ -8,7 +8,10 @@ import asyncio
 import uuid
 from collections.abc import AsyncIterator
 
-from app.aggregators.sync_job_models import SyncItemResult, SyncJob
+from app.aggregators.sync_job_models import SyncItemResult, SyncJob, SyncStats
+from app.repositories.content_aggregator_sync_job_item_repository import (
+    ContentAggregatorSyncJobItemRepository,
+)
 from app.repositories.content_aggregator_sync_job_repository import (
     ContentAggregatorSyncJobRepository,
 )
@@ -16,7 +19,7 @@ from app.repositories.content_aggregator_sync_job_repository import (
 _subscribers: dict[str, list[asyncio.Queue]] = {}
 
 
-def serialize_job(job: SyncJob) -> dict[str, object]:
+def serialize_job(job: SyncJob, stats: SyncStats) -> dict[str, object]:
     return {
         "job_id": job.job_id,
         "scope": job.scope,
@@ -25,9 +28,8 @@ def serialize_job(job: SyncJob) -> dict[str, object]:
         "started_at": job.started_at,
         "finished_at": job.finished_at,
         "total_courses": job.total_items,
-        "processed": job.processed,
-        "stats": job.stats.to_doc(),
-        "items": [i.to_doc() for i in job.items],
+        "processed": stats.total(),
+        "stats": stats.to_doc(),
         "error": job.error,
     }
 
@@ -46,43 +48,72 @@ async def create_job(
     )
 
 
-async def set_total(repo: ContentAggregatorSyncJobRepository, tenant_id: str, job_id: str, total: int) -> None:
-    job = await repo.set_total_items(tenant_id, job_id, total)
+async def set_total(
+    job_repo: ContentAggregatorSyncJobRepository,
+    item_repo: ContentAggregatorSyncJobItemRepository,
+    tenant_id: str,
+    job_id: str,
+    total: int,
+) -> None:
+    job = await job_repo.set_total_items(tenant_id, job_id, total)
     if job is not None:
-        _broadcast(job_id, {"event": "progress", "job": serialize_job(job)})
+        stats = await item_repo.get_stats(tenant_id, job_id)
+        _broadcast(job_id, {"event": "progress", "job": serialize_job(job, stats)})
 
 
-async def record_item_result(repo: ContentAggregatorSyncJobRepository, tenant_id: str, job_id: str, entry: SyncItemResult) -> None:
-    job = await repo.append_item_result(tenant_id, job_id, entry)
+async def record_item_result(
+    job_repo: ContentAggregatorSyncJobRepository,
+    item_repo: ContentAggregatorSyncJobItemRepository,
+    tenant_id: str,
+    job_id: str,
+    entry: SyncItemResult,
+) -> None:
+    await item_repo.insert(tenant_id, job_id, entry)
+    job = await job_repo.get_job(tenant_id, job_id)
     if job is not None:
-        _broadcast(job_id, {"event": "progress", "job": serialize_job(job)})
+        stats = await item_repo.get_stats(tenant_id, job_id)
+        _broadcast(job_id, {"event": "progress", "job": serialize_job(job, stats)})
 
 
 async def finish_job(
-    repo: ContentAggregatorSyncJobRepository, tenant_id: str, job_id: str, status: str, *, error: str | None = None
+    job_repo: ContentAggregatorSyncJobRepository,
+    item_repo: ContentAggregatorSyncJobItemRepository,
+    tenant_id: str,
+    job_id: str,
+    status: str,
+    *,
+    error: str | None = None,
 ) -> None:
-    job = await repo.set_job_status(tenant_id, job_id, status, error=error)
+    job = await job_repo.set_job_status(tenant_id, job_id, status, error=error)
     if job is not None:
-        _broadcast(job_id, {"event": "done", "job": serialize_job(job)})
+        stats = await item_repo.get_stats(tenant_id, job_id)
+        _broadcast(job_id, {"event": "done", "job": serialize_job(job, stats)})
     _subscribers.pop(job_id, None)
 
 
-async def subscribe(repo: ContentAggregatorSyncJobRepository, tenant_id: str, job_id: str) -> AsyncIterator[dict[str, object]]:
-    current = await repo.get_job(tenant_id, job_id)
+async def subscribe(
+    job_repo: ContentAggregatorSyncJobRepository,
+    item_repo: ContentAggregatorSyncJobItemRepository,
+    tenant_id: str,
+    job_id: str,
+) -> AsyncIterator[dict[str, object]]:
+    current = await job_repo.get_job(tenant_id, job_id)
     if current is None:
         return
+    stats = await item_repo.get_stats(tenant_id, job_id)
     if current.status != "running":
-        yield {"event": "done", "job": serialize_job(current)}
+        yield {"event": "done", "job": serialize_job(current, stats)}
         return
-    yield {"event": "progress", "job": serialize_job(current)}
+    yield {"event": "progress", "job": serialize_job(current, stats)}
 
     queue: asyncio.Queue = asyncio.Queue()
     subs = _subscribers.setdefault(job_id, [])
     subs.append(queue)
     try:
-        current = await repo.get_job(tenant_id, job_id)
+        current = await job_repo.get_job(tenant_id, job_id)
         if current is not None and current.status != "running":
-            yield {"event": "done", "job": serialize_job(current)}
+            stats = await item_repo.get_stats(tenant_id, job_id)
+            yield {"event": "done", "job": serialize_job(current, stats)}
             return
         while True:
             event = await queue.get()

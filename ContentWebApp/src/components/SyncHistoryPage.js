@@ -11,6 +11,7 @@ import { SyncAllProgress } from "./AllContent/shared/SyncAllProgress";
 import "./AllContent/shared/pageShell.css";
 import "./AllContent/shared/cards.css";
 import "./AllContent/shared/buttons.css";
+import "./AllContent/shared/utilities.css";
 import "./AllContent/shared/tables.css";
 import "./AllContent/ContentTab/css/ContentTab.css";
 import "./ContentDetails.css";
@@ -53,6 +54,7 @@ const SyncHistoryPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
+  const [itemsByJob, setItemsByJob] = useState({});
 
   const load = useCallback(async () => {
     try {
@@ -74,6 +76,46 @@ const SyncHistoryPage = () => {
   useEffect(() => {
     if (!syncingAll) load();
   }, [syncingAll, load]);
+
+  const loadJobItems = useCallback(async (jobId, after) => {
+    setItemsByJob((prev) => ({
+      ...prev,
+      [jobId]: { ...(prev[jobId] || { items: [] }), loading: true, error: null },
+    }));
+    try {
+      const data = await contentAggregatorService.getSyncJobItems(jobId, { limit: 50, after });
+      setItemsByJob((prev) => {
+        const existing = prev[jobId]?.items || [];
+        return {
+          ...prev,
+          [jobId]: {
+            items: after ? [...existing, ...data.items] : data.items,
+            nextCursor: data.next_cursor,
+            hasMore: Boolean(data.next_cursor),
+            loading: false,
+            error: null,
+            loaded: true,
+          },
+        };
+      });
+    } catch (err) {
+      setItemsByJob((prev) => ({
+        ...prev,
+        [jobId]: { ...(prev[jobId] || { items: [] }), loading: false, error: err.message },
+      }));
+    }
+  }, []);
+
+  const toggleExpand = useCallback(
+    (jobId) => {
+      const nextExpanded = expandedId === jobId ? null : jobId;
+      setExpandedId(nextExpanded);
+      if (nextExpanded && !itemsByJob[nextExpanded]?.loaded) {
+        loadJobItems(nextExpanded);
+      }
+    },
+    [expandedId, itemsByJob, loadJobItems]
+  );
 
   return (
     <div className="page-shell">
@@ -98,12 +140,13 @@ const SyncHistoryPage = () => {
         <ul className="sync-history-job-list">
           {jobs.map((job) => {
             const isExpanded = expandedId === job.job_id;
+            const jobItems = itemsByJob[job.job_id];
             return (
               <li key={job.job_id} className="sync-history-job">
                 <button
                   type="button"
                   className="sync-history-job-summary"
-                  onClick={() => setExpandedId(isExpanded ? null : job.job_id)}
+                  onClick={() => toggleExpand(job.job_id)}
                 >
                   {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                   <span className="sync-history-job-scope">
@@ -118,10 +161,16 @@ const SyncHistoryPage = () => {
                     {job.stats.failed} failed
                   </span>
                 </button>
-                {isExpanded && job.items.length === 0 && (
+                {isExpanded && jobItems?.loading && !jobItems.loaded && (
+                  <p className="table-cell-secondary sync-history-empty">Loading…</p>
+                )}
+                {isExpanded && jobItems?.error && (
+                  <p className="content-details-error">Error: {jobItems.error}</p>
+                )}
+                {isExpanded && jobItems?.loaded && jobItems.items.length === 0 && (
                   <p className="table-cell-secondary sync-history-empty">No courses processed yet.</p>
                 )}
-                {isExpanded && job.items.length > 0 && (
+                {isExpanded && jobItems?.loaded && jobItems.items.length > 0 && (
                   <div className="sync-history-table-outer">
                   <div className="table-wrapper">
                     <table className="content-table">
@@ -135,7 +184,7 @@ const SyncHistoryPage = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {job.items.map((c, i) => (
+                        {jobItems.items.map((c, i) => (
                           <tr key={`${c.source_id}-${i}`}>
                             <td className="table-cell table-cell-truncate">
                               <MiddleEllipsis text={c.source_id} />
@@ -151,6 +200,18 @@ const SyncHistoryPage = () => {
                       </tbody>
                     </table>
                   </div>
+                  {jobItems.hasMore && (
+                    <div className="load-more-wrapper">
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        disabled={jobItems.loading}
+                        onClick={() => loadJobItems(job.job_id, jobItems.nextCursor)}
+                      >
+                        {jobItems.loading ? "Loading more..." : "Load more"}
+                      </button>
+                    </div>
+                  )}
                   </div>
                 )}
               </li>

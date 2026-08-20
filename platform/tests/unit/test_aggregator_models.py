@@ -46,7 +46,7 @@ def test_other_content_round_trip_is_free_form():
 
 def test_canonical_node_to_doc_and_from_doc_round_trip():
     node = CanonicalNode(
-        tenant_id="tenant-a", source_type="subodha", source_id="html-1", root_id="course-1",
+        source_type="subodha", source_id="html-1", root_id="course-1",
         parent_id="vert-1", order=0, node_kind=NodeKind.ITEM, item_type=ItemType.TEXT,
         display_name="Welcome", content=TextContent(markdown_url="https://blob/x.md", html_url="https://blob/x.html"),
         lms_url="https://lms/html-1", native_type="html", source_metadata={},
@@ -64,7 +64,7 @@ def test_canonical_node_to_doc_and_from_doc_round_trip():
 
 def test_canonical_node_container_has_no_content():
     node = CanonicalNode(
-        tenant_id="tenant-a", source_type="subodha", source_id="course-1", root_id="course-1",
+        source_type="subodha", source_id="course-1", root_id="course-1",
         parent_id=None, order=0, node_kind=NodeKind.CONTAINER, item_type=None,
         display_name="Demo", content=None, lms_url=None, native_type="course",
         source_metadata={"org": "edX"}, last_run_id="run-1", fetched_at="x", created_at="x", updated_at="x",

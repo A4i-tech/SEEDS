@@ -3,6 +3,9 @@ from __future__ import annotations
 import pytest
 
 from app.repositories.content_aggregator_repository import ContentAggregatorRepository
+from app.repositories.content_aggregator_sync_job_item_repository import (
+    ContentAggregatorSyncJobItemRepository,
+)
 from app.repositories.content_aggregator_sync_job_repository import (
     ContentAggregatorSyncJobRepository,
 )
@@ -74,6 +77,11 @@ def job_repo(mock_db):
 
 
 @pytest.fixture
+def item_repo(mock_db):
+    return ContentAggregatorSyncJobItemRepository(mock_db)
+
+
+@pytest.fixture
 def content_repo(mock_db):
     return ContentAggregatorRepository(mock_db)
 
@@ -84,44 +92,64 @@ def service(mock_db):
 
 
 @pytest.mark.asyncio
-async def test_run_sync_persists_every_course_result(service, job_repo, content_repo):
+async def test_run_sync_persists_every_course_result(service, job_repo, item_repo, content_repo):
     client = FakeSubodhaClient([_course("c1", "Course One"), _course("c2", "Course Two")])
     job = await jobs.create_job(job_repo, tenant_id="tenant-a", source_type="subodha", scope="all", source_id=None, total_items=0)
 
-    summary = await service.run_sync("tenant-a", client, job_repo, job.job_id, await client.list_all_courses())
+    summary = await service.run_sync("tenant-a", client, job_repo, item_repo, job.job_id, await client.list_all_courses())
 
     assert summary["totalCourses"] == 2
     assert summary["processed"] == 2
 
     stored = await job_repo.get_job("tenant-a", job.job_id)
     assert stored.total_items == 2
-    assert stored.processed == 2
-    assert {c.source_id for c in stored.items} == {"c1", "c2"}
-    assert stored.stats.saved == 2
+
+    items = await item_repo.list_by_job("tenant-a", job.job_id)
+    assert {c.source_id for c in items} == {"c1", "c2"}
+    assert sum(1 for c in items if c.status == "saved") == 2
 
     tree = await content_repo.get_tree("tenant-a", "subodha", "c1")
     assert any(n.source_id == "html-1" for n in tree)
 
 
 @pytest.mark.asyncio
-async def test_run_single_course_sync_persists_one_result(service, job_repo, content_repo):
+async def test_run_single_course_sync_persists_one_result(service, job_repo, item_repo, content_repo):
     client = FakeSubodhaClient([_course("c1", "Course One")])
     job = await jobs.create_job(job_repo, tenant_id="tenant-a", source_type="subodha", scope="course", source_id="c1", total_items=1)
 
-    summary = await service.run_single_course_sync("tenant-a", client, job_repo, job.job_id, "c1")
+    summary = await service.run_single_course_sync("tenant-a", client, job_repo, item_repo, job.job_id, "c1")
 
     assert summary["processed"] == 1
-    stored = await job_repo.get_job("tenant-a", job.job_id)
-    assert stored.items[0].source_id == "c1"
-    assert stored.items[0].status == "saved"
+    items = await item_repo.list_by_job("tenant-a", job.job_id)
+    assert items[0].source_id == "c1"
+    assert items[0].status == "saved"
 
 
 @pytest.mark.asyncio
-async def test_get_course_returns_legacy_shaped_doc(service, job_repo):
+async def test_get_course_returns_legacy_shaped_doc(service, job_repo, item_repo):
     client = FakeSubodhaClient([_course("c1", "Course One")])
     job = await jobs.create_job(job_repo, tenant_id="tenant-a", source_type="subodha", scope="course", source_id="c1", total_items=1)
-    await service.run_single_course_sync("tenant-a", client, job_repo, job.job_id, "c1")
+    await service.run_single_course_sync("tenant-a", client, job_repo, item_repo, job.job_id, "c1")
 
     doc = await service.get_course("tenant-a", "c1")
     assert doc.source_id == "c1"
     assert any(b.block_id == "html-1" for b in doc.blocks)
+
+
+@pytest.mark.asyncio
+async def test_get_course_returns_none_for_unenrolled_tenant(service, job_repo, item_repo):
+    client = FakeSubodhaClient([_course("c1", "Course One")])
+    job = await jobs.create_job(job_repo, tenant_id="tenant-a", source_type="subodha", scope="course", source_id="c1", total_items=1)
+    await service.run_single_course_sync("tenant-a", client, job_repo, item_repo, job.job_id, "c1")
+
+    assert await service.get_course("tenant-b", "c1") is None
+
+
+@pytest.mark.asyncio
+async def test_update_problem_block_is_private_to_the_editing_tenant(service, job_repo, item_repo):
+    client = FakeSubodhaClient([_course("c1", "Course One")])
+    job = await jobs.create_job(job_repo, tenant_id="tenant-a", source_type="subodha", scope="course", source_id="c1", total_items=1)
+    await service.run_single_course_sync("tenant-a", client, job_repo, item_repo, job.job_id, "c1")
+
+    job_b = await jobs.create_job(job_repo, tenant_id="tenant-b", source_type="subodha", scope="course", source_id="c1", total_items=1)
+    await service.run_single_course_sync("tenant-b", client, job_repo, item_repo, job_b.job_id, "c1")

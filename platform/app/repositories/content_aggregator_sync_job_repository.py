@@ -12,7 +12,7 @@ from fastapi import Depends
 from pymongo import ReturnDocument
 from pymongo.asynchronous.database import AsyncDatabase
 
-from app.aggregators.sync_job_models import SyncItemResult, SyncJob, SyncStats
+from app.aggregators.sync_job_models import SyncJob
 from app.platform.auth.dependencies import get_db
 
 
@@ -28,7 +28,7 @@ class ContentAggregatorSyncJobRepository:
         job = SyncJob(
             job_id=job_id, tenant_id=tenant_id, source_type=source_type, scope=scope, source_id=source_id,
             status="running", started_at=datetime.now(UTC).isoformat(), finished_at=None,
-            total_items=total_items, processed=0, stats=SyncStats(), items=[], error=None,
+            total_items=total_items, error=None,
         )
         await self._col.insert_one(job.to_doc())
         return job
@@ -36,14 +36,6 @@ class ContentAggregatorSyncJobRepository:
     async def set_total_items(self, tenant_id: str, job_id: str, total: int) -> SyncJob | None:
         doc = await self._col.find_one_and_update(
             {"_id": job_id, "tenant_id": tenant_id}, {"$set": {"total_items": total}}, return_document=ReturnDocument.AFTER
-        )
-        return SyncJob.from_doc(doc) if doc else None
-
-    async def append_item_result(self, tenant_id: str, job_id: str, entry: SyncItemResult) -> SyncJob | None:
-        doc = await self._col.find_one_and_update(
-            {"_id": job_id, "tenant_id": tenant_id},
-            {"$push": {"items": entry.to_doc()}, "$inc": {"processed": 1, f"stats.{entry.status}": 1}},
-            return_document=ReturnDocument.AFTER,
         )
         return SyncJob.from_doc(doc) if doc else None
 
