@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { v4 as uuidv4 } from "uuid";
 import { contentService } from "../services/contentService";
 import { LANGUAGE_OPTIONS } from "../utils/languageUtils";
 import Select from "./AllContent/shared/Select";
