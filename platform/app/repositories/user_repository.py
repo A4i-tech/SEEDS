@@ -86,6 +86,19 @@ class UserRepository(BaseRepository):
         docs = await cursor.to_list(length=None)
         return [User.from_mongo(d) for d in docs]
 
+    async def find_by_school_and_role(self, school_id: str, role: str) -> list[User]:
+        """Return all users with the given school_id and role (e.g. students for
+        fuzzy name-matching in the Seeds AI assistant).
+
+        school_id is matched as BOTH ObjectId and raw string: writes coerce it via
+        _coerce_refs() (ObjectId), but older/imported docs may still hold a string.
+        Querying the raw string alone silently returned zero students, which made the
+        assistant claim known students "are not in the student list".
+        """
+        cursor = self._col.find({"school_id": {"$in": [self._to_id(school_id), school_id]}, "role": role})
+        docs = await cursor.to_list(length=None)
+        return [User.from_mongo(d) for d in docs]
+
     async def count_by_school_and_role(self, school_id: str, role: str) -> int:
         """Return count of users with the given school_id and role."""
         return await self._col.count_documents({"school_id": self._to_id(school_id), "role": role})

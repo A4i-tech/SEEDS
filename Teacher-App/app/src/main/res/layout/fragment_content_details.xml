@@ -46,7 +46,7 @@
                     android:layout_margin="32dp"
                     android:minWidth="64dp"
                     android:minHeight="64dp"
-                    android:src='@{(content.type.equals("Rhyme") || content.type.equals("Poem")) ? @drawable/ic_content_music : @drawable/ic_content_book, default=@drawable/ic_content_book}'
+                    android:src='@{(content.type.equals("Rhyme") || content.type.equals("Poem")) ? @drawable/ic_content_music : @drawable/ic_content_book}'
                     app:layout_constraintBottom_toBottomOf="parent"
                     app:layout_constraintEnd_toEndOf="parent"
                     app:layout_constraintStart_toStartOf="parent"

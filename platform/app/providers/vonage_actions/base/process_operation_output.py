@@ -8,12 +8,14 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
+from app.providers.vonage_actions.base.serializable import JsonRoundTripMixin
+
 if TYPE_CHECKING:
     from app.models.ivr_state import IVRCallStateMongoDoc
     from app.providers.vonage_actions.base.action import Action
 
 
-class ProcessOperationOutput(ABC):
+class ProcessOperationOutput(JsonRoundTripMixin, ABC):
     """Abstract base for transforming FSM operation output into action lists."""
 
     @abstractmethod
@@ -27,18 +29,3 @@ class ProcessOperationOutput(ABC):
 
     def __repr__(self) -> str:
         return self.__str__()
-
-    def to_json(self) -> dict:
-        return {
-            "__class__": self.__class__.__name__,
-            "__module__": self.__class__.__module__,
-            "attributes": vars(self),
-        }
-
-    @staticmethod
-    def from_json(data: dict) -> ProcessOperationOutput:
-        module = __import__(data["__module__"], fromlist=[data["__class__"]])
-        cls = getattr(module, data["__class__"])
-        obj = cls.__new__(cls)
-        obj.__dict__.update(data["attributes"])
-        return obj

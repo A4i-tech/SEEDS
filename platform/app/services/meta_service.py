@@ -1,0 +1,921 @@
+"""
+SEEDS AI Controller — meta service.
+
+Ported from backend-server/src/services/meta.service.js.
+
+4-phase pipeline:
+  1. fetchContextFromDB + reasonAboutCommand  (Azure OpenAI)
+  2. planCommands                             (Azure OpenAI)
+  3. executeCommands                          (httpx self-calls)
+  4. generateSpokenSummary + synthesizeSpeech (Azure OpenAI + Azure TTS)
+
+SECURITY:
+  - API keys never logged.
+  - Auth token forwarded to self-calls via Authorization header only.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import base64
+import json
+import logging
+import os
+import re
+import struct
+import tempfile
+from pathlib import Path
+from typing import Any
+
+import aiohttp
+import yaml
+from motor.motor_asyncio import AsyncIOMotorDatabase
+
+try:
+    # Drop-in wrapper around AsyncAzureOpenAI that adds Langfuse tracing when the
+    # optional `langfuse` package is installed; falls back to the plain SDK client
+    # (same interface) when it isn't, so Langfuse stays a soft dependency.
+    from langfuse.openai import AsyncAzureOpenAI
+except ImportError:
+    from openai import AsyncAzureOpenAI
+from openai import RateLimitError
+
+from app.models.requests.meta_requests import CommandContext
+from app.models.responses.meta import ProcessCommandResponse, TtsPromptResponse
+from app.models.user import User
+from app.platform.error_handling import AppError, ValidationError
+from app.platform.settings import get_settings
+from app.repositories.classroom_repository import ClassroomRepository
+from app.repositories.content_repository import ContentRepository
+from app.repositories.user_repository import UserRepository
+
+logger = logging.getLogger(__name__)
+
+_PROMPTS_PATH = Path(__file__).parent / "prompts" / "meta_prompts.yaml"
+_prompts_cache: dict[str, Any] | None = None
+
+
+def _get_prompts() -> dict[str, Any]:
+    """Lazily load + cache the prompts YAML on first use.
+
+    Reading the file at import time would fail the module import itself if the
+    file isn't present yet at whatever point this module gets imported during
+    the docker build (e.g. a build-time bytecode-compile/collection step) —
+    deferring the read to first real use means only actual prompt usage can fail.
+    """
+    global _prompts_cache
+    if _prompts_cache is None:
+        try:
+            _prompts_cache = yaml.safe_load(_PROMPTS_PATH.read_text(encoding="utf-8"))
+        except (OSError, yaml.YAMLError) as exc:
+            raise RuntimeError(f"meta_service: failed to load prompts from {_PROMPTS_PATH}: {exc}") from exc
+    return _prompts_cache
+
+# ---------------------------------------------------------------------------
+# Stop-words for keyword extraction (mirrors JS STOP_WORDS set)
+# ---------------------------------------------------------------------------
+_STOP_WORDS = {
+    "play", "show", "find", "get", "list", "fetch", "search", "open", "start",
+    "the", "a", "an", "in", "on", "at", "to", "for", "of", "my", "me", "all",
+    "content", "classroom", "classrooms", "class", "student", "students",
+    "please", "can", "you", "i", "want", "need", "with", "and", "or", "from",
+    "is", "are", "it", "this", "that", "some", "any",
+}
+
+
+def _extract_keywords(text: str) -> list[str]:
+    words = re.sub(r"[^a-z0-9\s]", "", text.lower()).split()
+    return [w for w in words if len(w) > 1 and w not in _STOP_WORDS]
+
+
+# ---------------------------------------------------------------------------
+# MongoDB pre-fetch — grounding context for LLM prompts
+# ---------------------------------------------------------------------------
+
+async def fetch_context_from_db(
+    transcript: str,
+    user_id: str,
+    school_id: str,
+    tenant_id: str,
+    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+) -> dict[str, list]:
+    keywords = _extract_keywords(transcript)
+    if not keywords:
+        return {"content": [], "classes": [], "students": []}
+
+    escaped = [re.escape(k) for k in keywords]
+    pattern = "|".join(escaped)
+    regex = re.compile(pattern, re.IGNORECASE)
+
+    content_repo = ContentRepository(db)
+    classroom_repo = ClassroomRepository(db)
+    user_repo = UserRepository(db)
+
+    content_docs, class_docs = await asyncio.gather(
+        content_repo.find_matching_keywords(regex, tenant_id=tenant_id, school_id=school_id, limit=10),
+        classroom_repo.find_raw_by_teacher(user_id),
+    )
+
+    # Populate student/leader refs for classes
+    all_student_ids: set[str] = set()
+    for cls in class_docs:
+        all_student_ids.update(str(s) for s in cls.get("students", []))
+        all_student_ids.update(str(s) for s in cls.get("leaders", []))
+
+    student_map: dict[str, User] = {}
+    if all_student_ids:
+        for u in await user_repo.find_many_by_ids(list(all_student_ids)):
+            student_map[u.id] = u
+
+    # School-wide students for fuzzy matching
+    # Platform users collection stores `phone` / `school_id` (snake_case),
+    # unlike legacy JS models (`phoneNumber` / `schoolId`).
+    school_students: list[User] = []
+    if school_id:
+        try:
+            school_students = await user_repo.find_by_school_and_role(school_id, "student")
+        except Exception as exc:  # noqa: BLE001 — fuzzy-match enrichment is best-effort
+            logger.warning("meta_service: school-wide student lookup failed for school_id=%s: %s", school_id, exc)
+
+    def _student_info(ref: Any) -> dict | None:
+        doc = student_map.get(str(ref))
+        if doc is None:
+            logger.warning("meta_service: student ref %s not found in users collection, dropping from context", ref)
+            return None
+        return {"name": doc.name or "", "phone": doc.phone or ""}
+
+    content_out = [
+        {
+            "_id": str(c.get("_id", "")),
+            "title": (c.get("title") or {}).get("english") or (c.get("title") or {}).get("local") or "Unknown",
+            "type": c.get("type", ""),
+            "language": c.get("language", ""),
+            "theme": (c.get("theme") or {}).get("english", ""),
+        }
+        for c in content_docs
+    ]
+    classes_out = [
+        {
+            "_id": str(c.get("_id", "")),
+            "name": c.get("name", ""),
+            "students": [s for s in (_student_info(s) for s in c.get("students", [])) if s is not None],
+            "leaders": [ld for ld in (_student_info(ld) for ld in c.get("leaders", [])) if ld is not None],
+        }
+        for c in class_docs
+    ]
+    students_out = [
+        {"_id": s.id or "", "name": s.name or "", "phone": s.phone or ""}
+        for s in school_students
+    ]
+
+    return {"content": content_out, "classes": classes_out, "students": students_out}
+
+
+# ---------------------------------------------------------------------------
+# DB context formatter
+# ---------------------------------------------------------------------------
+
+def _format_db_context(db_results: dict[str, list]) -> str:
+    sections: list[str] = []
+
+    if db_results["content"]:
+        rows = "\n".join(
+            f'  - _id: "{c["_id"]}" | title: "{c["title"]}" | type: {c["type"]} | lang: {c["language"]} | theme: {c["theme"]}'
+            for c in db_results["content"]
+        )
+        sections.append(
+            "═══ MATCHING CONTENT FROM DATABASE ═══\n"
+            "Use these REAL content IDs when the user asks to play/find content:\n"
+            + rows + "\n═══ END CONTENT ═══"
+        )
+
+    if db_results["classes"]:
+        rows = "\n".join(
+            f'  - _id: "{c["_id"]}" | name: "{c["name"]}" | students: {json.dumps(c["students"])} | leaders: {json.dumps(c["leaders"])}'
+            for c in db_results["classes"]
+        )
+        sections.append(
+            "═══ TEACHER'S CLASSES FROM DATABASE ═══\n"
+            "Each class includes populated student/leader details (name + phone) for conference calls.\n"
+            + rows + "\n═══ END CLASSES ═══"
+        )
+
+    if db_results["students"]:
+        rows = "\n".join(
+            f'  - _id: "{s["_id"]}" | name: "{s["name"]}" | phone: "{s["phone"]}"'
+            for s in db_results["students"]
+        )
+        sections.append(
+            "═══ TEACHER'S EXISTING STUDENTS ═══\n"
+            "When adding a student or leader to a class, use ONLY these mapped _id VALUES "
+            "(the students/leaders array stores user _id strings, NOT names or phone numbers).\n"
+            'Names come from speech transcription and may be misspelled or mangled by accent '
+            '(e.g. "Phonet" -> "Punit"). Match the requested name to the CLOSEST student below '
+            "by phonetic/spelling similarity and use that student's _id. "
+            "Only refuse if no student is a reasonably close match:\n"
+            + rows + "\n═══ END STUDENTS ═══"
+        )
+
+    return "\n\n".join(sections) if sections else "(no matching data found in database)"
+
+
+# ---------------------------------------------------------------------------
+# History formatter
+# ---------------------------------------------------------------------------
+
+def _format_history(history: list[dict] | None) -> str:
+    if not history:
+        return "RECENT CONVERSATION: (none — this is the first command)"
+    lines = []
+    for i, h in enumerate(history[-2:]):
+        user_turn = (h.get("transcript") or h.get("command") or "").strip()
+        assistant_turn = (h.get("spokenSummary") or h.get("response") or "").strip()
+        line = f'{i + 1}. User: "{user_turn}"'
+        if assistant_turn:
+            line += f'\n   Assistant: "{assistant_turn}"'
+        lines.append(line)
+    return "RECENT CONVERSATION (oldest first, for resolving references only):\n" + "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Azure OpenAI LLM helper
+# ---------------------------------------------------------------------------
+
+_llm_client: AsyncAzureOpenAI | None = None
+
+
+def _get_llm_client() -> AsyncAzureOpenAI:
+    """Lazy module-level singleton — reuses one HTTP connection pool across calls
+    instead of opening a fresh AsyncAzureOpenAI client (and its own connector) per
+    request. `max_retries=0` because `_call_llm` is itself the single retry point
+    for 429s below; leaving the SDK's own default retries on top would stack up to
+    3x that many attempts.
+    """
+    global _llm_client
+    if _llm_client is None:
+        settings = get_settings()
+        if not settings.azure_openai_key or not settings.azure_openai_endpoint:
+            raise RuntimeError("Azure OpenAI not configured (AZURE_OPENAI_KEY / AZURE_OPENAI_ENDPOINT missing)")
+        endpoint = settings.azure_openai_endpoint.rstrip("/").removesuffix("/openai/v1")
+        _llm_client = AsyncAzureOpenAI(
+            api_key=settings.azure_openai_key,
+            azure_endpoint=endpoint,
+            api_version=settings.azure_openai_api_version,
+            max_retries=0,
+        )
+    return _llm_client
+
+
+async def _call_llm(system_prompt: str, user_message: str) -> dict[str, Any]:
+    """Call Azure OpenAI with json_object response format. Retries once on 429."""
+    settings = get_settings()
+    if not settings.azure_openai_model:
+        raise RuntimeError("Azure OpenAI model not configured (AZURE_OPENAI_MODEL missing)")
+
+    client = _get_llm_client()
+
+    def _create():
+        return client.chat.completions.create(
+            model=settings.azure_openai_model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
+            temperature=0,
+            response_format={"type": "json_object"},
+        )
+
+    try:
+        resp = await _create()
+        return json.loads(resp.choices[0].message.content)
+    except RateLimitError as exc:
+        retry_after = int(exc.response.headers.get("retry-after") or 5)
+        logger.info("meta_service: rate limited, retrying in %ds", retry_after)
+        await asyncio.sleep(retry_after)
+        resp = await _create()
+        return json.loads(resp.choices[0].message.content)
+
+
+def _build_prompt(template: str, user_info: dict[str, Any], extras: dict[str, Any] | None = None) -> str:
+    prompt = (
+        template
+        .replace("{{phoneNumber}}", str(user_info.get("phone_number") or "unknown"))
+        .replace("{{teacherName}}", str(user_info.get("name") or "Teacher"))
+        .replace("{{tenantId}}", str(user_info.get("tenant_id") or "unknown"))
+        .replace("{{userId}}", str(user_info.get("user_id") or "unknown"))
+        .replace("{{activeConferenceId}}", str(user_info.get("active_conference_id") or "none"))
+        .replace("{{currentClassId}}", str(user_info.get("current_class_id") or "none"))
+    )
+    for key, value in (extras or {}).items():
+        prompt = prompt.replace(f"{{{{{key}}}}}", value if isinstance(value, str) else json.dumps(value, indent=2))
+    return prompt
+
+
+# ---------------------------------------------------------------------------
+# Phase 1: Reason
+# ---------------------------------------------------------------------------
+
+async def get_db_context(
+    transcript: str,
+    user_info: dict[str, Any],
+    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+) -> str:
+    """Fetch + format DB grounding context once, shared across reason + plan phases."""
+    db_results = await fetch_context_from_db(
+        transcript,
+        user_id=user_info.get("user_id", ""),
+        school_id=user_info.get("school_id", ""),
+        tenant_id=user_info.get("tenant_id", ""),
+        db=db,
+    )
+    return _format_db_context(db_results)
+
+
+async def reason_about_command(
+    transcript: str,
+    user_info: dict[str, Any],
+    db_context: str,
+) -> dict[str, Any]:
+    history = _format_history(user_info.get("history"))
+    system_prompt = _build_prompt(_get_prompts()["reasoning"], user_info, {"dbContext": db_context, "history": history})
+    return await _call_llm(system_prompt, f'User command: "{transcript}"')
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: Plan
+# ---------------------------------------------------------------------------
+
+async def plan_commands(
+    transcript: str,
+    user_info: dict[str, Any],
+    reasoning: dict[str, Any],
+    db_context: str,
+) -> dict[str, Any]:
+    extras = {
+        "reasoning": json.dumps(reasoning, indent=2),
+        "dbContext": db_context,
+        "history": _format_history(user_info.get("history")),
+    }
+    system_prompt = _build_prompt(_get_prompts()["planning"], user_info, extras)
+    return await _call_llm(system_prompt, f'User command: "{transcript}"')
+
+
+def normalize_plan(plan: dict[str, Any]) -> dict[str, Any]:
+    if plan.get("error"):
+        return {"error": plan["error"]}
+    commands = plan.get("commands")
+    if commands is None:
+        commands = plan.get("steps") or [plan]
+        logger.warning(
+            "meta_service: LLM plan output missing expected 'commands' key, "
+            "falling back to %s shape — check planning prompt/schema",
+            "steps" if plan.get("steps") else "bare plan",
+        )
+    if not isinstance(commands, list):
+        commands = [commands]
+    needs_input = any(c.get("needsInput") for c in commands)
+    return {"commands": commands, "needsInput": needs_input}
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: Execute
+# ---------------------------------------------------------------------------
+
+def _resolve_placeholders(target: Any, context: dict[str, Any]) -> Any:
+    if target is None:
+        return target
+
+    if isinstance(target, str):
+        # Normalise the bare-index form the planner LLM keeps emitting ({{1.data.id}})
+        # into the documented 1-based {{stepN.…}} form. The model indexes these off the
+        # zero-based results array, so bare N refers to context key step{N+1}. Only the
+        # bare-digit form is rewritten, so an explicit {{stepN.…}} is never renumbered.
+        target = re.sub(
+            r"\{\{(\d+)\.data\b",
+            lambda m: f"{{{{step{int(m.group(1)) + 1}.data",
+            target,
+        )
+
+        # Append to array: {{stepN.data.field+value}}
+        def _append_replace(m: re.Match) -> str:  # type: ignore[type-arg]
+            step_data = context.get(f"step{m.group(1)}", {}).get("data", {})
+            arr = list(step_data.get(m.group(2)) or [])
+            arr.append(m.group(3))
+            return json.dumps(arr)
+
+        target = re.sub(r"\{\{step(\d+)\.data\.(\w+)\+([^}]+)\}\}", _append_replace, target)
+
+        # Simple field: {{stepN.data.field}}
+        def _simple_replace(m: re.Match) -> str:  # type: ignore[type-arg]
+            step_data = context.get(f"step{m.group(1)}", {}).get("data", {})
+            value = step_data.get(m.group(2))
+            if value is None:
+                logger.warning("meta_service: unresolved placeholder %s", m.group(0))
+                return m.group(0)
+            if isinstance(value, (list, dict)):
+                return json.dumps(value)
+            return str(value)
+
+        target = re.sub(r"\{\{step(\d+)\.data\.(\w+)\}\}", _simple_replace, target)
+
+        # Array search: {{stepN.data[key=value].field}}
+        def _search_replace(m: re.Match) -> str:  # type: ignore[type-arg]
+            step_data = context.get(f"step{m.group(1)}", {}).get("data")
+            if not isinstance(step_data, list):
+                return m.group(0)
+            found = next((i for i in step_data if str(i.get(m.group(2), "")).lower() == m.group(3).lower()), None)
+            if not found:
+                logger.warning("meta_service: unresolved placeholder %s", m.group(0))
+                return m.group(0)
+            return str(found.get(m.group(4), m.group(0)))
+
+        target = re.sub(r"\{\{step(\d+)\.data\[(\w+)=([^\]]+)\]\.(\w+)\}\}", _search_replace, target)
+
+        # Full data: {{stepN.data}}
+        def _full_replace(m: re.Match) -> str:  # type: ignore[type-arg]
+            step_data = context.get(f"step{m.group(1)}", {}).get("data")
+            if step_data is None:
+                logger.warning("meta_service: unresolved placeholder %s", m.group(0))
+                return m.group(0)
+            return json.dumps(step_data)
+
+        target = re.sub(r"\{\{step(\d+)\.data\}\}", _full_replace, target)
+        return target
+
+    if isinstance(target, list):
+        return [_resolve_placeholders(item, context) for item in target]
+
+    if isinstance(target, dict):
+        resolved: dict[str, Any] = {}
+        for k, v in target.items():
+            val = _resolve_placeholders(v, context)
+            # String that looks like JSON array → parse it back
+            if isinstance(val, str) and val.startswith("[") and val.endswith("]"):
+                try:
+                    val = json.loads(val)
+                except (ValueError, TypeError) as exc:
+                    logger.warning("meta_service: failed to re-parse placeholder JSON for %r: %s", k, exc)
+            resolved[k] = val
+        return resolved
+
+    return target
+
+
+# ---------------------------------------------------------------------------
+# Path/method allowlist — LLM-planned commands are executed with the caller's
+# real bearer token; the planner prompt is not a security boundary, so every
+# self-call must also clear this server-side allowlist before dispatch.
+# ---------------------------------------------------------------------------
+_ALLOWED_ROUTES: list[tuple[frozenset[str], re.Pattern]] = [  # type: ignore[type-arg]
+    (frozenset({"GET"}), re.compile(r"^/content/themes/?$")),
+    (frozenset({"GET"}), re.compile(r"^/content/[^/]*$")),
+    (frozenset({"GET", "POST"}), re.compile(r"^/class/?$")),
+    (frozenset({"GET", "DELETE"}), re.compile(r"^/class/[^/]+$")),
+    # read-only: listing students is fine, but create/update/delete of student
+    # records is deliberately NOT reachable from a voice/text command.
+    (frozenset({"GET"}), re.compile(r"^/student/?$")),
+    (frozenset({"GET"}), re.compile(r"^/teacher/me/?$")),
+    (frozenset({"GET"}), re.compile(r"^/tenant/names/?$")),
+    (frozenset({"POST"}), re.compile(r"^/conference/create/?$")),
+    (frozenset({"POST"}), re.compile(r"^/conference/start/[^/]+$")),
+    (frozenset({"PUT"}), re.compile(r"^/conference/(end|muteall|unmuteall|playaudio|pauseaudio|addparticipant|removeparticipant)/[^/]+$")),
+]
+
+
+def _is_command_allowed(method: str, path: str) -> bool:
+    method = (method or "").upper()
+    path_only = path.split("?", 1)[0]
+    return any(method in methods and pattern.match(path_only) for methods, pattern in _ALLOWED_ROUTES)
+
+
+def _has_unresolved_placeholder(value: Any) -> bool:
+    """True if a {{...}} template marker survived _resolve_placeholders — the
+    referenced step data was missing, so this step must not be dispatched."""
+    if isinstance(value, str):
+        return "{{" in value
+    if isinstance(value, list):
+        return any(_has_unresolved_placeholder(v) for v in value)
+    if isinstance(value, dict):
+        return any(_has_unresolved_placeholder(v) for v in value.values())
+    return False
+
+
+async def _parse_response_body(resp: aiohttp.ClientResponse) -> Any:
+    """Best-effort body parse — self-called routes normally return JSON, but an
+    error page (proxy timeout, 502 from an upstream, etc.) can come back as
+    plain text, so fall back to text rather than raise."""
+    try:
+        return await resp.json(content_type=None)
+    except (json.JSONDecodeError, aiohttp.ContentTypeError):
+        return await resp.text()
+
+
+async def _execute_single(
+    method: str,
+    url: str,
+    body: Any,
+    token: str,
+    description: str,
+    session: aiohttp.ClientSession,
+) -> dict[str, Any]:
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    try:
+        async with session.request(
+            method.lower(),
+            url,
+            json=body or None,
+            headers=headers,
+            timeout=aiohttp.ClientTimeout(total=15),
+        ) as resp:
+            data = await _parse_response_body(resp)
+            return {"step": description, "status": resp.status, "data": data}
+    except aiohttp.ClientError as exc:
+        return {"step": description, "status": 500, "error": str(exc).replace(token, "[REDACTED]")}
+
+
+async def execute_commands(
+    commands: list[dict[str, Any]],
+    auth_token: str,
+    base_url: str,
+) -> list[dict[str, Any]]:
+    results: list[dict[str, Any]] = []
+    context: dict[str, Any] = {}
+
+    async with aiohttp.ClientSession() as session:
+        for i, cmd in enumerate(commands):
+            description = cmd.get("description", f"step {i + 1}")
+            resolved_path = _resolve_placeholders(cmd.get("path", ""), context)
+            resolved_body = _resolve_placeholders(cmd.get("body"), context)
+
+            # `method` is mandatory on every planned step (forEach included — see
+            # below); the planner prompt/schema always sets it, so a missing key
+            # is a malformed plan, not something to paper over with a default.
+            step_kind = "forEach" if cmd.get("forEach") else cmd["method"].upper()
+
+            match step_kind:
+                case "forEach":
+                    # forEach — iterate over array from a prior step
+                    m = re.search(r"\{\{step(\d+)\.data\[\]\.(\w+)\}\}", cmd.get("path", ""))
+                    if not m:
+                        r = {"step": description, "status": 400, "error": "Could not determine forEach source"}
+                        results.append(r)
+                        context[f"step{i + 1}"] = {"data": None, "status": 400}
+                        continue
+                    source_step, field = m.group(1), m.group(2)
+                    source_data = context.get(f"step{source_step}", {}).get("data")
+                    if not isinstance(source_data, list):
+                        r = {"step": description, "status": 400, "error": "forEach source is not an array"}
+                        results.append(r)
+                        context[f"step{i + 1}"] = {"data": None, "status": 400}
+                        continue
+                    foreach_results: list[dict[str, Any]] = []
+                    for item in source_data:
+                        item_val = item.get(field)
+                        if not item_val:
+                            continue
+                        item_path = re.sub(r"\{\{step\d+\.data\[\]\.\w+\}\}", str(item_val), cmd["path"])
+                        if _has_unresolved_placeholder(item_path) or _has_unresolved_placeholder(resolved_body):
+                            foreach_results.append({
+                                "step": f"{description} ({item.get('name', item_val)})",
+                                "status": 400,
+                                "error": f"Could not resolve placeholder(s) in step: {item_path}",
+                            })
+                            continue
+                        if not _is_command_allowed(cmd["method"], item_path):
+                            foreach_results.append({
+                                "step": f"{description} ({item.get('name', item_val)})",
+                                "status": 403,
+                                "error": f"Command not permitted: {cmd['method']} {item_path}",
+                            })
+                            continue
+                        r = await _execute_single(
+                            cmd["method"],
+                            f"{base_url}{item_path}",
+                            resolved_body,
+                            auth_token,
+                            f"{description} ({item.get('name', item_val)})",
+                            session,
+                        )
+                        foreach_results.append(r)
+                    results.extend(foreach_results)
+                    context[f"step{i + 1}"] = {"data": [r.get("data") for r in foreach_results], "status": 200}
+
+                case "NAVIGATE":
+                    # frontend-only pseudo-command
+                    r = {"step": description, "status": 200, "data": {"navigate": resolved_path}}
+                    results.append(r)
+                    context[f"step{i + 1}"] = r
+
+                case _:
+                    if _has_unresolved_placeholder(resolved_path) or _has_unresolved_placeholder(resolved_body):
+                        r = {
+                            "step": description,
+                            "status": 400,
+                            "error": f"Could not resolve placeholder(s) in step: {resolved_path}",
+                        }
+                        logger.warning("meta_service: unresolved placeholder(s), refusing to dispatch step=%r path=%r", description, resolved_path)
+                    elif not _is_command_allowed(step_kind, resolved_path):
+                        r = {
+                            "step": description,
+                            "status": 403,
+                            "error": f"Command not permitted: {step_kind} {resolved_path}",
+                        }
+                    else:
+                        r = await _execute_single(
+                            step_kind,
+                            f"{base_url}{resolved_path}",
+                            resolved_body,
+                            auth_token,
+                            description,
+                            session,
+                        )
+                    results.append(r)
+                    context[f"step{i + 1}"] = r
+
+    return results
+
+
+# ---------------------------------------------------------------------------
+# Phase 4: Spoken summary + TTS
+# ---------------------------------------------------------------------------
+
+async def generate_spoken_summary(transcript: str, results: list[dict[str, Any]]) -> dict[str, Any]:
+    lines: list[str] = []
+    for i, r in enumerate(results):
+        if r.get("error"):
+            lines.append(f"Step {i + 1} ({r.get('step', '')}): FAILED — {r['error']}")
+        else:
+            data = r.get("data")
+            items = data if isinstance(data, list) else (data.get("data") if isinstance(data, dict) else None)
+            if isinstance(items, list):
+                names = [
+                    d.get("name") or (d.get("title") or {}).get("english") or str(d.get("_id", ""))
+                    for d in items[:5]
+                ]
+                summary = f"returned {len(items)} items: {', '.join(str(n) for n in names)}"
+            elif isinstance(data, dict):
+                summary = f"returned: {json.dumps(data)[:200]}"
+            else:
+                summary = f"status {r.get('status')}"
+            lines.append(f"Step {i + 1} ({r.get('step', '')}): SUCCESS — {summary}")
+    user_message = f'User command: "{transcript}"\n\nExecution results:\n' + "\n".join(lines)
+    return await _call_llm(_get_prompts()["tts_summary"], user_message)
+
+
+def _escape_xml(text: str) -> str:
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("'", "&apos;").replace('"', "&quot;")
+
+
+async def synthesize_speech(text: str) -> str:
+    """Return base64-encoded MP3 audio. Raises on any failure — callers that
+    treat TTS as non-blocking (e.g. `_tts_summary`) catch at the call site;
+    this function no longer swallows failures itself so there's a single
+    catch point instead of two nested safety nets."""
+    settings = get_settings()
+    speech_key = settings.azure_speech_key or settings.tts_subscription_key
+    speech_region = settings.azure_speech_region or settings.tts_region
+    voice = settings.tts_voice or "en-US-AvaNeural"
+
+    if not speech_key or not speech_region:
+        raise RuntimeError("Azure Speech not configured (AZURE_SPEECH_KEY / AZURE_SPEECH_REGION missing)")
+
+    locale = "-".join(voice.split("-")[:2])  # e.g. "en-US"
+    ssml = (
+        f"<speak version='1.0' xml:lang='{locale}'>"
+        f"<voice xml:lang='{locale}' name='{voice}'>{_escape_xml(text)}</voice>"
+        "</speak>"
+    )
+    url = f"https://{speech_region}.tts.speech.microsoft.com/cognitiveservices/v1"
+    headers = {
+        "Ocp-Apim-Subscription-Key": speech_key,
+        "Content-Type": "application/ssml+xml",
+        "X-Microsoft-OutputFormat": "audio-24khz-48kbitrate-mono-mp3",
+        "User-Agent": "seeds-platform/meta",
+    }
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, data=ssml.encode(), headers=headers, timeout=aiohttp.ClientTimeout(total=30)) as resp:
+            if resp.status != 200:
+                err = await resp.text()
+                raise RuntimeError(f"TTS error {resp.status}: {err[:200]}")
+            audio_bytes = await resp.read()
+    return base64.b64encode(audio_bytes).decode()
+
+
+# ---------------------------------------------------------------------------
+# STT — Azure Speech REST (WebM → WAV 16kHz via ffmpeg subprocess)
+# ---------------------------------------------------------------------------
+
+def _pcm_to_wav(pcm: bytes, sample_rate: int = 16000, channels: int = 1, bits: int = 16) -> bytes:
+    block_align = channels * bits // 8
+    byte_rate = sample_rate * block_align
+    data_size = len(pcm)
+    header = struct.pack(
+        "<4sI4s4sIHHIIHH4sI",
+        b"RIFF", 36 + data_size, b"WAVE",
+        b"fmt ", 16, 1, channels,
+        sample_rate, byte_rate, block_align, bits,
+        b"data", data_size,
+    )
+    return header + pcm
+
+
+async def transcribe_audio(audio_bytes: bytes) -> str:
+    """Convert browser WebM/Opus to WAV-PCM 16kHz via ffmpeg, then POST to Azure STT."""
+    settings = get_settings()
+    speech_key = settings.azure_speech_key or settings.tts_subscription_key
+    speech_region = settings.azure_speech_region or settings.tts_region
+
+    if not speech_key or not speech_region:
+        raise RuntimeError("Azure Speech not configured (AZURE_SPEECH_KEY / AZURE_SPEECH_REGION missing)")
+
+    # Decode to raw 16 kHz mono PCM via ffmpeg
+    with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp_in:
+        tmp_in.write(audio_bytes)
+        tmp_in_path = tmp_in.name
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "ffmpeg", "-y",
+            "-i", tmp_in_path,
+            "-ac", "1",
+            "-ar", "16000",
+            "-f", "s16le",
+            "-acodec", "pcm_s16le",
+            "pipe:1",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        pcm, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+        if proc.returncode != 0:
+            logger.warning("meta_service: ffmpeg stderr: %s", stderr.decode(errors="replace")[-300:])
+            raise RuntimeError("ffmpeg conversion failed")
+    finally:
+        try:
+            os.unlink(tmp_in_path)
+        except OSError as exc:
+            logger.warning("meta_service: failed to clean up temp file %s: %s", tmp_in_path, exc)
+
+    wav = _pcm_to_wav(pcm)
+    stt_url = f"https://{speech_region}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=en-US"
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(
+            stt_url,
+            data=wav,
+            headers={
+                "Ocp-Apim-Subscription-Key": speech_key,
+                "Content-Type": "audio/wav; codecs=audio/pcm; samplerate=16000",
+                "Accept": "application/json",
+            },
+            timeout=aiohttp.ClientTimeout(total=20),
+        ) as resp:
+            result = await resp.json(content_type=None)
+
+    if result.get("RecognitionStatus") != "Success":
+        logger.warning("meta_service: STT non-success: %s", result.get("RecognitionStatus"))
+        return ""
+    return result.get("DisplayText", "")
+
+
+# ---------------------------------------------------------------------------
+# Static TTS prompts (Seeds persona)
+# ---------------------------------------------------------------------------
+
+# ponytail: module-level dict cache; good enough for static prompts
+_tts_cache: dict[str, str] = {}
+
+
+async def get_tts_prompt(prompt_type: str) -> TtsPromptResponse | None:
+    text = _get_prompts()["static_tts"].get(prompt_type)
+    if text is None:
+        return None
+    if prompt_type not in _tts_cache:
+        try:
+            audio = await synthesize_speech(text)
+        except Exception as exc:  # noqa: BLE001 — static prompt still usable without audio
+            logger.error("meta_service: TTS synthesis failed for prompt_type=%s: %s", prompt_type, exc)
+            audio = None
+        if audio:
+            _tts_cache[prompt_type] = audio
+    return TtsPromptResponse(text=text, audioBase64=_tts_cache.get(prompt_type))
+
+
+# ---------------------------------------------------------------------------
+# Orchestration entrypoints (moved from meta_controller — controller stays
+# route-only: auth/parsing/response shaping, no pipeline logic).
+# ---------------------------------------------------------------------------
+
+
+async def build_user_info(
+    current_user: dict[str, Any],
+    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+    context: CommandContext,
+) -> dict[str, Any]:
+    """Mirror JS getUserInfo(): token claims + user doc (phone/name) + client context."""
+    user_id = current_user.get("sub", "")
+    user = await UserRepository(db).find_by_id(user_id)
+    phone = (user.phone if user else "").strip() if user and user.phone else ""
+    if not phone:
+        raise ValidationError("Teacher account has no phone number on file — required for voice commands.")
+    return {
+        "user_id": user_id,
+        "tenant_id": current_user.get("tenant_id", ""),
+        "school_id": current_user.get("school_id", "") or (user.school_id if user else ""),
+        "phone_number": phone,
+        "name": (user.name if user else "") or "Teacher",
+        # Client-supplied context (camelCase over the wire, like the JS API)
+        "active_conference_id": context.activeConferenceId or "none",
+        "current_class_id": context.currentClassId or "none",
+        "history": context.history,
+    }
+
+
+async def _tts_summary(
+    transcript: str, results: list[dict[str, Any]]
+) -> tuple[str | None, str | None]:
+    """Spoken summary + TTS audio. Non-blocking: failures return (None, None)."""
+    try:
+        tts_result = await generate_spoken_summary(transcript, results)
+        spoken = tts_result.get("spokenText")
+        audio = await synthesize_speech(spoken) if spoken else None
+        return spoken, audio
+    except Exception as exc:  # noqa: BLE001 — TTS is non-blocking
+        logger.error("meta_service: TTS phase failed (non-blocking): %s", exc)
+        return None, None
+
+
+async def process_command(
+    transcript: str,
+    user_info: dict[str, Any],
+    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+    auth_token: str,
+    base_url: str,
+) -> ProcessCommandResponse:
+    """Shared reason → plan → execute → summarize flow (JS processCommand)."""
+    # Phase 1: Reason (DB context fetched once, shared with Phase 2)
+    db_context = await get_db_context(transcript, user_info, db)
+    try:
+        reasoning = await reason_about_command(transcript, user_info, db_context)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("meta_service: reasoning phase failed: %s", exc)
+        raise AppError("AI_REASONING_FAILED", f"AI reasoning failed: {exc}", 502) from exc
+    logger.info(
+        "meta_service: reasoning intent=%s canAutoResolve=%s",
+        reasoning.get("intent"), reasoning.get("canAutoResolve"),
+    )
+
+    # Conversational / unresolvable — skip planning, speak the explanation
+    if reasoning.get("canAutoResolve") is False:
+        explanation = (
+            reasoning.get("unresolvedNote")
+            or " Then ".join(s.get("description", "") for s in reasoning.get("steps", []))
+            or reasoning.get("reasoning")
+            or "I understand your question but cannot execute it automatically."
+        )
+        spoken_summary, audio_b64 = await _tts_summary(
+            transcript,
+            [{"step": "explanation", "status": 200, "data": {"explanation": explanation}}],
+        )
+        spoken_summary = spoken_summary or explanation
+        return ProcessCommandResponse(
+            transcript=transcript,
+            reasoning=reasoning,
+            commands=[],
+            results=[],
+            spokenSummary=spoken_summary,
+            audioBase64=audio_b64,
+        )
+
+    # Phase 2: Plan
+    try:
+        plan = await plan_commands(transcript, user_info, reasoning, db_context)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("meta_service: planning phase failed: %s", exc)
+        raise AppError("AI_PLANNING_FAILED", f"AI planning failed: {exc}", 502) from exc
+    normalized = normalize_plan(plan)
+    if normalized.get("error"):
+        return ProcessCommandResponse(transcript=transcript, reasoning=reasoning, error=normalized["error"])
+    if normalized.get("needsInput"):
+        return ProcessCommandResponse(
+            transcript=transcript,
+            reasoning=reasoning,
+            commands=normalized["commands"],
+            needsInput=True,
+            message="Some steps require additional input. Please review and confirm.",
+        )
+
+    # Phase 3: Execute
+    logger.info("meta_service: executing %d commands", len(normalized["commands"]))
+    results = await execute_commands(normalized["commands"], auth_token, base_url)
+
+    # Phase 4: Spoken summary + TTS (non-blocking)
+    spoken_summary, audio_b64 = await _tts_summary(transcript, results)
+
+    return ProcessCommandResponse(
+        transcript=transcript,
+        reasoning=reasoning,
+        commands=normalized["commands"],
+        results=results,
+        spokenSummary=spoken_summary,
+        audioBase64=audio_b64,
+    )

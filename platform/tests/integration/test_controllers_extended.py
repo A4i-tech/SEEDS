@@ -78,7 +78,7 @@ async def _seed_school(mock_db, email="admin@school.com", password="adminpass123
         "name": "Test School",
         "email": email,
         "hashed_password": hash_password(password),
-        "tenant_id": ObjectId(tenant_id),
+        "tenant_id": ObjectId(tenant_id) if ObjectId.is_valid(tenant_id) else tenant_id,
         "is_active": True,
     }
     result = await mock_db["users"].insert_one(doc)

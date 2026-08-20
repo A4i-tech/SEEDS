@@ -5,18 +5,20 @@ fields (tenant_id, school_id) is handled here — callers never construct raw qu
 """
 from __future__ import annotations
 
+import re
 import urllib.parse
 from datetime import UTC, datetime
 from typing import Any
 
 from bson import ObjectId
+from bson.errors import InvalidId
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.content import Content
 from app.repositories.base_repository import BaseRepository
 
 
-def _oid(id_str: str | None) -> ObjectId | None:
+def _oid(id_str: str | None) -> ObjectId | str | None:
     """Convert string to BSON ObjectId for querying Mongoose-created documents.
 
     contentsV3 stores tenant_id and school_id as ObjectId (Mongoose schema type).
@@ -24,7 +26,10 @@ def _oid(id_str: str | None) -> ObjectId | None:
     """
     if id_str is None:
         return None
-    return ObjectId(id_str)
+    try:
+        return ObjectId(id_str)
+    except InvalidId:
+        return id_str
 
 
 class ContentRepository(BaseRepository):
@@ -62,11 +67,11 @@ class ContentRepository(BaseRepository):
     # ------------------------------------------------------------------
 
     async def find_by_id(self, content_id: str) -> Content | None:
-        doc = await self._col.find_one({"_id": ObjectId(content_id)})
+        doc = await self._col.find_one({"_id": content_id})
         return Content.from_mongo(doc) if doc else None
 
     async def find_raw_by_id(self, content_id: str) -> dict | None:
-        return await self._col.find_one({"_id": ObjectId(content_id)})
+        return await self._col.find_one({"_id": content_id})
 
     async def find_by_id_and_tenant(
         self,
@@ -74,7 +79,7 @@ class ContentRepository(BaseRepository):
         tenant_id: str,
         school_id: str | None = None,
     ) -> dict | None:
-        q = {**self._tenant_query(tenant_id, school_id), "_id": ObjectId(content_id)}
+        q = {**self._tenant_query(tenant_id, school_id), "_id": content_id}
         return await self._col.find_one(q)
 
     # ------------------------------------------------------------------
@@ -90,9 +95,14 @@ class ContentRepository(BaseRepository):
         exp_name: str | None = None,
         only_teacher_app: bool = False,
         after_creation_time: int | None = None,
+        search: str | None = None,
         limit: int = 16,
     ) -> list[dict]:
-        """Paginated content list — content-type items only (not quizzes)."""
+        """Paginate content items, optionally filtered by title search.
+
+        When search is provided, matches title.english or title.local
+        case-insensitively. Other filters are applied normally.
+        """
         q = self._tenant_query(tenant_id, school_id)
 
         if only_teacher_app:
@@ -105,8 +115,22 @@ class ContentRepository(BaseRepository):
                 "type": exp_name.lower(),
             })
 
+        # expName on its own must still narrow by content type. The legacy branch
+        # above only applied `type` when language+theme were also supplied, so a
+        # plain ?expName=song returned stories and quizzes too.
+        if exp_name and exp_name.lower() != "quiz" and "type" not in q:
+            q["type"] = exp_name.lower()
+
         if after_creation_time is not None:
             q["creation_time"] = {"$lte": after_creation_time}
+
+        if search:
+            escaped = re.escape(search)
+            regex = {"$regex": escaped, "$options": "i"}
+            q["$or"] = [
+                {"title.english": regex},
+                {"title.local": regex},
+            ]
 
         return await self._col.find(q).sort("creation_time", -1).to_list(length=limit)
 
@@ -126,8 +150,33 @@ class ContentRepository(BaseRepository):
         tenant_id: str,
         school_id: str | None = None,
     ) -> list[dict]:
-        q = {**self._tenant_query(tenant_id, school_id), "_id": {"$in": [ObjectId(i) for i in content_ids]}}
+        q = {**self._tenant_query(tenant_id, school_id), "_id": {"$in": content_ids}}
         return await self._col.find(q).to_list(length=None)
+
+    async def find_matching_keywords(
+        self,
+        regex: Any,
+        tenant_id: str,
+        school_id: str | None = None,
+        limit: int = 10,
+    ) -> list[dict]:
+        """Tenant-scoped keyword search across title/type/theme — used by the Seeds
+        AI assistant to ground LLM prompts (mirrors JS fetchContextFromDB, scoped to
+        the caller's tenant/school so cross-tenant content never leaks into the LLM
+        prompt).
+        """
+        query = {
+            **self._tenant_query(tenant_id, school_id),
+            "$or": [
+                {"title.english": regex},
+                {"title.local": regex},
+                {"type": regex},
+                {"theme.english": regex},
+            ],
+        }
+        return await self._col.find(
+            query, {"_id": 1, "title": 1, "type": 1, "language": 1, "theme": 1}
+        ).limit(limit).to_list(length=limit)
 
     async def find_by_class(self, content_ids: list[str]) -> list[Content]:
         """Fetch content items by IDs for Classroom hydration (no tenant scope)."""
@@ -179,7 +228,7 @@ class ContentRepository(BaseRepository):
         updates: dict,
         school_id: str | None = None,
     ) -> dict | None:
-        q = {**self._tenant_query(tenant_id, school_id, strict=True), "_id": ObjectId(content_id)}
+        q = {**self._tenant_query(tenant_id, school_id, strict=True), "_id": content_id}
         updates["updated_at"] = datetime.now(UTC)
         return await self._col.find_one_and_update(q, {"$set": updates}, return_document=True)
 
@@ -189,11 +238,11 @@ class ContentRepository(BaseRepository):
         tenant_id: str,
         school_id: str | None = None,
     ) -> int:
-        q = {**self._tenant_query(tenant_id, school_id, strict=True), "_id": ObjectId(content_id)}
+        q = {**self._tenant_query(tenant_id, school_id, strict=True), "_id": content_id}
         result = await self._col.update_one(
             q, {"$set": {"is_deleted": True, "updated_at": datetime.now(UTC)}}
         )
         return result.matched_count
 
     async def save_processed(self, content_id: str, fields: dict) -> None:
-        await self._col.update_one({"_id": ObjectId(content_id)}, {"$set": fields})
+        await self._col.update_one({"_id": content_id}, {"$set": fields})
