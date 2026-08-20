@@ -239,8 +239,14 @@ async def list_content(
     language: str | None = None,
     theme: str | None = None,
     exp_name: str | None = Query(None),
+    exp_name_camel: str | None = Query(
+        None,
+        alias="expName",
+        description="camelCase alias for exp_name (used by the webapp and AI controller)",
+    ),
     ids: list[str] | None = Query(None),
     only_teacher_app: bool | None = Query(None),
+    search: str | None = Query(None, description="Search content by title (case-insensitive)"),
     limit: int = Query(20, ge=1, le=200),
     cursor: str | None = None,
     user: dict[str, Any] = Depends(_require_content_read),
@@ -248,16 +254,13 @@ async def list_content(
 ) -> ContentPageResponse:
     tenant_id = user.get("tenant_id", "")
     school_id = _read_school_id(user)
+    exp_name = exp_name or exp_name_camel
 
     # Fetch by specific IDs
     if ids is not None:
         if not ids:
             raise HTTPException(status_code=400, detail="ids must be a non-empty array")
         data = await service.list_content_by_ids(ids, tenant_id, school_id)
-        return ContentPageResponse(
-            data=data,
-            pagination=PaginationInfo(next_cursor=None, has_more=False, limit=len(data)),
-        )
         return ContentPageResponse(
             data=data,
             pagination=PaginationInfo(next_cursor=None, has_more=False, limit=len(data)),
@@ -271,6 +274,7 @@ async def list_content(
         exp_name=exp_name,
         only_teacher_app=bool(only_teacher_app),
         cursor=cursor,
+        search=search,
         limit=limit,
     )
 
@@ -320,8 +324,11 @@ async def create_content(
     user_id = user.get("sub", "")
     school_id = _write_school_id(user)
 
+    body_dict = body.model_dump(exclude_unset=True)
+    override_id = body_dict.get("_id")
+
     try:
-        content_id = await service.create_content(body, tenant_id, user_id, school_id)
+        content_id = await service.create_content(body, tenant_id, user_id, school_id, override_id)
     except ValueError as exc:
         logger.error("create_content failed", extra={"tenant_id": tenant_id, "user_id": user_id, "err": str(exc)})
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -397,6 +404,9 @@ async def create_quiz(
     user_id = user.get("sub", "")
     school_id = _write_school_id(user)
 
-    quiz_id = await service.create_quiz(body, tenant_id, user_id, school_id)
+    body_dict = body.model_dump(exclude_unset=True)
+    override_id = body_dict.get("id")
+
+    quiz_id = await service.create_quiz(body, tenant_id, user_id, school_id, override_id)
     job_id = await service.enqueue_content_job(quiz_id)
     return JobScheduledResponse(message="Processing New Content job scheduled!", job_id=job_id)

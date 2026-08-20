@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import time
+import uuid
 from datetime import UTC, datetime
 from typing import Any
 
@@ -84,35 +85,44 @@ class ContentService:
         only_teacher_app: bool,
         cursor: str | None,
         limit: int,
+        search: str | None = None,
     ) -> list[AudioContent | QuizContent]:
         """Return merged, sorted results of length up to limit+1.
 
-        Callers use len > limit to determine hasMore and slice to limit.
+        When search is provided, both content and quiz collections are
+        fetched regardless of exp_name filtering. Callers use len > limit
+        to determine hasMore and slice to limit.
         """
         after_ct = _parse_cursor(cursor)
         fetch_limit = limit + 1
 
-        fetch_content = not (exp_name and exp_name.lower() == "quiz")
-        fetch_quizzes = not (exp_name and exp_name.lower() not in (None, "quiz"))
+        # A bare search spans both collections; a search combined with exp_name
+        # still has to honour the requested type.
+        if search and not exp_name:
+            fetch_content = True
+            fetch_quizzes = True
+        else:
+            fetch_content = not (exp_name and exp_name.lower() == "quiz")
+            fetch_quizzes = not (exp_name and exp_name.lower() not in (None, "quiz"))
 
-        # When language+theme+expName all set, only one collection is relevant
-        if language and theme and exp_name:
-            if exp_name.lower() == "quiz":
-                fetch_content = False
-            else:
-                fetch_quizzes = False
+            # When language+theme+expName all set, only one collection is relevant
+            if language and theme and exp_name:
+                if exp_name.lower() == "quiz":
+                    fetch_content = False
+                else:
+                    fetch_quizzes = False
 
         contents = (
             await self._content_repo.list_paginated(
                 tenant_id, school_id, language, theme, exp_name,
-                only_teacher_app, after_ct, fetch_limit,
+                only_teacher_app, after_ct, search, fetch_limit,
             )
             if fetch_content else []
         )
         quizzes = (
             await self._quiz_repo.list_paginated(
                 tenant_id, school_id, language, theme, exp_name,
-                only_teacher_app, after_ct, fetch_limit,
+                only_teacher_app, after_ct, search, fetch_limit,
             )
             if fetch_quizzes else []
         )
@@ -151,6 +161,7 @@ class ContentService:
         tenant_id: str,
         user_id: str,
         school_id: str | None,
+        override_id: str | None = None,
     ) -> str:
         for item in body.audio_content or []:
             au = item.get("audio_url", "")
@@ -171,6 +182,7 @@ class ContentService:
             creation_time=int(time.time()),
         )
         doc: dict[str, Any] = dto.model_dump()
+        doc["_id"] = override_id or str(uuid.uuid4())
         doc["created_at"] = datetime.now(UTC)
         doc["updated_at"] = datetime.now(UTC)
         return await self._content_repo.insert_raw(doc)
@@ -235,6 +247,7 @@ class ContentService:
         tenant_id: str,
         user_id: str,
         school_id: str | None,
+        override_id: str | None = None,
     ) -> str:
         given = body.model_dump(
             exclude_unset=True,
@@ -250,6 +263,7 @@ class ContentService:
             creation_time=int(time.time()),
         )
         doc: dict[str, Any] = dto.model_dump()
+        doc["_id"] = override_id or str(uuid.uuid4())
         return await self._quiz_repo.insert(doc)
 
     # ------------------------------------------------------------------

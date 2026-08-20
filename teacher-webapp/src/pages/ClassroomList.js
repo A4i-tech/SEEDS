@@ -50,6 +50,23 @@ const ClassroomList = () => {
     setRecentSessions(getSessionHistory());
   }, []);
 
+  // Re-fetch after voice command mutations
+  useEffect(() => {
+    const handler = () => {
+      fetchClassrooms();
+      setRecentSessions(getSessionHistory());
+    };
+    window.addEventListener("voice-command-complete", handler);
+    return () => window.removeEventListener("voice-command-complete", handler);
+  }, []);
+
+  // Open content drawer when AI voice command requests it
+  useEffect(() => {
+    const handler = () => setContentDrawerOpen(true);
+    window.addEventListener("open-content-drawer", handler);
+    return () => window.removeEventListener("open-content-drawer", handler);
+  }, []);
+
   const fetchClassrooms = async () => {
     try {
       setLoading(true);

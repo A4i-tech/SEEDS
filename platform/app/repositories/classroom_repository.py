@@ -35,6 +35,14 @@ class ClassroomRepository(BaseRepository):
         docs = await cursor.to_list(length=None)
         return [Classroom.from_mongo(d) for d in docs]
 
+    async def find_raw_by_teacher(self, teacher_id: str) -> list[dict]:
+        """Projected raw docs for a teacher's classes — used where full Classroom
+        model validation is too strict for legacy documents (e.g. missing schoolId)."""
+        cursor = self._col.find(
+            {"teacher": teacher_id}, {"_id": 1, "name": 1, "students": 1, "leaders": 1}
+        )
+        return await cursor.to_list(length=None)
+
     async def create(self, classroom: ClassroomCreate) -> Classroom:
         now = datetime.now(UTC)
         doc = classroom.model_dump()

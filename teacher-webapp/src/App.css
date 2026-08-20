@@ -280,3 +280,29 @@
     opacity: 1;
   }
 }
+
+/* Seeds AI side partition.
+   When open, the whole app shrinks left by the panel width and any
+   right-anchored MUI drawer (e.g. play-content) is inset by the same
+   amount so it lands toward the centre instead of under the panel.
+   ponytail: global selector on .MuiDrawer-paperAnchorRight — fine while
+   the app has one right drawer; scope by class if a second one appears. */
+:root {
+  --seeds-panel-width: 420px;
+}
+
+#root {
+  transition: padding-right 0.25s ease;
+}
+
+body.seeds-open #root {
+  padding-right: var(--seeds-panel-width);
+}
+
+body.seeds-open .MuiDrawer-paperAnchorRight {
+  right: var(--seeds-panel-width) !important;
+}
+
+body.seeds-open .MuiModal-root > .MuiBackdrop-root {
+  right: var(--seeds-panel-width);
+}

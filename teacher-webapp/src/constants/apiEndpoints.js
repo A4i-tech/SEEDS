@@ -17,6 +17,12 @@ export const API_ENDPOINTS = {
     UPDATE: `${BASE_URL}/class`,
     DELETE: (classId) => `${BASE_URL}/class/${classId}`,
   },
+  META: {
+    VOICE_COMMAND: `${BASE_URL}/meta/voice-command`,
+    TEXT_COMMAND: `${BASE_URL}/meta/text-command`,
+    TRANSCRIBE: `${BASE_URL}/meta/transcribe`,
+    TTS_PROMPT: `${BASE_URL}/meta/tts-prompt`,
+  },
   CONFERENCE: {
     CREATE: `${CONF_BASE}/create`,
     START: (confId) => `${CONF_BASE}/start/${confId}`,

@@ -15,7 +15,14 @@ from __future__ import annotations
 from typing import Annotated, Any, Literal
 
 from bson import ObjectId
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 
 class TitleText(BaseModel):
@@ -74,8 +81,16 @@ class ContentBase(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _strip_oids(cls, data: Any) -> Any:
+        """Coerce ObjectIds to str and normalize legacy title-cased `type` values.
+
+        Older contentsV3 docs stored `type` as "Story"/"Song"/"Poem"/"Snippet";
+        the API contract is lowercase, so reads stay tolerant of both.
+        """
         if isinstance(data, dict):
-            return {k: str(v) if isinstance(v, ObjectId) else v for k, v in data.items()}
+            out = {k: str(v) if isinstance(v, ObjectId) else v for k, v in data.items()}
+            if isinstance(out.get("type"), str):
+                out["type"] = out["type"].lower()
+            return out
         return data
 
     @field_validator("id", mode="before")
@@ -113,7 +128,22 @@ class QuizContent(ContentBase):
         return cls.model_validate({**doc, "type": "quiz"})
 
 
-ContentItem = Annotated[AudioContent | QuizContent, Field(discriminator="type")]
+def _lower_discriminator(data: Any) -> Any:
+    """Lowercase a raw dict's `type` so the discriminator matches legacy title-cased docs.
+
+    The union discriminator is resolved before any member's own validators run,
+    so title-cased `type` has to be fixed here too, not just in ContentBase.
+    """
+    if isinstance(data, dict) and isinstance(data.get("type"), str):
+        return {**data, "type": data["type"].lower()}
+    return data
+
+
+ContentItem = Annotated[
+    AudioContent | QuizContent,
+    Field(discriminator="type"),
+    BeforeValidator(_lower_discriminator),
+]
 
 
 class PaginationInfo(BaseModel):

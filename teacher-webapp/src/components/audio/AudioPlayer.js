@@ -109,6 +109,16 @@ const AudioPlayer = ({ audioUrl, onTimeUpdate, onEnded, autoPlay = false, varian
     audio.load();
   }, [audioUrl]);
 
+  // Voice command follow-up ("stop"/"pause content") — pause local playback.
+  useEffect(() => {
+    const handler = () => {
+      const audio = audioRef.current;
+      if (audio && !audio.paused) audio.pause();
+    };
+    window.addEventListener("content-stop-playback", handler);
+    return () => window.removeEventListener("content-stop-playback", handler);
+  }, []);
+
   const togglePlayPause = () => {
     const audio = audioRef.current;
     if (!audio) return;

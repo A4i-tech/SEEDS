@@ -6,9 +6,9 @@ fields (tenantId, schoolId) is handled here via the shared _oid helper.
 
 from __future__ import annotations
 
+import re
 import urllib.parse
 
-from bson import ObjectId
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.repositories.base_repository import BaseRepository
@@ -49,7 +49,7 @@ class QuizRepository(BaseRepository):
         tenant_id: str,
         school_id: str | None = None,
     ) -> dict | None:
-        q = {**self._tenant_query(tenant_id, school_id), "_id": ObjectId(content_id)}
+        q = {**self._tenant_query(tenant_id, school_id), "_id": self._to_id(content_id)}
         return await self._col.find_one(q)
 
     async def list_paginated(
@@ -61,9 +61,14 @@ class QuizRepository(BaseRepository):
         exp_name: str | None = None,
         only_teacher_app: bool = False,
         after_creation_time: int | None = None,
+        search: str | None = None,
         limit: int = 16,
     ) -> list[dict]:
-        """Paginated quiz list — quiz items only."""
+        """Paginate quiz items, optionally filtered by title search.
+
+        When search is provided, matches title.english or title.local
+        case-insensitively. Other filters are applied normally.
+        """
         q = self._tenant_query(tenant_id, school_id)
 
         if only_teacher_app:
@@ -78,6 +83,14 @@ class QuizRepository(BaseRepository):
         if after_creation_time is not None:
             q["creation_time"] = {"$lte": after_creation_time}
 
+        if search:
+            escaped = re.escape(search)
+            regex = {"$regex": escaped, "$options": "i"}
+            q["$or"] = [
+                {"title.english": regex},
+                {"title.local": regex},
+            ]
+
         return await self._col.find(q).sort("creation_time", -1).to_list(length=limit)
 
     async def find_by_ids(
@@ -86,7 +99,7 @@ class QuizRepository(BaseRepository):
         tenant_id: str,
         school_id: str | None = None,
     ) -> list[dict]:
-        q = {**self._tenant_query(tenant_id, school_id), "_id": {"$in": [ObjectId(i) for i in content_ids]}}
+        q = {**self._tenant_query(tenant_id, school_id), "_id": self._ids_query(content_ids)}
         return await self._col.find(q).to_list(length=None)
 
     # ------------------------------------------------------------------
@@ -112,7 +125,7 @@ class QuizRepository(BaseRepository):
         school_id: str | None = None,
     ) -> dict | None:
         from datetime import UTC, datetime
-        q = {**self._tenant_query(tenant_id, school_id, strict=True), "_id": ObjectId(content_id)}
+        q = {**self._tenant_query(tenant_id, school_id, strict=True), "_id": self._to_id(content_id)}
         updates["updated_at"] = datetime.now(UTC)
         return await self._col.find_one_and_update(q, {"$set": updates}, return_document=True)
 
@@ -123,7 +136,7 @@ class QuizRepository(BaseRepository):
         school_id: str | None = None,
     ) -> int:
         from datetime import UTC, datetime
-        q = {**self._tenant_query(tenant_id, school_id, strict=True), "_id": ObjectId(content_id)}
+        q = {**self._tenant_query(tenant_id, school_id, strict=True), "_id": self._to_id(content_id)}
         result = await self._col.update_one(
             q, {"$set": {"is_deleted": True, "updated_at": datetime.now(UTC)}}
         )

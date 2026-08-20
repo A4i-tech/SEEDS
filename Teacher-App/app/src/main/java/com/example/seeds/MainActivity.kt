@@ -5,7 +5,10 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.view.GestureDetector
+import android.view.KeyEvent
 import android.view.MenuItem
+import android.view.MotionEvent
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.drawerlayout.widget.DrawerLayout
@@ -24,6 +27,7 @@ import com.example.seeds.utils.Constants
 import com.example.seeds.utils.SessionManager
 import com.example.seeds.utils.TimberInitializer
 import com.example.seeds.workers.UploadLogsWorker
+import com.example.seeds.ui.voiceCommand.VoiceCommandBottomSheet
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.navigation.NavigationView
 import dagger.hilt.android.AndroidEntryPoint
@@ -56,8 +60,24 @@ class MainActivity : AppCompatActivity() {
     @Inject
     lateinit var network: SeedsService
 
+    @Inject
+    lateinit var ttsPlayer: com.example.seeds.audio.TtsPlayer
+
     private var mainActivityScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     var mainActivitySessionId = UUID.randomUUID().toString()
+
+    // Voice command activation (Phase 7): long-press anywhere + orb + volume-up.
+    private var voiceSheet: VoiceCommandBottomSheet? = null
+
+    // True from the moment a long-press activates recording until the same touch sequence's
+    // finger-up — mirrors web's keyup-stops-recording (hold Space, release to stop).
+    private var longPressRecording = false
+
+    private val gestureDetector by lazy {
+        GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onLongPress(e: MotionEvent) { onLongPressActivate() }
+        })
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -118,6 +138,60 @@ class MainActivity : AppCompatActivity() {
             }
         }
         navView.setupWithNavController(navController)
+
+        binding.voiceOrb.setOnClickListener { showVoiceSheet(autoRecord = false) }
+
+        maybePlayWelcome()
+    }
+
+    // Welcome TTS once per login session (web: sessionStorage "seeds_welcomed"). Flag lives in
+    // "sharedPref" and is cleared on logout, so backgrounding/recreate does not replay it.
+    private fun maybePlayWelcome() {
+        val prefs = getSharedPreferences("sharedPref", Context.MODE_PRIVATE)
+        if (prefs.getBoolean("seeds_welcomed", false)) return
+        prefs.edit().putBoolean("seeds_welcomed", true).apply()
+        lifecycleScope.launch {
+            delay(300)  // let the UI settle first, mirroring web
+            try { ttsPlayer.playWelcome() } catch (e: Exception) { Timber.w(e, "Welcome TTS failed") }
+        }
+    }
+
+    private fun showVoiceSheet(autoRecord: Boolean) {
+        // Guard: ignore while a sheet is already up (covers shake-during-recording and in-flight command).
+        if (voiceSheet?.isAdded == true) return
+        val sheet = VoiceCommandBottomSheet.newInstance(currentClassId = null, autoRecord = autoRecord)
+        voiceSheet = sheet
+        sheet.show(supportFragmentManager, "voice_command")
+    }
+
+    private fun onLongPressActivate() {
+        if (voiceSheet?.isAdded == true) return
+        longPressRecording = true
+        showVoiceSheet(autoRecord = true)
+    }
+
+    // Long-press anywhere activates voice AI. Feed all touches to the detector, then let them
+    // continue normally so buttons/scrolling still work. Releasing the finger after a long-press
+    // stops the recording it started — same hold-to-talk contract as web's hold-Space/release.
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        gestureDetector.onTouchEvent(ev)
+        if (longPressRecording && (ev.action == MotionEvent.ACTION_UP || ev.action == MotionEvent.ACTION_CANCEL)) {
+            longPressRecording = false
+            voiceSheet?.takeIf { it.isAdded && it.isRecording() }?.stopRecording()
+        }
+        return super.dispatchTouchEvent(ev)
+    }
+
+    // Volume-up stops an in-progress recording; when idle, let it fall through to normal volume control.
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.keyCode == KeyEvent.KEYCODE_VOLUME_UP && event.action == KeyEvent.ACTION_UP) {
+            val sheet = voiceSheet
+            if (sheet?.isAdded == true && sheet.isRecording()) {
+                sheet.stopRecording()
+                return true
+            }
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     private fun handleDrawerItemClick(item: MenuItem) {
@@ -149,6 +223,9 @@ class MainActivity : AppCompatActivity() {
             } finally {
                 withContext(Dispatchers.Main) {
                     sessionManager.clearSession()
+                    // Clear the welcome flag so it replays on the next login (web parity).
+                    getSharedPreferences("sharedPref", Context.MODE_PRIVATE)
+                        .edit().remove("seeds_welcomed").apply()
 
                     mainActivityScope.cancel()
                     WorkManager.getInstance(applicationContext).cancelAllWork()

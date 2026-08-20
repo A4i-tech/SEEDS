@@ -56,8 +56,5 @@ class VonageActionFactory:
 
         raise NotImplementedError(f"No Vonage implementation for action type: {type(action)}")
 
-    # Deprecated alias — use get_action_implementation
-    get_action_implmentation = get_action_implementation
-
     def get_action_accumulator_implmentation(self) -> VonageActionAccumulator:  # noqa: N802
         return VonageActionAccumulator()

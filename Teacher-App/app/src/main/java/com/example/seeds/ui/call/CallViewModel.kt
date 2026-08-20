@@ -29,7 +29,6 @@ import com.example.seeds.network.ConferenceSSEClient
 import com.example.seeds.network.SeedsService
 import com.example.seeds.network.asDomainModel
 import com.example.seeds.utils.Encryptor
-import com.example.seeds.utils.getLanguageLabel
 import com.example.seeds.repository.ClassroomRepository
 import com.example.seeds.repository.ContentRepository
 import com.example.seeds.repository.TeacherRepository
@@ -201,6 +200,9 @@ class CallViewModel @Inject constructor(
     private val _participantDropped = MutableLiveData<String?>()
     val participantDropped: LiveData<String?>
         get() = _participantDropped
+    private val _participantOnHold = MutableLiveData<String?>()
+    val participantOnHold: LiveData<String?>
+        get() = _participantOnHold
 
     private val _conferenceHoldDetected = MutableLiveData(false)
     val conferenceHoldDetected: LiveData<Boolean>
@@ -277,7 +279,7 @@ class CallViewModel @Inject constructor(
                 _filteredContent.value = filteredListContent 
 
                 _languages.value =
-                    filteredListContent.map { it.language.lowercase() }.distinct().map { getLanguageLabel(it) }
+                    filteredListContent.map { it.language.lowercase() }.distinct().map { it.capitalize() }
                 _experiences.value = filteredListContent.map { it.type.lowercase() }.distinct().map {
                     it.capitalize()
                 }
@@ -356,6 +358,10 @@ class CallViewModel @Inject constructor(
 
     fun clearParticipantDroppedNotification() {
         _participantDropped.value = null
+    }
+
+    fun clearParticipantOnHoldNotification() {
+        _participantOnHold.value = null
     }
 
     private fun getAccessToken() {
@@ -725,7 +731,12 @@ class CallViewModel @Inject constructor(
                 networkCallState
                     .filter { it.phoneNumber != teacherPhoneNumber }
                     .forEach { status ->
-                        updateTrackerFromServerState(status.phoneNumber, status.callerState ?: CallerState.UNDEFINED)
+                        val previousState = updateTrackerFromServerState(
+                            status.phoneNumber, status.callerState ?: CallerState.UNDEFINED
+                        )
+                        if (status.onHold && previousState == CallerState.CONNECTED) {
+                            _participantOnHold.postValue(status.phoneNumber)
+                        }
                     }
 
                 val currentStudentList = _callState.value ?: emptyList()

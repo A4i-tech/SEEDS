@@ -11,7 +11,7 @@ from app.models.requests.school_requests import ClassroomCreate, ClassroomUpsert
 from app.models.responses.classroom import ClassroomDetailResponse, ClassroomResponse
 from app.models.responses.login import MessageResponse
 from app.platform.auth.dependencies import require_role
-from app.platform.error_handling import ForbiddenError, NotFoundError
+from app.platform.error_handling import ForbiddenError, NotFoundError, ValidationError
 from app.services.school_service import SchoolService, get_school_service
 
 logger = logging.getLogger(__name__)
@@ -74,10 +74,15 @@ async def upsert_class(
         if classroom is None:
             raise NotFoundError("Classroom", body.id)
     else:
+        # A create with no real name is almost always a misfired "add student to
+        # <class>" the planner couldn't resolve to an existing _id — it otherwise
+        # spawns a nameless ghost class. Require a name to create.
+        if not body.name:
+            raise ValidationError("A class name is required to create a class.")
         classroom = await repo.create(
             ClassroomCreate(
                 school_id=school_id,
-                name=body.name or "",
+                name=body.name,
                 teacher=teacher_id,
                 students=body.students,
                 leaders=body.leaders,
