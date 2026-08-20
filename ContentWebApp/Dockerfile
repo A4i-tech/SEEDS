@@ -21,7 +21,7 @@ ENV REACT_APP_GOOGLE_SITE_VERIFICATION=$REACT_APP_GOOGLE_SITE_VERIFICATION
 RUN npm run build
 
 # ---- Production stage ----
-FROM nginx:alpine
+FROM nginxinc/nginx-unprivileged:alpine
 
 # Copy React build output to Nginx
 COPY --from=builder /app/build /usr/share/nginx/html
@@ -29,6 +29,6 @@ COPY --from=builder /app/build /usr/share/nginx/html
 # Copy custom nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-EXPOSE 80
+EXPOSE 8080
 
 CMD ["nginx", "-g", "daemon off;"]
