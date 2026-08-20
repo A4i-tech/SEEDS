@@ -22,7 +22,7 @@ jobs:
   deploy-main-staging-workflow:
     needs: ci-workflow
     if: github.ref == 'refs/heads/a4i/staging'
-    uses: ./.github/workflows/deploy-main-staging.yml
+    uses: ./.github/workflows/deploy-staging.yml
     secrets: inherit
 
   deploy-main-workflow:
