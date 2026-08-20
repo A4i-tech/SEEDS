@@ -35,22 +35,18 @@ export const useContent = () => {
   isFilteredRef.current = isFiltered;
 
   const loadContentAggregatorCourses = useCallback(async (cursor = null) => {
-    try {
-      const { courses, next_cursor: nextCursor, has_more: hasMore } = await contentAggregatorService.getCourses(
-        cursor
-      );
-      const mapped = courses.map(mapContentAggregatorCourse);
-      setAllContent((prevAll) => {
-        const merged = cursor
-          ? [...prevAll, ...mapped]
-          : [...prevAll.filter((item) => item.source !== "subodha"), ...mapped];
-        if (!isFilteredRef.current) setContent(merged);
-        return merged;
-      });
-      setCoursePaginationInfo({ nextCursor, hasMore });
-    } catch (error) {
-      console.error("Error loading content aggregator courses:", error);
-    }
+    const { courses, next_cursor: nextCursor, has_more: hasMore } = await contentAggregatorService.getCourses(
+      cursor
+    );
+    const mapped = courses.map(mapContentAggregatorCourse);
+    setAllContent((prevAll) => {
+      const merged = cursor
+        ? [...prevAll, ...mapped]
+        : [...prevAll.filter((item) => item.source !== "subodha"), ...mapped];
+      if (!isFilteredRef.current) setContent(merged);
+      return merged;
+    });
+    setCoursePaginationInfo({ nextCursor, hasMore });
   }, []);
 
   useEffect(() => {
@@ -61,8 +57,8 @@ export const useContent = () => {
    * Fetch content with optional cursor for pagination
    * Error handling is delegated to contentService
    */
-  const fetchContent = useCallback(async (cursor = null, signal = null) => {
-    const page = await contentService.getContent(cursor, PAGE_SIZE, signal);
+  const fetchContent = useCallback(async (cursor = null) => {
+    const page = await contentService.getContent(cursor, PAGE_SIZE);
     return { data: page.items, nextCursor: page.next_cursor, hasMore: page.has_more };
   }, []);
 
@@ -82,10 +78,6 @@ export const useContent = () => {
         });
         setPaginationInfo({ nextCursor, hasMore });
         setIsFiltered(false);
-      } catch (error) {
-        if (error.name !== "AbortError") {
-          console.error("Error loading initial content:", error);
-        }
       } finally {
         setIsLoading(false);
       }
@@ -106,10 +98,9 @@ export const useContent = () => {
 
     if (paginationInfo.hasMore && paginationInfo.nextCursor) {
       setIsLoading(true);
-      const ac = new AbortController();
 
       try {
-        const { data, nextCursor, hasMore } = await fetchContent(paginationInfo.nextCursor, ac.signal);
+        const { data, nextCursor, hasMore } = await fetchContent(paginationInfo.nextCursor);
 
         if (!data.length) {
           setPaginationInfo({ nextCursor: null, hasMore: false });
@@ -131,10 +122,6 @@ export const useContent = () => {
         });
 
         setPaginationInfo({ nextCursor, hasMore });
-      } catch (error) {
-        if (error.name !== "AbortError") {
-          console.error("Error loading more content:", error);
-        }
       } finally {
         setIsLoading(false);
       }
@@ -171,16 +158,7 @@ export const useContent = () => {
         // Show success message
         alert(`${contentType.charAt(0).toUpperCase() + contentType.slice(1)} deleted successfully.`);
       } catch (error) {
-        console.error("Error deleting content:", error);
-        let errorMessage = error.response?.data?.error || error.message || "Failed to delete content";
-        try {
-          const parsed = JSON.parse(errorMessage);
-          errorMessage = parsed?.error || parsed?.message || errorMessage;
-        } catch (_) {}
-        if (errorMessage === "Content not found" || errorMessage === "Unauthorized") {
-          errorMessage = "You do not have permission to delete this item.";
-        }
-        alert(`Error deleting ${contentType}: ${errorMessage}`);
+        alert(`Error deleting ${contentType}: ${error.message}`);
       }
     },
     []
