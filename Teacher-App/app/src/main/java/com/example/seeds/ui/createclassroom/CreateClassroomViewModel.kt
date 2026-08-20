@@ -20,6 +20,10 @@ class CreateClassroomViewModel @Inject constructor(val savedStateHandle: SavedSt
     val navigateBack: LiveData<Boolean>
         get() = _navigateBack
 
+    private val _error = MutableLiveData<String?>(null)
+    val error: LiveData<String?>
+        get() = _error
+
     private val _classroomStudents = MutableLiveData(classroom.students)
     val classroomStudents: LiveData<List<Student>>
         get() = _classroomStudents
@@ -44,8 +48,17 @@ class CreateClassroomViewModel @Inject constructor(val savedStateHandle: SavedSt
 
     fun saveClassroom(classroom: Classroom) {
         viewModelScope.launch {
-            classroomRepository.saveClassroom(classroom)
-            _navigateBack.value = true
+            try {
+                classroomRepository.saveClassroom(classroom)
+                _navigateBack.value = true
+            } catch (e: Exception) {
+                Log.e("CreateClassroomVM", "saveClassroom failed", e)
+                _error.value = e.message ?: "Failed to save classroom"
+            }
         }
+    }
+
+    fun clearError() {
+        _error.value = null
     }
 }

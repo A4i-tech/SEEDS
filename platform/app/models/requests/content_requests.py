@@ -63,6 +63,11 @@ class QuizCreateRequest(BaseModel):
     negative_marks: float | None = None
     questions: list[Any] | None = None
 
+    @field_validator("type")
+    @classmethod
+    def _normalize_type(cls, v: str) -> str:
+        return v.lower()
+
 
 class ContentCreate(BaseModel):
     """Snake_case DB document DTO for content creation — model_dump() writes correct DB keys
@@ -84,6 +89,12 @@ class ContentCreate(BaseModel):
     creation_time: int = -1
     version: str = "v3"
 
+    @field_validator("type")
+    @classmethod
+    def _normalize_type(cls, v: str) -> str:
+        """Persist `type` lowercase — legacy docs stored "Story"/"Song" and broke reads."""
+        return v.lower()
+
 
 class QuizCreate(BaseModel):
     """Snake_case DB document DTO for quiz creation — model_dump() writes correct DB keys
@@ -103,3 +114,9 @@ class QuizCreate(BaseModel):
     questions: list[Any] = Field(default_factory=list)
     is_deleted: bool = False
     creation_time: int = -1
+
+    @field_validator("type")
+    @classmethod
+    def _normalize_type(cls, v: str) -> str:
+        """Persist `type` lowercase — legacy docs stored "Story"/"Song" and broke reads."""
+        return v.lower()

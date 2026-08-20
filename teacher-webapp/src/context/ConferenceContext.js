@@ -161,7 +161,6 @@ export const ConferenceProvider = ({ children }) => {
             })
           );
         }
-
         // Update participant with latest SSE data - only update dynamic state, ignore name from SSE
         const existingParticipant = newMap.get(normalizedPhone);
 
@@ -260,6 +259,7 @@ export const ConferenceProvider = ({ children }) => {
         handleTeacherSelect,
         handleStudentToggle,
         clearSelectedStudents,
+        setSelectedStudents,
         setConferenceStudents,
         conferenceStudents,
         allClassroomStudents,

@@ -101,7 +101,7 @@ describe("ContentDetails", () => {
     });
 
     expect(screen.getByText("Story")).toBeInTheDocument();
-    expect(screen.getByText("English")).toBeInTheDocument();
+    expect(screen.getByText("En")).toBeInTheDocument();
   });
 
   test("fetches SAS URL for audio content", async () => {

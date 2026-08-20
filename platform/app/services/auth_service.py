@@ -12,6 +12,7 @@ SECURITY:
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 from fastapi import Depends
@@ -80,48 +81,30 @@ def _user_public(user: User) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
+@dataclass
 class TeacherCreate:
     """Minimal creation payload for a teacher or content_creator user."""
 
-    def __init__(
-        self,
-        name: str,
-        email: str,
-        password: str,
-        role: str = "teacher",
-        tenant_id: str | None = None,
-        school_id: str | None = None,
-        phone: str | None = None,
-        language_preference: str | None = None,
-    ) -> None:
-        self.name = name
-        self.email = email
-        self.password = password
-        self.role = role
-        self.tenant_id = tenant_id
-        self.school_id = school_id
-        self.phone = phone
-        self.language_preference = language_preference
+    name: str
+    email: str
+    password: str
+    role: str = "teacher"
+    tenant_id: str | None = None
+    school_id: str | None = None
+    phone: str | None = None
+    language_preference: str | None = None
 
 
+@dataclass
 class TenantCreate:
     """Minimal creation payload for a tenant user."""
 
-    def __init__(
-        self,
-        name: str,
-        email: str,
-        password: str,
-        tenant_name: str | None = None,
-        organisation: str | None = None,
-        phone: str | None = None,
-    ) -> None:
-        self.name = name
-        self.email = email
-        self.password = password
-        self.tenant_name = tenant_name
-        self.organisation = organisation
-        self.phone = phone
+    name: str
+    email: str
+    password: str
+    tenant_name: str | None = None
+    organisation: str | None = None
+    phone: str | None = None
 
 
 # ---------------------------------------------------------------------------

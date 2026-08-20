@@ -84,6 +84,13 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
     };
   }, []);
 
+  // Open content drawer when AI voice command requests it
+  useEffect(() => {
+    const handleOpenContentDrawer = () => setIsContentDrawerOpen(true);
+    window.addEventListener("open-content-drawer", handleOpenContentDrawer);
+    return () => window.removeEventListener("open-content-drawer", handleOpenContentDrawer);
+  }, []);
+
   // Get teacher and students from centralized state
   const teacher = getTeacher();
   const activeStudents = getStudents();
@@ -140,6 +147,7 @@ export function DetailsPage({ classroomName = null, classroomId = null }) {
       }
 
       showToast.success("Call ended");
+      navigate("/classrooms");
     } catch (error) {
       console.error("Error ending the call:", error);
       showToast.error("Failed to end call");
