@@ -19,7 +19,7 @@ jobs:
     uses: ./.github/workflows/deploy-websocket-service-staging.yml
     secrets: inherit
 
-  deploy-main-staging-workflow:
+  deploy-staging-workflow:
     needs: ci-workflow
     if: github.ref == 'refs/heads/a4i/staging'
     uses: ./.github/workflows/deploy-staging.yml
@@ -54,7 +54,7 @@ jobs:
     needs:
       - ci-workflow
       - deploy-websocket-service-staging-workflow
-      - deploy-main-staging-workflow
+      - deploy-staging-workflow
       - deploy-main-workflow
       - run-android-tests
       - deploy-android
@@ -73,7 +73,7 @@ jobs:
           JOB_MAPPING='{
             "ci-workflow": "CI",
             "deploy-websocket-service-staging-workflow": "Websocket",
-            "deploy-main-staging-workflow": "Backend Staging",
+            "deploy-staging-workflow": "Backend Staging",
             "deploy-main-workflow": "Backend",
             "deploy-android": "Android"
           }'
