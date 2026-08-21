@@ -241,7 +241,7 @@ async def list_content(
     exp_name: str | None = Query(None),
     ids: list[str] | None = Query(None),
     only_teacher_app: bool | None = Query(None),
-    limit: int = Query(15, ge=1, le=200),
+    limit: int = Query(20, ge=1, le=200),
     cursor: str | None = None,
     user: dict[str, Any] = Depends(_require_content_read),
     service: ContentService = Depends(get_content_service),

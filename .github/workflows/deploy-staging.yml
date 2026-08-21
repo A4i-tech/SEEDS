@@ -1,0 +1,51 @@
+name: Deploy Main Services Staging
+
+on:
+    push:
+        branches: a4i/staging
+    workflow_call:
+    workflow_dispatch:
+
+env:
+    REGISTRY: ghcr.io
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                service:
+                    - name: platform-service
+                      context: platform
+                      image: platform
+
+                    - name: content-webapp-service
+                      context: ContentWebApp
+                      image: content-webapp
+                      build_arg_storage: CONTENT_WEBAPP_STORAGE_ACCOUNT_NAME
+                      build_arg_api_url: CONTENT_WEBAPP_REACT_APP_API_BASE_URL_STAGING
+                      build_arg_google_site_verification: CONTENT_WEBAPP_REACT_APP_GOOGLE_SITE_VERIFICATION
+
+                    - name: teacher-webapp-service
+                      context: teacher-webapp
+                      image: teacher-webapp
+                      build_arg_storage: TEACHER_WEBAPP_STORAGE_ACCOUNT_NAME
+                      build_arg_api_url: TEACHER_WEBAPP_API_BASE_URL_STAGING
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Build & push image
+              uses: ./.github/actions/deploy-docker
+              with:
+                  context: ${{ matrix.service.context }}
+                  image: ${{ matrix.service.image }}
+                  registry: ${{ env.REGISTRY }}
+                  repository: ${{ github.repository }}
+                  github_token: ${{ secrets.GITHUB_TOKEN }}
+                  username: ${{ github.actor }}
+                  environment_tag: staging
+                  build_args: |
+                      ${{ matrix.service.build_arg_storage && format('REACT_APP_STORAGE_ACCOUNT_NAME={0}', vars[matrix.service.build_arg_storage]) }}
+                      ${{ matrix.service.build_arg_api_url && format('REACT_APP_API_BASE_URL={0}', secrets[matrix.service.build_arg_api_url]) }}
+                      ${{ matrix.service.build_arg_google_site_verification && format('REACT_APP_GOOGLE_SITE_VERIFICATION={0}', vars[matrix.service.build_arg_google_site_verification]) }}
