@@ -14,9 +14,14 @@ import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.recyclerview.widget.RecyclerView
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentActivity
+import androidx.fragment.app.FragmentManager
 import com.example.seeds.MainActivity
 import com.example.seeds.R
 import com.example.seeds.di.TestAppModule
+import com.example.seeds.ui.home.HomeFragment
 import com.example.seeds.model.Content
 import com.example.seeds.model.LocalizedContent
 import com.example.seeds.model.Pagination
@@ -30,6 +35,27 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
+private class RecyclerViewRenderedIdlingResource(recyclerView: RecyclerView) : androidx.test.espresso.IdlingResource {
+    @Volatile private var rendered = false
+    private var callback: androidx.test.espresso.IdlingResource.ResourceCallback? = null
+
+    init {
+        recyclerView.adapter?.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
+            override fun onChanged() = markRendered()
+            override fun onItemRangeInserted(positionStart: Int, itemCount: Int) = markRendered()
+        })
+    }
+
+    private fun markRendered() {
+        rendered = true
+        callback?.onTransitionToIdle()
+    }
+
+    override fun getName() = "RecyclerViewRenderedIdlingResource"
+    override fun isIdleNow() = rendered
+    override fun registerIdleTransitionCallback(cb: androidx.test.espresso.IdlingResource.ResourceCallback) { callback = cb }
+}
+
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
 class ContentBrowsingE2ETest {
@@ -38,6 +64,7 @@ class ContentBrowsingE2ETest {
     val hiltRule = HiltAndroidRule(this)
 
     private lateinit var scenario: ActivityScenario<MainActivity>
+    private lateinit var recyclerViewIdlingResource: androidx.test.espresso.IdlingResource
 
     // Uses performClick() instead of coordinate injection to avoid
     // SecurityException when the item center lands on the navigation bar.
@@ -73,10 +100,29 @@ class ContentBrowsingE2ETest {
             pagination = Pagination(nextCursor = null, hasMore = false, limit = 15)
         )
         scenario = ActivityScenario.launch(MainActivity::class.java)
+        scenario.onActivity { activity ->
+            (activity as FragmentActivity).supportFragmentManager.registerFragmentLifecycleCallbacks(
+                object : FragmentManager.FragmentLifecycleCallbacks() {
+                    override fun onFragmentViewCreated(
+                        fm: FragmentManager, f: Fragment, v: View, savedInstanceState: android.os.Bundle?
+                    ) {
+                        if (f is HomeFragment) {
+                            val recyclerView = v.findViewById<RecyclerView>(R.id.content_list)
+                            recyclerViewIdlingResource = RecyclerViewRenderedIdlingResource(recyclerView)
+                            IdlingRegistry.getInstance().register(recyclerViewIdlingResource)
+                        }
+                    }
+                },
+                true
+            )
+        }
     }
 
     @After
     fun tearDown() {
+        if (::recyclerViewIdlingResource.isInitialized) {
+            IdlingRegistry.getInstance().unregister(recyclerViewIdlingResource)
+        }
         IdlingRegistry.getInstance().unregister(TestAppModule.fakeService.idlingResource)
         if (::scenario.isInitialized) scenario.close()
         TestAppModule.fakeService.reset()
