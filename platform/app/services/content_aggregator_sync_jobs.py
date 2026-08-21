@@ -69,10 +69,11 @@ async def record_item_result(
     entry: SyncItemResult,
 ) -> None:
     await item_repo.insert(tenant_id, job_id, entry)
-    job = await job_repo.get_job(tenant_id, job_id)
-    if job is not None:
-        stats = await item_repo.get_stats(tenant_id, job_id)
-        _broadcast(job_id, {"event": "progress", "job": serialize_job(job, stats)})
+    if _subscribers.get(job_id):
+        job = await job_repo.get_job(tenant_id, job_id)
+        if job is not None:
+            stats = await item_repo.get_stats(tenant_id, job_id)
+            _broadcast(job_id, {"event": "progress", "job": serialize_job(job, stats)})
 
 
 async def finish_job(
