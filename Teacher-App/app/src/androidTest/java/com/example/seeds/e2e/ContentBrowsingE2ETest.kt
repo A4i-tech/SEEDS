@@ -1,10 +1,13 @@
 package com.example.seeds.e2e
 
+import android.app.Activity
 import android.view.View
+import androidx.recyclerview.widget.RecyclerView
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.Espresso.closeSoftKeyboard
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.IdlingRegistry
+import androidx.test.espresso.IdlingResource
 import androidx.test.espresso.UiController
 import androidx.test.espresso.ViewAction
 import androidx.test.espresso.action.ViewActions.typeText
@@ -30,6 +33,26 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
+private class ContentListPopulated(private val activity: Activity) : IdlingResource {
+    private var callback: IdlingResource.ResourceCallback? = null
+    private var populated = false
+
+    override fun getName() = "ContentListPopulated"
+
+    override fun isIdleNow(): Boolean {
+        if (populated) return true
+        val recyclerView = activity.findViewById<RecyclerView>(R.id.content_list) ?: return true
+        if (recyclerView.adapter!!.itemCount == 0) return false
+        populated = true
+        callback?.onTransitionToIdle()
+        return true
+    }
+
+    override fun registerIdleTransitionCallback(cb: IdlingResource.ResourceCallback) {
+        callback = cb
+    }
+}
+
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
 class ContentBrowsingE2ETest {
@@ -38,6 +61,7 @@ class ContentBrowsingE2ETest {
     val hiltRule = HiltAndroidRule(this)
 
     private lateinit var scenario: ActivityScenario<MainActivity>
+    private var listIdlingResource: ContentListPopulated? = null
 
     // Uses performClick() instead of coordinate injection to avoid
     // SecurityException when the item center lands on the navigation bar.
@@ -73,10 +97,17 @@ class ContentBrowsingE2ETest {
             pagination = Pagination(nextCursor = null, hasMore = false, limit = 15)
         )
         scenario = ActivityScenario.launch(MainActivity::class.java)
+        scenario.onActivity { activity ->
+            val resource = ContentListPopulated(activity)
+            listIdlingResource = resource
+            IdlingRegistry.getInstance().register(resource)
+        }
     }
 
     @After
     fun tearDown() {
+        listIdlingResource?.let { IdlingRegistry.getInstance().unregister(it) }
+        listIdlingResource = null
         IdlingRegistry.getInstance().unregister(TestAppModule.fakeService.idlingResource)
         if (::scenario.isInitialized) scenario.close()
         TestAppModule.fakeService.reset()
