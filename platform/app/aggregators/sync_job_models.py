@@ -1,6 +1,8 @@
 """Sync job domain model — typed DTOs for contentAggregatorSyncJobs."""
 from __future__ import annotations
 
+from collections import Counter
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 
@@ -34,6 +36,14 @@ class SyncStats:
     def from_doc(cls, doc: dict[str, int]) -> SyncStats:
         return cls(saved=doc["saved"], skipped=doc["skipped"], empty=doc["empty"], failed=doc["failed"])
 
+    @classmethod
+    def from_items(cls, items: Iterable[SyncItemResult]) -> SyncStats:
+        counts = Counter(i.status for i in items)
+        return cls(saved=counts["saved"], skipped=counts["skipped"], empty=counts["empty"], failed=counts["failed"])
+
+    def total(self) -> int:
+        return self.saved + self.skipped + self.empty + self.failed
+
 
 @dataclass
 class SyncJob:
@@ -46,17 +56,13 @@ class SyncJob:
     started_at: str
     finished_at: str | None
     total_items: int
-    processed: int
-    stats: SyncStats
-    items: list[SyncItemResult]
     error: str | None
 
     def to_doc(self) -> dict[str, object]:
         return {
             "_id": self.job_id, "tenant_id": self.tenant_id, "source_type": self.source_type, "scope": self.scope,
             "source_id": self.source_id, "status": self.status, "started_at": self.started_at,
-            "finished_at": self.finished_at, "total_items": self.total_items, "processed": self.processed,
-            "stats": self.stats.to_doc(), "items": [i.to_doc() for i in self.items], "error": self.error,
+            "finished_at": self.finished_at, "total_items": self.total_items, "error": self.error,
         }
 
     @classmethod
@@ -64,6 +70,5 @@ class SyncJob:
         return cls(
             job_id=doc["_id"], tenant_id=doc["tenant_id"], source_type=doc["source_type"], scope=doc["scope"],
             source_id=doc["source_id"], status=doc["status"], started_at=doc["started_at"], finished_at=doc["finished_at"],
-            total_items=doc["total_items"], processed=doc["processed"], stats=SyncStats.from_doc(doc["stats"]),
-            items=[SyncItemResult.from_doc(i) for i in doc["items"]], error=doc["error"],
+            total_items=doc["total_items"], error=doc["error"],
         )

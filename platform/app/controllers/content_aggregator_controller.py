@@ -12,13 +12,17 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from fastapi.responses import StreamingResponse
 
 from app.models.user import UserRole
 from app.platform.auth.dependencies import get_current_user
 from app.platform.error_handling import ConflictError, ForbiddenError, NotFoundError
 from app.providers.subodha_client import SubodhaClient, get_subodha_client
+from app.repositories.content_aggregator_sync_job_item_repository import (
+    ContentAggregatorSyncJobItemRepository,
+    get_content_aggregator_sync_job_item_repo,
+)
 from app.repositories.content_aggregator_sync_job_repository import (
     ContentAggregatorSyncJobRepository,
     get_content_aggregator_sync_job_repo,
@@ -59,6 +63,7 @@ async def _run_sync_job(
     service: SubodhaService,
     client: SubodhaClient,
     job_repo: ContentAggregatorSyncJobRepository,
+    item_repo: ContentAggregatorSyncJobItemRepository,
     *,
     only_new: bool,
     dry_run: bool,
@@ -74,13 +79,13 @@ async def _run_sync_job(
             all_courses = await client.list_all_courses()
 
         await service.run_sync(
-            tenant_id, client, job_repo, job_id, all_courses, course_ids=course_ids,
+            tenant_id, client, job_repo, item_repo, job_id, all_courses, course_ids=course_ids,
             limit=limit if limit is not None else (len(course_ids) if course_ids is not None else None),
             dry_run=dry_run,
         )
-        await finish_job(job_repo, tenant_id, job_id, "completed")
+        await finish_job(job_repo, item_repo, tenant_id, job_id, "completed")
     except Exception as exc:  # noqa: BLE001
-        await finish_job(job_repo, tenant_id, job_id, "failed", error=str(exc))
+        await finish_job(job_repo, item_repo, tenant_id, job_id, "failed", error=str(exc))
 
 
 async def _run_course_sync_job(
@@ -89,15 +94,16 @@ async def _run_course_sync_job(
     service: SubodhaService,
     client: SubodhaClient,
     job_repo: ContentAggregatorSyncJobRepository,
+    item_repo: ContentAggregatorSyncJobItemRepository,
     course_id: str,
     *,
     dry_run: bool,
 ) -> None:
     try:
-        await service.run_single_course_sync(tenant_id, client, job_repo, job_id, course_id, dry_run=dry_run)
-        await finish_job(job_repo, tenant_id, job_id, "completed")
+        await service.run_single_course_sync(tenant_id, client, job_repo, item_repo, job_id, course_id, dry_run=dry_run)
+        await finish_job(job_repo, item_repo, tenant_id, job_id, "completed")
     except Exception as exc:  # noqa: BLE001
-        await finish_job(job_repo, tenant_id, job_id, "failed", error=str(exc))
+        await finish_job(job_repo, item_repo, tenant_id, job_id, "failed", error=str(exc))
 
 
 @router.get("/diff", summary="Diff live Subodha courses against stored courses")
@@ -117,6 +123,7 @@ async def start_sync(
     service: SubodhaService = Depends(get_subodha_service),
     client: SubodhaClient = Depends(get_subodha_client),
     job_repo: ContentAggregatorSyncJobRepository = Depends(get_content_aggregator_sync_job_repo),
+    item_repo: ContentAggregatorSyncJobItemRepository = Depends(get_content_aggregator_sync_job_item_repo),
 ) -> dict[str, str]:
     body = body or {}
     tenant_id = user.get("tenant_id", "")
@@ -125,18 +132,24 @@ async def start_sync(
         raise ConflictError("A Subodha sync-all job")
     job = await create_job(job_repo, tenant_id=tenant_id, source_type=SOURCE_TYPE, scope="all", source_id=None, total_items=0)
     background_tasks.add_task(
-        _run_sync_job, tenant_id, job.job_id, service, client, job_repo,
+        _run_sync_job, tenant_id, job.job_id, service, client, job_repo, item_repo,
         only_new=bool(body.get("onlyNew", False)), dry_run=bool(body.get("dryRun", False)), limit=body.get("limit"),
     )
     return {"job_id": job.job_id}
 
 
-@router.get("/courses", summary="List synced courses")
+@router.get("/courses", summary="List synced courses (cursor pagination)")
 async def list_courses(
+    limit: int = Query(20, ge=1, le=200),
+    cursor: str | None = None,
     user: dict[str, Any] = Depends(_require_aggregator_access),
     service: SubodhaService = Depends(get_subodha_service),
 ) -> dict[str, Any]:
-    return {"courses": await service.get_content_list(user.get("tenant_id", ""))}
+    all_courses = await service.get_content_list(user.get("tenant_id", ""), cursor=cursor, limit=limit)
+    has_more = len(all_courses) > limit
+    courses = all_courses[:limit]
+    next_cursor = courses[-1]["id"] if has_more and courses else None
+    return {"courses": courses, "next_cursor": next_cursor, "has_more": has_more}
 
 
 @router.get("/courses/{course_id}", summary="Get a synced course's full content (blocks) for viewing")
@@ -191,6 +204,7 @@ async def sync_course(
     service: SubodhaService = Depends(get_subodha_service),
     client: SubodhaClient = Depends(get_subodha_client),
     job_repo: ContentAggregatorSyncJobRepository = Depends(get_content_aggregator_sync_job_repo),
+    item_repo: ContentAggregatorSyncJobItemRepository = Depends(get_content_aggregator_sync_job_item_repo),
 ) -> dict[str, str]:
     body = body or {}
     tenant_id = user.get("tenant_id", "")
@@ -199,7 +213,7 @@ async def sync_course(
         raise ConflictError(f'A sync for course "{course_id}"')
     job = await create_job(job_repo, tenant_id=tenant_id, source_type=SOURCE_TYPE, scope="course", source_id=course_id, total_items=1)
     background_tasks.add_task(
-        _run_course_sync_job, tenant_id, job.job_id, service, client, job_repo, course_id, dry_run=bool(body.get("dryRun", False))
+        _run_course_sync_job, tenant_id, job.job_id, service, client, job_repo, item_repo, course_id, dry_run=bool(body.get("dryRun", False))
     )
     return {"job_id": job.job_id}
 
@@ -209,32 +223,64 @@ async def get_sync_status(
     job_id: str,
     user: dict[str, Any] = Depends(_require_aggregator_access),
     job_repo: ContentAggregatorSyncJobRepository = Depends(get_content_aggregator_sync_job_repo),
+    item_repo: ContentAggregatorSyncJobItemRepository = Depends(get_content_aggregator_sync_job_item_repo),
 ) -> dict[str, Any]:
-    job = await job_repo.get_job(user.get("tenant_id", ""), job_id)
+    tenant_id = user.get("tenant_id", "")
+    job = await job_repo.get_job(tenant_id, job_id)
     if job is None:
         raise NotFoundError("Job", job_id)
-    return serialize_job(job)
+    stats = await item_repo.get_stats(tenant_id, job_id)
+    return serialize_job(job, stats)
+
+
+@router.get("/sync/status/{job_id}/items", summary="Paginated per-item sync results for a job")
+async def get_sync_job_items(
+    job_id: str,
+    limit: int = Query(20, ge=1, le=200),
+    after: str | None = None,
+    user: dict[str, Any] = Depends(_require_aggregator_access),
+    job_repo: ContentAggregatorSyncJobRepository = Depends(get_content_aggregator_sync_job_repo),
+    item_repo: ContentAggregatorSyncJobItemRepository = Depends(get_content_aggregator_sync_job_item_repo),
+) -> dict[str, Any]:
+    tenant_id = user.get("tenant_id", "")
+    job = await job_repo.get_job(tenant_id, job_id)
+    if job is None:
+        raise NotFoundError("Job", job_id)
+    items, next_cursor, total = await item_repo.list_by_job_page(tenant_id, job_id, limit=limit, after=after)
+    return {"items": [i.to_doc() for i in items], "next_cursor": next_cursor, "total": total}
 
 
 @router.get("/sync/jobs", summary="List past sync jobs (history)")
 async def get_sync_jobs(
-    limit: int = 20,
+    limit: int = Query(20, ge=1, le=200),
     scope: str | None = None,
     course_id: str | None = None,
     user: dict[str, Any] = Depends(_require_tenant),
     job_repo: ContentAggregatorSyncJobRepository = Depends(get_content_aggregator_sync_job_repo),
+    item_repo: ContentAggregatorSyncJobItemRepository = Depends(get_content_aggregator_sync_job_item_repo),
 ) -> dict[str, Any]:
-    jobs = await job_repo.list_jobs(user.get("tenant_id", ""), SOURCE_TYPE, limit=limit, scope=scope, source_id=course_id)
-    return {"jobs": [serialize_job(j) for j in jobs]}
+    tenant_id = user.get("tenant_id", "")
+    job_list = await job_repo.list_jobs(tenant_id, SOURCE_TYPE, limit=limit, scope=scope, source_id=course_id)
+    payloads = []
+    for j in job_list:
+        stats = await item_repo.get_stats(tenant_id, j.job_id)
+        payloads.append(serialize_job(j, stats))
+    return {"jobs": payloads}
 
 
 @router.get("/sync/jobs/active", summary="List currently-running sync jobs (for resume after logout/login)")
 async def get_active_jobs(
     user: dict[str, Any] = Depends(_require_tenant),
     job_repo: ContentAggregatorSyncJobRepository = Depends(get_content_aggregator_sync_job_repo),
+    item_repo: ContentAggregatorSyncJobItemRepository = Depends(get_content_aggregator_sync_job_item_repo),
 ) -> dict[str, Any]:
-    jobs = await job_repo.get_active_jobs(user.get("tenant_id", ""), SOURCE_TYPE)
-    return {"jobs": [serialize_job(j) for j in jobs]}
+    tenant_id = user.get("tenant_id", "")
+    jobs = await job_repo.get_active_jobs(tenant_id, SOURCE_TYPE)
+    payloads = []
+    for j in jobs:
+        stats = await item_repo.get_stats(tenant_id, j.job_id)
+        payloads.append(serialize_job(j, stats))
+    return {"jobs": payloads}
 
 
 @router.get("/sync/stream/{job_id}", summary="SSE stream of live job progress")
@@ -242,11 +288,12 @@ async def stream_job(
     job_id: str,
     user: dict[str, Any] = Depends(_require_aggregator_access),
     job_repo: ContentAggregatorSyncJobRepository = Depends(get_content_aggregator_sync_job_repo),
+    item_repo: ContentAggregatorSyncJobItemRepository = Depends(get_content_aggregator_sync_job_item_repo),
 ) -> StreamingResponse:
     tenant_id = user.get("tenant_id", "")
 
     async def _format() -> Any:
-        async for event in subscribe(job_repo, tenant_id, job_id):
+        async for event in subscribe(job_repo, item_repo, tenant_id, job_id):
             yield f"data: {json.dumps(event, default=str)}\n\n"
 
     return StreamingResponse(_format(), media_type="text/event-stream")

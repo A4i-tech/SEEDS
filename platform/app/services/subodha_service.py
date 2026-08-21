@@ -17,12 +17,18 @@ from pymongo.asynchronous.database import AsyncDatabase
 
 from app.aggregators.models import BlobContext, QuizContent
 from app.aggregators.subodha_adapter import SubodhaAdapter
-from app.aggregators.sync_job_models import SyncItemResult
+from app.aggregators.sync_job_models import SyncItemResult, SyncStats
 from app.platform.auth.dependencies import get_db
 from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider
 from app.providers.subodha_client import SubodhaClient, SubodhaCourse
+from app.repositories.content_aggregator_item_override_repository import (
+    ContentAggregatorItemOverrideRepository,
+)
 from app.repositories.content_aggregator_repository import ContentAggregatorRepository
+from app.repositories.content_aggregator_sync_job_item_repository import (
+    ContentAggregatorSyncJobItemRepository,
+)
 from app.repositories.content_aggregator_sync_job_repository import (
     ContentAggregatorSyncJobRepository,
 )
@@ -92,6 +98,7 @@ class SubodhaService:
 
     def __init__(self, db: AsyncDatabase, blob: BlobStorageProvider | None = None) -> None:
         self._repo = ContentAggregatorRepository(db)
+        self._override_repo = ContentAggregatorItemOverrideRepository(db)
         self._blob = blob if blob is not None else BlobStorageProvider()
         self._settings = get_settings()
         self._adapter = SubodhaAdapter()
@@ -103,8 +110,8 @@ class SubodhaService:
         existing = next((n for n in tree if n.source_id == block_id), None)
         if existing is None or not isinstance(existing.content, QuizContent):
             return 0
-        updated = QuizContent(raw_html_url=existing.content.raw_html_url, question=question, choices=choices)
-        return await self._repo.update_item_content(tenant_id, self.SOURCE_TYPE, block_id, updated)
+        await self._override_repo.upsert(tenant_id, self.SOURCE_TYPE, block_id, question, choices)
+        return 1
 
     async def get_course_diff(self, tenant_id: str, client: SubodhaClient) -> CourseDiffResult:
         live_courses, stored_ids = await asyncio.gather(
@@ -123,8 +130,10 @@ class SubodhaService:
             "liveCourses": live_courses,
         }
 
-    async def get_content_list(self, tenant_id: str) -> list[dict[str, Any]]:
-        roots = await self._repo.list_roots(tenant_id, self.SOURCE_TYPE)
+    async def get_content_list(
+        self, tenant_id: str, *, cursor: str | None = None, limit: int = 20
+    ) -> list[dict[str, Any]]:
+        roots = await self._repo.list_roots(tenant_id, self.SOURCE_TYPE, cursor=cursor, limit=limit + 1)
         return [
             {
                 "id": r.source_id,
@@ -141,9 +150,20 @@ class SubodhaService:
         ]
 
     async def get_course(self, tenant_id: str, source_id: str) -> LegacyCourseDoc | None:
+        if not await self._repo.is_enrolled(tenant_id, self.SOURCE_TYPE, source_id):
+            return None
         tree = await self._repo.get_tree(tenant_id, self.SOURCE_TYPE, source_id)
         if not tree:
             return None
+        overrides = await self._override_repo.list_by_tree(tenant_id, self.SOURCE_TYPE, [n.source_id for n in tree])
+        for node in tree:
+            override = overrides.get(node.source_id)
+            if override and isinstance(node.content, QuizContent):
+                node.content = QuizContent(
+                    raw_html_url=node.content.raw_html_url,
+                    question=override["question"],
+                    choices=override["choices"],
+                )
         return await to_course_doc(tree, self._blob)
 
     async def delete_course(self, tenant_id: str, source_id: str) -> int:
@@ -180,8 +200,6 @@ class SubodhaService:
             if existing_root is not None and existing_root.source_metadata.get("content_hash") == content_hash:
                 return {"status": "skipped", "courseId": course_id}
 
-            for node in nodes:
-                node.tenant_id = tenant_id
             processed = await self._adapter.process_nodes(nodes, self._blob_ctx_factory(course_id), self._blob)
             for node in processed:
                 if node.parent_id is None:
@@ -196,6 +214,7 @@ class SubodhaService:
         tenant_id: str,
         client: SubodhaClient,
         job_repo: ContentAggregatorSyncJobRepository,
+        item_repo: ContentAggregatorSyncJobItemRepository,
         job_id: str,
         all_courses: list[SubodhaCourse],
         *,
@@ -215,7 +234,7 @@ class SubodhaService:
             to_process = to_process[:limit]
 
         logger.info("[subodha] %d of %d courses queued", len(to_process), len(all_courses))
-        await set_total(job_repo, tenant_id, job_id, len(to_process))
+        await set_total(job_repo, item_repo, tenant_id, job_id, len(to_process))
 
         semaphore = asyncio.Semaphore(self._settings.subodha_course_concurrency)
         session_box = {"cookie": session_cookie}
@@ -241,7 +260,7 @@ class SubodhaService:
                     source_id=result["courseId"], name=course.get("name") or "", status=result["status"],
                     error=result.get("error"), at=datetime.now(UTC).isoformat(),
                 )
-                await record_item_result(job_repo, tenant_id, job_id, entry)
+                await record_item_result(job_repo, item_repo, tenant_id, job_id, entry)
 
                 async with lock:
                     processed_count += 1
@@ -251,11 +270,11 @@ class SubodhaService:
 
         await asyncio.gather(*(process_one(c) for c in to_process))
 
-        stored = await job_repo.get_job(tenant_id, job_id)
-        stats = stored.stats.to_doc() if stored else {}
+        items = await item_repo.list_by_job(tenant_id, job_id)
+        stats = SyncStats.from_items(items).to_doc()
         permanent_failures = [
             {"courseId": c.source_id, "error": c.error or ""}
-            for c in (stored.items if stored else [])
+            for c in items
             if c.status == "failed"
         ]
         summary = {
@@ -263,7 +282,7 @@ class SubodhaService:
             "startedAt": started_at,
             "finishedAt": datetime.now(UTC).isoformat(),
             "totalCourses": len(all_courses),
-            "processed": stored.processed if stored else processed_count,
+            "processed": len(items),
             "stats": stats,
             "permanentFailures": permanent_failures,
             "dlqProcessed": 0,
@@ -276,6 +295,7 @@ class SubodhaService:
         tenant_id: str,
         client: SubodhaClient,
         job_repo: ContentAggregatorSyncJobRepository,
+        item_repo: ContentAggregatorSyncJobItemRepository,
         job_id: str,
         course_id: str,
         *,
@@ -289,16 +309,16 @@ class SubodhaService:
         if course is None:
             raise ValueError(f"Course not found on Subodha: {course_id}")
 
-        await set_total(job_repo, tenant_id, job_id, 1)
+        await set_total(job_repo, item_repo, tenant_id, job_id, 1)
         result = await self.process_course(tenant_id, client, course, session_cookie, job_id, dry_run)
         entry = SyncItemResult(
             source_id=result["courseId"], name=course.get("name") or "", status=result["status"],
             error=result.get("error"), at=datetime.now(UTC).isoformat(),
         )
-        await record_item_result(job_repo, tenant_id, job_id, entry)
+        await record_item_result(job_repo, item_repo, tenant_id, job_id, entry)
 
-        stored = await job_repo.get_job(tenant_id, job_id)
-        stats = stored.stats.to_doc() if stored else {}
+        items = await item_repo.list_by_job(tenant_id, job_id)
+        stats = SyncStats.from_items(items).to_doc()
         permanent_failures = (
             [{"courseId": course_id, "error": result.get("error", "")}] if result["status"] == "failed" else []
         )

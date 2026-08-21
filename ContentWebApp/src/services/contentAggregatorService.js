@@ -7,12 +7,12 @@ export const contentAggregatorService = {
    * Fetch all courses previously synced from Subodha.
    * @returns {Promise<Array>}
    */
-  async getCourses() {
-    const response = await apiFetch(`${SEEDS_URL}/content-aggregators/courses`, {
+  async getCourses(cursor = null, limit = 20) {
+    const query = buildQueryString({ cursor, limit });
+    return apiFetch(`${SEEDS_URL}/content-aggregators/courses?${query}`, {
       method: "GET",
       headers: getAuthHeaders(),
     });
-    return response.courses;
   },
 
   /**
@@ -119,6 +119,20 @@ export const contentAggregatorService = {
       method: "GET",
       headers: getAuthHeaders(),
     });
+  },
+
+  /**
+   * Paginated per-item sync results for a job.
+   * @param {string} jobId
+   * @param {{limit?: number, after?: string}} params
+   * @returns {Promise<{items: Array<Object>, next_cursor: string|null, total: number}>}
+   */
+  async getSyncJobItems(jobId, { limit = 50, after } = {}) {
+    const qs = buildQueryString({ limit, after });
+    return apiFetch(
+      `${SEEDS_URL}/content-aggregators/sync/status/${encodeURIComponent(jobId)}/items${qs ? `?${qs}` : ""}`,
+      { method: "GET", headers: getAuthHeaders() }
+    );
   },
 
   /**

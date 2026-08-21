@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import pytest
 
-from app.aggregators.sync_job_models import SyncItemResult
 from app.repositories.content_aggregator_sync_job_repository import (
     ContentAggregatorSyncJobRepository,
 )
@@ -30,16 +29,6 @@ async def test_set_total_items(repo):
     await repo.create_job("job-1", tenant_id="tenant-a", source_type="subodha", scope="all", source_id=None, total_items=0)
     job = await repo.set_total_items("tenant-a", "job-1", 5)
     assert job.total_items == 5
-
-
-@pytest.mark.asyncio
-async def test_append_item_result_increments_processed_and_stats(repo):
-    await repo.create_job("job-1", tenant_id="tenant-a", source_type="subodha", scope="all", source_id=None, total_items=1)
-    entry = SyncItemResult(source_id="c1", name="C1", status="saved", error=None, at="x")
-    job = await repo.append_item_result("tenant-a", "job-1", entry)
-    assert job.processed == 1
-    assert job.stats.saved == 1
-    assert job.items[0].source_id == "c1"
 
 
 @pytest.mark.asyncio
