@@ -35,20 +35,37 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-private class RecyclerViewRenderedIdlingResource(recyclerView: RecyclerView) : androidx.test.espresso.IdlingResource {
+private class RecyclerViewRenderedIdlingResource(
+    private val recyclerView: RecyclerView
+) : androidx.test.espresso.IdlingResource {
     @Volatile private var rendered = false
+    @Volatile private var registered = true
     private var callback: androidx.test.espresso.IdlingResource.ResourceCallback? = null
 
-    init {
-        recyclerView.adapter?.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
-            override fun onChanged() = markRendered()
-            override fun onItemRangeInserted(positionStart: Int, itemCount: Int) = markRendered()
-        })
+    private val observer = object : RecyclerView.AdapterDataObserver() {
+        override fun onChanged() = checkRendered()
+        override fun onItemRangeInserted(positionStart: Int, itemCount: Int) = checkRendered()
     }
 
-    private fun markRendered() {
-        rendered = true
-        callback?.onTransitionToIdle()
+    init {
+        recyclerView.adapter?.registerAdapterDataObserver(observer)
+    }
+
+    // Ignores the zero-item notifyItemRangeInserted a ListAdapter fires on its
+    // very first submitList(emptyList()) — only the real content render counts.
+    private fun checkRendered() {
+        if (rendered) return
+        if ((recyclerView.adapter?.itemCount ?: 0) > 0) {
+            rendered = true
+            unregister()
+            callback?.onTransitionToIdle()
+        }
+    }
+
+    fun unregister() {
+        if (!registered) return
+        registered = false
+        recyclerView.adapter?.unregisterAdapterDataObserver(observer)
     }
 
     override fun getName() = "RecyclerViewRenderedIdlingResource"
@@ -64,7 +81,8 @@ class ContentBrowsingE2ETest {
     val hiltRule = HiltAndroidRule(this)
 
     private lateinit var scenario: ActivityScenario<MainActivity>
-    private lateinit var recyclerViewIdlingResource: androidx.test.espresso.IdlingResource
+    private var recyclerViewIdlingResource: RecyclerViewRenderedIdlingResource? = null
+    private var fragmentLifecycleCallback: FragmentManager.FragmentLifecycleCallbacks? = null
 
     // Uses performClick() instead of coordinate injection to avoid
     // SecurityException when the item center lands on the navigation bar.
@@ -101,27 +119,35 @@ class ContentBrowsingE2ETest {
         )
         scenario = ActivityScenario.launch(MainActivity::class.java)
         scenario.onActivity { activity ->
-            (activity as FragmentActivity).supportFragmentManager.registerFragmentLifecycleCallbacks(
-                object : FragmentManager.FragmentLifecycleCallbacks() {
-                    override fun onFragmentViewCreated(
-                        fm: FragmentManager, f: Fragment, v: View, savedInstanceState: android.os.Bundle?
-                    ) {
-                        if (f is HomeFragment) {
-                            val recyclerView = v.findViewById<RecyclerView>(R.id.content_list)
-                            recyclerViewIdlingResource = RecyclerViewRenderedIdlingResource(recyclerView)
-                            IdlingRegistry.getInstance().register(recyclerViewIdlingResource)
-                        }
+            val callback = object : FragmentManager.FragmentLifecycleCallbacks() {
+                override fun onFragmentViewCreated(
+                    fm: FragmentManager, f: Fragment, v: View, savedInstanceState: android.os.Bundle?
+                ) {
+                    if (f is HomeFragment && recyclerViewIdlingResource == null) {
+                        val recyclerView = v.findViewById<RecyclerView>(R.id.content_list)
+                        val resource = RecyclerViewRenderedIdlingResource(recyclerView)
+                        recyclerViewIdlingResource = resource
+                        IdlingRegistry.getInstance().register(resource)
                     }
-                },
-                true
-            )
+                }
+            }
+            fragmentLifecycleCallback = callback
+            (activity as FragmentActivity).supportFragmentManager.registerFragmentLifecycleCallbacks(callback, true)
         }
     }
 
     @After
     fun tearDown() {
-        if (::recyclerViewIdlingResource.isInitialized) {
-            IdlingRegistry.getInstance().unregister(recyclerViewIdlingResource)
+        recyclerViewIdlingResource?.let {
+            it.unregister()
+            IdlingRegistry.getInstance().unregister(it)
+        }
+        fragmentLifecycleCallback?.let { callback ->
+            if (::scenario.isInitialized) {
+                scenario.onActivity { activity ->
+                    (activity as FragmentActivity).supportFragmentManager.unregisterFragmentLifecycleCallbacks(callback)
+                }
+            }
         }
         IdlingRegistry.getInstance().unregister(TestAppModule.fakeService.idlingResource)
         if (::scenario.isInitialized) scenario.close()
