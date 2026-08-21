@@ -1,10 +1,13 @@
 package com.example.seeds.e2e
 
+import android.app.Activity
 import android.view.View
+import androidx.recyclerview.widget.RecyclerView
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.Espresso.closeSoftKeyboard
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.IdlingRegistry
+import androidx.test.espresso.IdlingResource
 import androidx.test.espresso.UiController
 import androidx.test.espresso.ViewAction
 import androidx.test.espresso.action.ViewActions.typeText
@@ -14,14 +17,9 @@ import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.recyclerview.widget.RecyclerView
-import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentActivity
-import androidx.fragment.app.FragmentManager
 import com.example.seeds.MainActivity
 import com.example.seeds.R
 import com.example.seeds.di.TestAppModule
-import com.example.seeds.ui.home.HomeFragment
 import com.example.seeds.model.Content
 import com.example.seeds.model.LocalizedContent
 import com.example.seeds.model.Pagination
@@ -35,42 +33,24 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-private class RecyclerViewRenderedIdlingResource(
-    private val recyclerView: RecyclerView
-) : androidx.test.espresso.IdlingResource {
-    @Volatile private var rendered = false
-    @Volatile private var registered = true
-    private var callback: androidx.test.espresso.IdlingResource.ResourceCallback? = null
+private class ContentListPopulated(private val activity: Activity) : IdlingResource {
+    private var callback: IdlingResource.ResourceCallback? = null
+    private var populated = false
 
-    private val observer = object : RecyclerView.AdapterDataObserver() {
-        override fun onChanged() = checkRendered()
-        override fun onItemRangeInserted(positionStart: Int, itemCount: Int) = checkRendered()
+    override fun getName() = "ContentListPopulated"
+
+    override fun isIdleNow(): Boolean {
+        if (populated) return true
+        val recyclerView = activity.findViewById<RecyclerView>(R.id.content_list) ?: return true
+        if (recyclerView.adapter!!.itemCount == 0) return false
+        populated = true
+        callback?.onTransitionToIdle()
+        return true
     }
 
-    init {
-        recyclerView.adapter?.registerAdapterDataObserver(observer)
+    override fun registerIdleTransitionCallback(cb: IdlingResource.ResourceCallback) {
+        callback = cb
     }
-
-    // Ignores the zero-item notifyItemRangeInserted a ListAdapter fires on its
-    // very first submitList(emptyList()) — only the real content render counts.
-    private fun checkRendered() {
-        if (rendered) return
-        if ((recyclerView.adapter?.itemCount ?: 0) > 0) {
-            rendered = true
-            unregister()
-            callback?.onTransitionToIdle()
-        }
-    }
-
-    fun unregister() {
-        if (!registered) return
-        registered = false
-        recyclerView.adapter?.unregisterAdapterDataObserver(observer)
-    }
-
-    override fun getName() = "RecyclerViewRenderedIdlingResource"
-    override fun isIdleNow() = rendered
-    override fun registerIdleTransitionCallback(cb: androidx.test.espresso.IdlingResource.ResourceCallback) { callback = cb }
 }
 
 @HiltAndroidTest
@@ -81,8 +61,7 @@ class ContentBrowsingE2ETest {
     val hiltRule = HiltAndroidRule(this)
 
     private lateinit var scenario: ActivityScenario<MainActivity>
-    private var recyclerViewIdlingResource: RecyclerViewRenderedIdlingResource? = null
-    private var fragmentLifecycleCallback: FragmentManager.FragmentLifecycleCallbacks? = null
+    private var listIdlingResource: ContentListPopulated? = null
 
     // Uses performClick() instead of coordinate injection to avoid
     // SecurityException when the item center lands on the navigation bar.
@@ -119,36 +98,16 @@ class ContentBrowsingE2ETest {
         )
         scenario = ActivityScenario.launch(MainActivity::class.java)
         scenario.onActivity { activity ->
-            val callback = object : FragmentManager.FragmentLifecycleCallbacks() {
-                override fun onFragmentViewCreated(
-                    fm: FragmentManager, f: Fragment, v: View, savedInstanceState: android.os.Bundle?
-                ) {
-                    if (f is HomeFragment && recyclerViewIdlingResource == null) {
-                        val recyclerView = v.findViewById<RecyclerView>(R.id.content_list)
-                        val resource = RecyclerViewRenderedIdlingResource(recyclerView)
-                        recyclerViewIdlingResource = resource
-                        IdlingRegistry.getInstance().register(resource)
-                    }
-                }
-            }
-            fragmentLifecycleCallback = callback
-            (activity as FragmentActivity).supportFragmentManager.registerFragmentLifecycleCallbacks(callback, true)
+            val resource = ContentListPopulated(activity)
+            listIdlingResource = resource
+            IdlingRegistry.getInstance().register(resource)
         }
     }
 
     @After
     fun tearDown() {
-        recyclerViewIdlingResource?.let {
-            it.unregister()
-            IdlingRegistry.getInstance().unregister(it)
-        }
-        fragmentLifecycleCallback?.let { callback ->
-            if (::scenario.isInitialized) {
-                scenario.onActivity { activity ->
-                    (activity as FragmentActivity).supportFragmentManager.unregisterFragmentLifecycleCallbacks(callback)
-                }
-            }
-        }
+        listIdlingResource?.let { IdlingRegistry.getInstance().unregister(it) }
+        listIdlingResource = null
         IdlingRegistry.getInstance().unregister(TestAppModule.fakeService.idlingResource)
         if (::scenario.isInitialized) scenario.close()
         TestAppModule.fakeService.reset()
