@@ -142,9 +142,6 @@ def setup_security(app: FastAPI, settings: Settings) -> None:
 
     # 3. CORS (outermost – must be added *after* inner middleware in FastAPI's
     #    reversed-order add_middleware semantics so it runs first on the wire)
-    # Credentialed requests (cookies) can never receive a literal "*" origin —
-    # browsers reject it. Use allow_origin_regex so the actual Origin is
-    # reflected instead of the wildcard.
     origins = _cors_origins(settings)
     cors_kwargs: dict = {"allow_credentials": True, "allow_methods": ["*"], "allow_headers": ["*"]}
     if origins == ["*"]:

@@ -168,16 +168,10 @@ async def require_conference_owner(
     if conference is None:
         raise NotFoundError("Conference", conference_id)
 
-    created_by = conference.get("created_by")
-    if created_by is None:
-        raise ForbiddenError("conference missing created_by")
-    if str(created_by) != user.get("sub", ""):
+    if str(conference.get("created_by", "")) != user.get("sub", ""):
         raise ForbiddenError("not conference owner")
 
-    conf_tenant_id = conference.get("tenant_id")
-    if conf_tenant_id is None:
-        raise ForbiddenError("conference missing tenant_id")
-    if str(conf_tenant_id) != str(user.get("tenant_id", "")):
+    if str(conference.get("tenant_id", "")) != str(user.get("tenant_id", "")):
         raise ForbiddenError("conference tenant mismatch")
 
     return user
