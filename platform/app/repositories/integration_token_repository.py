@@ -16,8 +16,6 @@ from app.repositories.base_repository import BaseRepository
 
 @dataclass(frozen=True)
 class NewRefreshToken:
-    """Fields required to persist a new integration refresh token."""
-
     token_id: str
     client_id: str
     tenant_ids: list[str]
@@ -51,13 +49,6 @@ class IntegrationTokenRepository(BaseRepository):
         return IntegrationToken.from_mongo(doc) if doc is not None else None
 
     async def try_consume(self, token_id: str) -> IntegrationToken:
-        """Atomically claim an unrevoked, unexpired REFRESH token.
-
-        Raises:
-            RefreshTokenNotFoundError: no matching REFRESH token.
-            RefreshTokenExpiredError: token exists, never consumed, past expiry.
-            RefreshTokenReusedError: token exists but already consumed/revoked.
-        """
         doc = await self._col.find_one_and_update(
             {
                 "token_id": token_id,
@@ -78,5 +69,4 @@ class IntegrationTokenRepository(BaseRepository):
         raise RefreshTokenReusedError(existing.client_id)
 
     async def revoke_all_for_client(self, client_id: str) -> None:
-        """Revoke every token for a client (reuse detection / admin revoke)."""
         await self._col.update_many({"client_id": client_id}, {"$set": {"revoked": True}})

@@ -33,8 +33,6 @@ REFRESH_COOKIE_NAME = "refresh_token"
 
 
 def set_refresh_cookie(response: Response, refresh_token: str) -> None:
-    """Set the HttpOnly refresh-token cookie.
-    Never expose this value to JS."""
     response.set_cookie(
         key=REFRESH_COOKIE_NAME,
         value=refresh_token,
@@ -46,7 +44,6 @@ def set_refresh_cookie(response: Response, refresh_token: str) -> None:
 
 
 def clear_refresh_cookie(response: Response) -> None:
-    """Clear the HttpOnly refresh-token cookie."""
     response.delete_cookie(key=REFRESH_COOKIE_NAME, path="/auth")
 
 
@@ -171,16 +168,10 @@ async def require_conference_owner(
     if conference is None:
         raise NotFoundError("Conference", conference_id)
 
-    created_by = conference.get("created_by")
-    if created_by is None:
-        raise ForbiddenError("conference missing created_by")
-    if str(created_by) != user.get("sub", ""):
+    if str(conference.get("created_by", "")) != user.get("sub", ""):
         raise ForbiddenError("not conference owner")
 
-    conf_tenant_id = conference.get("tenant_id")
-    if conf_tenant_id is None:
-        raise ForbiddenError("conference missing tenant_id")
-    if str(conf_tenant_id) != str(user.get("tenant_id", "")):
+    if str(conference.get("tenant_id", "")) != str(user.get("tenant_id", "")):
         raise ForbiddenError("conference tenant mismatch")
 
     return user

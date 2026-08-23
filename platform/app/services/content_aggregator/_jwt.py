@@ -14,11 +14,6 @@ _ISSUER = "content-aggregator"
 
 
 class AccessTokenClaims(TypedDict):
-    """Shape of the Content Aggregator access-token JWT payload.
-
-    Per the Content Aggregators Integration spec §2.3.4.
-    """
-
     sub: str
     iss: str
     iat: datetime
@@ -38,7 +33,6 @@ def encode_access_token(
     secret_key: str,
     expires_in: str,
 ) -> tuple[str, int]:
-    """Return (token, expires_in_seconds)."""
     delta = _parse_expires_delta(expires_in)
     now = datetime.now(tz=UTC)
     expire = now + delta

@@ -29,15 +29,11 @@ logger = logging.getLogger(__name__)
 
 
 class IntegrationClaims(TypedDict):
-    """Refresh-token claims carried for a Content Aggregator partner client."""
-
     tenant_ids: list[str]
     scope: str
 
 
 class IntegrationTokenPair(TokenPair):
-    """``TokenPair`` plus the granted ``scope`` (space-separated, spec §2.3.2)."""
-
     scope: str
 
 
@@ -75,13 +71,6 @@ class _IntegrationTokenStore:
         )
 
     async def try_consume(self, token_id: str) -> ConsumedToken[IntegrationClaims]:
-        """Atomically claim an unrevoked, unexpired refresh token.
-
-        Raises:
-            RefreshTokenNotFoundError: no matching REFRESH token.
-            RefreshTokenExpiredError: token exists, never consumed, past expiry.
-            RefreshTokenReusedError: token exists but already consumed/revoked.
-        """
         doc = await self._repo.try_consume(token_id)
         return self._to_consumed(doc)
 
@@ -90,8 +79,6 @@ class _IntegrationTokenStore:
 
 
 class ContentAggregatorAuth:
-    """Issues and verifies partner JWTs for the Content Aggregator API."""
-
     def __init__(
         self,
         db: AsyncDatabase[Any],
@@ -142,16 +129,9 @@ class ContentAggregatorAuth:
         return {**pair, "scope": granted_scope}
 
     async def verify_token(self, token: str) -> _jwt.AccessTokenClaims:
-        """Verify and decode an access token. Raises UnauthorizedError on failure."""
         return _jwt.decode_access_token(token, secret_key=self._settings.secret_key)
 
     async def refresh_token(self, refresh_token: str) -> IntegrationTokenPair:
-        """Exchange a refresh token for a new access + refresh token pair.
-
-        See ``app.platform.auth.refresh_tokens.rotate`` for the rotation/
-        reuse-detection algorithm — this is a thin Content-Aggregator-specific
-        wrapper supplying the owner-active check and access-token builder.
-        """
         granted_scope = ""
 
         async def verify_owner_active(owner_id: str, claims: IntegrationClaims) -> IntegrationClaims:

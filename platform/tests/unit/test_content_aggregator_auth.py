@@ -408,15 +408,6 @@ def _imported_module_names(tree: ast.Module) -> set[str]:
 
 
 class TestJwtImportConfinement:
-    """Within the #458 feature surface, no file outside auth.py/_jwt.py may
-    import the JWT library directly.
-
-    Scoped to the content_aggregator package + its controller — NOT a
-    repo-wide rule. app/controllers/webhook_controller.py already imports
-    `jose` for unrelated pre-existing webhook signature verification; that's
-    out of #458's scope and untouched here.
-    """
-
     FEATURE_FILES = [
         PACKAGE_ROOT / "controllers" / "content_aggregator_auth_controller.py",
         *(_iter_py_files(PACKAGE_ROOT / "services" / "content_aggregator")),
@@ -435,9 +426,6 @@ class TestJwtImportConfinement:
 
 
 class TestNoSecretLogging:
-    """Mirrors the existing Vonage secret-logging test pattern: grep source for
-    obvious accidental logging of the raw client_secret / access token."""
-
     def test_auth_module_never_logs_secret_or_token_variables(self):
         source = (PACKAGE_ROOT / "services" / "content_aggregator" / "auth.py").read_text(
             encoding="utf-8"
