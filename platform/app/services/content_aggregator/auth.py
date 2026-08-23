@@ -83,15 +83,11 @@ class _IntegrationTokenStore:
 
 
 class IntegrationClaims(TypedDict):
-    """Refresh-token claims carried for a Content Aggregator partner client."""
-
     tenant_ids: list[str]
     scope: str
 
 
 class IntegrationTokenPair(TokenPair):
-    """``TokenPair`` plus the granted ``scope`` (space-separated, spec §2.3.2)."""
-
     scope: str
 
 
@@ -129,13 +125,6 @@ class _IntegrationTokenStore:
         )
 
     async def try_consume(self, token_id: str) -> ConsumedToken[IntegrationClaims]:
-        """Atomically claim an unrevoked, unexpired refresh token.
-
-        Raises:
-            RefreshTokenNotFoundError: no matching REFRESH token.
-            RefreshTokenExpiredError: token exists, never consumed, past expiry.
-            RefreshTokenReusedError: token exists but already consumed/revoked.
-        """
         doc = await self._repo.try_consume(token_id)
         return self._to_consumed(doc)
 
