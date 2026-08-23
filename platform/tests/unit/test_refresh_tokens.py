@@ -20,8 +20,6 @@ from app.platform.telemetry import configure_telemetry
 
 
 class FakeStore:
-    """Minimal in-memory RefreshTokenStore for exercising the engine directly."""
-
     def __init__(self) -> None:
         self._tokens: dict[str, dict[str, Any]] = {}
 
@@ -177,7 +175,6 @@ class TestRotate:
         assert all(doc["revoked"] for doc in store._tokens.values())
 
     async def test_replay_revokes_other_tokens_for_same_owner(self):
-        """Reuse detection must revoke every token for the owner, not just the replayed one."""
         store = FakeStore()
         token_a = await _issue(store, owner_id="user-1")
         token_b = await _issue(store, owner_id="user-1")
@@ -254,7 +251,6 @@ class TestRotate:
         assert exc_info.value.status_code == 401
 
     async def test_expired_unconsumed_token_does_not_trigger_mass_revocation(self):
-        """A clean expiry (never rotated/replayed) must not be misread as reuse."""
         store = FakeStore()
         expired = await _issue(store, owner_id="user-1")
         other_token = await _issue(store, owner_id="user-1")

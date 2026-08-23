@@ -1,4 +1,3 @@
-"""Shared user refresh-token model (teacher/tenant/school_admin)."""
 from __future__ import annotations
 
 from datetime import datetime
@@ -8,16 +7,12 @@ from pydantic import BaseModel, ConfigDict
 
 
 class UserClaims(TypedDict):
-    """Refresh-token claims carried for a user (teacher/tenant/school_admin)."""
-
     role: str
     tenant_id: str | None
     school_id: str | None
 
 
 class UserTokenClaims(BaseModel):
-    """Claims carried on a user (teacher/tenant/school_admin) refresh token."""
-
     model_config = ConfigDict(populate_by_name=True)
 
     role: str
@@ -26,8 +21,6 @@ class UserTokenClaims(BaseModel):
 
 
 class UserRefreshToken(BaseModel):
-    """Document in the 'userRefreshTokens' collection."""
-
     model_config = ConfigDict(populate_by_name=True)
 
     token_id: str

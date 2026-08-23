@@ -12,8 +12,6 @@ class IntegrationClientStatus(StrEnum):
 
 
 class IntegrationClient(BaseModel):
-    """Document in the 'integrationClients' collection."""
-
     model_config = ConfigDict(populate_by_name=True)
 
     client_id: str
@@ -35,8 +33,6 @@ class IntegrationTokenType(StrEnum):
 
 
 class IntegrationToken(BaseModel):
-    """Document in the 'integrationTokens' collection."""
-
     model_config = ConfigDict(populate_by_name=True)
 
     token_id: str

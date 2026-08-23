@@ -52,13 +52,6 @@ class UserRefreshTokenRepository(BaseRepository):
         )
 
     async def try_consume(self, token_id: str) -> ConsumedToken[UserClaims]:
-        """Atomically claim an unrevoked, unexpired token for rotation.
-
-        Raises:
-            RefreshTokenNotFoundError: no token matches ``token_id``.
-            RefreshTokenExpiredError: token exists, never consumed, past expiry.
-            RefreshTokenReusedError: token exists but already consumed/revoked.
-        """
         doc = await self._col.find_one_and_update(
             {"token_id": token_id, "revoked": False, "expires_at": {"$gt": datetime.now(tz=UTC)}},
             {"$set": {"revoked": True}},

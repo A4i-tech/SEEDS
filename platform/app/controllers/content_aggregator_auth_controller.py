@@ -1,4 +1,3 @@
-"""Content Aggregator partner auth routes — /v1/auth/*."""
 from __future__ import annotations
 
 from typing import Annotated

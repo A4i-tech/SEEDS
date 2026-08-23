@@ -120,7 +120,6 @@ class TestRefreshReuseDetection:
         assert all(doc["revoked"] is True for doc in docs)
 
     async def test_replay_revokes_other_families_for_same_owner(self, mock_db):
-        """Reuse detection must revoke every token for the owner, not just the replayed family."""
         await _seed_tenant(mock_db)
         service = AuthService(mock_db)
         family_a = await service.login_unified(
@@ -182,7 +181,6 @@ class TestRefreshExpired:
         assert exc_info.value.status_code == 401
 
     async def test_expired_unconsumed_token_does_not_trigger_mass_revocation(self, mock_db):
-        """A clean expiry (never rotated/replayed) must not be misread as reuse."""
         await _seed_tenant(mock_db)
         service = AuthService(mock_db)
         expired = await service.login_unified(
@@ -229,7 +227,6 @@ class TestRefreshUnknownOrInactiveOwner:
 
 
 class TestLoginAccountEnumeration:
-    """Inactive accounts must not be distinguishable from wrong-password failures (#459)."""
 
     async def test_inactive_account_wrong_password_and_disabled_raise_same_error(self, mock_db):
         await _seed_tenant(mock_db)
