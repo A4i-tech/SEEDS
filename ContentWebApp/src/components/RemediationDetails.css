@@ -1,0 +1,71 @@
+.remediation-diff {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+@media (max-width: 900px) {
+  .remediation-diff {
+    grid-template-columns: 1fr;
+  }
+}
+
+.remediation-diff-heading {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary, #667085);
+  margin: 0 0 0.5rem;
+}
+
+.remediation-document {
+  max-height: 32rem;
+  overflow: auto;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--color-border, #d0d5dd);
+  border-radius: 8px;
+  background: var(--color-surface, #fff);
+}
+
+.remediation-document table {
+  border-collapse: collapse;
+}
+
+.remediation-document td,
+.remediation-document th {
+  border: 1px solid var(--color-border, #d0d5dd);
+  padding: 0.25rem 0.5rem;
+}
+
+.remediation-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  margin: 1rem 0 0;
+}
+
+.remediation-counts dt {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary, #667085);
+}
+
+.remediation-counts dd {
+  margin: 0.15rem 0 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.remediation-trail-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.remediation-finding-cell {
+  max-width: 22rem;
+  overflow-wrap: anywhere;
+}
