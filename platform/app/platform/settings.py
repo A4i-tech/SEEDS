@@ -206,6 +206,12 @@ class Settings(BaseSettings):
     subodha_asset_container: str = "subodha"
 
     # ---------------------------------------------------------------------------
+    # Textbook remediation — OmniIngest lives in a venv of its own (see
+    # app/remediation/requirements.txt for why) and is driven as a subprocess.
+    # ---------------------------------------------------------------------------
+    remediation_python: str = "python"
+
+    # ---------------------------------------------------------------------------
     # Derived queue names (IVRv2 pattern)
     # ---------------------------------------------------------------------------
     @property
