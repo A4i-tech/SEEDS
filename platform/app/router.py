@@ -23,6 +23,7 @@ from app.controllers import (
     # Other
     ivr_structure_controller,
     ivr_webhook_controller,
+    language_controller,
     participants_controller,
     # Conference features
     playback_controller,
@@ -62,6 +63,7 @@ api_router.include_router(class_controller.router)
 api_router.include_router(content_controller.router)
 api_router.include_router(audit_controller.router)
 api_router.include_router(content_aggregator_controller.router)
+api_router.include_router(language_controller.router)
 
 # Calls
 api_router.include_router(conference_controller.router)
