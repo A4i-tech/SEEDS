@@ -5,7 +5,11 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Body, Depends
 from pymongo.asynchronous.database import AsyncDatabase
 
-from app.models.requests.content_aggregator_requests import ContentAggregatorTokenRequest
+from app.models.requests.content_aggregator_requests import (
+    ContentAggregatorRegisterRequest,
+    ContentAggregatorRegisterResponse,
+    ContentAggregatorTokenRequest,
+)
 from app.models.responses.login import TokenResponse
 from app.platform.auth.dependencies import get_db
 from app.platform.settings import Settings, get_settings
@@ -41,3 +45,19 @@ async def refresh_token(
 ) -> TokenResponse:
     result = await auth.refresh_token(refresh_token)
     return TokenResponse.model_validate(result)
+
+
+@router.post("/register", summary="Register a new integration client")
+async def register_client(
+    body: ContentAggregatorRegisterRequest,
+    auth: ContentAggregatorAuth = Depends(get_content_aggregator_auth),
+) -> ContentAggregatorRegisterResponse:
+    client_id, client_secret = await auth.register_client(
+        name=body.name, tenant_ids=body.tenant_ids, scopes=body.scopes
+    )
+    return ContentAggregatorRegisterResponse(
+        client_id=client_id,
+        client_secret=client_secret,
+        tenant_ids=body.tenant_ids,
+        allowed_scopes=body.scopes,
+    )
