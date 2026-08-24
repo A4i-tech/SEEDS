@@ -131,13 +131,6 @@ class _IntegrationTokenStore:
         )
 
     async def try_consume(self, token_id: str) -> ConsumedToken[IntegrationClaims]:
-        """Atomically claim an unrevoked, unexpired refresh token.
-
-        Raises:
-            RefreshTokenNotFoundError: no matching REFRESH token.
-            RefreshTokenExpiredError: token exists, never consumed, past expiry.
-            RefreshTokenReusedError: token exists but already consumed/revoked.
-        """
         doc = await self._repo.try_consume(_hash_refresh_token(token_id))
         return self._to_consumed(doc)
 
