@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+import secrets
+import uuid
+from datetime import UTC, datetime
 from typing import Any, TypedDict
 
+import bcrypt
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.content_aggregator import (
+    IntegrationClient,
     IntegrationClientStatus,
     IntegrationToken,
 )
@@ -26,6 +30,8 @@ from app.repositories.integration_token_repository import (
 from app.services.content_aggregator import _jwt
 
 logger = logging.getLogger(__name__)
+
+CLIENT_SECRET_BCRYPT_ROUNDS = 12
 
 
 class IntegrationClaims(TypedDict):
@@ -127,6 +133,29 @@ class ContentAggregatorAuth:
             refresh_ttl=self._settings.content_aggregator_refresh_token_expires_in,
         )
         return {**pair, "scope": granted_scope}
+
+    async def register_client(
+        self,
+        name: str,
+        tenant_ids: list[str],
+        scopes: list[str],
+    ) -> tuple[str, str]:
+        client_id = str(uuid.uuid4())
+        client_secret = secrets.token_urlsafe(32)
+        secret_hash = bcrypt.hashpw(
+            client_secret.encode("utf-8"), bcrypt.gensalt(rounds=CLIENT_SECRET_BCRYPT_ROUNDS)
+        ).decode("utf-8")
+        await self._clients.create(
+            IntegrationClient(
+                client_id=client_id,
+                client_secret_hash=secret_hash,
+                name=name,
+                tenant_ids=tenant_ids,
+                allowed_scopes=scopes,
+                created_at=datetime.now(tz=UTC),
+            )
+        )
+        return client_id, client_secret
 
     async def verify_token(self, token: str) -> _jwt.AccessTokenClaims:
         return _jwt.decode_access_token(token, secret_key=self._settings.secret_key)
