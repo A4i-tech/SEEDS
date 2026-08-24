@@ -1,0 +1,46 @@
+pipeline_id: textbook_ocr
+domain_profile: education
+input_modality: document
+description: Textbook PDF to Markdown.
+
+parameters:
+  properties:
+    engine:
+      type: string
+      default: llm
+      description: OCR engine. PyPI 0.1.2 has llm/openai/azure_di; a4i/main has llm/azure_di/sarvam
+    language:
+      type: [string, "null"]
+      default: null
+      description: Source language hint for engines that accept one
+    pages:
+      type: integer
+      default: 100000
+      description: OCR only the first N pages. Keep small for a shape check — one model call per page
+    concurrency:
+      type: integer
+      default: 4
+      description: Pages OCR'd at once. Ignored by the llm and sarvam engines upstream, honoured by azure_di
+    out:
+      type: string
+      default: out/raw.md
+      description: Path the Markdown is written to
+
+steps:
+  - agent: page_chunking
+    description: PDF to one single-page PDF per page
+    config:
+      mode: pdf
+
+  - agent: ocr
+    description: pages to Markdown
+    config:
+      engine: ${.config.engine}
+      src_lang: ${.config.language}
+      foreach: .items[0:${.config.pages}][]
+      workers: ${.config.concurrency}
+
+  - agent: write_markdown
+    description: join pages into one Markdown file
+    config:
+      out: ${.config.out}

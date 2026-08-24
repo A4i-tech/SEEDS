@@ -1,0 +1,42 @@
+pipeline_id: textbook_review
+domain_profile: education
+input_modality: document
+description: Stage B. Raw OCR Markdown to reviewed Markdown plus a findings trail.
+
+parameters:
+  properties:
+    language:
+      type: string
+      default: en
+      description: Language the figure alt text is translated into. `en` makes translation a no-op
+    script:
+      type: string
+      default: latin
+      description: Script of the source text. Only calibrated scripts may auto-apply; everything else is queued
+    audit:
+      type: boolean
+      default: true
+      description: Run the model audit. The only stage that spends money
+    auto_apply:
+      type: boolean
+      default: false
+      description: Allow gated edits to be written back. Off queues everything
+    out_dir:
+      type: string
+      default: out
+      description: Directory for the corrected Markdown and the trails
+
+steps:
+  - agent: alt_translate
+    description: translate English figure alt text into the book's language
+    config:
+      language: ${.config.language}
+      out_dir: ${.config.out_dir}
+
+  - agent: postcorrect
+    description: mechanical fixes, gated model audit, verification
+    config:
+      script: ${.config.script}
+      audit: ${.config.audit}
+      auto_apply: ${.config.auto_apply}
+      out_dir: ${.config.out_dir}
