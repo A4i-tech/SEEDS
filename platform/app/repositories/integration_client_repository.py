@@ -15,3 +15,6 @@ class IntegrationClientRepository(BaseRepository):
     async def find_by_client_id(self, client_id: str) -> IntegrationClient | None:
         doc = await self._col.find_one({"client_id": client_id})
         return IntegrationClient.from_mongo(doc) if doc is not None else None
+
+    async def create(self, client: IntegrationClient) -> None:
+        await self._col.insert_one(client.model_dump())
