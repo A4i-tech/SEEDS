@@ -17,11 +17,6 @@ from tests.support.mongomock_async import AsyncMongoMockClient
 PACKAGE_ROOT = Path(__file__).resolve().parents[2] / "app"
 
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-
 @pytest.fixture
 def mock_db():
     client = AsyncMongoMockClient()
@@ -59,11 +54,6 @@ async def _seed_client(
             "created_at": datetime.now(tz=UTC),
         }
     )
-
-
-# ---------------------------------------------------------------------------
-# issue_token — happy path
-# ---------------------------------------------------------------------------
 
 
 class TestIssueTokenSuccess:
@@ -110,12 +100,6 @@ class TestIssueTokenSuccess:
         assert payload["tenant_ids"] == ["tenant-a", "tenant-b"]
 
 
-
-# ---------------------------------------------------------------------------
-# issue_token — failure paths
-# ---------------------------------------------------------------------------
-
-
 class TestIssueTokenFailures:
     async def test_unknown_client_id_returns_401_no_enumeration(self, auth):
         with pytest.raises(UnauthorizedError) as exc_info:
@@ -130,7 +114,6 @@ class TestIssueTokenFailures:
         assert exc_info.value.status_code == 401
 
     async def test_unknown_and_wrong_secret_raise_identical_error_shape(self, mock_db, auth):
-        """No user enumeration: both failure modes must be indistinguishable."""
         await _seed_client(mock_db, secret="correct-secret")
 
         with pytest.raises(UnauthorizedError) as unknown_exc:
@@ -159,20 +142,10 @@ class TestIssueTokenFailures:
         assert exc_info.value.code == "SCOPE_INSUFFICIENT"
 
 
-# ---------------------------------------------------------------------------
-# verify_token
-# ---------------------------------------------------------------------------
-
-
 class TestVerifyToken:
     async def test_garbage_token_raises_unauthorized(self, auth):
         with pytest.raises(UnauthorizedError):
             await auth.verify_token("not-a-real-token")
-
-
-# ---------------------------------------------------------------------------
-# refresh_token — rotation / single-use / reuse detection / expiry (#459)
-# ---------------------------------------------------------------------------
 
 
 async def _seed_expired_refresh_token(
@@ -257,7 +230,6 @@ class TestRefreshTokenReuseDetection:
         with pytest.raises(UnauthorizedError):
             await auth.refresh_token(root_refresh)  # replay of already-revoked token
 
-        # the still-fresh sibling token from the same family must now be dead too
         with pytest.raises(UnauthorizedError):
             await auth.refresh_token(rotated["refresh_token"])
 
@@ -266,7 +238,6 @@ class TestRefreshTokenReuseDetection:
         assert all(doc["revoked"] is True for doc in docs)
 
     async def test_replay_revokes_other_families_for_same_client(self, mock_db, auth, settings):
-        """Reuse detection must revoke every token for the client, not just the replayed family."""
         configure_telemetry(settings)
         await _seed_client(mock_db)
         family_a = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
@@ -287,14 +258,6 @@ class TestRefreshTokenConcurrency:
     async def test_concurrent_refresh_with_same_token_only_one_winner(
         self, mock_db, auth, settings
     ):
-        """Two simultaneous refreshes of the same token must not both succeed.
-
-        Exercises the atomic try_consume claim directly rather than relying
-        on true OS-level thread interleaving (mongomock-motor runs on a
-        single event loop, so asyncio.gather here only proves the repository
-        method itself is race-safe — a second claim on an already-consumed
-        token_id must raise RefreshTokenReusedError).
-        """
         configure_telemetry(settings)
         await _seed_client(mock_db)
         issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
@@ -349,7 +312,6 @@ class TestRefreshTokenExpired:
         assert exc_info.value.status_code == 401
 
     async def test_expired_unconsumed_token_does_not_trigger_mass_revocation(self, mock_db, auth):
-        """A clean expiry (never rotated/replayed) must not be misread as reuse."""
         await _seed_client(mock_db)
         await _seed_expired_refresh_token(mock_db, token_id="expired-refresh-token")
         sibling = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
@@ -383,11 +345,6 @@ class TestRefreshTokenUnknownOrDisabledClient:
             await auth.refresh_token(issued["refresh_token"])
         assert exc_info.value.code == "TENANT_NOT_ALLOWED"
         assert exc_info.value.status_code == 403
-
-
-# ---------------------------------------------------------------------------
-# Static checks required by #458's action items
-# ---------------------------------------------------------------------------
 
 
 def _iter_py_files(root: Path):
