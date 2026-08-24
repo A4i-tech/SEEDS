@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import asyncio
+import hashlib
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -17,6 +18,15 @@ from app.services.content_aggregator.auth import ContentAggregatorAuth
 from tests.support.mongomock_async import AsyncMongoMockClient
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[2] / "app"
+
+
+def _stored_token_id(raw_token: str) -> str:
+    return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -77,9 +87,14 @@ class TestIssueTokenSuccess:
         result = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
 
         stored = await mock_db["integrationTokens"].find_one(
+            {"token_id": _stored_token_id(result["refresh_token"])}
+        )
+        raw_stored = await mock_db["integrationTokens"].find_one(
             {"token_id": result["refresh_token"]}
         )
         assert stored is not None
+        assert stored["token_id"] != result["refresh_token"]
+        assert raw_stored is None
         assert stored["client_id"] == "partner-1"
         assert stored["type"] == "refresh"
         assert stored["revoked"] is False
@@ -150,7 +165,7 @@ class TestIssueTokenFailures:
         await _seed_client(mock_db, allowed_scopes=[])
 
         with pytest.raises(AppError) as exc_info:
-            await auth.issue_token("partner-1", "super-secret")
+            await auth.issue_token("partner-1", "super-secret", scopes=[])
         assert exc_info.value.status_code == 403
         assert exc_info.value.code == "SCOPE_INSUFFICIENT"
 
@@ -187,7 +202,7 @@ async def _seed_expired_refresh_token(
 ) -> None:
     await mock_db["integrationTokens"].insert_one(
         {
-            "token_id": token_id,
+            "token_id": _stored_token_id(token_id),
             "client_id": client_id,
             "type": "refresh",
             "tenant_ids": tenant_ids if tenant_ids is not None else ["tenant-a"],
@@ -210,10 +225,14 @@ class TestRefreshTokenSuccess:
         assert set(result.keys()) == {"access_token", "refresh_token", "expires_in", "token_type", "scope"}
         assert result["refresh_token"] != old_refresh
 
-        old_doc = await mock_db["integrationTokens"].find_one({"token_id": old_refresh})
+        old_doc = await mock_db["integrationTokens"].find_one(
+            {"token_id": _stored_token_id(old_refresh)}
+        )
         assert old_doc["revoked"] is True
 
-        new_doc = await mock_db["integrationTokens"].find_one({"token_id": result["refresh_token"]})
+        new_doc = await mock_db["integrationTokens"].find_one(
+            {"token_id": _stored_token_id(result["refresh_token"])}
+        )
         assert new_doc is not None
         assert new_doc["revoked"] is False
 
@@ -286,7 +305,7 @@ class TestRefreshTokenReuseDetection:
             await auth.refresh_token(family_a["refresh_token"])  # replay of already-revoked token
 
         other_family_doc = await mock_db["integrationTokens"].find_one(
-            {"token_id": family_b["refresh_token"]}
+            {"token_id": _stored_token_id(family_b["refresh_token"])}
         )
         assert other_family_doc["revoked"] is True
 
@@ -356,11 +375,13 @@ class TestRefreshTokenExpired:
         with pytest.raises(AppError):
             await auth.refresh_token("expired-refresh-token")
 
-        expired_doc = await mock_db["integrationTokens"].find_one({"token_id": "expired-refresh-token"})
+        expired_doc = await mock_db["integrationTokens"].find_one(
+            {"token_id": _stored_token_id("expired-refresh-token")}
+        )
         assert expired_doc["revoked"] is False
 
         sibling_doc = await mock_db["integrationTokens"].find_one(
-            {"token_id": sibling["refresh_token"]}
+            {"token_id": _stored_token_id(sibling["refresh_token"])}
         )
         assert sibling_doc["revoked"] is False
 

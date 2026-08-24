@@ -52,7 +52,6 @@ _MIGRATIONS: list[tuple[str, str]] = [
     ("018", "018_contentsv3_type_lowercase.py"),
     ("019", "019_contentsv3_remove_quiz_docs.py"),
     ("020", "020_contentsv3_fix_is_processed.py"),
-    ("021", "021_refresh_token_indexes.py"),
 ]
 
 

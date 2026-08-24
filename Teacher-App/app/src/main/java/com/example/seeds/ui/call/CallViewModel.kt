@@ -1122,8 +1122,8 @@ class CallViewModel @Inject constructor(
                 }
 
                 val audioUrl = selectedContentObj.audioContent.firstOrNull()?.audioUrl
-                    ?: selectedContentObj.title?.audioUrl
-                    ?: selectedContentObj.theme?.audioUrl
+                    ?: selectedContentObj.title.audioUrl
+                    ?: selectedContentObj.theme.audioUrl
 
                 if (audioUrl.isNullOrEmpty()) {
                     _isErrorFromIVR.postValue("No audio available")

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 import secrets
 import uuid
@@ -82,6 +83,10 @@ class _IntegrationTokenStore:
         await self._repo.revoke_all_for_client(owner_id)
 
 
+def _hash_refresh_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
 class IntegrationClaims(TypedDict):
     tenant_ids: list[str]
     scope: str
@@ -113,6 +118,7 @@ class _IntegrationTokenStore:
         expires_at: datetime,
         created_at: datetime,
     ) -> None:
+        token_id = _hash_refresh_token(token_id)
         await self._repo.insert_refresh_token(
             NewRefreshToken(
                 token_id=token_id,
@@ -125,7 +131,14 @@ class _IntegrationTokenStore:
         )
 
     async def try_consume(self, token_id: str) -> ConsumedToken[IntegrationClaims]:
-        doc = await self._repo.try_consume(token_id)
+        """Atomically claim an unrevoked, unexpired refresh token.
+
+        Raises:
+            RefreshTokenNotFoundError: no matching REFRESH token.
+            RefreshTokenExpiredError: token exists, never consumed, past expiry.
+            RefreshTokenReusedError: token exists but already consumed/revoked.
+        """
+        doc = await self._repo.try_consume(_hash_refresh_token(token_id))
         return self._to_consumed(doc)
 
     async def revoke_all_for_owner(self, owner_id: str) -> None:
@@ -146,7 +159,7 @@ class ContentAggregatorAuth:
         self,
         client_id: str,
         client_secret: str,
-        scopes: list[str] | None = None,
+        scopes: list[str],
     ) -> IntegrationTokenPair:
         client = await self._clients.find_by_client_id(client_id)
         if client is None or not verify_password(client_secret, client.client_secret_hash):
@@ -158,7 +171,6 @@ class ContentAggregatorAuth:
 
         granted_tenant_ids = list(client.tenant_ids)
 
-        scopes = scopes or []
         if not set(scopes).issubset(client.allowed_scopes):
             raise AppError("SCOPE_INSUFFICIENT", "Requested scopes exceed allowed scopes", 403)
         requested_scopes = scopes
