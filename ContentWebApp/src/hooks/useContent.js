@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { contentService } from "../services/contentService";
 import { contentAggregatorService } from "../services/contentAggregatorService";
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 20;
 
 const mapContentAggregatorCourse = (course) => ({
   id: course.id,
@@ -57,8 +57,8 @@ export const useContent = () => {
    * Fetch content with optional cursor for pagination
    * Error handling is delegated to contentService
    */
-  const fetchContent = useCallback(async (cursor = null, signal = null) => {
-    const page = await contentService.getContent(cursor, PAGE_SIZE, signal);
+  const fetchContent = useCallback(async (cursor = null) => {
+    const page = await contentService.getContent(cursor, PAGE_SIZE);
     return { data: page.items, nextCursor: page.next_cursor, hasMore: page.has_more };
   }, []);
 
@@ -78,10 +78,6 @@ export const useContent = () => {
         });
         setPaginationInfo({ nextCursor, hasMore });
         setIsFiltered(false);
-      } catch (error) {
-        if (error.name !== "AbortError") {
-          console.error("Error loading initial content:", error);
-        }
       } finally {
         setIsLoading(false);
       }
@@ -96,7 +92,7 @@ export const useContent = () => {
    * Load more content (pagination)
    */
   const loadMore = useCallback(async () => {
-    if (!paginationInfo.hasMore || !paginationInfo.nextCursor || isLoading) {
+    if (isLoading) {
       return;
     }
 
@@ -107,34 +103,41 @@ export const useContent = () => {
       try {
         const { data, nextCursor, hasMore } = await fetchContent(paginationInfo.nextCursor, ac.signal);
 
-      if (!data.length) {
-        setPaginationInfo({ nextCursor: null, hasMore: false });
-        return;
-      }
-
-      setAllContent((prevAll) => {
-        const existingIds = new Set(prevAll.map((c) => c.id));
-        const merged = [...prevAll];
-        data.forEach((item) => {
-          if (!existingIds.has(item.id)) {
-            merged.push(item);
-          }
-        });
-        if (!isFiltered) {
-          setContent(merged);
+        if (!data.length) {
+          setPaginationInfo({ nextCursor: null, hasMore: false });
+          return;
         }
-        return merged;
-      });
 
-      setPaginationInfo({ nextCursor, hasMore });
-    } catch (error) {
-      if (error.name !== "AbortError") {
-        console.error("Error loading more content:", error);
+        setAllContent((prevAll) => {
+          const existingIds = new Set(prevAll.map((c) => c.id));
+          const merged = [...prevAll];
+          data.forEach((item) => {
+            if (!existingIds.has(item.id)) {
+              merged.push(item);
+            }
+          });
+          if (!isFiltered) {
+            setContent(merged);
+          }
+          return merged;
+        });
+
+        setPaginationInfo({ nextCursor, hasMore });
+      } finally {
+        setIsLoading(false);
       }
-    } finally {
-      setIsLoading(false);
+      return;
     }
-  }, [paginationInfo, fetchContent, isFiltered, isLoading]);
+
+    if (coursePaginationInfo.hasMore && coursePaginationInfo.nextCursor) {
+      setIsLoading(true);
+      try {
+        await loadContentAggregatorCourses(coursePaginationInfo.nextCursor);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  }, [paginationInfo, coursePaginationInfo, fetchContent, isFiltered, isLoading, loadContentAggregatorCourses]);
 
   /**
    * Delete content item
@@ -156,16 +159,7 @@ export const useContent = () => {
         // Show success message
         alert(`${contentType.charAt(0).toUpperCase() + contentType.slice(1)} deleted successfully.`);
       } catch (error) {
-        console.error("Error deleting content:", error);
-        let errorMessage = error.response?.data?.error || error.message || "Failed to delete content";
-        try {
-          const parsed = JSON.parse(errorMessage);
-          errorMessage = parsed?.error || parsed?.message || errorMessage;
-        } catch (_) {}
-        if (errorMessage === "Content not found" || errorMessage === "Unauthorized") {
-          errorMessage = "You do not have permission to delete this item.";
-        }
-        alert(`Error deleting ${contentType}: ${errorMessage}`);
+        alert(`Error deleting ${contentType}: ${error.message}`);
       }
     },
     []
@@ -198,7 +192,10 @@ export const useContent = () => {
     content,
     allContent,
     isLoading,
-    paginationInfo,
+    paginationInfo: {
+      nextCursor: paginationInfo.nextCursor,
+      hasMore: paginationInfo.hasMore || coursePaginationInfo.hasMore,
+    },
     isFiltered,
     loadMore,
     deleteContent,
