@@ -53,12 +53,18 @@ def settings(monkeypatch):
     return values
 
 
+async def _no_frames(_self):
+    """An open socket that has delivered nothing yet — async iteration, not a list."""
+    return
+    yield
+
+
 @pytest.fixture
 def socket():
     ws = MagicMock()
     ws.send = AsyncMock()
     ws.close = AsyncMock()
-    ws.__aiter__ = lambda self: iter([])
+    ws.__aiter__ = _no_frames
     return ws
 
 
@@ -374,7 +380,7 @@ class TestBackgroundWorkers:
     async def test_a_closed_connection_is_reconnected_by_the_listener(
         self, provider, socket, connect
     ) -> None:
-        async def _closes_mid_stream(self):
+        async def _closes_mid_stream(_self):
             """A closed socket yields what it had, then raises on the next frame."""
             yield json.dumps({"websocket_id": CONF_ID, "type": "ignored"})
             raise websockets.exceptions.ConnectionClosedOK(None, None)
@@ -400,7 +406,7 @@ class TestBackgroundWorkers:
     async def test_inbound_frames_reach_the_dispatcher(self, provider, socket, conf) -> None:
         frame = json.dumps({"websocket_id": CONF_ID, "type": MessageType.RECONNECT})
 
-        async def _frames(self):
+        async def _frames(_self):
             yield frame
 
         socket.__aiter__ = _frames

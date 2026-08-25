@@ -363,6 +363,7 @@ class TestProcessDtmfDuringStreaming:
 
         ncco = await service.process_dtmf(CALL_ID, "#")
 
+        websocket.set_playback_speed.assert_awaited_once_with(CALL_ID, 2.0)
         assert [a["action"] for a in ncco] == ["input"]
         doc = await db["ongoingIVRState"].find_one({"_id": CALL_ID})
         assert doc["experience_data"]["playback_speed"] == 1.5
@@ -652,15 +653,16 @@ class TestEnsureFsmLoaded:
             {"_id": "stale-fsm", "created_at": 1, "states": [], "transitions": [],
              "init_state_id": "state-1"}
         )
-        monkeypatch.setattr(
-            ivr_service, "instantitate_from_doc", MagicMock(side_effect=RuntimeError("bad shape"))
-        )
+        deserialise = MagicMock(side_effect=RuntimeError("bad shape"))
+        monkeypatch.setattr(ivr_service, "instantitate_from_doc", deserialise)
         rebuilt = FakeFSM()
         monkeypatch.setattr(
             ivr_service, "instantiate_from_latest_content", AsyncMock(return_value=rebuilt)
         )
 
         await service._ensure_fsm_loaded()
+
+        deserialise.assert_called_once()
         assert fsm_cache[FSM_ID] is rebuilt
 
     @pytest.mark.asyncio
