@@ -28,15 +28,5 @@ async def test_list_languages_entries_have_code_and_name(client):
     resp = await client.get("/v1/languages")
     for entry in resp.json()["languages"]:
         assert entry["code"]
-        assert entry["standard"] in ("ISO 639-1", "ISO 639-3")
+        assert entry["standard"] == "ISO 639-1"
         assert entry["name"]
-
-
-@pytest.mark.asyncio
-async def test_list_languages_iso_639_3_fallback_codes(client):
-    resp = await client.get("/v1/languages")
-    by_code = {e["code"]: e for e in resp.json()["languages"]}
-    assert by_code["kok"]["standard"] == "ISO 639-3"
-    assert by_code["brx"]["standard"] == "ISO 639-3"
-    for code in ("kn", "hi", "en", "ta", "te", "mr"):
-        assert by_code[code]["standard"] == "ISO 639-1"

@@ -1,5 +1,3 @@
-"""Language registry - /v1/languages."""
-
 from __future__ import annotations
 
 from fastapi import APIRouter
