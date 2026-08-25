@@ -4,9 +4,11 @@ import { contentAggregatorService } from "../services/contentAggregatorService";
 
 const PAGE_SIZE = 20;
 
-const mapContentAggregatorCourse = (course) => ({
+const AGGREGATOR_SOURCES = ["subodha", "hexis"];
+
+const mapContentAggregatorCourse = (course, source) => ({
   id: course.id,
-  source: "subodha",
+  source,
   title: { english: course.name, local: "" },
   theme: { english: "", local: "" },
   language: course.language,
@@ -26,7 +28,7 @@ export const useContent = () => {
     hasMore: false,
   });
   const [coursePaginationInfo, setCoursePaginationInfo] = useState({
-    nextCursor: null,
+    nextCursors: {},
     hasMore: false,
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -34,19 +36,39 @@ export const useContent = () => {
   const isFilteredRef = useRef(isFiltered);
   isFilteredRef.current = isFiltered;
 
-  const loadContentAggregatorCourses = useCallback(async (cursor = null) => {
-    const { courses, next_cursor: nextCursor, has_more: hasMore } = await contentAggregatorService.getCourses(
-      cursor
+  const loadContentAggregatorCourses = useCallback(async (cursors = {}) => {
+    const perSource = await Promise.all(
+      AGGREGATOR_SOURCES.map(async (source) => {
+        try {
+          const { courses, next_cursor, has_more } = await contentAggregatorService.getCourses(source, cursors[source]);
+          return {
+            source,
+            courses: courses.map((course) => mapContentAggregatorCourse(course, source)),
+            nextCursor: next_cursor,
+            hasMore: has_more,
+          };
+        } catch (error) {
+          console.error(`Error loading ${source} courses:`, error);
+          return { source, courses: [], nextCursor: null, hasMore: false };
+        }
+      })
     );
-    const mapped = courses.map(mapContentAggregatorCourse);
+    const mapped = perSource.flatMap((s) => s.courses);
+    const nextCursors = {};
+    let anyHasMore = false;
+    perSource.forEach((s) => {
+      if (s.nextCursor) nextCursors[s.source] = s.nextCursor;
+      if (s.hasMore) anyHasMore = true;
+    });
+    setCoursePaginationInfo({ nextCursors, hasMore: anyHasMore });
     setAllContent((prevAll) => {
-      const merged = cursor
+      const isAppend = Object.keys(cursors).length > 0;
+      const merged = isAppend
         ? [...prevAll, ...mapped]
-        : [...prevAll.filter((item) => item.source !== "subodha"), ...mapped];
+        : [...prevAll.filter((item) => item.type !== "content-aggregator"), ...mapped];
       if (!isFilteredRef.current) setContent(merged);
       return merged;
     });
-    setCoursePaginationInfo({ nextCursor, hasMore });
   }, []);
 
   useEffect(() => {
@@ -78,6 +100,10 @@ export const useContent = () => {
         });
         setPaginationInfo({ nextCursor, hasMore });
         setIsFiltered(false);
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          console.error("Error loading initial content:", error);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -92,51 +118,51 @@ export const useContent = () => {
    * Load more content (pagination)
    */
   const loadMore = useCallback(async () => {
-    if (isLoading) {
+    if (!paginationInfo.hasMore || !paginationInfo.nextCursor || isLoading) {
       return;
     }
 
-    if (paginationInfo.hasMore && paginationInfo.nextCursor) {
-      setIsLoading(true);
-      const ac = new AbortController();
+    setIsLoading(true);
+    const ac = new AbortController();
 
-      try {
-        const { data, nextCursor, hasMore } = await fetchContent(paginationInfo.nextCursor, ac.signal);
+    try {
+      const { data, nextCursor, hasMore } = await fetchContent(paginationInfo.nextCursor, ac.signal);
 
-        if (!data.length) {
-          setPaginationInfo({ nextCursor: null, hasMore: false });
-          return;
-        }
+      if (!data.length) {
+        setPaginationInfo({ nextCursor: null, hasMore: false });
+        return;
+      }
 
-        setAllContent((prevAll) => {
-          const existingIds = new Set(prevAll.map((c) => c.id));
-          const merged = [...prevAll];
-          data.forEach((item) => {
-            if (!existingIds.has(item.id)) {
-              merged.push(item);
-            }
-          });
-          if (!isFiltered) {
-            setContent(merged);
+      setAllContent((prevAll) => {
+        const existingIds = new Set(prevAll.map((c) => c.id));
+        const merged = [...prevAll];
+        data.forEach((item) => {
+          if (!existingIds.has(item.id)) {
+            merged.push(item);
           }
-          return merged;
         });
+        if (!isFiltered) {
+          setContent(merged);
+        }
+        return merged;
+      });
 
-        setPaginationInfo({ nextCursor, hasMore });
-      } finally {
-        setIsLoading(false);
+      setPaginationInfo({ nextCursor, hasMore });
+    } catch (error) {
+      if (error.name !== "AbortError") {
+        console.error("Error loading more content:", error);
       }
-      return;
     }
 
-    if (coursePaginationInfo.hasMore && coursePaginationInfo.nextCursor) {
-      setIsLoading(true);
+    if (coursePaginationInfo.hasMore && Object.keys(coursePaginationInfo.nextCursors).length > 0) {
       try {
-        await loadContentAggregatorCourses(coursePaginationInfo.nextCursor);
-      } finally {
-        setIsLoading(false);
+        await loadContentAggregatorCourses(coursePaginationInfo.nextCursors);
+      } catch (error) {
+        console.error("Error loading more courses:", error);
       }
     }
+
+    setIsLoading(false);
   }, [paginationInfo, coursePaginationInfo, fetchContent, isFiltered, isLoading, loadContentAggregatorCourses]);
 
   /**
@@ -146,7 +172,7 @@ export const useContent = () => {
     async (type, id) => {
       const contentType = type === "quiz" ? "quiz" : "content";
       const confirmMessage = `Are you sure you want to delete this ${contentType}? This action cannot be undone.`;
-      
+
       if (!window.confirm(confirmMessage)) {
         return;
       }
@@ -165,12 +191,12 @@ export const useContent = () => {
     []
   );
 
-  const deleteContentAggregatorCourse = useCallback(async (courseId, name) => {
+  const deleteContentAggregatorCourse = useCallback(async (courseId, name, source) => {
     if (!window.confirm(`Remove the synced copy of "${name || courseId}"? It can be re-synced later.`)) {
       return;
     }
     try {
-      await contentAggregatorService.deleteCourse(courseId);
+      await contentAggregatorService.deleteCourse(courseId, source);
       setContent((prev) => prev.filter((item) => item.id !== courseId));
       setAllContent((prev) => prev.filter((item) => item.id !== courseId));
       alert("Course removed successfully.");

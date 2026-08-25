@@ -4,8 +4,8 @@ import html as html_lib
 
 import pytest
 
-from app.aggregators.content_strategies import STRATEGY_REGISTRY, TextStrategy
-from app.aggregators.models import BlobContext, ItemType, VideoContent
+from app.aggregators.content_strategies import STRATEGY_REGISTRY, MarkdownStrategy
+from app.aggregators.models import BlobContext, ItemType, QuizContent, TextContent, VideoContent
 
 
 class FakeBlob:
@@ -22,7 +22,7 @@ async def test_text_strategy_uploads_markdown_only():
     blob = FakeBlob()
     ctx = BlobContext(container="subodha", blob_prefix="courses/c1/items/b1")
 
-    content = await TextStrategy().process("<p><strong>Hi</strong></p>", ctx, blob)
+    content = await MarkdownStrategy().process("<p><strong>Hi</strong></p>", ctx, blob)
 
     assert content.markdown_url == "https://blob.test/subodha/courses/c1/items/b1.md"
     assert content.html_url is None
@@ -40,7 +40,7 @@ async def test_text_strategy_falls_back_on_pandoc_failure(monkeypatch):
     blob = FakeBlob()
     ctx = BlobContext(container="subodha", blob_prefix="courses/c1/items/b2")
 
-    content = await TextStrategy().process("<p>raw</p>", ctx, blob)
+    content = await MarkdownStrategy().process("<p>raw</p>", ctx, blob)
 
     assert content.conversion_failed is True
     assert content.raw_html_url == "https://blob.test/subodha/courses/c1/items/b2.raw.html"
@@ -117,3 +117,26 @@ async def test_other_strategy_passes_through_dict_unchanged():
     payload = {"whatever": "shape", "the": "adapter emits"}
     content = await STRATEGY_REGISTRY[ItemType.OTHER].process(payload, BlobContext("subodha", "x"), None)
     assert content.payload == payload
+
+
+@pytest.mark.asyncio
+async def test_plaintext_uploads_txt_and_returns_markdown_url():
+    blob = FakeBlob()
+    ctx = BlobContext(container="hexis", blob_prefix="hexis/241/items/15950")
+    content = await STRATEGY_REGISTRY[ItemType.PLAINTEXT].process("hello * world", ctx, blob)
+    assert isinstance(content, TextContent)
+    assert content.markdown_url == "https://blob.test/hexis/hexis/241/items/15950.txt"
+    assert blob.uploaded["hexis/241/items/15950.txt"] == b"hello * world"
+
+
+@pytest.mark.asyncio
+async def test_quiz_strategy_parses_hexis_mcq_dict():
+    raw = {"question": "2+2?", "a1": "3", "a2": "4", "a3": "5", "ca": 2}
+    content = await STRATEGY_REGISTRY[ItemType.QUIZ].process(raw, BlobContext("hexis", "p"), None)
+    assert isinstance(content, QuizContent)
+    assert content.question == "2+2?"
+    assert content.choices == [
+        {"id": "1", "text": "3", "correct": False},
+        {"id": "2", "text": "4", "correct": True},
+        {"id": "3", "text": "5", "correct": False},
+    ]

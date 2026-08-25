@@ -211,6 +211,14 @@ class Settings(BaseSettings):
     subodha_asset_container: str = "subodha"
 
     # ---------------------------------------------------------------------------
+    hexis_base_url: str = "https://vembi.in/hexis/api/php"
+    hexis_mobile: str = Field(default="", repr=False)
+    hexis_password: str = Field(default="", repr=False)
+    hexis_admin_aid: str = ""
+    hexis_course_concurrency: int = 4
+    hexis_asset_container: str = "hexis"
+
+    # ---------------------------------------------------------------------------
     # Derived queue names (IVRv2 pattern)
     # ---------------------------------------------------------------------------
     @property

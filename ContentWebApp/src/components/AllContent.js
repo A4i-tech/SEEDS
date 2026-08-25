@@ -131,8 +131,9 @@ const AllContent = () => {
   );
 
   const handleView = useCallback(
-    (type, id) => {
-      navigate(`/content/detail/${type}/${id}`);
+    (type, id, source) => {
+      const query = source ? `?source=${encodeURIComponent(source)}` : "";
+      navigate(`/content/detail/${type}/${id}${query}`);
     },
     [navigate]
   );

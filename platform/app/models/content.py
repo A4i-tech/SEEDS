@@ -56,6 +56,8 @@ class Content(BaseModel):
     theme_audio: str | None = None
     # Audio content (v3)
     audio_content: list[AudioContent] = Field(default_factory=list)
+    braille_url: str | None = None
+    braille_grade: int | None = None
     # Flags
     school_id: str | None = None
     created_by: str = ""

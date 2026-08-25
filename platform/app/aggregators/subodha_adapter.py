@@ -16,7 +16,7 @@ from app.providers.subodha_client import SubodhaCourse
 
 _CONTENT_TYPES = {"html", "video", "problem", "drag-and-drop-v2", "lti", "discussion"}
 _ITEM_TYPE_MAP: dict[str, ItemType] = {
-    "html": ItemType.TEXT, "video": ItemType.VIDEO, "problem": ItemType.QUIZ, "discussion": ItemType.DISCUSSION,
+    "html": ItemType.MARKDOWN, "video": ItemType.VIDEO, "problem": ItemType.QUIZ, "discussion": ItemType.DISCUSSION,
 }
 
 
@@ -58,7 +58,7 @@ class SubodhaAdapter(SourceAdapter):
         now = _now()
 
         course_node = CanonicalNode(
-            source_type=self.source_type, source_id=course_source_id, root_id=course_source_id,
+            tenant_id="", source_type=self.source_type, source_id=course_source_id, root_id=course_source_id,
             parent_id=None, order=0, node_kind=NodeKind.CONTAINER, item_type=None,
             display_name=native_course["name"], content=None, lms_url=None, native_type="course",
             source_metadata={
@@ -84,7 +84,7 @@ class SubodhaAdapter(SourceAdapter):
         def make_container(block_id: str, parent_id: str, native_type: str, order: int) -> CanonicalNode:
             block = blocks.get(block_id, {})
             return CanonicalNode(
-                source_type=self.source_type, source_id=block_id, root_id=course_source_id,
+                tenant_id="", source_type=self.source_type, source_id=block_id, root_id=course_source_id,
                 parent_id=parent_id, order=order, node_kind=NodeKind.CONTAINER, item_type=None,
                 display_name=block.get("display_name") or "", content=None, lms_url=None,
                 native_type=native_type, source_metadata={}, last_run_id=run_id, fetched_at=now, created_at=now, updated_at=now,
@@ -94,12 +94,12 @@ class SubodhaAdapter(SourceAdapter):
             block = blocks.get(block_id, {})
             native_type = block.get("type")
             item_type = _item_type_for(native_type)
-            if item_type in (ItemType.TEXT, ItemType.QUIZ, ItemType.DISCUSSION, ItemType.OTHER):
+            if item_type in (ItemType.MARKDOWN, ItemType.QUIZ, ItemType.DISCUSSION, ItemType.OTHER):
                 raw = _rewrite_urls(_strip_volatile(block.get("student_view_html") or ""), url_map)
             else:
                 raw = block.get("student_view_data")
             node = CanonicalNode(
-                source_type=self.source_type, source_id=block_id, root_id=course_source_id,
+                tenant_id="", source_type=self.source_type, source_id=block_id, root_id=course_source_id,
                 parent_id=parent_id, order=order, node_kind=NodeKind.ITEM, item_type=item_type,
                 display_name=block.get("display_name") or "", content=None, lms_url=block.get("lms_web_url") or "",
                 native_type=native_type, source_metadata={}, last_run_id=run_id, fetched_at=now, created_at=now, updated_at=now,

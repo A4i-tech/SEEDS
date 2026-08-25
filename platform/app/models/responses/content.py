@@ -88,8 +88,10 @@ class ContentBase(BaseModel):
 
 
 class AudioContent(ContentBase):
-    type: Literal["story", "song", "poem", "snippet"]
+    type: Literal["story", "song", "poem", "snippet", "brf"]
     audio_content: list[AudioTrack] = Field(default_factory=list)
+    braille_url: str | None = None
+    braille_grade: int | None = None
     description: str | None = None
     is_processed: bool = False
     version: str | None = None
