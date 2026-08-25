@@ -21,6 +21,7 @@ from app.models.requests.content_requests import (
     QuizCreate,
     QuizCreateRequest,
 )
+from app.aggregators.hexis_adapter import to_iso_639_1
 from app.models.responses.content import AudioContent, QuizContent
 from app.platform.auth.dependencies import get_db
 from app.repositories.content_job_repository import ContentJobRepository
@@ -163,7 +164,7 @@ class ContentService:
             **given,
             tenant_id=tenant_id,
             type=body.type,
-            language=body.language,
+            language=to_iso_639_1(body.language),
             created_by=user_id,
             school_id=school_id,
             creation_time=int(time.time()),
@@ -186,6 +187,8 @@ class ContentService:
         }
         body_dict = body.model_dump(exclude_unset=True)
         updates: dict[str, Any] = {k: v for k, v in body_dict.items() if k in allowed}
+        if "language" in updates:
+            updates["language"] = to_iso_639_1(updates["language"])
 
         if is_audio_uploaded:
             validate_content_upload(body.type or "", body)
@@ -246,7 +249,7 @@ class ContentService:
             **given,
             tenant_id=tenant_id,
             type=body.type,
-            language=body.language,
+            language=to_iso_639_1(body.language),
             created_by=user_id,
             school_id=school_id,
             creation_time=int(time.time()),
