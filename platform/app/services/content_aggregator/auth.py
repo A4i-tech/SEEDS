@@ -33,56 +33,6 @@ from app.services.content_aggregator import _jwt
 logger = logging.getLogger(__name__)
 
 
-class IntegrationClaims(TypedDict):
-    tenant_ids: list[str]
-    scope: str
-
-
-class IntegrationTokenPair(TokenPair):
-    scope: str
-
-
-class _IntegrationTokenStore:
-    def __init__(self, repo: IntegrationTokenRepository) -> None:
-        self._repo = repo
-
-    @staticmethod
-    def _to_consumed(doc: IntegrationToken) -> ConsumedToken[IntegrationClaims]:
-        return ConsumedToken(
-            owner_id=doc.client_id,
-            claims={"tenant_ids": doc.tenant_ids, "scope": doc.scope},
-            expires_at=doc.expires_at,
-            revoked=doc.revoked,
-        )
-
-    async def insert(
-        self,
-        *,
-        token_id: str,
-        owner_id: str,
-        claims: IntegrationClaims,
-        expires_at: datetime,
-        created_at: datetime,
-    ) -> None:
-        await self._repo.insert_refresh_token(
-            NewRefreshToken(
-                token_id=token_id,
-                client_id=owner_id,
-                tenant_ids=claims["tenant_ids"],
-                scope=claims["scope"],
-                expires_at=expires_at,
-                created_at=created_at,
-            )
-        )
-
-    async def try_consume(self, token_id: str) -> ConsumedToken[IntegrationClaims]:
-        doc = await self._repo.try_consume(token_id)
-        return self._to_consumed(doc)
-
-    async def revoke_all_for_owner(self, owner_id: str) -> None:
-        await self._repo.revoke_all_for_client(owner_id)
-
-
 def _hash_refresh_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
