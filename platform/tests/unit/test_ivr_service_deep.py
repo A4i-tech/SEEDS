@@ -351,6 +351,8 @@ class TestProcessDtmfDuringStreaming:
         await service.process_dtmf(CALL_ID, "*")
 
         websocket.set_playback_speed.assert_awaited_once_with(CALL_ID, 1.25)
+        doc = await db["ongoingIVRState"].find_one({"_id": CALL_ID})
+        assert doc["experience_data"]["playback_speed"] == 1.25
 
     @pytest.mark.asyncio
     async def test_a_websocket_failure_leaves_the_speed_unchanged(

@@ -388,15 +388,25 @@ class TestSinkConference:
 
     @pytest.mark.asyncio
     async def test_sinking_without_a_smartphone_connection_still_works(self, conf) -> None:
+        """Skipping the teacher's SSE disconnect must not skip the rest of the teardown."""
         conf.connection_manager = None
+        callback = MagicMock()
 
-        await SinkConferenceEvent(conf, MagicMock()).execute_event()
+        await SinkConferenceEvent(conf, callback).execute_event()
 
         assert conf.state.is_running is False
+        conf.stop_remote_audio_relay.assert_called_once()
+        conf.schedule_capture_finalize.assert_called_once()
+        conf.end_processing_conf_events_from_queue.assert_called_once()
+        callback.assert_called_once()
         conf.update_state.assert_awaited_once()
+        assert _last_action(conf).action_type == ActionType.CONFERENCE_SINK
 
     @pytest.mark.asyncio
     async def test_sinking_without_a_callback_still_works(self, conf) -> None:
         conf.connection_manager = None
+
         await SinkConferenceEvent(conf, None).execute_event()
+
         assert conf.state.is_running is False
+        conf.end_processing_conf_events_from_queue.assert_called_once()

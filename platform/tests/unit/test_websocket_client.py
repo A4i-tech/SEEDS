@@ -393,6 +393,7 @@ class TestBackgroundWorkers:
         task.cancel()
 
         assert dispatched, "the frames the socket did deliver must still be dispatched"
+        assert connect.await_count >= 1, "the listener must reopen the socket after a close"
         assert connected_when_reconnecting[0] is False, "the close must be recorded before retrying"
 
     @pytest.mark.asyncio

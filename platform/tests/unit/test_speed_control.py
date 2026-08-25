@@ -54,9 +54,15 @@ def test_stepping_up_then_down_returns_to_the_start() -> None:
         assert decrease_speed(increase_speed(speed)[0])[0] == speed
 
 
-@pytest.mark.parametrize("language", ["kn", "en", "hi", "bn", "ta", "mr"])
-def test_every_supported_language_has_its_own_instruction(language) -> None:
-    assert get_speed_instruction(language) != "" 
+SUPPORTED_LANGUAGES = ["kn", "en", "hi", "bn", "ta", "mr"]
+
+
+def test_every_supported_language_has_its_own_instruction() -> None:
+    """Non-empty is not enough — a broken lookup would hand every caller English."""
+    instructions = [get_speed_instruction(lang) for lang in SUPPORTED_LANGUAGES]
+
+    assert len(set(instructions)) == len(SUPPORTED_LANGUAGES)
+    assert get_speed_instruction("en") == "Press star to slow down, press hash to speed up"
 
 
 def test_instruction_lookup_is_case_insensitive() -> None:

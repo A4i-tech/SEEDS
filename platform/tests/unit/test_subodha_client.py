@@ -144,10 +144,12 @@ class TestGetSession:
         client = routed(handler)
         await client.get_session()
         client._session_expires_at = datetime.now(UTC) + timedelta(minutes=29)
+        stale_expiry = client._session_expires_at
         calls.clear()
 
         assert "sessionid=fresh" in await client.get_session()
         assert calls == ["/", "/api/user/v1/account/login_session/"]
+        assert client._session_expires_at > stale_expiry, "a re-login that keeps the old expiry re-logs in on every call"
 
     @pytest.mark.asyncio
     async def test_an_expired_session_is_replaced(self, routed) -> None:
