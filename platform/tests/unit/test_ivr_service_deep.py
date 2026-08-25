@@ -222,7 +222,7 @@ class TestStartCallFlow:
 
     @pytest.mark.asyncio
     async def test_a_vonage_failure_is_reported_not_swallowed(
-        self, service, cached_fsm, monkeypatch
+        self, service, db, cached_fsm, monkeypatch
     ) -> None:
         monkeypatch.setattr(
             ivr_service, "_make_vonage_call", AsyncMock(side_effect=RuntimeError("vonage down"))
@@ -231,6 +231,7 @@ class TestStartCallFlow:
 
         assert result["status_code"] == 500
         assert "vonage down" in result["message"]
+        assert await db["ongoingIVRState"].find_one({"phone_number": PHONE}) is None
 
     @pytest.mark.asyncio
     async def test_an_empty_vonage_response_is_a_500(
@@ -489,6 +490,8 @@ class TestProcessCallEvent:
 
         doc = await db["ongoingIVRState"].find_one({"_id": CALL_ID})
         assert doc["call_status_updates"] == {}
+        assert doc["current_state_id"] == "state-1"
+        assert doc["stopped_at"] is None
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("status", [s.value for s in IVRCallStatus.end_statuses()])

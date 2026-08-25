@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import httpx
@@ -128,6 +129,43 @@ class TestGetSession:
 
         assert await client.get_session() == first
         assert calls == []
+
+    @pytest.mark.asyncio
+    async def test_a_session_inside_the_renewal_window_is_replaced(self, routed) -> None:
+        """The cache is given up 30 minutes early so a call never runs on a dying session."""
+        calls = []
+
+        def handler(request):
+            calls.append(request.url.path)
+            return httpx.Response(
+                200, json={"success": True}, headers={"set-cookie": "sessionid=fresh; Path=/"}
+            )
+
+        client = routed(handler)
+        await client.get_session()
+        client._session_expires_at = datetime.now(UTC) + timedelta(minutes=29)
+        calls.clear()
+
+        assert "sessionid=fresh" in await client.get_session()
+        assert calls == ["/", "/api/user/v1/account/login_session/"]
+
+    @pytest.mark.asyncio
+    async def test_an_expired_session_is_replaced(self, routed) -> None:
+        calls = []
+
+        def handler(request):
+            calls.append(request.url.path)
+            return httpx.Response(
+                200, json={"success": True}, headers={"set-cookie": "sessionid=fresh; Path=/"}
+            )
+
+        client = routed(handler)
+        await client.get_session()
+        client._session_expires_at = datetime.now(UTC) - timedelta(days=1)
+        calls.clear()
+
+        await client.get_session()
+        assert calls == ["/", "/api/user/v1/account/login_session/"]
 
     @pytest.mark.asyncio
     async def test_clearing_the_cache_forces_a_fresh_login(self, routed) -> None:

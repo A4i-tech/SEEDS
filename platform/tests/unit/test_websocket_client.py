@@ -217,7 +217,7 @@ class TestSendMessage:
             await provider.send_message(WebsocketServiceMessage(websocket_id=CONF_ID, type="play"))
 
     @pytest.mark.asyncio
-    async def test_a_send_failure_marks_the_client_disconnected_and_re_raises(
+    async def test_a_send_failure_reconnects_and_re_raises(
         self, provider, socket, connect
     ) -> None:
         socket.send.side_effect = RuntimeError("broken pipe")
@@ -374,17 +374,26 @@ class TestBackgroundWorkers:
     async def test_a_closed_connection_is_reconnected_by_the_listener(
         self, provider, socket, connect
     ) -> None:
-        def _raise_closed(self):
+        async def _closes_mid_stream(self):
+            """A closed socket yields what it had, then raises on the next frame."""
+            yield json.dumps({"websocket_id": CONF_ID, "type": "ignored"})
             raise websockets.exceptions.ConnectionClosedOK(None, None)
 
-        socket.__aiter__ = _raise_closed
+        socket.__aiter__ = _closes_mid_stream
+        dispatched = []
+        provider._dispatch_message = AsyncMock(side_effect=dispatched.append)
+        connected_when_reconnecting = []
         connect.reset_mock()
+        connect.side_effect = lambda *_a, **_kw: (
+            connected_when_reconnecting.append(provider.is_connected) or socket
+        )
 
         task = asyncio.create_task(provider._listen_messages())
         await _let_workers_run()
         task.cancel()
 
-        assert connect.await_count >= 1
+        assert dispatched, "the frames the socket did deliver must still be dispatched"
+        assert connected_when_reconnecting[0] is False, "the close must be recorded before retrying"
 
     @pytest.mark.asyncio
     async def test_inbound_frames_reach_the_dispatcher(self, provider, socket, conf) -> None:
