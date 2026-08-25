@@ -95,6 +95,22 @@ async def test_a_full_queue_drops_the_message_instead_of_raising(manager, caplog
     assert "conf-1" in warnings[0].getMessage()
 
 
+@pytest.mark.asyncio
+async def test_a_drop_does_not_corrupt_the_stream(manager) -> None:
+    """The dropped message must be the only casualty — the stream stays usable and ordered."""
+    manager._queue = asyncio.Queue(maxsize=1)
+    response = await manager.connect(CLIENT)
+
+    await manager.send_message_to_client(CLIENT, {"event": "first"})
+    await manager.send_message_to_client(CLIENT, {"event": "dropped"})
+    assert await _drain(response, 1) == ['data: {"event": "first"}\n\n']
+
+    await manager.send_message_to_client(CLIENT, {"event": "second"})
+    await manager.send_message_to_client(CLIENT, {"event": "third"})
+
+    assert await _drain(response, 1) == ['data: {"event": "second"}\n\n']
+
+
 def test_the_factory_makes_one_manager_per_conference() -> None:
     factory = SmartphoneConnectionManagerFactory()
     first, second = factory.create("conf-1"), factory.create("conf-2")

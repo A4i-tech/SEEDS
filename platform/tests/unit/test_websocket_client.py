@@ -403,6 +403,53 @@ class TestBackgroundWorkers:
         assert connected_when_reconnecting[0] is False, "the close must be recorded before retrying"
 
     @pytest.mark.asyncio
+    async def test_the_reconnect_backoff_doubles_and_then_caps(
+        self, provider, monkeypatch
+    ) -> None:
+        """Without the cap an unreachable service backs off for hours."""
+        delays = []
+
+        async def _record(seconds):
+            delays.append(seconds)
+
+        monkeypatch.setattr(websocket_client.asyncio, "sleep", _record)
+        monkeypatch.setattr(websocket_client.random, "uniform", lambda _a, _b: 0.0)
+
+        for already_failed in range(6):
+            provider.reconnect_attempts = already_failed
+            await provider._attempt_reconnect()
+
+        assert delays == [2.0, 4.0, 8.0, 16.0, 30.0, 30.0]
+
+    @pytest.mark.asyncio
+    async def test_a_successful_reconnect_resets_the_backoff(
+        self, provider, monkeypatch
+    ) -> None:
+        monkeypatch.setattr(websocket_client.asyncio, "sleep", _no_backoff)
+        provider.reconnect_attempts = 5
+        provider.is_connected = False
+
+        await provider._attempt_reconnect()
+
+        assert provider.reconnect_attempts == 0
+
+    @pytest.mark.asyncio
+    async def test_the_backoff_is_jittered(self, provider, monkeypatch) -> None:
+        """Every server-side restart reconnects every client; without jitter they stampede."""
+        delays = []
+
+        async def _record(seconds):
+            delays.append(seconds)
+
+        monkeypatch.setattr(websocket_client.asyncio, "sleep", _record)
+        monkeypatch.setattr(websocket_client.random, "uniform", lambda _a, _b: 0.7)
+
+        provider.is_connected = False
+        await provider._attempt_reconnect()
+
+        assert delays == [2.7]
+
+    @pytest.mark.asyncio
     async def test_inbound_frames_reach_the_dispatcher(self, provider, socket, conf) -> None:
         frame = json.dumps({"websocket_id": CONF_ID, "type": MessageType.RECONNECT})
 
