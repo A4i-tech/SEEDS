@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -20,6 +21,11 @@ CALL_ID = "conv-uuid-1"
 PHONE = "+911111111111"
 TENANT = "tenant-1"
 FSM_ID = "fsm-1"
+_real_sleep = asyncio.sleep
+
+
+async def _no_backoff(*_args) -> None:
+    await _real_sleep(0)
 
 
 class FakeFSM:
@@ -84,8 +90,13 @@ def fsm_cache(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def no_retry_backoff(monkeypatch):
-    """The retry loops sleep for whole seconds; nothing under test needs real time to pass."""
-    monkeypatch.setattr(ivr_service.asyncio, "sleep", AsyncMock())
+    """The retry loops sleep for whole seconds; nothing under test needs real time to pass.
+
+    `ivr_service.asyncio` is the asyncio module itself, so this replaces sleep everywhere
+    for the duration of the test — yield instead of returning immediately, or anything else
+    sharing the loop stops being scheduled.
+    """
+    monkeypatch.setattr(ivr_service.asyncio, "sleep", _no_backoff)
 
 
 @pytest.fixture
@@ -203,10 +214,7 @@ class TestStartCallFlow:
 
     @pytest.mark.asyncio
     async def test_no_usable_fsm_is_a_500(self, service, monkeypatch, vonage_call) -> None:
-        monkeypatch.setattr(ivr_service, "_ensure_fsm_loaded", AsyncMock(), raising=False)
-        monkeypatch.setattr(
-            IVRService, "_ensure_fsm_loaded", AsyncMock(return_value=None)
-        )
+        monkeypatch.setattr(IVRService, "_ensure_fsm_loaded", AsyncMock(return_value=None))
         result = await service.start_call_flow(PHONE, TENANT)
 
         assert result == {"status_code": 500, "message": "FSM not available"}
