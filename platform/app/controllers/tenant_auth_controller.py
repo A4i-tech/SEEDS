@@ -30,7 +30,7 @@ router = APIRouter(prefix="/tenant", tags=["Auth"])
 @router.get("/names", summary="Get all tenant names (public)", status_code=status.HTTP_200_OK)
 async def tenant_names(
     service: AuthService = Depends(get_auth_service),
-) -> list[str]:
+) -> list[dict[str, str]]:
     return await service.get_tenant_names()
 
 

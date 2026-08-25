@@ -371,11 +371,14 @@ async def get_school_admin_profile(
 
 async def get_tenant_names(
     db: AsyncDatabase[Any],
-) -> list[str]:
+) -> list[dict[str, str]]:
     """Return a list of all tenant names (public endpoint)."""
     cursor = db["users"].find({"role": UserRole.TENANT.value}, {"tenant_name": 1, "name": 1})
     docs = await cursor.to_list(length=None)
-    return [d.get("tenant_name") or d.get("name", "") for d in docs]
+    return [
+        {"id": str(d["_id"]), "name": d.get("tenant_name") or d.get("name", "")}
+        for d in docs
+    ]
 
 
 async def get_tenant_dashboard(
@@ -458,7 +461,7 @@ class AuthService:
     async def get_school_admin_profile(self, school_id: str, tenant_id: str) -> UserPublicResponse:
         return await get_school_admin_profile(school_id, tenant_id, self._db)
 
-    async def get_tenant_names(self) -> list:
+    async def get_tenant_names(self) -> list[dict[str, str]]:
         return await get_tenant_names(self._db)
 
     async def get_tenant_dashboard(self, tenant_id: str) -> TenantDashboardResponse:

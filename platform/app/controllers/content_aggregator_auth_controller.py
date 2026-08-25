@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends
 from pymongo.asynchronous.database import AsyncDatabase
@@ -19,7 +19,7 @@ router = APIRouter(prefix="/v1/auth", tags=["Content Aggregator Auth"])
 
 
 def get_content_aggregator_auth(
-    db: AsyncDatabase[Any] = Depends(get_db),
+    db: AsyncDatabase = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> ContentAggregatorAuth:
     return ContentAggregatorAuth(db, settings)
