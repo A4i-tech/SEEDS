@@ -40,7 +40,8 @@ export const AuthProvider = ({ children }) => {
       if (getAccessToken()) {
         await axiosInstance.post(API_ENDPOINTS.LOGOUT, {}, { withCredentials: true });
       }
-    } catch (_error) {
+    } catch (error) {
+      console.error("Logout error:", error);
       // Best-effort server revoke; client state is cleared regardless.
     } finally {
       clearAccessToken();

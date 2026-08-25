@@ -4,7 +4,7 @@ import logging
 import secrets
 import uuid
 from datetime import UTC, datetime
-from typing import Any, TypedDict
+from typing import TypedDict
 
 import bcrypt
 from pymongo.asynchronous.database import AsyncDatabase
@@ -87,7 +87,7 @@ class _IntegrationTokenStore:
 class ContentAggregatorAuth:
     def __init__(
         self,
-        db: AsyncDatabase[Any],
+        db: AsyncDatabase,
         settings: Settings,
     ) -> None:
         self._clients = IntegrationClientRepository(db)

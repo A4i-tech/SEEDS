@@ -135,7 +135,7 @@ const Login = () => {
 
     try {
       setIsSubmitting(true);
-      const data = await login({ identifier, password, is_email: looksLikeEmail });
+      const data = await login({ identifier, password });
       resetUserCache();
       const { role, school_id: schoolId, name } = getTokenPayload();
       setAuth(data.token, role, schoolId);
