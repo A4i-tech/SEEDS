@@ -410,13 +410,14 @@ class TestProcessDtmfDuringStreaming:
         self, service, db, streaming_fsm, websocket
     ) -> None:
         websocket.pause_audio.side_effect = RuntimeError("ws gone")
-        await _seed_ongoing(db)
+        await _seed_ongoing(db, experience_data={"playback_speed": 1.5})
 
         ncco = await service.process_dtmf(CALL_ID, "0")
 
         assert [a["action"] for a in ncco] == ["input"]
         doc = await db["ongoingIVRState"].find_one({"_id": CALL_ID})
-        assert doc["experience_data"] == {}
+        assert "is_paused" not in doc["experience_data"]
+        assert doc["experience_data"]["playback_speed"] == 1.5
 
     @pytest.mark.asyncio
     async def test_speed_keys_outside_streaming_fall_through_to_the_fsm(

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 
 import pytest
 
@@ -89,7 +90,9 @@ async def test_a_full_queue_drops_the_message_instead_of_raising(manager, caplog
     await manager.send_message_to_client(CLIENT, {"event": "dropped"})
 
     assert manager._queue.qsize() == 1
-    assert "queue full for conf_id=conf-1" in caplog.text
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 1, "a silently dropped message is worse than a noisy one"
+    assert "conf-1" in warnings[0].getMessage()
 
 
 def test_the_factory_makes_one_manager_per_conference() -> None:
