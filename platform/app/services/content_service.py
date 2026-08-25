@@ -14,6 +14,7 @@ from typing import Any
 from fastapi import Depends
 from pymongo.asynchronous.database import AsyncDatabase
 
+from app.aggregators.hexis_adapter import to_iso_639_1
 from app.models.requests.content_requests import (
     ContentCreate,
     ContentCreateRequest,
@@ -21,7 +22,6 @@ from app.models.requests.content_requests import (
     QuizCreate,
     QuizCreateRequest,
 )
-from app.aggregators.hexis_adapter import to_iso_639_1
 from app.models.responses.content import AudioContent, QuizContent
 from app.platform.auth.dependencies import get_db
 from app.repositories.content_job_repository import ContentJobRepository

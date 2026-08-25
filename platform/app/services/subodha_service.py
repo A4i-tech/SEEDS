@@ -229,7 +229,7 @@ class SubodhaService:
         sum totals before setting job progress."""
         session_cookie = await client.get_session()
         all_courses = await client.list_all_courses()
-        logger.info("[subodha] run %s session acquired", job_id)
+        logger.info("[subodha] session acquired")
         to_process = all_courses
         if course_ids is not None:
             wanted = set(course_ids)
