@@ -39,6 +39,7 @@ from app.controllers import (
     user_controller,
     # Webhooks (split from webhook_controller)
     webhook_controller,
+    webhook_registration_controller,
     websocket_controller,
 )
 
@@ -78,6 +79,7 @@ api_router.include_router(participants_controller.router)
 
 # Webhooks
 api_router.include_router(webhook_controller.router)
+api_router.include_router(webhook_registration_controller.router)
 api_router.include_router(ivr_webhook_controller.router)
 
 # Other
