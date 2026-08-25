@@ -18,20 +18,6 @@ const mapContentAggregatorCourse = (course) => ({
   lastSyncedAt: course.lastSyncedAt,
 });
 
-const mapContentAggregatorCourse = (course) => ({
-  id: course.id,
-  source: "subodha",
-  title: { english: course.name, local: "" },
-  theme: { english: "", local: "" },
-  language: course.language,
-  type: "content-aggregator",
-  is_teacher_app: false,
-  is_pull_model: false,
-  hidden: course.hidden,
-  synced: course.synced,
-  lastSyncedAt: course.lastSyncedAt,
-});
-
 export const useContent = () => {
   const [content, setContent] = useState([]);
   const [allContent, setAllContent] = useState([]);
