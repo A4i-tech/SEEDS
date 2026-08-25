@@ -45,7 +45,8 @@ export const AuthProvider = ({ children }) => {
           headers: { Authorization: `Bearer ${getAccessToken()}` },
         });
       }
-    } catch (_error) {
+    } catch (error) {
+      console.error("Logout error:", error);
       // Best-effort server revoke; client state is cleared regardless.
     } finally {
       clearAccessToken();
