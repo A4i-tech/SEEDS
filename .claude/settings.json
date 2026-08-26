@@ -14,12 +14,6 @@
                 "source": "github",
                 "repo": "DietrichGebert/ponytail"
             }
-        },
-        "thedotmack": {
-            "source": {
-                "source": "git",
-                "url": "https://github.com/thedotmack/claude-mem.git"
-            }
         }
     },
     "enabledPlugins": {
@@ -28,7 +22,6 @@
         "ponytail@ponytail": true,
         "frontend-design@claude-plugins-official": true,
         "render@claude-plugins-official": true,
-        "mongodb@claude-plugins-official": true,
-        "claude-mem@thedotmack": true
+        "mongodb@claude-plugins-official": true
     }
 }
