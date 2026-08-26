@@ -47,7 +47,7 @@ async def _issue_token_pair(
     role: str,
     tenant_id: str,
     school_id: str | None,
-    db: AsyncDatabase[Any],
+    db: AsyncDatabase,
 ) -> TokenPair:
     settings = get_settings()
     access_token = create_access_token(
@@ -133,7 +133,7 @@ async def login_unified(
     identifier: str,
     password: str,
     is_email: bool,
-    db: AsyncDatabase[Any],
+    db: AsyncDatabase,
 ) -> dict[str, Any]:
     """Authenticate a ContentWebApp user (tenant/school_admin by email, content_creator by phone).
 
@@ -186,7 +186,7 @@ async def login_unified(
 async def login_by_phone(
     phone: str,
     password: str,
-    db: AsyncDatabase[Any],
+    db: AsyncDatabase,
 ) -> dict[str, Any]:
     """Authenticate a teacher by phone number and return a JWT + public user data.
 
@@ -224,7 +224,7 @@ async def login_by_phone(
 
 async def register_teacher(
     data: TeacherCreate,
-    db: AsyncDatabase[Any],
+    db: AsyncDatabase,
 ) -> User:
     """
     Register a new teacher user.
@@ -268,7 +268,7 @@ async def register_teacher(
 
 async def register_tenant(
     data: TenantCreate,
-    db: AsyncDatabase[Any],
+    db: AsyncDatabase,
 ) -> User:
     """
     Register a new tenant (admin) user.
@@ -299,7 +299,7 @@ async def register_tenant(
 
 async def refresh(
     refresh_token: str,
-    db: AsyncDatabase[Any],
+    db: AsyncDatabase,
 ) -> TokenPair:
     settings = get_settings()
     repo = UserRepository(db)
@@ -333,7 +333,7 @@ async def refresh(
 async def get_user_profile(
     user_id: str,
     entity_label: str,
-    db: AsyncDatabase[Any],
+    db: AsyncDatabase,
 ) -> User:
     """Fetch a user document by ID; raise NotFoundError if absent."""
     user = await UserRepository(db).find_by_id(user_id)
@@ -345,7 +345,7 @@ async def get_user_profile(
 async def change_password(
     user_id: str,
     new_password: str,
-    db: AsyncDatabase[Any],
+    db: AsyncDatabase,
 ) -> None:
     """Hash *new_password* and persist it for *user_id*. Raises NotFoundError if absent."""
     repo = UserRepository(db)
@@ -357,7 +357,7 @@ async def change_password(
 async def get_school_admin_profile(
     school_id: str,
     tenant_id: str,
-    db: AsyncDatabase[Any],
+    db: AsyncDatabase,
 ) -> UserPublicResponse:
     """Return the school document for a school admin (parity with backend-server getMe).
 
@@ -370,7 +370,7 @@ async def get_school_admin_profile(
 
 
 async def get_tenant_names(
-    db: AsyncDatabase[Any],
+    db: AsyncDatabase,
 ) -> list[dict[str, str]]:
     """Return a list of all tenant names (public endpoint)."""
     cursor = db["users"].find({"role": UserRole.TENANT.value}, {"tenant_name": 1, "name": 1})
@@ -383,7 +383,7 @@ async def get_tenant_names(
 
 async def get_tenant_dashboard(
     tenant_id: str,
-    db: AsyncDatabase[Any],
+    db: AsyncDatabase,
 ) -> TenantDashboardResponse:
     """Return aggregated dashboard statistics for a tenant."""
     all_users = await UserRepository(db).find_all_by_tenant(tenant_id)
