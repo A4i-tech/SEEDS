@@ -6,6 +6,7 @@ on:
 
 env:
     REGISTRY: ghcr.io
+    ENVIRONMENT_TAG: prod
 
 jobs:
     build:
@@ -50,7 +51,7 @@ jobs:
                   repository: ${{ github.repository }}
                   github_token: ${{ secrets.GITHUB_TOKEN }}
                   username: ${{ github.actor }}
-                  environment_tag: prod
+                  environment_tag: ${{ env.ENVIRONMENT_TAG }}
                   build_args: |
                       ${{ matrix.service.build_arg_storage && format('REACT_APP_STORAGE_ACCOUNT_NAME={0}', vars[matrix.service.build_arg_storage]) }}
                       ${{ matrix.service.build_arg_api_url && format('REACT_APP_API_BASE_URL={0}', vars[matrix.service.build_arg_api_url]) }}
@@ -94,4 +95,4 @@ jobs:
               with:
                   app_name: ${{ matrix.service.name }}
                   publish_profile: ${{ secrets[matrix.service.azure_publish_profile] }}
-                  image: ${{ env.REGISTRY }}/${{ steps.repo.outputs.repository_lowercase }}/${{ matrix.service.image }}:prod-${{ github.sha }}
+                  image: ${{ env.REGISTRY }}/${{ steps.repo.outputs.repository_lowercase }}/${{ matrix.service.image }}:${{ env.ENVIRONMENT_TAG }}-${{ github.sha }}

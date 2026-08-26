@@ -120,6 +120,7 @@ class SubodhaClient:
     def clear_session_cache(self) -> None:
         self._session_cookie = None
         self._session_expires_at = None
+        self._http.cookies.clear()
 
     # ------------------------------------------------------------------
     # Auth
@@ -150,16 +151,11 @@ class SubodhaClient:
                 "Cookie": "; ".join(f"{k}={v}" for k, v in jar.items()),
             },
         )
-        logger.info(
-            "[subodha-auth] POST login_session/ status=%d content-type=%s set-cookies=%s",
-            login_res.status_code, login_res.headers.get("content-type"),
-            sorted(c.name for c in login_res.cookies.jar),
-        )
         body = login_res.json() if login_res.headers.get("content-type", "").startswith("application/json") else {}
         if not body.get("success"):
             logger.error(
-                "[subodha-auth] login failed status=%d body=%s headers=%s",
-                login_res.status_code, body, dict(login_res.headers),
+                "[subodha-auth] login failed status=%d body=%s",
+                login_res.status_code, body,
             )
             raise RuntimeError(f"Subodha login failed: {body}")
 
