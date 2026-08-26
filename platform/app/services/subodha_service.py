@@ -62,7 +62,9 @@ async def fetch_and_store_assets(
     all_blocks = (blocks_response.get("blocks") or {}).values()
     asset_urls = sorted({m for b in all_blocks for m in _ASSET_URL_RE.findall(b.get("student_view_html") or "")})
     if not asset_urls:
+        logger.info("[subodha-assets] %s: no assets referenced", course_id)
         return {}
+    logger.info("[subodha-assets] %s: %d asset urls to fetch", course_id, len(asset_urls))
 
     settings = get_settings()
     container = settings.subodha_asset_container
@@ -120,6 +122,10 @@ class SubodhaService:
         live_ids = {c["id"] for c in live_courses}
         new_courses = [c for c in live_courses if c["id"] not in stored_ids]
         removed_ids = [i for i in stored_ids if i not in live_ids]
+        logger.info(
+            "[subodha-diff] tenant=%s live=%d stored=%d new=%d removed=%d",
+            tenant_id, len(live_courses), len(stored_ids), len(new_courses), len(removed_ids),
+        )
         return {
             "totalLive": len(live_courses),
             "totalStored": len(stored_ids),
@@ -182,10 +188,12 @@ class SubodhaService:
         self, tenant_id: str, client: SubodhaClient, course: SubodhaCourse, session_cookie: str, run_id: str, dry_run: bool
     ) -> dict[str, Any]:
         course_id = course["id"]
+        logger.info("[subodha-process] course=%s start dry_run=%s", course_id, dry_run)
         try:
             blocks_response = await client.fetch_blocks(course_id, session_cookie)
 
             if self._adapter.is_empty(blocks_response):
+                logger.info("[subodha-process] course=%s empty", course_id)
                 return {"status": "empty", "courseId": course_id}
 
             await client.enrich_blocks_with_content(blocks_response, session_cookie)
@@ -194,10 +202,12 @@ class SubodhaService:
             content_hash = self._adapter.compute_content_hash(nodes)
 
             if dry_run:
+                logger.info("[subodha-process] course=%s skipped (dry_run)", course_id)
                 return {"status": "skipped", "courseId": course_id}
 
             existing_root = await self._repo.get_root(tenant_id, self.SOURCE_TYPE, course_id)
             if existing_root is not None and existing_root.source_metadata.get("content_hash") == content_hash:
+                logger.info("[subodha-process] course=%s skipped (unchanged content_hash)", course_id)
                 return {"status": "skipped", "courseId": course_id}
 
             processed = await self._adapter.process_nodes(nodes, self._blob_ctx_factory(course_id), self._blob)
@@ -205,8 +215,10 @@ class SubodhaService:
                 if node.parent_id is None:
                     node.source_metadata["content_hash"] = content_hash
             await self._repo.upsert_tree(tenant_id, self.SOURCE_TYPE, course_id, processed)
+            logger.info("[subodha-process] course=%s saved nodes=%d", course_id, len(processed))
             return {"status": "saved", "courseId": course_id}
         except Exception as exc:  # noqa: BLE001
+            logger.exception("[subodha-process] course=%s failed: %s", course_id, exc)
             return {"status": "failed", "courseId": course_id, "error": str(exc)}
 
     async def run_sync(
@@ -226,6 +238,7 @@ class SubodhaService:
         logger.info("[subodha] run %s started (dryRun=%s)", job_id, dry_run)
 
         session_cookie = await client.get_session()
+        logger.info("[subodha] run %s session acquired", job_id)
         to_process = all_courses
         if course_ids is not None:
             wanted = set(course_ids)
@@ -247,6 +260,7 @@ class SubodhaService:
                 async with lock:
                     needs_refresh = processed_count and processed_count % self._settings.subodha_session_refresh_every == 0
                 if needs_refresh:
+                    logger.info("[subodha] refreshing session at processed_count=%d", processed_count)
                     client.clear_session_cache()
                     new_cookie = await client.get_session()
                     async with lock:
@@ -302,11 +316,13 @@ class SubodhaService:
         dry_run: bool = False,
     ) -> dict[str, Any]:
         started_at = datetime.now(UTC).isoformat()
+        logger.info("[subodha] single-course run %s started course=%s dry_run=%s", job_id, course_id, dry_run)
 
         session_cookie = await client.get_session()
         all_courses = await client.list_all_courses()
         course = next((c for c in all_courses if c["id"] == course_id), None)
         if course is None:
+            logger.error("[subodha] single-course run %s: course=%s not found among %d live courses", job_id, course_id, len(all_courses))
             raise ValueError(f"Course not found on Subodha: {course_id}")
 
         await set_total(job_repo, item_repo, tenant_id, job_id, 1)

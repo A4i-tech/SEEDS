@@ -1,8 +1,6 @@
-name: Deploy Main Services Staging
+name: Deploy Staging Services
 
 on:
-    push:
-        branches: a4i/staging
     workflow_call:
     workflow_dispatch:
 
