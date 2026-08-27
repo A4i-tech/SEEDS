@@ -31,8 +31,6 @@ from app.services.content_aggregator import _jwt
 
 logger = logging.getLogger(__name__)
 
-CLIENT_SECRET_BCRYPT_ROUNDS = 12
-
 
 class IntegrationClaims(TypedDict):
     tenant_ids: list[str]
