@@ -66,7 +66,12 @@ class UserRepository(BaseRepository):
         return User.from_mongo(doc) if doc else None
 
     async def find_all_by_tenant(self, tenant_id: str) -> list[User]:
-        """Return all users belonging to a tenant."""
+        """Return all users belonging to a tenant.
+
+        The users collection stores tenant_id as an ObjectId; ``_to_id`` coerces
+        the incoming id to ObjectId (or leaves it a plain string for the
+        string-id collections), so a single typed query matches the stored field.
+        """
         cursor = self._col.find({"tenant_id": self._to_id(tenant_id)})
         docs = await cursor.to_list(length=None)
         return [User.from_mongo(d) for d in docs]

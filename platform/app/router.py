@@ -35,6 +35,8 @@ from app.controllers import (
     # Users (split from users_controller)
     teacher_controller,
     tenant_auth_controller,
+    # Tenant-scoped resources (analytics)
+    tenant_controller,
     user_controller,
     # Webhooks (split from webhook_controller)
     webhook_controller,
@@ -54,9 +56,12 @@ api_router.include_router(teacher_controller.router)
 api_router.include_router(student_controller.router)
 api_router.include_router(user_controller.router)
 
-# School + Classes
+# School + Classes (school_controller also owns /school/analytics/*)
 api_router.include_router(school_controller.router)
 api_router.include_router(class_controller.router)
+
+# Tenant-scoped resources (/tenant/analytics/*)
+api_router.include_router(tenant_controller.router)
 
 # Content
 api_router.include_router(content_controller.router)

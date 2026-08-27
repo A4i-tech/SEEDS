@@ -1,4 +1,4 @@
-"""Response DTO for school analytics response endpoints."""
+"""Response DTOs for analytics endpoints."""
 
 from __future__ import annotations
 
