@@ -1,0 +1,41 @@
+pipeline_id: textbook_docx
+domain_profile: education
+input_modality: document
+description: Stage C. Reviewed Markdown to an accessible Word document.
+
+parameters:
+  properties:
+    summarise_tables:
+      type: boolean
+      default: true
+      description: Add a one-sentence summary above each table. The only stage that spends money
+    out_dir:
+      type: string
+      default: out
+      description: Directory for the remediated Markdown and its trail
+    out:
+      type: string
+      default: out/remediated.docx
+      description: Path the .docx is written to
+    assets_dir:
+      type: [string, "null"]
+      default: null
+      description: Directory image `src` values resolve against. Defaults to the Markdown's own directory
+    reference_docx:
+      type: [string, "null"]
+      default: null
+      description: Word template supplying the document's styles
+
+steps:
+  - agent: remediate
+    description: strip page furniture, summarise tables, fix heading levels
+    config:
+      summarise_tables: ${.config.summarise_tables}
+      out_dir: ${.config.out_dir}
+
+  - agent: docx
+    description: pandoc to .docx
+    config:
+      out: ${.config.out}
+      assets_dir: ${.config.assets_dir}
+      reference_docx: ${.config.reference_docx}

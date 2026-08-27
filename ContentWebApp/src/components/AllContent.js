@@ -13,6 +13,7 @@ import ContentTab from "./AllContent/ContentTab/ContentTab";
 import IVRTab from "./AllContent/IVRTab/IVRTab";
 import RegistrationTab from "./AllContent/RegistrationTab/RegistrationTab";
 import AnalyticsTab from "./AllContent/AnalyticsTab/AnalyticsTab";
+import RemediationTab from "./AllContent/RemediationTab/RemediationTab";
 import { USER_ROLES } from "../Constants";
 import "./AllContent/AllContent.css";
 import "./AllContent/shared/responsive.css";
@@ -168,6 +169,13 @@ const AllContent = () => {
             >
               IVR Setup
             </button>
+            <button
+              type="button"
+              className={`tab-button ${activeTab === "remediation" ? "active" : ""}`}
+              onClick={() => setActiveTab("remediation")}
+            >
+              Textbooks
+            </button>
           </div>
         )}
 
@@ -200,6 +208,8 @@ const AllContent = () => {
         )}
 
         {canViewContent && activeTab === "ivr" && <IVRTab />}
+
+        {canViewContent && activeTab === "remediation" && <RemediationTab />}
 
         {canViewAnalytics && activeTab === "analytics" && <AnalyticsTab />}
 

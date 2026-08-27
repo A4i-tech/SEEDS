@@ -71,3 +71,34 @@ export const buildQueryString = (params) => {
   });
   return searchParams.toString();
 };
+
+/**
+ * Read a server-sent-event stream, calling onEvent with each parsed `data:` payload.
+ * Uses fetch rather than EventSource because these endpoints need an auth header.
+ * @param {string} url
+ * @param {(event: any) => void} onEvent
+ * @param {{ headers?: Object, signal?: AbortSignal }} options
+ */
+export const streamSse = async (url, onEvent, { headers, signal } = {}) => {
+  const response = await fetch(url, { headers, signal });
+  if (!response.ok || !response.body) {
+    throw new ApiError(`Failed to open stream (status ${response.status})`, response.status, response);
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let separatorIndex;
+    while ((separatorIndex = buffer.indexOf("\n\n")) !== -1) {
+      const rawEvent = buffer.slice(0, separatorIndex);
+      buffer = buffer.slice(separatorIndex + 2);
+      const dataLine = rawEvent.split("\n").find((line) => line.startsWith("data: "));
+      if (dataLine) {
+        onEvent(JSON.parse(dataLine.slice("data: ".length)));
+      }
+    }
+  }
+};

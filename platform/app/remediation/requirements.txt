@@ -1,0 +1,11 @@
+# Installed into a venv of its own, not the platform's.
+#
+# omni-ingest pulls starlette >=1.0, which needs fastapi >=0.119; the platform
+# pins fastapi <0.119. The two cannot share an environment, so the consumer
+# runs these pipelines as a subprocess against this venv's interpreter, named
+# by the REMEDIATION_PYTHON setting.
+#
+#   python -m venv .venv-remediation
+#   .venv-remediation/bin/pip install -r app/remediation/requirements.txt
+omni-ingest>=0.1.2
+pypandoc-binary>=1.13
