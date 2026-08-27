@@ -5,16 +5,14 @@ import { clearAuth } from "../utils/authHelpers";
 
 const LogoutButton = () => {
   const navigate = useNavigate();
-  const { logout } = useAuthContext();
+  const { logout, logoutState } = useAuthContext();
 
   const handleLogout = async () => {
-    try {
-      await logout();
-    } finally {
-      clearAuth();
-      sessionStorage.clear();
-      navigate("/");
-    }
+    const ok = await logout();
+    clearAuth();
+    sessionStorage.clear();
+    if (!ok) return;
+    navigate("/");
   };
 
   return (
@@ -22,6 +20,7 @@ const LogoutButton = () => {
       className="btn"
       style={{ backgroundColor: "#28574F", color: "white", float: "right" }}
       onClick={handleLogout}
+      disabled={logoutState.isLoading}
     >
       Logout
     </button>

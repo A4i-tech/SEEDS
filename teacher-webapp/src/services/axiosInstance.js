@@ -40,6 +40,16 @@ export const refreshAccessToken = async () => {
   return refreshPromise;
 };
 
+export const initSession = async () => {
+  try {
+    await refreshAccessToken();
+    return { data: true, error: null };
+  } catch (error) {
+    clearAccessToken();
+    return { data: null, error };
+  }
+};
+
 axiosInstance.interceptors.response.use(
   (response) => {
     return response;
@@ -60,13 +70,7 @@ axiosInstance.interceptors.response.use(
       }
     }
 
-    if (error.response) {
-      console.error("Server error:", error.response.status, error.response.data);
-    } else if (error.request) {
-      console.error("Network error: No response received", error.request);
-    } else {
-      console.error("Request error:", error.message);
-    }
+    console.error(error);
 
     return Promise.reject(error);
   }
