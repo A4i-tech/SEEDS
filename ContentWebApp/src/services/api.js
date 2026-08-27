@@ -1,4 +1,4 @@
-import { getAccessToken, setAccessToken } from "../utils/tokenStore";
+import { getAccessToken, setAccessToken, clearAccessToken } from "../utils/tokenStore";
 import { clearAuth } from "../utils/authHelpers";
 import { SEEDS_URL } from "../Constants";
 
@@ -33,6 +33,16 @@ export const refreshAccessToken = async () => {
     })();
   }
   return refreshPromise;
+};
+
+export const initSession = async () => {
+  try {
+    await refreshAccessToken();
+    return { data: true, error: null };
+  } catch (error) {
+    clearAccessToken();
+    return { data: null, error };
+  }
 };
 
 /**

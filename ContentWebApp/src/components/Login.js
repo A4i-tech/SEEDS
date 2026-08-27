@@ -101,13 +101,14 @@ const footerStyle = {
 
 const Login = () => {
   const navigate = useNavigate();
-  const { login } = useAuthContext();
-  const [showError, setShowError] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { login, loginState } = useAuthContext();
+  const [formError, setFormError] = useState("");
   const [formData, setFormData] = useState({
     identifier: "",
     password: "",
   });
+
+  const showError = formError || (loginState.error && "Login failed. Please verify your details.");
 
   const handleChange = (field) => (event) => {
     setFormData((prev) => ({ ...prev, [field]: event.target.value }));
@@ -115,13 +116,13 @@ const Login = () => {
 
   const handleLogin = async (event) => {
     event.preventDefault();
-    setShowError("");
+    setFormError("");
 
     const identifier = formData.identifier.trim();
     const { password } = formData;
 
     if (!identifier || !password) {
-      setShowError("Please fill in all fields.");
+      setFormError("Please fill in all fields.");
       return;
     }
 
@@ -129,27 +130,16 @@ const Login = () => {
     const looksLikePhone = validator.isMobilePhone(identifier, "en-IN", { strictMode: false });
 
     if (!looksLikeEmail && !looksLikePhone) {
-      setShowError("Enter a valid email or a 10-digit phone number.");
+      setFormError("Enter a valid email or a 10-digit phone number.");
       return;
     }
 
-    try {
-      setIsSubmitting(true);
-      const data = await login({ identifier, password });
-      resetUserCache();
-      const { role, school_id: schoolId, name } = getTokenPayload();
-      setAuth(data.token, role, schoolId);
-      navigate("/content", { state: { name } });
-    } catch (error) {
-      console.error("Login error:", error);
-      if (error?.response?.status === 401) {
-        setShowError("Invalid credentials. Please try again.");
-      } else {
-        setShowError("Login failed. Please verify your details.");
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
+    const data = await login({ identifier, password });
+    if (!data) return;
+    resetUserCache();
+    const { role, school_id: schoolId, name } = getTokenPayload();
+    setAuth(data.token, role, schoolId);
+    navigate("/content", { state: { name } });
   };
 
   return (
@@ -202,8 +192,8 @@ const Login = () => {
             />
           </div>
 
-          <button type="submit" style={buttonStyle} disabled={isSubmitting}>
-            {isSubmitting ? "Logging in..." : "Login"}
+          <button type="submit" style={buttonStyle} disabled={loginState.isLoading}>
+            {loginState.isLoading ? "Logging in..." : "Login"}
           </button>
         </form>
 

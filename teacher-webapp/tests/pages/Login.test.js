@@ -49,7 +49,10 @@ describe("Login", () => {
     jest.clearAllMocks();
     useNavigation.mockReturnValue(mockNavigate);
     authHelpers.isLocalStorageAvailable.mockReturnValue(true);
-    useAuthContext.mockReturnValue({ login: jest.fn() });
+    useAuthContext.mockReturnValue({
+      login: jest.fn(),
+      loginState: { data: null, error: null, isLoading: false },
+    });
   });
 
   describe("localStorage availability check", () => {

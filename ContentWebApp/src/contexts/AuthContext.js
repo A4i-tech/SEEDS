@@ -1,42 +1,45 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { SEEDS_URL } from "../Constants";
-import { apiFetch, refreshAccessToken } from "../services/api";
+import { apiFetch, initSession } from "../services/api";
 import { setAccessToken, getAccessToken, clearAccessToken } from "../utils/tokenStore";
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [initializing, setInitializing] = useState(true);
+  const [initState, setInitState] = useState({ data: null, error: null, isLoading: true });
 
   useEffect(() => {
-    const refresh = async () => {
-      try {
-        await refreshAccessToken();
-        setIsAuthenticated(true);
-      } catch (_error) {
-        clearAccessToken();
-        setIsAuthenticated(false);
-      } finally {
-        setInitializing(false);
-      }
+    const init = async () => {
+      const { data, error } = await initSession();
+      setIsAuthenticated(!!data);
+      setInitState({ data, error, isLoading: false });
     };
-    refresh();
+    init();
   }, []);
 
+  const [loginState, setLoginState] = useState({ data: null, error: null, isLoading: false });
   const login = useCallback(async (body) => {
-    const data = await apiFetch(`${SEEDS_URL}/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(body),
-    });
-    setAccessToken(data.token);
-    setIsAuthenticated(true);
-    return data;
+    setLoginState({ data: null, error: null, isLoading: true });
+    try {
+      const data = await apiFetch(`${SEEDS_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(body),
+      });
+      setAccessToken(data.token);
+      setIsAuthenticated(true);
+      setLoginState({ data, error: null, isLoading: false });
+      return data;
+    } catch (error) {
+      setLoginState({ data: null, error, isLoading: false });
+    }
   }, []);
 
+  const [logoutState, setLogoutState] = useState({ data: null, error: null, isLoading: false });
   const logout = useCallback(async () => {
+    setLogoutState({ data: null, error: null, isLoading: true });
     try {
       if (getAccessToken()) {
         await apiFetch(`${SEEDS_URL}/tenant/logout`, {
@@ -45,8 +48,10 @@ export const AuthProvider = ({ children }) => {
           headers: { Authorization: `Bearer ${getAccessToken()}` },
         });
       }
+      setLogoutState({ data: true, error: null, isLoading: false });
+      return true;
     } catch (error) {
-      console.error("Logout error:", error);
+      setLogoutState({ data: null, error, isLoading: false });
       // Best-effort server revoke; client state is cleared regardless.
     } finally {
       clearAccessToken();
@@ -55,7 +60,17 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, initializing, login, logout }}>
+    <AuthContext.Provider
+      value={{
+        isAuthenticated,
+        initializing: initState.isLoading,
+        initError: initState.error,
+        login,
+        loginState,
+        logout,
+        logoutState,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

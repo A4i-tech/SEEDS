@@ -19,16 +19,17 @@ import { useAuthContext } from "../contexts/AuthContext";
 
 function Login() {
   const navigate = useNavigation();
-  const { login } = useAuthContext();
-  const [showError, setShowError] = useState(null);
+  const { login, loginState } = useAuthContext();
+  const [formError, setFormError] = useState(null);
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const showError = formError || (loginState.error && "Username or password incorrect");
 
   const handleLogin = async () => {
     // Check localStorage availability before attempting login
     if (!isLocalStorageAvailable()) {
-      setShowError(
+      setFormError(
         "Local storage is not available. Please enable cookies/local storage in your browser settings or try a different browser."
       );
       showToast.error("Local storage is required for login");
@@ -36,30 +37,23 @@ function Login() {
     }
 
     if (!phoneNumber || !password) {
-      setShowError("All fields are required.");
+      setFormError("All fields are required.");
       return;
     }
 
     if (!isValidPhoneNumber(phoneNumber)) {
-      setShowError("Phone number must be exactly 10 digits.");
+      setFormError("Phone number must be exactly 10 digits.");
       return;
     }
 
-    setIsSubmitting(true);
-    setShowError(null);
-    try {
-      await login(phoneNumber, password);
-      showToast.success("Login successful!");
-      navigate.goToClassroom();
-    } catch (error) {
-      console.error("Login error:", error);
-      const errorMessage =
-        error.response?.data?.message || "Username or password incorrect";
-      setShowError(errorMessage);
+    setFormError(null);
+    const data = await login(phoneNumber, password);
+    if (!data) {
       showToast.error("Login failed");
-    } finally {
-      setIsSubmitting(false);
+      return;
     }
+    showToast.success("Login successful!");
+    navigate.goToClassroom();
   };
 
   const handleKeyPress = (e) => {
@@ -144,9 +138,9 @@ function Login() {
               variant="contained"
               sx={{ mt: 3, mb: 2 }}
               onClick={handleLogin}
-              disabled={isSubmitting}
+              disabled={loginState.isLoading}
             >
-              {isSubmitting ? <CircularProgress size={24} color="inherit" /> : "Login"}
+              {loginState.isLoading ? <CircularProgress size={24} color="inherit" /> : "Login"}
             </Button>
 
           </Box>
