@@ -24,11 +24,6 @@ def _stored_token_id(raw_token: str) -> str:
     return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
 
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-
 @pytest.fixture
 def mock_db():
     client = AsyncMongoMockClient()
@@ -168,11 +163,6 @@ class TestIssueTokenFailures:
             await auth.issue_token("partner-1", "super-secret", scopes=[])
         assert exc_info.value.status_code == 403
         assert exc_info.value.code == "SCOPE_INSUFFICIENT"
-
-
-# ---------------------------------------------------------------------------
-# Request model validation
-# ---------------------------------------------------------------------------
 
 
 class TestRequestValidation:
