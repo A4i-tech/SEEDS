@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import "./App.css";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PublicRoute from "./components/PublicRoute";
+import { AuthProvider, useAuthContext } from "./contexts/AuthContext";
 
 const AllContent = lazy(() => import("./components/AllContent"));
 const SyncHistoryPage = lazy(() => import("./components/SyncHistoryPage"));
@@ -15,10 +16,12 @@ const Profile = lazy(() => import("./components/Profile"));
 const Login = lazy(() => import("./components/Login"));
 const Register = lazy(() => import("./components/Register"));
 
-function App() {
+function AppRoutes() {
+  const { initializing } = useAuthContext();
+  if (initializing) return null;
+
   return (
-    <div className="App">
-      <BrowserRouter>
+    <BrowserRouter>
         <Suspense fallback={<div>Loading...</div>}>
           <Routes>
             <Route
@@ -60,7 +63,16 @@ function App() {
             />
           </Routes>
         </Suspense>
-      </BrowserRouter>
+    </BrowserRouter>
+  );
+}
+
+function App() {
+  return (
+    <div className="App">
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
     </div>
   );
 }

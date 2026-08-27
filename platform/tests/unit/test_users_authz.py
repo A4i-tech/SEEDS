@@ -100,7 +100,7 @@ class TestLoginNative:
 
         result = await login_unified("login@example.com", plain, True, mock_db)
 
-        assert "token" in result
+        assert "access_token" in result
         assert "user" in result
         # hashed_password must NOT appear in the public response
         assert "hashed_password" not in result["user"]
