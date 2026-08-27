@@ -31,8 +31,6 @@ from app.services.content_aggregator import _jwt
 
 logger = logging.getLogger(__name__)
 
-CLIENT_SECRET_BCRYPT_ROUNDS = 12
-
 
 class IntegrationClaims(TypedDict):
     tenant_ids: list[str]
@@ -143,7 +141,8 @@ class ContentAggregatorAuth:
         client_id = str(uuid.uuid4())
         client_secret = secrets.token_urlsafe(32)
         secret_hash = bcrypt.hashpw(
-            client_secret.encode("utf-8"), bcrypt.gensalt(rounds=CLIENT_SECRET_BCRYPT_ROUNDS)
+            client_secret.encode("utf-8"),
+            bcrypt.gensalt(rounds=self._settings.password_salt_rounds),
         ).decode("utf-8")
         await self._clients.create(
             IntegrationClient(
