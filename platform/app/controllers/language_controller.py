@@ -9,4 +9,4 @@ router = APIRouter(prefix="/v1", tags=["Languages"])
 
 @router.get("/languages", summary="List all languages the platform supports")
 async def list_languages() -> dict[str, list[Language]]:
-    return {"languages": list(SUPPORTED_LANGUAGES)}
+    return {"languages": SUPPORTED_LANGUAGES}
