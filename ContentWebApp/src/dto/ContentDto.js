@@ -49,6 +49,7 @@ export class AudioContentDto extends ContentBase {
     this.is_processed = raw.is_processed;
     this.braille_url = raw.braille_url;
     this.braille_grade = raw.braille_grade;
+    this.braille_text = raw.braille_text;
   }
 
   /** Priority: dedicated audio track > title narration > theme narration. */

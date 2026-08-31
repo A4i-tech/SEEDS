@@ -77,6 +77,7 @@ from pathlib import Path
 
 from pymongo.asynchronous.database import AsyncDatabase
 
+from app.aggregators.braille_translation import back_translate
 from app.repositories.content_job_repository import ContentJobRepository
 from app.repositories.content_repository import ContentRepository
 
@@ -259,9 +260,11 @@ async def _process_audio_item(
 
 async def _process_braille_item(
     braille_url: str,
+    language: str,
+    grade: int,
     blob_provider,
-) -> str:
-    """Move a .brf blob from input-container to output-container, return new URL.
+) -> tuple[str, str]:
+    """Move a .brf blob from input-container to output-container, return (new_url, translated_text).
 
     Raises on any failure; caller handles dead-lettering.
     """
@@ -269,7 +272,8 @@ async def _process_braille_item(
     container, blob_path = _parse_blob_url_simple(braille_url)
     new_url = await blob_provider.upload_file("output-container", blob_path, data, "text/plain")
     await blob_provider.delete_blob(container, blob_path)
-    return new_url
+    text = back_translate(data.decode("utf-8"), language, grade)
+    return new_url, text
 
 
 async def _extract_duration(wav_path: str) -> float | None:
@@ -411,7 +415,9 @@ async def _process_audio_content_job(
 
             braille_url = content_doc.get("braille_url")
             if braille_url:
-                content_doc["braille_url"] = await _process_braille_item(braille_url, blob_provider)
+                content_doc["braille_url"], content_doc["braille_text"] = await _process_braille_item(
+                    braille_url, content_doc.get("language", ""), content_doc.get("braille_grade") or 1, blob_provider
+                )
 
             # TTS for pull-model content
             if content_doc.get("is_pull_model"):
@@ -424,6 +430,8 @@ async def _process_audio_content_job(
             }
             if "braille_url" in content_doc:
                 update_fields["braille_url"] = content_doc["braille_url"]
+            if "braille_text" in content_doc:
+                update_fields["braille_text"] = content_doc["braille_text"]
             if "title" in content_doc:
                 update_fields["title"] = content_doc["title"]
             if "theme" in content_doc:

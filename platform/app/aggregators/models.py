@@ -111,13 +111,21 @@ class AudioContent:
 class BrailleContent:
     brf_url: str
     braille_grade: int = 1
+    language: str = ""
+    text: str = ""
 
     def to_dict(self) -> dict[str, object]:
-        return {"brf_url": self.brf_url, "braille_grade": self.braille_grade}
+        return {
+            "brf_url": self.brf_url, "braille_grade": self.braille_grade,
+            "language": self.language, "text": self.text,
+        }
 
     @classmethod
     def from_dict(cls, d: dict[str, object]) -> BrailleContent:
-        return cls(brf_url=d["brf_url"], braille_grade=d.get("braille_grade", 1))
+        return cls(
+            brf_url=d["brf_url"], braille_grade=d.get("braille_grade", 1),
+            language=d.get("language", ""), text=d.get("text", ""),
+        )
 
 
 @dataclass(frozen=True)

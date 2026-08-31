@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import replace
 from datetime import UTC, datetime
 
+from app.aggregators.braille_translation import back_translate
 from app.aggregators.content_strategies import STRATEGY_REGISTRY
 from app.aggregators.models import (
     BlobContext,
+    BrailleContent,
     CanonicalNode,
     ContentPayload,
     ItemType,
@@ -88,7 +89,14 @@ class PartnerContentService:
         node = await self.get_item(tenant_id, client_id, source_id)
         if node.item_type is None:
             raise AppError("VALIDATION_ERROR", "cannot update a container node directly", 422)
-        new_content = content_dto_for_item_type(node.item_type).from_dict(body.content)
+        if node.item_type == ItemType.BRAILLE:
+            ctx = BlobContext(container=self._asset_container, blob_prefix=f"partner/{client_id}/items/{source_id}")
+            d = body.content
+            new_content = await self._build_braille_content(
+                ctx, d["brf_url"], d.get("braille_grade", 1), d["language"]
+            )
+        else:
+            new_content = content_dto_for_item_type(node.item_type).from_dict(body.content)
         modified = await self._repo.update_item_content(tenant_id, _SOURCE_TYPE, client_id, source_id, new_content)
         if not modified:
             raise NotFoundError("content item", source_id)
@@ -103,15 +111,16 @@ class PartnerContentService:
         self, item_type: ItemType, body: PartnerContentCreateRequest, ctx: BlobContext
     ) -> ContentPayload:
         if item_type == ItemType.AUDIO:
-            if not body.audio_url.startswith("https://"):
-                raise AppError("URL_NOT_HTTPS", "audio_url must be an https:// URL", 400)
             return await STRATEGY_REGISTRY[ItemType.AUDIO].process(body.audio_url, ctx, self._blob)
         if item_type == ItemType.BRAILLE:
-            if not body.brf_url.startswith("https://"):
-                raise AppError("URL_NOT_HTTPS", "brf_url must be an https:// URL", 400)
-            content = await STRATEGY_REGISTRY[ItemType.BRAILLE].process(body.brf_url, ctx, self._blob)
-            return replace(content, braille_grade=body.braille_grade)
+            return await self._build_braille_content(ctx, body.brf_url, body.braille_grade, body.language)
         return await STRATEGY_REGISTRY[ItemType.PLAINTEXT].process(body.text, ctx, self._blob)
+
+    async def _build_braille_content(self, ctx: BlobContext, brf_url: str, grade: int, language: str) -> BrailleContent:
+        raw = await self._blob.download_from_url(brf_url)
+        new_url = await self._blob.upload_file(ctx.container, f"{ctx.blob_prefix}.brf", raw, "text/plain")
+        text = back_translate(raw.decode("utf-8"), language, grade)
+        return BrailleContent(brf_url=new_url, braille_grade=grade, language=language, text=text)
 
     def _build_quiz_nodes(
         self, tenant_id: str, client_id: str, source_id: str, body: PartnerContentCreateRequest, now: str

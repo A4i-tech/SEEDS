@@ -92,6 +92,7 @@ class AudioContent(ContentBase):
     audio_content: list[AudioTrack] = Field(default_factory=list)
     braille_url: str | None = None
     braille_grade: int | None = None
+    braille_text: str | None = None
     description: str | None = None
     is_processed: bool = False
     version: str | None = None

@@ -219,6 +219,47 @@ async def test_delete_content_then_get_404(client, mock_db):
 
 
 @pytest.mark.asyncio
+async def test_post_content_brf_returns_braille_and_text(client, mock_db, monkeypatch):
+    monkeypatch.setattr(
+        "app.services.content_aggregator.content.back_translate", lambda text, language, grade: "back-translated text"
+    )
+    await _seed_client(mock_db)
+    headers = await _auth_headers(client, mock_db)
+    resp = await client.post(
+        "/v1/content", headers={**headers, "Idempotency-Key": "brf-1"},
+        json={"type": "brf", "language": "en", "display_name": "A Braille Doc", "brf_url": "https://x.example/b.brf"},
+    )
+    assert resp.status_code == 201
+    content = resp.json()[0]["content"]
+    assert content["brf_url"].startswith("https://blob.test/")
+    assert content["text"] == "back-translated text"
+    assert content["language"] == "en"
+
+
+@pytest.mark.asyncio
+async def test_patch_content_brf_re_translates(client, mock_db, monkeypatch):
+    monkeypatch.setattr(
+        "app.services.content_aggregator.content.back_translate", lambda text, language, grade: "v1 text"
+    )
+    await _seed_client(mock_db)
+    headers = await _auth_headers(client, mock_db)
+    await client.post(
+        "/v1/content", headers={**headers, "Idempotency-Key": "brf-1"},
+        json={"type": "brf", "language": "en", "display_name": "A Braille Doc", "brf_url": "https://x.example/b.brf"},
+    )
+
+    monkeypatch.setattr(
+        "app.services.content_aggregator.content.back_translate", lambda text, language, grade: "v2 text"
+    )
+    resp = await client.patch(
+        "/v1/content/brf-1", headers=headers,
+        json={"content": {"brf_url": "https://x.example/b2.brf", "language": "en", "braille_grade": 1}},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["content"]["text"] == "v2 text"
+
+
+@pytest.mark.asyncio
 async def test_get_upload_url(client, mock_db):
     await _seed_client(mock_db)
     headers = await _auth_headers(client, mock_db)

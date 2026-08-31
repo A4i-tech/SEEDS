@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { SEEDS_URL } from "../Constants";
 import { getAuthHeaders } from "../utils/authHelpers";
 import { brailleAsciiToUnicode } from "../utils/brailleAscii";
+import { getLanguageLabel } from "../utils/languageUtils";
 
 const StoryDetails = ({ type, story }) => {
   const [audioSrc, setAudioSrc] = useState("");
@@ -86,7 +87,16 @@ const StoryDetails = ({ type, story }) => {
       {isBrf ? (
         <div className="content-detail-audio-block">
           <span className="content-detail-label">Braille</span>
-          <pre className="content-aggregator-block-braille">{brailleAsciiToUnicode(brailleText)}</pre>
+          <div className="content-detail-braille-compare">
+            <div className="content-detail-braille-pane content-detail-braille-pane-braille">
+              <span className="content-detail-braille-pane-label">Braille</span>
+              <pre className="content-aggregator-block-braille">{brailleAsciiToUnicode(brailleText)}</pre>
+            </div>
+            <div className="content-detail-braille-pane content-detail-braille-pane-text">
+              <span className="content-detail-braille-pane-label">{getLanguageLabel(story.language)}</span>
+              <pre className="content-detail-braille-text">{story.braille_text}</pre>
+            </div>
+          </div>
         </div>
       ) : isProcessed ? (
         <div className="content-detail-audio-block">

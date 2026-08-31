@@ -66,11 +66,15 @@ async def test_create_item_rejects_unsupported_language(service):
     assert exc.value.code == "UNSUPPORTED_LANGUAGE"
 
 
-@pytest.mark.asyncio
-async def test_create_item_rejects_non_https_audio_url(service):
-    body = PartnerContentCreateRequest(type="story", language="en", display_name="X", audio_url="http://x.example/a.mp3")
+def test_create_request_rejects_non_https_audio_url():
     with pytest.raises(AppError) as exc:
-        await service.create_item("tenant-a", "client-1", "item-1", body)
+        PartnerContentCreateRequest(type="story", language="en", display_name="X", audio_url="http://x.example/a.mp3")
+    assert exc.value.code == "URL_NOT_HTTPS"
+
+
+def test_create_request_rejects_non_https_brf_url():
+    with pytest.raises(AppError) as exc:
+        PartnerContentCreateRequest(type="brf", language="en", display_name="X", brf_url="http://x.example/a.brf")
     assert exc.value.code == "URL_NOT_HTTPS"
 
 
@@ -102,6 +106,41 @@ async def test_create_item_brf_stores_braille_grade(service):
     )
     nodes = await service.create_item("tenant-a", "client-1", "item-1", body)
     assert nodes[0].content.braille_grade == 2
+
+
+@pytest.mark.asyncio
+async def test_create_item_brf_back_translates_to_text(service, monkeypatch):
+    monkeypatch.setattr(
+        "app.services.content_aggregator.content.back_translate", lambda text, language, grade: "hello world"
+    )
+    body = PartnerContentCreateRequest(
+        type="brf", language="en", display_name="A Braille Doc",
+        brf_url="https://x.example/b.brf", braille_grade=1,
+    )
+    nodes = await service.create_item("tenant-a", "client-1", "item-1", body)
+    assert nodes[0].content.text == "hello world"
+    assert nodes[0].content.language == "en"
+
+
+@pytest.mark.asyncio
+async def test_update_item_braille_re_translates_on_new_brf_url(service, monkeypatch):
+    monkeypatch.setattr(
+        "app.services.content_aggregator.content.back_translate", lambda text, language, grade: "v1 text"
+    )
+    body = PartnerContentCreateRequest(
+        type="brf", language="en", display_name="A Braille Doc",
+        brf_url="https://x.example/b.brf", braille_grade=1,
+    )
+    await service.create_item("tenant-a", "client-1", "item-1", body)
+
+    monkeypatch.setattr(
+        "app.services.content_aggregator.content.back_translate", lambda text, language, grade: "v2 text"
+    )
+    updated = await service.update_item(
+        "tenant-a", "client-1", "item-1",
+        PartnerContentUpdateRequest(content={"brf_url": "https://x.example/b2.brf", "language": "en", "braille_grade": 1}),
+    )
+    assert updated.content.text == "v2 text"
 
 
 @pytest.mark.asyncio
