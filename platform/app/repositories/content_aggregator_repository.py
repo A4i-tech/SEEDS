@@ -91,9 +91,45 @@ class ContentAggregatorRepository:
         result = await self._col.delete_many({"tenant_id": tenant_id, "source_type": source_type, "root_id": root_id})
         return result.deleted_count
 
-    async def update_item_content(self, tenant_id: str, source_type: str, source_id: str, content: ContentPayload) -> int:
+    async def upsert_item(self, node: CanonicalNode) -> None:
+        await self._col.update_one(
+            {"tenant_id": node.tenant_id, "source_type": node.source_type, "root_id": node.root_id, "source_id": node.source_id},
+            {"$set": node.to_doc()},
+            upsert=True,
+        )
+
+    async def get_by_client(self, tenant_id: str, root_id: str, source_id: str) -> CanonicalNode | None:
+        doc = await self._col.find_one(
+            {
+                "tenant_id": tenant_id, "source_type": "partner", "root_id": root_id,
+                "source_id": source_id, "is_deleted": {"$ne": True},
+            }
+        )
+        return CanonicalNode.from_doc(doc) if doc else None
+
+    async def list_by_client(self, tenant_id: str, root_id: str) -> list[CanonicalNode]:
+        docs = await (
+            self._col.find({"tenant_id": tenant_id, "source_type": "partner", "root_id": root_id, "is_deleted": {"$ne": True}})
+            .sort("created_at", 1)
+            .to_list(length=None)
+        )
+        return [CanonicalNode.from_doc(d) for d in docs]
+
+    async def soft_delete(self, tenant_id: str, root_id: str, source_id: str, deleted_at: str) -> int:
         result = await self._col.update_one(
-            {"tenant_id": tenant_id, "source_type": source_type, "source_id": source_id},
+            {
+                "tenant_id": tenant_id, "source_type": "partner", "root_id": root_id,
+                "source_id": source_id, "is_deleted": {"$ne": True},
+            },
+            {"$set": {"is_deleted": True, "deleted_at": deleted_at}},
+        )
+        return result.modified_count
+
+    async def update_item_content(
+        self, tenant_id: str, source_type: str, root_id: str, source_id: str, content: ContentPayload
+    ) -> int:
+        result = await self._col.update_one(
+            {"tenant_id": tenant_id, "source_type": source_type, "root_id": root_id, "source_id": source_id},
             {"$set": {"content": content.to_dict()}},
         )
         return result.modified_count

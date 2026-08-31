@@ -57,7 +57,7 @@ class HexisService:
         if existing is None or not isinstance(existing.content, QuizContent):
             return 0
         updated = QuizContent(raw_html_url=existing.content.raw_html_url, question=question, choices=choices)
-        return await self._repo.update_item_content(tenant_id, self.SOURCE_TYPE, block_id, updated)
+        return await self._repo.update_item_content(tenant_id, self.SOURCE_TYPE, course_id, block_id, updated)
 
     async def _all_subjects(self, client: HexisClient) -> list[dict[str, Any]]:
         items = await client.list_content(self._settings.hexis_admin_aid)
