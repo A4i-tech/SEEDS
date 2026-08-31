@@ -15,7 +15,9 @@ from bs4 import BeautifulSoup
 
 from app.aggregators.html_to_markdown import html_to_markdown
 from app.aggregators.models import (
+    AudioContent,
     BlobContext,
+    BrailleContent,
     ContentPayload,
     DiscussionContent,
     ImageContent,
@@ -163,6 +165,26 @@ class OtherStrategy(ContentStrategy):
         return OtherContent(payload=raw if isinstance(raw, dict) else {})
 
 
+class AudioStrategy(ContentStrategy):
+    async def process(self, raw: RawItemPayload, ctx: BlobContext, blob: BlobStorageProvider) -> ContentPayload:
+        source_url: str = raw
+        if not source_url.lower().endswith(".mp3"):
+            raise ValueError("Only .mp3 files are allowed for audio content.")
+        data = await blob.download_from_url(source_url)
+        new_url = await blob.upload_file(ctx.container, f"{ctx.blob_prefix}.mp3", data, "audio/mpeg")
+        return AudioContent(audio_url=new_url)
+
+
+class BrailleStrategy(ContentStrategy):
+    async def process(self, raw: RawItemPayload, ctx: BlobContext, blob: BlobStorageProvider) -> ContentPayload:
+        source_url: str = raw
+        if not source_url.lower().endswith(".brf"):
+            raise ValueError("Only .brf files are allowed for braille content.")
+        data = await blob.download_from_url(source_url)
+        new_url = await blob.upload_file(ctx.container, f"{ctx.blob_prefix}.brf", data, "text/plain")
+        return BrailleContent(brf_url=new_url)
+
+
 STRATEGY_REGISTRY: dict[ItemType, ContentStrategy] = {
     ItemType.MARKDOWN: MarkdownStrategy(),
     ItemType.PLAINTEXT: PlainTextStrategy(),
@@ -171,4 +193,6 @@ STRATEGY_REGISTRY: dict[ItemType, ContentStrategy] = {
     ItemType.QUIZ: QuizStrategy(),
     ItemType.DISCUSSION: DiscussionStrategy(),
     ItemType.OTHER: OtherStrategy(),
+    ItemType.AUDIO: AudioStrategy(),
+    ItemType.BRAILLE: BrailleStrategy(),
 }

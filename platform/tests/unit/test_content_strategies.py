@@ -11,10 +11,15 @@ from app.aggregators.models import BlobContext, ItemType, QuizContent, TextConte
 class FakeBlob:
     def __init__(self):
         self.uploaded: dict[str, bytes] = {}
+        self.downloaded_urls: list[str] = []
 
     async def upload_file(self, container, blob_name, data, content_type="application/octet-stream"):
         self.uploaded[blob_name] = data
         return f"https://blob.test/{container}/{blob_name}"
+
+    async def download_from_url(self, url: str) -> bytes:
+        self.downloaded_urls.append(url)
+        return b"raw-bytes-from-" + url.encode("utf-8")
 
 
 @pytest.mark.asyncio
@@ -140,3 +145,39 @@ async def test_quiz_strategy_parses_hexis_mcq_dict():
         {"id": "2", "text": "4", "correct": True},
         {"id": "3", "text": "5", "correct": False},
     ]
+
+
+@pytest.mark.asyncio
+async def test_audio_strategy_moves_blob_and_rejects_non_mp3():
+    from app.aggregators.content_strategies import AudioStrategy
+
+    blob = FakeBlob()
+    ctx = BlobContext(container="contentAggregators", blob_prefix="partner/client-1/items/story-1")
+    content = await AudioStrategy().process("https://partner.example/a.mp3", ctx, blob)
+
+    assert content.audio_url == "https://blob.test/contentAggregators/partner/client-1/items/story-1.mp3"
+    assert blob.downloaded_urls == ["https://partner.example/a.mp3"]
+
+    with pytest.raises(ValueError, match=".mp3"):
+        await AudioStrategy().process("https://partner.example/a.wav", ctx, blob)
+
+
+@pytest.mark.asyncio
+async def test_braille_strategy_moves_blob_and_rejects_non_brf():
+    from app.aggregators.content_strategies import BrailleStrategy
+
+    blob = FakeBlob()
+    ctx = BlobContext(container="contentAggregators", blob_prefix="partner/client-1/items/brf-1")
+    content = await BrailleStrategy().process("https://partner.example/b.brf", ctx, blob)
+
+    assert content.brf_url == "https://blob.test/contentAggregators/partner/client-1/items/brf-1.brf"
+    assert content.braille_grade == 1
+
+    with pytest.raises(ValueError, match=".brf"):
+        await BrailleStrategy().process("https://partner.example/b.txt", ctx, blob)
+
+
+@pytest.mark.asyncio
+async def test_strategy_registry_has_audio_and_braille():
+    assert STRATEGY_REGISTRY[ItemType.AUDIO].__class__.__name__ == "AudioStrategy"
+    assert STRATEGY_REGISTRY[ItemType.BRAILLE].__class__.__name__ == "BrailleStrategy"
