@@ -2,7 +2,14 @@ from __future__ import annotations
 
 import pytest
 
-from app.aggregators.models import AudioContent, CanonicalNode, ItemType, NodeKind, QuizContent, TextContent
+from app.aggregators.models import (
+    AudioContent,
+    CanonicalNode,
+    ItemType,
+    NodeKind,
+    QuizContent,
+    TextContent,
+)
 from app.repositories.content_aggregator_repository import ContentAggregatorRepository
 from tests.support.mongomock_async import AsyncMongoMockClient
 
