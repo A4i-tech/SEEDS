@@ -40,7 +40,7 @@ class FakeBlob:
         return f"https://blob.test/{container}/{blob_name}"
 
     async def download_from_url(self, url: str) -> bytes:
-        return self.store[url[len("https://blob.test/hexis/"):]]
+        return self.store[url[len("https://blob.test/contentAggregators/"):]]
 
 
 _ITEMS = [

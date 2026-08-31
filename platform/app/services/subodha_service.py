@@ -68,7 +68,7 @@ async def fetch_and_store_assets(
     logger.info("[subodha-assets] %s: %d asset urls to fetch", course_id, len(asset_urls))
 
     settings = get_settings()
-    container = settings.subodha_asset_container
+    container = settings.content_aggregator_asset_container
     safe_course_id = re.sub(r"[:/+]", "_", course_id)
     blob_provider = BlobStorageProvider()
     semaphore = asyncio.Semaphore(settings.subodha_asset_concurrency)
@@ -179,7 +179,7 @@ class SubodhaService:
 
         def factory(node) -> BlobContext:
             safe_block_id = re.sub(r"[:/+@]", "_", node.source_id)
-            return BlobContext(container=self._settings.subodha_asset_container, blob_prefix=f"courses/{safe_course_id}/items/{safe_block_id}")
+            return BlobContext(container=self._settings.content_aggregator_asset_container, blob_prefix=f"courses/{safe_course_id}/items/{safe_block_id}")
 
         return factory
 

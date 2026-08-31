@@ -113,7 +113,7 @@ class HexisService:
             from app.aggregators.models import BlobContext
 
             safe_cid = re.sub(r"[:/+@]", "_", node.source_id)
-            return BlobContext(container=self._settings.hexis_asset_container, blob_prefix=f"hexis/{safe_subject}/items/{safe_cid}")
+            return BlobContext(container=self._settings.content_aggregator_asset_container, blob_prefix=f"hexis/{safe_subject}/items/{safe_cid}")
 
         return factory
 

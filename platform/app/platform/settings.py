@@ -47,6 +47,7 @@ class Settings(BaseSettings):
 
     content_aggregator_access_token_expires_in: str = "15m"
     content_aggregator_refresh_token_expires_in: str = "30d"
+    content_aggregator_asset_container: str = "contentAggregators"
 
     # Firebase (only used when auth_type == "firebase")
     firebase_api_key: str = Field(default="", repr=False)
@@ -208,7 +209,6 @@ class Settings(BaseSettings):
     subodha_asset_concurrency: int = 10
     subodha_collection_name: str = "subodhaCourses"
     subodha_jobs_collection_name: str = "subodhaSyncJobs"
-    subodha_asset_container: str = "subodha"
 
     # ---------------------------------------------------------------------------
     hexis_base_url: str = "https://vembi.in/hexis/api/php"
@@ -216,7 +216,6 @@ class Settings(BaseSettings):
     hexis_password: str = Field(default="", repr=False)
     hexis_admin_aid: str = ""
     hexis_course_concurrency: int = 4
-    hexis_asset_container: str = "hexis"
 
     # ---------------------------------------------------------------------------
     # Derived queue names (IVRv2 pattern)
