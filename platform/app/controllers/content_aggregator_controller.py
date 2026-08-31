@@ -194,7 +194,7 @@ async def get_sync_job_items(
 
 @router.get("/sync/jobs", summary="List past sync jobs across all sources (history)")
 async def get_sync_jobs(
-    limit: int = 20,
+    limit: int = Query(20, ge=1, le=200),
     scope: str | None = None,
     user: dict[str, Any] = Depends(_require_aggregator_access),
     job_repo: ContentAggregatorSyncJobRepository = Depends(get_content_aggregator_sync_job_repo),
