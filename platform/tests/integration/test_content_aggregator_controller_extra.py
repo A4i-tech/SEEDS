@@ -4,12 +4,16 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
+from app.aggregators.sync_job_models import SyncItemResult
 from app.main import app
 from app.platform.auth.dependencies import get_db
 from app.platform.auth.jwt import create_access_token
-from app.repositories.content_aggregator_sync_job_item_repository import ContentAggregatorSyncJobItemRepository
-from app.repositories.content_aggregator_sync_job_repository import ContentAggregatorSyncJobRepository
-from app.aggregators.sync_job_models import SyncItemResult
+from app.repositories.content_aggregator_sync_job_item_repository import (
+    ContentAggregatorSyncJobItemRepository,
+)
+from app.repositories.content_aggregator_sync_job_repository import (
+    ContentAggregatorSyncJobRepository,
+)
 
 
 @pytest_asyncio.fixture

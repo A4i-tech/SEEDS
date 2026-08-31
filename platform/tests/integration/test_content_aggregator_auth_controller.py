@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -43,7 +45,6 @@ async def _register(client, tenant_ids=None, scopes=None) -> dict:
 
 
 async def _seed_client(mock_db, *, client_id, secret, scopes, status=IntegrationClientStatus.ACTIVE, tenant_ids=None):
-    from datetime import datetime, timezone
 
     repo = IntegrationClientRepository(mock_db)
     await repo.create(
@@ -54,7 +55,7 @@ async def _seed_client(mock_db, *, client_id, secret, scopes, status=Integration
             tenant_ids=tenant_ids or ["tenant-a"],
             allowed_scopes=scopes,
             status=status,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
     )
 
