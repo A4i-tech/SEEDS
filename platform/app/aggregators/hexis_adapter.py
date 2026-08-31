@@ -1,12 +1,3 @@
-"""HexisAdapter — concrete SourceAdapter for the Hexis/Antara LMS.
-
-Hexis content is a flat list of items. This builds a synthetic
-subject -> class -> folder -> vertical -> item tree (one tree per subject) so
-the shared serializer and the frontend outline viewer (which expect
-chapter/sequential/vertical tiers) work unchanged. Item nodes carry their raw
-payload on a plain `.raw` attribute until SourceAdapter.process_nodes() runs a
-ContentStrategy.
-"""
 from __future__ import annotations
 
 import json

@@ -1,10 +1,3 @@
-"""Hexis sync service — orchestrates fetch -> adapt -> process -> persist for
-the universal content_aggregators pipeline (HexisAdapter + strategies).
-
-One tree per teacher (root_id = author_id). The content feed is fetched once
-(common-content-api) and grouped by author_id; each group is one syncable
-tree. No asset fetching (Hexis content is plain text).
-"""
 from __future__ import annotations
 
 import asyncio

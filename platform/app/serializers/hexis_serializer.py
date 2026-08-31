@@ -1,8 +1,3 @@
-"""Rebuilds a {course, blocks[], outline[]} document from canonical Hexis
-nodes for the /content-aggregators/hexis/* API — same LegacyCourseDoc shape as
-Subodha so the frontend viewer is unchanged. Differences: plain-text items
-render via the markdown path, and quiz items expose structured question/choices.
-"""
 from __future__ import annotations
 
 import asyncio

@@ -1,10 +1,3 @@
-"""Per-content-type upload validation (strategy pattern).
-
-Each content type owns the rule for validating its uploaded file field, so
-adding a new content type (e.g. video) means adding one entry here instead of
-branching inside ContentService.
-"""
-
 from __future__ import annotations
 
 from typing import Any, Protocol

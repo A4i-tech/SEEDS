@@ -1,8 +1,3 @@
-"""Typed structures for multi-source sync orchestration.
-
-Keeps the combined-sync controller free of ad-hoc dict/tuple plumbing: sources
-are bound and collected through these DTOs, not (service, client) tuples.
-"""
 from __future__ import annotations
 
 from dataclasses import dataclass

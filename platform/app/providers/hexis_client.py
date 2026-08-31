@@ -1,9 +1,3 @@
-"""Hexis/Antara LMS client — JWT login + content listing.
-
-Hexis stores plain-text content; unlike the Subodha client there is no block
-enrichment or asset fetching. Ingest reads the JSON API (common-content-api),
-never the ragged bulk CSV (nl.php?opcode=5).
-"""
 from __future__ import annotations
 
 import logging
