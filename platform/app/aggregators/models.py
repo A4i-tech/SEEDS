@@ -22,6 +22,8 @@ class ItemType(StrEnum):
     QUIZ = "quiz"
     DISCUSSION = "discussion"
     OTHER = "other"
+    AUDIO = "audio"
+    BRAILLE = "braille"
 
 
 @dataclass(frozen=True)
@@ -94,6 +96,31 @@ class ImageContent:
 
 
 @dataclass(frozen=True)
+class AudioContent:
+    audio_url: str
+
+    def to_dict(self) -> dict[str, str]:
+        return {"audio_url": self.audio_url}
+
+    @classmethod
+    def from_dict(cls, d: dict[str, object]) -> AudioContent:
+        return cls(audio_url=d["audio_url"])
+
+
+@dataclass(frozen=True)
+class BrailleContent:
+    brf_url: str
+    braille_grade: int = 1
+
+    def to_dict(self) -> dict[str, object]:
+        return {"brf_url": self.brf_url, "braille_grade": self.braille_grade}
+
+    @classmethod
+    def from_dict(cls, d: dict[str, object]) -> BrailleContent:
+        return cls(brf_url=d["brf_url"], braille_grade=d.get("braille_grade", 1))
+
+
+@dataclass(frozen=True)
 class QuizContent:
     raw_html_url: str
     question: str | None = None
@@ -136,13 +163,21 @@ class OtherContent:
         return cls(payload=dict(d))
 
 
-ContentPayload = TextContent | VideoContent | ImageContent | QuizContent | DiscussionContent | OtherContent
-RawItemPayload = str | dict[str, object] | None
+ContentPayload = (
+    TextContent | VideoContent | ImageContent | QuizContent | DiscussionContent | OtherContent
+    | AudioContent | BrailleContent
+)
+RawItemPayload = str | dict[str, object]
 
 _CONTENT_TYPE_BY_ITEM_TYPE: dict[ItemType, type] = {
     ItemType.MARKDOWN: TextContent, ItemType.PLAINTEXT: TextContent, ItemType.VIDEO: VideoContent, ItemType.IMAGE: ImageContent,
     ItemType.QUIZ: QuizContent, ItemType.DISCUSSION: DiscussionContent, ItemType.OTHER: OtherContent,
+    ItemType.AUDIO: AudioContent, ItemType.BRAILLE: BrailleContent,
 }
+
+
+def content_dto_for_item_type(item_type: ItemType) -> type:
+    return _CONTENT_TYPE_BY_ITEM_TYPE[item_type]
 
 
 @dataclass
@@ -164,9 +199,12 @@ class CanonicalNode:
     fetched_at: str
     created_at: str
     updated_at: str
+    client_id: str = ""
+    is_deleted: bool = False
+    deleted_at: str | None = None
 
     def to_doc(self) -> dict[str, object]:
-        return {
+        doc: dict[str, object] = {
             "tenant_id": self.tenant_id, "source_type": self.source_type, "source_id": self.source_id,
             "root_id": self.root_id, "parent_id": self.parent_id, "order": self.order,
             "node_kind": self.node_kind.value, "item_type": self.item_type.value if self.item_type else None,
@@ -175,13 +213,20 @@ class CanonicalNode:
             "last_run_id": self.last_run_id, "fetched_at": self.fetched_at,
             "created_at": self.created_at, "updated_at": self.updated_at,
         }
+        if self.client_id:
+            doc["client_id"] = self.client_id
+        if self.is_deleted:
+            doc["is_deleted"] = self.is_deleted
+        if self.deleted_at is not None:
+            doc["deleted_at"] = self.deleted_at
+        return doc
 
     @classmethod
     def from_doc(cls, doc: dict[str, object]) -> CanonicalNode:
         item_type = ItemType(doc["item_type"]) if doc["item_type"] else None
         content = None
         if doc["content"] is not None and item_type is not None:
-            content = _CONTENT_TYPE_BY_ITEM_TYPE[item_type].from_dict(doc["content"])
+            content = content_dto_for_item_type(item_type).from_dict(doc["content"])
         return cls(
             tenant_id=doc["tenant_id"], source_type=doc["source_type"], source_id=doc["source_id"],
             root_id=doc["root_id"], parent_id=doc["parent_id"], order=doc["order"],
@@ -189,4 +234,6 @@ class CanonicalNode:
             content=content, lms_url=doc["lms_url"], native_type=doc["native_type"],
             source_metadata=doc["source_metadata"], last_run_id=doc["last_run_id"], fetched_at=doc["fetched_at"],
             created_at=doc["created_at"], updated_at=doc["updated_at"],
+            client_id=doc.get("client_id", ""), is_deleted=doc.get("is_deleted", False),
+            deleted_at=doc.get("deleted_at"),
         )
