@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 import secrets
 import uuid
@@ -30,6 +31,10 @@ from app.repositories.integration_token_repository import (
 from app.services.content_aggregator import _jwt
 
 logger = logging.getLogger(__name__)
+
+
+def _hash_refresh_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 class IntegrationClaims(TypedDict):
@@ -63,6 +68,7 @@ class _IntegrationTokenStore:
         expires_at: datetime,
         created_at: datetime,
     ) -> None:
+        token_id = _hash_refresh_token(token_id)
         await self._repo.insert_refresh_token(
             NewRefreshToken(
                 token_id=token_id,
@@ -75,7 +81,7 @@ class _IntegrationTokenStore:
         )
 
     async def try_consume(self, token_id: str) -> ConsumedToken[IntegrationClaims]:
-        doc = await self._repo.try_consume(token_id)
+        doc = await self._repo.try_consume(_hash_refresh_token(token_id))
         return self._to_consumed(doc)
 
     async def revoke_all_for_owner(self, owner_id: str) -> None:
@@ -111,6 +117,8 @@ class ContentAggregatorAuth:
         if not set(scopes).issubset(client.allowed_scopes):
             raise AppError("SCOPE_INSUFFICIENT", "Requested scopes exceed allowed scopes", 403)
         requested_scopes = scopes
+        if not requested_scopes:
+            raise AppError("SCOPE_INSUFFICIENT", "No scopes granted to client", 403)
 
         access_token, expires_in = _jwt.encode_access_token(
             client_id=client.client_id,

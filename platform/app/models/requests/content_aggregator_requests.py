@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ContentAggregatorTokenRequest(BaseModel):
-    client_id: str
-    client_secret: str
+    client_id: str = Field(min_length=1)
+    client_secret: str = Field(min_length=1)
     scope: str
 
 
