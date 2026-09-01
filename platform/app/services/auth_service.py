@@ -150,19 +150,19 @@ async def login_unified(
         user = await repo.find_by_phone(identifier)
         allowed_roles = (UserRole.CONTENT_CREATOR,)
 
-    if (
-        user is None
-        or user.role not in allowed_roles
-        or not user.hashed_password
-        or not verify_password(password, user.hashed_password)
-    ):
-        logger.warning("auth: login failed — invalid credentials")
-        auth_failures.add(1, {"reason": "invalid_credentials"})
+    if user is None or user.role not in allowed_roles or not user.hashed_password:
+        logger.warning("auth: login failed — user not found or wrong role")
+        auth_failures.add(1, {"reason": "user_not_found"})
         raise UnauthorizedError("Invalid credentials")
 
     if not user.is_active:
         logger.warning("auth: login failed — inactive account %s", user.id)
         auth_failures.add(1, {"reason": "inactive_account"})
+        raise UnauthorizedError("Account is inactive")
+
+    if not verify_password(password, user.hashed_password):
+        logger.warning("auth: login failed — wrong password for user %s", user.id)
+        auth_failures.add(1, {"reason": "wrong_password"})
         raise UnauthorizedError("Invalid credentials")
 
     # Tenant users are the root of their own tenant scope — their _id IS the
