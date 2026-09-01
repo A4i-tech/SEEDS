@@ -1,19 +1,10 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import AddQuiz from "./AddQuiz";
-import AddStory from "./AddStory";
 import Select from "./AllContent/shared/Select";
+import { CONTENT_TYPE_OPTIONS, renderContentEditor } from "./contentTypeRegistry";
 import "./AddContent.css";
 import "./AllContent/shared/buttons.css";
 import "./AllContent/shared/pageShell.css";
-
-const EXPERIENCE_OPTIONS = [
-  { value: "Story", label: "Story" },
-  { value: "Poem", label: "Poem" },
-  { value: "Song", label: "Song" },
-  { value: "Snippet", label: "Snippet" },
-  { value: "quiz", label: "Quiz" },
-];
 
 const AddContent = () => {
   const navigate = useNavigate();
@@ -31,11 +22,10 @@ const AddContent = () => {
         <div className="form-section">
           <div className="form-section-title">Pick your experience</div>
           <div className="form-group-narrow">
-            <Select id="experience-select" value={experience} onChange={setExperience} options={EXPERIENCE_OPTIONS} />
+            <Select id="experience-select" value={experience} onChange={setExperience} options={CONTENT_TYPE_OPTIONS} />
           </div>
         </div>
-        {experience === "quiz" && <AddQuiz />}
-        {experience !== "quiz" && <AddStory contentType={experience} />}
+        {renderContentEditor(experience)}
       </div>
     </div>
   );

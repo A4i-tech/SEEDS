@@ -11,6 +11,7 @@ export function SequentialPlayer({
   onNavigateSequential,
   blockMap,
   courseId,
+  source,
   courseTitle,
   onBlockChange,
   onBackToContent,
@@ -63,7 +64,7 @@ export function SequentialPlayer({
             </a>
           )}
         </div>
-        {vertical && <UnitBlocks blocks={verticalBlocks} courseId={courseId} onBlockChange={onBlockChange} />}
+        {vertical && <UnitBlocks blocks={verticalBlocks} courseId={courseId} source={source} onBlockChange={onBlockChange} />}
       </div>
       <Pagination current={unitIndex} total={verticals.length} onChange={setUnitIndex} />
     </div>

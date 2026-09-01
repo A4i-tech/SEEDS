@@ -2,10 +2,14 @@ import React from "react";
 import { useState, useEffect } from "react";
 import { SEEDS_URL } from "../Constants";
 import { getAuthHeaders } from "../utils/authHelpers";
+import { brailleAsciiToUnicode } from "../utils/brailleAscii";
+import { getLanguageLabel } from "../utils/languageUtils";
 
 const StoryDetails = ({ type, story }) => {
   const [audioSrc, setAudioSrc] = useState("");
   const [answerAudioSrc, setAnswerAudioSrc] = useState("");
+  const [brailleText, setBrailleText] = useState("");
+  const isBrf = type === "brf";
 
   const storyId = story.id;
   const titleEnglish = story.title.english;
@@ -15,34 +19,39 @@ const StoryDetails = ({ type, story }) => {
   const isProcessed = story.is_processed;
   const primaryAudio = story.primary_audio_url;
 
+  const fetchSASUrl = async (url) => {
+    const response = await fetch(`${SEEDS_URL}/content/sasUrl?url=${encodeURIComponent(url)}`, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
+    const data = await response.json();
+    return data.url;
+  };
+
   useEffect(() => {
-    const fetchSASUrl = async (url) => {
-      try {
-        const response = await fetch(`${SEEDS_URL}/content/sasUrl?url=${encodeURIComponent(url)}`, {
-          method: "GET",
-          headers: getAuthHeaders(),
-        });
-        const data = await response.json();
-        return data.url;
-      } catch (error) {
-        console.error("Error fetching SAS URL:", error);
-        return ""; // Return empty string on error
+    const load = async () => {
+      if (isBrf) {
+        const sasUrl = await fetchSASUrl(story.braille_url);
+        const res = await fetch(sasUrl);
+        setBrailleText(await res.text());
+        return;
+      }
+
+      const defaultSrc = `https://seedsblob.blob.core.windows.net/output-container/${storyId}/1.0.wav`;
+      const defaultAnswerSrc = `https://seedsblob.blob.core.windows.net/output-container/${storyId}/answer/1.0.wav`;
+      const defaultQuestionSrc = `https://seedsblob.blob.core.windows.net/output-container/${storyId}/question/1.0.wav`;
+
+      const resolvedPrimary = primaryAudio || defaultSrc;
+
+      if (type === "riddle") {
+        setAudioSrc(await fetchSASUrl(defaultQuestionSrc));
+        setAnswerAudioSrc(await fetchSASUrl(defaultAnswerSrc));
+      } else {
+        setAudioSrc(await fetchSASUrl(resolvedPrimary));
       }
     };
-
-    const defaultSrc = `https://seedsblob.blob.core.windows.net/output-container/${storyId}/1.0.wav`;
-    const defaultAnswerSrc = `https://seedsblob.blob.core.windows.net/output-container/${storyId}/answer/1.0.wav`;
-    const defaultQuestionSrc = `https://seedsblob.blob.core.windows.net/output-container/${storyId}/question/1.0.wav`;
-
-    const resolvedPrimary = primaryAudio || defaultSrc;
-
-    if (type === "riddle") {
-      fetchSASUrl(defaultQuestionSrc).then(setAudioSrc);
-      fetchSASUrl(defaultAnswerSrc).then(setAnswerAudioSrc);
-    } else {
-      fetchSASUrl(resolvedPrimary).then(setAudioSrc);
-    }
-  }, [storyId, type, primaryAudio]);
+    load();
+  }, [storyId, type, primaryAudio, isBrf, story.braille_url]);
 
   return (
     <div className="content-detail-card">
@@ -75,7 +84,21 @@ const StoryDetails = ({ type, story }) => {
         )}
       </div>
 
-      {isProcessed ? (
+      {isBrf ? (
+        <div className="content-detail-audio-block">
+          <span className="content-detail-label">Braille</span>
+          <div className="content-detail-braille-compare">
+            <div className="content-detail-braille-pane content-detail-braille-pane-braille">
+              <span className="content-detail-braille-pane-label">Braille</span>
+              <pre className="content-aggregator-block-braille">{brailleAsciiToUnicode(brailleText)}</pre>
+            </div>
+            <div className="content-detail-braille-pane content-detail-braille-pane-text">
+              <span className="content-detail-braille-pane-label">{getLanguageLabel(story.language)}</span>
+              <pre className="content-detail-braille-text">{story.braille_text}</pre>
+            </div>
+          </div>
+        </div>
+      ) : isProcessed ? (
         <div className="content-detail-audio-block">
           <span className="content-detail-label">Audio</span>
           <audio controls src={audioSrc} className="content-detail-audio" />

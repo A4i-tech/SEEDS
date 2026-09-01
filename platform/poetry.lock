@@ -1867,6 +1867,38 @@ files = [
 ]
 
 [[package]]
+name = "liblouis"
+version = "3.38.0"
+description = "Braille translation and back-translation (liblouis), batteries included"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+markers = "sys_platform == \"linux\""
+files = [
+    {file = "liblouis-3.38.0-py3-none-manylinux_2_34_x86_64.whl", hash = "sha256:b8e3272d66748fd04d7bb27b457787edd8060f989e8f0eec719c7d54708650b4"},
+]
+
+[package.source]
+type = "url"
+url = "https://github.com/daiverd/liblouis/releases/download/python-wheel-poc-v0.2/liblouis-3.38.0-py3-none-manylinux_2_34_x86_64.whl"
+
+[[package]]
+name = "liblouis"
+version = "3.38.0"
+description = "Braille translation and back-translation (liblouis), batteries included"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+markers = "sys_platform == \"win32\""
+files = [
+    {file = "liblouis-3.38.0-py3-none-win_amd64.whl", hash = "sha256:c92d96d1122ed20eb478e37a77192779fc1fce64555679b7abd4a1306eb3d05c"},
+]
+
+[package.source]
+type = "url"
+url = "https://github.com/daiverd/liblouis/releases/download/python-wheel-poc-v0.2/liblouis-3.38.0-py3-none-win_amd64.whl"
+
+[[package]]
 name = "limits"
 version = "5.8.0"
 description = "Rate limiting utilities"
@@ -4010,7 +4042,7 @@ description = "Fast implementation of asyncio event loop on top of libuv"
 optional = false
 python-versions = ">=3.8.1"
 groups = ["main"]
-markers = "sys_platform != \"win32\" and sys_platform != \"cygwin\" and platform_python_implementation != \"PyPy\""
+markers = "platform_python_implementation != \"PyPy\" and sys_platform != \"win32\" and sys_platform != \"cygwin\""
 files = [
     {file = "uvloop-0.22.1-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:ef6f0d4cc8a9fa1f6a910230cd53545d9a14479311e87e3cb225495952eb672c"},
     {file = "uvloop-0.22.1-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:7cd375a12b71d33d46af85a3343b35d98e8116134ba404bd657b3b1d15988792"},
@@ -4522,4 +4554,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<4.0"
-content-hash = "f8f2a5fa15048ae30f576c868243441e01bf78329fb57a9f4c070e2de65ed579"
+content-hash = "7c3239d46add23e5d6a9b3fd0e942cd87669fbd175dde5c88a008689b58c8e7e"

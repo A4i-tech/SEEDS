@@ -142,7 +142,7 @@ async def _to_legacy_block(node: CanonicalNode, blob: BlobStorageProvider) -> Le
             "sources": content.sources, "streams": content.streams,
             "poster": content.poster_url, "transcript_languages": content.transcript_languages,
         }
-    elif node.item_type == ItemType.TEXT:
+    elif node.item_type == ItemType.MARKDOWN:
         markdown = await _resolve_markdown(node, blob)
         if markdown is None:
             html = await _resolve_html(node, blob)  # pandoc-conversion-failure fallback

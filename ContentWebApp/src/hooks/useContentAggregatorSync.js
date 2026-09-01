@@ -89,10 +89,10 @@ export const useContentAggregatorSync = (onSettled) => {
   }, [onSettled, followJob]);
 
   const syncCourse = useCallback(
-    async (courseId, name) => {
+    async (courseId, name, source) => {
       setCourseStates((prev) => ({ ...prev, [courseId]: "running" }));
       try {
-        const { job_id } = await contentAggregatorService.syncCourse(courseId);
+        const { job_id } = await contentAggregatorService.syncCourse(courseId, source);
         followJob(courseId, job_id, {
           setRunning: (running) =>
             setCourseStates((prev) => ({ ...prev, [courseId]: running ? "running" : prev[courseId] })),

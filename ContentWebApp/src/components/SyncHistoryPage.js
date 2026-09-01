@@ -11,8 +11,8 @@ import { SyncAllProgress } from "./AllContent/shared/SyncAllProgress";
 import "./AllContent/shared/pageShell.css";
 import "./AllContent/shared/cards.css";
 import "./AllContent/shared/buttons.css";
-import "./AllContent/shared/utilities.css";
 import "./AllContent/shared/tables.css";
+import "./AllContent/shared/utilities.css";
 import "./AllContent/ContentTab/css/ContentTab.css";
 import "./ContentDetails.css";
 import "./SyncHistoryPage.css";
@@ -55,6 +55,7 @@ const SyncHistoryPage = () => {
   const [error, setError] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
   const [itemsByJob, setItemsByJob] = useState({});
+  const [loadingItems, setLoadingItems] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -77,44 +78,27 @@ const SyncHistoryPage = () => {
     if (!syncingAll) load();
   }, [syncingAll, load]);
 
-  const loadJobItems = useCallback(async (jobId, after) => {
-    setItemsByJob((prev) => ({
-      ...prev,
-      [jobId]: { ...(prev[jobId] || { items: [] }), loading: true, error: null },
-    }));
+  const loadItems = useCallback(async (jobId, after) => {
+    setLoadingItems(jobId);
     try {
-      const data = await contentAggregatorService.getSyncJobItems(jobId, { limit: 50, after });
+      const data = await contentAggregatorService.getSyncJobItems(jobId, { limit: 20, after });
       setItemsByJob((prev) => {
-        const existing = prev[jobId]?.items || [];
-        return {
-          ...prev,
-          [jobId]: {
-            items: after ? [...existing, ...data.items] : data.items,
-            nextCursor: data.next_cursor,
-            hasMore: Boolean(data.next_cursor),
-            loading: false,
-            error: null,
-            loaded: true,
-          },
-        };
+        const existing = after ? prev[jobId]?.items || [] : [];
+        return { ...prev, [jobId]: { items: [...existing, ...data.items], next_cursor: data.next_cursor, total: data.total } };
       });
     } catch (err) {
-      setItemsByJob((prev) => ({
-        ...prev,
-        [jobId]: { ...(prev[jobId] || { items: [] }), loading: false, error: err.message },
-      }));
+      setItemsByJob((prev) => ({ ...prev, [jobId]: { items: [], next_cursor: null, total: 0, error: err.message } }));
+    } finally {
+      setLoadingItems(null);
     }
   }, []);
 
   const toggleExpand = useCallback(
     (jobId) => {
-      const nextExpanded = expandedId === jobId ? null : jobId;
-      setExpandedId(nextExpanded);
-      if (nextExpanded && !itemsByJob[nextExpanded]?.loaded) {
-        loadJobItems(nextExpanded);
-      }
+      setExpandedId((prev) => (prev === jobId ? null : jobId));
+      if (expandedId !== jobId && !itemsByJob[jobId]) loadItems(jobId);
     },
-    [expandedId, itemsByJob, loadJobItems]
+    [expandedId, itemsByJob, loadItems]
   );
 
   return (
@@ -127,7 +111,7 @@ const SyncHistoryPage = () => {
         <div className="card-header">
           <div>
             <div className="card-title">Sync History</div>
-            <div className="card-description">Past and in-progress Subodha sync runs</div>
+            <div className="card-description">Past and in-progress content sync runs</div>
           </div>
         </div>
 
@@ -161,16 +145,16 @@ const SyncHistoryPage = () => {
                     {job.stats.failed} failed
                   </span>
                 </button>
-                {isExpanded && jobItems?.loading && !jobItems.loaded && (
+                {isExpanded && loadingItems === job.job_id && !jobItems && (
                   <p className="table-cell-secondary sync-history-empty">Loading…</p>
                 )}
-                {isExpanded && jobItems?.error && (
+                {isExpanded && loadingItems !== job.job_id && jobItems.error && (
                   <p className="content-details-error">Error: {jobItems.error}</p>
                 )}
-                {isExpanded && jobItems?.loaded && jobItems.items.length === 0 && (
+                {isExpanded && loadingItems !== job.job_id && jobItems.items.length === 0 && !jobItems.error && (
                   <p className="table-cell-secondary sync-history-empty">No courses processed yet.</p>
                 )}
-                {isExpanded && jobItems?.loaded && jobItems.items.length > 0 && (
+                {isExpanded && loadingItems !== job.job_id && jobItems.items.length > 0 && (
                   <div className="sync-history-table-outer">
                   <div className="table-wrapper">
                     <table className="content-table">
@@ -200,15 +184,15 @@ const SyncHistoryPage = () => {
                       </tbody>
                     </table>
                   </div>
-                  {jobItems.hasMore && (
+                  {jobItems.next_cursor && (
                     <div className="load-more-wrapper">
                       <button
                         type="button"
                         className="secondary-button"
-                        disabled={jobItems.loading}
-                        onClick={() => loadJobItems(job.job_id, jobItems.nextCursor)}
+                        disabled={loadingItems === job.job_id}
+                        onClick={() => loadItems(job.job_id, jobItems.next_cursor)}
                       >
-                        {jobItems.loading ? "Loading more..." : "Load more"}
+                        {loadingItems === job.job_id ? "Loading more…" : "Load more"}
                       </button>
                     </div>
                   )}

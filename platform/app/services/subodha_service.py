@@ -16,8 +16,9 @@ from fastapi import Depends
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.aggregators.models import BlobContext, QuizContent
+from app.aggregators.source_types import CollectedUnits, SourceRecord
 from app.aggregators.subodha_adapter import SubodhaAdapter
-from app.aggregators.sync_job_models import SyncItemResult, SyncStats
+from app.aggregators.sync_job_models import SyncItemResult
 from app.platform.auth.dependencies import get_db
 from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider
@@ -67,7 +68,7 @@ async def fetch_and_store_assets(
     logger.info("[subodha-assets] %s: %d asset urls to fetch", course_id, len(asset_urls))
 
     settings = get_settings()
-    container = settings.subodha_asset_container
+    container = settings.content_aggregator_asset_container
     safe_course_id = re.sub(r"[:/+]", "_", course_id)
     blob_provider = BlobStorageProvider()
     semaphore = asyncio.Semaphore(settings.subodha_asset_concurrency)
@@ -156,8 +157,6 @@ class SubodhaService:
         ]
 
     async def get_course(self, tenant_id: str, source_id: str) -> LegacyCourseDoc | None:
-        if not await self._repo.is_enrolled(tenant_id, self.SOURCE_TYPE, source_id):
-            return None
         tree = await self._repo.get_tree(tenant_id, self.SOURCE_TYPE, source_id)
         if not tree:
             return None
@@ -180,7 +179,7 @@ class SubodhaService:
 
         def factory(node) -> BlobContext:
             safe_block_id = re.sub(r"[:/+@]", "_", node.source_id)
-            return BlobContext(container=self._settings.subodha_asset_container, blob_prefix=f"courses/{safe_course_id}/items/{safe_block_id}")
+            return BlobContext(container=self._settings.content_aggregator_asset_container, blob_prefix=f"courses/{safe_course_id}/items/{safe_block_id}")
 
         return factory
 
@@ -210,6 +209,8 @@ class SubodhaService:
                 logger.info("[subodha-process] course=%s skipped (unchanged content_hash)", course_id)
                 return {"status": "skipped", "courseId": course_id}
 
+            for node in nodes:
+                node.tenant_id = tenant_id
             processed = await self._adapter.process_nodes(nodes, self._blob_ctx_factory(course_id), self._blob)
             for node in processed:
                 if node.parent_id is None:
@@ -221,36 +222,31 @@ class SubodhaService:
             logger.exception("[subodha-process] course=%s failed: %s", course_id, exc)
             return {"status": "failed", "courseId": course_id, "error": str(exc)}
 
-    async def run_sync(
-        self,
-        tenant_id: str,
-        client: SubodhaClient,
-        job_repo: ContentAggregatorSyncJobRepository,
-        item_repo: ContentAggregatorSyncJobItemRepository,
-        job_id: str,
-        all_courses: list[SubodhaCourse],
-        *,
-        course_ids: list[str] | None = None,
-        limit: int | None = None,
-        dry_run: bool = False,
-    ) -> dict[str, Any]:
-        started_at = datetime.now(UTC).isoformat()
-        logger.info("[subodha] run %s started (dryRun=%s)", job_id, dry_run)
-
+    async def collect_units(
+        self, client: SubodhaClient, *, course_ids: list[str] | None = None, limit: int | None = None
+    ) -> CollectedUnits:
+        """Collect units to sync (no writes) — lets a combined multi-source run
+        sum totals before setting job progress."""
         session_cookie = await client.get_session()
-        logger.info("[subodha] run %s session acquired", job_id)
+        all_courses = await client.list_all_courses()
+        logger.info("[subodha] session acquired")
         to_process = all_courses
         if course_ids is not None:
             wanted = set(course_ids)
             to_process = [c for c in all_courses if c["id"] in wanted]
         if limit is not None:
             to_process = to_process[:limit]
+        return CollectedUnits(session=session_cookie, units=to_process, total_available=len(all_courses))
 
-        logger.info("[subodha] %d of %d courses queued", len(to_process), len(all_courses))
-        await set_total(job_repo, item_repo, tenant_id, job_id, len(to_process))
-
+    async def sync_units(
+        self, tenant_id: str, client: SubodhaClient, job_repo: ContentAggregatorSyncJobRepository,
+        item_repo: ContentAggregatorSyncJobItemRepository, job_id: str,
+        session: str, units: list[SourceRecord], *, dry_run: bool = False,
+    ) -> None:
+        """Process units concurrently, recording each result on job_id. Does NOT
+        call set_total — the caller owns the (possibly combined) total."""
         semaphore = asyncio.Semaphore(self._settings.subodha_course_concurrency)
-        session_box = {"cookie": session_cookie}
+        session_box = {"cookie": session}
         lock = asyncio.Lock()
         processed_count = 0
 
@@ -282,27 +278,7 @@ class SubodhaService:
                 if self._settings.subodha_course_delay_ms > 0:
                     await asyncio.sleep(self._settings.subodha_course_delay_ms / 1000)
 
-        await asyncio.gather(*(process_one(c) for c in to_process))
-
-        items = await item_repo.list_by_job(tenant_id, job_id)
-        stats = SyncStats.from_items(items).to_doc()
-        permanent_failures = [
-            {"courseId": c.source_id, "error": c.error or ""}
-            for c in items
-            if c.status == "failed"
-        ]
-        summary = {
-            "runId": job_id,
-            "startedAt": started_at,
-            "finishedAt": datetime.now(UTC).isoformat(),
-            "totalCourses": len(all_courses),
-            "processed": len(items),
-            "stats": stats,
-            "permanentFailures": permanent_failures,
-            "dlqProcessed": 0,
-        }
-        logger.info("[subodha] done -> %s", stats)
-        return summary
+        await asyncio.gather(*(process_one(c) for c in units))
 
     async def run_single_course_sync(
         self,
@@ -333,8 +309,7 @@ class SubodhaService:
         )
         await record_item_result(job_repo, item_repo, tenant_id, job_id, entry)
 
-        items = await item_repo.list_by_job(tenant_id, job_id)
-        stats = SyncStats.from_items(items).to_doc()
+        stats = (await item_repo.get_stats(tenant_id, job_id)).to_doc()
         permanent_failures = (
             [{"courseId": course_id, "error": result.get("error", "")}] if result["status"] == "failed" else []
         )

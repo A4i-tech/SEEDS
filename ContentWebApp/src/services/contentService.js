@@ -87,6 +87,26 @@ export const contentService = {
   },
 
   /**
+   * Create new content
+   * @param {Object} contentData - Content payload
+   * @returns {Promise<Object>}
+   */
+  async createContent(contentData) {
+    const url = `${SEEDS_URL}/content`;
+
+    const response = await apiFetch(url, {
+      method: "POST",
+      headers: {
+        ...getAuthHeaders(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(contentData),
+    });
+
+    return response;
+  },
+
+  /**
    * Fetch all content (without pagination) - for bulk operations
    * @returns {Promise<Array>}
    */

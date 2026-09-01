@@ -29,7 +29,7 @@ class FakeBlob:
 
 def _node(**overrides) -> CanonicalNode:
     base = {
-        "source_type": "subodha", "root_id": "course-1", "order": 0,
+        "tenant_id": "tenant-a", "source_type": "subodha", "root_id": "course-1", "order": 0,
         "content": None, "lms_url": None, "source_metadata": {}, "last_run_id": "run-1",
         "fetched_at": "2026-08-06T00:00:00Z", "created_at": "x", "updated_at": "x",
     }
@@ -51,10 +51,10 @@ def _nodes():
                 display_name="Lesson 1", native_type="sequential")
     vert = _node(source_id="vert-1", parent_id="seq-1", node_kind=NodeKind.CONTAINER, item_type=None,
                  display_name="Unit 1", native_type="vertical")
-    html_item = _node(source_id="html-1", parent_id="vert-1", node_kind=NodeKind.ITEM, item_type=ItemType.TEXT,
+    html_item = _node(source_id="html-1", parent_id="vert-1", node_kind=NodeKind.ITEM, item_type=ItemType.MARKDOWN,
                       display_name="Welcome", lms_url="https://lms/html-1", native_type="html",
                       content=TextContent(markdown_url="blob://x.md"))
-    failed_item = _node(source_id="html-2", parent_id="vert-1", node_kind=NodeKind.ITEM, item_type=ItemType.TEXT,
+    failed_item = _node(source_id="html-2", parent_id="vert-1", node_kind=NodeKind.ITEM, item_type=ItemType.MARKDOWN,
                         display_name="Broken", lms_url="https://lms/html-2", native_type="html", order=2,
                         content=TextContent(raw_html_url="blob://x.raw.html", conversion_failed=True))
     video_item = _node(source_id="video-1", parent_id="vert-1", node_kind=NodeKind.ITEM, item_type=ItemType.VIDEO,
@@ -143,7 +143,7 @@ async def test_to_course_doc_blocks_follow_document_order_not_input_order():
                   display_name="Seq A", native_type="sequential", order=0)
     vert_a = _node(source_id="vert-a", parent_id="seq-a", node_kind=NodeKind.CONTAINER, item_type=None,
                    display_name="Vert A", native_type="vertical", order=0)
-    item_a = _node(source_id="item-a", parent_id="vert-a", node_kind=NodeKind.ITEM, item_type=ItemType.TEXT,
+    item_a = _node(source_id="item-a", parent_id="vert-a", node_kind=NodeKind.ITEM, item_type=ItemType.MARKDOWN,
                    display_name="Item A", lms_url="https://lms/a", native_type="html", order=0,
                    content=TextContent(markdown_url="blob://a.md"))
 
@@ -153,7 +153,7 @@ async def test_to_course_doc_blocks_follow_document_order_not_input_order():
                   display_name="Seq B", native_type="sequential", order=0)
     vert_b = _node(source_id="vert-b", parent_id="seq-b", node_kind=NodeKind.CONTAINER, item_type=None,
                    display_name="Vert B", native_type="vertical", order=0)
-    item_b = _node(source_id="item-b", parent_id="vert-b", node_kind=NodeKind.ITEM, item_type=ItemType.TEXT,
+    item_b = _node(source_id="item-b", parent_id="vert-b", node_kind=NodeKind.ITEM, item_type=ItemType.MARKDOWN,
                    display_name="Item B", lms_url="https://lms/b", native_type="html", order=0,
                    content=TextContent(markdown_url="blob://b.md"))
 
@@ -187,7 +187,7 @@ async def test_to_course_doc_signs_blob_image_urls_in_markdown():
     vert = _node(source_id="vert-1", parent_id="seq-1", node_kind=NodeKind.CONTAINER, item_type=None,
                  display_name="Unit 1", native_type="vertical")
     html_item = _node(
-        source_id="html-1", parent_id="vert-1", node_kind=NodeKind.ITEM, item_type=ItemType.TEXT,
+        source_id="html-1", parent_id="vert-1", node_kind=NodeKind.ITEM, item_type=ItemType.MARKDOWN,
         display_name="Welcome", lms_url="https://lms/html-1", native_type="html",
         content=TextContent(markdown_url="blob://x.md"),
     )
@@ -220,7 +220,7 @@ async def test_to_course_doc_leaves_image_url_untouched_if_signing_fails():
                  display_name="Unit 1", native_type="vertical")
     image_url = "https://seedsstagingblob.blob.core.windows.net/subodha/courses/c1/assets/img.png"
     html_item = _node(
-        source_id="html-1", parent_id="vert-1", node_kind=NodeKind.ITEM, item_type=ItemType.TEXT,
+        source_id="html-1", parent_id="vert-1", node_kind=NodeKind.ITEM, item_type=ItemType.MARKDOWN,
         display_name="Welcome", lms_url="https://lms/html-1", native_type="html",
         content=TextContent(markdown_url="blob://x.md"),
     )
