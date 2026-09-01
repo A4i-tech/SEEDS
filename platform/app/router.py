@@ -17,7 +17,6 @@ from app.controllers import (
     # Calls (split from call_controller)
     conference_controller,
     content_aggregator_auth_controller,
-    # Content
     content_aggregator_controller,
     content_controller,
     ivr_controller,
