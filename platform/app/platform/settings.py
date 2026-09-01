@@ -123,6 +123,34 @@ class Settings(BaseSettings):
     openai_org_id: str = ""
 
     # ---------------------------------------------------------------------------
+    # Groq (OpenAI-compatible Chat Completions — used as an alt translation vendor)
+    # ---------------------------------------------------------------------------
+    groq_api_key: str = Field(default="", repr=False)
+    groq_model: str = "llama-3.3-70b-versatile"
+
+    # ---------------------------------------------------------------------------
+    # Azure AI Translator (dedicated MT — preferred for high-volume UI localization)
+    # ---------------------------------------------------------------------------
+    translator_key: str = Field(default="", repr=False)
+    translator_region: str = ""
+    translator_endpoint: str = "https://api.cognitive.microsofttranslator.com"
+
+    # ---------------------------------------------------------------------------
+    # Translation (Localize.js replacement — ticket #436)
+    # ---------------------------------------------------------------------------
+    translation_provider: str = "openai"
+    # Origin that serves the SDK asset (/sdk.js) AND fronts the runtime APIs
+    # (/translations, /languages) — the generated onboarding snippet points both
+    # `src` and `data-api-base` at it. In local dev that is the Source app on
+    # :3000 (see ContentWebApp/src/setupProxy.js), NOT the demo target on :4000.
+    # Production deployments override via TRANSLATION_SDK_BASE_URL env var.
+    translation_sdk_base_url: str = "http://localhost:3000"
+    # A translation whose heuristic qualityScore is below this threshold is flagged
+    # low-confidence for reviewer attention (ticket #436, AC6). Override via
+    # LOW_CONFIDENCE_THRESHOLD; default matches quality_scorer.LOW_CONFIDENCE_THRESHOLD.
+    low_confidence_threshold: float = 0.7
+
+    # ---------------------------------------------------------------------------
     # Routing / URLs
     # ---------------------------------------------------------------------------
     base_url: str = ""

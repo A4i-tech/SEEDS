@@ -56,21 +56,7 @@ export const apiFetch = async (url, options = {}, _isRetry = false) => {
     const response = await fetch(url, { credentials: "include", ...options });
 
     if (!response.ok) {
-      if ((response.status === 401 || response.status === 403) && getAccessToken() && !_isRetry) {
-        try {
-          const newToken = await refreshAccessToken();
-          return await apiFetch(
-            url,
-            { ...options, headers: { ...options.headers, Authorization: `Bearer ${newToken}` } },
-            true
-          );
-        } catch (_refreshError) {
-          clearAuth();
-          if (typeof window !== "undefined" && window.location.pathname !== "/") {
-            window.location.href = "/";
-          }
-        }
-      } else if (response.status === 401 || response.status === 403) {
+      if (response.status === 401) {
         clearAuth();
         if (typeof window !== "undefined" && window.location.pathname !== "/") {
           window.location.href = "/";

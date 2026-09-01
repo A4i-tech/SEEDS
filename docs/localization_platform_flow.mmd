@@ -1,0 +1,117 @@
+flowchart TD
+    START([Start]) --> PH1
+
+    subgraph PH1[" Phase 1 — Customer Onboarding "]
+        direction TB
+        I1[Input: Project name, Website URL,<br/>Source language, Target languages]
+        H1[User creates project<br/>User registers website<br/>Platform generates SDK snippet]
+        O1[Output: Project created,<br/>Site registered, SDK snippet]
+        I1 --> H1 --> O1
+    end
+
+    PH1 --> PH2
+
+    subgraph PH2[" Phase 2 — SDK Integration "]
+        direction TB
+        I2[Input: JavaScript SDK]
+        H2[Customer adds SDK<br/>to head of website]
+        O2[Output: SDK initialized,<br/>website connected to platform]
+        I2 --> H2 --> O2
+    end
+
+    PH2 --> PH3
+
+    subgraph PH3[" Phase 3 — DOM Extraction / Content Discovery "]
+        direction TB
+        I3[Input: Live website DOM]
+        H3[SDK waits for DOM ready<br/>Traverses DOM<br/>Identifies translatable elements<br/>Ignores scripts/styles/non-text<br/>Detects new/changed content]
+        O3["Output: Structured JSON<br/>{elementId, selector, pageUrl,<br/>sourceLanguage, text}"]
+        I3 --> H3 --> O3
+    end
+
+    PH3 --> TMCHECK
+
+    subgraph TMCHECK[" Phase 4 — Translation Memory Lookup "]
+        direction TB
+        I4[Input: Structured JSON text]
+        H4[Check translation memory<br/>for identical / similar text<br/>already translated before]
+        I4 --> H4
+    end
+
+    TMCHECK --> DEC1{Match found<br/>in Translation Memory?}
+    DEC1 -->|Yes: reuse| REUSE[Reuse stored translation<br/>skip AI call]
+    DEC1 -->|No: needs translation| PH5
+
+    subgraph PH5[" Phase 5 — Translation Pipeline "]
+        direction TB
+        I5[Input: Text needing translation]
+        H5[Apply glossary / terminology rules<br/>Preserve HTML structure<br/>Preserve placeholders / variables<br/>Preserve Markdown / formatting<br/>Send text to Translation Service / LLM<br/>Receive translated text<br/>Merge back into same JSON<br/>Generate quality / confidence score]
+        O5[Output: Translated Structured JSON<br/>+ quality score]
+        I5 --> H5 --> O5
+    end
+
+    PH5 --> DEC2{Confidence score<br/>above threshold?}
+    DEC2 -->|Yes: auto-approve| AUTO[Mark as approved]
+    DEC2 -->|No: flag| PH6
+
+    subgraph PH6[" Phase 6 — Review & Approval "]
+        direction TB
+        I6[Input: Flagged translated JSON]
+        H6[Human review<br/>Edit translation<br/>Audit trail: translation generated,<br/>reviewer edits, approval,<br/>rejection, version creation]
+        I6 --> H6
+    end
+
+    PH6 --> DEC3{Approve or Reject?}
+    DEC3 -->|Reject: return to edit| PH6
+    DEC3 -->|Approve| VER[Create Translation Version]
+    AUTO --> VER
+    VER --> TMUP[Update Translation Memory]
+    TMUP --> STORE
+
+    REUSE --> STORE[(Translation Store)]
+
+    STORE --> API[Runtime Translation API<br/>Serves approved translations<br/>Supports runtime language switching]
+    API --> PH7
+
+    subgraph PH7[" Phase 7 — Runtime Rendering "]
+        direction TB
+        I7[Input: Approved translation JSON]
+        H7[SDK requests translations<br/>Caches for performance<br/>Maps elementId/selector to DOM<br/>Replaces only text nodes<br/>Supports instant language switch]
+        O7[Output: Localized Web Application<br/>Original application remains unchanged]
+        I7 --> H7 --> O7
+    end
+
+    PH7 --> END([Localized Web Application])
+
+    PH7 -. detects new / modified DOM .-> PH3
+
+    subgraph ADMIN[" Administration — runs alongside all phases "]
+        direction TB
+        AD1[Project & language management]
+        AD2[User roles & permissions]
+        AD3[Translation analytics<br/>& quality metrics dashboard]
+    end
+
+    ADMIN -.oversees.-> PH1
+    ADMIN -.oversees.-> PH5
+    ADMIN -.oversees.-> PH6
+    ADMIN -.oversees.-> STORE
+
+    classDef onboard fill:#F4F4F5,stroke:#71717A,color:#27272A
+    classDef sdk fill:#E3F0FF,stroke:#3B82F6,color:#1E3A8A
+    classDef discovery fill:#EDE7FF,stroke:#7C5CFF,color:#2E1A6B
+    classDef memory fill:#FDE8F0,stroke:#EC4899,color:#831843
+    classDef pipeline fill:#FFF4E5,stroke:#F59E0B,color:#7C4A03
+    classDef review fill:#E9FBEF,stroke:#22C55E,color:#14532D
+    classDef runtime fill:#E3F0FF,stroke:#3B82F6,color:#1E3A8A
+    classDef admin fill:#F4F4F5,stroke:#71717A,color:#27272A
+
+    class I1,H1,O1 onboard
+    class I2,H2,O2 sdk
+    class I3,H3,O3 discovery
+    class I4,H4,REUSE,TMUP memory
+    class I5,H5,O5,AUTO pipeline
+    class I6,H6,O6,VER review
+    class I7,H7,O7 runtime
+    class API runtime
+    class AD1,AD2,AD3 admin

@@ -8,3 +8,13 @@ dist/
 coverage.json
 bandit_report.json
 .pytest_cache/
+
+# Local scratch / generated artifacts — never part of the app (ticket #436 cleanup).
+# Exact filenames only, so no legitimate source/config is ever hidden.
+/fastapi_translist.json
+/translist.json
+/glossary_body.json
+/out.txt
+/out2.txt
+/token_out.txt
+/pending_ids.txt

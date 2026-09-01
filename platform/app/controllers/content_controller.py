@@ -23,6 +23,8 @@ from app.models.requests.content_requests import (
     ContentCreateRequest,
     ContentUpdateRequest,
     QuizCreateRequest,
+    WebsiteExtractRequest,
+    WebsiteTranslationRequest,
 )
 from app.models.responses.content import (
     AudioContent,
@@ -36,8 +38,12 @@ from app.models.responses.job import DeleteMatchedResponse, JobScheduledResponse
 from app.models.user import UserRole
 from app.platform.auth.dependencies import get_current_user
 from app.platform.error_handling import ForbiddenError, NotFoundError
+from app.platform.settings import get_settings
 from app.providers.blob_storage import get_blob_storage_provider
+from app.providers.translation_provider import get_translation_provider
 from app.services.content_service import ContentService, get_content_service
+from app.services.sdk_hash import sdk_hash_text
+from app.services.translation_service import TranslationService, get_translation_service
 
 logger = logging.getLogger(__name__)
 
@@ -400,3 +406,73 @@ async def create_quiz(
     quiz_id = await service.create_quiz(body, tenant_id, user_id, school_id)
     job_id = await service.enqueue_content_job(quiz_id)
     return JobScheduledResponse(message="Processing New Content job scheduled!", job_id=job_id)
+
+
+# ---------------------------------------------------------------------------
+# POST /content/extract-website
+# ---------------------------------------------------------------------------
+
+
+@router.post("/extract-website", summary="Extract readable content from a website")
+async def extract_website(
+    body: WebsiteExtractRequest,
+    user: dict[str, Any] = Depends(_require_content_read),
+    service: ContentService = Depends(get_content_service),
+) -> dict[str, Any]:
+    return await service.extract_website(str(body.url))
+
+
+# ---------------------------------------------------------------------------
+# POST /content/translate-website
+# ---------------------------------------------------------------------------
+
+
+@router.post("/translate-website", summary="Translate extracted website content")
+async def translate_website(
+    body: WebsiteTranslationRequest,
+    user: dict[str, Any] = Depends(_require_content_read),
+    translation_service: TranslationService = Depends(get_translation_service),
+) -> dict[str, Any]:
+    if body.siteId and body.targetLanguageCode:
+        return await _translate_and_persist(body, translation_service)
+
+    provider = get_translation_provider(get_settings())
+    translated = await provider.translate(body.content, "auto", body.targetLanguage)
+    return {"translatedContent": translated, "persisted": False}
+
+
+async def _translate_and_persist(
+    body: WebsiteTranslationRequest, translation_service: TranslationService
+) -> dict[str, Any]:
+    """Route admin-triggered translation through the same store the runtime SDK reads.
+
+    Each line extracted from the website becomes one translation-store item,
+    keyed with the identical hash the SDK computes client-side for the same
+    text (sdk_hash_text), so an admin-approved translation here is the exact
+    document the SDK finds when it independently discovers that text in the
+    live DOM. get_or_translate() only ever hands back translated text for
+    "approved" documents (everything else falls back to source text) — that
+    gate is intentional and is not bypassed here. The text returned to the
+    admin preview instead comes straight from the freshly-persisted draft
+    documents, so the reviewer can see the AI output before approving it.
+    """
+    lines = [line.strip() for line in body.content.splitlines() if line.strip()]
+    items = [
+        {"route": body.route, "key": sdk_hash_text(line), "sourceLang": "en", "text": line}
+        for line in lines
+    ]
+    await translation_service.extract_items(body.siteId, items)
+    await translation_service.get_or_translate(body.siteId, body.route, body.targetLanguageCode)
+
+    docs = await translation_service.list_translations(body.siteId, route=body.route)
+    draft_by_key = {
+        doc["key"]: (doc.get("translations") or {}).get(body.targetLanguageCode, {}).get("text")
+        for doc in docs
+    }
+    translated_lines = [draft_by_key.get(sdk_hash_text(line)) or line for line in lines]
+
+    return {
+        "translatedContent": "\n".join(translated_lines),
+        "persisted": True,
+        "itemCount": len(lines),
+    }

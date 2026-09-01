@@ -147,6 +147,34 @@ def require_role(*roles: str):
 require_teacher = require_role("teacher")
 require_tenant = require_role("tenant")
 
+# RBAC aliases for the translation platform (ticket #436, Phase J).
+#
+# No login flow issues "admin"/"reviewer" roles yet (Phase J auth issuance was
+# never built). In development only, tenant is allowed through so the
+# Localization demo is reachable without weakening staging/production RBAC,
+# which never take this branch since settings.env is never "development" there.
+_LOCAL_DEMO_BYPASS_ROLE = "tenant"
+
+
+def _admin_or_reviewer_dev_bypass(role: str | None) -> bool:
+    return get_settings().env == "development" and role == _LOCAL_DEMO_BYPASS_ROLE
+
+
+async def require_admin(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    if _admin_or_reviewer_dev_bypass(user.get("role")):
+        return user
+    if user.get("role") != "admin":
+        raise ForbiddenError("one of ['admin'] role required")
+    return user
+
+
+async def require_admin_or_reviewer(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    if _admin_or_reviewer_dev_bypass(user.get("role")):
+        return user
+    if user.get("role") not in {"admin", "reviewer"}:
+        raise ForbiddenError("one of ['admin', 'reviewer'] role required")
+    return user
+
 
 # ---------------------------------------------------------------------------
 # Resource-ownership dependency

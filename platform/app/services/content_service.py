@@ -26,6 +26,7 @@ from app.platform.auth.dependencies import get_db
 from app.repositories.content_job_repository import ContentJobRepository
 from app.repositories.content_repository import ContentRepository
 from app.repositories.quiz_repository import QuizRepository
+from app.services.website_extractor import WebsiteExtractor
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,7 @@ class ContentService:
         self._content_repo = ContentRepository(db)
         self._quiz_repo = QuizRepository(db)
         self._job_repo = ContentJobRepository(db)
+        self._website_extractor = WebsiteExtractor()
 
     # ------------------------------------------------------------------
     # Jobs
@@ -261,6 +263,14 @@ class ContentService:
 
     async def save_processed(self, content_id: str, fields: dict[str, Any]) -> None:
         await self._content_repo.save_processed(content_id, fields)
+
+    # ------------------------------------------------------------------
+    # Website extraction (Localization / Translate Website)
+    # ------------------------------------------------------------------
+
+    async def extract_website(self, url: str) -> dict[str, Any]:
+        """Extract readable content from a public website."""
+        return await self._website_extractor.extract(url)
 
 
 def _parse_cursor(cursor: str | None) -> int | None:

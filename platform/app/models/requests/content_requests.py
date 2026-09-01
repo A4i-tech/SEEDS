@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
 from app.models.responses.content import TitleText
 
@@ -47,6 +47,18 @@ class ContentUpdateRequest(BaseModel):
     @classmethod
     def _normalize_type(cls, v: str | None) -> str | None:
         return v.lower() if v is not None else v
+
+
+class WebsiteExtractRequest(BaseModel):
+    url: HttpUrl
+
+
+class WebsiteTranslationRequest(BaseModel):
+    content: str
+    targetLanguage: str
+    targetLanguageCode: str | None = None
+    siteId: str | None = None
+    route: str = "/"
 
 
 class QuizCreateRequest(BaseModel):

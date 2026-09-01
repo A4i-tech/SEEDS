@@ -14,7 +14,12 @@ from opentelemetry._logs import get_logger_provider
 from opentelemetry.sdk._logs import LoggerProvider as SDKLoggerProvider
 
 import app.platform.telemetry as tel_mod
-from app.platform.auth.dependencies import require_teacher, require_tenant
+from app.platform.auth.dependencies import (
+    require_admin,
+    require_admin_or_reviewer,
+    require_teacher,
+    require_tenant,
+)
 from app.platform.auth.hashing import hash_password, verify_password
 from app.platform.auth.jwt import (
     _parse_expires_delta,
@@ -234,3 +239,94 @@ class TestDependencies:
         user = {"sub": "u1", "role": "teacher"}
         with pytest.raises(ForbiddenError):
             await require_tenant(user=user)
+
+    @pytest.mark.asyncio
+    async def test_require_admin_passes(self) -> None:
+        """require_admin returns the user dict when role == 'admin'."""
+        user = {"sub": "u1", "role": "admin"}
+        result = await require_admin(user=user)
+        assert result == user
+
+    @pytest.mark.asyncio
+    async def test_require_admin_blocks_reviewer(self) -> None:
+        """require_admin raises ForbiddenError when role == 'reviewer'."""
+        user = {"sub": "u1", "role": "reviewer"}
+        with pytest.raises(ForbiddenError):
+            await require_admin(user=user)
+
+    @pytest.mark.asyncio
+    async def test_require_admin_or_reviewer_passes_admin(self) -> None:
+        """require_admin_or_reviewer returns the user dict when role == 'admin'."""
+        user = {"sub": "u1", "role": "admin"}
+        result = await require_admin_or_reviewer(user=user)
+        assert result == user
+
+    @pytest.mark.asyncio
+    async def test_require_admin_or_reviewer_passes_reviewer(self) -> None:
+        """require_admin_or_reviewer returns the user dict when role == 'reviewer'."""
+        user = {"sub": "u1", "role": "reviewer"}
+        result = await require_admin_or_reviewer(user=user)
+        assert result == user
+
+    @pytest.mark.asyncio
+    async def test_require_admin_or_reviewer_blocks_other_role(self) -> None:
+        """require_admin_or_reviewer raises ForbiddenError for an unauthorized role."""
+        user = {"sub": "u1", "role": "teacher"}
+        with pytest.raises(ForbiddenError):
+            await require_admin_or_reviewer(user=user)
+
+    @pytest.mark.asyncio
+    async def test_require_admin_or_reviewer_dev_bypass_allows_tenant(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """In development, the local-demo bypass lets a tenant through."""
+        from app.platform.settings import get_settings
+
+        monkeypatch.setenv("ENV", "development")
+        get_settings.cache_clear()
+
+        user = {"sub": "u1", "role": "tenant"}
+        result = await require_admin_or_reviewer(user=user)
+        assert result == user
+
+    @pytest.mark.asyncio
+    async def test_require_admin_dev_bypass_allows_tenant(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """In development, the local-demo bypass also covers require_admin."""
+        from app.platform.settings import get_settings
+
+        monkeypatch.setenv("ENV", "development")
+        get_settings.cache_clear()
+
+        user = {"sub": "u1", "role": "tenant"}
+        result = await require_admin(user=user)
+        assert result == user
+
+    @pytest.mark.asyncio
+    async def test_require_admin_or_reviewer_blocks_tenant_in_production(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Outside development, the bypass never applies — tenant is still blocked."""
+        from app.platform.settings import get_settings
+
+        monkeypatch.setenv("ENV", "production")
+        get_settings.cache_clear()
+
+        user = {"sub": "u1", "role": "tenant"}
+        with pytest.raises(ForbiddenError):
+            await require_admin_or_reviewer(user=user)
+
+    @pytest.mark.asyncio
+    async def test_require_admin_blocks_tenant_in_production(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Outside development, require_admin still blocks tenant too."""
+        from app.platform.settings import get_settings
+
+        monkeypatch.setenv("ENV", "production")
+        get_settings.cache_clear()
+
+        user = {"sub": "u1", "role": "tenant"}
+        with pytest.raises(ForbiddenError):
+            await require_admin(user=user)
