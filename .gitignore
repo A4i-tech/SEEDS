@@ -425,3 +425,5 @@ docs/
 /SEEDS wiki/
 /graphify-out/
 /.claude/settings.local.json
+.serena/
+.claude/.headroom_wrap_*
