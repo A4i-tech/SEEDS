@@ -1,14 +1,3 @@
-"""Webhook registration controller — /v1/webhooks/* endpoints letting
-tenant-scoped users register callback URLs for content aggregator
-job/content events.
-
-NOTE: Spec §6.9 defines 403 SCOPE_INSUFFICIENT (per-event `allowed_scopes`
-check) which requires the client-credential/allowed_scopes system from
-PLAT-2 (§2.2 client registration). #463 explicitly depends on PLAT-2 and
-that system does not exist in this codebase yet, so scope enforcement is
-not implemented here. Auth is role-gated (tenant/school_admin/content_creator)
-via the same interim pattern used by content_aggregator_controller.py.
-"""
 from __future__ import annotations
 
 import logging
@@ -16,41 +5,52 @@ import secrets
 from typing import Any
 
 from fastapi import APIRouter, Depends
+from fastapi.security import OAuth2PasswordBearer
 
+from app.controllers.content_aggregator_auth_controller import get_content_aggregator_auth
 from app.models.requests.webhook_registration_requests import (
     WebhookEventType,
     WebhookRegisterRequest,
     WebhookUpdateRequest,
 )
-from app.models.user import UserRole
-from app.platform.auth.dependencies import require_role
 from app.platform.auth.hashing import hash_password
-from app.platform.error_handling import AppError, NotFoundError
+from app.platform.error_handling import AppError, NotFoundError, UnauthorizedError
+from app.platform.logging import user_id_ctx_var
 from app.repositories.content_aggregator_webhook_repository import (
     ContentAggregatorWebhookRepository,
     get_content_aggregator_webhook_repo,
 )
+from app.services.content_aggregator import _jwt
+from app.services.content_aggregator.auth import ContentAggregatorAuth
 
-router = APIRouter(prefix="/v1/webhooks", tags=["Webhooks"])
 logger = logging.getLogger(__name__)
+router = APIRouter(prefix="/v1/webhooks", tags=["Webhooks"])
 
 MAX_WEBHOOKS_PER_CLIENT = 5
 _VALID_EVENT_TYPES = frozenset(e.value for e in WebhookEventType)
+_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/v1/auth/token", auto_error=False)
 
-_require_webhook_access = require_role(
-    UserRole.TENANT.value, UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value
-)
+
+async def _require_aggregator_client(
+    token: str | None = Depends(_oauth2_scheme),
+    auth: ContentAggregatorAuth = Depends(get_content_aggregator_auth),
+) -> _jwt.AccessTokenClaims:
+    if not token:
+        raise UnauthorizedError("Missing authentication token")
+    claims = await auth.verify_token(token)
+    user_id_ctx_var.set(claims["sub"])
+    return claims
 
 
 def _validate_events(events: list[str]) -> None:
     unsupported = [e for e in events if e not in _VALID_EVENT_TYPES]
     if unsupported:
-        raise AppError(
-            "INVALID_EVENT_TYPE",
-            "unsupported event type(s)",
-            400,
-            {"unsupported": unsupported},
-        )
+        raise AppError("INVALID_EVENT_TYPE", f"unsupported event type(s): {unsupported}", 400)
+
+
+def _validate_scope(events: list[str], granted_scopes: list[str]) -> None:
+    if not set(events).issubset(granted_scopes):
+        raise AppError("SCOPE_INSUFFICIENT", "requested events exceed granted scope", 403)
 
 
 def _validate_url(url: str) -> None:
@@ -77,26 +77,29 @@ def _serialize(doc: dict[str, Any]) -> dict[str, Any]:
 @router.post("", status_code=201, summary="Register a webhook")
 async def register_webhook(
     body: WebhookRegisterRequest,
-    user: dict[str, Any] = Depends(_require_webhook_access),
+    claims: _jwt.AccessTokenClaims = Depends(_require_aggregator_client),
     repo: ContentAggregatorWebhookRepository = Depends(get_content_aggregator_webhook_repo),
 ) -> dict[str, Any]:
-    tenant_id = user.get("tenant_id", "")
+    client_id = claims["sub"]
     _validate_url(body.url)
     _validate_events(body.events)
-    if await repo.count_for_tenant(tenant_id) >= MAX_WEBHOOKS_PER_CLIENT:
+    _validate_scope(body.events, claims["scope"].split())
+    if await repo.count_for_client(client_id) >= MAX_WEBHOOKS_PER_CLIENT:
         raise AppError("WEBHOOK_LIMIT_REACHED", "maximum webhooks per client reached", 409)
     secret = secrets.token_hex(32)
-    doc = await repo.create(tenant_id, body.url, hash_password(secret), body.events)
-    logger.info("webhook registered webhookId=%s tenantId=%s", doc["_id"], tenant_id)
-    return _serialize(doc) | {"secret": secret}
+    doc = await repo.create(client_id, body.url, hash_password(secret), body.events)
+    logger.info("webhook registered webhookId=%s clientId=%s", doc["_id"], client_id)
+    result = _serialize(doc)
+    result["secret"] = secret
+    return result
 
 
 @router.get("", summary="List own webhooks")
 async def list_webhooks(
-    user: dict[str, Any] = Depends(_require_webhook_access),
+    claims: _jwt.AccessTokenClaims = Depends(_require_aggregator_client),
     repo: ContentAggregatorWebhookRepository = Depends(get_content_aggregator_webhook_repo),
 ) -> dict[str, Any]:
-    docs = await repo.list_for_tenant(user.get("tenant_id", ""))
+    docs = await repo.list_for_client(claims["sub"])
     return {"webhooks": [_serialize(d) for d in docs]}
 
 
@@ -104,14 +107,15 @@ async def list_webhooks(
 async def update_webhook(
     webhook_id: str,
     body: WebhookUpdateRequest,
-    user: dict[str, Any] = Depends(_require_webhook_access),
+    claims: _jwt.AccessTokenClaims = Depends(_require_aggregator_client),
     repo: ContentAggregatorWebhookRepository = Depends(get_content_aggregator_webhook_repo),
 ) -> dict[str, Any]:
-    tenant_id = user.get("tenant_id", "")
+    client_id = claims["sub"]
     if body.url is not None:
         _validate_url(body.url)
     if body.events is not None:
         _validate_events(body.events)
+        _validate_scope(body.events, claims["scope"].split())
     if body.status is not None:
         _validate_status(body.status)
 
@@ -122,20 +126,15 @@ async def update_webhook(
         fields["events"] = body.events
     if body.status is not None:
         fields["status"] = body.status
-
     new_secret: str | None = None
     if body.rotate_secret:
         new_secret = secrets.token_hex(32)
         fields["secret_hash"] = hash_password(new_secret)
 
-    if not fields:
-        doc = await repo.get_for_tenant(tenant_id, webhook_id)
-    else:
-        doc = await repo.update_for_tenant(tenant_id, webhook_id, fields)
+    doc = await repo.update_for_client(client_id, webhook_id, fields)
     if doc is None:
         raise NotFoundError("Webhook", webhook_id)
-
-    logger.info("webhook updated webhookId=%s tenantId=%s", webhook_id, tenant_id)
+    logger.info("webhook updated webhookId=%s clientId=%s", webhook_id, client_id)
     result = _serialize(doc)
     if new_secret is not None:
         result["secret"] = new_secret
@@ -145,11 +144,10 @@ async def update_webhook(
 @router.delete("/{webhook_id}", status_code=204, summary="Remove a webhook")
 async def delete_webhook(
     webhook_id: str,
-    user: dict[str, Any] = Depends(_require_webhook_access),
+    claims: _jwt.AccessTokenClaims = Depends(_require_aggregator_client),
     repo: ContentAggregatorWebhookRepository = Depends(get_content_aggregator_webhook_repo),
 ) -> None:
-    tenant_id = user.get("tenant_id", "")
-    deleted = await repo.delete_for_tenant(tenant_id, webhook_id)
+    deleted = await repo.delete_for_client(claims["sub"], webhook_id)
     if not deleted:
         raise NotFoundError("Webhook", webhook_id)
-    logger.info("webhook deleted webhookId=%s tenantId=%s", webhook_id, tenant_id)
+    logger.info("webhook deleted webhookId=%s clientId=%s", webhook_id, claims["sub"])
