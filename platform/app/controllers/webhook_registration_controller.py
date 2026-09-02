@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import secrets
 from typing import Any
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends
 from fastapi.security import OAuth2PasswordBearer
@@ -28,6 +29,7 @@ router = APIRouter(prefix="/v1/webhooks", tags=["Webhooks"])
 
 MAX_WEBHOOKS_PER_CLIENT = 5
 _VALID_EVENT_TYPES = frozenset(e.value for e in WebhookEventType)
+_VALID_STATUSES = frozenset({"active", "disabled"})
 _oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/v1/auth/token", auto_error=False)
 
 
@@ -48,18 +50,26 @@ def _validate_events(events: list[str]) -> None:
         raise AppError("INVALID_EVENT_TYPE", f"unsupported event type(s): {unsupported}", 400)
 
 
+def _granted_scopes(claims: _jwt.AccessTokenClaims) -> list[str]:
+    scope = claims.get("scope")
+    if not isinstance(scope, str):
+        raise AppError("SCOPE_INSUFFICIENT", "scope claim missing or malformed", 403)
+    return scope.split()
+
+
 def _validate_scope(events: list[str], granted_scopes: list[str]) -> None:
     if not set(events).issubset(granted_scopes):
         raise AppError("SCOPE_INSUFFICIENT", "requested events exceed granted scope", 403)
 
 
 def _validate_url(url: str) -> None:
-    if not url.startswith("https://"):
+    parsed = urlsplit(url.strip())
+    if parsed.scheme.lower() != "https" or not parsed.netloc:
         raise AppError("URL_NOT_HTTPS", "webhook url must use HTTPS", 400)
 
 
 def _validate_status(status: str) -> None:
-    if status not in ("active", "disabled"):
+    if status not in _VALID_STATUSES:
         raise AppError("INVALID_STATUS", "status must be 'active' or 'disabled'", 400)
 
 
@@ -83,12 +93,12 @@ async def register_webhook(
     client_id = claims["sub"]
     _validate_url(body.url)
     _validate_events(body.events)
-    _validate_scope(body.events, claims["scope"].split())
+    _validate_scope(body.events, _granted_scopes(claims))
     if await repo.count_for_client(client_id) >= MAX_WEBHOOKS_PER_CLIENT:
         raise AppError("WEBHOOK_LIMIT_REACHED", "maximum webhooks per client reached", 409)
     secret = secrets.token_hex(32)
     doc = await repo.create(client_id, body.url, hash_password(secret), body.events)
-    logger.info("webhook registered webhookId=%s clientId=%s", doc["_id"], client_id)
+    logger.info("register_webhook: webhook registered webhookId=%s clientId=%s", doc["_id"], client_id)
     result = _serialize(doc)
     result["secret"] = secret
     return result
@@ -115,7 +125,7 @@ async def update_webhook(
         _validate_url(body.url)
     if body.events is not None:
         _validate_events(body.events)
-        _validate_scope(body.events, claims["scope"].split())
+        _validate_scope(body.events, _granted_scopes(claims))
     if body.status is not None:
         _validate_status(body.status)
 
@@ -129,12 +139,12 @@ async def update_webhook(
     new_secret: str | None = None
     if body.rotate_secret:
         new_secret = secrets.token_hex(32)
-        fields["secret_hash"] = hash_password(new_secret)
+        fields[ContentAggregatorWebhookRepository.SECRET_HASH_FIELD] = hash_password(new_secret)
 
     doc = await repo.update_for_client(client_id, webhook_id, fields)
     if doc is None:
         raise NotFoundError("Webhook", webhook_id)
-    logger.info("webhook updated webhookId=%s clientId=%s", webhook_id, client_id)
+    logger.info("update_webhook: webhook updated webhookId=%s clientId=%s", webhook_id, client_id)
     result = _serialize(doc)
     if new_secret is not None:
         result["secret"] = new_secret
@@ -150,4 +160,4 @@ async def delete_webhook(
     deleted = await repo.delete_for_client(claims["sub"], webhook_id)
     if not deleted:
         raise NotFoundError("Webhook", webhook_id)
-    logger.info("webhook deleted webhookId=%s clientId=%s", webhook_id, claims["sub"])
+    logger.info("delete_webhook: webhook deleted webhookId=%s clientId=%s", webhook_id, claims["sub"])
