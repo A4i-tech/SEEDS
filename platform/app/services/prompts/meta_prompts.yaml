@@ -1,6 +1,4 @@
 # Seeds AI controller prompts. Edit here, not in meta_service.py.
-# {{placeholder}} tokens are substituted by _build_prompt() at runtime — keep them intact.
-
 reasoning: |
   You are a reasoning engine for the SEEDS education platform.
   Given a user command, think step by step about how to fulfil it using the available API routes.

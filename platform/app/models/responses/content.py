@@ -8,21 +8,25 @@ AudioContent's schema.
 
 The only explicit id mapping is _id (parsed via validation_alias, always
 serialized as plain `id` — snake_case end-to-end), plus ObjectId coercion via
-_strip_oids so callers never need to pre-process docs.
+the OidStr field type so callers never need to pre-process docs.
 """
 from __future__ import annotations
 
 from typing import Annotated, Any, Literal
 
-from bson import ObjectId
 from pydantic import (
     BaseModel,
     BeforeValidator,
     ConfigDict,
     Field,
+    TypeAdapter,
     field_validator,
     model_validator,
 )
+
+_RAW_DOC = TypeAdapter(dict[str, Any])
+
+OidStr = Annotated[str | None, BeforeValidator(lambda v: None if v is None else str(v))]
 
 
 class TitleText(BaseModel):
@@ -73,25 +77,17 @@ class ContentBase(BaseModel):
     is_pull_model: bool = False
     is_teacher_app: bool = False
     is_deleted: bool = False
-    created_by: str | None = None
-    tenant_id: str | None = None
-    school_id: str | None = None
+    created_by: OidStr = None
+    tenant_id: OidStr = None
+    school_id: OidStr = None
     creation_time: int | None = None
 
     @model_validator(mode="before")
     @classmethod
-    def _strip_oids(cls, data: Any) -> Any:
-        """Coerce ObjectIds to str and normalize legacy title-cased `type` values.
-
-        Older contentsV3 docs stored `type` as "Story"/"Song"/"Poem"/"Snippet";
-        the API contract is lowercase, so reads stay tolerant of both.
-        """
-        if isinstance(data, dict):
-            out = {k: str(v) if isinstance(v, ObjectId) else v for k, v in data.items()}
-            if isinstance(out.get("type"), str):
-                out["type"] = out["type"].lower()
-            return out
-        return data
+    def _validate_raw_doc(cls, data: Any) -> Any:
+        doc = _RAW_DOC.validate_python(data)
+        type_value = doc.get("type")
+        return doc if type_value is None else {**doc, "type": str(type_value).lower()}
 
     @field_validator("id", mode="before")
     @classmethod
@@ -129,11 +125,6 @@ class QuizContent(ContentBase):
 
 
 def _lower_discriminator(data: Any) -> Any:
-    """Lowercase a raw dict's `type` so the discriminator matches legacy title-cased docs.
-
-    The union discriminator is resolved before any member's own validators run,
-    so title-cased `type` has to be fixed here too, not just in ContentBase.
-    """
     if isinstance(data, dict) and isinstance(data.get("type"), str):
         return {**data, "type": data["type"].lower()}
     return data

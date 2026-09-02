@@ -32,14 +32,20 @@ class TtsPlayer @Inject constructor(
     private var thinkingBase64: String? = null
 
     suspend fun playThinking() {
-        val b64 = thinkingBase64
-            ?: repository.fetchTtsPrompt("thinking").audioBase64?.also { thinkingBase64 = it }
-            ?: return
-        playBase64(b64)
+        val cached = thinkingBase64
+        if (cached != null) {
+            playBase64(cached)
+            return
+        }
+        val fetched = repository.fetchTtsPrompt("thinking").audioBase64
+        if (fetched.isEmpty()) return
+        thinkingBase64 = fetched
+        playBase64(fetched)
     }
 
     suspend fun playWelcome() {
-        val b64 = repository.fetchTtsPrompt("welcome_android").audioBase64 ?: return
+        val b64 = repository.fetchTtsPrompt("welcome_android").audioBase64
+        if (b64.isEmpty()) return
         playBase64(b64)
     }
 

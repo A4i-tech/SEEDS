@@ -73,7 +73,7 @@ class TestVoiceCommand:
         with patch("app.controllers.meta_controller.meta_service.transcribe_audio", AsyncMock(return_value="   ")):
             resp = await client.post("/meta/voice-command", files=_audio_file())
         assert resp.status_code == 400
-        assert "Could not transcribe audio" in resp.json()["detail"]
+        assert "no speech" in resp.json()["message"]
 
     @pytest.mark.asyncio
     async def test_happy_path_shares_one_db_context_across_both_phases(self, client) -> None:

@@ -1,7 +1,5 @@
 package com.example.seeds.ui.voiceCommand
 
-import android.os.Parcelable
-import androidx.navigation.NavDirections
 import com.example.seeds.R
 import com.example.seeds.model.AudioContent
 import com.example.seeds.model.Classroom
@@ -16,30 +14,7 @@ import com.example.seeds.ui.call.CallSettingsFragmentDirections
 // semantics (same path matches, same priority order) so both clients show the same thing.
 // Pure functions: the parser logic lives here and is unit-tested (per plan Phase 5).
 
-data class FormattedResult(
-    val title: String,
-    val summary: String,
-    val items: List<String>,
-    val isSuccess: Boolean
-)
-
-data class NavigationTarget(
-    val label: String,
-    // R.id.* nav destination. null = no reachable destination; button renders label-only.
-    val destinationId: Int? = null,
-    val autoNavigate: Boolean = false,
-    // Parcelable nav-arg for destinations that require one (Content for the player, Classroom
-    // for call settings), plus its safe-args bundle key. Built from the backend result map by
-    // buildContent/buildClassroom below. null = argless destination.
-    val navArg: Parcelable? = null,
-    val navArgKey: String? = null,
-    // Pre-built multi-arg navigation (e.g. call_nav needs BOTH phoneNumbers and classroom —
-    // more than the single navArg above can carry). Takes priority over destinationId/navArg
-    // when set.
-    val directions: NavDirections? = null
-)
-
-private fun CommandResult?.isOk(): Boolean = this != null && error == null && status in 0 until 300
+private fun CommandResult?.isOk(): Boolean = this != null && error.isEmpty() && status in 0 until 300
 
 @Suppress("UNCHECKED_CAST")
 private fun Any?.asList(): List<Map<*, *>> = when (this) {
@@ -55,29 +30,26 @@ fun formatResult(command: VoiceCommand?, result: CommandResult?): FormattedResul
     if (command == null || result == null) {
         return FormattedResult("Command", "No details available", emptyList(), false)
     }
-    if (result.error != null) {
-        return FormattedResult(command.description ?: "Command", result.error, emptyList(), false)
+    if (result.error.isNotEmpty()) {
+        return FormattedResult(command.description.ifEmpty { "Command" }, result.error, emptyList(), false)
     }
 
     val path = command.path
     val data = result.data
 
-    // Classroom list
     if (Regex("""/class/?$""").containsMatchIn(path) && command.method == "GET") {
         val names = data.asList().mapNotNull { it.str("name") }
         return FormattedResult("Classrooms", "Found ${names.size} classroom${if (names.size != 1) "s" else ""}", names, isSuccess)
     }
 
-    // Students list
     if (path.contains("/teacher/students")) {
-        val names = data.asList().mapNotNull { it.str("name") ?: it.str("phoneNumber") }
+        val names = data.asList().mapNotNull { it.str("name") ?: it.str("phone_number") }
         return FormattedResult("Students", "Found ${names.size} student${if (names.size != 1) "s" else ""}", names, isSuccess)
     }
 
-    // Teacher profile
     if (path.contains("/teacher/me")) {
         val map = data as? Map<*, *>
-        val phone = map?.str("phoneNumber") ?: map?.str("phone")
+        val phone = map?.str("phone_number")
         return FormattedResult(
             "Your Profile",
             if (!phone.isNullOrEmpty()) "Phone: $phone" else "Profile loaded",
@@ -86,7 +58,6 @@ fun formatResult(command: VoiceCommand?, result: CommandResult?): FormattedResul
         )
     }
 
-    // Content list
     if (path.contains("/content") && command.method == "GET") {
         val titles = data.asList().map { item ->
             val title = item["title"] as? Map<*, *>
@@ -95,9 +66,8 @@ fun formatResult(command: VoiceCommand?, result: CommandResult?): FormattedResul
         return FormattedResult("Content", "Found ${titles.size} item${if (titles.size != 1) "s" else ""}", titles, isSuccess)
     }
 
-    // Fallback
     return FormattedResult(
-        command.description ?: "Command",
+        command.description.ifEmpty { "Command" },
         if (result.status < 300) "Completed successfully" else "Status ${result.status}",
         emptyList(),
         isSuccess
@@ -138,7 +108,7 @@ fun getNavigationTarget(commands: List<VoiceCommand>, results: List<CommandResul
 
         if (Regex("""^/class/([^/]+)$""").containsMatchIn(path) && cmd.method == "GET" && res.isOk()) {
             val map = res?.data as? Map<*, *>
-            classId = map?.str("_id")
+            classId = map?.str("id")
             singleClassData = map
         }
 
@@ -166,10 +136,10 @@ fun getNavigationTarget(commands: List<VoiceCommand>, results: List<CommandResul
 
         // Content command -> deep-link to the player (ContentDetailsFragment autoplays from the arg)
         if (path.contains("/content") && cmd.method == "GET" && res.isOk()) {
-            val single = (res?.data as? Map<*, *>)?.takeIf { it["_id"] != null }
+            val single = (res?.data as? Map<*, *>)?.takeIf { it["id"] != null }
             if (single != null) return contentTarget(single)
             val items = res?.data.asList()
-            if (items.isNotEmpty() && items[0]["_id"] != null) {
+            if (items.isNotEmpty() && items[0]["id"] != null) {
                 if (path.contains("expName=") || path.contains("ids=")) return contentTarget(items[0])
                 // No filter = "browse the library" -> the Content tab (argless-navigable).
                 return NavigationTarget("Open Content Library", destinationId = R.id.homeFragment)
@@ -180,7 +150,7 @@ fun getNavigationTarget(commands: List<VoiceCommand>, results: List<CommandResul
         // New classroom created -> open its call-settings screen (Android's per-class screen)
         if (Regex("""/class/?$""").containsMatchIn(path) && cmd.method == "POST" && res.isOk()) {
             val map = res?.data as? Map<*, *>
-            if (map?.str("_id") != null) {
+            if (map?.str("id") != null) {
                 return classTarget("Go to ${map.str("name") ?: "new classroom"}", map)
             }
         }
@@ -192,7 +162,7 @@ fun getNavigationTarget(commands: List<VoiceCommand>, results: List<CommandResul
     // A standalone "open class X" (GET /class/:id, no conference-start after it) goes
     // straight to that class rather than the generic classrooms list.
     singleClassData?.let { map ->
-        if (map.str("_id") != null) {
+        if (map.str("id") != null) {
             val target = classTarget("Go to ${map.str("name") ?: "classroom"}", map)
             // Only auto-jump when a real per-class target was built, not the safe list fallback.
             return if (target.destinationId == R.id.callSettingsFragment) target.copy(autoNavigate = true) else target
@@ -205,7 +175,6 @@ fun getNavigationTarget(commands: List<VoiceCommand>, results: List<CommandResul
     return null
 }
 
-// --- nav-arg construction: raw backend result map -> typed Parcelable model ---------------
 // Built by hand (not Moshi): the app's Moshi is Kotshi-codegen-only and Content has no adapter,
 // and this only needs the handful of fields the player/call-settings screens actually read.
 
@@ -216,7 +185,7 @@ private fun mapOfLocalized(value: Any?): LocalizedContent? {
 }
 
 fun buildContent(map: Map<*, *>): Content? {
-    val id = map.str("_id") ?: return null
+    val id = map.str("id") ?: return null
     val audio = (map["audioContent"] as? List<*>).orEmpty().mapNotNull { entry ->
         val am = entry as? Map<*, *> ?: return@mapNotNull null
         val url = am.str("audioUrl") ?: return@mapNotNull null
@@ -238,16 +207,16 @@ fun buildClassroom(map: Map<*, *>): Classroom? {
     fun students(key: String): List<Student> =
         (map[key] as? List<*>).orEmpty().mapNotNull { entry ->
             val sm = entry as? Map<*, *> ?: return@mapNotNull null
-            val phone = sm.str("phoneNumber") ?: sm.str("phone") ?: return@mapNotNull null
+            val phone = sm.str("phone_number") ?: return@mapNotNull null
             Student(
                 phoneNumber = phone,
                 name = sm.str("name") ?: "",
                 isLeader = sm["isLeader"] as? Boolean ?: false,
-                _id = sm.str("_id")
+                _id = sm.str("id")
             )
         }
     return Classroom(
-        _id = map.str("_id"),
+        _id = map.str("id"),
         name = name,
         teacher = map.str("teacher") ?: "",
         students = students("students"),

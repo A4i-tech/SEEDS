@@ -35,14 +35,14 @@ enum class VoiceStatus(val label: String) {
 
 data class VoiceCommandUiState(
     val status: VoiceStatus = VoiceStatus.IDLE,
-    val transcript: String? = null,
-    val spokenSummary: String? = null,
-    val error: String? = null,
+    val transcript: String = "",
+    val spokenSummary: String = "",
+    val error: String = "",
     val commands: List<VoiceCommand> = emptyList(),
     val results: List<CommandResult> = emptyList(),
     val formattedResults: List<FormattedResult> = emptyList(),
     val navigationTarget: NavigationTarget? = null,
-    val audioBase64: String? = null,  // consumed by Phase 8 (TTS playback)
+    val audioBase64: String = "",  // consumed by Phase 8 (TTS playback)
     val needsMicPermission: Boolean = false  // RECORD_AUDIO denied — show Settings deep-link
 ) {
     val isBusy: Boolean
@@ -87,13 +87,13 @@ class VoiceCommandViewModel @Inject constructor(
     fun setContext(classId: String?) { currentClassId = classId }
 
     private fun buildContext() = VoiceCommandContext(
-        activeConferenceId = sessionState.activeConferenceId.value,
-        currentClassId = currentClassId,
+        activeConferenceId = sessionState.activeConferenceId.value ?: "",
+        currentClassId = currentClassId ?: "",
         history = history.toList()
     )
 
     fun onStartRecording() {
-        ttsPlayer.stop()  // silence any summary/welcome still playing before a new turn
+        ttsPlayer.stop()
         _uiState.value = VoiceCommandUiState(status = VoiceStatus.RECORDING)
         // start() no-ops unless the recorder is Idle; a prior command leaves it Stopped, so reset first.
         recorder.reset()
@@ -123,11 +123,7 @@ class VoiceCommandViewModel @Inject constructor(
         // Play the "thinking" prompt while the planner works (web plays it on the PLANNING transition).
         thinkingJob = viewModelScope.launch { ttsPlayer.playThinking() }
         try {
-            var data = call()
-            // requiresClientExecution is currently a no-op stub (see VoiceCommandRepository); keep the
-            // EXECUTING transition so the state machine matches web and Phase 8 can slot real work in.
-            data = data.copy(results = repository.executeClientCommands(data.results))
-            applyResult(data, fallbackTranscript)
+            applyResult(call(), fallbackTranscript)
         } catch (e: Exception) {
             setError(e.message ?: "Request failed")
         }
@@ -140,13 +136,13 @@ class VoiceCommandViewModel @Inject constructor(
         val transcript = data.transcript.ifEmpty { fallbackTranscript ?: "" }
         val navTarget = getNavigationTarget(data.commands, data.results)
         val formatted = data.commands.mapIndexed { i, cmd -> formatResult(cmd, data.results.getOrNull(i)) }
-        val hasError = data.results.any { it.error != null }
+        val hasError = data.results.any { it.error.isNotEmpty() }
 
         _uiState.value = VoiceCommandUiState(
             status = if (hasError) VoiceStatus.ERROR else VoiceStatus.DONE,
             transcript = transcript,
             spokenSummary = data.spokenSummary,
-            error = data.results.firstNotNullOfOrNull { it.error },
+            error = data.results.firstOrNull { it.error.isNotEmpty() }?.error ?: "",
             commands = data.commands,
             results = data.results,
             formattedResults = formatted,
@@ -155,16 +151,16 @@ class VoiceCommandViewModel @Inject constructor(
         )
 
         if (!hasError) {
-            data.audioBase64?.let { ttsPlayer.playBase64(it) }  // spoken summary (Phase 8 TTS)
+            if (data.audioBase64.isNotEmpty()) ttsPlayer.playBase64(data.audioBase64)
             recordTurn(transcript, data.spokenSummary)
             storeConferenceId(data)
             dispatchMutationEvents(data)
         }
     }
 
-    private fun recordTurn(transcript: String, spokenSummary: String?) {
+    private fun recordTurn(transcript: String, spokenSummary: String) {
         if (transcript.isEmpty()) return
-        history.add(VoiceHistoryItem(transcript, spokenSummary ?: ""))
+        history.add(VoiceHistoryItem(transcript, spokenSummary))
         while (history.size > 2) history.removeAt(0)
     }
 
