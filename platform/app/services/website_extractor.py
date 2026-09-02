@@ -14,23 +14,8 @@ from app.platform.error_handling import ValidationError
 _ALLOWED_SCHEMES = {"http", "https"}
 _MAX_REDIRECTS = 5
 
-# --- SDK-parity text extraction ---------------------------------------------
-# The admin "translate a website" flow keys every extracted string with the
-# identical hash the runtime SDK computes for the same content in the live DOM
-# (sdk_hash_text mirrors sdk.js hashText). For the keys to line up, extraction
-# must produce the *same strings* the SDK hashes. The SDK walks the DOM with a
-# TreeWalker(SHOW_TEXT) and registers ONE key per text node
-# (node.textContent.trim()) — so text inside inline elements (<b>, <a>, ...) is
-# its own separate node/key. Collapsing an element into a single string (any
-# get_text(...) call) produces a key the SDK never generates for markup like
-# "<p>Hello <b>world</b></p>", so the persisted translation is never applied.
-# We therefore mirror the SDK node-for-node.
-
-# Tags whose (immediate-parent) text nodes the SDK skips (sdk.js SKIP_TAGS).
 _SKIP_PARENT_TAGS = {"script", "style", "noscript", "title"}
 
-# sdk.js isTranslatable(): reject empty / whitespace / purely
-# numeric-and-punctuation text. Same character class as the SDK regex.
 _NON_TRANSLATABLE_RE = re.compile(r"^[\d\s.,%$₹-]+$")
 
 
@@ -42,10 +27,6 @@ def _sdk_is_translatable(text: str) -> bool:
 
 
 def _sdk_text_nodes(root) -> list[str]:
-    """Trimmed text of every translatable text node under *root*, in document
-    order — one entry per text node, exactly as the SDK's registerNode() sees
-    them. Skips text whose immediate parent is a SKIP tag and any node under a
-    [data-no-translate] subtree (mirroring sdk.js isSkippableElement)."""
     out: list[str] = []
     for node in root.descendants:
         if not isinstance(node, NavigableString) or isinstance(node, Comment):
@@ -76,13 +57,6 @@ def _is_blocked_ip(ip: str) -> bool:
 
 
 async def _validate_url(url: str) -> None:
-    """Reject non-http(s) schemes and any host resolving to a non-public IP.
-
-    Blocks localhost/loopback, RFC1918 private ranges, link-local (which
-    covers the 169.254.169.254 cloud metadata endpoint), multicast, and
-    other reserved ranges. Must be called before the initial request and
-    again before following each redirect hop.
-    """
     parts = urlsplit(url)
 
     if parts.scheme not in _ALLOWED_SCHEMES:
@@ -104,8 +78,6 @@ async def _validate_url(url: str) -> None:
 
 
 class WebsiteExtractor:
-    """Extract readable content from a public website."""
-
     async def extract(self, url: str) -> dict:
         await _validate_url(url)
 
@@ -139,13 +111,8 @@ class WebsiteExtractor:
 
         soup = BeautifulSoup(response.text, "html.parser")
 
-        # <title> is not a body text node the SDK translates (it's in SKIP_TAGS),
-        # so keep it as separate metadata rather than a content key.
         title = soup.title.get_text(strip=True) if soup.title else ""
 
-        # Walk text nodes like the SDK does (body only; head has no translatable
-        # DOM text). One key per text node, de-duplicated on identical text
-        # (identical text -> identical sdk_hash_text key anyway).
         root = soup.body or soup
         content: list[str] = []
         seen: set[str] = set()

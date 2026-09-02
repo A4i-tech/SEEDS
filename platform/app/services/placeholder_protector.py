@@ -1,37 +1,20 @@
-"""
-Masks placeholders/formatting before sending text to an AI translation
-provider, then restores them from the model's output.
-
-Applies uniformly to every `TranslationProvider` (stub/openai/groq/...) from
-one place (`TranslationService.get_or_translate`) instead of duplicating
-preservation logic per vendor.
-
-Pragmatic regex-based masking of the concrete constructs ticket #436 names —
-`{{variable}}`, `{name}`, `%s`-style printf tokens, HTML tags, and Markdown
-link/image syntax. Not a full HTML/Markdown parser.
-"""
-
 from __future__ import annotations
 
 import re
 
-_TOKEN_FMT = "__PH{index}__"  # underscored so it reads as one opaque "word" to the model
+_TOKEN_FMT = "__PH{index}__"
 _TOKEN_RE = re.compile(r"__PH\d+__")
 
-# Order matters: double-brace before single-brace (avoid partial overlap),
-# markdown images/links before bare HTML tags (a Markdown link has no tags
-# but its brackets would otherwise be untouched — kept as its own pattern).
 _PATTERNS = [
-    re.compile(r"\{\{.*?\}\}"),  # {{variable}}
-    re.compile(r"\{[^{}\s]*\}"),  # {name}
-    re.compile(r"%(?:\d+\$)?[sdif]"),  # %s, %d, %1$s, ...
-    re.compile(r"!?\[[^\]]*\]\([^)]*\)"),  # [text](url), ![alt](url)
-    re.compile(r"<[^<>]+>"),  # HTML tags
+    re.compile(r"\{\{.*?\}\}"),
+    re.compile(r"\{[^{}\s]*\}"),
+    re.compile(r"%(?:\d+\$)?[sdif]"),
+    re.compile(r"!?\[[^\]]*\]\([^)]*\)"),
+    re.compile(r"<[^<>]+>"),
 ]
 
 
 def mask(text: str) -> tuple[str, dict[str, str]]:
-    """Replace protected substrings with opaque tokens. Returns (masked_text, mapping)."""
     mapping: dict[str, str] = {}
     result = text
     index = 0
@@ -48,7 +31,6 @@ def mask(text: str) -> tuple[str, dict[str, str]]:
 
 
 def unmask(text: str, mapping: dict[str, str]) -> str:
-    """Restore original substrings from the tokens produced by `mask`."""
     if not mapping:
         return text
 

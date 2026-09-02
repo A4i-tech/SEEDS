@@ -1,14 +1,3 @@
-"""
-AI translation provider abstraction.
-
-Vendor-agnostic so the concrete AI vendor (OpenAI, Groq, Azure OpenAI, ...)
-is a configuration choice (`settings.translation_provider`), not a code change
-in the service layer. Service code depends on `TranslationProvider` only.
-
-SECURITY: API keys are read exclusively from app.platform.settings and are
-never logged.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -22,41 +11,21 @@ logger = logging.getLogger(__name__)
 
 
 class TransientTranslationError(RuntimeError):
-    """Raised when a translation transiently fails (429, 5xx, network) after retries.
-
-    Distinct from a hard config/auth error: the caller should SKIP this item and
-    leave it untranslated so it retries on a later request — never persist a
-    fabricated placeholder as if it were a real translation.
-    """
+    pass
 
 
 class TranslationProvider(ABC):
-    """Abstract base for AI translation vendors."""
-
     @abstractmethod
     async def translate(self, text: str, source_lang: str, target_lang: str) -> str:
-        """Translate *text* from *source_lang* to *target_lang* and return the result."""
+        ...
 
     async def translate_batch(
         self, texts: list[str], source_lang: str, target_lang: str
     ) -> list[str]:
-        """Translate many texts at once, returning results in input order.
-
-        Default implementation runs the single-item path sequentially so every
-        provider supports batching through the same interface. Vendors with a
-        native batch endpoint (e.g. Azure) override this for one round-trip.
-        Existing callers that only use ``translate`` are unaffected.
-        """
         return [await self.translate(t, source_lang, target_lang) for t in texts]
 
 
 class _ChatCompletionsTranslationProvider(TranslationProvider):
-    """Shared logic for any OpenAI-compatible Chat Completions vendor.
-
-    No `openai` SDK package is installed in this project; using the raw REST
-    API avoids adding a new dependency (mirrors tts_service.py's REST-call style).
-    Concrete vendors only need to set `_API_URL`, `_MODEL`, `_PROVIDER_LABEL`.
-    """
 
     _API_URL: str
     _MODEL: str
@@ -97,34 +66,19 @@ class _ChatCompletionsTranslationProvider(TranslationProvider):
 
 
 class OpenAITranslationProvider(_ChatCompletionsTranslationProvider):
-    """Calls the OpenAI Chat Completions REST endpoint."""
 
     _API_URL = "https://api.openai.com/v1/chat/completions"
     _MODEL = "gpt-4o-mini"
     _PROVIDER_LABEL = "OpenAI"
 
 
-# Auth/config errors are never worth retrying — surface them immediately.
 _NON_TRANSIENT_STATUS_CODES = {401, 403, 404, 422}
 
-# Transient failures (429/5xx/network) are retried with exponential backoff
-# before giving up. Free-tier Groq keys rate-limit under batch load; a couple of
-# short retries recover the vast majority without fabricating placeholder text.
 _MAX_ATTEMPTS = 3
 _BASE_BACKOFF_SECONDS = 1.0
 
 
 class GroqTranslationProvider(_ChatCompletionsTranslationProvider):
-    """Calls Groq's OpenAI-compatible Chat Completions REST endpoint.
-
-    Transient failures (network errors, timeouts, 429, 5xx) are retried with
-    exponential backoff. If they still fail, a `TransientTranslationError` is
-    raised so the caller SKIPS the item and leaves it untranslated for a later
-    retry — the provider NEVER returns a placeholder that could be persisted as
-    a real translation (that previously poisoned the DB with "[ta] ..." text).
-    Authentication/configuration errors (bad key, 401/403/404/422) are surfaced
-    as-is so misconfiguration is never silently masked.
-    """
 
     _API_URL = "https://api.groq.com/openai/v1/chat/completions"
     _PROVIDER_LABEL = "Groq"
@@ -160,39 +114,21 @@ class GroqTranslationProvider(_ChatCompletionsTranslationProvider):
 
     @staticmethod
     def _extract_status_code(error_message: str) -> int | None:
-        # Matches "Groq translation error 429: ..." raised by the base class.
         import re  # noqa: PLC0415
 
         match = re.match(r"Groq translation error (\d+):", error_message)
         return int(match.group(1)) if match else None
 
 
-# Azure transient HTTP statuses worth retrying; everything else (400/401/403)
-# is a hard config/auth error surfaced immediately.
 _AZURE_TRANSIENT_STATUS_CODES = {408, 429, 500, 502, 503, 504}
 _AZURE_MAX_ATTEMPTS = 3
 _AZURE_BASE_BACKOFF_SECONDS = 1.0
 
 
 class AzureTranslationProvider(TranslationProvider):
-    """Azure AI Translator — Text Translation REST API v3.0.
-
-    A dedicated machine-translation engine (not an LLM): deterministic output,
-    metered by characters rather than an LLM token/day cap, with a native batch
-    endpoint (one POST /translate translates an array of texts). It implements
-    the same TranslationProvider contract as the Groq/OpenAI providers, so the
-    rest of the pipeline — Translation Memory, glossary, human review, approval,
-    audit, version history, runtime SDK, language switching — is unchanged.
-
-    Transient failures (408/429/5xx, network) are retried with exponential
-    backoff, then raise TransientTranslationError so the caller SKIPS the item
-    (never persists a placeholder). Config/auth errors (400/401/403) surface
-    as-is so misconfiguration is never silently masked.
-    """
 
     _API_VERSION = "3.0"
     _DEFAULT_ENDPOINT = "https://api.cognitive.microsofttranslator.com"
-    # Azure's /translate hard caps: 100 array elements, 50,000 chars per request.
     _MAX_BATCH_ITEMS = 100
     _MAX_BATCH_CHARS = 50_000
 
@@ -212,13 +148,6 @@ class AzureTranslationProvider(TranslationProvider):
     async def translate_batch(
         self, texts: list[str], source_lang: str, target_lang: str
     ) -> list[str]:
-        """Split *texts* under Azure's array/char caps and issue one request per chunk.
-
-        Enforced here rather than trusted to the caller — every caller of this
-        provider (runtime batch pipeline, admin website-translate fallback,
-        any future batch tool) gets the limit for free instead of needing to
-        know Azure's specific numbers.
-        """
         if not texts:
             return []
 
@@ -289,21 +218,12 @@ class AzureTranslationProvider(TranslationProvider):
 
 
 class _StubTranslationProvider(TranslationProvider):
-    """Offline translation provider — no API key or network access required.
-
-    Returns "[<lang>] <text>" so pipeline stages (extract, Mongo persistence,
-    TM, review/approval, runtime GET) are verifiable without a real AI call.
-    Selected explicitly via TRANSLATION_PROVIDER=stub; it is NOT used as a
-    silent fallback for other providers (that fabricated placeholder
-    translations that leaked into the DB).
-    """
 
     async def translate(self, text: str, source_lang: str, target_lang: str) -> str:
         return f"[{target_lang}] {text}"
 
 
 def get_translation_provider(settings: Settings) -> TranslationProvider:
-    """Factory selecting the concrete provider from settings.translation_provider."""
     provider_name = (settings.translation_provider or "openai").lower()
 
     if provider_name == "openai":

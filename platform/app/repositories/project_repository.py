@@ -1,8 +1,3 @@
-"""Project repository — PyMongo async data access for the projects collection.
-
-Projects are the top-level grouping for onboarded websites (ticket #436).
-"""
-
 from __future__ import annotations
 
 from datetime import UTC, datetime

@@ -1,9 +1,3 @@
-"""Analytics service — basic dashboard metrics derived from existing data.
-
-Kept separate from TranslationService so that service stays focused on
-translation workflows (ticket #436, Phase I).
-"""
-
 from __future__ import annotations
 
 from typing import Any

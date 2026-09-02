@@ -1,9 +1,3 @@
-"""Onboarding service — project/website registration and SDK snippet generation.
-
-Business logic only; MongoDB access goes through ProjectRepository /
-WebsiteRepository (ticket #436).
-"""
-
 from __future__ import annotations
 
 import re

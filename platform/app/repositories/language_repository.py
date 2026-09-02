@@ -1,11 +1,3 @@
-"""Language repository — PyMongo async data access for the languages collection.
-
-Backs both the admin UI (ContentWebApp's Language management) and the
-runtime SDK's language switcher (ticket #436, AC10) — previously the SDK's
-language list was hardcoded and the UI's was localStorage-only, so neither
-side could add a language without a code change.
-"""
-
 from __future__ import annotations
 
 from datetime import UTC, datetime

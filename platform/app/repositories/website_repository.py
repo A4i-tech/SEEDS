@@ -1,9 +1,3 @@
-"""Website repository — PyMongo async data access for the websites collection.
-
-Each website belongs to one project and carries a unique siteId used by the
-SDK snippet (ticket #436).
-"""
-
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -22,12 +16,6 @@ class WebsiteRepository(BaseRepository):
 
     @classmethod
     async def ensure_indexes(cls, db: AsyncDatabase) -> None:
-        """Create unique indexes guarding against duplicate registrations.
-
-        Called once at startup (see app/platform/lifespan.py). siteId is
-        never updated after create() — immutable by construction, no code
-        path writes to it post-insert.
-        """
         col = db[cls.COLLECTION]
         await col.create_index("siteId", unique=True)
         await col.create_index("domain", unique=True)

@@ -1,9 +1,3 @@
-"""Translation service — business logic for AI-powered site translation.
-
-Depends only on the TranslationProvider abstraction, never a concrete vendor
-class, so swapping AI vendors is a settings change, not a service rewrite.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -53,10 +47,6 @@ class TranslationService:
         self._audit_repo = TranslationAuditRepository(db)
         self._website_repo = WebsiteRepository(db)
         self._language_repo = LanguageRepository(db)
-        # Always on for the real DI-constructed service (see get_translation_service
-        # below). Unit tests that don't care about the abuse-prevention checks
-        # under test disable these explicitly rather than seeding a domain/
-        # language fixture for every unrelated call.
         self._enforce_origin_check = enforce_origin_check
         self._enforce_lang_validation = enforce_lang_validation
 
@@ -67,14 +57,6 @@ class TranslationService:
         return self._provider_instance
 
     async def _ensure_site_active(self, site_id: str) -> dict[str, Any]:
-        """Reject any siteId that isn't a registered, active website.
-
-        Called from the two unauthenticated public endpoints (/extract, GET
-        /translations) so an arbitrary string can't write source text or
-        trigger paid inline AI translation under a made-up tenant. Returns
-        the website doc so callers can bind the request to its registered
-        domain.
-        """
         website = await self._website_repo.find_by_site_id(site_id)
         if not website or website.get("status") != "Active":
             raise NotFoundError("website", site_id)
@@ -97,19 +79,6 @@ class TranslationService:
     def _ensure_origin_matches(
         self, website: dict[str, Any], origin: str | None, referer: str | None
     ) -> None:
-        """Bind a public siteId call to the domain it was registered with.
-
-        siteId is public by construction (it ships in the embed snippet on
-        the customer's page), so knowing siteId alone doesn't prove the
-        caller has anything to do with that site. Require the Origin (or,
-        failing that, Referer) header's hostname to match the site's
-        registered domain — the same binding Weglot/Localize use for public
-        site keys. The comparison strips a single leading "www." from both
-        sides so example.com and www.example.com are treated as the same
-        site (extremely common dual-host deployment) — this is a narrow
-        alias, not general subdomain/suffix matching: api.example.com still
-        never matches example.com.
-        """
         if not self._enforce_origin_check:
             return
         hostname = self._hostname_of(origin) or self._hostname_of(referer)
@@ -145,9 +114,6 @@ class TranslationService:
         provider: str | None = None,
         detail: str = "",
     ) -> None:
-        """Record one immutable audit event in BOTH the per-document embedded
-        auditLog (fast per-item view) and the append-only translation_audit
-        collection (global "who did what, when" queries)."""
         if translation_id is not None:
             await self._repo.append_audit_entry(translation_id, action, actor, detail=detail)
         await self._audit_repo.record(
@@ -168,11 +134,6 @@ class TranslationService:
         origin: str | None = None,
         referer: str | None = None,
     ) -> None:
-        """Upsert source text for each extracted DOM item.
-
-        Never overwrites text already known for a (site, route, key) — the SDK
-        re-sends the same items on every DOM mutation debounce.
-        """
         website = await self._ensure_site_active(site_id)
         self._ensure_origin_matches(website, origin, referer)
         for item in items:
@@ -185,15 +146,6 @@ class TranslationService:
             )
 
     async def extract_items_for_review(self, site_id: str, items: list[dict[str, Any]]) -> None:
-        """Authenticated equivalent of extract_items for the admin website-translate flow.
-
-        Same upsert-source behavior, but never calls _ensure_origin_matches —
-        authentication (_require_content_write on the calling route) replaces
-        origin binding for this internal path, same precedent as
-        generate_for_review. The public POST /translations/extract endpoint
-        keeps calling extract_items unchanged, so origin validation for the
-        unauthenticated SDK path is untouched.
-        """
         await self._ensure_site_active(site_id)
         for item in items:
             await self._repo.upsert_source(
@@ -205,19 +157,6 @@ class TranslationService:
             )
 
     async def get_stored_translations(self, site_id: str, route: str, lang: str) -> dict[str, str]:
-        """Runtime read path for the SDK: return {key: text} using ONLY what is
-        already stored — never call the AI provider inline.
-
-        On-demand translation inside this request path is what made an
-        uncovered route un-renderable: translating hundreds of missing items
-        synchronously bursts the provider, hits its rate/quota limit, retries
-        with backoff, and the request eventually 502s — blocking the SDK from
-        applying even the items that WERE already translated. Reading stored
-        data only makes this endpoint fast and stall-free: every item that has
-        a translation for *lang* renders immediately; items still missing fall
-        back to their source text (never null). Generating the missing ones is
-        an offline/background backfill job, not this read-only request path.
-        """
         docs = await self._repo.find_by_route(site_id, route)
         result: dict[str, str] = {}
         for doc in docs:
@@ -228,8 +167,6 @@ class TranslationService:
                 result[doc["key"]] = doc["sourceText"]
         return result
 
-    # Batch limits for on-demand runtime translation (Azure /translate accepts an
-    # array; keep each request under its item + character caps).
     _RUNTIME_BATCH_ITEMS = 50
     _RUNTIME_BATCH_CHARS = 45_000
 
@@ -257,47 +194,15 @@ class TranslationService:
         origin: str | None = None,
         referer: str | None = None,
     ) -> dict[str, str]:
-        """On-demand runtime path for the SDK: return {key: text} for every item on
-        *route*, generating any missing *lang* translations inline via the provider.
-
-        Extracted items with no *lang* translation yet are run through glossary ->
-        Translation Memory -> AI (batched) and stored as a draft. Only APPROVED
-        documents are ever served to the caller; a freshly-generated AI translation
-        is persisted but still falls back to source text until a human approves it.
-        Translation Memory reuse is the one exception: it auto-approves at persist
-        time, since a TM hit is by construction reusing content a human already
-        approved elsewhere.
-
-        Batching + a fast MT provider (Azure: no LLM token/day cap) keep this from
-        stalling. If generation transiently fails for an item, that item falls back
-        to its source text (never null, never a persisted placeholder), and retries
-        on a later request.
-        """
         website = await self._ensure_site_active(site_id)
         self._ensure_origin_matches(website, origin, referer)
         return await self._generate_translations(site_id, route, lang)
 
     async def generate_for_review(self, site_id: str, route: str, lang: str) -> dict[str, str]:
-        """Authenticated equivalent of runtime_translate for the admin/reviewer UI.
-
-        Same on-demand glossary -> TM -> AI generation as the public SDK path,
-        but callable only by an authenticated admin/reviewer (see
-        require_admin_or_reviewer on the /translations/generate route) instead
-        of being bound to the site's registered domain via Origin/Referer —
-        authentication replaces origin verification for this internal path.
-        _ensure_origin_matches is deliberately never called here.
-        """
         await self._ensure_site_active(site_id)
         return await self._generate_translations(site_id, route, lang)
 
     def _is_first_party(self, site_id: str) -> bool:
-        """True only for siteIds explicitly listed in FIRST_PARTY_SITE_IDS.
-
-        First-party (ContentWebApp's own UI) AI translations are served at
-        runtime without human approval. Identity is by exact siteId from config
-        only — never domain/localhost/route/role. Empty config => always False,
-        so every site keeps the approval gate until a siteId is opted in.
-        """
         ids = getattr(get_settings(), "first_party_site_ids", "") or ""
         if not ids:
             return False
@@ -314,8 +219,6 @@ class TranslationService:
         for doc in docs:
             existing = (doc.get("translations") or {}).get(lang)
             if existing and existing.get("text"):
-                # First-party (ContentWebApp UI): serve the AI text regardless of
-                # approval status. Partner: approved-only, else source (gate intact).
                 serve_unapproved = first_party
                 result[doc["key"]] = (
                     existing["text"]
@@ -345,9 +248,6 @@ class TranslationService:
         return result
 
     async def _runtime_batch_ai(self, site_id, route, lang, pending, result, first_party=False) -> None:
-        """Translate all *pending* items via the provider's batch endpoint, grouped
-        by source language and chunked under the batch item/char caps. Store each
-        result; on transient failure retry per-item, then fall back to source."""
         by_src: dict[str, list] = {}
         for entry in pending:
             by_src.setdefault(entry[3], []).append(entry)
@@ -361,8 +261,6 @@ class TranslationService:
                         translated = unmask(out, pmap)
                         quality = score_translation(normalized, out, pmap)
                         await self._persist_translation(site_id, route, doc, lang, translated, type(self._provider).__name__, quality)
-                        # First-party serves the fresh AI text now; partner serves
-                        # source (draft stays pending until a human approves).
                         result[doc["key"]] = translated if first_party else doc["sourceText"]
                 except (TransientTranslationError, ValueError):
                     for doc, masked, pmap, _s, normalized in chunk:
@@ -374,14 +272,6 @@ class TranslationService:
                         translated = unmask(out, pmap)
                         quality = score_translation(normalized, out, pmap)
                         await self._persist_translation(site_id, route, doc, lang, translated, type(self._provider).__name__, quality)
-                        # Gate on the per-language status just written
-                        # (translations.{lang}.status is "pending" for a fresh AI
-                        # draft), never the document-level status: a Translation
-                        # Memory auto-approve on another language sets the doc-
-                        # level status to "approved" and must not leak this
-                        # unreviewed draft. Pending -> serve source, matching the
-                        # batch-success branch above. First-party (ContentWebApp UI)
-                        # is the sole runtime exemption: serve the AI text now.
                         result[doc["key"]] = translated if first_party else doc["sourceText"]
 
     def _chunk(self, entries: list) -> list[list]:
@@ -400,22 +290,6 @@ class TranslationService:
         return out
 
     async def get_or_translate(self, site_id: str, route: str, lang: str) -> dict[str, str]:
-        """Return {key: text} for every known item on *route*, runtime-safe for the SDK.
-
-        Missing translations for *lang* run source text through the pipeline:
-        glossary normalization -> Translation Memory (approved exact match) ->
-        AI provider, then persist as a draft. Only APPROVED translations are
-        ever served to the caller; everything else (draft, pending review,
-        rejected) falls back to source text. Translation Memory reuse is the
-        one exception: it auto-approves at persist time, since a TM hit is by
-        construction reusing content a human already approved elsewhere.
-
-        If the AI provider transiently fails for an item, that item is SKIPPED
-        (its source text is returned) rather than persisting a fabricated
-        placeholder — so a rate-limit blip never poisons the DB, and the item
-        retries on a later request. The SDK therefore never receives null and
-        never receives placeholder text like "[ta] ...".
-        """
         docs = await self._repo.find_by_route(site_id, route)
         result: dict[str, str] = {}
         first_party = self._is_first_party(site_id)
@@ -423,8 +297,6 @@ class TranslationService:
         for doc in docs:
             existing = (doc.get("translations") or {}).get(lang)
             if existing and existing.get("text"):
-                # First-party (ContentWebApp UI) serves AI text regardless of
-                # approval status; partner stays approved-only (gate intact).
                 result[doc["key"]] = (
                     existing["text"]
                     if (existing.get("status") == "approved" or first_party)
@@ -441,7 +313,7 @@ class TranslationService:
             if tm_hit:
                 translated = tm_hit["translations"][lang]["text"]
                 provider_name = "TranslationMemory"
-                quality_score = 1.0  # already human-approved elsewhere
+                quality_score = 1.0
                 auto_approved = True
             else:
                 masked_text, placeholder_map = mask(normalized_text)
@@ -452,7 +324,6 @@ class TranslationService:
                         target_lang=lang,
                     )
                 except TransientTranslationError:
-                    # Leave untranslated; a later request retries. Never persist a placeholder.
                     result[doc["key"]] = doc["sourceText"]
                     continue
                 translated = unmask(masked_translated, placeholder_map)
@@ -481,11 +352,6 @@ class TranslationService:
                 lang=lang,
                 provider=provider_name,
             )
-            # This is a freshly persisted translation for a lang that had none
-            # before, so its own approval state is exactly auto_approved
-            # (True only for a Translation Memory hit) — no other language's
-            # status on this document is relevant here. First-party (ContentWebApp
-            # UI) additionally serves the fresh AI text now; partner serves source.
             result[doc["key"]] = translated if (auto_approved or first_party) else doc["sourceText"]
 
         return result
@@ -497,17 +363,6 @@ class TranslationService:
         status: str | None = None,
         low_confidence_only: bool = False,
     ) -> list[dict[str, Any]]:
-        """List translation documents for reviewer/admin workflows.
-
-        Route-scoped lookups (Phase 1's translationId bootstrap) reuse
-        find_by_route directly. Site-wide lookups (future Pending Queue,
-        route omitted) go through find_by_site instead — same status
-        filter, no endpoint redesign needed when that phase lands.
-
-        low_confidence_only filters to documents with at least one language
-        whose heuristic qualityScore is below the low-confidence threshold —
-        this is the reviewer-facing "needs attention" queue (AC6).
-        """
         if route:
             docs = await self._repo.find_by_route(site_id, route)
             if status:
@@ -534,12 +389,6 @@ class TranslationService:
         route: str | None = None,
         lang: str | None = None,
     ) -> dict[str, int]:
-        """Approve every non-approved language on every matching document.
-
-        Reuses approve_translation per (doc, lang) so each approval still gets
-        its own version snapshot and audit entry — this is a batch driver, not
-        a shortcut around the per-language approval gate.
-        """
         docs = await self.list_translations(site_id, route=route)
         approved = 0
         skipped = 0
@@ -563,7 +412,7 @@ class TranslationService:
     async def update_translation(
         self, translation_id: str, lang: str, text: str, editor: str = ""
     ) -> dict[str, Any]:
-        doc = await self.get_translation(translation_id)  # raises NotFoundError if missing
+        doc = await self.get_translation(translation_id)
         await self._repo.update_translation_text(translation_id, lang, text)
         await self._audit(
             translation_id=translation_id,
@@ -578,14 +427,7 @@ class TranslationService:
         return await self.get_translation(translation_id)
 
     async def approve_translation(self, translation_id: str, lang: str, approved_by: str) -> dict[str, Any]:
-        """Approve *lang* on the document and append a version snapshot (never overwritten).
-
-        Scoped to lang only: approving one language on a document must never
-        approve, or otherwise change, any other language already on it.
-        Version numbering starts at 1. Only approved states are versioned —
-        drafts and edits-in-progress never get a version entry.
-        """
-        doc = await self.get_translation(translation_id)  # raises NotFoundError if missing
+        doc = await self.get_translation(translation_id)
         next_version = doc.get("version", 0) + 1
         approved_at = datetime.now(UTC)
 
@@ -610,9 +452,7 @@ class TranslationService:
         return await self.get_translation(translation_id)
 
     async def reject_translation(self, translation_id: str, lang: str, rejected_by: str, reason: str) -> dict[str, Any]:
-        """Reject *lang* on the document. Must never reject, or otherwise change,
-        any other language already approved on it."""
-        doc = await self.get_translation(translation_id)  # raises NotFoundError if missing
+        doc = await self.get_translation(translation_id)
         await self._repo.reject_translation(translation_id, lang, rejected_by, reason)
         await self._audit(
             translation_id=translation_id,
@@ -634,16 +474,12 @@ class TranslationService:
         action: str | None = None,
         limit: int = 200,
     ) -> list[dict[str, Any]]:
-        """Return append-only audit events, newest first.
-
-        Per-item (route+key) or site-wide (optionally filtered by action).
-        """
         if route and key:
             return await self._audit_repo.find_by_item(site_id, route, key)
         return await self._audit_repo.find_by_site(site_id, route=route, action=action, limit=limit)
 
     async def get_version_history(self, translation_id: str) -> list[dict[str, Any]]:
-        await self.get_translation(translation_id)  # raises NotFoundError if missing
+        await self.get_translation(translation_id)
         return await self._version_repo.find_by_translation(translation_id)
 
 

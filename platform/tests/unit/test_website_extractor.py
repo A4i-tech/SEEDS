@@ -29,7 +29,7 @@ def _fake_addrinfo(ip: str):
 )
 async def test_validate_url_allows_public_address(monkeypatch, url):
     monkeypatch.setattr(socket, "getaddrinfo", _fake_addrinfo("93.184.216.34"))
-    await _validate_url(url)  # no raise
+    await _validate_url(url)
 
 
 @pytest.mark.parametrize(
@@ -37,7 +37,7 @@ async def test_validate_url_allows_public_address(monkeypatch, url):
     [
         ("http://localhost", "127.0.0.1"),
         ("http://internal.example", "127.0.0.1"),
-        ("http://169.254.169.254", "169.254.169.254"),  # cloud metadata endpoint
+        ("http://169.254.169.254", "169.254.169.254"),
         ("http://10.0.0.1", "10.0.0.1"),
         ("http://192.168.1.1", "192.168.1.1"),
     ],
@@ -96,31 +96,19 @@ async def _extract_html(monkeypatch, html: str) -> dict:
     return await WebsiteExtractor().extract("http://example.com")
 
 
-# ---------------------------------------------------------------------------
-# PR #276 blocker #4 — the extractor must key content the SAME way the SDK
-# does: ONE key per text node, so text inside inline elements (<b>, <a>, ...)
-# is its own key. The SDK walks the DOM with TreeWalker(SHOW_TEXT) and hashes
-# each node.textContent.trim() separately (sdk.js registerNode); collapsing an
-# element into a single string yields a key the SDK never generates, so the
-# persisted translation never renders for markup like "<p>Hi <b>there</b></p>".
-# ---------------------------------------------------------------------------
 
 
 def _sdk_side_text_nodes(*texts: str) -> list[str]:
-    """The trimmed, translatable text nodes the SDK would register, in order."""
     return [t.strip() for t in texts if _sdk_is_translatable(t)]
 
 
 async def test_extract_splits_inline_element_into_separate_text_nodes(monkeypatch):
     html = "<html><body><p>Hello <b>world</b></p></body></html>"
     result = await _extract_html(monkeypatch, html)
-    # Two text nodes -> two keys, exactly what the SDK registers.
     assert result["content"] == ["Hello", "world"]
 
 
 async def test_extract_inline_markup_with_trailing_text_node(monkeypatch):
-    # <p> yields three text nodes: "Hello", "world", "!" — the SDK registers
-    # all three ("!" is not numeric/punctuation-only per isTranslatable).
     html = "<html><body><p>Hello<b>world</b>!</p></body></html>"
     result = await _extract_html(monkeypatch, html)
     assert result["content"] == ["Hello", "world", "!"]
@@ -133,14 +121,11 @@ async def test_extract_plain_text_element_unaffected(monkeypatch):
 
 
 async def test_extract_keys_match_sdk_per_node_keys(monkeypatch):
-    """Each extracted string hashes to the same key the SDK computes from the
-    corresponding live-DOM text node (node.textContent.trim())."""
     from app.services.sdk_hash import sdk_hash_text
 
     html = "<html><body><p>Hello <b>world</b></p></body></html>"
     result = await _extract_html(monkeypatch, html)
 
-    # SDK side: two separate text nodes "Hello " and "world".
     sdk_side = _sdk_side_text_nodes("Hello ", "world")
     assert result["content"] == sdk_side
     assert [sdk_hash_text(t) for t in result["content"]] == [
@@ -152,9 +137,9 @@ async def test_extract_skips_non_translatable_skip_tags_and_opt_out(monkeypatch)
     html = (
         "<html><body>"
         "<p>Keep me</p>"
-        "<p>12.5%</p>"                            # numeric/punctuation-only -> skipped
-        "<style>.x{color:red}</style>"            # SKIP tag -> skipped
-        "<span data-no-translate>secret</span>"   # opted out -> skipped
+        "<p>12.5%</p>"
+        "<style>.x{color:red}</style>"
+        "<span data-no-translate>secret</span>"
         "</body></html>"
     )
     result = await _extract_html(monkeypatch, html)
@@ -162,8 +147,6 @@ async def test_extract_skips_non_translatable_skip_tags_and_opt_out(monkeypatch)
 
 
 async def test_extract_rejects_redirect_to_blocked_target(monkeypatch):
-    # First hop resolves publicly; the redirect target resolves to a blocked
-    # (loopback) address and must be rejected before it's ever fetched.
     call_count = {"n": 0}
 
     def _getaddrinfo(host, port):

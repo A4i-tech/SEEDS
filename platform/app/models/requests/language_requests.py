@@ -1,5 +1,3 @@
-"""Request schemas for language management endpoints (ticket #436, AC10)."""
-
 from __future__ import annotations
 
 from pydantic import BaseModel

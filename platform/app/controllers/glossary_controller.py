@@ -1,11 +1,3 @@
-"""Glossary controller — /glossary CRUD endpoints (ticket #436, AC5).
-
-Terms are read by TranslationService.get_or_translate() on every fresh AI
-translation (via GlossaryNormalizer), so this is the admin-facing surface
-for something that was previously write-only (add_term existed, nothing
-called it).
-"""
-
 from __future__ import annotations
 
 import logging

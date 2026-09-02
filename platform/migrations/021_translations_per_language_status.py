@@ -1,47 +1,4 @@
 #!/usr/bin/env python3
-"""
-Migration 021 — Backfill per-language approval status on the translations collection.
-
-Approval state used to live only at the document level (status/approvedBy/
-approvedAt/rejectedBy/rejectedAt/rejectionReason), so approving Kannada on a
-document also implicitly "approved" Malayalam on the same document at
-runtime (both were gated by the same single field). Approval is now stored
-per language at translations.{lang}.status, so each language's approval is
-independent.
-
-Originally this migration propagated a document's top-level status onto
-every language missing translations.{lang}.status (approved -> approved,
-rejected -> rejected). That was found to be unsafe against real data: the
-pre-per-language "approve" action carried no language attribution at all
-(translation_audit entries for every legacy "approved" action have
-lang=None), so a document with e.g. 8 languages generated but only ONE ever
-actually reviewed would have all 8 marked "approved" here — silently
-auto-approving 7 languages a human never looked at. There is no reliable
-signal anywhere in the legacy data (embedded auditLog, translation_audit
-collection, or the document itself) that identifies which language, if any,
-a pre-fix approval or rejection actually corresponded to.
-
-This migration therefore now backfills every translations.{lang} entry that
-is missing a status field to "pending", unconditionally — regardless of the
-document's top-level status. This matches the product requirement (Extract
--> AI Generate -> Pending Review -> Human Approval -> Approved -> SDK
-serves) exactly: no language is ever considered approved without a real,
-attributable per-language approval. The document's top-level
-status/approvedBy/approvedAt/rejectedBy/etc. fields are left untouched as a
-historical/analytics record (they are already never read for runtime
-serving or Translation Memory reuse — see TranslationRepository).
-
-It does NOT retroactively approve any language added to a document AFTER
-this migration runs — new languages always start "pending" (see
-TranslationRepository.save_translation).
-
-Idempotent: only touches translations.{lang} entries that don't already have
-a status field.
-
-Usage:
-    python migrations/021_translations_per_language_status.py [--dry-run] [--mongo-uri URI]
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -69,7 +26,6 @@ async def migrate(mongo_uri: str, dry_run: bool) -> None:
     db = client[db_name]
     col = db[COLLECTION]
 
-    # Any document with at least one language missing translations.{lang}.status.
     docs = await col.find({}).to_list(length=None)
     total = len(docs)
     touched = 0
@@ -81,12 +37,8 @@ async def migrate(mongo_uri: str, dry_run: bool) -> None:
         set_fields: dict = {}
         for lang, entry in translations.items():
             if not isinstance(entry, dict) or "status" in entry:
-                continue  # already migrated / already has its own status
+                continue
 
-            # Always "pending" -- never infer approved/rejected for a
-            # language from the document's top-level status. See module
-            # docstring: legacy top-level approvals carry no per-language
-            # attribution, so defaulting to pending is the only safe choice.
             set_fields[f"translations.{lang}.status"] = "pending"
 
         if not set_fields:

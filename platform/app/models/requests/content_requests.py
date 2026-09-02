@@ -77,9 +77,6 @@ class QuizCreateRequest(BaseModel):
 
 
 class ContentCreate(BaseModel):
-    """Snake_case DB document DTO for content creation — model_dump() writes correct DB keys
-    matching the Content domain model (app/models/content.py)."""
-
     tenant_id: str
     type: str
     language: str
@@ -98,9 +95,6 @@ class ContentCreate(BaseModel):
 
 
 class QuizCreate(BaseModel):
-    """Snake_case DB document DTO for quiz creation — model_dump() writes correct DB keys
-    matching the Quiz domain model."""
-
     tenant_id: str
     type: str
     language: str

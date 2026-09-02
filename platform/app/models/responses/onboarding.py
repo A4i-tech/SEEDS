@@ -1,9 +1,3 @@
-"""Response DTOs for project/website onboarding documents.
-
-extra="allow" so all document fields pass through unchanged; only _id needs
-explicit ObjectId coercion.
-"""
-
 from __future__ import annotations
 
 from typing import Any

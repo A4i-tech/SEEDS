@@ -1,4 +1,3 @@
-"""Unit tests for onboarding (project/website registration + SDK snippet)."""
 
 from __future__ import annotations
 
@@ -33,7 +32,7 @@ async def test_register_website_generates_uuid_site_id(onboarding_service):
 
     assert website["domain"] == "acme.com"
     assert website["projectId"] == str(project["_id"])
-    assert len(website["siteId"]) == 36  # UUID4 string form, not truncated hex
+    assert len(website["siteId"]) == 36
 
 
 async def test_register_website_raises_not_found_for_unknown_project(onboarding_service):
@@ -50,7 +49,7 @@ async def test_register_website_rejects_invalid_domain(onboarding_service):
 async def test_register_website_rejects_duplicate_domain(onboarding_service):
     project = await onboarding_service.create_project("Acme Corp")
     await onboarding_service.register_website(str(project["_id"]), "acme.com")
-    with pytest.raises(Exception):  # unique index violation (DuplicateKeyError)
+    with pytest.raises(Exception):
         await onboarding_service.register_website(str(project["_id"]), "acme.com")
 
 

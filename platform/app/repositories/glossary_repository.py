@@ -1,10 +1,3 @@
-"""Glossary repository — PyMongo async data access for the glossary collection.
-
-Simple per-language term list (ticket #436, Phase F). No priorities, phrase
-matching, or tenant scoping yet — see GlossaryNormalizer for where those
-extensions plug in.
-"""
-
 from __future__ import annotations
 
 from typing import Any

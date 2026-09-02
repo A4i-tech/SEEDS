@@ -1,8 +1,3 @@
-"""Content service — business logic for content/quiz/job operations.
-
-Accepts typed params from controllers; delegates all DB access to repositories.
-No raw query dicts cross the service boundary.
-"""
 
 from __future__ import annotations
 
@@ -64,9 +59,6 @@ class ContentService:
     async def list_active_jobs(self) -> list[dict[str, Any]]:
         return await self._job_repo.find_active()
 
-    # ------------------------------------------------------------------
-    # Content reads
-    # ------------------------------------------------------------------
 
     async def get_themes(
         self,
@@ -97,7 +89,6 @@ class ContentService:
         fetch_content = not (exp_name and exp_name.lower() == "quiz")
         fetch_quizzes = not (exp_name and exp_name.lower() not in (None, "quiz"))
 
-        # When language+theme+expName all set, only one collection is relevant
         if language and theme and exp_name:
             if exp_name.lower() == "quiz":
                 fetch_content = False
@@ -143,9 +134,6 @@ class ContentService:
         if quiz:
             return QuizContent.from_doc(quiz)
 
-    # ------------------------------------------------------------------
-    # Content writes
-    # ------------------------------------------------------------------
 
     async def create_content(
         self,
@@ -254,9 +242,6 @@ class ContentService:
         doc: dict[str, Any] = dto.model_dump()
         return await self._quiz_repo.insert(doc)
 
-    # ------------------------------------------------------------------
-    # Low-level passthrough (used by content job consumer)
-    # ------------------------------------------------------------------
 
     async def get_raw_content_by_id(self, content_id: str) -> dict[str, Any] | None:
         return await self._content_repo.find_raw_by_id(content_id)
@@ -264,12 +249,7 @@ class ContentService:
     async def save_processed(self, content_id: str, fields: dict[str, Any]) -> None:
         await self._content_repo.save_processed(content_id, fields)
 
-    # ------------------------------------------------------------------
-    # Website extraction (Localization / Translate Website)
-    # ------------------------------------------------------------------
-
     async def extract_website(self, url: str) -> dict[str, Any]:
-        """Extract readable content from a public website."""
         return await self._website_extractor.extract(url)
 
 

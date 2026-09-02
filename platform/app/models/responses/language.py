@@ -1,5 +1,3 @@
-"""Response DTO for language documents."""
-
 from __future__ import annotations
 
 from typing import Any

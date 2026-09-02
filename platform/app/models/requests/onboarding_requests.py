@@ -1,5 +1,3 @@
-"""Request schemas for project/website onboarding endpoints."""
-
 from __future__ import annotations
 
 from pydantic import BaseModel

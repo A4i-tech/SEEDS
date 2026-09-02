@@ -408,11 +408,6 @@ async def create_quiz(
     return JobScheduledResponse(message="Processing New Content job scheduled!", job_id=job_id)
 
 
-# ---------------------------------------------------------------------------
-# POST /content/extract-website
-# ---------------------------------------------------------------------------
-
-
 @router.post("/extract-website", summary="Extract readable content from a website")
 async def extract_website(
     body: WebsiteExtractRequest,
@@ -420,11 +415,6 @@ async def extract_website(
     service: ContentService = Depends(get_content_service),
 ) -> dict[str, Any]:
     return await service.extract_website(str(body.url))
-
-
-# ---------------------------------------------------------------------------
-# POST /content/translate-website
-# ---------------------------------------------------------------------------
 
 
 @router.post("/translate-website", summary="Translate extracted website content")
@@ -444,18 +434,6 @@ async def translate_website(
 async def _translate_and_persist(
     body: WebsiteTranslationRequest, translation_service: TranslationService
 ) -> dict[str, Any]:
-    """Route admin-triggered translation through the same store the runtime SDK reads.
-
-    Each line extracted from the website becomes one translation-store item,
-    keyed with the identical hash the SDK computes client-side for the same
-    text (sdk_hash_text), so an admin-approved translation here is the exact
-    document the SDK finds when it independently discovers that text in the
-    live DOM. get_or_translate() only ever hands back translated text for
-    "approved" documents (everything else falls back to source text) — that
-    gate is intentional and is not bypassed here. The text returned to the
-    admin preview instead comes straight from the freshly-persisted draft
-    documents, so the reviewer can see the AI output before approving it.
-    """
     lines = [line.strip() for line in body.content.splitlines() if line.strip()]
     items = [
         {"route": body.route, "key": sdk_hash_text(line), "sourceLang": "en", "text": line}

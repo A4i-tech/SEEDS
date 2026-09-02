@@ -1,16 +1,3 @@
-"""
-Translation controller — /translations/* endpoints.
-
-Public, unauthenticated routes: called directly from anonymous visitor
-browsers on customer sites (via the SDK), same trust level as
-webhook_controller.py's public routes. Rate-limited via the shared slowapi
-limiter instead of JWT auth.
-
-Endpoints are kept resource-shaped (siteId in body/query, not path-baked)
-so a future Admin UI or batch translation tool can reuse them without a
-breaking change, even though only one siteId is valid in this phase.
-"""
-
 import logging
 from typing import Any
 
@@ -82,11 +69,6 @@ async def get_translations(
     lang: str = Query(max_length=32),
     service: TranslationService = Depends(get_translation_service),
 ) -> dict[str, str]:
-    # On-demand runtime path: any item on this route that has no translation for
-    # `lang` yet is generated inline (glossary -> TM -> AI, batched) and stored,
-    # so a freshly-injected website translates into the selected language on the
-    # first switch and instantly thereafter. Backed by a batch, no-daily-cap MT
-    # provider (Azure); transient failures fall back to source text, never stall.
     return await service.runtime_translate(
         siteId,
         route,
@@ -107,12 +89,6 @@ async def generate_translations(
     service: TranslationService = Depends(get_translation_service),
     user: dict[str, Any] = Depends(require_admin_or_reviewer),
 ) -> dict[str, str]:
-    # Same glossary -> TM -> AI generation pipeline as GET /translations, but
-    # gated by admin/reviewer auth instead of Origin/Referer site-domain
-    # binding -- lets the Review UI trigger generation for a site whose
-    # registered domain differs from the UI's own origin (e.g. localhost admin
-    # console reviewing a production-domain site) without weakening the public
-    # runtime endpoint's origin check.
     return await service.generate_for_review(siteId, route, lang)
 
 

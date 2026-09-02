@@ -1,9 +1,3 @@
-"""Translation version history — PyMongo async data access for translation_versions.
-
-Kept in its own append-only collection so the runtime translations documents
-stay small; history is never modified or overwritten (ticket #436, Phase H).
-"""
-
 from __future__ import annotations
 
 from datetime import UTC, datetime

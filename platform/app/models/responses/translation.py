@@ -1,9 +1,3 @@
-"""Response DTO for translation documents.
-
-extra="allow" so all document fields (translations map, status, approvedBy,
-etc.) pass through unchanged; only _id needs explicit ObjectId coercion.
-"""
-
 from __future__ import annotations
 
 from typing import Any
@@ -31,17 +25,6 @@ class TranslationResponse(BaseModel):
 
     @classmethod
     def from_doc(cls, doc: dict) -> dict:
-        """Serialize a translation document, annotating each translation with an
-        explicit ``lowConfidence`` flag plus a document-level ``lowConfidence``
-        (true if any language is below the configurable threshold).
-
-        The flag is derived from the stored heuristic ``qualityScore`` via
-        quality_scorer.is_low_confidence, so reviewers/clients get the flag
-        directly in the payload instead of re-deriving the threshold themselves
-        (ticket #436, AC6).
-        """
-        # Local imports keep this leaf DTO free of a module-load dependency on
-        # settings/services (avoids import ordering surprises at app startup).
         from app.platform.settings import get_settings  # noqa: PLC0415
         from app.services.quality_scorer import is_low_confidence  # noqa: PLC0415
 

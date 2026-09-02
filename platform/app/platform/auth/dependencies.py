@@ -53,7 +53,6 @@ def clear_refresh_cookie(response: Response) -> None:
 
 
 async def get_db() -> AsyncGenerator[AsyncDatabase, None]:  # type: ignore[type-arg]
-    """Yield the active PyMongo async database instance."""
     yield get_database()
 
 
@@ -150,12 +149,6 @@ require_translation_reviewer = require_role(
     "admin", "reviewer", "tenant", "school_admin", "content_creator"
 )
 
-# RBAC aliases for the translation platform (ticket #436, Phase J).
-#
-# No login flow issues "admin"/"reviewer" roles yet (Phase J auth issuance was
-# never built). In development only, tenant is allowed through so the
-# Localization demo is reachable without weakening staging/production RBAC,
-# which never take this branch since settings.env is never "development" there.
 _LOCAL_DEMO_BYPASS_ROLE = "tenant"
 
 

@@ -1,9 +1,3 @@
-"""Endpoint tests for POST /translations/bulk-approve.
-
-Covers authorization (require_admin_or_reviewer) and that the endpoint drives
-the per-language approve path without exposing unapproved AI. Mongomock-backed
-async DB + httpx.AsyncClient against the real FastAPI app.
-"""
 
 from __future__ import annotations
 
@@ -47,7 +41,7 @@ async def _seed(mock_db, langs=("hi",), *, site="site1", route="/h", key="t1"):
     repo = TranslationRepository(mock_db)
     await repo.upsert_source(site, route, key, "en", "Hello")
     for lang in langs:
-        await repo.save_translation(site, route, key, lang, f"[{lang}] Hello", "P")  # pending
+        await repo.save_translation(site, route, key, lang, f"[{lang}] Hello", "P")
     return repo
 
 
@@ -64,7 +58,6 @@ async def test_bulk_approve_forbidden_for_teacher(client, mock_db):
         headers={"Authorization": f"Bearer {_token('teacher')}"},
     )
     assert resp.status_code == 403
-    # No side effect on a forbidden call.
     doc = (await repo.find_by_route("site1", "/h"))[0]
     assert doc["translations"]["hi"]["status"] == "pending"
 
@@ -150,4 +143,4 @@ async def test_bulk_approve_lang_scope_only_approves_requested_language(client, 
     assert resp.json() == {"approved": 1, "skipped": 0}
     doc = (await repo.find_by_route("site1", "/h"))[0]
     assert doc["translations"]["hi"]["status"] == "approved"
-    assert doc["translations"]["mr"]["status"] == "pending"  # per-language isolation via endpoint
+    assert doc["translations"]["mr"]["status"] == "pending"
