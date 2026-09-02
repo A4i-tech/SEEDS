@@ -4,10 +4,6 @@ import { AlertTriangle } from "lucide-react";
 import { Button } from "./Button";
 import { portalContainer } from "../lib/portal";
 
-/**
- * Dialog (Radix) — accessible modal (focus trap, Esc, aria) styled with tokens.
- * Used sparingly; per the design rules, routine actions use toast-undo, not dialogs.
- */
 export function Dialog({ open, onOpenChange, title, description, children, footer }) {
   return (
     <RDialog.Root open={open} onOpenChange={onOpenChange}>
@@ -24,10 +20,6 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
   );
 }
 
-/**
- * ConfirmDialog — reserved for irreversible actions only (delete).
- * Everything reversible should use toast-undo instead.
- */
 export function ConfirmDialog({
   open, onOpenChange, title, description, confirmLabel = "Delete", onConfirm, danger = true,
 }) {

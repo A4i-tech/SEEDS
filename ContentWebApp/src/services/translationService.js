@@ -3,14 +3,6 @@ import { getAuthHeaders } from "../utils/authHelpers";
 import { apiFetch, buildQueryString } from "./api";
 
 export const translationService = {
-  /**
-   * Submit extracted source phrases so the backend persists a per-phrase
-   * translation record for each (siteId, route, key). Same public endpoint the
-   * runtime SDK posts to — reused here so the Translate flow produces real,
-   * reviewable records instead of a throwaway blob.
-   * @param {string} siteId
-   * @param {Array<{key:string,text:string,route:string,sourceLang?:string}>} items
-   */
   async extractItems(siteId, items) {
     return apiFetch(`${SEEDS_URL}/translations/extract`, {
       method: "POST",
@@ -19,23 +11,11 @@ export const translationService = {
     });
   },
 
-  /**
-   * Runtime translation delivery for a route+language. Triggers on-demand
-   * generation for any missing phrase and returns { key: text }. Same endpoint
-   * the SDK uses at language switch.
-   */
   async getRuntimeTranslations(siteId, route, lang) {
     const queryString = buildQueryString({ siteId, route, lang });
     return apiFetch(`${SEEDS_URL}/translations?${queryString}`, { method: "GET" });
   },
 
-  /**
-   * Authenticated equivalent of getRuntimeTranslations for the Review/Admin
-   * workflow. Same on-demand generation, but gated by admin/reviewer auth
-   * instead of Origin/Referer site-domain binding — use this from the Review
-   * UI, never getRuntimeTranslations (which will 403 for sites whose
-   * registered domain differs from the admin console's own origin).
-   */
   async generateForReview({ siteId, route, lang }) {
     const queryString = buildQueryString({ siteId, route, lang });
     return apiFetch(`${SEEDS_URL}/translations/generate?${queryString}`, {
@@ -44,12 +24,6 @@ export const translationService = {
     });
   },
 
-  /**
-   * Append-only audit trail for a single translated phrase (who translated /
-   * edited / approved / rejected, and when) — the real Activity Timeline source.
-   * @param {Object} params - { siteId, route, key }
-   * @returns {Promise<Array>}
-   */
   async getAuditTrail({ siteId, route, key } = {}) {
     const queryString = buildQueryString({ siteId, route, key });
     return apiFetch(`${SEEDS_URL}/translations/audit?${queryString}`, {
@@ -58,11 +32,6 @@ export const translationService = {
     });
   },
 
-  /**
-   * List translation documents for reviewer/admin workflows
-   * @param {Object} params - { siteId (required), route, status }
-   * @returns {Promise<Array>}
-   */
   async listTranslations({ siteId, route, status } = {}) {
     const queryString = buildQueryString({ siteId, route, status });
     const url = `${SEEDS_URL}/translations/list?${queryString}`;
@@ -72,7 +41,6 @@ export const translationService = {
       headers: getAuthHeaders(),
     });
 
-    // Normalize data: ensure all items have "id" field
     return (response || []).map((item) => {
       if (!item.id && item._id) {
         return { ...item, id: item._id };
@@ -81,11 +49,6 @@ export const translationService = {
     });
   },
 
-  /**
-   * Get a single translation document for review
-   * @param {string} id
-   * @returns {Promise<Object>}
-   */
   async getTranslation(id) {
     const url = `${SEEDS_URL}/translations/${id}`;
 
@@ -100,11 +63,6 @@ export const translationService = {
     return response;
   },
 
-  /**
-   * Get the approved version history of a translation
-   * @param {string} id
-   * @returns {Promise<Array>}
-   */
   async getVersions(id) {
     const url = `${SEEDS_URL}/translations/${id}/versions`;
 
@@ -114,13 +72,6 @@ export const translationService = {
     });
   },
 
-  /**
-   * Update a translation's edited text
-   * @param {string} id
-   * @param {string} lang
-   * @param {string} text
-   * @returns {Promise<Object>}
-   */
   async updateTranslation(id, lang, text) {
     const url = `${SEEDS_URL}/translations/${id}`;
 
@@ -139,14 +90,6 @@ export const translationService = {
     return response;
   },
 
-  /**
-   * Approve a reviewed translation for a specific language. Approval is
-   * per-language — approving one language on a document must never approve
-   * another language already on the same document, so `lang` is required.
-   * @param {string} id
-   * @param {string} lang
-   * @returns {Promise<Object>}
-   */
   async approveTranslation(id, lang) {
     const url = `${SEEDS_URL}/translations/${id}/approve`;
 
@@ -165,14 +108,6 @@ export const translationService = {
     return response;
   },
 
-  /**
-   * Reject a translation for a specific language, returning it to draft for
-   * re-edit. Rejection is per-language, same reasoning as approve.
-   * @param {string} id
-   * @param {string} lang
-   * @param {string} reason
-   * @returns {Promise<Object>}
-   */
   async rejectTranslation(id, lang, reason = "") {
     const url = `${SEEDS_URL}/translations/${id}/reject`;
 
@@ -191,13 +126,6 @@ export const translationService = {
     return response;
   },
 
-  /**
-   * Approve every pending language on every doc for a site (or scoped to
-   * route/lang), in one call. Same per-language approve path under the hood
-   * (approveTranslation), so per-language isolation still holds.
-   * @param {Object} params - { siteId (required), route, lang }
-   * @returns {Promise<{approved: number, skipped: number}>}
-   */
   async bulkApproveTranslations({ siteId, route, lang }) {
     const url = `${SEEDS_URL}/translations/bulk-approve?${buildQueryString({ siteId })}`;
 

@@ -4,10 +4,6 @@ import { languageService } from "../services/languageService";
 
 export const useLocalization = () => {
 
-  // ===================================
-  // Projects and Sites - backend-backed
-  // ===================================
-
   const [projects, setProjects] = useState([]);
 
   const [sites, setSites] = useState([]);
@@ -65,10 +61,6 @@ export const useLocalization = () => {
 
   }, []);
 
-  // ===================================
-  // Languages - backend-backed (loaded in the same effect as projects/sites above)
-  // ===================================
-
   const [languages, setLanguages] = useState([]);
 
   const handleCreateLanguage = async (language) => {
@@ -102,10 +94,6 @@ export const useLocalization = () => {
     );
   };
 
-  // ===================================
-  // Modal State
-  // ===================================
-
   const [showProjectModal, setShowProjectModal] =
     useState(false);
 
@@ -114,10 +102,6 @@ export const useLocalization = () => {
 
   const [showLanguageModal, setShowLanguageModal] =
     useState(false);
-
-  // ===================================
-  // Project Actions
-  // ===================================
 
   const handleCreateProject = async (project) => {
     const created = await onboardingService.createProject({
@@ -152,10 +136,6 @@ export const useLocalization = () => {
     );
   };
 
-  // ===================================
-  // Site Actions
-  // ===================================
-
   const handleCreateSite = async (site) => {
     const created = await onboardingService.createSite({
       projectId: site.projectId,
@@ -187,46 +167,35 @@ export const useLocalization = () => {
     );
   };
 
-  // ===================================
-  // Return Hook API
-  // ===================================
-
   return {
 
-    // Projects
     projects,
     setProjects,
     handleCreateProject,
     handleUpdateProject,
     handleDeleteProject,
 
-    // Sites
     sites,
     setSites,
     handleCreateSite,
     handleUpdateSite,
     handleDeleteSite,
 
-    // Workspace loading state
     isLoadingWorkspace,
     workspaceLoadError,
 
-    // Languages
     languages,
     setLanguages,
     handleCreateLanguage,
     handleUpdateLanguage,
     handleDeleteLanguage,
 
-    // Project Modal
     showProjectModal,
     setShowProjectModal,
 
-    // Site Modal
     showSiteModal,
     setShowSiteModal,
 
-    // Language Modal
     showLanguageModal,
     setShowLanguageModal,
 

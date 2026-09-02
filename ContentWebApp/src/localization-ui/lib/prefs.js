@@ -1,10 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 
-/**
- * localStorage-backed state — used for remembered UI preferences
- * (theme, Live Preview open/width, "Continue previous session" scope).
- * No backend; purely client persistence.
- */
 const NS = "locaui.";
 
 export function usePersistentState(key, initial) {
@@ -21,13 +16,11 @@ export function usePersistentState(key, initial) {
     try {
       localStorage.setItem(full, JSON.stringify(value));
     } catch {
-      /* ignore quota / private-mode errors */
     }
   }, [full, value]);
   return [value, setValue];
 }
 
-/** Read/write the last workspace scope so the dashboard can "Continue". */
 export function useLastSession() {
   const [session, setSession] = usePersistentState("lastSession", null);
   const remember = useCallback(

@@ -1,26 +1,14 @@
-/**
- * Domain helpers that shape the EXISTING translation API documents into the
- * "segment" view the redesigned workspace renders. No API changes — purely a
- * client-side projection over what translationService already returns.
- *
- * A translation document (from GET /translations/list) looks like:
- *   { id/_id, siteId, route, key, sourceText, sourceLang,
- *     status, version, translations: { <lang>: { text, qualityScore, lowConfidence, provider } } }
- */
-
 const LOW_CONF_THRESHOLD = 0.7;
 
-/** Derive the lifecycle stage shown on a segment for a given language. */
 export function deriveStage(doc, lang, { edited = false } = {}) {
   const t = doc?.translations?.[lang];
   if (t?.status === "rejected") return "rejected";
-  if (t?.status === "approved") return "approved"; // served live == published
+  if (t?.status === "approved") return "approved";
   if (!t || !t.text) return "new";
   if (edited) return "edited";
-  return "needs_review"; // translated, awaiting a decision
+  return "needs_review";
 }
 
-/** Project one translation doc → a flat segment row for `lang`. */
 export function toSegment(doc, lang) {
   const id = doc.id || doc._id;
   const t = doc?.translations?.[lang] || null;
@@ -48,7 +36,6 @@ export function toSegment(doc, lang) {
   };
 }
 
-/** Page-level rollup for the workspace header. */
 export function summarize(segments) {
   const total = segments.length;
   const approved = segments.filter((s) => s.stage === "approved").length;
@@ -58,7 +45,6 @@ export function summarize(segments) {
   return { total, approved, low, untranslated, pct };
 }
 
-/** Distinct routes for a site's docs, with per-route counts (the "pages"). */
 export function pagesFromDocs(docs, lang) {
   const map = new Map();
   for (const d of docs) {

@@ -1,11 +1,6 @@
 import React, { createContext, useCallback, useContext, useRef, useState } from "react";
 import { CheckCircle2, AlertTriangle, Info, X } from "lucide-react";
 
-/**
- * Toast system with optional Undo — the core of the "fewest clicks" rule:
- * approve/reject act immediately and surface a toast with Undo instead of a
- * blocking confirm dialog. Announced via an aria-live region.
- */
 const ToastCtx = createContext(null);
 export const useToast = () => {
   const ctx = useContext(ToastCtx);

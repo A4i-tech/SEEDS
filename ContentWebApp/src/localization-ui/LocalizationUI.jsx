@@ -24,18 +24,10 @@ export default function LocalizationUI() {
 
   const [nav, setNav] = useState("dashboard");
   const [theme] = usePersistentState("theme", "");
-  // Website Translation state — Source/Target language for Translate & Review only.
-  // `scope.lang` here means translationLanguage (the target language for site content).
   const [scope, setScope] = usePersistentState("scope", { projectId: "", siteId: "", route: "", lang: "hi" });
-  // UI Language state — application interface language only. Completely separate
-  // from `scope`: never read by Translate & Review, never triggers any API call.
   const [uiLanguage, setUiLanguage] = usePersistentState("uiLanguage", "");
   const [lastSession, rememberSession] = useLastSession();
 
-  // Pages (routes) for the selected site — derived from existing list endpoint.
-  // Only needed by the workspace's route picker, so only fetch once the user
-  // actually opens the workspace — this call returns every doc for the whole
-  // site (all routes/languages, no filter) and can be tens of MB on real sites.
   const [siteDocs, setSiteDocs] = useState([]);
   const [pagesError, setPagesError] = useState(null);
   useEffect(() => {
@@ -55,25 +47,15 @@ export default function LocalizationUI() {
 
   const pages = useMemo(() => pagesFromDocs(siteDocs, scope.lang), [siteDocs, scope.lang]);
 
-  // Default translation target language once loaded (Website Translation state only).
   useEffect(() => {
     if (!scope.lang && languages.length) setScope((s) => ({ ...s, lang: languages[0].code }));
   }, [languages, scope.lang, setScope]);
 
-  // Default UI language once loaded (UI Language state only — no effect on `scope`).
   useEffect(() => {
     if (!uiLanguage && languages.length) setUiLanguage(languages[0].code);
   }, [languages, uiLanguage, setUiLanguage]);
 
-  // Auto-select a page when a site is chosen but no route is set yet, so the
-  // workspace populates immediately instead of asking twice. A brand-new site
-  // has no translation docs yet (pages = []) — default to "/" so the user can
-  // still hit "Translate Website" instead of getting stuck with nothing to pick.
   useEffect(() => {
-    // Correct the route when it isn't set yet OR when it's a stale value that
-    // isn't one of this site's actual pages (e.g. the "/" fallback set before
-    // siteDocs/pages finished loading). Without the second clause the "/"
-    // fallback sticks and load() queries a route with no documents.
     const routeMissing =
       !scope.route || (pages.length > 0 && !pages.some((p) => p.route === scope.route));
     if (scope.siteId && routeMissing) {
@@ -81,7 +63,6 @@ export default function LocalizationUI() {
     }
   }, [scope.siteId, scope.route, pages, setScope]);
 
-  // First site by default so Overview + workspace have data on entry.
   useEffect(() => {
     if (!scope.siteId && sites.length) {
       const first = sites[0];
@@ -89,15 +70,12 @@ export default function LocalizationUI() {
     }
   }, [sites, scope.siteId, setScope]);
 
-  // Remember the last workspace scope for "Continue previous session".
   useEffect(() => {
     if (scope.siteId && scope.route) rememberSession(scope);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope.siteId, scope.route, scope.lang]);
 
   const goWorkspace = (next) => { setScope((s) => ({ ...s, ...next })); setNav("workspace"); };
 
-  // Fill the viewport space below the app's top nav (module is nested, not full-screen).
   const rootRef = React.useRef(null);
   const [shellH, setShellH] = useState("100vh");
   React.useLayoutEffect(() => {

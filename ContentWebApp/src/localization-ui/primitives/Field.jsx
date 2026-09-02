@@ -2,7 +2,6 @@ import React from "react";
 import { Search } from "lucide-react";
 import { cn } from "../lib/cn";
 
-/** Labeled field wrapper: label + control + helper/error. */
 export function Field({ label, htmlFor, help, error, children }) {
   return (
     <div className="field">
@@ -21,7 +20,6 @@ export const Textarea = React.forwardRef(function Textarea({ className, ...rest 
   return <textarea ref={ref} className={cn("input", className)} {...rest} />;
 });
 
-/** Search input with a leading Lucide icon. */
 export const SearchInput = React.forwardRef(function SearchInput(
   { className, "aria-label": ariaLabel = "Search", ...rest },
   ref

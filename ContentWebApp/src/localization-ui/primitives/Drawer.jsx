@@ -3,11 +3,6 @@ import * as RDialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { portalContainer } from "../lib/portal";
 
-/**
- * Right-side Drawer (Radix Dialog under the hood → focus trap + Esc + aria free).
- * Becomes a bottom sheet on mobile (see .loca-ui-drawer media query).
- * Used for one-segment deep detail without leaving the workspace.
- */
 export function Drawer({ open, onOpenChange, title, subtitle, children, footer }) {
   return (
     <RDialog.Root open={open} onOpenChange={onOpenChange}>

@@ -7,10 +7,6 @@ const LABELS = {
   languages: "Languages", activity: "Activity",
 };
 
-/**
- * Configuration sections are intentionally off the daily path (§2). In the
- * prototype they show a stub; on rollout they adopt the same design system.
- */
 export function PlaceholderScreen({ nav }) {
   return (
     <EmptyState

@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 import { cn } from "../lib/cn";
 
-/** Generic semantic badge. tone: good|warn|crit|info|neutral|accent */
 export function Badge({ tone = "neutral", icon: Icon, children, className }) {
   return (
     <span className={cn("badge", `badge-${tone}`, className)}>
@@ -20,11 +19,6 @@ export function Badge({ tone = "neutral", icon: Icon, children, className }) {
   );
 }
 
-/**
- * Lifecycle status pill. Maps a translation's derived lifecycle stage to
- * a tone + Lucide icon + label. Status is NEVER colour-only (icon + text).
- * stages: new | translated | needs_review | edited | approved | published | rejected
- */
 const LIFECYCLE = {
   new:          { tone: "neutral", icon: Circle,       label: "New" },
   translated:   { tone: "info",    icon: Sparkles,     label: "Translated" },
@@ -40,7 +34,6 @@ export function StatusBadge({ stage }) {
   return <Badge tone={s.tone} icon={s.icon}>{s.label}</Badge>;
 }
 
-/** Low-confidence indicator — icon + text, never colour alone. */
 export function ConfidenceBadge({ score, threshold = 0.7 }) {
   if (typeof score !== "number") return <span className="mono" style={{ color: "var(--muted)" }}>—</span>;
   const low = score < threshold;
@@ -51,7 +44,6 @@ export function ConfidenceBadge({ score, threshold = 0.7 }) {
   );
 }
 
-/** Inline quality bar + score for dense table rows. */
 export function QualityBar({ score }) {
   if (typeof score !== "number") return <span className="mono" style={{ color: "var(--muted)" }}>—</span>;
   const pct = Math.round(score * 100);

@@ -1,14 +1,3 @@
-/**
- * Regression tests for public/sdk.js — SPA route-change handling,
- * characterData (in-place text mutation) support, and initialization
- * idempotency.
- *
- * sdk.js is a plain browser IIFE, not a module: it reads document.currentScript,
- * document.body, window.location, history, localStorage, and fetch directly.
- * We load it into a fresh jsdom document per test via a real <script src=...>
- * element with runScripts:"dangerously", so document.currentScript and timing
- * behave exactly as they would in a browser.
- */
 const fs = require("fs");
 const path = require("path");
 const { JSDOM } = require("jsdom");
@@ -50,10 +39,7 @@ async function makeDom({ url = "https://app.example.com/authn/login", bodyHtml =
   script.textContent = fs.readFileSync(SDK_PATH, "utf8");
   dom.window.document.head.appendChild(script);
 
-  // init() runs on DOMContentLoaded if readyState is "loading"; jsdom's
-  // initial document is already "complete" by the time we append a script
-  // manually, so init() has already run synchronously by this point.
-  await flush(10); // let the loadLanguages()/fetch microtask chain settle
+  await flush(10);
 
   return { dom, fetchMock };
 }
@@ -72,7 +58,6 @@ test("duplicate SDK initialization is a no-op (idempotency guard)", async () => 
   const { dom, fetchMock } = await makeDom();
   const callsAfterFirstInit = fetchMock.mock.calls.length;
 
-  // Simulate the snippet being injected a second time on the same page.
   const script2 = dom.window.document.createElement("script");
   script2.setAttribute("data-site-id", SITE_ID);
   script2.setAttribute("data-api-base", API_BASE);
@@ -80,7 +65,6 @@ test("duplicate SDK initialization is a no-op (idempotency guard)", async () => 
   dom.window.document.head.appendChild(script2);
   await flush(10);
 
-  // No new /languages fetch, no duplicate widget.
   expect(fetchMock.mock.calls.length).toBe(callsAfterFirstInit);
   expect(dom.window.document.querySelectorAll("#translation-sdk-widget").length).toBe(1);
 });
@@ -92,7 +76,7 @@ test("history.pushState navigation triggers a route re-scan using the new route"
 
   dom.window.document.body.innerHTML = "<p>Dashboard content</p>";
   dom.window.history.pushState({}, "", "/dashboard");
-  await flush(80); // route-change debounce (50ms) + microtasks
+  await flush(80);
 
   expect(dom.window.location.pathname).toBe("/dashboard");
   const translationsCalls = fetchMock.mock.calls.filter((c) => String(c[0]).includes("/translations?"));
@@ -122,9 +106,6 @@ test("browser back/forward (popstate) triggers a route re-scan", async () => {
   await flush(80);
   fetchMock.mockClear();
 
-  // Simulate back navigation: jsdom doesn't auto-fire popstate on history.back()
-  // without a real traversal, so drive it the way a browser does: change the
-  // URL via the History API's internal go/back and dispatch popstate.
   dom.window.history.pushState({}, "", "/authn/login");
   await flush(80);
   fetchMock.mockClear();
@@ -132,8 +113,6 @@ test("browser back/forward (popstate) triggers a route re-scan", async () => {
   await flush(80);
 
   const translationsCalls = fetchMock.mock.calls.filter((c) => String(c[0]).includes("/translations?"));
-  // Same route as last processed -> pathname unchanged -> handler is a no-op,
-  // proving it doesn't blindly re-fetch on every popstate, only on real route changes.
   expect(translationsCalls.length).toBe(0);
 });
 
@@ -144,9 +123,6 @@ test("popstate to a genuinely different route re-scans", async () => {
 
   dom.window.history.pushState({}, "", "/dashboard");
   await flush(10);
-  // Directly mutate location the way real back-navigation does (jsdom updates
-  // window.location on pushState already); then fire popstate for a route
-  // the SDK hasn't seen recorded as "current" (simulate landing elsewhere).
   Object.defineProperty(dom.window, "location", {
     value: new dom.window.URL("https://app.example.com/courses"),
     writable: true,
@@ -166,7 +142,7 @@ test("dynamic DOM insertion (new nodes) is picked up by the MutationObserver", a
   const p = dom.window.document.createElement("p");
   p.textContent = "Dynamically added content";
   dom.window.document.body.appendChild(p);
-  await flush(20); // MutationObserver microtask
+  await flush(20);
 
   const extractCalls = fetchMock.mock.calls.filter((c) => String(c[0]).includes("/translations/extract"));
   expect(extractCalls.length).toBeGreaterThan(0);
@@ -181,7 +157,7 @@ test("characterData mutation (in-place text change) is detected and re-extracted
 
   const textNode = dom.window.document.querySelector("p").firstChild;
   textNode.textContent = "Mutated text";
-  await flush(850); // extraction is debounced by EXTRACT_DEBOUNCE_MS (800ms)
+  await flush(850);
 
   const extractCalls = fetchMock.mock.calls.filter((c) => String(c[0]).includes("/translations/extract"));
   expect(extractCalls.length).toBeGreaterThan(0);
@@ -202,9 +178,6 @@ test("characterData mutation does not create an infinite loop from our own trans
   });
 
   dom.window.localStorage.setItem("translationSdk.lang", "hi");
-  // Trigger a language switch via the widget select to exercise swapText's
-  // self-write path, then wait well past the extract debounce and mutation
-  // microtask queue to prove it settles instead of looping.
   const select = dom.window.document.querySelector("#translation-sdk-widget select");
   select.value = "hi";
   select.dispatchEvent(new dom.window.Event("change"));
@@ -258,7 +231,7 @@ test("pending (not-yet-approved) translations fall back to source text, not an e
   const { dom, fetchMock } = await makeDom({ bodyHtml: "<p>Pending Phrase</p>" });
   fetchMock.mockImplementation((url) => {
     const u = String(url);
-    if (u.includes("/translations?")) return Promise.resolve({ json: () => Promise.resolve({}) }); // pending -> {}
+    if (u.includes("/translations?")) return Promise.resolve({ json: () => Promise.resolve({}) });
     if (u.includes("/translations/extract")) return Promise.resolve({ json: () => Promise.resolve({}) });
     return Promise.resolve({ json: () => Promise.resolve({}) });
   });
@@ -274,8 +247,6 @@ test("approved translations are rendered via swapText", async () => {
   const { dom, fetchMock } = await makeDom({ bodyHtml: "<p>Approved Phrase</p>" });
   await flush(10);
 
-  // Directly exercise swapText's contract via the same lang-switch path the
-  // widget uses, using the SDK's own hash so the key actually matches.
   const hashed = dom.window.eval(`
     (function hashText(text) {
       var hash = 0;
@@ -304,11 +275,6 @@ test("approved translations are rendered via swapText", async () => {
   expect(dom.window.document.querySelector("p").textContent).toBe("अनुमोदित वाक्यांश");
 });
 
-// ── Feedback-loop guards (React-vs-observer main-thread freeze) ──────────────
-// Regression coverage for the fix to the write -> observe -> re-translate loop
-// that saturated the main thread when a non-English language was active inside
-// a framework (React) that re-renders the same text nodes the SDK translates.
-
 function sdkHash(dom, text) {
   return dom.window.eval(`
     (function hashText(t){var h=0;for(var i=0;i<t.length;i++){h=(h<<5)-h+t.charCodeAt(i);h|=0;}return "t"+Math.abs(h).toString(36);})(${JSON.stringify(text)})
@@ -328,7 +294,6 @@ function extractedTexts(fetchMock) {
     try {
       JSON.parse(c[1].body).items.forEach((i) => out.push(i.text));
     } catch (e) {
-      /* ignore */
     }
   }
   return out;
@@ -362,11 +327,9 @@ test("guard: SDK's own translated write does not trigger another extraction or t
 
   const extractAtSettle = countExtract(fetchMock);
   const getsAtSettle = countTranslationGets(fetchMock);
-  // Well past the 800ms extract debounce: a loop would keep firing here.
   await flush(1000);
   expect(countExtract(fetchMock)).toBe(extractAtSettle);
   expect(countTranslationGets(fetchMock)).toBe(getsAtSettle);
-  // Our translated output must never be extracted back as a source phrase.
   expect(extractedTexts(fetchMock)).not.toContain("अनुवादित वाक्यांश");
 });
 
@@ -378,8 +341,6 @@ test("guard: re-asserting the already-applied translated value is ignored (no re
 
   const node = dom.window.document.querySelector("p").firstChild;
   const extractBefore = countExtract(fetchMock);
-  // Host framework writes the SAME value the SDK already applied (idempotent
-  // re-render). Must be recognised as ours and ignored.
   node.textContent = "अनुवादित वाक्यांश";
   await flush(1000);
 
@@ -394,17 +355,13 @@ test("guard: React-style revert-to-source burst re-applies translation and conve
   await applyHindi(dom, fetchMock, "Approved Phrase", "अनुवादित वाक्यांश");
 
   const node = dom.window.document.querySelector("p").firstChild;
-  // Simulate React reconciler repeatedly reverting the node to its English
-  // source (the second vector of the freeze).
   for (let i = 0; i < 6; i++) {
     node.textContent = "Approved Phrase";
     await flush(20);
   }
   await flush(1000);
 
-  // SDK re-applied the translation (source change is legitimately handled)...
   expect(dom.window.document.querySelector("p").textContent).toBe("अनुवादित वाक्यांश");
-  // ...and the system has CONVERGED: no further work after settling.
   const extractAtSettle = countExtract(fetchMock);
   const getsAtSettle = countTranslationGets(fetchMock);
   await flush(1000);
@@ -440,7 +397,7 @@ test("guard: a genuine app change to a NEW phrase is still extracted (guards do 
 
   const node = dom.window.document.querySelector("p").firstChild;
   node.textContent = "Brand New Phrase";
-  await flush(1000); // past extract debounce
+  await flush(1000);
 
   expect(extractedTexts(fetchMock)).toContain("Brand New Phrase");
 });
@@ -456,6 +413,5 @@ test("multiple sequential route navigations each re-scan without duplicating the
   }
 
   expect(dom.window.location.pathname).toBe("/d");
-  // Widget is (re-)created only during init(), not on every route change.
   expect(dom.window.document.querySelectorAll("#translation-sdk-widget").length).toBeLessThanOrEqual(1);
 });

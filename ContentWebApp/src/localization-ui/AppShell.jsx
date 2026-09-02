@@ -2,11 +2,6 @@ import React from "react";
 import { LayoutGrid, Repeat2 } from "lucide-react";
 import { cn } from "./lib/cn";
 
-/**
- * AppShell — single polished sidebar (WORKSPACE / CONFIGURE) + full-height
- * content. No icon rail, no top context bar (matches the design spec). Each
- * screen renders its own header.
- */
 export function AppShell({ nav, onNav, flush, children }) {
   const Item = ({ id, label, icon: Icon, count }) => (
     <button className={cn("s-item", nav === id && "on")} onClick={() => onNav(id)}>

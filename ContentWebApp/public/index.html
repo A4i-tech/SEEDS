@@ -40,12 +40,6 @@
 
       To begin the development, run `npm start` or `yarn start`.
       To create a production bundle, use `npm run build` or `yarn build`.
-
-      Issue #436 architecture: this is the SOURCE application (Admin UI + SDK
-      host + runtime APIs proxied to :8000). It also embeds the localization SDK
-      so the Admin UI itself is translatable with the language switcher. The SDK
-      is served from this same origin (/sdk.js) and talks only to :3000 — same
-      contract as when it is injected into the TARGET customer website on :4000.
     -->
     <script
       src="/sdk.js"

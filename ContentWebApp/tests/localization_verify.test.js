@@ -1,9 +1,3 @@
-/**
- * Throwaway verification harness — exercises the real Workspace/Dashboard
- * components against mocked services to prove UI behavior end-to-end
- * (search, language filter, pagination, copy, revert all, save changes,
- * approve/approve-all/reject/edit). Not a permanent regression suite.
- */
 import React from "react";
 import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -19,10 +13,8 @@ jest.mock("../src/services/translationService", () => ({
     updateTranslation: jest.fn(),
   },
 }));
-// eslint-disable-next-line import/first
 import { translationService } from "../src/services/translationService";
 
-// Radix Popover needs pointer-capture APIs jsdom doesn't implement.
 beforeAll(() => {
   window.HTMLElement.prototype.hasPointerCapture = jest.fn().mockReturnValue(false);
   window.HTMLElement.prototype.setPointerCapture = jest.fn();
@@ -46,8 +38,6 @@ function makeDoc(key, sourceText, { translated, status } = {}) {
     key,
     route: "/",
     sourceText,
-    // Stage is derived per-language from translations[lang].status (per-language
-    // approval gate), so the status must live on the language entry, not the doc.
     translations: translated ? { kn: { text: translated, status: status || "pending" } } : {},
     status,
   };
@@ -104,7 +94,6 @@ describe("Translate & Review — live component verification", () => {
     const enOption = await screen.findByText("English");
     await userEvent.click(enOption);
 
-    // onScope was called with an updater that flips lang to "en"
     expect(scope.lang).toBe("en");
   });
 
@@ -114,7 +103,6 @@ describe("Translate & Review — live component verification", () => {
     renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
     await screen.findByText("Source 0");
 
-    // default rowsPerPage=10 -> page 1 shows Source 0..9, not Source 10
     expect(screen.getByText("Source 9")).toBeInTheDocument();
     expect(screen.queryByText("Source 10")).not.toBeInTheDocument();
     expect(screen.getByText(/Showing 1 to 10 of 15/)).toBeInTheDocument();
@@ -223,7 +211,6 @@ describe("Translate & Review — live component verification", () => {
     await screen.findByText("Hello World");
 
     const textarea = screen.getByLabelText("Translation for: Hello World");
-    // Type but do NOT blur — simulates an in-progress, unsaved edit.
     fireEvent.change(textarea, { target: { value: "Unsaved garbage text" } });
     expect(textarea.value).toBe("Unsaved garbage text");
     expect(translationService.updateTranslation).not.toHaveBeenCalled();

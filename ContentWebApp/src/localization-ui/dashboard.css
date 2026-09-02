@@ -1,10 +1,5 @@
-/* ============================================================
-   Overview — onboarding page (Connect your website + Manage Resources)
-   ============================================================ */
-
 .loca-ui .onb-page { max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; padding: 8px 0 32px; }
 
-/* Onboarding card */
 .loca-ui .onb-card {
   display: flex; flex-direction: column; gap: 18px;
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
@@ -100,7 +95,6 @@
 .loca-ui .onb-new-project { display: flex; align-items: center; gap: 8px; }
 .loca-ui .onb-new-project .onb-input-icon { flex: 1 1 auto; }
 
-/* Manage Resources card */
 .loca-ui .mr-card {
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
   box-shadow: var(--sh-2); padding: 28px 28px 12px;
