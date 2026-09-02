@@ -47,7 +47,6 @@ const ContentListItem = ({
         opacity: isLoading ? 0.7 : 1,
       }}
     >
-      {/* Color icon */}
       <Box
         sx={{
           width: 48,
@@ -70,7 +69,6 @@ const ContentListItem = ({
         )}
       </Box>
 
-      {/* Content info */}
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography
           variant="body2"
@@ -135,7 +133,6 @@ const ContentListItem = ({
         </Box>
       </Box>
 
-      {/* Duration + play indicator */}
       <Box
         sx={{
           display: "flex",
@@ -159,7 +156,6 @@ const ContentListItem = ({
         )}
       </Box>
 
-      {/* Loading bar on the item */}
       {isLoading && (
         <LinearProgress
           sx={{

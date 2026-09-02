@@ -1,7 +1,6 @@
 package com.example.seeds.repository
 
 import com.example.seeds.ApplicationJsonAdapterFactory
-import com.example.seeds.network.CommandResult
 import com.example.seeds.network.SeedsService
 import com.example.seeds.network.TextCommandRequest
 import com.example.seeds.network.TtsPromptRequest
@@ -16,27 +15,6 @@ import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import javax.inject.Inject
-
-// ponytail: requiresClientExecution is absent from backend — executeClientCommands is a no-op stub
-
-fun resolveClientPlaceholders(value: Any?, resultContext: Map<String, CommandResult>): Any? {
-    return when (value) {
-        is String -> value.replace(Regex("""\{\{step(\d+)\.data([^}]*)\}\}""")) { match ->
-            val stepNum = match.groupValues[1]
-            val fieldPath = match.groupValues[2]
-            val stepData = resultContext["step$stepNum"]?.data ?: return@replace ""
-            if (fieldPath.isEmpty()) return@replace stepData.toString()
-            val parts = fieldPath.trimStart('.').split(".")
-            var current: Any? = stepData
-            for (part in parts) current = (current as? Map<*, *>)?.get(part)
-            current?.toString() ?: ""
-        }
-        is Map<*, *> -> value.entries.associate { (k, v) ->
-            k to resolveClientPlaceholders(v, resultContext)
-        }
-        else -> value
-    }
-}
 
 class VoiceCommandRepository @Inject constructor(
     private val network: SeedsService
@@ -66,7 +44,4 @@ class VoiceCommandRepository @Inject constructor(
             network.fetchTtsPrompt(TtsPromptRequest(type))
         }
     }
-
-    // ponytail: requiresClientExecution not set by backend; returns results unchanged
-    fun executeClientCommands(results: List<CommandResult>): List<CommandResult> = results
 }

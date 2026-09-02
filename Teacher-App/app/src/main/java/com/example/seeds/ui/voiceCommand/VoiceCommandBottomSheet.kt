@@ -147,14 +147,12 @@ class VoiceCommandBottomSheet : BottomSheetDialogFragment() {
     private fun render(state: VoiceCommandUiState) {
         val recording = state.status == VoiceStatus.RECORDING
 
-        // Mic button reflects record state
         binding.micButton.setImageResource(if (recording) R.drawable.ic_mic_off else R.drawable.ic_mic)
         binding.micButton.backgroundTintList = ContextCompat.getColorStateList(
             requireContext(), if (recording) R.color.seeds_orange else R.color.seeds_green
         )
         binding.micButton.isEnabled = !state.isBusy
 
-        // Status row (spinner + label)
         val showStatus = state.status != VoiceStatus.IDLE && state.status.label.isNotEmpty()
         binding.statusRow.visibility = if (showStatus) View.VISIBLE else View.GONE
         binding.statusLabel.text = state.status.label
@@ -164,26 +162,21 @@ class VoiceCommandBottomSheet : BottomSheetDialogFragment() {
         binding.textInput.isEnabled = !state.isBusy
         binding.sendButton.isEnabled = !state.isBusy
 
-        // Transcript
-        binding.transcriptCard.visibility = if (!state.transcript.isNullOrEmpty()) View.VISIBLE else View.GONE
+        binding.transcriptCard.visibility = if (state.transcript.isNotEmpty()) View.VISIBLE else View.GONE
         binding.transcriptText.text = state.transcript
 
-        // Spoken summary
-        val showSummary = state.status == VoiceStatus.DONE && !state.spokenSummary.isNullOrEmpty()
+        val showSummary = state.status == VoiceStatus.DONE && state.spokenSummary.isNotEmpty()
         binding.summaryCard.visibility = if (showSummary) View.VISIBLE else View.GONE
         binding.summaryText.text = state.spokenSummary
 
-        // Error
-        val showError = state.status == VoiceStatus.ERROR && !state.error.isNullOrEmpty()
+        val showError = state.status == VoiceStatus.ERROR && state.error.isNotEmpty()
         binding.errorCard.visibility = if (showError) View.VISIBLE else View.GONE
         binding.errorText.text = state.error
         binding.settingsButton.visibility = if (state.needsMicPermission) View.VISIBLE else View.GONE
 
-        // Result cards
         resultAdapter.submit(state.formattedResults)
         binding.resultsList.visibility = if (state.formattedResults.isEmpty()) View.GONE else View.VISIBLE
 
-        // Navigation button
         val nav = state.navigationTarget?.takeIf { state.status == VoiceStatus.DONE }
         binding.navButton.visibility = if (nav != null) View.VISIBLE else View.GONE
         binding.navButton.text = nav?.label
@@ -199,7 +192,7 @@ class VoiceCommandBottomSheet : BottomSheetDialogFragment() {
 
     // Wrap the target's Parcelable nav-arg (Content / Classroom) under its safe-args key.
     private fun navArgs(nav: NavigationTarget): Bundle? =
-        nav.navArg?.let { arg -> Bundle().apply { putParcelable(nav.navArgKey ?: "arg", arg) } }
+        nav.navArg?.let { arg -> Bundle().apply { putParcelable(nav.navArgKey.ifEmpty { "arg" }, arg) } }
 
     private fun navigateToTarget(nav: NavigationTarget?) {
         if (nav == null) return

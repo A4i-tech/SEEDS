@@ -29,7 +29,7 @@ class SchoolAnalyticsRequest(BaseModel):
 
 class ClassroomUpsertRequest(BaseModel):
     id: str | None = None
-    name: str | None = None
+    name: str
     students: list[str] = Field(default_factory=list)
     leaders: list[str] = Field(default_factory=list)
     content_ids: list[str] = Field(default_factory=list)
@@ -38,8 +38,11 @@ class ClassroomUpsertRequest(BaseModel):
 
     @field_validator("name")
     @classmethod
-    def _strip_name(cls, value: str | None) -> str | None:
-        return value.strip() if value is not None else value
+    def _strip_name(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("Class name cannot be blank. Enter a name for the class, then try again.")
+        return stripped
 
 
 class ClassroomCreate(BaseModel):

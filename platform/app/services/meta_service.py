@@ -1,19 +1,3 @@
-"""
-SEEDS AI Controller — meta service.
-
-Ported from backend-server/src/services/meta.service.js.
-
-4-phase pipeline:
-  1. fetchContextFromDB + reasonAboutCommand  (Azure OpenAI)
-  2. planCommands                             (Azure OpenAI)
-  3. executeCommands                          (httpx self-calls)
-  4. generateSpokenSummary + synthesizeSpeech (Azure OpenAI + Azure TTS)
-
-SECURITY:
-  - API keys never logged.
-  - Auth token forwarded to self-calls via Authorization header only.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -25,20 +9,13 @@ import re
 import struct
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 import aiohttp
 import yaml
 from motor.motor_asyncio import AsyncIOMotorDatabase
-
-try:
-    # Drop-in wrapper around AsyncAzureOpenAI that adds Langfuse tracing when the
-    # optional `langfuse` package is installed; falls back to the plain SDK client
-    # (same interface) when it isn't, so Langfuse stays a soft dependency.
-    from langfuse.openai import AsyncAzureOpenAI
-except ImportError:
-    from openai import AsyncAzureOpenAI
-from openai import RateLimitError
+from openai import AsyncAzureOpenAI, RateLimitError
+from pydantic import ValidationError as PydanticValidationError
 
 from app.models.requests.meta_requests import CommandContext
 from app.models.responses.meta import ProcessCommandResponse, TtsPromptResponse
@@ -71,9 +48,6 @@ def _get_prompts() -> dict[str, Any]:
             raise RuntimeError(f"meta_service: failed to load prompts from {_PROMPTS_PATH}: {exc}") from exc
     return _prompts_cache
 
-# ---------------------------------------------------------------------------
-# Stop-words for keyword extraction (mirrors JS STOP_WORDS set)
-# ---------------------------------------------------------------------------
 _STOP_WORDS = {
     "play", "show", "find", "get", "list", "fetch", "search", "open", "start",
     "the", "a", "an", "in", "on", "at", "to", "for", "of", "my", "me", "all",
@@ -87,10 +61,6 @@ def _extract_keywords(text: str) -> list[str]:
     words = re.sub(r"[^a-z0-9\s]", "", text.lower()).split()
     return [w for w in words if len(w) > 1 and w not in _STOP_WORDS]
 
-
-# ---------------------------------------------------------------------------
-# MongoDB pre-fetch — grounding context for LLM prompts
-# ---------------------------------------------------------------------------
 
 async def fetch_context_from_db(
     transcript: str,
@@ -113,21 +83,19 @@ async def fetch_context_from_db(
 
     content_docs, class_docs = await asyncio.gather(
         content_repo.find_matching_keywords(regex, tenant_id=tenant_id, school_id=school_id, limit=10),
-        classroom_repo.find_raw_by_teacher(user_id),
+        classroom_repo.find_by_teacher(user_id),
     )
 
-    # Populate student/leader refs for classes
     all_student_ids: set[str] = set()
-    for cls in class_docs:
-        all_student_ids.update(str(s) for s in cls.get("students", []))
-        all_student_ids.update(str(s) for s in cls.get("leaders", []))
+    for classroom in class_docs:
+        all_student_ids.update(classroom.students)
+        all_student_ids.update(classroom.leaders)
 
     student_map: dict[str, User] = {}
     if all_student_ids:
         for u in await user_repo.find_many_by_ids(list(all_student_ids)):
             student_map[u.id] = u
 
-    # School-wide students for fuzzy matching
     # Platform users collection stores `phone` / `school_id` (snake_case),
     # unlike legacy JS models (`phoneNumber` / `schoolId`).
     school_students: list[User] = []
@@ -156,10 +124,10 @@ async def fetch_context_from_db(
     ]
     classes_out = [
         {
-            "_id": str(c.get("_id", "")),
-            "name": c.get("name", ""),
-            "students": [s for s in (_student_info(s) for s in c.get("students", [])) if s is not None],
-            "leaders": [ld for ld in (_student_info(ld) for ld in c.get("leaders", [])) if ld is not None],
+            "_id": c.id or "",
+            "name": c.name,
+            "students": [s for s in (_student_info(s) for s in c.students) if s is not None],
+            "leaders": [ld for ld in (_student_info(ld) for ld in c.leaders) if ld is not None],
         }
         for c in class_docs
     ]
@@ -170,10 +138,6 @@ async def fetch_context_from_db(
 
     return {"content": content_out, "classes": classes_out, "students": students_out}
 
-
-# ---------------------------------------------------------------------------
-# DB context formatter
-# ---------------------------------------------------------------------------
 
 def _format_db_context(db_results: dict[str, list]) -> str:
     sections: list[str] = []
@@ -219,10 +183,6 @@ def _format_db_context(db_results: dict[str, list]) -> str:
     return "\n\n".join(sections) if sections else "(no matching data found in database)"
 
 
-# ---------------------------------------------------------------------------
-# History formatter
-# ---------------------------------------------------------------------------
-
 def _format_history(history: list[dict] | None) -> str:
     if not history:
         return "RECENT CONVERSATION: (none — this is the first command)"
@@ -236,10 +196,6 @@ def _format_history(history: list[dict] | None) -> str:
         lines.append(line)
     return "RECENT CONVERSATION (oldest first, for resolving references only):\n" + "\n".join(lines)
 
-
-# ---------------------------------------------------------------------------
-# Azure OpenAI LLM helper
-# ---------------------------------------------------------------------------
 
 _llm_client: AsyncAzureOpenAI | None = None
 
@@ -296,24 +252,20 @@ async def _call_llm(system_prompt: str, user_message: str) -> dict[str, Any]:
         return json.loads(resp.choices[0].message.content)
 
 
-def _build_prompt(template: str, user_info: dict[str, Any], extras: dict[str, Any] | None = None) -> str:
+def _build_prompt(template: str, user_info: dict[str, Any], extras: dict[str, str] | None = None) -> str:
     prompt = (
         template
-        .replace("{{phoneNumber}}", str(user_info.get("phone_number") or "unknown"))
+        .replace("{{phoneNumber}}", str(user_info["phone_number"]))
         .replace("{{teacherName}}", str(user_info.get("name") or "Teacher"))
-        .replace("{{tenantId}}", str(user_info.get("tenant_id") or "unknown"))
+        .replace("{{tenantId}}", str(user_info["tenant_id"]))
         .replace("{{userId}}", str(user_info.get("user_id") or "unknown"))
         .replace("{{activeConferenceId}}", str(user_info.get("active_conference_id") or "none"))
         .replace("{{currentClassId}}", str(user_info.get("current_class_id") or "none"))
     )
     for key, value in (extras or {}).items():
-        prompt = prompt.replace(f"{{{{{key}}}}}", value if isinstance(value, str) else json.dumps(value, indent=2))
+        prompt = prompt.replace(f"{{{{{key}}}}}", value)
     return prompt
 
-
-# ---------------------------------------------------------------------------
-# Phase 1: Reason
-# ---------------------------------------------------------------------------
 
 async def get_db_context(
     transcript: str,
@@ -325,7 +277,7 @@ async def get_db_context(
         transcript,
         user_id=user_info.get("user_id", ""),
         school_id=user_info.get("school_id", ""),
-        tenant_id=user_info.get("tenant_id", ""),
+        tenant_id=user_info["tenant_id"],
         db=db,
     )
     return _format_db_context(db_results)
@@ -340,10 +292,6 @@ async def reason_about_command(
     system_prompt = _build_prompt(_get_prompts()["reasoning"], user_info, {"dbContext": db_context, "history": history})
     return await _call_llm(system_prompt, f'User command: "{transcript}"')
 
-
-# ---------------------------------------------------------------------------
-# Phase 2: Plan
-# ---------------------------------------------------------------------------
 
 async def plan_commands(
     transcript: str,
@@ -360,28 +308,17 @@ async def plan_commands(
     return await _call_llm(system_prompt, f'User command: "{transcript}"')
 
 
-def normalize_plan(plan: dict[str, Any]) -> dict[str, Any]:
-    if plan.get("error"):
-        return {"error": plan["error"]}
-    commands = plan.get("commands")
-    if commands is None:
-        commands = plan.get("steps") or [plan]
-        logger.warning(
-            "meta_service: LLM plan output missing expected 'commands' key, "
-            "falling back to %s shape — check planning prompt/schema",
-            "steps" if plan.get("steps") else "bare plan",
-        )
-    if not isinstance(commands, list):
-        commands = [commands]
-    needs_input = any(c.get("needsInput") for c in commands)
-    return {"commands": commands, "needsInput": needs_input}
+class StepResult(TypedDict):
+    step: str
+    status: int
+    data: Any
+    error: str
 
 
-# ---------------------------------------------------------------------------
-# Phase 3: Execute
-# ---------------------------------------------------------------------------
+JSONValue = str | int | float | bool | None | list["JSONValue"] | dict[str, "JSONValue"]
 
-def _resolve_placeholders(target: Any, context: dict[str, Any]) -> Any:
+
+def _resolve_placeholders(target: JSONValue, context: dict[str, StepResult]) -> JSONValue:
     if target is None:
         return target
 
@@ -446,10 +383,9 @@ def _resolve_placeholders(target: Any, context: dict[str, Any]) -> Any:
         return [_resolve_placeholders(item, context) for item in target]
 
     if isinstance(target, dict):
-        resolved: dict[str, Any] = {}
+        resolved: dict[str, JSONValue] = {}
         for k, v in target.items():
             val = _resolve_placeholders(v, context)
-            # String that looks like JSON array → parse it back
             if isinstance(val, str) and val.startswith("[") and val.endswith("]"):
                 try:
                     val = json.loads(val)
@@ -461,11 +397,9 @@ def _resolve_placeholders(target: Any, context: dict[str, Any]) -> Any:
     return target
 
 
-# ---------------------------------------------------------------------------
 # Path/method allowlist — LLM-planned commands are executed with the caller's
 # real bearer token; the planner prompt is not a security boundary, so every
 # self-call must also clear this server-side allowlist before dispatch.
-# ---------------------------------------------------------------------------
 _ALLOWED_ROUTES: list[tuple[frozenset[str], re.Pattern]] = [  # type: ignore[type-arg]
     (frozenset({"GET"}), re.compile(r"^/content/themes/?$")),
     (frozenset({"GET"}), re.compile(r"^/content/[^/]*$")),
@@ -517,7 +451,7 @@ async def _execute_single(
     token: str,
     description: str,
     session: aiohttp.ClientSession,
-) -> dict[str, Any]:
+) -> StepResult:
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     try:
         async with session.request(
@@ -528,18 +462,28 @@ async def _execute_single(
             timeout=aiohttp.ClientTimeout(total=15),
         ) as resp:
             data = await _parse_response_body(resp)
-            return {"step": description, "status": resp.status, "data": data}
+            return {"step": description, "status": resp.status, "data": data, "error": ""}
+    except TimeoutError as exc:
+        raise AppError(
+            "COMMAND_TIMED_OUT",
+            f"'{description}' took too long and was stopped. Nothing was saved. Check your connection and say the command again.",
+            504,
+        ) from exc
     except aiohttp.ClientError as exc:
-        return {"step": description, "status": 500, "error": str(exc).replace(token, "[REDACTED]")}
+        raise AppError(
+            "COMMAND_FAILED",
+            f"Could not complete '{description}' because the server was unreachable. Nothing was saved. Check your connection and say the command again.",
+            502,
+        ) from exc
 
 
 async def execute_commands(
     commands: list[dict[str, Any]],
     auth_token: str,
     base_url: str,
-) -> list[dict[str, Any]]:
-    results: list[dict[str, Any]] = []
-    context: dict[str, Any] = {}
+) -> list[StepResult]:
+    results: list[StepResult] = []
+    context: dict[str, StepResult] = {}
 
     async with aiohttp.ClientSession() as session:
         for i, cmd in enumerate(commands):
@@ -550,25 +494,38 @@ async def execute_commands(
             # `method` is mandatory on every planned step (forEach included — see
             # below); the planner prompt/schema always sets it, so a missing key
             # is a malformed plan, not something to paper over with a default.
-            step_kind = "forEach" if cmd.get("forEach") else cmd["method"].upper()
+            if cmd.get("forEach"):
+                step_kind = "forEach"
+            else:
+                method = cmd.get("method")
+                if not isinstance(method, str) or method.upper() not in {"GET", "POST", "PUT", "DELETE", "NAVIGATE"}:
+                    r = {
+                        "step": description,
+                        "status": 400,
+                        "data": None,
+                        "error": f"'{description}' could not run because the plan did not specify a valid action to take. Please rephrase your request and try again.",
+                    }
+                    results.append(r)
+                    context[f"step{i + 1}"] = r
+                    continue
+                step_kind = method.upper()
 
             match step_kind:
                 case "forEach":
-                    # forEach — iterate over array from a prior step
                     m = re.search(r"\{\{step(\d+)\.data\[\]\.(\w+)\}\}", cmd.get("path", ""))
                     if not m:
-                        r = {"step": description, "status": 400, "error": "Could not determine forEach source"}
+                        r = {"step": description, "status": 400, "data": None, "error": "Could not determine forEach source"}
                         results.append(r)
-                        context[f"step{i + 1}"] = {"data": None, "status": 400}
+                        context[f"step{i + 1}"] = {"step": description, "status": 400, "data": None, "error": ""}
                         continue
                     source_step, field = m.group(1), m.group(2)
                     source_data = context.get(f"step{source_step}", {}).get("data")
                     if not isinstance(source_data, list):
-                        r = {"step": description, "status": 400, "error": "forEach source is not an array"}
+                        r = {"step": description, "status": 400, "data": None, "error": "forEach source is not an array"}
                         results.append(r)
-                        context[f"step{i + 1}"] = {"data": None, "status": 400}
+                        context[f"step{i + 1}"] = {"step": description, "status": 400, "data": None, "error": ""}
                         continue
-                    foreach_results: list[dict[str, Any]] = []
+                    foreach_results: list[StepResult] = []
                     for item in source_data:
                         item_val = item.get(field)
                         if not item_val:
@@ -578,6 +535,7 @@ async def execute_commands(
                             foreach_results.append({
                                 "step": f"{description} ({item.get('name', item_val)})",
                                 "status": 400,
+                                "data": None,
                                 "error": f"Could not resolve placeholder(s) in step: {item_path}",
                             })
                             continue
@@ -585,6 +543,7 @@ async def execute_commands(
                             foreach_results.append({
                                 "step": f"{description} ({item.get('name', item_val)})",
                                 "status": 403,
+                                "data": None,
                                 "error": f"Command not permitted: {cmd['method']} {item_path}",
                             })
                             continue
@@ -598,11 +557,16 @@ async def execute_commands(
                         )
                         foreach_results.append(r)
                     results.extend(foreach_results)
-                    context[f"step{i + 1}"] = {"data": [r.get("data") for r in foreach_results], "status": 200}
+                    context[f"step{i + 1}"] = {
+                        "step": description,
+                        "status": 200,
+                        "data": [r["data"] for r in foreach_results],
+                        "error": "",
+                    }
 
                 case "NAVIGATE":
                     # frontend-only pseudo-command
-                    r = {"step": description, "status": 200, "data": {"navigate": resolved_path}}
+                    r = {"step": description, "status": 200, "data": {"navigate": resolved_path}, "error": ""}
                     results.append(r)
                     context[f"step{i + 1}"] = r
 
@@ -611,6 +575,7 @@ async def execute_commands(
                         r = {
                             "step": description,
                             "status": 400,
+                            "data": None,
                             "error": f"Could not resolve placeholder(s) in step: {resolved_path}",
                         }
                         logger.warning("meta_service: unresolved placeholder(s), refusing to dispatch step=%r path=%r", description, resolved_path)
@@ -618,6 +583,7 @@ async def execute_commands(
                         r = {
                             "step": description,
                             "status": 403,
+                            "data": None,
                             "error": f"Command not permitted: {step_kind} {resolved_path}",
                         }
                     else:
@@ -634,10 +600,6 @@ async def execute_commands(
 
     return results
 
-
-# ---------------------------------------------------------------------------
-# Phase 4: Spoken summary + TTS
-# ---------------------------------------------------------------------------
 
 async def generate_spoken_summary(transcript: str, results: list[dict[str, Any]]) -> dict[str, Any]:
     lines: list[str] = []
@@ -701,10 +663,6 @@ async def synthesize_speech(text: str) -> str:
     return base64.b64encode(audio_bytes).decode()
 
 
-# ---------------------------------------------------------------------------
-# STT — Azure Speech REST (WebM → WAV 16kHz via ffmpeg subprocess)
-# ---------------------------------------------------------------------------
-
 def _pcm_to_wav(pcm: bytes, sample_rate: int = 16000, channels: int = 1, bits: int = 16) -> bytes:
     block_align = channels * bits // 8
     byte_rate = sample_rate * block_align
@@ -728,7 +686,6 @@ async def transcribe_audio(audio_bytes: bytes) -> str:
     if not speech_key or not speech_region:
         raise RuntimeError("Azure Speech not configured (AZURE_SPEECH_KEY / AZURE_SPEECH_REGION missing)")
 
-    # Decode to raw 16 kHz mono PCM via ffmpeg
     with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp_in:
         tmp_in.write(audio_bytes)
         tmp_in_path = tmp_in.name
@@ -777,10 +734,6 @@ async def transcribe_audio(audio_bytes: bytes) -> str:
     return result.get("DisplayText", "")
 
 
-# ---------------------------------------------------------------------------
-# Static TTS prompts (Seeds persona)
-# ---------------------------------------------------------------------------
-
 # ponytail: module-level dict cache; good enough for static prompts
 _tts_cache: dict[str, str] = {}
 
@@ -800,10 +753,78 @@ async def get_tts_prompt(prompt_type: str) -> TtsPromptResponse | None:
     return TtsPromptResponse(text=text, audioBase64=_tts_cache.get(prompt_type))
 
 
-# ---------------------------------------------------------------------------
 # Orchestration entrypoints (moved from meta_controller — controller stays
 # route-only: auth/parsing/response shaping, no pipeline logic).
-# ---------------------------------------------------------------------------
+
+
+_MAX_AUDIO_BYTES = 25 * 1024 * 1024
+
+
+def _parse_context(raw: str) -> CommandContext:
+    try:
+        return CommandContext.from_raw(raw)
+    except (ValueError, PydanticValidationError) as exc:
+        raise AppError(
+            "INVALID_CONTEXT",
+            "The app sent a screen context we could not read. Reload the page, then try the command again.",
+            400,
+        ) from exc
+
+
+async def transcribe_upload(audio_bytes: bytes) -> str:
+    if not audio_bytes:
+        raise AppError(
+            "NO_AUDIO",
+            "No audio reached the server. Record again, then send.",
+            400,
+        )
+    if len(audio_bytes) > _MAX_AUDIO_BYTES:
+        raise AppError(
+            "AUDIO_TOO_LARGE",
+            "That recording is over the 25 MB limit. Record a shorter command, then send.",
+            413,
+        )
+    transcript = await transcribe_audio(audio_bytes)
+    logger.info("meta_service: transcript=%r", transcript)
+    if not transcript.strip():
+        raise AppError(
+            "NO_SPEECH",
+            "We heard no speech in that recording. Speak closer to the microphone, then record again.",
+            400,
+        )
+    return transcript
+
+
+async def execute_voice_command(
+    audio_bytes: bytes,
+    context: str,
+    current_user: dict[str, Any],
+    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+    auth_token: str,
+    base_url: str,
+) -> ProcessCommandResponse:
+    transcript = await transcribe_upload(audio_bytes)
+    user_info = await build_user_info(current_user, db, _parse_context(context))
+    return await process_command(transcript, user_info, db, auth_token, base_url)
+
+
+async def execute_text_command(
+    command: str,
+    context: CommandContext,
+    current_user: dict[str, Any],
+    db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+    auth_token: str,
+    base_url: str,
+) -> ProcessCommandResponse:
+    if not command.strip():
+        raise AppError(
+            "NO_COMMAND",
+            "No command text was sent. Type a command, then send.",
+            400,
+        )
+    logger.info("meta_service: text command=%r", command)
+    user_info = await build_user_info(current_user, db, context)
+    return await process_command(command, user_info, db, auth_token, base_url)
 
 
 async def build_user_info(
@@ -817,9 +838,12 @@ async def build_user_info(
     phone = (user.phone if user else "").strip() if user and user.phone else ""
     if not phone:
         raise ValidationError("Teacher account has no phone number on file — required for voice commands.")
+    tenant_id = current_user.get("tenant_id", "")
+    if not tenant_id:
+        raise ValidationError("Your account is missing a tenant ID — sign out and sign back in to refresh your session.")
     return {
         "user_id": user_id,
-        "tenant_id": current_user.get("tenant_id", ""),
+        "tenant_id": tenant_id,
         "school_id": current_user.get("school_id", "") or (user.school_id if user else ""),
         "phone_number": phone,
         "name": (user.name if user else "") or "Teacher",
@@ -852,7 +876,6 @@ async def process_command(
     base_url: str,
 ) -> ProcessCommandResponse:
     """Shared reason → plan → execute → summarize flow (JS processCommand)."""
-    # Phase 1: Reason (DB context fetched once, shared with Phase 2)
     db_context = await get_db_context(transcript, user_info, db)
     try:
         reasoning = await reason_about_command(transcript, user_info, db_context)
@@ -864,7 +887,6 @@ async def process_command(
         reasoning.get("intent"), reasoning.get("canAutoResolve"),
     )
 
-    # Conversational / unresolvable — skip planning, speak the explanation
     if reasoning.get("canAutoResolve") is False:
         explanation = (
             reasoning.get("unresolvedNote")
@@ -874,7 +896,7 @@ async def process_command(
         )
         spoken_summary, audio_b64 = await _tts_summary(
             transcript,
-            [{"step": "explanation", "status": 200, "data": {"explanation": explanation}}],
+            [{"step": "explanation", "status": 200, "data": {"explanation": explanation}, "error": ""}],
         )
         spoken_summary = spoken_summary or explanation
         return ProcessCommandResponse(
@@ -886,36 +908,40 @@ async def process_command(
             audioBase64=audio_b64,
         )
 
-    # Phase 2: Plan
     try:
         plan = await plan_commands(transcript, user_info, reasoning, db_context)
     except Exception as exc:  # noqa: BLE001
         logger.error("meta_service: planning phase failed: %s", exc)
         raise AppError("AI_PLANNING_FAILED", f"AI planning failed: {exc}", 502) from exc
-    normalized = normalize_plan(plan)
-    if normalized.get("error"):
-        return ProcessCommandResponse(transcript=transcript, reasoning=reasoning, error=normalized["error"])
-    if normalized.get("needsInput"):
+    if plan.get("error"):
+        return ProcessCommandResponse(transcript=transcript, reasoning=reasoning, error=plan["error"])
+    commands = plan.get("commands")
+    if not isinstance(commands, list):
+        logger.error("meta_service: LLM plan output has no 'commands' list: %s", plan)
+        raise AppError(
+            "AI_PLANNING_FAILED",
+            "We could not turn that request into an action. Please rephrase it and try again.",
+            502,
+        )
+    if any(c.get("needsInput") for c in commands):
         return ProcessCommandResponse(
             transcript=transcript,
             reasoning=reasoning,
-            commands=normalized["commands"],
+            commands=commands,
             needsInput=True,
             message="Some steps require additional input. Please review and confirm.",
         )
 
-    # Phase 3: Execute
-    logger.info("meta_service: executing %d commands", len(normalized["commands"]))
-    results = await execute_commands(normalized["commands"], auth_token, base_url)
+    logger.info("meta_service: executing %d commands", len(commands))
+    results = await execute_commands(commands, auth_token, base_url)
 
-    # Phase 4: Spoken summary + TTS (non-blocking)
     spoken_summary, audio_b64 = await _tts_summary(transcript, results)
 
     return ProcessCommandResponse(
         transcript=transcript,
         reasoning=reasoning,
-        commands=normalized["commands"],
+        commands=commands,
         results=results,
-        spokenSummary=spoken_summary,
+        spokenSummary=spoken_summary or "",
         audioBase64=audio_b64,
     )

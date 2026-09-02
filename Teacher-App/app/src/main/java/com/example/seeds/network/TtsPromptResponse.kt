@@ -4,6 +4,6 @@ import se.ansman.kotshi.JsonSerializable
 
 @JsonSerializable
 data class TtsPromptResponse(
-    val text: String? = null,
-    val audioBase64: String? = null
+    val text: String = "",
+    val audioBase64: String = ""
 )

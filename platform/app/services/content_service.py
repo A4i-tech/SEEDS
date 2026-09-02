@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 import time
-import uuid
 from datetime import UTC, datetime
 from typing import Any
 
@@ -50,10 +49,6 @@ class ContentService:
         self._quiz_repo = QuizRepository(db)
         self._job_repo = ContentJobRepository(db)
 
-    # ------------------------------------------------------------------
-    # Jobs
-    # ------------------------------------------------------------------
-
     async def enqueue_content_job(self, content_id: str) -> str:
         return await self._job_repo.create(content_id)
 
@@ -62,10 +57,6 @@ class ContentService:
 
     async def list_active_jobs(self) -> list[dict[str, Any]]:
         return await self._job_repo.find_active()
-
-    # ------------------------------------------------------------------
-    # Content reads
-    # ------------------------------------------------------------------
 
     async def get_themes(
         self,
@@ -85,7 +76,7 @@ class ContentService:
         only_teacher_app: bool,
         cursor: str | None,
         limit: int,
-        search: str | None = None,
+        search: str = "",
     ) -> list[AudioContent | QuizContent]:
         """Return merged, sorted results of length up to limit+1.
 
@@ -151,17 +142,12 @@ class ContentService:
         if quiz:
             return QuizContent.from_doc(quiz)
 
-    # ------------------------------------------------------------------
-    # Content writes
-    # ------------------------------------------------------------------
-
     async def create_content(
         self,
         body: ContentCreateRequest,
         tenant_id: str,
         user_id: str,
         school_id: str | None,
-        override_id: str | None = None,
     ) -> str:
         for item in body.audio_content or []:
             au = item.get("audio_url", "")
@@ -182,7 +168,6 @@ class ContentService:
             creation_time=int(time.time()),
         )
         doc: dict[str, Any] = dto.model_dump()
-        doc["_id"] = override_id or str(uuid.uuid4())
         doc["created_at"] = datetime.now(UTC)
         doc["updated_at"] = datetime.now(UTC)
         return await self._content_repo.insert_raw(doc)
@@ -237,17 +222,12 @@ class ContentService:
             content_id, tenant_id, school_id
         )
 
-    # ------------------------------------------------------------------
-    # Quiz writes
-    # ------------------------------------------------------------------
-
     async def create_quiz(
         self,
         body: QuizCreateRequest,
         tenant_id: str,
         user_id: str,
         school_id: str | None,
-        override_id: str | None = None,
     ) -> str:
         given = body.model_dump(
             exclude_unset=True,
@@ -263,12 +243,7 @@ class ContentService:
             creation_time=int(time.time()),
         )
         doc: dict[str, Any] = dto.model_dump()
-        doc["_id"] = override_id or str(uuid.uuid4())
         return await self._quiz_repo.insert(doc)
-
-    # ------------------------------------------------------------------
-    # Low-level passthrough (used by content job consumer)
-    # ------------------------------------------------------------------
 
     async def get_raw_content_by_id(self, content_id: str) -> dict[str, Any] | None:
         return await self._content_repo.find_raw_by_id(content_id)

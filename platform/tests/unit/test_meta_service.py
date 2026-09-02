@@ -20,7 +20,11 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key-for-unit-tests-only")
 os.environ.setdefault("AUTH_TYPE", "jwt")
 os.environ.setdefault("JWT_EXPIRES_IN", "1d")
 
+from app.platform.error_handling import AppError  # noqa: E402
 from app.services import meta_service  # noqa: E402
+
+TENANT_ID = str(ObjectId())
+SCHOOL_ID = str(ObjectId())
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -38,7 +42,7 @@ def user_info() -> dict[str, Any]:
     return {
         "user_id": "teacher1",
         "tenant_id": "tenant1",
-        "school_id": "school1",
+        "school_id": SCHOOL_ID,
         "phone_number": "+10000000000",
         "name": "Teacher",
         "active_conference_id": "none",
@@ -68,7 +72,7 @@ class TestExtractKeywords:
 class TestFetchContextFromDb:
     @pytest.mark.asyncio
     async def test_no_keywords_returns_empty_context(self, mock_db) -> None:
-        result = await meta_service.fetch_context_from_db("the a an", "teacher1", "school1", "tenant-1", mock_db)
+        result = await meta_service.fetch_context_from_db("the a an", "teacher1", SCHOOL_ID, TENANT_ID, mock_db)
         assert result == {"content": [], "classes": [], "students": []}
 
     @pytest.mark.asyncio
@@ -76,10 +80,10 @@ class TestFetchContextFromDb:
         await mock_db["contentsV3"].insert_one(
             {
                 "title": {"english": "Keats Poem"}, "type": "poem", "language": "en", "theme": {},
-                "tenant_id": "tenant-1", "school_id": "school1",
+                "tenant_id": ObjectId(TENANT_ID), "school_id": ObjectId(SCHOOL_ID),
             }
         )
-        result = await meta_service.fetch_context_from_db("play keats poem", "teacher1", "school1", "tenant-1", mock_db)
+        result = await meta_service.fetch_context_from_db("play keats poem", "teacher1", SCHOOL_ID, TENANT_ID, mock_db)
         assert len(result["content"]) == 1
         assert result["content"][0]["title"] == "Keats Poem"
 
@@ -87,12 +91,12 @@ class TestFetchContextFromDb:
     async def test_populates_students_for_teachers_classes(self, mock_db) -> None:
         student_id = ObjectId()
         await mock_db["users"].insert_one(
-            {"_id": student_id, "name": "Punit", "phone": "+11111", "school_id": "school1", "role": "student"}
+            {"_id": student_id, "name": "Punit", "phone": "+11111", "school_id": SCHOOL_ID, "role": "student"}
         )
         await mock_db["classes"].insert_one(
-            {"teacher": "teacher1", "name": "Class A", "students": [student_id], "leaders": []}
+            {"teacher": "teacher1", "school_id": SCHOOL_ID, "name": "Class A", "students": [student_id], "leaders": []}
         )
-        result = await meta_service.fetch_context_from_db("class alpha", "teacher1", "school1", "tenant-1", mock_db)
+        result = await meta_service.fetch_context_from_db("class alpha", "teacher1", SCHOOL_ID, TENANT_ID, mock_db)
         assert len(result["classes"]) == 1
         assert result["classes"][0]["students"] == [{"name": "Punit", "phone": "+11111"}]
 
@@ -102,9 +106,9 @@ class TestFetchContextFromDb:
         not surfaced to the LLM as a blank {name: "", phone: ""} entry."""
         missing_id = ObjectId()
         await mock_db["classes"].insert_one(
-            {"teacher": "teacher1", "name": "Class A", "students": [missing_id], "leaders": []}
+            {"teacher": "teacher1", "school_id": SCHOOL_ID, "name": "Class A", "students": [missing_id], "leaders": []}
         )
-        result = await meta_service.fetch_context_from_db("class alpha", "teacher1", "school1", "tenant-1", mock_db)
+        result = await meta_service.fetch_context_from_db("class alpha", "teacher1", SCHOOL_ID, TENANT_ID, mock_db)
         assert result["classes"][0]["students"] == []
 
     @pytest.mark.asyncio
@@ -114,7 +118,7 @@ class TestFetchContextFromDb:
         await mock_db["users"].insert_one(
             {"name": "Someone", "phone": "+1", "school_id": "", "role": "student"}
         )
-        result = await meta_service.fetch_context_from_db("find student", "teacher1", "", "tenant-1", mock_db)
+        result = await meta_service.fetch_context_from_db("find student", "teacher1", "", TENANT_ID, mock_db)
         assert result["students"] == []
 
 
@@ -272,32 +276,6 @@ class TestPhaseContextSharing:
 
 
 # ---------------------------------------------------------------------------
-# normalize_plan
-# ---------------------------------------------------------------------------
-
-
-class TestNormalizePlan:
-    def test_error_shape_passthrough(self) -> None:
-        assert meta_service.normalize_plan({"error": "nope"}) == {"error": "nope"}
-
-    def test_commands_key(self) -> None:
-        plan = {"commands": [{"method": "GET", "path": "/class/"}]}
-        assert meta_service.normalize_plan(plan)["commands"] == plan["commands"]
-
-    def test_steps_key_fallback(self) -> None:
-        plan = {"steps": [{"method": "GET", "path": "/class/"}]}
-        assert meta_service.normalize_plan(plan)["commands"] == plan["steps"]
-
-    def test_bare_plan_wrapped_in_list(self) -> None:
-        plan = {"method": "GET", "path": "/class/"}
-        assert meta_service.normalize_plan(plan)["commands"] == [plan]
-
-    def test_needs_input_detected(self) -> None:
-        plan = {"commands": [{"needsInput": True}]}
-        assert meta_service.normalize_plan(plan)["needsInput"] is True
-
-
-# ---------------------------------------------------------------------------
 # _resolve_placeholders
 # ---------------------------------------------------------------------------
 
@@ -445,7 +423,7 @@ class TestExecuteCommands:
                 auth_token="tok",
                 base_url="http://api",
             )
-        assert results == [{"step": "fetch content", "status": 200, "data": {"ok": True}}]
+        assert results == [{"step": "fetch content", "status": 200, "data": {"ok": True}, "error": ""}]
 
     @pytest.mark.asyncio
     async def test_disallowed_command_is_rejected_without_network_call(self) -> None:
@@ -490,7 +468,7 @@ class TestExecuteCommands:
                 base_url="http://api",
             )
         session_cm.session.request.assert_not_called()
-        assert results[0]["data"] == {"navigate": "/classrooms"}
+        assert results[0] == {"step": "go home", "status": 200, "data": {"navigate": "/classrooms"}, "error": ""}
 
     @pytest.mark.asyncio
     async def test_foreach_disallowed_path_rejected_per_item(self) -> None:
@@ -549,7 +527,7 @@ class TestExecuteSingle:
         session_cm = _mock_aiohttp_session(200, {"a": 1})
         session = session_cm.session
         r = await meta_service._execute_single("GET", "http://api/x", None, "secret-tok", "desc", session)
-        assert r == {"step": "desc", "status": 200, "data": {"a": 1}}
+        assert r == {"step": "desc", "status": 200, "data": {"a": 1}, "error": ""}
 
     @pytest.mark.asyncio
     async def test_exception_redacts_token_from_error(self) -> None:
@@ -557,10 +535,9 @@ class TestExecuteSingle:
         session.request = MagicMock(
             side_effect=aiohttp.ClientError("failed with token secret-tok in headers")
         )
-        r = await meta_service._execute_single("GET", "http://api/x", None, "secret-tok", "desc", session)
-        assert r["status"] == 500
-        assert "secret-tok" not in r["error"]
-        assert "[REDACTED]" in r["error"]
+        with pytest.raises(AppError) as exc_info:
+            await meta_service._execute_single("GET", "http://api/x", None, "secret-tok", "desc", session)
+        assert "secret-tok" not in exc_info.value.message
 
 
 # ---------------------------------------------------------------------------

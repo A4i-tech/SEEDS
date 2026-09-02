@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Box,
   Container,
@@ -16,6 +16,7 @@ import { showToast } from "../utils/toast";
 import { isLocalStorageAvailable } from "../utils/authHelpers";
 import { isValidPhoneNumber } from "../utils/phoneUtils";
 import { useAuthContext } from "../contexts/AuthContext";
+import { fetchTTSPrompt } from "../services/voiceCommandService";
 
 function Login() {
   const navigate = useNavigation();
@@ -23,8 +24,21 @@ function Login() {
   const [formError, setFormError] = useState(null);
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
+  const welcomeAudioRef = useRef(null);
 
   const showError = formError || (loginState.error && "Username or password incorrect");
+
+  // Pre-fetch welcome audio so it's ready to play the instant login succeeds
+  useEffect(() => {
+    (async () => {
+      try {
+        const { audioBase64 } = await fetchTTSPrompt("welcome");
+        if (audioBase64) {
+          welcomeAudioRef.current = new Audio(`data:audio/mp3;base64,${audioBase64}`);
+        }
+      } catch (_) { /* ignore — TTS is non-blocking */ }
+    })();
+  }, []);
 
   const handleLogin = async () => {
     // Check localStorage availability before attempting login
@@ -53,6 +67,10 @@ function Login() {
       return;
     }
     showToast.success("Login successful!");
+    if (welcomeAudioRef.current && !sessionStorage.getItem("seeds_welcomed")) {
+      sessionStorage.setItem("seeds_welcomed", "1");
+      welcomeAudioRef.current.play().catch(() => {});
+    }
     navigate.goToClassroom();
   };
 

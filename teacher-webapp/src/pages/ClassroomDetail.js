@@ -77,7 +77,6 @@ const ClassroomDetail = () => {
     setSelectedStudents,
   } = useConference();
 
-  // Clear stale selections when entering a different classroom
   useEffect(() => {
     // Skip clear when arriving via AI auto-start — the auto-start effect populates context instead
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -108,7 +107,7 @@ const ClassroomDetail = () => {
     setConferenceStudents(students);
 
     const allStudentsFormatted = (classroom.students || []).map((s) => {
-      const p = normalizePhoneNumber(s.phoneNumber);
+      const p = normalizePhoneNumber(s.phone_number);
       return { name: s.name, phoneNumber: p, phone_number: p };
     });
     setAllClassroomStudents(allStudentsFormatted);
@@ -122,7 +121,6 @@ const ClassroomDetail = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state, conferenceStarted, classroom, teacherPhone, teacherName]);
 
-  // Main data loading effect - handles sequential and parallel fetching
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -151,14 +149,11 @@ const ClassroomDetail = () => {
     loadData();
   }, [classroomId, getCurrentTeacher]);
 
-  // Handle SSE connection cleanup on mount/unmount
   useEffect(() => {
-    // Track if component is mounted
     isMountedRef.current = true;
 
     return () => {
       isMountedRef.current = false;
-      // Clean up SSE connection on unmount
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
         eventSourceRef.current = null;
@@ -166,7 +161,6 @@ const ClassroomDetail = () => {
     };
   }, []);
 
-  // Re-fetch after voice command mutations
   useEffect(() => {
     const handler = async () => {
       try {
@@ -180,7 +174,6 @@ const ClassroomDetail = () => {
     return () => window.removeEventListener("voice-command-complete", handler);
   }, [classroomId]);
 
-  // Handle SSE connection when conference starts
   useEffect(() => {
     if (!conferenceStarted || !conferenceId) {
       return;
@@ -193,7 +186,6 @@ const ClassroomDetail = () => {
       eventSourceRef.current = eventSource;
 
       eventSource.onmessage = (event) => {
-        // Only process if component is still mounted
         if (!isMountedRef.current) return;
 
         console.log(`${getCurrentTime()} Message from SSE:`, event.data);
@@ -218,7 +210,6 @@ const ClassroomDetail = () => {
       console.error("Error setting up SSE connection:", error);
     }
 
-    // Cleanup on unmount or when conference ends
     return () => {
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
@@ -315,7 +306,6 @@ const ClassroomDetail = () => {
 
       setConferenceStudents(selectedStudents);
 
-      // Normalize selected students' phone numbers before setting conference students
       const normalizedSelectedStudents = selectedStudents.map((student) => ({
         ...student,
         phoneNumber: normalizePhoneNumber(student.phoneNumber),
@@ -324,10 +314,10 @@ const ClassroomDetail = () => {
       setConferenceStudents(normalizedSelectedStudents);
 
       // Pass ALL classroom students for the "Add Participant" modal
-      const allStudentsFormatted = classroom.students.map((student) => ({
-        name: student.name,
-        phoneNumber: normalizePhoneNumber(student.phone_number),
-      }));
+      const allStudentsFormatted = classroom.students.map((student) => {
+        const p = normalizePhoneNumber(student.phone_number);
+        return { name: student.name, phoneNumber: p, phone_number: p };
+      });
       setAllClassroomStudents(allStudentsFormatted);
 
       console.log("Conference created successfully. Conf ID:", conferenceId);
@@ -341,7 +331,6 @@ const ClassroomDetail = () => {
     }
   };
 
-  // Check if student phone is selected (using normalized comparison)
   const isStudentSelected = (phoneNumber) => {
     const normalizedPhone = normalizePhoneNumber(phoneNumber);
     return selectedStudents.some((s) => {
@@ -350,7 +339,6 @@ const ClassroomDetail = () => {
     });
   };
 
-  // Toggle student selection
   const handleToggleStudent = (phoneNumber) => {
     if (!phoneNumber) return;
 
@@ -433,7 +421,6 @@ const ClassroomDetail = () => {
       )}
 
       {(() => {
-        // Count only students that are actually in the current classroom
         const selectedInClassroom = classroom.students.filter((student) =>
           isStudentSelected(student.phone_number)
         );

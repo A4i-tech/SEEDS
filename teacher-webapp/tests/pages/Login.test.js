@@ -17,6 +17,9 @@ jest.mock("../../src/services/axiosInstance", () => ({
 jest.mock("../../src/hooks/useNavigation");
 jest.mock("../../src/utils/authHelpers");
 jest.mock("../../src/contexts/AuthContext");
+jest.mock("../../src/services/voiceCommandService", () => ({
+  fetchTTSPrompt: jest.fn().mockResolvedValue({ audioBase64: "" }),
+}));
 
 describe("Login", () => {
   const mockNavigate = {
