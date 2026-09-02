@@ -1,0 +1,138 @@
+/* ============================================================
+   Localization UI — design tokens (scoped under .loca-ui)
+   Cool, calm, premium: slate neutrals + a restrained indigo accent.
+   Colour used only where it communicates importance. Light + dark.
+   ============================================================ */
+
+.loca-ui {
+  /* Neutrals — cool slate (chosen, not pure grey) */
+  --paper: #fafafb;
+  --surface: #ffffff;
+  --surface-2: #f4f5f8;
+  --surface-3: #eaecf1;
+  --ink: #0f1729;
+  --ink-2: #3a4358;
+  --muted: #6b7385;
+  --line: #e8eaf0;
+  --line-2: #d7dbe4;
+
+  /* Brand accent — teal/cyan. Reserved for the primary action, active nav,
+     progress, focus, links. Used subtly. Never bright orange. */
+  --accent: #0d9488;         /* teal-600 */
+  --accent-ink: #0f766e;     /* teal-700 */
+  --accent-2: #2dd4bf;       /* aqua-400 — gradients / progress */
+  --accent-wash: #e9f8f5;    /* soft aqua tint */
+  --on-accent: #ffffff;
+  --grad: linear-gradient(90deg, #0d9488 0%, #6d28d9 55%, #9f1239 100%);
+
+  /* Secondary brand — deep burgundy / wine, for the strongest commit action */
+  --wine: #9f1239;           /* rose-800 */
+  --wine-ink: #881337;       /* rose-900 */
+  --wine-bg: #fbe8ee;
+  --on-wine: #ffffff;
+
+  /* Semantic — calm, separate from brand; always paired with an icon */
+  --good: #15803d;  --good-bg: #e8f3ec;
+  --warn: #b45309;  --warn-bg: #fbf1de;
+  --crit: #dc2626;  --crit-bg: #fbeaea;
+  --info: #0d9488;  --info-bg: #e9f8f5;
+
+  /* Typography — Inter throughout, mono for data */
+  --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+
+  --fs-12: 12px; --fs-13: 13px; --fs-14: 14px; --fs-15: 15px;
+  --fs-16: 16px; --fs-18: 18px; --fs-20: 20px; --fs-24: 24px; --fs-28: 28px; --fs-32: 32px;
+
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 20px;
+  --s-6: 24px; --s-8: 32px; --s-10: 40px; --s-12: 48px;
+
+  --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-pill: 999px;
+
+  /* Elevation — soft, low, premium */
+  --sh-1: 0 1px 2px rgba(15,23,42,.04), 0 1px 3px rgba(15,23,42,.05);
+  --sh-2: 0 4px 16px rgba(15,23,42,.06), 0 1px 4px rgba(15,23,42,.05);
+  --sh-3: 0 16px 48px rgba(15,23,42,.14), 0 4px 12px rgba(15,23,42,.08);
+
+  --ease: cubic-bezier(.2,.6,.2,1);
+  --dur: 140ms;
+
+  --ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
+
+  --rail-w: 60px;
+  --side-w: 232px;
+  --topbar-h: 56px;
+
+  color-scheme: light;
+  font-family: var(--font);
+  color: var(--ink);
+  background: var(--paper);
+}
+
+@media (prefers-color-scheme: dark) {
+  .loca-ui:not([data-theme="light"]) {
+    --paper: #0b0e14;
+    --surface: #141922;
+    --surface-2: #1b212c;
+    --surface-3: #252c39;
+    --ink: #e7eaf1;
+    --ink-2: #bfc6d4;
+    --muted: #828ba0;
+    --line: #232a38;
+    --line-2: #303950;
+    --accent: #6366f1;
+    --accent-ink: #a5b4fc;
+    --accent-wash: #1b1f3a;
+    --on-accent: #ffffff;
+    --good: #4ade80;  --good-bg: #13251b;
+    --warn: #e0b44b;  --warn-bg: #2a2113;
+    --crit: #f87171;  --crit-bg: #2a1616;
+    --info: #7da9f8;  --info-bg: #121e33;
+    --sh-1: 0 1px 2px rgba(0,0,0,.4);
+    --sh-2: 0 6px 22px rgba(0,0,0,.5);
+    --sh-3: 0 20px 50px rgba(0,0,0,.6);
+    color-scheme: dark;
+  }
+}
+.loca-ui[data-theme="dark"] {
+  --paper: #0b0e14;
+  --surface: #141922;
+  --surface-2: #1b212c;
+  --surface-3: #252c39;
+  --ink: #e7eaf1;
+  --ink-2: #bfc6d4;
+  --muted: #828ba0;
+  --line: #232a38;
+  --line-2: #303950;
+  --accent: #6366f1;
+  --accent-ink: #a5b4fc;
+  --accent-wash: #1b1f3a;
+  --on-accent: #ffffff;
+  --good: #4ade80;  --good-bg: #13251b;
+  --warn: #e0b44b;  --warn-bg: #2a2113;
+  --crit: #f87171;  --crit-bg: #2a1616;
+  --info: #7da9f8;  --info-bg: #121e33;
+  --sh-1: 0 1px 2px rgba(0,0,0,.4);
+  --sh-2: 0 6px 22px rgba(0,0,0,.5);
+  --sh-3: 0 20px 50px rgba(0,0,0,.6);
+  color-scheme: dark;
+}
+
+/* Base — scoped, never touches the rest of the app */
+.loca-ui, .loca-ui * { box-sizing: border-box; }
+.loca-ui { font-size: var(--fs-14); line-height: 1.55; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; text-align: left; }
+.loca-ui h1, .loca-ui h2, .loca-ui h3, .loca-ui h4 {
+  margin: 0; font-weight: 600; letter-spacing: -.018em; color: var(--ink); line-height: 1.22;
+}
+.loca-ui p { margin: 0; }
+.loca-ui button { font-family: inherit; }
+.loca-ui .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.loca-ui .num { font-variant-numeric: tabular-nums; }
+
+.loca-ui :focus-visible { outline: none; box-shadow: var(--ring); border-radius: var(--r-sm); }
+
+@media (prefers-reduced-motion: reduce) {
+  .loca-ui *, .loca-ui *::before, .loca-ui *::after {
+    transition-duration: 0.01ms !important; animation-duration: 0.01ms !important;
+  }
+}

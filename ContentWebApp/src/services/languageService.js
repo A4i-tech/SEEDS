@@ -22,7 +22,8 @@ export const languageService = {
       headers: getAuthHeaders(),
     });
 
-    return (response || []).map(normalizeId);
+    const list = Array.isArray(response) ? response : (response && response.languages) || [];
+    return list.map(normalizeId);
   },
 
   /**

@@ -192,6 +192,9 @@ class AzureTranslationProvider(TranslationProvider):
 
     _API_VERSION = "3.0"
     _DEFAULT_ENDPOINT = "https://api.cognitive.microsofttranslator.com"
+    # Azure's /translate hard caps: 100 array elements, 50,000 chars per request.
+    _MAX_BATCH_ITEMS = 100
+    _MAX_BATCH_CHARS = 50_000
 
     def __init__(self, key: str, region: str, endpoint: str = "") -> None:
         if not key:
@@ -209,9 +212,40 @@ class AzureTranslationProvider(TranslationProvider):
     async def translate_batch(
         self, texts: list[str], source_lang: str, target_lang: str
     ) -> list[str]:
+        """Split *texts* under Azure's array/char caps and issue one request per chunk.
+
+        Enforced here rather than trusted to the caller — every caller of this
+        provider (runtime batch pipeline, admin website-translate fallback,
+        any future batch tool) gets the limit for free instead of needing to
+        know Azure's specific numbers.
+        """
         if not texts:
             return []
 
+        results: list[str] = []
+        for chunk in self._chunk_for_request(texts):
+            results.extend(await self._translate_batch_request(chunk, source_lang, target_lang))
+        return results
+
+    def _chunk_for_request(self, texts: list[str]) -> list[list[str]]:
+        chunks: list[list[str]] = []
+        current: list[str] = []
+        current_chars = 0
+        for text in texts:
+            if current and (
+                len(current) >= self._MAX_BATCH_ITEMS or current_chars + len(text) > self._MAX_BATCH_CHARS
+            ):
+                chunks.append(current)
+                current, current_chars = [], 0
+            current.append(text)
+            current_chars += len(text)
+        if current:
+            chunks.append(current)
+        return chunks
+
+    async def _translate_batch_request(
+        self, texts: list[str], source_lang: str, target_lang: str
+    ) -> list[str]:
         import asyncio  # noqa: PLC0415
 
         import aiohttp  # noqa: PLC0415

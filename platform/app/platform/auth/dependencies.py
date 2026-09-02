@@ -39,12 +39,12 @@ def set_refresh_cookie(response: Response, refresh_token: str) -> None:
         httponly=True,
         secure=True,
         samesite="lax",
-        path="/auth",
+        path="/",
     )
 
 
 def clear_refresh_cookie(response: Response) -> None:
-    response.delete_cookie(key=REFRESH_COOKIE_NAME, path="/auth")
+    response.delete_cookie(key=REFRESH_COOKIE_NAME, path="/")
 
 
 # ---------------------------------------------------------------------------
@@ -146,6 +146,9 @@ def require_role(*roles: str):
 # Convenience aliases kept for backward compatibility with existing Depends() callsites.
 require_teacher = require_role("teacher")
 require_tenant = require_role("tenant")
+require_translation_reviewer = require_role(
+    "admin", "reviewer", "tenant", "school_admin", "content_creator"
+)
 
 # RBAC aliases for the translation platform (ticket #436, Phase J).
 #

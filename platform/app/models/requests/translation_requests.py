@@ -11,12 +11,24 @@ class TranslationUpdateRequest(BaseModel):
 
 
 class TranslationApproveRequest(BaseModel):
-    """No fields yet — approvedBy comes from the authenticated reviewer, not the body.
+    """approvedBy comes from the authenticated reviewer, not the body.
 
-    Kept as a model (not an empty body) so future fields (e.g. review notes)
-    are additive, matching the rest of the review API's typed-request pattern.
+    lang is required: approval is per-language — approving one language on a
+    document must never approve any other language on the same document.
     """
+
+    lang: str
 
 
 class TranslationRejectRequest(BaseModel):
+    """lang is required: rejection is per-language, same reasoning as approve."""
+
+    lang: str
     reason: str = ""
+
+
+class BulkApproveRequest(BaseModel):
+    """Optional filters; omit both to approve every pending language on every doc for the site."""
+
+    route: str | None = None
+    lang: str | None = None

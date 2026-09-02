@@ -57,6 +57,9 @@ class WebsiteRepository(BaseRepository):
     async def find_by_id(self, website_id: str) -> dict[str, Any] | None:
         return await self._col.find_one({"_id": self._to_id(website_id)})
 
+    async def find_by_site_id(self, site_id: str) -> dict[str, Any] | None:
+        return await self._col.find_one({"siteId": site_id})
+
     async def find_by_project(self, project_id: str) -> list[dict[str, Any]]:
         return await self._col.find({"projectId": project_id}).to_list(length=None)
 

@@ -11,24 +11,19 @@ from app.models.responses.language import LanguageResponse
 from app.platform.auth.dependencies import get_db, require_admin
 from app.platform.error_handling import NotFoundError
 from app.repositories.language_repository import LanguageRepository
-from app.services.language_registry import SUPPORTED_LANGUAGES, Language
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/languages", tags=["Languages"])
 
-@router.get("", summary="List all languages the platform supports")
-async def list_languages() -> dict[str, list[Language]]:
-    return {"languages": SUPPORTED_LANGUAGES}
-
-# @router.get("", summary="List languages (enabled-only by default, for the runtime SDK)")
-# async def list_languages(
-#     enabledOnly: bool = True,
-#     db: AsyncDatabase = Depends(get_db),  # type: ignore[type-arg]
-# ) -> list[dict[str, Any]]:
-#     repo = LanguageRepository(db)
-#     docs = await repo.find_all(enabled_only=enabledOnly)
-#     return [LanguageResponse.from_doc(doc) for doc in docs]
+@router.get("", summary="List languages (enabled-only by default, for the runtime SDK)")
+async def list_languages(
+    enabledOnly: bool = True,
+    db: AsyncDatabase = Depends(get_db),  # type: ignore[type-arg]
+) -> list[dict[str, Any]]:
+    repo = LanguageRepository(db)
+    docs = await repo.find_all(enabled_only=enabledOnly)
+    return [LanguageResponse.from_doc(doc) for doc in docs]
 
 
 @router.post("", summary="Add a language")

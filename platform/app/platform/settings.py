@@ -28,6 +28,30 @@ class Settings(BaseSettings):
     version: str = "0.1.0"
     port: int = 8000
 
+    # Explicit opt-in for the localization demo's admin/reviewer RBAC bypass.
+    # Deliberately NOT derived from `env` alone: `env` defaults to
+    # "development", so a deployment that forgets to set ENV explicitly would
+    # otherwise silently open the bypass. Must be turned on by name.
+    enable_local_demo_rbac_bypass: bool = False
+
+    # Explicit opt-in: treat "localhost" and "127.0.0.1" as the same origin
+    # hostname in _ensure_origin_matches, so a website registered under one
+    # can be accessed from the other during local development. Same "must be
+    # turned on by name" rule as the two flags above — never set in staging
+    # or production, and scoped to exactly these two literal hostnames (not
+    # a wildcard or subdomain match).
+    enable_dev_localhost_origin_alias: bool = False
+
+    # Comma-separated allowlist of first-party siteIds (e.g. ContentWebApp's own
+    # UI site) whose AI translations are served at RUNTIME without human approval.
+    # This is a serve-time-only exemption: DB status stays "pending" and the
+    # reviewer/bulk-approve workflow is untouched. Partner sites are never in this
+    # list, so their approval gate is unchanged. Safe empty default: with no
+    # value set, NO site is first-party and every site keeps the approval gate.
+    # Explicit opt-in by exact siteId only — never derived from domain/localhost/
+    # route/role. Set via FIRST_PARTY_SITE_IDS.
+    first_party_site_ids: str = ""
+
     # ---------------------------------------------------------------------------
     # MongoDB (backend-server uses DB_CONNECTION; IVR/Conference use MONGO_DB_*)
     # ---------------------------------------------------------------------------

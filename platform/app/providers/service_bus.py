@@ -271,6 +271,7 @@ class ServiceBusProvider:
         """Receive up to *max_count* messages from a named queue."""
         handle = self._get_handle(queue_name)
         if handle is None:
+            await asyncio.sleep(wait_seconds)
             return []
         return await handle.receive(max_count=max_count, wait_seconds=wait_seconds)
 
