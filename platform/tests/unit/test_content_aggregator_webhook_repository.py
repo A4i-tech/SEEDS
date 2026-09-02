@@ -32,26 +32,23 @@ async def test_webhooks_are_isolated_between_tenants(repo):
 
 
 @pytest.mark.asyncio
-async def test_get_update_delete_for_client(repo):
+async def test_update_delete_for_client(repo):
     doc = await repo.create("client-a", "https://x.example.com/hook", "hash", ["job.completed"])
     webhook_id = str(doc["_id"])
-
-    fetched = await repo.get_for_client("client-a", webhook_id)
-    assert fetched is not None
-
-    assert await repo.get_for_client("client-b", webhook_id) is None
 
     updated = await repo.update_for_client("client-a", webhook_id, {"status": "disabled"})
     assert updated["status"] == "disabled"
 
+    assert await repo.update_for_client("client-b", webhook_id, {"status": "disabled"}) is None
+
     deleted = await repo.delete_for_client("client-a", webhook_id)
     assert deleted is True
-    assert await repo.get_for_client("client-a", webhook_id) is None
+    assert await repo.delete_for_client("client-a", webhook_id) is False
 
 
 @pytest.mark.asyncio
-async def test_get_for_client_invalid_id_returns_none(repo):
-    assert await repo.get_for_client("client-a", "not-an-object-id") is None
+async def test_update_for_client_invalid_id_returns_none(repo):
+    assert await repo.update_for_client("client-a", "not-an-object-id", {"status": "disabled"}) is None
 
 
 @pytest.mark.asyncio

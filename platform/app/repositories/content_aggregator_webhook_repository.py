@@ -14,6 +14,7 @@ from app.platform.auth.dependencies import get_db
 
 class ContentAggregatorWebhookRepository:
     COLLECTION_NAME: ClassVar[str] = "contentAggregatorWebhooks"
+    SECRET_HASH_FIELD: ClassVar[str] = "secret_hash"
 
     def __init__(self, db: AsyncDatabase) -> None:
         self._col = db[self.COLLECTION_NAME]
@@ -38,13 +39,6 @@ class ContentAggregatorWebhookRepository:
 
     async def list_for_client(self, client_id: str) -> list[dict[str, Any]]:
         return await self._col.find({"client_id": client_id}).sort("created_at", 1).to_list(length=None)
-
-    async def get_for_client(self, client_id: str, webhook_id: str) -> dict[str, Any] | None:
-        try:
-            oid = ObjectId(webhook_id)
-        except InvalidId:
-            return None
-        return await self._col.find_one({"_id": oid, "client_id": client_id})
 
     async def update_for_client(self, client_id: str, webhook_id: str, fields: dict[str, Any]) -> dict[str, Any] | None:
         try:
