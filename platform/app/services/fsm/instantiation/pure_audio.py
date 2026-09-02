@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 
 
 class _Option:
-    def __init__(self, key: int, value: str) -> None:
+    def __init__(self, key: str, value: str) -> None:
         self.key = key
         self.value = value
 
@@ -126,9 +126,9 @@ class PureAudio:
         actions.append(InputAction(type_=["dtmf"], eventApi="/input", timeOut=10))
 
         options = [
-            _Option(key=8, value="repeat"),
-            _Option(key=9, value="exit"),
-            _Option(key=0, value="next (instructions to exit)"),
+            _Option(key="8", value="repeat"),
+            _Option(key="9", value="exit"),
+            _Option(key="0", value="pause/resume"),
         ]
         description = (
             f"{self.content_data.title.local} - {self.content_data.title.english} Audio Playing"

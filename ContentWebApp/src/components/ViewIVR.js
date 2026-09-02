@@ -38,7 +38,7 @@ function createFlowElements(data) {
                 {state.menu && state.menu.options ? (
                   state.menu.options.map((opt) => (
                     <div key={opt.key}>
-                      {opt.key === 0 ? "empty" : opt.key}: {opt.value}
+                      {String(opt.key) === "0" ? "empty" : opt.key}: {opt.value}
                     </div>
                   ))
                 ) : (
