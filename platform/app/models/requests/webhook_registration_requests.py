@@ -1,5 +1,3 @@
-"""Request schemas for content aggregator webhook registration endpoints."""
-
 from __future__ import annotations
 
 from enum import StrEnum
