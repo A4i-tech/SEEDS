@@ -79,7 +79,7 @@ export const ControlButtonGroup = ({
         variant="contained"
         startIcon={isSinkingConf ? <CircularProgress size={20} color="inherit" /> : null}
         onClick={onSinkConf}
-        disabled={isConfCallRunning || isSinkingConf}
+        disabled={!isConfCallRunning || isSinkingConf}
         sx={{
           bgcolor: "#66bb6a",
           color: "#ffffff",

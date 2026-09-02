@@ -10,7 +10,7 @@ data class VoiceHistoryItem(
 
 @JsonSerializable
 data class VoiceCommandContext(
-    val activeConferenceId: String? = null,
-    val currentClassId: String? = null,
+    val activeConferenceId: String = "",
+    val currentClassId: String = "",
     val history: List<VoiceHistoryItem> = emptyList()
 )

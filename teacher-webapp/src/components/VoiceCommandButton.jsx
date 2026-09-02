@@ -80,7 +80,6 @@ export default function VoiceCommandButton() {
   // Guards against processing the same recorded blob twice.
   const processedBlobRef = useRef(null);
 
-  // Record a completed turn and keep only the most recent 2.
   const recordTurn = useCallback((data) => {
     if (!data || data.error || !data.transcript) return;
     historyRef.current = [
@@ -126,7 +125,6 @@ export default function VoiceCommandButton() {
     resetSession();
   };
 
-  // Spacebar hold-to-record: open dialog + record while held, stop on release
   useEffect(() => {
     const onKeyDown = (e) => {
       if (e.code === "Space" && !e.repeat) {
@@ -158,7 +156,6 @@ export default function VoiceCommandButton() {
     };
   }, [isRecording, startRecording, stopRecording, handleOpen, status]);
 
-  // Play "thinking" audio when AI is processing
   useEffect(() => {
     if (status !== STATUS.PLANNING) return;
     let cancelled = false;
@@ -189,7 +186,6 @@ export default function VoiceCommandButton() {
     }
   };
 
-  // Dispatch event for page refresh after mutations
   const dispatchCommandComplete = useCallback((data) => {
     if (!data?.commands) return;
     const hasMutation = data.commands.some((cmd) =>
@@ -216,7 +212,6 @@ export default function VoiceCommandButton() {
     }
   }, [setConfId]);
 
-  // Handle text command submission
   const handleSendText = useCallback(async () => {
     const text = textInput.trim();
     if (!text) return;
@@ -249,10 +244,8 @@ export default function VoiceCommandButton() {
     }
   };
 
-  // When audioBlob is ready, send to backend
   useEffect(() => {
     if (!audioBlob) return;
-    // Only process each recorded blob once; ignore re-runs caused by context changes.
     if (processedBlobRef.current === audioBlob) return;
     processedBlobRef.current = audioBlob;
     let cancelled = false;
@@ -298,7 +291,6 @@ export default function VoiceCommandButton() {
   const isBusy = status === STATUS.PLANNING || status === STATUS.EXECUTING || status === STATUS.TRANSCRIBING;
   const navTarget = result?.commands ? getNavigationTarget(result.commands, result.results) : null;
 
-  // Auto-play TTS audio when results include audioBase64
   useEffect(() => {
     if (status === STATUS.DONE && result?.audioBase64) {
       try {
@@ -349,7 +341,6 @@ export default function VoiceCommandButton() {
 
   return createPortal(
     <>
-      {/* Floating trigger button — hidden while panel is open */}
       {!open && (
         <Tooltip
           title={<Typography variant="caption">Hold <b>Space</b> to talk to Seeds AI</Typography>}
@@ -373,7 +364,6 @@ export default function VoiceCommandButton() {
         </Tooltip>
       )}
 
-      {/* Side partition — fixed strip on the right, slides in/out */}
       <Box
         sx={{
           position: "fixed",
@@ -396,7 +386,6 @@ export default function VoiceCommandButton() {
           transition: "transform 0.25s ease",
         }}
       >
-        {/* Panel header */}
         <Box
           sx={{
             display: "flex",
@@ -415,7 +404,6 @@ export default function VoiceCommandButton() {
           </IconButton>
         </Box>
 
-        {/* Panel content */}
         <Box sx={{ flex: 1, overflow: "auto", p: 2 }}>
           {recorderError && (
             <Alert severity="error" sx={{ mb: 2 }}>
@@ -423,7 +411,6 @@ export default function VoiceCommandButton() {
             </Alert>
           )}
 
-          {/* Record button */}
           <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 2 }}>
             <IconButton
               onClick={handleToggleRecording}
@@ -452,7 +439,6 @@ export default function VoiceCommandButton() {
             )}
           </Box>
 
-          {/* Text input */}
           <Divider sx={{ my: 1 }}>
             <Typography variant="caption" color="text.secondary">
               or type a command
@@ -483,7 +469,6 @@ export default function VoiceCommandButton() {
             }}
           />
 
-          {/* Transcript */}
           {result?.transcript && (
             <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
               <Typography variant="caption" color="text.secondary">
@@ -493,7 +478,6 @@ export default function VoiceCommandButton() {
             </Paper>
           )}
 
-          {/* Error */}
           {result?.error && (
             <Alert
               severity="error"
@@ -513,7 +497,6 @@ export default function VoiceCommandButton() {
             </Alert>
           )}
 
-          {/* Spoken summary bubble */}
           {status === STATUS.DONE && result?.spokenSummary && (
             <Paper
               sx={{
@@ -534,7 +517,6 @@ export default function VoiceCommandButton() {
             </Paper>
           )}
 
-          {/* Formatted result cards */}
           {result?.commands && result?.results && (
             <>
               <Divider sx={{ my: 1 }} />
@@ -593,7 +575,6 @@ export default function VoiceCommandButton() {
             </>
           )}
 
-          {/* Navigation button */}
           {status === STATUS.DONE && navTarget && (
             <Box sx={{ display: "flex", justifyContent: "center", mt: 2 }}>
               <Button

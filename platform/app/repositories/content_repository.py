@@ -15,10 +15,12 @@ from bson.errors import InvalidId
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.content import Content
+from app.models.responses.content import AudioContent
+from app.platform.error_handling import ValidationError
 from app.repositories.base_repository import BaseRepository
 
 
-def _oid(id_str: str | None) -> ObjectId | str | None:
+def _oid(id_str: str | None) -> ObjectId | None:
     """Convert string to BSON ObjectId for querying Mongoose-created documents.
 
     contentsV3 stores tenant_id and school_id as ObjectId (Mongoose schema type).
@@ -28,8 +30,10 @@ def _oid(id_str: str | None) -> ObjectId | str | None:
         return None
     try:
         return ObjectId(id_str)
-    except InvalidId:
-        return id_str
+    except InvalidId as exc:
+        raise ValidationError(
+            f"'{id_str}' is not a valid id. Use the exact 24-character id returned by the API, not a shortened or made-up value."
+        ) from exc
 
 
 class ContentRepository(BaseRepository):
@@ -37,10 +41,6 @@ class ContentRepository(BaseRepository):
 
     def __init__(self, db: AsyncDatabase) -> None:
         self._col = db[self.COLLECTION]
-
-    # ------------------------------------------------------------------
-    # Internal query builder
-    # ------------------------------------------------------------------
 
     def _tenant_query(
         self,
@@ -62,10 +62,6 @@ class ContentRepository(BaseRepository):
             q["school_id"] = _oid(school_id) if strict else {"$in": [_oid(school_id), None]}
         return q
 
-    # ------------------------------------------------------------------
-    # Single-document reads
-    # ------------------------------------------------------------------
-
     async def find_by_id(self, content_id: str) -> Content | None:
         doc = await self._col.find_one({"_id": content_id})
         return Content.from_mongo(doc) if doc else None
@@ -78,13 +74,10 @@ class ContentRepository(BaseRepository):
         content_id: str,
         tenant_id: str,
         school_id: str | None = None,
-    ) -> dict | None:
+    ) -> AudioContent | None:
         q = {**self._tenant_query(tenant_id, school_id), "_id": content_id}
-        return await self._col.find_one(q)
-
-    # ------------------------------------------------------------------
-    # List reads
-    # ------------------------------------------------------------------
+        doc = await self._col.find_one(q)
+        return AudioContent.from_doc(doc) if doc else None
 
     async def list_paginated(
         self,
@@ -97,7 +90,7 @@ class ContentRepository(BaseRepository):
         after_creation_time: int | None = None,
         search: str | None = None,
         limit: int = 16,
-    ) -> list[dict]:
+    ) -> list[AudioContent]:
         """Paginate content items, optionally filtered by title search.
 
         When search is provided, matches title.english or title.local
@@ -132,7 +125,8 @@ class ContentRepository(BaseRepository):
                 {"title.local": regex},
             ]
 
-        return await self._col.find(q).sort("creation_time", -1).to_list(length=limit)
+        docs = await self._col.find(q).sort("creation_time", -1).to_list(length=limit)
+        return [AudioContent.from_doc(d) for d in docs]
 
     async def find_themes(
         self,
@@ -149,9 +143,10 @@ class ContentRepository(BaseRepository):
         content_ids: list[str],
         tenant_id: str,
         school_id: str | None = None,
-    ) -> list[dict]:
+    ) -> list[AudioContent]:
         q = {**self._tenant_query(tenant_id, school_id), "_id": {"$in": content_ids}}
-        return await self._col.find(q).to_list(length=None)
+        docs = await self._col.find(q).to_list(length=None)
+        return [AudioContent.from_doc(d) for d in docs]
 
     async def find_matching_keywords(
         self,
@@ -206,10 +201,6 @@ class ContentRepository(BaseRepository):
         doc["_id"] = str(doc["_id"])
         return Content.from_mongo(doc)
 
-    # ------------------------------------------------------------------
-    # Writes
-    # ------------------------------------------------------------------
-
     async def insert_raw(self, doc: dict) -> str:
         """Insert a raw content document, coercing tenant_id/school_id/created_by to ObjectId."""
         if doc.get("tenant_id"):
@@ -227,10 +218,11 @@ class ContentRepository(BaseRepository):
         tenant_id: str,
         updates: dict,
         school_id: str | None = None,
-    ) -> dict | None:
+    ) -> AudioContent | None:
         q = {**self._tenant_query(tenant_id, school_id, strict=True), "_id": content_id}
         updates["updated_at"] = datetime.now(UTC)
-        return await self._col.find_one_and_update(q, {"$set": updates}, return_document=True)
+        doc = await self._col.find_one_and_update(q, {"$set": updates}, return_document=True)
+        return AudioContent.from_doc(doc) if doc else None
 
     async def soft_delete_by_id_and_tenant(
         self,

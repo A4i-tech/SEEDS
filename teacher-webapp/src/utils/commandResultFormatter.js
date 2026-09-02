@@ -6,10 +6,7 @@ import { ROUTES } from "../constants/routes";
 const KNOWN_ROUTE_PREFIXES = ["/classrooms", "/content/"];
 
 // The platform API serializes Mongo's `_id` as `id` (see platform/app/models/*).
-// Older backend-server responses used `_id`. Read both so a serializer change can
-// never silently break navigation again — a missing id used to make the result
-// card render with no action at all.
-const idOf = (obj) => obj?.id || obj?._id || null;
+const idOf = (obj) => obj?.id || null;
 
 // Endpoints differ: /class returns a plain array, /content returns
 // { data: [...], pagination }. Accept either.
@@ -50,7 +47,6 @@ export function formatResult(command, result) {
     };
   }
 
-  // Classroom list
   if (path.match(/\/class\/?$/) && command.method === "GET") {
     const names = unwrapList(data).map((c) => c.name);
     return {
@@ -60,7 +56,6 @@ export function formatResult(command, result) {
     };
   }
 
-  // Students list
   if (path.includes("/teacher/students")) {
     const names = unwrapList(data).map(personName);
     return {
@@ -70,9 +65,8 @@ export function formatResult(command, result) {
     };
   }
 
-  // Teacher profile
   if (path.includes("/teacher/me")) {
-    const phone = data?.phoneNumber || data?.phone || "";
+    const phone = data?.phone_number || "";
     return {
       title: "Your Profile",
       summary: phone ? `Phone: ${phone}` : "Profile loaded",
@@ -91,7 +85,6 @@ export function formatResult(command, result) {
     };
   }
 
-  // Fallback
   return {
     title: command.description || "Command",
     summary: result.status < 300 ? "Completed successfully" : `Status ${result.status}`,
@@ -143,13 +136,11 @@ export function getNavigationTarget(commands, results) {
       return { label: "Go", path: target, autoNavigate: true };
     }
 
-    // Track classroom ID if fetched
     if (path.match(/^\/class\/([^/]+)$/) && cmd.method === "GET" && res?.status < 300) {
       classIdSearchResult = idOf(res?.data);
       singleClassData = res?.data;
     }
 
-    // Track conference ID if created
     if (path.match(/\/conference\/create/) && res?.status < 300) {
       confIdSearchResult = res?.data?.id;
     }
@@ -170,11 +161,9 @@ export function getNavigationTarget(commands, results) {
     // Content command — navigate directly to the content detail page for auto-play
     if (path.match(/\/content/) && cmd.method === "GET" && res?.status < 300) {
       const raw = res?.data;
-      // Unwrap paginated response { data: [...], pagination } or plain array
       const items = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : null;
       const single = !items && idOf(raw) ? raw : null;
 
-      // Single content item → play directly
       if (single) {
         return {
           label: `Play: ${single.title?.english || single.expName || "Content"}`,
@@ -183,7 +172,6 @@ export function getNavigationTarget(commands, results) {
         };
       }
 
-      // Array result
       if (items && items.length > 0 && idOf(items[0])) {
         // Search query (search/expName/ids) → play the first match directly.
         // `search=` is the title search, which is what "play The alphabet song" uses.
@@ -199,7 +187,6 @@ export function getNavigationTarget(commands, results) {
         return { action: "OPEN_CONTENT_DRAWER", label: "Open Content Library", autoNavigate: true };
       }
 
-      // No items resolved
       return null;
     }
 

@@ -65,7 +65,7 @@ class VoiceCommandDtoTest {
         val result = adapter.fromJson(json)
 
         assertNotNull(result)
-        assertNull(result!!.audioBase64)
+        assertEquals("", result!!.audioBase64)
         assertEquals(false, result.reasoning?.canAutoResolve)
         assertEquals(0, result.commands.size)
     }
@@ -89,7 +89,7 @@ class VoiceCommandDtoTest {
         val result = adapter.fromJson(json)
 
         assertNotNull(result)
-        assertNull(result!!.error)
+        assertEquals("", result!!.error)
     }
 
     @Test
@@ -110,7 +110,7 @@ class VoiceCommandDtoTest {
 
         assertNotNull(result)
         assertEquals("Get all my classrooms", result!!.command)
-        assertNull(result.context.activeConferenceId)
+        assertEquals("", result.context.activeConferenceId)
         assertEquals(0, result.context.history.size)
     }
 
@@ -132,7 +132,7 @@ class VoiceCommandDtoTest {
         val result = adapter.fromJson(json)
 
         assertNotNull(result)
-        assertNull(result!!.audioBase64)
+        assertEquals("", result!!.audioBase64)
     }
 
     @Test

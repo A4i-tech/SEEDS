@@ -42,7 +42,7 @@ class CommandResultFormatterTest {
     @Test
     fun `students fall back to phone when no name`() {
         val cmd = VoiceCommand("GET", "/teacher/students")
-        val res = CommandResult("step0", 200, listOf(mapOf("phoneNumber" to "919876543210")))
+        val res = CommandResult("step0", 200, listOf(mapOf("phone_number" to "919876543210")))
         assertEquals(listOf("919876543210"), formatResult(cmd, res).items)
     }
 
@@ -66,7 +66,7 @@ class CommandResultFormatterTest {
     @Test
     fun `new classroom offers go-to with destination`() {
         val cmds = listOf(VoiceCommand("POST", "/class"))
-        val res = listOf(CommandResult("step0", 201, mapOf("_id" to "c1", "name" to "Math")))
+        val res = listOf(CommandResult("step0", 201, mapOf("id" to "c1", "name" to "Math")))
         val target = getNavigationTarget(cmds, res)
         assertEquals("Go to Math", target?.label)
         assertTrue(target?.destinationId != null)
@@ -76,7 +76,7 @@ class CommandResultFormatterTest {
     fun `play content deep-links to the player carrying a Content arg`() {
         val cmds = listOf(VoiceCommand("GET", "/content/?expName=abc"))
         val data = mapOf(
-            "_id" to "x1", "type" to "song", "language" to "en",
+            "id" to "x1", "type" to "song", "language" to "en",
             "title" to mapOf("english" to "ABC Song", "audioUrl" to "http://a/title.mp3"),
             "audioContent" to listOf(mapOf("description" to "d", "audioUrl" to "http://a/y.mp3"))
         )
@@ -93,7 +93,7 @@ class CommandResultFormatterTest {
     @Test
     fun `buildContent falls back for missing optional fields but needs an id`() {
         assertNull(buildContent(mapOf("type" to "song")))
-        val c = buildContent(mapOf("_id" to "z9"))
+        val c = buildContent(mapOf("id" to "z9"))
         assertEquals("z9", c?._id)
         assertEquals("en", c?.language)
         assertTrue(c?.audioContent?.isEmpty() == true)
