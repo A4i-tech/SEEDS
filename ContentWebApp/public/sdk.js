@@ -4,20 +4,7 @@
   if (window.__translationSdkInitialized) return;
   window.__translationSdkInitialized = true;
 
-  var FALLBACK_LANGUAGES = {
-    en: "English",
-    hi: "Hindi",
-    kn: "Kannada",
-    te: "Telugu",
-    ta: "Tamil",
-    ml: "Malayalam",
-    mr: "Marathi",
-    bn: "Bengali",
-    gu: "Gujarati",
-    pa: "Punjabi",
-    or: "Odia",
-  };
-  var LANGUAGES = FALLBACK_LANGUAGES;
+  var LANGUAGES = {};
   var DEFAULT_LANG = "en";
   var LANG_STORAGE_KEY = "translationSdk.lang";
   var EXTRACT_DEBOUNCE_MS = 800;
@@ -26,80 +13,20 @@
   var ATTR_NAMES = ["placeholder", "aria-label", "title", "alt", "aria-placeholder", "value"];
 
   var CURRENT_SCRIPT = document.currentScript;
-  var SITE_ID = (CURRENT_SCRIPT && CURRENT_SCRIPT.getAttribute("data-site-id")) || "";
-  var API_BASE = (CURRENT_SCRIPT && CURRENT_SCRIPT.getAttribute("data-api-base")) || "";
-
-  if (!SITE_ID) {
-    console.warn("translation-sdk: missing data-site-id attribute on script tag");
-  }
+  var SITE_ID = CURRENT_SCRIPT.getAttribute("data-site-id");
+  var API_BASE = CURRENT_SCRIPT.getAttribute("data-api-base");
 
   var registry = new Map();
   var pendingKeys = new Map();
   var extractTimer = null;
 
-  var memCache = new Map();
-
-  var PERSIST_PREFIX = "translationSdk.cache.";
-  var PERSIST_TTL_MS = 6 * 60 * 60 * 1000;
-
-  function persistKey(cacheKey) {
-    return PERSIST_PREFIX + SITE_ID + "." + cacheKey;
-  }
-
-  function readPersist(cacheKey) {
-    try {
-      var raw = localStorage.getItem(persistKey(cacheKey));
-      if (!raw) return null;
-      var rec = JSON.parse(raw);
-      if (!rec || typeof rec.t !== "number" || !rec.m) return null;
-      if (Date.now() - rec.t > PERSIST_TTL_MS) {
-        localStorage.removeItem(persistKey(cacheKey));
-        return null;
-      }
-      return Object.keys(rec.m).length > 0 ? rec.m : null;
-    } catch (e) {
-      return null;
+  function getDescriptors(key) {
+    var descriptors = registry.get(key);
+    if (!descriptors) {
+      descriptors = [];
+      registry.set(key, descriptors);
     }
-  }
-
-  function trimToRegistry(map) {
-    if (!registry || registry.size === 0) return map;
-    var out = {};
-    for (var key in map) {
-      if (Object.prototype.hasOwnProperty.call(map, key) && registry.has(key)) out[key] = map[key];
-    }
-    return out;
-  }
-
-  function oldestPersistKey(exclude) {
-    var oldestK = null, oldestT = Infinity;
-    for (var i = 0; i < localStorage.length; i++) {
-      var k = localStorage.key(i);
-      if (!k || k.indexOf(PERSIST_PREFIX) !== 0 || k === exclude) continue;
-      var t = Infinity;
-      try { var rec = JSON.parse(localStorage.getItem(k)); if (rec && typeof rec.t === "number") t = rec.t; } catch (e) {}
-      if (t < oldestT) { oldestT = t; oldestK = k; }
-    }
-    return oldestK;
-  }
-
-  function writePersist(cacheKey, map) {
-    if (!map || Object.keys(map).length === 0) return;
-    var trimmed = trimToRegistry(map);
-    if (Object.keys(trimmed).length === 0) return;
-    var target = persistKey(cacheKey);
-    var payload = JSON.stringify({ t: Date.now(), m: trimmed });
-    try {
-      localStorage.setItem(target, payload);
-      return;
-    } catch (e) {
-      for (var guard = 0; guard < 64; guard++) {
-        var victim = oldestPersistKey(target);
-        if (!victim) break;
-        localStorage.removeItem(victim);
-        try { localStorage.setItem(target, payload); return; } catch (e2) { }
-      }
-    }
+    return descriptors;
   }
 
   function currentRoute() {
@@ -126,15 +53,14 @@
   function isTranslatable(text) {
     var trimmed = text.trim();
     if (!trimmed) return false;
-    if (/^[\d\s.,%$₹-]+$/.test(trimmed)) return false;
-    return true;
+    return !/^[\d\s.,%$₹-]+$/.test(trimmed);
   }
 
   function isSkippableElement(el) {
     if (!el) return false;
     if (SKIP_TAGS[el.tagName]) return true;
-    if (el.closest && el.closest("[data-no-translate]")) return true;
-    if (el.id === "translation-sdk-widget" || (el.closest && el.closest("#translation-sdk-widget"))) return true;
+    if (el.closest("[data-no-translate]")) return true;
+    if (el.closest("#translation-sdk-widget")) return true;
     return false;
   }
 
@@ -148,33 +74,20 @@
     var text = node.textContent;
     if (!isTranslatable(text)) return;
     if (isSkippableElement(node.parentElement)) return;
-
-    if (
-      node.__translationOriginal !== undefined &&
-      node.textContent !== node.__translationOriginal
-    ) {
-      return;
-    }
+    if (node.__translationOriginal !== undefined && node.textContent !== node.__translationOriginal) return;
     if (node.__translationSelfWrite) return;
 
     var key = hashText(text.trim());
-    if (!node.__translationOriginal) {
-      node.__translationOriginal = text;
-    }
+    if (!node.__translationOriginal) node.__translationOriginal = text;
 
-    var descriptors = registry.get(key);
-    if (!descriptors) {
-      descriptors = [];
-      registry.set(key, descriptors);
-    }
+    var descriptors = getDescriptors(key);
     var alreadyRegistered = descriptors.some(function (d) {
       return d.kind === "text" && d.node === node;
     });
-    if (!alreadyRegistered) {
-      descriptors.push({ kind: "text", node: node });
-      pendingKeys.set(key, text.trim());
-      scheduleExtractFlush();
-    }
+    if (alreadyRegistered) return;
+    descriptors.push({ kind: "text", node: node });
+    pendingKeys.set(key, text.trim());
+    scheduleExtractFlush();
   }
 
   function registerAttr(el, attr) {
@@ -182,21 +95,15 @@
     if (!isTranslatable(text)) return;
     if (isSkippableElement(el)) return;
 
-    el.__translationRegisteredAttrs = el.__translationRegisteredAttrs || {};
-    if (el.__translationRegisteredAttrs[attr]) return;
+    if (!el.__translationRegisteredAttrs) el.__translationRegisteredAttrs = {};
+    if (el.__translationRegisteredAttrs[attr] !== undefined) return;
 
     var trimmed = text.trim();
     var key = hashText(trimmed);
 
-    el.__translationAttrOriginal = el.__translationAttrOriginal || {};
-    el.__translationAttrOriginal[attr] = text;
-    el.__translationRegisteredAttrs[attr] = true;
+    el.__translationRegisteredAttrs[attr] = text;
 
-    var descriptors = registry.get(key);
-    if (!descriptors) {
-      descriptors = [];
-      registry.set(key, descriptors);
-    }
+    var descriptors = getDescriptors(key);
     descriptors.push({ kind: "attr", el: el, attr: attr });
     pendingKeys.set(key, trimmed);
     scheduleExtractFlush();
@@ -204,9 +111,7 @@
 
   function walkAttributes(root) {
     var elements = root.nodeType === Node.ELEMENT_NODE ? [root] : [];
-    if (root.querySelectorAll) {
-      elements = elements.concat(Array.prototype.slice.call(root.querySelectorAll("*")));
-    }
+    elements = elements.concat(Array.prototype.slice.call(root.querySelectorAll("*")));
     elements.forEach(function (el) {
       if (isSkippableElement(el)) return;
       ATTR_NAMES.forEach(function (attr) {
@@ -220,20 +125,20 @@
   function walk(root) {
     var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
     var node;
-    while ((node = walker.nextNode())) {
-      registerNode(node);
-    }
+    while ((node = walker.nextNode())) registerNode(node);
     walkAttributes(root);
   }
 
   function scheduleExtractFlush() {
-    if (extractTimer) clearTimeout(extractTimer);
+    clearTimeout(extractTimer);
     extractTimer = setTimeout(flushExtracted, EXTRACT_DEBOUNCE_MS);
   }
 
-  function flushExtracted() {
-    if (extractTimer) { clearTimeout(extractTimer); extractTimer = null; }
-    if (pendingKeys.size === 0) return Promise.resolve();
+  async function flushExtracted() {
+    clearTimeout(extractTimer);
+    extractTimer = null;
+    if (pendingKeys.size === 0) return;
+
     var route = currentRoute();
     var items = [];
     pendingKeys.forEach(function (text, key) {
@@ -249,99 +154,64 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ siteId: SITE_ID, items: chunk }),
-        }).catch(function (err) {
-          console.warn("translation-sdk: extract failed", err);
         })
       );
     }
-    return Promise.all(requests);
+    await Promise.all(requests);
   }
 
   var applyInFlight = false;
   var applyPendingLang = null;
 
-  function applyTranslations(lang) {
+  async function applyTranslations(lang) {
     if (applyInFlight) {
       applyPendingLang = lang;
       return;
     }
     applyInFlight = true;
-    var release = function () {
-      applyInFlight = false;
-      if (applyPendingLang !== null) {
-        var next = applyPendingLang;
-        applyPendingLang = null;
-        applyTranslations(next);
-      }
-    };
-    var result;
-    try {
-      result = runApplyTranslations(lang);
-    } catch (e) {
-      release();
-      throw e;
-    }
-    if (result && typeof result.then === "function") {
-      result.then(release, release);
-    } else {
-      release();
+    await runApplyTranslations(lang);
+    applyInFlight = false;
+    if (applyPendingLang !== null) {
+      var next = applyPendingLang;
+      applyPendingLang = null;
+      applyTranslations(next);
     }
   }
 
-  function runApplyTranslations(lang) {
+  async function runApplyTranslations(lang) {
     var route = currentRoute();
     if (lang === DEFAULT_LANG) {
       registry.forEach(function (descriptors) {
-        descriptors.forEach(function (d) {
-          if (d.kind === "attr") {
-            if (d.el.__translationAttrOriginal && d.el.__translationAttrOriginal[d.attr] !== undefined) {
-              var av = d.el.__translationAttrOriginal[d.attr];
-              if (d.el.getAttribute(d.attr) !== av) d.el.setAttribute(d.attr, av);
-            }
-          } else if (d.node.__translationOriginal !== undefined) {
-            var orig = d.node.__translationOriginal;
-            d.node.__translationApplied = orig;
-            if (d.node.textContent !== orig) {
-              d.node.__translationSelfWrite = true;
-              d.node.textContent = orig;
-            }
-          }
+        applyValues(descriptors, function (d) {
+          return d.kind === "attr" ? d.el.__translationRegisteredAttrs[d.attr] : d.node.__translationOriginal;
         });
       });
       return;
     }
 
-    var cacheKey = route + "." + lang;
-    var cached = memCache.get(cacheKey);
-    if (cached) {
-      swapText(cached);
-      return;
-    }
+    await flushExtracted();
+    var url =
+      API_BASE +
+      "/translations?siteId=" + encodeURIComponent(SITE_ID) +
+      "&route=" + encodeURIComponent(route) +
+      "&lang=" + encodeURIComponent(lang);
+    var r = await fetch(url);
+    var translations = await r.json();
+    swapText(translations);
+  }
 
-    var persisted = readPersist(cacheKey);
-    if (persisted) {
-      swapText(persisted);
-    }
-
-    return flushExtracted().then(function () {
-      var url =
-        API_BASE +
-        "/translations?siteId=" + encodeURIComponent(SITE_ID) +
-        "&route=" + encodeURIComponent(route) +
-        "&lang=" + encodeURIComponent(lang);
-      return fetch(url)
-        .then(function (r) {
-          return r.json();
-        })
-        .then(function (translations) {
-          if (Object.keys(translations).length > 0) {
-            memCache.set(cacheKey, translations);
-            writePersist(cacheKey, translations);
-          }
-          swapText(translations);
-        });
-    }).catch(function (err) {
-      console.warn("translation-sdk: fetch translations failed", err);
+  function applyValues(descriptors, getValue) {
+    descriptors.forEach(function (d) {
+      var value = getValue(d);
+      if (d.kind === "attr") {
+        if (d.el.getAttribute(d.attr) === value) return;
+        d.el.setAttribute(d.attr, value);
+      } else {
+        d.node.__translationApplied = value;
+        if (d.node.textContent === value) return;
+        d.node.__translationSelfWrite = true;
+        d.node.textContent = value;
+      }
     });
   }
 
@@ -349,17 +219,8 @@
     Object.keys(translations).forEach(function (key) {
       var descriptors = registry.get(key);
       if (!descriptors) return;
-      var value = translations[key];
-      descriptors.forEach(function (d) {
-        if (d.kind === "attr") {
-          if (d.el.getAttribute(d.attr) === value) return;
-          d.el.setAttribute(d.attr, value);
-        } else {
-          d.node.__translationApplied = value;
-          if (d.node.textContent === value) return;
-          d.node.__translationSelfWrite = true;
-          d.node.textContent = value;
-        }
+      applyValues(descriptors, function () {
+        return translations[key];
       });
     });
   }
@@ -442,6 +303,11 @@
   var lastRoute = null;
   var routeChangeTimer = null;
 
+  function applyCurrentLangIfNeeded() {
+    var lang = currentLang();
+    if (lang !== DEFAULT_LANG) applyTranslations(lang);
+  }
+
   function checkRouteChange() {
     routeChangeTimer = null;
     var route = currentRoute();
@@ -449,11 +315,7 @@
     lastRoute = route;
 
     walk(document.body);
-
-    var lang = currentLang();
-    if (lang !== DEFAULT_LANG) {
-      applyTranslations(lang);
-    }
+    applyCurrentLangIfNeeded();
   }
 
   function scheduleRouteChangeCheck() {
@@ -461,59 +323,42 @@
     routeChangeTimer = setTimeout(checkRouteChange, 50);
   }
 
+  function patchHistoryMethod(name) {
+    var original = window.history[name];
+    window.history[name] = function () {
+      var result = original.apply(this, arguments);
+      scheduleRouteChangeCheck();
+      return result;
+    };
+  }
+
   function observeRouteChanges() {
     lastRoute = currentRoute();
 
-    var originalPushState = window.history.pushState;
-    var originalReplaceState = window.history.replaceState;
-
-    window.history.pushState = function () {
-      var result = originalPushState.apply(this, arguments);
-      scheduleRouteChangeCheck();
-      return result;
-    };
-    window.history.replaceState = function () {
-      var result = originalReplaceState.apply(this, arguments);
-      scheduleRouteChangeCheck();
-      return result;
-    };
+    patchHistoryMethod("pushState");
+    patchHistoryMethod("replaceState");
     window.addEventListener("popstate", scheduleRouteChangeCheck);
     window.addEventListener("hashchange", scheduleRouteChangeCheck);
   }
 
-  function loadLanguages() {
-    return fetch(API_BASE + "/languages?enabledOnly=true")
-      .then(function (r) {
-        return r.json();
-      })
-      .then(function (list) {
-        if (!Array.isArray(list) || list.length === 0) return FALLBACK_LANGUAGES;
-        var map = {};
-        list.forEach(function (lang) {
-          if (lang && lang.code) map[lang.code] = lang.name || lang.code;
-        });
-        return Object.keys(map).length > 0 ? map : FALLBACK_LANGUAGES;
-      })
-      .catch(function (err) {
-        console.warn("translation-sdk: fetch languages failed, using fallback list", err);
-        return FALLBACK_LANGUAGES;
-      });
+  async function loadLanguages() {
+    var r = await fetch(API_BASE + "/languages?enabledOnly=true");
+    var list = await r.json();
+    var map = {};
+    list.forEach(function (lang) {
+      map[lang.code] = lang.name;
+    });
+    return map;
   }
 
-  function init() {
+  async function init() {
     walk(document.body);
     observeMutations();
     observeRouteChanges();
 
-    loadLanguages().then(function (languages) {
-      LANGUAGES = languages;
-      createWidget();
-
-      var lang = currentLang();
-      if (lang !== DEFAULT_LANG) {
-        applyTranslations(lang);
-      }
-    });
+    LANGUAGES = await loadLanguages();
+    createWidget();
+    applyCurrentLangIfNeeded();
   }
 
   if (document.readyState === "loading") {
