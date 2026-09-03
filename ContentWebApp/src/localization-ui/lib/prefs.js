@@ -5,18 +5,11 @@ const NS = "locaui.";
 export function usePersistentState(key, initial) {
   const full = NS + key;
   const [value, setValue] = useState(() => {
-    try {
-      const raw = localStorage.getItem(full);
-      return raw != null ? JSON.parse(raw) : initial;
-    } catch {
-      return initial;
-    }
+    const raw = localStorage.getItem(full);
+    return raw != null ? JSON.parse(raw) : initial;
   });
   useEffect(() => {
-    try {
-      localStorage.setItem(full, JSON.stringify(value));
-    } catch {
-    }
+    localStorage.setItem(full, JSON.stringify(value));
   }, [full, value]);
   return [value, setValue];
 }
