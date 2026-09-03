@@ -1,7 +1,3 @@
-/* ============================================================
-   Localization UI — component styles (all scoped under .loca-ui)
-   Consumes tokens.css variables only. No hard-coded palette.
-   ============================================================ */
 
 /* ---------- Buttons ---------- */
 .loca-ui .btn {
@@ -30,8 +26,6 @@
 .loca-ui .btn-good:hover:not(:disabled) { filter: brightness(1.05); }
 .loca-ui .btn-wine { background: var(--wine); color: var(--on-wine); }
 .loca-ui .btn-wine:hover:not(:disabled) { background: var(--wine-ink); }
-.loca-ui .btn-accent { background: var(--accent); color: var(--on-accent); }
-.loca-ui .btn-accent:hover:not(:disabled) { background: var(--accent-ink); }
 
 /* ---------- Badges / chips ---------- */
 .loca-ui .badge {
@@ -52,17 +46,6 @@
   background: var(--surface); border: 1px solid var(--line);
   border-radius: var(--r-md); box-shadow: var(--sh-1);
 }
-.loca-ui .card-pad { padding: var(--s-5); }
-.loca-ui .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--s-3); }
-.loca-ui .card-title { font-size: var(--fs-13); font-weight: 600; color: var(--muted); letter-spacing: .01em; }
-
-/* ---------- KPI tile ---------- */
-.loca-ui .kpi { position: relative; padding: var(--s-4) var(--s-4) var(--s-4); }
-.loca-ui .kpi .k { font-size: var(--fs-12); color: var(--muted); font-weight: 600; }
-.loca-ui .kpi .v { font-size: var(--fs-28); font-weight: 680; letter-spacing: -.02em; margin-top: 6px; line-height: 1; font-variant-numeric: tabular-nums; }
-.loca-ui .kpi .d { font-size: var(--fs-12); margin-top: var(--s-2); display: inline-flex; align-items: center; gap: 4px; color: var(--muted); }
-.loca-ui .kpi .d.up { color: var(--good); } .loca-ui .kpi .d.down { color: var(--crit); }
-
 /* ---------- Inputs ---------- */
 .loca-ui .field { display: flex; flex-direction: column; gap: 6px; }
 .loca-ui .label { font-size: var(--fs-12); font-weight: 600; color: var(--ink-2); }
@@ -161,8 +144,3 @@
 .loca-ui .qbar.low > i { background: var(--warn); }
 .loca-ui .qbar.crit > i { background: var(--crit); }
 
-/* ---------- Progress row ---------- */
-.loca-ui .prog { display: flex; align-items: center; gap: var(--s-3); }
-.loca-ui .prog .track { flex: 1; height: 7px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
-.loca-ui .prog .track > i { display: block; height: 100%; background: var(--accent); }
-.loca-ui .prog .pct { font-size: var(--fs-12); color: var(--muted); width: 38px; text-align: right; font-variant-numeric: tabular-nums; }

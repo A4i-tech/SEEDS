@@ -17,7 +17,6 @@
 .loca-ui .data-table .t-name { font-weight: 600; color: var(--ink); }
 .loca-ui .data-table .t-actions { text-align: right; white-space: nowrap; }
 .loca-ui .data-table .t-actions .btn { margin-left: 4px; }
-.loca-ui .data-empty { text-align: center; color: var(--muted); padding: 32px; }
 
 .loca-ui .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 6px; }
 .loca-ui .form-grid .full { grid-column: 1 / -1; }
