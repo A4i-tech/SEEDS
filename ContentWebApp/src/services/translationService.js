@@ -1,13 +1,21 @@
 import { SEEDS_URL } from "../Constants";
 import { getAuthHeaders } from "../utils/authHelpers";
 import { apiFetch, buildQueryString } from "./api";
+import {
+  toExtractRequest,
+  toTranslationUpdateRequest,
+  toTranslationApproveRequest,
+  toTranslationRejectRequest,
+  toBulkApproveRequest,
+} from "./dtos/localizationRequests";
+import { fromTranslationResponse } from "./dtos/localizationResponses";
 
 export const translationService = {
   async extractItems(siteId, items) {
     return apiFetch(`${SEEDS_URL}/translations/extract`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ siteId, items }),
+      body: JSON.stringify(toExtractRequest({ siteId, items })),
     });
   },
 
@@ -41,12 +49,7 @@ export const translationService = {
       headers: getAuthHeaders(),
     });
 
-    return (response || []).map((item) => {
-      if (!item.id && item._id) {
-        return { ...item, id: item._id };
-      }
-      return item;
-    });
+    return response.map(fromTranslationResponse);
   },
 
   async getTranslation(id) {
@@ -57,10 +60,7 @@ export const translationService = {
       headers: getAuthHeaders(),
     });
 
-    if (response && !response.id && response._id) {
-      return { ...response, id: response._id };
-    }
-    return response;
+    return fromTranslationResponse(response);
   },
 
   async getVersions(id) {
@@ -81,13 +81,10 @@ export const translationService = {
         ...getAuthHeaders(),
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ lang, text }),
+      body: JSON.stringify(toTranslationUpdateRequest({ lang, text })),
     });
 
-    if (response && !response.id && response._id) {
-      return { ...response, id: response._id };
-    }
-    return response;
+    return fromTranslationResponse(response);
   },
 
   async approveTranslation(id, lang) {
@@ -99,13 +96,10 @@ export const translationService = {
         ...getAuthHeaders(),
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ lang }),
+      body: JSON.stringify(toTranslationApproveRequest({ lang })),
     });
 
-    if (response && !response.id && response._id) {
-      return { ...response, id: response._id };
-    }
-    return response;
+    return fromTranslationResponse(response);
   },
 
   async rejectTranslation(id, lang, reason = "") {
@@ -117,13 +111,10 @@ export const translationService = {
         ...getAuthHeaders(),
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ lang, reason }),
+      body: JSON.stringify(toTranslationRejectRequest({ lang, reason })),
     });
 
-    if (response && !response.id && response._id) {
-      return { ...response, id: response._id };
-    }
-    return response;
+    return fromTranslationResponse(response);
   },
 
   async bulkApproveTranslations({ siteId, route, lang }) {
@@ -135,7 +126,7 @@ export const translationService = {
         ...getAuthHeaders(),
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ route, lang }),
+      body: JSON.stringify(toBulkApproveRequest({ route, lang })),
     });
   },
 };

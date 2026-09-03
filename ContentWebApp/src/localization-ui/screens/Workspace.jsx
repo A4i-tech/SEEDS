@@ -104,7 +104,7 @@ export function WorkspaceScreen({ scope, languages, sites = [], onScope, pages =
     setDocs(null);
     setDocsError(null);
     translationService.listTranslations({ siteId, route }).then(async (d) => {
-      let list = d || [];
+      let list = d;
       // Docs may exist without a draft for the currently selected Review Language
       // yet (extracted but never generated for this lang) — trigger on-demand
       // generation so the reviewer sees real translated text instead of a blank box.
@@ -112,13 +112,13 @@ export function WorkspaceScreen({ scope, languages, sites = [], onScope, pages =
       if (missing) {
         try {
           await translationService.generateForReview({ siteId, route, lang });
-          list = (await translationService.listTranslations({ siteId, route })) || list;
+          list = await translationService.listTranslations({ siteId, route });
         } catch { /* keep already-fetched docs on failure */ }
       }
       setDocs(list);
     }).catch((e) => {
       setDocs([]);
-      setDocsError(e && e.status === 403 ? "forbidden" : (e && e.message) || "Failed to load translations");
+      setDocsError(e.status === 403 ? "forbidden" : e.message);
     });
   }, [siteId, route, lang]);
   useEffect(() => { load(); }, [load]);
@@ -151,18 +151,18 @@ export function WorkspaceScreen({ scope, languages, sites = [], onScope, pages =
   // docs is null while a load() is in flight (its loading sentinel). A patch
   // that lands during that window is a no-op — the in-flight load() sets the
   // authoritative docs — so skip it instead of mapping over null.
-  const patchLocal = (id, f) => setDocs((ds) => (ds ? ds.map((d) => ((d.id || d._id) === id ? { ...d, ...f } : d)) : ds));
+  const patchLocal = (id, f) => setDocs((ds) => (ds ? ds.map((d) => (d.id === id ? { ...d, ...f } : d)) : ds));
   // Approval/rejection is per-language: patch only translations[lang].status
   // on the local doc so another language's displayed stage never changes.
   const patchLangStatus = (id, status) => setDocs((ds) => (ds ? ds.map((d) => {
-    if ((d.id || d._id) !== id) return d;
+    if (d.id !== id) return d;
     const t = d.translations?.[lang] || {};
     return { ...d, translations: { ...d.translations, [lang]: { ...t, status } } };
   }) : ds));
-  const approve = async (id) => { try { await translationService.approveTranslation(id, lang); patchLangStatus(id, "approved"); setSavedAt(Date.now()); toast({ message: "Approved", tone: "good", onUndo: async () => { await translationService.rejectTranslation(id, lang, "undo"); patchLangStatus(id, "rejected"); } }); } catch (e) { toast({ message: e.message || "Approve failed", tone: "crit" }); } };
-  const reject = async (id) => { try { await translationService.rejectTranslation(id, lang, "needs work"); patchLangStatus(id, "rejected"); toast({ message: "Rejected", tone: "info" }); } catch (e) { toast({ message: e.message || "Reject failed", tone: "crit" }); } };
-  const saveEdit = async (id, text) => { try { const u = await translationService.updateTranslation(id, lang, text); patchLocal(id, { translations: u.translations }); setSavedAt(Date.now()); } catch (e) { toast({ message: e.message || "Save failed", tone: "crit" }); } };
-  const translatePage = async () => { setBusy(true); try { await translationService.generateForReview({ siteId, route, lang }); toast({ message: "Page translated", tone: "good" }); load(); } catch (e) { toast({ message: e.message || "Translate failed", tone: "crit" }); } finally { setBusy(false); } };
+  const approve = async (id) => { try { await translationService.approveTranslation(id, lang); patchLangStatus(id, "approved"); setSavedAt(Date.now()); toast({ message: "Approved", tone: "good", onUndo: async () => { await translationService.rejectTranslation(id, lang, "undo"); patchLangStatus(id, "rejected"); } }); } catch (e) { toast({ message: e.message, tone: "crit" }); } };
+  const reject = async (id) => { try { await translationService.rejectTranslation(id, lang, "needs work"); patchLangStatus(id, "rejected"); toast({ message: "Rejected", tone: "info" }); } catch (e) { toast({ message: e.message, tone: "crit" }); } };
+  const saveEdit = async (id, text) => { try { const u = await translationService.updateTranslation(id, lang, text); patchLocal(id, { translations: u.translations }); setSavedAt(Date.now()); } catch (e) { toast({ message: e.message, tone: "crit" }); } };
+  const translatePage = async () => { setBusy(true); try { await translationService.generateForReview({ siteId, route, lang }); toast({ message: "Page translated", tone: "good" }); load(); } catch (e) { toast({ message: e.message, tone: "crit" }); } finally { setBusy(false); } };
   const copyText = async (text) => {
     try { await navigator.clipboard.writeText(text || ""); toast({ message: "Copied", tone: "info" }); }
     catch { toast({ message: "Copy failed", tone: "crit" }); }
@@ -233,7 +233,7 @@ export function WorkspaceScreen({ scope, languages, sites = [], onScope, pages =
       {/* Selects */}
       <div className="tr-selects">
         <label className="tr-field"><span>Site</span>
-          <select value={scope.siteId || ""} onChange={(e) => onScope((s) => ({ ...s, siteId: e.target.value, route: "" }))}><option value="">Select site</option>{sites.map((s) => <option key={s.id} value={s.siteId || s.id}>{s.name || s.domain}</option>)}</select></label>
+          <select value={scope.siteId} onChange={(e) => onScope((s) => ({ ...s, siteId: e.target.value, route: "" }))}><option value="">Select site</option>{sites.map((s) => <option key={s.id} value={s.siteId}>{s.name || s.domain}</option>)}</select></label>
       </div>
 
       {!ready ? (

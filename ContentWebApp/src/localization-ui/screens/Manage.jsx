@@ -53,11 +53,11 @@ function ProjectsView({ loc, toast }) {
       else await handleCreateProject(v);
       toast({ message: `Project ${dlg.mode === "edit" ? "updated" : "created"}`, tone: "good" });
       setDlg(null);
-    } catch (e) { toast({ message: e.message || "Failed to save project", tone: "crit" }); }
+    } catch (e) { toast({ message: e.message, tone: "crit" }); }
   };
   const remove = async () => {
     try { await handleDeleteProject(del.id); toast({ message: "Project deleted", tone: "info" }); }
-    catch (e) { toast({ message: e.message || "Failed to delete", tone: "crit" }); }
+    catch (e) { toast({ message: e.message, tone: "crit" }); }
   };
 
   return (
@@ -117,11 +117,11 @@ function SitesView({ loc, toast }) {
       else await handleCreateSite({ projectId: v.projectId, domain: extractDomain(v.url), name: v.name, status: v.status });
       toast({ message: `Site ${dlg.mode === "edit" ? "updated" : "registered"}`, tone: "good" });
       setDlg(null);
-    } catch (e) { toast({ message: e.message || "Failed to save site", tone: "crit" }); }
+    } catch (e) { toast({ message: e.message, tone: "crit" }); }
   };
   const remove = async () => {
     try { await handleDeleteSite(del.id); toast({ message: "Site deleted", tone: "info" }); }
-    catch (e) { toast({ message: e.message || "Failed to delete", tone: "crit" }); }
+    catch (e) { toast({ message: e.message, tone: "crit" }); }
   };
 
   return (
@@ -182,15 +182,15 @@ function LanguagesView({ loc, toast }) {
       else await handleCreateLanguage(v);
       toast({ message: `Language ${dlg.mode === "edit" ? "updated" : "added"}`, tone: "good" });
       setDlg(null);
-    } catch (e) { toast({ message: e.message || "Failed to save language", tone: "crit" }); }
+    } catch (e) { toast({ message: e.message, tone: "crit" }); }
   };
   const toggle = async (l) => {
     try { await handleUpdateLanguage(l.id, { enabled: !(l.enabled !== false) }); }
-    catch (e) { toast({ message: e.message || "Failed to update", tone: "crit" }); }
+    catch (e) { toast({ message: e.message, tone: "crit" }); }
   };
   const remove = async () => {
     try { await handleDeleteLanguage(del.id); toast({ message: "Language removed", tone: "info" }); }
-    catch (e) { toast({ message: e.message || "Failed to delete", tone: "crit" }); }
+    catch (e) { toast({ message: e.message, tone: "crit" }); }
   };
 
   return (

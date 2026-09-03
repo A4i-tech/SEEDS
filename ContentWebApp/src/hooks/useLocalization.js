@@ -38,9 +38,7 @@ export const useLocalization = () => {
       } catch (error) {
 
         if (!cancelled) {
-          setWorkspaceLoadError(
-            error.message || "Failed to load localization workspace."
-          );
+          setWorkspaceLoadError(error.message);
         }
 
       } finally {

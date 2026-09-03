@@ -36,11 +36,11 @@ export default function LocalizationUI() {
     setPagesError(null);
     translationService
       .listTranslations({ siteId: scope.siteId })
-      .then((docs) => { if (!cancelled) setSiteDocs(docs || []); })
+      .then((docs) => { if (!cancelled) setSiteDocs(docs); })
       .catch((e) => {
         if (cancelled) return;
         setSiteDocs([]);
-        setPagesError(e && e.status === 403 ? "forbidden" : (e && e.message) || "Failed to load pages");
+        setPagesError(e.status === 403 ? "forbidden" : e.message);
       });
     return () => { cancelled = true; };
   }, [scope.siteId, nav]);
@@ -66,7 +66,7 @@ export default function LocalizationUI() {
   useEffect(() => {
     if (!scope.siteId && sites.length) {
       const first = sites[0];
-      setScope((s) => ({ ...s, siteId: first.siteId || first.id }));
+      setScope((s) => ({ ...s, siteId: first.siteId }));
     }
   }, [sites, scope.siteId, setScope]);
 

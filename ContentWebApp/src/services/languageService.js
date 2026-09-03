@@ -1,13 +1,8 @@
 import { SEEDS_URL } from "../Constants";
 import { getAuthHeaders } from "../utils/authHelpers";
 import { apiFetch } from "./api";
-
-const normalizeId = (item) => {
-  if (item && !item.id && item._id) {
-    return { ...item, id: item._id };
-  }
-  return item;
-};
+import { toLanguageCreateRequest } from "./dtos/localizationRequests";
+import { fromLanguageResponse } from "./dtos/localizationResponses";
 
 export const languageService = {
   /**
@@ -22,8 +17,7 @@ export const languageService = {
       headers: getAuthHeaders(),
     });
 
-    const list = Array.isArray(response) ? response : (response && response.languages) || [];
-    return list.map(normalizeId);
+    return fromLanguageResponse(response);
   },
 
   /**
@@ -40,10 +34,10 @@ export const languageService = {
         ...getAuthHeaders(),
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ name, code, direction, enabled }),
+      body: JSON.stringify(toLanguageCreateRequest({ name, code, direction, enabled })),
     });
 
-    return normalizeId(response);
+    return fromLanguageResponse(response);
   },
 
   /**
@@ -64,7 +58,7 @@ export const languageService = {
       body: JSON.stringify(fields),
     });
 
-    return normalizeId(response);
+    return fromLanguageResponse(response);
   },
 
   /**

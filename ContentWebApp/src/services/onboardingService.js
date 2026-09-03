@@ -1,35 +1,8 @@
 import { SEEDS_URL } from "../Constants";
 import { getAuthHeaders } from "../utils/authHelpers";
 import { apiFetch, buildQueryString } from "./api";
-
-const normalizeId = (item) => {
-  if (item && !item.id && item._id) {
-    return { ...item, id: item._id };
-  }
-  return item;
-};
-
-const formatCreated = (createdAt) => {
-  if (!createdAt) return "";
-  const date = new Date(createdAt);
-  return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString();
-};
-
-const normalizeProject = (project) => {
-  const withId = normalizeId(project);
-  if (!withId) return withId;
-  return { ...withId, created: formatCreated(withId.createdAt) };
-};
-
-const normalizeSite = (site) => {
-  const withId = normalizeId(site);
-  if (!withId) return withId;
-  return {
-    ...withId,
-    url: withId.domain ? `https://${withId.domain}` : "",
-    created: formatCreated(withId.createdAt),
-  };
-};
+import { toProjectCreateRequest, toProjectUpdateRequest, toSiteCreateRequest } from "./dtos/localizationRequests";
+import { fromProjectResponse, fromSiteResponse } from "./dtos/localizationResponses";
 
 export const onboardingService = {
   /**
@@ -46,10 +19,10 @@ export const onboardingService = {
         ...getAuthHeaders(),
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ name, description, sourceLanguage, status }),
+      body: JSON.stringify(toProjectCreateRequest({ name, description, sourceLanguage, status })),
     });
 
-    return normalizeProject(response);
+    return fromProjectResponse(response);
   },
 
   /**
@@ -64,7 +37,7 @@ export const onboardingService = {
       headers: getAuthHeaders(),
     });
 
-    return (response || []).map(normalizeProject);
+    return response.map(fromProjectResponse);
   },
 
   /**
@@ -82,10 +55,10 @@ export const onboardingService = {
         ...getAuthHeaders(),
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(fields),
+      body: JSON.stringify(toProjectUpdateRequest(fields)),
     });
 
-    return normalizeProject(response);
+    return fromProjectResponse(response);
   },
 
   /**
@@ -116,10 +89,10 @@ export const onboardingService = {
         ...getAuthHeaders(),
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ projectId, domain, name, status }),
+      body: JSON.stringify(toSiteCreateRequest({ projectId, domain, name, status })),
     });
 
-    return normalizeSite(response);
+    return fromSiteResponse(response);
   },
 
   /**
@@ -136,7 +109,7 @@ export const onboardingService = {
       headers: getAuthHeaders(),
     });
 
-    return (response || []).map(normalizeSite);
+    return response.map(fromSiteResponse);
   },
 
   /**
@@ -157,7 +130,7 @@ export const onboardingService = {
       body: JSON.stringify(fields),
     });
 
-    return normalizeSite(response);
+    return fromSiteResponse(response);
   },
 
   /**

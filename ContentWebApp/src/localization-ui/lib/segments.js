@@ -10,27 +10,19 @@ export function deriveStage(doc, lang, { edited = false } = {}) {
 }
 
 export function toSegment(doc, lang) {
-  const id = doc.id || doc._id;
-  const t = doc?.translations?.[lang] || null;
-  const score = t && typeof t.qualityScore === "number" ? t.qualityScore : null;
-  const lowConfidence =
-    typeof t?.lowConfidence === "boolean"
-      ? t.lowConfidence
-      : typeof score === "number"
-      ? score < LOW_CONF_THRESHOLD
-      : false;
+  const t = doc.translations[lang];
   return {
-    id,
+    id: doc.id,
     key: doc.key,
     route: doc.route,
-    sourceText: doc.sourceText || "",
-    translation: t?.text || "",
-    hasTranslation: Boolean(t?.text),
-    qualityScore: score,
-    lowConfidence,
-    provider: t?.provider || null,
-    status: t?.status || "",
-    version: doc.version || 0,
+    sourceText: doc.sourceText,
+    translation: t.text,
+    hasTranslation: Boolean(t.text),
+    qualityScore: t.qualityScore,
+    lowConfidence: Boolean(t.lowConfidence),
+    provider: t.provider,
+    status: t.status,
+    version: doc.version,
     stage: deriveStage(doc, lang),
     raw: doc,
   };

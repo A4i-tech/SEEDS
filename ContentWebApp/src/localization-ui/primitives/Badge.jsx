@@ -35,7 +35,7 @@ export function StatusBadge({ stage }) {
 }
 
 export function ConfidenceBadge({ score, threshold = 0.7 }) {
-  if (typeof score !== "number") return <span className="mono" style={{ color: "var(--muted)" }}>—</span>;
+  if (score == null) return <span className="mono" style={{ color: "var(--muted)" }}>—</span>;
   const low = score < threshold;
   return (
     <Badge tone={low ? "warn" : "good"} icon={low ? AlertTriangle : CheckCircle2}>
@@ -45,7 +45,7 @@ export function ConfidenceBadge({ score, threshold = 0.7 }) {
 }
 
 export function QualityBar({ score }) {
-  if (typeof score !== "number") return <span className="mono" style={{ color: "var(--muted)" }}>—</span>;
+  if (score == null) return <span className="mono" style={{ color: "var(--muted)" }}>—</span>;
   const pct = Math.round(score * 100);
   const cls = score < 0.5 ? "crit" : score < 0.7 ? "low" : "";
   return (
