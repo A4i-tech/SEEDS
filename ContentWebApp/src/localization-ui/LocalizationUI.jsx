@@ -17,6 +17,7 @@ import { pagesFromDocs } from "./lib/segments";
 import { DashboardScreen } from "./screens/Dashboard";
 import { WorkspaceScreen } from "./screens/Workspace";
 import { PlaceholderScreen } from "./screens/Placeholder";
+import { SkeletonRows } from "./primitives";
 
 export default function LocalizationUI() {
   const loc = useLocalization();
@@ -72,7 +73,7 @@ export default function LocalizationUI() {
 
   useEffect(() => {
     if (scope.siteId && scope.route) rememberSession(scope);
-  }, [scope.siteId, scope.route, scope.lang]);
+  }, [scope.siteId, scope.route, scope.lang, rememberSession]);
 
   const goWorkspace = (next) => { setScope((s) => ({ ...s, ...next })); setNav("workspace"); };
 
@@ -118,7 +119,9 @@ export default function LocalizationUI() {
             onNav={setNav}
             flush={nav === "workspace"}
           >
-            {isLoadingWorkspace && nav === "dashboard" ? null : screen}
+            {isLoadingWorkspace && nav === "dashboard" ? (
+              <div style={{ padding: 28 }}><SkeletonRows rows={6} height={64} /></div>
+            ) : screen}
           </AppShell>
         </ToastProvider>
       </TooltipProvider>
