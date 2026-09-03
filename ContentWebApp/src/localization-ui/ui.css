@@ -1,146 +1,466 @@
-
 /* ---------- Buttons ---------- */
 .loca-ui .btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2);
-  font-size: var(--fs-13); font-weight: 600; line-height: 1;
-  padding: 0 var(--s-4); height: 36px; border-radius: var(--r-sm);
-  border: 1px solid transparent; cursor: pointer; white-space: nowrap;
-  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), color var(--dur) var(--ease);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  font-size: var(--fs-13);
+  font-weight: 600;
+  line-height: 1;
+  padding: 0 var(--s-4);
+  height: 36px;
+  border-radius: var(--r-sm);
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background var(--dur) var(--ease),
+    border-color var(--dur) var(--ease),
+    color var(--dur) var(--ease);
   user-select: none;
 }
-.loca-ui .btn:disabled { opacity: .5; cursor: not-allowed; }
-.loca-ui .btn svg { width: 16px; height: 16px; flex: 0 0 auto; }
-.loca-ui .btn-sm { height: 30px; padding: 0 var(--s-3); font-size: var(--fs-12); }
-.loca-ui .btn-lg { height: 42px; padding: 0 var(--s-5); font-size: var(--fs-14); }
-.loca-ui .btn-icon { width: 34px; height: 34px; padding: 0; }
+.loca-ui .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.loca-ui .btn svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+.loca-ui .btn-sm {
+  height: 30px;
+  padding: 0 var(--s-3);
+  font-size: var(--fs-12);
+}
+.loca-ui .btn-lg {
+  height: 42px;
+  padding: 0 var(--s-5);
+  font-size: var(--fs-14);
+}
+.loca-ui .btn-icon {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+}
 
-.loca-ui .btn-primary { background: var(--accent); color: var(--on-accent); }
-.loca-ui .btn-primary:hover:not(:disabled) { background: var(--accent-ink); }
-.loca-ui .btn-ghost { background: transparent; color: var(--ink); border-color: var(--line-2); }
-.loca-ui .btn-ghost:hover:not(:disabled) { background: var(--surface-2); border-color: var(--line-2); }
-.loca-ui .btn-subtle { background: var(--surface-2); color: var(--ink); }
-.loca-ui .btn-subtle:hover:not(:disabled) { background: var(--surface-3); }
-.loca-ui .btn-danger { background: transparent; color: var(--crit); border-color: color-mix(in srgb, var(--crit) 40%, transparent); }
-.loca-ui .btn-danger:hover:not(:disabled) { background: var(--crit-bg); }
-.loca-ui .btn-good { background: var(--good); color: #fff; }
-.loca-ui .btn-good:hover:not(:disabled) { filter: brightness(1.05); }
-.loca-ui .btn-wine { background: var(--wine); color: var(--on-wine); }
-.loca-ui .btn-wine:hover:not(:disabled) { background: var(--wine-ink); }
+.loca-ui .btn-primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.loca-ui .btn-primary:hover:not(:disabled) {
+  background: var(--accent-ink);
+}
+.loca-ui .btn-ghost {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--line-2);
+}
+.loca-ui .btn-ghost:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: var(--line-2);
+}
+.loca-ui .btn-subtle {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.loca-ui .btn-subtle:hover:not(:disabled) {
+  background: var(--surface-3);
+}
+.loca-ui .btn-danger {
+  background: transparent;
+  color: var(--crit);
+  border-color: color-mix(in srgb, var(--crit) 40%, transparent);
+}
+.loca-ui .btn-danger:hover:not(:disabled) {
+  background: var(--crit-bg);
+}
+.loca-ui .btn-good {
+  background: var(--good);
+  color: #fff;
+}
+.loca-ui .btn-good:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+.loca-ui .btn-wine {
+  background: var(--wine);
+  color: var(--on-wine);
+}
+.loca-ui .btn-wine:hover:not(:disabled) {
+  background: var(--wine-ink);
+}
 
 /* ---------- Badges / chips ---------- */
 .loca-ui .badge {
-  display: inline-flex; align-items: center; gap: 5px;
-  font-size: var(--fs-12); font-weight: 600; line-height: 1.5;
-  padding: 2px 9px; border-radius: var(--r-pill); white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--fs-12);
+  font-weight: 600;
+  line-height: 1.5;
+  padding: 2px 9px;
+  border-radius: var(--r-pill);
+  white-space: nowrap;
 }
-.loca-ui .badge svg { width: 13px; height: 13px; }
-.loca-ui .badge-good { background: var(--good-bg); color: var(--good); }
-.loca-ui .badge-warn { background: var(--warn-bg); color: var(--warn); }
-.loca-ui .badge-crit { background: var(--crit-bg); color: var(--crit); }
-.loca-ui .badge-info { background: var(--info-bg); color: var(--info); }
-.loca-ui .badge-neutral { background: var(--surface-2); color: var(--ink-2); }
-.loca-ui .badge-accent { background: var(--accent-wash); color: var(--accent-ink); }
+.loca-ui .badge svg {
+  width: 13px;
+  height: 13px;
+}
+.loca-ui .badge-good {
+  background: var(--good-bg);
+  color: var(--good);
+}
+.loca-ui .badge-warn {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+.loca-ui .badge-crit {
+  background: var(--crit-bg);
+  color: var(--crit);
+}
+.loca-ui .badge-info {
+  background: var(--info-bg);
+  color: var(--info);
+}
+.loca-ui .badge-neutral {
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+.loca-ui .badge-accent {
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+}
 
 /* ---------- Cards ---------- */
 .loca-ui .card {
-  background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--r-md); box-shadow: var(--sh-1);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--sh-1);
 }
 /* ---------- Inputs ---------- */
-.loca-ui .field { display: flex; flex-direction: column; gap: 6px; }
-.loca-ui .label { font-size: var(--fs-12); font-weight: 600; color: var(--ink-2); }
-.loca-ui .help { font-size: var(--fs-12); color: var(--muted); }
-.loca-ui .err { font-size: var(--fs-12); color: var(--crit); }
-.loca-ui .input {
-  width: 100%; height: 36px; padding: 0 var(--s-3); font-size: var(--fs-14); color: var(--ink);
-  background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--r-sm);
-  outline: none; transition: border-color var(--dur) var(--ease);
+.loca-ui .field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
-.loca-ui textarea.input { height: auto; padding: var(--s-2) var(--s-3); line-height: 1.5; resize: vertical; }
-.loca-ui .input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
-.loca-ui .input::placeholder { color: var(--muted); }
-.loca-ui .input-search { position: relative; }
-.loca-ui .input-search svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; color: var(--muted); pointer-events: none; }
-.loca-ui .input-search .input { padding-left: 32px; }
+.loca-ui .label {
+  font-size: var(--fs-12);
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.loca-ui .help {
+  font-size: var(--fs-12);
+  color: var(--muted);
+}
+.loca-ui .err {
+  font-size: var(--fs-12);
+  color: var(--crit);
+}
+.loca-ui .input {
+  width: 100%;
+  height: 36px;
+  padding: 0 var(--s-3);
+  font-size: var(--fs-14);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  outline: none;
+  transition: border-color var(--dur) var(--ease);
+}
+.loca-ui textarea.input {
+  height: auto;
+  padding: var(--s-2) var(--s-3);
+  line-height: 1.5;
+  resize: vertical;
+}
+.loca-ui .input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-wash);
+}
+.loca-ui .input::placeholder {
+  color: var(--muted);
+}
+.loca-ui .input-search {
+  position: relative;
+}
+.loca-ui .input-search svg {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 15px;
+  height: 15px;
+  color: var(--muted);
+  pointer-events: none;
+}
+.loca-ui .input-search .input {
+  padding-left: 32px;
+}
 
 /* ---------- Checkbox ---------- */
 .loca-ui .ck {
-  width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid var(--line-2);
-  background: var(--surface); display: inline-grid; place-items: center; cursor: pointer;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1.5px solid var(--line-2);
+  background: var(--surface);
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
 }
-.loca-ui .ck[data-state="checked"] { background: var(--accent); border-color: var(--accent); color: #fff; }
-.loca-ui .ck svg { width: 12px; height: 12px; }
+.loca-ui .ck[data-state="checked"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.loca-ui .ck svg {
+  width: 12px;
+  height: 12px;
+}
 
 /* ---------- Skeleton ---------- */
 .loca-ui .skel {
-  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 37%, var(--surface-2) 63%);
-  background-size: 400% 100%; animation: loca-shimmer 1.3s ease infinite; border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    var(--surface-2) 25%,
+    var(--surface-3) 37%,
+    var(--surface-2) 63%
+  );
+  background-size: 400% 100%;
+  animation: loca-shimmer 1.3s ease infinite;
+  border-radius: 6px;
 }
-@keyframes loca-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@keyframes loca-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
 
 /* ---------- Empty state ---------- */
-.loca-ui .empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--s-3); padding: var(--s-10) var(--s-5); }
-.loca-ui .empty .ic { width: 44px; height: 44px; border-radius: var(--r-md); background: var(--surface-2); display: grid; place-items: center; color: var(--muted); }
-.loca-ui .empty .ic svg { width: 22px; height: 22px; }
-.loca-ui .empty h4 { font-size: var(--fs-16); }
-.loca-ui .empty p { font-size: var(--fs-13); color: var(--muted); max-width: 44ch; }
+.loca-ui .empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--s-3);
+  padding: var(--s-10) var(--s-5);
+}
+.loca-ui .empty .ic {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+.loca-ui .empty .ic svg {
+  width: 22px;
+  height: 22px;
+}
+.loca-ui .empty h4 {
+  font-size: var(--fs-16);
+}
+.loca-ui .empty p {
+  font-size: var(--fs-13);
+  color: var(--muted);
+  max-width: 44ch;
+}
 
 /* ---------- Dialog / overlay ---------- */
 .loca-ui-overlay {
-  position: fixed; inset: 0; background: rgba(20,16,12,.5); backdrop-filter: blur(2px); z-index: 1000;
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 16, 12, 0.5);
+  backdrop-filter: blur(2px);
+  z-index: 1000;
   animation: loca-fade var(--dur) var(--ease);
 }
 .loca-ui-dialog {
-  position: fixed; z-index: 1001; left: 50%; top: 50%; transform: translate(-50%,-50%);
-  width: min(480px, calc(100vw - 32px)); background: var(--surface); color: var(--ink);
-  border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--sh-3);
-  padding: var(--s-6); animation: loca-pop var(--dur) var(--ease);
+  position: fixed;
+  z-index: 1001;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(480px, calc(100vw - 32px));
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-3);
+  padding: var(--s-6);
+  animation: loca-pop var(--dur) var(--ease);
 }
-.loca-ui-dialog h3 { font-size: var(--fs-18); }
-.loca-ui-dialog .desc { font-size: var(--fs-14); color: var(--ink-2); margin-top: var(--s-2); }
-.loca-ui-dialog .actions { display: flex; justify-content: flex-end; gap: var(--s-2); margin-top: var(--s-6); }
-@keyframes loca-fade { from { opacity: 0; } to { opacity: 1; } }
-@keyframes loca-pop { from { opacity: 0; transform: translate(-50%,-46%) scale(.98); } to { opacity: 1; transform: translate(-50%,-50%) scale(1); } }
+.loca-ui-dialog h3 {
+  font-size: var(--fs-18);
+}
+.loca-ui-dialog .desc {
+  font-size: var(--fs-14);
+  color: var(--ink-2);
+  margin-top: var(--s-2);
+}
+.loca-ui-dialog .actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s-2);
+  margin-top: var(--s-6);
+}
+@keyframes loca-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes loca-pop {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -46%) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
 
 /* ---------- Popover ---------- */
 .loca-ui-popover {
-  z-index: 1001; min-width: 200px; background: var(--surface); color: var(--ink);
-  border: 1px solid var(--line); border-radius: var(--r-md); box-shadow: var(--sh-3);
-  padding: var(--s-2); animation: loca-fade var(--dur) var(--ease);
+  z-index: 1001;
+  min-width: 200px;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--sh-3);
+  padding: var(--s-2);
+  animation: loca-fade var(--dur) var(--ease);
 }
 
 /* ---------- Drawer / sheet (right side, becomes bottom on mobile) ---------- */
 .loca-ui-drawer {
-  position: fixed; z-index: 1001; top: 0; right: 0; height: 100vh; width: min(460px, 100vw);
-  background: var(--surface); border-left: 1px solid var(--line); box-shadow: var(--sh-3);
-  display: flex; flex-direction: column; animation: loca-slide var(--dur) var(--ease);
+  position: fixed;
+  z-index: 1001;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: min(460px, 100vw);
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+  box-shadow: var(--sh-3);
+  display: flex;
+  flex-direction: column;
+  animation: loca-slide var(--dur) var(--ease);
 }
-@keyframes loca-slide { from { transform: translateX(24px); opacity: .4; } to { transform: none; opacity: 1; } }
+@keyframes loca-slide {
+  from {
+    transform: translateX(24px);
+    opacity: 0.4;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
 @media (max-width: 640px) {
-  .loca-ui-drawer { top: auto; bottom: 0; right: 0; width: 100vw; height: 86vh; border-left: 0; border-top: 1px solid var(--line); border-radius: var(--r-lg) var(--r-lg) 0 0; }
+  .loca-ui-drawer {
+    top: auto;
+    bottom: 0;
+    right: 0;
+    width: 100vw;
+    height: 86vh;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+  }
 }
 
 /* ---------- Toast ---------- */
-.loca-ui-toasts { position: fixed; z-index: 1100; bottom: var(--s-5); right: var(--s-5); display: flex; flex-direction: column; gap: var(--s-2); width: min(360px, calc(100vw - 32px)); }
-.loca-ui-toast {
-  display: flex; align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-4);
-  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); box-shadow: var(--sh-2);
-  animation: loca-slide var(--dur) var(--ease); font-size: var(--fs-13);
+.loca-ui-toasts {
+  position: fixed;
+  z-index: 1100;
+  bottom: var(--s-5);
+  right: var(--s-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  width: min(360px, calc(100vw - 32px));
 }
-.loca-ui-toast .msg { flex: 1; color: var(--ink); }
-.loca-ui-toast .lead { display: grid; place-items: center; width: 20px; height: 20px; }
-.loca-ui-toast.good .lead { color: var(--good); } .loca-ui-toast.crit .lead { color: var(--crit); } .loca-ui-toast.info .lead { color: var(--info); }
-.loca-ui-toast .undo { color: var(--accent-ink); font-weight: 600; background: none; border: 0; cursor: pointer; font-size: var(--fs-13); }
+.loca-ui-toast {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--sh-2);
+  animation: loca-slide var(--dur) var(--ease);
+  font-size: var(--fs-13);
+}
+.loca-ui-toast .msg {
+  flex: 1;
+  color: var(--ink);
+}
+.loca-ui-toast .lead {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+}
+.loca-ui-toast.good .lead {
+  color: var(--good);
+}
+.loca-ui-toast.crit .lead {
+  color: var(--crit);
+}
+.loca-ui-toast.info .lead {
+  color: var(--info);
+}
+.loca-ui-toast .undo {
+  color: var(--accent-ink);
+  font-weight: 600;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font-size: var(--fs-13);
+}
 
 /* ---------- Tooltip ---------- */
 .loca-ui-tip {
-  background: var(--ink); color: var(--paper); font-size: var(--fs-12); font-weight: 500;
-  padding: 5px 9px; border-radius: 6px; box-shadow: var(--sh-2); z-index: 1200;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: var(--fs-12);
+  font-weight: 500;
+  padding: 5px 9px;
+  border-radius: 6px;
+  box-shadow: var(--sh-2);
+  z-index: 1200;
 }
 
 /* ---------- Quality bar ---------- */
-.loca-ui .qbar { width: 56px; height: 6px; border-radius: 4px; background: var(--line-2); overflow: hidden; display: inline-block; vertical-align: middle; }
-.loca-ui .qbar > i { display: block; height: 100%; background: var(--good); }
-.loca-ui .qbar.low > i { background: var(--warn); }
-.loca-ui .qbar.crit > i { background: var(--crit); }
-
+.loca-ui .qbar {
+  width: 56px;
+  height: 6px;
+  border-radius: 4px;
+  background: var(--line-2);
+  overflow: hidden;
+  display: inline-block;
+  vertical-align: middle;
+}
+.loca-ui .qbar > i {
+  display: block;
+  height: 100%;
+  background: var(--good);
+}
+.loca-ui .qbar.low > i {
+  background: var(--warn);
+}
+.loca-ui .qbar.crit > i {
+  background: var(--crit);
+}

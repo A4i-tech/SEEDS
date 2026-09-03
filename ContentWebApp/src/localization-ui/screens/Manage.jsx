@@ -2,7 +2,15 @@ import React from "react";
 import { Plus, Clock, FolderKanban, Globe, Languages as LangIcon } from "lucide-react";
 import "../manage.css";
 import {
-  Button, Badge, Dialog, ConfirmDialog, Field, Input, Textarea, SearchInput, useToast,
+  Button,
+  Badge,
+  Dialog,
+  ConfirmDialog,
+  Field,
+  Input,
+  Textarea,
+  SearchInput,
+  useToast,
 } from "../primitives";
 import { extractDomain } from "../lib/url";
 import { useCrudView } from "../lib/useCrudView";
@@ -58,7 +66,11 @@ function ProjectsView({ loc, toast }) {
     { key: "name", header: "Name", className: "t-name", render: (project) => project.name },
     { key: "description", header: "Description", render: (project) => project.description || "-" },
     { key: "sourceLanguage", header: "Source", render: (project) => project.sourceLanguage },
-    { key: "status", header: "Status", render: (project) => <StatusPill status={project.status} /> },
+    {
+      key: "status",
+      header: "Status",
+      render: (project) => <StatusPill status={project.status} />,
+    },
   ];
 
   return (
@@ -88,25 +100,44 @@ function ProjectsView({ loc, toast }) {
           title={dlg.mode === "edit" ? "Edit project" : "New project"}
           footer={
             <>
-              <Button variant="ghost" onClick={() => setDlg(null)}>Cancel</Button>
-              <Button variant="primary" onClick={save} disabled={!dlg.values.name.trim()}>Save</Button>
+              <Button variant="ghost" onClick={() => setDlg(null)}>
+                Cancel
+              </Button>
+              <Button variant="primary" onClick={save} disabled={!dlg.values.name.trim()}>
+                Save
+              </Button>
             </>
           }
         >
           <div className="form-grid">
             <Field label="Name">
-              <Input value={dlg.values.name} onChange={(e) => set("name", e.target.value)} autoFocus />
+              <Input
+                value={dlg.values.name}
+                onChange={(e) => set("name", e.target.value)}
+                autoFocus
+              />
             </Field>
             <Field label="Source language">
-              <Input value={dlg.values.sourceLanguage} onChange={(e) => set("sourceLanguage", e.target.value)} />
+              <Input
+                value={dlg.values.sourceLanguage}
+                onChange={(e) => set("sourceLanguage", e.target.value)}
+              />
             </Field>
             <div className="full">
               <Field label="Description">
-                <Textarea rows={2} value={dlg.values.description} onChange={(e) => set("description", e.target.value)} />
+                <Textarea
+                  rows={2}
+                  value={dlg.values.description}
+                  onChange={(e) => set("description", e.target.value)}
+                />
               </Field>
             </div>
             <Field label="Status">
-              <select className="input" value={dlg.values.status} onChange={(e) => set("status", e.target.value)}>
+              <select
+                className="input"
+                value={dlg.values.status}
+                onChange={(e) => set("status", e.target.value)}
+              >
                 <option>Active</option>
                 <option>Inactive</option>
               </select>
@@ -142,24 +173,31 @@ function SitesView({ loc, toast }) {
     },
     getId: (site) => site.id,
     emptyValues: { name: "", url: "", projectId: projects[0]?.id || "", status: "Active" },
-    onCreate: (values) => handleCreateSite({
-      projectId: values.projectId,
-      domain: extractDomain(values.url),
-      name: values.name,
-      status: values.status,
-    }),
-    onUpdate: (id, values) => handleUpdateSite(id, {
-      name: values.name,
-      domain: extractDomain(values.url),
-      status: values.status,
-    }),
+    onCreate: (values) =>
+      handleCreateSite({
+        projectId: values.projectId,
+        domain: extractDomain(values.url),
+        name: values.name,
+        status: values.status,
+      }),
+    onUpdate: (id, values) =>
+      handleUpdateSite(id, {
+        name: values.name,
+        domain: extractDomain(values.url),
+        status: values.status,
+      }),
     onDelete: handleDeleteSite,
     toast,
     entityLabel: "Site",
   });
 
   const columns = [
-    { key: "name", header: "Website / Domain", className: "t-name mono", render: (site) => site.domain },
+    {
+      key: "name",
+      header: "Website / Domain",
+      className: "t-name mono",
+      render: (site) => site.domain,
+    },
     { key: "project", header: "Project", render: (site) => projectName(site.projectId) },
     { key: "status", header: "Status", render: (site) => <StatusPill status={site.status} /> },
   ];
@@ -191,17 +229,29 @@ function SitesView({ loc, toast }) {
           title={dlg.mode === "edit" ? "Edit site" : "Register site"}
           footer={
             <>
-              <Button variant="ghost" onClick={() => setDlg(null)}>Cancel</Button>
-              <Button variant="primary" onClick={save} disabled={!dlg.values.url.trim()}>Save</Button>
+              <Button variant="ghost" onClick={() => setDlg(null)}>
+                Cancel
+              </Button>
+              <Button variant="primary" onClick={save} disabled={!dlg.values.url.trim()}>
+                Save
+              </Button>
             </>
           }
         >
           <div className="form-grid">
             <Field label="Name">
-              <Input value={dlg.values.name} onChange={(e) => set("name", e.target.value)} autoFocus />
+              <Input
+                value={dlg.values.name}
+                onChange={(e) => set("name", e.target.value)}
+                autoFocus
+              />
             </Field>
             <Field label="Domain or URL">
-              <Input value={dlg.values.url} onChange={(e) => set("url", e.target.value)} placeholder="example.com" />
+              <Input
+                value={dlg.values.url}
+                onChange={(e) => set("url", e.target.value)}
+                placeholder="example.com"
+              />
             </Field>
             <Field label="Project">
               <select
@@ -211,12 +261,18 @@ function SitesView({ loc, toast }) {
                 disabled={dlg.mode === "edit"}
               >
                 {projects.map((project) => (
-                  <option key={project.id} value={project.id}>{project.name}</option>
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
                 ))}
               </select>
             </Field>
             <Field label="Status">
-              <select className="input" value={dlg.values.status} onChange={(e) => set("status", e.target.value)}>
+              <select
+                className="input"
+                value={dlg.values.status}
+                onChange={(e) => set("status", e.target.value)}
+              >
                 <option>Active</option>
                 <option>Inactive</option>
               </select>
@@ -257,7 +313,10 @@ function LanguagesView({ loc, toast }) {
   const toggle = async (language) => {
     try {
       await handleUpdateLanguage(language.id, { enabled: language.enabled === false });
-      toast({ message: `Language ${language.enabled === false ? "added" : "updated"}`, tone: "good" });
+      toast({
+        message: `Language ${language.enabled === false ? "added" : "updated"}`,
+        tone: "good",
+      });
     } catch (e) {
       toast({ message: e.message, tone: "crit" });
     }
@@ -266,7 +325,11 @@ function LanguagesView({ loc, toast }) {
   const columns = [
     { key: "name", header: "Language", className: "t-name", render: (language) => language.name },
     { key: "code", header: "Code", className: "mono", render: (language) => language.code },
-    { key: "direction", header: "Direction", render: (language) => language.direction.toUpperCase() },
+    {
+      key: "direction",
+      header: "Direction",
+      render: (language) => language.direction.toUpperCase(),
+    },
     {
       key: "enabled",
       header: "Enabled",
@@ -312,7 +375,9 @@ function LanguagesView({ loc, toast }) {
           title={dlg.mode === "edit" ? "Edit language" : "Add language"}
           footer={
             <>
-              <Button variant="ghost" onClick={() => setDlg(null)}>Cancel</Button>
+              <Button variant="ghost" onClick={() => setDlg(null)}>
+                Cancel
+              </Button>
               <Button
                 variant="primary"
                 onClick={save}
@@ -325,13 +390,26 @@ function LanguagesView({ loc, toast }) {
         >
           <div className="form-grid">
             <Field label="Name">
-              <Input value={dlg.values.name} onChange={(e) => set("name", e.target.value)} placeholder="Hindi" autoFocus />
+              <Input
+                value={dlg.values.name}
+                onChange={(e) => set("name", e.target.value)}
+                placeholder="Hindi"
+                autoFocus
+              />
             </Field>
             <Field label="Code">
-              <Input value={dlg.values.code} onChange={(e) => set("code", e.target.value)} placeholder="hi" />
+              <Input
+                value={dlg.values.code}
+                onChange={(e) => set("code", e.target.value)}
+                placeholder="hi"
+              />
             </Field>
             <Field label="Direction">
-              <select className="input" value={dlg.values.direction} onChange={(e) => set("direction", e.target.value)}>
+              <select
+                className="input"
+                value={dlg.values.direction}
+                onChange={(e) => set("direction", e.target.value)}
+              >
                 <option value="ltr">Left to right</option>
                 <option value="rtl">Right to left</option>
               </select>

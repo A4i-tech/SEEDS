@@ -1,5 +1,16 @@
 import React, { useState } from "react";
-import { AlertTriangle, BookOpen, Check, ChevronDown, Code2, Copy, ExternalLink, Globe, Loader2, RotateCw } from "lucide-react";
+import {
+  AlertTriangle,
+  BookOpen,
+  Check,
+  ChevronDown,
+  Code2,
+  Copy,
+  ExternalLink,
+  Globe,
+  Loader2,
+  RotateCw,
+} from "lucide-react";
 import "../dashboard.css";
 import { Button, Field, Input, useToast } from "../primitives";
 import { ManageScreen } from "./Manage";
@@ -47,10 +58,10 @@ function SnippetBlock({ snippet }) {
 
 const buildDevToolsScript = (siteId) =>
   [
-    "const s = document.createElement(\"script\");",
-    "s.src = \"http://localhost:3000/sdk.js\";",
+    'const s = document.createElement("script");',
+    's.src = "http://localhost:3000/sdk.js";',
     `s.dataset.siteId = "${siteId}";`,
-    "s.dataset.apiBase = \"http://localhost:3000\";",
+    's.dataset.apiBase = "http://localhost:3000";',
     "document.body.appendChild(s);",
   ].join("\n");
 
@@ -82,9 +93,15 @@ function DevToolsSection({ siteId }) {
             <div className="onb-steps-title">Steps</div>
             <ol>
               <li>Open the target website in Chrome.</li>
-              <li>Press <code>F12</code> (or <code>Ctrl + Shift + I</code>) to open Chrome DevTools.</li>
-              <li>Open the <strong>Console</strong> tab.</li>
-              <li>Paste the JavaScript below and press <strong>Enter</strong>.</li>
+              <li>
+                Press <code>F12</code> (or <code>Ctrl + Shift + I</code>) to open Chrome DevTools.
+              </li>
+              <li>
+                Open the <strong>Console</strong> tab.
+              </li>
+              <li>
+                Paste the JavaScript below and press <strong>Enter</strong>.
+              </li>
               <li>Verify that the SDK loads successfully.</li>
             </ol>
           </div>
@@ -140,7 +157,12 @@ function OnboardingCard({ loc }) {
     setError("");
     try {
       const projectId = await resolveProjectId();
-      const site = await loc.handleCreateSite({ projectId, domain: extractDomain(domain.trim()), name: "", status: "Active" });
+      const site = await loc.handleCreateSite({
+        projectId,
+        domain: extractDomain(domain.trim()),
+        name: "",
+        status: "Active",
+      });
       setResult(site);
     } catch (err) {
       const friendly = parseApiErrorMessage(err) || "Failed to register website";
@@ -170,7 +192,9 @@ function OnboardingCard({ loc }) {
     return (
       <div className="onb-card">
         <div className="onb-success-head">
-          <span className="onb-success-icon"><Check size={20} /></span>
+          <span className="onb-success-icon">
+            <Check size={20} />
+          </span>
           <div>
             <div className="onb-success-title">Website Connected</div>
             <div className="onb-sub">Your website has been registered successfully.</div>
@@ -194,20 +218,38 @@ function OnboardingCard({ loc }) {
           <div className="onb-steps-title">How to install</div>
           <ol>
             <li>Open your website's HTML file (or template layout used on every page).</li>
-            <li>Paste the snippet above right before the closing <code>&lt;/body&gt;</code> tag.</li>
-            <li>Deploy/publish your site. This is an HTML tag, not a browser console command — it won't run if pasted into DevTools.</li>
-            <li>Reload the live page — the SDK loads automatically and starts serving translated content.</li>
+            <li>
+              Paste the snippet above right before the closing <code>&lt;/body&gt;</code> tag.
+            </li>
+            <li>
+              Deploy/publish your site. This is an HTML tag, not a browser console command — it
+              won't run if pasted into DevTools.
+            </li>
+            <li>
+              Reload the live page — the SDK loads automatically and starts serving translated
+              content.
+            </li>
           </ol>
         </div>
 
         <DevToolsSection siteId={result.siteId} />
 
         <div className="onb-actions">
-          <Button variant="primary" onClick={copySnippet}><Copy size={15} /> Copy Snippet</Button>
-          <Button variant="ghost" type="button" onClick={() => window.open("https://docs.example.com/sdk", "_blank", "noopener,noreferrer")}>
+          <Button variant="primary" onClick={copySnippet}>
+            <Copy size={15} /> Copy Snippet
+          </Button>
+          <Button
+            variant="ghost"
+            type="button"
+            onClick={() =>
+              window.open("https://docs.example.com/sdk", "_blank", "noopener,noreferrer")
+            }
+          >
             <BookOpen size={15} /> View Documentation <ExternalLink size={13} />
           </Button>
-          <Button variant="ghost" type="button" onClick={reset}><RotateCw size={15} /> Register Another Website</Button>
+          <Button variant="ghost" type="button" onClick={reset}>
+            <RotateCw size={15} /> Register Another Website
+          </Button>
         </div>
       </div>
     );
@@ -223,7 +265,11 @@ function OnboardingCard({ loc }) {
         <Field label="Website URL" error={error || undefined}>
           <span className="onb-input-icon">
             <Globe size={15} />
-            <Input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="https://example.com" />
+            <Input
+              value={domain}
+              onChange={(e) => setDomain(e.target.value)}
+              placeholder="https://example.com"
+            />
           </span>
         </Field>
         <Button variant="primary" size="lg" type="submit" disabled={!domain.trim() || busy}>

@@ -39,12 +39,17 @@ export function ToastProvider({ children }) {
             const Lead = LEAD[t.tone] || Info;
             return (
               <div key={t.id} className={`loca-ui-toast ${t.tone}`} role="status">
-                <span className="lead"><Lead size={18} /></span>
+                <span className="lead">
+                  <Lead size={18} />
+                </span>
                 <span className="msg">{t.message}</span>
                 {t.onUndo ? (
                   <button
                     className="undo"
-                    onClick={() => { t.onUndo(); dismiss(t.id); }}
+                    onClick={() => {
+                      t.onUndo();
+                      dismiss(t.id);
+                    }}
                   >
                     Undo
                   </button>

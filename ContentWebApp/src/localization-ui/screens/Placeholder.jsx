@@ -3,8 +3,11 @@ import { Wrench } from "lucide-react";
 import { EmptyState } from "../primitives";
 
 const LABELS = {
-  glossary: "Glossary", projects: "Projects", sites: "Sites",
-  languages: "Languages", activity: "Activity",
+  glossary: "Glossary",
+  projects: "Projects",
+  sites: "Sites",
+  languages: "Languages",
+  activity: "Activity",
 };
 
 export function PlaceholderScreen({ nav }) {

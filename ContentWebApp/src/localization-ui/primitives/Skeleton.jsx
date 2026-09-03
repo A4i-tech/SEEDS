@@ -15,7 +15,11 @@ export function Skeleton({ w, h = 14, r, className, style }) {
 /** A few stacked skeleton lines for table/card loading. */
 export function SkeletonRows({ rows = 6, height = 44 }) {
   return (
-    <div aria-busy="true" aria-live="polite" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+    <div
+      aria-busy="true"
+      aria-live="polite"
+      style={{ display: "flex", flexDirection: "column", gap: 8 }}
+    >
       {Array.from({ length: rows }).map((_, i) => (
         <Skeleton key={i} h={height} r={10} />
       ))}

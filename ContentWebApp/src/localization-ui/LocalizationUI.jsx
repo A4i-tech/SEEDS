@@ -25,7 +25,12 @@ export default function LocalizationUI() {
 
   const [nav, setNav] = useState("dashboard");
   const [theme] = usePersistentState("theme", "");
-  const [scope, setScope] = usePersistentState("scope", { projectId: "", siteId: "", route: "", lang: "hi" });
+  const [scope, setScope] = usePersistentState("scope", {
+    projectId: "",
+    siteId: "",
+    route: "",
+    lang: "hi",
+  });
   const [uiLanguage, setUiLanguage] = usePersistentState("uiLanguage", "");
   const [lastSession, rememberSession] = useLastSession();
 
@@ -33,17 +38,25 @@ export default function LocalizationUI() {
   const [pagesError, setPagesError] = useState(null);
   useEffect(() => {
     let cancelled = false;
-    if (!scope.siteId || nav !== "workspace") { setSiteDocs([]); setPagesError(null); return; }
+    if (!scope.siteId || nav !== "workspace") {
+      setSiteDocs([]);
+      setPagesError(null);
+      return;
+    }
     setPagesError(null);
     translationService
       .listTranslations({ siteId: scope.siteId })
-      .then((docs) => { if (!cancelled) setSiteDocs(docs); })
+      .then((docs) => {
+        if (!cancelled) setSiteDocs(docs);
+      })
       .catch((e) => {
         if (cancelled) return;
         setSiteDocs([]);
         setPagesError(e.status === 403 ? "forbidden" : e.message);
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [scope.siteId, nav]);
 
   const pages = useMemo(() => pagesFromDocs(siteDocs, scope.lang), [siteDocs, scope.lang]);
@@ -75,7 +88,10 @@ export default function LocalizationUI() {
     if (scope.siteId && scope.route) rememberSession(scope);
   }, [scope.siteId, scope.route, scope.lang, rememberSession]);
 
-  const goWorkspace = (next) => { setScope((s) => ({ ...s, ...next })); setNav("workspace"); };
+  const goWorkspace = (next) => {
+    setScope((s) => ({ ...s, ...next }));
+    setNav("workspace");
+  };
 
   const rootRef = React.useRef(null);
   const [shellH, setShellH] = useState("100vh");
@@ -94,7 +110,9 @@ export default function LocalizationUI() {
   if (nav === "dashboard") {
     screen = (
       <DashboardScreen
-        loc={loc} scope={scope} lastSession={lastSession}
+        loc={loc}
+        scope={scope}
+        lastSession={lastSession}
         onResume={(sc) => goWorkspace(sc)}
         onOpenReview={(sc) => goWorkspace(sc)}
       />
@@ -102,8 +120,12 @@ export default function LocalizationUI() {
   } else if (nav === "workspace") {
     screen = (
       <WorkspaceScreen
-        scope={scope} languages={languages.filter((l) => l.enabled)} sites={sites}
-        onScope={setScope} pages={pages} pagesError={pagesError}
+        scope={scope}
+        languages={languages.filter((l) => l.enabled)}
+        sites={sites}
+        onScope={setScope}
+        pages={pages}
+        pagesError={pagesError}
       />
     );
   } else {
@@ -111,17 +133,22 @@ export default function LocalizationUI() {
   }
 
   return (
-    <div className="loca-ui" data-theme={theme || undefined} ref={rootRef} style={{ height: shellH }}>
+    <div
+      className="loca-ui"
+      data-theme={theme || undefined}
+      ref={rootRef}
+      style={{ height: shellH }}
+    >
       <TooltipProvider>
         <ToastProvider>
-          <AppShell
-            nav={nav}
-            onNav={setNav}
-            flush={nav === "workspace"}
-          >
+          <AppShell nav={nav} onNav={setNav} flush={nav === "workspace"}>
             {isLoadingWorkspace && nav === "dashboard" ? (
-              <div style={{ padding: 28 }}><SkeletonRows rows={6} height={64} /></div>
-            ) : screen}
+              <div style={{ padding: 28 }}>
+                <SkeletonRows rows={6} height={64} />
+              </div>
+            ) : (
+              screen
+            )}
           </AppShell>
         </ToastProvider>
       </TooltipProvider>
