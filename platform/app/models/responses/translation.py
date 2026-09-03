@@ -10,6 +10,8 @@ class TranslationResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     id: str | None = Field(None, alias="_id")
+    translations: dict[str, Any] | None = None
+    lowConfidence: bool = False
 
     @model_validator(mode="before")
     @classmethod
@@ -24,24 +26,23 @@ class TranslationResponse(BaseModel):
         return str(v) if v is not None else None
 
     @classmethod
-    def from_doc(cls, doc: dict) -> dict:
+    def from_doc(cls, doc: dict) -> TranslationResponse:
         from app.platform.settings import get_settings  # noqa: PLC0415
         from app.services.quality_scorer import is_low_confidence  # noqa: PLC0415
 
-        result = cls.model_validate(doc).model_dump()
+        instance = cls.model_validate(doc)
         threshold = get_settings().low_confidence_threshold
 
         any_low = False
-        translations = result.get("translations")
-        if isinstance(translations, dict):
-            for entry in translations.values():
+        if isinstance(instance.translations, dict):
+            for entry in instance.translations.values():
                 if not isinstance(entry, dict):
                     continue
                 low = is_low_confidence(entry.get("qualityScore"), threshold)
                 entry["lowConfidence"] = low
                 any_low = any_low or low
-        result["lowConfidence"] = any_low
-        return result
+        instance.lowConfidence = any_low
+        return instance
 
 
 class AuditEntryResponse(BaseModel):
@@ -71,8 +72,8 @@ class AuditEntryResponse(BaseModel):
         return str(v) if v is not None else None
 
     @classmethod
-    def from_doc(cls, doc: dict) -> dict:
-        return cls.model_validate(doc).model_dump()
+    def from_doc(cls, doc: dict) -> AuditEntryResponse:
+        return cls.model_validate(doc)
 
 
 class TranslationVersionResponse(BaseModel):
@@ -99,5 +100,5 @@ class TranslationVersionResponse(BaseModel):
         return str(v) if v is not None else None
 
     @classmethod
-    def from_doc(cls, doc: dict) -> dict:
-        return cls.model_validate(doc).model_dump()
+    def from_doc(cls, doc: dict) -> TranslationVersionResponse:
+        return cls.model_validate(doc)

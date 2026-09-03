@@ -24,8 +24,8 @@ class ProjectResponse(BaseModel):
         return str(v) if v is not None else None
 
     @classmethod
-    def from_doc(cls, doc: dict) -> dict:
-        return cls.model_validate(doc).model_dump(by_alias=True)
+    def from_doc(cls, doc: dict) -> ProjectResponse:
+        return cls.model_validate(doc)
 
 
 class WebsiteResponse(BaseModel):
@@ -47,7 +47,7 @@ class WebsiteResponse(BaseModel):
         return str(v) if v is not None else None
 
     @classmethod
-    def from_doc(cls, doc: dict, snippet: str | None = None) -> dict:
+    def from_doc(cls, doc: dict, snippet: str | None = None) -> WebsiteResponse:
         model = cls.model_validate(doc)
         model.snippet = snippet
-        return model.model_dump(by_alias=True)
+        return model

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.requests.language_requests import LanguageCreateRequest, LanguageUpdateRequest
+from app.models.responses.common import StatusResponse
 from app.models.responses.language import LanguageResponse
 from app.platform.auth.dependencies import get_db, require_admin
 from app.platform.error_handling import NotFoundError
@@ -20,7 +21,7 @@ router = APIRouter(prefix="/languages", tags=["Languages"])
 async def list_languages(
     enabledOnly: bool = True,
     db: AsyncDatabase = Depends(get_db),  # type: ignore[type-arg]
-) -> list[dict[str, Any]]:
+) -> list[LanguageResponse]:
     repo = LanguageRepository(db)
     docs = await repo.find_all(enabled_only=enabledOnly)
     return [LanguageResponse.from_doc(doc) for doc in docs]
@@ -31,7 +32,7 @@ async def create_language(
     body: LanguageCreateRequest,
     db: AsyncDatabase = Depends(get_db),  # type: ignore[type-arg]
     user: dict[str, Any] = Depends(require_admin),
-) -> dict[str, Any]:
+) -> LanguageResponse:
     repo = LanguageRepository(db)
     doc = await repo.create(body.name, body.code, body.direction, body.enabled)
     return LanguageResponse.from_doc(doc)
@@ -43,7 +44,7 @@ async def update_language(
     body: LanguageUpdateRequest,
     db: AsyncDatabase = Depends(get_db),  # type: ignore[type-arg]
     user: dict[str, Any] = Depends(require_admin),
-) -> dict[str, Any]:
+) -> LanguageResponse:
     repo = LanguageRepository(db)
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
     await repo.update(language_id, fields)
@@ -58,7 +59,7 @@ async def delete_language(
     language_id: str,
     db: AsyncDatabase = Depends(get_db),  # type: ignore[type-arg]
     user: dict[str, Any] = Depends(require_admin),
-) -> dict[str, str]:
+) -> StatusResponse:
     repo = LanguageRepository(db)
     await repo.delete(language_id)
-    return {"status": "deleted"}
+    return StatusResponse(status="deleted")

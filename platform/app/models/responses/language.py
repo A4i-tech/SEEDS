@@ -24,5 +24,5 @@ class LanguageResponse(BaseModel):
         return str(v) if v is not None else None
 
     @classmethod
-    def from_doc(cls, doc: dict) -> dict:
-        return cls.model_validate(doc).model_dump(by_alias=True)
+    def from_doc(cls, doc: dict) -> LanguageResponse:
+        return cls.model_validate(doc)

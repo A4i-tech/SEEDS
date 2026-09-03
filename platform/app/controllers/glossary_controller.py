@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.requests.glossary_requests import GlossaryTermCreateRequest
-from app.models.responses.glossary import GlossaryTermResponse
+from app.models.responses.glossary import GlossaryStatusResponse, GlossaryTermResponse
 from app.platform.auth.dependencies import get_db, require_admin, require_admin_or_reviewer
 from app.repositories.glossary_repository import GlossaryRepository
 
@@ -21,7 +21,7 @@ async def add_term(
     body: GlossaryTermCreateRequest,
     db: AsyncDatabase = Depends(get_db),  # type: ignore[type-arg]
     user: dict[str, Any] = Depends(require_admin),
-) -> dict[str, Any]:
+) -> GlossaryTermResponse:
     repo = GlossaryRepository(db)
     doc = await repo.add_term(body.sourceTerm, body.targetLang, body.translatedTerm)
     return GlossaryTermResponse.from_doc(doc)
@@ -32,7 +32,7 @@ async def list_terms(
     targetLang: str | None = None,
     db: AsyncDatabase = Depends(get_db),  # type: ignore[type-arg]
     user: dict[str, Any] = Depends(require_admin_or_reviewer),
-) -> list[dict[str, Any]]:
+) -> list[GlossaryTermResponse]:
     repo = GlossaryRepository(db)
     docs = await (repo.find_by_lang(targetLang) if targetLang else repo.find_all())
     return [GlossaryTermResponse.from_doc(doc) for doc in docs]
@@ -43,7 +43,7 @@ async def delete_term(
     term_id: str,
     db: AsyncDatabase = Depends(get_db),  # type: ignore[type-arg]
     user: dict[str, Any] = Depends(require_admin),
-) -> dict[str, str]:
+) -> GlossaryStatusResponse:
     repo = GlossaryRepository(db)
     await repo.delete(term_id)
-    return {"status": "deleted"}
+    return GlossaryStatusResponse(status="deleted")

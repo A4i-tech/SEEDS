@@ -13,6 +13,7 @@ from app.models.requests.onboarding_requests import (
     WebsiteCreateRequest,
     WebsiteUpdateRequest,
 )
+from app.models.responses.common import StatusResponse
 from app.models.responses.onboarding import ProjectResponse, WebsiteResponse
 from app.platform.auth.dependencies import require_admin, require_admin_or_reviewer
 from app.services.onboarding_service import OnboardingService, get_onboarding_service
@@ -27,7 +28,7 @@ async def create_project(
     body: ProjectCreateRequest,
     service: OnboardingService = Depends(get_onboarding_service),
     user: dict[str, Any] = Depends(require_admin),
-) -> dict[str, Any]:
+) -> ProjectResponse:
     project = await service.create_project(
         body.name, body.description, body.sourceLanguage, body.status
     )
@@ -38,7 +39,7 @@ async def create_project(
 async def list_projects(
     service: OnboardingService = Depends(get_onboarding_service),
     user: dict[str, Any] = Depends(require_admin_or_reviewer),
-) -> list[dict[str, Any]]:
+) -> list[ProjectResponse]:
     projects = await service.list_projects()
     return [ProjectResponse.from_doc(project) for project in projects]
 
@@ -49,7 +50,7 @@ async def update_project(
     body: ProjectUpdateRequest,
     service: OnboardingService = Depends(get_onboarding_service),
     user: dict[str, Any] = Depends(require_admin),
-) -> dict[str, Any]:
+) -> ProjectResponse:
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
     project = await service.update_project(project_id, fields)
     return ProjectResponse.from_doc(project)
@@ -60,9 +61,9 @@ async def delete_project(
     project_id: str,
     service: OnboardingService = Depends(get_onboarding_service),
     user: dict[str, Any] = Depends(require_admin),
-) -> dict[str, str]:
+) -> StatusResponse:
     await service.delete_project(project_id)
-    return {"status": "deleted"}
+    return StatusResponse(status="deleted")
 
 
 @router.post("/websites", summary="Register a website under a project, generating its siteId and SDK snippet")
@@ -70,7 +71,7 @@ async def register_website(
     body: WebsiteCreateRequest,
     service: OnboardingService = Depends(get_onboarding_service),
     user: dict[str, Any] = Depends(require_admin),
-) -> dict[str, Any]:
+) -> WebsiteResponse:
     website = await service.register_website(body.projectId, body.domain, body.name, body.status)
     snippet = service.snippet_for(website)
     return WebsiteResponse.from_doc(website, snippet=snippet)
@@ -81,7 +82,7 @@ async def list_websites(
     projectId: str | None = None,
     service: OnboardingService = Depends(get_onboarding_service),
     user: dict[str, Any] = Depends(require_admin_or_reviewer),
-) -> list[dict[str, Any]]:
+) -> list[WebsiteResponse]:
     websites = await service.list_websites(projectId)
     return [WebsiteResponse.from_doc(website) for website in websites]
 
@@ -91,7 +92,7 @@ async def get_website(
     website_id: str,
     service: OnboardingService = Depends(get_onboarding_service),
     user: dict[str, Any] = Depends(require_admin_or_reviewer),
-) -> dict[str, Any]:
+) -> WebsiteResponse:
     website = await service.get_website(website_id)
     snippet = service.snippet_for(website)
     return WebsiteResponse.from_doc(website, snippet=snippet)
@@ -103,7 +104,7 @@ async def update_website(
     body: WebsiteUpdateRequest,
     service: OnboardingService = Depends(get_onboarding_service),
     user: dict[str, Any] = Depends(require_admin),
-) -> dict[str, Any]:
+) -> WebsiteResponse:
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
     website = await service.update_website(website_id, fields)
     snippet = service.snippet_for(website)
@@ -115,6 +116,6 @@ async def delete_website(
     website_id: str,
     service: OnboardingService = Depends(get_onboarding_service),
     user: dict[str, Any] = Depends(require_admin),
-) -> dict[str, str]:
+) -> StatusResponse:
     await service.delete_website(website_id)
-    return {"status": "deleted"}
+    return StatusResponse(status="deleted")

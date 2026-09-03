@@ -10,6 +10,7 @@ from app.models.requests.translation_requests import (
     TranslationRejectRequest,
     TranslationUpdateRequest,
 )
+from app.models.responses.common import StatusResponse
 from app.models.responses.translation import (
     AuditEntryResponse,
     TranslationResponse,
@@ -47,14 +48,14 @@ async def extract(
     request: Request,
     body: ExtractRequest,
     service: TranslationService = Depends(get_translation_service),
-) -> dict[str, Any]:
+) -> StatusResponse:
     await service.extract_items(
         body.siteId,
         [item.model_dump() for item in body.items],
         origin=request.headers.get("origin"),
         referer=request.headers.get("referer"),
     )
-    return {"status": "accepted"}
+    return StatusResponse(status="accepted")
 
 
 @router.get(

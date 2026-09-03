@@ -18,6 +18,10 @@ class JobStatusResponse(BaseModel):
     reason: str | None
 
 
+class JobListResponse(BaseModel):
+    jobs: list[JobStatusResponse]
+
+
 class SasUrlResponse(BaseModel):
     url: str | None = None
 
