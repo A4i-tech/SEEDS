@@ -26,6 +26,10 @@ export const toLanguageCreateRequest = ({ name, code, direction, enabled }) => (
   enabled,
 });
 
+export const toSiteUpdateRequest = ({ name, domain, status }) => ({ name, domain, status });
+
+export const toLanguageUpdateRequest = ({ name, code, direction, enabled }) => ({ name, code, direction, enabled });
+
 export const toTranslationUpdateRequest = ({ lang, text }) => ({ lang, text });
 
 export const toTranslationApproveRequest = ({ lang }) => ({ lang });

@@ -185,7 +185,7 @@ function LanguagesView({ loc, toast }) {
     } catch (e) { toast({ message: e.message, tone: "crit" }); }
   };
   const toggle = async (l) => {
-    try { await handleUpdateLanguage(l.id, { enabled: !(l.enabled !== false) }); }
+    try { await handleUpdateLanguage(l.id, { name: l.name, code: l.code, direction: l.direction, enabled: !(l.enabled !== false) }); }
     catch (e) { toast({ message: e.message, tone: "crit" }); }
   };
   const remove = async () => {

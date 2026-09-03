@@ -1,7 +1,7 @@
 import { SEEDS_URL } from "../Constants";
 import { getAuthHeaders } from "../utils/authHelpers";
 import { apiFetch } from "./api";
-import { toLanguageCreateRequest } from "./dtos/localizationRequests";
+import { toLanguageCreateRequest, toLanguageUpdateRequest } from "./dtos/localizationRequests";
 import { fromLanguageResponse } from "./dtos/localizationResponses";
 
 export const languageService = {
@@ -55,7 +55,7 @@ export const languageService = {
         ...getAuthHeaders(),
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(fields),
+      body: JSON.stringify(toLanguageUpdateRequest(fields)),
     });
 
     return fromLanguageResponse(response);

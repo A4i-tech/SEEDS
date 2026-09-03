@@ -1,7 +1,7 @@
 import { SEEDS_URL } from "../Constants";
 import { getAuthHeaders } from "../utils/authHelpers";
 import { apiFetch, buildQueryString } from "./api";
-import { toProjectCreateRequest, toProjectUpdateRequest, toSiteCreateRequest } from "./dtos/localizationRequests";
+import { toProjectCreateRequest, toProjectUpdateRequest, toSiteCreateRequest, toSiteUpdateRequest } from "./dtos/localizationRequests";
 import { fromProjectResponse, fromSiteResponse } from "./dtos/localizationResponses";
 
 export const onboardingService = {
@@ -127,7 +127,7 @@ export const onboardingService = {
         ...getAuthHeaders(),
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(fields),
+      body: JSON.stringify(toSiteUpdateRequest(fields)),
     });
 
     return fromSiteResponse(response);
