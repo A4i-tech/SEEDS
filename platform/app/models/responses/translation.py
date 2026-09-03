@@ -10,7 +10,7 @@ class TranslationResponse(BaseModel):
 
     id: str = Field(validation_alias="_id")
     translations: dict[str, Any] | None = None
-    lowConfidence: bool = False
+    low_confidence: bool = False
 
     @field_validator("id", mode="before")
     @classmethod
@@ -31,9 +31,9 @@ class TranslationResponse(BaseModel):
                 if not isinstance(entry, dict):
                     continue
                 low = is_low_confidence(entry.get("quality_score", 1.0), threshold)
-                entry["lowConfidence"] = low
+                entry["low_confidence"] = low
                 any_low = any_low or low
-        instance.lowConfidence = any_low
+        instance.low_confidence = any_low
         return instance
 
 
@@ -41,7 +41,7 @@ class AuditEntryResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     id: str = Field(validation_alias="_id")
-    siteId: str | None = Field(default=None, validation_alias="site_id")
+    site_id: str | None = None
     route: str | None = None
     key: str | None = None
     lang: str | None = None
@@ -65,12 +65,12 @@ class TranslationVersionResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     id: str = Field(validation_alias="_id")
-    translationId: str | None = Field(default=None, validation_alias="translation_id")
+    translation_id: str | None = None
     version: int | None = None
     translations: dict[str, Any] | None = None
-    approvedBy: str | None = Field(default=None, validation_alias="approved_by")
-    approvedAt: Any = Field(default=None, validation_alias="approved_at")
-    createdAt: Any = Field(default=None, validation_alias="created_at")
+    approved_by: str | None = None
+    approved_at: Any = None
+    created_at: Any = None
 
     @field_validator("id", mode="before")
     @classmethod

@@ -23,7 +23,7 @@ async def add_term(
     user: dict[str, Any] = Depends(require_admin),
 ) -> GlossaryTermResponse:
     repo = GlossaryRepository(db)
-    doc = await repo.add_term(body.sourceTerm, body.targetLang, body.translatedTerm)
+    doc = await repo.add_term(body.source_term, body.target_lang, body.translated_term)
     return GlossaryTermResponse.from_doc(doc)
 
 

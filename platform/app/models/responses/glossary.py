@@ -9,9 +9,9 @@ class GlossaryTermResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     id: str = Field(validation_alias="_id")
-    sourceTerm: str | None = Field(default=None, validation_alias="source_term")
-    targetLang: str | None = Field(default=None, validation_alias="target_lang")
-    translatedTerm: str | None = Field(default=None, validation_alias="translated_term")
+    source_term: str | None = None
+    target_lang: str | None = None
+    translated_term: str | None = None
 
     @field_validator("id", mode="before")
     @classmethod

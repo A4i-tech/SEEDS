@@ -32,8 +32,8 @@ async def test_register_website_generates_uuid_site_id(onboarding_service):
     website = await onboarding_service.register_website(project.id, "acme.com")
 
     assert website.domain == "acme.com"
-    assert website.projectId == project.id
-    assert len(website.siteId) == 36
+    assert website.project_id == project.id
+    assert len(website.site_id) == 36
 
 
 async def test_register_website_raises_not_found_for_unknown_project(onboarding_service):
@@ -69,7 +69,7 @@ async def test_snippet_format(onboarding_service, monkeypatch):
     snippet = website.snippet
 
     assert 'src="https://proxy.example.com/sdk.js"' in snippet
-    assert f'data-site-id="{website.siteId}"' in snippet
+    assert f'data-site-id="{website.site_id}"' in snippet
     assert 'data-api-base="https://proxy.example.com"' in snippet
     assert "defer" in snippet
 

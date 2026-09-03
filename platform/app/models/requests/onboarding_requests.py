@@ -6,19 +6,19 @@ from pydantic import BaseModel
 class ProjectCreateRequest(BaseModel):
     name: str
     description: str = ""
-    sourceLanguage: str = "English"
+    source_language: str = "English"
     status: str = "Active"
 
 
 class ProjectUpdateRequest(BaseModel):
     name: str | None = None
     description: str | None = None
-    sourceLanguage: str | None = None
+    source_language: str | None = None
     status: str | None = None
 
 
 class WebsiteCreateRequest(BaseModel):
-    projectId: str
+    project_id: str
     domain: str
     name: str = ""
     status: str = "Active"

@@ -30,7 +30,7 @@ async def create_project(
     user: dict[str, Any] = Depends(require_admin),
 ) -> ProjectResponse:
     return await service.create_project(
-        body.name, body.description, body.sourceLanguage, body.status
+        body.name, body.description, body.source_language, body.status
     )
 
 
@@ -69,7 +69,7 @@ async def register_website(
     service: OnboardingService = Depends(get_onboarding_service),
     user: dict[str, Any] = Depends(require_admin),
 ) -> WebsiteResponse:
-    return await service.register_website(body.projectId, body.domain, body.name, body.status)
+    return await service.register_website(body.project_id, body.domain, body.name, body.status)
 
 
 @router.get("/websites", summary="List registered websites, optionally filtered by project")

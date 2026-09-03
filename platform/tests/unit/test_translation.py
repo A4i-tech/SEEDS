@@ -1347,9 +1347,9 @@ def test_translation_response_exposes_low_confidence_flag():
     }
     out = TranslationResponse.from_doc(doc)
 
-    assert out.translations["hi"]["lowConfidence"] is True
-    assert out.translations["ta"]["lowConfidence"] is False
-    assert out.lowConfidence is True
+    assert out.translations["hi"]["low_confidence"] is True
+    assert out.translations["ta"]["low_confidence"] is False
+    assert out.low_confidence is True
 
 
 def test_translation_response_low_confidence_false_when_all_ok():
@@ -1360,8 +1360,8 @@ def test_translation_response_low_confidence_false_when_all_ok():
         "translations": {"hi": {"text": "x", "quality_score": 0.95}},
     }
     out = TranslationResponse.from_doc(doc)
-    assert out.translations["hi"]["lowConfidence"] is False
-    assert out.lowConfidence is False
+    assert out.translations["hi"]["low_confidence"] is False
+    assert out.low_confidence is False
 
 
 async def test_list_translations_low_confidence_only_filters(translation_repo, translation_service):

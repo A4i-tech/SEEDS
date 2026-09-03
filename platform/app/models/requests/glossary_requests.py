@@ -4,6 +4,6 @@ from pydantic import BaseModel
 
 
 class GlossaryTermCreateRequest(BaseModel):
-    sourceTerm: str
-    targetLang: str
-    translatedTerm: str
+    source_term: str
+    target_lang: str
+    translated_term: str
