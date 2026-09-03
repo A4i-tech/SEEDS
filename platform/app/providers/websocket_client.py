@@ -105,13 +105,7 @@ class WebsocketClientProvider:
         self._connect_lock = asyncio.Lock()
         self._bg_tasks: list[asyncio.Task[None]] = []
 
-        try:
-            await asyncio.wait_for(self._connect(), timeout=5.0)
-        except asyncio.TimeoutError:
-            logger.warning(
-                "WebsocketClientProvider: no connection to websocket-service after 5s, "
-                "continuing startup — reconnect will keep retrying in the background"
-            )
+        await self._connect()
         self._start_bg_processes()
         logger.info("WebsocketClientProvider: initialized")
 

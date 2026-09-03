@@ -34,11 +34,11 @@ class ExtractItem(BaseModel):
     key: str
     text: str = Field(max_length=5000)
     route: str = Field(max_length=2048)
-    sourceLang: str = "en"
+    source_lang: str = "en"
 
 
 class ExtractRequest(BaseModel):
-    siteId: str
+    site_id: str
     items: list[ExtractItem] = Field(default_factory=list, max_length=500)
 
 
@@ -50,7 +50,7 @@ async def extract(
     service: TranslationService = Depends(get_translation_service),
 ) -> StatusResponse:
     await service.extract_items(
-        body.siteId,
+        body.site_id,
         [item.model_dump() for item in body.items],
         origin=request.headers.get("origin"),
         referer=request.headers.get("referer"),
@@ -65,13 +65,13 @@ async def extract(
 @limiter.limit("300/minute")
 async def get_translations(
     request: Request,
-    siteId: str,
+    site_id: str,
     route: str = Query(max_length=2048),
     lang: str = Query(max_length=32),
     service: TranslationService = Depends(get_translation_service),
 ) -> dict[str, str]:
     return await service.runtime_translate(
-        siteId,
+        site_id,
         route,
         lang,
         origin=request.headers.get("origin"),
@@ -84,13 +84,13 @@ async def get_translations(
     summary="Authenticated on-demand translation generation for the Review/Admin workflow",
 )
 async def generate_translations(
-    siteId: str,
+    site_id: str,
     route: str = Query(max_length=2048),
     lang: str = Query(max_length=32),
     service: TranslationService = Depends(get_translation_service),
     user: dict[str, Any] = Depends(require_admin_or_reviewer),
 ) -> dict[str, str]:
-    return await service.generate_for_review(siteId, route, lang)
+    return await service.generate_for_review(site_id, route, lang)
 
 
 def _reviewer_id(user: dict[str, Any]) -> str:
@@ -99,11 +99,11 @@ def _reviewer_id(user: dict[str, Any]) -> str:
 
 @router.get("/analytics/summary", summary="Get basic dashboard analytics")
 async def get_analytics_summary(
-    siteId: str | None = None,
+    site_id: str,
     service: AnalyticsService = Depends(get_analytics_service),
     user: dict[str, Any] = Depends(require_admin),
 ) -> dict[str, int]:
-    return await service.get_summary(siteId)
+    return await service.get_summary(site_id)
 
 
 @router.get(
@@ -112,14 +112,14 @@ async def get_analytics_summary(
     response_model=list[TranslationResponse],
 )
 async def list_translations(
-    siteId: str,
+    site_id: str,
     route: str | None = None,
     status: str | None = None,
-    lowConfidence: bool = False,
+    low_confidence: bool = False,
     service: TranslationService = Depends(get_translation_service),
     user: dict[str, Any] = Depends(require_translation_reviewer),
 ) -> list[TranslationResponse]:
-    docs = await service.list_translations(siteId, route, status, low_confidence_only=lowConfidence)
+    docs = await service.list_translations(site_id, route, status, low_confidence_only=low_confidence)
     return [TranslationResponse.from_doc(doc) for doc in docs]
 
 
@@ -128,12 +128,12 @@ async def list_translations(
     summary="Approve all pending translations for a site (optionally scoped to route/lang)",
 )
 async def bulk_approve_translations(
-    siteId: str,
+    site_id: str,
     body: BulkApproveRequest,
     service: TranslationService = Depends(get_translation_service),
     user: dict[str, Any] = Depends(require_translation_reviewer),
 ) -> dict[str, int]:
-    return await service.bulk_approve_pending(siteId, _reviewer_id(user), route=body.route, lang=body.lang)
+    return await service.bulk_approve_pending(site_id, _reviewer_id(user), route=body.route, lang=body.lang)
 
 
 @router.get(
@@ -142,7 +142,7 @@ async def bulk_approve_translations(
     response_model=list[AuditEntryResponse],
 )
 async def get_audit_trail(
-    siteId: str,
+    site_id: str,
     route: str | None = None,
     key: str | None = None,
     action: str | None = None,
@@ -151,7 +151,7 @@ async def get_audit_trail(
     user: dict[str, Any] = Depends(require_translation_reviewer),
 ) -> list[AuditEntryResponse]:
     entries = await service.get_audit_trail(
-        siteId, route=route, key=key, action=action, limit=limit
+        site_id, route=route, key=key, action=action, limit=limit
     )
     return [AuditEntryResponse.from_doc(entry) for entry in entries]
 

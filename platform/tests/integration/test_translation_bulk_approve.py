@@ -46,14 +46,14 @@ async def _seed(mock_db, langs=("hi",), *, site="site1", route="/h", key="t1"):
 
 
 async def test_bulk_approve_requires_auth(client):
-    resp = await client.post("/translations/bulk-approve?siteId=site1", json={})
+    resp = await client.post("/translations/bulk-approve?site_id=site1", json={})
     assert resp.status_code == 401
 
 
 async def test_bulk_approve_forbidden_for_teacher(client, mock_db):
     repo = await _seed(mock_db)
     resp = await client.post(
-        "/translations/bulk-approve?siteId=site1",
+        "/translations/bulk-approve?site_id=site1",
         json={},
         headers={"Authorization": f"Bearer {_token('teacher')}"},
     )
@@ -65,7 +65,7 @@ async def test_bulk_approve_forbidden_for_teacher(client, mock_db):
 async def test_bulk_approve_allows_reviewer_and_approves(client, mock_db):
     repo = await _seed(mock_db)
     resp = await client.post(
-        "/translations/bulk-approve?siteId=site1",
+        "/translations/bulk-approve?site_id=site1",
         json={},
         headers={"Authorization": f"Bearer {_token('reviewer')}"},
     )
@@ -78,7 +78,7 @@ async def test_bulk_approve_allows_reviewer_and_approves(client, mock_db):
 async def test_bulk_approve_allows_admin(client, mock_db):
     await _seed(mock_db)
     resp = await client.post(
-        "/translations/bulk-approve?siteId=site1",
+        "/translations/bulk-approve?site_id=site1",
         json={},
         headers={"Authorization": f"Bearer {_token('admin')}"},
     )
@@ -89,7 +89,7 @@ async def test_bulk_approve_allows_admin(client, mock_db):
 async def test_bulk_approve_allows_tenant(client, mock_db):
     await _seed(mock_db)
     resp = await client.post(
-        "/translations/bulk-approve?siteId=site1",
+        "/translations/bulk-approve?site_id=site1",
         json={},
         headers={"Authorization": f"Bearer {_token('tenant')}"},
     )
@@ -100,7 +100,7 @@ async def test_bulk_approve_allows_tenant(client, mock_db):
 async def test_bulk_approve_allows_school_admin(client, mock_db):
     await _seed(mock_db)
     resp = await client.post(
-        "/translations/bulk-approve?siteId=site1",
+        "/translations/bulk-approve?site_id=site1",
         json={},
         headers={"Authorization": f"Bearer {_token('school_admin')}"},
     )
@@ -111,7 +111,7 @@ async def test_bulk_approve_allows_school_admin(client, mock_db):
 async def test_bulk_approve_allows_content_creator(client, mock_db):
     await _seed(mock_db)
     resp = await client.post(
-        "/translations/bulk-approve?siteId=site1",
+        "/translations/bulk-approve?site_id=site1",
         json={},
         headers={"Authorization": f"Bearer {_token('content_creator')}"},
     )
@@ -123,7 +123,7 @@ async def test_bulk_approve_forbidden_for_other_roles(client, mock_db):
     repo = await _seed(mock_db)
     for role in ("student",):
         resp = await client.post(
-            "/translations/bulk-approve?siteId=site1",
+            "/translations/bulk-approve?site_id=site1",
             json={},
             headers={"Authorization": f"Bearer {_token(role)}"},
         )
@@ -135,7 +135,7 @@ async def test_bulk_approve_forbidden_for_other_roles(client, mock_db):
 async def test_bulk_approve_lang_scope_only_approves_requested_language(client, mock_db):
     repo = await _seed(mock_db, langs=("hi", "mr"))
     resp = await client.post(
-        "/translations/bulk-approve?siteId=site1",
+        "/translations/bulk-approve?site_id=site1",
         json={"lang": "hi"},
         headers={"Authorization": f"Bearer {_token('reviewer')}"},
     )

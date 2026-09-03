@@ -13,9 +13,9 @@ class JobScheduledResponse(BaseModel):
 class JobStatusResponse(BaseModel):
     job_id: str | None = None
     status: str | None = "UNKNOWN"
-    content_id: str | None
-    started_at: str | None
-    reason: str | None
+    content_id: str | None = None
+    started_at: str | None = None
+    reason: str | None = None
 
 
 class JobListResponse(BaseModel):

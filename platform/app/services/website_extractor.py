@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 import httpx
 from bs4 import BeautifulSoup, Comment, NavigableString
 
+from app.models.responses.content import WebsiteExtractResponse
 from app.platform.error_handling import ValidationError
 
 _ALLOWED_SCHEMES = {"http", "https"}
@@ -78,7 +79,7 @@ async def _validate_url(url: str) -> None:
 
 
 class WebsiteExtractor:
-    async def extract(self, url: str) -> dict:
+    async def extract(self, url: str) -> WebsiteExtractResponse:
         await _validate_url(url)
 
         headers = {
@@ -121,8 +122,4 @@ class WebsiteExtractor:
                 seen.add(text)
                 content.append(text)
 
-        return {
-            "url": url,
-            "title": title,
-            "content": content,
-        }
+        return WebsiteExtractResponse(url=url, title=title, content=content)

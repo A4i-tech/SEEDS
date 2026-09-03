@@ -29,6 +29,6 @@ def score_translation(source_text: str, masked_translated: str, placeholder_map:
 
 
 def is_low_confidence(
-    quality_score: float | None, threshold: float = LOW_CONFIDENCE_THRESHOLD
+    quality_score: float = 1.0, threshold: float = LOW_CONFIDENCE_THRESHOLD
 ) -> bool:
-    return quality_score is not None and quality_score < threshold
+    return quality_score < threshold

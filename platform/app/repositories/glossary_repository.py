@@ -14,13 +14,13 @@ class GlossaryRepository(BaseRepository):
         self._col = db[self.COLLECTION]
 
     async def add_term(self, source_term: str, target_lang: str, translated_term: str) -> dict[str, Any]:
-        doc = {"sourceTerm": source_term, "targetLang": target_lang, "translatedTerm": translated_term}
+        doc = {"source_term": source_term, "target_lang": target_lang, "translated_term": translated_term}
         result = await self._col.insert_one(doc)
-        doc["_id"] = result.inserted_id
+        doc["_id"] = str(result.inserted_id)
         return doc
 
     async def find_by_lang(self, target_lang: str) -> list[dict[str, Any]]:
-        return await self._col.find({"targetLang": target_lang}).to_list(length=None)
+        return await self._col.find({"target_lang": target_lang}).to_list(length=None)
 
     async def find_all(self) -> list[dict[str, Any]]:
         return await self._col.find({}).to_list(length=None)

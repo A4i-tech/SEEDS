@@ -422,8 +422,7 @@ async def extract_website(
     user: dict[str, Any] = Depends(_require_content_read),
     service: ContentService = Depends(get_content_service),
 ) -> WebsiteExtractResponse:
-    result = await service.extract_website(str(body.url))
-    return WebsiteExtractResponse.model_validate(result)
+    return await service.extract_website(str(body.url))
 
 
 @router.post("/translate-website", summary="Translate extracted website content")
@@ -432,11 +431,11 @@ async def translate_website(
     user: dict[str, Any] = Depends(_require_content_read),
     translation_service: TranslationService = Depends(get_translation_service),
 ) -> WebsiteTranslationResponse:
-    if body.siteId and body.targetLanguageCode:
+    if body.site_id and body.target_language_code:
         return await _translate_and_persist(body, translation_service)
 
     provider = get_translation_provider(get_settings())
-    translated = await provider.translate(body.content, "auto", body.targetLanguage)
+    translated = await provider.translate(body.content, "auto", body.target_language)
     return WebsiteTranslationResponse(translatedContent=translated, persisted=False)
 
 
@@ -445,15 +444,15 @@ async def _translate_and_persist(
 ) -> WebsiteTranslationResponse:
     lines = [line.strip() for line in body.content.splitlines() if line.strip()]
     items = [
-        {"route": body.route, "key": sdk_hash_text(line), "sourceLang": "en", "text": line}
+        {"route": body.route, "key": sdk_hash_text(line), "source_lang": "en", "text": line}
         for line in lines
     ]
-    await translation_service.extract_items(body.siteId, items)
-    await translation_service.get_or_translate(body.siteId, body.route, body.targetLanguageCode)
+    await translation_service.extract_items(body.site_id, items)
+    await translation_service.get_or_translate(body.site_id, body.route, body.target_language_code)
 
-    docs = await translation_service.list_translations(body.siteId, route=body.route)
+    docs = await translation_service.list_translations(body.site_id, route=body.route)
     draft_by_key = {
-        doc["key"]: (doc.get("translations") or {}).get(body.targetLanguageCode, {}).get("text")
+        doc["key"]: (doc.get("translations") or {}).get(body.target_language_code, {}).get("text")
         for doc in docs
     }
     translated_lines = [draft_by_key.get(sdk_hash_text(line)) or line for line in lines]

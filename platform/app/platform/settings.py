@@ -20,10 +20,6 @@ class Settings(BaseSettings):
     version: str = "0.1.0"
     port: int = 8000
 
-    enable_local_demo_rbac_bypass: bool = False
-
-    enable_dev_localhost_origin_alias: bool = False
-
     first_party_site_ids: str = ""
 
     db_connection: str = Field(default="", repr=False)  # backend-server legacy name
@@ -99,7 +95,7 @@ class Settings(BaseSettings):
     translator_endpoint: str = "https://api.cognitive.microsofttranslator.com"
 
     translation_provider: str = "openai"
-    translation_sdk_base_url: str = "http://localhost:3000"
+    translation_sdk_base_url: str = ""
     low_confidence_threshold: float = 0.7
 
     base_url: str = ""

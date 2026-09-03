@@ -75,12 +75,12 @@ async def test_extract_fetches_and_parses_public_page(monkeypatch):
     )
 
     result = await WebsiteExtractor().extract("http://example.com")
-    assert result["title"] == "Hi"
-    assert "Hello" in result["content"]
-    assert "World" in result["content"]
+    assert result.title == "Hi"
+    assert "Hello" in result.content
+    assert "World" in result.content
 
 
-async def _extract_html(monkeypatch, html: str) -> dict:
+async def _extract_html(monkeypatch, html: str):
     monkeypatch.setattr(socket, "getaddrinfo", _fake_addrinfo("93.184.216.34"))
 
     def _handler(request: httpx.Request) -> httpx.Response:
@@ -105,19 +105,19 @@ def _sdk_side_text_nodes(*texts: str) -> list[str]:
 async def test_extract_splits_inline_element_into_separate_text_nodes(monkeypatch):
     html = "<html><body><p>Hello <b>world</b></p></body></html>"
     result = await _extract_html(monkeypatch, html)
-    assert result["content"] == ["Hello", "world"]
+    assert result.content == ["Hello", "world"]
 
 
 async def test_extract_inline_markup_with_trailing_text_node(monkeypatch):
     html = "<html><body><p>Hello<b>world</b>!</p></body></html>"
     result = await _extract_html(monkeypatch, html)
-    assert result["content"] == ["Hello", "world", "!"]
+    assert result.content == ["Hello", "world", "!"]
 
 
 async def test_extract_plain_text_element_unaffected(monkeypatch):
     html = "<html><body><p>Just plain text</p></body></html>"
     result = await _extract_html(monkeypatch, html)
-    assert result["content"] == ["Just plain text"]
+    assert result.content == ["Just plain text"]
 
 
 async def test_extract_keys_match_sdk_per_node_keys(monkeypatch):
@@ -127,8 +127,8 @@ async def test_extract_keys_match_sdk_per_node_keys(monkeypatch):
     result = await _extract_html(monkeypatch, html)
 
     sdk_side = _sdk_side_text_nodes("Hello ", "world")
-    assert result["content"] == sdk_side
-    assert [sdk_hash_text(t) for t in result["content"]] == [
+    assert result.content == sdk_side
+    assert [sdk_hash_text(t) for t in result.content] == [
         sdk_hash_text(t) for t in sdk_side
     ]
 
@@ -143,7 +143,7 @@ async def test_extract_skips_non_translatable_skip_tags_and_opt_out(monkeypatch)
         "</body></html>"
     )
     result = await _extract_html(monkeypatch, html)
-    assert result["content"] == ["Keep me"]
+    assert result.content == ["Keep me"]
 
 
 async def test_extract_rejects_redirect_to_blocked_target(monkeypatch):

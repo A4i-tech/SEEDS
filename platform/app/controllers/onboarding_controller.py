@@ -29,10 +29,9 @@ async def create_project(
     service: OnboardingService = Depends(get_onboarding_service),
     user: dict[str, Any] = Depends(require_admin),
 ) -> ProjectResponse:
-    project = await service.create_project(
+    return await service.create_project(
         body.name, body.description, body.sourceLanguage, body.status
     )
-    return ProjectResponse.from_doc(project)
 
 
 @router.get("/projects", summary="List registered projects")
@@ -40,8 +39,7 @@ async def list_projects(
     service: OnboardingService = Depends(get_onboarding_service),
     user: dict[str, Any] = Depends(require_admin_or_reviewer),
 ) -> list[ProjectResponse]:
-    projects = await service.list_projects()
-    return [ProjectResponse.from_doc(project) for project in projects]
+    return await service.list_projects()
 
 
 @router.put("/projects/{project_id}", summary="Update a project")
@@ -52,8 +50,7 @@ async def update_project(
     user: dict[str, Any] = Depends(require_admin),
 ) -> ProjectResponse:
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
-    project = await service.update_project(project_id, fields)
-    return ProjectResponse.from_doc(project)
+    return await service.update_project(project_id, fields)
 
 
 @router.delete("/projects/{project_id}", summary="Delete a project")
@@ -72,9 +69,7 @@ async def register_website(
     service: OnboardingService = Depends(get_onboarding_service),
     user: dict[str, Any] = Depends(require_admin),
 ) -> WebsiteResponse:
-    website = await service.register_website(body.projectId, body.domain, body.name, body.status)
-    snippet = service.snippet_for(website)
-    return WebsiteResponse.from_doc(website, snippet=snippet)
+    return await service.register_website(body.projectId, body.domain, body.name, body.status)
 
 
 @router.get("/websites", summary="List registered websites, optionally filtered by project")
@@ -83,8 +78,7 @@ async def list_websites(
     service: OnboardingService = Depends(get_onboarding_service),
     user: dict[str, Any] = Depends(require_admin_or_reviewer),
 ) -> list[WebsiteResponse]:
-    websites = await service.list_websites(projectId)
-    return [WebsiteResponse.from_doc(website) for website in websites]
+    return await service.list_websites(projectId)
 
 
 @router.get("/websites/{website_id}", summary="Get a registered website, including its SDK snippet")
@@ -93,9 +87,7 @@ async def get_website(
     service: OnboardingService = Depends(get_onboarding_service),
     user: dict[str, Any] = Depends(require_admin_or_reviewer),
 ) -> WebsiteResponse:
-    website = await service.get_website(website_id)
-    snippet = service.snippet_for(website)
-    return WebsiteResponse.from_doc(website, snippet=snippet)
+    return await service.get_website(website_id)
 
 
 @router.put("/websites/{website_id}", summary="Update a website")
@@ -106,9 +98,7 @@ async def update_website(
     user: dict[str, Any] = Depends(require_admin),
 ) -> WebsiteResponse:
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
-    website = await service.update_website(website_id, fields)
-    snippet = service.snippet_for(website)
-    return WebsiteResponse.from_doc(website, snippet=snippet)
+    return await service.update_website(website_id, fields)
 
 
 @router.delete("/websites/{website_id}", summary="Delete a website")

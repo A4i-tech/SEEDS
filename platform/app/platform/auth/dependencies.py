@@ -39,12 +39,12 @@ def set_refresh_cookie(response: Response, refresh_token: str) -> None:
         httponly=True,
         secure=True,
         samesite="lax",
-        path="/",
+        path="/auth",
     )
 
 
 def clear_refresh_cookie(response: Response) -> None:
-    response.delete_cookie(key=REFRESH_COOKIE_NAME, path="/")
+    response.delete_cookie(key=REFRESH_COOKIE_NAME, path="/auth")
 
 
 # ---------------------------------------------------------------------------
@@ -149,24 +149,13 @@ require_translation_reviewer = require_role(
     "admin", "reviewer", "tenant", "school_admin", "content_creator"
 )
 
-_LOCAL_DEMO_BYPASS_ROLE = "tenant"
-
-
-def _admin_or_reviewer_dev_bypass(role: str | None) -> bool:
-    return get_settings().env == "development" and role == _LOCAL_DEMO_BYPASS_ROLE
-
-
 async def require_admin(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
-    if _admin_or_reviewer_dev_bypass(user.get("role")):
-        return user
     if user.get("role") != "admin":
         raise ForbiddenError("one of ['admin'] role required")
     return user
 
 
 async def require_admin_or_reviewer(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
-    if _admin_or_reviewer_dev_bypass(user.get("role")):
-        return user
     if user.get("role") not in {"admin", "reviewer"}:
         raise ForbiddenError("one of ['admin', 'reviewer'] role required")
     return user

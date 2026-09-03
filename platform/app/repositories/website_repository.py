@@ -17,7 +17,7 @@ class WebsiteRepository(BaseRepository):
     @classmethod
     async def ensure_indexes(cls, db: AsyncDatabase) -> None:
         col = db[cls.COLLECTION]
-        await col.create_index("siteId", unique=True)
+        await col.create_index("site_id", unique=True)
         await col.create_index("domain", unique=True)
 
     async def create(
@@ -30,13 +30,13 @@ class WebsiteRepository(BaseRepository):
     ) -> dict[str, Any]:
         now = datetime.now(UTC)
         doc = {
-            "projectId": project_id,
+            "project_id": project_id,
             "domain": domain,
-            "siteId": site_id,
+            "site_id": site_id,
             "name": name,
             "status": status,
-            "createdAt": now,
-            "updatedAt": now,
+            "created_at": now,
+            "updated_at": now,
         }
         result = await self._col.insert_one(doc)
         doc["_id"] = result.inserted_id
@@ -46,16 +46,16 @@ class WebsiteRepository(BaseRepository):
         return await self._col.find_one({"_id": self._to_id(website_id)})
 
     async def find_by_site_id(self, site_id: str) -> dict[str, Any] | None:
-        return await self._col.find_one({"siteId": site_id})
+        return await self._col.find_one({"site_id": site_id})
 
     async def find_by_project(self, project_id: str) -> list[dict[str, Any]]:
-        return await self._col.find({"projectId": project_id}).to_list(length=None)
+        return await self._col.find({"project_id": project_id}).to_list(length=None)
 
     async def find_all(self) -> list[dict[str, Any]]:
         return await self._col.find({}).to_list(length=None)
 
     async def update(self, website_id: str, fields: dict[str, Any]) -> dict[str, Any] | None:
-        fields = {**fields, "updatedAt": datetime.now(UTC)}
+        fields = {**fields, "updated_at": datetime.now(UTC)}
         await self._col.update_one({"_id": self._to_id(website_id)}, {"$set": fields})
         return await self.find_by_id(website_id)
 

@@ -271,32 +271,6 @@ class TestDependencies:
             await require_admin_or_reviewer(user=user)
 
     @pytest.mark.asyncio
-    async def test_require_admin_or_reviewer_dev_bypass_allows_tenant(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        from app.platform.settings import get_settings
-
-        monkeypatch.setenv("ENV", "development")
-        get_settings.cache_clear()
-
-        user = {"sub": "u1", "role": "tenant"}
-        result = await require_admin_or_reviewer(user=user)
-        assert result == user
-
-    @pytest.mark.asyncio
-    async def test_require_admin_dev_bypass_allows_tenant(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        from app.platform.settings import get_settings
-
-        monkeypatch.setenv("ENV", "development")
-        get_settings.cache_clear()
-
-        user = {"sub": "u1", "role": "tenant"}
-        result = await require_admin(user=user)
-        assert result == user
-
-    @pytest.mark.asyncio
     async def test_require_admin_or_reviewer_blocks_tenant_in_production(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

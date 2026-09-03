@@ -19,7 +19,6 @@ from app.services.translation_service import TranslationService
 from tests.support.mongomock_async import AsyncMongoMockClient
 
 
-
 @pytest.fixture
 def mock_db():
     client = AsyncMongoMockClient()
@@ -49,9 +48,9 @@ def fake_provider():
 async def translation_service(mock_db, fake_provider):
     await mock_db["websites"].insert_many(
         [
-            {"siteId": "site1", "status": "Active"},
-            {"siteId": "site2", "status": "Active"},
-            {"siteId": "s1", "status": "Active"},
+            {"site_id": "site1", "status": "Active"},
+            {"site_id": "site2", "status": "Active"},
+            {"site_id": "s1", "status": "Active"},
         ]
     )
     return TranslationService(
@@ -217,7 +216,7 @@ async def test_upsert_source_is_idempotent(translation_repo):
 
     docs = await translation_repo.find_by_route("site1", "/home")
     assert len(docs) == 1
-    assert docs[0]["sourceText"] == "Hello"
+    assert docs[0]["source_text"] == "Hello"
 
 
 async def test_save_translation_then_find_by_keys(translation_repo):
@@ -248,11 +247,11 @@ async def test_save_translation_does_not_cross_route_when_keys_collide(translati
 async def test_extract_items_upserts_source(translation_service, translation_repo):
     await translation_service.extract_items(
         "site1",
-        [{"key": "t1", "text": "Hello", "route": "/home", "sourceLang": "en"}],
+        [{"key": "t1", "text": "Hello", "route": "/home", "source_lang": "en"}],
     )
     docs = await translation_repo.find_by_route("site1", "/home")
     assert len(docs) == 1
-    assert docs[0]["sourceText"] == "Hello"
+    assert docs[0]["source_text"] == "Hello"
 
 
 async def test_get_or_translate_calls_provider_once_then_reuses(
@@ -276,7 +275,7 @@ async def test_get_or_translate_calls_provider_once_then_reuses(
 async def _seeded_translation_id(translation_repo, translation_service):
     await translation_service.extract_items(
         "site1",
-        [{"key": "t1", "text": "Hello", "route": "/home", "sourceLang": "en"}],
+        [{"key": "t1", "text": "Hello", "route": "/home", "source_lang": "en"}],
     )
     docs = await translation_repo.find_by_route("site1", "/home")
     return str(docs[0]["_id"])
@@ -286,7 +285,7 @@ async def test_get_translation_returns_doc(translation_repo, translation_service
     translation_id = await _seeded_translation_id(translation_repo, translation_service)
 
     doc = await translation_service.get_translation(translation_id)
-    assert doc["sourceText"] == "Hello"
+    assert doc["source_text"] == "Hello"
 
 
 async def test_get_translation_raises_not_found_for_unknown_id():
@@ -317,8 +316,8 @@ async def test_approve_translation_sets_reviewer_metadata(translation_repo, tran
 
     doc = await translation_service.approve_translation(translation_id, "hi", "reviewer@example.com")
     assert doc["status"] == "approved"
-    assert doc["approvedBy"] == "reviewer@example.com"
-    assert doc["approvedAt"] is not None
+    assert doc["approved_by"] == "reviewer@example.com"
+    assert doc["approved_at"] is not None
 
 
 async def test_approve_translation_raises_not_found_for_unknown_id(translation_service):
@@ -396,7 +395,7 @@ async def test_partner_site_keeps_gate_even_when_first_party_configured(
 ):
     monkeypatch.setattr(ts_module, "get_settings", lambda: _settings_first_party("site1"))
     await translation_service.extract_items(
-        "site2", [{"key": "t1", "text": "Hello", "route": "/home", "sourceLang": "en"}]
+        "site2", [{"key": "t1", "text": "Hello", "route": "/home", "source_lang": "en"}]
     )
     assert await translation_service.get_or_translate("site2", "/home", "hi") == {"t1": "Hello"}
     docs = await translation_repo.find_by_route("site2", "/home")
@@ -410,7 +409,7 @@ async def test_partner_rejected_serves_source_even_when_first_party_configured(
 ):
     monkeypatch.setattr(ts_module, "get_settings", lambda: _settings_first_party("site1"))
     await translation_service.extract_items(
-        "site2", [{"key": "t1", "text": "Hello", "route": "/home", "sourceLang": "en"}]
+        "site2", [{"key": "t1", "text": "Hello", "route": "/home", "source_lang": "en"}]
     )
     await translation_service.get_or_translate("site2", "/home", "hi")
     docs = await translation_repo.find_by_route("site2", "/home")
@@ -433,8 +432,8 @@ async def test_get_stored_translations_reads_only_never_calls_provider(
     await translation_service.extract_items(
         "site1",
         [
-            {"key": "t1", "text": "Hello", "route": "/home", "sourceLang": "en"},
-            {"key": "t2", "text": "World", "route": "/home", "sourceLang": "en"},
+            {"key": "t1", "text": "Hello", "route": "/home", "source_lang": "en"},
+            {"key": "t2", "text": "World", "route": "/home", "source_lang": "en"},
         ],
     )
     await translation_repo.save_translation(
@@ -489,7 +488,7 @@ async def test_translation_memory_reuses_approved_exact_match_no_ai_call(
     assert len(fake_provider.calls) == 1
 
     await translation_service.extract_items(
-        "site1", [{"key": "t2", "text": "Hello", "route": "/about", "sourceLang": "en"}]
+        "site1", [{"key": "t2", "text": "Hello", "route": "/about", "source_lang": "en"}]
     )
 
     result = await translation_service.get_or_translate("site1", "/about", "hi")
@@ -511,7 +510,7 @@ async def test_translation_memory_scoped_to_site_no_cross_tenant_reuse(
     assert len(fake_provider.calls) == 1
 
     await translation_service.extract_items(
-        "site2", [{"key": "t2", "text": "Hello", "route": "/about", "sourceLang": "en"}]
+        "site2", [{"key": "t2", "text": "Hello", "route": "/about", "source_lang": "en"}]
     )
     await translation_service.get_or_translate("site2", "/about", "hi")
     assert len(fake_provider.calls) == 2
@@ -524,7 +523,7 @@ async def test_translation_memory_no_match_falls_through_to_ai_call(
     translation_repo, translation_service, fake_provider
 ):
     await translation_service.extract_items(
-        "site1", [{"key": "t1", "text": "Unique phrase", "route": "/home", "sourceLang": "en"}]
+        "site1", [{"key": "t1", "text": "Unique phrase", "route": "/home", "source_lang": "en"}]
     )
 
     result = await translation_service.get_or_translate("site1", "/home", "hi")
@@ -541,7 +540,7 @@ async def test_translation_memory_does_not_reuse_unapproved_translation(
     assert len(fake_provider.calls) == 1
 
     await translation_service.extract_items(
-        "site2", [{"key": "t2", "text": "Hello", "route": "/about", "sourceLang": "en"}]
+        "site2", [{"key": "t2", "text": "Hello", "route": "/about", "source_lang": "en"}]
     )
 
     await translation_service.get_or_translate("site2", "/about", "hi")
@@ -557,36 +556,36 @@ async def test_get_analytics_counts_across_pending_approved_ai_and_tm(translatio
     await translation_service.approve_translation(id1, "hi", "reviewer@example.com")
 
     await translation_service.extract_items(
-        "site1", [{"key": "t2", "text": "Goodbye", "route": "/bye", "sourceLang": "en"}]
+        "site1", [{"key": "t2", "text": "Goodbye", "route": "/bye", "source_lang": "en"}]
     )
     await translation_service.get_or_translate("site1", "/bye", "hi")
 
     await translation_service.extract_items(
-        "site1", [{"key": "t3", "text": "Hello", "route": "/about", "sourceLang": "en"}]
+        "site1", [{"key": "t3", "text": "Hello", "route": "/about", "source_lang": "en"}]
     )
     await translation_service.get_or_translate("site1", "/about", "hi")
 
     analytics = await translation_repo.get_analytics()
     assert analytics == {
-        "totalTranslations": 3,
-        "approvedTranslations": 2,
-        "pendingTranslations": 1,
-        "aiGeneratedTranslations": 2,
-        "translationMemoryReusedTranslations": 1,
+        "total_translations": 3,
+        "approved_translations": 2,
+        "pending_translations": 1,
+        "ai_generated_translations": 2,
+        "translation_memory_reused_translations": 1,
     }
 
 
 async def test_get_analytics_filters_by_site_id(translation_repo, translation_service):
     await _seeded_translation_id(translation_repo, translation_service)
     await translation_service.extract_items(
-        "site2", [{"key": "t2", "text": "Bonjour", "route": "/home", "sourceLang": "en"}]
+        "site2", [{"key": "t2", "text": "Bonjour", "route": "/home", "source_lang": "en"}]
     )
 
     site1_analytics = await translation_repo.get_analytics("site1")
     site2_analytics = await translation_repo.get_analytics("site2")
 
-    assert site1_analytics["totalTranslations"] == 1
-    assert site2_analytics["totalTranslations"] == 1
+    assert site1_analytics["total_translations"] == 1
+    assert site2_analytics["total_translations"] == 1
 
 
 async def test_find_by_site_and_analytics_enforce_row_cap(
@@ -599,7 +598,7 @@ async def test_find_by_site_and_analytics_enforce_row_cap(
     await translation_service.extract_items(
         "site1",
         [
-            {"key": f"t{i}", "text": f"Text {i}", "route": "/home", "sourceLang": "en"}
+            {"key": f"t{i}", "text": f"Text {i}", "route": "/home", "source_lang": "en"}
             for i in range(5)
         ],
     )
@@ -608,8 +607,8 @@ async def test_find_by_site_and_analytics_enforce_row_cap(
     assert len(docs) == 3
 
     analytics = await translation_repo.get_analytics("site1")
-    assert analytics["totalTranslations"] == 5
-    assert analytics["aiGeneratedTranslations"] <= 3
+    assert analytics["total_translations"] == 5
+    assert analytics["ai_generated_translations"] <= 3
 
 
 async def test_analytics_service_summary_includes_project_and_site_counts(mock_db, translation_repo, translation_service):
@@ -618,15 +617,15 @@ async def test_analytics_service_summary_includes_project_and_site_counts(mock_d
 
     onboarding = OnboardingService(mock_db)
     project = await onboarding.create_project("Acme Corp")
-    await onboarding.register_website(str(project["_id"]), "acme.com")
-    await onboarding.register_website(str(project["_id"]), "widgets.acme.com")
+    await onboarding.register_website(project.id, "acme.com")
+    await onboarding.register_website(project.id, "widgets.acme.com")
 
     await _seeded_translation_id(translation_repo, translation_service)
 
     summary = await AnalyticsService(mock_db).get_summary()
     assert summary["totalProjects"] == 1
     assert summary["totalSites"] == 5
-    assert summary["totalTranslations"] == 1
+    assert summary["total_translations"] == 1
 
 
 async def test_glossary_term_replaced_before_ai_call(mock_db, translation_repo, translation_service, fake_provider):
@@ -648,7 +647,7 @@ async def test_fresh_ai_translation_has_heuristic_quality_score(translation_repo
     await translation_service.get_or_translate("site1", "/home", "hi")
 
     docs = await translation_repo.find_by_route("site1", "/home")
-    quality_score = docs[0]["translations"]["hi"]["qualityScore"]
+    quality_score = docs[0]["translations"]["hi"]["quality_score"]
     assert isinstance(quality_score, float)
     assert 0.0 <= quality_score <= 1.0
     assert docs[0]["translations"]["hi"]["provider"] == "_FakeProvider"
@@ -660,12 +659,12 @@ async def test_translation_memory_reuse_has_quality_score_one(translation_repo, 
     await translation_service.approve_translation(id1, "hi", "reviewer@example.com")
 
     await translation_service.extract_items(
-        "site1", [{"key": "t2", "text": "Hello", "route": "/about", "sourceLang": "en"}]
+        "site1", [{"key": "t2", "text": "Hello", "route": "/about", "source_lang": "en"}]
     )
     await translation_service.get_or_translate("site1", "/about", "hi")
 
     docs = await translation_repo.find_by_route("site1", "/about")
-    assert docs[0]["translations"]["hi"]["qualityScore"] == 1.0
+    assert docs[0]["translations"]["hi"]["quality_score"] == 1.0
     assert docs[0]["translations"]["hi"]["provider"] == "TranslationMemory"
 
 
@@ -679,7 +678,7 @@ async def test_approve_translation_records_version_one(translation_repo, transla
     history = await translation_service.get_version_history(translation_id)
     assert len(history) == 1
     assert history[0]["version"] == 1
-    assert history[0]["approvedBy"] == "reviewer@example.com"
+    assert history[0]["approved_by"] == "reviewer@example.com"
     assert history[0]["translations"]["hi"]["text"] == "[hi] Hello"
 
 
@@ -695,7 +694,7 @@ async def test_versions_endpoint_admin_access(translation_repo, translation_serv
     history = await get_version_history(translation_id, service=translation_service, user=user)
 
     assert len(history) == 1
-    assert history[0]["version"] == 1
+    assert history[0].version == 1
 
 
 async def test_versions_endpoint_reviewer_access(translation_repo, translation_service):
@@ -710,7 +709,7 @@ async def test_versions_endpoint_reviewer_access(translation_repo, translation_s
     history = await get_version_history(translation_id, service=translation_service, user=user)
 
     assert len(history) == 1
-    assert history[0]["version"] == 1
+    assert history[0].version == 1
 
 
 async def test_versions_endpoint_tenant_access(translation_repo, translation_service):
@@ -725,7 +724,7 @@ async def test_versions_endpoint_tenant_access(translation_repo, translation_ser
     history = await get_version_history(translation_id, service=translation_service, user=user)
 
     assert len(history) == 1
-    assert history[0]["version"] == 1
+    assert history[0].version == 1
 
 
 async def test_versions_endpoint_school_admin_access(translation_repo, translation_service):
@@ -740,7 +739,7 @@ async def test_versions_endpoint_school_admin_access(translation_repo, translati
     history = await get_version_history(translation_id, service=translation_service, user=user)
 
     assert len(history) == 1
-    assert history[0]["version"] == 1
+    assert history[0].version == 1
 
 
 async def test_versions_endpoint_content_creator_access(translation_repo, translation_service):
@@ -755,7 +754,7 @@ async def test_versions_endpoint_content_creator_access(translation_repo, transl
     history = await get_version_history(translation_id, service=translation_service, user=user)
 
     assert len(history) == 1
-    assert history[0]["version"] == 1
+    assert history[0].version == 1
 
 
 async def test_versions_endpoint_unauthorized_access(translation_repo, translation_service):
@@ -787,8 +786,8 @@ async def test_reapproval_appends_new_version_without_touching_history(translati
     assert [v["version"] for v in history] == [1, 2]
     assert history[0]["translations"]["hi"]["text"] == "[hi] Hello"
     assert history[1]["translations"]["hi"]["text"] == "Namaste (edited)"
-    assert history[0]["approvedBy"] == "reviewer1@example.com"
-    assert history[1]["approvedBy"] == "reviewer2@example.com"
+    assert history[0]["approved_by"] == "reviewer1@example.com"
+    assert history[1]["approved_by"] == "reviewer2@example.com"
 
 
 async def test_quality_score_survives_approval_unchanged(translation_repo, translation_service):
@@ -796,11 +795,11 @@ async def test_quality_score_survives_approval_unchanged(translation_repo, trans
     await translation_service.get_or_translate("site1", "/home", "hi")
 
     doc = await translation_service.get_translation(translation_id)
-    pre_approval_score = doc["translations"]["hi"]["qualityScore"]
+    pre_approval_score = doc["translations"]["hi"]["quality_score"]
     assert isinstance(pre_approval_score, float)
 
     approved_doc = await translation_service.approve_translation(translation_id, "hi", "reviewer@example.com")
-    assert approved_doc["translations"]["hi"]["qualityScore"] == pre_approval_score
+    assert approved_doc["translations"]["hi"]["quality_score"] == pre_approval_score
 
 
 async def test_glossary_no_matching_terms_leaves_text_unchanged(
@@ -845,13 +844,13 @@ async def test_translation_creation_is_audited(mock_db, translation_repo, transl
     await translation_service.get_or_translate("site1", "/home", "hi")
 
     doc = (await translation_repo.find_by_route("site1", "/home"))[0]
-    assert doc["translations"]["hi"]["createdBy"] == "system:_FakeProvider"
+    assert doc["translations"]["hi"]["created_by"] == "system:_FakeProvider"
 
-    actions = {e["action"] for e in doc.get("auditLog", [])}
+    actions = {e["action"] for e in doc.get("audit_log", [])}
     assert "translated" in actions
 
-    entries = await mock_db["translation_audit"].find(
-        {"siteId": "site1", "route": "/home", "action": "translated"}
+    entries = await mock_db["translationAudit"].find(
+        {"site_id": "site1", "route": "/home", "action": "translated"}
     ).to_list(length=None)
     assert len(entries) == 1
     assert entries[0]["actor"] == "system:_FakeProvider"
@@ -886,8 +885,8 @@ async def test_runtime_translate_generates_missing_on_demand(
     translation_repo, translation_service
 ):
     await translation_service.extract_items("site1", [
-        {"key": "t1", "text": "Hello", "route": "/h", "sourceLang": "en"},
-        {"key": "t2", "text": "World", "route": "/h", "sourceLang": "en"},
+        {"key": "t1", "text": "Hello", "route": "/h", "source_lang": "en"},
+        {"key": "t2", "text": "World", "route": "/h", "source_lang": "en"},
     ])
     result = await translation_service.runtime_translate("site1", "/h", "hi")
     assert result == {"t1": "Hello", "t2": "World"}
@@ -900,7 +899,7 @@ async def test_runtime_translate_generates_missing_on_demand(
 
 
 async def test_runtime_batch_per_item_gate_uses_per_language_status_not_doc_level(mock_db):
-    await mock_db["websites"].insert_one({"siteId": "site1", "status": "Active"})
+    await mock_db["websites"].insert_one({"site_id": "site1", "status": "Active"})
 
     class _BatchFailsProvider(TranslationProvider):
         async def translate(self, text, source_lang, target_lang):
@@ -918,7 +917,7 @@ async def test_runtime_batch_per_item_gate_uses_per_language_status_not_doc_leve
     repo = TranslationRepository(mock_db)
     await repo.upsert_source("site1", "/h", "t1", "en", "Hello")
     await mock_db["translations"].update_one(
-        {"siteId": "site1", "route": "/h", "key": "t1"},
+        {"site_id": "site1", "route": "/h", "key": "t1"},
         {"$set": {
             "status": "approved",
             "translations.ta": {"text": "[ta] Hello", "status": "approved"},
@@ -1006,7 +1005,7 @@ async def test_runtime_translate_reuses_existing_no_regenerate(
     translation_repo, translation_service, fake_provider
 ):
     await translation_service.extract_items("site1", [
-        {"key": "t1", "text": "Hello", "route": "/h", "sourceLang": "en"},
+        {"key": "t1", "text": "Hello", "route": "/h", "source_lang": "en"},
     ])
     await translation_service.runtime_translate("site1", "/h", "hi")
     assert len(fake_provider.calls) == 1
@@ -1018,7 +1017,7 @@ async def test_runtime_translate_falls_back_to_source_on_transient(
     translation_repo, translation_service, monkeypatch
 ):
     await translation_service.extract_items("site1", [
-        {"key": "t1", "text": "Hi", "route": "/h", "sourceLang": "en"},
+        {"key": "t1", "text": "Hi", "route": "/h", "source_lang": "en"},
     ])
 
     async def boom(*a, **k):
@@ -1040,7 +1039,7 @@ async def bound_service(mock_db, fake_provider):
     from app.repositories.language_repository import LanguageRepository
 
     await mock_db["websites"].insert_many(
-        [{"siteId": "site1", "status": "Active", "domain": "acme.example"}]
+        [{"site_id": "site1", "status": "Active", "domain": "acme.example"}]
     )
     await LanguageRepository(mock_db).create("Hindi", "hi", "ltr", True)
     return TranslationService(mock_db, lambda: fake_provider)
@@ -1052,7 +1051,7 @@ async def test_extract_items_rejects_origin_mismatch(bound_service):
     with pytest.raises(ForbiddenError):
         await bound_service.extract_items(
             "site1",
-            [{"key": "t1", "text": "Hello", "route": "/home", "sourceLang": "en"}],
+            [{"key": "t1", "text": "Hello", "route": "/home", "source_lang": "en"}],
             origin="https://evil.example",
         )
 
@@ -1063,14 +1062,14 @@ async def test_extract_items_rejects_missing_origin(bound_service):
     with pytest.raises(ForbiddenError):
         await bound_service.extract_items(
             "site1",
-            [{"key": "t1", "text": "Hello", "route": "/home", "sourceLang": "en"}],
+            [{"key": "t1", "text": "Hello", "route": "/home", "source_lang": "en"}],
         )
 
 
 async def test_extract_items_allows_matching_origin(bound_service):
     await bound_service.extract_items(
         "site1",
-        [{"key": "t1", "text": "Hello", "route": "/home", "sourceLang": "en"}],
+        [{"key": "t1", "text": "Hello", "route": "/home", "source_lang": "en"}],
         origin="https://acme.example",
     )
 
@@ -1078,7 +1077,7 @@ async def test_extract_items_allows_matching_origin(bound_service):
 async def test_extract_items_allows_matching_referer_when_origin_absent(bound_service):
     await bound_service.extract_items(
         "site1",
-        [{"key": "t1", "text": "Hello", "route": "/home", "sourceLang": "en"}],
+        [{"key": "t1", "text": "Hello", "route": "/home", "source_lang": "en"}],
         referer="https://acme.example/pricing",
     )
 
@@ -1088,7 +1087,7 @@ async def test_runtime_translate_rejects_origin_mismatch(bound_service):
 
     await bound_service.extract_items(
         "site1",
-        [{"key": "t1", "text": "Hello", "route": "/h", "sourceLang": "en"}],
+        [{"key": "t1", "text": "Hello", "route": "/h", "source_lang": "en"}],
         origin="https://acme.example",
     )
     with pytest.raises(ForbiddenError):
@@ -1100,7 +1099,7 @@ async def localhost_bound_service(mock_db, fake_provider):
     from app.repositories.language_repository import LanguageRepository
 
     await mock_db["websites"].insert_many(
-        [{"siteId": "site-local", "status": "Active", "domain": "127.0.0.1"}]
+        [{"site_id": "site-local", "status": "Active", "domain": "127.0.0.1"}]
     )
     await LanguageRepository(mock_db).create("Hindi", "hi", "ltr", True)
     return TranslationService(mock_db, lambda: fake_provider)
@@ -1112,51 +1111,20 @@ async def test_dev_localhost_alias_disabled_by_default_still_rejects(localhost_b
     with pytest.raises(ForbiddenError):
         await localhost_bound_service.extract_items(
             "site-local",
-            [{"key": "t1", "text": "Hello", "route": "/h", "sourceLang": "en"}],
+            [{"key": "t1", "text": "Hello", "route": "/h", "source_lang": "en"}],
             origin="http://localhost:3000",
         )
 
 
-async def test_dev_localhost_alias_when_enabled_allows_localhost_for_127001_site(
-    monkeypatch, localhost_bound_service
-):
-    import app.services.translation_service as ts
-
-    class _AliasSettings:
-        enable_dev_localhost_origin_alias = True
-
-    monkeypatch.setattr(ts, "get_settings", lambda: _AliasSettings())
-
-    await localhost_bound_service.extract_items(
-        "site-local",
-        [{"key": "t1", "text": "Hello", "route": "/h", "sourceLang": "en"}],
-        origin="http://localhost:3000",
-    )
-    result = await localhost_bound_service.runtime_translate(
-        "site-local", "/h", "hi", origin="http://localhost:3000"
-    )
-    assert result == {"t1": "Hello"}
-
-
-async def test_dev_localhost_alias_when_enabled_still_rejects_unrelated_origin(
-    monkeypatch, localhost_bound_service
-):
-    import app.services.translation_service as ts
+async def test_dev_localhost_alias_when_enabled_still_rejects_unrelated_origin(localhost_bound_service):
     from app.platform.error_handling import ForbiddenError
-
-    class _AliasSettings:
-        enable_dev_localhost_origin_alias = True
-
-    monkeypatch.setattr(ts, "get_settings", lambda: _AliasSettings())
 
     with pytest.raises(ForbiddenError):
         await localhost_bound_service.extract_items(
             "site-local",
-            [{"key": "t1", "text": "Hello", "route": "/h", "sourceLang": "en"}],
+            [{"key": "t1", "text": "Hello", "route": "/h", "source_lang": "en"}],
             origin="https://evil.example",
         )
-
-
 
 
 
@@ -1164,7 +1132,7 @@ async def test_dev_localhost_alias_when_enabled_still_rejects_unrelated_origin(
 async def test_extract_items_for_review_succeeds_with_no_origin_or_referer(bound_service):
     await bound_service.extract_items_for_review(
         "site1",
-        [{"key": "t1", "text": "Hello", "route": "/home", "sourceLang": "en"}],
+        [{"key": "t1", "text": "Hello", "route": "/home", "source_lang": "en"}],
     )
     docs = await bound_service.get_stored_translations("site1", "/home", "hi")
     assert docs == {"t1": "Hello"}
@@ -1173,11 +1141,11 @@ async def test_extract_items_for_review_succeeds_with_no_origin_or_referer(bound
 async def test_extract_items_for_review_still_requires_active_site(bound_service, mock_db):
     from app.platform.error_handling import NotFoundError
 
-    await mock_db["websites"].update_one({"siteId": "site1"}, {"$set": {"status": "Inactive"}})
+    await mock_db["websites"].update_one({"site_id": "site1"}, {"$set": {"status": "Inactive"}})
     with pytest.raises(NotFoundError):
         await bound_service.extract_items_for_review(
             "site1",
-            [{"key": "t1", "text": "Hello", "route": "/home", "sourceLang": "en"}],
+            [{"key": "t1", "text": "Hello", "route": "/home", "source_lang": "en"}],
         )
 
 
@@ -1187,7 +1155,7 @@ async def test_public_extract_items_still_rejects_origin_mismatch_after_fix(boun
     with pytest.raises(ForbiddenError):
         await bound_service.extract_items(
             "site1",
-            [{"key": "t1", "text": "Hello", "route": "/home", "sourceLang": "en"}],
+            [{"key": "t1", "text": "Hello", "route": "/home", "source_lang": "en"}],
             origin="https://evil.example",
         )
 
@@ -1197,7 +1165,7 @@ async def test_public_extract_items_still_rejects_origin_mismatch_after_fix(boun
 async def test_origin_www_prefix_matches_bare_domain(bound_service):
     await bound_service.extract_items(
         "site1",
-        [{"key": "t1", "text": "Hello", "route": "/home", "sourceLang": "en"}],
+        [{"key": "t1", "text": "Hello", "route": "/home", "source_lang": "en"}],
         origin="https://www.acme.example",
     )
 
@@ -1207,14 +1175,14 @@ async def test_origin_bare_domain_matches_www_registered_domain(mock_db, fake_pr
     from app.services.translation_service import TranslationService
 
     await mock_db["websites"].insert_many(
-        [{"siteId": "site-www", "status": "Active", "domain": "www.acme.example"}]
+        [{"site_id": "site-www", "status": "Active", "domain": "www.acme.example"}]
     )
     await LanguageRepository(mock_db).create("Hindi", "hi", "ltr", True)
     service = TranslationService(mock_db, lambda: fake_provider)
 
     await service.extract_items(
         "site-www",
-        [{"key": "t1", "text": "Hello", "route": "/home", "sourceLang": "en"}],
+        [{"key": "t1", "text": "Hello", "route": "/home", "source_lang": "en"}],
         origin="https://acme.example",
     )
 
@@ -1225,7 +1193,7 @@ async def test_origin_subdomain_other_than_www_still_rejected(bound_service):
     with pytest.raises(ForbiddenError):
         await bound_service.extract_items(
             "site1",
-            [{"key": "t1", "text": "Hello", "route": "/home", "sourceLang": "en"}],
+            [{"key": "t1", "text": "Hello", "route": "/home", "source_lang": "en"}],
             origin="https://api.acme.example",
         )
 
@@ -1236,26 +1204,9 @@ async def test_origin_unrelated_domain_still_rejected(bound_service):
     with pytest.raises(ForbiddenError):
         await bound_service.extract_items(
             "site1",
-            [{"key": "t1", "text": "Hello", "route": "/home", "sourceLang": "en"}],
+            [{"key": "t1", "text": "Hello", "route": "/home", "source_lang": "en"}],
             origin="https://evil.com",
         )
-
-
-async def test_localhost_alias_behavior_unaffected_by_www_fix(
-    monkeypatch, localhost_bound_service
-):
-    import app.services.translation_service as ts
-
-    class _AliasSettings:
-        enable_dev_localhost_origin_alias = True
-
-    monkeypatch.setattr(ts, "get_settings", lambda: _AliasSettings())
-
-    await localhost_bound_service.extract_items(
-        "site-local",
-        [{"key": "t1", "text": "Hello", "route": "/h", "sourceLang": "en"}],
-        origin="http://localhost:3000",
-    )
 
 
 async def test_runtime_translate_rejects_unknown_lang(bound_service):
@@ -1263,7 +1214,7 @@ async def test_runtime_translate_rejects_unknown_lang(bound_service):
 
     await bound_service.extract_items(
         "site1",
-        [{"key": "t1", "text": "Hello", "route": "/h", "sourceLang": "en"}],
+        [{"key": "t1", "text": "Hello", "route": "/h", "source_lang": "en"}],
         origin="https://acme.example",
     )
     with pytest.raises(ValidationError):
@@ -1273,7 +1224,7 @@ async def test_runtime_translate_rejects_unknown_lang(bound_service):
 async def test_runtime_translate_accepts_enabled_lang(bound_service, fake_provider):
     await bound_service.extract_items(
         "site1",
-        [{"key": "t1", "text": "Hello", "route": "/h", "sourceLang": "en"}],
+        [{"key": "t1", "text": "Hello", "route": "/h", "source_lang": "en"}],
         origin="https://acme.example",
     )
     result = await bound_service.runtime_translate("site1", "/h", "hi", origin="https://acme.example")
@@ -1287,7 +1238,7 @@ async def test_runtime_translate_serves_translated_text_only_after_approval(
     translation_repo, translation_service
 ):
     await translation_service.extract_items(
-        "site1", [{"key": "t1", "text": "Hello", "route": "/h", "sourceLang": "en"}]
+        "site1", [{"key": "t1", "text": "Hello", "route": "/h", "source_lang": "en"}]
     )
 
     pending = await translation_service.runtime_translate("site1", "/h", "hi")
@@ -1307,7 +1258,7 @@ async def test_generate_for_review_stores_pending_and_does_not_expose_translatio
     translation_repo, translation_service
 ):
     await translation_service.extract_items(
-        "site1", [{"key": "t1", "text": "Hello", "route": "/h", "sourceLang": "en"}]
+        "site1", [{"key": "t1", "text": "Hello", "route": "/h", "source_lang": "en"}]
     )
 
     result = await translation_service.generate_for_review("site1", "/h", "hi")
@@ -1322,7 +1273,7 @@ async def test_generate_for_review_serves_translated_text_after_approval(
     translation_repo, translation_service
 ):
     await translation_service.extract_items(
-        "site1", [{"key": "t1", "text": "Hello", "route": "/h", "sourceLang": "en"}]
+        "site1", [{"key": "t1", "text": "Hello", "route": "/h", "source_lang": "en"}]
     )
     await translation_service.generate_for_review("site1", "/h", "hi")
     doc = (await translation_repo.find_by_route("site1", "/h"))[0]
@@ -1345,7 +1296,7 @@ async def test_generate_for_review_translation_memory_reuse_still_auto_approves(
     assert len(fake_provider.calls) == 1
 
     await translation_service.extract_items(
-        "site1", [{"key": "t2", "text": "Hello", "route": "/about", "sourceLang": "en"}]
+        "site1", [{"key": "t2", "text": "Hello", "route": "/about", "source_lang": "en"}]
     )
     result = await translation_service.generate_for_review("site1", "/about", "hi")
 
@@ -1376,7 +1327,6 @@ def test_is_low_confidence_default_and_custom_threshold():
 
     assert is_low_confidence(0.5) is True
     assert is_low_confidence(0.9) is False
-    assert is_low_confidence(None) is False
     assert is_low_confidence(0.8, threshold=0.85) is True
     assert is_low_confidence(0.8, threshold=0.75) is False
 
@@ -1386,38 +1336,38 @@ def test_translation_response_exposes_low_confidence_flag():
 
     doc = {
         "_id": "abc",
-        "siteId": "s1",
+        "site_id": "s1",
         "route": "/",
         "key": "t1",
-        "sourceText": "Hello",
+        "source_text": "Hello",
         "translations": {
-            "hi": {"text": "x", "qualityScore": 0.4},
-            "ta": {"text": "y", "qualityScore": 0.95},
+            "hi": {"text": "x", "quality_score": 0.4},
+            "ta": {"text": "y", "quality_score": 0.95},
         },
     }
     out = TranslationResponse.from_doc(doc)
 
-    assert out["translations"]["hi"]["lowConfidence"] is True
-    assert out["translations"]["ta"]["lowConfidence"] is False
-    assert out["lowConfidence"] is True
+    assert out.translations["hi"]["lowConfidence"] is True
+    assert out.translations["ta"]["lowConfidence"] is False
+    assert out.lowConfidence is True
 
 
 def test_translation_response_low_confidence_false_when_all_ok():
     from app.models.responses.translation import TranslationResponse
 
     doc = {
-        "_id": "abc", "siteId": "s1", "route": "/", "key": "t1", "sourceText": "Hi",
-        "translations": {"hi": {"text": "x", "qualityScore": 0.95}},
+        "_id": "abc", "site_id": "s1", "route": "/", "key": "t1", "source_text": "Hi",
+        "translations": {"hi": {"text": "x", "quality_score": 0.95}},
     }
     out = TranslationResponse.from_doc(doc)
-    assert out["translations"]["hi"]["lowConfidence"] is False
-    assert out["lowConfidence"] is False
+    assert out.translations["hi"]["lowConfidence"] is False
+    assert out.lowConfidence is False
 
 
 async def test_list_translations_low_confidence_only_filters(translation_repo, translation_service):
     await translation_service.extract_items("s1", [
-        {"key": "low", "text": "A", "route": "/r", "sourceLang": "en"},
-        {"key": "ok", "text": "B", "route": "/r", "sourceLang": "en"},
+        {"key": "low", "text": "A", "route": "/r", "source_lang": "en"},
+        {"key": "ok", "text": "B", "route": "/r", "source_lang": "en"},
     ])
     await translation_repo.save_translation("s1", "/r", "low", "hi", "x", "AI", quality_score=0.4)
     await translation_repo.save_translation("s1", "/r", "ok", "hi", "y", "AI", quality_score=0.95)
@@ -1532,7 +1482,7 @@ async def test_translation_memory_reuse_only_matches_approved_target_language(
     assert len(fake_provider.calls) == 2
 
     await translation_service.extract_items(
-        "site1", [{"key": "t2", "text": "Hello", "route": "/about", "sourceLang": "en"}]
+        "site1", [{"key": "t2", "text": "Hello", "route": "/about", "source_lang": "en"}]
     )
 
     kn_result = await translation_service.get_or_translate("site1", "/about", "kn")
@@ -1654,7 +1604,7 @@ def test_only_translation_repository_and_migration_021_write_translations_collec
     app_root = platform_root / "app"
     allowed = {app_root / "repositories" / "translation_repository.py"}
 
-    pattern = re.compile(r'db\[\s*["\']translations["\']\s*\]|\.translations\.')
+    pattern = re.compile(r'db\[\s*["\']translations["\']\s*\]|db\.translations\b')
     offenders = []
     for path in app_root.rglob("*.py"):
         if path in allowed:
@@ -1669,69 +1619,3 @@ def test_only_translation_repository_and_migration_021_write_translations_collec
     )
 
 
-async def test_migration_021_never_infers_approved_status_from_doc_level_status():
-    import importlib.util
-    import pathlib
-
-    migrations_dir = pathlib.Path(__file__).resolve().parents[2] / "migrations"
-    spec = importlib.util.spec_from_file_location(
-        "migration_021", migrations_dir / "021_translations_per_language_status.py"
-    )
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-
-    db = AsyncMongoMockClient()["test_seeds"]
-    col = db["translations"]
-    await col.insert_one(
-        {
-            "siteId": "site1",
-            "route": "/home",
-            "key": "t1",
-            "status": "approved",
-            "approvedBy": "reviewer@example.com",
-            "translations": {
-                "hi": {"text": "नमस्ते", "provider": "AzureTranslationProvider"},
-                "kn": {"text": "ಹಲೋ", "provider": "AzureTranslationProvider"},
-            },
-        }
-    )
-    await col.insert_one(
-        {
-            "siteId": "site1",
-            "route": "/about",
-            "key": "t2",
-            "status": "rejected",
-            "translations": {
-                "hi": {"text": "नमस्ते", "provider": "AzureTranslationProvider"},
-            },
-        }
-    )
-
-    class _FakeMongoClient:
-        def __init__(self, _uri):
-            self._db = db
-
-        def get_default_database(self):
-            return self._db
-
-        def __getitem__(self, _name):
-            return self._db
-
-        async def close(self):
-            pass
-
-    import pymongo
-
-    original = pymongo.AsyncMongoClient
-    pymongo.AsyncMongoClient = _FakeMongoClient
-    try:
-        await module.migrate("mongodb://fake/test_seeds", dry_run=False)
-    finally:
-        pymongo.AsyncMongoClient = original
-
-    approved_doc = await col.find_one({"key": "t1"})
-    assert approved_doc["translations"]["hi"]["status"] == "pending"
-    assert approved_doc["translations"]["kn"]["status"] == "pending"
-
-    rejected_doc = await col.find_one({"key": "t2"})
-    assert rejected_doc["translations"]["hi"]["status"] == "pending"

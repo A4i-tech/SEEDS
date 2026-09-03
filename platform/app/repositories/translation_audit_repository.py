@@ -9,7 +9,7 @@ from app.repositories.base_repository import BaseRepository
 
 
 class TranslationAuditRepository(BaseRepository):
-    COLLECTION = "translation_audit"
+    COLLECTION = "translationAudit"
 
     def __init__(self, db: AsyncDatabase) -> None:
         self._col = db[self.COLLECTION]
@@ -17,8 +17,8 @@ class TranslationAuditRepository(BaseRepository):
     @classmethod
     async def ensure_indexes(cls, db: AsyncDatabase) -> None:
         col = db[cls.COLLECTION]
-        await col.create_index([("siteId", 1), ("route", 1), ("key", 1), ("at", -1)])
-        await col.create_index([("siteId", 1), ("at", -1)])
+        await col.create_index([("site_id", 1), ("route", 1), ("key", 1), ("at", -1)])
+        await col.create_index([("site_id", 1), ("at", -1)])
 
     async def record(
         self,
@@ -34,7 +34,7 @@ class TranslationAuditRepository(BaseRepository):
     ) -> None:
         await self._col.insert_one(
             {
-                "siteId": site_id,
+                "site_id": site_id,
                 "route": route,
                 "key": key,
                 "lang": lang,
@@ -48,7 +48,7 @@ class TranslationAuditRepository(BaseRepository):
 
     async def find_by_item(self, site_id: str, route: str, key: str) -> list[dict[str, Any]]:
         return (
-            await self._col.find({"siteId": site_id, "route": route, "key": key})
+            await self._col.find({"site_id": site_id, "route": route, "key": key})
             .sort([("at", -1), ("_id", -1)])
             .to_list(length=None)
         )
@@ -60,7 +60,7 @@ class TranslationAuditRepository(BaseRepository):
         action: str | None = None,
         limit: int = 200,
     ) -> list[dict[str, Any]]:
-        query: dict[str, Any] = {"siteId": site_id}
+        query: dict[str, Any] = {"site_id": site_id}
         if route:
             query["route"] = route
         if action:

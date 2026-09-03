@@ -25,8 +25,8 @@ class LanguageRepository(BaseRepository):
             "code": code,
             "direction": direction,
             "enabled": enabled,
-            "createdAt": now,
-            "updatedAt": now,
+            "created_at": now,
+            "updated_at": now,
         }
         result = await self._col.insert_one(doc)
         doc["_id"] = result.inserted_id
@@ -40,7 +40,7 @@ class LanguageRepository(BaseRepository):
         return await self._col.find_one({"_id": self._to_id(language_id)})
 
     async def update(self, language_id: str, fields: dict[str, Any]) -> None:
-        fields["updatedAt"] = datetime.now(UTC)
+        fields["updated_at"] = datetime.now(UTC)
         await self._col.update_one({"_id": self._to_id(language_id)}, {"$set": fields})
 
     async def delete(self, language_id: str) -> None:

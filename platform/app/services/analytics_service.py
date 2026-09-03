@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import Depends
 from pymongo.asynchronous.database import AsyncDatabase
 
@@ -12,7 +10,7 @@ from app.repositories.website_repository import WebsiteRepository
 
 
 class AnalyticsService:
-    def __init__(self, db: AsyncDatabase[Any]) -> None:
+    def __init__(self, db: AsyncDatabase) -> None:
         self._translations = TranslationRepository(db)
         self._projects = ProjectRepository(db)
         self._websites = WebsiteRepository(db)
@@ -25,6 +23,6 @@ class AnalyticsService:
 
 
 def get_analytics_service(
-    db: AsyncDatabase[Any] = Depends(get_db),
+    db: AsyncDatabase = Depends(get_db),
 ) -> AnalyticsService:
     return AnalyticsService(db)

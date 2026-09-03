@@ -16,7 +16,7 @@ from app.models.requests.content_requests import (
     QuizCreate,
     QuizCreateRequest,
 )
-from app.models.responses.content import AudioContent, QuizContent
+from app.models.responses.content import AudioContent, QuizContent, WebsiteExtractResponse
 from app.platform.auth.dependencies import get_db
 from app.repositories.content_job_repository import ContentJobRepository
 from app.repositories.content_repository import ContentRepository
@@ -40,7 +40,7 @@ def _merge_sorted(
 
 
 class ContentService:
-    def __init__(self, db: AsyncDatabase[Any]) -> None:
+    def __init__(self, db: AsyncDatabase) -> None:
         self._content_repo = ContentRepository(db)
         self._quiz_repo = QuizRepository(db)
         self._job_repo = ContentJobRepository(db)
@@ -249,7 +249,7 @@ class ContentService:
     async def save_processed(self, content_id: str, fields: dict[str, Any]) -> None:
         await self._content_repo.save_processed(content_id, fields)
 
-    async def extract_website(self, url: str) -> dict[str, Any]:
+    async def extract_website(self, url: str) -> WebsiteExtractResponse:
         return await self._website_extractor.extract(url)
 
 
@@ -270,5 +270,5 @@ def _parse_cursor(cursor: str | None) -> int | None:
     return None
 
 
-def get_content_service(db: AsyncDatabase[Any] = Depends(get_db)) -> ContentService:
+def get_content_service(db: AsyncDatabase = Depends(get_db)) -> ContentService:
     return ContentService(db)

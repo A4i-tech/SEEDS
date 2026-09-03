@@ -2,28 +2,20 @@ from __future__ import annotations
 
 from typing import Any
 
-from bson import ObjectId
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class TranslationResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
-    id: str | None = Field(None, alias="_id")
+    id: str = Field(validation_alias="_id")
     translations: dict[str, Any] | None = None
     lowConfidence: bool = False
 
-    @model_validator(mode="before")
-    @classmethod
-    def _strip_oids(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            return {k: str(v) if isinstance(v, ObjectId) else v for k, v in data.items()}
-        return data
-
     @field_validator("id", mode="before")
     @classmethod
-    def _coerce_id(cls, v: Any) -> str | None:
-        return str(v) if v is not None else None
+    def _coerce_id(cls, v: Any) -> str:
+        return str(v)
 
     @classmethod
     def from_doc(cls, doc: dict) -> TranslationResponse:
@@ -38,7 +30,7 @@ class TranslationResponse(BaseModel):
             for entry in instance.translations.values():
                 if not isinstance(entry, dict):
                     continue
-                low = is_low_confidence(entry.get("qualityScore"), threshold)
+                low = is_low_confidence(entry.get("quality_score", 1.0), threshold)
                 entry["lowConfidence"] = low
                 any_low = any_low or low
         instance.lowConfidence = any_low
@@ -48,8 +40,8 @@ class TranslationResponse(BaseModel):
 class AuditEntryResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
-    id: str | None = Field(None, alias="_id")
-    siteId: str | None = None
+    id: str = Field(validation_alias="_id")
+    siteId: str | None = Field(default=None, validation_alias="site_id")
     route: str | None = None
     key: str | None = None
     lang: str | None = None
@@ -59,17 +51,10 @@ class AuditEntryResponse(BaseModel):
     detail: str | None = None
     at: Any = None
 
-    @model_validator(mode="before")
-    @classmethod
-    def _strip_oids(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            return {k: str(v) if isinstance(v, ObjectId) else v for k, v in data.items()}
-        return data
-
     @field_validator("id", mode="before")
     @classmethod
-    def _coerce_id(cls, v: Any) -> str | None:
-        return str(v) if v is not None else None
+    def _coerce_id(cls, v: Any) -> str:
+        return str(v)
 
     @classmethod
     def from_doc(cls, doc: dict) -> AuditEntryResponse:
@@ -79,25 +64,18 @@ class AuditEntryResponse(BaseModel):
 class TranslationVersionResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
-    id: str | None = Field(None, alias="_id")
-    translationId: str | None = None
+    id: str = Field(validation_alias="_id")
+    translationId: str | None = Field(default=None, validation_alias="translation_id")
     version: int | None = None
     translations: dict[str, Any] | None = None
-    approvedBy: str | None = None
-    approvedAt: Any = None
-    createdAt: Any = None
-
-    @model_validator(mode="before")
-    @classmethod
-    def _strip_oids(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            return {k: str(v) if isinstance(v, ObjectId) else v for k, v in data.items()}
-        return data
+    approvedBy: str | None = Field(default=None, validation_alias="approved_by")
+    approvedAt: Any = Field(default=None, validation_alias="approved_at")
+    createdAt: Any = Field(default=None, validation_alias="created_at")
 
     @field_validator("id", mode="before")
     @classmethod
-    def _coerce_id(cls, v: Any) -> str | None:
-        return str(v) if v is not None else None
+    def _coerce_id(cls, v: Any) -> str:
+        return str(v)
 
     @classmethod
     def from_doc(cls, doc: dict) -> TranslationVersionResponse:

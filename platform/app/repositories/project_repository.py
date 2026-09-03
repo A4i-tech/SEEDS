@@ -25,10 +25,10 @@ class ProjectRepository(BaseRepository):
         doc = {
             "name": name,
             "description": description,
-            "sourceLanguage": source_language,
+            "source_language": source_language,
             "status": status,
-            "createdAt": now,
-            "updatedAt": now,
+            "created_at": now,
+            "updated_at": now,
         }
         result = await self._col.insert_one(doc)
         doc["_id"] = result.inserted_id
@@ -41,7 +41,7 @@ class ProjectRepository(BaseRepository):
         return await self._col.find({}).to_list(length=None)
 
     async def update(self, project_id: str, fields: dict[str, Any]) -> dict[str, Any] | None:
-        fields = {**fields, "updatedAt": datetime.now(UTC)}
+        fields = {**fields, "updated_at": datetime.now(UTC)}
         await self._col.update_one({"_id": self._to_id(project_id)}, {"$set": fields})
         return await self.find_by_id(project_id)
 

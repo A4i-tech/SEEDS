@@ -26,6 +26,7 @@ from app.controllers import (
     ivr_structure_controller,
     ivr_webhook_controller,
     language_controller,
+    language_registry_controller,
     # Onboarding
     onboarding_controller,
     participants_controller,
@@ -75,6 +76,7 @@ api_router.include_router(translation_controller.router)
 api_router.include_router(onboarding_controller.router)
 api_router.include_router(glossary_controller.router)
 api_router.include_router(language_controller.router)
+api_router.include_router(language_registry_controller.router)
 
 # Calls
 api_router.include_router(conference_controller.router)

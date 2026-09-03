@@ -55,9 +55,9 @@ class WebsiteExtractRequest(BaseModel):
 
 class WebsiteTranslationRequest(BaseModel):
     content: str
-    targetLanguage: str
-    targetLanguageCode: str | None = None
-    siteId: str | None = None
+    target_language: str
+    target_language_code: str | None = None
+    site_id: str | None = None
     route: str = "/"
 
 

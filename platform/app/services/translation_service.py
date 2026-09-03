@@ -68,8 +68,6 @@ class TranslationService:
             return None
         return urlparse(header_value).hostname
 
-    _DEV_LOCALHOST_ALIASES = {"localhost", "127.0.0.1"}
-
     @staticmethod
     def _strip_www(host: str | None) -> str | None:
         if host and host.startswith("www."):
@@ -85,12 +83,6 @@ class TranslationService:
         domain = website.get("domain")
         if hostname == domain or self._strip_www(hostname) == self._strip_www(domain):
             return
-        if (
-            get_settings().enable_dev_localhost_origin_alias
-            and hostname in self._DEV_LOCALHOST_ALIASES
-            and domain in self._DEV_LOCALHOST_ALIASES
-        ):
-            return
         raise ForbiddenError("origin does not match registered site domain")
 
     async def _ensure_lang_enabled(self, lang: str) -> None:
@@ -104,7 +96,7 @@ class TranslationService:
     async def _audit(
         self,
         *,
-        translation_id: str | None,
+        translation_id: str,
         site_id: str,
         route: str,
         key: str,
@@ -114,8 +106,7 @@ class TranslationService:
         provider: str | None = None,
         detail: str = "",
     ) -> None:
-        if translation_id is not None:
-            await self._repo.append_audit_entry(translation_id, action, actor, detail=detail)
+        await self._repo.append_audit_entry(translation_id, action, actor, detail=detail)
         await self._audit_repo.record(
             site_id=site_id,
             route=route,
@@ -141,7 +132,7 @@ class TranslationService:
                 site_id=site_id,
                 route=item["route"],
                 key=item["key"],
-                source_lang=item.get("sourceLang", "en"),
+                source_lang=item.get("source_lang", "en"),
                 text=item["text"],
             )
 
@@ -152,7 +143,7 @@ class TranslationService:
                 site_id=site_id,
                 route=item["route"],
                 key=item["key"],
-                source_lang=item.get("sourceLang", "en"),
+                source_lang=item.get("source_lang", "en"),
                 text=item["text"],
             )
 
@@ -164,7 +155,7 @@ class TranslationService:
             if existing and existing.get("text") and existing.get("status") == "approved":
                 result[doc["key"]] = existing["text"]
             else:
-                result[doc["key"]] = doc["sourceText"]
+                result[doc["key"]] = doc["source_text"]
         return result
 
     _RUNTIME_BATCH_ITEMS = 50
@@ -172,7 +163,7 @@ class TranslationService:
 
     async def _persist_translation(
         self, site_id: str, route: str, doc: dict[str, Any], lang: str,
-        translated: str, provider_name: str, quality_score: float | None,
+        translated: str, provider_name: str, quality_score: float = 1.0,
         auto_approved: bool = False,
     ) -> None:
         actor = f"system:{provider_name}"
@@ -223,16 +214,16 @@ class TranslationService:
                 result[doc["key"]] = (
                     existing["text"]
                     if (existing.get("status") == "approved" or serve_unapproved)
-                    else doc["sourceText"]
+                    else doc["source_text"]
                 )
                 continue
 
-            source_lang = doc.get("sourceLang", "en")
+            source_lang = doc.get("source_lang", "en")
             if lang not in glossary_cache:
                 glossary_cache[lang] = await self._glossary_repo.find_by_lang(lang)
-            normalized = self._glossary.apply(doc["sourceText"], glossary_cache[lang])
+            normalized = self._glossary.apply(doc["source_text"], glossary_cache[lang])
 
-            tm_hit = await self._repo.find_exact_match(site_id, doc["sourceText"], source_lang, lang)
+            tm_hit = await self._repo.find_exact_match(site_id, doc["source_text"], source_lang, lang)
             if tm_hit:
                 translated = tm_hit["translations"][lang]["text"]
                 await self._persist_translation(
@@ -261,18 +252,18 @@ class TranslationService:
                         translated = unmask(out, pmap)
                         quality = score_translation(normalized, out, pmap)
                         await self._persist_translation(site_id, route, doc, lang, translated, type(self._provider).__name__, quality)
-                        result[doc["key"]] = translated if first_party else doc["sourceText"]
+                        result[doc["key"]] = translated if first_party else doc["source_text"]
                 except (TransientTranslationError, ValueError):
                     for doc, masked, pmap, _s, normalized in chunk:
                         try:
                             out = await self._provider.translate(masked, source_lang, lang)
                         except TransientTranslationError:
-                            result[doc["key"]] = doc["sourceText"]
+                            result[doc["key"]] = doc["source_text"]
                             continue
                         translated = unmask(out, pmap)
                         quality = score_translation(normalized, out, pmap)
                         await self._persist_translation(site_id, route, doc, lang, translated, type(self._provider).__name__, quality)
-                        result[doc["key"]] = translated if first_party else doc["sourceText"]
+                        result[doc["key"]] = translated if first_party else doc["source_text"]
 
     def _chunk(self, entries: list) -> list[list]:
         out: list[list] = []
@@ -300,15 +291,15 @@ class TranslationService:
                 result[doc["key"]] = (
                     existing["text"]
                     if (existing.get("status") == "approved" or first_party)
-                    else doc["sourceText"]
+                    else doc["source_text"]
                 )
                 continue
 
-            source_lang = doc.get("sourceLang", "en")
+            source_lang = doc.get("source_lang", "en")
             glossary_terms = await self._glossary_repo.find_by_lang(lang)
-            normalized_text = self._glossary.apply(doc["sourceText"], glossary_terms)
+            normalized_text = self._glossary.apply(doc["source_text"], glossary_terms)
 
-            tm_hit = await self._repo.find_exact_match(site_id, doc["sourceText"], source_lang, lang)
+            tm_hit = await self._repo.find_exact_match(site_id, doc["source_text"], source_lang, lang)
             auto_approved = False
             if tm_hit:
                 translated = tm_hit["translations"][lang]["text"]
@@ -324,7 +315,7 @@ class TranslationService:
                         target_lang=lang,
                     )
                 except TransientTranslationError:
-                    result[doc["key"]] = doc["sourceText"]
+                    result[doc["key"]] = doc["source_text"]
                     continue
                 translated = unmask(masked_translated, placeholder_map)
                 provider_name = type(self._provider).__name__
@@ -352,7 +343,7 @@ class TranslationService:
                 lang=lang,
                 provider=provider_name,
             )
-            result[doc["key"]] = translated if (auto_approved or first_party) else doc["sourceText"]
+            result[doc["key"]] = translated if (auto_approved or first_party) else doc["source_text"]
 
         return result
 
@@ -376,7 +367,7 @@ class TranslationService:
                 doc
                 for doc in docs
                 if any(
-                    is_low_confidence(t.get("qualityScore"), threshold)
+                    is_low_confidence(t.get("quality_score"), threshold)
                     for t in (doc.get("translations") or {}).values()
                 )
             ]
@@ -416,7 +407,7 @@ class TranslationService:
         await self._repo.update_translation_text(translation_id, lang, text)
         await self._audit(
             translation_id=translation_id,
-            site_id=doc["siteId"],
+            site_id=doc["site_id"],
             route=doc["route"],
             key=doc["key"],
             action="edited",
@@ -441,7 +432,7 @@ class TranslationService:
         await self._repo.approve_translation(translation_id, lang, approved_by, version=next_version)
         await self._audit(
             translation_id=translation_id,
-            site_id=doc["siteId"],
+            site_id=doc["site_id"],
             route=doc["route"],
             key=doc["key"],
             action="approved",
@@ -456,7 +447,7 @@ class TranslationService:
         await self._repo.reject_translation(translation_id, lang, rejected_by, reason)
         await self._audit(
             translation_id=translation_id,
-            site_id=doc["siteId"],
+            site_id=doc["site_id"],
             route=doc["route"],
             key=doc["key"],
             action="rejected",

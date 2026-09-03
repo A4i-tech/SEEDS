@@ -8,6 +8,7 @@ from fastapi import Depends
 from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.errors import DuplicateKeyError
 
+from app.models.responses.onboarding import ProjectResponse, WebsiteResponse
 from app.platform.auth.dependencies import get_db
 from app.platform.error_handling import ConflictError, NotFoundError, ValidationError
 from app.platform.settings import get_settings
@@ -36,7 +37,7 @@ def build_snippet(base_url: str, site_id: str) -> str:
 
 
 class OnboardingService:
-    def __init__(self, db: AsyncDatabase[Any]) -> None:
+    def __init__(self, db: AsyncDatabase) -> None:
         self._projects = ProjectRepository(db)
         self._websites = WebsiteRepository(db)
 
@@ -46,19 +47,21 @@ class OnboardingService:
         description: str = "",
         source_language: str = "English",
         status: str = "Active",
-    ) -> dict[str, Any]:
-        return await self._projects.create(name, description, source_language, status)
+    ) -> ProjectResponse:
+        project = await self._projects.create(name, description, source_language, status)
+        return ProjectResponse.from_doc(project)
 
-    async def list_projects(self) -> list[dict[str, Any]]:
-        return await self._projects.find_all()
+    async def list_projects(self) -> list[ProjectResponse]:
+        projects = await self._projects.find_all()
+        return [ProjectResponse.from_doc(project) for project in projects]
 
-    async def update_project(self, project_id: str, fields: dict[str, Any]) -> dict[str, Any]:
+    async def update_project(self, project_id: str, fields: dict[str, Any]) -> ProjectResponse:
         project = await self._projects.find_by_id(project_id)
         if project is None:
             raise NotFoundError("Project", project_id)
 
         updated = await self._projects.update(project_id, fields)
-        return updated
+        return ProjectResponse.from_doc(updated)
 
     async def delete_project(self, project_id: str) -> None:
         deleted = await self._projects.delete(project_id)
@@ -71,7 +74,7 @@ class OnboardingService:
         domain: str,
         name: str = "",
         status: str = "Active",
-    ) -> dict[str, Any]:
+    ) -> WebsiteResponse:
         _validate_domain(domain)
 
         project = await self._projects.find_by_id(project_id)
@@ -80,22 +83,25 @@ class OnboardingService:
 
         site_id = str(uuid.uuid4())
         try:
-            return await self._websites.create(project_id, domain, site_id, name, status)
+            website = await self._websites.create(project_id, domain, site_id, name, status)
         except DuplicateKeyError as exc:
             raise ConflictError(f"Website with domain {domain!r}") from exc
+        return WebsiteResponse.from_doc(website, snippet=self._snippet_for(website))
 
-    async def get_website(self, website_id: str) -> dict[str, Any]:
+    async def get_website(self, website_id: str) -> WebsiteResponse:
         website = await self._websites.find_by_id(website_id)
         if website is None:
             raise NotFoundError("Website", website_id)
-        return website
+        return WebsiteResponse.from_doc(website, snippet=self._snippet_for(website))
 
-    async def list_websites(self, project_id: str | None = None) -> list[dict[str, Any]]:
+    async def list_websites(self, project_id: str | None = None) -> list[WebsiteResponse]:
         if project_id:
-            return await self._websites.find_by_project(project_id)
-        return await self._websites.find_all()
+            websites = await self._websites.find_by_project(project_id)
+        else:
+            websites = await self._websites.find_all()
+        return [WebsiteResponse.from_doc(website) for website in websites]
 
-    async def update_website(self, website_id: str, fields: dict[str, Any]) -> dict[str, Any]:
+    async def update_website(self, website_id: str, fields: dict[str, Any]) -> WebsiteResponse:
         website = await self._websites.find_by_id(website_id)
         if website is None:
             raise NotFoundError("Website", website_id)
@@ -104,19 +110,19 @@ class OnboardingService:
             _validate_domain(fields["domain"])
 
         updated = await self._websites.update(website_id, fields)
-        return updated
+        return WebsiteResponse.from_doc(updated, snippet=self._snippet_for(updated))
 
     async def delete_website(self, website_id: str) -> None:
         deleted = await self._websites.delete(website_id)
         if not deleted:
             raise NotFoundError("Website", website_id)
 
-    def snippet_for(self, website: dict[str, Any]) -> str:
+    def _snippet_for(self, website: dict[str, Any]) -> str:
         settings = get_settings()
-        return build_snippet(settings.translation_sdk_base_url, website["siteId"])
+        return build_snippet(settings.translation_sdk_base_url, website["site_id"])
 
 
 def get_onboarding_service(
-    db: AsyncDatabase[Any] = Depends(get_db),
+    db: AsyncDatabase = Depends(get_db),
 ) -> OnboardingService:
     return OnboardingService(db)
