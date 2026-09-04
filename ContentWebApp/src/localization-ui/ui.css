@@ -35,23 +35,6 @@
   color: var(--accent-ink);
 }
 
-/* ---------- Checkbox ---------- */
-.loca-ui .ck {
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
-  border: 1.5px solid var(--line-2);
-  background: var(--surface);
-  display: inline-grid;
-  place-items: center;
-  cursor: pointer;
-}
-.loca-ui .ck[data-state="checked"] {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-}
-
 /* ---------- Empty state ---------- */
 .loca-ui .empty {
   display: flex;
@@ -60,15 +43,6 @@
   text-align: center;
   gap: var(--s-3);
   padding: var(--s-10) var(--s-5);
-}
-.loca-ui .empty .ic {
-  width: 44px;
-  height: 44px;
-  border-radius: var(--r-md);
-  background: var(--surface-2);
-  display: grid;
-  place-items: center;
-  color: var(--muted);
 }
 .loca-ui .empty h4 {
   font-size: var(--fs-16);
@@ -79,52 +53,6 @@
   max-width: 44ch;
 }
 
-/* ---------- Dialog / overlay ---------- */
-.loca-ui-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(20, 16, 12, 0.5);
-  backdrop-filter: blur(2px);
-  z-index: 1000;
-  animation: loca-fade var(--dur) var(--ease);
-}
-@keyframes loca-fade {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-/* ---------- Popover ---------- */
-.loca-ui-popover {
-  z-index: 1001;
-  min-width: 200px;
-  background: var(--surface);
-  color: var(--ink);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  box-shadow: var(--sh-3);
-  padding: var(--s-2);
-  animation: loca-fade var(--dur) var(--ease);
-}
-
-/* ---------- Drawer / sheet (right side, becomes bottom on mobile) ---------- */
-.loca-ui-drawer {
-  position: fixed;
-  z-index: 1001;
-  top: 0;
-  right: 0;
-  height: 100vh;
-  width: min(460px, 100vw);
-  background: var(--surface);
-  border-left: 1px solid var(--line);
-  box-shadow: var(--sh-3);
-  display: flex;
-  flex-direction: column;
-  animation: loca-slide var(--dur) var(--ease);
-}
 @keyframes loca-slide {
   from {
     transform: translateX(24px);
@@ -133,18 +61,6 @@
   to {
     transform: none;
     opacity: 1;
-  }
-}
-@media (max-width: 640px) {
-  .loca-ui-drawer {
-    top: auto;
-    bottom: 0;
-    right: 0;
-    width: 100vw;
-    height: 86vh;
-    border-left: 0;
-    border-top: 1px solid var(--line);
-    border-radius: var(--r-lg) var(--r-lg) 0 0;
   }
 }
 
@@ -175,21 +91,6 @@
   flex: 1;
   color: var(--ink);
 }
-.loca-ui-toast .lead {
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-}
-.loca-ui-toast.good .lead {
-  color: var(--good);
-}
-.loca-ui-toast.crit .lead {
-  color: var(--crit);
-}
-.loca-ui-toast.info .lead {
-  color: var(--info);
-}
 .loca-ui-toast .undo {
   color: var(--accent-ink);
   font-weight: 600;
@@ -197,18 +98,6 @@
   border: 0;
   cursor: pointer;
   font-size: var(--fs-13);
-}
-
-/* ---------- Tooltip ---------- */
-.loca-ui-tip {
-  background: var(--ink);
-  color: var(--paper);
-  font-size: var(--fs-12);
-  font-weight: 500;
-  padding: 5px 9px;
-  border-radius: 6px;
-  box-shadow: var(--sh-2);
-  z-index: 1200;
 }
 
 /* ---------- Quality bar ---------- */

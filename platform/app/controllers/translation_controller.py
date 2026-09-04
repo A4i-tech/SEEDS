@@ -16,11 +16,7 @@ from app.models.responses.translation import (
     TranslationResponse,
     TranslationVersionResponse,
 )
-from app.platform.auth.dependencies import (
-    require_admin,
-    require_admin_or_reviewer,
-    require_translation_reviewer,
-)
+from app.platform.auth.dependencies import require_tenant, require_translation_reviewer
 from app.platform.security import limiter
 from app.services.analytics_service import AnalyticsService, get_analytics_service
 from app.services.translation_service import TranslationService, get_translation_service
@@ -88,7 +84,7 @@ async def generate_translations(
     route: str = Query(max_length=2048),
     lang: str = Query(max_length=32),
     service: TranslationService = Depends(get_translation_service),
-    user: dict[str, Any] = Depends(require_admin_or_reviewer),
+    user: dict[str, Any] = Depends(require_tenant),
 ) -> dict[str, str]:
     return await service.generate_for_review(site_id, route, lang)
 
@@ -101,7 +97,7 @@ def _reviewer_id(user: dict[str, Any]) -> str:
 async def get_analytics_summary(
     site_id: str,
     service: AnalyticsService = Depends(get_analytics_service),
-    user: dict[str, Any] = Depends(require_admin),
+    user: dict[str, Any] = Depends(require_tenant),
 ) -> dict[str, int]:
     return await service.get_summary(site_id)
 

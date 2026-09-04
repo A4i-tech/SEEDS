@@ -1,16 +1,8 @@
 import React, { useState } from "react";
+import Modal from "../../components/AllContent/shared/Modal";
 import Select from "../../components/AllContent/shared/Select";
 import "../manage.css";
-import {
-  Badge,
-  Dialog,
-  ConfirmDialog,
-  Field,
-  Input,
-  Textarea,
-  SearchInput,
-  useToast,
-} from "../primitives";
+import { Badge, Field, Input, Textarea, SearchInput, useToast } from "../primitives";
 import { extractDomain } from "../lib/url";
 import { useCrudView } from "../lib/useCrudView";
 import { CrudTable } from "../primitives/CrudTable";
@@ -44,6 +36,22 @@ function Header({ title, subtitle, search, onSearch, addLabel, onAdd, children }
       </div>
       {children}
     </>
+  );
+}
+
+function ConfirmModal({ title, description, confirmLabel, onCancel, onConfirm }) {
+  return (
+    <Modal title={title} onClose={onCancel}>
+      <p>{description}</p>
+      <div className="modal-actions">
+        <button className="action-ghost-button" onClick={onCancel}>
+          Cancel
+        </button>
+        <button className="row-action row-action-delete" onClick={onConfirm}>
+          {confirmLabel}
+        </button>
+      </div>
+    </Modal>
   );
 }
 
@@ -92,65 +100,55 @@ function ProjectsView({ loc, toast }) {
         emptyMessage="Create a project to start localizing its websites."
       />
       {dlg ? (
-        <Dialog
-          open
-          onOpenChange={() => setDlg(null)}
+        <Modal
           title={dlg.mode === "edit" ? "Edit project" : "New project"}
-          footer={
-            <>
-              <button className="action-ghost-button" onClick={() => setDlg(null)}>
-                Cancel
-              </button>
-              <button className="primary-button" onClick={save} disabled={!dlg.values.name.trim()}>
-                Save
-              </button>
-            </>
-          }
+          onClose={() => setDlg(null)}
         >
-          <div className="form-grid">
-            <Field label="Name">
-              <Input
-                value={dlg.values.name}
-                onChange={(e) => set("name", e.target.value)}
-                autoFocus
-              />
-            </Field>
-            <Field label="Source language">
-              <Input
-                value={dlg.values.sourceLanguage}
-                onChange={(e) => set("sourceLanguage", e.target.value)}
-              />
-            </Field>
-            <div className="full">
-              <Field label="Description">
-                <Textarea
-                  rows={2}
-                  value={dlg.values.description}
-                  onChange={(e) => set("description", e.target.value)}
-                />
-              </Field>
-            </div>
-            <Field label="Status">
-              <Select
-                value={dlg.values.status}
-                onChange={(v) => set("status", v)}
-                options={[
-                  { value: "Active", label: "Active" },
-                  { value: "Inactive", label: "Inactive" },
-                ]}
-              />
-            </Field>
+          <Field label="Name">
+            <Input value={dlg.values.name} onChange={(e) => set("name", e.target.value)} autoFocus />
+          </Field>
+          <Field label="Source language">
+            <Input
+              value={dlg.values.sourceLanguage}
+              onChange={(e) => set("sourceLanguage", e.target.value)}
+            />
+          </Field>
+          <Field label="Description">
+            <Textarea
+              rows={2}
+              value={dlg.values.description}
+              onChange={(e) => set("description", e.target.value)}
+            />
+          </Field>
+          <Field label="Status">
+            <Select
+              value={dlg.values.status}
+              onChange={(v) => set("status", v)}
+              options={[
+                { value: "Active", label: "Active" },
+                { value: "Inactive", label: "Inactive" },
+              ]}
+            />
+          </Field>
+          <div className="modal-actions">
+            <button className="action-ghost-button" onClick={() => setDlg(null)}>
+              Cancel
+            </button>
+            <button className="primary-button" onClick={save} disabled={!dlg.values.name.trim()}>
+              Save
+            </button>
           </div>
-        </Dialog>
+        </Modal>
       ) : null}
-      <ConfirmDialog
-        open={Boolean(del)}
-        onOpenChange={() => setDel(null)}
-        title="Delete project?"
-        description={`"${del?.name}" will be removed. This cannot be undone.`}
-        confirmLabel="Delete project"
-        onConfirm={remove}
-      />
+      {del ? (
+        <ConfirmModal
+          title="Delete project?"
+          description={`"${del.name}" will be removed. This cannot be undone.`}
+          confirmLabel="Delete project"
+          onCancel={() => setDel(null)}
+          onConfirm={remove}
+        />
+      ) : null}
     </div>
   );
 }
@@ -223,65 +221,57 @@ function SitesView({ loc, toast }) {
         />
       ) : null}
       {dlg ? (
-        <Dialog
-          open
-          onOpenChange={() => setDlg(null)}
+        <Modal
           title={dlg.mode === "edit" ? "Edit site" : "Register site"}
-          footer={
-            <>
-              <button className="action-ghost-button" onClick={() => setDlg(null)}>
-                Cancel
-              </button>
-              <button className="primary-button" onClick={save} disabled={!dlg.values.url.trim()}>
-                Save
-              </button>
-            </>
-          }
+          onClose={() => setDlg(null)}
         >
-          <div className="form-grid">
-            <Field label="Name">
-              <Input
-                value={dlg.values.name}
-                onChange={(e) => set("name", e.target.value)}
-                autoFocus
-              />
-            </Field>
-            <Field label="Domain or URL">
-              <Input
-                value={dlg.values.url}
-                onChange={(e) => set("url", e.target.value)}
-                placeholder="example.com"
-              />
-            </Field>
-            <Field label="Project">
-              <Select
-                value={dlg.values.projectId}
-                onChange={(v) => set("projectId", v)}
-                options={projects.map((project) => ({ value: project.id, label: project.name }))}
-                disabled={dlg.mode === "edit"}
-              />
-            </Field>
-            <Field label="Status">
-              <Select
-                value={dlg.values.status}
-                onChange={(v) => set("status", v)}
-                options={[
-                  { value: "Active", label: "Active" },
-                  { value: "Inactive", label: "Inactive" },
-                ]}
-              />
-            </Field>
+          <Field label="Name">
+            <Input value={dlg.values.name} onChange={(e) => set("name", e.target.value)} autoFocus />
+          </Field>
+          <Field label="Domain or URL">
+            <Input
+              value={dlg.values.url}
+              onChange={(e) => set("url", e.target.value)}
+              placeholder="example.com"
+            />
+          </Field>
+          <Field label="Project">
+            <Select
+              value={dlg.values.projectId}
+              onChange={(v) => set("projectId", v)}
+              options={projects.map((project) => ({ value: project.id, label: project.name }))}
+              disabled={dlg.mode === "edit"}
+            />
+          </Field>
+          <Field label="Status">
+            <Select
+              value={dlg.values.status}
+              onChange={(v) => set("status", v)}
+              options={[
+                { value: "Active", label: "Active" },
+                { value: "Inactive", label: "Inactive" },
+              ]}
+            />
+          </Field>
+          <div className="modal-actions">
+            <button className="action-ghost-button" onClick={() => setDlg(null)}>
+              Cancel
+            </button>
+            <button className="primary-button" onClick={save} disabled={!dlg.values.url.trim()}>
+              Save
+            </button>
           </div>
-        </Dialog>
+        </Modal>
       ) : null}
-      <ConfirmDialog
-        open={Boolean(del)}
-        onOpenChange={() => setDel(null)}
-        title="Delete site?"
-        description={`"${del?.name || del?.domain}" will be removed. This cannot be undone.`}
-        confirmLabel="Delete site"
-        onConfirm={remove}
-      />
+      {del ? (
+        <ConfirmModal
+          title="Delete site?"
+          description={`"${del.name || del.domain}" will be removed. This cannot be undone.`}
+          confirmLabel="Delete site"
+          onCancel={() => setDel(null)}
+          onConfirm={remove}
+        />
+      ) : null}
     </div>
   );
 }
@@ -362,62 +352,58 @@ function LanguagesView({ loc, toast }) {
         emptyMessage="Add a target language to translate into."
       />
       {dlg ? (
-        <Dialog
-          open
-          onOpenChange={() => setDlg(null)}
+        <Modal
           title={dlg.mode === "edit" ? "Edit language" : "Add language"}
-          footer={
-            <>
-              <button className="action-ghost-button" onClick={() => setDlg(null)}>
-                Cancel
-              </button>
-              <button
-                className="primary-button"
-                onClick={save}
-                disabled={!dlg.values.name.trim() || !dlg.values.code.trim()}
-              >
-                Save
-              </button>
-            </>
-          }
+          onClose={() => setDlg(null)}
         >
-          <div className="form-grid">
-            <Field label="Name">
-              <Input
-                value={dlg.values.name}
-                onChange={(e) => set("name", e.target.value)}
-                placeholder="Hindi"
-                autoFocus
-              />
-            </Field>
-            <Field label="Code">
-              <Input
-                value={dlg.values.code}
-                onChange={(e) => set("code", e.target.value)}
-                placeholder="hi"
-              />
-            </Field>
-            <Field label="Direction">
-              <select
-                className="input-field"
-                value={dlg.values.direction}
-                onChange={(e) => set("direction", e.target.value)}
-              >
-                <option value="ltr">Left to right</option>
-                <option value="rtl">Right to left</option>
-              </select>
-            </Field>
+          <Field label="Name">
+            <Input
+              value={dlg.values.name}
+              onChange={(e) => set("name", e.target.value)}
+              placeholder="Hindi"
+              autoFocus
+            />
+          </Field>
+          <Field label="Code">
+            <Input
+              value={dlg.values.code}
+              onChange={(e) => set("code", e.target.value)}
+              placeholder="hi"
+            />
+          </Field>
+          <Field label="Direction">
+            <Select
+              value={dlg.values.direction}
+              onChange={(v) => set("direction", v)}
+              options={[
+                { value: "ltr", label: "Left to right" },
+                { value: "rtl", label: "Right to left" },
+              ]}
+            />
+          </Field>
+          <div className="modal-actions">
+            <button className="action-ghost-button" onClick={() => setDlg(null)}>
+              Cancel
+            </button>
+            <button
+              className="primary-button"
+              onClick={save}
+              disabled={!dlg.values.name.trim() || !dlg.values.code.trim()}
+            >
+              Save
+            </button>
           </div>
-        </Dialog>
+        </Modal>
       ) : null}
-      <ConfirmDialog
-        open={Boolean(del)}
-        onOpenChange={() => setDel(null)}
-        title="Remove language?"
-        description={`"${del?.name}" will be removed.`}
-        confirmLabel="Remove language"
-        onConfirm={remove}
-      />
+      {del ? (
+        <ConfirmModal
+          title="Remove language?"
+          description={`"${del.name}" will be removed.`}
+          confirmLabel="Remove language"
+          onCancel={() => setDel(null)}
+          onConfirm={remove}
+        />
+      ) : null}
     </div>
   );
 }

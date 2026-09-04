@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
+import Select from "../../components/AllContent/shared/Select";
 import "../workspace.css";
 import { translationService } from "../../services/translationService";
 import { toSegment } from "../lib/segments";
-import { EmptyState, useToast, Tooltip, Popover } from "../primitives";
+import { EmptyState, useToast } from "../primitives";
 
 /** Status pill — every row shows exactly one state. */
 function CardStatus({ seg }) {
@@ -41,16 +42,15 @@ const TransCard = React.forwardRef(function TransCard({ seg, onEdit, onCopy }, i
         onBlur={commit}
         aria-label={`Translation for: ${seg.sourceText}`}
       />
-      <Tooltip label="Copy translation">
-        <button
-          type="button"
-          className="tr-card-copy"
-          aria-label="Copy translation"
-          onClick={() => onCopy(text)}
-        >
-          Copy
-        </button>
-      </Tooltip>
+      <button
+        type="button"
+        className="tr-card-copy"
+        title="Copy translation"
+        aria-label="Copy translation"
+        onClick={() => onCopy(text)}
+      >
+        Copy
+      </button>
     </div>
   );
 });
@@ -60,34 +60,31 @@ function RowActions({ seg, onApprove, onReject, onEditFocus }) {
   const approved = seg.stage === "approved";
   return (
     <div className="tr-actions">
-      <Tooltip label={approved ? "Approved" : "Approve"}>
-        <button
-          className={`tr-act tr-act-approve btn-icon ${approved ? "active" : ""}`}
-          aria-label="Approve"
-          aria-pressed={approved}
-          onClick={() => onApprove(seg.id)}
-        >
-          ✓
-        </button>
-      </Tooltip>
-      <Tooltip label="Reject">
-        <button
-          className={`tr-act tr-act-reject btn-icon ${approved ? "dim" : ""}`}
-          aria-label="Reject"
-          onClick={() => onReject(seg.id)}
-        >
-          ✕
-        </button>
-      </Tooltip>
-      <Tooltip label="Edit">
-        <button
-          className={`tr-act tr-act-edit btn-icon ${approved ? "dim" : ""}`}
-          aria-label="Edit"
-          onClick={onEditFocus}
-        >
-          Edit
-        </button>
-      </Tooltip>
+      <button
+        className={`tr-act tr-act-approve btn-icon ${approved ? "active" : ""}`}
+        title={approved ? "Approved" : "Approve"}
+        aria-label="Approve"
+        aria-pressed={approved}
+        onClick={() => onApprove(seg.id)}
+      >
+        ✓
+      </button>
+      <button
+        className={`tr-act tr-act-reject btn-icon ${approved ? "dim" : ""}`}
+        title="Reject"
+        aria-label="Reject"
+        onClick={() => onReject(seg.id)}
+      >
+        ✕
+      </button>
+      <button
+        className={`tr-act tr-act-edit btn-icon ${approved ? "dim" : ""}`}
+        title="Edit"
+        aria-label="Edit"
+        onClick={onEditFocus}
+      >
+        Edit
+      </button>
     </div>
   );
 }
@@ -130,14 +127,11 @@ export function WorkspaceScreen({
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
-  const [filterOpen, setFilterOpen] = useState(false);
   const [statusTab, setStatusTab] = useState("all");
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [pageOffset, setPageOffset] = useState(0);
   const [revision, setRevision] = useState(0);
   const bodyRef = useRef(null);
-
-  const langName = (l) => (languages.find((x) => x.code === l) || {}).name || l;
 
   const load = useCallback(() => {
     if (!siteId || !route) {
@@ -356,32 +350,12 @@ export function WorkspaceScreen({
           All <span className="tr-tab-n">{tabCounts.all}</span>
         </button>
         <div className="tr-lang-tab">
-          <Popover
-            open={filterOpen}
-            onOpenChange={setFilterOpen}
-            trigger={
-              <button type="button" className="tr-langbtn tr-langbtn--tab">
-                {lang ? langName(lang) : "Select language"}{" "}
-                <span className="tr-langbtn-chev">▾</span>
-              </button>
-            }
-          >
-            <div className="pop-list">
-              {languages.map((l) => (
-                <button
-                  key={l.id}
-                  type="button"
-                  className={`pop-item ${lang === l.code ? "on" : ""}`}
-                  onClick={() => {
-                    onScope((s) => ({ ...s, lang: l.code }));
-                    setFilterOpen(false);
-                  }}
-                >
-                  {lang === l.code ? "✓" : <span style={{ width: 14 }} />} {l.name}
-                </button>
-              ))}
-            </div>
-          </Popover>
+          <Select
+            value={lang}
+            onChange={(v) => onScope((s) => ({ ...s, lang: v }))}
+            placeholder="Select language"
+            options={languages.map((l) => ({ value: l.code, label: l.name }))}
+          />
         </div>
       </div>
 
@@ -468,9 +442,7 @@ export function WorkspaceScreen({
                 <div className="ch-tr">
                   Translation
                   <span className="ch-tools">
-                    <Tooltip label="Copy all">
-                      <button aria-label="Copy all">Copy all</button>
-                    </Tooltip>
+                    <button title="Copy all" aria-label="Copy all">Copy all</button>
                   </span>
                 </div>
                 <div className="ch-actions" aria-hidden="true" />

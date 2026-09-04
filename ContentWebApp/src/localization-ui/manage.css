@@ -71,15 +71,6 @@
   font-weight: 600;
   color: var(--ink);
 }
-.loca-ui .form-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-  margin-top: 6px;
-}
-.loca-ui .form-grid .full {
-  grid-column: 1 / -1;
-}
 .loca-ui .switch {
   display: inline-flex;
   align-items: center;

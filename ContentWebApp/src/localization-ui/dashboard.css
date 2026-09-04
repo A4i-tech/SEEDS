@@ -31,15 +31,6 @@
   flex-direction: column;
   gap: 16px;
 }
-.loca-ui .spin {
-  animation: onb-spin 0.8s linear infinite;
-}
-@keyframes onb-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 .loca-ui .onb-success-head {
   display: flex;
   align-items: flex-start;

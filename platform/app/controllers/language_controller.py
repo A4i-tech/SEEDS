@@ -9,7 +9,7 @@ from pymongo.asynchronous.database import AsyncDatabase
 from app.models.requests.language_requests import LanguageCreateRequest, LanguageUpdateRequest
 from app.models.responses.common import StatusResponse
 from app.models.responses.language import LanguageResponse
-from app.platform.auth.dependencies import get_db, require_admin
+from app.platform.auth.dependencies import get_db, require_tenant
 from app.platform.error_handling import NotFoundError
 from app.repositories.language_repository import LanguageRepository
 
@@ -31,7 +31,7 @@ async def list_languages(
 async def create_language(
     body: LanguageCreateRequest,
     db: AsyncDatabase = Depends(get_db),  # type: ignore[type-arg]
-    user: dict[str, Any] = Depends(require_admin),
+    user: dict[str, Any] = Depends(require_tenant),
 ) -> LanguageResponse:
     repo = LanguageRepository(db)
     doc = await repo.create(body.name, body.code, body.direction, body.enabled)
@@ -43,7 +43,7 @@ async def update_language(
     language_id: str,
     body: LanguageUpdateRequest,
     db: AsyncDatabase = Depends(get_db),  # type: ignore[type-arg]
-    user: dict[str, Any] = Depends(require_admin),
+    user: dict[str, Any] = Depends(require_tenant),
 ) -> LanguageResponse:
     repo = LanguageRepository(db)
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
@@ -58,7 +58,7 @@ async def update_language(
 async def delete_language(
     language_id: str,
     db: AsyncDatabase = Depends(get_db),  # type: ignore[type-arg]
-    user: dict[str, Any] = Depends(require_admin),
+    user: dict[str, Any] = Depends(require_tenant),
 ) -> StatusResponse:
     repo = LanguageRepository(db)
     await repo.delete(language_id)

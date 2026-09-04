@@ -15,7 +15,7 @@ from app.models.requests.onboarding_requests import (
 )
 from app.models.responses.common import StatusResponse
 from app.models.responses.onboarding import ProjectResponse, WebsiteResponse
-from app.platform.auth.dependencies import require_admin, require_admin_or_reviewer
+from app.platform.auth.dependencies import require_tenant
 from app.services.onboarding_service import OnboardingService, get_onboarding_service
 
 logger = logging.getLogger(__name__)
@@ -27,7 +27,7 @@ router = APIRouter(tags=["Onboarding"])
 async def create_project(
     body: ProjectCreateRequest,
     service: OnboardingService = Depends(get_onboarding_service),
-    user: dict[str, Any] = Depends(require_admin),
+    user: dict[str, Any] = Depends(require_tenant),
 ) -> ProjectResponse:
     return await service.create_project(
         body.name, body.description, body.source_language, body.status
@@ -37,7 +37,7 @@ async def create_project(
 @router.get("/projects", summary="List registered projects")
 async def list_projects(
     service: OnboardingService = Depends(get_onboarding_service),
-    user: dict[str, Any] = Depends(require_admin_or_reviewer),
+    user: dict[str, Any] = Depends(require_tenant),
 ) -> list[ProjectResponse]:
     return await service.list_projects()
 
@@ -47,7 +47,7 @@ async def update_project(
     project_id: str,
     body: ProjectUpdateRequest,
     service: OnboardingService = Depends(get_onboarding_service),
-    user: dict[str, Any] = Depends(require_admin),
+    user: dict[str, Any] = Depends(require_tenant),
 ) -> ProjectResponse:
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
     return await service.update_project(project_id, fields)
@@ -57,7 +57,7 @@ async def update_project(
 async def delete_project(
     project_id: str,
     service: OnboardingService = Depends(get_onboarding_service),
-    user: dict[str, Any] = Depends(require_admin),
+    user: dict[str, Any] = Depends(require_tenant),
 ) -> StatusResponse:
     await service.delete_project(project_id)
     return StatusResponse(status="deleted")
@@ -67,7 +67,7 @@ async def delete_project(
 async def register_website(
     body: WebsiteCreateRequest,
     service: OnboardingService = Depends(get_onboarding_service),
-    user: dict[str, Any] = Depends(require_admin),
+    user: dict[str, Any] = Depends(require_tenant),
 ) -> WebsiteResponse:
     return await service.register_website(body.project_id, body.domain, body.name, body.status)
 
@@ -76,7 +76,7 @@ async def register_website(
 async def list_websites(
     projectId: str | None = None,
     service: OnboardingService = Depends(get_onboarding_service),
-    user: dict[str, Any] = Depends(require_admin_or_reviewer),
+    user: dict[str, Any] = Depends(require_tenant),
 ) -> list[WebsiteResponse]:
     return await service.list_websites(projectId)
 
@@ -85,7 +85,7 @@ async def list_websites(
 async def get_website(
     website_id: str,
     service: OnboardingService = Depends(get_onboarding_service),
-    user: dict[str, Any] = Depends(require_admin_or_reviewer),
+    user: dict[str, Any] = Depends(require_tenant),
 ) -> WebsiteResponse:
     return await service.get_website(website_id)
 
@@ -95,7 +95,7 @@ async def update_website(
     website_id: str,
     body: WebsiteUpdateRequest,
     service: OnboardingService = Depends(get_onboarding_service),
-    user: dict[str, Any] = Depends(require_admin),
+    user: dict[str, Any] = Depends(require_tenant),
 ) -> WebsiteResponse:
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
     return await service.update_website(website_id, fields)
@@ -105,7 +105,7 @@ async def update_website(
 async def delete_website(
     website_id: str,
     service: OnboardingService = Depends(get_onboarding_service),
-    user: dict[str, Any] = Depends(require_admin),
+    user: dict[str, Any] = Depends(require_tenant),
 ) -> StatusResponse:
     await service.delete_website(website_id)
     return StatusResponse(status="deleted")

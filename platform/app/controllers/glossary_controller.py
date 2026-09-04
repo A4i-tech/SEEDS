@@ -8,7 +8,7 @@ from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.requests.glossary_requests import GlossaryTermCreateRequest
 from app.models.responses.glossary import GlossaryStatusResponse, GlossaryTermResponse
-from app.platform.auth.dependencies import get_db, require_admin, require_admin_or_reviewer
+from app.platform.auth.dependencies import get_db, require_tenant
 from app.repositories.glossary_repository import GlossaryRepository
 
 logger = logging.getLogger(__name__)
@@ -20,7 +20,7 @@ router = APIRouter(prefix="/glossary", tags=["Glossary"])
 async def add_term(
     body: GlossaryTermCreateRequest,
     db: AsyncDatabase = Depends(get_db),  # type: ignore[type-arg]
-    user: dict[str, Any] = Depends(require_admin),
+    user: dict[str, Any] = Depends(require_tenant),
 ) -> GlossaryTermResponse:
     repo = GlossaryRepository(db)
     doc = await repo.add_term(body.source_term, body.target_lang, body.translated_term)
@@ -31,7 +31,7 @@ async def add_term(
 async def list_terms(
     targetLang: str | None = None,
     db: AsyncDatabase = Depends(get_db),  # type: ignore[type-arg]
-    user: dict[str, Any] = Depends(require_admin_or_reviewer),
+    user: dict[str, Any] = Depends(require_tenant),
 ) -> list[GlossaryTermResponse]:
     repo = GlossaryRepository(db)
     docs = await (repo.find_by_lang(targetLang) if targetLang else repo.find_all())
@@ -42,7 +42,7 @@ async def list_terms(
 async def delete_term(
     term_id: str,
     db: AsyncDatabase = Depends(get_db),  # type: ignore[type-arg]
-    user: dict[str, Any] = Depends(require_admin),
+    user: dict[str, Any] = Depends(require_tenant),
 ) -> GlossaryStatusResponse:
     repo = GlossaryRepository(db)
     await repo.delete(term_id)

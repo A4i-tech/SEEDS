@@ -12,7 +12,7 @@ import "./manage.css";
 
 import { useLocalization } from "../hooks/useLocalization";
 import { translationService } from "../services/translationService";
-import { ToastProvider, TooltipProvider } from "./primitives";
+import { ToastProvider } from "./primitives";
 import { AppShell } from "./AppShell";
 import { usePersistentState, useLastSession } from "./lib/prefs";
 import { pagesFromDocs } from "./lib/segments";
@@ -140,21 +140,19 @@ export default function LocalizationUI() {
       ref={rootRef}
       style={{ height: shellH }}
     >
-      <TooltipProvider>
-        <ToastProvider>
-          <AppShell nav={nav} onNav={setNav} flush={nav === "workspace"}>
-            {isLoadingWorkspace && nav === "dashboard" ? (
-              <div style={{ padding: 28 }}>
-                <SkeletonTheme baseColor="var(--surface-2)" highlightColor="var(--surface-3)">
-                  <Skeleton count={6} height={64} borderRadius={10} style={{ marginBottom: 8 }} />
-                </SkeletonTheme>
-              </div>
-            ) : (
-              screen
-            )}
-          </AppShell>
-        </ToastProvider>
-      </TooltipProvider>
+      <ToastProvider>
+        <AppShell nav={nav} onNav={setNav} flush={nav === "workspace"}>
+          {isLoadingWorkspace && nav === "dashboard" ? (
+            <div style={{ padding: 28 }}>
+              <SkeletonTheme baseColor="var(--surface-2)" highlightColor="var(--surface-3)">
+                <Skeleton count={6} height={64} borderRadius={10} style={{ marginBottom: 8 }} />
+              </SkeletonTheme>
+            </div>
+          ) : (
+            screen
+          )}
+        </AppShell>
+      </ToastProvider>
     </div>
   );
 }

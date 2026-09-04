@@ -146,19 +146,8 @@ def require_role(*roles: str):
 require_teacher = require_role("teacher")
 require_tenant = require_role("tenant")
 require_translation_reviewer = require_role(
-    "admin", "reviewer", "tenant", "school_admin", "content_creator"
+    "tenant", "school_admin"
 )
-
-async def require_admin(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
-    if user.get("role") != "admin":
-        raise ForbiddenError("one of ['admin'] role required")
-    return user
-
-
-async def require_admin_or_reviewer(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
-    if user.get("role") not in {"admin", "reviewer"}:
-        raise ForbiddenError("one of ['admin', 'reviewer'] role required")
-    return user
 
 
 # ---------------------------------------------------------------------------

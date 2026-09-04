@@ -210,10 +210,6 @@
   font-weight: 500;
   cursor: pointer;
 }
-.tr-langbtn svg:first-child {
-  color: var(--muted);
-  flex: 0 0 auto;
-}
 .tr-langbtn-chev {
   margin-left: auto;
   color: var(--muted);
@@ -511,42 +507,6 @@
   color: var(--ink-2);
 }
 
-/* Filter popover content */
-.pop-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 168px;
-}
-.pop-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 32px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--ink-2);
-  font: inherit;
-  font-size: var(--fs-13);
-  font-weight: 500;
-  text-align: left;
-  cursor: pointer;
-}
-.pop-item:hover {
-  background: var(--surface-2);
-  color: var(--ink);
-}
-.pop-item.on {
-  background: var(--accent-wash);
-  color: var(--accent-ink);
-}
-.pop-item svg {
-  flex: 0 0 auto;
-  color: var(--accent);
-}
-
 /* Rows-per-page bar — between the grid and the sticky edit footer */
 .tr-rowsbar {
   display: flex;
@@ -607,15 +567,6 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-}
-
-.loca-ui .spin {
-  animation: loca-spin 0.8s linear infinite;
-}
-@keyframes loca-spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 @media (max-width: 1100px) {

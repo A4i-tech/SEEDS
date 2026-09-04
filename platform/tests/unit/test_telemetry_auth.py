@@ -14,12 +14,7 @@ from opentelemetry._logs import get_logger_provider
 from opentelemetry.sdk._logs import LoggerProvider as SDKLoggerProvider
 
 import app.platform.telemetry as tel_mod
-from app.platform.auth.dependencies import (
-    require_admin,
-    require_admin_or_reviewer,
-    require_teacher,
-    require_tenant,
-)
+from app.platform.auth.dependencies import require_teacher, require_tenant
 from app.platform.auth.hashing import hash_password, verify_password
 from app.platform.auth.jwt import (
     _parse_expires_delta,
@@ -240,58 +235,3 @@ class TestDependencies:
         with pytest.raises(ForbiddenError):
             await require_tenant(user=user)
 
-    @pytest.mark.asyncio
-    async def test_require_admin_passes(self) -> None:
-        user = {"sub": "u1", "role": "admin"}
-        result = await require_admin(user=user)
-        assert result == user
-
-    @pytest.mark.asyncio
-    async def test_require_admin_blocks_reviewer(self) -> None:
-        user = {"sub": "u1", "role": "reviewer"}
-        with pytest.raises(ForbiddenError):
-            await require_admin(user=user)
-
-    @pytest.mark.asyncio
-    async def test_require_admin_or_reviewer_passes_admin(self) -> None:
-        user = {"sub": "u1", "role": "admin"}
-        result = await require_admin_or_reviewer(user=user)
-        assert result == user
-
-    @pytest.mark.asyncio
-    async def test_require_admin_or_reviewer_passes_reviewer(self) -> None:
-        user = {"sub": "u1", "role": "reviewer"}
-        result = await require_admin_or_reviewer(user=user)
-        assert result == user
-
-    @pytest.mark.asyncio
-    async def test_require_admin_or_reviewer_blocks_other_role(self) -> None:
-        user = {"sub": "u1", "role": "teacher"}
-        with pytest.raises(ForbiddenError):
-            await require_admin_or_reviewer(user=user)
-
-    @pytest.mark.asyncio
-    async def test_require_admin_or_reviewer_blocks_tenant_in_production(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        from app.platform.settings import get_settings
-
-        monkeypatch.setenv("ENV", "production")
-        get_settings.cache_clear()
-
-        user = {"sub": "u1", "role": "tenant"}
-        with pytest.raises(ForbiddenError):
-            await require_admin_or_reviewer(user=user)
-
-    @pytest.mark.asyncio
-    async def test_require_admin_blocks_tenant_in_production(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        from app.platform.settings import get_settings
-
-        monkeypatch.setenv("ENV", "production")
-        get_settings.cache_clear()
-
-        user = {"sub": "u1", "role": "tenant"}
-        with pytest.raises(ForbiddenError):
-            await require_admin(user=user)
