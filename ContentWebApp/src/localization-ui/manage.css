@@ -33,41 +33,7 @@
   gap: 10px;
 }
 
-.loca-ui .data-table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: var(--sh-1);
-}
-.loca-ui .data-table thead th {
-  text-align: left;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-  padding: 11px 14px;
-  background: var(--surface-2);
-  border-bottom: 1px solid var(--line);
-}
-.loca-ui .data-table td {
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--line);
-  font-size: var(--fs-13);
-  vertical-align: middle;
-  color: var(--ink-2);
-}
-.loca-ui .data-table tbody tr:last-child td {
-  border-bottom: 0;
-}
-.loca-ui .data-table tbody tr:hover {
-  background: var(--surface-2);
-}
-.loca-ui .data-table .t-name {
+.loca-ui .t-name {
   font-weight: 600;
   color: var(--ink);
 }

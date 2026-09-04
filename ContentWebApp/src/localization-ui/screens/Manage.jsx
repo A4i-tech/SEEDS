@@ -5,7 +5,7 @@ import "../manage.css";
 import { Badge, Field, Input, Textarea, SearchInput, useToast } from "../primitives";
 import { extractDomain } from "../lib/url";
 import { useCrudView } from "../lib/useCrudView";
-import { CrudTable } from "../primitives/CrudTable";
+import { ManageTable } from "./ManageTable";
 
 const StatusPill = ({ status }) => {
   const isActive = status.toLowerCase() === "active";
@@ -90,7 +90,7 @@ function ProjectsView({ loc, toast }) {
         addLabel="New project"
         onAdd={() => open(null)}
       />
-      <CrudTable
+      <ManageTable
         columns={columns}
         rows={rows}
         getId={(project) => project.id}
@@ -210,7 +210,7 @@ function SitesView({ loc, toast }) {
         onAdd={() => setVisible((v) => !v)}
       />
       {visible ? (
-        <CrudTable
+        <ManageTable
           columns={columns}
           rows={rows}
           getId={(site) => site.id}
@@ -342,7 +342,7 @@ function LanguagesView({ loc, toast }) {
         addLabel="Add language"
         onAdd={() => open(null)}
       />
-      <CrudTable
+      <ManageTable
         columns={columns}
         rows={rows}
         getId={(language) => language.id}

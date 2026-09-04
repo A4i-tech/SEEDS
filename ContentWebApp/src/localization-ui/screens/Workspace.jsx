@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import Select from "../../components/AllContent/shared/Select";
+import { Pagination } from "../../components/ContentAggregatorDetails/Pagination";
 import "../workspace.css";
 import { translationService } from "../../services/translationService";
 import { toSegment } from "../lib/segments";
@@ -128,7 +129,7 @@ export function WorkspaceScreen({
   const [busy, setBusy] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
   const [statusTab, setStatusTab] = useState("all");
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const rowsPerPage = 10;
   const [pageOffset, setPageOffset] = useState(0);
   const [revision, setRevision] = useState(0);
   const bodyRef = useRef(null);
@@ -295,13 +296,6 @@ export function WorkspaceScreen({
     const set = new Set([0, 1, pageIdx - 1, pageIdx, pageIdx + 1, n - 1]);
     return [...set].filter((i) => i >= 0 && i < n).sort((a, b) => a - b);
   }, [pages, pageIdx]);
-
-  const segPageNumbers = useMemo(() => {
-    const n = pageCount;
-    if (n <= 7) return Array.from({ length: n }, (_, i) => i);
-    const set = new Set([0, 1, clampedOffset - 1, clampedOffset, clampedOffset + 1, n - 1]);
-    return [...set].filter((i) => i >= 0 && i < n).sort((a, b) => a - b);
-  }, [pageCount, clampedOffset]);
 
   const ready = Boolean(siteId && route);
 
@@ -495,61 +489,11 @@ export function WorkspaceScreen({
                       />
                     ))}
                   </div>
-                  <div className="tr-rowsbar">
-                    <label className="tr-rowsbar-size">
-                      Rows per page
-                      <select
-                        value={rowsPerPage}
-                        onChange={(e) => setRowsPerPage(Number(e.target.value))}
-                      >
-                        {[10, 25, 50, 100].map((n) => (
-                          <option key={n} value={n}>
-                            {n}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <span style={{ flex: 1 }} />
-                    <div className="tr-pager">
-                      <button
-                        className="pg-arrow"
-                        disabled={clampedOffset <= 0}
-                        onClick={() => setPageOffset((o) => Math.max(0, o - 1))}
-                        aria-label="Previous page"
-                      >
-                        ‹
-                      </button>
-                      {segPageNumbers.map((i, k) => {
-                        const gap = k > 0 && i - segPageNumbers[k - 1] > 1;
-                        return (
-                          <React.Fragment key={i}>
-                            {gap ? <span className="pg-dots">…</span> : null}
-                            <button
-                              className={`pg-num ${i === clampedOffset ? "on" : ""}`}
-                              onClick={() => setPageOffset(i)}
-                              aria-current={i === clampedOffset ? "page" : undefined}
-                            >
-                              {i + 1}
-                            </button>
-                          </React.Fragment>
-                        );
-                      })}
-                      <button
-                        className="pg-arrow"
-                        disabled={clampedOffset >= pageCount - 1}
-                        onClick={() => setPageOffset((o) => Math.min(pageCount - 1, o + 1))}
-                        aria-label="Next page"
-                      >
-                        ›
-                      </button>
-                    </div>
-                    <span style={{ flex: 1 }} />
-                    <span className="tr-rowsbar-count">
-                      Showing {clampedOffset * rowsPerPage + 1} to{" "}
-                      {Math.min(filtered.length, clampedOffset * rowsPerPage + rowsPerPage)} of{" "}
-                      {filtered.length}
-                    </span>
-                  </div>
+                  <Pagination
+                    current={clampedOffset}
+                    total={pageCount}
+                    onChange={(i) => setPageOffset(i)}
+                  />
                 </>
               )}
               {/* Editor footer */}

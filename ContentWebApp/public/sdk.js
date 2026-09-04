@@ -153,7 +153,7 @@
         fetch(API_BASE + "/translations/extract", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ siteId: SITE_ID, items: chunk }),
+          body: JSON.stringify({ site_id: SITE_ID, items: chunk }),
         })
       );
     }
@@ -192,7 +192,7 @@
     await flushExtracted();
     var url =
       API_BASE +
-      "/translations?siteId=" + encodeURIComponent(SITE_ID) +
+      "/translations?site_id=" + encodeURIComponent(SITE_ID) +
       "&route=" + encodeURIComponent(route) +
       "&lang=" + encodeURIComponent(lang);
     var r = await fetch(url);

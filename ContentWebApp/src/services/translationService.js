@@ -20,12 +20,12 @@ export const translationService = {
   },
 
   async getRuntimeTranslations(siteId, route, lang) {
-    const queryString = buildQueryString({ siteId, route, lang });
+    const queryString = buildQueryString({ site_id: siteId, route, lang });
     return apiFetch(`${SEEDS_URL}/translations?${queryString}`, { method: "GET" });
   },
 
   async generateForReview({ siteId, route, lang }) {
-    const queryString = buildQueryString({ siteId, route, lang });
+    const queryString = buildQueryString({ site_id: siteId, route, lang });
     return apiFetch(`${SEEDS_URL}/translations/generate?${queryString}`, {
       method: "POST",
       headers: getAuthHeaders(),
@@ -33,7 +33,7 @@ export const translationService = {
   },
 
   async getAuditTrail({ siteId, route, key } = {}) {
-    const queryString = buildQueryString({ siteId, route, key });
+    const queryString = buildQueryString({ site_id: siteId, route, key });
     return apiFetch(`${SEEDS_URL}/translations/audit?${queryString}`, {
       method: "GET",
       headers: getAuthHeaders(),
@@ -41,7 +41,7 @@ export const translationService = {
   },
 
   async listTranslations({ siteId, route, status } = {}) {
-    const queryString = buildQueryString({ siteId, route, status });
+    const queryString = buildQueryString({ site_id: siteId, route, status });
     const url = `${SEEDS_URL}/translations/list?${queryString}`;
 
     const response = await apiFetch(url, {
@@ -118,7 +118,7 @@ export const translationService = {
   },
 
   async bulkApproveTranslations({ siteId, route, lang }) {
-    const url = `${SEEDS_URL}/translations/bulk-approve?${buildQueryString({ siteId })}`;
+    const url = `${SEEDS_URL}/translations/bulk-approve?${buildQueryString({ site_id: siteId })}`;
 
     return apiFetch(url, {
       method: "POST",
