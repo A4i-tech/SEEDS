@@ -1,13 +1,3 @@
-"""IVR orchestration service — high-level interface wrapping the FSM engine.
-
-Provides the five core IVR operations consumed by controllers and consumers:
-
-  start_call_flow       — begin a new IVR call (returns NCCO)
-  process_dtmf          — handle a DTMF keypress (returns NCCO)
-  process_call_event    — process a Vonage call lifecycle event
-  get_ivr_structure     — retrieve the active FSM document
-  update_ivr_structure  — rebuild and persist the FSM from latest content
-"""
 
 from __future__ import annotations
 
@@ -55,9 +45,6 @@ from app.services.fsm.utils import (
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Internal helpers — action factory / accumulator
-# ---------------------------------------------------------------------------
 
 def _get_factory_and_accumulator():
     factory = VonageActionFactory()
@@ -65,10 +52,6 @@ def _get_factory_and_accumulator():
     return factory, accumulator
 
 
-# ---------------------------------------------------------------------------
-# FSM singleton cache  (fsm_id -> FSM instance)
-# Module-level globals preserve the cache across per-request service instances.
-# ---------------------------------------------------------------------------
 
 _fsm_cache: dict[str, Any] = {}
 _latest_fsm_id: str | None = None
@@ -87,9 +70,6 @@ def set_latest_fsm_id(fsm_id: str) -> None:
     _latest_fsm_id = fsm_id
 
 
-# ---------------------------------------------------------------------------
-# Internal: Vonage call creation (no db dependency — standalone helper)
-# ---------------------------------------------------------------------------
 
 async def _make_vonage_call(
     phone_number: str,
@@ -113,17 +93,10 @@ async def _make_vonage_call(
     return response
 
 
-# ---------------------------------------------------------------------------
-# IVRService
-# ---------------------------------------------------------------------------
-
 class IVRService:
     def __init__(self, db: AsyncDatabase[Any]) -> None:  # type: ignore[type-arg]
         self._db = db
 
-    # ------------------------------------------------------------------
-    # start_call_flow
-    # ------------------------------------------------------------------
 
     async def start_call_flow(
         self,
@@ -140,7 +113,6 @@ class IVRService:
         """
         settings = get_settings()
 
-        # Check for existing ongoing call
         ongoing_col = self._db["ongoingIVRState"]
         existing = await ongoing_col.find_one({"phone_number": phone_number})
         if existing:
@@ -155,7 +127,6 @@ class IVRService:
                     "message": f"IVR already in progress for {phone_number}",
                 }
 
-        # Check daily listening limit
         if settings.ivr_daily_listening_limit_seconds > 0:
             today = get_ist_date_string()
             usage_col = self._db["dailyListeningUsage"]
@@ -183,7 +154,6 @@ class IVRService:
                     "message": f"Daily limit reached for {phone_number}, limit notification sent",
                 }
 
-        # Get or build FSM
         if not _latest_fsm_id or _latest_fsm_id not in _fsm_cache:
             await self._ensure_fsm_loaded()
 
@@ -238,7 +208,6 @@ class IVRService:
         repo = IVRRepository(self._db)
         factory, accumulator = _get_factory_and_accumulator()
 
-        # Retry logic for race condition
         ivr_state = None
         for attempt in range(3):
             ivr_state = await repo.find_ongoing_call(call_id)
@@ -282,7 +251,6 @@ class IVRService:
             logger.info("DTMF timeout during WebSocket playback for %s — keeping listener", call_id)
             return _keep_listening_ncco
 
-        # Speed control (* = decrease, # = increase) during streaming
         if digits in ("*", "#") and is_streaming:
             current_speed = (ivr_state.experience_data or {}).get("playback_speed", 1.0)
             new_speed, _ = increase_speed(current_speed) if digits == "#" else decrease_speed(current_speed)
@@ -299,7 +267,6 @@ class IVRService:
             await repo.save_ongoing_call(ivr_state)
             return _keep_listening_ncco
 
-        # Pause/resume toggle (0) during streaming
         if digits == "0" and is_streaming:
             is_paused = (ivr_state.experience_data or {}).get("is_paused", False)
             new_pause = not is_paused
@@ -369,9 +336,6 @@ class IVRService:
 
         return ncco
 
-    # ------------------------------------------------------------------
-    # process_call_event
-    # ------------------------------------------------------------------
 
     async def process_call_event(
         self,
@@ -443,17 +407,11 @@ class IVRService:
         except ValueError:
             logger.warning("Unknown call status: %s", status)
 
-    # ------------------------------------------------------------------
-    # get_ivr_fsm_by_id
-    # ------------------------------------------------------------------
 
     async def get_ivr_fsm_by_id(self, fsm_id: str) -> Any | None:
         """Return the FSM document for fsm_id, checking ivrfsms then radioFSMs."""
         return await IVRRepository(self._db).find_fsm_by_id_any(fsm_id)
 
-    # ------------------------------------------------------------------
-    # get_ivr_structure
-    # ------------------------------------------------------------------
 
     async def get_ivr_structure(self, tenant_id: str) -> dict[str, Any]:
         """Return the active FSM structure document."""
@@ -476,9 +434,6 @@ class IVRService:
             "created_at": fsm_doc.created_at,
         }
 
-    # ------------------------------------------------------------------
-    # update_ivr_structure
-    # ------------------------------------------------------------------
 
     async def update_ivr_structure(
         self,
@@ -517,9 +472,6 @@ class IVRService:
             "fsm_id": updated_fsm.fsm_id,
         }
 
-    # ------------------------------------------------------------------
-    # process_rtc_event
-    # ------------------------------------------------------------------
 
     async def process_rtc_event(self, event_data: dict[str, Any]) -> None:
         """Process a Vonage RTC/conversation event (audio:play, stop, done)."""
@@ -547,9 +499,6 @@ class IVRService:
                 conversation_id, body["play_id"], field, event_data.get("timestamp")
             )
 
-    # ------------------------------------------------------------------
-    # Internal: ensure FSM is loaded from DB or content
-    # ------------------------------------------------------------------
 
     async def _ensure_fsm_loaded(self) -> None:
         """Load the latest FSM from DB or build from content if not in cache."""
@@ -560,7 +509,6 @@ class IVRService:
 
         fsm_col = self._db["ivrfsms"]
 
-        # Try loading the latest persisted FSM
         cursor = fsm_col.find({}).sort("created_at", -1).limit(1)
         docs = await cursor.to_list(length=1)
         if docs:
@@ -575,7 +523,6 @@ class IVRService:
             except Exception as exc:
                 logger.warning("Failed to deserialize persisted FSM: %s", exc)
 
-        # Fall back to building from content
         try:
             fsm = await instantiate_from_latest_content(db=self._db)
             _fsm_cache[fsm.fsm_id] = fsm

@@ -38,6 +38,11 @@ jobs:
                       context: websocket-service
                       image: websocket-service
                       azure_publish_profile: WEBSOCKET_SERVICE_AZURE_PUBLISH_PROFILE
+
+                    - name: translation-proxy-service-main
+                      context: translation-proxy
+                      image: translation-proxy
+                      azure_publish_profile: TRANSLATION_PROXY_AZURE_PUBLISH_PROFILE
         steps:
             - name: Checkout repository
               uses: actions/checkout@v4
@@ -79,6 +84,10 @@ jobs:
                     - name: web-socket-service-main
                       image: websocket-service
                       azure_publish_profile: WEBSOCKET_SERVICE_AZURE_PUBLISH_PROFILE
+
+                    - name: translation-proxy-service-main
+                      image: translation-proxy
+                      azure_publish_profile: TRANSLATION_PROXY_AZURE_PUBLISH_PROFILE
         steps:
             - name: Checkout repository
               uses: actions/checkout@v4

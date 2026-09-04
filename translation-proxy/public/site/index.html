@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Vidya Learning Center</title>
+  <style>
+    :root { --brand:#1d4ed8; --ink:#0f172a; --muted:#64748b; --bg:#f8fafc; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:system-ui,Arial,sans-serif; color:var(--ink); background:#fff; line-height:1.55; }
+    header { background:var(--brand); color:#fff; }
+    .bar { max-width:1000px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; padding:16px 24px; }
+    .logo { font-weight:800; font-size:20px; }
+    nav a { color:#e0e7ff; text-decoration:none; margin-left:20px; font-size:15px; }
+    .hero { max-width:1000px; margin:0 auto; padding:64px 24px; }
+    .hero h1 { font-size:40px; margin:0 0 12px; }
+    .hero p { font-size:18px; color:var(--muted); max-width:620px; }
+    .btn { display:inline-block; margin-top:24px; background:var(--brand); color:#fff; padding:12px 22px; border:none; border-radius:8px; font-size:16px; cursor:pointer; }
+    section { max-width:1000px; margin:0 auto; padding:40px 24px; }
+    h2 { font-size:28px; }
+    .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; margin-top:24px; }
+    .card { background:var(--bg); border:1px solid #e2e8f0; border-radius:12px; padding:22px; }
+    .card h3 { margin:0 0 8px; font-size:18px; }
+    .card p { margin:0; color:var(--muted); font-size:15px; }
+    blockquote { margin:0; background:var(--bg); border-left:4px solid var(--brand); padding:16px 20px; border-radius:8px; color:var(--ink); }
+    footer { background:var(--ink); color:#cbd5e1; margin-top:40px; }
+    footer .bar { display:block; text-align:center; font-size:14px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="bar">
+      <div class="logo">Vidya Learning Center</div>
+      <nav>
+        <a href="#courses">Courses</a>
+        <a href="#about">About Us</a>
+        <a href="#testimonials">Testimonials</a>
+        <a href="#contact">Contact</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="hero">
+    <h1>Learning that reaches every child</h1>
+    <p>We help schools deliver accessible, audio-first education to visually impaired students across the country. Trusted by hundreds of teachers.</p>
+    <button class="btn">Start Free Trial</button>
+  </div>
+
+  <section id="courses">
+    <h2>Our Courses</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>Foundations of Reading</h3>
+        <p>Interactive audio lessons that build strong literacy skills from the very first day.</p>
+      </div>
+      <div class="card">
+        <h3>Everyday Mathematics</h3>
+        <p>Practical number sense taught through stories, games, and real-world examples.</p>
+      </div>
+      <div class="card">
+        <h3>Science for Curious Minds</h3>
+        <p>Hands-on experiments and narrated guides that make science come alive.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="about">
+    <h2>About Us</h2>
+    <p>Vidya Learning Center was founded to make quality education available to every learner, regardless of ability. Our teaching materials are designed with accessibility at their core.</p>
+  </section>
+
+  <section id="testimonials">
+    <h2>What Teachers Say</h2>
+    <blockquote>"My students are more engaged than ever. The audio lessons are a joy to use in the classroom every single day."</blockquote>
+  </section>
+
+  <section id="contact">
+    <h2>Get in Touch</h2>
+    <p>Have a question or want a demo for your school? Send us a message and our team will respond within one business day.</p>
+    <button class="btn">Contact Sales</button>
+  </section>
+
+  <footer>
+    <div class="bar">
+      <p>Accessible. Audio-First. Inclusive. &copy; Vidya Learning Center.</p>
+    </div>
+  </footer>
+</body>
+</html>
