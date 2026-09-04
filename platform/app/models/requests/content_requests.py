@@ -6,7 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models.responses.content import TitleText
+from app.models.responses.content import QuizQuestion, TitleText
 
 
 class ContentCreateRequest(BaseModel):
@@ -17,7 +17,7 @@ class ContentCreateRequest(BaseModel):
     title: TitleText | None = None
     theme: TitleText | None = None
     audio_content: list[Any] | None = None
-    description: str | None = None
+    description: str = ""
     is_pull_model: bool = False
     is_teacher_app: bool = False
 
@@ -36,7 +36,7 @@ class ContentUpdateRequest(BaseModel):
     id: str
     title: TitleText | None = None
     theme: TitleText | None = None
-    description: str | None = None
+    description: str = ""
     type: str | None = None
     language: str | None = None
     audio_content: list[Any] | None = None
@@ -56,18 +56,20 @@ class QuizCreateRequest(BaseModel):
     language: str
     title: TitleText | None = None
     theme: TitleText | None = None
-    description: str | None = None
+    description: str = ""
     is_pull_model: bool = False
     is_teacher_app: bool = False
     positive_marks: float | None = None
     negative_marks: float | None = None
-    questions: list[Any] | None = None
+    questions: list[QuizQuestion] = Field(default_factory=list)
+
+    @field_validator("type")
+    @classmethod
+    def _normalize_type(cls, v: str) -> str:
+        return v.lower()
 
 
 class ContentCreate(BaseModel):
-    """Snake_case DB document DTO for content creation — model_dump() writes correct DB keys
-    matching the Content domain model (app/models/content.py)."""
-
     tenant_id: str
     type: str
     language: str
@@ -84,11 +86,13 @@ class ContentCreate(BaseModel):
     creation_time: int = -1
     version: str = "v3"
 
+    @field_validator("type")
+    @classmethod
+    def _normalize_type(cls, v: str) -> str:
+        return v.lower()
+
 
 class QuizCreate(BaseModel):
-    """Snake_case DB document DTO for quiz creation — model_dump() writes correct DB keys
-    matching the Quiz domain model."""
-
     tenant_id: str
     type: str
     language: str
@@ -100,6 +104,11 @@ class QuizCreate(BaseModel):
     is_teacher_app: bool = False
     positive_marks: float = 1.0
     negative_marks: float = 0.0
-    questions: list[Any] = Field(default_factory=list)
+    questions: list[QuizQuestion] = Field(default_factory=list)
     is_deleted: bool = False
     creation_time: int = -1
+
+    @field_validator("type")
+    @classmethod
+    def _normalize_type(cls, v: str) -> str:
+        return v.lower()

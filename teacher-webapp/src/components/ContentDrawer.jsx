@@ -79,7 +79,7 @@ const ContentDrawer = ({
     }
   }, [open]);
 
-  const fetchContent = async (cursor = null) => {
+  const fetchContent = async (cursor = null, { announce = false } = {}) => {
     try {
       if (cursor) {
         setLoadingMore(true);
@@ -94,6 +94,7 @@ const ContentDrawer = ({
         setContent(page.items);
       }
       setPagination({ next_cursor: page.next_cursor, has_more: page.has_more });
+      if (announce) announceContent(page.items);
     } catch (err) {
       setError("Failed to load content. Please try again.");
       showToast.error("Failed to load content");
@@ -102,6 +103,34 @@ const ContentDrawer = ({
       setLoadingMore(false);
     }
   };
+
+  // Speak newly loaded item titles aloud (voice-command follow-up: "show more").
+  const announceContent = (items) => {
+    if (!window.speechSynthesis) return;
+    const titles = items.map((c) => c.title.english);
+    const text = titles.length
+      ? `Added ${titles.length} more item${titles.length !== 1 ? "s" : ""}: ${titles.slice(0, 5).join(", ")}${
+          titles.length > 5 ? ", and more" : ""
+        }.`
+      : "That's all the content available.";
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+  };
+
+  // Voice command follow-up ("show more" / "load more") — click Load More for the user.
+  useEffect(() => {
+    const handler = () => {
+      if (!open) return;
+      if (pagination.has_more) {
+        fetchContent(pagination.next_cursor, { announce: true });
+      } else {
+        announceContent([]);
+      }
+    };
+    window.addEventListener("content-load-more", handler);
+    return () => window.removeEventListener("content-load-more", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, pagination]);
 
   const handleItemPlay = async (item) => {
     if (loadingItemId) return;
@@ -123,7 +152,6 @@ const ContentDrawer = ({
       const sasUrl = await getContentSasUrl(audioSource);
       const title = item.display_title;
 
-      // Track in content history
       try {
         saveContentToHistory({
           id: item.id,
@@ -156,7 +184,6 @@ const ContentDrawer = ({
     }
   };
 
-  // Derive filter tabs from fetched content types
   const availableTabs = useMemo(() => {
     const types = [
       ...new Set(content.map((item) => item.type?.toLowerCase()).filter(Boolean)),
@@ -170,7 +197,6 @@ const ContentDrawer = ({
     }
   }, [availableTabs, activeTab]);
 
-  // Client-side search + tab filter
   const filteredContent = content.filter((item) => {
     const matchesTab = activeTab === "all" || item.type?.toLowerCase() === activeTab;
     const query = searchQuery.toLowerCase();
@@ -197,7 +223,6 @@ const ContentDrawer = ({
         },
       }}
     >
-      {/* Header */}
       <Box
         sx={{
           px: 2.5,
@@ -226,12 +251,10 @@ const ContentDrawer = ({
         </IconButton>
       </Box>
 
-      {/* Conference streaming banner */}
       {conferenceActive && (
         <NowPlayingBanner audioContentState={audioContentState} />
       )}
 
-      {/* Search and filters */}
       <ContentSearchBar
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
@@ -242,7 +265,6 @@ const ContentDrawer = ({
 
       <Divider />
 
-      {/* Content list */}
       <Box sx={{ flex: 1, overflowY: "auto", px: 0 }}>
         {loading && (
           <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
@@ -278,7 +300,6 @@ const ContentDrawer = ({
           />
         ))}
 
-        {/* Load more */}
         {pagination.has_more && (
           <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
             <Button
@@ -294,7 +315,6 @@ const ContentDrawer = ({
         )}
       </Box>
 
-      {/* Local preview: Now Playing footer */}
       {!onPlay && (
         <NowPlayingFooter
           selectedItem={selectedItem}
@@ -303,7 +323,6 @@ const ContentDrawer = ({
         />
       )}
 
-      {/* Conference mode footer */}
       {conferenceActive && (
         <>
           <Divider />

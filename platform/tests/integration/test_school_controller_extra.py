@@ -192,6 +192,23 @@ class TestSchoolControllerExtra:
         assert resp.status_code in (200, 201, 422)
 
     @pytest.mark.asyncio
+    async def test_upsert_class_rejects_nameless_create(self, client, mock_db):
+        # Guard: a create (no _id) with a blank/missing name must be rejected,
+        # not silently spawn a nameless ghost class (the "add student to classX"
+        # misfire). Regression for the AI-controller nameless-class bug.
+        teacher = await _seed_teacher(mock_db)
+        token = _teacher_token(teacher["_id"])
+        headers = {"Authorization": f"Bearer {token}"}
+
+        for bad_name in ({}, {"name": ""}, {"name": "   "}):
+            resp = await client.post("/class", json=bad_name, headers=headers)
+            assert resp.status_code == 422, bad_name
+
+        # A real name still creates fine.
+        ok = await client.post("/class", json={"name": "Grade 9"}, headers=headers)
+        assert ok.status_code == 200
+
+    @pytest.mark.asyncio
     async def test_get_class_with_teacher(self, client, mock_db):
         teacher = await _seed_teacher(mock_db)
         token = _teacher_token(teacher["_id"])

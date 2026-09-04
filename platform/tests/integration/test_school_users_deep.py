@@ -99,8 +99,8 @@ class TestSchoolControllerDeep:
     async def test_list_schools_with_token(self, client, mock_db):
         tenant = await _seed_tenant(mock_db)
         token = _tenant_token(tenant["_id"])
-        resp = await client.get("/school/list", headers={"Authorization": f"Bearer {token}"})
-        assert resp.status_code in (200, 404)
+        resp = await client.get("/school", headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 200
 
     @pytest.mark.asyncio
     async def test_school_teachers_requires_auth(self, client, mock_db):

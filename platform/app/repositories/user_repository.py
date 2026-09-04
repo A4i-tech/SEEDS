@@ -26,7 +26,7 @@ class UserRepository(BaseRepository):
     # ------------------------------------------------------------------
     async def find_by_id(self, id: str) -> User | None:
         """Find a user by their MongoDB _id."""
-        doc = await self._col.find_one({"_id": self._to_id(id)})
+        doc = await self._col.find_one({"_id": self._to_oid(id)})
         return User.from_mongo(doc) if doc else None
 
     async def find_by_email(self, email: str) -> User | None:
@@ -53,8 +53,8 @@ class UserRepository(BaseRepository):
         """
         doc = await self._col.find_one(
             {
-                "school_id": self._to_id(school_id),
-                "tenant_id": self._to_id(tenant_id),
+                "school_id": self._to_oid(school_id),
+                "tenant_id": self._to_oid(tenant_id),
                 "role": "school_admin",
             }
         )
@@ -67,13 +67,13 @@ class UserRepository(BaseRepository):
 
     async def find_all_by_tenant(self, tenant_id: str) -> list[User]:
         """Return all users belonging to a tenant."""
+        # tolerant: teacher self-registration writes tenant_id as a raw string (test_fsm_utils.py::test_list_users_by_tenant relies on this round-trip).
         cursor = self._col.find({"tenant_id": self._to_id(tenant_id)})
         docs = await cursor.to_list(length=None)
         return [User.from_mongo(d) for d in docs]
 
     async def find_all_by_tenant_and_role(self, tenant_id: str, role: str) -> list[User]:
-        """Return all users belonging to a tenant, filtered to a single role."""
-        cursor = self._col.find({"tenant_id": self._to_id(tenant_id), "role": role})
+        cursor = self._col.find({"tenant_id": self._to_oid(tenant_id), "role": role})
         docs = await cursor.to_list(length=None)
         return [User.from_mongo(d) for d in docs]
 
@@ -81,14 +81,18 @@ class UserRepository(BaseRepository):
         """Fetch multiple users by a list of _id strings in one query."""
         if not ids:
             return []
-        object_ids = [self._to_id(i) for i in ids]
+        object_ids = [self._to_oid(i) for i in ids]
         cursor = self._col.find({"_id": {"$in": object_ids}})
         docs = await cursor.to_list(length=None)
         return [User.from_mongo(d) for d in docs]
 
+    async def find_by_school_and_role(self, school_id: str, role: str) -> list[User]:
+        cursor = self._col.find({"school_id": self._to_oid(school_id), "role": role})
+        docs = await cursor.to_list(length=None)
+        return [User.from_mongo(d) for d in docs]
+
     async def count_by_school_and_role(self, school_id: str, role: str) -> int:
-        """Return count of users with the given school_id and role."""
-        return await self._col.count_documents({"school_id": self._to_id(school_id), "role": role})
+        return await self._col.count_documents({"school_id": self._to_oid(school_id), "role": role})
 
     # ------------------------------------------------------------------
     # Write
@@ -96,8 +100,7 @@ class UserRepository(BaseRepository):
     @classmethod
     def _coerce_refs(cls, doc: dict) -> dict:
         """Coerce tenant_id/school_id to ObjectId when present — matches how
-        _to_id()-based read queries (find_all_by_tenant, count_by_school_and_role,
-        find_all_by_tenant_and_role) filter on these fields."""
+        find_all_by_tenant's tolerant _to_id() read query filters on these fields."""
         for key in ("tenant_id", "school_id"):
             if doc.get(key) is not None:
                 doc[key] = cls._to_id(doc[key])
@@ -121,7 +124,7 @@ class UserRepository(BaseRepository):
         updates = self._coerce_refs(updates)
         updates["updated_at"] = datetime.now(UTC)
         result = await self._col.find_one_and_update(
-            {"_id": self._to_id(id)},
+            {"_id": self._to_oid(id)},
             {"$set": updates},
             return_document=True,
         )
@@ -129,5 +132,5 @@ class UserRepository(BaseRepository):
 
     async def delete(self, id: str) -> bool:
         """Delete a user by _id. Returns True when a document was deleted."""
-        result = await self._col.delete_one({"_id": self._to_id(id)})
+        result = await self._col.delete_one({"_id": self._to_oid(id)})
         return result.deleted_count > 0

@@ -78,7 +78,7 @@ async def _seed_school(mock_db, email="admin@school.com", password="adminpass123
         "name": "Test School",
         "email": email,
         "hashed_password": hash_password(password),
-        "tenant_id": ObjectId(tenant_id),
+        "tenant_id": ObjectId(tenant_id) if ObjectId.is_valid(tenant_id) else tenant_id,
         "is_active": True,
     }
     result = await mock_db["users"].insert_one(doc)
@@ -252,7 +252,7 @@ class TestSchoolController:
     async def test_get_school_not_found(self, client, mock_db):
         tenant = await _seed_tenant(mock_db)
         token = _tenant_token(tenant["_id"])
-        resp = await client.get("/school/nonexistent123", headers={"Authorization": f"Bearer {token}"})
+        resp = await client.get(f"/school/{ObjectId()}", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 404
 
     @pytest.mark.asyncio

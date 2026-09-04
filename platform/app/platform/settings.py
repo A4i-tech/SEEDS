@@ -70,9 +70,18 @@ class Settings(BaseSettings):
     azure_speech_key: str = Field(default="", repr=False)
     azure_speech_region: str = ""
     azure_speech_resource_id: str = ""
-    # Legacy env names from JS (TTS_SUBSCRIPTION_KEY, TTS_REGION)
+    # Legacy env names from JS (TTS_SUBSCRIPTION_KEY, TTS_REGION, TTS_VOICE)
     tts_subscription_key: str = Field(default="", repr=False)
     tts_region: str = ""
+    tts_voice: str = ""
+
+    # ---------------------------------------------------------------------------
+    # Azure OpenAI (meta.service.js — voice/text command pipeline)
+    # ---------------------------------------------------------------------------
+    azure_openai_key: str = Field(default="", repr=False)
+    azure_openai_endpoint: str = ""
+    azure_openai_model: str = ""
+    azure_openai_api_version: str = "2025-03-01-preview"
 
     # ---------------------------------------------------------------------------
     # Azure Blob Storage

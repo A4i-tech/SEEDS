@@ -241,6 +241,7 @@ async def list_content(
     exp_name: str | None = Query(None),
     ids: list[str] | None = Query(None),
     only_teacher_app: bool | None = Query(None),
+    search: str = Query("", description="Search content by title (case-insensitive)"),
     limit: int = Query(20, ge=1, le=200),
     cursor: str | None = None,
     user: dict[str, Any] = Depends(_require_content_read),
@@ -258,10 +259,6 @@ async def list_content(
             data=data,
             pagination=PaginationInfo(next_cursor=None, has_more=False, limit=len(data)),
         )
-        return ContentPageResponse(
-            data=data,
-            pagination=PaginationInfo(next_cursor=None, has_more=False, limit=len(data)),
-        )
 
     all_results = await service.list_content(
         tenant_id=tenant_id,
@@ -271,6 +268,7 @@ async def list_content(
         exp_name=exp_name,
         only_teacher_app=bool(only_teacher_app),
         cursor=cursor,
+        search=search,
         limit=limit,
     )
 

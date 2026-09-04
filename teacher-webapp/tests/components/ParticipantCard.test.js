@@ -88,4 +88,16 @@ describe("ParticipantCard - Remove participant", () => {
     expect(removeButton).toBeDisabled();
     expect(removeButton).toHaveAttribute("aria-label", "Remove participant");
   });
+
+  test("renders hold indicator for on-hold participant", () => {
+    render(
+      <ParticipantCard
+        participant={{ ...connectedStudent, call_status: "on_hold" }}
+        isTeacher={false}
+        onMuteToggle={jest.fn()}
+      />
+    );
+
+    expect(screen.getByLabelText("On hold")).toBeInTheDocument();
+  });
 });
