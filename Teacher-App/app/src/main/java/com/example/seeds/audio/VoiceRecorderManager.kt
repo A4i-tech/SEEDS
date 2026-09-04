@@ -5,6 +5,7 @@ import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.os.Build
+import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -33,9 +34,9 @@ class VoiceRecorderManager @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     companion object {
-        // ponytail: calibration knobs — retune on real devices (quiet room vs noisy, emulator vs handset)
-        private const val SILENCE_THRESHOLD = 500   // raw PCM amplitude; lower = more sensitive
-        private const val SILENCE_WINDOW_MS = 2000L // ms of continuous silence before auto-stop
+        private const val TAG = "VoiceRecorderManager"
+        private const val SILENCE_THRESHOLD = 500
+        private const val SILENCE_WINDOW_MS = 2000L
         private const val SAMPLE_RATE = 44100
     }
 
@@ -121,12 +122,10 @@ class VoiceRecorderManager @Inject constructor(
                 minBuf
             )
         } catch (e: SecurityException) {
-            // RECORD_AUDIO not granted — silence detection disabled, rely on manual stop (volume-up)
+            Log.w(TAG, "RECORD_AUDIO not granted, silence detection disabled", e)
             return
         }
 
-        // ponytail: some OEMs reject a second concurrent mic session (MediaRecorder + AudioRecord)
-        // If uninitialized here, silence detection is silently disabled; manual stop still works.
         if (audioRecord.state != AudioRecord.STATE_INITIALIZED) {
             audioRecord.release()
             return

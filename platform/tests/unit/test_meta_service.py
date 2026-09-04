@@ -146,10 +146,12 @@ class TestFormatting:
         assert "none — this is the first command" in meta_service._format_history(None)
 
     def test_format_history_keeps_last_two_only(self) -> None:
+        from app.models.requests.meta_requests import HistoryEntry
+
         history = [
-            {"transcript": "one", "spokenSummary": "r1"},
-            {"transcript": "two", "spokenSummary": "r2"},
-            {"transcript": "three", "spokenSummary": "r3"},
+            HistoryEntry(transcript="one", spoken_summary="r1"),
+            HistoryEntry(transcript="two", spoken_summary="r2"),
+            HistoryEntry(transcript="three", spoken_summary="r3"),
         ]
         out = meta_service._format_history(history)
         assert "one" not in out
@@ -694,6 +696,6 @@ class TestGetTtsPrompt:
         with patch("app.services.meta_service.synthesize_speech", AsyncMock(return_value="audio1")) as mock_synth:
             first = await meta_service.get_tts_prompt("thinking")
             second = await meta_service.get_tts_prompt("thinking")
-        assert first.audioBase64 == "audio1"
-        assert second.audioBase64 == "audio1"
+        assert first.audio_base64 == "audio1"
+        assert second.audio_base64 == "audio1"
         mock_synth.assert_awaited_once()  # second call served from cache

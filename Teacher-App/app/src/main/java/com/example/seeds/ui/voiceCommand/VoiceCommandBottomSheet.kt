@@ -165,9 +165,9 @@ class VoiceCommandBottomSheet : BottomSheetDialogFragment() {
         binding.transcriptCard.visibility = if (state.transcript.isNotEmpty()) View.VISIBLE else View.GONE
         binding.transcriptText.text = state.transcript
 
-        val showSummary = state.status == VoiceStatus.DONE && state.spokenSummary.isNotEmpty()
+        val showSummary = state.status == VoiceStatus.DONE && state.spoken_summary.isNotEmpty()
         binding.summaryCard.visibility = if (showSummary) View.VISIBLE else View.GONE
-        binding.summaryText.text = state.spokenSummary
+        binding.summaryText.text = state.spoken_summary
 
         val showError = state.status == VoiceStatus.ERROR && state.error.isNotEmpty()
         binding.errorCard.visibility = if (showError) View.VISIBLE else View.GONE

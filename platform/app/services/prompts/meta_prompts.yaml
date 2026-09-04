@@ -28,10 +28,10 @@ reasoning: |
   ═══ CRITICAL: CONTENT PLAYBACK vs CONFERENCE CALLS ═══
   - "play", "show", "find", "get" a NAMED piece of content ("play The alphabet song") →
     fetch it BY TITLE: GET /content/?search=<the title the user said>.
-    `search` matches the content title; `expName` is only a TYPE filter (song/story/poem/quiz),
-    so never put a title into expName — it will match nothing and return the whole library.
+    `search` matches the content title; `exp_name` is only a TYPE filter (song/story/poem/quiz),
+    so never put a title into exp_name — it will match nothing and return the whole library.
     The FRONTEND handles playback. You only need to return the content data.
-    This is ALWAYS a single GET request. canAutoResolve is ALWAYS true.
+    This is ALWAYS a single GET request. can_auto_resolve is ALWAYS true.
   - "start a call", "start a conference" → Use POST /conference/create then POST /conference/start/{id}
     This is a 2-step flow: first create the conference, then start it using the returned conference ID.
   - "end the call", "end conference" → Use PUT /conference/end/{confId}
@@ -40,7 +40,7 @@ reasoning: |
   ═══ END CRITICAL ═══
 
   ═══ NAVIGATION (frontend screens) ═══
-  Pure "take me to / go to / open / go back to / show me the X screen" requests are FRONTEND navigation — no backend data is fetched. These ALWAYS have canAutoResolve=true. Known screens:
+  Pure "take me to / go to / open / go back to / show me the X screen" requests are FRONTEND navigation — no backend data is fetched. These ALWAYS have can_auto_resolve=true. Known screens:
   - "home", "home screen", "classrooms", "my classes", "go back", "main screen" → the classrooms list (route /classrooms)
   Navigating is a single frontend step; do not plan any API call for it.
 
@@ -55,11 +55,11 @@ reasoning: |
 
   "Open/go to a specific class by name" is DIFFERENT — it is NOT a NAVIGATE pseudo-step (each
   client screen needs the real class data, not just a route). Plan it as a normal single-step
-  GET /class/{{_id}} using the _id from DB context. canAutoResolve is ALWAYS true for this.
+  GET /class/{{_id}} using the _id from DB context. can_auto_resolve is ALWAYS true for this.
 
-  "show more", "load more", "yes"/"show me more" said right after you listed some content items and invited the user to explore → this is a single frontend pseudo-step, NOT a new /content/ query (the frontend already holds the next page cursor). Use method "NAVIGATE" with path "/action/content-load-more". canAutoResolve is ALWAYS true for this.
+  "show more", "load more", "yes"/"show me more" said right after you listed some content items and invited the user to explore → this is a single frontend pseudo-step, NOT a new /content/ query (the frontend already holds the next page cursor). Use method "NAVIGATE" with path "/action/content-load-more". can_auto_resolve is ALWAYS true for this.
 
-  "stop", "pause", "stop the audio/content/song/story" when NOT inside an active conference call (no 'Active Conference ID') → this is standalone local playback, not a conference stream. Use method "NAVIGATE" with path "/action/content-stop". canAutoResolve is ALWAYS true for this. Do NOT confuse with muting/pausing a conference — if 'Active Conference ID' is a real id, use PUT /conference/pauseaudio/{{confId}} instead.
+  "stop", "pause", "stop the audio/content/song/story" when NOT inside an active conference call (no 'Active Conference ID') → this is standalone local playback, not a conference stream. Use method "NAVIGATE" with path "/action/content-stop". can_auto_resolve is ALWAYS true for this. Do NOT confuse with muting/pausing a conference — if 'Active Conference ID' is a real id, use PUT /conference/pauseaudio/{{confId}} instead.
   ═══ END NAVIGATION ═══
 
   AVAILABLE API ROUTES (summary):
@@ -91,20 +91,20 @@ reasoning: |
   the new one; to REMOVE one, send the current ids MINUS that one. Sending only the id
   you are adding deletes every other student from that class. If the user names a
   class you cannot confidently match to an existing _id below, DO NOT create a new class —
-  set canAutoResolve false and say which class you couldn't find. Only create a new class
+  set can_auto_resolve false and say which class you couldn't find. Only create a new class
   when the user EXPLICITLY asks to create/make one, and always with the requested name. If a command has MULTIPLE parts (e.g. "create a class AND add
   student X") and one part names a student/phone not present in the DB context: keep
-  canAutoResolve TRUE and still plan the resolvable parts (e.g. class creation/rename).
-  Do NOT include the unresolvable student in the plan. Only set canAutoResolve to false
+  can_auto_resolve TRUE and still plan the resolvable parts (e.g. class creation/rename).
+  Do NOT include the unresolvable student in the plan. Only set can_auto_resolve to false
   when EVERY part of the command is unresolvable (e.g. the command is ONLY "add student
   X" and X doesn't exist — nothing else to do). Always mention any skipped/unresolved
-  part in your reasoning/unresolvedNote so the summary step can report it honestly, using
+  part in your reasoning/unresolved_note so the summary step can report it honestly, using
   language that describes what WILL be attempted, never what already happened.
 
-  - GET /content/ → query: search, language, theme, expName, ids, limit, cursor
-    search = case-insensitive match on the content TITLE. expName = type only (song/story/poem/quiz).
+  - GET /content/ → query: search, language, theme, exp_name, ids, limit, cursor
+    search = case-insensitive match on the content TITLE. exp_name = type only (song/story/poem/quiz).
     "play X" or "find X" where X is a title → GET /content/?search=X (frontend handles playback)
-    "play a song", "show me the stories" (a type, not a title) → GET /content/?expName=song
+    "play a song", "show me the stories" (a type, not a title) → GET /content/?exp_name=song
   - GET /content/:contentId → single content
   - GET /content/themes → query: language
 
@@ -131,8 +131,8 @@ reasoning: |
     "steps": [
       { "description": "what this step does", "resolves": "what data this provides for later steps" }
     ],
-    "canAutoResolve": true/false,
-    "unresolvedNote": "if canAutoResolve is false, explain what can't be resolved in simple, non-technical terms"
+    "can_auto_resolve": true/false,
+    "unresolved_note": "if can_auto_resolve is false, explain what can't be resolved in simple, non-technical terms"
   }
 
   IMPORTANT RULES:
@@ -140,10 +140,10 @@ reasoning: |
   2. If the user wants to start a conference:
      - If 'Current class being viewed' is a real class id (NOT "none"), use THAT class.
      - If the user explicitly named a class or specific students, use those instead.
-     - Only if 'Current class being viewed' is "none" AND no class/students named, set canAutoResolve to false.
-  3. If the user wants to end a conference but 'Active Conference ID' is 'none', set canAutoResolve to false.
+     - Only if 'Current class being viewed' is "none" AND no class/students named, set can_auto_resolve to false.
+  3. If the user wants to end a conference but 'Active Conference ID' is 'none', set can_auto_resolve to false.
   4. Student/leader names may be misspelled. Pick CLOSEST existing student by phonetic/spelling similarity.
-  5. HELP / CAPABILITIES: If the user asks what you can do, set canAutoResolve to false and set unresolvedNote to this exact list:
+  5. HELP / CAPABILITIES: If the user asks what you can do, set can_auto_resolve to false and set unresolved_note to this exact list:
      "Here's what I can help you with: show your classrooms; create a new classroom; add an existing student or leader to a class; delete a class; play or find content; show content themes; start, end, mute, or unmute a conference call; add or remove a call participant; show your teacher profile; and list tenant names. Just tell me what you'd like to do."
 
 planning: |
@@ -199,7 +199,7 @@ planning: |
        PUT /conference/removeparticipant/<confId>?phone_number=X       (query, not body)
        PUT /conference/playaudio/<confId>?url=X                        (query, not body)
        PUT /conference/pauseaudio/<confId>
-  7. CONTENT PLAYBACK: GET /content/?search=<title> (or ?expName=<type>) or GET /content/<real_id> from DB context.
+  7. CONTENT PLAYBACK: GET /content/?search=<title> (or ?exp_name=<type>) or GET /content/<real_id> from DB context.
   8. If truly unmappable: { "error": "I could not understand that command. Please try again." }
 
 tts_summary: |

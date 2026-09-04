@@ -21,8 +21,8 @@ class VoiceCommandDtoTest {
               "reasoning": {
                 "intent": "list students",
                 "reasoning": "teacher wants to see student list",
-                "canAutoResolve": true,
-                "unresolvedNote": null
+                "can_auto_resolve": true,
+                "unresolved_note": null
               },
               "commands": [
                 { "method": "GET", "path": "/class/", "body": null, "description": "Fetch all classrooms" }
@@ -30,8 +30,8 @@ class VoiceCommandDtoTest {
               "results": [
                 { "step": "Fetch all classrooms", "status": 200, "data": { "id": "abc" } }
               ],
-              "spokenSummary": "You have 2 classrooms.",
-              "audioBase64": "SGVsbG8="
+              "spoken_summary": "You have 2 classrooms.",
+              "audio_base64": "SGVsbG8="
             }
         """.trimIndent()
 
@@ -40,13 +40,13 @@ class VoiceCommandDtoTest {
 
         assertNotNull(result)
         assertEquals("show me all my students", result!!.transcript)
-        assertEquals(true, result.reasoning?.canAutoResolve)
+        assertEquals(true, result.reasoning?.can_auto_resolve)
         assertEquals(1, result.commands.size)
         assertEquals("GET", result.commands[0].method)
         assertEquals(1, result.results.size)
         assertEquals(200, result.results[0].status)
-        assertEquals("You have 2 classrooms.", result.spokenSummary)
-        assertEquals("SGVsbG8=", result.audioBase64)
+        assertEquals("You have 2 classrooms.", result.spoken_summary)
+        assertEquals("SGVsbG8=", result.audio_base64)
     }
 
     @Test
@@ -54,10 +54,10 @@ class VoiceCommandDtoTest {
         val json = """
             {
               "transcript": "what can you do",
-              "reasoning": { "canAutoResolve": false, "unresolvedNote": "Here is what I can help with" },
+              "reasoning": { "can_auto_resolve": false, "unresolved_note": "Here is what I can help with" },
               "commands": [],
               "results": [],
-              "spokenSummary": "Here is what I can help with"
+              "spoken_summary": "Here is what I can help with"
             }
         """.trimIndent()
 
@@ -65,8 +65,8 @@ class VoiceCommandDtoTest {
         val result = adapter.fromJson(json)
 
         assertNotNull(result)
-        assertEquals("", result!!.audioBase64)
-        assertEquals(false, result.reasoning?.canAutoResolve)
+        assertEquals("", result!!.audio_base64)
+        assertEquals(false, result.reasoning?.can_auto_resolve)
         assertEquals(0, result.commands.size)
     }
 
@@ -98,8 +98,8 @@ class VoiceCommandDtoTest {
             {
               "command": "Get all my classrooms",
               "context": {
-                "activeConferenceId": null,
-                "currentClassId": null,
+                "active_conference_id": null,
+                "current_class_id": null,
                 "history": []
               }
             }
@@ -110,39 +110,39 @@ class VoiceCommandDtoTest {
 
         assertNotNull(result)
         assertEquals("Get all my classrooms", result!!.command)
-        assertEquals("", result.context.activeConferenceId)
+        assertEquals("", result.context.active_conference_id)
         assertEquals(0, result.context.history.size)
     }
 
     @Test
     fun `TtsPromptResponse round-trip`() {
-        val json = """{"text": "Let me think about that.", "audioBase64": "SGVsbG8="}"""
+        val json = """{"text": "Let me think about that.", "audio_base64": "SGVsbG8="}"""
         val adapter = moshi.adapter(TtsPromptResponse::class.java)
         val result = adapter.fromJson(json)
 
         assertNotNull(result)
         assertEquals("Let me think about that.", result!!.text)
-        assertEquals("SGVsbG8=", result.audioBase64)
+        assertEquals("SGVsbG8=", result.audio_base64)
     }
 
     @Test
-    fun `TtsPromptResponse null audioBase64 does not throw`() {
-        val json = """{"text": "Let me think.", "audioBase64": null}"""
+    fun `TtsPromptResponse null audio_base64 does not throw`() {
+        val json = """{"text": "Let me think.", "audio_base64": null}"""
         val adapter = moshi.adapter(TtsPromptResponse::class.java)
         val result = adapter.fromJson(json)
 
         assertNotNull(result)
-        assertEquals("", result!!.audioBase64)
+        assertEquals("", result!!.audio_base64)
     }
 
     @Test
     fun `VoiceCommandContext with history round-trip`() {
         val json = """
             {
-              "activeConferenceId": "conf_abc123",
-              "currentClassId": "68abc",
+              "active_conference_id": "conf_abc123",
+              "current_class_id": "68abc",
               "history": [
-                { "transcript": "show my classrooms", "spokenSummary": "You have 3 classrooms." }
+                { "transcript": "show my classrooms", "spoken_summary": "You have 3 classrooms." }
               ]
             }
         """.trimIndent()
@@ -151,7 +151,7 @@ class VoiceCommandDtoTest {
         val result = adapter.fromJson(json)
 
         assertNotNull(result)
-        assertEquals("conf_abc123", result!!.activeConferenceId)
+        assertEquals("conf_abc123", result!!.active_conference_id)
         assertEquals(1, result.history.size)
         assertEquals("show my classrooms", result.history[0].transcript)
     }

@@ -36,13 +36,13 @@ enum class VoiceStatus(val label: String) {
 data class VoiceCommandUiState(
     val status: VoiceStatus = VoiceStatus.IDLE,
     val transcript: String = "",
-    val spokenSummary: String = "",
+    val spoken_summary: String = "",
     val error: String = "",
     val commands: List<VoiceCommand> = emptyList(),
     val results: List<CommandResult> = emptyList(),
     val formattedResults: List<FormattedResult> = emptyList(),
     val navigationTarget: NavigationTarget? = null,
-    val audioBase64: String = "",  // consumed by Phase 8 (TTS playback)
+    val audio_base64: String = "",  // consumed by Phase 8 (TTS playback)
     val needsMicPermission: Boolean = false  // RECORD_AUDIO denied — show Settings deep-link
 ) {
     val isBusy: Boolean
@@ -87,8 +87,8 @@ class VoiceCommandViewModel @Inject constructor(
     fun setContext(classId: String?) { currentClassId = classId }
 
     private fun buildContext() = VoiceCommandContext(
-        activeConferenceId = sessionState.activeConferenceId.value ?: "",
-        currentClassId = currentClassId ?: "",
+        active_conference_id = sessionState.activeConferenceId.value ?: "",
+        current_class_id = currentClassId ?: "",
         history = history.toList()
     )
 
@@ -141,18 +141,18 @@ class VoiceCommandViewModel @Inject constructor(
         _uiState.value = VoiceCommandUiState(
             status = if (hasError) VoiceStatus.ERROR else VoiceStatus.DONE,
             transcript = transcript,
-            spokenSummary = data.spokenSummary,
+            spoken_summary = data.spoken_summary,
             error = data.results.firstOrNull { it.error.isNotEmpty() }?.error ?: "",
             commands = data.commands,
             results = data.results,
             formattedResults = formatted,
             navigationTarget = navTarget,
-            audioBase64 = data.audioBase64
+            audio_base64 = data.audio_base64
         )
 
         if (!hasError) {
-            if (data.audioBase64.isNotEmpty()) ttsPlayer.playBase64(data.audioBase64)
-            recordTurn(transcript, data.spokenSummary)
+            if (data.audio_base64.isNotEmpty()) ttsPlayer.playBase64(data.audio_base64)
+            recordTurn(transcript, data.spoken_summary)
             storeConferenceId(data)
             dispatchMutationEvents(data)
         }

@@ -123,10 +123,7 @@ const ContentListItem = ({
             color="text.secondary"
             sx={{ fontSize: "0.7rem" }}
           >
-            {[
-              item.language ? getLanguageLabel(item.language) : null,
-              typeof item.theme === "string" ? item.theme : item.theme?.english,
-            ]
+            {[item.language ? getLanguageLabel(item.language) : null, item.theme.english]
               .filter(Boolean)
               .join(" \u00B7 ")}
           </Typography>

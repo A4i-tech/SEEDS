@@ -6,8 +6,8 @@ import se.ansman.kotshi.JsonSerializable
 data class VoiceCommandReasoning(
     val intent: String = "",
     val reasoning: String = "",
-    val canAutoResolve: Boolean = true,
-    val unresolvedNote: String = ""
+    val can_auto_resolve: Boolean = true,
+    val unresolved_note: String = ""
 )
 
 @JsonSerializable
@@ -24,6 +24,6 @@ data class VoiceCommandResponse(
     val reasoning: VoiceCommandReasoning? = null,
     val commands: List<VoiceCommand> = emptyList(),
     val results: List<CommandResult> = emptyList(),
-    val spokenSummary: String = "",
-    val audioBase64: String = ""
+    val spoken_summary: String = "",
+    val audio_base64: String = ""
 )

@@ -1,7 +1,7 @@
 """Quiz repository — PyMongo async data access for the quizData collection.
 
 All public methods accept plain string IDs. ObjectId conversion for Mongoose-created
-fields (tenantId, schoolId) is handled here via the shared _oid helper.
+fields (tenant_id, school_id) is handled here via the shared _to_id helper.
 """
 
 from __future__ import annotations
@@ -12,7 +12,6 @@ import urllib.parse
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.repositories.base_repository import BaseRepository
-from app.repositories.content_repository import _oid
 
 
 class QuizRepository(BaseRepository):
@@ -32,11 +31,11 @@ class QuizRepository(BaseRepository):
         strict: bool = False,
         include_deleted: bool = False,
     ) -> dict:
-        q: dict = {"tenant_id": _oid(tenant_id)}
+        q: dict = {"tenant_id": self._to_oid(tenant_id)}
         if not include_deleted:
             q["is_deleted"] = {"$ne": True}
         if school_id is not None:
-            q["school_id"] = _oid(school_id) if strict else {"$in": [_oid(school_id), None]}
+            q["school_id"] = self._to_oid(school_id) if strict else {"$in": [self._to_oid(school_id), None]}
         return q
 
     # ------------------------------------------------------------------
@@ -109,11 +108,11 @@ class QuizRepository(BaseRepository):
     async def insert(self, doc: dict) -> str:
         """Insert a quiz document, coercing tenant_id/school_id/created_by to ObjectId."""
         if doc.get("tenant_id"):
-            doc["tenant_id"] = _oid(doc["tenant_id"])
+            doc["tenant_id"] = self._to_id(doc["tenant_id"])
         if doc.get("school_id"):
-            doc["school_id"] = _oid(doc["school_id"])
+            doc["school_id"] = self._to_id(doc["school_id"])
         if doc.get("created_by"):
-            doc["created_by"] = _oid(doc["created_by"])
+            doc["created_by"] = self._to_id(doc["created_by"])
         result = await self._col.insert_one(doc)
         return str(result.inserted_id)
 

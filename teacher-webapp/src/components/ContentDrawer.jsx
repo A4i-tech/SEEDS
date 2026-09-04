@@ -107,7 +107,7 @@ const ContentDrawer = ({
   // Speak newly loaded item titles aloud (voice-command follow-up: "show more").
   const announceContent = (items) => {
     if (!window.speechSynthesis) return;
-    const titles = items.map((c) => c.title?.english || c.title?.local || "Untitled");
+    const titles = items.map((c) => c.title.english);
     const text = titles.length
       ? `Added ${titles.length} more item${titles.length !== 1 ? "s" : ""}: ${titles.slice(0, 5).join(", ")}${
           titles.length > 5 ? ", and more" : ""

@@ -760,11 +760,11 @@ class TestUserService:
 
     @pytest.mark.asyncio
     async def test_get_user_not_found(self, db) -> None:
-        from app.platform.error_handling import NotFoundError
+        from app.platform.error_handling import ValidationError
         from app.services.user_service import get_user
 
         current = {"sub": "u1", "role": "teacher", "tenant_id": "t1"}
-        with pytest.raises(NotFoundError):
+        with pytest.raises(ValidationError):
             await get_user("nonexistent12345678901", current, db)
 
 

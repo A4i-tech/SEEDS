@@ -10,30 +10,11 @@ import urllib.parse
 from datetime import UTC, datetime
 from typing import Any
 
-from bson import ObjectId
-from bson.errors import InvalidId
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.content import Content
 from app.models.responses.content import AudioContent
-from app.platform.error_handling import ValidationError
 from app.repositories.base_repository import BaseRepository
-
-
-def _oid(id_str: str | None) -> ObjectId | None:
-    """Convert string to BSON ObjectId for querying Mongoose-created documents.
-
-    contentsV3 stores tenant_id and school_id as ObjectId (Mongoose schema type).
-    Raises if id_str isn't a valid ObjectId — no silent string fallback.
-    """
-    if id_str is None:
-        return None
-    try:
-        return ObjectId(id_str)
-    except InvalidId as exc:
-        raise ValidationError(
-            f"'{id_str}' is not a valid id. Use the exact 24-character id returned by the API, not a shortened or made-up value."
-        ) from exc
 
 
 class ContentRepository(BaseRepository):
@@ -55,11 +36,13 @@ class ContentRepository(BaseRepository):
         school_id=<id>, strict=False → school_id in [ObjectId(id), null] (school + unscoped content; reads)
         school_id=<id>, strict=True  → school_id == ObjectId(id) only (writes; must not touch tenant-owned content)
         """
-        q: dict = {"tenant_id": _oid(tenant_id)}
+        q: dict = {"tenant_id": self._to_oid(tenant_id)}
         if not include_deleted:
             q["is_deleted"] = {"$ne": True}
         if school_id is not None:
-            q["school_id"] = _oid(school_id) if strict else {"$in": [_oid(school_id), None]}
+            q["school_id"] = (
+                self._to_oid(school_id) if strict else {"$in": [self._to_oid(school_id), None]}
+            )
         return q
 
     async def find_by_id(self, content_id: str) -> Content | None:
@@ -175,7 +158,7 @@ class ContentRepository(BaseRepository):
 
     async def find_by_class(self, content_ids: list[str]) -> list[Content]:
         """Fetch content items by IDs for Classroom hydration (no tenant scope)."""
-        docs = await self._col.find({"_id": {"$in": [ObjectId(i) for i in content_ids]}}).to_list(length=None)
+        docs = await self._col.find({"_id": self._ids_query(content_ids)}).to_list(length=None)
         return [Content.from_mongo(d) for d in docs]
 
     async def find_by_tenant(
@@ -194,9 +177,9 @@ class ContentRepository(BaseRepository):
         doc = content.model_dump() if hasattr(content, "model_dump") else dict(content)
         doc.setdefault("creation_time", int(_time.time()))
         if doc.get("tenant_id"):
-            doc["tenant_id"] = _oid(doc["tenant_id"])
+            doc["tenant_id"] = self._to_id(doc["tenant_id"])
         if doc.get("school_id"):
-            doc["school_id"] = _oid(doc["school_id"])
+            doc["school_id"] = self._to_id(doc["school_id"])
         await self._col.insert_one(doc)
         doc["_id"] = str(doc["_id"])
         return Content.from_mongo(doc)
@@ -204,11 +187,11 @@ class ContentRepository(BaseRepository):
     async def insert_raw(self, doc: dict) -> str:
         """Insert a raw content document, coercing tenant_id/school_id/created_by to ObjectId."""
         if doc.get("tenant_id"):
-            doc["tenant_id"] = _oid(doc["tenant_id"])
+            doc["tenant_id"] = self._to_id(doc["tenant_id"])
         if doc.get("school_id"):
-            doc["school_id"] = _oid(doc["school_id"])
+            doc["school_id"] = self._to_id(doc["school_id"])
         if doc.get("created_by"):
-            doc["created_by"] = _oid(doc["created_by"])
+            doc["created_by"] = self._to_id(doc["created_by"])
         await self._col.insert_one(doc)
         return str(doc["_id"])
 

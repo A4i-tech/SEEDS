@@ -32,7 +32,7 @@ import {
   Call as CallIcon,
 } from "@mui/icons-material";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
-import { getClassroomById } from "../services/classroomService";
+import { getClassroomById, refreshClassroomAfterVoiceCommand } from "../services/classroomService";
 import { getAccessToken } from "../utils/tokenStore";
 import { useAuth } from "../hooks/useAuth";
 import { showToast } from "../utils/toast";
@@ -44,6 +44,12 @@ import { createConference } from "../services/apiService";
 import getCurrentTime from "../utils/CurrentTime";
 import { SSE_ENDPOINTS } from "../constants/sseEndpoints";
 import { normalizePhoneNumber, formatStudentPhones } from "../utils/phoneUtils";
+
+const formatAllStudents = (students) =>
+  (students || []).map((s) => {
+    const p = normalizePhoneNumber(s.phone_number);
+    return { name: s.name, phone_number: p };
+  });
 
 const ClassroomDetail = () => {
   const navigate = useNavigate();
@@ -89,8 +95,7 @@ const ClassroomDetail = () => {
     handleSSEEventRef.current = handleSSEEvent;
   }, [handleSSEEvent]);
 
-  // Handle auto-starting conference from navigation state (e.g. from VoiceCommand)
-  // Waits for classroom + teacherPhone to load before populating context, mirroring the manual flow
+  // Waits for classroom + teacherPhone together so context mirrors the manual start flow
   useEffect(() => {
     if (!location.state?.autoStart || !location.state?.confId || conferenceStarted) return;
     if (!classroom || !teacherPhone) return;
@@ -106,11 +111,7 @@ const ClassroomDetail = () => {
     setSelectedStudents(students);
     setConferenceStudents(students);
 
-    const allStudentsFormatted = (classroom.students || []).map((s) => {
-      const p = normalizePhoneNumber(s.phone_number);
-      return { name: s.name, phoneNumber: p, phone_number: p };
-    });
-    setAllClassroomStudents(allStudentsFormatted);
+    setAllClassroomStudents(formatAllStudents(classroom.students));
 
     setConferenceId(autoConfId);
     setConfId(autoConfId);
@@ -118,8 +119,20 @@ const ClassroomDetail = () => {
 
     // Clean up location state so refresh doesn't trigger again
     navigate(location.pathname, { replace: true, state: {} });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.state, conferenceStarted, classroom, teacherPhone, teacherName]);
+  }, [
+    location.state,
+    location.pathname,
+    conferenceStarted,
+    classroom,
+    teacherPhone,
+    teacherName,
+    navigate,
+    handleTeacherSelect,
+    setSelectedStudents,
+    setConferenceStudents,
+    setAllClassroomStudents,
+    setConfId,
+  ]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -163,12 +176,8 @@ const ClassroomDetail = () => {
 
   useEffect(() => {
     const handler = async () => {
-      try {
-        const data = await getClassroomById(classroomId);
-        setClassroom(data);
-      } catch (err) {
-        console.error("Error refreshing classroom after voice command:", err);
-      }
+      const data = await refreshClassroomAfterVoiceCommand(classroomId);
+      if (data) setClassroom(data);
     };
     window.addEventListener("voice-command-complete", handler);
     return () => window.removeEventListener("voice-command-complete", handler);
@@ -314,11 +323,7 @@ const ClassroomDetail = () => {
       setConferenceStudents(normalizedSelectedStudents);
 
       // Pass ALL classroom students for the "Add Participant" modal
-      const allStudentsFormatted = classroom.students.map((student) => {
-        const p = normalizePhoneNumber(student.phone_number);
-        return { name: student.name, phoneNumber: p, phone_number: p };
-      });
-      setAllClassroomStudents(allStudentsFormatted);
+      setAllClassroomStudents(formatAllStudents(classroom.students));
 
       console.log("Conference created successfully. Conf ID:", conferenceId);
       setConferenceStarted(true);
