@@ -6,7 +6,17 @@ import { Pagination } from "../../components/ContentAggregatorDetails/Pagination
 import "../workspace.css";
 import { translationService } from "../../services/translationService";
 import { toSegment } from "../lib/segments";
-import { EmptyState, useToast } from "../primitives";
+import { useToast } from "../Toast";
+
+function EmptyState({ title, message, action }) {
+  return (
+    <div className="empty">
+      <h4>{title}</h4>
+      <p>{message}</p>
+      {action}
+    </div>
+  );
+}
 
 /** Status pill — every row shows exactly one state. */
 function CardStatus({ seg }) {
@@ -355,20 +365,15 @@ export function WorkspaceScreen({
 
       {/* Selects */}
       <div className="tr-selects">
-        <label className="tr-field">
+        <div className="tr-field">
           <span>Site</span>
-          <select
+          <Select
             value={scope.siteId}
-            onChange={(e) => onScope((s) => ({ ...s, siteId: e.target.value, route: "" }))}
-          >
-            <option value="">Select site</option>
-            {sites.map((s) => (
-              <option key={s.id} value={s.siteId}>
-                {s.name || s.domain}
-              </option>
-            ))}
-          </select>
-        </label>
+            onChange={(v) => onScope((s) => ({ ...s, siteId: v, route: "" }))}
+            placeholder="Select site"
+            options={sites.map((s) => ({ value: s.siteId, label: s.name || s.domain }))}
+          />
+        </div>
       </div>
 
       {!ready ? (

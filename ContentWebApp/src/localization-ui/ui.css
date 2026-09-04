@@ -14,25 +14,9 @@
   background: var(--good-bg);
   color: var(--good);
 }
-.loca-ui .badge-warn {
-  background: var(--warn-bg);
-  color: var(--warn);
-}
-.loca-ui .badge-crit {
-  background: var(--crit-bg);
-  color: var(--crit);
-}
-.loca-ui .badge-info {
-  background: var(--info-bg);
-  color: var(--info);
-}
 .loca-ui .badge-neutral {
   background: var(--surface-2);
   color: var(--ink-2);
-}
-.loca-ui .badge-accent {
-  background: var(--accent-wash);
-  color: var(--accent-ink);
 }
 
 /* ---------- Empty state ---------- */
@@ -98,26 +82,4 @@
   border: 0;
   cursor: pointer;
   font-size: var(--fs-13);
-}
-
-/* ---------- Quality bar ---------- */
-.loca-ui .qbar {
-  width: 56px;
-  height: 6px;
-  border-radius: 4px;
-  background: var(--line-2);
-  overflow: hidden;
-  display: inline-block;
-  vertical-align: middle;
-}
-.loca-ui .qbar > i {
-  display: block;
-  height: 100%;
-  background: var(--good);
-}
-.loca-ui .qbar.low > i {
-  background: var(--warn);
-}
-.loca-ui .qbar.crit > i {
-  background: var(--crit);
 }

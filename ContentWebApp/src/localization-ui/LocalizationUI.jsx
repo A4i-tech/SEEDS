@@ -12,7 +12,7 @@ import "./manage.css";
 
 import { useLocalization } from "../hooks/useLocalization";
 import { translationService } from "../services/translationService";
-import { ToastProvider } from "./primitives";
+import { ToastProvider } from "./Toast";
 import { AppShell } from "./AppShell";
 import { usePersistentState, useLastSession } from "./lib/prefs";
 import { pagesFromDocs } from "./lib/segments";

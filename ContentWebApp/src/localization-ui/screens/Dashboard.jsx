@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import "../dashboard.css";
-import { Field, Input, useToast } from "../primitives";
+import "../../components/AllContent/shared/utilities.css";
+import { useToast } from "../Toast";
 import { ManageScreen } from "./Manage";
 import { extractDomain } from "../lib/url";
 
@@ -246,13 +247,15 @@ function OnboardingCard({ loc }) {
         <p className="onb-sub">Register your website and start localizing it in minutes.</p>
       </div>
       <form className="onb-form" onSubmit={register}>
-        <Field label="Website URL" error={error || undefined}>
-          <Input
-            value={domain}
-            onChange={(e) => setDomain(e.target.value)}
-            placeholder="https://example.com"
-          />
-        </Field>
+        <label className="label" htmlFor="onb-domain">Website URL</label>
+        <input
+          id="onb-domain"
+          className="input-field"
+          value={domain}
+          onChange={(e) => setDomain(e.target.value)}
+          placeholder="https://example.com"
+        />
+        {error ? <p className="error-message">{error}</p> : null}
         <button className="primary-button" type="submit" disabled={!domain.trim() || busy}>
           {busy ? "Registering…" : "Register Website"}
         </button>

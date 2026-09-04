@@ -1,11 +1,15 @@
 import React from "react";
 import RowActions from "../../components/AllContent/shared/RowActions";
 import "../../components/AllContent/shared/tables.css";
-import { EmptyState } from "../primitives";
 
 export function ManageTable({ columns, rows, getId, onEdit, onDelete, emptyTitle, emptyMessage }) {
   if (!rows.length) {
-    return <EmptyState title={emptyTitle} message={emptyMessage} />;
+    return (
+      <div className="empty">
+        <h4>{emptyTitle}</h4>
+        <p>{emptyMessage}</p>
+      </div>
+    );
   }
   return (
     <div className="table-wrapper">

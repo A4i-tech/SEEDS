@@ -1,5 +1,4 @@
 import React from "react";
-import { EmptyState } from "../primitives";
 
 const LABELS = {
   glossary: "Glossary",
@@ -11,10 +10,13 @@ const LABELS = {
 
 export function PlaceholderScreen({ nav }) {
   return (
-    <EmptyState
-      title={`${LABELS[nav] || "Section"} — adopting the new system next`}
-      message="Configuration lives here, off the daily workflow. This section keeps the current screen until the design system is propagated in Phase 3."
-    />
+    <div className="empty">
+      <h4>{LABELS[nav] || "Section"} — adopting the new system next</h4>
+      <p>
+        Configuration lives here, off the daily workflow. This section keeps the current screen
+        until the design system is propagated in Phase 3.
+      </p>
+    </div>
   );
 }
 

@@ -1,15 +1,16 @@
 import React, { useState } from "react";
 import Modal from "../../components/AllContent/shared/Modal";
 import Select from "../../components/AllContent/shared/Select";
+import "../../components/AllContent/shared/utilities.css";
 import "../manage.css";
-import { Badge, Field, Input, Textarea, SearchInput, useToast } from "../primitives";
 import { extractDomain } from "../lib/url";
 import { useCrudView } from "../lib/useCrudView";
 import { ManageTable } from "./ManageTable";
+import { useToast } from "../Toast";
 
 const StatusPill = ({ status }) => {
   const isActive = status.toLowerCase() === "active";
-  return <Badge tone={isActive ? "good" : "neutral"}>{status}</Badge>;
+  return <span className={`badge ${isActive ? "badge-good" : "badge-neutral"}`}>{status}</span>;
 };
 
 function Header({ title, subtitle, search, onSearch, addLabel, onAdd, children }) {
@@ -21,11 +22,14 @@ function Header({ title, subtitle, search, onSearch, addLabel, onAdd, children }
           <p>{subtitle}</p>
         </div>
         <div className="mng-tools">
-          <SearchInput
+          <input
+            type="search"
+            className="input-field"
             placeholder={`Search ${title.toLowerCase()}`}
             value={search}
             onChange={(e) => onSearch(e.target.value)}
             style={{ width: 200 }}
+            aria-label={`Search ${title.toLowerCase()}`}
           />
           {addLabel ? (
             <button className="primary-button" onClick={onAdd}>
@@ -104,32 +108,38 @@ function ProjectsView({ loc, toast }) {
           title={dlg.mode === "edit" ? "Edit project" : "New project"}
           onClose={() => setDlg(null)}
         >
-          <Field label="Name">
-            <Input value={dlg.values.name} onChange={(e) => set("name", e.target.value)} autoFocus />
-          </Field>
-          <Field label="Source language">
-            <Input
-              value={dlg.values.sourceLanguage}
-              onChange={(e) => set("sourceLanguage", e.target.value)}
-            />
-          </Field>
-          <Field label="Description">
-            <Textarea
-              rows={2}
-              value={dlg.values.description}
-              onChange={(e) => set("description", e.target.value)}
-            />
-          </Field>
-          <Field label="Status">
-            <Select
-              value={dlg.values.status}
-              onChange={(v) => set("status", v)}
-              options={[
-                { value: "Active", label: "Active" },
-                { value: "Inactive", label: "Inactive" },
-              ]}
-            />
-          </Field>
+          <label className="label" htmlFor="project-name">Name</label>
+          <input
+            id="project-name"
+            className="input-field"
+            value={dlg.values.name}
+            onChange={(e) => set("name", e.target.value)}
+            autoFocus
+          />
+          <label className="label" htmlFor="project-source">Source language</label>
+          <input
+            id="project-source"
+            className="input-field"
+            value={dlg.values.sourceLanguage}
+            onChange={(e) => set("sourceLanguage", e.target.value)}
+          />
+          <label className="label" htmlFor="project-description">Description</label>
+          <textarea
+            id="project-description"
+            className="input-field"
+            rows={2}
+            value={dlg.values.description}
+            onChange={(e) => set("description", e.target.value)}
+          />
+          <label className="label">Status</label>
+          <Select
+            value={dlg.values.status}
+            onChange={(v) => set("status", v)}
+            options={[
+              { value: "Active", label: "Active" },
+              { value: "Inactive", label: "Inactive" },
+            ]}
+          />
           <div className="modal-actions">
             <button className="action-ghost-button" onClick={() => setDlg(null)}>
               Cancel
@@ -225,34 +235,38 @@ function SitesView({ loc, toast }) {
           title={dlg.mode === "edit" ? "Edit site" : "Register site"}
           onClose={() => setDlg(null)}
         >
-          <Field label="Name">
-            <Input value={dlg.values.name} onChange={(e) => set("name", e.target.value)} autoFocus />
-          </Field>
-          <Field label="Domain or URL">
-            <Input
-              value={dlg.values.url}
-              onChange={(e) => set("url", e.target.value)}
-              placeholder="example.com"
-            />
-          </Field>
-          <Field label="Project">
-            <Select
-              value={dlg.values.projectId}
-              onChange={(v) => set("projectId", v)}
-              options={projects.map((project) => ({ value: project.id, label: project.name }))}
-              disabled={dlg.mode === "edit"}
-            />
-          </Field>
-          <Field label="Status">
-            <Select
-              value={dlg.values.status}
-              onChange={(v) => set("status", v)}
-              options={[
-                { value: "Active", label: "Active" },
-                { value: "Inactive", label: "Inactive" },
-              ]}
-            />
-          </Field>
+          <label className="label" htmlFor="site-name">Name</label>
+          <input
+            id="site-name"
+            className="input-field"
+            value={dlg.values.name}
+            onChange={(e) => set("name", e.target.value)}
+            autoFocus
+          />
+          <label className="label" htmlFor="site-url">Domain or URL</label>
+          <input
+            id="site-url"
+            className="input-field"
+            value={dlg.values.url}
+            onChange={(e) => set("url", e.target.value)}
+            placeholder="example.com"
+          />
+          <label className="label">Project</label>
+          <Select
+            value={dlg.values.projectId}
+            onChange={(v) => set("projectId", v)}
+            options={projects.map((project) => ({ value: project.id, label: project.name }))}
+            disabled={dlg.mode === "edit"}
+          />
+          <label className="label">Status</label>
+          <Select
+            value={dlg.values.status}
+            onChange={(v) => set("status", v)}
+            options={[
+              { value: "Active", label: "Active" },
+              { value: "Inactive", label: "Inactive" },
+            ]}
+          />
           <div className="modal-actions">
             <button className="action-ghost-button" onClick={() => setDlg(null)}>
               Cancel
@@ -356,31 +370,32 @@ function LanguagesView({ loc, toast }) {
           title={dlg.mode === "edit" ? "Edit language" : "Add language"}
           onClose={() => setDlg(null)}
         >
-          <Field label="Name">
-            <Input
-              value={dlg.values.name}
-              onChange={(e) => set("name", e.target.value)}
-              placeholder="Hindi"
-              autoFocus
-            />
-          </Field>
-          <Field label="Code">
-            <Input
-              value={dlg.values.code}
-              onChange={(e) => set("code", e.target.value)}
-              placeholder="hi"
-            />
-          </Field>
-          <Field label="Direction">
-            <Select
-              value={dlg.values.direction}
-              onChange={(v) => set("direction", v)}
-              options={[
-                { value: "ltr", label: "Left to right" },
-                { value: "rtl", label: "Right to left" },
-              ]}
-            />
-          </Field>
+          <label className="label" htmlFor="language-name">Name</label>
+          <input
+            id="language-name"
+            className="input-field"
+            value={dlg.values.name}
+            onChange={(e) => set("name", e.target.value)}
+            placeholder="Hindi"
+            autoFocus
+          />
+          <label className="label" htmlFor="language-code">Code</label>
+          <input
+            id="language-code"
+            className="input-field"
+            value={dlg.values.code}
+            onChange={(e) => set("code", e.target.value)}
+            placeholder="hi"
+          />
+          <label className="label">Direction</label>
+          <Select
+            value={dlg.values.direction}
+            onChange={(v) => set("direction", v)}
+            options={[
+              { value: "ltr", label: "Left to right" },
+              { value: "rtl", label: "Right to left" },
+            ]}
+          />
           <div className="modal-actions">
             <button className="action-ghost-button" onClick={() => setDlg(null)}>
               Cancel
