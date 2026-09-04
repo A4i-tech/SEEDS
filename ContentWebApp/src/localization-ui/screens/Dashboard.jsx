@@ -1,16 +1,4 @@
 import React, { useState } from "react";
-import {
-  AlertTriangle,
-  BookOpen,
-  Check,
-  ChevronDown,
-  Code2,
-  Copy,
-  ExternalLink,
-  Globe,
-  Loader2,
-  RotateCw,
-} from "lucide-react";
 import "../dashboard.css";
 import { Field, Input, useToast } from "../primitives";
 import { ManageScreen } from "./Manage";
@@ -42,7 +30,7 @@ function SnippetBlock({ snippet }) {
   return (
     <div className="onb-code">
       <button type="button" className="onb-code-copy" onClick={copy} aria-label="Copy snippet">
-        <Copy size={14} />
+        Copy
       </button>
       <pre className="onb-code-pre">
         {lines.map((line, i) => (
@@ -77,9 +65,8 @@ function DevToolsSection({ siteId }) {
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
       >
-        <Code2 size={15} />
         <span>Developer Testing (Chrome DevTools)</span>
-        <ChevronDown size={16} className={`onb-dev-chev ${open ? "open" : ""}`} />
+        <span className={`onb-dev-chev ${open ? "open" : ""}`}>▾</span>
       </button>
       {open && (
         <div className="onb-dev-body">
@@ -109,7 +96,6 @@ function DevToolsSection({ siteId }) {
           <SnippetBlock snippet={script} />
 
           <div className="onb-dev-warn">
-            <AlertTriangle size={15} />
             <div>
               <div className="onb-dev-warn-title">Development only</div>
               <p>
@@ -192,9 +178,7 @@ function OnboardingCard({ loc }) {
     return (
       <div className="onb-card">
         <div className="onb-success-head">
-          <span className="onb-success-icon">
-            <Check size={20} />
-          </span>
+          <span className="onb-success-icon">✓</span>
           <div>
             <div className="onb-success-title">Website Connected</div>
             <div className="onb-sub">Your website has been registered successfully.</div>
@@ -236,7 +220,7 @@ function OnboardingCard({ loc }) {
 
         <div className="onb-actions">
           <button className="primary-button" onClick={copySnippet}>
-            <Copy size={15} /> Copy Snippet
+            Copy Snippet
           </button>
           <button
             className="action-ghost-button"
@@ -245,10 +229,10 @@ function OnboardingCard({ loc }) {
               window.open("https://docs.example.com/sdk", "_blank", "noopener,noreferrer")
             }
           >
-            <BookOpen size={15} /> View Documentation <ExternalLink size={13} />
+            View Documentation
           </button>
           <button className="action-ghost-button" type="button" onClick={reset}>
-            <RotateCw size={15} /> Register Another Website
+            Register Another Website
           </button>
         </div>
       </div>
@@ -263,17 +247,14 @@ function OnboardingCard({ loc }) {
       </div>
       <form className="onb-form" onSubmit={register}>
         <Field label="Website URL" error={error || undefined}>
-          <span className="onb-input-icon">
-            <Globe size={15} />
-            <Input
-              value={domain}
-              onChange={(e) => setDomain(e.target.value)}
-              placeholder="https://example.com"
-            />
-          </span>
+          <Input
+            value={domain}
+            onChange={(e) => setDomain(e.target.value)}
+            placeholder="https://example.com"
+          />
         </Field>
         <button className="primary-button" type="submit" disabled={!domain.trim() || busy}>
-          {busy ? <Loader2 size={16} className="spin" /> : null} Register Website
+          {busy ? "Registering…" : "Register Website"}
         </button>
       </form>
     </div>

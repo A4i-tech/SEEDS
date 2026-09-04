@@ -14,18 +14,9 @@ function RowActions({ onEdit, onDelete }) {
   );
 }
 
-export function CrudTable({
-  columns,
-  rows,
-  getId,
-  onEdit,
-  onDelete,
-  emptyIcon,
-  emptyTitle,
-  emptyMessage,
-}) {
+export function CrudTable({ columns, rows, getId, onEdit, onDelete, emptyTitle, emptyMessage }) {
   if (!rows.length) {
-    return <EmptyState icon={emptyIcon} title={emptyTitle} message={emptyMessage} />;
+    return <EmptyState title={emptyTitle} message={emptyMessage} />;
   }
   return (
     <table className="data-table">

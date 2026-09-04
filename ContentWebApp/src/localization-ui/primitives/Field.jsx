@@ -28,11 +28,11 @@ export function Field({ label, htmlFor, help, error, children }) {
 }
 
 export const Input = React.forwardRef(function Input({ className, ...rest }, ref) {
-  return <input ref={ref} className={cn("input", className)} {...rest} />;
+  return <input ref={ref} className={cn("input-field", className)} {...rest} />;
 });
 
 export const Textarea = React.forwardRef(function Textarea({ className, ...rest }, ref) {
-  return <textarea ref={ref} className={cn("input", className)} {...rest} />;
+  return <textarea ref={ref} className={cn("input-field", className)} {...rest} />;
 });
 
 export const SearchInput = React.forwardRef(function SearchInput(
@@ -41,7 +41,7 @@ export const SearchInput = React.forwardRef(function SearchInput(
 ) {
   return (
     <span className={cn("input-search", className)}>
-      <input ref={ref} className="input" type="search" aria-label={ariaLabel} {...rest} />
+      <input ref={ref} className="input-field" type="search" aria-label={ariaLabel} {...rest} />
     </span>
   );
 });

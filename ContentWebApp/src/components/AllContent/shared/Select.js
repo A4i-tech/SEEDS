@@ -3,12 +3,12 @@ import { ReactComponent as ChevronDownIcon } from "../../../assets/icons/chevron
 import { ReactComponent as CheckmarkIcon } from "../../../assets/icons/checkmark.svg";
 import "./Select.css";
 
-const Select = ({ id, value, onChange, options, placeholder }) => {
+const Select = ({ id, value, onChange, options, placeholder, disabled }) => {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
 
   useEffect(() => {
-    if (!open) return undefined;
+    if (!open || disabled) return undefined;
     const handleOutsideClick = (event) => {
       if (rootRef.current && !rootRef.current.contains(event.target)) setOpen(false);
     };
@@ -34,6 +34,7 @@ const Select = ({ id, value, onChange, options, placeholder }) => {
         onClick={() => setOpen((prev) => !prev)}
         aria-haspopup="listbox"
         aria-expanded={open}
+        disabled={disabled}
       >
         <span className={selected ? "" : "custom-select-placeholder"}>
           {selected ? selected.label : placeholder}

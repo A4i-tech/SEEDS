@@ -1,5 +1,4 @@
 import React, { createContext, useCallback, useContext, useRef, useState } from "react";
-import { CheckCircle2, AlertTriangle, Info, X } from "lucide-react";
 
 const ToastCtx = createContext(null);
 export const useToast = () => {
@@ -7,8 +6,6 @@ export const useToast = () => {
   if (!ctx) throw new Error("useToast must be used within <ToastProvider>");
   return ctx;
 };
-
-const LEAD = { good: CheckCircle2, crit: AlertTriangle, info: Info };
 
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
@@ -35,31 +32,25 @@ export function ToastProvider({ children }) {
       {children}
       <div className="loca-ui-toasts" role="region" aria-label="Notifications">
         <div aria-live="polite" aria-atomic="true" style={{ display: "contents" }}>
-          {toasts.map((t) => {
-            const Lead = LEAD[t.tone] || Info;
-            return (
-              <div key={t.id} className={`loca-ui-toast ${t.tone}`} role="status">
-                <span className="lead">
-                  <Lead size={18} />
-                </span>
-                <span className="msg">{t.message}</span>
-                {t.onUndo ? (
-                  <button
-                    className="undo"
-                    onClick={() => {
-                      t.onUndo();
-                      dismiss(t.id);
-                    }}
-                  >
-                    Undo
-                  </button>
-                ) : null}
-                <button className="modal-close" aria-label="Dismiss" onClick={() => dismiss(t.id)}>
-                  <X size={15} />
+          {toasts.map((t) => (
+            <div key={t.id} className={`loca-ui-toast ${t.tone}`} role="status">
+              <span className="msg">{t.message}</span>
+              {t.onUndo ? (
+                <button
+                  className="undo"
+                  onClick={() => {
+                    t.onUndo();
+                    dismiss(t.id);
+                  }}
+                >
+                  Undo
                 </button>
-              </div>
-            );
-          })}
+              ) : null}
+              <button className="modal-close" aria-label="Dismiss" onClick={() => dismiss(t.id)}>
+                ✕
+              </button>
+            </div>
+          ))}
         </div>
       </div>
     </ToastCtx.Provider>

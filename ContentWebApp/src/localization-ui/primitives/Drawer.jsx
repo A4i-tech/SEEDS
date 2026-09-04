@@ -1,6 +1,5 @@
 import React from "react";
 import * as RDialog from "@radix-ui/react-dialog";
-import { X } from "lucide-react";
 import { portalContainer } from "../lib/portal";
 
 export function Drawer({ open, onOpenChange, title, subtitle, children, footer }) {
@@ -36,7 +35,7 @@ export function Drawer({ open, onOpenChange, title, subtitle, children, footer }
             </div>
             <RDialog.Close asChild>
               <button className="modal-close" aria-label="Close">
-                <X size={16} />
+                ✕
               </button>
             </RDialog.Close>
           </div>

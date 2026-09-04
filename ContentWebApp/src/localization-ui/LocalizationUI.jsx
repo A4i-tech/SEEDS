@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
+import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
+import "react-loading-skeleton/dist/skeleton.css";
 import "@fontsource/inter/400.css";
 import "@fontsource/inter/500.css";
 import "@fontsource/inter/600.css";
@@ -17,7 +19,6 @@ import { pagesFromDocs } from "./lib/segments";
 import { DashboardScreen } from "./screens/Dashboard";
 import { WorkspaceScreen } from "./screens/Workspace";
 import { PlaceholderScreen } from "./screens/Placeholder";
-import { SkeletonRows } from "./primitives";
 
 export default function LocalizationUI() {
   const loc = useLocalization();
@@ -144,7 +145,9 @@ export default function LocalizationUI() {
           <AppShell nav={nav} onNav={setNav} flush={nav === "workspace"}>
             {isLoadingWorkspace && nav === "dashboard" ? (
               <div style={{ padding: 28 }}>
-                <SkeletonRows rows={6} height={64} />
+                <SkeletonTheme baseColor="var(--surface-2)" highlightColor="var(--surface-3)">
+                  <Skeleton count={6} height={64} borderRadius={10} style={{ marginBottom: 8 }} />
+                </SkeletonTheme>
               </div>
             ) : (
               screen

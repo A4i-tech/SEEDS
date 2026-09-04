@@ -40,28 +40,6 @@
   }
 }
 
-.loca-ui .onb-input-icon {
-  position: relative;
-  display: block;
-}
-.loca-ui .onb-input-icon > svg {
-  position: absolute;
-  left: 11px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--muted);
-  pointer-events: none;
-}
-.loca-ui .onb-input-icon .input,
-.loca-ui .onb-input-icon select.input {
-  padding-left: 34px;
-  height: 42px;
-  appearance: none;
-}
-.loca-ui .onb-input-icon select.input {
-  background-image: none;
-}
-
 .loca-ui .onb-success-head {
   display: flex;
   align-items: flex-start;

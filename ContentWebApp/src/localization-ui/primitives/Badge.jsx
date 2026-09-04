@@ -1,33 +1,23 @@
 import React from "react";
-import { Circle, Sparkles, Eye, Pencil, CheckCircle2, Rocket, AlertTriangle } from "lucide-react";
 import { cn } from "../lib/cn";
 
-export function Badge({ tone = "neutral", icon: Icon, children, className }) {
-  return (
-    <span className={cn("badge", `badge-${tone}`, className)}>
-      {Icon ? <Icon /> : null}
-      {children}
-    </span>
-  );
+export function Badge({ tone = "neutral", children, className }) {
+  return <span className={cn("badge", `badge-${tone}`, className)}>{children}</span>;
 }
 
 const LIFECYCLE = {
-  new: { tone: "neutral", icon: Circle, label: "New" },
-  translated: { tone: "info", icon: Sparkles, label: "Translated" },
-  needs_review: { tone: "info", icon: Eye, label: "Needs review" },
-  edited: { tone: "accent", icon: Pencil, label: "Edited" },
-  approved: { tone: "good", icon: CheckCircle2, label: "Approved" },
-  published: { tone: "good", icon: Rocket, label: "Published" },
-  rejected: { tone: "crit", icon: AlertTriangle, label: "Rejected" },
+  new: { tone: "neutral", label: "New" },
+  translated: { tone: "info", label: "Translated" },
+  needs_review: { tone: "info", label: "Needs review" },
+  edited: { tone: "accent", label: "Edited" },
+  approved: { tone: "good", label: "Approved" },
+  published: { tone: "good", label: "Published" },
+  rejected: { tone: "crit", label: "Rejected" },
 };
 
 export function StatusBadge({ stage }) {
   const s = LIFECYCLE[stage] || LIFECYCLE.new;
-  return (
-    <Badge tone={s.tone} icon={s.icon}>
-      {s.label}
-    </Badge>
-  );
+  return <Badge tone={s.tone}>{s.label}</Badge>;
 }
 
 export function ConfidenceBadge({ score, threshold = 0.7 }) {
@@ -39,7 +29,7 @@ export function ConfidenceBadge({ score, threshold = 0.7 }) {
     );
   const low = score < threshold;
   return (
-    <Badge tone={low ? "warn" : "good"} icon={low ? AlertTriangle : CheckCircle2}>
+    <Badge tone={low ? "warn" : "good"}>
       {low ? "Low confidence" : "Good"} · {(score * 100).toFixed(0)}%
     </Badge>
   );

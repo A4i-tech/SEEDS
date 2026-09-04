@@ -52,27 +52,6 @@
   color: #fff;
 }
 
-/* ---------- Skeleton ---------- */
-.loca-ui .skel {
-  background: linear-gradient(
-    90deg,
-    var(--surface-2) 25%,
-    var(--surface-3) 37%,
-    var(--surface-2) 63%
-  );
-  background-size: 400% 100%;
-  animation: loca-shimmer 1.3s ease infinite;
-  border-radius: 6px;
-}
-@keyframes loca-shimmer {
-  from {
-    background-position: 100% 0;
-  }
-  to {
-    background-position: -100% 0;
-  }
-}
-
 /* ---------- Empty state ---------- */
 .loca-ui .empty {
   display: flex;
@@ -109,51 +88,12 @@
   z-index: 1000;
   animation: loca-fade var(--dur) var(--ease);
 }
-.loca-ui-dialog {
-  position: fixed;
-  z-index: 1001;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: min(480px, calc(100vw - 32px));
-  background: var(--surface);
-  color: var(--ink);
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
-  box-shadow: var(--sh-3);
-  padding: var(--s-6);
-  animation: loca-pop var(--dur) var(--ease);
-}
-.loca-ui-dialog h3 {
-  font-size: var(--fs-18);
-}
-.loca-ui-dialog .desc {
-  font-size: var(--fs-14);
-  color: var(--ink-2);
-  margin-top: var(--s-2);
-}
-.loca-ui-dialog .actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--s-2);
-  margin-top: var(--s-6);
-}
 @keyframes loca-fade {
   from {
     opacity: 0;
   }
   to {
     opacity: 1;
-  }
-}
-@keyframes loca-pop {
-  from {
-    opacity: 0;
-    transform: translate(-50%, -46%) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
   }
 }
 

@@ -1,5 +1,5 @@
-import React from "react";
-import { Plus, Clock, FolderKanban, Globe, Languages as LangIcon } from "lucide-react";
+import React, { useState } from "react";
+import Select from "../../components/AllContent/shared/Select";
 import "../manage.css";
 import {
   Badge,
@@ -37,7 +37,7 @@ function Header({ title, subtitle, search, onSearch, addLabel, onAdd, children }
           />
           {addLabel ? (
             <button className="primary-button" onClick={onAdd}>
-              <Plus size={15} /> {addLabel}
+              {addLabel}
             </button>
           ) : null}
         </div>
@@ -88,7 +88,6 @@ function ProjectsView({ loc, toast }) {
         getId={(project) => project.id}
         onEdit={open}
         onDelete={setDel}
-        emptyIcon={FolderKanban}
         emptyTitle="No projects"
         emptyMessage="Create a project to start localizing its websites."
       />
@@ -132,14 +131,14 @@ function ProjectsView({ loc, toast }) {
               </Field>
             </div>
             <Field label="Status">
-              <select
-                className="input"
+              <Select
                 value={dlg.values.status}
-                onChange={(e) => set("status", e.target.value)}
-              >
-                <option>Active</option>
-                <option>Inactive</option>
-              </select>
+                onChange={(v) => set("status", v)}
+                options={[
+                  { value: "Active", label: "Active" },
+                  { value: "Inactive", label: "Inactive" },
+                ]}
+              />
             </Field>
           </div>
         </Dialog>
@@ -158,6 +157,7 @@ function ProjectsView({ loc, toast }) {
 
 function SitesView({ loc, toast }) {
   const { sites, projects, handleCreateSite, handleUpdateSite, handleDeleteSite } = loc;
+  const [visible, setVisible] = useState(false);
 
   const projectName = (projectId) => {
     const project = projects.find((p) => String(p.id) === String(projectId));
@@ -208,19 +208,20 @@ function SitesView({ loc, toast }) {
         subtitle="Websites connected to the localization SDK."
         search={q}
         onSearch={setQ}
-        addLabel="Register site"
-        onAdd={() => open(null)}
+        addLabel={visible ? "Hide" : "Show"}
+        onAdd={() => setVisible((v) => !v)}
       />
-      <CrudTable
-        columns={columns}
-        rows={rows}
-        getId={(site) => site.id}
-        onEdit={open}
-        onDelete={setDel}
-        emptyIcon={Globe}
-        emptyTitle="No sites found"
-        emptyMessage="Register a website above to get started."
-      />
+      {visible ? (
+        <CrudTable
+          columns={columns}
+          rows={rows}
+          getId={(site) => site.id}
+          onEdit={open}
+          onDelete={setDel}
+          emptyTitle="No sites found"
+          emptyMessage="Register a website above to get started."
+        />
+      ) : null}
       {dlg ? (
         <Dialog
           open
@@ -253,28 +254,22 @@ function SitesView({ loc, toast }) {
               />
             </Field>
             <Field label="Project">
-              <select
-                className="input"
+              <Select
                 value={dlg.values.projectId}
-                onChange={(e) => set("projectId", e.target.value)}
+                onChange={(v) => set("projectId", v)}
+                options={projects.map((project) => ({ value: project.id, label: project.name }))}
                 disabled={dlg.mode === "edit"}
-              >
-                {projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
-                  </option>
-                ))}
-              </select>
+              />
             </Field>
             <Field label="Status">
-              <select
-                className="input"
+              <Select
                 value={dlg.values.status}
-                onChange={(e) => set("status", e.target.value)}
-              >
-                <option>Active</option>
-                <option>Inactive</option>
-              </select>
+                onChange={(v) => set("status", v)}
+                options={[
+                  { value: "Active", label: "Active" },
+                  { value: "Inactive", label: "Inactive" },
+                ]}
+              />
             </Field>
           </div>
         </Dialog>
@@ -363,7 +358,6 @@ function LanguagesView({ loc, toast }) {
         getId={(language) => language.id}
         onEdit={open}
         onDelete={setDel}
-        emptyIcon={LangIcon}
         emptyTitle="No languages"
         emptyMessage="Add a target language to translate into."
       />
@@ -405,7 +399,7 @@ function LanguagesView({ loc, toast }) {
             </Field>
             <Field label="Direction">
               <select
-                className="input"
+                className="input-field"
                 value={dlg.values.direction}
                 onChange={(e) => set("direction", e.target.value)}
               >

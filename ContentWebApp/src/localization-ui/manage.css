@@ -80,12 +80,6 @@
 .loca-ui .form-grid .full {
   grid-column: 1 / -1;
 }
-.loca-ui select.input {
-  appearance: none;
-  background-image: none;
-  cursor: pointer;
-}
-
 .loca-ui .switch {
   display: inline-flex;
   align-items: center;

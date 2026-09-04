@@ -1,44 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  AlertTriangle,
-  Search,
-  ChevronLeft,
-  ChevronRight,
-  ChevronDown,
-  Sparkles,
-  Copy,
-  RotateCcw,
-  Check,
-  X,
-  Pencil,
-  FileText,
-  Globe,
-  Clock,
-} from "lucide-react";
+import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
+import "react-loading-skeleton/dist/skeleton.css";
 import "../workspace.css";
 import { translationService } from "../../services/translationService";
 import { toSegment } from "../lib/segments";
-import { SkeletonRows, EmptyState, useToast, Tooltip, Popover } from "../primitives";
+import { EmptyState, useToast, Tooltip, Popover } from "../primitives";
 
 /** Status pill — every row shows exactly one state. */
 function CardStatus({ seg }) {
-  if (seg.stage === "approved")
-    return (
-      <span className="tr-badge good">
-        <Check size={12} /> Approved
-      </span>
-    );
-  if (seg.stage === "rejected")
-    return (
-      <span className="tr-badge crit">
-        <AlertTriangle size={12} /> Rejected
-      </span>
-    );
-  return (
-    <span className="tr-badge warn">
-      <Clock size={12} /> Pending Review
-    </span>
-  );
+  if (seg.stage === "approved") return <span className="tr-badge good">Approved</span>;
+  if (seg.stage === "rejected") return <span className="tr-badge crit">Rejected</span>;
+  return <span className="tr-badge warn">Pending Review</span>;
 }
 
 /** Translation card — autosaving inline editor. Auto-grows to fit full text, never clips. */
@@ -76,7 +48,7 @@ const TransCard = React.forwardRef(function TransCard({ seg, onEdit, onCopy }, i
           aria-label="Copy translation"
           onClick={() => onCopy(text)}
         >
-          <Copy size={13} />
+          Copy
         </button>
       </Tooltip>
     </div>
@@ -95,7 +67,7 @@ function RowActions({ seg, onApprove, onReject, onEditFocus }) {
           aria-pressed={approved}
           onClick={() => onApprove(seg.id)}
         >
-          <Check size={15} />
+          ✓
         </button>
       </Tooltip>
       <Tooltip label="Reject">
@@ -104,7 +76,7 @@ function RowActions({ seg, onApprove, onReject, onEditFocus }) {
           aria-label="Reject"
           onClick={() => onReject(seg.id)}
         >
-          <X size={15} />
+          ✕
         </button>
       </Tooltip>
       <Tooltip label="Edit">
@@ -113,7 +85,7 @@ function RowActions({ seg, onApprove, onReject, onEditFocus }) {
           aria-label="Edit"
           onClick={onEditFocus}
         >
-          <Pencil size={15} />
+          Edit
         </button>
       </Tooltip>
     </div>
@@ -349,7 +321,6 @@ export function WorkspaceScreen({
         </div>
         <div className="tr-head-ctrl">
           <span className="tr-search">
-            <Search size={15} />
             <input
               placeholder="Search source or translated text..."
               value={query}
@@ -390,8 +361,8 @@ export function WorkspaceScreen({
             onOpenChange={setFilterOpen}
             trigger={
               <button type="button" className="tr-langbtn tr-langbtn--tab">
-                <Globe size={15} /> {lang ? langName(lang) : "Select language"}{" "}
-                <ChevronDown size={15} className="tr-langbtn-chev" />
+                {lang ? langName(lang) : "Select language"}{" "}
+                <span className="tr-langbtn-chev">▾</span>
               </button>
             }
           >
@@ -406,7 +377,7 @@ export function WorkspaceScreen({
                     setFilterOpen(false);
                   }}
                 >
-                  {lang === l.code ? <Check size={14} /> : <span style={{ width: 14 }} />} {l.name}
+                  {lang === l.code ? "✓" : <span style={{ width: 14 }} />} {l.name}
                 </button>
               ))}
             </div>
@@ -435,7 +406,6 @@ export function WorkspaceScreen({
       {!ready ? (
         <div style={{ flex: 1, display: "grid", placeItems: "center" }}>
           <EmptyState
-            icon={FileText}
             title="Pick a site"
             message="Choose a project and website above to start reviewing its translations."
           />
@@ -460,7 +430,7 @@ export function WorkspaceScreen({
                 onClick={() => gotoRoute(pages[pageIdx - 1].route)}
                 aria-label="Previous page"
               >
-                <ChevronLeft size={15} />
+                ‹
               </button>
               {pageNumbers.map((i, k) => {
                 const gap = k > 0 && i - pageNumbers[k - 1] > 1;
@@ -484,7 +454,7 @@ export function WorkspaceScreen({
                 onClick={() => gotoRoute(pages[pageIdx + 1].route)}
                 aria-label="Next page"
               >
-                <ChevronRight size={15} />
+                ›
               </button>
             </div>
           </div>
@@ -499,9 +469,7 @@ export function WorkspaceScreen({
                   Translation
                   <span className="ch-tools">
                     <Tooltip label="Copy all">
-                      <button aria-label="Copy all">
-                        <Copy size={15} />
-                      </button>
+                      <button aria-label="Copy all">Copy all</button>
                     </Tooltip>
                   </span>
                 </div>
@@ -509,11 +477,12 @@ export function WorkspaceScreen({
               </div>
               {docs === null ? (
                 <div style={{ padding: 20 }}>
-                  <SkeletonRows rows={6} height={64} />
+                  <SkeletonTheme baseColor="var(--surface-2)" highlightColor="var(--surface-3)">
+                    <Skeleton count={6} height={64} borderRadius={10} style={{ marginBottom: 8 }} />
+                  </SkeletonTheme>
                 </div>
               ) : docsError ? (
                 <EmptyState
-                  icon={AlertTriangle}
                   title={
                     docsError === "forbidden" ? "Permission denied" : "Couldn't load translations"
                   }
@@ -534,7 +503,7 @@ export function WorkspaceScreen({
                   action={
                     !segments.length ? (
                       <button className="tertiary-button" onClick={translatePage} disabled={busy}>
-                        <Sparkles size={15} /> {busy ? "Translating…" : "Translate this page"}
+                        {busy ? "Translating…" : "Translate this page"}
                       </button>
                     ) : null
                   }
@@ -576,7 +545,7 @@ export function WorkspaceScreen({
                         onClick={() => setPageOffset((o) => Math.max(0, o - 1))}
                         aria-label="Previous page"
                       >
-                        <ChevronLeft size={15} />
+                        ‹
                       </button>
                       {segPageNumbers.map((i, k) => {
                         const gap = k > 0 && i - segPageNumbers[k - 1] > 1;
@@ -599,7 +568,7 @@ export function WorkspaceScreen({
                         onClick={() => setPageOffset((o) => Math.min(pageCount - 1, o + 1))}
                         aria-label="Next page"
                       >
-                        <ChevronRight size={15} />
+                        ›
                       </button>
                     </div>
                     <span style={{ flex: 1 }} />
@@ -614,7 +583,7 @@ export function WorkspaceScreen({
               {/* Editor footer */}
               <div className="tr-editfoot">
                 <button className="action-ghost-button" onClick={revertAll}>
-                  <RotateCcw size={14} /> Revert all
+                  Revert all
                 </button>
                 <span style={{ flex: 1 }} />
                 <button

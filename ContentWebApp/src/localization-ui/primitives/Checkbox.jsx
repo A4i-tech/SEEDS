@@ -1,6 +1,5 @@
 import React from "react";
 import * as RCheckbox from "@radix-ui/react-checkbox";
-import { Check, Minus } from "lucide-react";
 
 export function Checkbox({ checked, onCheckedChange, "aria-label": ariaLabel }) {
   return (
@@ -9,11 +8,7 @@ export function Checkbox({ checked, onCheckedChange, "aria-label": ariaLabel }) 
       checked={checked}
       onCheckedChange={onCheckedChange}
       aria-label={ariaLabel}
-    >
-      <RCheckbox.Indicator>
-        {checked === "indeterminate" ? <Minus /> : <Check />}
-      </RCheckbox.Indicator>
-    </RCheckbox.Root>
+    />
   );
 }
 

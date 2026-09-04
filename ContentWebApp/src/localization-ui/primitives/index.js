@@ -1,5 +1,4 @@
 export { Badge, StatusBadge, ConfidenceBadge, QualityBar } from "./Badge";
-export { Skeleton, SkeletonRows } from "./Skeleton";
 export { EmptyState } from "./EmptyState";
 export { Tooltip, TooltipProvider } from "./Tooltip";
 export { Field, Input, Textarea, SearchInput } from "./Field";

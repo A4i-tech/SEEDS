@@ -1,24 +1,35 @@
 import React from "react";
 import * as RDialog from "@radix-ui/react-dialog";
-import { AlertTriangle } from "lucide-react";
 import { portalContainer } from "../lib/portal";
+import "../../components/AllContent/shared/modal.css";
 
 export function Dialog({ open, onOpenChange, title, description, children, footer }) {
   return (
     <RDialog.Root open={open} onOpenChange={onOpenChange}>
       <RDialog.Portal container={portalContainer()}>
-        <RDialog.Overlay className="loca-ui-overlay" />
-        <RDialog.Content className="loca-ui-dialog">
-          {title ? (
-            <RDialog.Title asChild>
-              <h3>{title}</h3>
-            </RDialog.Title>
-          ) : null}
-          {description ? (
-            <RDialog.Description className="desc">{description}</RDialog.Description>
-          ) : null}
-          {children}
-          {footer ? <div className="actions">{footer}</div> : null}
+        <RDialog.Overlay className="modal-overlay" />
+        <RDialog.Content className="modal-overlay" style={{ background: "transparent" }}>
+          <div className="modal-card">
+            <div className="modal-header">
+              {title ? (
+                <RDialog.Title asChild>
+                  <span className="modal-title">{title}</span>
+                </RDialog.Title>
+              ) : null}
+              <RDialog.Close asChild>
+                <button type="button" className="modal-close">
+                  ✕
+                </button>
+              </RDialog.Close>
+            </div>
+            <div className="modal-body">
+              {description ? (
+                <RDialog.Description>{description}</RDialog.Description>
+              ) : null}
+              {children}
+              {footer ? <div className="modal-actions">{footer}</div> : null}
+            </div>
+          </div>
         </RDialog.Content>
       </RDialog.Portal>
     </RDialog.Root>
@@ -46,13 +57,12 @@ export function ConfirmDialog({
             Cancel
           </button>
           <button
-            className={danger ? "btn-danger" : "primary-button"}
+            className={danger ? "row-action row-action-delete" : "primary-button"}
             onClick={() => {
               onConfirm();
               onOpenChange(false);
             }}
           >
-            {danger ? <AlertTriangle size={15} /> : null}
             {confirmLabel}
           </button>
         </>
