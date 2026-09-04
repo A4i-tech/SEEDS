@@ -31,12 +31,10 @@ function Login() {
   // Pre-fetch welcome audio so it's ready to play the instant login succeeds
   useEffect(() => {
     (async () => {
-      try {
-        const { audioBase64 } = await fetchTTSPrompt("welcome");
-        if (audioBase64) {
-          welcomeAudioRef.current = new Audio(`data:audio/mp3;base64,${audioBase64}`);
-        }
-      } catch (_) { /* ignore — TTS is non-blocking */ }
+      const { audio_base64 } = await fetchTTSPrompt("welcome");
+      if (audio_base64) {
+        welcomeAudioRef.current = new Audio(`data:audio/mp3;base64,${audio_base64}`);
+      }
     })();
   }, []);
 

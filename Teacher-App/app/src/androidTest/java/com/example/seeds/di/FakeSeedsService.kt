@@ -132,5 +132,5 @@ class FakeSeedsService : SeedsService {
         VoiceCommandResponse(transcript = "", commands = emptyList(), results = emptyList())
 
     override suspend fun fetchTtsPrompt(body: TtsPromptRequest): TtsPromptResponse =
-        TtsPromptResponse(text = "", audioBase64 = "")
+        TtsPromptResponse(text = "", audio_base64 = "")
 }

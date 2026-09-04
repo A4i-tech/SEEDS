@@ -5,12 +5,12 @@ import se.ansman.kotshi.JsonSerializable
 @JsonSerializable
 data class VoiceHistoryItem(
     val transcript: String,
-    val spokenSummary: String
+    val spoken_summary: String
 )
 
 @JsonSerializable
 data class VoiceCommandContext(
-    val activeConferenceId: String = "",
-    val currentClassId: String = "",
+    val active_conference_id: String = "",
+    val current_class_id: String = "",
     val history: List<VoiceHistoryItem> = emptyList()
 )

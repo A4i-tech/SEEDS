@@ -71,7 +71,7 @@ class TestVoiceCommand:
     @pytest.mark.asyncio
     async def test_empty_transcript_returns_400(self, client) -> None:
         with patch("app.controllers.meta_controller.meta_service.transcribe_audio", AsyncMock(return_value="   ")):
-            resp = await client.post("/meta/voice-command", files=_audio_file())
+            resp = await client.post("/meta/voice-command", files=_audio_file(), data={"context": "{}"})
         assert resp.status_code == 400
         assert "no speech" in resp.json()["message"]
 
@@ -82,20 +82,20 @@ class TestVoiceCommand:
         with patch("app.controllers.meta_controller.meta_service.transcribe_audio", AsyncMock(return_value="play a song")), \
              patch("app.controllers.meta_controller.meta_service.get_db_context", AsyncMock(return_value="SHARED_CTX")) as mock_ctx, \
              patch("app.controllers.meta_controller.meta_service.reason_about_command", AsyncMock(
-                 return_value={"intent": "play", "canAutoResolve": True})) as mock_reason, \
+                 return_value={"intent": "play", "reasoning": "x", "steps": [], "can_auto_resolve": True})) as mock_reason, \
              patch("app.controllers.meta_controller.meta_service.plan_commands", AsyncMock(
-                 return_value={"commands": [{"method": "GET", "path": "/content/"}]})) as mock_plan, \
+                 return_value={"commands": [{"method": "GET", "path": "/content/", "description": "list content"}]})) as mock_plan, \
              patch("app.controllers.meta_controller.meta_service.execute_commands", AsyncMock(
                  return_value=[{"step": "fetch content", "status": 200, "data": {}}])), \
              patch("app.controllers.meta_controller.meta_service.generate_spoken_summary", AsyncMock(
                  return_value={"spokenText": "Playing it now."})), \
              patch("app.controllers.meta_controller.meta_service.synthesize_speech", AsyncMock(return_value="b64audio")):
-            resp = await client.post("/meta/voice-command", files=_audio_file())
+            resp = await client.post("/meta/voice-command", files=_audio_file(), data={"context": "{}"})
 
         assert resp.status_code == 200
         body = resp.json()
-        assert body["spokenSummary"] == "Playing it now."
-        assert body["audioBase64"] == "b64audio"
+        assert body["spoken_summary"] == "Playing it now."
+        assert body["audio_base64"] == "b64audio"
 
         mock_ctx.assert_awaited_once()
         assert mock_reason.call_args.args[-1] == "SHARED_CTX"
@@ -107,7 +107,7 @@ class TestVoiceCommand:
              patch("app.controllers.meta_controller.meta_service.get_db_context", AsyncMock(return_value="CTX")), \
              patch("app.controllers.meta_controller.meta_service.reason_about_command",
                    AsyncMock(side_effect=RuntimeError("Azure OpenAI not configured"))):
-            resp = await client.post("/meta/voice-command", files=_audio_file())
+            resp = await client.post("/meta/voice-command", files=_audio_file(), data={"context": "{}"})
         assert resp.status_code == 502
         assert "Azure OpenAI not configured" in resp.json()["message"]
 
@@ -116,10 +116,10 @@ class TestVoiceCommand:
         with patch("app.controllers.meta_controller.meta_service.transcribe_audio", AsyncMock(return_value="play a song")), \
              patch("app.controllers.meta_controller.meta_service.get_db_context", AsyncMock(return_value="CTX")), \
              patch("app.controllers.meta_controller.meta_service.reason_about_command", AsyncMock(
-                 return_value={"intent": "play", "canAutoResolve": True})), \
+                 return_value={"intent": "play", "reasoning": "x", "steps": [], "can_auto_resolve": True})), \
              patch("app.controllers.meta_controller.meta_service.plan_commands",
                    AsyncMock(side_effect=ValueError("planner boom"))):
-            resp = await client.post("/meta/voice-command", files=_audio_file())
+            resp = await client.post("/meta/voice-command", files=_audio_file(), data={"context": "{}"})
         assert resp.status_code == 502
         assert "planner boom" in resp.json()["message"]
 
@@ -128,12 +128,12 @@ class TestVoiceCommand:
         with patch("app.controllers.meta_controller.meta_service.transcribe_audio", AsyncMock(return_value="what can you do")), \
              patch("app.controllers.meta_controller.meta_service.get_db_context", AsyncMock(return_value="CTX")), \
              patch("app.controllers.meta_controller.meta_service.reason_about_command", AsyncMock(
-                 return_value={"canAutoResolve": False, "unresolvedNote": "Here's what I can help with."})), \
+                 return_value={"intent": "x", "reasoning": "x", "steps": [], "can_auto_resolve": False, "unresolved_note": "Here's what I can help with."})), \
              patch("app.controllers.meta_controller.meta_service.plan_commands") as mock_plan, \
              patch("app.controllers.meta_controller.meta_service.generate_spoken_summary", AsyncMock(
                  return_value={"spokenText": "Here's what I can help with."})), \
              patch("app.controllers.meta_controller.meta_service.synthesize_speech", AsyncMock(return_value="b64")):
-            resp = await client.post("/meta/voice-command", files=_audio_file())
+            resp = await client.post("/meta/voice-command", files=_audio_file(), data={"context": "{}"})
 
         assert resp.status_code == 200
         assert resp.json()["commands"] == []
@@ -142,7 +142,7 @@ class TestVoiceCommand:
     @pytest.mark.asyncio
     async def test_oversized_audio_rejected(self, client) -> None:
         big_file = {"audio": ("clip.webm", io.BytesIO(b"x" * (26 * 1024 * 1024)), "audio/webm")}
-        resp = await client.post("/meta/voice-command", files=big_file)
+        resp = await client.post("/meta/voice-command", files=big_file, data={"context": "{}"})
         assert resp.status_code == 413
 
 
@@ -161,20 +161,20 @@ class TestTextCommand:
     async def test_needs_input_short_circuits_execution(self, client) -> None:
         with patch("app.controllers.meta_controller.meta_service.get_db_context", AsyncMock(return_value="CTX")), \
              patch("app.controllers.meta_controller.meta_service.reason_about_command", AsyncMock(
-                 return_value={"intent": "add student", "canAutoResolve": True})), \
+                 return_value={"intent": "add student", "reasoning": "x", "steps": [], "can_auto_resolve": True})), \
              patch("app.controllers.meta_controller.meta_service.plan_commands", AsyncMock(
-                 return_value={"commands": [{"needsInput": True}]})), \
+                 return_value={"commands": [{"method": "POST", "path": "/student/", "description": "add student", "needs_input": True}]})), \
              patch("app.controllers.meta_controller.meta_service.execute_commands") as mock_execute:
             resp = await client.post("/meta/text-command", json={"command": "add a student", "context": {}})
         assert resp.status_code == 200
-        assert resp.json()["needsInput"] is True
+        assert resp.json()["needs_input"] is True
         mock_execute.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_plan_error_shape_returned_without_executing(self, client) -> None:
         with patch("app.controllers.meta_controller.meta_service.get_db_context", AsyncMock(return_value="CTX")), \
              patch("app.controllers.meta_controller.meta_service.reason_about_command", AsyncMock(
-                 return_value={"intent": "?", "canAutoResolve": True})), \
+                 return_value={"intent": "?", "reasoning": "x", "steps": [], "can_auto_resolve": True})), \
              patch("app.controllers.meta_controller.meta_service.plan_commands", AsyncMock(
                  return_value={"error": "I could not understand that command. Please try again."})), \
              patch("app.controllers.meta_controller.meta_service.execute_commands") as mock_execute:
@@ -213,8 +213,8 @@ class TestTtsPrompt:
     @pytest.mark.asyncio
     async def test_known_type_returns_audio(self, client) -> None:
         with patch("app.controllers.meta_controller.meta_service.get_tts_prompt", AsyncMock(
-            return_value={"text": "Hey there!", "audioBase64": "b64"}
+            return_value={"text": "Hey there!", "audio_base64": "b64"}
         )):
             resp = await client.post("/meta/tts-prompt", json={"type": "welcome"})
         assert resp.status_code == 200
-        assert resp.json() == {"text": "Hey there!", "audioBase64": "b64"}
+        assert resp.json() == {"text": "Hey there!", "audio_base64": "b64"}

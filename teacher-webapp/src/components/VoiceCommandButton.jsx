@@ -53,10 +53,49 @@ const STATUS_LABELS = {
 
 const PANEL_WIDTH = 420;
 
+const PANEL_BASE_STYLES = {
+  position: "fixed",
+  top: 0,
+  right: 0,
+  bottom: 0,
+  width: PANEL_WIDTH,
+  bgcolor: "background.paper",
+  borderLeft: 1,
+  borderColor: "divider",
+  boxShadow: "-4px 0 24px rgba(0,0,0,0.12)",
+  // Above the play-content drawer (MUI modal = 1300) so it slides in behind this panel.
+  zIndex: 1301,
+  display: "flex",
+  flexDirection: "column",
+  overflow: "hidden",
+  transition: "transform 0.25s ease",
+};
+
+const PANEL_HEADER_STYLES = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  px: 2,
+  py: 1.5,
+  borderBottom: 1,
+  borderColor: "divider",
+  flexShrink: 0,
+};
+
+const SPOKEN_SUMMARY_STYLES = {
+  p: 2,
+  mb: 2,
+  bgcolor: "primary.50",
+  borderLeft: 4,
+  borderColor: "primary.main",
+  display: "flex",
+  alignItems: "center",
+  gap: 1.5,
+};
+
 export default function VoiceCommandButton() {
   const navigate = useNavigate();
   const location = useLocation();
-  // Class the user is currently viewing, derived from the route /classrooms/detail/:id.
   // Sent to the backend so "start a call" can default to this class without asking.
   const currentClassId = location.pathname.match(/\/classrooms\/detail\/([^/]+)/)?.[1] || null;
   const [open, setOpen] = useState(false);
@@ -68,55 +107,50 @@ export default function VoiceCommandButton() {
   const { confId: activeConferenceId, setConfId } = useConference();
   const thinkingAudioRef = useRef(null);
   const thinkingPlayerRef = useRef(null);
-  // Last 2 conversation turns, sent back to the planner for reference resolution.
   const historyRef = useRef([]);
-  // Mirror volatile context into refs so the audioBlob effect can read the latest
-  // values WITHOUT listing them as deps — otherwise a conf-id/route change re-fires
-  // the effect with the same blob and re-sends the command (rate-limit storm).
+  // Mirrored into refs so the audioBlob effect reads latest values without
+  // listing them as deps — a conf-id/route change would otherwise re-fire the
+  // effect with the same blob and re-send the command (rate-limit storm).
   const activeConferenceIdRef = useRef(activeConferenceId);
   const currentClassIdRef = useRef(currentClassId);
   activeConferenceIdRef.current = activeConferenceId;
   currentClassIdRef.current = currentClassId;
-  // Guards against processing the same recorded blob twice.
   const processedBlobRef = useRef(null);
+  const isBusy = status === STATUS.PLANNING || status === STATUS.EXECUTING || status === STATUS.TRANSCRIBING;
 
   const recordTurn = useCallback((data) => {
     if (!data || data.error || !data.transcript) return;
     historyRef.current = [
       ...historyRef.current,
-      { transcript: data.transcript, spokenSummary: data.spokenSummary || "" },
+      { transcript: data.transcript, spoken_summary: data.spoken_summary || "" },
     ].slice(-2);
   }, []);
 
-  // Clears the on-screen turn only. Conversation history SURVIVES — it is what
-  // lets a follow-up ("add farman as a student") resolve against the previous
-  // turn. Wiping it here meant every voice command reached the planner as if it
-  // were the first one.
+  // History must survive this reset — it lets a follow-up command resolve
+  // against the previous turn.
   const reset = useCallback(() => {
     setStatus(STATUS.IDLE);
     setResult(null);
     setTextInput("");
   }, []);
 
-  // Full session reset — only when the panel is opened/closed, i.e. when the
-  // user genuinely starts a new conversation.
   const resetSession = useCallback(() => {
     reset();
     historyRef.current = [];
   }, [reset]);
 
   // Toggle the global partition class so the app shrinks left and any
-  // right-anchored drawer is inset (see App.css). Independent of route.
+  // right-anchored drawer is inset (see App.css).
   useEffect(() => {
     document.body.classList.toggle("seeds-open", open);
     return () => document.body.classList.remove("seeds-open");
   }, [open]);
 
   const handleOpen = useCallback(() => {
-    if (status === STATUS.PLANNING || status === STATUS.EXECUTING || status === STATUS.TRANSCRIBING) return;
+    if (isBusy) return;
     resetSession();
     setOpen(true);
-  }, [resetSession, status]);
+  }, [resetSession, isBusy]);
 
   const handleClose = () => {
     if (isRecording) stopRecording();
@@ -132,7 +166,7 @@ export default function VoiceCommandButton() {
         if (tag === "INPUT" || tag === "TEXTAREA" || e.target.isContentEditable) return;
         e.preventDefault();
         handleOpen();
-        if (!isRecording && !(status === STATUS.PLANNING || status === STATUS.EXECUTING || status === STATUS.TRANSCRIBING)) {
+        if (!isRecording && !isBusy) {
           startRecording();
           setStatus(STATUS.RECORDING);
         }
@@ -154,7 +188,7 @@ export default function VoiceCommandButton() {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [isRecording, startRecording, stopRecording, handleOpen, status]);
+  }, [isRecording, startRecording, stopRecording, handleOpen, isBusy]);
 
   useEffect(() => {
     if (status !== STATUS.PLANNING) return;
@@ -162,15 +196,15 @@ export default function VoiceCommandButton() {
     (async () => {
       try {
         if (!thinkingAudioRef.current) {
-          const { audioBase64 } = await fetchTTSPrompt("thinking");
-          if (audioBase64) thinkingAudioRef.current = audioBase64;
+          const { audio_base64 } = await fetchTTSPrompt("thinking");
+          if (audio_base64) thinkingAudioRef.current = audio_base64;
         }
         if (!cancelled && thinkingAudioRef.current) {
           const player = new Audio(`data:audio/mp3;base64,${thinkingAudioRef.current}`);
           thinkingPlayerRef.current = player;
           player.play().catch(() => {});
         }
-      } catch (_) { /* ignore */ }
+      } catch (_) {}
     })();
     return () => { cancelled = true; };
   }, [status]);
@@ -192,25 +226,38 @@ export default function VoiceCommandButton() {
       ["POST", "PATCH", "PUT", "DELETE"].includes(cmd.method?.toUpperCase())
     );
     if (hasMutation) {
-      window.dispatchEvent(
-        new CustomEvent("voice-command-complete", { detail: data })
-      );
+      window.dispatchEvent(new CustomEvent("voice-command-complete", { detail: data }));
     }
   }, []);
 
-  // Extract and store conference ID from results so it persists for future commands (e.g. "end call")
   const storeConferenceIdFromResults = useCallback((data) => {
     if (!data?.results || !data?.commands) return;
     for (let i = 0; i < data.commands.length; i++) {
       const cmd = data.commands[i];
       const res = data.results?.[i];
       if (cmd.path?.match(/\/conference\/create/) && res?.status < 300 && res?.data?.id) {
-        console.log("[seeds] Storing active conference ID:", res.data.id);
         setConfId(res.data.id);
         return;
       }
     }
   }, [setConfId]);
+
+  // Conference steps only work client-side (ConferenceV2 isn't reachable from the backend).
+  const runClientCommands = async (data) => {
+    if (!data.results?.some((r) => r.requiresClientExecution)) return data;
+    setStatus(STATUS.EXECUTING);
+    return { ...data, results: await executeClientCommands([...data.results]) };
+  };
+
+  const finishCommand = useCallback((data, transcriptFallback) => {
+    setResult(data);
+    setStatus(data.error ? STATUS.ERROR : STATUS.DONE);
+    if (!data.error) {
+      recordTurn(transcriptFallback ? { ...data, transcript: data.transcript || transcriptFallback } : data);
+      storeConferenceIdFromResults(data);
+      dispatchCommandComplete(data);
+    }
+  }, [recordTurn, storeConferenceIdFromResults, dispatchCommandComplete]);
 
   const handleSendText = useCallback(async () => {
     const text = textInput.trim();
@@ -218,24 +265,15 @@ export default function VoiceCommandButton() {
 
     try {
       setStatus(STATUS.PLANNING);
-      let data = await sendTextCommand(text, { activeConferenceId, currentClassId, history: historyRef.current });
-      // Execute any conference steps client-side (ConferenceV2 is only reachable from frontend)
-      if (data.results?.some((r) => r.requiresClientExecution)) {
-        setStatus(STATUS.EXECUTING);
-        data = { ...data, results: await executeClientCommands([...data.results]) };
-      }
-      setResult(data);
-      setStatus(data.error ? STATUS.ERROR : STATUS.DONE);
-      if (!data.error) {
-        recordTurn({ ...data, transcript: data.transcript || text });
-        storeConferenceIdFromResults(data);
-        dispatchCommandComplete(data);
-      }
+      const data = await runClientCommands(
+        await sendTextCommand(text, { active_conference_id: activeConferenceId, current_class_id: currentClassId, history: historyRef.current })
+      );
+      finishCommand(data, text);
     } catch (err) {
       setResult({ error: err.message || "Request failed" });
       setStatus(STATUS.ERROR);
     }
-  }, [textInput, dispatchCommandComplete, storeConferenceIdFromResults, activeConferenceId, currentClassId, recordTurn]);
+  }, [textInput, finishCommand, activeConferenceId, currentClassId]);
 
   const handleTextKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -245,8 +283,7 @@ export default function VoiceCommandButton() {
   };
 
   useEffect(() => {
-    if (!audioBlob) return;
-    if (processedBlobRef.current === audioBlob) return;
+    if (!audioBlob || processedBlobRef.current === audioBlob) return;
     processedBlobRef.current = audioBlob;
     let cancelled = false;
 
@@ -254,27 +291,14 @@ export default function VoiceCommandButton() {
       try {
         setStatus(STATUS.PLANNING);
         let data = await sendVoiceCommand(audioBlob, {
-          activeConferenceId: activeConferenceIdRef.current,
-          currentClassId: currentClassIdRef.current,
+          active_conference_id: activeConferenceIdRef.current,
+          current_class_id: currentClassIdRef.current,
           history: historyRef.current,
         });
-
         if (cancelled) return;
-
-        // Execute any conference steps directly from the browser (ConferenceV2 only reachable from frontend)
-        if (data.results?.some((r) => r.requiresClientExecution)) {
-          setStatus(STATUS.EXECUTING);
-          data = { ...data, results: await executeClientCommands([...data.results]) };
-        }
-
+        data = await runClientCommands(data);
         if (cancelled) return;
-        setResult(data);
-        setStatus(data.error ? STATUS.ERROR : STATUS.DONE);
-        if (!data.error) {
-          recordTurn(data);
-          storeConferenceIdFromResults(data);
-          dispatchCommandComplete(data);
-        }
+        finishCommand(data);
       } catch (err) {
         if (!cancelled) {
           setResult({ error: err.message || "Request failed" });
@@ -286,38 +310,35 @@ export default function VoiceCommandButton() {
     return () => {
       cancelled = true;
     };
-  }, [audioBlob, dispatchCommandComplete, storeConferenceIdFromResults, recordTurn]);
+  }, [audioBlob, finishCommand]);
 
-  const isBusy = status === STATUS.PLANNING || status === STATUS.EXECUTING || status === STATUS.TRANSCRIBING;
   const navTarget = result?.commands ? getNavigationTarget(result.commands, result.results) : null;
+  const NAV_ACTION_EVENTS = {
+    OPEN_CONTENT_DRAWER: "open-content-drawer",
+    CONTENT_LOAD_MORE: "content-load-more",
+    CONTENT_STOP: "content-stop-playback",
+  };
+  const dispatchNavAction = (action) => {
+    const eventName = NAV_ACTION_EVENTS[action];
+    if (!eventName) return false;
+    window.dispatchEvent(new CustomEvent(eventName));
+    return true;
+  };
 
   useEffect(() => {
-    if (status === STATUS.DONE && result?.audioBase64) {
+    if (status === STATUS.DONE && result?.audio_base64) {
       try {
-        const audio = new Audio(`data:audio/mp3;base64,${result.audioBase64}`);
+        const audio = new Audio(`data:audio/mp3;base64,${result.audio_base64}`);
         audio.play().catch((e) => console.warn("TTS auto-play blocked:", e));
       } catch (e) {
         console.warn("TTS playback error:", e);
       }
     }
-  }, [status, result?.audioBase64]);
+  }, [status, result?.audio_base64]);
 
-  // Auto-navigate or open content drawer when command result says to.
-  // Panel stays open — navigation happens in the main partition beside it.
+  // Panel stays open on auto-navigate — navigation happens in the main partition beside it.
   useEffect(() => {
-    if (status !== STATUS.DONE) return;
-    if (navTarget?.action === "OPEN_CONTENT_DRAWER") {
-      window.dispatchEvent(new CustomEvent("open-content-drawer"));
-      return;
-    }
-    if (navTarget?.action === "CONTENT_LOAD_MORE") {
-      window.dispatchEvent(new CustomEvent("content-load-more"));
-      return;
-    }
-    if (navTarget?.action === "CONTENT_STOP") {
-      window.dispatchEvent(new CustomEvent("content-stop-playback"));
-      return;
-    }
+    if (status !== STATUS.DONE || dispatchNavAction(navTarget?.action)) return;
     if (navTarget?.autoNavigate) {
       navigate(navTarget.path, navTarget.state ? { state: navTarget.state } : undefined);
     }
@@ -325,11 +346,7 @@ export default function VoiceCommandButton() {
   }, [status, navTarget]);
 
   const handleNavigate = () => {
-    if (navTarget?.action === "OPEN_CONTENT_DRAWER") {
-      window.dispatchEvent(new CustomEvent("open-content-drawer"));
-    } else if (navTarget?.action === "CONTENT_LOAD_MORE") {
-      window.dispatchEvent(new CustomEvent("content-load-more"));
-    } else if (navTarget?.path) {
+    if (!dispatchNavAction(navTarget?.action) && navTarget?.path) {
       navigate(navTarget.path, navTarget.state ? { state: navTarget.state } : undefined);
     }
   };
@@ -365,39 +382,9 @@ export default function VoiceCommandButton() {
       )}
 
       <Box
-        sx={{
-          position: "fixed",
-          top: 0,
-          right: 0,
-          bottom: 0,
-          width: PANEL_WIDTH,
-          bgcolor: "background.paper",
-          borderLeft: 1,
-          borderColor: "divider",
-          boxShadow: "-4px 0 24px rgba(0,0,0,0.12)",
-          // Above the play-content drawer (MUI modal = 1300) so its slide-in
-          // sweeps BEHIND the panel and emerges from the panel's left edge,
-          // instead of crossing over the panel from the viewport edge.
-          zIndex: 1301,
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-          transform: open ? "translateX(0)" : "translateX(100%)",
-          transition: "transform 0.25s ease",
-        }}
+        sx={{ ...PANEL_BASE_STYLES, transform: open ? "translateX(0)" : "translateX(100%)" }}
       >
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            px: 2,
-            py: 1.5,
-            borderBottom: 1,
-            borderColor: "divider",
-            flexShrink: 0,
-          }}
-        >
+        <Box sx={PANEL_HEADER_STYLES}>
           <Typography variant="h6">🌱 Seeds AI</Typography>
           <IconButton onClick={handleClose} size="small">
             <CloseIcon />
@@ -497,22 +484,11 @@ export default function VoiceCommandButton() {
             </Alert>
           )}
 
-          {status === STATUS.DONE && result?.spokenSummary && (
-            <Paper
-              sx={{
-                p: 2,
-                mb: 2,
-                bgcolor: "primary.50",
-                borderLeft: 4,
-                borderColor: "primary.main",
-                display: "flex",
-                alignItems: "center",
-                gap: 1.5,
-              }}
-            >
+          {status === STATUS.DONE && result?.spoken_summary && (
+            <Paper sx={SPOKEN_SUMMARY_STYLES}>
               <VolumeUpIcon color="primary" />
               <Typography variant="body2" sx={{ fontStyle: "italic" }}>
-                {result.spokenSummary}
+                {result.spoken_summary}
               </Typography>
             </Paper>
           )}

@@ -239,11 +239,6 @@ async def list_content(
     language: str | None = None,
     theme: str | None = None,
     exp_name: str | None = Query(None),
-    exp_name_camel: str | None = Query(
-        None,
-        alias="expName",
-        description="camelCase alias for exp_name (used by the webapp and AI controller)",
-    ),
     ids: list[str] | None = Query(None),
     only_teacher_app: bool | None = Query(None),
     search: str = Query("", description="Search content by title (case-insensitive)"),
@@ -254,7 +249,6 @@ async def list_content(
 ) -> ContentPageResponse:
     tenant_id = user.get("tenant_id", "")
     school_id = _read_school_id(user)
-    exp_name = exp_name or exp_name_camel
 
     # Fetch by specific IDs
     if ids is not None:

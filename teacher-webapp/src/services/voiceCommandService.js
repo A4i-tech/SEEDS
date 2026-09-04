@@ -52,7 +52,7 @@ export async function transcribeAudio(audioBlob) {
 
 /**
  * Fetch a Seeds AI TTS prompt (welcome, thinking).
- * Returns { text, audioBase64 }.
+ * Returns { text, audio_base64 }.
  */
 export async function fetchTTSPrompt(type) {
   const response = await axiosInstance.post(
@@ -64,21 +64,31 @@ export async function fetchTTSPrompt(type) {
 }
 
 /**
- * Resolve {{stepN.data.field}} placeholders in a path string using accumulated results.
+ * Resolve {{stepN.data.field}} placeholders in a single string using accumulated results.
+ * stepNum and fieldPath come from an LLM-planned command, so the referenced step or field
+ * is not guaranteed to exist (e.g. an out-of-range step, or a field the response lacks).
+ */
+function resolvePlaceholdersInString(str, resultContext) {
+  // Matches {{stepN.data}} or {{stepN.data.field.path}} placeholder tokens.
+  return str.replace(/\{\{step(\d+)\.data([^}]*)\}\}/g, (_, stepNum, fieldPath) => {
+    const stepData = resultContext[`step${stepNum}`]?.data;
+    if (!stepData) return "";
+    if (!fieldPath) return JSON.stringify(stepData);
+    // Strips the leading dot from a field path, e.g. ".id" -> "id".
+    const parts = fieldPath.replace(/^\./, "").split(".");
+    let val = stepData;
+    for (const part of parts) val = val?.[part];
+    return val ?? "";
+  });
+}
+
+/**
+ * Resolve {{stepN.data.field}} placeholders throughout a value (path string or JSON body).
+ * Command bodies come from an LLM plan and are not schema-validated, so a value here can
+ * genuinely be a string, an object/array to walk, or any other JSON leaf type to pass through.
  */
 function resolveClientPlaceholders(value, resultContext) {
-  if (typeof value === "string") {
-    return value.replace(/\{\{step(\d+)\.data([^}]*)\}\}/g, (_, stepNum, fieldPath) => {
-      const stepData = resultContext[`step${stepNum}`]?.data;
-      if (!stepData) return "";
-      if (!fieldPath) return JSON.stringify(stepData);
-      // Walk the field path e.g. ".id" or ".confId"
-      const parts = fieldPath.replace(/^\./, "").split(".");
-      let val = stepData;
-      for (const part of parts) val = val?.[part];
-      return val ?? "";
-    });
-  }
+  if (typeof value === "string") return resolvePlaceholdersInString(value, resultContext);
   if (value && typeof value === "object") {
     const out = {};
     for (const [k, v] of Object.entries(value)) out[k] = resolveClientPlaceholders(v, resultContext);
@@ -108,6 +118,7 @@ export async function executeClientCommands(results) {
       const path = resolveClientPlaceholders(r.path, resultContext);
       let body = resolveClientPlaceholders(r.body, resultContext);
       
+      // Strips a leading "/call/" prefix so the path targets the conference service directly.
       const confPath = path.replace(/^\/call\//, "/");
       const url = `${CONF_BASE}${confPath}`;
 

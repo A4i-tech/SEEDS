@@ -12,6 +12,15 @@ export const getClassroomById = async (classId) => {
   return ClassroomDetailDto.fromApi(response.data);
 };
 
+export const refreshClassroomAfterVoiceCommand = async (classId) => {
+  try {
+    return await getClassroomById(classId);
+  } catch (err) {
+    console.error("Error refreshing classroom after voice command:", err);
+    return null;
+  }
+};
+
 const toUpsertPayload = (classroomData) => ({
   id: classroomData.id,
   name: classroomData.name,

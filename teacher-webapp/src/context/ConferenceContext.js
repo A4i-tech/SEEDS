@@ -169,7 +169,7 @@ export const ConferenceProvider = ({ children }) => {
         if (!existingParticipant) {
           if (participantData.role === "Student") {
             const student = allClassroomStudents.find(
-              (s) => normalizePhoneNumber(s.phoneNumber) === normalizedPhone
+              (s) => normalizePhoneNumber(s.phone_number) === normalizedPhone
             );
             name = student?.name;
           } else if (participantData.role === "Teacher" && selectedTeacher) {
