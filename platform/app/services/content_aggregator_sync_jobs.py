@@ -1,7 +1,3 @@
-"""Content aggregator sync job orchestration: id generation, persistence
-writes, in-process pub/sub for SSE, and snake_case JSON serialization for
-the /content-aggregators/* API.
-"""
 from __future__ import annotations
 
 import asyncio
