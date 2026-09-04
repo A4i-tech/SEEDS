@@ -1,21 +1,26 @@
 from __future__ import annotations
 
-from typing import Any
-
 from pydantic import BaseModel, Field
 
 
+class HistoryEntry(BaseModel):
+    model_config = {"extra": "allow"}
+
+    transcript: str | None = None
+    command: str | None = None
+    spoken_summary: str | None = None
+    response: str | None = None
+
+
 class CommandContext(BaseModel):
-    activeConferenceId: str = ""
-    currentClassId: str = ""
-    history: list[dict[str, Any]] = Field(default_factory=list)
+    active_conference_id: str = ""
+    current_class_id: str = ""
+    history: list[HistoryEntry] = Field(default_factory=list)
 
     model_config = {"populate_by_name": True}
 
     @classmethod
     def from_raw(cls, raw: str) -> CommandContext:
-        if not raw:
-            return cls()
         return cls.model_validate_json(raw)
 
 

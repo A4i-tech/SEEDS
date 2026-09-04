@@ -17,7 +17,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from openai import AsyncAzureOpenAI, RateLimitError
 from pydantic import ValidationError as PydanticValidationError
 
-from app.models.requests.meta_requests import CommandContext
+from app.models.requests.meta_requests import CommandContext, HistoryEntry
 from app.models.responses.meta import ProcessCommandResponse, TtsPromptResponse
 from app.models.user import User
 from app.platform.error_handling import AppError, ValidationError
@@ -96,8 +96,6 @@ async def fetch_context_from_db(
         for u in await user_repo.find_many_by_ids(list(all_student_ids)):
             student_map[u.id] = u
 
-    # Platform users collection stores `phone` / `school_id` (snake_case),
-    # unlike legacy JS models (`phoneNumber` / `schoolId`).
     school_students: list[User] = []
     if school_id:
         try:
@@ -105,12 +103,12 @@ async def fetch_context_from_db(
         except Exception as exc:  # noqa: BLE001 — fuzzy-match enrichment is best-effort
             logger.warning("meta_service: school-wide student lookup failed for school_id=%s: %s", school_id, exc)
 
-    def _student_info(ref: Any) -> dict | None:
-        doc = student_map.get(str(ref))
+    def _student_info(ref: str) -> dict[str, str] | None:
+        doc = student_map.get(ref)
         if doc is None:
             logger.warning("meta_service: student ref %s not found in users collection, dropping from context", ref)
             return None
-        return {"name": doc.name or "", "phone": doc.phone or ""}
+        return {"name": doc.name, "phone": doc.phone or ""}
 
     content_out = [
         {
@@ -124,7 +122,7 @@ async def fetch_context_from_db(
     ]
     classes_out = [
         {
-            "_id": c.id or "",
+            "_id": c.id,
             "name": c.name,
             "students": [s for s in (_student_info(s) for s in c.students) if s is not None],
             "leaders": [ld for ld in (_student_info(ld) for ld in c.leaders) if ld is not None],
@@ -132,7 +130,7 @@ async def fetch_context_from_db(
         for c in class_docs
     ]
     students_out = [
-        {"_id": s.id or "", "name": s.name or "", "phone": s.phone or ""}
+        {"_id": s.id, "name": s.name, "phone": s.phone or ""}
         for s in school_students
     ]
 
@@ -183,13 +181,13 @@ def _format_db_context(db_results: dict[str, list]) -> str:
     return "\n\n".join(sections) if sections else "(no matching data found in database)"
 
 
-def _format_history(history: list[dict] | None) -> str:
+def _format_history(history: list[HistoryEntry] | None) -> str:
     if not history:
         return "RECENT CONVERSATION: (none — this is the first command)"
     lines = []
     for i, h in enumerate(history[-2:]):
-        user_turn = (h.get("transcript") or h.get("command") or "").strip()
-        assistant_turn = (h.get("spokenSummary") or h.get("response") or "").strip()
+        user_turn = (h.transcript or h.command or "").strip()
+        assistant_turn = (h.spoken_summary or h.response or "").strip()
         line = f'{i + 1}. User: "{user_turn}"'
         if assistant_turn:
             line += f'\n   Assistant: "{assistant_turn}"'
@@ -201,12 +199,7 @@ _llm_client: AsyncAzureOpenAI | None = None
 
 
 def _get_llm_client() -> AsyncAzureOpenAI:
-    """Lazy module-level singleton — reuses one HTTP connection pool across calls
-    instead of opening a fresh AsyncAzureOpenAI client (and its own connector) per
-    request. `max_retries=0` because `_call_llm` is itself the single retry point
-    for 429s below; leaving the SDK's own default retries on top would stack up to
-    3x that many attempts.
-    """
+    """Lazy module-level singleton — reuses one HTTP connection pool across calls."""
     global _llm_client
     if _llm_client is None:
         settings = get_settings()
@@ -323,10 +316,7 @@ def _resolve_placeholders(target: JSONValue, context: dict[str, StepResult]) -> 
         return target
 
     if isinstance(target, str):
-        # Normalise the bare-index form the planner LLM keeps emitting ({{1.data.id}})
-        # into the documented 1-based {{stepN.…}} form. The model indexes these off the
-        # zero-based results array, so bare N refers to context key step{N+1}. Only the
-        # bare-digit form is rewritten, so an explicit {{stepN.…}} is never renumbered.
+        # Rewrite the bare-index form ({{1.data.id}}) the planner emits into 1-based {{stepN...}}.
         target = re.sub(
             r"\{\{(\d+)\.data\b",
             lambda m: f"{{{{step{int(m.group(1)) + 1}.data",
@@ -397,16 +387,13 @@ def _resolve_placeholders(target: JSONValue, context: dict[str, StepResult]) -> 
     return target
 
 
-# Path/method allowlist — LLM-planned commands are executed with the caller's
-# real bearer token; the planner prompt is not a security boundary, so every
-# self-call must also clear this server-side allowlist before dispatch.
+# Path/method allowlist — LLM-planned commands run with the caller's real bearer token.
 _ALLOWED_ROUTES: list[tuple[frozenset[str], re.Pattern]] = [  # type: ignore[type-arg]
     (frozenset({"GET"}), re.compile(r"^/content/themes/?$")),
     (frozenset({"GET"}), re.compile(r"^/content/[^/]*$")),
     (frozenset({"GET", "POST"}), re.compile(r"^/class/?$")),
     (frozenset({"GET", "DELETE"}), re.compile(r"^/class/[^/]+$")),
-    # read-only: listing students is fine, but create/update/delete of student
-    # records is deliberately NOT reachable from a voice/text command.
+    # Students: read-only, no create/update/delete from a voice/text command.
     (frozenset({"GET"}), re.compile(r"^/student/?$")),
     (frozenset({"GET"}), re.compile(r"^/teacher/me/?$")),
     (frozenset({"GET"}), re.compile(r"^/tenant/names/?$")),
@@ -491,9 +478,7 @@ async def execute_commands(
             resolved_path = _resolve_placeholders(cmd.get("path", ""), context)
             resolved_body = _resolve_placeholders(cmd.get("body"), context)
 
-            # `method` is mandatory on every planned step (forEach included — see
-            # below); the planner prompt/schema always sets it, so a missing key
-            # is a malformed plan, not something to paper over with a default.
+            # `method` is mandatory on every planned step — a missing key is a malformed plan.
             if cmd.get("forEach"):
                 step_kind = "forEach"
             else:
@@ -750,11 +735,10 @@ async def get_tts_prompt(prompt_type: str) -> TtsPromptResponse | None:
             audio = None
         if audio:
             _tts_cache[prompt_type] = audio
-    return TtsPromptResponse(text=text, audioBase64=_tts_cache.get(prompt_type))
+    return TtsPromptResponse(text=text, audio_base64=_tts_cache.get(prompt_type))
 
 
-# Orchestration entrypoints (moved from meta_controller — controller stays
-# route-only: auth/parsing/response shaping, no pipeline logic).
+# Orchestration entrypoints.
 
 
 _MAX_AUDIO_BYTES = 25 * 1024 * 1024
@@ -848,8 +832,8 @@ async def build_user_info(
         "phone_number": phone,
         "name": (user.name if user else "") or "Teacher",
         # Client-supplied context (camelCase over the wire, like the JS API)
-        "active_conference_id": context.activeConferenceId or "none",
-        "current_class_id": context.currentClassId or "none",
+        "active_conference_id": context.active_conference_id or "none",
+        "current_class_id": context.current_class_id or "none",
         "history": context.history,
     }
 
@@ -883,13 +867,13 @@ async def process_command(
         logger.error("meta_service: reasoning phase failed: %s", exc)
         raise AppError("AI_REASONING_FAILED", f"AI reasoning failed: {exc}", 502) from exc
     logger.info(
-        "meta_service: reasoning intent=%s canAutoResolve=%s",
-        reasoning.get("intent"), reasoning.get("canAutoResolve"),
+        "meta_service: reasoning intent=%s can_auto_resolve=%s",
+        reasoning.get("intent"), reasoning.get("can_auto_resolve"),
     )
 
-    if reasoning.get("canAutoResolve") is False:
+    if reasoning.get("can_auto_resolve") is False:
         explanation = (
-            reasoning.get("unresolvedNote")
+            reasoning.get("unresolved_note")
             or " Then ".join(s.get("description", "") for s in reasoning.get("steps", []))
             or reasoning.get("reasoning")
             or "I understand your question but cannot execute it automatically."
@@ -904,8 +888,8 @@ async def process_command(
             reasoning=reasoning,
             commands=[],
             results=[],
-            spokenSummary=spoken_summary,
-            audioBase64=audio_b64,
+            spoken_summary=spoken_summary,
+            audio_base64=audio_b64,
         )
 
     try:
@@ -923,12 +907,12 @@ async def process_command(
             "We could not turn that request into an action. Please rephrase it and try again.",
             502,
         )
-    if any(c.get("needsInput") for c in commands):
+    if any(c.get("needs_input") for c in commands):
         return ProcessCommandResponse(
             transcript=transcript,
             reasoning=reasoning,
             commands=commands,
-            needsInput=True,
+            needs_input=True,
             message="Some steps require additional input. Please review and confirm.",
         )
 
@@ -942,6 +926,6 @@ async def process_command(
         reasoning=reasoning,
         commands=commands,
         results=results,
-        spokenSummary=spoken_summary or "",
-        audioBase64=audio_b64,
+        spoken_summary=spoken_summary or "",
+        audio_base64=audio_b64,
     )

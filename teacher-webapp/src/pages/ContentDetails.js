@@ -78,7 +78,7 @@ const ContentDetails = () => {
   };
 
   const handleBack = () => {
-    navigate(ROUTES.CLASSROOMS);
+    navigate(ROUTES.CONTENT);
   };
 
   const handleNextPage = () => {
@@ -125,7 +125,7 @@ const ContentDetails = () => {
   };
 
   const formatLanguage = () => {
-    if (!content || !content.language) return "";
+    if (!content.language) return "";
     return getLanguageLabel(content.language);
   };
 

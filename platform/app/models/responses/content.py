@@ -8,25 +8,14 @@ AudioContent's schema.
 
 The only explicit id mapping is _id (parsed via validation_alias, always
 serialized as plain `id` — snake_case end-to-end), plus ObjectId coercion via
-the OidStr field type so callers never need to pre-process docs.
+_strip_oids so callers never need to pre-process docs.
 """
 from __future__ import annotations
 
 from typing import Annotated, Any, Literal
 
-from pydantic import (
-    BaseModel,
-    BeforeValidator,
-    ConfigDict,
-    Field,
-    TypeAdapter,
-    field_validator,
-    model_validator,
-)
-
-_RAW_DOC = TypeAdapter(dict[str, Any])
-
-OidStr = Annotated[str | None, BeforeValidator(lambda v: None if v is None else str(v))]
+from bson import ObjectId
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class TitleText(BaseModel):
@@ -77,17 +66,17 @@ class ContentBase(BaseModel):
     is_pull_model: bool = False
     is_teacher_app: bool = False
     is_deleted: bool = False
-    created_by: OidStr = None
-    tenant_id: OidStr = None
-    school_id: OidStr = None
+    created_by: str | None = None
+    tenant_id: str | None = None
+    school_id: str | None = None
     creation_time: int | None = None
 
     @model_validator(mode="before")
     @classmethod
-    def _validate_raw_doc(cls, data: Any) -> Any:
-        doc = _RAW_DOC.validate_python(data)
-        type_value = doc.get("type")
-        return doc if type_value is None else {**doc, "type": str(type_value).lower()}
+    def _strip_oids(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            return {k: str(v) if isinstance(v, ObjectId) else v for k, v in data.items()}
+        return data
 
     @field_validator("id", mode="before")
     @classmethod
@@ -124,17 +113,7 @@ class QuizContent(ContentBase):
         return cls.model_validate({**doc, "type": "quiz"})
 
 
-def _lower_discriminator(data: Any) -> Any:
-    if isinstance(data, dict) and isinstance(data.get("type"), str):
-        return {**data, "type": data["type"].lower()}
-    return data
-
-
-ContentItem = Annotated[
-    AudioContent | QuizContent,
-    Field(discriminator="type"),
-    BeforeValidator(_lower_discriminator),
-]
+ContentItem = Annotated[AudioContent | QuizContent, Field(discriminator="type")]
 
 
 class PaginationInfo(BaseModel):

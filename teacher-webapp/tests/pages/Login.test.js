@@ -16,7 +16,7 @@ jest.mock("../../src/services/axiosInstance", () => ({
 jest.mock("../../src/hooks/useNavigation");
 jest.mock("../../src/utils/authHelpers");
 jest.mock("../../src/services/voiceCommandService", () => ({
-  fetchTTSPrompt: jest.fn().mockResolvedValue({ audioBase64: "" }),
+  fetchTTSPrompt: jest.fn().mockResolvedValue({ audio_base64: "" }),
 }));
 
 describe("Login", () => {

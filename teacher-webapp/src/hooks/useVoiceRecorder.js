@@ -5,9 +5,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
  * Returns { isRecording, startRecording, stopRecording, audioBlob, error }
  */
 export default function useVoiceRecorder() {
-  const [isRecording, setIsRecording] = useState(false);
-  const [audioBlob, setAudioBlob] = useState(null);
-  const [error, setError] = useState(null);
+  const [status, setStatus] = useState({ data: null, isLoading: false, error: null });
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
   const streamRef = useRef(null);
@@ -28,8 +26,7 @@ export default function useVoiceRecorder() {
 
   const startRecording = useCallback(async () => {
     try {
-      setError(null);
-      setAudioBlob(null);
+      setStatus({ data: null, isLoading: false, error: null });
       chunksRef.current = [];
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -69,7 +66,7 @@ export default function useVoiceRecorder() {
             // Stop recording
             if (mediaRecorder.state === "recording") {
               mediaRecorder.stop();
-              setIsRecording(false);
+              setStatus((s) => ({ ...s, isLoading: false }));
             }
             isCheckingSilence = false;
             return;
@@ -87,24 +84,30 @@ export default function useVoiceRecorder() {
         releaseAudioResources();
 
         const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-        setAudioBlob(blob);
+        setStatus((s) => ({ ...s, data: blob }));
       };
 
       mediaRecorder.start();
-      setIsRecording(true);
+      setStatus((s) => ({ ...s, isLoading: true }));
       checkSilence();
     } catch (err) {
       releaseAudioResources();
-      setError("Microphone access denied. Please allow microphone permissions.");
+      setStatus({ data: null, isLoading: false, error: "Microphone access denied. Please allow microphone permissions." });
     }
   }, [releaseAudioResources]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
       mediaRecorderRef.current.stop();
-      setIsRecording(false);
+      setStatus((s) => ({ ...s, isLoading: false }));
     }
   }, []);
 
-  return { isRecording, startRecording, stopRecording, audioBlob, error };
+  return {
+    isRecording: status.isLoading,
+    startRecording,
+    stopRecording,
+    audioBlob: status.data,
+    error: status.error,
+  };
 }

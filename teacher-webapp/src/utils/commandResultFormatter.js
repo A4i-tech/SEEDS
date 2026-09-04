@@ -1,19 +1,12 @@
 import { ROUTES } from "../constants/routes";
 
-// Routes the app actually serves (see constants/routes.js). A NAVIGATE step whose
-// target is outside these prefixes is treated as a planner hallucination and
-// dropped rather than navigated to.
 const KNOWN_ROUTE_PREFIXES = ["/classrooms", "/content/"];
 
-// The platform API serializes Mongo's `_id` as `id` (see platform/app/models/*).
-const idOf = (obj) => obj?.id || null;
+const idOf = (obj) => obj.id;
 
-// Endpoints differ: /class returns a plain array, /content returns
-// { data: [...], pagination }. Accept either.
-const unwrapList = (data) =>
-  Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+const unwrapList = (data) => (Array.isArray(data) ? data : data.data || []);
 
-const personName = (p) => p?.name || p?.phone_number || p?.phoneNumber || "Unnamed";
+const personName = (p) => p.name;
 
 /**
  * Format a single command+result pair into a display-friendly object.
@@ -48,7 +41,7 @@ export function formatResult(command, result) {
   }
 
   if (path.match(/\/class\/?$/) && command.method === "GET") {
-    const names = unwrapList(data).map((c) => c.name);
+    const names = unwrapList(data || {}).map((c) => c.name);
     return {
       title: "Classrooms",
       summary: `Found ${names.length} classroom${names.length !== 1 ? "s" : ""}`,
@@ -57,7 +50,7 @@ export function formatResult(command, result) {
   }
 
   if (path.includes("/teacher/students")) {
-    const names = unwrapList(data).map(personName);
+    const names = unwrapList(data || {}).map(personName);
     return {
       title: "Students",
       summary: `Found ${names.length} student${names.length !== 1 ? "s" : ""}`,
@@ -100,7 +93,7 @@ export function formatResult(command, result) {
  * @returns {{ label: string, path: string, autoNavigate?: boolean } | null}
  */
 export function getNavigationTarget(commands, results) {
-  if (!commands || commands.length === 0) return null;
+  if (commands.length === 0) return null;
 
   let confIdSearchResult = null;
   let classIdSearchResult = null;
@@ -137,7 +130,9 @@ export function getNavigationTarget(commands, results) {
     }
 
     if (path.match(/^\/class\/([^/]+)$/) && cmd.method === "GET" && res?.status < 300) {
-      classIdSearchResult = idOf(res?.data);
+      if (res?.data) {
+        classIdSearchResult = idOf(res.data);
+      }
       singleClassData = res?.data;
     }
 
@@ -162,7 +157,7 @@ export function getNavigationTarget(commands, results) {
     if (path.match(/\/content/) && cmd.method === "GET" && res?.status < 300) {
       const raw = res?.data;
       const items = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : null;
-      const single = !items && idOf(raw) ? raw : null;
+      const single = !items && raw && idOf(raw) ? raw : null;
 
       if (single) {
         return {
@@ -173,9 +168,9 @@ export function getNavigationTarget(commands, results) {
       }
 
       if (items && items.length > 0 && idOf(items[0])) {
-        // Search query (search/expName/ids) → play the first match directly.
+        // Search query (search/exp_name/ids) → play the first match directly.
         // `search=` is the title search, which is what "play The alphabet song" uses.
-        if (path.includes("search=") || path.includes("expName=") || path.includes("ids=")) {
+        if (path.includes("search=") || path.includes("exp_name=") || path.includes("ids=")) {
           return {
             label: `Play: ${items[0].title?.english || items[0].expName || "Content"}`,
             path: ROUTES.CONTENT_DETAILS(idOf(items[0])),
@@ -191,7 +186,7 @@ export function getNavigationTarget(commands, results) {
     }
 
     // New classroom created -> offer to navigate directly to it (POST with no _id = create)
-    if (path.match(/\/class\/?$/) && cmd.method === "POST" && res?.status < 300 && idOf(res?.data)) {
+    if (path.match(/\/class\/?$/) && cmd.method === "POST" && res?.status < 300 && res?.data && idOf(res.data)) {
       const roomName = res.data.name || "new classroom";
       return {
         label: `Go to ${roomName}`,
@@ -205,10 +200,7 @@ export function getNavigationTarget(commands, results) {
     if (path.includes("/teacher/students")) sawStudentsCommand = true;
   }
 
-  // Generic fallback: only after scanning ALL commands for priority targets.
-  // A standalone "open class X" (GET /class/:id, no conference-start after it) goes
-  // straight to that class rather than the generic classrooms list.
-  if (idOf(singleClassData)) {
+  if (singleClassData && idOf(singleClassData)) {
     return { label: `Go to ${singleClassData.name || "classroom"}`, path: ROUTES.CLASSROOM_DETAIL(idOf(singleClassData)), autoNavigate: true };
   }
   if (sawClassCommand || sawStudentsCommand) {

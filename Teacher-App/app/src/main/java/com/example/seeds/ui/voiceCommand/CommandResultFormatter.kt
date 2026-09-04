@@ -10,10 +10,6 @@ import com.example.seeds.network.CommandResult
 import com.example.seeds.network.VoiceCommand
 import com.example.seeds.ui.call.CallSettingsFragmentDirections
 
-// Android port of teacher-webapp/src/utils/commandResultFormatter.js — kept 1:1 with web
-// semantics (same path matches, same priority order) so both clients show the same thing.
-// Pure functions: the parser logic lives here and is unit-tested (per plan Phase 5).
-
 private fun CommandResult?.isOk(): Boolean = this != null && error.isEmpty() && status in 0 until 300
 
 @Suppress("UNCHECKED_CAST")
@@ -25,9 +21,9 @@ private fun Any?.asList(): List<Map<*, *>> = when (this) {
 
 private fun Map<*, *>.str(key: String): String? = this[key]?.toString()
 
-fun formatResult(command: VoiceCommand?, result: CommandResult?): FormattedResult {
+fun formatResult(command: VoiceCommand, result: CommandResult?): FormattedResult {
     val isSuccess = result.isOk()
-    if (command == null || result == null) {
+    if (result == null) {
         return FormattedResult("Command", "No details available", emptyList(), false)
     }
     if (result.error.isNotEmpty()) {
@@ -85,7 +81,6 @@ fun getNavigationTarget(commands: List<VoiceCommand>, results: List<CommandResul
 
     var classId: String? = null
     var singleClassData: Map<*, *>? = null
-    var confId: String? = null
     var confCreateBody: Map<*, *>? = null
     var sawClassCommand = false
     var sawStudentsCommand = false
@@ -113,7 +108,6 @@ fun getNavigationTarget(commands: List<VoiceCommand>, results: List<CommandResul
         }
 
         if (path.contains("/conference/create") && res.isOk()) {
-            confId = (res?.data as? Map<*, *>)?.str("id")
             confCreateBody = cmd.body as? Map<*, *>
         }
 
@@ -140,7 +134,7 @@ fun getNavigationTarget(commands: List<VoiceCommand>, results: List<CommandResul
             if (single != null) return contentTarget(single)
             val items = res?.data.asList()
             if (items.isNotEmpty() && items[0]["id"] != null) {
-                if (path.contains("expName=") || path.contains("ids=")) return contentTarget(items[0])
+                if (path.contains("exp_name=") || path.contains("ids=")) return contentTarget(items[0])
                 // No filter = "browse the library" -> the Content tab (argless-navigable).
                 return NavigationTarget("Open Content Library", destinationId = R.id.homeFragment)
             }

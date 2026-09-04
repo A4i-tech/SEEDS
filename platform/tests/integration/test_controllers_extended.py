@@ -252,7 +252,7 @@ class TestSchoolController:
     async def test_get_school_not_found(self, client, mock_db):
         tenant = await _seed_tenant(mock_db)
         token = _tenant_token(tenant["_id"])
-        resp = await client.get("/school/nonexistent123", headers={"Authorization": f"Bearer {token}"})
+        resp = await client.get(f"/school/{ObjectId()}", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 404
 
     @pytest.mark.asyncio

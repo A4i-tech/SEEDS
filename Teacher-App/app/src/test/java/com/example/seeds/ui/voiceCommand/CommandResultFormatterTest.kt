@@ -74,7 +74,7 @@ class CommandResultFormatterTest {
 
     @Test
     fun `play content deep-links to the player carrying a Content arg`() {
-        val cmds = listOf(VoiceCommand("GET", "/content/?expName=abc"))
+        val cmds = listOf(VoiceCommand("GET", "/content/?exp_name=abc"))
         val data = mapOf(
             "id" to "x1", "type" to "song", "language" to "en",
             "title" to mapOf("english" to "ABC Song", "audioUrl" to "http://a/title.mp3"),

@@ -27,7 +27,7 @@ def _get_base_url(request: Request) -> str:
 async def voice_command(
     request: Request,
     audio: UploadFile = File(...),
-    context: str = Form(default=""),
+    context: str = Form(...),
     current_user: dict[str, Any] = Depends(_require_teacher),
     db: AsyncIOMotorDatabase = Depends(get_db),  # type: ignore[type-arg]
 ) -> ProcessCommandResponse:
@@ -59,7 +59,6 @@ async def text_command(
     )
 
 
-# Public — static persona prompts only, no user data (mirrors metaCaller.js)
 @router.post("/tts-prompt", summary="Get TTS audio for a static Seeds AI prompt")
 async def tts_prompt(body: TtsPromptRequest) -> TtsPromptResponse:
     result = await meta_service.get_tts_prompt(body.type)
