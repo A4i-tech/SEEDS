@@ -54,12 +54,7 @@ export function ToastProvider({ children }) {
                     Undo
                   </button>
                 ) : null}
-                <button
-                  className="btn btn-icon btn-ghost"
-                  style={{ width: 26, height: 26, border: 0 }}
-                  aria-label="Dismiss"
-                  onClick={() => dismiss(t.id)}
-                >
+                <button className="modal-close" aria-label="Dismiss" onClick={() => dismiss(t.id)}>
                   <X size={15} />
                 </button>
               </div>

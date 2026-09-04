@@ -18,7 +18,7 @@ import {
 import "../workspace.css";
 import { translationService } from "../../services/translationService";
 import { toSegment } from "../lib/segments";
-import { Button, SkeletonRows, EmptyState, useToast, Tooltip, Popover } from "../primitives";
+import { SkeletonRows, EmptyState, useToast, Tooltip, Popover } from "../primitives";
 
 /** Status pill — every row shows exactly one state. */
 function CardStatus({ seg }) {
@@ -89,38 +89,32 @@ function RowActions({ seg, onApprove, onReject, onEditFocus }) {
   return (
     <div className="tr-actions">
       <Tooltip label={approved ? "Approved" : "Approve"}>
-        <Button
-          variant={approved ? "good" : "subtle"}
-          size="icon"
-          className={`tr-act tr-act-approve ${approved ? "active" : ""}`}
+        <button
+          className={`tr-act tr-act-approve btn-icon ${approved ? "active" : ""}`}
           aria-label="Approve"
           aria-pressed={approved}
           onClick={() => onApprove(seg.id)}
         >
           <Check size={15} />
-        </Button>
+        </button>
       </Tooltip>
       <Tooltip label="Reject">
-        <Button
-          variant="subtle"
-          size="icon"
-          className={`tr-act tr-act-reject ${approved ? "dim" : ""}`}
+        <button
+          className={`tr-act tr-act-reject btn-icon ${approved ? "dim" : ""}`}
           aria-label="Reject"
           onClick={() => onReject(seg.id)}
         >
           <X size={15} />
-        </Button>
+        </button>
       </Tooltip>
       <Tooltip label="Edit">
-        <Button
-          variant="subtle"
-          size="icon"
-          className={`tr-act tr-act-edit ${approved ? "dim" : ""}`}
+        <button
+          className={`tr-act tr-act-edit btn-icon ${approved ? "dim" : ""}`}
           aria-label="Edit"
           onClick={onEditFocus}
         >
           <Pencil size={15} />
-        </Button>
+        </button>
       </Tooltip>
     </div>
   );
@@ -539,9 +533,9 @@ export function WorkspaceScreen({
                   }
                   action={
                     !segments.length ? (
-                      <Button variant="wine" onClick={translatePage} disabled={busy}>
+                      <button className="tertiary-button" onClick={translatePage} disabled={busy}>
                         <Sparkles size={15} /> {busy ? "Translating…" : "Translate this page"}
-                      </Button>
+                      </button>
                     ) : null
                   }
                 />
@@ -619,23 +613,22 @@ export function WorkspaceScreen({
               )}
               {/* Editor footer */}
               <div className="tr-editfoot">
-                <Button variant="ghost" size="sm" onClick={revertAll}>
+                <button className="action-ghost-button" onClick={revertAll}>
                   <RotateCcw size={14} /> Revert all
-                </Button>
+                </button>
                 <span style={{ flex: 1 }} />
-                <Button
-                  variant="ghost"
-                  size="sm"
+                <button
+                  className="action-ghost-button"
                   onClick={() => {
                     setSavedAt(Date.now());
                     toast({ message: "Changes saved", tone: "good" });
                   }}
                 >
                   Save changes
-                </Button>
-                <Button variant="wine" size="sm" onClick={approveAll}>
+                </button>
+                <button className="tertiary-button" onClick={approveAll}>
                   Approve all
-                </Button>
+                </button>
               </div>
             </div>
           </div>

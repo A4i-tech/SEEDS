@@ -1,5 +1,4 @@
 import React, { useId } from "react";
-import { Search } from "lucide-react";
 import { cn } from "../lib/cn";
 
 export function Field({ label, htmlFor, help, error, children }) {
@@ -42,7 +41,6 @@ export const SearchInput = React.forwardRef(function SearchInput(
 ) {
   return (
     <span className={cn("input-search", className)}>
-      <Search aria-hidden="true" />
       <input ref={ref} className="input" type="search" aria-label={ariaLabel} {...rest} />
     </span>
   );

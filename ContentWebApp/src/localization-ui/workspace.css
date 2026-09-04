@@ -36,18 +36,6 @@
   flex-wrap: wrap;
   flex: 1 1 auto;
 }
-.tr-mini {
-  height: 36px;
-  padding: 0 12px;
-  border: 1px solid var(--line-2);
-  border-radius: 9px;
-  background: var(--surface);
-  color: var(--ink);
-  font: inherit;
-  font-size: var(--fs-13);
-  font-weight: 500;
-  cursor: pointer;
-}
 .tr-search {
   display: inline-flex;
   align-items: center;
@@ -675,14 +663,5 @@
 @media (max-width: 900px) {
   .tr-body {
     flex-direction: column;
-  }
-  .ws-divider {
-    display: none;
-  }
-  .ws-preview {
-    width: 100% !important;
-    height: 46%;
-    border-left: 0;
-    border-top: 1px solid var(--line);
   }
 }

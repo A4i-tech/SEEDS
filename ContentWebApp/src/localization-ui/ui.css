@@ -1,95 +1,3 @@
-/* ---------- Buttons ---------- */
-.loca-ui .btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--s-2);
-  font-size: var(--fs-13);
-  font-weight: 600;
-  line-height: 1;
-  padding: 0 var(--s-4);
-  height: 36px;
-  border-radius: var(--r-sm);
-  border: 1px solid transparent;
-  cursor: pointer;
-  white-space: nowrap;
-  transition:
-    background var(--dur) var(--ease),
-    border-color var(--dur) var(--ease),
-    color var(--dur) var(--ease);
-  user-select: none;
-}
-.loca-ui .btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.loca-ui .btn svg {
-  width: 16px;
-  height: 16px;
-  flex: 0 0 auto;
-}
-.loca-ui .btn-sm {
-  height: 30px;
-  padding: 0 var(--s-3);
-  font-size: var(--fs-12);
-}
-.loca-ui .btn-lg {
-  height: 42px;
-  padding: 0 var(--s-5);
-  font-size: var(--fs-14);
-}
-.loca-ui .btn-icon {
-  width: 34px;
-  height: 34px;
-  padding: 0;
-}
-
-.loca-ui .btn-primary {
-  background: var(--accent);
-  color: var(--on-accent);
-}
-.loca-ui .btn-primary:hover:not(:disabled) {
-  background: var(--accent-ink);
-}
-.loca-ui .btn-ghost {
-  background: transparent;
-  color: var(--ink);
-  border-color: var(--line-2);
-}
-.loca-ui .btn-ghost:hover:not(:disabled) {
-  background: var(--surface-2);
-  border-color: var(--line-2);
-}
-.loca-ui .btn-subtle {
-  background: var(--surface-2);
-  color: var(--ink);
-}
-.loca-ui .btn-subtle:hover:not(:disabled) {
-  background: var(--surface-3);
-}
-.loca-ui .btn-danger {
-  background: transparent;
-  color: var(--crit);
-  border-color: color-mix(in srgb, var(--crit) 40%, transparent);
-}
-.loca-ui .btn-danger:hover:not(:disabled) {
-  background: var(--crit-bg);
-}
-.loca-ui .btn-good {
-  background: var(--good);
-  color: #fff;
-}
-.loca-ui .btn-good:hover:not(:disabled) {
-  filter: brightness(1.05);
-}
-.loca-ui .btn-wine {
-  background: var(--wine);
-  color: var(--on-wine);
-}
-.loca-ui .btn-wine:hover:not(:disabled) {
-  background: var(--wine-ink);
-}
-
 /* ---------- Badges / chips ---------- */
 .loca-ui .badge {
   display: inline-flex;
@@ -101,10 +9,6 @@
   padding: 2px 9px;
   border-radius: var(--r-pill);
   white-space: nowrap;
-}
-.loca-ui .badge svg {
-  width: 13px;
-  height: 13px;
 }
 .loca-ui .badge-good {
   background: var(--good-bg);
@@ -131,74 +35,6 @@
   color: var(--accent-ink);
 }
 
-/* ---------- Cards ---------- */
-.loca-ui .card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  box-shadow: var(--sh-1);
-}
-/* ---------- Inputs ---------- */
-.loca-ui .field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.loca-ui .label {
-  font-size: var(--fs-12);
-  font-weight: 600;
-  color: var(--ink-2);
-}
-.loca-ui .help {
-  font-size: var(--fs-12);
-  color: var(--muted);
-}
-.loca-ui .err {
-  font-size: var(--fs-12);
-  color: var(--crit);
-}
-.loca-ui .input {
-  width: 100%;
-  height: 36px;
-  padding: 0 var(--s-3);
-  font-size: var(--fs-14);
-  color: var(--ink);
-  background: var(--surface);
-  border: 1px solid var(--line-2);
-  border-radius: var(--r-sm);
-  outline: none;
-  transition: border-color var(--dur) var(--ease);
-}
-.loca-ui textarea.input {
-  height: auto;
-  padding: var(--s-2) var(--s-3);
-  line-height: 1.5;
-  resize: vertical;
-}
-.loca-ui .input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-wash);
-}
-.loca-ui .input::placeholder {
-  color: var(--muted);
-}
-.loca-ui .input-search {
-  position: relative;
-}
-.loca-ui .input-search svg {
-  position: absolute;
-  left: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 15px;
-  height: 15px;
-  color: var(--muted);
-  pointer-events: none;
-}
-.loca-ui .input-search .input {
-  padding-left: 32px;
-}
-
 /* ---------- Checkbox ---------- */
 .loca-ui .ck {
   width: 16px;
@@ -214,10 +50,6 @@
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
-}
-.loca-ui .ck svg {
-  width: 12px;
-  height: 12px;
 }
 
 /* ---------- Skeleton ---------- */
@@ -258,10 +90,6 @@
   display: grid;
   place-items: center;
   color: var(--muted);
-}
-.loca-ui .empty .ic svg {
-  width: 22px;
-  height: 22px;
 }
 .loca-ui .empty h4 {
   font-size: var(--fs-16);

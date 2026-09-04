@@ -71,14 +71,6 @@
   font-weight: 600;
   color: var(--ink);
 }
-.loca-ui .data-table .t-actions {
-  text-align: right;
-  white-space: nowrap;
-}
-.loca-ui .data-table .t-actions .btn {
-  margin-left: 4px;
-}
-
 .loca-ui .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

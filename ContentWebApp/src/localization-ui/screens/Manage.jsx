@@ -2,7 +2,6 @@ import React from "react";
 import { Plus, Clock, FolderKanban, Globe, Languages as LangIcon } from "lucide-react";
 import "../manage.css";
 import {
-  Button,
   Badge,
   Dialog,
   ConfirmDialog,
@@ -37,9 +36,9 @@ function Header({ title, subtitle, search, onSearch, addLabel, onAdd, children }
             style={{ width: 200 }}
           />
           {addLabel ? (
-            <Button variant="primary" onClick={onAdd}>
+            <button className="primary-button" onClick={onAdd}>
               <Plus size={15} /> {addLabel}
-            </Button>
+            </button>
           ) : null}
         </div>
       </div>
@@ -100,12 +99,12 @@ function ProjectsView({ loc, toast }) {
           title={dlg.mode === "edit" ? "Edit project" : "New project"}
           footer={
             <>
-              <Button variant="ghost" onClick={() => setDlg(null)}>
+              <button className="action-ghost-button" onClick={() => setDlg(null)}>
                 Cancel
-              </Button>
-              <Button variant="primary" onClick={save} disabled={!dlg.values.name.trim()}>
+              </button>
+              <button className="primary-button" onClick={save} disabled={!dlg.values.name.trim()}>
                 Save
-              </Button>
+              </button>
             </>
           }
         >
@@ -229,12 +228,12 @@ function SitesView({ loc, toast }) {
           title={dlg.mode === "edit" ? "Edit site" : "Register site"}
           footer={
             <>
-              <Button variant="ghost" onClick={() => setDlg(null)}>
+              <button className="action-ghost-button" onClick={() => setDlg(null)}>
                 Cancel
-              </Button>
-              <Button variant="primary" onClick={save} disabled={!dlg.values.url.trim()}>
+              </button>
+              <button className="primary-button" onClick={save} disabled={!dlg.values.url.trim()}>
                 Save
-              </Button>
+              </button>
             </>
           }
         >
@@ -375,16 +374,16 @@ function LanguagesView({ loc, toast }) {
           title={dlg.mode === "edit" ? "Edit language" : "Add language"}
           footer={
             <>
-              <Button variant="ghost" onClick={() => setDlg(null)}>
+              <button className="action-ghost-button" onClick={() => setDlg(null)}>
                 Cancel
-              </Button>
-              <Button
-                variant="primary"
+              </button>
+              <button
+                className="primary-button"
                 onClick={save}
                 disabled={!dlg.values.name.trim() || !dlg.values.code.trim()}
               >
                 Save
-              </Button>
+              </button>
             </>
           }
         >

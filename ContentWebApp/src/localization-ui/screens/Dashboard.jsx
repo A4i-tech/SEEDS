@@ -12,7 +12,7 @@ import {
   RotateCw,
 } from "lucide-react";
 import "../dashboard.css";
-import { Button, Field, Input, useToast } from "../primitives";
+import { Field, Input, useToast } from "../primitives";
 import { ManageScreen } from "./Manage";
 import { extractDomain } from "../lib/url";
 
@@ -58,10 +58,10 @@ function SnippetBlock({ snippet }) {
 
 const buildDevToolsScript = (siteId) =>
   [
-    'const s = document.createElement("script");',
-    's.src = "http://localhost:3000/sdk.js";',
+    "const s = document.createElement(\"script\");",
+    "s.src = \"http://localhost:3000/sdk.js\";",
     `s.dataset.siteId = "${siteId}";`,
-    's.dataset.apiBase = "http://localhost:3000";',
+    "s.dataset.apiBase = \"http://localhost:3000\";",
     "document.body.appendChild(s);",
   ].join("\n");
 
@@ -235,21 +235,21 @@ function OnboardingCard({ loc }) {
         <DevToolsSection siteId={result.siteId} />
 
         <div className="onb-actions">
-          <Button variant="primary" onClick={copySnippet}>
+          <button className="primary-button" onClick={copySnippet}>
             <Copy size={15} /> Copy Snippet
-          </Button>
-          <Button
-            variant="ghost"
+          </button>
+          <button
+            className="action-ghost-button"
             type="button"
             onClick={() =>
               window.open("https://docs.example.com/sdk", "_blank", "noopener,noreferrer")
             }
           >
             <BookOpen size={15} /> View Documentation <ExternalLink size={13} />
-          </Button>
-          <Button variant="ghost" type="button" onClick={reset}>
+          </button>
+          <button className="action-ghost-button" type="button" onClick={reset}>
             <RotateCw size={15} /> Register Another Website
-          </Button>
+          </button>
         </div>
       </div>
     );
@@ -272,9 +272,9 @@ function OnboardingCard({ loc }) {
             />
           </span>
         </Field>
-        <Button variant="primary" size="lg" type="submit" disabled={!domain.trim() || busy}>
+        <button className="primary-button" type="submit" disabled={!domain.trim() || busy}>
           {busy ? <Loader2 size={16} className="spin" /> : null} Register Website
-        </Button>
+        </button>
       </form>
     </div>
   );

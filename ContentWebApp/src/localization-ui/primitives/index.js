@@ -1,4 +1,3 @@
-export { Button } from "./Button";
 export { Badge, StatusBadge, ConfidenceBadge, QualityBar } from "./Badge";
 export { Skeleton, SkeletonRows } from "./Skeleton";
 export { EmptyState } from "./EmptyState";

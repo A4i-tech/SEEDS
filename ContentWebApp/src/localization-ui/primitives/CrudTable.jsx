@@ -1,17 +1,15 @@
 import React from "react";
-import { Pencil, Trash2 } from "lucide-react";
-import { Button } from "./Button";
 import { EmptyState } from "./EmptyState";
 
 function RowActions({ onEdit, onDelete }) {
   return (
-    <div className="t-actions">
-      <Button size="sm" variant="ghost" onClick={onEdit}>
-        <Pencil size={13} /> Edit
-      </Button>
-      <Button size="sm" variant="danger" onClick={onDelete}>
-        <Trash2 size={13} /> Delete
-      </Button>
+    <div className="row-actions row-actions-horizontal">
+      <button className="row-action row-action-edit" onClick={onEdit}>
+        Edit
+      </button>
+      <button className="row-action row-action-delete" onClick={onDelete}>
+        Delete
+      </button>
     </div>
   );
 }

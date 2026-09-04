@@ -1,7 +1,6 @@
 import React from "react";
 import * as RDialog from "@radix-ui/react-dialog";
 import { AlertTriangle } from "lucide-react";
-import { Button } from "./Button";
 import { portalContainer } from "../lib/portal";
 
 export function Dialog({ open, onOpenChange, title, description, children, footer }) {
@@ -43,11 +42,11 @@ export function ConfirmDialog({
       description={description}
       footer={
         <>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+          <button className="action-ghost-button" onClick={() => onOpenChange(false)}>
             Cancel
-          </Button>
-          <Button
-            variant={danger ? "danger" : "primary"}
+          </button>
+          <button
+            className={danger ? "btn-danger" : "primary-button"}
             onClick={() => {
               onConfirm();
               onOpenChange(false);
@@ -55,7 +54,7 @@ export function ConfirmDialog({
           >
             {danger ? <AlertTriangle size={15} /> : null}
             {confirmLabel}
-          </Button>
+          </button>
         </>
       }
     />

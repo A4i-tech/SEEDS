@@ -31,9 +31,6 @@
   flex-direction: column;
   gap: 16px;
 }
-.loca-ui .onb-form .btn-lg {
-  align-self: stretch;
-}
 .loca-ui .spin {
   animation: onb-spin 0.8s linear infinite;
 }

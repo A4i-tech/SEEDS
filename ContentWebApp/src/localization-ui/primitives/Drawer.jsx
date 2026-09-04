@@ -35,7 +35,7 @@ export function Drawer({ open, onOpenChange, title, subtitle, children, footer }
               ) : null}
             </div>
             <RDialog.Close asChild>
-              <button className="btn btn-icon btn-ghost" aria-label="Close">
+              <button className="modal-close" aria-label="Close">
                 <X size={16} />
               </button>
             </RDialog.Close>

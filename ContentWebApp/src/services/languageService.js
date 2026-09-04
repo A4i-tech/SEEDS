@@ -17,7 +17,7 @@ export const languageService = {
       headers: getAuthHeaders(),
     });
 
-    return fromLanguageResponse(response);
+    return response.map(fromLanguageResponse);
   },
 
   /**

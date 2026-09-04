@@ -94,32 +94,6 @@
   color: var(--on-accent);
 }
 
-.loca-side .s-foot {
-  border-top: 1px solid var(--line);
-  padding: 10px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.loca-side .s-help {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  font-size: var(--fs-13);
-  font-weight: 500;
-  cursor: pointer;
-  text-decoration: none;
-}
-.loca-side .s-help:hover {
-  background: var(--surface-2);
-  color: var(--ink);
-}
-
 /* Main content */
 .loca-main {
   display: flex;
@@ -139,14 +113,6 @@
   display: flex;
 }
 
-.loca-menu-btn {
-  display: none;
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  z-index: 30;
-}
-
 /* Mobile: sidebar becomes off-canvas */
 @media (max-width: 900px) {
   .loca-shell {
@@ -162,12 +128,6 @@
     box-shadow: var(--sh-3);
     transform: translateX(-110%);
     transition: transform var(--dur) var(--ease);
-  }
-  .loca-shell.side-open .loca-side {
-    transform: none;
-  }
-  .loca-menu-btn {
-    display: inline-grid;
   }
   .loca-content {
     padding: 56px 18px 18px;
