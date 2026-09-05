@@ -1,0 +1,39 @@
+name: Deploy Translation Proxy Staging
+
+on:
+  push:
+    branches: a4i/staging
+  workflow_call:
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build & push image
+        uses: ./.github/actions/deploy-docker
+        with:
+          context: translation-proxy
+          image: translation-proxy
+          registry: ${{ env.REGISTRY }}
+          repository: ${{ github.repository }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ github.actor }}
+          environment_tag: staging
+
+      - name: Normalize repo name to lowercase
+        id: repo
+        run: echo "repository_lowercase=${GITHUB_REPOSITORY,,}" >> $GITHUB_OUTPUT
+
+      - name: Deploy to Azure
+        uses: ./.github/actions/deploy-azure
+        with:
+          app_name: translation-proxy-service-staging
+          publish_profile: ${{ secrets.TRANSLATION_PROXY_AZURE_PUBLISH_PROFILE_STAGING }}
+          image: ${{ env.REGISTRY }}/${{ steps.repo.outputs.repository_lowercase }}/translation-proxy:staging

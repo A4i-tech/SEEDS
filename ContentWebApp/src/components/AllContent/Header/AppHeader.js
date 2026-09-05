@@ -14,6 +14,7 @@ const AppHeader = ({
   showContent = true,
   showRegistration = true,
   showAnalytics = true,
+  showLocalization = true,
 }) => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const navigate = useNavigate();
@@ -58,6 +59,14 @@ const AppHeader = ({
               onClick={() => onTabChange("analytics")}
             >
               Analytics
+            </button>
+          )}
+          {showLocalization && (
+            <button
+              className={`nav-link ${activeTab === "localization" ? "active" : ""}`}
+              onClick={() => onTabChange("localization")}
+            >
+              Localization
             </button>
           )}
         </div>

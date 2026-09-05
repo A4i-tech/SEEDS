@@ -1,0 +1,73 @@
+.loca-ui .mng {
+  max-width: 1080px;
+  margin: 0 auto;
+}
+.loca-ui .onb-page .mng {
+  max-width: none;
+  margin: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-2);
+  padding: 32px;
+}
+.loca-ui .mng-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.loca-ui .mng-head h1 {
+  font-size: var(--fs-20);
+}
+.loca-ui .mng-head p {
+  color: var(--muted);
+  font-size: var(--fs-13);
+  margin-top: 3px;
+}
+.loca-ui .mng-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.loca-ui .t-name {
+  font-weight: 600;
+  color: var(--ink);
+}
+.loca-ui .switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  border: 0;
+  background: none;
+  padding: 0;
+}
+.loca-ui .switch .track {
+  width: 34px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--line-2);
+  position: relative;
+  transition: background var(--dur) var(--ease);
+  flex: 0 0 auto;
+}
+.loca-ui .switch .track.on {
+  background: var(--good);
+}
+.loca-ui .switch .knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: left var(--dur) var(--ease);
+}
+.loca-ui .switch .track.on .knob {
+  left: 16px;
+}
