@@ -25,6 +25,12 @@ jobs:
     uses: ./.github/workflows/deploy-staging.yml
     secrets: inherit
 
+  deploy-translation-proxy-staging-workflow:
+    needs: ci-workflow
+    if: github.ref == 'refs/heads/a4i/staging'
+    uses: ./.github/workflows/deploy-translation-proxy-staging.yml
+    secrets: inherit
+
   deploy-main-workflow:
     needs: ci-workflow
     if: github.ref == 'refs/heads/a4i/main'
@@ -55,6 +61,7 @@ jobs:
       - ci-workflow
       - deploy-websocket-service-staging-workflow
       - deploy-staging-workflow
+      - deploy-translation-proxy-staging-workflow
       - deploy-main-workflow
       - run-android-tests
       - deploy-android
@@ -74,6 +81,7 @@ jobs:
             "ci-workflow": "CI",
             "deploy-websocket-service-staging-workflow": "Websocket",
             "deploy-staging-workflow": "Backend Staging",
+            "deploy-translation-proxy-staging-workflow": "Translation Proxy",
             "deploy-main-workflow": "Backend",
             "deploy-android": "Android"
           }'

@@ -175,6 +175,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     if reconciled:
         logger.info("Reconciled %d interrupted content aggregator sync jobs", reconciled)
 
+    from app.repositories.language_repository import LanguageRepository  # noqa: PLC0415
+    from app.repositories.translation_audit_repository import (  # noqa: PLC0415
+        TranslationAuditRepository,
+    )
+    from app.repositories.translation_repository import TranslationRepository  # noqa: PLC0415
+    from app.repositories.website_repository import WebsiteRepository  # noqa: PLC0415
+
+    await WebsiteRepository.ensure_indexes(get_database())
+    await LanguageRepository.ensure_indexes(get_database())
+    await TranslationRepository.ensure_indexes(get_database())
+    await TranslationAuditRepository.ensure_indexes(get_database())
+
     # Init conference manager (available in all modes)
     try:
         conf_mgr = _init_conference_manager()

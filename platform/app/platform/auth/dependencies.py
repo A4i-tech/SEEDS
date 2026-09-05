@@ -53,7 +53,6 @@ def clear_refresh_cookie(response: Response) -> None:
 
 
 async def get_db() -> AsyncGenerator[AsyncDatabase, None]:  # type: ignore[type-arg]
-    """Yield the active PyMongo async database instance."""
     yield get_database()
 
 
@@ -146,6 +145,9 @@ def require_role(*roles: str):
 # Convenience aliases kept for backward compatibility with existing Depends() callsites.
 require_teacher = require_role("teacher")
 require_tenant = require_role("tenant")
+require_translation_reviewer = require_role(
+    "tenant", "school_admin"
+)
 
 
 # ---------------------------------------------------------------------------
