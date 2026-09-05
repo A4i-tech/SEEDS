@@ -66,7 +66,7 @@ const tabButtonStyle = (active) => ({
 const labelStyle = {
   fontSize: "14px",
   fontWeight: 600,
-  color: "#fff",
+  color: "#0f172a",
   marginBottom: "6px",
 };
 
