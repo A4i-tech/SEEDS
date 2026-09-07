@@ -181,14 +181,14 @@ class TestPureAudioBuilder:
     def test_pure_audio_option_creation(self) -> None:
         from app.services.fsm.instantiation.pure_audio import _Option
 
-        opt = _Option(key=1, value="Lesson 1")
-        assert opt.key == 1
+        opt = _Option(key="1", value="Lesson 1")
+        assert opt.key == "1"
         assert opt.value == "Lesson 1"
 
     def test_pure_audio_menu_dict(self) -> None:
         from app.services.fsm.instantiation.pure_audio import _Menu, _Option
 
-        opt = _Option(key=1, value="Lesson 1")
+        opt = _Option(key="1", value="Lesson 1")
         menu = _Menu(description="Content menu", options=[opt], level=2, language="english")
         d = menu.dict()
         assert d["description"] == "Content menu"

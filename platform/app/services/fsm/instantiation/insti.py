@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import re
 import uuid
+from urllib.parse import quote
 
 from pymongo.asynchronous.database import AsyncDatabase
 
@@ -40,7 +41,7 @@ from app.services.fsm.utils import get_blob_language_name
 
 
 class _Option:
-    def __init__(self, key: int, value: str) -> None:
+    def __init__(self, key: str, value: str) -> None:
         self.key = key
         self.value = value
 
@@ -82,7 +83,7 @@ def _get_key_press_url(key: str, language: str, speech_rate: str) -> str:
         pressKeyMessageUrl.replace("{language}", blob_lang)
         .replace("{speechRate}", str(speech_rate))
     )
-    replaced_url = re.sub(r"\{key\}", key, replaced_url)
+    replaced_url = re.sub(r"\{key\}", quote(key, safe=""), replaced_url)
     return pullMenuMainUrl + replaced_url
 
 
@@ -194,7 +195,7 @@ _attribute_handlers = {
 def _add_nav_action(
     actions: list,
     key_to_value_mapping: dict,
-    nav_key: int | str,
+    nav_key: str,
     message_template: str,
     language: str,
     speech_rate: str,
@@ -207,7 +208,7 @@ def _add_nav_action(
     )
     actions.append(StreamAction(url))
     actions.append(StreamAction(_get_key_press_url(str(nav_key), language, speech_rate)))
-    key_to_value_mapping[int(nav_key)] = description
+    key_to_value_mapping[str(nav_key)] = description
 
 
 def _get_stream_actions(
@@ -253,7 +254,7 @@ def _get_stream_actions(
         display_value = sorted_keys[start_index + idx]
         actions.append(StreamAction(complete_url))
         key = str(idx + 1)
-        key_to_value_mapping[int(key)] = display_value
+        key_to_value_mapping[key] = display_value
         option_language = display_value.lower() if category == "language" else language
         actions.append(StreamAction(_get_key_press_url(key, option_language, speechRate)))
 
