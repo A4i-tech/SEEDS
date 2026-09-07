@@ -16,6 +16,7 @@ const AppHeader = ({
   showAnalytics = true,
 }) => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [logoutError, setLogoutError] = useState(null);
   const navigate = useNavigate();
 
   const handleProfileClick = () => {
@@ -23,9 +24,14 @@ const AppHeader = ({
     navigate("/profile");
   };
 
-  const handleLogoutClick = () => {
+  const handleLogoutClick = async () => {
     setShowUserDropdown(false);
-    onLogout();
+    setLogoutError(null);
+    try {
+      await onLogout();
+    } catch (error) {
+      setLogoutError(error.message);
+    }
   };
 
   return (
@@ -69,6 +75,11 @@ const AppHeader = ({
         </div>
         {showUserDropdown && (
           <UserDropdown onProfileClick={handleProfileClick} onLogoutClick={handleLogoutClick} />
+        )}
+        {logoutError && (
+          <span data-testid="logout-error" role="alert" className="logout-error">
+            Logout failed: {logoutError}. You are still signed in — try again.
+          </span>
         )}
       </div>
     </div>
