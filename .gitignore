@@ -427,3 +427,14 @@ docs/
 /.claude/settings.local.json
 .serena/
 .claude/.headroom_wrap_*
+
+# openclaw agent workspace files
+/AGENTS.md
+/SOUL.md
+/USER.md
+/IDENTITY.md
+/MEMORY.md
+/DREAMS.md
+/BOOTSTRAP.md
+/memory/
+/.openclaw/
