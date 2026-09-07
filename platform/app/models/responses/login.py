@@ -19,7 +19,10 @@ class MessageResponse(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
-    refresh_token: str
     expires_in: PositiveInt
     token_type: Literal["Bearer"] = "Bearer"
     scope: str | None = None
+
+
+class AggregatorTokenResponse(TokenResponse):
+    refresh_token: str

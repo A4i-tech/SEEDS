@@ -31,7 +31,6 @@ async def refresh_token(
     set_refresh_cookie(response, result["refresh_token"])
     return TokenResponse(
         access_token=result["access_token"],
-        refresh_token=result["refresh_token"],
         expires_in=result["expires_in"],
-        token_type=result.get("token_type", "Bearer"),
+        token_type=result["token_type"],
     )
