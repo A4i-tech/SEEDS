@@ -1,7 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { SEEDS_URL } from "../Constants";
 import { apiFetch, initSession } from "../services/api";
-import { setAccessToken, getAccessToken, clearAccessToken } from "../utils/tokenStore";
+import { setAccessToken, getAccessToken } from "../utils/tokenStore";
+import { clearAuth } from "../utils/authHelpers";
 
 const AuthContext = createContext(null);
 
@@ -37,26 +38,26 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const [logoutState, setLogoutState] = useState({ data: null, error: null, isLoading: false });
   const logout = useCallback(async () => {
-    setLogoutState({ data: null, error: null, isLoading: true });
-    try {
-      if (getAccessToken()) {
-        await apiFetch(`${SEEDS_URL}/tenant/logout`, {
-          method: "POST",
-          credentials: "include",
-          headers: { Authorization: `Bearer ${getAccessToken()}` },
-        });
-      }
-      setLogoutState({ data: true, error: null, isLoading: false });
-      return true;
-    } catch (error) {
-      setLogoutState({ data: null, error, isLoading: false });
-      // Best-effort server revoke; client state is cleared regardless.
-    } finally {
-      clearAccessToken();
-      setIsAuthenticated(false);
+    const token = getAccessToken();
+    if (!token) {
+      throw new Error("logout called with no access token in memory");
     }
+
+    try {
+      await apiFetch(`${SEEDS_URL}/tenant/logout`, {
+        method: "POST",
+        credentials: "include",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch (error) {
+      if (error.status !== 401 && error.status !== 403) {
+        throw error;
+      }
+    }
+
+    clearAuth();
+    setIsAuthenticated(false);
   }, []);
 
   return (
@@ -68,7 +69,6 @@ export const AuthProvider = ({ children }) => {
         login,
         loginState,
         logout,
-        logoutState,
       }}
     >
       {children}
