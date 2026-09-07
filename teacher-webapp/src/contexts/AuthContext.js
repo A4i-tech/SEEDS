@@ -36,22 +36,22 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const [logoutState, setLogoutState] = useState({ data: null, error: null, isLoading: false });
   const logout = useCallback(async () => {
-    setLogoutState({ data: null, error: null, isLoading: true });
-    try {
-      if (getAccessToken()) {
-        await axiosInstance.post(API_ENDPOINTS.LOGOUT, {}, { withCredentials: true });
-      }
-      setLogoutState({ data: true, error: null, isLoading: false });
-      return true;
-    } catch (error) {
-      setLogoutState({ data: null, error, isLoading: false });
-      // Best-effort server revoke; client state is cleared regardless.
-    } finally {
-      clearAccessToken();
-      setIsAuthenticated(false);
+    const token = getAccessToken();
+    if (!token) {
+      throw new Error("logout called with no access token in memory");
     }
+
+    try {
+      await axiosInstance.post(API_ENDPOINTS.LOGOUT, {}, { withCredentials: true });
+    } catch (error) {
+      if (error.response?.status !== 401 && error.response?.status !== 403) {
+        throw error;
+      }
+    }
+
+    clearAccessToken();
+    setIsAuthenticated(false);
   }, []);
 
   return (
@@ -63,7 +63,6 @@ export const AuthProvider = ({ children }) => {
         login,
         loginState,
         logout,
-        logoutState,
       }}
     >
       {children}
