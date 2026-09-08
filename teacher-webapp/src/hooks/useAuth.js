@@ -1,8 +1,8 @@
 import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { getCurrentTeacher as fetchCurrentTeacher } from "../services/teacherService";
-import { isAuthenticated, clearAuth as clearAuthHelper } from "../utils/authHelpers";
 import { clearSessionHistory } from "../services/sessionHistoryService";
+import { useAuthContext } from "../contexts/AuthContext";
 
 // Module-level cache to prevent redundant API calls
 let cachedTeacher = null;
@@ -21,34 +21,22 @@ const resetTeacherCache = () => {
  * Provides centralized auth management with caching
  *
  * @returns {Object} Auth methods and state
- * @property {Function} getAuthHeaders - Get headers with auth token
  * @property {Function} logout - Logout and clear all auth data
  * @property {Function} getCurrentTeacher - Get current teacher info (cached)
- * @property {boolean} isAuthenticated - Whether user is authenticated
  */
 export const useAuth = () => {
   const navigate = useNavigate();
-
-  /**
-   * Get authentication headers
-   */
-  const getAuthHeaders = useCallback(() => {
-    const token = localStorage.getItem("authToken");
-    return {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    };
-  }, []);
+  const { logout: contextLogout } = useAuthContext();
 
   /**
    * Logout user and clear all auth data
    */
-  const logout = useCallback(() => {
-    clearAuthHelper(); // Clears token 
+  const logout = useCallback(async () => {
+    await contextLogout();
     clearSessionHistory(); // Clear session history
     resetTeacherCache();
-    navigate("/");
-  }, [navigate]);
+    navigate("/", { replace: true });
+  }, [navigate, contextLogout]);
 
   /**
    * Get current teacher information
@@ -76,10 +64,8 @@ export const useAuth = () => {
   }, []);
 
   return {
-    getAuthHeaders,
     logout,
     getCurrentTeacher,
-    isAuthenticated: isAuthenticated(),
   };
 };
 
