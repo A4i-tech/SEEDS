@@ -30,3 +30,16 @@ async def test_list_languages_entries_have_code_and_name(client):
         assert entry["code"]
         assert entry["standard"] == "ISO 639-1"
         assert entry["name"]
+
+
+@pytest.mark.asyncio
+async def test_list_languages_covers_iso_639_1_universe(client):
+    resp = await client.get("/v1/languages")
+    by_code = {e["code"]: e["name"] for e in resp.json()["languages"]}
+    assert len(by_code) > 150
+    assert by_code["kn"] == "Kannada"
+    assert by_code["hi"] == "Hindi"
+    assert by_code["en"] == "English"
+    assert by_code["ta"] == "Tamil"
+    assert by_code["te"] == "Telugu"
+    assert by_code["mr"] == "Marathi"

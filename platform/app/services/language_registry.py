@@ -11,9 +11,12 @@ class Language(TypedDict):
     name: str
 
 
-_SUPPORTED_CODES = ["kn", "hi", "en", "ta", "te", "mr"]
+def _build_supported_languages() -> list[Language]:
+    return [
+        {"code": lang.alpha_2, "standard": "ISO 639-1", "name": lang.name}
+        for lang in pycountry.languages
+        if hasattr(lang, "alpha_2")
+    ]
 
-SUPPORTED_LANGUAGES: list[Language] = [
-    {"code": code, "standard": "ISO 639-1", "name": pycountry.languages.get(alpha_2=code).name}
-    for code in _SUPPORTED_CODES
-]
+
+SUPPORTED_LANGUAGES: list[Language] = _build_supported_languages()
