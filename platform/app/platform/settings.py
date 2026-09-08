@@ -137,6 +137,8 @@ class Settings(BaseSettings):
 
     ws_control_secret: str = Field(default="", repr=False)
 
+    webhook_secret_encryption_key: str = Field(default="", repr=False)
+
     feature_ph: str = ""
 
     subodha_base_url: str = "https://subodha-lms.visionempowertrust.org"

@@ -264,7 +264,7 @@ async def test_content_job_consumer_process_audio(mock_db):
         from app.repositories.content_repository import ContentRepository
 
         job_doc = await mock_db["content_jobs"].find_one({"_id": job_id})
-        await _process_audio_content_job(job_doc, ContentJobRepository(mock_db), ContentRepository(mock_db), mock_blob)
+        await _process_audio_content_job(job_doc, ContentJobRepository(mock_db), ContentRepository(mock_db), mock_blob, mock_db)
 
     # Verify job marked complete
     updated_job = await mock_db["content_jobs"].find_one({"_id": job_id})
@@ -322,7 +322,7 @@ async def test_content_job_dead_letter_on_failure(mock_db):
     job_doc = await mock_db["content_jobs"].find_one({"_id": job_id})
 
     with pytest.raises(RuntimeError):
-        await _process_audio_content_job(job_doc, ContentJobRepository(mock_db), ContentRepository(mock_db), mock_blob)
+        await _process_audio_content_job(job_doc, ContentJobRepository(mock_db), ContentRepository(mock_db), mock_blob, mock_db)
 
     # Verify job dead-lettered
     failed_job = await mock_db["content_jobs"].find_one({"_id": job_id})
