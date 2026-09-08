@@ -24,3 +24,9 @@ yarn-error.log*
 
 .env
 .idea/
+
+# playwright
+/playwright-report
+/test-results
+/playwright/.auth
+e2e-results.json
