@@ -14,7 +14,7 @@ from app.platform.auth.dependencies import get_db
 
 class ContentAggregatorWebhookRepository:
     COLLECTION_NAME: ClassVar[str] = "contentAggregatorWebhooks"
-    SECRET_HASH_FIELD: ClassVar[str] = "secret_hash"
+    SECRET_ENCRYPTED_FIELD: ClassVar[str] = "secret_encrypted"
 
     def __init__(self, db: AsyncDatabase) -> None:
         self._col = db[self.COLLECTION_NAME]
@@ -22,12 +22,12 @@ class ContentAggregatorWebhookRepository:
     async def count_for_client(self, client_id: str) -> int:
         return await self._col.count_documents({"client_id": client_id})
 
-    async def create(self, client_id: str, url: str, secret_hash: str, events: list[str]) -> dict[str, Any]:
+    async def create(self, client_id: str, url: str, secret_encrypted: str, events: list[str]) -> dict[str, Any]:
         now = datetime.now(UTC).isoformat()
         doc = {
             "client_id": client_id,
             "url": url,
-            "secret_hash": secret_hash,
+            "secret_encrypted": secret_encrypted,
             "events": events,
             "status": "active",
             "created_at": now,
@@ -39,6 +39,24 @@ class ContentAggregatorWebhookRepository:
 
     async def list_for_client(self, client_id: str) -> list[dict[str, Any]]:
         return await self._col.find({"client_id": client_id}).sort("created_at", 1).to_list(length=None)
+
+    async def get_for_client(self, client_id: str, webhook_id: str) -> dict[str, Any] | None:
+        try:
+            oid = ObjectId(webhook_id)
+        except InvalidId:
+            return None
+        return await self._col.find_one({"_id": oid, "client_id": client_id})
+
+    async def find_active_for_client_and_event(self, client_id: str, event: str) -> list[dict[str, Any]]:
+        return await self._col.find(
+            {"client_id": client_id, "status": "active", "events": event}
+        ).to_list(length=None)
+
+    async def disable(self, webhook_id: Any) -> None:
+        await self._col.update_one(
+            {"_id": webhook_id},
+            {"$set": {"status": "disabled", "updated_at": datetime.now(UTC).isoformat()}},
+        )
 
     async def update_for_client(self, client_id: str, webhook_id: str, fields: dict[str, Any]) -> dict[str, Any] | None:
         try:

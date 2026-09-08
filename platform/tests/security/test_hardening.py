@@ -397,7 +397,7 @@ async def test_content_job_retry_on_transient():
         patch("app.consumers.content_job_consumer._process_audio_item", side_effect=_flaky_process),
         patch("app.consumers.content_job_consumer.asyncio.sleep", new=AsyncMock()),
     ):
-        await _process_audio_content_job(job_doc, ContentJobRepository(db), ContentRepository(db), blob_provider)
+        await _process_audio_content_job(job_doc, ContentJobRepository(db), ContentRepository(db), blob_provider, db)
 
     updated_job = await jobs_col.find_one({"_id": job_id})
     assert updated_job["status"] == "completed", (
@@ -440,7 +440,7 @@ async def test_content_job_dead_letter_on_permanent():
 
     with patch("app.consumers.content_job_consumer._process_audio_item", side_effect=_always_permanent):
         with pytest.raises(ValueError, match="Corrupt file"):
-            await _process_audio_content_job(job_doc, ContentJobRepository(db), ContentRepository(db), blob_provider)
+            await _process_audio_content_job(job_doc, ContentJobRepository(db), ContentRepository(db), blob_provider, db)
 
     updated_job = await jobs_col.find_one({"_id": job_id})
     assert updated_job["status"] == "failed", (

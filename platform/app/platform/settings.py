@@ -188,6 +188,11 @@ class Settings(BaseSettings):
     ws_control_secret: str = Field(default="", repr=False)
 
     # ---------------------------------------------------------------------------
+    # Content Aggregator webhook secret encryption (Fernet key, ticket #464)
+    # ---------------------------------------------------------------------------
+    webhook_secret_encryption_key: str = Field(default="", repr=False)
+
+    # ---------------------------------------------------------------------------
     # Misc / ConferenceV2
     # ---------------------------------------------------------------------------
     feature_ph: str = ""
