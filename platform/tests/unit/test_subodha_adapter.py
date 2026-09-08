@@ -50,7 +50,7 @@ def test_build_canonical_nodes_reconstructs_hierarchy():
 
     html_node = by_id["html-1"]
     assert html_node.node_kind == NodeKind.ITEM
-    assert html_node.item_type == ItemType.TEXT
+    assert html_node.item_type == ItemType.MARKDOWN
     assert html_node.parent_id == "vert-1"
     assert html_node.raw == "<p>Hi</p>"
     assert html_node.content is None

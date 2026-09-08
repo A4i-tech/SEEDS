@@ -17,6 +17,8 @@ class ContentCreateRequest(BaseModel):
     title: TitleText | None = None
     theme: TitleText | None = None
     audio_content: list[Any] | None = None
+    braille_url: str | None = None
+    braille_grade: int | None = None
     description: str | None = None
     is_pull_model: bool = False
     is_teacher_app: bool = False
@@ -40,6 +42,8 @@ class ContentUpdateRequest(BaseModel):
     type: str | None = None
     language: str | None = None
     audio_content: list[Any] | None = None
+    braille_url: str | None = None
+    braille_grade: int | None = None
     is_pull_model: bool = False
     is_teacher_app: bool = False
 
@@ -76,6 +80,8 @@ class ContentCreate(BaseModel):
     title: TitleText | None = None
     theme: TitleText | None = None
     audio_content: list[Any] = Field(default_factory=list)
+    braille_url: str | None = None
+    braille_grade: int | None = None
     description: str = ""
     is_pull_model: bool = False
     is_teacher_app: bool = False

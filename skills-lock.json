@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "skills": {
+    "mempalace": {
+      "source": "MemPalace/mempalace",
+      "sourceType": "github",
+      "skillPath": "skills/mempalace/SKILL.md",
+      "computedHash": "d85de9f37c87737d106e718f5c04b482f6a005433fa16119c543d0ce9db76eea"
+    },
+    "mempalace-recall": {
+      "source": "MemPalace/mempalace",
+      "sourceType": "github",
+      "skillPath": "skills/mempalace-recall/SKILL.md",
+      "computedHash": "2f7b94bfc39085d5ece447660c55c210c99d18beaa68042454840e3bd6cad1a6"
+    },
+    "mempalace-task": {
+      "source": "MemPalace/mempalace",
+      "sourceType": "github",
+      "skillPath": "skills/mempalace-task/SKILL.md",
+      "computedHash": "6af1bbfb48835e4ed73f9e784c273d8556722c94f85f7b98059794ffb41eb595"
+    }
+  }
+}

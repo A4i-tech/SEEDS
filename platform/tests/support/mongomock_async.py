@@ -5,25 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import mongomock
-import mongomock.collection
-
-# mongomock 4.3.0 (latest on PyPI) predates pymongo 4.17's bulk write API, which
-# now always passes sort= into UpdateOne/ReplaceOne's internal _add_to_bulk call
-# even when unset. mongomock's add_update doesn't accept it — patch it to accept
-# and discard sort so bulk_write() works under mongomock for any pymongo op type.
-_real_add_update = mongomock.collection.BulkOperationBuilder.add_update
-_patched = False
-
-
-def _add_update_ignoring_sort(self, *args: Any, sort: Any = None, **kwargs: Any) -> Any:
-    return _real_add_update(self, *args, **kwargs)
-
-
-def _ensure_patched() -> None:
-    global _patched
-    if not _patched:
-        mongomock.collection.BulkOperationBuilder.add_update = _add_update_ignoring_sort
-        _patched = True
+from pymongo import DeleteMany, DeleteOne, InsertOne, ReplaceOne, UpdateMany, UpdateOne
 
 
 class _AsyncMongoMockCursor:
@@ -67,6 +49,19 @@ class _AsyncMongoMockCollection:
     async def aggregate(self, *args: Any, **kwargs: Any) -> _AsyncMongoMockCursor:
         return _AsyncMongoMockCursor(self._collection.aggregate(*args, **kwargs))
 
+    async def bulk_write(self, requests: Any, **kwargs: Any) -> Any:
+        for req in requests:
+            if isinstance(req, (UpdateOne, UpdateMany)):
+                self._collection.update_one(req._filter, req._doc, upsert=req._upsert)
+            elif isinstance(req, ReplaceOne):
+                self._collection.replace_one(req._filter, req._doc, upsert=req._upsert)
+            elif isinstance(req, InsertOne):
+                self._collection.insert_one(req._doc)
+            elif isinstance(req, (DeleteOne, DeleteMany)):
+                self._collection.delete_one(req._filter)
+            else:
+                raise TypeError(f"Unsupported bulk operation: {type(req)}")
+
     def __getattr__(self, name: str) -> Any:
         attr = getattr(self._collection, name)
 
@@ -96,7 +91,6 @@ class AsyncMongoMockClient:
     """Drop-in stand-in for `mongomock_motor.AsyncMongoMockClient` used by tests."""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        _ensure_patched()
         self._client = mongomock.MongoClient(*args, **kwargs)
 
     def __getitem__(self, name: str) -> _AsyncMongoMockDatabase:

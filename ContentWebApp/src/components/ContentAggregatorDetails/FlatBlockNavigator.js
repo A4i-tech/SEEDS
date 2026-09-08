@@ -3,7 +3,7 @@ import { Breadcrumb } from "../AllContent/shared/Breadcrumb";
 import { disambiguateLabels } from "./disambiguateLabels";
 import { BlockCard } from "./BlockContent";
 
-export function FlatBlockNavigator({ blocks, courseId, courseTitle, onBlockChange, onBack }) {
+export function FlatBlockNavigator({ blocks, courseId, source, courseTitle, onBlockChange, onBack }) {
   const [index, setIndex] = useState(null);
   const labels = useMemo(() => disambiguateLabels(blocks), [blocks]);
 
@@ -64,7 +64,7 @@ export function FlatBlockNavigator({ blocks, courseId, courseTitle, onBlockChang
         </button>
       </div>
       <div key={index} className="content-aggregator-unit-fade">
-        <BlockCard block={block} courseId={courseId} onBlockChange={onBlockChange} />
+        <BlockCard block={block} courseId={courseId} source={source} onBlockChange={onBlockChange} />
       </div>
     </div>
   );

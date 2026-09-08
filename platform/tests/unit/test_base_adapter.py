@@ -16,9 +16,9 @@ class _FakeAdapter(SourceAdapter):
         raise NotImplementedError
 
 
-def _node(source_id, item_type, raw, root_id="root-1", parent_id="root-1"):
+def _node(source_id, item_type, raw, tenant_id="tenant-a", root_id="root-1", parent_id="root-1"):
     node = CanonicalNode(
-        source_type="fake", source_id=source_id, root_id=root_id, parent_id=parent_id,
+        tenant_id=tenant_id, source_type="fake", source_id=source_id, root_id=root_id, parent_id=parent_id,
         order=0, node_kind=NodeKind.ITEM, item_type=item_type, display_name="x", content=None,
         lms_url=None, native_type=item_type.value, source_metadata={}, last_run_id="run-1",
         fetched_at="x", created_at="x", updated_at="x",
@@ -31,7 +31,7 @@ def _node(source_id, item_type, raw, root_id="root-1", parent_id="root-1"):
 async def test_process_nodes_fills_content_for_item_nodes_only():
     adapter = _FakeAdapter()
     root = CanonicalNode(
-        source_type="fake", source_id="root-1", root_id="root-1", parent_id=None,
+        tenant_id="tenant-a", source_type="fake", source_id="root-1", root_id="root-1", parent_id=None,
         order=0, node_kind=NodeKind.CONTAINER, item_type=None, display_name="root", content=None,
         lms_url=None, native_type="course", source_metadata={}, last_run_id="run-1",
         fetched_at="x", created_at="x", updated_at="x",

@@ -139,70 +139,38 @@ async def test_stream_yields_nothing_for_other_tenants_job(client, auth_headers,
 
 
 @pytest.mark.asyncio
-async def test_sync_job_items_returns_404_for_unknown_job(client, auth_headers):
-    resp = await client.get("/content-aggregators/sync/status/no-such-job/items", headers=auth_headers)
-    assert resp.status_code == 404
-
-
-@pytest.mark.asyncio
-async def test_sync_job_items_returns_404_for_other_tenants_job(client, auth_headers, mock_db):
-    job_repo = ContentAggregatorSyncJobRepository(mock_db)
-    await job_repo.create_job("job-1", tenant_id="tenant-b", source_type="subodha", scope="all", source_id=None, total_items=0)
-
-    resp = await client.get("/content-aggregators/sync/status/job-1/items", headers=auth_headers)
-    assert resp.status_code == 404
-
-
-@pytest.mark.asyncio
-async def test_sync_job_items_paginates(client, auth_headers, mock_db):
-    from app.aggregators.sync_job_models import SyncItemResult
-    from app.repositories.content_aggregator_sync_job_item_repository import (
-        ContentAggregatorSyncJobItemRepository,
-    )
-
-    job_repo = ContentAggregatorSyncJobRepository(mock_db)
-    item_repo = ContentAggregatorSyncJobItemRepository(mock_db)
-    await job_repo.create_job("job-1", tenant_id="tenant-a", source_type="subodha", scope="all", source_id=None, total_items=3)
-    for i in range(3):
-        await item_repo.insert("tenant-a", "job-1", SyncItemResult(f"c{i}", f"Course {i}", "saved", None, "x"))
-
-    resp = await client.get("/content-aggregators/sync/status/job-1/items?limit=2", headers=auth_headers)
-    assert resp.status_code == 200
-    body = resp.json()
-    assert len(body["items"]) == 2
-    assert body["total"] == 3
-    assert body["next_cursor"] is not None
-
-    resp2 = await client.get(
-        f"/content-aggregators/sync/status/job-1/items?limit=2&after={body['next_cursor']}",
-        headers=auth_headers,
-    )
-    assert resp2.status_code == 200
-    body2 = resp2.json()
-    assert len(body2["items"]) == 1
-    assert body2["next_cursor"] is None
-
-
-@pytest.mark.asyncio
 async def test_courses_are_isolated_between_tenants(client, mock_db):
     from app.aggregators.models import CanonicalNode, NodeKind
     from app.repositories.content_aggregator_repository import ContentAggregatorRepository
 
     repo = ContentAggregatorRepository(mock_db)
     node = CanonicalNode(
-        source_type="subodha", source_id="course-1", root_id="course-1", parent_id=None,
+        tenant_id="tenant-a", source_type="subodha", source_id="course-1", root_id="course-1", parent_id=None,
         order=0, node_kind=NodeKind.CONTAINER, item_type=None, display_name="A's course", content=None,
         lms_url=None, native_type="course", source_metadata={}, last_run_id="run-1",
         fetched_at="x", created_at="x", updated_at="x",
     )
     await repo.upsert_tree("tenant-a", "subodha", "course-1", [node])
 
-    a_resp = await client.get("/content-aggregators/courses", headers=_tenant_headers("tenant-a"))
-    b_resp = await client.get("/content-aggregators/courses", headers=_tenant_headers("tenant-b"))
+    a_resp = await client.get("/content-aggregators/subodha/courses", headers=_tenant_headers("tenant-a"))
+    b_resp = await client.get("/content-aggregators/subodha/courses", headers=_tenant_headers("tenant-b"))
     assert len(a_resp.json()["courses"]) == 1
     assert len(b_resp.json()["courses"]) == 0
 
-    a_detail = await client.get("/content-aggregators/courses/course-1", headers=_tenant_headers("tenant-a"))
-    b_detail = await client.get("/content-aggregators/courses/course-1", headers=_tenant_headers("tenant-b"))
+    a_detail = await client.get("/content-aggregators/subodha/courses/course-1", headers=_tenant_headers("tenant-a"))
+    b_detail = await client.get("/content-aggregators/subodha/courses/course-1", headers=_tenant_headers("tenant-b"))
     assert a_detail.status_code == 200
     assert b_detail.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_hexis_source_is_wired(client, auth_headers):
+    resp = await client.get("/content-aggregators/hexis/courses", headers=auth_headers)
+    assert resp.status_code == 200
+    assert resp.json() == {"courses": [], "next_cursor": None, "has_more": False}
+
+
+@pytest.mark.asyncio
+async def test_unknown_source_returns_404(client, auth_headers):
+    resp = await client.get("/content-aggregators/nope/courses", headers=auth_headers)
+    assert resp.status_code == 404

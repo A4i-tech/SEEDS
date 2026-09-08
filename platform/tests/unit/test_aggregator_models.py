@@ -46,8 +46,8 @@ def test_other_content_round_trip_is_free_form():
 
 def test_canonical_node_to_doc_and_from_doc_round_trip():
     node = CanonicalNode(
-        source_type="subodha", source_id="html-1", root_id="course-1",
-        parent_id="vert-1", order=0, node_kind=NodeKind.ITEM, item_type=ItemType.TEXT,
+        tenant_id="tenant-a", source_type="subodha", source_id="html-1", root_id="course-1",
+        parent_id="vert-1", order=0, node_kind=NodeKind.ITEM, item_type=ItemType.MARKDOWN,
         display_name="Welcome", content=TextContent(markdown_url="https://blob/x.md", html_url="https://blob/x.html"),
         lms_url="https://lms/html-1", native_type="html", source_metadata={},
         last_run_id="run-1", fetched_at="2026-08-06T00:00:00Z",
@@ -55,7 +55,7 @@ def test_canonical_node_to_doc_and_from_doc_round_trip():
     )
     doc = node.to_doc()
     assert doc["node_kind"] == "item"
-    assert doc["item_type"] == "text"
+    assert doc["item_type"] == "markdown"
     assert doc["content"] == {"markdown_url": "https://blob/x.md", "html_url": "https://blob/x.html"}
 
     restored = CanonicalNode.from_doc(doc)
@@ -64,7 +64,7 @@ def test_canonical_node_to_doc_and_from_doc_round_trip():
 
 def test_canonical_node_container_has_no_content():
     node = CanonicalNode(
-        source_type="subodha", source_id="course-1", root_id="course-1",
+        tenant_id="tenant-a", source_type="subodha", source_id="course-1", root_id="course-1",
         parent_id=None, order=0, node_kind=NodeKind.CONTAINER, item_type=None,
         display_name="Demo", content=None, lms_url=None, native_type="course",
         source_metadata={"org": "edX"}, last_run_id="run-1", fetched_at="x", created_at="x", updated_at="x",

@@ -15,6 +15,7 @@ module.exports = {
   moduleNameMapper: {
     "\\.(css|less|scss|sass)$": "<rootDir>/tests/styleMock.js",
     "\\.svg$": "<rootDir>/tests/svgMock.js",
+    "^@azure/storage-blob$": "<rootDir>/tests/azureStorageBlobMock.js",
   },
   coverageDirectory: "coverage",
   coverageReporters: ["json-summary", "text", "lcov", "html"],

@@ -86,6 +86,7 @@ class TestContentCreate:
         snake_expected = {
             "tenant_id", "type", "language", "created_by", "school_id",
             "title", "theme", "audio_content", "description",
+            "braille_url", "braille_grade",
             "is_pull_model", "is_teacher_app", "is_deleted", "is_processed",
             "creation_time", "version",
         }

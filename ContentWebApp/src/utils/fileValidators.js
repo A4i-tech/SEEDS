@@ -5,3 +5,7 @@ export function isMp3File(file) {
   return nameOk && typeOk;
 }
 
+export function isBrfFile(file) {
+  return file.name.toLowerCase().endsWith(".brf");
+}
+

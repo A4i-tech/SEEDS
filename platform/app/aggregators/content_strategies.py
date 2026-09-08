@@ -15,7 +15,9 @@ from bs4 import BeautifulSoup
 
 from app.aggregators.html_to_markdown import html_to_markdown
 from app.aggregators.models import (
+    AudioContent,
     BlobContext,
+    BrailleContent,
     ContentPayload,
     DiscussionContent,
     ImageContent,
@@ -61,7 +63,7 @@ class ContentStrategy(abc.ABC):
     async def process(self, raw: RawItemPayload, ctx: BlobContext, blob: BlobStorageProvider) -> ContentPayload: ...
 
 
-class TextStrategy(ContentStrategy):
+class MarkdownStrategy(ContentStrategy):
     async def process(self, raw: RawItemPayload, ctx: BlobContext, blob: BlobStorageProvider) -> ContentPayload:
         raw_html = raw or ""
         try:
@@ -74,6 +76,13 @@ class TextStrategy(ContentStrategy):
 
         markdown_url = await blob.upload_file(ctx.container, f"{ctx.blob_prefix}.md", markdown.encode("utf-8"), "text/markdown")
         return TextContent(markdown_url=markdown_url)
+
+
+class PlainTextStrategy(ContentStrategy):
+    async def process(self, raw: RawItemPayload, ctx: BlobContext, blob: BlobStorageProvider) -> ContentPayload:
+        text = raw if isinstance(raw, str) else ""
+        url = await blob.upload_file(ctx.container, f"{ctx.blob_prefix}.txt", text.encode("utf-8"), "text/plain")
+        return TextContent(markdown_url=url)
 
 
 class VideoStrategy(ContentStrategy):
@@ -130,6 +139,14 @@ def _parse_multiple_choice(raw_html: str) -> tuple[str, list[dict[str, str]]] | 
 
 class QuizStrategy(ContentStrategy):
     async def process(self, raw: RawItemPayload, ctx: BlobContext, blob: BlobStorageProvider) -> ContentPayload:
+        if isinstance(raw, dict) and "question" in raw:
+            ca = raw.get("ca")
+            choices = [
+                {"id": str(i), "text": raw.get(f"a{i}", ""), "correct": ca == i}
+                for i in (1, 2, 3)
+                if raw.get(f"a{i}") is not None
+            ]
+            return QuizContent(raw_html_url="", question=raw["question"], choices=choices)
         raw_html_url = await _upload_raw_html(raw, ctx, blob)
         parsed = _parse_multiple_choice(raw)
         if parsed is None:
@@ -148,11 +165,34 @@ class OtherStrategy(ContentStrategy):
         return OtherContent(payload=raw if isinstance(raw, dict) else {})
 
 
+class AudioStrategy(ContentStrategy):
+    async def process(self, raw: RawItemPayload, ctx: BlobContext, blob: BlobStorageProvider) -> ContentPayload:
+        source_url: str = raw
+        if not source_url.lower().endswith(".mp3"):
+            raise ValueError("Only .mp3 files are allowed for audio content.")
+        data = await blob.download_from_url(source_url)
+        new_url = await blob.upload_file(ctx.container, f"{ctx.blob_prefix}.mp3", data, "audio/mpeg")
+        return AudioContent(audio_url=new_url)
+
+
+class BrailleStrategy(ContentStrategy):
+    async def process(self, raw: RawItemPayload, ctx: BlobContext, blob: BlobStorageProvider) -> ContentPayload:
+        source_url: str = raw
+        if not source_url.lower().endswith(".brf"):
+            raise ValueError("Only .brf files are allowed for braille content.")
+        data = await blob.download_from_url(source_url)
+        new_url = await blob.upload_file(ctx.container, f"{ctx.blob_prefix}.brf", data, "text/plain")
+        return BrailleContent(brf_url=new_url)
+
+
 STRATEGY_REGISTRY: dict[ItemType, ContentStrategy] = {
-    ItemType.TEXT: TextStrategy(),
+    ItemType.MARKDOWN: MarkdownStrategy(),
+    ItemType.PLAINTEXT: PlainTextStrategy(),
     ItemType.VIDEO: VideoStrategy(),
     ItemType.IMAGE: ImageStrategy(),
     ItemType.QUIZ: QuizStrategy(),
     ItemType.DISCUSSION: DiscussionStrategy(),
     ItemType.OTHER: OtherStrategy(),
+    ItemType.AUDIO: AudioStrategy(),
+    ItemType.BRAILLE: BrailleStrategy(),
 }

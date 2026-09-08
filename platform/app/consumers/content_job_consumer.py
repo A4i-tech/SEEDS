@@ -35,6 +35,8 @@ Stages:
                 b. Content document fetched from contentsV3
                 c. Each audioContent item downloaded, transcoded (FFmpeg),
                    and re-uploaded as .wav.
+                c2. brailleUrl (.brf) copied from input-container to
+                    output-container unchanged.
                 d. If isPullModel: TTS generated for title + theme.
                 e. contentsV3 updated with new URLs and isProcessed=True.
                 f. Job status set to "completed".
@@ -75,6 +77,7 @@ from pathlib import Path
 
 from pymongo.asynchronous.database import AsyncDatabase
 
+from app.aggregators.braille_translation import back_translate
 from app.repositories.content_job_repository import ContentJobRepository
 from app.repositories.content_repository import ContentRepository
 
@@ -255,6 +258,24 @@ async def _process_audio_item(
         _cleanup_temp_files(input_path, output_path)
 
 
+async def _process_braille_item(
+    braille_url: str,
+    language: str,
+    grade: int,
+    blob_provider,
+) -> tuple[str, str]:
+    """Move a .brf blob from input-container to output-container, return (new_url, translated_text).
+
+    Raises on any failure; caller handles dead-lettering.
+    """
+    data = await blob_provider.download_from_url(braille_url)
+    container, blob_path = _parse_blob_url_simple(braille_url)
+    new_url = await blob_provider.upload_file("output-container", blob_path, data, "text/plain")
+    await blob_provider.delete_blob(container, blob_path)
+    text = back_translate(data.decode("utf-8"), language, grade)
+    return new_url, text
+
+
 async def _extract_duration(wav_path: str) -> float | None:
     """Extract duration in seconds from a WAV file using ffprobe."""
     _validate_temp_path(wav_path)
@@ -392,6 +413,12 @@ async def _process_audio_content_job(
 
             content_doc["audio_content"] = updated_audio
 
+            braille_url = content_doc.get("braille_url")
+            if braille_url:
+                content_doc["braille_url"], content_doc["braille_text"] = await _process_braille_item(
+                    braille_url, content_doc.get("language", ""), content_doc.get("braille_grade") or 1, blob_provider
+                )
+
             # TTS for pull-model content
             if content_doc.get("is_pull_model"):
                 await _process_tts_for_content(content_doc, blob_provider)
@@ -401,6 +428,10 @@ async def _process_audio_content_job(
                 "audio_content": content_doc["audio_content"],
                 "is_processed": True,
             }
+            if "braille_url" in content_doc:
+                update_fields["braille_url"] = content_doc["braille_url"]
+            if "braille_text" in content_doc:
+                update_fields["braille_text"] = content_doc["braille_text"]
             if "title" in content_doc:
                 update_fields["title"] = content_doc["title"]
             if "theme" in content_doc:

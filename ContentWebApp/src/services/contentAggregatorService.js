@@ -2,26 +2,30 @@ import { SEEDS_URL } from "../Constants";
 import { getAuthHeaders } from "../utils/authHelpers";
 import { apiFetch, buildQueryString } from "./api";
 
+const base = (source) => `${SEEDS_URL}/content-aggregators/${source}`;
+const root = `${SEEDS_URL}/content-aggregators`;
+
 export const contentAggregatorService = {
   /**
-   * Fetch all courses previously synced from Subodha.
+   * Fetch all courses previously synced from the source.
+   * @param {string} source
    * @returns {Promise<Array>}
    */
-  async getCourses(cursor = null, limit = 20) {
+  async getCourses(source, cursor = null, limit = 20) {
     const query = buildQueryString({ cursor, limit });
-    return apiFetch(`${SEEDS_URL}/content-aggregators/courses?${query}`, {
+    return apiFetch(`${base(source)}/courses?${query}`, {
       method: "GET",
       headers: getAuthHeaders(),
     });
   },
 
   /**
-   * Kick off a sync of new (not-yet-stored) Subodha courses only, via the
-   * backend's diff against live Subodha course list.
-   * @returns {Promise<{jobId: string}>}
+   * Kick off a combined sync across ALL sources (parallel), new-only, via the
+   * backend's per-source diff. One job tracks the whole run.
+   * @returns {Promise<{job_id: string}>}
    */
   async syncAll() {
-    return apiFetch(`${SEEDS_URL}/content-aggregators/sync`, {
+    return apiFetch(`${root}/sync`, {
       method: "POST",
       headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
       body: JSON.stringify({ onlyNew: true }),
@@ -29,12 +33,13 @@ export const contentAggregatorService = {
   },
 
   /**
-   * Kick off a sync scoped to a single Subodha course.
+   * Kick off a sync scoped to a single course.
    * @param {string} courseId
-   * @returns {Promise<{jobId: string}>}
+   * @param {string} source
+   * @returns {Promise<{job_id: string}>}
    */
-  async syncCourse(courseId) {
-    return apiFetch(`${SEEDS_URL}/content-aggregators/sync/course/${encodeURIComponent(courseId)}`, {
+  async syncCourse(courseId, source) {
+    return apiFetch(`${base(source)}/sync/course/${encodeURIComponent(courseId)}`, {
       method: "POST",
       headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
       body: JSON.stringify({}),
@@ -44,10 +49,11 @@ export const contentAggregatorService = {
   /**
    * Poll the status of a sync job.
    * @param {string} jobId
+   * @param {string} source
    * @returns {Promise<Object>}
    */
   async getSyncStatus(jobId) {
-    return apiFetch(`${SEEDS_URL}/content-aggregators/sync/status/${encodeURIComponent(jobId)}`, {
+    return apiFetch(`${root}/sync/status/${encodeURIComponent(jobId)}`, {
       method: "GET",
       headers: getAuthHeaders(),
     });
@@ -56,22 +62,24 @@ export const contentAggregatorService = {
   /**
    * Fetch a synced course's full content (title, description, blocks) for viewing.
    * @param {string} courseId
+   * @param {string} source
    * @returns {Promise<Object>}
    */
-  async getCourse(courseId) {
-    return apiFetch(`${SEEDS_URL}/content-aggregators/courses/${encodeURIComponent(courseId)}`, {
+  async getCourse(courseId, source) {
+    return apiFetch(`${base(source)}/courses/${encodeURIComponent(courseId)}`, {
       method: "GET",
       headers: getAuthHeaders(),
     });
   },
 
   /**
-   * Delete a course's local synced copy (does not touch Subodha itself).
+   * Delete a course's local synced copy (does not touch the source itself).
    * @param {string} courseId
+   * @param {string} source
    * @returns {Promise<Object>}
    */
-  async deleteCourse(courseId) {
-    return apiFetch(`${SEEDS_URL}/content-aggregators/courses/${encodeURIComponent(courseId)}`, {
+  async deleteCourse(courseId, source) {
+    return apiFetch(`${base(source)}/courses/${encodeURIComponent(courseId)}`, {
       method: "DELETE",
       headers: getAuthHeaders(),
     });
@@ -83,11 +91,12 @@ export const contentAggregatorService = {
    * @param {string} courseId
    * @param {string} blockId
    * @param {{question: string, choices: Array<{value: string, text: string}>}} payload
+   * @param {string} source
    * @returns {Promise<Object>}
    */
-  async updateProblemBlock(courseId, blockId, payload) {
+  async updateProblemBlock(courseId, blockId, payload, source) {
     return apiFetch(
-      `${SEEDS_URL}/content-aggregators/courses/${encodeURIComponent(courseId)}/blocks/${encodeURIComponent(blockId)}`,
+      `${base(source)}/courses/${encodeURIComponent(courseId)}/blocks/${encodeURIComponent(blockId)}`,
       {
         method: "PATCH",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
@@ -99,10 +108,11 @@ export const contentAggregatorService = {
   /**
    * List all currently-running sync jobs (all-scope + per-course) — used to
    * reattach the progress UI after a logout/login or page reload.
+   * @param {string} source
    * @returns {Promise<{jobs: Array<Object>}>}
    */
   async getActiveJobs() {
-    return apiFetch(`${SEEDS_URL}/content-aggregators/sync/jobs/active`, {
+    return apiFetch(`${root}/sync/jobs/active`, {
       method: "GET",
       headers: getAuthHeaders(),
     });
@@ -110,29 +120,29 @@ export const contentAggregatorService = {
 
   /**
    * List past sync runs for the history panel.
-   * @param {{limit?: number, scope?: "all"|"course", courseId?: string}} params
+   * @param {{limit?: number, scope?: "all"|"course", courseId?: string, source?: string}} params
    * @returns {Promise<{jobs: Array<Object>}>}
    */
-  async getSyncJobs({ limit = 20, scope, courseId } = {}) {
-    const qs = buildQueryString({ limit, scope, courseId });
-    return apiFetch(`${SEEDS_URL}/content-aggregators/sync/jobs${qs ? `?${qs}` : ""}`, {
+  async getSyncJobs({ limit = 20, scope } = {}) {
+    const qs = buildQueryString({ limit, scope });
+    return apiFetch(`${root}/sync/jobs${qs ? `?${qs}` : ""}`, {
       method: "GET",
       headers: getAuthHeaders(),
     });
   },
 
   /**
-   * Paginated per-item sync results for a job.
+   * Fetch a page of per-item sync results for a job (cursor-paginated).
    * @param {string} jobId
-   * @param {{limit?: number, after?: string}} params
+   * @param {{limit?: number, after?: string}} [params]
    * @returns {Promise<{items: Array<Object>, next_cursor: string|null, total: number}>}
    */
-  async getSyncJobItems(jobId, { limit = 50, after } = {}) {
+  async getSyncJobItems(jobId, { limit = 20, after } = {}) {
     const qs = buildQueryString({ limit, after });
-    return apiFetch(
-      `${SEEDS_URL}/content-aggregators/sync/status/${encodeURIComponent(jobId)}/items${qs ? `?${qs}` : ""}`,
-      { method: "GET", headers: getAuthHeaders() }
-    );
+    return apiFetch(`${root}/sync/status/${encodeURIComponent(jobId)}/items${qs ? `?${qs}` : ""}`, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
   },
 
   /**
@@ -141,12 +151,12 @@ export const contentAggregatorService = {
    * Resolves once the stream closes; call onEvent for each parsed event.
    * @param {string} jobId
    * @param {(event: {event: string, job: Object}) => void} onEvent
-   * @param {{signal?: AbortSignal}} [options]
+   * @param {{signal?: AbortSignal, source?: string}} [options]
    * @returns {Promise<void>}
    */
   async streamJob(jobId, onEvent, { signal } = {}) {
     const response = await fetch(
-      `${SEEDS_URL}/content-aggregators/sync/stream/${encodeURIComponent(jobId)}`,
+      `${root}/sync/stream/${encodeURIComponent(jobId)}`,
       { headers: getAuthHeaders(), signal }
     );
     if (!response.ok || !response.body) {

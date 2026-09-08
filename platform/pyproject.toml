@@ -38,6 +38,10 @@ scipy = ">=1.12"
 pypandoc-binary = ">=1.13"
 beautifulsoup4 = "^4.15.0"
 nh3 = "^0.3.6"
+liblouis = [
+    {url = "https://github.com/daiverd/liblouis/releases/download/python-wheel-poc-v0.2/liblouis-3.38.0-py3-none-manylinux_2_34_x86_64.whl", markers = "sys_platform == 'linux'"},
+    {url = "https://github.com/daiverd/liblouis/releases/download/python-wheel-poc-v0.2/liblouis-3.38.0-py3-none-win_amd64.whl", markers = "sys_platform == 'win32'"},
+]
 
 [tool.poetry.group.test.dependencies]
 pytest = ">=8.0"

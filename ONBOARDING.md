@@ -6,7 +6,7 @@ New joinee: paste this file to Claude Code and say **"read ONBOARDING.md and set
 
 ### 1. Plugins & MCP servers
 
-Plugins (`superpowers`, `caveman`, `ponytail`, `frontend-design`, `render`, `mongodb`, `claude-mem`) and two MCP servers (`playwright`, `docmost`) are declared repo-wide in `.claude/settings.json` and `.mcp.json` at the repo root — they came with the clone. You cannot install plugins yourself; tell the user:
+Plugins (`superpowers`, `caveman`, `ponytail`, `frontend-design`, `render`, `mongodb`) and two MCP servers (`playwright`, `docmost`) are declared repo-wide in `.claude/settings.json` and `.mcp.json` at the repo root — they came with the clone. You cannot install plugins yourself; tell the user:
 
 > Restart Claude Code (or run `/plugin` then `/mcp`) in this repo and approve the install/connection prompts for the plugins and MCP servers listed in `.claude/settings.json` / `.mcp.json`.
 
@@ -81,7 +81,6 @@ Tell the user what was rebuilt (graph size, wiki page count) and what still need
 | `frontend-design` | Aesthetic/design guidance for building UI |
 | `render` | Render.com deployment — blueprints, web services, Postgres, Key Value, cron jobs, workers, static sites, domains, scaling, monitoring, debugging |
 | `mongodb` | MongoDB Atlas — schema design, query optimization, connection tuning, Atlas Search/Vector Search, stream processing |
-| `claude-mem` | Memory compression system — persists context across sessions |
 
 ### MCP Servers
 

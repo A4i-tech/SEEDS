@@ -8,7 +8,7 @@ Preserves ALL original URL paths exactly.
 SECURITY:
   - All routes require authentication.
   - Write operations enforce tenant scoping (tenantId from JWT, not request body).
-  - Audio file validation: only .mp3 files accepted for upload URLs.
+  - Upload file validation: only .mp3 (audio) or .brf (braille) files accepted for upload URLs.
   - SAS tokens are never logged.
 """
 
@@ -38,6 +38,7 @@ from app.platform.auth.dependencies import get_current_user
 from app.platform.error_handling import ForbiddenError, NotFoundError
 from app.providers.blob_storage import get_blob_storage_provider
 from app.services.content_service import ContentService, get_content_service
+from app.services.content_types import ALLOWED_UPLOAD_EXTENSIONS
 
 logger = logging.getLogger(__name__)
 
@@ -184,13 +185,13 @@ async def get_sas_url(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/sasToken", summary="Get upload SAS token for MP3 blob")
+@router.get("/sasToken", summary="Get upload SAS token for an MP3 or BRF blob")
 async def get_sas_token(
     blob_name: str = Query(...),
     user: dict[str, Any] = Depends(_require_content_write),
 ) -> SasTokenResponse:
-    if not blob_name or not blob_name.lower().endswith(".mp3"):
-        raise HTTPException(status_code=400, detail="Only .mp3 files are allowed.")
+    if not blob_name or not blob_name.lower().endswith(ALLOWED_UPLOAD_EXTENSIONS):
+        raise HTTPException(status_code=400, detail="Only .mp3 or .brf files are allowed.")
     try:
         provider = get_blob_storage_provider()
         sas_url = await provider.get_upload_sas_url("input-container", blob_name, expiry_hours=1)

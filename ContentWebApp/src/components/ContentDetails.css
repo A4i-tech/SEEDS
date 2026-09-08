@@ -77,6 +77,54 @@
   font-weight: 600;
 }
 
+.content-detail-braille-compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 640px) {
+  .content-detail-braille-compare {
+    grid-template-columns: 1fr;
+  }
+}
+
+.content-detail-braille-pane {
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.content-detail-braille-pane-braille {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+
+.content-detail-braille-pane-text {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.content-detail-braille-pane-label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #64748b;
+}
+
+.content-detail-braille-text,
+.content-aggregator-block-braille {
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  font-family: inherit;
+}
+
 .quiz-question-block {
   border: 1px solid #e2e8f0;
   border-radius: 12px;

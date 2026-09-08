@@ -14,6 +14,7 @@ from typing import Any
 from fastapi import Depends
 from pymongo.asynchronous.database import AsyncDatabase
 
+from app.aggregators.hexis_adapter import to_iso_639_1
 from app.models.requests.content_requests import (
     ContentCreate,
     ContentCreateRequest,
@@ -26,6 +27,7 @@ from app.platform.auth.dependencies import get_db
 from app.repositories.content_job_repository import ContentJobRepository
 from app.repositories.content_repository import ContentRepository
 from app.repositories.quiz_repository import QuizRepository
+from app.services.content_types import validate_content_upload
 
 logger = logging.getLogger(__name__)
 
@@ -152,10 +154,7 @@ class ContentService:
         user_id: str,
         school_id: str | None,
     ) -> str:
-        for item in body.audio_content or []:
-            au = item.get("audio_url", "")
-            if au and not au.lower().endswith(".mp3"):
-                raise ValueError("Only .mp3 audio files are allowed.")
+        validate_content_upload(body.type, body)
 
         given = body.model_dump(
             exclude_unset=True,
@@ -165,7 +164,7 @@ class ContentService:
             **given,
             tenant_id=tenant_id,
             type=body.type,
-            language=body.language,
+            language=to_iso_639_1(body.language),
             created_by=user_id,
             school_id=school_id,
             creation_time=int(time.time()),
@@ -182,17 +181,23 @@ class ContentService:
         school_id: str | None,
         is_audio_uploaded: bool,
     ) -> AudioContent | QuizContent | None:
-        allowed = {"title", "theme", "description", "type", "language", "is_pull_model", "is_teacher_app"}
+        allowed = {
+            "title", "theme", "description", "type", "language",
+            "is_pull_model", "is_teacher_app", "braille_grade",
+        }
         body_dict = body.model_dump(exclude_unset=True)
         updates: dict[str, Any] = {k: v for k, v in body_dict.items() if k in allowed}
+        if "language" in updates:
+            updates["language"] = to_iso_639_1(updates["language"])
 
         if is_audio_uploaded:
+            validate_content_upload(body.type or "", body)
             if "audio_content" in body.model_fields_set:
-                for item in body.audio_content or []:
-                    au = item.get("audio_url", "")
-                    if au and not au.lower().endswith(".mp3"):
-                        raise ValueError("Only .mp3 audio files are allowed.")
                 updates["audio_content"] = body.audio_content
+            if "braille_url" in body.model_fields_set:
+                updates["braille_url"] = body.braille_url
+            if "braille_grade" in body.model_fields_set:
+                updates["braille_grade"] = body.braille_grade
             updates["is_processed"] = False
 
         result = await self._content_repo.update_by_id_and_tenant(
@@ -244,7 +249,7 @@ class ContentService:
             **given,
             tenant_id=tenant_id,
             type=body.type,
-            language=body.language,
+            language=to_iso_639_1(body.language),
             created_by=user_id,
             school_id=school_id,
             creation_time=int(time.time()),
