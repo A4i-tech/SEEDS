@@ -12,11 +12,9 @@ After the 6th (final) attempt fails, the webhook is disabled.
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import hmac
 import json
-from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
@@ -316,7 +314,7 @@ async def test_dispatch_terminal_event_fanout_one_failure_does_not_block_others(
 
     content_id = str(ObjectId())
     await _seed_content(db, content_id, _TENANT_A)
-    good = await _make_webhook(webhook_repo, url="https://good.example.com/hook")
+    _good = await _make_webhook(webhook_repo, url="https://good.example.com/hook")
     bad = await _make_webhook(webhook_repo, url="https://bad.example.com/hook")
 
     async def fake_deliver(webhook_doc, *args, **kwargs):
