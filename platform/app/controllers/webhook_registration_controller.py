@@ -14,7 +14,7 @@ from app.models.requests.webhook_registration_requests import (
     WebhookRegisterRequest,
     WebhookUpdateRequest,
 )
-from app.platform.auth.hashing import hash_password
+from app.platform.auth.webhook_secret import encrypt_secret
 from app.platform.error_handling import AppError, NotFoundError, UnauthorizedError
 from app.platform.logging import user_id_ctx_var
 from app.repositories.content_aggregator_webhook_repository import (
@@ -97,7 +97,7 @@ async def register_webhook(
     if await repo.count_for_client(client_id) >= MAX_WEBHOOKS_PER_CLIENT:
         raise AppError("WEBHOOK_LIMIT_REACHED", "maximum webhooks per client reached", 409)
     secret = secrets.token_hex(32)
-    doc = await repo.create(client_id, body.url, hash_password(secret), body.events)
+    doc = await repo.create(client_id, body.url, encrypt_secret(secret), body.events)
     logger.info("register_webhook: webhook registered webhookId=%s clientId=%s", doc["_id"], client_id)
     result = _serialize(doc)
     result["secret"] = secret
@@ -139,7 +139,7 @@ async def update_webhook(
     new_secret: str | None = None
     if body.rotate_secret:
         new_secret = secrets.token_hex(32)
-        fields[ContentAggregatorWebhookRepository.SECRET_HASH_FIELD] = hash_password(new_secret)
+        fields[ContentAggregatorWebhookRepository.SECRET_ENCRYPTED_FIELD] = encrypt_secret(new_secret)
 
     doc = await repo.update_for_client(client_id, webhook_id, fields)
     if doc is None:
