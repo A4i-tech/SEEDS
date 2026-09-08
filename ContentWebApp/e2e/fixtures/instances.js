@@ -33,6 +33,7 @@ const PERSONAS = {
   school: { identifier: 'school@test-a4i.local', password: 'Test@123' },
   schoolA4I: { identifier: 'a4itestschool@iiitb.ac.in', password: 'Test@123' },
   contentCreator: { identifier: '9595959595', password: 'Test@123' },
+  tenant2: { identifier: 'nikunj.khakhkhar@iiitb.ac.in', password: 'Test@123' },
 };
 
 let phoneCounter = 0;
