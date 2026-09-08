@@ -130,7 +130,7 @@ async def fetch_context_from_db(
         for c in class_docs
     ]
     students_out = [
-        {"_id": s.id, "name": s.name, "phone": s.phone or ""}
+        {"_id": s.id, "name": s.name}
         for s in school_students
     ]
 
@@ -164,7 +164,7 @@ def _format_db_context(db_results: dict[str, list]) -> str:
 
     if db_results["students"]:
         rows = "\n".join(
-            f'  - _id: "{s["_id"]}" | name: "{s["name"]}" | phone: "{s["phone"]}"'
+            f'  - _id: "{s["_id"]}" | name: "{s["name"]}"'
             for s in db_results["students"]
         )
         sections.append(
@@ -407,6 +407,10 @@ def _is_command_allowed(method: str, path: str) -> bool:
     method = (method or "").upper()
     path_only = path.split("?", 1)[0]
     return any(method in methods and pattern.match(path_only) for methods, pattern in _ALLOWED_ROUTES)
+
+
+def _is_destructive_command(cmd: dict[str, Any]) -> bool:
+    return (cmd.get("method") or "").upper() == "DELETE"
 
 
 def _has_unresolved_placeholder(value: Any) -> bool:
@@ -907,7 +911,7 @@ async def process_command(
             "We could not turn that request into an action. Please rephrase it and try again.",
             502,
         )
-    if any(c.get("needs_input") for c in commands):
+    if any(c.get("needs_input") or _is_destructive_command(c) for c in commands):
         return ProcessCommandResponse(
             transcript=transcript,
             reasoning=reasoning,

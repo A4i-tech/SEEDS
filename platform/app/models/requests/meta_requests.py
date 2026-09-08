@@ -6,16 +6,16 @@ from pydantic import BaseModel, Field
 class HistoryEntry(BaseModel):
     model_config = {"extra": "allow"}
 
-    transcript: str | None = None
-    command: str | None = None
-    spoken_summary: str | None = None
-    response: str | None = None
+    transcript: str | None = Field(default=None, max_length=2000)
+    command: str | None = Field(default=None, max_length=2000)
+    spoken_summary: str | None = Field(default=None, max_length=2000)
+    response: str | None = Field(default=None, max_length=2000)
 
 
 class CommandContext(BaseModel):
     active_conference_id: str = ""
     current_class_id: str = ""
-    history: list[HistoryEntry] = Field(default_factory=list)
+    history: list[HistoryEntry] = Field(default_factory=list, max_length=20)
 
     model_config = {"populate_by_name": True}
 
@@ -25,7 +25,7 @@ class CommandContext(BaseModel):
 
 
 class TextCommandRequest(BaseModel):
-    command: str
+    command: str = Field(max_length=2000)
     context: CommandContext = Field(default_factory=CommandContext)
 
 

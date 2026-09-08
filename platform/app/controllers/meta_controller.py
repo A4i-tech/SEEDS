@@ -8,6 +8,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.models.requests.meta_requests import TextCommandRequest, TtsPromptRequest
 from app.models.responses.meta import ProcessCommandResponse, TranscriptResponse, TtsPromptResponse
 from app.platform.auth.dependencies import get_db, require_role
+from app.platform.settings import get_settings
 from app.services import meta_service
 
 router = APIRouter(prefix="/meta", tags=["Meta"])
@@ -19,8 +20,8 @@ def _get_auth_token(request: Request) -> str:
     return request.headers.get("authorization", "").removeprefix("Bearer ")
 
 
-def _get_base_url(request: Request) -> str:
-    return str(request.base_url).rstrip("/")
+def _get_base_url() -> str:
+    return get_settings().base_url.rstrip("/")
 
 
 @router.post("/voice-command", summary="Execute a voice command")
@@ -33,7 +34,7 @@ async def voice_command(
 ) -> ProcessCommandResponse:
     return await meta_service.execute_voice_command(
         await audio.read(), context, current_user, db,
-        _get_auth_token(request), _get_base_url(request),
+        _get_auth_token(request), _get_base_url(),
     )
 
 
@@ -55,7 +56,7 @@ async def text_command(
 ) -> ProcessCommandResponse:
     return await meta_service.execute_text_command(
         body.command, body.context, current_user, db,
-        _get_auth_token(request), _get_base_url(request),
+        _get_auth_token(request), _get_base_url(),
     )
 
 
