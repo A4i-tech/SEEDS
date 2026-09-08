@@ -57,7 +57,7 @@ def _is_blocked_ip(ip: str) -> bool:
     )
 
 
-async def _validate_url(url: str) -> None:
+def _validate_scheme_and_host(url: str) -> str:
     parts = urlsplit(url)
 
     if parts.scheme not in _ALLOWED_SCHEMES:
@@ -67,6 +67,10 @@ async def _validate_url(url: str) -> None:
     if not hostname:
         raise ValidationError("URL must include a hostname")
 
+    return hostname
+
+
+async def _resolve_safe_ip(hostname: str) -> str:
     try:
         infos = await asyncio.to_thread(socket.getaddrinfo, hostname, None)
     except socket.gaierror as exc:
@@ -74,8 +78,25 @@ async def _validate_url(url: str) -> None:
 
     for info in infos:
         ip = info[4][0]
-        if _is_blocked_ip(ip):
-            raise ValidationError(f"URL resolves to a disallowed address: {hostname}")
+        if not _is_blocked_ip(ip):
+            return ip
+
+    raise ValidationError(f"URL resolves to a disallowed address: {hostname}")
+
+
+async def _validate_url(url: str) -> None:
+    hostname = _validate_scheme_and_host(url)
+    await _resolve_safe_ip(hostname)
+
+
+class _PinnedTransport(httpx.AsyncHTTPTransport):
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        hostname = _validate_scheme_and_host(str(request.url))
+        ip = await _resolve_safe_ip(hostname)
+        request.headers.setdefault("Host", hostname)
+        request.extensions["sni_hostname"] = hostname
+        request.url = request.url.copy_with(host=ip)
+        return await super().handle_async_request(request)
 
 
 class WebsiteExtractor:
@@ -92,7 +113,7 @@ class WebsiteExtractor:
         }
 
         current_url = url
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=30, transport=_PinnedTransport()) as client:
             for _ in range(_MAX_REDIRECTS + 1):
                 response = await client.get(current_url, headers=headers, follow_redirects=False)
 
@@ -101,7 +122,6 @@ class WebsiteExtractor:
                     if not next_url:
                         break
                     current_url = str(client.build_request("GET", next_url, headers=headers).url)
-                    await _validate_url(current_url)
                     continue
 
                 break

@@ -235,10 +235,10 @@ class TranslationService:
             masked, pmap = mask(normalized)
             pending.append((doc, masked, pmap, source_lang, normalized))
 
-        await self._runtime_batch_ai(site_id, route, lang, pending, result, first_party)
+        await self._runtime_batch_ai(site_id, route, lang, pending, result)
         return result
 
-    async def _runtime_batch_ai(self, site_id, route, lang, pending, result, first_party=False) -> None:
+    async def _runtime_batch_ai(self, site_id, route, lang, pending, result) -> None:
         by_src: dict[str, list] = {}
         for entry in pending:
             by_src.setdefault(entry[3], []).append(entry)
@@ -252,7 +252,7 @@ class TranslationService:
                         translated = unmask(out, pmap)
                         quality = score_translation(normalized, out, pmap)
                         await self._persist_translation(site_id, route, doc, lang, translated, type(self._provider).__name__, quality)
-                        result[doc["key"]] = translated if first_party else doc["source_text"]
+                        result[doc["key"]] = translated
                 except (TransientTranslationError, ValueError):
                     for doc, masked, pmap, _s, normalized in chunk:
                         try:
@@ -263,7 +263,7 @@ class TranslationService:
                         translated = unmask(out, pmap)
                         quality = score_translation(normalized, out, pmap)
                         await self._persist_translation(site_id, route, doc, lang, translated, type(self._provider).__name__, quality)
-                        result[doc["key"]] = translated if first_party else doc["source_text"]
+                        result[doc["key"]] = translated
 
     def _chunk(self, entries: list) -> list[list]:
         out: list[list] = []

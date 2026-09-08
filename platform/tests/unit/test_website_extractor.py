@@ -6,7 +6,6 @@ import httpx
 import pytest
 
 from app.platform.error_handling import ValidationError
-from app.services import website_extractor
 from app.services.website_extractor import (
     WebsiteExtractor,
     _sdk_is_translatable,
@@ -21,6 +20,13 @@ def _fake_addrinfo(ip: str):
         return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, 0))]
 
     return _getaddrinfo
+
+
+def _patch_transport(monkeypatch, handler):
+    async def _fake_handle(self, request):
+        return handler(request)
+
+    monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", _fake_handle)
 
 
 @pytest.mark.parametrize(
@@ -62,17 +68,7 @@ async def test_extract_fetches_and_parses_public_page(monkeypatch):
     monkeypatch.setattr(socket, "getaddrinfo", _fake_addrinfo("93.184.216.34"))
 
     html = "<html><head><title>Hi</title></head><body><h1>Hello</h1><p>World</p></body></html>"
-
-    def _handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, text=html)
-
-    transport = httpx.MockTransport(_handler)
-    real_async_client = httpx.AsyncClient
-    monkeypatch.setattr(
-        website_extractor.httpx,
-        "AsyncClient",
-        lambda **kwargs: real_async_client(transport=transport, **kwargs),
-    )
+    _patch_transport(monkeypatch, lambda request: httpx.Response(200, text=html))
 
     result = await WebsiteExtractor().extract("http://example.com")
     assert result.title == "Hi"
@@ -82,20 +78,8 @@ async def test_extract_fetches_and_parses_public_page(monkeypatch):
 
 async def _extract_html(monkeypatch, html: str):
     monkeypatch.setattr(socket, "getaddrinfo", _fake_addrinfo("93.184.216.34"))
-
-    def _handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, text=html)
-
-    transport = httpx.MockTransport(_handler)
-    real_async_client = httpx.AsyncClient
-    monkeypatch.setattr(
-        website_extractor.httpx,
-        "AsyncClient",
-        lambda **kwargs: real_async_client(transport=transport, **kwargs),
-    )
+    _patch_transport(monkeypatch, lambda request: httpx.Response(200, text=html))
     return await WebsiteExtractor().extract("http://example.com")
-
-
 
 
 def _sdk_side_text_nodes(*texts: str) -> list[str]:
@@ -155,16 +139,9 @@ async def test_extract_rejects_redirect_to_blocked_target(monkeypatch):
         return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, 0))]
 
     monkeypatch.setattr(socket, "getaddrinfo", _getaddrinfo)
-
-    def _handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(302, headers={"location": "http://internal.example/secret"})
-
-    transport = httpx.MockTransport(_handler)
-    real_async_client = httpx.AsyncClient
-    monkeypatch.setattr(
-        website_extractor.httpx,
-        "AsyncClient",
-        lambda **kwargs: real_async_client(transport=transport, **kwargs),
+    _patch_transport(
+        monkeypatch,
+        lambda request: httpx.Response(302, headers={"location": "http://internal.example/secret"}),
     )
 
     with pytest.raises(ValidationError):

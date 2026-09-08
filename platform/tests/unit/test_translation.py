@@ -334,7 +334,7 @@ async def test_runtime_batch_per_item_gate_uses_per_language_status_not_doc_leve
 
     result = await service.runtime_translate("site1", "/h", "hi")
 
-    assert result == {"t1": "Hello"}
+    assert result == {"t1": "[hi] Hello"}
     doc = (await repo.find_by_route("site1", "/h"))[0]
     assert doc["translations"]["hi"]["status"] == "pending"
     assert doc["translations"]["hi"]["text"] == "[hi] Hello"
