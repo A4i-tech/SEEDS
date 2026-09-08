@@ -19,12 +19,8 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI
 
-from app.platform.database import close_database, get_database, init_database
+from app.platform.database import close_database, init_database
 from app.platform.settings import get_settings
-from app.providers.subodha_client import close_subodha_client
-from app.repositories.content_aggregator_sync_job_repository import (
-    ContentAggregatorSyncJobRepository,
-)
 
 if TYPE_CHECKING:
     from app.services.conference_service import ConferenceCallManager
@@ -65,31 +61,13 @@ def _init_conference_manager() -> ConferenceCallManager:
     # Decode base64 private key if set
     private_key_raw = settings.vonage_conference_application_private_key64
     private_key: str
-    if not private_key_raw:
-        raise RuntimeError(
-            "Vonage conference private key is missing: environment variable "
-            "VONAGE_CONFERENCE_APPLICATION_PRIVATE_KEY64 is not set, so no conference "
-            "call can be placed. Set it in platform/.env to the base64-encoded PEM "
-            "private key of the Vonage *conference* application (see "
-            "platform/env.example). Note the pre-PR-#252 name "
-            "VONAGE_APPLICATION_PRIVATE_KEY64 is no longer read — conference and IVR "
-            "now have separate key pairs, so rename it and add "
-            "VONAGE_IVR_APPLICATION_PRIVATE_KEY64 for the IVR application."
-        )
-    try:
-        private_key = base64.b64decode(private_key_raw, validate=True).decode()
-    except Exception:
-        private_key = private_key_raw  # Already PEM, not base64
-    if "BEGIN" not in private_key or "PRIVATE KEY" not in private_key:
-        raise RuntimeError(
-            "Vonage conference private key is not usable: the value of "
-            "VONAGE_CONFERENCE_APPLICATION_PRIVATE_KEY64 did not decode to a PEM "
-            "private key (no '-----BEGIN ... PRIVATE KEY-----' header found), so "
-            "signing Vonage requests would fail with an unhelpful error later. "
-            "Re-generate the value with: "
-            "base64 -w0 private.key  (the private.key file downloaded from the "
-            "Vonage conference application), and set it in platform/.env."
-        )
+    if private_key_raw:
+        try:
+            private_key = base64.b64decode(private_key_raw).decode()
+        except Exception:
+            private_key = private_key_raw  # Already PEM
+    else:
+        private_key = ""
 
     class _VonageAPIFactory:
         def create(self, conf_id: str, ws_url: str) -> VonageAPIProvider:
@@ -189,10 +167,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # ------------------------------------------------------------------
     await init_database()
 
-    reconciled = await ContentAggregatorSyncJobRepository(get_database()).reconcile_interrupted_jobs()
-    if reconciled:
-        logger.info("Reconciled %d interrupted content aggregator sync jobs", reconciled)
-
     # Init conference manager (available in all modes)
     try:
         conf_mgr = _init_conference_manager()
@@ -251,11 +225,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             await conf_mgr.close()
         except Exception as exc:
             logger.warning("Conference manager close failed: %s", exc)
-
-    try:
-        await close_subodha_client()
-    except Exception as exc:
-        logger.warning("Subodha client close failed: %s", exc)
 
     await close_database()
     logger.info("SEEDS Platform shut down.")
