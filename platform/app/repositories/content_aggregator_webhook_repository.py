@@ -52,6 +52,13 @@ class ContentAggregatorWebhookRepository:
             {"client_id": client_id, "status": "active", "events": event}
         ).to_list(length=None)
 
+    async def find_active_for_clients_and_event(self, client_ids: list[str], event: str) -> list[dict[str, Any]]:
+        if not client_ids:
+            return []
+        return await self._col.find(
+            {"client_id": {"$in": client_ids}, "status": "active", "events": event}
+        ).to_list(length=None)
+
     async def disable(self, webhook_id: Any) -> None:
         await self._col.update_one(
             {"_id": webhook_id},

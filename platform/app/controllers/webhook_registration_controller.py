@@ -30,6 +30,12 @@ router = APIRouter(prefix="/v1/webhooks", tags=["Webhooks"])
 MAX_WEBHOOKS_PER_CLIENT = 5
 _VALID_EVENT_TYPES = frozenset(e.value for e in WebhookEventType)
 _VALID_STATUSES = frozenset({"active", "disabled"})
+_EVENT_REQUIRED_SCOPE = {
+    WebhookEventType.JOB_COMPLETED.value: "content:write",
+    WebhookEventType.JOB_FAILED.value: "content:write",
+    WebhookEventType.CONTENT_UPDATED.value: "content:read",
+    WebhookEventType.CONTENT_DELETED.value: "content:read",
+}
 _oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/v1/auth/token", auto_error=False)
 
 
@@ -58,7 +64,8 @@ def _granted_scopes(claims: _jwt.AccessTokenClaims) -> list[str]:
 
 
 def _validate_scope(events: list[str], granted_scopes: list[str]) -> None:
-    if not set(events).issubset(granted_scopes):
+    required_scopes = {_EVENT_REQUIRED_SCOPE[e] for e in events}
+    if not required_scopes.issubset(granted_scopes):
         raise AppError("SCOPE_INSUFFICIENT", "requested events exceed granted scope", 403)
 
 
@@ -95,7 +102,7 @@ async def register_webhook(
     _validate_events(body.events)
     _validate_scope(body.events, _granted_scopes(claims))
     if await repo.count_for_client(client_id) >= MAX_WEBHOOKS_PER_CLIENT:
-        raise AppError("WEBHOOK_LIMIT_REACHED", "maximum webhooks per client reached", 409)
+        raise AppError("WEBHOOK_LIMIT_REACHED", "maximum webhooks per client reached", 403)
     secret = secrets.token_hex(32)
     doc = await repo.create(client_id, body.url, encrypt_secret(secret), body.events)
     logger.info("register_webhook: webhook registered webhookId=%s clientId=%s", doc["_id"], client_id)
