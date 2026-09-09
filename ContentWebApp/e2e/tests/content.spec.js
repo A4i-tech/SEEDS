@@ -385,6 +385,16 @@ test('TC-CONT-018 (documents a bug) freshly-registered teacher cannot log in, bl
   await expect(page.getByText('Teacher deleted successfully.')).toBeVisible({ timeout: 10000 });
 });
 
+// addToIVR is deliberately left false here (was true). content_job_consumer.py
+// runs an extra _process_tts_for_content step for any content with is_pull_model
+// set, on top of the normal audio-processing job every content item already gets
+// — confirmed live in platform/app/consumers/content_job_consumer.py:396. This
+// file runs immediately before experience.spec.js, and that extra TTS job was
+// adding load to the same shared backend queue right before the tests that were
+// timing out waiting on it (see #593). The "map to IVR" action under test here is
+// the Update IVR button click below, which is a standalone sync trigger
+// (ivrService.updateIVR) unrelated to any single content's is_pull_model flag, so
+// dropping addToIVR doesn't weaken what this test actually asserts.
 test('TC-CONT-019 content creator can create content and map it to IVR', async ({ page }) => {
   const loginPage = new LoginPage(page);
   const contentPage = new ContentPage(page);
@@ -396,7 +406,7 @@ test('TC-CONT-019 content creator can create content and map it to IVR', async (
   await contentPage.waitForLoad();
   await addContentPage.goto();
   await addContentPage.selectExperience('Song');
-  await addContentPage.fillStoryForm({ title: `cc-ivr-content-${id}`, theme: `theme-${id}`, addToIVR: true });
+  await addContentPage.fillStoryForm({ title: `cc-ivr-content-${id}`, theme: `theme-${id}` });
   const status = await addContentPage.save();
   expect(status).toBe(201);
   await contentListPage.waitForRow(id);

@@ -7,12 +7,15 @@ const { RegisterPage } = require('../pages/RegisterPage');
 const { HeaderPage } = require('../pages/HeaderPage');
 const { ProfilePage } = require('../pages/ProfilePage');
 
-// IDEMPOTENCY / CONCURRENCY NOTE: TC-AUTH-007 mutates the shared tenant persona's
-// password mid-file. Every other test in this file (and the 'setup' project, which
-// depends on this project finishing first — see playwright.config.js) assumes
-// PERSONAS.tenant.password is valid. Running these tests in parallel workers would let,
-// e.g., TC-AUTH-001 attempt a login with the "old" password during 007's mutation
-// window and fail nondeterministically. Force serial execution for this whole file.
+// IDEMPOTENCY / CONCURRENCY NOTE: TC-AUTH-007/008 mutate PERSONAS.tenantPasswordTest,
+// a persona dedicated to those two tests (see fixtures/instances.js) — not
+// PERSONAS.tenant, which every other test/file in this suite logs in as. That
+// change removed the specific cross-file race that motivated workers: 1 in
+// playwright.config.js. This file is still forced serial internally because tests
+// within it aren't otherwise ordering-independent (e.g. TC-AUTH-001 running
+// alongside 007/008 in a different worker is now safe, but keeping this file's
+// own tests serial avoids relying on that being airtight before it's been proven
+// live at the config level).
 test.describe.configure({ mode: 'serial' });
 
 // TC-AUTH-001: Verify tenant login with valid credentials
@@ -73,11 +76,10 @@ test('TC-AUTH-011 school login with invalid credentials fails with an error', as
 });
 
 // TC-AUTH-007/008/009: tenant password change
-// IDEMPOTENCY NOTE: TC-AUTH-007 is the only one of these three that actually mutates the
-// account (Test@123 -> Test@321). Every other spec in this suite assumes the tenant persona's
-// password is Test@123 (auth.setup.js, TC-AUTH-001, TC-AUTH-006, ...), so this test restores
-// the original password at the end. Do not remove the restore step without updating every
-// other spec that depends on PERSONAS.tenant.password.
+// IDEMPOTENCY NOTE: TC-AUTH-007/008 mutate PERSONAS.tenantPasswordTest (Test@123 ->
+// Test@321 and back), a persona no other spec in this suite touches — see
+// fixtures/instances.js. Do not remove the restore step; do not switch these two
+// back to PERSONAS.tenant.
 test.describe('tenant password change', () => {
   test('TC-AUTH-007 succeeds with the correct current password, then restores it', async ({ page }) => {
     const loginPage = new LoginPage(page);
@@ -86,19 +88,19 @@ test.describe('tenant password change', () => {
     const profilePage = new ProfilePage(page);
     const changedPassword = 'Test@321';
 
-    await loginPage.login(PERSONAS.tenant.identifier, PERSONAS.tenant.password);
+    await loginPage.login(PERSONAS.tenantPasswordTest.identifier, PERSONAS.tenantPasswordTest.password);
     await contentPage.waitForLoad();
     await header.goToProfile();
     await profilePage.goto();
 
-    await profilePage.changePassword(PERSONAS.tenant.password, changedPassword, changedPassword);
+    await profilePage.changePassword(PERSONAS.tenantPasswordTest.password, changedPassword, changedPassword);
     await expect(page.getByText(/password updated successfully/i)).toBeVisible({ timeout: 10000 });
 
     // Restore: the session is still valid after a password change (it doesn't force a
     // re-login), so just go back to the profile form and change it back, so every other
-    // spec in the suite can keep assuming PERSONAS.tenant.password is valid.
+    // spec in the suite can keep assuming PERSONAS.tenantPasswordTest.password is valid.
     await profilePage.goto();
-    await profilePage.changePassword(changedPassword, PERSONAS.tenant.password, PERSONAS.tenant.password);
+    await profilePage.changePassword(changedPassword, PERSONAS.tenantPasswordTest.password, PERSONAS.tenantPasswordTest.password);
     await expect(page.getByText(/password updated successfully/i)).toBeVisible({ timeout: 10000 });
   });
 
@@ -119,7 +121,7 @@ test.describe('tenant password change', () => {
     const wrongCurrentPassword = 'Test@321';
     const attemptedNewPassword = 'Test@4321';
 
-    await loginPage.login(PERSONAS.tenant.identifier, PERSONAS.tenant.password);
+    await loginPage.login(PERSONAS.tenantPasswordTest.identifier, PERSONAS.tenantPasswordTest.password);
     await contentPage.waitForLoad();
     await header.goToProfile();
     await profilePage.goto();
@@ -130,7 +132,7 @@ test.describe('tenant password change', () => {
     // Restore: the change above actually took effect (that's the bug), so the account is
     // now on attemptedNewPassword and must be put back for every other spec.
     await profilePage.goto();
-    await profilePage.changePassword(attemptedNewPassword, PERSONAS.tenant.password, PERSONAS.tenant.password);
+    await profilePage.changePassword(attemptedNewPassword, PERSONAS.tenantPasswordTest.password, PERSONAS.tenantPasswordTest.password);
     await expect(page.getByText(/password updated successfully/i)).toBeVisible({ timeout: 10000 });
   });
 

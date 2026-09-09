@@ -34,6 +34,14 @@ const PERSONAS = {
   schoolA4I: { identifier: 'a4itestschool@iiitb.ac.in', password: 'Test@123' },
   contentCreator: { identifier: '9595959595', password: 'Test@123' },
   tenant2: { identifier: 'nikunj.khakhkhar@iiitb.ac.in', password: 'Test@123' },
+  // Used only by auth.spec.js's TC-AUTH-007/008 password-change tests. Deliberately
+  // NOT tenant2 — tenant2 is already logged into (read-only) by sync.spec.js's
+  // TC-SYNC-004, so mutating tenant2's password here would just relocate the
+  // documented cross-file race (see playwright.config.js's workers:1 comment) onto
+  // a different persona instead of removing it. Requires a real account provisioned
+  // with this email/password on every backend instance (local/onrender/dev) —
+  // this alone doesn't create it.
+  tenantPasswordTest: { identifier: 'e2e-password-test@iiitb.ac.in', password: 'Test@123' },
 };
 
 let phoneCounter = 0;

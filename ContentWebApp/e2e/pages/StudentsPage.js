@@ -24,9 +24,13 @@ class StudentsPage {
     // after can otherwise race the fetch (confirmed live on a slower/remote
     // instance: row(phone) not found even though the student genuinely
     // existed, because the list simply hadn't loaded yet).
-    const studentsFetched = this.page
-      .waitForResponse((res) => res.url().endsWith('/student') && res.request().method() === 'GET', { timeout: 10000 })
-      .catch(() => {});
+    // Deliberately not swallowed: if this GET never resolves, fail here with a
+    // clear cause instead of letting the caller pass or fail later on an
+    // unrelated, confusing assertion.
+    const studentsFetched = this.page.waitForResponse(
+      (res) => res.url().endsWith('/student') && res.request().method() === 'GET',
+      { timeout: 10000 }
+    );
     await this.registrationTab.click();
     await this.studentsSubTab.click();
     await this.nameInput.waitFor();

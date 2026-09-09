@@ -21,9 +21,13 @@ class TeachersPage {
     // fetch and register-submission — submitting while the list fetch is still in
     // flight silently no-ops (no request, no message). Arm the wait for the
     // table's own GET before clicking, so it can't resolve too early or miss it.
-    const teachersFetched = this.page
-      .waitForResponse((res) => res.url().includes('/school/teachers') && res.ok(), { timeout: 10000 })
-      .catch(() => {});
+    // Deliberately not swallowed: if this GET never resolves (timeout, broken
+    // endpoint, API regression), fail here with a clear cause instead of letting
+    // the caller pass or fail later on an unrelated, confusing assertion.
+    const teachersFetched = this.page.waitForResponse(
+      (res) => res.url().includes('/school/teachers') && res.ok(),
+      { timeout: 10000 }
+    );
     await this.registrationTab.click();
     await this.nameInput.waitFor();
     await teachersFetched;
