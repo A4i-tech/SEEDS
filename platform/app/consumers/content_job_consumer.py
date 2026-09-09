@@ -81,6 +81,15 @@ from app.services.webhook_delivery_service import dispatch_terminal_event
 
 logger = logging.getLogger(__name__)
 
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _fire_and_forget(coro) -> None:
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+
+
 # Maximum processing time per job
 JOB_TIMEOUT_SECONDS = 5 * 60  # 5 minutes
 POLL_INTERVAL_SECONDS = 10
@@ -414,7 +423,7 @@ async def _process_audio_content_job(
                 "content_job: completed job_id=%s content_id=%s (attempt %d)",
                 job_id, content_id, attempt,
             )
-            await dispatch_terminal_event(db, content_id, "job.completed", job_id=job_id)
+            _fire_and_forget(dispatch_terminal_event(db, content_id, "job.completed", job_id=job_id))
             return  # success — exit retry loop
 
         except _TRANSIENT_ERRORS as exc:
@@ -448,7 +457,7 @@ async def _process_audio_content_job(
         job_id, content_id, error_msg,
     )
     await job_repo.mark_failed(job_id, error_msg)
-    await dispatch_terminal_event(db, content_id, "job.failed", job_id=job_id, error=error_msg)
+    _fire_and_forget(dispatch_terminal_event(db, content_id, "job.failed", job_id=job_id, error=error_msg))
     if last_exc is not None:
         raise last_exc
 
@@ -522,7 +531,7 @@ class ContentJobConsumer:
                         reason = "Job exceeded timeout of 5 minutes"
                         logger.error("content_job: timeout job_id=%s", job_id)
                         await job_repo.mark_failed(job_id, reason)
-                        await dispatch_terminal_event(self._db, content_id, "job.failed", job_id=job_id, error=reason)
+                        _fire_and_forget(dispatch_terminal_event(self._db, content_id, "job.failed", job_id=job_id, error=reason))
                     except Exception as exc:  # noqa: BLE001
                         # Already dead-lettered inside _process_audio_content_job
                         logger.debug("content_job: job processing exception handled: %s", exc)

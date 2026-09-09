@@ -31,7 +31,7 @@ def repo():
 def claims():
     return {
         "sub": "client-a",
-        "scope": "job.completed job.failed content.updated content.deleted",
+        "scope": "content:read content:write",
         "tenant_ids": ["tenant-a"],
         "client_name": "partner-a",
     }
@@ -68,7 +68,7 @@ async def test_register_webhook_rejects_unsupported_event_type(repo, claims):
 
 @pytest.mark.asyncio
 async def test_register_webhook_rejects_event_outside_granted_scope(repo, claims):
-    claims["scope"] = "job.completed"
+    claims["scope"] = "content:write"
     body = WebhookRegisterRequest(url="https://x.example.com/hook", events=["content.deleted"])
     with pytest.raises(AppError) as exc_info:
         await register_webhook(body, claims=claims, repo=repo)
@@ -86,7 +86,7 @@ async def test_register_webhook_enforces_max_per_client(repo, claims):
     with pytest.raises(AppError) as exc_info:
         await register_webhook(body, claims=claims, repo=repo)
     assert exc_info.value.code == "WEBHOOK_LIMIT_REACHED"
-    assert exc_info.value.status_code == 409
+    assert exc_info.value.status_code == 403
 
 
 @pytest.mark.asyncio
@@ -117,7 +117,7 @@ async def test_update_webhook_rejects_event_outside_granted_scope(repo, claims):
     body = WebhookRegisterRequest(url="https://x.example.com/hook", events=["job.completed"])
     created = await register_webhook(body, claims=claims, repo=repo)
 
-    claims["scope"] = "job.completed"
+    claims["scope"] = "content:write"
     update = WebhookUpdateRequest(events=["content.deleted"])
     with pytest.raises(AppError) as exc_info:
         await update_webhook(created["webhookId"], update, claims=claims, repo=repo)
@@ -153,6 +153,26 @@ async def test_delete_webhook(repo, claims):
 
     with pytest.raises(NotFoundError):
         await delete_webhook(created["webhookId"], claims=claims, repo=repo)
+
+
+@pytest.mark.asyncio
+async def test_delete_webhook_other_client_raises_not_found(repo, claims):
+    body = WebhookRegisterRequest(url="https://x.example.com/hook", events=["job.completed"])
+    created = await register_webhook(body, claims=claims, repo=repo)
+
+    other_claims = {**claims, "sub": "client-b"}
+    with pytest.raises(NotFoundError):
+        await delete_webhook(created["webhookId"], claims=other_claims, repo=repo)
+
+
+@pytest.mark.asyncio
+async def test_list_webhooks_excludes_other_client(repo, claims):
+    body = WebhookRegisterRequest(url="https://x.example.com/hook", events=["job.completed"])
+    await register_webhook(body, claims=claims, repo=repo)
+
+    other_claims = {**claims, "sub": "client-b"}
+    listed = await list_webhooks(claims=other_claims, repo=repo)
+    assert listed["webhooks"] == []
 
 
 @pytest.mark.asyncio
