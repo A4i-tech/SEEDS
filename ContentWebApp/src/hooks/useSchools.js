@@ -52,7 +52,7 @@ export const useSchools = (activeTab) => {
         return false;
       }
     },
-    [fetchSchools]
+    [fetchSchools, flash]
   );
 
   const updateSchool = useCallback(async (schoolId, name, email, password) => {
@@ -69,7 +69,7 @@ export const useSchools = (activeTab) => {
       flash(error.message || "Failed to update school.", "error");
       return false;
     }
-  }, []);
+  }, [flash]);
 
   const deleteSchool = useCallback(async (schoolId) => {
     if (!window.confirm("Delete this school?")) return;
@@ -80,7 +80,7 @@ export const useSchools = (activeTab) => {
     } catch (error) {
       flash(error.message || "Failed to delete school.", "error");
     }
-  }, []);
+  }, [flash]);
 
   return { schools, isLoading, message, messageType, createSchool, updateSchool, deleteSchool };
 };
