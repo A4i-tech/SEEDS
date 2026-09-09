@@ -54,3 +54,37 @@ async def test_update_for_client_invalid_id_returns_none(repo):
 @pytest.mark.asyncio
 async def test_delete_for_client_missing_returns_false(repo):
     assert await repo.delete_for_client("client-a", "6641abc123456789abcdef0") is False
+
+
+@pytest.mark.asyncio
+async def test_find_active_for_client_and_event_excludes_disabled_and_wrong_event(repo):
+    disabled = await repo.create("client-a", "https://x.example.com/hook1", "hash", ["job.completed"])
+    await repo.update_for_client("client-a", str(disabled["_id"]), {"status": "disabled"})
+    await repo.create("client-a", "https://x.example.com/hook2", "hash", ["job.failed"])
+    active = await repo.create("client-a", "https://x.example.com/hook3", "hash", ["job.completed"])
+
+    found = await repo.find_active_for_client_and_event("client-a", "job.completed")
+    assert [d["_id"] for d in found] == [active["_id"]]
+
+
+@pytest.mark.asyncio
+async def test_find_active_for_client_and_event_excludes_deleted(repo):
+    doc = await repo.create("client-a", "https://x.example.com/hook", "hash", ["job.completed"])
+    await repo.delete_for_client("client-a", str(doc["_id"]))
+
+    assert await repo.find_active_for_client_and_event("client-a", "job.completed") == []
+
+
+@pytest.mark.asyncio
+async def test_find_active_for_clients_and_event(repo):
+    doc_a = await repo.create("client-a", "https://x.example.com/hook-a", "hash", ["job.completed"])
+    doc_b = await repo.create("client-b", "https://x.example.com/hook-b", "hash", ["job.completed"])
+    await repo.create("client-c", "https://x.example.com/hook-c", "hash", ["job.completed"])
+
+    found = await repo.find_active_for_clients_and_event(["client-a", "client-b"], "job.completed")
+    assert {d["_id"] for d in found} == {doc_a["_id"], doc_b["_id"]}
+
+
+@pytest.mark.asyncio
+async def test_find_active_for_clients_and_event_empty_list_returns_empty(repo):
+    assert await repo.find_active_for_clients_and_event([], "job.completed") == []

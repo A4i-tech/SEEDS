@@ -308,12 +308,17 @@ async def _seed_content(db, content_id, tenant_id):
     await db["contentsV3"].insert_one({"_id": ObjectId(content_id), "tenant_id": tenant_id})
 
 
+async def _seed_client(db, client_id, tenant_id):
+    await db["integrationClients"].insert_one({"client_id": client_id, "tenant_ids": [tenant_id]})
+
+
 @pytest.mark.asyncio
 async def test_dispatch_terminal_event_fanout_one_failure_does_not_block_others(db, webhook_repo, delivery_repo):
     from bson import ObjectId
 
     content_id = str(ObjectId())
     await _seed_content(db, content_id, _TENANT_A)
+    await _seed_client(db, _TENANT_A, _TENANT_A)
     _good = await _make_webhook(webhook_repo, url="https://good.example.com/hook")
     bad = await _make_webhook(webhook_repo, url="https://bad.example.com/hook")
 
@@ -332,6 +337,8 @@ async def test_dispatch_terminal_event_tenant_isolation(db, webhook_repo, delive
 
     content_id = str(ObjectId())
     await _seed_content(db, content_id, _TENANT_A)
+    await _seed_client(db, _TENANT_A, _TENANT_A)
+    await _seed_client(db, _TENANT_B, _TENANT_B)
     wh_a = await _make_webhook(webhook_repo, client_id=_TENANT_A, url="https://a.example.com/hook")
     wh_b = await _make_webhook(webhook_repo, client_id=_TENANT_B, url="https://b.example.com/hook")
 
@@ -353,11 +360,32 @@ async def test_dispatch_terminal_event_no_webhooks_for_event_type_is_noop(db, we
 
     content_id = str(ObjectId())
     await _seed_content(db, content_id, _TENANT_A)
+    await _seed_client(db, _TENANT_A, _TENANT_A)
     await _make_webhook(webhook_repo, events=["content.updated"])
 
     with patch("app.services.webhook_delivery_service.deliver_webhook", new=AsyncMock()) as deliver_mock:
         await dispatch_terminal_event(db, content_id, "job.completed", job_id="job-1")
     deliver_mock.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_dispatch_terminal_event_resolves_client_id_distinct_from_tenant_id(db, webhook_repo, delivery_repo):
+    from bson import ObjectId
+
+    content_id = str(ObjectId())
+    await _seed_content(db, content_id, _TENANT_A)
+    await _seed_client(db, "client-xyz", _TENANT_A)
+    wh = await _make_webhook(webhook_repo, client_id="client-xyz")
+
+    delivered_ids = []
+
+    async def fake_deliver(webhook_doc, *args, **kwargs):
+        delivered_ids.append(webhook_doc["_id"])
+
+    with patch("app.services.webhook_delivery_service.deliver_webhook", new=AsyncMock(side_effect=fake_deliver)):
+        await dispatch_terminal_event(db, content_id, "job.completed", job_id="job-1")
+
+    assert delivered_ids == [wh["_id"]]
 
 
 @pytest.mark.asyncio
@@ -371,6 +399,7 @@ async def test_dispatch_terminal_event_payload_data_fields(db, webhook_repo, del
 
     content_id = str(ObjectId())
     await _seed_content(db, content_id, _TENANT_A)
+    await _seed_client(db, _TENANT_A, _TENANT_A)
     await _make_webhook(webhook_repo)
     captured: dict[str, Any] = {}
 

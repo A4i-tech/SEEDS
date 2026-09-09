@@ -33,6 +33,7 @@ from app.repositories.content_aggregator_webhook_delivery_repository import (
 from app.repositories.content_aggregator_webhook_repository import (
     ContentAggregatorWebhookRepository,
 )
+from app.repositories.integration_client_repository import IntegrationClientRepository
 from app.repositories.content_repository import ContentRepository
 
 logger = logging.getLogger(__name__)
@@ -150,8 +151,13 @@ async def dispatch_terminal_event(
             return
         tenant_id = str(content_doc["tenant_id"])
 
+        client_repo = IntegrationClientRepository(db)
+        client_ids = await client_repo.find_client_ids_for_tenant(tenant_id)
+        if not client_ids:
+            return
+
         webhook_repo = ContentAggregatorWebhookRepository(db)
-        webhooks = await webhook_repo.find_active_for_client_and_event(tenant_id, event)
+        webhooks = await webhook_repo.find_active_for_clients_and_event(client_ids, event)
         if not webhooks:
             return
 
