@@ -83,6 +83,13 @@ class TranslationService:
         domain = website.get("domain")
         if hostname == domain or self._strip_www(hostname) == self._strip_www(domain):
             return
+        settings = get_settings()
+        if (
+            settings.enable_dev_localhost_origin_alias
+            and settings.env != "production"
+            and hostname in ("localhost", "127.0.0.1")
+        ):
+            return
         raise ForbiddenError("origin does not match registered site domain")
 
     async def _ensure_lang_enabled(self, lang: str) -> None:

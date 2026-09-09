@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import FileResponse
 
 from app.models.requests.onboarding_requests import (
     ProjectCreateRequest,
@@ -21,6 +23,13 @@ from app.services.onboarding_service import OnboardingService, get_onboarding_se
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Onboarding"])
+
+_SDK_JS_PATH = Path(__file__).resolve().parent.parent / "static" / "sdk.js"
+
+
+@router.get("/sdk.js", summary="Client-side translation SDK, injected via the snippet from register_website")
+async def get_sdk_js() -> FileResponse:
+    return FileResponse(_SDK_JS_PATH, media_type="application/javascript")
 
 
 @router.post("/projects", summary="Register a new project")
