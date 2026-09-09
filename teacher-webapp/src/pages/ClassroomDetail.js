@@ -33,6 +33,7 @@ import {
 } from "@mui/icons-material";
 import { useNavigate, useParams } from "react-router-dom";
 import { getClassroomById } from "../services/classroomService";
+import { getAccessToken } from "../utils/tokenStore";
 import { useAuth } from "../hooks/useAuth";
 import { showToast } from "../utils/toast";
 import { LoadingSpinner } from "../components/common/LoadingSpinner";
@@ -135,7 +136,7 @@ const ClassroomDetail = () => {
     }
 
     try {
-      const token = localStorage.getItem("authToken");
+      const token = getAccessToken();
       const sseEp = `${SSE_ENDPOINTS.CONFERENCE.TEACHER_CONNECT(conferenceId)}?token=${encodeURIComponent(token || "")}`;
       const eventSource = new EventSource(sseEp);
       eventSourceRef.current = eventSource;

@@ -57,8 +57,8 @@ export const useContent = () => {
    * Fetch content with optional cursor for pagination
    * Error handling is delegated to contentService
    */
-  const fetchContent = useCallback(async (cursor = null) => {
-    const page = await contentService.getContent(cursor, PAGE_SIZE);
+  const fetchContent = useCallback(async (cursor = null, signal = null) => {
+    const page = await contentService.getContent(cursor, PAGE_SIZE, signal);
     return { data: page.items, nextCursor: page.next_cursor, hasMore: page.has_more };
   }, []);
 
@@ -98,9 +98,10 @@ export const useContent = () => {
 
     if (paginationInfo.hasMore && paginationInfo.nextCursor) {
       setIsLoading(true);
+      const ac = new AbortController();
 
       try {
-        const { data, nextCursor, hasMore } = await fetchContent(paginationInfo.nextCursor);
+        const { data, nextCursor, hasMore } = await fetchContent(paginationInfo.nextCursor, ac.signal);
 
         if (!data.length) {
           setPaginationInfo({ nextCursor: null, hasMore: false });
