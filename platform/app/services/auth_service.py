@@ -295,13 +295,17 @@ async def get_user_profile(
 
 async def change_password(
     user_id: str,
+    current_password: str,
     new_password: str,
     db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> None:
     """Hash *new_password* and persist it for *user_id*. Raises NotFoundError if absent."""
     repo = UserRepository(db)
-    if await repo.find_by_id(user_id) is None:
+    user = await repo.find_by_id(user_id)
+    if user is None:
         raise NotFoundError("User", user_id)
+    if not verify_password(current_password, user.hashed_password):
+        raise UnauthorizedError("Current password is incorrect")
     await repo.update(user_id, {"hashed_password": hash_password(new_password)})
 
 
@@ -396,8 +400,8 @@ class AuthService:
     async def get_user_profile(self, user_id: str, entity_label: str) -> User:
         return await get_user_profile(user_id, entity_label, self._db)
 
-    async def change_password(self, user_id: str, new_password: str) -> None:
-        return await change_password(user_id, new_password, self._db)
+    async def change_password(self, user_id: str, current_password: str, new_password: str) -> None:
+        return await change_password(user_id, current_password, new_password, self._db)
 
     async def get_school_admin_profile(self, school_id: str, tenant_id: str) -> UserPublicResponse:
         return await get_school_admin_profile(school_id, tenant_id, self._db)
