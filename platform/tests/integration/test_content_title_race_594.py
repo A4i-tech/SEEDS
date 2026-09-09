@@ -14,7 +14,7 @@ from __future__ import annotations
 import os
 import uuid
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-integration-tests-32ch")
 os.environ.setdefault("APP_MODE", "api")
@@ -92,7 +92,7 @@ async def test_stale_content_snapshot_overwrites_concurrent_title_edit(mock_db):
         with open(out, "wb") as fh:
             fh.write(b"fake_wav_data")
 
-    with __import__("unittest.mock", fromlist=["patch"]).patch(
+    with patch(
         "app.consumers.content_job_consumer._transcode_to_wav",
         new=AsyncMock(side_effect=_transcode_and_concurrently_edit_title),
     ):
@@ -104,3 +104,83 @@ async def test_stale_content_snapshot_overwrites_concurrent_title_edit(mock_db):
         f"Root cause reproduced: job completion overwrote the concurrently-edited "
         f"title with its stale job-start snapshot. Got: {final_doc['title']}"
     )
+
+
+@pytest.mark.asyncio
+async def test_pull_model_tts_updates_audio_url_without_clobbering_concurrent_edit(mock_db):
+    """Pull-model jobs must still persist the freshly-generated title/theme
+    audio_url, but must not clobber a concurrent title/theme text edit with
+    the stale job-start snapshot text."""
+    from app.consumers.content_job_consumer import _process_audio_content_job
+    from app.repositories.content_job_repository import ContentJobRepository
+    from app.repositories.content_repository import ContentRepository
+
+    content_id = str(ObjectId())
+    job_id = str(uuid.uuid4())
+
+    await mock_db["contentsV3"].insert_one(
+        {
+            "_id": ObjectId(content_id),
+            "tenant_id": ObjectId(_TENANT_A_ID),
+            "type": "Story",
+            "language": "english",
+            "title": {"english": "Old Title", "local": "Old Title"},
+            "theme": {"english": "Animals", "local": "Animals"},
+            "audio_content": [],
+            "is_pull_model": True,
+            "is_deleted": False,
+        }
+    )
+    await mock_db["content_jobs"].insert_one(
+        {
+            "_id": job_id,
+            "content_id": content_id,
+            "job_type": "update",
+            "status": "pending",
+            "created_at": datetime.now(UTC),
+        }
+    )
+
+    mock_blob = MagicMock()
+    mock_blob.get_container_client = MagicMock(side_effect=Exception("no theme audio yet"))
+
+    content_repo = ContentRepository(mock_db)
+    job_repo = ContentJobRepository(mock_db)
+
+    async def _concurrently_edit_title_and_theme(*args, **kwargs):
+        await mock_db["contentsV3"].update_one(
+            {"_id": ObjectId(content_id)},
+            {
+                "$set": {
+                    "title": {"english": "New Title From Concurrent Edit", "local": "New Title"},
+                    "theme": {"english": "Space", "local": "Space"},
+                }
+            },
+        )
+        return b"fake_tts_audio"
+
+    with (
+        patch(
+            "app.services.tts_service.synthesize",
+            new=AsyncMock(side_effect=_concurrently_edit_title_and_theme),
+        ),
+        patch(
+            "app.services.tts_service.add_for_in_option_audio",
+            side_effect=lambda language, text: text,
+        ),
+    ):
+        mock_blob.upload_file = AsyncMock(
+            return_value="https://myaccount.blob.core.windows.net/output-container/tts.mp3"
+        )
+        job_doc = await mock_db["content_jobs"].find_one({"_id": job_id})
+        await _process_audio_content_job(job_doc, job_repo, content_repo, mock_blob)
+
+    final_doc = await mock_db["contentsV3"].find_one({"_id": ObjectId(content_id)})
+    assert final_doc["title"]["english"] == "New Title From Concurrent Edit", (
+        f"TTS completion clobbered the concurrently-edited title text. Got: {final_doc['title']}"
+    )
+    assert final_doc["theme"]["english"] == "Space", (
+        f"TTS completion clobbered the concurrently-edited theme text. Got: {final_doc['theme']}"
+    )
+    assert final_doc["title"]["audio_url"] == "https://myaccount.blob.core.windows.net/output-container/tts.mp3"
+    assert final_doc["theme"]["audio_url"] == "https://myaccount.blob.core.windows.net/output-container/tts.mp3"
