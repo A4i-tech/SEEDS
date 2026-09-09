@@ -15,9 +15,11 @@ test.beforeEach(async ({}, testInfo) => {
 
 // Story/Poem/Snippet all render the exact same AddStory.js form as Song (just
 // a different `contentType`), so this file reuses every finding/fix already
-// established in content.spec.js — see that file's header comment and
-// IDEMPOTENCY.md for the full detail (async create/update jobs, pagination,
-// point-in-time isVisible() pitfalls, update-propagation not being asserted).
+// established in content.spec.js — see that file's header comment and the
+// idempotency/concurrency notes on the SEEDS Test Cases Docmost page
+// (https://docmost.a4i-lab.in/s/seeds/p/seeds-test-cases-54bIGOBUUJ) for the
+// full detail (async create/update jobs, pagination, point-in-time isVisible()
+// pitfalls, update-propagation not being asserted).
 test.describe.configure({ mode: 'serial' });
 
 const EXPERIENCES = [

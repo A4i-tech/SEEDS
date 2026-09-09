@@ -10,9 +10,11 @@ const { HeaderPage } = require('../pages/HeaderPage');
 const { loginInNewContext } = require('../fixtures/session');
 
 // ContentListPage.waitUntilProcessed()/waitForRow() poll for up to 90-120s by
-// design — content processing is a genuinely slow async backend job (see
-// IDEMPOTENCY.md). Every test in this file either calls one of those directly
-// or is fast enough that a higher ceiling costs nothing.
+// design — content processing is a genuinely slow async backend job (see the
+// idempotency/concurrency notes on the SEEDS Test Cases Docmost page:
+// https://docmost.a4i-lab.in/s/seeds/p/seeds-test-cases-54bIGOBUUJ). Every test
+// in this file either calls one of those directly or is fast enough that a
+// higher ceiling costs nothing.
 test.beforeEach(async ({}, testInfo) => {
   testInfo.setTimeout(Math.max(testInfo.timeout, 180000));
 });

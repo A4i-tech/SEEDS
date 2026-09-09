@@ -9,7 +9,9 @@ module.exports = defineConfig({
   testDir: './e2e',
   // ContentListPage.waitUntilProcessed()/waitForRow() poll for up to 90-120s
   // by design (content processing is a genuinely slow async backend job — see
-  // IDEMPOTENCY.md). The previous 30s default silently cut those waits short
+  // the idempotency/concurrency notes on the SEEDS Test Cases Docmost page:
+  // https://docmost.a4i-lab.in/s/seeds/p/seeds-test-cases-54bIGOBUUJ). The
+  // previous 30s default silently cut those waits short
   // before their own internal timeout logic ever got a chance to run,
   // producing misleading "Test timeout of 30000ms exceeded" failures instead
   // of the real, patient result. Tests that call those methods additionally

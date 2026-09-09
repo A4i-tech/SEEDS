@@ -30,3 +30,4 @@ yarn-error.log*
 /test-results
 /playwright/.auth
 e2e-results.json
+/e2e/screenshots
