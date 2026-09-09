@@ -53,22 +53,29 @@ class SyncJob:
     scope: str
     source_id: str | None
     status: str
-    started_at: str
+    created_at: str
+    started_at: str | None
     finished_at: str | None
     total_items: int
     error: str | None
+    options: dict[str, object]
+    retry_count: int = 0
 
     def to_doc(self) -> dict[str, object]:
         return {
             "_id": self.job_id, "tenant_id": self.tenant_id, "source_type": self.source_type, "scope": self.scope,
-            "source_id": self.source_id, "status": self.status, "started_at": self.started_at,
-            "finished_at": self.finished_at, "total_items": self.total_items, "error": self.error,
+            "source_id": self.source_id, "status": self.status, "created_at": self.created_at,
+            "started_at": self.started_at, "finished_at": self.finished_at,
+            "total_items": self.total_items, "error": self.error, "options": self.options,
+            "retry_count": self.retry_count,
         }
 
     @classmethod
     def from_doc(cls, doc: dict[str, object]) -> SyncJob:
         return cls(
             job_id=doc["_id"], tenant_id=doc["tenant_id"], source_type=doc["source_type"], scope=doc["scope"],
-            source_id=doc["source_id"], status=doc["status"], started_at=doc["started_at"], finished_at=doc["finished_at"],
-            total_items=doc["total_items"], error=doc["error"],
+            source_id=doc["source_id"], status=doc["status"], created_at=doc["created_at"],
+            started_at=doc.get("started_at"), finished_at=doc["finished_at"],
+            total_items=doc["total_items"], error=doc["error"], options=doc.get("options") or {},
+            retry_count=doc.get("retry_count", 0),
         )

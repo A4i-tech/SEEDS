@@ -19,9 +19,13 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI
 
+from app.consumers.sync_job_consumer import SyncJobConsumer
 from app.platform.database import close_database, get_database, init_database
 from app.platform.settings import get_settings
 from app.providers.subodha_client import close_subodha_client
+from app.repositories.content_aggregator_sync_job_item_repository import (
+    ContentAggregatorSyncJobItemRepository,
+)
 from app.repositories.content_aggregator_sync_job_repository import (
     ContentAggregatorSyncJobRepository,
 )
@@ -148,6 +152,18 @@ def _make_consumer_tasks(conference_manager: Any) -> list[asyncio.Task]:  # type
         consumer_specs.append(("ContentJobConsumer", ContentJobConsumer(db)))
     except Exception as exc:  # noqa: BLE001
         logger.error("Failed to initialise ContentJobConsumer: %s", exc)
+
+    try:
+        consumer_specs.append((
+            "SyncJobConsumer",
+            SyncJobConsumer(
+                job_repo=ContentAggregatorSyncJobRepository(db),
+                item_repo=ContentAggregatorSyncJobItemRepository(db),
+                db=db,
+            ),
+        ))
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Failed to initialise SyncJobConsumer: %s", exc)
 
     tasks: list[asyncio.Task] = []  # type: ignore[type-arg]
     for name, consumer in consumer_specs:
