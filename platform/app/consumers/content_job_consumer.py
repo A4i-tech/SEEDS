@@ -393,18 +393,16 @@ async def _process_audio_content_job(
             content_doc["audio_content"] = updated_audio
 
             # TTS for pull-model content
-            if content_doc.get("is_pull_model"):
-                await _process_tts_for_content(content_doc, blob_provider)
-
-            # Save updated content
             update_fields: dict = {
                 "audio_content": content_doc["audio_content"],
                 "is_processed": True,
             }
-            if "title" in content_doc:
-                update_fields["title"] = content_doc["title"]
-            if "theme" in content_doc:
-                update_fields["theme"] = content_doc["theme"]
+            if content_doc.get("is_pull_model"):
+                await _process_tts_for_content(content_doc, blob_provider)
+                if "title" in content_doc:
+                    update_fields["title"] = content_doc["title"]
+                if "theme" in content_doc:
+                    update_fields["theme"] = content_doc["theme"]
 
             await content_repo.save_processed(content_id, update_fields)
             await job_repo.mark_completed(job_id)
