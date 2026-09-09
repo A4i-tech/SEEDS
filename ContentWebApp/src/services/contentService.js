@@ -116,4 +116,59 @@ export const contentService = {
 
     return ContentDto.fromApi(response);
   },
+
+  /**
+   * Extract readable content from a website.
+   * @param {string} url - Website URL
+   * @returns {Promise<Object>}
+   */
+  async extractWebsite(url) {
+    if (!url || !url.trim()) {
+      throw new Error("Website URL is required");
+    }
+
+    return await apiFetch(`${SEEDS_URL}/content/extract-website`, {
+      method: "POST",
+      headers: {
+        ...getAuthHeaders(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ url: url.trim() }),
+    });
+  },
+
+  /**
+   * Translate extracted website content.
+   * @param {string} content - Extracted website text
+   * @param {string} targetLanguage - Target language display name
+   * @param {Object} [options]
+   * @param {string} [options.targetLanguageCode] - ISO code (e.g. "hi"). When
+   *   provided together with siteId, the translation is persisted into the
+   *   same translation store the runtime SDK reads from.
+   * @param {string} [options.siteId] - Real backend siteId (UUID) for the website.
+   * @param {string} [options.route] - Route the translation applies to, default "/".
+   * @returns {Promise<Object>}
+   */
+  async translateWebsite(content, targetLanguage, options = {}) {
+    if (!content || !content.trim()) {
+      throw new Error("Content is required");
+    }
+
+    const { targetLanguageCode, siteId, route } = options;
+
+    return await apiFetch(`${SEEDS_URL}/content/translate-website`, {
+      method: "POST",
+      headers: {
+        ...getAuthHeaders(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        content,
+        targetLanguage,
+        ...(targetLanguageCode ? { targetLanguageCode } : {}),
+        ...(siteId ? { siteId } : {}),
+        ...(route ? { route } : {}),
+      }),
+    });
+  },
 };

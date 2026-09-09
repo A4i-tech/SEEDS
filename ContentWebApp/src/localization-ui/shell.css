@@ -1,0 +1,135 @@
+/* ============================================================
+   App shell — single sidebar + full-height content (no rail, no context bar)
+   ============================================================ */
+.loca-ui {
+  display: block;
+}
+.loca-shell {
+  display: grid;
+  grid-template-columns: var(--side-w) 1fr;
+  height: 100%;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+/* Sidebar */
+.loca-side {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--line);
+  background: var(--surface);
+  min-width: 0;
+}
+.loca-side .s-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 12px;
+}
+
+.loca-side .s-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 8px 12px;
+  margin: 1px 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 8px;
+  color: var(--ink-2);
+  font-size: var(--fs-14);
+  font-weight: 500;
+  text-align: left;
+  transition:
+    background var(--dur) var(--ease),
+    color var(--dur) var(--ease);
+}
+.loca-side .s-item svg {
+  color: var(--muted);
+  flex: 0 0 auto;
+  transition: color var(--dur) var(--ease);
+}
+.loca-side .s-item .s-label {
+  flex: 1;
+  min-width: 0;
+}
+.loca-side .s-item:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.loca-side .s-item:hover svg {
+  color: var(--ink-2);
+}
+.loca-side .s-item.on {
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.loca-side .s-item.on svg {
+  color: var(--accent);
+}
+.loca-side .s-item.on::before {
+  content: "";
+  position: absolute;
+  left: -12px;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
+}
+.loca-side .s-count {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--surface-3);
+  color: var(--ink-2);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+.loca-side .s-item.on .s-count {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* Main content */
+.loca-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100%;
+  position: relative;
+}
+.loca-content {
+  flex: 1;
+  overflow: auto;
+  padding: 28px 32px;
+}
+.loca-content.flush {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+}
+
+/* Mobile: sidebar becomes off-canvas */
+@media (max-width: 900px) {
+  .loca-shell {
+    grid-template-columns: 1fr;
+  }
+  .loca-side {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: var(--side-w);
+    z-index: 40;
+    box-shadow: var(--sh-3);
+    transform: translateX(-110%);
+    transition: transform var(--dur) var(--ease);
+  }
+  .loca-content {
+    padding: 56px 18px 18px;
+  }
+}

@@ -15,6 +15,8 @@ module.exports = {
   moduleNameMapper: {
     "\\.(css|less|scss|sass)$": "<rootDir>/tests/styleMock.js",
     "\\.svg$": "<rootDir>/tests/svgMock.js",
+    "^@radix-ui/primitive/is-development$":
+      "<rootDir>/node_modules/@radix-ui/primitive/dist/internal/is-development.false.js",
   },
   coverageDirectory: "coverage",
   coverageReporters: ["json-summary", "text", "lcov", "html"],
