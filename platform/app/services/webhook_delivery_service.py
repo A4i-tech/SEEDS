@@ -33,8 +33,8 @@ from app.repositories.content_aggregator_webhook_delivery_repository import (
 from app.repositories.content_aggregator_webhook_repository import (
     ContentAggregatorWebhookRepository,
 )
-from app.repositories.integration_client_repository import IntegrationClientRepository
 from app.repositories.content_repository import ContentRepository
+from app.repositories.integration_client_repository import IntegrationClientRepository
 
 logger = logging.getLogger(__name__)
 
