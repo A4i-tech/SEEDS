@@ -28,7 +28,7 @@ def item_repo():
 @pytest.mark.asyncio
 async def test_serialize_job_maps_to_snake_case_shape(repo, item_repo):
     job = await jobs.create_job(repo, tenant_id="tenant-a", source_type="subodha", scope="course", source_id="c1", total_items=1)
-    await jobs.record_item_result(repo, item_repo, "tenant-a", job.job_id, SyncItemResult("c1", "Course One", "saved", None, "2026-08-06T00:00:00Z"))
+    await jobs.record_item_result(item_repo, "tenant-a", job.job_id, SyncItemResult("c1", "Course One", "saved", None, "2026-08-06T00:00:00Z"))
     stored = await repo.get_job("tenant-a", job.job_id)
     items = await item_repo.list_by_job("tenant-a", job.job_id)
 
@@ -48,7 +48,7 @@ async def test_serialize_job_maps_to_snake_case_shape(repo, item_repo):
 @pytest.mark.asyncio
 async def test_subscribe_replays_done_immediately_for_finished_job(repo, item_repo):
     job = await jobs.create_job(repo, tenant_id="tenant-a", source_type="subodha", scope="all", source_id=None, total_items=0)
-    await jobs.finish_job(repo, item_repo, "tenant-a", job.job_id, "completed")
+    await jobs.finish_job(repo, "tenant-a", job.job_id, "completed")
     events = [e async for e in jobs.subscribe(repo, item_repo, "tenant-a", job.job_id)]
     assert len(events) == 1
     assert events[0]["event"] == "done"
@@ -64,15 +64,39 @@ async def test_subscribe_wrong_tenant_yields_nothing(repo, item_repo):
 @pytest.mark.asyncio
 async def test_set_total_broadcasts_progress(repo, item_repo):
     job = await jobs.create_job(repo, tenant_id="tenant-a", source_type="subodha", scope="all", source_id=None, total_items=0)
-    await jobs.set_total(repo, item_repo, "tenant-a", job.job_id, 3)
+    await jobs.set_total(repo, "tenant-a", job.job_id, 3)
     stored = await repo.get_job("tenant-a", job.job_id)
     assert stored.total_items == 3
 
 
 @pytest.mark.asyncio
+async def test_subscribe_polls_for_progress_then_done(repo, item_repo, monkeypatch):
+    monkeypatch.setattr(jobs, "POLL_INTERVAL_SECONDS", 0)
+    job = await jobs.create_job(repo, tenant_id="tenant-a", source_type="subodha", scope="all", source_id=None, total_items=2)
+    job = await repo.claim_next_pending("subodha")
+
+    events = []
+
+    async def _consume():
+        async for event in jobs.subscribe(repo, item_repo, "tenant-a", job.job_id):
+            events.append(event)
+            if len(events) == 1:
+                await jobs.record_item_result(
+                    item_repo, "tenant-a", job.job_id,
+                    SyncItemResult("c1", "Course One", "saved", None, "2026-08-06T00:00:00Z"),
+                )
+            elif len(events) == 2:
+                await jobs.finish_job(repo, "tenant-a", job.job_id, "completed")
+
+    await _consume()
+
+    assert [e["event"] for e in events] == ["progress", "progress", "done"]
+
+
+@pytest.mark.asyncio
 async def test_finish_job_sets_status(repo, item_repo):
     job = await jobs.create_job(repo, tenant_id="tenant-a", source_type="subodha", scope="all", source_id=None, total_items=0)
-    await jobs.finish_job(repo, item_repo, "tenant-a", job.job_id, "failed", error="boom")
+    await jobs.finish_job(repo, "tenant-a", job.job_id, "failed", error="boom")
     stored = await repo.get_job("tenant-a", job.job_id)
     assert stored.status == "failed"
     assert stored.error == "boom"

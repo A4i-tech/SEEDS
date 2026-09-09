@@ -247,7 +247,7 @@ class SubodhaService:
             to_process = to_process[:limit]
 
         logger.info("[subodha] %d of %d courses queued", len(to_process), len(all_courses))
-        await set_total(job_repo, item_repo, tenant_id, job_id, len(to_process))
+        await set_total(job_repo, tenant_id, job_id, len(to_process))
 
         semaphore = asyncio.Semaphore(self._settings.subodha_course_concurrency)
         session_box = {"cookie": session_cookie}
@@ -274,7 +274,7 @@ class SubodhaService:
                     source_id=result["courseId"], name=course.get("name") or "", status=result["status"],
                     error=result.get("error"), at=datetime.now(UTC).isoformat(),
                 )
-                await record_item_result(job_repo, item_repo, tenant_id, job_id, entry)
+                await record_item_result(item_repo, tenant_id, job_id, entry)
 
                 async with lock:
                     processed_count += 1
@@ -325,13 +325,13 @@ class SubodhaService:
             logger.error("[subodha] single-course run %s: course=%s not found among %d live courses", job_id, course_id, len(all_courses))
             raise ValueError(f"Course not found on Subodha: {course_id}")
 
-        await set_total(job_repo, item_repo, tenant_id, job_id, 1)
+        await set_total(job_repo, tenant_id, job_id, 1)
         result = await self.process_course(tenant_id, client, course, session_cookie, job_id, dry_run)
         entry = SyncItemResult(
             source_id=result["courseId"], name=course.get("name") or "", status=result["status"],
             error=result.get("error"), at=datetime.now(UTC).isoformat(),
         )
-        await record_item_result(job_repo, item_repo, tenant_id, job_id, entry)
+        await record_item_result(item_repo, tenant_id, job_id, entry)
 
         items = await item_repo.list_by_job(tenant_id, job_id)
         stats = SyncStats.from_items(items).to_doc()
