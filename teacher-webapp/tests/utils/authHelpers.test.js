@@ -1,4 +1,5 @@
 import * as authHelpers from "../../src/utils/authHelpers";
+import { getAccessToken, setAccessToken, clearAccessToken } from "../../src/utils/tokenStore";
 
 describe("authHelpers", () => {
   // Mock localStorage
@@ -26,6 +27,7 @@ describe("authHelpers", () => {
     });
     localStorageMock.clear();
     jest.clearAllMocks();
+    clearAccessToken();
   });
 
   describe("isLocalStorageAvailable", () => {
@@ -89,21 +91,17 @@ describe("authHelpers", () => {
     });
 
     test("returns false when no token exists", () => {
-      localStorageMock.getItem.mockReturnValue(null);
-
       expect(authHelpers.isAuthenticated()).toBe(false);
-      expect(localStorageMock.getItem).toHaveBeenCalledWith("authToken");
     });
 
     test("returns true when token exists", () => {
-      localStorageMock.getItem.mockReturnValue("test-token-123");
+      setAccessToken("test-token-123");
 
       expect(authHelpers.isAuthenticated()).toBe(true);
-      expect(localStorageMock.getItem).toHaveBeenCalledWith("authToken");
     });
 
     test("returns false when token is empty string", () => {
-      localStorageMock.getItem.mockReturnValue("");
+      setAccessToken("");
 
       expect(authHelpers.isAuthenticated()).toBe(false);
     });
@@ -127,11 +125,11 @@ describe("authHelpers", () => {
     });
 
     test("removes authToken when localStorage is available", () => {
-      localStorageMock.setItem("authToken", "test-token");
+      setAccessToken("test-token");
 
       authHelpers.clearAuth();
 
-      expect(localStorageMock.removeItem).toHaveBeenCalledWith("authToken");
+      expect(getAccessToken()).toBeNull();
     });
 
     test("handles errors gracefully when removeItem throws", () => {
@@ -146,18 +144,13 @@ describe("authHelpers", () => {
 
   describe("getAuthHeaders", () => {
     test("returns null when no token exists", () => {
-      jest.clearAllMocks();
-      localStorageMock.getItem.mockReturnValue(null);
-
       const result = authHelpers.getAuthHeaders();
 
       expect(result).toBeNull();
-      // When there is no token, auth should be cleared (authToken removed)
-      expect(localStorageMock.removeItem).toHaveBeenCalledWith("authToken");
     });
 
     test("returns headers with token when token exists", () => {
-      localStorageMock.getItem.mockReturnValue("test-token-123");
+      setAccessToken("test-token-123");
 
       const result = authHelpers.getAuthHeaders();
 
@@ -167,15 +160,12 @@ describe("authHelpers", () => {
       });
     });
 
-    test("returns null and clears auth when token is empty string", () => {
-      jest.clearAllMocks();
-      localStorageMock.getItem.mockReturnValue("");
+    test("returns null when token is empty string", () => {
+      setAccessToken("");
 
       const result = authHelpers.getAuthHeaders();
 
       expect(result).toBeNull();
-      // When token is empty, auth should be cleared (authToken removed)
-      expect(localStorageMock.removeItem).toHaveBeenCalledWith("authToken");
     });
   });
 });

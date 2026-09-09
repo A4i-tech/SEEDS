@@ -5,6 +5,7 @@ import axiosInstance from "../../src/services/axiosInstance";
 import Login from "../../src/pages/Login";
 import * as authHelpers from "../../src/utils/authHelpers";
 import { useNavigation } from "../../src/hooks/useNavigation";
+import { useAuthContext } from "../../src/contexts/AuthContext";
 
 // Mock dependencies
 jest.mock("../../src/services/axiosInstance", () => ({
@@ -15,6 +16,7 @@ jest.mock("../../src/services/axiosInstance", () => ({
 }));
 jest.mock("../../src/hooks/useNavigation");
 jest.mock("../../src/utils/authHelpers");
+jest.mock("../../src/contexts/AuthContext");
 
 describe("Login", () => {
   const mockNavigate = {
@@ -47,6 +49,10 @@ describe("Login", () => {
     jest.clearAllMocks();
     useNavigation.mockReturnValue(mockNavigate);
     authHelpers.isLocalStorageAvailable.mockReturnValue(true);
+    useAuthContext.mockReturnValue({
+      login: jest.fn(),
+      loginState: { data: null, error: null, isLoading: false },
+    });
   });
 
   describe("localStorage availability check", () => {
