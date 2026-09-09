@@ -13,9 +13,10 @@ from __future__ import annotations
 import json
 import re
 import uuid
+from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import Response, StreamingResponse
 
 from app.models.remediation_job import ARTIFACTS, RemediationJob
@@ -130,6 +131,38 @@ async def get_remediation_artifact(
     filename = ARTIFACTS[name][0]
     return Response(content=data, media_type=content_type,
                     headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@router.get("/jobs/{job_id}/images/{image_name}", summary="Serve an extracted figure image for a remediation job")
+async def get_remediation_image(
+    job_id: str,
+    image_name: str,
+    blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
+) -> Response:
+    safe_name = Path(image_name).name
+    ext = Path(safe_name).suffix.lower()
+    content_types = {
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".webp": "image/webp",
+        ".gif": "image/gif",
+        ".svg": "image/svg+xml",
+    }
+    content_type = content_types.get(ext, "image/jpeg")
+
+    blob_path = f"textbook-remediation/{job_id}/images/{safe_name}"
+    try:
+        data = await blob_provider.download_file(get_settings().azure_storage_container, blob_path)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    return Response(
+        content=data,
+        media_type=content_type,
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
 
 
 @router.get("/jobs/{job_id}/findings", summary="Paginated findings trail for a remediation job")

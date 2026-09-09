@@ -15,7 +15,8 @@ export const textbookRemediationService = {
     const body = new FormData();
     body.append("file", file);
     body.append("language", language);
-    return apiFetch(`${BASE}/jobs`, { method: "POST", headers: getAuthHeaders(), body });
+    const { "Content-Type": _unused, ...headers } = getAuthHeaders();
+    return apiFetch(`${BASE}/jobs`, { method: "POST", headers, body });
   },
 
   async getJobs(limit = 20) {

@@ -6,6 +6,7 @@ SECURITY: Sensitive fields are marked with repr=False to prevent accidental logg
 
 from __future__ import annotations
 
+import sys
 from functools import lru_cache
 from typing import Literal
 
@@ -206,10 +207,11 @@ class Settings(BaseSettings):
     subodha_asset_container: str = "subodha"
 
     # ---------------------------------------------------------------------------
-    # Textbook remediation — OmniIngest lives in a venv of its own (see
-    # app/remediation/requirements.txt for why) and is driven as a subprocess.
+    # Textbook remediation — OmniIngest is installed as a local path dependency
+    # in this project's own venv (see pyproject.toml), driven as a subprocess
+    # so a pipeline crash cannot take the api/consumer process down with it.
     # ---------------------------------------------------------------------------
-    remediation_python: str = "python"
+    remediation_python: str = sys.executable
 
     # ---------------------------------------------------------------------------
     # Derived queue names (IVRv2 pattern)

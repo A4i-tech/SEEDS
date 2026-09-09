@@ -29,10 +29,12 @@ def serialize_job(job: RemediationJob) -> dict[str, object]:
         "stage_count": len(STAGES),
         "artifacts": job.artifacts,
         "counts": job.counts,
+        "progress": job.progress,
         "error": job.error,
         "created_at": job.created_at,
         "finished_at": job.finished_at,
     }
+
 
 
 async def subscribe(

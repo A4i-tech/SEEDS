@@ -1,46 +1,103 @@
 pipeline_id: textbook_ocr
-domain_profile: education
+domain_profile: accessibility
 input_modality: document
-description: Textbook PDF to Markdown.
+description: "Single-pass Mistral Document AI + Vision Alt-Text"
 
 parameters:
   properties:
-    engine:
+    alt_model:
       type: string
-      default: llm
-      description: OCR engine. PyPI 0.1.2 has llm/openai/azure_di; a4i/main has llm/azure_di/sarvam
-    language:
-      type: [string, "null"]
-      default: null
-      description: Source language hint for engines that accept one
-    pages:
-      type: integer
-      default: 100000
-      description: OCR only the first N pages. Keep small for a shape check — one model call per page
+      default: "azure-responses:gpt-4.1-mini"
     concurrency:
       type: integer
       default: 4
-      description: Pages OCR'd at once. Ignored by the llm and sarvam engines upstream, honoured by azure_di
-    out:
-      type: string
-      default: out/raw.md
-      description: Path the Markdown is written to
 
 steps:
   - agent: page_chunking
-    description: PDF to one single-page PDF per page
+    description: "Slice PDF into single pages"
     config:
       mode: pdf
 
-  - agent: ocr
-    description: pages to Markdown
+  - agent: page_stitching
+    description: "Group pages into batches of at most 30 pages (Mistral API limit)"
     config:
-      engine: ${.config.engine}
-      src_lang: ${.config.language}
-      foreach: .items[0:${.config.pages}][]
-      workers: ${.config.concurrency}
+      foreach: 'range(0; (.items | length); 30) as $i | {ids: [.items[$i:($i+30)][].id]}'
+      input: .ids
+      metadata: '{}'
 
-  - agent: write_markdown
-    description: join pages into one Markdown file
+  - agent: ocr
+    description: "Read the document with Mistral Document AI (native figures)"
     config:
-      out: ${.config.out}
+      engine: mistral_ocr
+      format: markdown
+      concurrency: 1
+
+  - agent: safe_extract
+    description: "Describe every figure found by Mistral"
+    config:
+      foreach: '.items[] | select(.metadata.kind == "image")'
+      input: "[.id]"
+      context: '"Page " + (.metadata.page | tostring)'
+      path: ".metadata.accessibility"
+      model: ${.config.alt_model}
+      concurrency: ${.config.concurrency}
+      retries: 3
+      # A vision model's content filter sometimes blocks a crop it can read
+      # clearly, but lets the same figure through once detail is destroyed.
+      # This is a fallback for that false positive, not a fix for real content.
+      content_filter_retries: 2
+      content_filter_scale: 0.5
+      prompt: |
+        You write alt text for a figure in a school textbook, for a blind
+        student.
+
+        Rules:
+        1. Match the primary language and script of the textbook page (e.g. Hindi
+           for Hindi, Marathi for Marathi, English for English). Never invent a label,
+           and never write a script the textbook does not use.
+        2. Say what the figure shows, not what it is. Name every colour change,
+           flame, precipitate, bubble, deposit, glow and relative volume that is
+           visible.
+        3. Never invent a label, and never invent a material. Name a label only
+           when you can read it in the image.
+        4. Keep every scientific qualifier exact. Dilute is not concentrated. A
+           solid is not a solution.
+        5. Mark a figure decorative only when it carries no teaching content,
+           such as a rule, a border, a watermark or a logo.
+        6. Set review_needed when the crop is unclear, when a label is
+           unreadable, or when you are unsure of a chemical name. A flagged
+           figure costs the reviewer a look. A confident wrong one costs a
+           student the experiment.
+
+        alt_text is one sentence under 150 characters, and it must state the
+        observable result in the textbook's language.
+        long_description is the full reading, apparatus and result together.
+      schema:
+        type: object
+        properties:
+          kind:
+            type: string
+            enum: [figure, diagram, chart, table_image, logo, decorative]
+          alt_text: {type: string}
+          long_description: {type: string}
+          observed_result:
+            type: string
+          visible_labels:
+            type: array
+            items:
+              type: object
+              properties:
+                label: {type: string}
+                gloss: {type: string}
+              required: [label, gloss]
+          confidence: {type: number, minimum: 0, maximum: 1}
+          review_needed: {type: boolean}
+          review_reason: {type: string}
+        required: [kind, alt_text, long_description, observed_result, visible_labels, confidence, review_needed, review_reason]
+      assertions:
+        - expr: '.kind == "decorative" or (.alt_text | length) > 0'
+          feedback: "alt_text is empty. Write one sentence, or set kind to decorative."
+        - expr: '.kind == "decorative" or .review_needed or (.observed_result | length) > 0'
+          feedback: "observed_result is empty. Name the colour change, gas, deposit or reading that the figure shows."
+        - expr: '(.alt_text | length) <= 200'
+          feedback: "alt_text is too long. One sentence, under 150 characters."

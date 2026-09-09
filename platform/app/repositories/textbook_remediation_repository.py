@@ -54,6 +54,19 @@ class TextbookRemediationRepository:
         )
         return RemediationJob.from_doc(doc) if doc else None
 
+    async def update_progress(self, job_id: str, progress: dict[str, object]) -> RemediationJob | None:
+        doc = await self._col.find_one_and_update(
+            {"_id": job_id}, {"$set": {"progress": progress}}, return_document=ReturnDocument.AFTER
+        )
+        return RemediationJob.from_doc(doc) if doc else None
+
+    async def update_language(self, job_id: str, language: str) -> RemediationJob | None:
+        doc = await self._col.find_one_and_update(
+            {"_id": job_id}, {"$set": {"language": language}}, return_document=ReturnDocument.AFTER
+        )
+        return RemediationJob.from_doc(doc) if doc else None
+
+
     async def record_artifacts(self, job_id: str, artifacts: dict[str, str], counts: dict[str, int]) -> RemediationJob | None:
         update = {f"artifacts.{name}": url for name, url in artifacts.items()}
         update.update({f"counts.{name}": value for name, value in counts.items()})

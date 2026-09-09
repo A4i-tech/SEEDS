@@ -164,3 +164,28 @@ def test_inline_unresolved_images_surfaces_alt_text_rather_than_losing_it(tmp_pa
     assert "**Figure.** a diagram" in out
     assert "**Figure.** (no description available)" in out
     assert (len(records), resolved) == (2, 0)
+
+
+from app.remediation.detect_language import detect_language  # noqa: E402
+
+
+def test_detect_language_identifies_indic_scripts():
+    hindi_sample = "कबीर के दोहे बहुत प्रसिद्ध हैं। यह पाठ कक्षा 10 के लिए है।" * 5
+    assert detect_language(hindi_sample) == "Hindi"
+
+    tamil_sample = "தமிழ்நாடு அரசு பாடநூல் மற்றும் கல்வியியல் பணிகள் கழகம்" * 5
+    assert detect_language(tamil_sample) == "Tamil"
+
+    kannada_sample = "ಕರ್ನಾಟಕ ಸರ್ಕಾರ ಸಾರ್ವಜನಿಕ ಶಿಕ್ಷಣ ಇಲಾಖೆ" * 5
+    assert detect_language(kannada_sample) == "Kannada"
+
+
+def test_detect_language_identifies_english():
+    english_sample = "Chapter 1: Nutrition in Plants. All living organisms require food."
+    assert detect_language(english_sample) == "English"
+
+
+def test_detect_language_handles_empty_or_whitespace():
+    assert detect_language("") == "English"
+    assert detect_language("   \n\t  ") == "English"
+

@@ -42,6 +42,7 @@ class RemediationJob:
     stage: str | None
     artifacts: dict[str, str] = field(default_factory=dict)
     counts: dict[str, int] = field(default_factory=dict)
+    progress: dict[str, object] = field(default_factory=dict)
     error: str | None = None
     created_at: str = ""
     finished_at: str | None = None
@@ -51,6 +52,7 @@ class RemediationJob:
             "_id": self.job_id, "tenant_id": self.tenant_id, "source_name": self.source_name,
             "source_url": self.source_url, "language": self.language, "status": self.status,
             "stage": self.stage, "artifacts": self.artifacts, "counts": self.counts,
+            "progress": self.progress,
             "error": self.error, "created_at": self.created_at,
             "finished_at": self.finished_at,
         }
@@ -60,7 +62,9 @@ class RemediationJob:
         return cls(
             job_id=doc["_id"], tenant_id=doc["tenant_id"], source_name=doc["source_name"],
             source_url=doc["source_url"], language=doc["language"], status=doc["status"],
-            stage=doc["stage"], artifacts=doc["artifacts"], counts=doc["counts"],
-            error=doc["error"], created_at=doc["created_at"],
-            finished_at=doc["finished_at"],
+            stage=doc["stage"], artifacts=doc.get("artifacts") or {}, counts=doc.get("counts") or {},
+            progress=doc.get("progress") or {},
+            error=doc.get("error"), created_at=doc.get("created_at", ""),
+            finished_at=doc.get("finished_at"),
         )
+

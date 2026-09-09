@@ -9,24 +9,15 @@ import "../shared/buttons.css";
 import "../shared/tables.css";
 import "./css/RemediationTab.css";
 
-const LANGUAGES = [
-  { code: "en", label: "English (no translation)" },
-  { code: "kn", label: "Kannada" },
-  { code: "ta", label: "Tamil" },
-  { code: "hi", label: "Hindi" },
-  { code: "mr", label: "Marathi" },
-];
-
 const RemediationTab = () => {
   const navigate = useNavigate();
   const { jobs, isLoading, isUploading, error, upload } = useRemediationJobs();
-  const [language, setLanguage] = useState("en");
   const fileRef = useRef(null);
 
   const handleFile = async (event) => {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (file) await upload(file, language);
+    if (file) await upload(file, "auto");
   };
 
   return (
@@ -39,18 +30,6 @@ const RemediationTab = () => {
           </div>
         </div>
         <div className="remediation-upload">
-          <select
-            className="remediation-language"
-            value={language}
-            onChange={(event) => setLanguage(event.target.value)}
-            aria-label="Language for figure descriptions"
-          >
-            {LANGUAGES.map(({ code, label }) => (
-              <option key={code} value={code}>
-                {label}
-              </option>
-            ))}
-          </select>
           <input
             ref={fileRef}
             type="file"
@@ -68,6 +47,7 @@ const RemediationTab = () => {
           </button>
         </div>
       </div>
+
 
       {error && <p className="content-details-error">Error: {error}</p>}
       {isLoading && jobs.length === 0 && <p className="table-cell-secondary">Loading…</p>}

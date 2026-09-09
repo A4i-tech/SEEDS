@@ -42,12 +42,23 @@ class WriteMarkdownAgent(BaseModel, Step):
     async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
         pages = {}
         for item in ctx.items:
-            if not (await item.content_type(ctx)).startswith("text/"):
-                continue
-            page = item.metadata.get("page")
-            if page is None:
-                raise ValueError(f"Item {item.id} has no page metadata; run page_chunking first")
-            pages[int(page)] = await item.decode(ctx)
+            ctype = await item.content_type(ctx)
+            if ctype.startswith("text/"):
+                page = item.metadata.get("page")
+                if page is None:
+                    raise ValueError(f"Item {item.id} has no page metadata; run page_chunking first")
+                pages[int(page)] = await item.decode(ctx)
+            elif item.metadata.get("kind") == "image" or ctype.startswith("image/"):
+                try:
+                    img_bytes = await item.content(ctx)
+                    if img_bytes:
+                        filename = item.metadata.get("filename") or str(item.id)
+                        if not filename.endswith((".jpg", ".jpeg", ".png", ".webp", ".svg", ".gif")):
+                            filename = f"{filename}.jpg"
+                        self.out.parent.mkdir(parents=True, exist_ok=True)
+                        (self.out.parent / filename).write_bytes(img_bytes)
+                except Exception:
+                    pass
 
         ordered = order_pages(list(pages))
         markdown = self.separator.join(pages[page] for page in ordered)
