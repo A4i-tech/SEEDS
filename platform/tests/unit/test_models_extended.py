@@ -812,7 +812,7 @@ class TestAuthService:
         await register_tenant(tc, db)
 
         result = await login_unified("carol@example.com", "mypassword", True, db)
-        assert "token" in result
+        assert "access_token" in result
         assert result["user"]["email"] == "carol@example.com"
         # password must not be in response
         assert "hashed_password" not in result["user"]
