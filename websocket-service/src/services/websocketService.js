@@ -4,39 +4,43 @@ const logger = require("../logger");
 const azureBlobService = require("./azureBlobService");
 const connectionManager = require("./connectionManager");
 const { PlaybackStatus } = require("../constants");
+const { getVariantBlobName, snapToSupportedSpeed } = require("./speedVariants");
 
 const AUDIO_BYTES_PER_SECOND = 16000; // 320 bytes * 50 chunks per second
 const CHUNK_BYTES = 320;
 
+// Conference-level speed, keyed by connection id. Survives a new physical
+// WebSocket connection (e.g. Vonage reconnecting per content item), unlike
+// the per-connection `state` object which is recreated on every reconnect.
+const sessionSpeeds = new Map();
+
 /**
- * Resamples 16-bit LE PCM audio from sourceSamples to targetSamples using
- * linear interpolation. Used to implement playback speed changes: reading
- * more source samples and resampling down speeds up, fewer and resampling
- * up slows down.
+ * Returns the last speed set for *id*, or 1.0 if none was ever set.
  */
-function resampleChunk(sourceBuffer, targetBytes) {
-  const sourceSamples = sourceBuffer.length / 2;
-  const targetSamples = targetBytes / 2;
-  if (sourceSamples === targetSamples) return sourceBuffer;
+function getSessionSpeed(id) {
+  return sessionSpeeds.get(id) || 1.0;
+}
 
-  const out = Buffer.alloc(targetBytes);
-  const ratio = sourceSamples / targetSamples;
-
-  for (let i = 0; i < targetSamples; i++) {
-    const srcPos = i * ratio;
-    const srcIdx = Math.floor(srcPos);
-    const frac = srcPos - srcIdx;
-
-    const s0 = sourceBuffer.readInt16LE(srcIdx * 2);
-    const s1 =
-      srcIdx + 1 < sourceSamples
-        ? sourceBuffer.readInt16LE((srcIdx + 1) * 2)
-        : s0;
-
-    const val = Math.round(s0 + frac * (s1 - s0));
-    out.writeInt16LE(Math.max(-32768, Math.min(32767, val)), i * 2);
+/**
+ * Resolves the blob data for *speed*, using the per-connection variant cache
+ * when available. Falls back to the cached 1.0x base blob (and reports
+ * resolvedSpeed: 1.0) if the requested variant is missing.
+ */
+async function loadVariant(audioState, speed, id) {
+  if (speed === 1.0) return { data: audioState.variantCache.get(1.0), resolvedSpeed: 1.0 };
+  if (audioState.variantCache.has(speed)) {
+    return { data: audioState.variantCache.get(speed), resolvedSpeed: speed };
   }
-  return out;
+  const variantBlobName = getVariantBlobName(audioState.baseBlobName, speed);
+  try {
+    const data = await azureBlobService.getBlobData(audioState.containerName, variantBlobName);
+    if (!data) throw new Error("empty variant blob");
+    audioState.variantCache.set(speed, data);
+    return { data, resolvedSpeed: speed };
+  } catch (error) {
+    logger.warn(`No ${speed}x variant for ID: ${id} (${variantBlobName}); falling back to 1.0x`, error);
+    return { data: audioState.variantCache.get(1.0), resolvedSpeed: 1.0 };
+  }
 }
 
 /**
@@ -63,27 +67,35 @@ async function playAudioContent(id, blobUrl) {
     state.playbackId = (state.playbackId || 0) + 1;
     const currentPlaybackId = state.playbackId;
 
-    // Reset audio content state
+    const { containerName, blobName } = parseBlobUrl(blobUrl);
+    const requestedSpeed = state.speed || 1.0;
+
+    // Reset audio content state — speed is read from state.speed (session-level),
+    // never hardcoded, so it survives across content items.
     state.audioContentState = {
       blobUrl,
+      containerName,
+      baseBlobName: blobName,
       position: 0,
       playing: true,
-      speed: 1.0,
+      speed: requestedSpeed,
+      variantCache: new Map(),
+      blobData: null,
     };
 
-    // Discard old audio content blobData
-    state.audioContentState.blobData = null;
-
-    logger.info(`playAudioContent called for ID: ${id}, Blob URL: ${blobUrl.substring(0,5)}`);
+    logger.info(`playAudioContent called for ID: ${id}, Blob URL: ${blobUrl.substring(0,5)}, speed: ${requestedSpeed}`);
 
     // If no system audio content is playing, start playing audio content
     if (!state.currentAudioType || state.currentAudioType === "audioContent") {
       state.currentAudioType = "audioContent";
-      const { containerName, blobName } = parseBlobUrl(blobUrl);
-      const blobData = await azureBlobService.getBlobData(containerName, blobName);
-      logger.info(`Blob downloaded for ID: ${id}, size: ${blobData ? blobData.length : 'null'} bytes`);
+      const baseBlobData = await azureBlobService.getBlobData(containerName, blobName);
+      logger.info(`Blob downloaded for ID: ${id}, size: ${baseBlobData ? baseBlobData.length : 'null'} bytes`);
+      state.audioContentState.baseDurationSeconds = baseBlobData ? baseBlobData.length / AUDIO_BYTES_PER_SECOND : 0;
+      state.audioContentState.variantCache.set(1.0, baseBlobData);
+
+      const { data: blobData, resolvedSpeed } = await loadVariant(state.audioContentState, requestedSpeed, id);
       state.audioContentState.blobData = blobData;
-      state.audioContentState.durationSeconds = blobData ? blobData.length / AUDIO_BYTES_PER_SECOND : 0;
+      state.audioContentState.speed = resolvedSpeed;
 
       sendPlaybackStatus(id, PlaybackStatus.PLAYING);
       logger.info(`Starting audio content playback for ID: ${id}`);
@@ -207,28 +219,9 @@ function sendAudioContentChunks(ws, id, blobData, state, playbackId) {
       return;
     }
 
-    const speed = state.audioContentState.speed || 1.0;
-    const sourceBytes = Math.min(
-      Math.round(CHUNK_BYTES * speed),
-      totalLength - position
-    );
-    // Ensure sourceBytes is even (16-bit samples = 2 bytes each)
-    const alignedSourceBytes = sourceBytes & ~1;
-    if (alignedSourceBytes === 0) {
-      // Remaining data too small to form a sample; treat as end of file
-      logger.info(`Audio content streaming completed for ID: ${id}`);
-      state.audioContentState.playing = false;
-      state.currentAudioType = null;
-      sendPlaybackStatus(id, PlaybackStatus.STOPPED);
-      return;
-    }
-
-    const sourceSlice = blobData.slice(position, position + alignedSourceBytes);
-    const chunk =
-      speed === 1.0 && alignedSourceBytes === CHUNK_BYTES
-        ? sourceSlice
-        : resampleChunk(sourceSlice, CHUNK_BYTES);
-    position += alignedSourceBytes;
+    const end = Math.min(position + CHUNK_BYTES, totalLength);
+    const chunk = blobData.slice(position, end);
+    position = end;
     state.audioContentState.position = position;
     chunksSinceLastReport++;
 
@@ -376,18 +369,20 @@ async function seekAudioContent(id, seekPayload) {
     throw new Error("No audio content data to seek");
   }
   const seekTarget = extractSeekTarget(seekPayload);
+  const speed = audioState.speed || 1.0;
+  const currentLogicalPosition = (audioState.position || 0) * speed;
   logger.info(
-    `Seek request received for ID: ${id}; ${seekTarget.type}: ${seekTarget.value}; currentPosition: ${audioState.position}`
+    `Seek request received for ID: ${id}; ${seekTarget.type}: ${seekTarget.value}; currentLogicalPosition: ${currentLogicalPosition}`
   );
-  const totalLength = audioState.blobData.length;
-  const currentPosition = audioState.position || 0;
-  const targetPosition =
+  const totalLogicalLength = (audioState.baseDurationSeconds || 0) * AUDIO_BYTES_PER_SECOND;
+  const targetLogicalPosition =
     seekTarget.type === "absolute"
-      ? clampPosition(Math.trunc(seekTarget.value * AUDIO_BYTES_PER_SECOND), totalLength)
+      ? clampPosition(Math.trunc(seekTarget.value * AUDIO_BYTES_PER_SECOND), totalLogicalLength)
       : clampPosition(
-          Math.trunc(currentPosition + seekTarget.value * AUDIO_BYTES_PER_SECOND),
-          totalLength
+          Math.trunc(currentLogicalPosition + seekTarget.value * AUDIO_BYTES_PER_SECOND),
+          totalLogicalLength
         );
+  const targetPosition = clampPosition(Math.trunc(targetLogicalPosition / speed), audioState.blobData.length);
 
   audioState.position = targetPosition;
 
@@ -413,24 +408,39 @@ async function seekAudioContent(id, seekPayload) {
 }
 
 /**
- * Changes the playback speed and restarts streaming from the current position.
+ * Changes the playback speed, swapping to the matching pre-generated variant
+ * and continuing streaming from the equivalent logical position.
  * @param {string} id - Unique identifier for the connection.
- * @param {number} speed - Playback speed multiplier (e.g. 0.75, 1.0, 1.5, 2.0).
+ * @param {number} speed - Requested playback speed multiplier.
  */
-function setPlaybackSpeed(id, speed) {
+async function setPlaybackSpeed(id, speed) {
   const connection = connectionManager.getConnection(id);
   if (!connection) throw new Error("WebSocket connection not found");
 
-  const { ws, state } = connection;
-  const audioState = state.audioContentState;
-
-  if (!audioState || !audioState.blobData) {
-    throw new Error("No audio content data to change speed");
+  if (!Number.isFinite(speed) || speed <= 0) {
+    logger.warn(`Ignoring invalid playback speed for ID: ${id}: ${speed}`);
+    return;
   }
 
-  const clampedSpeed = Math.max(0.5, Math.min(3.0, speed));
-  audioState.speed = clampedSpeed;
-  logger.info(`Playback speed set to ${clampedSpeed}x for ID: ${id}`);
+  const { ws, state } = connection;
+  const clampedSpeed = snapToSupportedSpeed(speed);
+  state.speed = clampedSpeed;
+  sessionSpeeds.set(id, clampedSpeed);
+
+  const audioState = state.audioContentState;
+  if (!audioState || !audioState.blobData) {
+    logger.info(`Playback speed set to ${clampedSpeed}x for ID: ${id} (no active content)`);
+    return;
+  }
+
+  const currentLogicalPosition = (audioState.position || 0) * (audioState.speed || 1.0);
+  const { data: variantData, resolvedSpeed } = await loadVariant(audioState, clampedSpeed, id);
+
+  audioState.blobData = variantData;
+  audioState.speed = resolvedSpeed;
+  audioState.position = clampPosition(Math.trunc(currentLogicalPosition / resolvedSpeed), variantData.length);
+
+  logger.info(`Playback speed set to ${resolvedSpeed}x for ID: ${id}`);
 
   if (state.currentAudioType === "audioContent" && audioState.playing) {
     state.playbackId = (state.playbackId || 0) + 1;
@@ -474,6 +484,7 @@ function closeConnection(id) {
 
   const { ws, state } = connection;
   state.isClosed = true;
+  sessionSpeeds.delete(id);
   ws.close();
   sendPlaybackStatus(id, PlaybackStatus.STOPPED);
   logger.info(`WebSocket connection closed for ID: ${id}`);
@@ -512,12 +523,11 @@ function sendPlaybackStatus(id, status) {
     const conn = connectionManager.getConnection(id);
     const audioState = conn?.state?.audioContentState;
 
+    const speed = audioState?.speed || 1.0;
     const positionSec = audioState
-      ? parseFloat(((audioState.position || 0) / AUDIO_BYTES_PER_SECOND).toFixed(2))
+      ? parseFloat((((audioState.position || 0) / AUDIO_BYTES_PER_SECOND) * speed).toFixed(2))
       : 0;
-    const durationSec = audioState?.blobData
-      ? parseFloat((audioState.blobData.length / AUDIO_BYTES_PER_SECOND).toFixed(2))
-      : (audioState?.durationSeconds || 0);
+    const durationSec = parseFloat((audioState?.baseDurationSeconds || 0).toFixed(2));
 
     const payload = {
       websocket_id: id,
@@ -525,7 +535,7 @@ function sendPlaybackStatus(id, status) {
       message: status,
       position_seconds: positionSec,
       duration_seconds: durationSec,
-      speed: audioState?.speed || 1.0,
+      speed,
     };
     logger.info(`sendPlaybackStatus [${id}]: status=${status}, position=${payload.position_seconds}, duration=${payload.duration_seconds}, speed=${payload.speed}, blobData=${audioState?.blobData ? audioState.blobData.length + ' bytes' : 'null'}`);
 
@@ -586,13 +596,16 @@ function clampPosition(position, totalLength) {
   if (upperBound <= 0) {
     return 0;
   }
-  if (position < 0) {
-    return 0;
+  let clamped = position;
+  if (clamped < 0) {
+    clamped = 0;
   }
-  if (position > upperBound) {
-    return upperBound;
+  if (clamped > upperBound) {
+    clamped = upperBound;
   }
-  return position;
+  // Audio is 16-bit PCM (2 bytes/sample) — round down to an even byte offset
+  // so we never split a sample across a chunk boundary.
+  return clamped - (clamped % 2);
 }
 
 module.exports = {
@@ -605,4 +618,5 @@ module.exports = {
   stopAudioContent,
   closeConnection,
   handleAccidentalDisconnection,
+  getSessionSpeed,
 };

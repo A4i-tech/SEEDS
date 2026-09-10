@@ -385,6 +385,30 @@ class TestConfeventExecution:
         assert sent_messages[0].type == MessageType.PAUSE_AUDIO
 
     @pytest.mark.asyncio
+    async def test_set_playback_speed_event_sends_speed_message(self) -> None:
+        from app.models.ws_service_message import MessageType
+        from app.services.confevents.set_playback_speed_event import SetPlaybackSpeedEvent
+
+        call = _make_conf_call()
+        call.state.audio_content_state.speed = 1.0
+
+        sent_messages = []
+
+        fake_ws_instance = MagicMock()
+        fake_ws_instance.send_message = AsyncMock(side_effect=lambda m: sent_messages.append(m))
+
+        with patch("app.providers.websocket_client.WebsocketClientProvider", return_value=fake_ws_instance):
+            with patch.object(call, "update_state", AsyncMock()):
+                evt = SetPlaybackSpeedEvent(conf_call=call, speed=1.5)
+                await evt.execute_event()
+
+        assert len(sent_messages) == 1
+        assert sent_messages[0].type == MessageType.SET_SPEED
+        assert sent_messages[0].websocket_id == call.conf_id
+        assert sent_messages[0].message == "1.5"
+        assert call.state.audio_content_state.speed == 1.5
+
+    @pytest.mark.asyncio
     async def test_end_conference_event_sets_not_running(self) -> None:
         from app.services.confevents.end_conf_event import EndConferenceEvent
 

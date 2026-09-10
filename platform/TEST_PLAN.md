@@ -536,3 +536,18 @@ ws: "^8.13.0"                   # WebSocket testing
 - **< 100ms Response Time**: For critical API endpoints
 - **Zero Data Loss**: In conference and content management
 - **Automatic Recovery**: From transient failures
+
+## ✅ Manual Verification Checklist — #577 Pitch-Preserving Speed Control
+
+Automated unit/integration suites pass (see PR description). The following requires a live Vonage call and cannot be automated; run before merge.
+
+- [ ] Play content at each supported speed — **0.75x**, **1.0x**, **1.25x**, **1.5x**, **2.0x** — over a live Vonage phone call; audio plays at the expected rate for all five.
+- [ ] Pitch stays unchanged at every speed (no chipmunk/slowdown-drawl effect) — compare voice timbre at 0.75x and 2.0x against 1.0x.
+- [ ] Change speed mid-playback (e.g. 1.0x → 1.5x) and confirm the switch takes effect at the next ~20ms chunk boundary, not immediately mid-chunk and not after a long delay.
+- [ ] Confirm no audible gap, click, or restart artifact at the moment of the speed switch.
+- [ ] Confirm playback position after a speed switch matches the expected logical position (no skip/repeat of audio).
+- [ ] Finish one content item while at a non-1.0x speed and let the next item auto-play — confirm the next item starts at the same speed, not reset to 1.0x.
+- [ ] Change speed, then let the current track finish and seek forward several seconds — confirm the new speed still applies after the seek.
+- [ ] Set a conference speed, then hang up and redial the same conference (new Vonage/WebSocket leg) — confirm the previously-set speed is still applied on reconnect, not reset to 1.0x.
+- [ ] Play a teacher-uploaded audio item at 1.5x — confirm variant playback and pitch-preservation work the same as for platform-generated content.
+- [ ] Play a content item uploaded *before* this change (no variant blobs exist) at 1.5x — confirm it falls back to 1.0x with a logged warning, not a crash or silent wrong-speed playback.
