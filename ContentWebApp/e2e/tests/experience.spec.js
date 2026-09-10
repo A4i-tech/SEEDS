@@ -22,11 +22,6 @@ test.beforeEach(async ({}, testInfo) => {
 // pitfalls, update-propagation not being asserted).
 test.describe.configure({ mode: 'serial' });
 
-// Skipped: the shared backend content-processing queue degrades under this
-// suite's own load (confirmed live, still reproducing on both onrender and
-// dev as of 2026-09-11) — content stays on "Content is being processed, try
-// again later!" well past this file's 180s test timeout. Not a test bug; see
-// A4i-tech/.github#593. Re-enable (drop `.skip`) once #593 is resolved.
 const EXPERIENCES = [
   { type: 'Story', prefix: 'STORY' },
   { type: 'Poem', prefix: 'POEM' },
@@ -34,7 +29,7 @@ const EXPERIENCES = [
 ];
 
 for (const { type, prefix } of EXPERIENCES) {
-  test.describe.skip(`${type} content`, () => {
+  test.describe(`${type} content`, () => {
     test(`TC-EXP-${prefix}-001 tenant can create, update, and delete ${type} content`, async ({ page }) => {
       const loginPage = new LoginPage(page);
       const contentPage = new ContentPage(page);

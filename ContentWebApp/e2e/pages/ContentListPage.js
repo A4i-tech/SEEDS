@@ -70,11 +70,23 @@ class ContentListPage {
    * confirmed live). Re-finds and re-opens Edit on each attempt since the
    * async creation job (see waitForRow's note) may still be settling the
    * record's position in the list too.
+   *
+   * ContentEdit.js shows its own "Loading..." state while it fetches the
+   * content record, before it knows whether processing is done — checking
+   * for the "still processing" text before that fetch resolves can find
+   * neither "Loading..." nor "still processing" in the DOM yet, wrongly
+   * conclude processing is done, and return with the caller left on a page
+   * that hasn't rendered the edit form at all (confirmed live via trace: the
+   * check ran 8ms after navigating to the edit page, while it was still
+   * showing "Loading...", and the page went on to render "still processing"
+   * a moment later — the caller then hung forever waiting for a form field
+   * that page state never has). Wait for "Loading..." to clear first.
    */
   async waitUntilProcessed(title, { timeout = 120000, interval = 5000 } = {}) {
     const deadline = Date.now() + timeout;
     for (;;) {
       await this.editContent(title);
+      await this.page.getByText('Loading...').waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
       const stillProcessing = await this.page
         .getByText('Content is being processed, try again later!')
         .isVisible()
