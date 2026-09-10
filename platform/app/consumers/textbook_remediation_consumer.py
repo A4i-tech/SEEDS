@@ -31,6 +31,7 @@ TextbookRemediationRepository.reconcile_interrupted_jobs marks it failed.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import os
@@ -40,6 +41,7 @@ import tempfile
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
+import dotenv
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.remediation_job import ARTIFACTS, RemediationJob
@@ -69,7 +71,20 @@ async def _run_pipeline(
         str(PIPELINE_PATH), "--input", str(resource),
         "--quiet", "--progress-file", str(progress_file), *options,
     ]
-    env = {**os.environ, "PYTHONPATH": str(PLATFORM_ROOT), "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
+    env_file = PLATFORM_ROOT / ".env"
+    env_vars: dict[str, str] = {}
+    if env_file.exists():
+        env_vars = {k: v for k, v in dotenv.dotenv_values(env_file).items() if v is not None}
+        with contextlib.suppress(Exception):
+            (workspace / ".env").write_bytes(env_file.read_bytes())
+
+    env = {
+        **os.environ,
+        **env_vars,
+        "PYTHONPATH": str(PLATFORM_ROOT),
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONUTF8": "1",
+    }
 
     def _exec() -> tuple[int, str]:
         proc = subprocess.Popen(
