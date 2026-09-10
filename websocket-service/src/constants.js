@@ -25,7 +25,14 @@ const PlaybackStatus = {
   STOPPED: "Stopped",
 };
 
+/**
+ * Speeds for which pre-generated, pitch-preserving audio variants exist.
+ * Must match SUPPORTED_SPEEDS in platform/app/services/fsm/instantiation/speed_control.py.
+ */
+const SUPPORTED_SPEEDS = [0.75, 1.0, 1.25, 1.5, 2.0];
+
 module.exports = {
   MessageType,
   PlaybackStatus,
+  SUPPORTED_SPEEDS,
 };
