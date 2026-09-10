@@ -1,54 +1,46 @@
-"""Infers the dominant language or script of a textbook from extracted text."""
+"""Infers the dominant language of a textbook from extracted text using langdetect."""
 from __future__ import annotations
 
-import re
+import logging
 
-# Unicode ranges for major Indian scripts and others commonly in textbooks
-_SCRIPTS: list[tuple[str, re.Pattern[str]]] = [
-    ("Hindi", re.compile(r"[\u0900-\u097F]")),       # Devanagari
-    ("Tamil", re.compile(r"[\u0B80-\u0BFF]")),       # Tamil
-    ("Kannada", re.compile(r"[\u0C80-\u0CFF]")),     # Kannada
-    ("Telugu", re.compile(r"[\u0C00-\u0C7F]")),      # Telugu
-    ("Bengali", re.compile(r"[\u0980-\u09FF]")),     # Bengali / Assamese
-    ("Gujarati", re.compile(r"[\u0A80-\u0AFF]")),    # Gujarati
-    ("Malayalam", re.compile(r"[\u0D00-\u0D7F]")),   # Malayalam
-    ("Odia", re.compile(r"[\u0B00-\u0B7F]")),        # Odia
-    ("Punjabi", re.compile(r"[\u0A00-\u0A7F]")),     # Gurmukhi
-    ("Urdu", re.compile(r"[\u0600-\u06FF]")),        # Arabic / Urdu script
-]
+from langdetect import DetectorFactory, detect_langs
 
-_LATIN_PATTERN = re.compile(r"[a-zA-Z]")
+DetectorFactory.seed = 0
+
+logger = logging.getLogger(__name__)
+
+_LANG_MAP: dict[str, str] = {
+    "hi": "Hindi",
+    "ta": "Tamil",
+    "kn": "Kannada",
+    "te": "Telugu",
+    "bn": "Bengali",
+    "gu": "Gujarati",
+    "ml": "Malayalam",
+    "mr": "Marathi",
+    "pa": "Punjabi",
+    "ur": "Urdu",
+    "or": "Odia",
+    "as": "Assamese",
+    "en": "English",
+}
 
 
-def detect_language(text: str, max_chars: int = 50000) -> str:
-    """Infers dominant language from text content.
-
-    If an Indic or regional script is substantially present (> 30 characters),
-    that language is returned because textbooks in regional mediums frequently have
-    English publisher metadata, URLs, ISBNs, and numbers.
-    Otherwise, if Latin letters predominate, returns 'English'.
-    """
-    if not text:
+def detect_language(text: str, max_chars: int = 10000) -> str:
+    """Infers dominant language from text content using langdetect library."""
+    sample = text[:max_chars].strip()
+    if not sample:
         return "English"
 
-    sample = text[:max_chars]
-
-    best_indic_lang = None
-    max_indic_count = 0
-    for lang, pattern in _SCRIPTS:
-        count = len(pattern.findall(sample))
-        if count > max_indic_count:
-            max_indic_count = count
-            best_indic_lang = lang
-
-    if best_indic_lang and max_indic_count >= 30:
-        return best_indic_lang
-
-    latin_count = len(_LATIN_PATTERN.findall(sample))
-    if latin_count > 0:
-        return "English"
-
-    if best_indic_lang and max_indic_count > 0:
-        return best_indic_lang
+    try:
+        langs = detect_langs(sample)
+        if langs:
+            for item in langs:
+                if item.lang in _LANG_MAP and item.lang != "en" and item.prob > 0.15:
+                    return _LANG_MAP[item.lang]
+            primary = langs[0].lang
+            return _LANG_MAP.get(primary, primary.capitalize())
+    except Exception as exc:
+        logger.debug("Language detection fallback: %s", exc)
 
     return "English"

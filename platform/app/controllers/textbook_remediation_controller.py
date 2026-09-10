@@ -49,9 +49,9 @@ class DraftUpdateRequest(BaseModel):
 
 
 class VerifyJobRequest(BaseModel):
-    title: str | None = None
-    subject: str | None = None
-    grade: int | None = None
+    title: str = ""
+    subject: str = ""
+    grade: int = 0
     publish_to_library: bool = True
 
 async def _get_job(repo: TextbookRemediationRepository, tenant_id: str, job_id: str) -> RemediationJob:
