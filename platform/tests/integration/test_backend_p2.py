@@ -160,8 +160,8 @@ async def test_content_tenant_scoped(client, mock_db):
     # Seed content for tenant_b
     content_id = str(ObjectId())
     await mock_db["contentsV3"].insert_one({
-        "_id": ObjectId(content_id),
-        "tenant_id": ObjectId(_TENANT_B_ID),
+        "_id": content_id,
+        "tenant_id": "tenant_b",
         "type": "Story",
         "language": "english",
         "title": {"english": "B Story"},
@@ -219,8 +219,8 @@ async def test_content_job_consumer_process_audio(mock_db):
 
     # Seed a content document
     await mock_db["contentsV3"].insert_one({
-        "_id": ObjectId(content_id),
-        "tenant_id": ObjectId(_TENANT_A_ID),
+        "_id": content_id,
+        "tenant_id": "tenant001",
         "type": "Story",
         "language": "kannada",
         "title": {"english": "Test", "local": "ಪರೀಕ್ಷೆ"},
@@ -292,8 +292,8 @@ async def test_content_job_dead_letter_on_failure(mock_db):
 
     # Seed content with a bad audio URL (not a valid blob URL)
     await mock_db["contentsV3"].insert_one({
-        "_id": ObjectId(content_id),
-        "tenant_id": ObjectId(_TENANT_A_ID),
+        "_id": content_id,
+        "tenant_id": "tenant001",
         "type": "Story",
         "language": "english",
         "title": {"english": "Broken"},

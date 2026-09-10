@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Box,
   Container,
@@ -18,6 +18,7 @@ import { useNavigation } from "../hooks/useNavigation";
 import { showToast } from "../utils/toast";
 import { isLocalStorageAvailable } from "../utils/authHelpers";
 import { isValidPhoneNumber } from "../utils/phoneUtils";
+import { fetchTTSPrompt } from "../services/voiceCommandService";
 
 function Login() {
   const navigate = useNavigation();
@@ -25,6 +26,17 @@ function Login() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const welcomeAudioRef = useRef(null);
+
+  // Pre-fetch welcome audio so it's ready to play the instant login succeeds
+  useEffect(() => {
+    (async () => {
+      const { audio_base64 } = await fetchTTSPrompt("welcome");
+      if (audio_base64) {
+        welcomeAudioRef.current = new Audio(`data:audio/mp3;base64,${audio_base64}`);
+      }
+    })();
+  }, []);
 
   const handleLogin = async () => {
     // Check localStorage availability before attempting login
@@ -56,6 +68,10 @@ function Login() {
       if (response.status === STATUS_CODES.SUCCESS) {
         localStorage.setItem("authToken", response.data.token);
         showToast.success("Login successful!");
+        if (welcomeAudioRef.current && !sessionStorage.getItem("seeds_welcomed")) {
+          sessionStorage.setItem("seeds_welcomed", "1");
+          welcomeAudioRef.current.play().catch(() => {});
+        }
         navigate.goToClassroom();
       }
     } catch (error) {

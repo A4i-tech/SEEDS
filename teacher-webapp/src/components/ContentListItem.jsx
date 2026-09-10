@@ -47,7 +47,6 @@ const ContentListItem = ({
         opacity: isLoading ? 0.7 : 1,
       }}
     >
-      {/* Color icon */}
       <Box
         sx={{
           width: 48,
@@ -70,7 +69,6 @@ const ContentListItem = ({
         )}
       </Box>
 
-      {/* Content info */}
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography
           variant="body2"
@@ -125,14 +123,13 @@ const ContentListItem = ({
             color="text.secondary"
             sx={{ fontSize: "0.7rem" }}
           >
-            {[item.language ? getLanguageLabel(item.language) : null, item.theme?.english]
+            {[item.language ? getLanguageLabel(item.language) : null, item.theme.english]
               .filter(Boolean)
               .join(" \u00B7 ")}
           </Typography>
         </Box>
       </Box>
 
-      {/* Duration + play indicator */}
       <Box
         sx={{
           display: "flex",
@@ -156,7 +153,6 @@ const ContentListItem = ({
         )}
       </Box>
 
-      {/* Loading bar on the item */}
       {isLoading && (
         <LinearProgress
           sx={{

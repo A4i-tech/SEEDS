@@ -10,14 +10,18 @@ import com.example.seeds.model.Pagination
 import com.example.seeds.model.PaginatedResponse
 import com.example.seeds.model.SasUrlResponse
 import com.example.seeds.model.Student
-import com.example.seeds.model.StudentListContainer
 import com.example.seeds.network.CallStatusDto
 import com.example.seeds.network.ClassroomDto
 import com.example.seeds.network.ClassroomSaveDto
-import com.example.seeds.network.GetStudentsRequest
 import com.example.seeds.network.SeedsService
+import com.example.seeds.network.TextCommandRequest
+import com.example.seeds.network.TtsPromptRequest
+import com.example.seeds.network.TtsPromptResponse
+import com.example.seeds.network.VoiceCommandResponse
 import androidx.test.espresso.idling.CountingIdlingResource
 import kotlinx.coroutines.yield
+import okhttp3.MultipartBody
+import okhttp3.RequestBody
 import okhttp3.ResponseBody
 import retrofit2.Response
 
@@ -56,8 +60,6 @@ class FakeSeedsService : SeedsService {
 
     override suspend fun getSchoolStudents(): List<Student> = studentsToReturn
 
-    override suspend fun getTeacherStudents(body: GetStudentsRequest): List<Student> = emptyList()
-
     override suspend fun getParticipants(): List<Student> = emptyList()
 
     override suspend fun saveClassroom(classroom: ClassroomSaveDto): ClassroomDto =
@@ -65,8 +67,6 @@ class FakeSeedsService : SeedsService {
             students = emptyList(), leaders = emptyList())
 
     override suspend fun deleteClassroom(classId: String) = Unit
-
-    override suspend fun registerTeacher() = Unit
 
     override suspend fun uploadLogs(logs: List<LogEntity>) = Unit
 
@@ -119,11 +119,18 @@ class FakeSeedsService : SeedsService {
     override suspend fun getCallStatus(confId: String): CallStatusDto =
         CallStatusDto(participants = emptyList(), leaderPhoneNumber = "", audio = AudioStatus(id = "", state = "idle"))
 
-    override suspend fun setStudents(students: StudentListContainer): List<String> = emptyList()
-
     override suspend fun getSasUrl(url: String): SasUrlResponse = SasUrlResponse(url = "")
 
     @Suppress("UNCHECKED_CAST")
     override suspend fun setPlaybackSpeed(url: String, speed: Double): Response<Any> =
         Response.success(Unit) as Response<Any>
+
+    override suspend fun sendVoiceCommand(audio: MultipartBody.Part, context: RequestBody): VoiceCommandResponse =
+        VoiceCommandResponse(transcript = "", commands = emptyList(), results = emptyList())
+
+    override suspend fun sendTextCommand(body: TextCommandRequest): VoiceCommandResponse =
+        VoiceCommandResponse(transcript = "", commands = emptyList(), results = emptyList())
+
+    override suspend fun fetchTtsPrompt(body: TtsPromptRequest): TtsPromptResponse =
+        TtsPromptResponse(text = "", audio_base64 = "")
 }

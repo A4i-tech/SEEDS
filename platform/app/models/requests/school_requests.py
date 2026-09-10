@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class SchoolCreateRequest(BaseModel):
@@ -29,22 +29,20 @@ class SchoolAnalyticsRequest(BaseModel):
 
 class ClassroomUpsertRequest(BaseModel):
     id: str | None = None
-    name: str | None = None
+    name: str
     students: list[str] = Field(default_factory=list)
     leaders: list[str] = Field(default_factory=list)
     content_ids: list[str] = Field(default_factory=list)
 
     model_config = {"populate_by_name": True}
 
-    @model_validator(mode="after")
-    def _require_name_and_students_on_create(self) -> ClassroomUpsertRequest:
-        """Only enforced for create (id is None) — update is a partial patch."""
-        if self.id is None:
-            if not (self.name or "").strip():
-                raise ValueError("name is required")
-            if not self.students:
-                raise ValueError("at least one student is required")
-        return self
+    @field_validator("name")
+    @classmethod
+    def _strip_name(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("Class name cannot be blank. Enter a name for the class, then try again.")
+        return stripped
 
 
 class ClassroomCreate(BaseModel):

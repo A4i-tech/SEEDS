@@ -61,9 +61,7 @@ async def upsert_class(
             raise NotFoundError("Classroom", body.id)
         if existing.teacher != teacher_id:
             raise ForbiddenError("not classroom owner")
-        updates: dict[str, Any] = {}
-        if body.name is not None:
-            updates["name"] = body.name
+        updates: dict[str, Any] = {"name": body.name}
         if body.students is not None:
             updates["students"] = body.students
         if body.leaders is not None:
@@ -77,7 +75,7 @@ async def upsert_class(
         classroom = await repo.create(
             ClassroomCreate(
                 school_id=school_id,
-                name=body.name or "",
+                name=body.name,
                 teacher=teacher_id,
                 students=body.students,
                 leaders=body.leaders,

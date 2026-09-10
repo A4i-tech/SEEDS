@@ -161,7 +161,6 @@ export const ConferenceProvider = ({ children }) => {
             })
           );
         }
-
         // Update participant with latest SSE data - only update dynamic state, ignore name from SSE
         const existingParticipant = newMap.get(normalizedPhone);
 
@@ -170,7 +169,7 @@ export const ConferenceProvider = ({ children }) => {
         if (!existingParticipant) {
           if (participantData.role === "Student") {
             const student = allClassroomStudents.find(
-              (s) => normalizePhoneNumber(s.phoneNumber) === normalizedPhone
+              (s) => normalizePhoneNumber(s.phone_number) === normalizedPhone
             );
             name = student?.name;
           } else if (participantData.role === "Teacher" && selectedTeacher) {
@@ -260,6 +259,7 @@ export const ConferenceProvider = ({ children }) => {
         handleTeacherSelect,
         handleStudentToggle,
         clearSelectedStudents,
+        setSelectedStudents,
         setConferenceStudents,
         conferenceStudents,
         allClassroomStudents,

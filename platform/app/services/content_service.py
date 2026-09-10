@@ -49,10 +49,6 @@ class ContentService:
         self._quiz_repo = QuizRepository(db)
         self._job_repo = ContentJobRepository(db)
 
-    # ------------------------------------------------------------------
-    # Jobs
-    # ------------------------------------------------------------------
-
     async def enqueue_content_job(self, content_id: str) -> str:
         return await self._job_repo.create(content_id)
 
@@ -61,10 +57,6 @@ class ContentService:
 
     async def list_active_jobs(self) -> list[dict[str, Any]]:
         return await self._job_repo.find_active()
-
-    # ------------------------------------------------------------------
-    # Content reads
-    # ------------------------------------------------------------------
 
     async def get_themes(
         self,
@@ -84,35 +76,44 @@ class ContentService:
         only_teacher_app: bool,
         cursor: str | None,
         limit: int,
+        search: str = "",
     ) -> list[AudioContent | QuizContent]:
         """Return merged, sorted results of length up to limit+1.
 
-        Callers use len > limit to determine hasMore and slice to limit.
+        When search is provided, both content and quiz collections are
+        fetched regardless of exp_name filtering. Callers use len > limit
+        to determine hasMore and slice to limit.
         """
         after_ct = _parse_cursor(cursor)
         fetch_limit = limit + 1
 
-        fetch_content = not (exp_name and exp_name.lower() == "quiz")
-        fetch_quizzes = not (exp_name and exp_name.lower() not in (None, "quiz"))
+        # A bare search spans both collections; a search combined with exp_name
+        # still has to honour the requested type.
+        if search and not exp_name:
+            fetch_content = True
+            fetch_quizzes = True
+        else:
+            fetch_content = not (exp_name and exp_name.lower() == "quiz")
+            fetch_quizzes = not (exp_name and exp_name.lower() not in (None, "quiz"))
 
-        # When language+theme+expName all set, only one collection is relevant
-        if language and theme and exp_name:
-            if exp_name.lower() == "quiz":
-                fetch_content = False
-            else:
-                fetch_quizzes = False
+            # When language+theme+expName all set, only one collection is relevant
+            if language and theme and exp_name:
+                if exp_name.lower() == "quiz":
+                    fetch_content = False
+                else:
+                    fetch_quizzes = False
 
         contents = (
             await self._content_repo.list_paginated(
                 tenant_id, school_id, language, theme, exp_name,
-                only_teacher_app, after_ct, fetch_limit,
+                only_teacher_app, after_ct, search, fetch_limit,
             )
             if fetch_content else []
         )
         quizzes = (
             await self._quiz_repo.list_paginated(
                 tenant_id, school_id, language, theme, exp_name,
-                only_teacher_app, after_ct, fetch_limit,
+                only_teacher_app, after_ct, search, fetch_limit,
             )
             if fetch_quizzes else []
         )
@@ -140,10 +141,6 @@ class ContentService:
         quiz = await self._quiz_repo.find_by_id_and_tenant(content_id, tenant_id, school_id)
         if quiz:
             return QuizContent.from_doc(quiz)
-
-    # ------------------------------------------------------------------
-    # Content writes
-    # ------------------------------------------------------------------
 
     async def create_content(
         self,
@@ -225,10 +222,6 @@ class ContentService:
             content_id, tenant_id, school_id
         )
 
-    # ------------------------------------------------------------------
-    # Quiz writes
-    # ------------------------------------------------------------------
-
     async def create_quiz(
         self,
         body: QuizCreateRequest,
@@ -251,10 +244,6 @@ class ContentService:
         )
         doc: dict[str, Any] = dto.model_dump()
         return await self._quiz_repo.insert(doc)
-
-    # ------------------------------------------------------------------
-    # Low-level passthrough (used by content job consumer)
-    # ------------------------------------------------------------------
 
     async def get_raw_content_by_id(self, content_id: str) -> dict[str, Any] | None:
         return await self._content_repo.find_raw_by_id(content_id)

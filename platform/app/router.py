@@ -23,6 +23,8 @@ from app.controllers import (
     # Other
     ivr_structure_controller,
     ivr_webhook_controller,
+    # Meta (Seeds AI assistant)
+    meta_controller,
     participants_controller,
     # Conference features
     playback_controller,
@@ -71,6 +73,9 @@ api_router.include_router(ivr_controller.router)
 # Conference features
 api_router.include_router(playback_controller.router)
 api_router.include_router(participants_controller.router)
+
+# Meta (Seeds AI assistant)
+api_router.include_router(meta_controller.router)
 
 # Webhooks
 api_router.include_router(webhook_controller.router)

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import "./App.css";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "@mui/material/styles";
@@ -8,7 +8,9 @@ import "react-toastify/dist/ReactToastify.css";
 import { ROUTES } from "./constants/routes";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PublicRoute from "./components/PublicRoute";
+import VoiceCommandButton from "./components/VoiceCommandButton";
 import theme from "./theme/theme";
+import { useAuth } from "./hooks/useAuth";
 
 import Login from "./pages/Login";
 import ClassroomList from "./pages/ClassroomList";
@@ -17,6 +19,15 @@ import ClassroomDetail from "./pages/ClassroomDetail";
 import ContentDetails from "./pages/ContentDetails";
 
 function App() {
+  const { isAuthenticated } = useAuth();
+
+  // Clear welcome flag on logout so it plays again on next login
+  useEffect(() => {
+    if (!isAuthenticated) {
+      sessionStorage.removeItem("seeds_welcomed");
+    }
+  }, [isAuthenticated]);
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -44,6 +55,9 @@ function App() {
             element={<ProtectedRoute element={<ContentDetails />} />}
           />
         </Routes>
+
+        {/* Seeds AI voice panel + floating trigger */}
+        {isAuthenticated && <VoiceCommandButton />}
       </BrowserRouter>
       <ToastContainer
         position="top-right"

@@ -280,3 +280,25 @@
     opacity: 1;
   }
 }
+
+/* ponytail: global selector on .MuiDrawer-paperAnchorRight — fine while
+   the app has one right drawer; scope by class if a second one appears. */
+:root {
+  --seeds-panel-width: 420px;
+}
+
+#root {
+  transition: padding-right 0.25s ease;
+}
+
+body.seeds-open #root {
+  padding-right: var(--seeds-panel-width);
+}
+
+body.seeds-open .MuiDrawer-paperAnchorRight {
+  right: var(--seeds-panel-width) !important;
+}
+
+body.seeds-open .MuiModal-root > .MuiBackdrop-root {
+  right: var(--seeds-panel-width);
+}
