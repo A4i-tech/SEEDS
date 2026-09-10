@@ -1,15 +1,29 @@
 import { SEEDS_URL } from "../Constants";
-import { apiFetch } from "./api";
+import { apiFetch, buildQueryString } from "./api";
 import { getRole, getAuthHeaders } from "../utils/authHelpers";
 
+// Role -> analytics path prefix. Platform exposes /school/analytics/* for
+// school_admin and /tenant/analytics/* for tenant (see analytics_controller.py).
+const analyticsPrefix = () => (getRole() === "school_admin" ? "school" : "tenant");
+
+/**
+ * Build the query string shared by both analytics endpoints.
+ * startDate/endDate are required; schoolId/teacherId are optional filters
+ * (schoolId is only honoured for the tenant role).
+ */
+const buildAnalyticsQuery = ({ startDate, endDate, schoolId, teacherId }) => {
+  if (!startDate || !endDate) {
+    throw new Error("Both startDate and endDate are required");
+  }
+  return buildQueryString({
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString(),
+    schoolId: schoolId || undefined,
+    teacherId: teacherId || undefined,
+  });
+};
+
 export const analyticsService = {
-  /**
-   * Get analytics data for a date range
-   * @param {Date} startDate - Start of date range
-   * @param {Date} endDate - End of date range
-   * @param {Object} headers - Auth headers
-   * @returns {Promise<{startDate: string, endDate: string, count: number, data: Array}>}
-   */
   async getDashboard() {
     return apiFetch(`${SEEDS_URL}/tenant/dashboard`, {
       method: "GET",
@@ -24,25 +38,28 @@ export const analyticsService = {
     });
   },
 
-  async getAnalytics(startDate, endDate, headers = {}) {
-    if (!startDate || !endDate) {
-      throw new Error("Both startDate and endDate are required");
-    }
-
-    const url =
-      getRole() === "school_admin"
-        ? `${SEEDS_URL}/school/analytics`
-        : `${SEEDS_URL}/tenant/analytics`;
-
-    const response = await apiFetch(url, {
-      method: "POST",
+  /**
+   * IVR usage analytics (server-aggregated).
+   * @returns totals, sessionLength, statusBreakdown, bySchool, byTeacher,
+   *          contentUsage, calls
+   */
+  async getIvrAnalytics(filters, headers = getAuthHeaders()) {
+    const query = buildAnalyticsQuery(filters);
+    return apiFetch(`${SEEDS_URL}/${analyticsPrefix()}/analytics/ivr?${query}`, {
+      method: "GET",
       headers,
-      body: JSON.stringify({
-        start_date: startDate.toISOString(),
-        end_date: endDate.toISOString(),
-      }),
     });
+  },
 
-    return response;
+  /**
+   * Conference usage analytics (server-aggregated).
+   * @returns totals, duration, classSize, raisedHands, byTeacher, conferences
+   */
+  async getConferenceAnalytics(filters, headers = getAuthHeaders()) {
+    const query = buildAnalyticsQuery(filters);
+    return apiFetch(`${SEEDS_URL}/${analyticsPrefix()}/analytics/conference?${query}`, {
+      method: "GET",
+      headers,
+    });
   },
 };
