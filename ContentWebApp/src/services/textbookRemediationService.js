@@ -110,13 +110,4 @@ export const textbookRemediationService = {
       headers: getAuthHeaders(),
     });
   },
-
-  /** Create a job from a built-in sample textbook */
-  async createSampleJob(sampleId = "maths_g5", language = "en") {
-    return apiFetch(`${BASE}/jobs/sample`, {
-      method: "POST",
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ sample_id: sampleId, language }),
-    });
-  },
 };

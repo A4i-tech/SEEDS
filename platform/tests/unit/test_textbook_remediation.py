@@ -113,11 +113,9 @@ async def test_subscribe_stops_on_an_unknown_job(repo):
 
 from app.controllers.textbook_remediation_controller import (  # noqa: E402
     DraftUpdateRequest,
-    SampleJobRequest,
     VerifyJobRequest,
     _artifact_bytes,
     create_remediation_job,
-    create_sample_job,
     get_review_summary,
     require_remediation_access,
     save_remediation_draft,
@@ -234,25 +232,15 @@ async def test_save_draft_and_verify_job(repo):
 
 
 @pytest.mark.asyncio
-async def test_review_summary_and_sample_creation(repo):
-    sample_res = await create_sample_job(
-        SampleJobRequest(sample_id="maths_g5", language="en"),
-        user={"tenant_id": "tenant-a"},
-        repo=repo,
-        blob_provider=_StubBlob(),
-    )
-    assert sample_res["job_id"] is not None
-
-    job = await repo.get("tenant-a", sample_res["job_id"])
-    assert job.source_name == "TN Maths Grade 5.pdf"
-
+async def test_review_summary(repo):
+    await _create(repo)
     summary = await get_review_summary(
-        sample_res["job_id"],
+        "job-1",
         user={"tenant_id": "tenant-a"},
         repo=repo,
         blob_provider=_StubBlob(),
     )
-    assert summary["job_id"] == sample_res["job_id"]
+    assert summary["job_id"] == "job-1"
     assert "diagrams_described_count" in summary
     assert "flagged_items_count" in summary
 

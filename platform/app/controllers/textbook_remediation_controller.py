@@ -13,8 +13,8 @@ from __future__ import annotations
 import json
 import re
 import uuid
+from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import Response, StreamingResponse
@@ -42,17 +42,10 @@ MAX_PDF_BYTES = 200 * 1024 * 1024
 
 _LANGUAGE = re.compile(r"[a-zA-Z]{2,8}(-[a-zA-Z0-9]{2,8})?")
 
-SAMPLE_PRESETS = {
-    "maths_g5": "TN Maths Grade 5.pdf",
-    "science_ch3": "Science diagrams ch.3.pdf",
-    "scanned_tn": "Scanned TN chapter.pdf",
-    "stem_sample": "Short STEM sample.pdf",
-}
-
 
 class DraftUpdateRequest(BaseModel):
     draft_md: str
-    figure_overrides: dict[str, Any] | None = None
+    figure_overrides: dict[str, object] | None = None
 
 
 class VerifyJobRequest(BaseModel):
@@ -60,11 +53,6 @@ class VerifyJobRequest(BaseModel):
     subject: str | None = None
     grade: int | None = None
     publish_to_library: bool = True
-
-
-class SampleJobRequest(BaseModel):
-    sample_id: str = "maths_g5"
-    language: str = "en"
 
 async def _get_job(repo: TextbookRemediationRepository, tenant_id: str, job_id: str) -> RemediationJob:
     job = await repo.get(tenant_id, job_id)
@@ -86,7 +74,7 @@ async def _artifact_bytes(job: RemediationJob, name: str, blob_provider: BlobSto
 async def create_remediation_job(
     file: UploadFile = File(..., description="The textbook PDF"),
     language: str = Form("en", description="Language the figure alt text is translated into"),
-    user: dict[str, Any] = Depends(require_remediation_access),
+    user: dict[str, object] = Depends(require_remediation_access),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
 ) -> dict[str, str]:
@@ -104,7 +92,7 @@ async def create_remediation_job(
     url = await blob_provider.upload_file(
         get_settings().azure_storage_container, f"textbook-remediation/{job_id}/source.pdf", data, "application/pdf"
     )
-    await repo.create(job_id, tenant_id=user.get("tenant_id", ""), source_name=file.filename or "textbook.pdf",
+    await repo.create(job_id, tenant_id=str(user.get("tenant_id", "")), source_name=file.filename or "textbook.pdf",
                       source_url=url, language=language)
     return {"job_id": job_id}
 
@@ -112,31 +100,31 @@ async def create_remediation_job(
 @router.get("/jobs", summary="List remediation jobs")
 async def list_remediation_jobs(
     limit: int = Query(20, ge=1, le=200),
-    user: dict[str, Any] = Depends(require_remediation_access),
+    user: dict[str, object] = Depends(require_remediation_access),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
-) -> dict[str, Any]:
-    jobs = await repo.list_jobs(user.get("tenant_id", ""), limit=limit)
+) -> dict[str, list[dict[str, object]]]:
+    jobs = await repo.list_jobs(str(user.get("tenant_id", "")), limit=limit)
     return {"jobs": [serialize_job(job) for job in jobs]}
 
 
 @router.get("/jobs/{job_id}", summary="Get a remediation job's status and artifacts")
 async def get_remediation_job(
     job_id: str,
-    user: dict[str, Any] = Depends(require_remediation_access),
+    user: dict[str, object] = Depends(require_remediation_access),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
-) -> dict[str, Any]:
-    return serialize_job(await _get_job(repo, user.get("tenant_id", ""), job_id))
+) -> dict[str, object]:
+    return serialize_job(await _get_job(repo, str(user.get("tenant_id", "")), job_id))
 
 
 @router.get("/jobs/{job_id}/stream", summary="SSE stream of live remediation progress")
 async def stream_remediation_job(
     job_id: str,
-    user: dict[str, Any] = Depends(require_remediation_access),
+    user: dict[str, object] = Depends(require_remediation_access),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
 ) -> StreamingResponse:
-    tenant_id = user.get("tenant_id", "")
+    tenant_id = str(user.get("tenant_id", ""))
 
-    async def _format() -> Any:
+    async def _format() -> AsyncIterator[str]:
         async for event in subscribe(repo, tenant_id, job_id):
             yield f"data: {json.dumps(event, default=str)}\n\n"
 
@@ -147,11 +135,11 @@ async def stream_remediation_job(
 async def get_remediation_artifact(
     job_id: str,
     name: str,
-    user: dict[str, Any] = Depends(require_remediation_access),
+    user: dict[str, object] = Depends(require_remediation_access),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
 ) -> Response:
-    job = await _get_job(repo, user.get("tenant_id", ""), job_id)
+    job = await _get_job(repo, str(user.get("tenant_id", "")), job_id)
     data, content_type = await _artifact_bytes(job, name, blob_provider)
     filename = ARTIFACTS[name][0]
     return Response(content=data, media_type=content_type,
@@ -196,11 +184,11 @@ async def get_remediation_findings(
     name: str = Query("findings", description="Which trail to read: findings, alt, remediation or unresolved"),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    user: dict[str, Any] = Depends(require_remediation_access),
+    user: dict[str, object] = Depends(require_remediation_access),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
-) -> dict[str, Any]:
-    job = await _get_job(repo, user.get("tenant_id", ""), job_id)
+) -> dict[str, object]:
+    job = await _get_job(repo, str(user.get("tenant_id", "")), job_id)
     data, _ = await _artifact_bytes(job, name, blob_provider)
     lines = [line for line in data.decode("utf-8").splitlines() if line.strip()]
     page = [json.loads(line) for line in lines[offset:offset + limit]]
@@ -211,11 +199,11 @@ async def get_remediation_findings(
 async def save_remediation_draft(
     job_id: str,
     payload: DraftUpdateRequest,
-    user: dict[str, Any] = Depends(require_remediation_access),
+    user: dict[str, object] = Depends(require_remediation_access),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
-) -> dict[str, Any]:
-    job = await _get_job(repo, user.get("tenant_id", ""), job_id)
+) -> dict[str, object]:
+    job = await _get_job(repo, str(user.get("tenant_id", "")), job_id)
     container = get_settings().azure_storage_container
     draft_bytes = payload.draft_md.encode("utf-8")
     url = await blob_provider.upload_file(
@@ -229,12 +217,12 @@ async def save_remediation_draft(
 async def verify_remediation_job(
     job_id: str,
     payload: VerifyJobRequest,
-    user: dict[str, Any] = Depends(require_remediation_access),
+    user: dict[str, object] = Depends(require_remediation_access),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
-) -> dict[str, Any]:
-    job = await _get_job(repo, user.get("tenant_id", ""), job_id)
-    verified_by = user.get("email") or user.get("name") or user.get("id") or "reviewer"
+) -> dict[str, object]:
+    job = await _get_job(repo, str(user.get("tenant_id", "")), job_id)
+    verified_by = str(user.get("email") or user.get("name") or user.get("id") or "reviewer")
 
     docx_url = job.artifacts.get("docx")
     if job.draft_remediated_md:
@@ -275,11 +263,11 @@ async def verify_remediation_job(
 @router.get("/jobs/{job_id}/review-summary", summary="Aggregated review summary of figures, tables, and flags")
 async def get_review_summary(
     job_id: str,
-    user: dict[str, Any] = Depends(require_remediation_access),
+    user: dict[str, object] = Depends(require_remediation_access),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
-) -> dict[str, Any]:
-    job = await _get_job(repo, user.get("tenant_id", ""), job_id)
+) -> dict[str, object]:
+    job = await _get_job(repo, str(user.get("tenant_id", "")), job_id)
 
     diagrams = []
     if "alt" in job.artifacts:
@@ -349,30 +337,4 @@ async def get_review_summary(
         "tables": tables,
         "flagged_items": flagged_items,
     }
-
-
-@router.post("/jobs/sample", status_code=202, summary="Create a remediation job from a built-in sample textbook")
-async def create_sample_job(
-    payload: SampleJobRequest,
-    user: dict[str, Any] = Depends(require_remediation_access),
-    repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
-    blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
-) -> dict[str, str]:
-    sample_name = SAMPLE_PRESETS.get(payload.sample_id, "TN Maths Grade 5.pdf")
-    job_id = str(uuid.uuid4())
-    dummy_pdf = b"%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF"
-    url = await blob_provider.upload_file(
-        get_settings().azure_storage_container,
-        f"textbook-remediation/{job_id}/source.pdf",
-        dummy_pdf,
-        "application/pdf",
-    )
-    await repo.create(
-        job_id,
-        tenant_id=user.get("tenant_id", ""),
-        source_name=sample_name,
-        source_url=url,
-        language=payload.language,
-    )
-    return {"job_id": job_id}
 

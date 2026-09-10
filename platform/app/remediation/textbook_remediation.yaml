@@ -102,3 +102,23 @@ steps:
           feedback: "observed_result is empty. Name the colour change, gas, deposit or reading that the figure shows."
         - expr: '(.alt_text | length) <= 200'
           feedback: "alt_text is too long. One sentence, under 150 characters."
+
+  - agent: postcorrect
+    description: "Mechanical fixes and gated model audit"
+    config:
+      script: ${.config.script}
+      audit: ${.config.audit}
+      auto_apply: ${.config.auto_apply}
+      out_dir: ${.config.out_dir}
+
+  - agent: remediate
+    description: "Strip page furniture, summarise tables, fix heading levels"
+    config:
+      summarise_tables: ${.config.summarise_tables}
+      out_dir: ${.config.out_dir}
+
+  - agent: docx
+    description: "Pandoc compilation to accessible .docx"
+    config:
+      out: ${.config.out}
+      assets_dir: ${.config.out_dir}
