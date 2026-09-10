@@ -222,6 +222,35 @@ class TestTenantAuth:
         assert "email" in data
         assert "name" in data
 
+    @pytest.mark.asyncio
+    async def test_freshly_registered_teacher_logs_in_via_unified_login(self, client, mock_db):
+        """Regression for #595, exercised end-to-end via HTTP: a teacher registered by a
+        school_admin through POST /teacher/register must be able to log in through the
+        unified POST /auth/login (ContentWebApp's generic login form)."""
+        school = await _seed_school(mock_db, email="admin3@school.com", tenant_id=_TENANT_ID)
+        admin_token = create_access_token({
+            "sub": school["_id"],
+            "role": "school_admin",
+            "school_id": school["_id"],
+            "tenant_id": _TENANT_ID,
+        })
+        register_resp = await client.post(
+            "/teacher/register",
+            json={"phone_number": "9998887777", "password": "TeachPass1", "name": "New Teacher"},
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert register_resp.status_code == 201
+
+        login_resp = await client.post("/auth/login", json={
+            "identifier": "9998887777",
+            "password": "TeachPass1",
+            "is_email": False,
+        })
+        assert login_resp.status_code == 200
+        data = login_resp.json()
+        assert "token" in data
+        assert data["user"]["role"] == "teacher"
+
 
 # ---------------------------------------------------------------------------
 # School controller

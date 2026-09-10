@@ -106,7 +106,7 @@ async def login_unified(
     is_email: bool,
     db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> dict[str, Any]:
-    """Authenticate a ContentWebApp user (tenant/school_admin by email, content_creator by phone).
+    """Authenticate a ContentWebApp user (tenant/school_admin by email, content_creator/teacher by phone).
 
     Raises UnauthorizedError on failure and increments auth.failures counter.
     SECURITY: plain password is never logged.
@@ -119,7 +119,7 @@ async def login_unified(
         allowed_roles = (UserRole.TENANT, UserRole.SCHOOL_ADMIN)
     else:
         user = await repo.find_by_phone(identifier)
-        allowed_roles = (UserRole.CONTENT_CREATOR,)
+        allowed_roles = (UserRole.CONTENT_CREATOR, UserRole.TEACHER)
 
     if user is None or user.role not in allowed_roles or not user.hashed_password:
         logger.warning("auth: login failed — user not found or wrong role")
@@ -143,7 +143,7 @@ async def login_unified(
         {
             "sub": str(user.id),
             "role": user.role.value,
-            "tenant_id": user.tenant_id or str(user.id),
+            "tenant_id": user.tenant_id or (str(user.id) if user.role == UserRole.TENANT else None),
             "school_id": user.school_id,
         }
     )
