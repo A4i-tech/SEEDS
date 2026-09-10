@@ -10,8 +10,10 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from jose import jwt as jose_jwt
+from opentelemetry import metrics
 from opentelemetry._logs import get_logger_provider
 from opentelemetry.sdk._logs import LoggerProvider as SDKLoggerProvider
+from opentelemetry.sdk.metrics import MeterProvider as SDKMeterProvider
 
 import app.platform.telemetry as tel_mod
 from app.platform.auth.dependencies import require_teacher, require_tenant
@@ -46,6 +48,18 @@ _FAKE_CONNECTION_STRING = (
 
 
 class TestTelemetry:
+    @pytest.fixture(autouse=True)
+    def shutdown_exporters(self):
+        """Azure Monitor's exporter threads outlive the test and keep calling the network."""
+        yield
+        for provider in (get_logger_provider(), metrics.get_meter_provider()):
+            if isinstance(provider, SDKLoggerProvider | SDKMeterProvider):
+                provider.shutdown()
+        logging.getLogger("app").handlers.clear()
+        tel_mod._telemetry_configured = False
+        tel_mod._metrics = {}
+        configure_telemetry(Settings(applicationinsights_connection_string=""))
+
     def test_disabled_without_connection_string(self) -> None:
         """configure_telemetry with no connection string must not raise, counters stay no-op."""
         tel_mod._telemetry_configured = False
