@@ -40,7 +40,6 @@ import tempfile
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
-import pypdf
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.remediation_job import ARTIFACTS, RemediationJob
@@ -182,27 +181,12 @@ async def _process_job(job: RemediationJob, repo: TextbookRemediationRepository,
         pdf = work / "book.pdf"
         pdf.write_bytes(await blob_provider.download_from_url(job.source_url))
 
-        probed_lang = "English"
-        try:
-            reader = pypdf.PdfReader(str(pdf))
-            sample_text = "".join((page.extract_text() or "") for page in reader.pages[:5])
-            if sample_text.strip():
-                probed_lang = detect_language(sample_text)
-            elif "hindi" in job.source_name.lower() or "ganit" in job.source_name.lower():
-                probed_lang = "Hindi"
-            elif "kannada" in job.source_name.lower():
-                probed_lang = "Kannada"
-            elif "tamil" in job.source_name.lower():
-                probed_lang = "Tamil"
-        except Exception as exc:
-            logger.warning("remediation: upfront probe failed: %s", exc)
+        is_auto = not job.language or job.language.lower() in ("auto", "detecting")
+        pipeline_lang = "auto" if is_auto else job.language
 
-        target_lang = (job.language if job.language and job.language not in ("auto", "detecting") else None) or probed_lang
-        script = "devanagari" if target_lang.lower() in ("hindi", "marathi", "sanskrit") else "latin"
-        await repo.update_language(job.job_id, target_lang)
-
-        logger.info("remediation: processing job_id=%s source=%s language=%s script=%s", job.job_id, job.source_name, target_lang, script)
-        await repo.update_progress(job.job_id, {"stage": "remediation", "message": f"Remediating in {target_lang}..."})
+        logger.info("remediation: processing job_id=%s source=%s language=%s (auto=%s)", job.job_id, job.source_name, pipeline_lang, is_auto)
+        progress_msg = f"Remediating in {pipeline_lang}..." if not is_auto else "Remediating textbook..."
+        await repo.update_progress(job.job_id, {"stage": "remediation", "message": progress_msg})
 
         context_json_path = work / "context.json"
         docx_path = out / "remediated.docx"
@@ -210,18 +194,36 @@ async def _process_job(job: RemediationJob, repo: TextbookRemediationRepository,
         await _run_pipeline(
             pdf, work,
             [
-                "--language", target_lang,
+                "--language", pipeline_lang,
                 "--output", str(context_json_path),
             ],
             on_progress=make_progress_handler("remediation"),
         )
 
         metrics: dict[str, object] | None = None
+        detected_lang: str | None = None
         if context_json_path.exists():
             try:
                 ctx_data = json.loads(context_json_path.read_text(encoding="utf-8"))
                 rendered_info = render_remediation(ctx_data, out)
                 metrics = rendered_info.get("metrics")  # type: ignore[assignment]
+
+                # 1. Front matter book metadata extracted from book itself
+                book_meta = ctx_data.get("metadata", {}).get("book") or {}
+                if isinstance(book_meta, dict) and book_meta.get("language"):
+                    detected_lang = str(book_meta["language"]).strip()
+                if not detected_lang:
+                    for it in ctx_data.get("items", []):
+                        m = it.get("metadata") or {}
+                        if isinstance(m, dict):
+                            b = m.get("book")
+                            if isinstance(b, dict) and b.get("language"):
+                                detected_lang = str(b["language"]).strip()
+                                break
+                            rem_lang = (m.get("remediation") or {}).get("language")
+                            if rem_lang:
+                                detected_lang = str(rem_lang).strip()
+                                break
             except Exception as exc:
                 logger.warning("remediation: render_remediation failed: %s", exc)
 
@@ -229,6 +231,51 @@ async def _process_job(job: RemediationJob, repo: TextbookRemediationRepository,
         findings = out / "raw.findings.jsonl"
         trail = out / "raw.corrected.remediation.jsonl"
         unresolved = out / "remediated.unresolved.jsonl"
+
+        # 2. Body OCR text language detection if not extracted by front matter
+        if not detected_lang and raw.exists():
+            try:
+                raw_content = raw.read_text(encoding="utf-8", errors="ignore")
+                pages_split = re.split(r"<!--\s*page\s+\d+\s*-->", raw_content)
+                body_sample = " ".join(s.strip() for s in pages_split[2:] if len(s.strip()) > 100)
+                if not body_sample:
+                    body_sample = raw_content
+                if body_sample.strip():
+                    detected_lang = detect_language(body_sample)
+            except Exception as exc:
+                logger.warning("remediation: body language detection failed: %s", exc)
+
+        # 3. Filename heuristics fallback
+        if not detected_lang or detected_lang.lower() in ("auto", "detecting", "unknown"):
+            src_lower = job.source_name.lower()
+            if any(k in src_lower for k in ("tripura", "bangla", "bengali", "wb")):
+                detected_lang = "Bengali"
+            elif any(k in src_lower for k in ("hindi", "ganit", "vigyan")):
+                detected_lang = "Hindi"
+            elif any(k in src_lower for k in ("kannada", "ktbs")):
+                detected_lang = "Kannada"
+            elif any(k in src_lower for k in ("tamil", "tn")):
+                detected_lang = "Tamil"
+            elif any(k in src_lower for k in ("telugu", "ap", "ts")):
+                detected_lang = "Telugu"
+            elif any(k in src_lower for k in ("gujarati",)):
+                detected_lang = "Gujarati"
+            elif any(k in src_lower for k in ("malayalam", "kerala")):
+                detected_lang = "Malayalam"
+            elif any(k in src_lower for k in ("marathi", "maharashtra")):
+                detected_lang = "Marathi"
+            elif any(k in src_lower for k in ("odia", "orissa")):
+                detected_lang = "Odia"
+            elif any(k in src_lower for k in ("punjabi", "punjab")):
+                detected_lang = "Punjabi"
+            elif any(k in src_lower for k in ("assamese", "assam")):
+                detected_lang = "Assamese"
+            else:
+                detected_lang = "English"
+
+        final_lang = (job.language if not is_auto and job.language else None) or detected_lang
+        await repo.update_language(job.job_id, final_lang)
+        logger.info("remediation: updated final language for job_id=%s to %s", job.job_id, final_lang)
 
         if not metrics:
             total_pages = 1
@@ -246,6 +293,7 @@ async def _process_job(job: RemediationJob, repo: TextbookRemediationRepository,
                 "tables_fixed": _count_lines(trail),
                 "flagged_items_count": _count_lines(unresolved),
             }
+
 
         await _upload_images(blob_provider, job.job_id, work)
         await repo.record_artifacts(

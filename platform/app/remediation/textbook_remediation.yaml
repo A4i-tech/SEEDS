@@ -14,7 +14,7 @@ parameters:
     language:
       type: string
       description: "Language of the body text"
-      default: "Tamil"
+      default: "auto"
     ocr_engine:
       type: string
       description: "OCR engine name"
@@ -190,7 +190,7 @@ steps:
       prompt: |
         You write alt text for a school textbook figure, for a blind student.
 
-        Describe only what the picture shows in ${.config.language}.
+        Describe only what the picture shows in ${.config.language}. If language is "auto", describe in the primary language of the textbook page.
 
         Rules:
         1. Report the observable result, not only the apparatus. Name every colour
