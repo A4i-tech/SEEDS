@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 POLL_INTERVAL_SECONDS = 10
 JOB_TIMEOUT_SECONDS = 4 * 60 * 60
 PIPELINE_PATH = Path(__file__).resolve().parent.parent / "remediation" / "textbook_remediation.yaml"
-PLATFORM_ROOT = PIPELINE_PATH.parent.parent
+PLATFORM_ROOT = PIPELINE_PATH.parent.parent.parent
 
 
 async def _run_pipeline(

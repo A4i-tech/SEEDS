@@ -244,3 +244,11 @@ async def test_review_summary(repo):
     assert "diagrams_described_count" in summary
     assert "flagged_items_count" in summary
 
+
+def test_platform_root_path():
+    from app.consumers.textbook_remediation_consumer import PLATFORM_ROOT
+
+    assert PLATFORM_ROOT.name == "platform"
+    assert (PLATFORM_ROOT / "app").is_dir()
+    assert (PLATFORM_ROOT / "app" / "remediation").is_dir()
+
