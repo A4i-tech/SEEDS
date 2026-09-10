@@ -13,7 +13,7 @@ import logging
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from fastapi import Depends, Request
+from fastapi import Depends, Request, Response
 from fastapi.security import OAuth2PasswordBearer
 from pymongo.asynchronous.database import AsyncDatabase
 
@@ -28,6 +28,23 @@ from app.repositories.conference_repository import ConferenceOwnershipRepository
 logger = logging.getLogger(__name__)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token", auto_error=False)
+
+REFRESH_COOKIE_NAME = "refresh_token"
+
+
+def set_refresh_cookie(response: Response, refresh_token: str) -> None:
+    response.set_cookie(
+        key=REFRESH_COOKIE_NAME,
+        value=refresh_token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        path="/auth",
+    )
+
+
+def clear_refresh_cookie(response: Response) -> None:
+    response.delete_cookie(key=REFRESH_COOKIE_NAME, path="/auth")
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +117,7 @@ async def get_current_user(
 
     # Attach to request state for logging / telemetry middleware
     request.state.user_id = user.get("sub", "")
-    request.state.tenant_id = user.get("tenant_id", "")
+    request.state.tenant_id = user.get("tenant_id")
 
     return user
 

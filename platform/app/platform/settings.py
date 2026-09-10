@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     jwt_expires_in: str = "1d"
     password_salt_rounds: int = 10
 
+    refresh_token_expires_in: str = "30d"
+
+    content_aggregator_access_token_expires_in: str = "15m"
+    content_aggregator_refresh_token_expires_in: str = "30d"
+
     # Firebase (only used when auth_type == "firebase")
     firebase_api_key: str = Field(default="", repr=False)
     firebase_service_account: str = Field(default="", repr=False)
@@ -181,6 +186,11 @@ class Settings(BaseSettings):
     # WebSocket control secret (Phase 11 security hardening)
     # ---------------------------------------------------------------------------
     ws_control_secret: str = Field(default="", repr=False)
+
+    # ---------------------------------------------------------------------------
+    # Content Aggregator webhook secret encryption (Fernet key, ticket #464)
+    # ---------------------------------------------------------------------------
+    webhook_secret_encryption_key: str = Field(default="", repr=False)
 
     # ---------------------------------------------------------------------------
     # Misc / ConferenceV2
