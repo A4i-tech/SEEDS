@@ -145,3 +145,53 @@ class IVRRepository(BaseRepository):
             }
         )
         return await cursor.to_list(length=None)
+
+    # Projection shared by the analytics finders — only the fields the
+    # analytics service reads. created_at/stopped_at are BSON datetimes (via
+    # IVRCallStateMongoDoc), so the range bounds are datetime objects: a String
+    # bound never matches a Date-typed field in Mongo.
+    _ANALYTICS_PROJECTION = {
+        "phone_number": 1,
+        "created_at": 1,
+        "stopped_at": 1,
+        "duration": 1,
+        "stream_playback": 1,
+        "call_status_updates": 1,
+    }
+
+    async def _analytics_logs(
+        self, query: dict[str, Any], limit: int | None
+    ) -> list[dict[str, Any]]:
+        cursor = self._log_col.find(query, self._ANALYTICS_PROJECTION)
+        return await cursor.to_list(length=limit)
+
+    async def find_analytics_logs_for_tenant(
+        self, tenant_id: str, start: datetime, end: datetime, limit: int | None = None
+    ) -> list[dict[str, Any]]:
+        """Raw log docs for a whole tenant within a date range (tenant-wide case).
+
+        Ported from backend-server IvrV2LogMongoDao.findForAnalytics.
+        """
+        return await self._analytics_logs(
+            {"tenant_id": tenant_id, "created_at": {"$gte": start, "$lte": end}},
+            limit,
+        )
+
+    async def find_analytics_logs_for_phones(
+        self,
+        tenant_id: str,
+        start: datetime,
+        end: datetime,
+        phone_numbers: list[str],
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Raw log docs for a tenant within a date range, restricted to a set of
+        phone numbers (school- or teacher-scoped case)."""
+        return await self._analytics_logs(
+            {
+                "tenant_id": tenant_id,
+                "created_at": {"$gte": start, "$lte": end},
+                "phone_number": {"$in": phone_numbers},
+            },
+            limit,
+        )
