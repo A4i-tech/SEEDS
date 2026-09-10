@@ -24,6 +24,7 @@ class TestServiceBusProviderNullHandles:
         p._call_webhook = None
         p._dtmf_input = None
         p._call_event = None
+        p._sync_jobs = None
         p._initialized = True
         return p
 
@@ -73,6 +74,12 @@ class TestServiceBusProviderNullHandles:
     async def test_send_call_event_null_handle_returns_false(self) -> None:
         p = self._make_provider()
         result = await p.send_call_event({"status": "completed"})
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_send_sync_job_null_handle_returns_false(self) -> None:
+        p = self._make_provider()
+        result = await p.send_sync_job({"job_id": "j1", "tenant_id": "t1"})
         assert result is False
 
     def test_get_handle_returns_none_for_unknown_queue(self) -> None:

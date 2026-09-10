@@ -221,6 +221,10 @@ class Settings(BaseSettings):
         return f"call_event_{self.azure_service_bus_queue_name}"
 
     @property
+    def sync_jobs_queue_name(self) -> str:
+        return f"sync_jobs_{self.azure_service_bus_queue_name}"
+
+    @property
     def effective_mongo_connection_string(self) -> str:
         """Return the first non-empty MongoDB connection string available."""
         return self.mongo_db_connection_string or self.db_connection
