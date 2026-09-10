@@ -36,6 +36,7 @@ describe("Constants", () => {
         "MessageType",
         "PlaybackRefusal",
         "PlaybackStatus",
+        "SUPPORTED_SPEEDS",
       ]);
 
       // Test consistency across imports
