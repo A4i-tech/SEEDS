@@ -70,7 +70,7 @@ async def _run_pipeline(
         str(PIPELINE_PATH), "--input", str(resource),
         "--quiet", "--progress-file", str(progress_file), *options,
     ]
-    env = {**os.environ, "PYTHONPATH": str(PLATFORM_ROOT), "PYTHONIOENCODING": "utf-8"}
+    env = {**os.environ, "PYTHONPATH": str(PLATFORM_ROOT), "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
 
     def _exec() -> tuple[int, str]:
         proc = subprocess.Popen(
