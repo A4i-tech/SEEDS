@@ -1,20 +1,9 @@
 from __future__ import annotations
 
 from fastapi import APIRouter
-from pydantic import BaseModel
 
+from app.models.responses.language_response import LanguageListResponse
 from app.services.language_service import list_languages as get_supported_languages
-
-
-class LanguageEntry(BaseModel):
-    code: str
-    standard: str
-    name: str
-
-
-class LanguageListResponse(BaseModel):
-    languages: list[LanguageEntry]
-
 
 router = APIRouter(prefix="/v1", tags=["Languages"])
 

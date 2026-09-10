@@ -5,7 +5,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
-from app.services.language_registry import SUPPORTED_LANGUAGES
+from app.repositories.language_repository import SUPPORTED_LANGUAGES
 
 
 @pytest_asyncio.fixture
