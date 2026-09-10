@@ -172,7 +172,7 @@ const RemediationDetails = () => {
       setActionMessage(`Applied fix: "${item.original}" → "${item.replacement}"`);
       setTimeout(() => setActionMessage(null), 3000);
     } else {
-      setActionMessage(`Could not locate exact original text in current draft.`);
+      setActionMessage("Could not locate exact original text in current draft.");
       setTimeout(() => setActionMessage(null), 3000);
     }
   };
