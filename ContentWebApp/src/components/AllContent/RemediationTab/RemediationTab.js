@@ -77,7 +77,19 @@ const RemediationTab = () => {
                       <MiddleEllipsis text={job.source_name} />
                     </button>
                   </td>
-                  <td className="table-cell">{job.language}</td>
+                  <td className="table-cell">
+                    {job.detected_language ? (
+                      <span style={{ fontWeight: 600, color: "var(--color-fg-default)" }}>
+                        {job.detected_language}
+                      </span>
+                    ) : job.language === "auto" || job.language === "detecting" || !job.language ? (
+                      <span className="remediation-status" style={{ backgroundColor: "#f1f5f9", color: "#475569", fontWeight: 500, fontSize: "12px" }}>
+                        Detecting…
+                      </span>
+                    ) : (
+                      <span style={{ fontWeight: 600 }}>{job.language}</span>
+                    )}
+                  </td>
                   <td className="table-cell">
                     <span className={`remediation-status remediation-status-${job.status}`}>{job.status}</span>
                     {job.error && <div className="table-cell-secondary">{job.error}</div>}

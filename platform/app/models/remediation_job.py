@@ -22,6 +22,7 @@ ARTIFACTS: dict[str, tuple[str, str]] = {
     "remediation": ("raw.corrected.remediation.jsonl", _JSONL),
     "unresolved": ("remediated.unresolved.jsonl", _JSONL),
     "docx": ("remediated.docx", _DOCX),
+    "draft": ("remediated.draft.md", "text/markdown"),
 }
 """Artifact key -> (file the pipelines write, content type it is served as).
 
@@ -40,9 +41,15 @@ class RemediationJob:
     language: str
     status: str
     stage: str | None
+    detected_language: str | None = None
     artifacts: dict[str, str] = field(default_factory=dict)
     counts: dict[str, int] = field(default_factory=dict)
+    metrics: dict[str, object] = field(default_factory=dict)
     progress: dict[str, object] = field(default_factory=dict)
+    draft_remediated_md: str | None = None
+    verified_at: str | None = None
+    verified_by: str | None = None
+    title: str | None = None
     error: str | None = None
     created_at: str = ""
     finished_at: str | None = None
@@ -51,8 +58,12 @@ class RemediationJob:
         return {
             "_id": self.job_id, "tenant_id": self.tenant_id, "source_name": self.source_name,
             "source_url": self.source_url, "language": self.language, "status": self.status,
-            "stage": self.stage, "artifacts": self.artifacts, "counts": self.counts,
-            "progress": self.progress,
+            "stage": self.stage, "detected_language": self.detected_language,
+            "artifacts": self.artifacts, "counts": self.counts,
+            "metrics": self.metrics, "progress": self.progress,
+            "draft_remediated_md": self.draft_remediated_md,
+            "verified_at": self.verified_at, "verified_by": self.verified_by,
+            "title": self.title,
             "error": self.error, "created_at": self.created_at,
             "finished_at": self.finished_at,
         }
@@ -62,8 +73,12 @@ class RemediationJob:
         return cls(
             job_id=doc["_id"], tenant_id=doc["tenant_id"], source_name=doc["source_name"],
             source_url=doc["source_url"], language=doc["language"], status=doc["status"],
-            stage=doc["stage"], artifacts=doc.get("artifacts") or {}, counts=doc.get("counts") or {},
-            progress=doc.get("progress") or {},
+            stage=doc["stage"], detected_language=doc.get("detected_language"),
+            artifacts=doc.get("artifacts") or {}, counts=doc.get("counts") or {},
+            metrics=doc.get("metrics") or {}, progress=doc.get("progress") or {},
+            draft_remediated_md=doc.get("draft_remediated_md"),
+            verified_at=doc.get("verified_at"), verified_by=doc.get("verified_by"),
+            title=doc.get("title"),
             error=doc.get("error"), created_at=doc.get("created_at", ""),
             finished_at=doc.get("finished_at"),
         )

@@ -23,9 +23,10 @@ class TextbookRemediationRepository:
         self._col = db[self.COLLECTION_NAME]
 
     async def create(self, job_id: str, *, tenant_id: str, source_name: str, source_url: str, language: str) -> RemediationJob:
+        initial_lang = "detecting" if language in ("auto", "detecting") else language
         job = RemediationJob(
             job_id=job_id, tenant_id=tenant_id, source_name=source_name, source_url=source_url,
-            language=language, status="pending", stage=None, created_at=datetime.now(UTC).isoformat(),
+            language=initial_lang, status="pending", stage=None, created_at=datetime.now(UTC).isoformat(),
         )
         await self._col.insert_one(job.to_doc())
         return job
@@ -62,10 +63,47 @@ class TextbookRemediationRepository:
 
     async def update_language(self, job_id: str, language: str) -> RemediationJob | None:
         doc = await self._col.find_one_and_update(
-            {"_id": job_id}, {"$set": {"language": language}}, return_document=ReturnDocument.AFTER
+            {"_id": job_id}, {"$set": {"language": language, "detected_language": language}}, return_document=ReturnDocument.AFTER
         )
         return RemediationJob.from_doc(doc) if doc else None
 
+
+    async def update_metrics(self, job_id: str, metrics: dict[str, object]) -> RemediationJob | None:
+        doc = await self._col.find_one_and_update(
+            {"_id": job_id}, {"$set": {"metrics": metrics}}, return_document=ReturnDocument.AFTER
+        )
+        return RemediationJob.from_doc(doc) if doc else None
+
+    async def update_draft(self, job_id: str, draft_md: str, draft_url: str | None = None) -> RemediationJob | None:
+        update: dict[str, object] = {"draft_remediated_md": draft_md, "status": "in_review"}
+        if draft_url:
+            update["artifacts.draft"] = draft_url
+        doc = await self._col.find_one_and_update(
+            {"_id": job_id}, {"$set": update}, return_document=ReturnDocument.AFTER
+        )
+        return RemediationJob.from_doc(doc) if doc else None
+
+    async def mark_verified(
+        self,
+        job_id: str,
+        *,
+        verified_by: str,
+        title: str | None = None,
+        docx_url: str | None = None,
+    ) -> RemediationJob | None:
+        update: dict[str, object] = {
+            "status": "verified",
+            "verified_by": verified_by,
+            "verified_at": datetime.now(UTC).isoformat(),
+        }
+        if title:
+            update["title"] = title
+        if docx_url:
+            update["artifacts.docx"] = docx_url
+        doc = await self._col.find_one_and_update(
+            {"_id": job_id}, {"$set": update}, return_document=ReturnDocument.AFTER
+        )
+        return RemediationJob.from_doc(doc) if doc else None
 
     async def record_artifacts(self, job_id: str, artifacts: dict[str, str], counts: dict[str, int]) -> RemediationJob | None:
         update = {f"artifacts.{name}": url for name, url in artifacts.items()}

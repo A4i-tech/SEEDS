@@ -16,22 +16,11 @@ All three stages are wired. Only the model calls are unproven — no key is set 
 
 ## Install
 
-`omni-ingest` cannot share the platform's environment: it pulls starlette >=1.0,
-which needs fastapi >=0.119, and the platform pins fastapi <0.119. So it gets a
-venv of its own, and the consumer drives these pipelines as a subprocess against
-that interpreter:
-
-    python -m venv .venv-remediation
-    .venv-remediation/bin/pip install -r app/remediation/requirements.txt
-    export REMEDIATION_PYTHON=$PWD/.venv-remediation/bin/python
-
-In Docker: `--build-arg INSTALL_REMEDIATION=true`, which builds the same venv at
-`/app/.venv-remediation`. Build it for the consumer tier only — the api tier
-never runs a pipeline.
+`omni-ingest` is installed as a local package path dependency in the platform's Poetry environment (`pyproject.toml`).
 
 ## Stage A — textbook PDF to Markdown
 
-    $REMEDIATION_PYTHON -m app.remediation.run app/remediation/textbook_ocr.yaml \
+    poetry run python -m app.remediation.run app/remediation/textbook_ocr.yaml \
       --input book.pdf --output run.json \
       --engine llm --pages 3 --out out/raw.md
 
@@ -72,23 +61,16 @@ markdown structure and no alt text.
 
 ## Stage B — review
 
-    $REMEDIATION_PYTHON -m app.remediation.run app/remediation/review.yaml \
+    poetry run python -m app.remediation.run app/remediation/review.yaml \
       --input out/raw.md --output review.json \
-      --language kn --script latin --out-dir out
+      --script devanagari --out-dir out
 
-    alt_translate   English figure alt text -> the book's language   COSTS MONEY
     postcorrect     mechanical fixes, gated audit, verification      audit COSTS MONEY
 
-Writes `<stem>.corrected.md`, `<stem>.findings.jsonl` and `<stem>.alt.jsonl`.
+Writes `<stem>.corrected.md` and `<stem>.findings.jsonl`.
 `raw.md` is never modified.
 
-`--language en` makes translation a no-op; `--no-audit` makes the whole stage
-free, leaving only the mechanical fixes.
-
-`alt_translate` runs first on purpose. `postcorrect` treats an image reference
-as a protected span its audit may never touch, so translating first means the
-translated text is protected for the rest of the run instead of becoming an
-audit target.
+`--no-audit` makes the whole stage free, leaving only the mechanical fixes.
 
 ## Stage C — accessible Word document
 

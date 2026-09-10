@@ -151,18 +151,46 @@ const RemediationDetails = () => {
   const [diffPageIdx, setDiffPageIdx] = useState(0);
   const [trail, setTrail] = useState({ name: "findings", findings: [], total: 0, gate: "all" });
   const [error, setError] = useState(null);
+  const [actionMessage, setActionMessage] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [draftText, setDraftText] = useState("");
+  const [reviewSummary, setReviewSummary] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(0);
   const [expandedRows, setExpandedRows] = useState({});
+  const [appliedFindings, setAppliedFindings] = useState({});
+  const [dismissedFindings, setDismissedFindings] = useState({});
   const pageSize = 15;
 
+  const handleApplyFinding = (item, rowKey) => {
+    if (!item.original || item.replacement === undefined) return;
+    const current = draftText || documents.corrected || "";
+    if (current.includes(item.original)) {
+      const updated = current.replace(item.original, item.replacement);
+      setDraftText(updated);
+      setAppliedFindings((prev) => ({ ...prev, [rowKey]: true }));
+      setActionMessage(`Applied fix: "${item.original}" → "${item.replacement}"`);
+      setTimeout(() => setActionMessage(null), 3000);
+    } else {
+      setActionMessage(`Could not locate exact original text in current draft.`);
+      setTimeout(() => setActionMessage(null), 3000);
+    }
+  };
+
+  const handleDismissFinding = (rowKey) => {
+    setDismissedFindings((prev) => ({ ...prev, [rowKey]: true }));
+  };
+
   const rawPages = useMemo(() => splitIntoPages(documents.raw), [documents.raw]);
-  const correctedPages = useMemo(() => splitIntoPages(documents.corrected), [documents.corrected]);
+  const correctedPages = useMemo(
+    () => splitIntoPages(draftText || documents.corrected),
+    [draftText, documents.corrected]
+  );
   const diffTotalPages = Math.max(rawPages.length, correctedPages.length);
 
   const currentRawPage = rawPages[diffPageIdx]?.content || (rawPages.length === 0 ? (documents.raw || "") : "");
   const currentCorrectedPage =
-    correctedPages[diffPageIdx]?.content || (correctedPages.length === 0 ? (documents.corrected || "") : "");
+    correctedPages[diffPageIdx]?.content || (correctedPages.length === 0 ? (draftText || documents.corrected || "") : "");
 
   // Stream or poll Job status
   useEffect(() => {
@@ -171,6 +199,9 @@ const RemediationDetails = () => {
       .getJob(jobId)
       .then((current) => {
         setJob(current);
+        if (current.draft_remediated_md) {
+          setDraftText(current.draft_remediated_md);
+        }
         if (current.status === "pending" || current.status === "running") {
           return textbookRemediationService.streamJob(jobId, (event) => setJob(event.job), {
             signal: controller.signal,
@@ -184,6 +215,14 @@ const RemediationDetails = () => {
     return () => controller.abort();
   }, [jobId]);
 
+  // Fetch Review Summary
+  useEffect(() => {
+    textbookRemediationService
+      .getReviewSummary(jobId)
+      .then((res) => setReviewSummary(res))
+      .catch(() => {});
+  }, [jobId]);
+
   const artifacts = useMemo(() => job?.artifacts || {}, [job]);
 
   // Load raw.md and raw.corrected.md documents
@@ -192,10 +231,43 @@ const RemediationDetails = () => {
       if (!artifacts[name] || documents[name] !== undefined) return;
       textbookRemediationService
         .getArtifactText(jobId, name)
-        .then((text) => setDocuments((prev) => ({ ...prev, [name]: text })))
+        .then((text) => {
+          setDocuments((prev) => ({ ...prev, [name]: text }));
+          if (name === "corrected" && !draftText) {
+            setDraftText(text);
+          }
+        })
         .catch((textError) => setError(textError.message));
     });
-  }, [artifacts, documents, jobId]);
+  }, [artifacts, documents, draftText, jobId]);
+
+  const handleSaveDraft = async () => {
+    try {
+      setActionMessage("Saving draft...");
+      const updated = await textbookRemediationService.saveDraft(jobId, draftText || documents.corrected || "");
+      setJob(updated);
+      setActionMessage("Draft saved successfully.");
+      setTimeout(() => setActionMessage(null), 3500);
+    } catch (saveErr) {
+      setError(saveErr.message);
+      setActionMessage(null);
+    }
+  };
+
+  const handleMarkVerified = async () => {
+    try {
+      setActionMessage("Marking verified and saving to Library...");
+      const updated = await textbookRemediationService.markVerified(jobId, {
+        title: job?.source_name?.replace(/\.pdf$/i, " (Accessible)"),
+      });
+      setJob(updated);
+      setActionMessage("Textbook marked Verified and saved to Library.");
+      setTimeout(() => setActionMessage(null), 4000);
+    } catch (vErr) {
+      setError(vErr.message);
+      setActionMessage(null);
+    }
+  };
 
   // Load trail findings
   const loadTrail = useCallback(
@@ -275,8 +347,9 @@ const RemediationDetails = () => {
           className="breadcrumb-standalone"
           items={[
             { label: "Home", onClick: () => navigate("/content") },
-            { label: "Remediation", onClick: () => navigate("/content?tab=remediation") },
+            { label: "Remediate", onClick: () => navigate("/content?tab=remediation") },
             { label: job?.source_name || jobId },
+            { label: "Review" },
           ]}
         />
 
@@ -314,10 +387,40 @@ const RemediationDetails = () => {
                 </div>
 
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
-                  {job.artifacts.docx && (
+                  <button
+                    type="button"
+                    className="action-ghost-button"
+                    onClick={() => setIsEditing(!isEditing)}
+                  >
+                    {isEditing ? "Preview Mode" : "Edit Remediated Text"}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="action-ghost-button"
+                    onClick={handleSaveDraft}
+                  >
+                    Save draft
+                  </button>
+
+                  {job.status !== "verified" ? (
                     <button
                       type="button"
                       className="primary-button"
+                      onClick={handleMarkVerified}
+                    >
+                      Done — mark Verified
+                    </button>
+                  ) : (
+                    <span className="gate-badge gate-badge-auto" style={{ padding: "6px 12px" }}>
+                      ✓ Verified & Saved to Library
+                    </span>
+                  )}
+
+                  {job.artifacts.docx && (
+                    <button
+                      type="button"
+                      className="action-ghost-button"
                       onClick={() =>
                         textbookRemediationService.downloadArtifact(
                           job.job_id,
@@ -326,26 +429,29 @@ const RemediationDetails = () => {
                         )
                       }
                     >
-                      Download DOCX
-                    </button>
-                  )}
-                  {job.artifacts.raw && (
-                    <button
-                      type="button"
-                      className="action-ghost-button"
-                      onClick={() =>
-                        textbookRemediationService.downloadArtifact(
-                          job.job_id,
-                          "raw",
-                          `${job.source_name.replace(/\.pdf$/i, "")}.raw.md`
-                        )
-                      }
-                    >
-                      Raw Markdown
+                      Download Word
                     </button>
                   )}
                 </div>
               </div>
+
+              {actionMessage && (
+                <div style={{ backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534", padding: "10px 14px", borderRadius: "8px", marginTop: "12px", fontSize: "14px", fontWeight: 500 }}>
+                  {actionMessage}
+                </div>
+              )}
+
+              {/* Wireframe Domain Metric Summary Banner */}
+              {reviewSummary && (
+                <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "center", marginTop: "12px", padding: "10px 14px", backgroundColor: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "13px" }}>
+                  <span style={{ fontWeight: 600, color: "#0f172a" }}>Review Summary:</span>
+                  <span style={{ color: "#334155" }}>📊 {reviewSummary.diagrams_described_count || 0} diagrams described</span>
+                  <span style={{ color: "#334155" }}>📋 {reviewSummary.tables_fixed_count || 0} tables fixed</span>
+                  <span style={{ color: (reviewSummary.flagged_items_count > 0 ? "#b91c1c" : "#15803d"), fontWeight: 600 }}>
+                    ⚠️ {reviewSummary.flagged_items_count || 0} places need a check
+                  </span>
+                </div>
+              )}
 
               {/* Real-time Progress Bar */}
               {isRunning && (
@@ -392,7 +498,7 @@ const RemediationDetails = () => {
                 <div className="stat-card" style={{ "--stat-accent": "var(--color-secondary)" }}>
                   <div className="stat-label">Language</div>
                   <div className="stat-value" style={{ textTransform: "capitalize", fontSize: "24px" }}>
-                    {job.language || "Auto"}
+                    {job.detected_language || (job.language && job.language !== "auto" && job.language !== "detecting" ? job.language : "Detecting…")}
                   </div>
                 </div>
               </div>
@@ -475,14 +581,37 @@ const RemediationDetails = () => {
                 </div>
 
                 <div className="remediation-diff-pane">
-                  <div className="remediation-pane-header">
+                  <div className="remediation-pane-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span>
-                      Remediated & Reviewed Markdown {diffTotalPages > 1 ? `(Page ${diffPageIdx + 1} of ${diffTotalPages})` : ""}
+                      Remediated & Reviewed Markdown {diffTotalPages > 1 ? `(Page ${diffPageIdx + 1} of ${diffTotalPages})` : ""} {isEditing ? "— [EDITING]" : ""}
                     </span>
+                    {isEditing && (
+                      <span style={{ fontSize: "12px", color: "var(--color-primary)", fontWeight: 600 }}>
+                        Interactive Edit Mode Active
+                      </span>
+                    )}
                   </div>
                   <div className="remediation-pane-body">
                     {loadingDocs ? (
                       <p className="card-description">Loading remediated Markdown…</p>
+                    ) : isEditing ? (
+                      <textarea
+                        value={draftText}
+                        onChange={(e) => setDraftText(e.target.value)}
+                        style={{
+                          width: "100%",
+                          minHeight: "440px",
+                          fontFamily: "monospace",
+                          fontSize: "13px",
+                          lineHeight: 1.5,
+                          padding: "12px",
+                          borderRadius: "6px",
+                          border: "1px solid #cbd5e1",
+                          outline: "none",
+                          boxSizing: "border-box",
+                        }}
+                        placeholder="Edit accessible markdown, figure alt-text, and summaries..."
+                      />
                     ) : (
                       <MarkdownViewer text={currentCorrectedPage} jobId={jobId} />
                     )}
@@ -570,7 +699,7 @@ const RemediationDetails = () => {
                       <th className="table-header" style={{ width: "160px" }}>Rule / Gate</th>
                       <th className="table-header">Original / Context</th>
                       <th className="table-header">Correction / Finding</th>
-                      <th className="table-header" style={{ width: "110px" }}>Details</th>
+                      <th className="table-header" style={{ width: "180px" }}>Review Actions / Details</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -618,14 +747,48 @@ const RemediationDetails = () => {
                               </td>
 
                               <td className="table-cell" style={{ textAlign: "center" }}>
-                                <button
-                                  type="button"
-                                  className="action-ghost-button"
-                                  style={{ padding: "4px 10px", fontSize: "12px" }}
-                                  onClick={() => toggleRowExpand(rowKey)}
-                                >
-                                  {isExpanded ? "Hide" : "Inspect"}
-                                </button>
+                                <div style={{ display: "flex", gap: "6px", justifyContent: "center", alignItems: "center", flexWrap: "wrap" }}>
+                                  {appliedFindings[rowKey] ? (
+                                    <span className="gate-badge gate-badge-auto" style={{ fontSize: "11px", padding: "2px 6px" }}>
+                                      ✓ Applied
+                                    </span>
+                                  ) : dismissedFindings[rowKey] ? (
+                                    <span style={{ fontSize: "11px", color: "#64748b", padding: "2px 6px" }}>
+                                      Dismissed
+                                    </span>
+                                  ) : (
+                                    <>
+                                      {item.original && item.replacement !== undefined && (
+                                        <button
+                                          type="button"
+                                          className="primary-button"
+                                          style={{ padding: "3px 8px", fontSize: "11px" }}
+                                          onClick={() => handleApplyFinding(item, rowKey)}
+                                          title="Apply AI suggestion directly to draft markdown"
+                                        >
+                                          Apply fix
+                                        </button>
+                                      )}
+                                      <button
+                                        type="button"
+                                        className="action-ghost-button"
+                                        style={{ padding: "3px 8px", fontSize: "11px" }}
+                                        onClick={() => handleDismissFinding(rowKey)}
+                                        title="Dismiss finding"
+                                      >
+                                        Dismiss
+                                      </button>
+                                    </>
+                                  )}
+                                  <button
+                                    type="button"
+                                    className="action-ghost-button"
+                                    style={{ padding: "3px 8px", fontSize: "11px" }}
+                                    onClick={() => toggleRowExpand(rowKey)}
+                                  >
+                                    {isExpanded ? "Hide" : "Inspect"}
+                                  </button>
+                                </div>
                               </td>
                             </tr>
 

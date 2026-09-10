@@ -5,6 +5,10 @@ description: "Single-pass Mistral Document AI + Vision Alt-Text"
 
 parameters:
   properties:
+    language:
+      type: string
+      default: "Hindi"
+      description: Target language of the textbook
     alt_model:
       type: string
       default: "azure-responses:gpt-4.1-mini"
@@ -48,13 +52,10 @@ steps:
       content_filter_retries: 2
       content_filter_scale: 0.5
       prompt: |
-        You write alt text for a figure in a school textbook, for a blind
-        student.
+        You write accessible figure descriptions and alt text for a school textbook in ${.config.language} for a blind student.
 
         Rules:
-        1. Match the primary language and script of the textbook page (e.g. Hindi
-           for Hindi, Marathi for Marathi, English for English). Never invent a label,
-           and never write a script the textbook does not use.
+        1. Write ALL descriptions, labels, and alt-text directly in ${.config.language}. Do not write English unless the textbook itself is in English.
         2. Say what the figure shows, not what it is. Name every colour change,
            flame, precipitate, bubble, deposit, glow and relative volume that is
            visible.

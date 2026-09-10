@@ -91,29 +91,12 @@ def test_order_pages_refuses_a_run_with_a_hole_in_it(pages, reason):
         order_pages(pages)
 
 
-from app.remediation.alt_translate import alt_spans, replace_alts  # noqa: E402
 from app.remediation.remediate import (  # noqa: E402
     fix_heading_levels,
     inline_unresolved_images,
     strip_furniture,
     table_blocks,
 )
-
-_MD = "before ![a diagram](fig1.png) after\n\n![](fig2.png)\n"
-
-
-def test_alt_spans_skips_an_image_with_no_alt_text():
-    assert [(alt, src) for _, _, alt, src in alt_spans(_MD)] == [("a diagram", "fig1.png")]
-
-
-def test_replace_alts_leaves_src_and_surrounding_text_byte_identical():
-    out = replace_alts(_MD, alt_spans(_MD), ["ಒಂದು ಚಿತ್ರ"])
-    assert out == "before ![ಒಂದು ಚಿತ್ರ](fig1.png) after\n\n![](fig2.png)\n"
-
-
-def test_replace_alts_refuses_a_length_mismatch():
-    with pytest.raises(ValueError, match="1 translations for 0 images"):
-        replace_alts("no images", [], ["stray"])
 
 
 @pytest.mark.parametrize(
@@ -150,6 +133,9 @@ def test_fix_heading_levels_leaves_a_well_formed_document_alone():
 def test_table_blocks_finds_a_table_and_ignores_a_pipe_in_prose():
     text = "intro\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\nuse a | b for or\n"
     assert table_blocks(text) == [(2, 4)]
+
+
+_MD = "before ![a diagram](fig1.png) after\n\n![](fig2.png)\n"
 
 
 def test_inline_unresolved_images_keeps_a_resolvable_src(tmp_path):

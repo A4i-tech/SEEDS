@@ -34,10 +34,13 @@ import asyncio
 import json
 import logging
 import os
+import subprocess
 import tempfile
+from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import Any, Awaitable, Callable
+from typing import Any
 
+from dotenv import dotenv_values
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.remediation_job import ARTIFACTS, RemediationJob
@@ -45,18 +48,12 @@ from app.platform.settings import get_settings
 from app.remediation.detect_language import detect_language
 from app.repositories.textbook_remediation_repository import TextbookRemediationRepository
 
-
 logger = logging.getLogger(__name__)
 
 POLL_INTERVAL_SECONDS = 10
 JOB_TIMEOUT_SECONDS = 4 * 60 * 60
 PIPELINE_DIR = Path(__file__).resolve().parent.parent / "remediation"
 PLATFORM_ROOT = PIPELINE_DIR.parent.parent
-
-from dotenv import dotenv_values
-
-
-import subprocess
 
 
 async def _run_pipeline(
@@ -97,7 +94,7 @@ async def _run_pipeline(
         while not stop_tailing.is_set():
             if progress_file.exists():
                 try:
-                    with open(progress_file, "r", encoding="utf-8") as f:
+                    with open(progress_file, encoding="utf-8") as f:
                         f.seek(file_pos)
                         lines = f.readlines()
                         file_pos = f.tell()
@@ -192,18 +189,39 @@ async def _process_job(job: RemediationJob, repo: TextbookRemediationRepository,
         pdf = work / "book.pdf"
         pdf.write_bytes(await blob_provider.download_from_url(job.source_url))
 
-        logger.info("remediation: ocr job_id=%s source=%s", job.job_id, job.source_name)
-        await repo.update_progress(job.job_id, {"stage": "ocr", "message": "Starting OCR stage..."})
+        # Upfront language probe from PDF text or name
+        probed_lang = "English"
+        try:
+            import pypdf
+            reader = pypdf.PdfReader(str(pdf))
+            sample_text = "".join((page.extract_text() or "") for page in reader.pages[:5])
+            if sample_text.strip():
+                probed_lang = detect_language(sample_text)
+            elif "hindi" in job.source_name.lower() or "ganit" in job.source_name.lower():
+                probed_lang = "Hindi"
+            elif "kannada" in job.source_name.lower():
+                probed_lang = "Kannada"
+            elif "tamil" in job.source_name.lower():
+                probed_lang = "Tamil"
+        except Exception as exc:
+            logger.warning("remediation: upfront probe failed: %s", exc)
+
+        target_lang = (job.language if job.language and job.language not in ("auto", "detecting") else None) or probed_lang
+        await repo.update_language(job.job_id, target_lang)
+
+        logger.info("remediation: ocr job_id=%s source=%s language=%s", job.job_id, job.source_name, target_lang)
+        await repo.update_progress(job.job_id, {"stage": "ocr", "message": f"Starting OCR in {target_lang}..."})
         await _run_pipeline(
             "textbook_ocr.yaml", pdf, work,
-            ["--output", str(out / "raw.md")],
+            ["--output", str(out / "raw.md"), "--language", target_lang],
             on_progress=make_progress_handler("ocr"),
         )
         raw = out / "raw.md"
+        detected_lang = target_lang
         if raw.exists():
             detected_lang = detect_language(raw.read_text(encoding="utf-8", errors="ignore"))
             await repo.update_language(job.job_id, detected_lang)
-            logger.info("remediation: detected language=%s for job_id=%s", detected_lang, job.job_id)
+            logger.info("remediation: confirmed detected language=%s for job_id=%s", detected_lang, job.job_id)
 
         await _upload_images(blob_provider, job.job_id, work)
         await repo.record_artifacts(
@@ -211,12 +229,15 @@ async def _process_job(job: RemediationJob, repo: TextbookRemediationRepository,
             {"raw_chars": raw.stat().st_size if raw.exists() else 0},
         )
 
-        logger.info("remediation: review job_id=%s", job.job_id)
+        effective_language = (job.language if job.language and job.language not in ("auto", "detecting") else None) or detected_lang or "English"
+        script = "devanagari" if effective_language.lower() in ("hindi", "marathi", "sanskrit") else "latin"
+
+        logger.info("remediation: review job_id=%s language=%s script=%s", job.job_id, effective_language, script)
         await repo.set_stage(job.job_id, "review")
-        await repo.update_progress(job.job_id, {"stage": "review", "message": "Starting Review stage..."})
+        await repo.update_progress(job.job_id, {"stage": "review", "message": f"Reviewing in {effective_language}..."})
         await _run_pipeline(
             "review.yaml", raw, work,
-            ["--out-dir", str(out)],
+            ["--out-dir", str(out), "--script", script],
             on_progress=make_progress_handler("review"),
         )
         corrected, findings = out / "raw.corrected.md", out / "raw.findings.jsonl"
@@ -241,9 +262,28 @@ async def _process_job(job: RemediationJob, repo: TextbookRemediationRepository,
              "docx_bytes": docx.stat().st_size if docx.exists() else 0},
         )
 
+        # Compute user-facing domain metrics for review & dashboard
+        import re
+        total_pages = 1
+        diagrams_count = 0
+        if raw.exists():
+            raw_content = raw.read_text(encoding="utf-8", errors="ignore")
+            pages = re.findall(r"<!--\s*page\s+(\d+)\s*-->", raw_content)
+            total_pages = max([int(p) for p in pages] + [1])
+            diagrams_count = len(re.findall(r"!\[.*?\]\(.*?\)", raw_content))
+
+        metrics = {
+            "total_pages": total_pages,
+            "processed_pages": total_pages,
+            "diagrams_described": diagrams_count,
+            "tables_fixed": _count_lines(trail),
+            "flagged_items_count": _count_lines(unresolved),
+        }
+        await repo.update_metrics(job.job_id, metrics)
+
     await repo.update_progress(job.job_id, {})
-    await repo.finish(job.job_id, "completed")
-    logger.info("remediation: completed job_id=%s", job.job_id)
+    await repo.finish(job.job_id, "ready_to_review")
+    logger.info("remediation: ready_to_review job_id=%s", job.job_id)
 
 
 

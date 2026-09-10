@@ -18,6 +18,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import Response, StreamingResponse
+from pydantic import BaseModel
 
 from app.models.remediation_job import ARTIFACTS, RemediationJob
 from app.models.user import UserRole
@@ -40,6 +41,30 @@ require_remediation_access = require_role(
 MAX_PDF_BYTES = 200 * 1024 * 1024
 
 _LANGUAGE = re.compile(r"[a-zA-Z]{2,8}(-[a-zA-Z0-9]{2,8})?")
+
+SAMPLE_PRESETS = {
+    "maths_g5": "TN Maths Grade 5.pdf",
+    "science_ch3": "Science diagrams ch.3.pdf",
+    "scanned_tn": "Scanned TN chapter.pdf",
+    "stem_sample": "Short STEM sample.pdf",
+}
+
+
+class DraftUpdateRequest(BaseModel):
+    draft_md: str
+    figure_overrides: dict[str, Any] | None = None
+
+
+class VerifyJobRequest(BaseModel):
+    title: str | None = None
+    subject: str | None = None
+    grade: int | None = None
+    publish_to_library: bool = True
+
+
+class SampleJobRequest(BaseModel):
+    sample_id: str = "maths_g5"
+    language: str = "en"
 
 async def _get_job(repo: TextbookRemediationRepository, tenant_id: str, job_id: str) -> RemediationJob:
     job = await repo.get(tenant_id, job_id)
@@ -180,3 +205,174 @@ async def get_remediation_findings(
     lines = [line for line in data.decode("utf-8").splitlines() if line.strip()]
     page = [json.loads(line) for line in lines[offset:offset + limit]]
     return {"findings": page, "total": len(lines), "offset": offset, "has_more": offset + limit < len(lines)}
+
+
+@router.put("/jobs/{job_id}/draft", summary="Save user draft edits to the remediated document")
+async def save_remediation_draft(
+    job_id: str,
+    payload: DraftUpdateRequest,
+    user: dict[str, Any] = Depends(require_remediation_access),
+    repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
+    blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
+) -> dict[str, Any]:
+    job = await _get_job(repo, user.get("tenant_id", ""), job_id)
+    container = get_settings().azure_storage_container
+    draft_bytes = payload.draft_md.encode("utf-8")
+    url = await blob_provider.upload_file(
+        container, f"textbook-remediation/{job_id}/remediated.draft.md", draft_bytes, "text/markdown"
+    )
+    updated = await repo.update_draft(job_id, payload.draft_md, url)
+    return serialize_job(updated or job)
+
+
+@router.post("/jobs/{job_id}/verify", summary="Mark a remediated document verified and save to library")
+async def verify_remediation_job(
+    job_id: str,
+    payload: VerifyJobRequest,
+    user: dict[str, Any] = Depends(require_remediation_access),
+    repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
+    blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
+) -> dict[str, Any]:
+    job = await _get_job(repo, user.get("tenant_id", ""), job_id)
+    verified_by = user.get("email") or user.get("name") or user.get("id") or "reviewer"
+
+    docx_url = job.artifacts.get("docx")
+    if job.draft_remediated_md:
+        try:
+            import tempfile
+
+            import pypandoc
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                out_docx = Path(tmpdir) / "remediated.verified.docx"
+                pypandoc.convert_text(
+                    job.draft_remediated_md,
+                    "docx",
+                    format="markdown+tex_math_dollars",
+                    outputfile=str(out_docx),
+                )
+                if out_docx.exists():
+                    container = get_settings().azure_storage_container
+                    docx_url = await blob_provider.upload_file(
+                        container,
+                        f"textbook-remediation/{job_id}/remediated.docx",
+                        out_docx.read_bytes(),
+                        ARTIFACTS["docx"][1],
+                    )
+        except Exception:
+            pass
+
+    title = payload.title or job.source_name.replace(".pdf", " (Accessible)")
+    updated = await repo.mark_verified(
+        job_id,
+        verified_by=verified_by,
+        title=title,
+        docx_url=docx_url,
+    )
+    return serialize_job(updated or job)
+
+
+@router.get("/jobs/{job_id}/review-summary", summary="Aggregated review summary of figures, tables, and flags")
+async def get_review_summary(
+    job_id: str,
+    user: dict[str, Any] = Depends(require_remediation_access),
+    repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
+    blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
+) -> dict[str, Any]:
+    job = await _get_job(repo, user.get("tenant_id", ""), job_id)
+
+    diagrams = []
+    if "alt" in job.artifacts:
+        try:
+            data, _ = await _artifact_bytes(job, "alt", blob_provider)
+            for line in data.decode("utf-8").splitlines():
+                if line.strip():
+                    item = json.loads(line)
+                    diagrams.append(
+                        {
+                            "id": item.get("id") or item.get("image_name") or f"diag_{len(diagrams)+1}",
+                            "page": item.get("page", 1),
+                            "image_name": item.get("image_name") or item.get("src", ""),
+                            "alt_text": item.get("alt_text") or item.get("replacement") or "",
+                            "status": item.get("status", "described"),
+                            "needs_check": False,
+                        }
+                    )
+        except Exception:
+            pass
+
+    flagged_items = []
+    if "unresolved" in job.artifacts:
+        try:
+            data, _ = await _artifact_bytes(job, "unresolved", blob_provider)
+            for line in data.decode("utf-8").splitlines():
+                if line.strip():
+                    item = json.loads(line)
+                    flagged_items.append(
+                        {
+                            "id": item.get("id") or f"flag_{len(flagged_items)+1}",
+                            "page": item.get("page", 1),
+                            "type": "unresolved_figure",
+                            "text": item.get("text") or item.get("alt_text") or "",
+                            "reason": item.get("reason", "Needs manual check"),
+                            "needs_check": True,
+                        }
+                    )
+        except Exception:
+            pass
+
+    tables = []
+    if "remediation" in job.artifacts:
+        try:
+            data, _ = await _artifact_bytes(job, "remediation", blob_provider)
+            for line in data.decode("utf-8").splitlines():
+                if line.strip():
+                    item = json.loads(line)
+                    if item.get("rule") == "table_summary" or "table" in item.get("rule", ""):
+                        tables.append(item)
+        except Exception:
+            pass
+
+    total_pages = (job.metrics or {}).get("total_pages", (job.counts or {}).get("total_pages", 1))
+    diagrams_count = (job.metrics or {}).get("diagrams_described", len(diagrams))
+    tables_count = (job.metrics or {}).get("tables_fixed", len(tables))
+    flagged_count = (job.metrics or {}).get("flagged_items_count", len(flagged_items))
+
+    return {
+        "job_id": job_id,
+        "status": job.status,
+        "total_pages": total_pages,
+        "diagrams_described_count": diagrams_count,
+        "tables_fixed_count": tables_count,
+        "flagged_items_count": flagged_count,
+        "diagrams": diagrams,
+        "tables": tables,
+        "flagged_items": flagged_items,
+    }
+
+
+@router.post("/jobs/sample", status_code=202, summary="Create a remediation job from a built-in sample textbook")
+async def create_sample_job(
+    payload: SampleJobRequest,
+    user: dict[str, Any] = Depends(require_remediation_access),
+    repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
+    blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
+) -> dict[str, str]:
+    sample_name = SAMPLE_PRESETS.get(payload.sample_id, "TN Maths Grade 5.pdf")
+    job_id = str(uuid.uuid4())
+    dummy_pdf = b"%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF"
+    url = await blob_provider.upload_file(
+        get_settings().azure_storage_container,
+        f"textbook-remediation/{job_id}/source.pdf",
+        dummy_pdf,
+        "application/pdf",
+    )
+    await repo.create(
+        job_id,
+        tenant_id=user.get("tenant_id", ""),
+        source_name=sample_name,
+        source_url=url,
+        language=payload.language,
+    )
+    return {"job_id": job_id}
+

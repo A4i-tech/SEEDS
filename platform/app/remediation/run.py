@@ -9,13 +9,14 @@ be in the registry when it is built — importing this package does that.
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
 import json
-from pathlib import Path
 import sys
+from datetime import UTC, datetime
+from pathlib import Path
 
 from omni_ingest.cli import _main
 from omni_ingest.core import event
+
 from app import remediation  # noqa: F401  registers the custom steps
 
 
@@ -51,7 +52,7 @@ async def _stream_events_to_file(path: Path) -> None:
                     "status": status,
                 }
             if rec:
-                rec["timestamp"] = datetime.now(timezone.utc).isoformat()
+                rec["timestamp"] = datetime.now(UTC).isoformat()
                 f.write(json.dumps(rec) + "\n")
                 f.flush()
 

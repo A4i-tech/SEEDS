@@ -79,4 +79,44 @@ export const textbookRemediationService = {
       headers: getAuthHeaders(),
     });
   },
+
+  /** Save human reviewer edits to the remediated markdown */
+  async saveDraft(jobId, draftMd, figureOverrides = null) {
+    return apiFetch(`${BASE}/jobs/${encodeURIComponent(jobId)}/draft`, {
+      method: "PUT",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ draft_md: draftMd, figure_overrides: figureOverrides }),
+    });
+  },
+
+  /** Mark a remediated textbook verified and publish to Library */
+  async markVerified(jobId, { title, subject, grade, publishToLibrary = true } = {}) {
+    return apiFetch(`${BASE}/jobs/${encodeURIComponent(jobId)}/verify`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        title,
+        subject,
+        grade,
+        publish_to_library: publishToLibrary,
+      }),
+    });
+  },
+
+  /** Get aggregated review summary for figures, tables, and flags */
+  async getReviewSummary(jobId) {
+    return apiFetch(`${BASE}/jobs/${encodeURIComponent(jobId)}/review-summary`, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
+  },
+
+  /** Create a job from a built-in sample textbook */
+  async createSampleJob(sampleId = "maths_g5", language = "en") {
+    return apiFetch(`${BASE}/jobs/sample`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ sample_id: sampleId, language }),
+    });
+  },
 };

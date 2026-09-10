@@ -15,7 +15,7 @@ from app.models.remediation_job import STAGES, RemediationJob
 from app.repositories.textbook_remediation_repository import TextbookRemediationRepository
 
 POLL_INTERVAL_SECONDS = 1.0
-_TERMINAL = ("completed", "failed")
+_TERMINAL = ("ready_to_review", "completed", "verified", "failed")
 
 
 def serialize_job(job: RemediationJob) -> dict[str, object]:
@@ -23,13 +23,19 @@ def serialize_job(job: RemediationJob) -> dict[str, object]:
         "job_id": job.job_id,
         "source_name": job.source_name,
         "language": job.language,
+        "detected_language": job.detected_language,
         "status": job.status,
         "stage": job.stage,
         "stage_index": STAGES.index(job.stage) + 1 if job.stage in STAGES else 0,
         "stage_count": len(STAGES),
         "artifacts": job.artifacts,
         "counts": job.counts,
+        "metrics": job.metrics,
         "progress": job.progress,
+        "draft_remediated_md": job.draft_remediated_md,
+        "verified_at": job.verified_at,
+        "verified_by": job.verified_by,
+        "title": job.title,
         "error": job.error,
         "created_at": job.created_at,
         "finished_at": job.finished_at,
