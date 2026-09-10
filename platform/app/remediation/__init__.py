@@ -13,5 +13,4 @@ from app.remediation import (  # noqa: F401
     remediate,
     render,
     safe_extract,
-    write_markdown,
 )

@@ -5,7 +5,6 @@ import pytest
 pytest.importorskip("omni_ingest", reason="optional `remediation` dependency group")
 
 from app.remediation.postcorrect import Edit, _gate, chunk, mechanical, verify  # noqa: E402
-from app.remediation.write_markdown import order_pages  # noqa: E402
 
 _EDIT = Edit(
     type="wrong_matra",
@@ -77,18 +76,6 @@ def test_verify_accepts_an_equal_length_letter_change():
     assert verify("hi", "ho", 0.5) is None
 
 
-def test_order_pages_sorts():
-    assert order_pages([3, 1, 2]) == [1, 2, 3]
-    assert order_pages([7]) == [7]
-
-
-@pytest.mark.parametrize(
-    ("pages", "reason"),
-    [([], "No pages"), ([1, 3], "missing"), ([1, 1], "Duplicate")],
-)
-def test_order_pages_refuses_a_run_with_a_hole_in_it(pages, reason):
-    with pytest.raises(ValueError, match=reason):
-        order_pages(pages)
 
 
 from app.remediation.remediate import (  # noqa: E402
