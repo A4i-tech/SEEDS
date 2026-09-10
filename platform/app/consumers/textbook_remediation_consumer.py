@@ -47,6 +47,7 @@ from app.models.remediation_job import ARTIFACTS, RemediationJob
 from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider
 from app.remediation.detect_language import detect_language
+from app.remediation.render import render_remediation
 from app.repositories.textbook_remediation_repository import TextbookRemediationRepository
 
 logger = logging.getLogger(__name__)
@@ -202,23 +203,49 @@ async def _process_job(job: RemediationJob, repo: TextbookRemediationRepository,
 
         logger.info("remediation: processing job_id=%s source=%s language=%s script=%s", job.job_id, job.source_name, target_lang, script)
         await repo.update_progress(job.job_id, {"stage": "remediation", "message": f"Remediating in {target_lang}..."})
+
+        context_json_path = work / "context.json"
         docx_path = out / "remediated.docx"
 
         await _run_pipeline(
             pdf, work,
             [
                 "--language", target_lang,
-                "--script", script,
-                "--out-dir", str(out),
-                "--out", str(docx_path),
+                "--output", str(context_json_path),
             ],
             on_progress=make_progress_handler("remediation"),
         )
+
+        metrics: dict[str, object] | None = None
+        if context_json_path.exists():
+            try:
+                ctx_data = json.loads(context_json_path.read_text(encoding="utf-8"))
+                rendered_info = render_remediation(ctx_data, out)
+                metrics = rendered_info.get("metrics")  # type: ignore[assignment]
+            except Exception as exc:
+                logger.warning("remediation: render_remediation failed: %s", exc)
 
         raw = out / "raw.md"
         findings = out / "raw.findings.jsonl"
         trail = out / "raw.corrected.remediation.jsonl"
         unresolved = out / "remediated.unresolved.jsonl"
+
+        if not metrics:
+            total_pages = 1
+            diagrams_count = 0
+            if raw.exists():
+                raw_content = raw.read_text(encoding="utf-8", errors="ignore")
+                pages = re.findall(r"<!--\s*page\s+(\d+)\s*-->", raw_content)
+                total_pages = max([int(p) for p in pages] + [1])
+                diagrams_count = len(re.findall(r"!\[.*?\]\(.*?\)", raw_content))
+
+            metrics = {
+                "total_pages": total_pages,
+                "processed_pages": total_pages,
+                "diagrams_described": diagrams_count,
+                "tables_fixed": _count_lines(trail),
+                "flagged_items_count": _count_lines(unresolved),
+            }
 
         await _upload_images(blob_provider, job.job_id, work)
         await repo.record_artifacts(
@@ -232,22 +259,6 @@ async def _process_job(job: RemediationJob, repo: TextbookRemediationRepository,
                 "docx_bytes": docx_path.stat().st_size if docx_path.exists() else 0,
             },
         )
-
-        total_pages = 1
-        diagrams_count = 0
-        if raw.exists():
-            raw_content = raw.read_text(encoding="utf-8", errors="ignore")
-            pages = re.findall(r"<!--\s*page\s+(\d+)\s*-->", raw_content)
-            total_pages = max([int(p) for p in pages] + [1])
-            diagrams_count = len(re.findall(r"!\[.*?\]\(.*?\)", raw_content))
-
-        metrics: dict[str, object] = {
-            "total_pages": total_pages,
-            "processed_pages": total_pages,
-            "diagrams_described": diagrams_count,
-            "tables_fixed": _count_lines(trail),
-            "flagged_items_count": _count_lines(unresolved),
-        }
         await repo.update_metrics(job.job_id, metrics)
 
     await repo.update_progress(job.job_id, {})

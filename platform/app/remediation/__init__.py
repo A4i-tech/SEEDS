@@ -8,4 +8,10 @@ The `omni-ingest` dependency lives in the optional `remediation` Poetry group,
 installed in the consumer tier only.
 """
 
-from app.remediation import postcorrect, remediate, safe_extract, write_markdown  # noqa: F401
+from app.remediation import (  # noqa: F401
+    postcorrect,
+    remediate,
+    render,
+    safe_extract,
+    write_markdown,
+)

@@ -175,3 +175,68 @@ def test_detect_language_handles_empty_or_whitespace():
     assert detect_language("") == "English"
     assert detect_language("   \n\t  ") == "English"
 
+
+from app.remediation.render import render_remediation  # noqa: E402
+
+
+def test_render_remediation_generates_all_artifacts(tmp_path):
+    ctx = {
+        "items": [
+            {
+                "id": "page-1",
+                "content": "# Raw Heading\n\nSome text on page 1",
+                "metadata": {
+                    "kind": "page",
+                    "page": 1,
+                    "remediation": {
+                        "blocks": [
+                            {"type": "heading", "level": 1, "text": "Clean Heading"},
+                            {"type": "paragraph", "text": "Accessible paragraph text"},
+                            {"type": "figure", "image_id": "img-1", "text": ""},
+                            {"type": "table", "header": ["Col A", "Col B"], "rows": [["1", "2"]]},
+                        ],
+                        "removed_artifacts": [{"kind": "page_number", "value": "1"}],
+                    },
+                    "verified": {
+                        "corrections": [{"found": "teh", "corrected": "the", "fault": "other", "certain": True}],
+                    },
+                },
+            },
+            {
+                "id": "img-1",
+                "content": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+                "metadata": {
+                    "kind": "image",
+                    "page": 1,
+                    "accessibility": {
+                        "kind": "diagram",
+                        "alt_text": "A simple pixel diagram",
+                        "long_description": "Full explanation of the diagram.",
+                        "observed_result": "Shows test diagram output",
+                        "review_needed": False,
+                    },
+                },
+            },
+        ]
+    }
+
+    out_dir = tmp_path / "artifacts"
+    res = render_remediation(ctx, out_dir)
+
+    assert (out_dir / "raw.md").exists()
+    assert (out_dir / "raw.corrected.remediated.md").exists()
+    assert (out_dir / "raw.findings.jsonl").exists()
+    assert (out_dir / "raw.alt.jsonl").exists()
+    assert (out_dir / "raw.corrected.remediation.jsonl").exists()
+    assert (out_dir / "remediated.unresolved.jsonl").exists()
+    assert (out_dir / "remediated.docx").exists()
+
+    md_content = (out_dir / "raw.corrected.remediated.md").read_text(encoding="utf-8")
+    assert "# Clean Heading" in md_content
+    assert "![A simple pixel diagram](images/" in md_content
+    assert "| Col A | Col B |" in md_content
+
+    assert res["pages"] == 1
+    assert res["figures"] == 1
+    assert res["findings"] == 1
+
