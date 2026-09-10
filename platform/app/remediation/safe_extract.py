@@ -58,20 +58,66 @@ class SafeExtractAgent(ExtractAgent):
                     logger.warning("Rate limit on item %s, retrying in %ss...", item_doc.get("id"), (attempt + 1) * 3)
                     await asyncio.sleep((attempt + 1) * 3)
                     continue
-                logger.warning("Extraction failed for item %s: %s", item_doc.get("id"), exc)
-                fallback = {
-                    "kind": "figure",
-                    "alt_text": "Figure (needs review)",
-                    "long_description": f"Figure description unavailable: {exc}",
-                    "observed_result": "",
-                    "visible_labels": [],
-                    "confidence": 0.0,
-                    "review_needed": True,
-                    "review_reason": f"Alt-text extraction error: {type(exc).__name__}: {exc}",
-                }
-                advance("extracted (fallback)")
+                logger.warning("Extraction failed for item %s at %s: %s", item_doc.get("id"), self.path, exc)
+                path_str = str(self.path)
+                if "accessibility" in path_str:
+                    fallback = {
+                        "kind": "figure",
+                        "alt_text": "Figure (needs review)",
+                        "long_description": f"Figure description unavailable: {exc}",
+                        "observed_result": "",
+                        "visible_labels": [],
+                        "confidence": 0.0,
+                        "review_needed": True,
+                        "review_reason": f"Alt-text error: {type(exc).__name__}: {exc}",
+                    }
+                elif "remediation" in path_str:
+                    raw_text = ""
+                    if isinstance(item_doc.get("metadata"), dict):
+                        raw_text = (item_doc["metadata"].get("verified") or {}).get("markdown") or ""
+                    if not raw_text:
+                        raw_text = str(item_doc.get("text") or "")
+
+                    blocks: list[dict[str, Any]] = []
+                    for para in (raw_text or "Content requires review").split("\n\n"):
+                        p = para.strip()
+                        if p:
+                            blocks.append({
+                                "type": "paragraph",
+                                "text": p,
+                                "review_needed": True,
+                                "review_reason": f"Remediation fallback: {type(exc).__name__}: {exc}",
+                            })
+                    if not blocks:
+                        blocks = [{"type": "paragraph", "text": "Page content unparsed", "review_needed": True, "review_reason": str(exc)}]
+
+                    fallback = {
+                        "blocks": blocks,
+                        "removed_artifacts": [],
+                        "ocr_corrections": [],
+                        "language": "auto",
+                        "confidence": 0.0,
+                        "review_needed": True,
+                    }
+                elif "verified" in path_str:
+                    raw_text = str(item_doc.get("text") or "")
+                    fallback = {
+                        "markdown": raw_text or "Unverified page text",
+                        "corrections": [],
+                        "confidence": 0.0,
+                        "review_needed": True,
+                        "review_reason": f"Verification error: {type(exc).__name__}: {exc}",
+                    }
+                else:
+                    fallback = {
+                        "confidence": 0.0,
+                        "review_needed": True,
+                        "review_reason": f"Extraction error: {type(exc).__name__}: {exc}",
+                    }
+                advance(f"extracted (fallback: {type(exc).__name__})")
                 return item_doc, fallback
         return item_doc, {}
 
 
 register_step("safe_extract", SafeExtractAgent)
+

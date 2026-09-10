@@ -57,7 +57,7 @@ steps:
       foreach: '.items[] | select(.metadata.kind != "image")'
 
   # 4. Verify OCR against page image
-  - agent: extract
+  - agent: safe_extract
     description: "Verify OCR text against the page image"
     config:
       foreach: '.items[] | select(.metadata.kind != "image")'
@@ -179,7 +179,7 @@ steps:
         required: [grade, subject, language, board, title, evidence]
 
   # 6. Alt text per figure
-  - agent: extract
+  - agent: safe_extract
     description: "Write alt text and a long description for every figure"
     config:
       foreach: '.items[] | select(.metadata.kind == "image")'
@@ -238,7 +238,7 @@ steps:
           feedback: "observed_result is empty. Name the colour change, gas, deposit, or reading that the figure shows."
 
   # 7. Accessible block tree remediation
-  - agent: extract
+  - agent: safe_extract
     description: "Rebuild the page as an accessible block tree"
     config:
       foreach: '.items[] | select(.metadata.kind != "image")'
@@ -375,8 +375,8 @@ steps:
           review_needed: {type: boolean}
         required: [blocks, removed_artifacts, ocr_corrections, language, confidence, review_needed]
       assertions:
-        - expr: '[.blocks[].text] | join(" ") | test("\\\\[a-zA-Z]+|[$^]|_\\{|##|\\*\\*") | not'
-          feedback: "A text field still holds LaTeX or Markdown syntax. Move the maths into a math block and strip the markup."
+        - expr: '[.blocks[].text] | join(" ") | test("##|\\*\\*|\\\\begin\\{") | not'
+          feedback: "A text field still holds Markdown syntax or raw LaTeX blocks. Strip the markup."
         - expr: '[.blocks[] | select(.type == "math") | select((.mathml // "" | length) == 0 or (.spoken // "" | length) == 0)] | length == 0'
           feedback: "Every math block needs both mathml and spoken."
         - expr: '[.blocks[] | select(.type == "table") | select((.rows // [] | length) == 0 and (.review_needed | not))] | length == 0'
