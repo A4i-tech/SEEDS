@@ -104,16 +104,13 @@ test.describe('tenant password change', () => {
     await expect(page.getByText(/password updated successfully/i)).toBeVisible({ timeout: 10000 });
   });
 
-  // CONFIRMED BUG (verified live 2026-09-08 against onrender, and separately with a
-  // nonsense value "DefinitelyWrongPassword999"): POST /tenant/change-password does not
-  // validate current_password server-side — a wrong value still returns 200 "Password
-  // updated successfully!" and the change takes effect. TC-AUTH-008 as documented expects
-  // rejection; that does NOT happen. This test asserts the actual (buggy) behavior so CI
-  // stays green and self-documenting, and unconditionally restores the account afterward
-  // (not in a try/finally — a restore failure here must surface as a real test failure,
-  // not get masked). Flip this assertion back to expecting rejection once the backend
-  // validates current_password.
-  test('TC-AUTH-008 (documents a bug) incorrect current password is NOT rejected', async ({ page }) => {
+  // Was previously a confirmed bug (POST /tenant/change-password didn't validate
+  // current_password server-side — see #592) that this test documented by asserting
+  // the buggy behavior. Verified live 2026-09-10 against dev: the backend now
+  // correctly rejects with "Current password is incorrect", matching the doc's
+  // original expected outcome (docmost.a4i-lab.in/s/seeds/p/seeds-test-cases-54bIGOBUUJ).
+  // No restore step needed — a rejected change never takes effect.
+  test('TC-AUTH-008 fails with an incorrect current password', async ({ page }) => {
     const loginPage = new LoginPage(page);
     const contentPage = new ContentPage(page);
     const header = new HeaderPage(page);
@@ -127,13 +124,7 @@ test.describe('tenant password change', () => {
     await profilePage.goto();
 
     await profilePage.changePassword(wrongCurrentPassword, attemptedNewPassword, attemptedNewPassword);
-    await expect(page.getByText(/password updated successfully/i)).toBeVisible({ timeout: 10000 });
-
-    // Restore: the change above actually took effect (that's the bug), so the account is
-    // now on attemptedNewPassword and must be put back for every other spec.
-    await profilePage.goto();
-    await profilePage.changePassword(attemptedNewPassword, PERSONAS.tenantPasswordTest.password, PERSONAS.tenantPasswordTest.password);
-    await expect(page.getByText(/password updated successfully/i)).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Current password is incorrect')).toBeVisible({ timeout: 10000 });
   });
 
   test("TC-AUTH-009 fails when new password and confirmation don't match", async ({ page }) => {
