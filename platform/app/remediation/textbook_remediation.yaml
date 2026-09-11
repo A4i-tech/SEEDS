@@ -1,0 +1,420 @@
+# Textbook accessibility remediation pipeline.
+# Mirrors Seeds-omniingest/accessibility/profiles/accessibility_remediation_v1.yaml
+# Single-pass declarative pipeline:
+#   page_chunking -> image_extraction -> ocr -> ocr_verification ->
+#   front_matter -> alt_text -> block_tree_remediation -> review_report -> lineage
+
+pipeline_id: textbook_remediation
+domain_profile: accessibility
+input_modality: document
+description: "Remediate a scanned textbook into an accessible block tree with alt text, MathML, and review flags"
+
+parameters:
+  properties:
+    language:
+      type: string
+      description: "Language of the body text"
+      default: "auto"
+    ocr_engine:
+      type: string
+      description: "OCR engine name"
+      default: "mistral_ocr"
+    verify_model:
+      type: string
+      description: "Chat model used for OCR verification and remediation"
+      default: "azure-responses:gpt-4.1-mini"
+    page_concurrency:
+      type: integer
+      minimum: 1
+      description: "Pages remediated at the same time"
+      default: 4
+
+steps:
+  # 1. Split the document into single-page PDFs
+  - agent: page_chunking
+    description: "Split the book into single-page PDFs"
+    config:
+      mode: pdf
+
+  # 2. Extract figures and mark their position in the page
+  - agent: image_extraction
+    description: "Extract figures and mark their position in the page"
+    config:
+      mode: redact
+      include_vector: false
+      include_tables: false
+      deduplicate: true
+      replace: false
+      dpi: 240
+
+  # 3. Read page text with OCR model
+  - agent: ocr
+    description: "Read page text with the configured OCR model"
+    config:
+      engine: ${.config.ocr_engine}
+      src_lang: ${.config.language}
+      workers: 8
+      foreach: '.items[] | select(.metadata.kind != "image")'
+
+  # 4. Verify OCR against page image
+  - agent: safe_extract
+    description: "Verify OCR text against the page image"
+    config:
+      foreach: '.items[] | select(.metadata.kind != "image")'
+      input: "[.id]"
+      context: ".text"
+      path: ".metadata.verified"
+      model: ${.config.verify_model}
+      concurrency: ${.config.page_concurrency}
+      retries: 3
+      prompt: |
+        You are given a textbook page as an image, and the Markdown that an OCR
+        engine produced from that same page. Return corrected Markdown.
+
+        The image is the truth. Change the text only where the image disagrees
+        with it. Do not rewrite, summarise, translate, or reorder anything.
+        Keep the reading order the image shows.
+
+        Verify the text against the image by checking for these general classes of faults:
+
+        Script and orthography:
+        - Wrong or visually confused consonants, ligatures, or compound characters.
+        - Dropped, substituted, or hallucinated vowel signs (matras), modifiers (such as anusvara, nukta, reph, virama/halant), or half-consonants.
+        - Text in a script or alphabet the page does not use. Discard hallucinated foreign script and flag the page.
+        - Compound words incorrectly split or fragmented across character boundaries.
+
+        Numbers, quantities, and units:
+        - Digits confused with visually similar letters (e.g., numeral 0 vs letter O).
+        - Fractions or exponents flattened, distorted, or erroneously converted into native numerals.
+        - Corrupted physical units or invalid word spacing between numbers and units (e.g., unintended merging that alters the physical quantity).
+        - Non-standard numeral grouping or misplaced delimiters within numbers.
+
+        Scientific and chemical notation:
+        - Dropped brackets, parentheses, polyatomic groups, or stoichiometric coefficients.
+        - Chemical formulas missing sub/superscripts or collapsed into flat text.
+        - Unintended merging of adjacent formulas, reactants, or products into a single string.
+        - Preserving exact qualifiers (such as physical states, concentrations, or reaction conditions) without guessing.
+
+        Markup and formatting:
+        - Raw LaTeX commands that lost leading backslashes or contain malformed command names.
+        - Extraneous Markdown tokens (e.g., stray hashes, orphaned bold/italic asterisks) leaked into body text.
+        - MathML or raw XML tags improperly injected into running prose.
+
+        Layout and text flow:
+        - Words inappropriately hyphenated or broken across line wraps; join them cleanly.
+        - Distinct headings merged into paragraph text, or separated paragraphs unintentionally glued together.
+        - Table structures that lost cell contents or misaligned headers and columns.
+
+        Record every change you make in corrections. Set certain to false when
+        the print is too faint to settle the reading, and set review_needed on
+        the page when anything remains uncertain. Never guess a chemical name.
+      schema:
+        type: object
+        properties:
+          markdown:
+            type: string
+            description: "The corrected Markdown for this page, in reading order"
+          corrections:
+            type: array
+            items:
+              type: object
+              properties:
+                found: {type: string}
+                corrected: {type: string}
+                fault:
+                  type: string
+                  enum: [consonant, vowel_sign, anusvara, reph, half_consonant,
+                         compound_word, wrong_script, digit_letter, fraction, unit,
+                         number_format, chemical_group, subscript, merged_formula,
+                         latex_escape, markdown_artifact, mathml_in_prose,
+                         split_word, merged_heading, other]
+                certain: {type: boolean}
+              required: [found, corrected, fault, certain]
+          confidence: {type: number, minimum: 0, maximum: 1}
+          review_needed: {type: boolean}
+          review_reason: {type: string}
+        required: [markdown, corrections, confidence, review_needed, review_reason]
+      assertions:
+        - expr: '(.markdown | length) > 0'
+          feedback: "markdown is empty. Return the page text, corrected where the image disagrees with the OCR."
+        - expr: '[.corrections[] | select(.found == .corrected)] | length == 0'
+          feedback: "A correction has found equal to corrected. Remove it, it is not a change."
+
+  # 5. Front matter book identity
+  - agent: extract
+    description: "Confirm grade, subject, language, and board from the book itself"
+    config:
+      foreach: '[.items[] | select(.metadata.kind != "image" and .metadata.page <= 6) | .metadata.verified.markdown // empty] | {text: join("\n\n")}'
+      input: ".text"
+      path: ".metadata.book"
+      retries: 3
+      prompt: |
+        You read the front matter of a school textbook.
+        Report the grade, subject, medium of instruction, issuing board, and title
+        exactly as printed.
+        Use the printed text only. Never infer a value from a syllabus you recognise.
+        Set a field to null when the front matter does not print it.
+      schema:
+        type: object
+        properties:
+          grade: {type: ["string", "null"]}
+          subject: {type: ["string", "null"]}
+          language: {type: ["string", "null"]}
+          board: {type: ["string", "null"]}
+          title: {type: ["string", "null"]}
+          evidence: {type: string, description: "The printed line each value came from"}
+        required: [grade, subject, language, board, title, evidence]
+
+  # 6. Alt text per figure
+  - agent: safe_extract
+    description: "Write alt text and a long description for every figure"
+    config:
+      foreach: '.items[] | select(.metadata.kind == "image")'
+      input: "[.id]"
+      path: ".metadata.accessibility"
+      concurrency: ${.config.page_concurrency}
+      retries: 3
+      prompt: |
+        You produce alt text and structured descriptions for a school textbook figure, for a blind student.
+
+        Rules:
+        1. Base labels and captions directly on the visible image.
+        2. Report the observable result, not only the apparatus. Name every colour change, flame, precipitate, bubble, deposit, glow, and relative volume.
+        3. Keep every scientific qualifier exact. Dilute is not concentrated. A solid is not a solution.
+        4. Mark a figure decorative only when it carries no teaching content, such as a border, rule, QR code, barcode, government seal, state emblem, or publisher logo. Set kind to decorative with empty alt_text.
+
+        alt_text is one sentence under 150 characters, written in the textbook language (${.config.language}) directly.
+        long_description holds the full reading in ${.config.language}, including the result.
+      schema:
+        type: object
+        properties:
+          kind:
+            type: string
+            enum: [figure, diagram, chart, table_image, logo, decorative]
+          alt_text: {type: string}
+          long_description: {type: string}
+          visible_labels:
+            type: array
+            items:
+              type: object
+              properties:
+                label: {type: string}
+                gloss: {type: string}
+                points_at: {type: string}
+              required: [label, gloss, points_at]
+          observed_result:
+            type: string
+            description: "The visual outcome the figure teaches. Empty for a decorative image"
+          confidence: {type: number, minimum: 0, maximum: 1}
+          review_needed: {type: boolean}
+          review_reason: {type: string}
+        required: [kind, alt_text, long_description, visible_labels, observed_result, confidence, review_needed, review_reason]
+      assertions:
+        - expr: '.kind == "decorative" or (.alt_text | length) > 0'
+          feedback: "alt_text is empty. Write one sentence, or set kind to decorative."
+
+  # 7. Accessible block tree remediation
+  - agent: safe_extract
+    description: "Rebuild the page as an accessible block tree"
+    config:
+      foreach: '.items[] | select(.metadata.kind != "image")'
+      input: "[.id]"
+      context: '.metadata.verified.markdown // ""'
+      path: ".metadata.remediation"
+      concurrency: ${.config.page_concurrency}
+      retries: 3
+      prompt: |
+        You are given one page of a scanned textbook as an image, and the raw OCR
+        Markdown for that same page as reference text. Return an ordered block
+        tree for the page.
+
+        The image is the truth. When the OCR text disagrees with the image,
+        follow the image and record the fix in ocr_corrections.
+
+        Remove, and record in removed_artifacts:
+        - printed page numbers, including Roman numeral page numbers
+        - running headers and running footers
+        - QR codes, QR captions, and short-link text
+        - hyperlinks and bare URLs, keeping the visible words
+        - print registration marks and stray single characters
+
+        Keep, and never merge away:
+        - the chapter and section hierarchy, as heading blocks with a level
+        - a bilingual heading exactly as printed, in one heading block, with both
+          scripts in the order the book prints them
+        - paragraph and list boundaries
+        - a printed figure reference, as a figure_ref block
+
+        Fix these OCR faults:
+        - Markdown syntax that leaked into running text. Never leave #, ##, **,
+          _, ^, $, $$, or a backslash command inside a text field. Heading depth
+          belongs in the level field, not in a # character.
+        - A digit read as a letter, and a letter read as a digit. 0 K is a
+          temperature. OK is not.
+        - A wrong or missing vowel sign, anusvara, nukta, or reph. Read the
+          image again before you correct one. Flag the block when the print is
+          too faint to settle it.
+        - A fraction turned into a digit or into a native numeral. 1/2 is a
+          fraction.
+        - A word split at a line break. Join it.
+        - Two formulas or two equations merged into one string. Split them.
+        - Text in a script the book does not use. That is an OCR hallucination.
+          Read it off the image or drop it and flag the block.
+
+        Convert every equation, unit, and chemical formula into a math block:
+        - Put MathML 3 in the mathml field and a plain reading in the spoken
+          field. A screen reader gets the spoken field.
+        - Never emit LaTeX, a raw underscore, or a raw caret in any text field.
+        - Restore a subscript, superscript, charge, or group that the OCR dropped
+          only when the image shows it, for example lead nitrate is Pb(NO3)2.
+        - Write a unit as a proper unit. kg m/s is momentum. kg km/s is not.
+
+        MathML rules. Break one of these and a screen reader reads the formula
+        wrong, which is the whole failure this pipeline exists to stop.
+        - Every subscript goes inside <msub> and every superscript inside <msup>.
+          A digit that belongs to a formula must never sit as a bare <mn> after
+          an element symbol.
+          Right: <mi>Zn</mi><mi>S</mi><msub><mi>O</mi><mn>4</mn></msub>
+          Wrong: <mi>ZnSO</mi><mn>4</mn>
+          Wrong: <msub><mi>H</mi><mn>2</mn></msub><mi>SO</mi><mn>4</mn>
+          The second wrong form subscripts the 2 and then leaves the 4 on the
+          baseline, so the reader says "Z n S O four".
+        - An ionic charge is <msup>, for example
+          <msub><mi>SO</mi><mn>4</mn></msub><msup><mrow/><mrow><mn>2</mn><mo>-</mo></mrow></msup>.
+        - A word is <mtext>, never <mi>. <mi> is only for a single-letter
+          variable or a chemical element symbol.
+          Right: <mtext>मैग्नीशियम</mtext>
+          Wrong: <mi>मैग्नीशियम</mi>
+        - An equation number is not part of the mathematics. Put it in the
+          block's text field, not inside the mathml. Never wrap it in <mo>,
+          which marks an operator.
+        - Write spoken wholly in the language named in the language field. Do
+          not mix English operator words into a Hindi or Tamil reading.
+          Wrong: "जिंक plus सल्फ्यूरिक अम्ल yields जिंक सल्फेट"
+          Right: "जिंक धन सल्फ्यूरिक अम्ल से बनता है जिंक सल्फेट"
+
+        Convert every table into a table block with a header row and body rows.
+        A table whose cells came back empty is data loss. Set review_needed on
+        that block and say the cells were unreadable. Never return an empty table
+        as if it were complete.
+
+        Replace every <image id="..."/> marker with a figure block that carries
+        the same id, in the reading position the marker sat in. Every marker in
+        the reference text gets exactly one figure block.
+
+        Set the page confidence. Set review_needed on any block you are unsure
+        of. The VE team reads those flags first.
+      schema:
+        type: object
+        properties:
+          blocks:
+            type: array
+            items:
+              type: object
+              properties:
+                type:
+                  type: string
+                  enum: [heading, paragraph, list, table, math, figure, figure_ref, caption, note, activity]
+                level: {type: ["integer", "null"], minimum: 1, maximum: 6}
+                text: {type: string}
+                items: {type: array, items: {type: string}}
+                header: {type: array, items: {type: string}}
+                rows: {type: array, items: {type: array, items: {type: string}}}
+                mathml: {type: string}
+                spoken: {type: string}
+                image_id: {type: string}
+                review_needed: {type: boolean}
+                review_reason: {type: string}
+              required: [type, text, review_needed, review_reason]
+          removed_artifacts:
+            type: array
+            items:
+              type: object
+              properties:
+                kind:
+                  type: string
+                  enum: [page_number, roman_numeral, header, footer, qr_code, hyperlink, mark, other]
+                value: {type: string}
+              required: [kind, value]
+          ocr_corrections:
+            type: array
+            items:
+              type: object
+              properties:
+                found: {type: string}
+                corrected: {type: string}
+                reason: {type: string}
+                certain: {type: boolean}
+              required: [found, corrected, reason, certain]
+          language: {type: string}
+          confidence: {type: number, minimum: 0, maximum: 1}
+          review_needed: {type: boolean}
+        required: [blocks, removed_artifacts, ocr_corrections, language, confidence, review_needed]
+      assertions:
+        - expr: '[.blocks[].text] | join(" ") | test("##|\\*\\*|\\\\begin\\{") | not'
+          feedback: "A text field still holds Markdown syntax or raw LaTeX blocks. Strip the markup."
+        - expr: '[.blocks[] | select(.type == "math") | select((.mathml // "" | length) == 0 or (.spoken // "" | length) == 0)] | length == 0'
+          feedback: "Every math block needs both mathml and spoken."
+        - expr: '[.blocks[] | select(.type == "table") | select((.rows // [] | length) == 0 and (.review_needed | not))] | length == 0'
+          feedback: "A table came back with no rows and no review flag. Extract the cells, or flag the table as unreadable."
+        - expr: '[.blocks[] | select(.type == "figure") | select((.image_id // "" | length) == 0)] | length == 0'
+          feedback: "A figure block lost its image id. Copy the id from the <image id=\"...\"/> marker."
+
+  # 8. VE review report
+  - agent: transform
+    description: "Build the VE review report"
+    config:
+      path: ".metadata.remediation_report"
+      value: |
+        {
+          detected_book: .metadata.book,
+          pages: ([.items[] | select(.metadata.remediation != null)] | length),
+          ocr_verification: {
+            pages_verified: ([.items[] | select(.metadata.verified != null)] | length),
+            pages_flagged: ([.items[] | select(.metadata.verified.review_needed == true)] | length),
+            mean_confidence: (
+              [.items[] | .metadata.verified.confidence // empty]
+              | if length == 0 then null else (add / length) end
+            ),
+            corrections: ([.items[] | (.metadata.verified.corrections // [])[]] | length),
+            corrections_by_fault: (
+              [.items[] | (.metadata.verified.corrections // [])[] | .fault]
+              | group_by(.) | map({key: .[0], value: length}) | from_entries
+            ),
+            uncertain: [
+              .items[]
+              | (.metadata.verified.corrections // [])[]
+              | select(.certain == false)
+            ]
+          },
+          pages_flagged: ([.items[] | select(.metadata.remediation.review_needed == true)] | length),
+          mean_page_confidence: (
+            [.items[] | .metadata.remediation.confidence // empty]
+            | if length == 0 then null else (add / length) end
+          ),
+          figures: ([.items[] | select(.metadata.kind == "image")] | length),
+          figures_flagged: ([.items[] | select(.metadata.accessibility.review_needed == true)] | length),
+          figures_decorative: ([.items[] | select(.metadata.accessibility.kind == "decorative")] | length),
+          artifacts_removed: (
+            [.items[] | (.metadata.remediation.removed_artifacts // [])[] | .kind]
+            | group_by(.) | map({key: .[0], value: length}) | from_entries
+          ),
+          uncertain_corrections: [
+            .items[]
+            | (.metadata.remediation.ocr_corrections // [])[]
+            | select(.certain == false)
+          ],
+          review_queue: [
+            .items[]
+            | select(.metadata.remediation != null)
+            | {
+                page: .metadata.page,
+                reasons: [.metadata.remediation.blocks[] | select(.review_needed) | .review_reason]
+              }
+            | select((.reasons | length) > 0)
+          ]
+        }
+
+  # 9. Audit trail
+  - agent: lineage
+    description: "Record the run for audit"

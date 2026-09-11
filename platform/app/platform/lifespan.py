@@ -25,6 +25,7 @@ from app.providers.subodha_client import close_subodha_client
 from app.repositories.content_aggregator_sync_job_repository import (
     ContentAggregatorSyncJobRepository,
 )
+from app.repositories.textbook_remediation_repository import TextbookRemediationRepository
 
 if TYPE_CHECKING:
     from app.services.conference_service import ConferenceCallManager
@@ -149,6 +150,14 @@ def _make_consumer_tasks(conference_manager: Any) -> list[asyncio.Task]:  # type
     except Exception as exc:  # noqa: BLE001
         logger.error("Failed to initialise ContentJobConsumer: %s", exc)
 
+    try:
+        from app.consumers.textbook_remediation_consumer import (
+            TextbookRemediationConsumer,  # noqa: PLC0415
+        )
+        consumer_specs.append(("TextbookRemediationConsumer", TextbookRemediationConsumer(db)))
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Failed to initialise TextbookRemediationConsumer: %s", exc)
+
     tasks: list[asyncio.Task] = []  # type: ignore[type-arg]
     for name, consumer in consumer_specs:
         try:
@@ -174,6 +183,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     reconciled = await ContentAggregatorSyncJobRepository(get_database()).reconcile_interrupted_jobs()
     if reconciled:
         logger.info("Reconciled %d interrupted content aggregator sync jobs", reconciled)
+
+    reconciled = await TextbookRemediationRepository(get_database()).reconcile_interrupted_jobs()
+    if reconciled:
+        logger.info("Reconciled %d interrupted textbook remediation jobs", reconciled)
 
     # Init conference manager (available in all modes)
     try:

@@ -8,3 +8,4 @@ dist/
 coverage.json
 bandit_report.json
 .pytest_cache/
+.venv-remediation/
