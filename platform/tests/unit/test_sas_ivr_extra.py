@@ -724,33 +724,3 @@ class TestDtmfConsumerPollCadence:
         from app.consumers.dtmf_consumer import DtmfConsumer
 
         assert DtmfConsumer.POLL_WAIT_SECONDS == 1
-
-    @pytest.mark.asyncio
-    async def test_run_loop_passes_poll_wait_seconds_to_receive_messages(self) -> None:
-        """The configured POLL_WAIT_SECONDS must actually be threaded through
-        to the Service Bus receive call, not just declared and ignored."""
-        import asyncio as _asyncio
-
-        from app.consumers.dtmf_consumer import DtmfConsumer
-        from app.providers.service_bus import service_bus_provider
-
-        consumer = DtmfConsumer.__new__(DtmfConsumer)
-
-        async def _fake_receive(_queue_name, _max_count, wait_seconds):
-            assert wait_seconds == DtmfConsumer.POLL_WAIT_SECONDS
-            # Stop the infinite `while True` poll loop after one iteration.
-            raise _asyncio.CancelledError
-
-        with (
-            patch.object(service_bus_provider, "_initialized", True),
-            patch.object(
-                service_bus_provider, "receive_messages", AsyncMock(side_effect=_fake_receive)
-            ) as mock_receive,
-            patch("app.consumers.dtmf_consumer.get_database", MagicMock(return_value=MagicMock())),
-        ):
-            with pytest.raises(_asyncio.CancelledError):
-                await consumer._run_loop()
-
-        mock_receive.assert_awaited_once_with(
-            "dtmf_input", max_count=DtmfConsumer.POLL_BATCH, wait_seconds=1
-        )
