@@ -17,6 +17,7 @@ from app.controllers import (
     # Calls (split from call_controller)
     conference_controller,
     # Content
+    content_aggregator_auth_controller,
     content_aggregator_controller,
     content_controller,
     glossary_controller,
@@ -54,6 +55,7 @@ api_router.include_router(auth_controller.router)
 api_router.include_router(teacher_auth_controller.router)
 api_router.include_router(tenant_auth_controller.router)
 api_router.include_router(school_admin_auth_controller.router)
+api_router.include_router(token_controller.router)
 
 # Users
 api_router.include_router(teacher_controller.router)
