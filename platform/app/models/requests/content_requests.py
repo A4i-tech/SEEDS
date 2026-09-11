@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
 from app.models.responses.content import TitleText
 
@@ -49,6 +49,18 @@ class ContentUpdateRequest(BaseModel):
         return v.lower() if v is not None else v
 
 
+class WebsiteExtractRequest(BaseModel):
+    url: HttpUrl
+
+
+class WebsiteTranslationRequest(BaseModel):
+    content: str
+    target_language: str
+    target_language_code: str | None = None
+    site_id: str | None = None
+    route: str = "/"
+
+
 class QuizCreateRequest(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -65,9 +77,6 @@ class QuizCreateRequest(BaseModel):
 
 
 class ContentCreate(BaseModel):
-    """Snake_case DB document DTO for content creation — model_dump() writes correct DB keys
-    matching the Content domain model (app/models/content.py)."""
-
     tenant_id: str
     type: str
     language: str
@@ -86,9 +95,6 @@ class ContentCreate(BaseModel):
 
 
 class QuizCreate(BaseModel):
-    """Snake_case DB document DTO for quiz creation — model_dump() writes correct DB keys
-    matching the Quiz domain model."""
-
     tenant_id: str
     type: str
     language: str

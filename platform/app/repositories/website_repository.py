@@ -1,0 +1,67 @@
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from typing import Any
+
+from pymongo.asynchronous.database import AsyncDatabase
+
+from app.repositories.base_repository import BaseRepository
+
+
+class WebsiteRepository(BaseRepository):
+    COLLECTION = "websites"
+
+    def __init__(self, db: AsyncDatabase) -> None:
+        self._col = db[self.COLLECTION]
+
+    @classmethod
+    async def ensure_indexes(cls, db: AsyncDatabase) -> None:
+        col = db[cls.COLLECTION]
+        await col.create_index("site_id", unique=True)
+        await col.create_index("domain", unique=True)
+
+    async def create(
+        self,
+        project_id: str,
+        domain: str,
+        site_id: str,
+        name: str = "",
+        status: str = "Active",
+    ) -> dict[str, Any]:
+        now = datetime.now(UTC)
+        doc = {
+            "project_id": project_id,
+            "domain": domain,
+            "site_id": site_id,
+            "name": name,
+            "status": status,
+            "created_at": now,
+            "updated_at": now,
+        }
+        result = await self._col.insert_one(doc)
+        doc["_id"] = result.inserted_id
+        return doc
+
+    async def find_by_id(self, website_id: str) -> dict[str, Any] | None:
+        return await self._col.find_one({"_id": self._to_id(website_id)})
+
+    async def find_by_site_id(self, site_id: str) -> dict[str, Any] | None:
+        return await self._col.find_one({"site_id": site_id})
+
+    async def find_by_project(self, project_id: str) -> list[dict[str, Any]]:
+        return await self._col.find({"project_id": project_id}).to_list(length=None)
+
+    async def find_all(self) -> list[dict[str, Any]]:
+        return await self._col.find({}).to_list(length=None)
+
+    async def update(self, website_id: str, fields: dict[str, Any]) -> dict[str, Any] | None:
+        fields = {**fields, "updated_at": datetime.now(UTC)}
+        await self._col.update_one({"_id": self._to_id(website_id)}, {"$set": fields})
+        return await self.find_by_id(website_id)
+
+    async def delete(self, website_id: str) -> bool:
+        result = await self._col.delete_one({"_id": self._to_id(website_id)})
+        return result.deleted_count > 0
+
+    async def count(self) -> int:
+        return await self._col.count_documents({})
