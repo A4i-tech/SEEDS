@@ -48,8 +48,6 @@ async def extract(
     await service.extract_items(
         body.site_id,
         [item.model_dump() for item in body.items],
-        origin=request.headers.get("origin"),
-        referer=request.headers.get("referer"),
     )
     return StatusResponse(status="accepted")
 
@@ -66,13 +64,7 @@ async def get_translations(
     lang: str = Query(max_length=32),
     service: TranslationService = Depends(get_translation_service),
 ) -> dict[str, str]:
-    return await service.runtime_translate(
-        site_id,
-        route,
-        lang,
-        origin=request.headers.get("origin"),
-        referer=request.headers.get("referer"),
-    )
+    return await service.runtime_translate(site_id, route, lang)
 
 
 @router.post(

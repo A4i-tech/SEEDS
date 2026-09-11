@@ -17,6 +17,9 @@ _MAX_REDIRECTS = 5
 
 _SKIP_PARENT_TAGS = {"script", "style", "noscript", "title"}
 
+# Matches text that's only digits, whitespace, or punctuation/currency symbols
+# (e.g. "12.5%", "$1,000", "₹500") — content with nothing language-specific
+# to translate, so it's skipped.
 _NON_TRANSLATABLE_RE = re.compile(r"^[\d\s.,%$₹-]+$")
 
 

@@ -1,5 +1,3 @@
-"""Onboarding controller — /projects and /websites endpoints (ticket #436)."""
-
 from __future__ import annotations
 
 import logging

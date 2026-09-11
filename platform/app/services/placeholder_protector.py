@@ -5,6 +5,10 @@ import re
 _TOKEN_FMT = "__PH{index}__"
 _TOKEN_RE = re.compile(r"__PH\d+__")
 
+# Non-translatable substrings to protect before sending text to a translation
+# provider: template vars ({{x}}, {x}), printf-style specifiers (%s, %1$d),
+# markdown links/images, and HTML tags — swapped for tokens by mask() and
+# restored verbatim by unmask() so the provider never sees or mangles them.
 _PATTERNS = [
     re.compile(r"\{\{.*?\}\}"),
     re.compile(r"\{[^{}\s]*\}"),

@@ -4,13 +4,12 @@ import logging
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
-from urllib.parse import urlparse
 
 from fastapi import Depends
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.platform.auth.dependencies import get_db
-from app.platform.error_handling import ForbiddenError, NotFoundError, ValidationError
+from app.platform.error_handling import NotFoundError, ValidationError
 from app.platform.settings import get_settings
 from app.providers.translation_provider import (
     TransientTranslationError,
@@ -31,11 +30,13 @@ logger = logging.getLogger(__name__)
 
 
 class TranslationService:
+    _RUNTIME_BATCH_ITEMS = 50
+    _RUNTIME_BATCH_CHARS = 45_000
+
     def __init__(
         self,
-        db: AsyncDatabase[Any],
+        db: AsyncDatabase,
         provider_factory: Callable[[], TranslationProvider],
-        enforce_origin_check: bool = True,
         enforce_lang_validation: bool = True,
     ) -> None:
         self._repo = TranslationRepository(db)
@@ -47,7 +48,6 @@ class TranslationService:
         self._audit_repo = TranslationAuditRepository(db)
         self._website_repo = WebsiteRepository(db)
         self._language_repo = LanguageRepository(db)
-        self._enforce_origin_check = enforce_origin_check
         self._enforce_lang_validation = enforce_lang_validation
 
     @property
@@ -61,36 +61,6 @@ class TranslationService:
         if not website or website.get("status") != "Active":
             raise NotFoundError("website", site_id)
         return website
-
-    @staticmethod
-    def _hostname_of(header_value: str | None) -> str | None:
-        if not header_value:
-            return None
-        return urlparse(header_value).hostname
-
-    @staticmethod
-    def _strip_www(host: str | None) -> str | None:
-        if host and host.startswith("www."):
-            return host[4:]
-        return host
-
-    def _ensure_origin_matches(
-        self, website: dict[str, Any], origin: str | None, referer: str | None
-    ) -> None:
-        if not self._enforce_origin_check:
-            return
-        hostname = self._hostname_of(origin) or self._hostname_of(referer)
-        domain = website.get("domain")
-        if hostname == domain or self._strip_www(hostname) == self._strip_www(domain):
-            return
-        settings = get_settings()
-        if (
-            settings.enable_dev_localhost_origin_alias
-            and settings.env != "production"
-            and hostname in ("localhost", "127.0.0.1")
-        ):
-            return
-        raise ForbiddenError("origin does not match registered site domain")
 
     async def _ensure_lang_enabled(self, lang: str) -> None:
         if not self._enforce_lang_validation:
@@ -129,11 +99,8 @@ class TranslationService:
         self,
         site_id: str,
         items: list[dict[str, Any]],
-        origin: str | None = None,
-        referer: str | None = None,
     ) -> None:
-        website = await self._ensure_site_active(site_id)
-        self._ensure_origin_matches(website, origin, referer)
+        await self._ensure_site_active(site_id)
         for item in items:
             await self._repo.upsert_source(
                 site_id=site_id,
@@ -165,9 +132,6 @@ class TranslationService:
                 result[doc["key"]] = doc["source_text"]
         return result
 
-    _RUNTIME_BATCH_ITEMS = 50
-    _RUNTIME_BATCH_CHARS = 45_000
-
     async def _persist_translation(
         self, site_id: str, route: str, doc: dict[str, Any], lang: str,
         translated: str, provider_name: str, quality_score: float = 1.0,
@@ -184,16 +148,8 @@ class TranslationService:
             action="translated", actor=actor, lang=lang, provider=provider_name,
         )
 
-    async def runtime_translate(
-        self,
-        site_id: str,
-        route: str,
-        lang: str,
-        origin: str | None = None,
-        referer: str | None = None,
-    ) -> dict[str, str]:
-        website = await self._ensure_site_active(site_id)
-        self._ensure_origin_matches(website, origin, referer)
+    async def runtime_translate(self, site_id: str, route: str, lang: str) -> dict[str, str]:
+        await self._ensure_site_active(site_id)
         return await self._generate_translations(site_id, route, lang)
 
     async def generate_for_review(self, site_id: str, route: str, lang: str) -> dict[str, str]:
@@ -482,6 +438,6 @@ class TranslationService:
 
 
 def get_translation_service(
-    db: AsyncDatabase[Any] = Depends(get_db),
+    db: AsyncDatabase = Depends(get_db),
 ) -> TranslationService:
     return TranslationService(db, lambda: get_translation_provider(get_settings()))

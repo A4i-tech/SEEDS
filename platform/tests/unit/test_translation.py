@@ -53,9 +53,7 @@ async def translation_service(mock_db, fake_provider):
             {"site_id": "s1", "status": "Active"},
         ]
     )
-    return TranslationService(
-        mock_db, lambda: fake_provider, enforce_origin_check=False, enforce_lang_validation=False
-    )
+    return TranslationService(mock_db, lambda: fake_provider, enforce_lang_validation=False)
 
 
 
@@ -319,7 +317,6 @@ async def test_runtime_batch_per_item_gate_uses_per_language_status_not_doc_leve
     service = TranslationService(
         mock_db,
         lambda: _BatchFailsProvider(),
-        enforce_origin_check=False,
         enforce_lang_validation=False,
     )
     repo = TranslationRepository(mock_db)
@@ -406,17 +403,6 @@ async def bound_service(mock_db, fake_provider):
     return TranslationService(mock_db, lambda: fake_provider)
 
 
-@pytest.fixture
-async def localhost_bound_service(mock_db, fake_provider):
-    from app.repositories.language_repository import LanguageRepository
-
-    await mock_db["websites"].insert_many(
-        [{"site_id": "site-local", "status": "Active", "domain": "127.0.0.1"}]
-    )
-    await LanguageRepository(mock_db).create("Hindi", "hi", "ltr", True)
-    return TranslationService(mock_db, lambda: fake_provider)
-
-
 async def test_extract_items_for_review_succeeds_with_no_origin_or_referer(bound_service):
     await bound_service.extract_items_for_review(
         "site1",
@@ -442,10 +428,9 @@ async def test_runtime_translate_rejects_unknown_lang(bound_service):
     await bound_service.extract_items(
         "site1",
         [{"key": "t1", "text": "Hello", "route": "/h", "source_lang": "en"}],
-        origin="https://acme.example",
     )
     with pytest.raises(ValidationError):
-        await bound_service.runtime_translate("site1", "/h", "xx-not-a-lang", origin="https://acme.example")
+        await bound_service.runtime_translate("site1", "/h", "xx-not-a-lang")
 
 
 async def test_generate_for_review_translation_memory_reuse_still_auto_approves(

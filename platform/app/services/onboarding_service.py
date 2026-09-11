@@ -15,6 +15,8 @@ from app.platform.settings import get_settings
 from app.repositories.project_repository import ProjectRepository
 from app.repositories.website_repository import WebsiteRepository
 
+# Matches a plain hostname (e.g. "example.com"): dot-separated labels, each
+# 1-63 chars of letters/digits/hyphens, no leading/trailing hyphen per label.
 _DOMAIN_RE = re.compile(
     r"^(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.[A-Za-z0-9-]{1,63}(?<!-))+$"
 )

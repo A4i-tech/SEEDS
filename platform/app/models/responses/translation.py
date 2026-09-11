@@ -4,6 +4,9 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.platform.settings import get_settings
+from app.services.quality_scorer import is_low_confidence
+
 
 class TranslationResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="allow")
@@ -19,9 +22,6 @@ class TranslationResponse(BaseModel):
 
     @classmethod
     def from_doc(cls, doc: dict) -> TranslationResponse:
-        from app.platform.settings import get_settings  # noqa: PLC0415
-        from app.services.quality_scorer import is_low_confidence  # noqa: PLC0415
-
         instance = cls.model_validate(doc)
         threshold = get_settings().low_confidence_threshold
 

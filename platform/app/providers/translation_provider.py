@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import logging
+import re
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
+
+import aiohttp
 
 if TYPE_CHECKING:
     from app.platform.settings import Settings
@@ -37,8 +41,6 @@ class _ChatCompletionsTranslationProvider(TranslationProvider):
         self._api_key = api_key
 
     async def translate(self, text: str, source_lang: str, target_lang: str) -> str:
-        import aiohttp  # noqa: PLC0415
-
         prompt = (
             f"Translate the following text from {source_lang} to {target_lang}. "
             "Return ONLY the translated text, with no quotes, labels, or explanation.\n\n"
@@ -88,10 +90,6 @@ class GroqTranslationProvider(_ChatCompletionsTranslationProvider):
         self._MODEL = model
 
     async def translate(self, text: str, source_lang: str, target_lang: str) -> str:
-        import asyncio  # noqa: PLC0415
-
-        import aiohttp  # noqa: PLC0415
-
         last_error: Exception | None = None
         for attempt in range(_MAX_ATTEMPTS):
             try:
@@ -114,8 +112,6 @@ class GroqTranslationProvider(_ChatCompletionsTranslationProvider):
 
     @staticmethod
     def _extract_status_code(error_message: str) -> int | None:
-        import re  # noqa: PLC0415
-
         match = re.match(r"Groq translation error (\d+):", error_message)
         return int(match.group(1)) if match else None
 
@@ -175,10 +171,6 @@ class AzureTranslationProvider(TranslationProvider):
     async def _translate_batch_request(
         self, texts: list[str], source_lang: str, target_lang: str
     ) -> list[str]:
-        import asyncio  # noqa: PLC0415
-
-        import aiohttp  # noqa: PLC0415
-
         url = f"{self._endpoint}/translate"
         params = {"api-version": self._API_VERSION, "to": target_lang}
         if source_lang:

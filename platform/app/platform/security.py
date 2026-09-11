@@ -142,17 +142,10 @@ def setup_security(app: FastAPI, settings: Settings) -> None:
 
     # 3. CORS (outermost – must be added *after* inner middleware in FastAPI's
     #    reversed-order add_middleware semantics so it runs first on the wire)
-    origins = _cors_origins(settings)
-    # allow_credentials=True is incompatible with a literal "*" origin per the
-    # CORS spec (browsers reject it on actual requests, only preflight tolerates
-    # it) — use allow_origin_regex to echo the real origin instead.
-    cors_kwargs = (
-        {"allow_origin_regex": ".*"} if origins == ["*"] else {"allow_origins": origins}
-    )
     app.add_middleware(
         CORSMiddleware,
+        allow_origins=_cors_origins(settings),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
-        **cors_kwargs,
     )
