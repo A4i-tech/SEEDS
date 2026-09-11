@@ -142,6 +142,44 @@ class TestLoginNative:
 
         assert result is None  # was not returned on bad password
 
+    @pytest.mark.asyncio
+    async def test_login_unified_allows_freshly_registered_teacher(self, mock_db):
+        """
+        Regression for #595: a teacher registered via register_teacher() must
+        be able to log in through the unified phone-login path (ContentWebApp's
+        generic login form), not just content_creator.
+        """
+        from app.services.auth_service import TeacherCreate, login_unified, register_teacher
+
+        plain = "Test@123"
+        data = TeacherCreate(name="Fresh Teacher", email="", phone="9990001111", password=plain)
+        await register_teacher(data, mock_db)
+
+        result = await login_unified("9990001111", plain, False, mock_db)
+
+        assert "token" in result
+        assert result["user"]["role"] == "teacher"
+
+    @pytest.mark.asyncio
+    async def test_login_unified_rejects_non_allowed_role_by_phone(self, mock_db):
+        """A student (not in the phone-login allowlist) must still be rejected."""
+        from app.models.user import UserRole
+        from app.platform.error_handling import UnauthorizedError
+        from app.services.auth_service import login_unified
+
+        await mock_db["users"].insert_one(
+            {
+                "name": "Some Student",
+                "phone": "9990002222",
+                "role": UserRole.STUDENT.value,
+                "hashed_password": "irrelevant",
+                "is_active": True,
+            }
+        )
+
+        with pytest.raises(UnauthorizedError):
+            await login_unified("9990002222", "whatever", False, mock_db)
+
 
 # ---------------------------------------------------------------------------
 # Tenant-scope authz tests
