@@ -10,6 +10,9 @@ export function useConferenceSSE(confId: string | null) {
 
   React.useEffect(() => {
     if (!confId) return;
+    // Binds the store to this conference even when the screen is reached by a
+    // direct URL / reload rather than through startConference.
+    useConferenceStore.setState({ confId });
 
     const token = getAuthToken();
     const url = `${API_BASE_URL}/conference/teacherappconnect/${confId}?token=${encodeURIComponent(token ?? '')}`;

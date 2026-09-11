@@ -21,7 +21,11 @@ export function useClassrooms() {
 }
 
 export function useClassroom(classroomId: string) {
-  return useQuery({ queryKey: classroomKey(classroomId), queryFn: () => getClassroomById(classroomId) });
+  return useQuery({
+    queryKey: classroomKey(classroomId),
+    queryFn: () => getClassroomById(classroomId),
+    enabled: !!classroomId,
+  });
 }
 
 export function useSchoolStudents() {

@@ -1,18 +1,18 @@
 import { Button, ButtonText } from '@/components/ui/button';
-import { Checkbox, CheckboxIcon, CheckboxIndicator, CheckboxLabel } from '@/components/ui/checkbox';
-import { CheckIcon } from '@/components/ui/icon';
 import { FormControl, FormControlLabel, FormControlLabelText } from '@/components/ui/form-control';
-import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
+import { CloseIcon, Icon } from '@/components/ui/icon';
 import { Input, InputField } from '@/components/ui/input';
-import { Spinner } from '@/components/ui/spinner';
+import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
+import { EmptyState, Screen, Section, SkeletonRows } from '@shared/components/Screen';
+import { SearchField } from '@shared/components/SearchField';
+import { pluralize } from '@shared/utils/format';
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClassroom, useCreateClassroom, useSchoolStudents, useUpdateClassroom } from '../hooks/useClassrooms';
+import type { ClassMember } from '../types/classroom.types';
 
 export function ClassroomFormScreen({ classroomId }: { classroomId?: string }) {
   const router = useRouter();
@@ -22,28 +22,19 @@ export function ClassroomFormScreen({ classroomId }: { classroomId?: string }) {
   const updateClassroom = useUpdateClassroom();
 
   const [name, setName] = React.useState('');
+  const [search, setSearch] = React.useState('');
   const [selectedStudentIds, setSelectedStudentIds] = React.useState<string[]>([]);
-  const [leaderIds, setLeaderIds] = React.useState<string[]>([]);
 
   React.useEffect(() => {
     if (!existing) return;
     setName(existing.name);
     setSelectedStudentIds(existing.students.map((s) => s.id));
-    setLeaderIds(existing.leaders.map((l) => l.id));
   }, [existing]);
 
   function toggleStudent(studentId: string) {
-    setSelectedStudentIds((prev) => {
-      if (prev.includes(studentId)) {
-        setLeaderIds((leaders) => leaders.filter((id) => id !== studentId));
-        return prev.filter((id) => id !== studentId);
-      }
-      return [...prev, studentId];
-    });
-  }
-
-  function toggleLeader(studentId: string) {
-    setLeaderIds((prev) => (prev.includes(studentId) ? prev.filter((id) => id !== studentId) : [...prev, studentId]));
+    setSelectedStudentIds((prev) =>
+      prev.includes(studentId) ? prev.filter((id) => id !== studentId) : [...prev, studentId]
+    );
   }
 
   async function handleSave() {
@@ -51,7 +42,7 @@ export function ClassroomFormScreen({ classroomId }: { classroomId?: string }) {
       id: classroomId,
       name,
       students: selectedStudentIds,
-      leaders: leaderIds,
+      leaders: (existing?.leaders ?? []).map((l) => l.id).filter((id) => selectedStudentIds.includes(id)),
       content_ids: existing?.content_ids ?? [],
     };
     if (classroomId) {
@@ -63,62 +54,97 @@ export function ClassroomFormScreen({ classroomId }: { classroomId?: string }) {
   }
 
   const isSaving = createClassroom.isPending || updateClassroom.isPending;
+  const query = search.trim().toLowerCase();
+  const selectedStudents = (students ?? []).filter((student) => selectedStudentIds.includes(student.id));
+  const results = (students ?? []).filter(
+    (student) => !selectedStudentIds.includes(student.id) && (!query || student.name.toLowerCase().includes(query))
+  );
 
   return (
-    <SafeAreaView style={{ flex: 1 }}>
-    <ScrollView className="flex-1 bg-background">
-      <VStack className="gap-6 p-6">
-        <Heading size="xl">{classroomId ? 'Edit Classroom' : 'New Classroom'}</Heading>
-
-        <FormControl>
-          <FormControlLabel>
-            <FormControlLabelText>Name</FormControlLabelText>
-          </FormControlLabel>
-          <Input>
-            <InputField value={name} onChangeText={setName} placeholder="Classroom name" />
-          </Input>
-        </FormControl>
-
-        <VStack className="gap-2">
-          <Heading size="sm">Students</Heading>
-          {studentsPending && <Spinner />}
-          {students?.map((student) => {
-            const isSelected = selectedStudentIds.includes(student.id);
-            return (
-              <HStack key={student.id} className="items-center justify-between">
-                <Checkbox value={student.id} isChecked={isSelected} onChange={() => toggleStudent(student.id)}>
-                  <CheckboxIndicator>
-                    <CheckboxIcon as={CheckIcon} />
-                  </CheckboxIndicator>
-                  <CheckboxLabel>{student.name}</CheckboxLabel>
-                </Checkbox>
-                {isSelected && (
-                  <Checkbox value={`leader-${student.id}`} isChecked={leaderIds.includes(student.id)} onChange={() => toggleLeader(student.id)}>
-                    <CheckboxIndicator>
-                      <CheckboxIcon as={CheckIcon} />
-                    </CheckboxIndicator>
-                    <CheckboxLabel>Leader</CheckboxLabel>
-                  </Checkbox>
-                )}
-              </HStack>
-            );
-          })}
-        </VStack>
-
-        <HStack className="gap-3">
-          <Button onPress={handleSave} disabled={isSaving || !name}>
-            <ButtonText>{isSaving ? 'Saving…' : 'Save'}</ButtonText>
-          </Button>
-          <Button variant="outline" onPress={() => router.back()}>
+    <Screen
+      title={classroomId ? 'Edit Classroom' : 'New Classroom'}
+      subtitle={pluralize(selectedStudentIds.length, 'student')}
+      actions={
+        <>
+          <Button variant="ghost" onPress={() => router.back()}>
             <ButtonText>Cancel</ButtonText>
           </Button>
-        </HStack>
+          <Button onPress={handleSave} disabled={isSaving || !name} testID="save-classroom">
+            <ButtonText>{isSaving ? 'Saving…' : 'Save'}</ButtonText>
+          </Button>
+        </>
+      }
+    >
+      <FormControl>
+        <FormControlLabel>
+          <FormControlLabelText>Classroom name</FormControlLabelText>
+        </FormControlLabel>
+        <Input className="h-10">
+          <InputField value={name} onChangeText={setName} placeholder="e.g. Grade 5 — Section A" testID="classroom-name" />
+        </Input>
+      </FormControl>
 
-        {(createClassroom.error || updateClassroom.error) && (
-          <Text className="text-destructive">{String(createClassroom.error ?? updateClassroom.error)}</Text>
+      <Section title="Selected students" meta={`${selectedStudents.length}`}>
+        {selectedStudents.length === 0 ? (
+          <EmptyState title="No students yet" hint="Search below and tap a name to add them to this classroom." />
+        ) : (
+          <VStack className="gap-2">
+            {selectedStudents.map((student) => (
+              <SelectedStudentRow
+                key={student.id}
+                student={student}
+                onRemove={() => toggleStudent(student.id)}
+              />
+            ))}
+          </VStack>
         )}
+      </Section>
+
+      <Section title="Add students" meta={students ? `${results.length} available` : undefined}>
+        <VStack className="gap-3">
+          <SearchField
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search students by name"
+            testID="student-search"
+          />
+          {studentsPending && <SkeletonRows count={3} />}
+          {!studentsPending && results.length === 0 && (
+            <EmptyState title={query ? `No student matches “${search}”` : 'Everyone is already selected'} />
+          )}
+          <VStack className="gap-2">
+            {results.map((student) => (
+              <Pressable key={student.id} onPress={() => toggleStudent(student.id)} testID={`student-${student.id}`}>
+                <HStack className="items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3">
+                  <VStack className="flex-1">
+                    <Text className="font-medium text-foreground">{student.name}</Text>
+                    <Text size="xs" className="text-muted-foreground">{student.phone_number}</Text>
+                  </VStack>
+                  <Text size="xs" className="text-primary">Add</Text>
+                </HStack>
+              </Pressable>
+            ))}
+          </VStack>
+        </VStack>
+      </Section>
+
+      {(createClassroom.error || updateClassroom.error) && (
+        <Text className="text-destructive">{String(createClassroom.error ?? updateClassroom.error)}</Text>
+      )}
+    </Screen>
+  );
+}
+
+function SelectedStudentRow({ student, onRemove }: { student: ClassMember; onRemove: () => void }) {
+  return (
+    <HStack className="items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3">
+      <VStack className="flex-1">
+        <Text className="font-medium text-foreground">{student.name}</Text>
+        <Text size="xs" className="text-muted-foreground">{student.phone_number}</Text>
       </VStack>
-    </ScrollView>
-    </SafeAreaView>
+      <Pressable onPress={onRemove} testID={`remove-${student.id}`}>
+        <Icon as={CloseIcon} className="text-muted-foreground" />
+      </Pressable>
+    </HStack>
   );
 }

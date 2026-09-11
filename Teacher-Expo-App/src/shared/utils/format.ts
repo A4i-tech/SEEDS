@@ -12,6 +12,10 @@ export function formatDurationPadded(totalSeconds: number): string {
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 }
 
+export function pluralize(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? '' : 's'}`;
+}
+
 export function formatRelativeTime(timestamp: number): string {
   const diffMs = Date.now() - timestamp;
   const diffMins = Math.floor(diffMs / 60000);

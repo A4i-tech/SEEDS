@@ -7,7 +7,10 @@ export function useContentList(filters: Omit<GetContentOptions, 'cursor'>) {
     queryKey: ['content', filters],
     queryFn: ({ pageParam }) => getContent({ ...filters, cursor: pageParam }),
     initialPageParam: undefined as string | undefined,
-    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextCursor ?? undefined : undefined),
+    // The API keeps reporting hasMore with an unchanged cursor once the feed is
+    // exhausted, so a repeated cursor is the real end-of-list signal.
+    getNextPageParam: (lastPage, _pages, lastPageParam) =>
+      lastPage.hasMore && lastPage.nextCursor !== lastPageParam ? lastPage.nextCursor ?? undefined : undefined,
   });
 }
 

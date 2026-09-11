@@ -2,10 +2,12 @@ import { Button, ButtonText } from '@/components/ui/button';
 import { FormControl, FormControlError, FormControlErrorText, FormControlLabel, FormControlLabelText } from '@/components/ui/form-control';
 import { Heading } from '@/components/ui/heading';
 import { Input, InputField } from '@/components/ui/input';
+import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { isValidPhoneNumber, sanitizePhoneInput } from '@shared/utils/phoneUtils';
 import { useRouter } from 'expo-router';
 import React from 'react';
+import { Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/authStore';
 
@@ -40,15 +42,25 @@ export function LoginScreen() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1 }}>
-      <VStack className="flex-1 justify-center gap-6 bg-background p-6">
-        <Heading size="xl">Teacher Login</Heading>
+    <SafeAreaView style={{ flex: 1 }} className="bg-background">
+      <VStack className="w-full max-w-md flex-1 self-center justify-center gap-6 p-6">
+        <Image
+          source={require('../../../../assets/images/SEEDS.png')}
+          style={{ width: 56, height: 56, alignSelf: 'center' }}
+          resizeMode="contain"
+        />
+        <VStack className="gap-1">
+          <Heading size="2xl" className="tracking-tight">Teacher Login</Heading>
+          <Text size="sm" className="text-muted-foreground">
+            Sign in with the mobile number registered with your school.
+          </Text>
+        </VStack>
 
-        <FormControl isInvalid={!!error}>
+        <FormControl isInvalid={!!error} className="gap-2 rounded-xl border border-border bg-card p-5">
           <FormControlLabel>
             <FormControlLabelText>Phone number</FormControlLabelText>
           </FormControlLabel>
-          <Input>
+          <Input className="h-10">
             <InputField
               keyboardType="number-pad"
               value={phoneNumber}
@@ -58,10 +70,10 @@ export function LoginScreen() {
             />
           </Input>
 
-          <FormControlLabel>
+          <FormControlLabel className="mt-2">
             <FormControlLabelText>Password</FormControlLabelText>
           </FormControlLabel>
-          <Input>
+          <Input className="h-10">
             <InputField
               secureTextEntry
               value={password}

@@ -1,18 +1,20 @@
 import { AlertDialog, AlertDialogBackdrop, AlertDialogBody, AlertDialogContent, AlertDialogFooter, AlertDialogHeader } from '@/components/ui/alert-dialog';
-import { Button, ButtonText } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { Button, ButtonIcon, ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
-import { Spinner } from '@/components/ui/spinner';
+import { Icon, MenuIcon, MoonIcon, SunIcon, UnlockIcon } from '@/components/ui/icon';
+import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { useAuthStore } from '@features/auth';
+import { useContentDrawerStore } from '@features/content';
+import { EmptyState, Screen, Section, SkeletonRows } from '@shared/components/Screen';
 import { useAppToast } from '@shared/hooks/useAppToast';
-import { formatRelativeTime } from '@shared/utils/format';
+import { useThemeStore } from '@shared/store/themeStore';
+import { formatRelativeTime, pluralize } from '@shared/utils/format';
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Dimensions, StyleSheet, View } from 'react-native';
 import { useClassrooms, useDeleteClassroom, useSessionHistory } from '../hooks/useClassrooms';
 import type { Classroom } from '../types/classroom.types';
 
@@ -20,10 +22,23 @@ export function ClassroomListScreen() {
   const router = useRouter();
   const toast = useAppToast();
   const logout = useAuthStore((state) => state.logout);
+  const openContentDrawer = useContentDrawerStore((state) => state.open);
   const { data: classrooms, isPending, error } = useClassrooms();
   const { data: sessionHistory } = useSessionHistory();
   const deleteClassroom = useDeleteClassroom();
   const [deleteTarget, setDeleteTarget] = React.useState<Classroom | null>(null);
+  const [isMenuOpen, setIsMenuOpen] = React.useState(false);
+  const [menuAnchor, setMenuAnchor] = React.useState({ top: 0, right: 0 });
+  const menuAnchorRef = React.useRef<View>(null);
+  const themeMode = useThemeStore((state) => state.mode);
+  const toggleTheme = useThemeStore((state) => state.toggle);
+
+  function openMenu() {
+    menuAnchorRef.current?.measureInWindow((x, y, width, height) => {
+      setMenuAnchor({ top: y + height + 8, right: Dimensions.get('window').width - (x + width) });
+      setIsMenuOpen(true);
+    });
+  }
 
   function goToSession(groupId: string) {
     if (classrooms?.some((c) => c.id === groupId)) {
@@ -44,70 +59,124 @@ export function ClassroomListScreen() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1 }}>
-    <ScrollView className="flex-1 bg-background">
-      <VStack className="gap-4 p-6">
-        <HStack className="items-center justify-between">
-          <Heading size="xl">Classrooms</Heading>
-          <HStack className="gap-3">
-            <Button onPress={() => router.push('/classrooms/new')}>
-              <ButtonText>New Classroom</ButtonText>
-            </Button>
-            <Button variant="outline" onPress={() => router.push('/content')}>
+    <>
+      <Screen
+        title="Classrooms"
+        subtitle={classrooms ? pluralize(classrooms.length, 'classroom') : undefined}
+        actions={
+          <>
+            <Button variant="outline" onPress={() => openContentDrawer()} testID="open-content-library">
               <ButtonText>Content Library</ButtonText>
             </Button>
-            <Button variant="outline" onPress={() => logout()}>
-              <ButtonText>Log out</ButtonText>
+            <Button onPress={() => router.push('/classrooms/new')} testID="new-classroom">
+              <ButtonText>New Classroom</ButtonText>
             </Button>
-          </HStack>
-        </HStack>
-
-        {!!sessionHistory?.length && (
-          <Card className="gap-3">
-            <Heading size="md">Recent Conferences</Heading>
-            {sessionHistory.map((session) => (
+            <View ref={menuAnchorRef}>
               <Button
-                key={`${session.group_id}-${session.timestamp}`}
-                variant="outline"
-                className="justify-between"
-                onPress={() => goToSession(session.group_id)}
+                variant="ghost"
+                size="icon"
+                onPress={openMenu}
+                accessibilityLabel="Open menu"
+                testID="open-menu"
               >
-                <VStack>
-                  <ButtonText>{session.group_name}</ButtonText>
-                  <Text size="xs" className="text-muted-foreground">
-                    {formatRelativeTime(session.timestamp)} · {session.student_count} student
-                    {session.student_count !== 1 ? 's' : ''}
-                  </Text>
-                </VStack>
+                <ButtonIcon as={MenuIcon} />
               </Button>
-            ))}
-          </Card>
+            </View>
+          </>
+        }
+      >
+        {!!sessionHistory?.length && (
+          <Section title="Recent conferences">
+            <VStack className="gap-2">
+              {sessionHistory.map((session) => (
+                <Pressable
+                  key={`${session.group_id}-${session.timestamp}`}
+                  onPress={() => goToSession(session.group_id)}
+                >
+                  <HStack className="items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3">
+                    <VStack className="flex-1">
+                      <Text className="font-medium text-foreground">{session.group_name}</Text>
+                      <Text size="xs" className="text-muted-foreground">
+                        {formatRelativeTime(session.timestamp)} · {session.student_count} student
+                        {session.student_count !== 1 ? 's' : ''}
+                      </Text>
+                    </VStack>
+                  </HStack>
+                </Pressable>
+              ))}
+            </VStack>
+          </Section>
         )}
 
-        {isPending && <Spinner />}
-        {error && <Text className="text-destructive">{String(error)}</Text>}
-        {classrooms?.length === 0 && <Text className="text-muted-foreground">No classrooms yet.</Text>}
+        <Section title="All classrooms">
+          {isPending && <SkeletonRows count={3} />}
+          {!!error && <Text className="text-destructive">{String(error)}</Text>}
+          {classrooms?.length === 0 && (
+            <EmptyState title="No classrooms yet" hint="Create one to start grouping students and running calls." />
+          )}
 
-        {classrooms?.map((classroom) => (
-          <Card key={classroom.id} className="gap-3">
-            <Heading size="md">{classroom.name}</Heading>
-            <Text size="sm" className="text-muted-foreground">
-              {classroom.students.length} Students · {classroom.leaders.length} Leaders
-            </Text>
-            <HStack className="gap-3">
-              <Button size="sm" variant="outline" onPress={() => router.push(`/classrooms/${classroom.id}`)}>
-                <ButtonText>View</ButtonText>
-              </Button>
-              <Button size="sm" variant="outline" onPress={() => router.push(`/classrooms/${classroom.id}/edit`)}>
-                <ButtonText>Edit</ButtonText>
-              </Button>
-              <Button size="sm" variant="destructive" onPress={() => setDeleteTarget(classroom)}>
-                <ButtonText>Delete</ButtonText>
-              </Button>
-            </HStack>
-          </Card>
-        ))}
-      </VStack>
+          <VStack className="gap-3">
+            {classrooms?.map((classroom) => (
+              <VStack key={classroom.id} className="gap-3 rounded-xl border border-border bg-card p-4">
+                <VStack className="gap-0.5">
+                  <Heading size="md" className="tracking-tight">{classroom.name}</Heading>
+                  <Text size="xs" className="text-muted-foreground">
+                    {pluralize(classroom.students.length, 'student')} · {pluralize(classroom.leaders.length, 'leader')}
+                  </Text>
+                </VStack>
+                <HStack className="flex-wrap gap-2">
+                  <Button size="sm" onPress={() => router.push(`/classrooms/${classroom.id}`)}>
+                    <ButtonText>Open</ButtonText>
+                  </Button>
+                  <Button size="sm" variant="outline" onPress={() => router.push(`/classrooms/${classroom.id}/edit`)}>
+                    <ButtonText>Edit</ButtonText>
+                  </Button>
+                  <Button size="sm" variant="ghost" onPress={() => setDeleteTarget(classroom)}>
+                    <ButtonText>Delete</ButtonText>
+                  </Button>
+                </HStack>
+              </VStack>
+            ))}
+          </VStack>
+        </Section>
+      </Screen>
+
+      {isMenuOpen && (
+        <>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setIsMenuOpen(false)} testID="menu-backdrop" />
+          <VStack
+            style={{ position: 'absolute', top: menuAnchor.top, right: menuAnchor.right }}
+            className="w-48 gap-1 rounded-xl border border-border bg-card p-1.5 shadow-lg"
+          >
+            <Pressable
+              onPress={() => {
+                toggleTheme();
+                setIsMenuOpen(false);
+              }}
+              testID="menu-toggle-theme"
+            >
+              <HStack className="items-center gap-2 rounded-lg px-3 py-2.5">
+                <Icon as={themeMode === 'dark' ? SunIcon : MoonIcon} className="text-muted-foreground" />
+                <Text size="sm" className="text-foreground">
+                  {themeMode === 'dark' ? 'Light theme' : 'Dark theme'}
+                </Text>
+              </HStack>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                setIsMenuOpen(false);
+                logout();
+              }}
+              testID="menu-logout"
+            >
+              <HStack className="items-center gap-2 rounded-lg px-3 py-2.5">
+                <Icon as={UnlockIcon} className="text-muted-foreground" />
+                <Text size="sm" className="text-foreground">Log out</Text>
+              </HStack>
+            </Pressable>
+          </VStack>
+        </>
+      )}
 
       <AlertDialog isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)}>
         <AlertDialogBackdrop />
@@ -128,7 +197,6 @@ export function ClassroomListScreen() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </ScrollView>
-    </SafeAreaView>
+    </>
   );
 }

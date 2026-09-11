@@ -4,26 +4,34 @@
     "slug": "teacher-expo-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/SEEDS.png",
     "scheme": "teacherexpoapp",
     "userInterfaceStyle": "automatic",
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./assets/images/SEEDS.png",
         "backgroundColor": "#ffffff"
       }
     },
     "web": {
       "bundler": "metro",
       "output": "server",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/SEEDS.png"
     },
     "plugins": [
       "expo-router",
       "expo-web-browser",
       "expo-font",
       "@react-native-community/datetimepicker",
-      "expo-splash-screen",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/SEEDS.png",
+          "imageWidth": 160,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
+        }
+      ],
       "expo-status-bar",
       "expo-secure-store",
       "expo-audio",
