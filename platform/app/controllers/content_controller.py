@@ -36,13 +36,7 @@ from app.models.responses.content import (
     WebsiteExtractResponse,
     WebsiteTranslationResponse,
 )
-from app.models.responses.job import (
-    DeleteMatchedResponse,
-    JobListResponse,
-    JobScheduledResponse,
-    JobStatusResponse,
-    ThemeResponse,
-)
+from app.models.responses.job import DeleteMatchedResponse, JobScheduledResponse
 from app.models.user import UserRole
 from app.platform.auth.dependencies import get_current_user
 from app.platform.error_handling import ForbiddenError, NotFoundError
@@ -145,13 +139,13 @@ async def get_job_status(
     job_id: str,
     user: dict[str, Any] = Depends(_require_content_write),
     service: ContentService = Depends(get_content_service),
-) -> JobStatusResponse:
+) -> dict[str, Any]:
     doc = await service.get_job(job_id)
     if not doc:
         raise NotFoundError("Job", job_id)
     doc.pop("_id", None)
     doc["job_id"] = job_id
-    return JobStatusResponse.model_validate(doc)
+    return doc
 
 
 # ---------------------------------------------------------------------------
@@ -163,19 +157,19 @@ async def get_job_status(
 async def list_jobs(
     user: dict[str, Any] = Depends(_require_content_write),
     service: ContentService = Depends(get_content_service),
-) -> JobListResponse:
+) -> dict[str, Any]:
     docs = await service.list_active_jobs()
     jobs = [
-        JobStatusResponse(
-            job_id=str(doc["_id"]),
-            status="ERROR" if doc.get("status") == "failed" else "IN PROGRESS",
-            content_id=doc.get("content_id"),
-            started_at=doc.get("started_at"),
-            reason=doc.get("reason"),
-        )
+        {
+            "job_id": str(doc["_id"]),
+            "status": "ERROR" if doc.get("status") == "failed" else "IN PROGRESS",
+            "content_id": doc.get("content_id"),
+            "started_at": doc.get("started_at"),
+            "reason": doc.get("reason"),
+        }
         for doc in docs
     ]
-    return JobListResponse(jobs=jobs)
+    return {"jobs": jobs}
 
 
 # ---------------------------------------------------------------------------
@@ -224,21 +218,21 @@ async def get_themes(
     language: str = Query(...),
     user: dict[str, Any] = Depends(get_current_user),
     service: ContentService = Depends(get_content_service),
-) -> list[ThemeResponse]:
+) -> list[dict]:
     tenant_id = user.get("tenant_id", "")
     school_id = _read_school_id(user)
 
     docs = await service.get_themes(tenant_id, language, school_id)
 
     seen: set = set()
-    themes: list[ThemeResponse] = []
+    themes: list = []
     for doc in docs:
         theme = (doc.get("theme") or {}).get("english", "")
         if theme and theme not in seen:
-            themes.append(ThemeResponse(
-                name=theme,
-                audio_url=(doc.get("theme") or {}).get("audio_url", ""),
-            ))
+            themes.append({
+                "name": theme,
+                "audio_url": (doc.get("theme") or {}).get("audio_url", ""),
+            })
             seen.add(theme)
     return themes
 

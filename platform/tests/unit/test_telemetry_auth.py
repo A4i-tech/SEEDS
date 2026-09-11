@@ -234,4 +234,3 @@ class TestDependencies:
         user = {"sub": "u1", "role": "teacher"}
         with pytest.raises(ForbiddenError):
             await require_tenant(user=user)
-

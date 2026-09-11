@@ -46,10 +46,6 @@ class ContentService:
         self._job_repo = ContentJobRepository(db)
         self._website_extractor = WebsiteExtractor()
 
-    # ------------------------------------------------------------------
-    # Jobs
-    # ------------------------------------------------------------------
-
     async def enqueue_content_job(self, content_id: str) -> str:
         return await self._job_repo.create(content_id)
 
@@ -215,9 +211,6 @@ class ContentService:
             content_id, tenant_id, school_id
         )
 
-    # ------------------------------------------------------------------
-    # Quiz writes
-    # ------------------------------------------------------------------
 
     async def create_quiz(
         self,
