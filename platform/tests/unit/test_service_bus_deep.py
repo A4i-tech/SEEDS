@@ -358,6 +358,65 @@ class TestWebhookControllerDeep:
         app.dependency_overrides.clear()
         assert resp.status_code in (200, 204, 404, 422)
 
+    @pytest.mark.asyncio
+    async def test_dtmf_webhook_passes_deterministic_dedup_message_id(self) -> None:
+        """/input must derive a deterministic message_id from
+        (conversation_uuid, leg uuid, digits, timestamp) so retried/duplicate
+        DTMF deliveries from Vonage are deduped by Service Bus, not enqueued
+        as distinct messages."""
+        from app.controllers.ivr_webhook_controller import ivr_dtmf_webhook
+        from app.providers.service_bus import service_bus_provider
+
+        payload = {
+            "dtmf": {"digits": "5", "timed_out": False},
+            "conversation_uuid": "conv-dedup-1",
+            "uuid": "leg-dedup-1",
+            "timestamp": "2026-01-01T00:00:00Z",
+        }
+
+        request = MagicMock()
+        request.json = AsyncMock(return_value=payload)
+
+        with patch.object(
+            service_bus_provider, "send_dtmf_input", AsyncMock(return_value=True)
+        ) as mock_send:
+            await ivr_dtmf_webhook(request)
+
+        assert mock_send.await_count == 1
+        _, kwargs = mock_send.call_args
+        assert kwargs["message_id"] == "dtmf:conv-dedup-1:leg-dedup-1:5:2026-01-01T00:00:00Z"
+
+        request2 = MagicMock()
+        request2.json = AsyncMock(return_value=payload)
+        with patch.object(
+            service_bus_provider, "send_dtmf_input", AsyncMock(return_value=True)
+        ) as mock_send2:
+            await ivr_dtmf_webhook(request2)
+        _, kwargs2 = mock_send2.call_args
+        assert kwargs2["message_id"] == kwargs["message_id"]
+
+    @pytest.mark.asyncio
+    async def test_dtmf_webhook_returns_placeholder_with_widened_timeout(self) -> None:
+        """On successful enqueue, /input must respond with the placeholder NCCO
+        whose input action carries the widened timeOut (20s)."""
+        from app.controllers.ivr_webhook_controller import ivr_dtmf_webhook
+        from app.providers.service_bus import service_bus_provider
+
+        payload = {
+            "dtmf": {"digits": "3", "timed_out": False},
+            "conversation_uuid": "conv-ncco-1",
+            "uuid": "leg-ncco-1",
+            "timestamp": "2026-01-01T00:00:00Z",
+        }
+        request = MagicMock()
+        request.json = AsyncMock(return_value=payload)
+
+        with patch.object(service_bus_provider, "send_dtmf_input", AsyncMock(return_value=True)):
+            ncco = await ivr_dtmf_webhook(request)
+
+        input_action = next(action for action in ncco if action.get("action") == "input")
+        assert input_action["dtmf"]["timeOut"] == 20
+
 
 # ---------------------------------------------------------------------------
 # Conference service — update_state method

@@ -173,6 +173,44 @@ class TestIVRServiceStructure:
 
         assert any("No IVR state" in r.message for r in caplog.records)
 
+    @pytest.mark.asyncio
+    async def test_process_dtmf_skips_push_on_stale_write(self, db, caplog) -> None:
+        """When save_ongoing_call reports a stale write (lost the optimistic
+        concurrency race) during the state-transition branch, process_dtmf
+        must return (None, False) rather than pushing a now-outdated NCCO."""
+        import logging
+        from datetime import datetime
+
+        from app.models.ivr_state import IVRCallStateMongoDoc
+        from app.repositories.ivr_repository import IVRRepository
+        from app.services import ivr_service
+        from app.services.ivr_service import IVRService
+
+        state = IVRCallStateMongoDoc(
+            _id="conv_stale", phone_number="+911", fsm_id="fsm_stale",
+            current_state_id="s0", created_at=datetime.now(),
+        )
+        await IVRRepository(db).save_ongoing_call(state)
+
+        fake_fsm = MagicMock()
+        fake_fsm.states = {}
+        fake_fsm.get_next_actions = AsyncMock(return_value=([], "s1"))
+
+        original_cache = dict(ivr_service._fsm_cache)
+        ivr_service._fsm_cache["fsm_stale"] = fake_fsm
+        try:
+            with patch.object(IVRRepository, "save_ongoing_call", AsyncMock(return_value=False)):
+                with caplog.at_level(logging.INFO, logger="app.services.ivr_service"):
+                    ncco, should_hangup = await IVRService(db).process_dtmf(
+                        call_leg_id="conv_stale", dtmf="1"
+                    )
+            assert ncco is None
+            assert should_hangup is False
+            assert any("stale write" in r.message for r in caplog.records)
+        finally:
+            ivr_service._fsm_cache.clear()
+            ivr_service._fsm_cache.update(original_cache)
+
 
 # ---------------------------------------------------------------------------
 # IVR service — start_call_flow mocked path
@@ -522,6 +560,35 @@ class TestIVRRepository:
         doc = await db["ongoingIVRState"].find_one({"_id": "conv1"})
         assert doc["current_state_id"] == "s1"
 
+    @pytest.mark.asyncio
+    async def test_save_ongoing_call_rejects_stale_version(self, db) -> None:
+        """A save based on a stale in-memory version must not clobber a
+        concurrently-written newer version (optimistic concurrency guard)."""
+        from datetime import datetime
+
+        from app.models.ivr_state import IVRCallStateMongoDoc
+        from app.repositories.ivr_repository import IVRRepository
+
+        repo = IVRRepository(db)
+        state = IVRCallStateMongoDoc(
+            _id="conv2", phone_number="+911", fsm_id="fsm1",
+            current_state_id="s0", created_at=datetime.now(),
+        )
+        assert await repo.save_ongoing_call(state) is True
+        assert state.version == 1
+
+        concurrent = state.model_copy(deep=True)
+        concurrent.current_state_id = "s1"
+        assert await repo.save_ongoing_call(concurrent) is True
+        assert concurrent.version == 2
+
+        state.current_state_id = "s2"
+        assert await repo.save_ongoing_call(state) is False
+
+        doc = await db["ongoingIVRState"].find_one({"_id": "conv2"})
+        assert doc["current_state_id"] == "s1"
+        assert doc["version"] == 2
+
 
 # ---------------------------------------------------------------------------
 # Repositories — comprehension
@@ -648,3 +715,42 @@ class TestFSMUtils:
         assert fsm.init_state_id == "s0"
         assert "s0" in fsm.states
         assert "s1" in fsm.states
+
+
+class TestDtmfConsumerPollCadence:
+    def test_poll_wait_seconds_is_tightened(self) -> None:
+        """POLL_WAIT_SECONDS must stay short (1s) — a longer wait (e.g. 5s) adds
+        unacceptable latency to DTMF keypress -> NCCO response round trips."""
+        from app.consumers.dtmf_consumer import DtmfConsumer
+
+        assert DtmfConsumer.POLL_WAIT_SECONDS == 1
+
+    @pytest.mark.asyncio
+    async def test_run_loop_passes_poll_wait_seconds_to_receive_messages(self) -> None:
+        """The configured POLL_WAIT_SECONDS must actually be threaded through
+        to the Service Bus receive call, not just declared and ignored."""
+        import asyncio as _asyncio
+
+        from app.consumers.dtmf_consumer import DtmfConsumer
+        from app.providers.service_bus import service_bus_provider
+
+        consumer = DtmfConsumer.__new__(DtmfConsumer)
+
+        async def _fake_receive(_queue_name, _max_count, wait_seconds):
+            assert wait_seconds == DtmfConsumer.POLL_WAIT_SECONDS
+            # Stop the infinite `while True` poll loop after one iteration.
+            raise _asyncio.CancelledError
+
+        with (
+            patch.object(service_bus_provider, "_initialized", True),
+            patch.object(
+                service_bus_provider, "receive_messages", AsyncMock(side_effect=_fake_receive)
+            ) as mock_receive,
+            patch("app.consumers.dtmf_consumer.get_database", MagicMock(return_value=MagicMock())),
+        ):
+            with pytest.raises(_asyncio.CancelledError):
+                await consumer._run_loop()
+
+        mock_receive.assert_awaited_once_with(
+            "dtmf_input", max_count=DtmfConsumer.POLL_BATCH, wait_seconds=1
+        )
