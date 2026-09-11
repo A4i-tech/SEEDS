@@ -1,6 +1,7 @@
 
 from __future__ import annotations
 
+import sys
 from functools import lru_cache
 from typing import Literal
 
@@ -153,6 +154,7 @@ class Settings(BaseSettings):
     subodha_collection_name: str = "subodhaCourses"
     subodha_jobs_collection_name: str = "subodhaSyncJobs"
     subodha_asset_container: str = "subodha"
+    remediation_python: str = sys.executable
 
     @property
     def call_webhook_queue_name(self) -> str:

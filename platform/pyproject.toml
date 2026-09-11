@@ -38,6 +38,13 @@ scipy = ">=1.12"
 pypandoc-binary = ">=1.13"
 beautifulsoup4 = "^4.15.0"
 nh3 = "^0.3.6"
+pypdf = ">=4.0"
+langdetect = "^1.0.9"
+omni-ingest = {path = "C:/A4I/wt/OmniIngest-mistral-fixed", develop = true}
+liblouis = [
+    { path = "C:/A4I/wt/OmniIngest-mistral-fixed/dependencies/liblouis-3.38.0-py3-none-manylinux_2_34_x86_64.whl", markers = "sys_platform == 'linux'" },
+    { path = "C:/A4I/wt/OmniIngest-mistral-fixed/dependencies/liblouis-3.38.0-py3-none-win_amd64.whl", markers = "sys_platform == 'win32'" },
+]
 pycountry = ">=24.6"
 
 [tool.poetry.group.test.dependencies]

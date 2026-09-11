@@ -40,6 +40,7 @@ from app.controllers import (
     # Users (split from users_controller)
     teacher_controller,
     tenant_auth_controller,
+    textbook_remediation_controller,
     translation_controller,
     user_controller,
     # Webhooks (split from webhook_controller)
@@ -68,6 +69,7 @@ api_router.include_router(class_controller.router)
 api_router.include_router(content_controller.router)
 api_router.include_router(audit_controller.router)
 api_router.include_router(content_aggregator_controller.router)
+api_router.include_router(textbook_remediation_controller.router)
 api_router.include_router(translation_controller.router)
 api_router.include_router(onboarding_controller.router)
 api_router.include_router(glossary_controller.router)
