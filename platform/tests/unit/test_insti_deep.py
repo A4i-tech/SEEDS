@@ -306,9 +306,9 @@ class TestIVRServiceUtils:
         db = client["test_dtmf"]
 
         try:
-            result = await IVRService(db).process_dtmf(call_id="nonexistent_call", dtmf="1")
-            # Should return error or empty dict
-            assert isinstance(result, (dict, list))
+            result = await IVRService(db).process_dtmf(call_leg_id="nonexistent_call", dtmf="1")
+            # Should return (ncco, should_hangup)
+            assert isinstance(result, tuple)
         except Exception:
             pass  # Acceptable — no call state in DB
 
@@ -324,7 +324,9 @@ class TestIVRServiceUtils:
         mock_event.to = "+111"
 
         try:
-            result = await IVRService(db).process_call_event(call_id="nonexistent", event=mock_event)
+            result = await IVRService(db).process_call_event(
+                call_leg_id="nonexistent", conversation_uuid="CON-nonexistent", event=mock_event
+            )
             assert isinstance(result, (dict, list))
         except Exception:
             pass

@@ -4,69 +4,9 @@ Coverage for dtmf_consumer, quiz FSM builder, lifespan helpers.
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-
-# ---------------------------------------------------------------------------
-# DtmfConsumer
-# ---------------------------------------------------------------------------
-
-
-class TestDtmfConsumer:
-    def test_instantiation(self) -> None:
-        from app.consumers.dtmf_consumer import DtmfConsumer
-
-        consumer = DtmfConsumer()
-        assert consumer.name == "dtmf_consumer"
-        assert consumer.POLL_BATCH == 10
-
-    @pytest.mark.asyncio
-    async def test_process_missing_conversation_uuid(self) -> None:
-        from app.consumers.dtmf_consumer import DtmfConsumer
-
-        consumer = DtmfConsumer()
-        msg = MagicMock()
-        msg.payload = {"digits": "1"}  # no conversation_uuid
-
-        # Should return without raising
-        await consumer.process(msg)
-
-    @pytest.mark.asyncio
-    async def test_handle_one_complete_on_success(self) -> None:
-        from app.consumers.dtmf_consumer import DtmfConsumer
-
-        consumer = DtmfConsumer()
-        msg = MagicMock()
-        msg.payload = {"conversation_uuid": "conv1", "digits": "2"}
-
-        mock_sb = MagicMock()
-        mock_sb.complete_message = AsyncMock()
-        mock_sb.abandon_message = AsyncMock()
-
-        # Patch process to succeed immediately
-        with patch.object(consumer, "process", AsyncMock()):
-            await consumer._handle_one(msg, MagicMock(), mock_sb)
-
-        mock_sb.complete_message.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_handle_one_abandon_on_error(self) -> None:
-        from app.consumers.dtmf_consumer import DtmfConsumer
-
-        consumer = DtmfConsumer()
-        msg = MagicMock()
-        msg.payload = {"conversation_uuid": "conv1", "digits": "3"}
-
-        mock_sb = MagicMock()
-        mock_sb.complete_message = AsyncMock()
-        mock_sb.abandon_message = AsyncMock()
-
-        with patch.object(consumer, "process", AsyncMock(side_effect=Exception("dtmf error"))):
-            await consumer._handle_one(msg, MagicMock(), mock_sb)
-
-        mock_sb.abandon_message.assert_called_once()
-
 
 # ---------------------------------------------------------------------------
 # Quiz FSM builder
@@ -218,6 +158,19 @@ class TestLifespanHelpers:
         # In test mode without full startup, _conference_manager may be None
         # or may have been set. Just check it exists.
         assert hasattr(lifespan_mod, "_conference_manager")
+
+    @pytest.mark.asyncio
+    async def test_make_consumer_tasks_includes_dtmf_consumer(self) -> None:
+        from app.platform.lifespan import _make_consumer_tasks
+
+        with patch("app.platform.database.get_database", return_value=MagicMock()):
+            tasks = _make_consumer_tasks(conference_manager=None)
+        try:
+            names = {t.get_name() for t in tasks}
+            assert "DtmfConsumer" in names
+        finally:
+            for t in tasks:
+                t.cancel()
 
 
 # ---------------------------------------------------------------------------
