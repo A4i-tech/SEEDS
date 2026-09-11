@@ -217,14 +217,14 @@ class TestInstiHelpers:
     def test_option_class(self) -> None:
         from app.services.fsm.instantiation.insti import _Option
 
-        opt = _Option(1, "Mathematics")
-        assert opt.key == 1
+        opt = _Option("1", "Mathematics")
+        assert opt.key == "1"
         assert opt.value == "Mathematics"
 
     def test_menu_class_dict(self) -> None:
         from app.services.fsm.instantiation.insti import _Menu, _Option
 
-        opts = [_Option(1, "Math"), _Option(2, "Science")]
+        opts = [_Option("1", "Math"), _Option("2", "Science")]
         menu = _Menu("Select subject", opts, level=1, language="english")
         d = menu.dict()
         assert d["description"] == "Select subject"

@@ -25,6 +25,7 @@ class TenantRegisterRequest(BaseModel):
 
 
 class TenantChangePasswordRequest(BaseModel):
+    current_password: str
     new_password: str
 
 
