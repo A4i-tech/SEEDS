@@ -20,6 +20,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from app.controllers.webhook_controller import verify_vonage_signature
 from app.models.ivr_state import DTMFInput, EventWebhookRequest
 from app.platform.database import get_database
+from app.platform.settings import get_settings
 from app.providers.service_bus import service_bus_provider
 from app.repositories.call_repository import CallsLogRepository
 from app.services.ivr_service import IVRService
@@ -27,6 +28,24 @@ from app.services.ivr_service import IVRService
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["IVR Webhooks"])
+
+PLACEHOLDER_DTMF_NCCO: list[dict[str, Any]] = [
+    {
+        "action": "talk",
+        "text": "Please wait.",
+        "bargeIn": False,
+        "loop": 1,
+    },
+    {
+        "action": "input",
+        "type": ["dtmf"],
+        "dtmf": {"maxDigits": 1, "submitOnHash": False, "timeOut": 20},
+    },
+]
+
+ENQUEUE_FAILED_NCCO: list[dict[str, Any]] = [
+    {"action": "talk", "text": "Server error. Please try again later. Bye bye.", "bargeIn": False},
+]
 
 
 @router.post(
@@ -41,6 +60,7 @@ async def ivr_event_webhook(request: Request, background_tasks: BackgroundTasks)
         logger.info("ivr /event received: status=%s", req_data.get("status"))
         event = EventWebhookRequest.model_validate(req_data)
         payload = {
+            "uuid": event.uuid,
             "conversation_uuid": event.conversation_uuid,
             "status": event.status.value,
             "timestamp": event.timestamp,
@@ -109,25 +129,36 @@ async def ivr_rtc_event_webhook(request: Request, background_tasks: BackgroundTa
     summary="Vonage DTMF input webhook (IVR)",
     dependencies=[Depends(verify_vonage_signature)],
 )
-async def ivr_dtmf_webhook(request: Request, background_tasks: BackgroundTasks) -> Any:
-    """Receives DTMF input from Vonage and enqueues for async processing."""
+async def ivr_dtmf_webhook(request: Request) -> Any:
+    """Receives DTMF input from Vonage and enqueues it for the DTMF consumer."""
     req_data = await request.json()
     logger.debug("ivr /input received: %s", req_data)
 
     try:
         dtmf_input = DTMFInput.model_validate(req_data)
-        digits = dtmf_input.dtmf.digits
-        conv_id = dtmf_input.conversation_uuid
     except Exception as exc:
         logger.warning("ivr /input parse error: %s", exc)
         return []
 
-    payload = {"conversation_uuid": conv_id, "digits": digits}
-    background_tasks.add_task(_enqueue_dtmf_input, payload)
+    digits = dtmf_input.dtmf.digits
+    conv_id = dtmf_input.conversation_uuid
+    payload = {
+        "conversation_uuid": conv_id,
+        "call_leg_id": dtmf_input.uuid,
+        "digits": digits,
+        "timed_out": dtmf_input.dtmf.timed_out,
+    }
+    message_id = f"dtmf:{conv_id}:{dtmf_input.uuid}:{digits}:{dtmf_input.timestamp}"
 
-    db = get_database()
-    ncco = await IVRService(db).process_dtmf(call_id=conv_id, dtmf=digits)
-    return ncco
+    try:
+        await service_bus_provider.send_dtmf_input(payload, message_id=message_id)
+    except Exception as exc:
+        logger.error("Failed to enqueue dtmf_input for call=%s: %s", conv_id, exc)
+        return ENQUEUE_FAILED_NCCO
+
+    placeholder = [dict(action) for action in PLACEHOLDER_DTMF_NCCO]
+    placeholder[1]["eventUrl"] = [f"{get_settings().base_url}/input"]
+    return placeholder
 
 
 async def _enqueue_call_event(payload: dict) -> None:
@@ -142,13 +173,6 @@ async def _enqueue_call_webhook(payload: dict) -> None:
         await service_bus_provider.send_call_webhook(payload)
     except Exception as exc:
         logger.error("Failed to enqueue call_webhook: %s", exc)
-
-
-async def _enqueue_dtmf_input(payload: dict) -> None:
-    try:
-        await service_bus_provider.send_dtmf_input(payload)
-    except Exception as exc:
-        logger.error("Failed to enqueue dtmf_input: %s", exc)
 
 
 async def _process_ivr_rtc_event(event_data: dict) -> None:

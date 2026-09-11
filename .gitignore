@@ -425,3 +425,8 @@ htmlcov*/
 /SEEDS wiki/
 /graphify-out/
 /.claude/settings.local.json
+.serena/
+AGENTS.md
+IDENTITY.md
+SOUL.md
+USER.md
