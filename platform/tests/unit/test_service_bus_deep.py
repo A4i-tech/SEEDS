@@ -22,10 +22,42 @@ class TestServiceBusProviderNullHandles:
 
         p = ServiceBusProvider.__new__(ServiceBusProvider)
         p._call_webhook = None
-        p._dtmf_input = None
         p._call_event = None
+        p._dtmf_input = None
         p._initialized = True
         return p
+
+    @pytest.mark.asyncio
+    async def test_send_dtmf_input_null_handle_returns_false(self) -> None:
+        p = self._make_provider()
+        p._dtmf_input = None
+        result = await p.send_dtmf_input({"call_id": "conv-1", "digits": "5"})
+        assert result is False
+
+    def test_dtmf_input_queue_name_property(self) -> None:
+        from app.platform.settings import Settings
+
+        s = Settings(azure_service_bus_queue_name="myqueue")
+        assert s.dtmf_input_queue_name == "dtmf_input_myqueue"
+
+    @pytest.mark.asyncio
+    async def test_send_dtmf_input_sends_to_dtmf_input_queue(self) -> None:
+        from app.providers.service_bus import MessageType, QueueMessage, ServiceBusProvider
+
+        p = ServiceBusProvider.__new__(ServiceBusProvider)
+        p._call_webhook = None
+        p._call_event = None
+        sent: list[QueueMessage] = []
+
+        class _FakeHandle:
+            async def send(self, message: QueueMessage) -> bool:
+                sent.append(message)
+                return True
+
+        p._dtmf_input = _FakeHandle()
+        result = await p.send_dtmf_input({"conversation_uuid": "conv-1", "digits": "5"})
+        assert result is True
+        assert sent[0].type == MessageType.DTMF_INPUT
 
     @pytest.mark.asyncio
     async def test_receive_messages_null_handle_returns_empty(self) -> None:
@@ -45,8 +77,8 @@ class TestServiceBusProviderNullHandles:
     async def test_abandon_message_null_handle_returns_false(self) -> None:
         from app.providers.service_bus import MessageType, QueueMessage
         p = self._make_provider()
-        msg = QueueMessage(type=MessageType.DTMF_INPUT, payload={})
-        result = await p.abandon_message("dtmf_input", msg)
+        msg = QueueMessage(type=MessageType.CALL_EVENT, payload={})
+        result = await p.abandon_message("call_event", msg)
         assert result is False
 
     @pytest.mark.asyncio
@@ -61,12 +93,6 @@ class TestServiceBusProviderNullHandles:
     async def test_send_call_webhook_null_handle_returns_false(self) -> None:
         p = self._make_provider()
         result = await p.send_call_webhook({"phone_number": "+111"})
-        assert result is False
-
-    @pytest.mark.asyncio
-    async def test_send_dtmf_input_null_handle_returns_false(self) -> None:
-        p = self._make_provider()
-        result = await p.send_dtmf_input({"digits": "1"})
         assert result is False
 
     @pytest.mark.asyncio
@@ -94,7 +120,6 @@ class TestServiceBusProviderNullHandles:
 
         p = ServiceBusProvider.__new__(ServiceBusProvider)
         p._call_webhook = None
-        p._dtmf_input = None
         p._call_event = None
         p._initialized = True
 
@@ -114,6 +139,7 @@ class TestAzureQueueHandle:
         from app.providers.service_bus import _AzureQueueHandle
 
         handle = _AzureQueueHandle.__new__(_AzureQueueHandle)
+        handle.connection_string = "test-conn-str"
         handle.queue_name = queue_name
         handle._client = MagicMock()
         handle._receiver = AsyncMock()
@@ -166,7 +192,7 @@ class TestAzureQueueHandle:
         from app.providers.service_bus import MessageType, QueueMessage
 
         handle = self._make_handle()
-        msg = QueueMessage(type=MessageType.DTMF_INPUT, payload={})
+        msg = QueueMessage(type=MessageType.CALL_EVENT, payload={})
         raw_mock = MagicMock()
         handle._message_map[msg.message_id] = raw_mock
         handle._receiver.abandon_message = AsyncMock()
@@ -190,6 +216,36 @@ class TestAzureQueueHandle:
         handle._client.close = AsyncMock()
 
         await handle.close()  # Should not raise
+
+    @pytest.mark.asyncio
+    async def test_receive_reconnects_after_fatal_error(self) -> None:
+        handle = self._make_handle()
+        handle._message_map["stale-id"] = MagicMock()
+        old_receiver = handle._receiver
+        old_receiver.receive_messages = AsyncMock(
+            side_effect=AttributeError(
+                "'NoneType' object has no attribute 'create_receiver_link'"
+            )
+        )
+        old_receiver.__aexit__ = AsyncMock()
+        old_client = handle._client
+        old_client.close = AsyncMock()
+
+        new_client = MagicMock()
+        new_receiver = AsyncMock()
+        new_client.get_queue_receiver = MagicMock(return_value=new_receiver)
+
+        with patch("azure.servicebus.aio.ServiceBusClient") as mock_sb_client_cls:
+            mock_sb_client_cls.from_connection_string = MagicMock(return_value=new_client)
+            result = await handle.receive()
+
+        assert result == []
+        old_receiver.__aexit__.assert_called_once()
+        old_client.close.assert_called_once()
+        new_receiver.__aenter__.assert_called_once()
+        assert handle._receiver is new_receiver
+        assert handle._client is new_client
+        assert handle._message_map == {}
 
 
 # ---------------------------------------------------------------------------

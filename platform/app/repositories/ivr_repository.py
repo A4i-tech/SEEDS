@@ -112,6 +112,10 @@ class IVRRepository(BaseRepository):
         doc = await self._ongoing_col.find_one({"_id": call_id})
         return IVRCallStateMongoDoc.from_mongo(doc) if doc else None
 
+    async def find_by_conversation_uuid(self, conversation_uuid: str) -> IVRCallStateMongoDoc | None:
+        doc = await self._ongoing_col.find_one({"current_conversation_uuid": conversation_uuid})
+        return IVRCallStateMongoDoc.from_mongo(doc) if doc else None
+
     async def save_ongoing_call(self, state: IVRCallStateMongoDoc) -> None:
         doc = state.model_dump(by_alias=True)
         await self._ongoing_col.replace_one({"_id": doc["_id"]}, doc, upsert=True)

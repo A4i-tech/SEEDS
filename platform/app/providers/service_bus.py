@@ -83,6 +83,10 @@ class _AzureQueueHandle:
         self._message_map: dict[str, Any] = {}
 
     async def initialize(self) -> None:
+        await self._connect()
+        logger.info("ServiceBus queue initialized: %s", self.queue_name)
+
+    async def _connect(self) -> None:
         from azure.servicebus.aio import ServiceBusClient  # noqa: PLC0415
 
         self._client = ServiceBusClient.from_connection_string(conn_str=self.connection_string)
@@ -90,7 +94,19 @@ class _AzureQueueHandle:
             queue_name=self.queue_name,
         )
         await self._receiver.__aenter__()
-        logger.info("ServiceBus queue initialized: %s", self.queue_name)
+
+    async def _reconnect(self) -> None:
+        await self.close()
+        await self._connect()
+        if self._message_map:
+            logger.warning(
+                "Discarding %d in-flight message(s) for %s: no longer completable/abandonable"
+                " after reconnect",
+                len(self._message_map),
+                self.queue_name,
+            )
+        self._message_map.clear()
+        logger.warning("ServiceBus queue reconnected after fatal error: %s", self.queue_name)
 
     async def close(self) -> None:
         if self._receiver:
@@ -139,6 +155,12 @@ class _AzureQueueHandle:
             return messages
         except Exception as exc:  # noqa: BLE001
             logger.error("Failed to receive from %s: %s", self.queue_name, exc)
+            try:
+                await self._reconnect()
+            except Exception as reconnect_exc:  # noqa: BLE001
+                logger.error(
+                    "Failed to reconnect for %s: %s", self.queue_name, reconnect_exc
+                )
             await asyncio.sleep(0.1)  # prevent tight loop on repeated receive errors
             return []
 

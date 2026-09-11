@@ -127,27 +127,51 @@ class TestIVRServiceStructure:
 
     @pytest.mark.asyncio
     async def test_process_dtmf_no_context(self, db) -> None:
-        """process_dtmf with nonexistent call_id returns error response."""
+        """process_dtmf with nonexistent call_leg_id returns error response."""
         from app.services.ivr_service import IVRService
 
-        result = await IVRService(db).process_dtmf(
-            call_id="nonexistent_call",
+        ncco, should_hangup = await IVRService(db).process_dtmf(
+            call_leg_id="nonexistent_call",
             dtmf="1",
         )
-        # Returns NCCO list (error talk action) or dict
-        assert result is not None
+        assert ncco is not None
+        assert should_hangup is True
 
     @pytest.mark.asyncio
     async def test_process_call_event_no_context(self, db) -> None:
-        """process_call_event with nonexistent UUID returns gracefully (None)."""
+        """process_call_event with nonexistent leg id returns gracefully (None)."""
         from app.services.ivr_service import IVRService
 
         result = await IVRService(db).process_call_event(
-            call_id="nonexistent_call",
+            call_leg_id="nonexistent_call",
+            conversation_uuid="CON-nonexistent",
             event={"status": "completed"},
         )
         # Returns None when call not found
-        assert result is None or isinstance(result, dict)
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_process_dtmf_logs_no_state_warning(self, db, caplog) -> None:
+        """process_dtmf logs a warning when no ongoing call state is found."""
+        import logging
+
+        from app.services.ivr_service import IVRService
+
+        with caplog.at_level(logging.WARNING, logger="app.services.ivr_service"):
+            await IVRService(db).process_dtmf(call_leg_id="conv_log_1", dtmf="1")
+
+        assert any("No IVR state" in r.message for r in caplog.records)
+
+    @pytest.mark.asyncio
+    async def test_process_dtmf_no_context_logs_guard(self, db, caplog) -> None:
+        import logging
+
+        from app.services.ivr_service import IVRService
+
+        with caplog.at_level(logging.WARNING, logger="app.services.ivr_service"):
+            await IVRService(db).process_dtmf(call_leg_id="nonexistent_call", dtmf="1")
+
+        assert any("No IVR state" in r.message for r in caplog.records)
 
 
 # ---------------------------------------------------------------------------
@@ -477,6 +501,26 @@ class TestIVRRepository:
         repo = IVRRepository(db)
         # Should not raise even with no existing doc
         await repo.log_ivr_event("call1", {"status": "answered", "timestamp": "2026-01-01"})
+
+    @pytest.mark.asyncio
+    async def test_save_ongoing_call_upserts_state(self, db) -> None:
+        from datetime import datetime
+
+        from app.models.ivr_state import IVRCallStateMongoDoc
+        from app.repositories.ivr_repository import IVRRepository
+
+        repo = IVRRepository(db)
+        state = IVRCallStateMongoDoc(
+            _id="conv1", phone_number="+911", fsm_id="fsm1",
+            current_state_id="s0", created_at=datetime.now(),
+        )
+        await repo.save_ongoing_call(state)
+
+        state.current_state_id = "s1"
+        await repo.save_ongoing_call(state)
+
+        doc = await db["ongoingIVRState"].find_one({"_id": "conv1"})
+        assert doc["current_state_id"] == "s1"
 
 
 # ---------------------------------------------------------------------------
