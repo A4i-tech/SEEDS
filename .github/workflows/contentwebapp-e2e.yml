@@ -1,0 +1,70 @@
+name: ContentWebApp E2E
+
+on:
+  push:
+    branches:
+      - a4i/staging
+    paths:
+      - "ContentWebApp/**"
+  pull_request:
+    branches:
+      - a4i/staging
+    paths:
+      - "ContentWebApp/**"
+  workflow_dispatch:
+    inputs:
+      e2e_instance:
+        description: "E2E_INSTANCE to run against (local is not reachable from a GitHub-hosted runner, so it is not offered here)"
+        type: choice
+        options:
+          - onrender
+          - dev
+        default: dev
+
+concurrency:
+  group: contentwebapp-e2e-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: ContentWebApp E2E
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ContentWebApp
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      # localhost:3000 is not reachable from a GitHub-hosted runner, so push/PR
+      # triggers always run against the "dev" remote instance. Use
+      # workflow_dispatch with the e2e_instance input to run against "onrender" instead.
+      - name: Run Playwright E2E tests
+        run: npm run test:e2e:${{ github.event_name == 'workflow_dispatch' && inputs.e2e_instance || 'dev' }}
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: ContentWebApp/playwright-report/
+          retention-days: 14
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: ContentWebApp/test-results/
+          retention-days: 14
