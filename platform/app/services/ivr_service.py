@@ -270,7 +270,7 @@ class IVRService:
         call_leg_id: str,
         dtmf: str,
         timed_out: bool = False,
-    ) -> tuple[list[Any], bool]:
+    ) -> tuple[list[Any] | None, bool]:
         """Process a DTMF input for an active IVR call.
 
         Returns (ncco, should_hangup). should_hangup is True when the caller
@@ -346,7 +346,11 @@ class IVRService:
             if not ivr_state.experience_data:
                 ivr_state.experience_data = {}
             ivr_state.experience_data["playback_speed"] = new_speed
-            await repo.save_ongoing_call(ivr_state)
+            if not await repo.save_ongoing_call(ivr_state):
+                logger.info(
+                    "dtmf: stale write for call_leg_id=%s during speed control, skipping push", call_leg_id
+                )
+                return None, False
             return _keep_listening_ncco, False
 
         # Pause/resume toggle (0) during streaming
@@ -373,7 +377,11 @@ class IVRService:
             if not ivr_state.experience_data:
                 ivr_state.experience_data = {}
             ivr_state.experience_data["is_paused"] = new_pause
-            await repo.save_ongoing_call(ivr_state)
+            if not await repo.save_ongoing_call(ivr_state):
+                logger.info(
+                    "dtmf: stale write for call_leg_id=%s during pause toggle, skipping push", call_leg_id
+                )
+                return None, False
             return [
                 {"action": "talk", "text": announcement, "language": vonage_lang, "level": 1.0, "bargeIn": True},
                 *_keep_listening_ncco,
@@ -410,7 +418,12 @@ class IVRService:
                     )
                 )
 
-        await repo.save_ongoing_call(ivr_state)
+        if not await repo.save_ongoing_call(ivr_state):
+            logger.info(
+                "dtmf: stale write for call_leg_id=%s during state transition, skipping push",
+                call_leg_id,
+            )
+            return None, False
 
         is_terminal = not any(isinstance(a, InputAction) for a in (next_actions or []))
         ncco = accumulator.combine([factory.get_action_implementation(x) for x in (next_actions or [])])

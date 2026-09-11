@@ -278,13 +278,15 @@ class ServiceBusProvider:
     # Public API
     # ------------------------------------------------------------------
 
-    async def send_message(self, queue_name: str, message: dict) -> bool:
+    async def send_message(
+        self, queue_name: str, message: dict, message_id: str | None = None
+    ) -> bool:
         """Send a dict payload to a named queue."""
         handle = self._get_handle(queue_name)
         if handle is None:
             return False
         msg_type = MessageType(queue_name)
-        msg = QueueMessage(type=msg_type, payload=message)
+        msg = QueueMessage(type=msg_type, payload=message, message_id=message_id)
         return await handle.send(msg)
 
     async def receive_messages(
@@ -323,11 +325,11 @@ class ServiceBusProvider:
     # IVRv2 compatibility helpers (used by ivr_service.py)
     # ------------------------------------------------------------------
 
-    async def send_call_webhook(self, payload: dict) -> bool:
-        return await self.send_message("call_webhook", payload)
+    async def send_call_webhook(self, payload: dict, message_id: str | None = None) -> bool:
+        return await self.send_message("call_webhook", payload, message_id=message_id)
 
-    async def send_dtmf_input(self, payload: dict) -> bool:
-        return await self.send_message("dtmf_input", payload)
+    async def send_dtmf_input(self, payload: dict, message_id: str | None = None) -> bool:
+        return await self.send_message("dtmf_input", payload, message_id=message_id)
 
     async def send_call_event(self, payload: dict) -> bool:
         return await self.send_message("call_event", payload)

@@ -114,6 +114,7 @@ class IVRCallStateMongoDoc(BaseModel):
     call_status_updates: dict[str, Any] = Field(default_factory=dict)
     tenant_id: str = ""
     school_id: str | None = None
+    version: int = 0
 
     @classmethod
     def from_mongo(cls, doc: dict) -> IVRCallStateMongoDoc:

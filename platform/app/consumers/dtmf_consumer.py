@@ -26,7 +26,7 @@ class DtmfConsumer(BaseConsumer):
     name = "dtmf_consumer"
 
     POLL_BATCH = 10
-    POLL_WAIT_SECONDS = 5
+    POLL_WAIT_SECONDS = 1
 
     async def _run_loop(self) -> None:
         db = get_database()
@@ -94,6 +94,11 @@ class DtmfConsumer(BaseConsumer):
         ncco, should_hangup = await IVRService(db).process_dtmf(
             call_leg_id=call_leg_id, dtmf=digits, timed_out=timed_out
         )
+        if ncco is None:
+            logger.info(
+                "dtmf_consumer: no NCCO to push for call_leg=%s (stale write), skipping", call_leg_id
+            )
+            return
         if not await update_call_ncco(call_leg_id, ncco, get_settings()):
             logger.error("dtmf_consumer: update_call_ncco failed for call_leg=%s", call_leg_id)
             return

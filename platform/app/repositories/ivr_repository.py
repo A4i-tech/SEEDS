@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any
 
 from pymongo.asynchronous.database import AsyncDatabase
+from pymongo.errors import DuplicateKeyError
 
 from app.models.ivr_state import IVRCallStateMongoDoc, IVRfsmDoc
 from app.repositories.base_repository import BaseRepository
@@ -116,9 +117,23 @@ class IVRRepository(BaseRepository):
         doc = await self._ongoing_col.find_one({"current_conversation_uuid": conversation_uuid})
         return IVRCallStateMongoDoc.from_mongo(doc) if doc else None
 
-    async def save_ongoing_call(self, state: IVRCallStateMongoDoc) -> None:
+    async def save_ongoing_call(self, state: IVRCallStateMongoDoc) -> bool:
         doc = state.model_dump(by_alias=True)
-        await self._ongoing_col.replace_one({"_id": doc["_id"]}, doc, upsert=True)
+        current_version = doc.get("version", 0)
+        new_version = current_version + 1
+        doc["version"] = new_version
+        try:
+            result = await self._ongoing_col.update_one(
+                {"_id": doc["_id"], "version": current_version},
+                {"$set": doc},
+                upsert=True,
+            )
+        except DuplicateKeyError:
+            return False
+        if result.matched_count == 0 and result.upserted_id is None:
+            return False
+        state.version = new_version
+        return True
 
     async def push_stream_playback(self, conversation_id: str, item: dict[str, Any]) -> None:
         await self._ongoing_col.update_one(

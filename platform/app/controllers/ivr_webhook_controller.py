@@ -39,7 +39,7 @@ PLACEHOLDER_DTMF_NCCO: list[dict[str, Any]] = [
     {
         "action": "input",
         "type": ["dtmf"],
-        "dtmf": {"maxDigits": 1, "submitOnHash": False, "timeOut": 10},
+        "dtmf": {"maxDigits": 1, "submitOnHash": False, "timeOut": 20},
     },
 ]
 
@@ -148,9 +148,10 @@ async def ivr_dtmf_webhook(request: Request) -> Any:
         "digits": digits,
         "timed_out": dtmf_input.dtmf.timed_out,
     }
+    message_id = f"dtmf:{conv_id}:{dtmf_input.uuid}:{digits}:{dtmf_input.timestamp}"
 
     try:
-        await service_bus_provider.send_dtmf_input(payload)
+        await service_bus_provider.send_dtmf_input(payload, message_id=message_id)
     except Exception as exc:
         logger.error("Failed to enqueue dtmf_input for call=%s: %s", conv_id, exc)
         return ENQUEUE_FAILED_NCCO
