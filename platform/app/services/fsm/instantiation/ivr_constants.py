@@ -108,11 +108,11 @@ audioGoingTobePlayedDialogUrl = "audioDialogs/{language}/audioGoingToBePlayedDia
 audioFinishedMessageUrl = "audioDialogs/{language}/audioFinishedDialog/{speechRate}.mp3"
 
 # Navigation key constants
-number_of_categories_listed_in_one_state = 4
-next_n_categories_key = "5"
-previous_n_categories_key = "7"
-repeat_current_categories_key = "8"
+number_of_categories_listed_in_one_state = 7
+next_n_categories_key = "#"
+previous_n_categories_key = "*"
 previous_category_level_key = "9"
+repeat_current_categories_key = "8"
 
 content_attributes = [
     {"category": "language", "level": 0, "id": "LA"},

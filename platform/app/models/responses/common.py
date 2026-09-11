@@ -11,3 +11,7 @@ class ConferenceStatusResponse(BaseModel):
 
 class EventQueuedResponse(BaseModel):
     message: str
+
+
+class StatusResponse(BaseModel):
+    status: str

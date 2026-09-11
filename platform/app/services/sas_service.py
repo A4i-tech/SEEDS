@@ -110,9 +110,8 @@ class SASService:
         try:
             from azure.storage.blob import BlobSasPermissions, generate_blob_sas  # noqa: PLC0415
 
-            decoded = unquote(url)
-            parsed = urlparse(decoded)
-            parts = [p for p in parsed.path.split("/") if p]
+            parsed = urlparse(url)
+            parts = [unquote(p) for p in parsed.path.split("/") if p]
             if len(parts) < 2:
                 raise ValueError(f"Cannot parse blob URL: {url!r}")
             container_name = parts[0]
