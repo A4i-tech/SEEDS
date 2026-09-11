@@ -71,16 +71,20 @@ def set_latest_fsm_id(fsm_id: str) -> None:
 
 
 
+def _get_vonage_client(settings: Any) -> Any:
+    raw_key = base64.b64decode(settings.vonage_ivr_application_private_key64).decode("utf-8")
+    return vonage.Client(
+        application_id=settings.vonage_ivr_application_id,
+        private_key=raw_key,
+    )
+
+
 async def _make_vonage_call(
     phone_number: str,
     ncco_actions: list[dict],
     settings: Any,
 ) -> dict[str, Any] | None:
-    raw_key = base64.b64decode(settings.vonage_ivr_application_private_key64).decode("utf-8")
-    client = vonage.Client(
-        application_id=settings.vonage_ivr_application_id,
-        private_key=raw_key,
-    )
+    client = _get_vonage_client(settings)
     vonage_number = getattr(settings, "vonage_number", "") or os.getenv("VONAGE_NUMBER", "")
     response = await asyncio.to_thread(
         client.voice.create_call,
@@ -92,6 +96,42 @@ async def _make_vonage_call(
     )
     return response
 
+
+async def update_call_ncco(
+    call_leg_id: str,
+    ncco: list[dict[str, Any]],
+    settings: Any,
+) -> bool:
+    client = _get_vonage_client(settings)
+    try:
+        await asyncio.to_thread(
+            client.voice.update_call,
+            uuid=call_leg_id,
+            params={"action": "transfer", "destination": {"type": "ncco", "ncco": ncco}},
+        )
+        return True
+    except Exception as exc:
+        logger.error("update_call_ncco: failed call_leg=%s — %s", call_leg_id, exc)
+        return False
+
+
+async def hangup_call(call_leg_id: str, settings: Any) -> bool:
+    client = _get_vonage_client(settings)
+    try:
+        await asyncio.to_thread(
+            client.voice.update_call,
+            uuid=call_leg_id,
+            params={"action": "hangup"},
+        )
+        return True
+    except Exception as exc:
+        logger.error("hangup_call: failed call_leg=%s — %s", call_leg_id, exc)
+        return False
+
+
+# ---------------------------------------------------------------------------
+# IVRService
+# ---------------------------------------------------------------------------
 
 class IVRService:
     def __init__(self, db: AsyncDatabase[Any]) -> None:  # type: ignore[type-arg]
@@ -176,18 +216,23 @@ class IVRService:
             return {"status_code": 500, "message": "No Vonage response"}
 
         conv_uuid = vonage_resp.get("conversation_uuid", "")
+        call_leg_id = vonage_resp.get("uuid", "")
         ivr_state = IVRCallStateMongoDoc(
-            _id=conv_uuid,
+            _id=call_leg_id,
             phone_number=phone_number,
             fsm_id=latest_fsm.fsm_id,
             current_state_id=latest_fsm.init_state_id,
+            current_conversation_uuid=conv_uuid,
             created_at=datetime.now(),
             tenant_id=tenant_id,
         )
         await ongoing_col.replace_one(
-            {"_id": conv_uuid}, ivr_state.model_dump(by_alias=True), upsert=True
+            {"_id": call_leg_id}, ivr_state.model_dump(by_alias=True), upsert=True
         )
-        logger.info("IVR call started: phone=%s conv_uuid=%s", phone_number, conv_uuid)
+        logger.info(
+            "IVR call started: phone=%s call_leg_id=%s conv_uuid=%s",
+            phone_number, call_leg_id, conv_uuid,
+        )
         return {"status_code": 200, "message": f"IVR started for {phone_number}"}
 
     # ------------------------------------------------------------------
@@ -196,39 +241,46 @@ class IVRService:
 
     async def process_dtmf(
         self,
-        call_id: str,
+        call_leg_id: str,
         dtmf: str,
         timed_out: bool = False,
-    ) -> list[Any]:
+    ) -> tuple[list[Any] | None, bool]:
         """Process a DTMF input for an active IVR call.
 
-        Returns NCCO-compatible list of action dicts, or empty list on error.
-        Handles speed control (*/#), pause/resume (0), and WebSocket timeout.
+        Returns (ncco, should_hangup). should_hangup is True when the caller
+        should be disconnected after this ncco plays — hangup must be issued
+        as its own update_call(action="hangup") call, since Vonage's NCCO
+        action set has no "hangup" entry (it is only a top-level action
+        value on the update_call endpoint).
         """
         repo = IVRRepository(self._db)
         factory, accumulator = _get_factory_and_accumulator()
 
         ivr_state = None
         for attempt in range(3):
-            ivr_state = await repo.find_ongoing_call(call_id)
+            ivr_state = await repo.find_ongoing_call(call_leg_id)
             if ivr_state:
                 break
             if attempt < 2:
                 await asyncio.sleep(0.5)
 
         if ivr_state is None:
-            logger.warning("No IVR state for call_id=%s", call_id)
+            logger.warning("No IVR state for call_leg_id=%s", call_leg_id)
             error_ncco = accumulator.combine([
                 factory.get_action_implementation(
                     TalkAction(text="Server error. Please try again later. Bye bye.")
                 )
             ])
-            error_ncco.append({"action": "hangup"})
-            return error_ncco
+            return error_ncco, True
 
         if ivr_state.fsm_id not in _fsm_cache:
             logger.error("FSM %s not in cache", ivr_state.fsm_id)
-            return []
+            error_ncco = accumulator.combine([
+                factory.get_action_implementation(
+                    TalkAction(text="Server error. Please try again later. Bye bye.")
+                )
+            ])
+            return error_ncco, True
 
         fsm = _fsm_cache[ivr_state.fsm_id]
         digits = dtmf if dtmf is not None else ""
@@ -248,24 +300,30 @@ class IVRService:
 
         # Timeout during WebSocket playback — keep listening without interrupting
         if digits == "" and timed_out and is_streaming:
-            logger.info("DTMF timeout during WebSocket playback for %s — keeping listener", call_id)
-            return _keep_listening_ncco
+            logger.info(
+                "DTMF timeout during WebSocket playback for %s — keeping listener", call_leg_id
+            )
+            return _keep_listening_ncco, False
 
         if digits in ("*", "#") and is_streaming:
             current_speed = (ivr_state.experience_data or {}).get("playback_speed", 1.0)
             new_speed, _ = increase_speed(current_speed) if digits == "#" else decrease_speed(current_speed)
             try:
                 ws = await get_websocket_service()
-                await ws.set_playback_speed(call_id, new_speed)
-                logger.info("Speed changed %s→%s for %s", current_speed, new_speed, call_id)
+                await ws.set_playback_speed(call_leg_id, new_speed)
+                logger.info("Speed changed %s→%s for %s", current_speed, new_speed, call_leg_id)
             except Exception as exc:  # noqa: BLE001
-                logger.error("Failed to set speed for %s: %s", call_id, exc)
+                logger.error("Failed to set speed for %s: %s", call_leg_id, exc)
                 new_speed = current_speed
             if not ivr_state.experience_data:
                 ivr_state.experience_data = {}
             ivr_state.experience_data["playback_speed"] = new_speed
-            await repo.save_ongoing_call(ivr_state)
-            return _keep_listening_ncco
+            if not await repo.save_ongoing_call(ivr_state):
+                logger.info(
+                    "dtmf: stale write for call_leg_id=%s during speed control, skipping push", call_leg_id
+                )
+                return None, False
+            return _keep_listening_ncco, False
 
         if digits == "0" and is_streaming:
             is_paused = (ivr_state.experience_data or {}).get("is_paused", False)
@@ -278,23 +336,27 @@ class IVRService:
             try:
                 ws = await get_websocket_service()
                 if new_pause:
-                    await ws.pause_audio(call_id)
+                    await ws.pause_audio(call_leg_id)
                     announcement = get_paused_announcement(language)
                 else:
-                    await ws.resume_audio(call_id)
+                    await ws.resume_audio(call_leg_id)
                     announcement = get_resuming_announcement(language)
-                logger.info("Pause toggled to %s for %s", new_pause, call_id)
+                logger.info("Pause toggled to %s for %s", new_pause, call_leg_id)
             except Exception as exc:  # noqa: BLE001
-                logger.error("Failed to toggle pause for %s: %s", call_id, exc)
-                return _keep_listening_ncco
+                logger.error("Failed to toggle pause for %s: %s", call_leg_id, exc)
+                return _keep_listening_ncco, False
             if not ivr_state.experience_data:
                 ivr_state.experience_data = {}
             ivr_state.experience_data["is_paused"] = new_pause
-            await repo.save_ongoing_call(ivr_state)
+            if not await repo.save_ongoing_call(ivr_state):
+                logger.info(
+                    "dtmf: stale write for call_leg_id=%s during pause toggle, skipping push", call_leg_id
+                )
+                return None, False
             return [
                 {"action": "talk", "text": announcement, "language": vonage_lang, "level": 1.0, "bargeIn": True},
                 *_keep_listening_ncco,
-            ]
+            ], False
 
         input_time = datetime.now()
 
@@ -327,19 +389,23 @@ class IVRService:
                     )
                 )
 
-        await repo.save_ongoing_call(ivr_state)
+        if not await repo.save_ongoing_call(ivr_state):
+            logger.info(
+                "dtmf: stale write for call_leg_id=%s during state transition, skipping push",
+                call_leg_id,
+            )
+            return None, False
 
         is_terminal = not any(isinstance(a, InputAction) for a in (next_actions or []))
         ncco = accumulator.combine([factory.get_action_implementation(x) for x in (next_actions or [])])
-        if is_terminal:
-            ncco.append({"action": "hangup"})
 
-        return ncco
+        return ncco, is_terminal
 
 
     async def process_call_event(
         self,
-        call_id: str,
+        call_leg_id: str,
+        conversation_uuid: str,
         event: dict[str, Any],
     ) -> None:
         """Process a Vonage call lifecycle event (answered, completed, etc.)."""
@@ -353,7 +419,7 @@ class IVRService:
         # Retry logic
         doc = None
         for attempt in range(5):
-            doc = await ongoing_col.find_one({"_id": call_id})
+            doc = await ongoing_col.find_one({"_id": call_leg_id})
             if doc:
                 break
             if attempt < 4:
@@ -361,13 +427,14 @@ class IVRService:
 
         if doc is None:
             logger.info(
-                "No IVR state for call_id=%s status=%s — may be external call", call_id, status
+                "No IVR state for call_leg_id=%s status=%s — may be external call",
+                call_leg_id, status,
             )
             return
 
         ivr_state = IVRCallStateMongoDoc.from_mongo(doc)
 
-        update_ops: dict[str, Any] = {}
+        update_ops: dict[str, Any] = {"current_conversation_uuid": conversation_uuid}
         if timestamp_str:
             try:
                 if isinstance(timestamp_str, str):
@@ -384,12 +451,12 @@ class IVRService:
                 update_ops["stopped_at"] = datetime.now()
                 update_ops["duration"] = duration
 
-                await ongoing_col.update_one({"_id": call_id}, {"$set": update_ops})
-                final_doc = await ongoing_col.find_one({"_id": call_id})
+                await ongoing_col.update_one({"_id": call_leg_id}, {"$set": update_ops})
+                final_doc = await ongoing_col.find_one({"_id": call_leg_id})
                 if final_doc:
                     final_state = IVRCallStateMongoDoc.from_mongo(final_doc)
                     await logs_col.replace_one(
-                        {"_id": call_id},
+                        {"_id": call_leg_id},
                         final_state.model_dump(by_alias=True),
                         upsert=True,
                     )
@@ -397,13 +464,13 @@ class IVRService:
                         ws = WebsocketClientProvider()
                         await ws.close()
                     except Exception as exc:  # noqa: BLE001
-                        logger.warning("Failed to disconnect WS for %s: %s", call_id, exc)
+                        logger.warning("Failed to disconnect WS for %s: %s", call_leg_id, exc)
 
-                await ongoing_col.delete_one({"_id": call_id})
-                logger.info("Call ended and archived: %s", call_id)
+                await ongoing_col.delete_one({"_id": call_leg_id})
+                logger.info("Call ended and archived: %s", call_leg_id)
             else:
                 update_ops["current_state_id"] = ivr_state.current_state_id
-                await ongoing_col.update_one({"_id": call_id}, {"$set": update_ops})
+                await ongoing_col.update_one({"_id": call_leg_id}, {"$set": update_ops})
         except ValueError:
             logger.warning("Unknown call status: %s", status)
 

@@ -22,10 +22,42 @@ class TestServiceBusProviderNullHandles:
 
         p = ServiceBusProvider.__new__(ServiceBusProvider)
         p._call_webhook = None
-        p._dtmf_input = None
         p._call_event = None
+        p._dtmf_input = None
         p._initialized = True
         return p
+
+    @pytest.mark.asyncio
+    async def test_send_dtmf_input_null_handle_returns_false(self) -> None:
+        p = self._make_provider()
+        p._dtmf_input = None
+        result = await p.send_dtmf_input({"call_id": "conv-1", "digits": "5"})
+        assert result is False
+
+    def test_dtmf_input_queue_name_property(self) -> None:
+        from app.platform.settings import Settings
+
+        s = Settings(azure_service_bus_queue_name="myqueue")
+        assert s.dtmf_input_queue_name == "dtmf_input_myqueue"
+
+    @pytest.mark.asyncio
+    async def test_send_dtmf_input_sends_to_dtmf_input_queue(self) -> None:
+        from app.providers.service_bus import MessageType, QueueMessage, ServiceBusProvider
+
+        p = ServiceBusProvider.__new__(ServiceBusProvider)
+        p._call_webhook = None
+        p._call_event = None
+        sent: list[QueueMessage] = []
+
+        class _FakeHandle:
+            async def send(self, message: QueueMessage) -> bool:
+                sent.append(message)
+                return True
+
+        p._dtmf_input = _FakeHandle()
+        result = await p.send_dtmf_input({"conversation_uuid": "conv-1", "digits": "5"})
+        assert result is True
+        assert sent[0].type == MessageType.DTMF_INPUT
 
     @pytest.mark.asyncio
     async def test_receive_messages_null_handle_returns_empty(self) -> None:
@@ -45,8 +77,8 @@ class TestServiceBusProviderNullHandles:
     async def test_abandon_message_null_handle_returns_false(self) -> None:
         from app.providers.service_bus import MessageType, QueueMessage
         p = self._make_provider()
-        msg = QueueMessage(type=MessageType.DTMF_INPUT, payload={})
-        result = await p.abandon_message("dtmf_input", msg)
+        msg = QueueMessage(type=MessageType.CALL_EVENT, payload={})
+        result = await p.abandon_message("call_event", msg)
         assert result is False
 
     @pytest.mark.asyncio
@@ -61,12 +93,6 @@ class TestServiceBusProviderNullHandles:
     async def test_send_call_webhook_null_handle_returns_false(self) -> None:
         p = self._make_provider()
         result = await p.send_call_webhook({"phone_number": "+111"})
-        assert result is False
-
-    @pytest.mark.asyncio
-    async def test_send_dtmf_input_null_handle_returns_false(self) -> None:
-        p = self._make_provider()
-        result = await p.send_dtmf_input({"digits": "1"})
         assert result is False
 
     @pytest.mark.asyncio
@@ -94,7 +120,6 @@ class TestServiceBusProviderNullHandles:
 
         p = ServiceBusProvider.__new__(ServiceBusProvider)
         p._call_webhook = None
-        p._dtmf_input = None
         p._call_event = None
         p._initialized = True
 
@@ -114,6 +139,7 @@ class TestAzureQueueHandle:
         from app.providers.service_bus import _AzureQueueHandle
 
         handle = _AzureQueueHandle.__new__(_AzureQueueHandle)
+        handle.connection_string = "test-conn-str"
         handle.queue_name = queue_name
         handle._client = MagicMock()
         handle._receiver = AsyncMock()
@@ -166,7 +192,7 @@ class TestAzureQueueHandle:
         from app.providers.service_bus import MessageType, QueueMessage
 
         handle = self._make_handle()
-        msg = QueueMessage(type=MessageType.DTMF_INPUT, payload={})
+        msg = QueueMessage(type=MessageType.CALL_EVENT, payload={})
         raw_mock = MagicMock()
         handle._message_map[msg.message_id] = raw_mock
         handle._receiver.abandon_message = AsyncMock()
@@ -190,6 +216,36 @@ class TestAzureQueueHandle:
         handle._client.close = AsyncMock()
 
         await handle.close()  # Should not raise
+
+    @pytest.mark.asyncio
+    async def test_receive_reconnects_after_fatal_error(self) -> None:
+        handle = self._make_handle()
+        handle._message_map["stale-id"] = MagicMock()
+        old_receiver = handle._receiver
+        old_receiver.receive_messages = AsyncMock(
+            side_effect=AttributeError(
+                "'NoneType' object has no attribute 'create_receiver_link'"
+            )
+        )
+        old_receiver.__aexit__ = AsyncMock()
+        old_client = handle._client
+        old_client.close = AsyncMock()
+
+        new_client = MagicMock()
+        new_receiver = AsyncMock()
+        new_client.get_queue_receiver = MagicMock(return_value=new_receiver)
+
+        with patch("azure.servicebus.aio.ServiceBusClient") as mock_sb_client_cls:
+            mock_sb_client_cls.from_connection_string = MagicMock(return_value=new_client)
+            result = await handle.receive()
+
+        assert result == []
+        old_receiver.__aexit__.assert_called_once()
+        old_client.close.assert_called_once()
+        new_receiver.__aenter__.assert_called_once()
+        assert handle._receiver is new_receiver
+        assert handle._client is new_client
+        assert handle._message_map == {}
 
 
 # ---------------------------------------------------------------------------
@@ -301,6 +357,65 @@ class TestWebhookControllerDeep:
             })
         app.dependency_overrides.clear()
         assert resp.status_code in (200, 204, 404, 422)
+
+    @pytest.mark.asyncio
+    async def test_dtmf_webhook_passes_deterministic_dedup_message_id(self) -> None:
+        """/input must derive a deterministic message_id from
+        (conversation_uuid, leg uuid, digits, timestamp) so retried/duplicate
+        DTMF deliveries from Vonage are deduped by Service Bus, not enqueued
+        as distinct messages."""
+        from app.controllers.ivr_webhook_controller import ivr_dtmf_webhook
+        from app.providers.service_bus import service_bus_provider
+
+        payload = {
+            "dtmf": {"digits": "5", "timed_out": False},
+            "conversation_uuid": "conv-dedup-1",
+            "uuid": "leg-dedup-1",
+            "timestamp": "2026-01-01T00:00:00Z",
+        }
+
+        request = MagicMock()
+        request.json = AsyncMock(return_value=payload)
+
+        with patch.object(
+            service_bus_provider, "send_dtmf_input", AsyncMock(return_value=True)
+        ) as mock_send:
+            await ivr_dtmf_webhook(request)
+
+        assert mock_send.await_count == 1
+        _, kwargs = mock_send.call_args
+        assert kwargs["message_id"] == "dtmf:conv-dedup-1:leg-dedup-1:5:2026-01-01T00:00:00Z"
+
+        request2 = MagicMock()
+        request2.json = AsyncMock(return_value=payload)
+        with patch.object(
+            service_bus_provider, "send_dtmf_input", AsyncMock(return_value=True)
+        ) as mock_send2:
+            await ivr_dtmf_webhook(request2)
+        _, kwargs2 = mock_send2.call_args
+        assert kwargs2["message_id"] == kwargs["message_id"]
+
+    @pytest.mark.asyncio
+    async def test_dtmf_webhook_returns_placeholder_with_widened_timeout(self) -> None:
+        """On successful enqueue, /input must respond with the placeholder NCCO
+        whose input action carries the widened timeOut (20s)."""
+        from app.controllers.ivr_webhook_controller import ivr_dtmf_webhook
+        from app.providers.service_bus import service_bus_provider
+
+        payload = {
+            "dtmf": {"digits": "3", "timed_out": False},
+            "conversation_uuid": "conv-ncco-1",
+            "uuid": "leg-ncco-1",
+            "timestamp": "2026-01-01T00:00:00Z",
+        }
+        request = MagicMock()
+        request.json = AsyncMock(return_value=payload)
+
+        with patch.object(service_bus_provider, "send_dtmf_input", AsyncMock(return_value=True)):
+            ncco = await ivr_dtmf_webhook(request)
+
+        input_action = next(action for action in ncco if action.get("action") == "input")
+        assert input_action["dtmf"]["timeOut"] == 20
 
 
 # ---------------------------------------------------------------------------
