@@ -2,6 +2,7 @@ export function formatDuration(totalSeconds: number): string {
   if (!isFinite(totalSeconds) || totalSeconds < 0) return '0:00';
   const mins = Math.floor(totalSeconds / 60);
   const secs = Math.floor(totalSeconds % 60);
+
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
@@ -9,6 +10,7 @@ export function formatDurationPadded(totalSeconds: number): string {
   if (!isFinite(totalSeconds) || totalSeconds < 0) return '00:00';
   const mins = Math.floor(totalSeconds / 60);
   const secs = Math.floor(totalSeconds % 60);
+
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 }
 
@@ -29,6 +31,7 @@ export function formatRelativeTime(timestamp: number): string {
 
   const date = new Date(timestamp);
   const now = new Date();
+
   return date.toLocaleDateString(undefined, {
     month: 'short',
     day: 'numeric',

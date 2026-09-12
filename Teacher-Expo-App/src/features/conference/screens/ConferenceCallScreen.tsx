@@ -38,6 +38,7 @@ export function ConferenceCallScreen({ confId }: { confId: string }) {
   const router = useRouter();
   const toast = useAppToast();
   const queryClient = useQueryClient();
+
   useConferenceSSE(confId);
 
   const classroomId = useConferenceStore((state) => state.classroomId);

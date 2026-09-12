@@ -15,11 +15,13 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
 
   hydrate: async () => {
     const stored = await secureStorage.getItemAsync(THEME_KEY);
+
     if (stored === 'light' || stored === 'dark') set({ mode: stored });
   },
 
   toggle: async () => {
     const mode = get().mode === 'dark' ? 'light' : 'dark';
+
     set({ mode });
     await secureStorage.setItemAsync(THEME_KEY, mode);
   },

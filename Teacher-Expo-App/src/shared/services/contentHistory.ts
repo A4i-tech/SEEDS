@@ -16,6 +16,7 @@ export interface ContentHistoryItem {
 
 export async function getContentHistory(): Promise<ContentHistoryItem[]> {
   const historyJson = await AsyncStorage.getItem(STORAGE_KEY);
+
   return historyJson ? JSON.parse(historyJson) : [];
 }
 
@@ -37,6 +38,7 @@ export async function saveContentToHistory(
   };
   const filteredList = currentHistory.filter((item) => item.content_id !== content.id);
   const newList = [newItem, ...filteredList].slice(0, maxSize);
+
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newList));
 }
 

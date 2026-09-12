@@ -43,6 +43,7 @@ export function ClassroomDetailScreen({ classroomId }: { classroomId: string }) 
     setSelectedIds((prev) => {
       if (!prev.includes(studentId)) return [...prev, studentId];
       if (leaderId === studentId) setLeaderId('');
+
       return prev.filter((id) => id !== studentId);
     });
   }
@@ -50,6 +51,7 @@ export function ClassroomDetailScreen({ classroomId }: { classroomId: string }) 
   async function handleStartConference() {
     if (!teacher || !classroom) return;
     const joining = classroom.students.filter((student) => selectedIds.includes(student.id));
+
     setIsStarting(true);
     setStartError('');
     try {
@@ -68,6 +70,7 @@ export function ClassroomDetailScreen({ classroomId }: { classroomId: string }) 
         teacher.name,
         joining.map((s) => s.name)
       );
+
       startConference(
         confId,
         classroomId,

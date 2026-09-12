@@ -22,10 +22,12 @@ export function LoginScreen() {
   async function handleSubmit() {
     if (!phoneNumber || !password) {
       setError('Phone number and password are required');
+
       return;
     }
     if (!isValidPhoneNumber(phoneNumber)) {
       setError('Enter a valid 10-digit phone number');
+
       return;
     }
 

@@ -1,4 +1,4 @@
-import axios from 'axios';
+import { create } from 'axios';
 import { API_BASE_URL } from '@config/env';
 
 let authToken: string | null = null;
@@ -16,7 +16,7 @@ export function setSessionExpiredHandler(handler: (() => void) | null) {
   onSessionExpired = handler;
 }
 
-export const apiClient = axios.create({
+export const apiClient = create({
   baseURL: API_BASE_URL,
   timeout: 30000,
   headers: {
@@ -28,6 +28,7 @@ apiClient.interceptors.request.use((config) => {
   if (authToken) {
     config.headers.Authorization = `Bearer ${authToken}`;
   }
+
   return config;
 });
 
@@ -36,10 +37,13 @@ apiClient.interceptors.response.use(
   (error) => {
     const status = error.response?.status;
     const isLoginRequest = error.config?.url === '/teacher/login';
+
     if ((status === 401 || status === 403) && authToken && !isLoginRequest) {
       onSessionExpired?.();
+
       return Promise.reject(new Error('Session expired. Please login again.'));
     }
+
     return Promise.reject(error);
   }
 );

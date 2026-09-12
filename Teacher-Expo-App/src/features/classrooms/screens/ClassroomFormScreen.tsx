@@ -28,6 +28,7 @@ export function ClassroomFormScreen({ classroomId }: { classroomId?: string }) {
 
   React.useEffect(() => {
     if (!existing) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- seeds editable form state once the classroom loads asynchronously
     setName(existing.name);
     setSelectedStudentIds(existing.students.map((s) => s.id));
   }, [existing]);
@@ -46,6 +47,7 @@ export function ClassroomFormScreen({ classroomId }: { classroomId?: string }) {
       leaders: (existing?.leaders ?? []).map((l) => l.id).filter((id) => selectedStudentIds.includes(id)),
       content_ids: existing?.content_ids ?? [],
     };
+
     if (classroomId) {
       await updateClassroom.mutateAsync(payload);
     } else {

@@ -17,6 +17,7 @@ export function useConnectivity(isSessionActive: boolean) {
     debounceRef.current = setTimeout(() => {
       setStatus((prev) => {
         setPrevStatus(prev);
+
         return next;
       });
     }, DEBOUNCE_MS);
@@ -26,6 +27,7 @@ export function useConnectivity(isSessionActive: boolean) {
     const controller = new AbortController();
     const hardAbort = setTimeout(() => controller.abort(), ABORT_TIMEOUT_MS);
     const start = Date.now();
+
     try {
       await fetch(`${API_BASE_URL}/health`, { signal: controller.signal });
       applyStatus(Date.now() - start >= PING_THRESHOLD_MS ? 'degraded' : 'online');
@@ -44,12 +46,14 @@ export function useConnectivity(isSessionActive: boolean) {
         ping();
       }
     });
+
     return unsubscribe;
   }, [applyStatus, ping]);
 
   React.useEffect(() => {
     if (!isSessionActive) return;
     const interval = setInterval(ping, PING_INTERVAL_MS);
+
     return () => clearInterval(interval);
   }, [isSessionActive, ping]);
 

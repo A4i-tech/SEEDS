@@ -21,6 +21,7 @@ export function useConferenceSSE(confId: string | null) {
     eventSource.addEventListener('message', (event) => {
       if (!event.data) return;
       const parsed = JSON.parse(event.data) as SSEConferenceEvent;
+
       handleSSEEvent(parsed);
     });
 

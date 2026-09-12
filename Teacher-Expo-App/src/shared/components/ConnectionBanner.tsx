@@ -10,8 +10,10 @@ export function ConnectionBanner({ status, prevStatus }: { status: ConnectivityS
 
   React.useEffect(() => {
     if (status === 'online' && prevStatus !== 'online') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- transient banner keyed to a status transition, not derivable at render time
       setShowRestored(true);
       const timeout = setTimeout(() => setShowRestored(false), RESTORE_DISPLAY_MS);
+
       return () => clearTimeout(timeout);
     }
     setShowRestored(false);
@@ -24,6 +26,7 @@ export function ConnectionBanner({ status, prevStatus }: { status: ConnectivityS
       </Alert>
     );
   }
+
   if (status === 'degraded') {
     return (
       <Alert>
@@ -31,6 +34,7 @@ export function ConnectionBanner({ status, prevStatus }: { status: ConnectivityS
       </Alert>
     );
   }
+
   if (showRestored) {
     return (
       <Alert>
@@ -38,5 +42,6 @@ export function ConnectionBanner({ status, prevStatus }: { status: ConnectivityS
       </Alert>
     );
   }
+
   return null;
 }

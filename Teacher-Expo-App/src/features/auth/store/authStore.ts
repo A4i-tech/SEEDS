@@ -18,12 +18,14 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   hydrate: async () => {
     const token = await secureStorage.getItemAsync(TOKEN_KEY);
+
     setAuthToken(token);
     set({ status: token ? 'authenticated' : 'unauthenticated' });
   },
 
   login: async (phoneNumber, password) => {
     const token = await loginRequest(phoneNumber, password);
+
     await secureStorage.setItemAsync(TOKEN_KEY, token);
     setAuthToken(token);
     set({ status: 'authenticated' });

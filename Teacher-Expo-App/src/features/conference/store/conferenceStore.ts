@@ -55,6 +55,7 @@ export const useConferenceStore = create<ConferenceState>((set, get) => ({
 
   startConference: (confId, classroomId, classroomName, teacher, students, allClassroomStudents) => {
     const participantsMap: Record<string, Participant> = {};
+
     participantsMap[normalizePhoneNumber(teacher.phoneNumber)] = teacher;
     students.forEach((student) => {
       participantsMap[normalizePhoneNumber(student.phoneNumber)] = student;
@@ -76,10 +77,12 @@ export const useConferenceStore = create<ConferenceState>((set, get) => ({
 
     for (const [phoneNumber, data] of Object.entries(event.participants)) {
       const normalizedPhone = normalizePhoneNumber(phoneNumber);
+
       seenPhones.add(normalizedPhone);
       nextStatus[normalizedPhone] = data.call_status;
 
       const existing = nextMap[normalizedPhone];
+
       if (data.role === 'Student' && previousStatus[normalizedPhone] === 'connected' && data.call_status === 'disconnected') {
         notifications.push({
           type: 'participant_dropped',

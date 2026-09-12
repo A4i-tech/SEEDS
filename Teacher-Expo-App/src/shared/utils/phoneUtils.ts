@@ -11,6 +11,7 @@ export function isValidPhoneNumber(phoneNumber: string): boolean {
 export function normalizePhoneNumber(phoneNumber: string): string {
   const digitsOnly = phoneNumber.replace(/\D/g, '');
   const cleaned = digitsOnly.startsWith('91') ? digitsOnly.slice(2) : digitsOnly;
+
   return cleaned.length === PHONE_DIGITS_LENGTH ? `91${cleaned}` : '';
 }
 

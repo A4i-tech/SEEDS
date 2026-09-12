@@ -13,6 +13,7 @@ export interface SessionHistoryItem {
 
 export async function getSessionHistory(): Promise<SessionHistoryItem[]> {
   const historyJson = await AsyncStorage.getItem(STORAGE_KEY);
+
   return historyJson ? JSON.parse(historyJson) : [];
 }
 
@@ -29,6 +30,7 @@ export async function addSessionToHistory(
     was_conference: true,
   };
   const newList = [newItem, ...currentHistory].slice(0, maxSize);
+
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newList));
 }
 

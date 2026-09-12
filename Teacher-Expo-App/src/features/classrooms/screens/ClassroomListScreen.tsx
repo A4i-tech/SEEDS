@@ -7,7 +7,7 @@ import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { useAuthStore } from '@features/auth';
-import { useContentDrawerStore } from '@features/content';
+import { useContentDrawerStore , WIDE_BREAKPOINT } from '@features/content';
 import { EmptyState, Screen, Section, SkeletonRows } from '@shared/components/Screen';
 import { useAppToast } from '@shared/hooks/useAppToast';
 import { useThemeStore } from '@shared/store/themeStore';
@@ -15,7 +15,6 @@ import { formatRelativeTime, pluralize } from '@shared/utils/format';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
-import { WIDE_BREAKPOINT } from '@features/content';
 import { useClassrooms, useDeleteClassroom, useSessionHistory } from '../hooks/useClassrooms';
 import type { Classroom } from '../types/classroom.types';
 

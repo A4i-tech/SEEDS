@@ -23,6 +23,7 @@ export function ContentBar() {
   const audioContentState = useConferenceStore((state) => state.audioContentState);
 
   const isAllowedRoute = pathname === '/classrooms';
+
   if (width >= WIDE_BREAKPOINT || authStatus !== 'authenticated' || isDrawerOpen || !isAllowedRoute) return null;
 
   const isLive = !!audioContentState.current_url;

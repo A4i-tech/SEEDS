@@ -12,9 +12,9 @@ import {
   DarkTheme,
   DefaultTheme,
   ThemeProvider,
-} from 'expo-router';
+ Stack, usePathname, useRouter } from 'expo-router';
 import { useFonts } from 'expo-font';
-import { Stack, usePathname, useRouter } from 'expo-router';
+
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -106,6 +106,7 @@ function ActiveConferenceGuard() {
   useEffect(() => {
     if (!isConfCallRunning) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => true);
+
     return () => subscription.remove();
   }, [isConfCallRunning]);
 
@@ -114,7 +115,9 @@ function ActiveConferenceGuard() {
   useEffect(() => {
     if (Platform.OS !== 'web' || !isConfCallRunning || !conferencePath) return;
     const onPopState = () => router.replace(conferencePath);
+
     window.addEventListener('popstate', onPopState);
+
     return () => window.removeEventListener('popstate', onPopState);
   }, [isConfCallRunning, conferencePath, router]);
 

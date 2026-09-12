@@ -11,5 +11,6 @@ const LANGUAGE_LABELS: Record<string, string> = {
 export function getLanguageLabel(iso: string): string {
   if (!iso) return '';
   const lower = iso.toLowerCase();
+
   return LANGUAGE_LABELS[lower] ?? lower.charAt(0).toUpperCase() + lower.slice(1);
 }

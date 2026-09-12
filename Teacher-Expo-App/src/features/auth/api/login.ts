@@ -6,10 +6,12 @@ export async function login(phoneNumber: string, password: string): Promise<stri
     phone_number: phoneNumber,
     password,
   });
+
   return loginResponseSchema.parse(data).token;
 }
 
 export async function getCurrentTeacher() {
   const { data } = await apiClient.get('/teacher/me');
+
   return teacherSchema.parse(data);
 }

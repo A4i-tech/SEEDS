@@ -35,6 +35,7 @@ import { displayTitle, primaryAudioUrl } from '../types/content.types';
 import type { Content } from '../types/content.types';
 
 const PLAYBACK_SPEEDS = [0.75, 1, 1.25, 1.5];
+
 export const WIDE_BREAKPOINT = 768;
 const PANEL_WIDTH = 440;
 
@@ -50,6 +51,7 @@ export function ContentDrawer() {
 
   React.useEffect(() => {
     if (isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- mounts the panel before the open animation starts
       setVisible(true);
       progress.value = withTiming(1, { duration: 240 });
     } else {
@@ -116,6 +118,7 @@ function DrawerBody({ confId, onClose }: { confId: string | null; onClose: () =>
 
   function onScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
     const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+
     if (contentSize.height - (contentOffset.y + layoutMeasurement.height) < 160) loadMore();
   }
 
@@ -127,18 +130,23 @@ function DrawerBody({ confId, onClose }: { confId: string | null; onClose: () =>
     setSendError('');
     if (!confId) {
       setSelected(content);
+
       return;
     }
     const audioUrl = primaryAudioUrl(content);
+
     if (!audioUrl) {
       setSendError('No audio available for this content.');
+
       return;
     }
     setSendingId(content.id);
     try {
       const sasUrl = await getContentSasUrl(audioUrl);
+
       await playAudio(confId, sasUrl);
       const studentCount = Object.values(participantsMap).filter((p) => p.role === 'Student').length;
+
       await saveContentToHistory(
         { id: content.id, title: displayTitle(content), url: sasUrl, language: content.language },
         { classroom_name: classroomName, student_count: studentCount, was_conference: true }
@@ -192,6 +200,7 @@ function DrawerBody({ confId, onClose }: { confId: string | null; onClose: () =>
 
           {visibleItems.map((content) => {
             const isCurrent = selected?.id === content.id;
+
             return (
               <Pressable
                 key={content.id}

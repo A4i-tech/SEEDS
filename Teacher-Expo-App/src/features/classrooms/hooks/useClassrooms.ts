@@ -34,6 +34,7 @@ export function useSchoolStudents() {
 
 export function useCreateClassroom() {
   const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: createClassroom,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: classroomsKey }),
@@ -42,6 +43,7 @@ export function useCreateClassroom() {
 
 export function useUpdateClassroom() {
   const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: updateClassroom,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: classroomsKey }),
@@ -50,6 +52,7 @@ export function useUpdateClassroom() {
 
 export function useDeleteClassroom() {
   const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: deleteClassroom,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: classroomsKey }),
