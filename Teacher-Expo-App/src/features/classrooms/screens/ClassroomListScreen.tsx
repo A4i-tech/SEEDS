@@ -14,7 +14,7 @@ import { useThemeStore } from '@shared/store/themeStore';
 import { formatRelativeTime, pluralize } from '@shared/utils/format';
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { Dimensions, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { WIDE_BREAKPOINT } from '@features/content';
 import { useClassrooms, useDeleteClassroom, useSessionHistory } from '../hooks/useClassrooms';
 import type { Classroom } from '../types/classroom.types';
@@ -29,7 +29,7 @@ export function ClassroomListScreen() {
   const deleteClassroom = useDeleteClassroom();
   const [deleteTarget, setDeleteTarget] = React.useState<Classroom | null>(null);
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
-  const [menuAnchor, setMenuAnchor] = React.useState({ top: 0, right: 0 });
+  const [menuAnchor, setMenuAnchor] = React.useState({ top: 0, left: 0 });
   const menuAnchorRef = React.useRef<View>(null);
   const themeMode = useThemeStore((state) => state.mode);
   const toggleTheme = useThemeStore((state) => state.toggle);
@@ -38,7 +38,7 @@ export function ClassroomListScreen() {
 
   function openMenu() {
     menuAnchorRef.current?.measureInWindow((x, y, width, height) => {
-      setMenuAnchor({ top: y + height + 8, right: Dimensions.get('window').width - (x + width) });
+      setMenuAnchor({ top: y + height + 8, left: x });
       setIsMenuOpen(true);
     });
   }
@@ -152,7 +152,7 @@ export function ClassroomListScreen() {
         <>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setIsMenuOpen(false)} testID="menu-backdrop" />
           <VStack
-            style={{ position: 'absolute', top: menuAnchor.top, right: menuAnchor.right }}
+            style={{ position: 'absolute', top: menuAnchor.top, left: menuAnchor.left }}
             className="w-48 gap-1 rounded-xl border border-border bg-card p-1.5 shadow-lg"
           >
             <Pressable
