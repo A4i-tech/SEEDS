@@ -35,6 +35,7 @@ describe("Constants", () => {
       expect(Object.keys(constants).sort()).toEqual([
         "MessageType",
         "PlaybackStatus",
+        "SUPPORTED_SPEEDS",
       ]);
 
       // Test consistency across imports
