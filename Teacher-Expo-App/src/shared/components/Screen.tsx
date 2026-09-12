@@ -15,6 +15,7 @@ export function Screen({
   onBack,
   leading,
   children,
+  bottomBar,
 }: {
   title: string;
   subtitle?: string;
@@ -22,12 +23,13 @@ export function Screen({
   onBack?: () => void;
   leading?: React.ReactNode;
   children: React.ReactNode;
+  bottomBar?: React.ReactNode;
 }) {
   return (
     <SafeAreaView style={{ flex: 1 }} className="bg-background">
-      <ScrollView className="flex-1 bg-background" contentContainerStyle={{ paddingBottom: 112 }}>
+      <ScrollView className="flex-1 bg-background" contentContainerStyle={{ paddingBottom: bottomBar ? 24 : 112 }}>
         <VStack className="w-full max-w-3xl self-center gap-7 px-5 py-6 md:px-8 md:py-10">
-          <HStack className="flex-wrap items-end justify-between gap-4 border-b border-border pb-5">
+          <VStack className="w-full gap-4 border-b border-border pb-5 md:flex-row md:items-end md:justify-between">
             <HStack className="items-end gap-3">
               {onBack && (
                 <Button variant="ghost" size="icon" onPress={onBack} accessibilityLabel="Go back" testID="screen-back">
@@ -46,11 +48,14 @@ export function Screen({
                 )}
               </VStack>
             </HStack>
-            {actions && <HStack className="flex-wrap items-center gap-2">{actions}</HStack>}
-          </HStack>
+            {actions && <HStack className="w-full flex-wrap items-center gap-2 md:w-auto">{actions}</HStack>}
+          </VStack>
           {children}
         </VStack>
       </ScrollView>
+      {bottomBar && (
+        <VStack className="w-full border-t border-border bg-background px-5 py-3">{bottomBar}</VStack>
+      )}
     </SafeAreaView>
   );
 }
@@ -61,22 +66,26 @@ export function Section({
   actions,
   children,
 }: {
-  title: string;
+  title?: string;
   meta?: string;
   actions?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <VStack className="gap-3">
-      <HStack className="items-center justify-between gap-3">
-        <HStack className="items-baseline gap-2">
-          <Text size="xs" className="font-semibold uppercase tracking-widest text-muted-foreground">
-            {title}
-          </Text>
-          {meta && <Text size="xs" className="text-muted-foreground">{meta}</Text>}
+      {(title || actions) && (
+        <HStack className="items-center justify-between gap-3">
+          <HStack className="items-baseline gap-2">
+            {title && (
+              <Text size="xs" className="font-semibold uppercase tracking-widest text-muted-foreground">
+                {title}
+              </Text>
+            )}
+            {meta && <Text size="xs" className="text-muted-foreground">{meta}</Text>}
+          </HStack>
+          {actions}
         </HStack>
-        {actions}
-      </HStack>
+      )}
       {children}
     </VStack>
   );

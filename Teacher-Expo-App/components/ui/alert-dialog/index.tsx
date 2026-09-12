@@ -33,7 +33,7 @@ const UIAccessibleAlertDialog = createAlertDialog({
 });
 
 const alertDialogStyle = tva({
-  base: 'group/modal w-full h-full justify-center items-center web:pointer-events-none',
+  base: 'group/modal w-full h-full items-center justify-end md:justify-center web:pointer-events-none',
   parentVariants: {
     size: {
       xs: '',
@@ -46,13 +46,13 @@ const alertDialogStyle = tva({
 });
 
 const alertDialogContentStyle = tva({
-  base: 'bg-background rounded-lg overflow-hidden border border-border p-6',
+  base: 'bg-background rounded-t-2xl md:rounded-lg overflow-hidden border border-border p-6',
   parentVariants: {
     size: {
-      xs: 'w-[60%] max-w-[360px]',
-      sm: 'w-[70%] max-w-[420px]',
-      md: 'w-[80%] max-w-[510px]',
-      lg: 'w-[90%] max-w-[640px]',
+      xs: 'w-full md:w-[60%] md:max-w-[360px]',
+      sm: 'w-full md:w-[70%] md:max-w-[420px]',
+      md: 'w-full md:w-[80%] md:max-w-[510px]',
+      lg: 'w-full md:w-[90%] md:max-w-[640px]',
       full: 'w-full',
     },
   },

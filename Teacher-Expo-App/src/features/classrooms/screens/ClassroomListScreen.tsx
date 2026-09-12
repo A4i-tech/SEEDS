@@ -34,7 +34,8 @@ export function ClassroomListScreen() {
   const themeMode = useThemeStore((state) => state.mode);
   const toggleTheme = useThemeStore((state) => state.toggle);
   const { width } = useWindowDimensions();
-  const showContentLibraryButton = width >= WIDE_BREAKPOINT;
+  const isWide = width >= WIDE_BREAKPOINT;
+  const showContentLibraryButton = isWide;
 
   function openMenu() {
     menuAnchorRef.current?.measureInWindow((x, y, width, height) => {
@@ -80,16 +81,11 @@ export function ClassroomListScreen() {
           </View>
         }
         actions={
-          <>
-            {showContentLibraryButton && (
-              <Button variant="outline" onPress={() => openContentDrawer()} testID="open-content-library">
-                <ButtonText>Content Library</ButtonText>
-              </Button>
-            )}
-            <Button onPress={() => router.push('/classrooms/new')} testID="new-classroom">
-              <ButtonText>New Classroom</ButtonText>
+          showContentLibraryButton && (
+            <Button variant="outline" onPress={() => openContentDrawer()} testID="open-content-library">
+              <ButtonText>Content Library</ButtonText>
             </Button>
-          </>
+          )
         }
       >
         {!!sessionHistory?.length && (
@@ -115,7 +111,14 @@ export function ClassroomListScreen() {
           </Section>
         )}
 
-        <Section title="All classrooms">
+        <Section
+          title="All classrooms"
+          actions={
+            <Button size="sm" onPress={() => router.push('/classrooms/new')} testID="new-classroom">
+              <ButtonText>New Classroom</ButtonText>
+            </Button>
+          }
+        >
           {isPending && <SkeletonRows count={3} />}
           {!!error && <Text className="text-destructive">{String(error)}</Text>}
           {classrooms?.length === 0 && (
@@ -131,17 +134,25 @@ export function ClassroomListScreen() {
                     {pluralize(classroom.students.length, 'student')} · {pluralize(classroom.leaders.length, 'leader')}
                   </Text>
                 </VStack>
-                <HStack className="flex-wrap gap-2">
-                  <Button size="sm" onPress={() => router.push(`/classrooms/${classroom.id}`)}>
+                <VStack className="gap-2 md:flex-row md:flex-wrap">
+                  <Button className="w-full md:w-auto" onPress={() => router.push(`/classrooms/${classroom.id}`)}>
                     <ButtonText>Open</ButtonText>
                   </Button>
-                  <Button size="sm" variant="outline" onPress={() => router.push(`/classrooms/${classroom.id}/edit`)}>
+                  <Button
+                    className="w-full md:w-auto"
+                    variant="outline"
+                    onPress={() => router.push(`/classrooms/${classroom.id}/edit`)}
+                  >
                     <ButtonText>Edit</ButtonText>
                   </Button>
-                  <Button size="sm" variant="ghost" onPress={() => setDeleteTarget(classroom)}>
+                  <Button
+                    className="w-full md:w-auto"
+                    variant="destructive"
+                    onPress={() => setDeleteTarget(classroom)}
+                  >
                     <ButtonText>Delete</ButtonText>
                   </Button>
-                </HStack>
+                </VStack>
               </VStack>
             ))}
           </VStack>

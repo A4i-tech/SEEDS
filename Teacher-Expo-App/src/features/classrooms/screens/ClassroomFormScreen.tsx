@@ -9,6 +9,7 @@ import { VStack } from '@/components/ui/vstack';
 import { EmptyState, Screen, Section, SkeletonRows } from '@shared/components/Screen';
 import { SearchField } from '@shared/components/SearchField';
 import { pluralize } from '@shared/utils/format';
+import { goBackOr, HIT_SLOP } from '@shared/utils/navigation';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { useClassroom, useCreateClassroom, useSchoolStudents, useUpdateClassroom } from '../hooks/useClassrooms';
@@ -64,12 +65,7 @@ export function ClassroomFormScreen({ classroomId }: { classroomId?: string }) {
     <Screen
       title={classroomId ? 'Edit Classroom' : 'New Classroom'}
       subtitle={pluralize(selectedStudentIds.length, 'student')}
-      onBack={() => router.back()}
-      actions={
-        <Button onPress={handleSave} disabled={isSaving || !name} testID="save-classroom">
-          <ButtonText>{isSaving ? 'Saving…' : 'Save'}</ButtonText>
-        </Button>
-      }
+      onBack={() => goBackOr(router, '/classrooms')}
     >
       <FormControl>
         <FormControlLabel>
@@ -94,6 +90,9 @@ export function ClassroomFormScreen({ classroomId }: { classroomId?: string }) {
             ))}
           </VStack>
         )}
+        <Button onPress={handleSave} disabled={isSaving || !name} testID="save-classroom">
+          <ButtonText>{isSaving ? 'Saving…' : 'Save'}</ButtonText>
+        </Button>
       </Section>
 
       <Section title="Add students" meta={students ? `${results.length} available` : undefined}>
@@ -138,7 +137,7 @@ function SelectedStudentRow({ student, onRemove }: { student: ClassMember; onRem
         <Text className="font-medium text-foreground">{student.name}</Text>
         <Text size="xs" className="text-muted-foreground">{student.phone_number}</Text>
       </VStack>
-      <Pressable onPress={onRemove} testID={`remove-${student.id}`}>
+      <Pressable onPress={onRemove} hitSlop={HIT_SLOP} testID={`remove-${student.id}`}>
         <Icon as={CloseIcon} className="text-muted-foreground" />
       </Pressable>
     </HStack>

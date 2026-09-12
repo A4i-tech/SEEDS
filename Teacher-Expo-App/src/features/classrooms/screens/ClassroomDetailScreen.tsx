@@ -9,13 +9,18 @@ import { createConference } from '@features/conference/api/conference';
 import { useConferenceStore } from '@features/conference/store/conferenceStore';
 import { EmptyState, Screen, Section, SkeletonRows } from '@shared/components/Screen';
 import { pluralize } from '@shared/utils/format';
+import { goBackOr, HIT_SLOP } from '@shared/utils/navigation';
+import { WIDE_BREAKPOINT } from '@features/content';
 import { useRouter } from 'expo-router';
 import React from 'react';
+import { useWindowDimensions } from 'react-native';
 import { useClassroom, useUpdateClassroom } from '../hooks/useClassrooms';
 import type { ClassMember } from '../types/classroom.types';
 
 export function ClassroomDetailScreen({ classroomId }: { classroomId: string }) {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isWide = width >= WIDE_BREAKPOINT;
   const { data: classroom, isPending, error } = useClassroom(classroomId);
   const { data: teacher } = useTeacher();
   const updateClassroom = useUpdateClassroom();
@@ -99,24 +104,25 @@ export function ClassroomDetailScreen({ classroomId }: { classroomId: string }) 
     <Screen
       title={classroom.name}
       subtitle={`${pluralize(classroom.students.length, 'student')} · ${pluralize(classroom.leaders.length, 'leader')}`}
-      onBack={() => router.back()}
-      actions={
-        <>
-          {!isPicking && (
-            <Button variant="outline" onPress={() => router.push(`/classrooms/${classroomId}/edit`)}>
-              <ButtonText>Edit</ButtonText>
-            </Button>
-          )}
-          {isPicking ? (
-            <Button variant="outline" onPress={() => setIsPicking(false)}>
-              <ButtonText>Cancel call</ButtonText>
-            </Button>
-          ) : (
-            <Button onPress={openPicker} disabled={!teacher} testID="start-conference">
-              <ButtonText>Start Conference</ButtonText>
-            </Button>
-          )}
-        </>
+      onBack={() => (isPicking ? setIsPicking(false) : goBackOr(router, '/classrooms'))}
+      bottomBar={
+        isWide
+          ? undefined
+          : isPicking
+            ? (
+                <Button
+                  onPress={handleStartConference}
+                  disabled={isStarting || selectedIds.length === 0}
+                  testID="confirm-start-conference"
+                >
+                  <ButtonText>{isStarting ? 'Starting…' : `Start with ${selectedIds.length}`}</ButtonText>
+                </Button>
+              )
+            : (
+                <Button onPress={openPicker} disabled={!teacher} testID="start-conference">
+                  <ButtonText>Start Conference</ButtonText>
+                </Button>
+              )
       }
     >
       {!!startError && <Text className="text-destructive">{startError}</Text>}
@@ -126,14 +132,16 @@ export function ClassroomDetailScreen({ classroomId }: { classroomId: string }) 
           title="Who joins this call"
           meta={`${selectedIds.length} of ${classroom.students.length}`}
           actions={
-            <Button
-              size="sm"
-              onPress={handleStartConference}
-              disabled={isStarting || selectedIds.length === 0}
-              testID="confirm-start-conference"
-            >
-              <ButtonText>{isStarting ? 'Starting…' : `Start with ${selectedIds.length}`}</ButtonText>
-            </Button>
+            isWide && (
+              <Button
+                size="sm"
+                onPress={handleStartConference}
+                disabled={isStarting || selectedIds.length === 0}
+                testID="confirm-start-conference"
+              >
+                <ButtonText>{isStarting ? 'Starting…' : `Start with ${selectedIds.length}`}</ButtonText>
+              </Button>
+            )
           }
         >
           <VStack className="gap-2">
@@ -154,9 +162,18 @@ export function ClassroomDetailScreen({ classroomId }: { classroomId: string }) 
         </Section>
       )}
 
-      <Section title="Roster" meta={`${classroom.students.length}`}>
+      <Section
+        actions={
+          isWide &&
+          !isPicking && (
+            <Button onPress={openPicker} disabled={!teacher} testID="start-conference">
+              <ButtonText>Start Conference</ButtonText>
+            </Button>
+          )
+        }
+      >
         {classroom.students.length === 0 ? (
-          <EmptyState title="No students in this classroom" hint="Use Edit to add students from the school roster." />
+          <EmptyState title="No students in this classroom" hint="Add students from the school roster." />
         ) : (
           <VStack className="gap-2">
             {classroom.students.map((member) => (
@@ -204,7 +221,7 @@ function CallStudentRow({
         </HStack>
       </Pressable>
       {isSelected && (
-        <Pressable onPress={onToggleLeader} testID={`call-leader-${member.id}`}>
+        <Pressable onPress={onToggleLeader} hitSlop={HIT_SLOP} testID={`call-leader-${member.id}`}>
           <HStack
             className={`items-center gap-1.5 rounded-full border px-3 py-1.5 ${
               isLeader ? 'border-primary bg-primary' : 'border-border bg-background'

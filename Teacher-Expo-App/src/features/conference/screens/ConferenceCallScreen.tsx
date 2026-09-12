@@ -14,6 +14,7 @@ import { SearchField } from '@shared/components/SearchField';
 import { useAppToast } from '@shared/hooks/useAppToast';
 import { ConnectionBanner } from '@shared/components/ConnectionBanner';
 import { addSessionToHistory } from '@shared/services/sessionHistory';
+import { goBackOr, HIT_SLOP } from '@shared/utils/navigation';
 import { normalizePhoneNumber } from '@shared/utils/phoneUtils';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
@@ -85,7 +86,7 @@ export function ConferenceCallScreen({ confId }: { confId: string }) {
       });
       queryClient.invalidateQueries({ queryKey: ['sessionHistory'] });
       reset();
-      router.back();
+      goBackOr(router, '/classrooms');
     } catch (err) {
       toast.error(String(err));
     }
@@ -134,14 +135,9 @@ export function ConferenceCallScreen({ confId }: { confId: string }) {
         title="Live Class Call"
         subtitle={classroomName ?? undefined}
         actions={
-          <>
-            <Badge variant={connectivity === 'online' ? 'default' : 'destructive'}>
-              <BadgeText>{connectivity}</BadgeText>
-            </Badge>
-            <Button variant="destructive" onPress={handleEndCall} testID="end-call">
-              <ButtonText>End Call</ButtonText>
-            </Button>
-          </>
+          <Badge variant={connectivity === 'online' ? 'default' : 'destructive'}>
+            <BadgeText>{connectivity}</BadgeText>
+          </Badge>
         }
       >
         <ConnectionBanner status={connectivity} prevStatus={prevConnectivity} />
@@ -224,6 +220,7 @@ export function ConferenceCallScreen({ confId }: { confId: string }) {
                         <Pressable
                           onPress={() => handleReconnect(participant)}
                           disabled={reconnectingPhone === participant.phoneNumber}
+                          hitSlop={HIT_SLOP}
                           testID={`reconnect-${participant.phoneNumber}`}
                         >
                           <Badge variant="destructive">
@@ -304,6 +301,10 @@ export function ConferenceCallScreen({ confId }: { confId: string }) {
             </VStack>
           </VStack>
         </Section>
+
+        <Button variant="destructive" onPress={handleEndCall} testID="end-call">
+          <ButtonText>End Call</ButtonText>
+        </Button>
       </Screen>
 
       <AlertDialog isOpen={!!removeTarget} onClose={() => setRemoveTarget(null)}>
