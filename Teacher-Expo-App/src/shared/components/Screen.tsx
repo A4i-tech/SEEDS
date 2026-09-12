@@ -1,5 +1,7 @@
+import { Button, ButtonIcon } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
+import { ChevronLeftIcon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import React from 'react';
@@ -10,11 +12,15 @@ export function Screen({
   title,
   subtitle,
   actions,
+  onBack,
+  leading,
   children,
 }: {
   title: string;
   subtitle?: string;
   actions?: React.ReactNode;
+  onBack?: () => void;
+  leading?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -22,16 +28,24 @@ export function Screen({
       <ScrollView className="flex-1 bg-background" contentContainerStyle={{ paddingBottom: 112 }}>
         <VStack className="w-full max-w-3xl self-center gap-7 px-5 py-6 md:px-8 md:py-10">
           <HStack className="flex-wrap items-end justify-between gap-4 border-b border-border pb-5">
-            <VStack className="gap-1">
-              <Heading size="2xl" className="tracking-tight">
-                {title}
-              </Heading>
-              {subtitle && (
-                <Text size="sm" className="text-muted-foreground">
-                  {subtitle}
-                </Text>
+            <HStack className="items-end gap-3">
+              {onBack && (
+                <Button variant="ghost" size="icon" onPress={onBack} accessibilityLabel="Go back" testID="screen-back">
+                  <ButtonIcon as={ChevronLeftIcon} />
+                </Button>
               )}
-            </VStack>
+              {leading}
+              <VStack className="gap-1">
+                <Heading size="2xl" className="tracking-tight">
+                  {title}
+                </Heading>
+                {subtitle && (
+                  <Text size="sm" className="text-muted-foreground">
+                    {subtitle}
+                  </Text>
+                )}
+              </VStack>
+            </HStack>
             {actions && <HStack className="flex-wrap items-center gap-2">{actions}</HStack>}
           </HStack>
           {children}

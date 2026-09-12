@@ -95,20 +95,18 @@ export function ClassroomDetailScreen({ classroomId }: { classroomId: string }) 
     );
   }
 
-  const leaderIds = new Set(classroom.leaders.map((leader) => leader.id));
-
   return (
     <Screen
       title={classroom.name}
       subtitle={`${pluralize(classroom.students.length, 'student')} · ${pluralize(classroom.leaders.length, 'leader')}`}
+      onBack={() => router.back()}
       actions={
         <>
-          <Button variant="ghost" onPress={() => router.back()}>
-            <ButtonText>Back</ButtonText>
-          </Button>
-          <Button variant="outline" onPress={() => router.push(`/classrooms/${classroomId}/edit`)}>
-            <ButtonText>Edit</ButtonText>
-          </Button>
+          {!isPicking && (
+            <Button variant="outline" onPress={() => router.push(`/classrooms/${classroomId}/edit`)}>
+              <ButtonText>Edit</ButtonText>
+            </Button>
+          )}
           {isPicking ? (
             <Button variant="outline" onPress={() => setIsPicking(false)}>
               <ButtonText>Cancel call</ButtonText>
@@ -162,7 +160,7 @@ export function ClassroomDetailScreen({ classroomId }: { classroomId: string }) 
         ) : (
           <VStack className="gap-2">
             {classroom.students.map((member) => (
-              <MemberRow key={member.id} member={member} isLeader={leaderIds.has(member.id)} />
+              <MemberRow key={member.id} member={member} />
             ))}
           </VStack>
         )}
@@ -223,19 +221,13 @@ function CallStudentRow({
   );
 }
 
-function MemberRow({ member, isLeader }: { member: ClassMember; isLeader: boolean }) {
+function MemberRow({ member }: { member: ClassMember }) {
   return (
     <HStack className="items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3">
       <VStack className="flex-1">
         <Text className="font-medium text-foreground">{member.name}</Text>
         <Text size="xs" className="text-muted-foreground">{member.phone_number}</Text>
       </VStack>
-      {isLeader && (
-        <HStack className="items-center gap-1.5 rounded-full bg-primary px-3 py-1.5">
-          <Icon as={StarIcon} className="text-primary-foreground" />
-          <Text size="xs" className="text-primary-foreground">Leader</Text>
-        </HStack>
-      )}
     </HStack>
   );
 }

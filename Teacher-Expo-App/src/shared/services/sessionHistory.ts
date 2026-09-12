@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const STORAGE_KEY = 'seeds_session_history';
-const DEFAULT_SESSION_HISTORY_SIZE = 10;
+const DEFAULT_SESSION_HISTORY_SIZE = 3;
 
 export interface SessionHistoryItem {
   group_id: string;

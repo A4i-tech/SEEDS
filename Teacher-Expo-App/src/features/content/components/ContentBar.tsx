@@ -5,6 +5,7 @@ import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { useAuthStore } from '@features/auth';
 import { useConferenceStore } from '@features/conference/store/conferenceStore';
+import { usePathname } from 'expo-router';
 import React from 'react';
 import { useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,13 +15,15 @@ import { WIDE_BREAKPOINT } from './ContentDrawer';
 export function ContentBar() {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const pathname = usePathname();
   const authStatus = useAuthStore((state) => state.status);
   const isDrawerOpen = useContentDrawerStore((state) => state.isOpen);
   const openDrawer = useContentDrawerStore((state) => state.open);
   const confId = useConferenceStore((state) => state.confId);
   const audioContentState = useConferenceStore((state) => state.audioContentState);
 
-  if (width >= WIDE_BREAKPOINT || authStatus !== 'authenticated' || isDrawerOpen) return null;
+  const isAllowedRoute = pathname === '/classrooms' || pathname.startsWith('/conference/');
+  if (width >= WIDE_BREAKPOINT || authStatus !== 'authenticated' || isDrawerOpen || !isAllowedRoute) return null;
 
   const isLive = !!audioContentState.current_url;
   const isPlaying = audioContentState.status === 'Playing';

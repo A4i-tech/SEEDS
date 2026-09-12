@@ -64,15 +64,11 @@ export function ClassroomFormScreen({ classroomId }: { classroomId?: string }) {
     <Screen
       title={classroomId ? 'Edit Classroom' : 'New Classroom'}
       subtitle={pluralize(selectedStudentIds.length, 'student')}
+      onBack={() => router.back()}
       actions={
-        <>
-          <Button variant="ghost" onPress={() => router.back()}>
-            <ButtonText>Cancel</ButtonText>
-          </Button>
-          <Button onPress={handleSave} disabled={isSaving || !name} testID="save-classroom">
-            <ButtonText>{isSaving ? 'Saving…' : 'Save'}</ButtonText>
-          </Button>
-        </>
+        <Button onPress={handleSave} disabled={isSaving || !name} testID="save-classroom">
+          <ButtonText>{isSaving ? 'Saving…' : 'Save'}</ButtonText>
+        </Button>
       }
     >
       <FormControl>

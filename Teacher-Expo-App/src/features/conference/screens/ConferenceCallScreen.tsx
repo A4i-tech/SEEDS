@@ -54,6 +54,7 @@ export function ConferenceCallScreen({ confId }: { confId: string }) {
   const { data: classroom, isPending: studentsPending } = useClassroom(classroomId ?? '');
   const [search, setSearch] = React.useState('');
   const [addingPhone, setAddingPhone] = React.useState('');
+  const [reconnectingPhone, setReconnectingPhone] = React.useState('');
   const [removeTarget, setRemoveTarget] = React.useState<Participant | null>(null);
 
   const participants = Object.values(participantsMap);
@@ -62,7 +63,7 @@ export function ConferenceCallScreen({ confId }: { confId: string }) {
   const query = search.trim().toLowerCase();
   const addableStudents = (classroom?.students ?? []).filter(
     (student) =>
-      participantsMap[normalizePhoneNumber(student.phone_number)]?.call_status !== 'connected' &&
+      !participantsMap[normalizePhoneNumber(student.phone_number)] &&
       (!query || student.name.toLowerCase().includes(query))
   );
 
@@ -100,6 +101,18 @@ export function ConferenceCallScreen({ confId }: { confId: string }) {
       toast.error(String(err));
     } finally {
       setAddingPhone('');
+    }
+  }
+
+  async function handleReconnect(participant: Participant) {
+    setReconnectingPhone(participant.phoneNumber);
+    try {
+      await addParticipant(confId, participant.phoneNumber, participant.name);
+      toast.success(`Calling ${participant.name} again`);
+    } catch (err) {
+      toast.error(String(err));
+    } finally {
+      setReconnectingPhone('');
     }
   }
 
@@ -207,9 +220,23 @@ export function ConferenceCallScreen({ confId }: { confId: string }) {
                       </Text>
                     </VStack>
                     <HStack className="flex-wrap justify-end gap-1.5">
-                      <Badge variant={participant.call_status === 'connected' ? 'default' : 'outline'}>
-                        <BadgeText>{participant.call_status}</BadgeText>
-                      </Badge>
+                      {participant.call_status === 'disconnected' && isConfCallRunning ? (
+                        <Pressable
+                          onPress={() => handleReconnect(participant)}
+                          disabled={reconnectingPhone === participant.phoneNumber}
+                          testID={`reconnect-${participant.phoneNumber}`}
+                        >
+                          <Badge variant="destructive">
+                            <BadgeText>
+                              {reconnectingPhone === participant.phoneNumber ? 'Calling…' : 'disconnected · tap to call'}
+                            </BadgeText>
+                          </Badge>
+                        </Pressable>
+                      ) : (
+                        <Badge variant={participant.call_status === 'connected' ? 'default' : 'outline'}>
+                          <BadgeText>{participant.call_status}</BadgeText>
+                        </Badge>
+                      )}
                       {participant.is_raised && (
                         <Badge variant="secondary">
                           <BadgeText>Hand raised</BadgeText>

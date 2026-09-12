@@ -14,7 +14,8 @@ import { useThemeStore } from '@shared/store/themeStore';
 import { formatRelativeTime, pluralize } from '@shared/utils/format';
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { Dimensions, StyleSheet, View } from 'react-native';
+import { Dimensions, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { WIDE_BREAKPOINT } from '@features/content';
 import { useClassrooms, useDeleteClassroom, useSessionHistory } from '../hooks/useClassrooms';
 import type { Classroom } from '../types/classroom.types';
 
@@ -32,6 +33,8 @@ export function ClassroomListScreen() {
   const menuAnchorRef = React.useRef<View>(null);
   const themeMode = useThemeStore((state) => state.mode);
   const toggleTheme = useThemeStore((state) => state.toggle);
+  const { width } = useWindowDimensions();
+  const showContentLibraryButton = width >= WIDE_BREAKPOINT;
 
   function openMenu() {
     menuAnchorRef.current?.measureInWindow((x, y, width, height) => {
@@ -63,25 +66,29 @@ export function ClassroomListScreen() {
       <Screen
         title="Classrooms"
         subtitle={classrooms ? pluralize(classrooms.length, 'classroom') : undefined}
+        leading={
+          <View ref={menuAnchorRef}>
+            <Button
+              variant="ghost"
+              size="icon"
+              onPress={openMenu}
+              accessibilityLabel="Open menu"
+              testID="open-menu"
+            >
+              <ButtonIcon as={MenuIcon} />
+            </Button>
+          </View>
+        }
         actions={
           <>
-            <Button variant="outline" onPress={() => openContentDrawer()} testID="open-content-library">
-              <ButtonText>Content Library</ButtonText>
-            </Button>
+            {showContentLibraryButton && (
+              <Button variant="outline" onPress={() => openContentDrawer()} testID="open-content-library">
+                <ButtonText>Content Library</ButtonText>
+              </Button>
+            )}
             <Button onPress={() => router.push('/classrooms/new')} testID="new-classroom">
               <ButtonText>New Classroom</ButtonText>
             </Button>
-            <View ref={menuAnchorRef}>
-              <Button
-                variant="ghost"
-                size="icon"
-                onPress={openMenu}
-                accessibilityLabel="Open menu"
-                testID="open-menu"
-              >
-                <ButtonIcon as={MenuIcon} />
-              </Button>
-            </View>
           </>
         }
       >
