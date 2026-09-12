@@ -23,22 +23,22 @@
   :root {
     --primary: 35 82 101;              /* color-primary-600 #235265 */
     --primary-foreground: 255 255 255; /* text-on-filled */
-    --card: 255 255 255;               /* bg-surface */
+    --card: 250 251 252;               /* bg-surface, softened off-white (not pure #fff) */
     --secondary: 241 247 249;          /* color-primary-50 #F1F7F9 */
     --secondary-foreground: 27 64 78;  /* color-primary-700 #1B404E */
     --background: 244 246 247;         /* bg-page / color-neutral-50 */
-    --popover: 255 255 255;            /* bg-surface */
-    --popover-foreground: 26 29 30;    /* text-primary / color-neutral-900 */
+    --popover: 250 251 252;            /* bg-surface, softened off-white (not pure #fff) */
+    --popover-foreground: 39 42 43;    /* text-primary, softened from near-black */
     --muted: 244 246 247;              /* bg-sunken / color-neutral-50 */
     --muted-foreground: 67 72 73;      /* text-secondary / color-neutral-700 */
     --destructive: 158 36 28;          /* color-error-700 #9E241C */
-    --foreground: 26 29 30;            /* text-primary / color-neutral-900 */
-    --border: 178 184 185;             /* border-default / color-neutral-300 */
+    --foreground: 39 42 43;            /* text-primary, softened from near-black for comfort */
+    --border: 216 221 222;             /* border-default, softened from color-neutral-300 */
     --input: 110 116 118;              /* border-strong / color-neutral-500 (3:1 control edge) */
     --ring: 24 90 188;                 /* focus-color #185ABC */
     --accent: 242 248 243;             /* color-accent-50 #F2F8F3 */
     --accent-foreground: 53 91 59;     /* color-accent-700 #355B3B */
-    --card-foreground: 26 29 30;       /* text-primary, readable on --card */
+    --card-foreground: 39 42 43;       /* text-primary, readable on --card */
     --destructive-foreground: 255 255 255; /* text-on-filled, readable on --destructive */
   }
 
@@ -93,22 +93,22 @@
   :root.light {
     --primary: 35 82 101;
     --primary-foreground: 255 255 255;
-    --card: 255 255 255;
+    --card: 250 251 252;
     --secondary: 241 247 249;
     --secondary-foreground: 27 64 78;
     --background: 244 246 247;
-    --popover: 255 255 255;
-    --popover-foreground: 26 29 30;
+    --popover: 250 251 252;
+    --popover-foreground: 39 42 43;
     --muted: 244 246 247;
     --muted-foreground: 67 72 73;
     --destructive: 158 36 28;
-    --foreground: 26 29 30;
-    --border: 178 184 185;
+    --foreground: 39 42 43;
+    --border: 216 221 222;
     --input: 110 116 118;
     --ring: 24 90 188;
     --accent: 242 248 243;
     --accent-foreground: 53 91 59;
-    --card-foreground: 26 29 30;
+    --card-foreground: 39 42 43;
     --destructive-foreground: 255 255 255;
   }
 }
