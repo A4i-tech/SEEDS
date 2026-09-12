@@ -3,6 +3,8 @@
 @import "tailwindcss/utilities.css";
 @import "nativewind/theme";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* ─── Theme: design tokens (light / dark) ─────────────────────────
    Three selectors, two purposes:
    1. :root              — light defaults (all platforms)
