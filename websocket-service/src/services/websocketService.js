@@ -22,6 +22,18 @@ function getSessionSpeed(id) {
 }
 
 /**
+ * Maps *position* from a buffer of length *fromLength* onto the equivalent
+ * position in a buffer of length *toLength*, by duration proportion. Used to
+ * convert between a speed-variant's local byte offset and the shared
+ * base-timeline offset without assuming a variant's actual duration is
+ * exactly baseDuration / speed (atempo output length can differ slightly).
+ */
+function scalePosition(position, fromLength, toLength) {
+  if (!fromLength) return 0;
+  return Math.trunc((position / fromLength) * toLength);
+}
+
+/**
  * Resolves the blob data for *speed*, using the per-connection variant cache
  * when available. Falls back to the cached 1.0x base blob (and reports
  * resolvedSpeed: 1.0) if the requested variant is missing.
@@ -369,12 +381,11 @@ async function seekAudioContent(id, seekPayload) {
     throw new Error("No audio content data to seek");
   }
   const seekTarget = extractSeekTarget(seekPayload);
-  const speed = audioState.speed || 1.0;
-  const currentLogicalPosition = (audioState.position || 0) * speed;
+  const totalLogicalLength = (audioState.baseDurationSeconds || 0) * AUDIO_BYTES_PER_SECOND;
+  const currentLogicalPosition = scalePosition(audioState.position || 0, audioState.blobData.length, totalLogicalLength);
   logger.info(
     `Seek request received for ID: ${id}; ${seekTarget.type}: ${seekTarget.value}; currentLogicalPosition: ${currentLogicalPosition}`
   );
-  const totalLogicalLength = (audioState.baseDurationSeconds || 0) * AUDIO_BYTES_PER_SECOND;
   const targetLogicalPosition =
     seekTarget.type === "absolute"
       ? clampPosition(Math.trunc(seekTarget.value * AUDIO_BYTES_PER_SECOND), totalLogicalLength)
@@ -382,7 +393,10 @@ async function seekAudioContent(id, seekPayload) {
           Math.trunc(currentLogicalPosition + seekTarget.value * AUDIO_BYTES_PER_SECOND),
           totalLogicalLength
         );
-  const targetPosition = clampPosition(Math.trunc(targetLogicalPosition / speed), audioState.blobData.length);
+  const targetPosition = clampPosition(
+    scalePosition(targetLogicalPosition, totalLogicalLength, audioState.blobData.length),
+    audioState.blobData.length
+  );
 
   audioState.position = targetPosition;
 
@@ -433,12 +447,31 @@ async function setPlaybackSpeed(id, speed) {
     return;
   }
 
-  const currentLogicalPosition = (audioState.position || 0) * (audioState.speed || 1.0);
+  // Guard against a slower-resolving earlier call clobbering a newer one, or
+  // the content item changing entirely, while this variant load is in flight.
+  state.speedChangeSeq = (state.speedChangeSeq || 0) + 1;
+  const speedChangeSeq = state.speedChangeSeq;
+
+  const totalLogicalLength = (audioState.baseDurationSeconds || 0) * AUDIO_BYTES_PER_SECOND;
+  const currentLogicalPosition = scalePosition(audioState.position || 0, audioState.blobData.length, totalLogicalLength);
   const { data: variantData, resolvedSpeed } = await loadVariant(audioState, clampedSpeed, id);
+
+  if (state.speedChangeSeq !== speedChangeSeq || state.audioContentState !== audioState) {
+    logger.info(`Ignoring stale setPlaybackSpeed result for ID: ${id} (superseded)`);
+    return;
+  }
 
   audioState.blobData = variantData;
   audioState.speed = resolvedSpeed;
-  audioState.position = clampPosition(Math.trunc(currentLogicalPosition / resolvedSpeed), variantData.length);
+  audioState.position = clampPosition(scalePosition(currentLogicalPosition, totalLogicalLength, variantData.length), variantData.length);
+
+  if (resolvedSpeed !== clampedSpeed) {
+    // Requested variant was unavailable and loadVariant fell back to 1.0x —
+    // correct the session-level speed so later content items (and status
+    // reports) reflect what is actually playing, not what was requested.
+    state.speed = resolvedSpeed;
+    sessionSpeeds.set(id, resolvedSpeed);
+  }
 
   logger.info(`Playback speed set to ${resolvedSpeed}x for ID: ${id}`);
 
