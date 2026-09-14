@@ -216,8 +216,9 @@ async def _generate_speed_variants(input_bytes: bytes, content_id: str, ext: str
             variants[speed] = await _apply_atempo(input_bytes, speed, content_id, ext)
         except Exception as exc:  # noqa: BLE001
             logger.warning(
-                "content_job: failed to generate %sx speed variant for content_id=%s — %s",
-                speed, content_id, exc,
+                "content_job: failed to generate %sx speed variant for content_id=%s — %s: %s",
+                speed, content_id, type(exc).__name__, exc,
+                exc_info=exc,
             )
     return variants
 
