@@ -1,14 +1,13 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
+import rehypeRaw from "rehype-raw";
 import "katex/dist/katex.min.css";
 
 import { SEEDS_URL } from "../Constants";
-import { useAuth } from "../hooks/useAuth";
-import AppHeader from "./AllContent/Header/AppHeader";
 import { Breadcrumb } from "./AllContent/shared/Breadcrumb";
 import { Pagination } from "./ContentAggregatorDetails/Pagination";
 import { textbookRemediationService } from "../services/textbookRemediationService";
@@ -18,29 +17,8 @@ import "./AllContent/AllContent.css";
 import "./AllContent/shared/cards.css";
 import "./AllContent/shared/buttons.css";
 import "./AllContent/shared/tables.css";
-import "./AllContent/ContentTab/css/ContentTab.css";
-import "./AllContent/AnalyticsTab/css/AnalyticsStats.css";
 import "./SyncHistoryPage.css";
 import "./RemediationDetails.css";
-
-const TRAILS = [
-  { name: "findings", label: "OCR Review & Corrections" },
-  { name: "remediation", label: "Remediation Changes" },
-  { name: "unresolved", label: "Unresolved Figures" },
-];
-
-function formatBytes(bytes) {
-  if (!bytes) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
-}
-
-function formatNumber(num) {
-  if (num == null) return "0";
-  return num.toLocaleString();
-}
 
 function splitIntoPages(markdown) {
   if (!markdown) return [];
@@ -83,7 +61,7 @@ function MarkdownViewer({ text, jobId }) {
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm, remarkMath]}
-      rehypePlugins={[rehypeKatex]}
+      rehypePlugins={[rehypeRaw, rehypeKatex]}
       components={{
         p: MarkdownParagraph,
         img: ({ src, alt }) => {
@@ -96,29 +74,19 @@ function MarkdownViewer({ text, jobId }) {
           return (
             <div className="remediation-figure-preview">
               {imgSrc && (
-                <div style={{ marginBottom: "10px", textAlign: "center" }}>
-                  <img
-                    src={imgSrc}
-                    alt={alt || ""}
-                    style={{
-                      maxWidth: "100%",
-                      maxHeight: "320px",
-                      borderRadius: "6px",
-                      border: "1px solid #e2e8f0",
-                      objectFit: "contain",
-                      backgroundColor: "#ffffff",
-                    }}
-                    onError={(e) => {
-                      e.currentTarget.style.display = "none";
-                    }}
-                  />
-                </div>
+                <img
+                  src={imgSrc}
+                  alt={alt || ""}
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                  }}
+                />
               )}
               {alt ? (
-                <>
+                <div className="remediation-figure-text">
                   <span className="remediation-figure-tag">Figure Description</span>
                   <span className="remediation-figure-desc">{alt}</span>
-                </>
+                </div>
               ) : null}
             </div>
           );
@@ -133,69 +101,37 @@ function MarkdownViewer({ text, jobId }) {
 const RemediationDetails = () => {
   const { jobId } = useParams();
   const navigate = useNavigate();
-  const { getCurrentUser, logout } = useAuth();
-  const [currentUser, setCurrentUser] = useState("User");
-
-  useEffect(() => {
-    if (getCurrentUser) {
-      getCurrentUser()
-        .then((u) => {
-          if (u) {
-            const name = typeof u === "string" ? u : u.name || u.email || "User";
-            setCurrentUser(name);
-          }
-        })
-        .catch((err) => {
-          console.warn("Could not load current user:", err);
-        });
-    }
-  }, [getCurrentUser]);
 
   const [job, setJob] = useState(null);
   const [documents, setDocuments] = useState({});
-  const [diffPageIdx, setDiffPageIdx] = useState(0);
-  const [trail, setTrail] = useState({ name: "findings", findings: [], total: 0, gate: "all" });
+  const [pageIdx, setPageIdx] = useState(0);
   const [error, setError] = useState(null);
   const [actionMessage, setActionMessage] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [draftText, setDraftText] = useState("");
   const [reviewSummary, setReviewSummary] = useState(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [page, setPage] = useState(0);
-  const [expandedRows, setExpandedRows] = useState({});
-  const [appliedFindings, setAppliedFindings] = useState({});
-  const [dismissedFindings, setDismissedFindings] = useState({});
-  const pageSize = 15;
-
-  const handleApplyFinding = (item, rowKey) => {
-    if (!item.original || item.replacement === undefined) return;
-    const current = draftText || documents.corrected || "";
-    if (current.includes(item.original)) {
-      const updated = current.replace(item.original, item.replacement);
-      setDraftText(updated);
-      setAppliedFindings((prev) => ({ ...prev, [rowKey]: true }));
-      setActionMessage(`Applied fix: "${item.original}" → "${item.replacement}"`);
-      setTimeout(() => setActionMessage(null), 3000);
-    } else {
-      setActionMessage("Could not locate exact original text in current draft.");
-      setTimeout(() => setActionMessage(null), 3000);
-    }
-  };
-
-  const handleDismissFinding = (rowKey) => {
-    setDismissedFindings((prev) => ({ ...prev, [rowKey]: true }));
-  };
 
   const rawPages = useMemo(() => splitIntoPages(documents.raw), [documents.raw]);
   const correctedPages = useMemo(
     () => splitIntoPages(draftText || documents.corrected),
     [draftText, documents.corrected]
   );
-  const diffTotalPages = Math.max(rawPages.length, correctedPages.length);
+  const totalPages = Math.max(rawPages.length, correctedPages.length);
 
-  const currentRawPage = rawPages[diffPageIdx]?.content || (rawPages.length === 0 ? (documents.raw || "") : "");
+  const currentRawPage = rawPages[pageIdx]?.content || (rawPages.length === 0 ? (documents.raw || "") : "");
   const currentCorrectedPage =
-    correctedPages[diffPageIdx]?.content || (correctedPages.length === 0 ? (draftText || documents.corrected || "") : "");
+    correctedPages[pageIdx]?.content || (correctedPages.length === 0 ? (draftText || documents.corrected || "") : "");
+
+  const flaggedPages = useMemo(() => {
+    const pages = (reviewSummary?.flagged_items || []).map((item) => (item.page || 1) - 1);
+    return [...new Set(pages)].sort((a, b) => a - b);
+  }, [reviewSummary]);
+  const currentPageFlags = (reviewSummary?.flagged_items || []).filter((item) => (item.page || 1) - 1 === pageIdx);
+
+  const handleNextFlag = () => {
+    const next = flaggedPages.find((p) => p > pageIdx);
+    setPageIdx(next !== undefined ? next : flaggedPages[0]);
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -271,78 +207,11 @@ const RemediationDetails = () => {
     }
   };
 
-  const loadTrail = useCallback(
-    async (name) => {
-      if (!artifacts[name]) {
-        setTrail({ name, findings: [], total: 0, gate: "all" });
-        return;
-      }
-      try {
-        const data = await textbookRemediationService.getFindings(jobId, { name, limit: 500 });
-        setTrail({ name, findings: data.findings || [], total: data.total || 0, gate: "all" });
-        setPage(0);
-        setExpandedRows({});
-      } catch (trailError) {
-        setError(trailError.message);
-      }
-    },
-    [artifacts, jobId]
-  );
-
-  const openedRef = useRef(false);
-  useEffect(() => {
-    if (artifacts.findings && !openedRef.current) {
-      openedRef.current = true;
-      loadTrail("findings");
-    }
-  }, [artifacts.findings, loadTrail]);
-
-  const gates = useMemo(
-    () => [...new Set(trail.findings.map((f) => f.gate).filter(Boolean))],
-    [trail.findings]
-  );
-
-  const filteredFindings = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    return trail.findings.filter((item) => {
-      if (trail.gate !== "all" && item.gate !== trail.gate) return false;
-      if (!q) return true;
-      return (
-        (item.rule && String(item.rule).toLowerCase().includes(q)) ||
-        (item.original && String(item.original).toLowerCase().includes(q)) ||
-        (item.replacement && String(item.replacement).toLowerCase().includes(q)) ||
-        (item.reason && String(item.reason).toLowerCase().includes(q)) ||
-        (item.type && String(item.type).toLowerCase().includes(q)) ||
-        (item.unit_id && String(item.unit_id).toLowerCase().includes(q)) ||
-        (item.alt_text && String(item.alt_text).toLowerCase().includes(q))
-      );
-    });
-  }, [trail.findings, trail.gate, searchQuery]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredFindings.length / pageSize));
-  const currentPageItems = useMemo(() => {
-    const start = page * pageSize;
-    return filteredFindings.slice(start, start + pageSize);
-  }, [filteredFindings, page, pageSize]);
-
-  const toggleRowExpand = (id) => {
-    setExpandedRows((prev) => ({ ...prev, [id]: !prev[id] }));
-  };
-
-  const counts = job ? job.counts : {};
-  const isRunning = job ? job.status === "running" : false;
   const loadingDocs = !documents.raw && !documents.corrected && job && job.status === "completed";
 
   return (
     <div className="page">
-      <div className="container" style={{ maxWidth: "1360px" }}>
-        <AppHeader
-          activeTab="content"
-          onTabChange={(tab) => navigate(`/content?tab=${tab}`)}
-          currentUser={currentUser}
-          onLogout={logout}
-        />
-
+      <div className="container" style={{ maxWidth: "1280px" }}>
         <Breadcrumb
           className="breadcrumb-standalone"
           items={[
@@ -368,466 +237,142 @@ const RemediationDetails = () => {
         )}
 
         {job && (
-          <>
-            {/* Top Overview Card */}
-            <div className="card">
-              <div className="card-header">
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px" }}>
-                    <h2 className="card-title" style={{ margin: 0 }}>
-                      {job.source_name}
-                    </h2>
-                    <span className={`sync-history-job-status sync-history-job-status-${job.status}`}>
-                      {job.status}
-                    </span>
-                  </div>
-                  <div className="card-description">
-                    PDF to Accessible Word document remediation pipeline
-                  </div>
+          <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+            <div className="remediation-toolbar">
+              <div>
+                <h2 className="remediation-content-heading">{job.source_name}</h2>
+                <div className="remediation-toolbar-meta">
+                  <span>
+                    Job <code>{job.job_id}</code>
+                  </span>
+                  <span>Language: {job.detected_language || job.language}</span>
+                  <span>
+                    Page {pageIdx + 1} of {Math.max(totalPages, 1)}
+                  </span>
+                  <span className={job.status === "verified" ? "gate-badge gate-badge-verified" : "gate-badge gate-badge-auto"}>
+                    {job.status === "verified" ? "✓ Verified" : "Needs review"}
+                  </span>
                 </div>
+              </div>
 
-                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+              <div className="button-group">
+                <button type="button" className="action-ghost-button" onClick={handleSaveDraft}>
+                  Save draft
+                </button>
+
+                {job.status !== "verified" ? (
+                  <button type="button" className="primary-button" onClick={handleMarkVerified}>
+                    Done — mark Verified
+                  </button>
+                ) : (
+                  <span className="gate-badge gate-badge-verified" style={{ padding: "6px 12px" }}>
+                    ✓ Verified & Saved to Library
+                  </span>
+                )}
+
+                {job.artifacts.docx && (
                   <button
                     type="button"
                     className="action-ghost-button"
+                    onClick={() =>
+                      textbookRemediationService.downloadArtifact(
+                        job.job_id,
+                        "docx",
+                        `${job.source_name.replace(/\.pdf$/i, "")}.docx`
+                      )
+                    }
+                  >
+                    Download Word
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {actionMessage && (
+              <div style={{ margin: "12px 24px 0", backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534", padding: "10px 14px", borderRadius: "8px", fontSize: "14px", fontWeight: 500 }}>
+                {actionMessage}
+              </div>
+            )}
+
+            <div className="remediation-panes">
+              <div className="remediation-pane">
+                <div className="remediation-pane-header">
+                  <span>Source (read-only)</span>
+                  <span className="table-cell-secondary">Raw OCR · page {pageIdx + 1}</span>
+                </div>
+                <div className="remediation-pane-body">
+                  {loadingDocs ? (
+                    <p className="card-description">Loading document…</p>
+                  ) : (
+                    <MarkdownViewer text={currentRawPage} jobId={jobId} />
+                  )}
+                </div>
+                <div className="remediation-pane-footer">
+                  <Pagination current={pageIdx} total={totalPages} onChange={setPageIdx} />
+                </div>
+              </div>
+
+              <div className="remediation-pane">
+                <div className="remediation-pane-header">
+                  <span>Remediated content{isEditing ? " — editing" : ""}</span>
+                  <button
+                    type="button"
+                    className="action-ghost-button"
+                    style={{ padding: "4px 10px", fontSize: "12px" }}
                     onClick={() => setIsEditing(!isEditing)}
                   >
-                    {isEditing ? "Preview Mode" : "Edit Remediated Text"}
+                    {isEditing ? "Preview" : "Edit"}
                   </button>
-
-                  <button
-                    type="button"
-                    className="action-ghost-button"
-                    onClick={handleSaveDraft}
-                  >
-                    Save draft
-                  </button>
-
-                  {job.status !== "verified" ? (
-                    <button
-                      type="button"
-                      className="primary-button"
-                      onClick={handleMarkVerified}
-                    >
-                      Done — mark Verified
-                    </button>
-                  ) : (
-                    <span className="gate-badge gate-badge-auto" style={{ padding: "6px 12px" }}>
-                      ✓ Verified & Saved to Library
-                    </span>
-                  )}
-
-                  {job.artifacts.docx && (
-                    <button
-                      type="button"
-                      className="action-ghost-button"
-                      onClick={() =>
-                        textbookRemediationService.downloadArtifact(
-                          job.job_id,
-                          "docx",
-                          `${job.source_name.replace(/\.pdf$/i, "")}.docx`
-                        )
-                      }
-                    >
-                      Download Word
-                    </button>
-                  )}
                 </div>
-              </div>
-
-              {actionMessage && (
-                <div style={{ backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534", padding: "10px 14px", borderRadius: "8px", marginTop: "12px", fontSize: "14px", fontWeight: 500 }}>
-                  {actionMessage}
-                </div>
-              )}
-
-              {/* Wireframe Domain Metric Summary Banner */}
-              {reviewSummary && (
-                <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "center", marginTop: "12px", padding: "10px 14px", backgroundColor: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "13px" }}>
-                  <span style={{ fontWeight: 600, color: "#0f172a" }}>Review Summary:</span>
-                  <span style={{ color: "#334155" }}>📊 {reviewSummary.diagrams_described_count || 0} diagrams described</span>
-                  <span style={{ color: "#334155" }}>📋 {reviewSummary.tables_fixed_count || 0} tables fixed</span>
-                  <span style={{ color: (reviewSummary.flagged_items_count > 0 ? "#b91c1c" : "#15803d"), fontWeight: 600 }}>
-                    ⚠️ {reviewSummary.flagged_items_count || 0} places need a check
-                  </span>
-                </div>
-              )}
-
-              {/* Real-time Progress Bar */}
-              {isRunning && (
-                <div className="content-aggregator-sync-all-progress" style={{ margin: "14px 0 6px" }}>
-                  <div className="content-aggregator-sync-all-progress-track">
-                    <div
-                      className="content-aggregator-sync-all-progress-fill"
-                      style={{ width: `${job.progress?.percent || 25}%` }}
+                <div className="remediation-pane-body">
+                  {loadingDocs ? (
+                    <p className="card-description">Loading document…</p>
+                  ) : isEditing ? (
+                    <textarea
+                      value={draftText}
+                      onChange={(e) => setDraftText(e.target.value)}
+                      style={{
+                        width: "100%",
+                        minHeight: "440px",
+                        fontFamily: "monospace",
+                        fontSize: "13px",
+                        lineHeight: 1.5,
+                        padding: "12px",
+                        borderRadius: "6px",
+                        border: "1px solid #cbd5e1",
+                        outline: "none",
+                        boxSizing: "border-box",
+                      }}
+                      placeholder="Edit accessible markdown, figure alt-text, and summaries..."
                     />
-                  </div>
-                  <span className="content-aggregator-sync-all-progress-label">
-                    {job.progress?.message || `Stage: ${job.stage || "processing"}...`}
-                  </span>
-                </div>
-              )}
-
-              {/* SEEDS Standard Stat Cards */}
-              <div className="stat-cards" style={{ marginTop: "16px" }}>
-                <div className="stat-card" style={{ "--stat-accent": "var(--color-primary)" }}>
-                  <div className="stat-label">Raw OCR Characters</div>
-                  <div className="stat-value">{formatNumber(counts.raw_chars)}</div>
-                </div>
-
-                <div className="stat-card" style={{ "--stat-accent": "var(--color-stat-purple)" }}>
-                  <div className="stat-label">Audit Findings</div>
-                  <div className="stat-value">{formatNumber(counts.findings)}</div>
-                </div>
-
-                <div className="stat-card" style={{ "--stat-accent": "var(--color-stat-green)" }}>
-                  <div className="stat-label">Remediation Changes</div>
-                  <div className="stat-value">{formatNumber(counts.remediation_changes)}</div>
-                </div>
-
-                <div className="stat-card" style={{ "--stat-accent": "var(--color-stat-blue)" }}>
-                  <div className="stat-label">Output DOCX Size</div>
-                  <div className="stat-value">{formatBytes(counts.docx_bytes)}</div>
-                </div>
-
-                <div className="stat-card" style={{ "--stat-accent": "var(--color-stat-orange)" }}>
-                  <div className="stat-label">Unresolved Figures</div>
-                  <div className="stat-value">{formatNumber(counts.unresolved_images)}</div>
-                </div>
-
-                <div className="stat-card" style={{ "--stat-accent": "var(--color-secondary)" }}>
-                  <div className="stat-label">Language</div>
-                  <div className="stat-value" style={{ textTransform: "capitalize", fontSize: "24px" }}>
-                    {job.detected_language || (job.language && job.language !== "auto" && job.language !== "detecting" ? job.language : "Detecting…")}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Side-by-Side Diff Section */}
-            <div className="card">
-              <div className="card-header">
-                <div>
-                  <h3 className="card-title">OCR vs. Remediated Output Comparison</h3>
-                  <div className="card-description">
-                    Side-by-side inspection of raw OCR output against post-corrected Markdown
-                  </div>
-                </div>
-
-                {diffTotalPages > 1 && (
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                    <button
-                      type="button"
-                      className="action-ghost-button"
-                      style={{ padding: "5px 12px", fontSize: "13px" }}
-                      disabled={diffPageIdx === 0}
-                      onClick={() => setDiffPageIdx((p) => Math.max(0, p - 1))}
-                    >
-                      ← Previous Page
-                    </button>
-
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      <select
-                        value={diffPageIdx}
-                        onChange={(e) => setDiffPageIdx(Number(e.target.value))}
-                        style={{
-                          border: "1px solid #e2e8f0",
-                          borderRadius: "8px",
-                          padding: "5px 10px",
-                          fontSize: "13px",
-                          background: "#ffffff",
-                          fontWeight: 600,
-                          color: "#0f172a",
-                        }}
-                      >
-                        {Array.from({ length: diffTotalPages }).map((_, idx) => (
-                          <option key={idx} value={idx}>
-                            Page {idx + 1}
-                          </option>
-                        ))}
-                      </select>
-                      <span style={{ fontSize: "13px", color: "#64748b" }}>
-                        of {diffTotalPages}
-                      </span>
-                    </div>
-
-                    <button
-                      type="button"
-                      className="action-ghost-button"
-                      style={{ padding: "5px 12px", fontSize: "13px" }}
-                      disabled={diffPageIdx >= diffTotalPages - 1}
-                      onClick={() => setDiffPageIdx((p) => Math.min(diffTotalPages - 1, p + 1))}
-                    >
-                      Next Page →
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <div className="remediation-diff-container">
-                <div className="remediation-diff-pane">
-                  <div className="remediation-pane-header">
-                    <span>
-                      Raw OCR Output {diffTotalPages > 1 ? `(Page ${diffPageIdx + 1} of ${diffTotalPages})` : `(${formatBytes(counts.raw_chars)})`}
-                    </span>
-                  </div>
-                  <div className="remediation-pane-body">
-                    {loadingDocs ? (
-                      <p className="card-description">Loading raw Markdown…</p>
-                    ) : (
-                      <MarkdownViewer text={currentRawPage} jobId={jobId} />
-                    )}
-                  </div>
-                </div>
-
-                <div className="remediation-diff-pane">
-                  <div className="remediation-pane-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span>
-                      Remediated & Reviewed Markdown {diffTotalPages > 1 ? `(Page ${diffPageIdx + 1} of ${diffTotalPages})` : ""} {isEditing ? "— [EDITING]" : ""}
-                    </span>
-                    {isEditing && (
-                      <span style={{ fontSize: "12px", color: "var(--color-primary)", fontWeight: 600 }}>
-                        Interactive Edit Mode Active
-                      </span>
-                    )}
-                  </div>
-                  <div className="remediation-pane-body">
-                    {loadingDocs ? (
-                      <p className="card-description">Loading remediated Markdown…</p>
-                    ) : isEditing ? (
-                      <textarea
-                        value={draftText}
-                        onChange={(e) => setDraftText(e.target.value)}
-                        style={{
-                          width: "100%",
-                          minHeight: "440px",
-                          fontFamily: "monospace",
-                          fontSize: "13px",
-                          lineHeight: 1.5,
-                          padding: "12px",
-                          borderRadius: "6px",
-                          border: "1px solid #cbd5e1",
-                          outline: "none",
-                          boxSizing: "border-box",
-                        }}
-                        placeholder="Edit accessible markdown, figure alt-text, and summaries..."
-                      />
-                    ) : (
+                  ) : (
+                    <>
+                      {flaggedPages.length > 0 && (
+                        <div className="remediation-flag-banner">
+                          <span>
+                            {flaggedPages.length} page{flaggedPages.length > 1 ? "s" : ""} need a check
+                          </span>
+                          <button type="button" onClick={handleNextFlag} style={{ background: "none", border: "none", color: "inherit", font: "inherit", fontWeight: 600, cursor: "pointer", padding: 0 }}>
+                            Jump to next &rsaquo;
+                          </button>
+                        </div>
+                      )}
                       <MarkdownViewer text={currentCorrectedPage} jobId={jobId} />
-                    )}
-                  </div>
+                      {currentPageFlags.map((flag) => (
+                        <div key={flag.id} className="remediation-diagram-marker">
+                          ⚠️ {flag.reason}
+                          {flag.text ? `: ${flag.text}` : ""}
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+                <div className="remediation-pane-footer">
+                  <Pagination current={pageIdx} total={totalPages} onChange={setPageIdx} />
                 </div>
               </div>
             </div>
-
-            {/* Findings & Audit Trail Section */}
-            <div className="card">
-              <div className="card-header">
-                <div>
-                  <h3 className="card-title">Pipeline Audit & Findings Trail</h3>
-                  <div className="card-description">
-                    Detailed record of every correction, quality finding, and remediation decision
-                  </div>
-                </div>
-              </div>
-
-              {/* SEEDS Standard Segmented Tabs */}
-              <div className="tabs-container" style={{ marginBottom: "16px" }}>
-                {TRAILS.map(({ name, label }) => (
-                  <button
-                    key={name}
-                    type="button"
-                    className={`tab-button ${trail.name === name ? "active" : ""}`}
-                    disabled={!artifacts[name]}
-                    onClick={() => loadTrail(name)}
-                  >
-                    {label} {trail.name === name && trail.total > 0 ? `(${trail.total})` : ""}
-                  </button>
-                ))}
-              </div>
-
-              {/* Search and Filters */}
-              <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "16px" }}>
-                <input
-                  type="text"
-                  placeholder="Search findings, words..."
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setPage(0);
-                  }}
-                  style={{
-                    border: "1px solid #e2e8f0",
-                    borderRadius: "8px",
-                    padding: "8px 12px",
-                    fontSize: "13px",
-                    minWidth: "220px",
-                  }}
-                />
-
-                {gates.length > 0 && (
-                  <select
-                    value={trail.gate}
-                    onChange={(e) => {
-                      setTrail((prev) => ({ ...prev, gate: e.target.value }));
-                      setPage(0);
-                    }}
-                    style={{
-                      border: "1px solid #e2e8f0",
-                      borderRadius: "8px",
-                      padding: "8px 12px",
-                      fontSize: "13px",
-                      backgroundColor: "#fff",
-                    }}
-                  >
-                    <option value="all">All Gates ({trail.findings.length})</option>
-                    {gates.map((g) => (
-                      <option key={g} value={g}>
-                        {g}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-
-              {/* Findings Content Table */}
-              <div className="table-wrapper" style={{ marginTop: 0 }}>
-                <table className="content-table">
-                  <thead>
-                    <tr>
-                      <th className="table-header" style={{ width: "70px" }}>#</th>
-                      <th className="table-header" style={{ width: "160px" }}>Rule / Gate</th>
-                      <th className="table-header">Original / Context</th>
-                      <th className="table-header">Correction / Finding</th>
-                      <th className="table-header" style={{ width: "180px" }}>Review Actions / Details</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {currentPageItems.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="table-cell" style={{ textAlign: "center", padding: "24px" }}>
-                          {trail.findings.length === 0 ? "No findings recorded in this trail." : "No matching items found."}
-                        </td>
-                      </tr>
-                    ) : (
-                      currentPageItems.map((item, idx) => {
-                        const rowKey = `${page}-${idx}`;
-                        const isExpanded = !!expandedRows[rowKey];
-                        const gateName = item.gate || (item.applied ? "auto_applied" : "queued");
-
-                        return (
-                          <React.Fragment key={rowKey}>
-                            <tr>
-                              <td className="table-cell" style={{ textAlign: "center", color: "#64748b" }}>
-                                {page * pageSize + idx + 1}
-                              </td>
-
-                              <td className="table-cell" style={{ textAlign: "left" }}>
-                                <div style={{ fontWeight: 600 }}>{item.rule || item.type || "Finding"}</div>
-                                <span
-                                  className={`gate-badge ${
-                                    gateName === "auto_applied"
-                                      ? "gate-badge-auto"
-                                      : gateName === "rejected" || gateName === "blocked"
-                                      ? "gate-badge-rejected"
-                                      : "gate-badge-queued"
-                                  }`}
-                                  style={{ marginTop: "4px" }}
-                                >
-                                  {gateName}
-                                </span>
-                              </td>
-
-                              <td className="table-cell" style={{ textAlign: "left", whiteSpace: "normal" }}>
-                                <code>{item.original || item.text || item.src || "(none)"}</code>
-                              </td>
-
-                              <td className="table-cell" style={{ textAlign: "left", whiteSpace: "normal" }}>
-                                <div>{item.replacement || item.reason || item.alt_text || "—"}</div>
-                              </td>
-
-                              <td className="table-cell" style={{ textAlign: "center" }}>
-                                <div style={{ display: "flex", gap: "6px", justifyContent: "center", alignItems: "center", flexWrap: "wrap" }}>
-                                  {appliedFindings[rowKey] ? (
-                                    <span className="gate-badge gate-badge-auto" style={{ fontSize: "11px", padding: "2px 6px" }}>
-                                      ✓ Applied
-                                    </span>
-                                  ) : dismissedFindings[rowKey] ? (
-                                    <span style={{ fontSize: "11px", color: "#64748b", padding: "2px 6px" }}>
-                                      Dismissed
-                                    </span>
-                                  ) : (
-                                    <>
-                                      {item.original && item.replacement !== undefined && (
-                                        <button
-                                          type="button"
-                                          className="primary-button"
-                                          style={{ padding: "3px 8px", fontSize: "11px" }}
-                                          onClick={() => handleApplyFinding(item, rowKey)}
-                                          title="Apply AI suggestion directly to draft markdown"
-                                        >
-                                          Apply fix
-                                        </button>
-                                      )}
-                                      <button
-                                        type="button"
-                                        className="action-ghost-button"
-                                        style={{ padding: "3px 8px", fontSize: "11px" }}
-                                        onClick={() => handleDismissFinding(rowKey)}
-                                        title="Dismiss finding"
-                                      >
-                                        Dismiss
-                                      </button>
-                                    </>
-                                  )}
-                                  <button
-                                    type="button"
-                                    className="action-ghost-button"
-                                    style={{ padding: "3px 8px", fontSize: "11px" }}
-                                    onClick={() => toggleRowExpand(rowKey)}
-                                  >
-                                    {isExpanded ? "Hide" : "Inspect"}
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-
-                            {isExpanded && (
-                              <tr>
-                                <td colSpan={5} style={{ padding: 0 }}>
-                                  <div className="finding-drawer">
-                                    {item.context_before && (
-                                      <div style={{ marginBottom: "8px" }}>
-                                        <div className="finding-drawer-label">Context Before:</div>
-                                        <div className="finding-code-block">{item.context_before}</div>
-                                      </div>
-                                    )}
-                                    {item.context_after && (
-                                      <div style={{ marginBottom: "8px" }}>
-                                        <div className="finding-drawer-label">Context After:</div>
-                                        <div className="finding-code-block">{item.context_after}</div>
-                                      </div>
-                                    )}
-                                    <div>
-                                      <div className="finding-drawer-label">Complete Metadata:</div>
-                                      <div className="finding-code-block">{JSON.stringify(item, null, 2)}</div>
-                                    </div>
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                          </React.Fragment>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* SEEDS Standard Pagination */}
-              <Pagination current={page} total={totalPages} onChange={(p) => setPage(p)} />
-            </div>
-          </>
+          </div>
         )}
       </div>
     </div>

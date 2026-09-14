@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useContent } from "../hooks/useContent";
 import { useContentAggregatorSync } from "../hooks/useContentAggregatorSync";
@@ -19,7 +19,8 @@ import "./AllContent/AllContent.css";
 import "./AllContent/shared/responsive.css";
 
 const AllContent = () => {
-  const [activeTab, setActiveTab] = useState("content");
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "content");
   const [updateIVRStatus, setUpdateIVRStatus] = useState("");
   const [isUpdatingIVR, setIsUpdatingIVR] = useState(false);
   const [currentUser, setCurrentUser] = useState("User");
@@ -149,11 +150,12 @@ const AllContent = () => {
           showContent={canViewContent}
           showRegistration={canViewRegistration}
           showAnalytics={canViewAnalytics}
+          showRemediation={canViewContent}
         />
 
         {updateIVRStatus && <div className="status-message">{updateIVRStatus}</div>}
 
-        {canViewContent && activeTab !== "registration" && activeTab !== "analytics" && (
+        {canViewContent && (activeTab === "content" || activeTab === "ivr") && (
           <div className="tabs-container">
             <button
               type="button"
@@ -168,13 +170,6 @@ const AllContent = () => {
               onClick={() => setActiveTab("ivr")}
             >
               IVR Setup
-            </button>
-            <button
-              type="button"
-              className={`tab-button ${activeTab === "remediation" ? "active" : ""}`}
-              onClick={() => setActiveTab("remediation")}
-            >
-              Textbooks
             </button>
           </div>
         )}

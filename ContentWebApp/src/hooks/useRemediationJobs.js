@@ -79,5 +79,17 @@ export const useRemediationJobs = () => {
     [follow, upsert]
   );
 
-  return { jobs, isLoading, isUploading, error, upload, reload: load };
+  const remove = useCallback(async (jobId) => {
+    setError(null);
+    try {
+      await textbookRemediationService.deleteJob(jobId);
+      controllersRef.current[jobId]?.abort();
+      delete controllersRef.current[jobId];
+      setJobs((previous) => previous.filter((job) => job.job_id !== jobId));
+    } catch (deleteError) {
+      setError(deleteError.message);
+    }
+  }, []);
+
+  return { jobs, isLoading, isUploading, error, upload, remove, reload: load };
 };

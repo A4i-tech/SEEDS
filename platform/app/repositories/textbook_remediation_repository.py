@@ -36,8 +36,16 @@ class TextbookRemediationRepository:
         return RemediationJob.from_doc(doc) if doc else None
 
     async def list_jobs(self, tenant_id: str, *, limit: int = 20) -> list[RemediationJob]:
-        docs = await self._col.find({"tenant_id": tenant_id}).sort("created_at", -1).to_list(length=limit)
+        docs = await self._col.find({"tenant_id": tenant_id, "deleted_at": None}).sort("created_at", -1).to_list(length=limit)
         return [RemediationJob.from_doc(d) for d in docs]
+
+    async def soft_delete(self, tenant_id: str, job_id: str) -> RemediationJob | None:
+        doc = await self._col.find_one_and_update(
+            {"_id": job_id, "tenant_id": tenant_id},
+            {"$set": {"deleted_at": datetime.now(UTC).isoformat()}},
+            return_document=ReturnDocument.AFTER,
+        )
+        return RemediationJob.from_doc(doc) if doc else None
 
     async def claim_next_pending(self) -> RemediationJob | None:
         """Atomically move one pending job to running. Not tenant-scoped: the consumer serves every tenant."""

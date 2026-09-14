@@ -36,7 +36,7 @@ export const apiFetch = async (url, options = {}) => {
 
     // Handle empty responses
     const contentType = response.headers.get("content-type");
-    if (contentType && contentType.includes("application/json")) {
+    if (response.status !== 204 && contentType && contentType.includes("application/json")) {
       return await response.json();
     }
 

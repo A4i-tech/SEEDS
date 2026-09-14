@@ -53,6 +53,7 @@ class RemediationJob:
     error: str | None = None
     created_at: str = ""
     finished_at: str | None = None
+    deleted_at: str | None = None
 
     def to_doc(self) -> dict[str, object]:
         return {
@@ -65,7 +66,7 @@ class RemediationJob:
             "verified_at": self.verified_at, "verified_by": self.verified_by,
             "title": self.title,
             "error": self.error, "created_at": self.created_at,
-            "finished_at": self.finished_at,
+            "finished_at": self.finished_at, "deleted_at": self.deleted_at,
         }
 
     @classmethod
@@ -80,6 +81,6 @@ class RemediationJob:
             verified_at=doc.get("verified_at"), verified_by=doc.get("verified_by"),
             title=doc.get("title"),
             error=doc.get("error"), created_at=doc.get("created_at", ""),
-            finished_at=doc.get("finished_at"),
+            finished_at=doc.get("finished_at"), deleted_at=doc.get("deleted_at"),
         )
 

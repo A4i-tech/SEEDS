@@ -145,9 +145,25 @@ def render_remediation(ctx: dict[str, object], out_dir: Path) -> dict[str, objec
                         findings_records.append({"page": page_num, **corr})
 
     raw_pages.sort(key=lambda p: p[0])
-    raw_body = "\n\n".join(
-        f"<!-- page {p} -->\n\n{text.strip()}" for p, text in raw_pages if text.strip()
-    )
+    raw_used_figures: set[str] = set()
+    raw_blocks: list[str] = []
+
+    def emit_raw_figure(fid: str, fig: dict[str, object]) -> None:
+        if fid in raw_used_figures or fig.get("kind") == "decorative":
+            return
+        raw_used_figures.add(fid)
+        alt = str(fig.get("alt_text") or "").strip()
+        raw_blocks.append(f"![{alt}]({fig['src']})")
+
+    for page_num, text in raw_pages:
+        if text.strip():
+            raw_blocks.append(f"<!-- page {page_num} -->\n\n{text.strip()}")
+        for fid, fig in figures.items():
+            if fig["page"] == page_num:
+                emit_raw_figure(fid, fig)
+    for fid, fig in figures.items():
+        emit_raw_figure(fid, fig)
+    raw_body = "\n\n".join(raw_blocks)
     (out_dir / "raw.md").write_text(raw_body + "\n", encoding="utf-8")
 
     md_blocks: list[str] = []

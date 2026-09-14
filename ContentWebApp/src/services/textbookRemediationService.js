@@ -96,4 +96,11 @@ export const textbookRemediationService = {
       headers: getAuthHeaders(),
     });
   },
+
+  async deleteJob(jobId) {
+    return apiFetch(`${BASE}/jobs/${encodeURIComponent(jobId)}`, {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+    });
+  },
 };

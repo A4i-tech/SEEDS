@@ -1,23 +1,31 @@
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useRemediationJobs } from "../../../hooks/useRemediationJobs";
 import { textbookRemediationService } from "../../../services/textbookRemediationService";
 import MiddleEllipsis from "../shared/MiddleEllipsis";
+import RowActions from "../shared/RowActions";
 import { StageProgress } from "./StageProgress";
+import { SyncAllProgress } from "../shared/SyncAllProgress";
 import "../shared/cards.css";
 import "../shared/buttons.css";
 import "../shared/tables.css";
-import "./css/RemediationTab.css";
 
 const RemediationTab = () => {
   const navigate = useNavigate();
-  const { jobs, isLoading, isUploading, error, upload } = useRemediationJobs();
+  const { jobs, isLoading, isUploading, error, upload, remove } = useRemediationJobs();
   const fileRef = useRef(null);
+  const [selectedFile, setSelectedFile] = useState(null);
 
-  const handleFile = async (event) => {
+  const handleFile = (event) => {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (file) await upload(file, "auto");
+    if (file) setSelectedFile(file);
+  };
+
+  const handleUpload = async () => {
+    if (!selectedFile) return;
+    await upload(selectedFile, "auto");
+    setSelectedFile(null);
   };
 
   return (
@@ -29,22 +37,34 @@ const RemediationTab = () => {
             PDF to an accessible Word document: OCR, then a reviewed Markdown, then the .docx
           </div>
         </div>
-        <div className="remediation-upload">
-          <input
-            ref={fileRef}
-            type="file"
-            accept="application/pdf"
-            onChange={handleFile}
-            className="remediation-file-input"
-          />
+      </div>
+
+      <div className="registration-card" style={{ alignItems: "center", marginBottom: "16px" }}>
+        <div className="registration-title" style={{ textAlign: "center", textTransform: "uppercase" }}>
+          Upload Textbook
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", justifyContent: "center" }}>
+          <span style={{ fontWeight: 600 }}>
+            Textbook PDF <span style={{ color: "#dc2626" }}>*</span>
+          </span>
+          <input ref={fileRef} type="file" accept="application/pdf" onChange={handleFile} style={{ display: "none" }} />
+          <button type="button" className="action-ghost-button" onClick={() => fileRef.current && fileRef.current.click()}>
+            Choose PDF File
+          </button>
+          {selectedFile && <span className="table-cell-secondary">{selectedFile.name}</span>}
           <button
             type="button"
             className="primary-button"
-            disabled={isUploading}
-            onClick={() => fileRef.current && fileRef.current.click()}
+            disabled={!selectedFile || isUploading}
+            onClick={handleUpload}
           >
             {isUploading ? "Uploading…" : "Upload textbook"}
           </button>
+          <SyncAllProgress
+            syncingAll={isUploading}
+            syncAllProgress={isUploading ? {} : null}
+            indeterminateLabel="Uploading textbook…"
+          />
         </div>
       </div>
 
@@ -62,19 +82,14 @@ const RemediationTab = () => {
                 <th className="table-header">Status</th>
                 <th className="table-header">Stage</th>
                 <th className="table-header">Artifacts</th>
+                <th className="table-header">Actions</th>
               </tr>
             </thead>
             <tbody>
               {jobs.map((job) => (
                 <tr key={job.job_id}>
                   <td className="table-cell table-cell-truncate">
-                    <button
-                      type="button"
-                      className="remediation-link"
-                      onClick={() => navigate(`/content/remediation/${job.job_id}`)}
-                    >
-                      <MiddleEllipsis text={job.source_name} />
-                    </button>
+                    <MiddleEllipsis text={job.source_name} />
                   </td>
                   <td className="table-cell">
                     {job.detected_language ? (
@@ -100,7 +115,7 @@ const RemediationTab = () => {
                     {job.artifacts.docx ? (
                       <button
                         type="button"
-                        className="secondary-button"
+                        className="remediation-link"
                         onClick={() =>
                           textbookRemediationService.downloadArtifact(
                             job.job_id,
@@ -114,6 +129,21 @@ const RemediationTab = () => {
                     ) : (
                       <span className="table-cell-secondary">—</span>
                     )}
+                  </td>
+                  <td className="table-cell">
+                    <RowActions
+                      actions={[
+                        { key: "edit", label: "Edit", variant: "edit", onClick: () => navigate(`/content/remediation/${job.job_id}`) },
+                        {
+                          key: "delete",
+                          label: "Delete",
+                          variant: "delete",
+                          onClick: () => {
+                            if (window.confirm(`Delete "${job.source_name}"?`)) remove(job.job_id);
+                          },
+                        },
+                      ]}
+                    />
                   </td>
                 </tr>
               ))}

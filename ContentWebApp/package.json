@@ -41,6 +41,7 @@
     "reactflow": "^11.11.3",
     "recharts": "^2.10.0",
     "rehype-katex": "^7.0.1",
+    "rehype-raw": "^7.0.0",
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
     "swagger-jsdoc": "^6.2.8",

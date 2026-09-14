@@ -110,6 +110,16 @@ async def list_remediation_jobs(
     return {"jobs": [serialize_job(job) for job in jobs]}
 
 
+@router.delete("/jobs/{job_id}", status_code=204, summary="Soft-delete a remediation job")
+async def delete_remediation_job(
+    job_id: str,
+    user: dict[str, object] = Depends(require_remediation_access),
+    repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
+) -> None:
+    await _get_job(repo, str(user.get("tenant_id", "")), job_id)
+    await repo.soft_delete(str(user.get("tenant_id", "")), job_id)
+
+
 @router.get("/jobs/{job_id}", summary="Get a remediation job's status and artifacts")
 async def get_remediation_job(
     job_id: str,
