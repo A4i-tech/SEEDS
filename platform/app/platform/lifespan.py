@@ -187,10 +187,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # ------------------------------------------------------------------
     await init_database()
 
-    reconciled = await ContentAggregatorSyncJobRepository(get_database()).reconcile_interrupted_jobs()
-    if reconciled:
-        logger.info("Reconciled %d interrupted content aggregator sync jobs", reconciled)
-
     from app.repositories.language_repository import LanguageRepository  # noqa: PLC0415
     from app.repositories.translation_audit_repository import (  # noqa: PLC0415
         TranslationAuditRepository,
@@ -212,6 +208,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     consumer_tasks: list[asyncio.Task] = []  # type: ignore[type-arg]
     if settings.app_mode in ("consumer", "all"):
+        reconciled = await ContentAggregatorSyncJobRepository(get_database()).reconcile_interrupted_jobs()
+        if reconciled:
+            logger.info("Reconciled %d interrupted content aggregator sync jobs", reconciled)
         try:
             consumer_tasks = _make_consumer_tasks(conf_mgr)
         except Exception as exc:  # noqa: BLE001

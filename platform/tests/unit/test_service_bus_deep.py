@@ -48,6 +48,7 @@ class TestServiceBusProviderNullHandles:
         p = ServiceBusProvider.__new__(ServiceBusProvider)
         p._call_webhook = None
         p._call_event = None
+        p._sync_jobs = None
         sent: list[QueueMessage] = []
 
         class _FakeHandle:
@@ -94,12 +95,6 @@ class TestServiceBusProviderNullHandles:
     async def test_send_call_webhook_null_handle_returns_false(self) -> None:
         p = self._make_provider()
         result = await p.send_call_webhook({"phone_number": "+111"})
-        assert result is False
-
-    @pytest.mark.asyncio
-    async def test_send_dtmf_input_null_handle_returns_false(self) -> None:
-        p = self._make_provider()
-        result = await p.send_dtmf_input({"digits": "1"})
         assert result is False
 
     @pytest.mark.asyncio

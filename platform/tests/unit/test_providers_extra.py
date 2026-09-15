@@ -95,6 +95,7 @@ class TestServiceBusProvider:
         svc._call_webhook = None
         svc._call_event = None
         svc._dtmf_input = None
+        svc._sync_jobs = None
         svc._initialized = True
 
         result = svc._get_handle("nonexistent_queue")
