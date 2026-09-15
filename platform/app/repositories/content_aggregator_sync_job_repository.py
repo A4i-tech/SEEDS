@@ -14,6 +14,9 @@ from pymongo.asynchronous.database import AsyncDatabase
 
 from app.aggregators.sync_job_models import SyncJob
 from app.platform.auth.dependencies import get_db
+from app.repositories.content_aggregator_sync_job_item_repository import (
+    ContentAggregatorSyncJobItemRepository,
+)
 
 
 class ContentAggregatorSyncJobRepository:
@@ -21,6 +24,7 @@ class ContentAggregatorSyncJobRepository:
     MAX_INTERRUPTED_RETRIES: ClassVar[int] = 3
 
     def __init__(self, db: AsyncDatabase) -> None:
+        self._db = db
         self._col = db[self.COLLECTION_NAME]
 
     async def create_job(
@@ -32,8 +36,9 @@ class ContentAggregatorSyncJobRepository:
         scope: str,
         source_id: str | None,
         total_items: int,
-        options: dict[str, object] = {},  # noqa: B006
+        options: dict[str, object] | None = None,
     ) -> SyncJob:
+        options = options or {}
         job = SyncJob(
             job_id=job_id, tenant_id=tenant_id, source_type=source_type, scope=scope, source_id=source_id,
             status="pending", created_at=datetime.now(UTC).isoformat(), started_at=None, finished_at=None,
@@ -59,10 +64,15 @@ class ContentAggregatorSyncJobRepository:
         )
         return SyncJob.from_doc(doc) if doc else None
 
-    async def set_job_status(self, tenant_id: str, job_id: str, status: str, *, error: str | None = None) -> SyncJob | None:
+    async def set_job_status(
+        self, tenant_id: str, job_id: str, status: str, *, error: str | None = None, finished_total: int | None = None
+    ) -> SyncJob | None:
         doc = await self._col.find_one_and_update(
             {"_id": job_id, "tenant_id": tenant_id},
-            {"$set": {"status": status, "finished_at": datetime.now(UTC).isoformat(), "error": error}},
+            {"$set": {
+                "status": status, "finished_at": datetime.now(UTC).isoformat(), "error": error,
+                "finished_total": finished_total,
+            }},
             return_document=ReturnDocument.AFTER,
         )
         return SyncJob.from_doc(doc) if doc else None
@@ -106,6 +116,7 @@ class ContentAggregatorSyncJobRepository:
 
         now = datetime.now(UTC).isoformat()
         ops: list[UpdateOne] = []
+        requeued_job_ids: list[str] = []
         for doc in interrupted:
             new_retry_count = doc.get("retry_count", 0) + 1
             if new_retry_count <= self.MAX_INTERRUPTED_RETRIES:
@@ -117,6 +128,7 @@ class ContentAggregatorSyncJobRepository:
                         "error": None,
                     }
                 }
+                requeued_job_ids.append(doc["_id"])
             else:
                 update = {
                     "$set": {
@@ -127,6 +139,10 @@ class ContentAggregatorSyncJobRepository:
                     }
                 }
             ops.append(UpdateOne({"_id": doc["_id"]}, update))
+
+        if requeued_job_ids:
+            item_col = self._db[ContentAggregatorSyncJobItemRepository.COLLECTION_NAME]
+            await item_col.delete_many({"job_id": {"$in": requeued_job_ids}})
 
         result = await self._col.bulk_write(ops)
         return result.modified_count

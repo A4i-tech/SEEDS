@@ -85,28 +85,27 @@ def item_repo(mock_db):
 
 
 @pytest.fixture
-def mock_subodha_service(mock_db):
-    return SubodhaService(mock_db, blob=FakeBlobStorageProvider())
-
-
-@pytest.fixture
 def mock_subodha_client():
     return FakeSubodhaClient([_course("c1", "Course One")])
 
 
+@pytest.fixture
+def mock_subodha_service(mock_db, mock_subodha_client):
+    return SubodhaService(mock_db, blob=FakeBlobStorageProvider(), client=mock_subodha_client)
+
+
 @pytest.mark.asyncio
 async def test_full_sync_job_lifecycle_through_consumer(
-    job_repo, item_repo, mock_db, mock_subodha_service, mock_subodha_client, monkeypatch,
+    job_repo, item_repo, mock_db, mock_subodha_service,
 ):
     job = await jobs.create_job(
         job_repo, tenant_id="t1", source_type="subodha", scope="all", source_id=None, total_items=0,
     )
     assert job.status == "pending"
 
-    monkeypatch.setattr("app.consumers.sync_job_consumer.get_subodha_client", lambda: mock_subodha_client)
-    monkeypatch.setattr("app.consumers.sync_job_consumer.get_subodha_service", lambda db: mock_subodha_service)
-
-    consumer = SyncJobConsumer(job_repo=job_repo, item_repo=item_repo, db=mock_db, poll_interval_seconds=0.01)
+    consumer = SyncJobConsumer(
+        job_repo=job_repo, item_repo=item_repo, db=mock_db, poll_interval_seconds=0.01, service=mock_subodha_service,
+    )
     consumer._running = True
     consumer_task = asyncio.create_task(consumer._run_loop())
 

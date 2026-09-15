@@ -60,6 +60,7 @@ class SyncJob:
     error: str | None
     options: dict[str, object]
     retry_count: int = 0
+    finished_total: int | None = None
 
     def to_doc(self) -> dict[str, object]:
         return {
@@ -67,7 +68,7 @@ class SyncJob:
             "source_id": self.source_id, "status": self.status, "created_at": self.created_at,
             "started_at": self.started_at, "finished_at": self.finished_at,
             "total_items": self.total_items, "error": self.error, "options": self.options,
-            "retry_count": self.retry_count,
+            "retry_count": self.retry_count, "finished_total": self.finished_total,
         }
 
     @classmethod
@@ -77,5 +78,5 @@ class SyncJob:
             source_id=doc["source_id"], status=doc["status"], created_at=doc["created_at"],
             started_at=doc.get("started_at"), finished_at=doc["finished_at"],
             total_items=doc["total_items"], error=doc["error"], options=doc.get("options") or {},
-            retry_count=doc.get("retry_count", 0),
+            retry_count=doc.get("retry_count", 0), finished_total=doc.get("finished_total"),
         )

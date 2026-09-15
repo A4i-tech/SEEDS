@@ -21,7 +21,7 @@ from app.aggregators.sync_job_models import SyncItemResult, SyncStats
 from app.platform.auth.dependencies import get_db
 from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider
-from app.providers.subodha_client import SubodhaClient, SubodhaCourse
+from app.providers.subodha_client import SubodhaClient, SubodhaCourse, get_subodha_client
 from app.repositories.content_aggregator_item_override_repository import (
     ContentAggregatorItemOverrideRepository,
 )
@@ -98,10 +98,13 @@ async def fetch_and_store_assets(
 class SubodhaService:
     SOURCE_TYPE = "subodha"
 
-    def __init__(self, db: AsyncDatabase, blob: BlobStorageProvider | None = None) -> None:
+    def __init__(
+        self, db: AsyncDatabase, blob: BlobStorageProvider | None = None, client: SubodhaClient | None = None
+    ) -> None:
         self._repo = ContentAggregatorRepository(db)
         self._override_repo = ContentAggregatorItemOverrideRepository(db)
         self._blob = blob if blob is not None else BlobStorageProvider()
+        self._client = client if client is not None else get_subodha_client()
         self._settings = get_settings()
         self._adapter = SubodhaAdapter()
 
@@ -115,9 +118,12 @@ class SubodhaService:
         await self._override_repo.upsert(tenant_id, self.SOURCE_TYPE, block_id, question, choices)
         return 1
 
-    async def get_course_diff(self, tenant_id: str, client: SubodhaClient) -> CourseDiffResult:
+    async def list_live_courses(self) -> list[SubodhaCourse]:
+        return await self._client.list_all_courses()
+
+    async def get_course_diff(self, tenant_id: str) -> CourseDiffResult:
         live_courses, stored_ids = await asyncio.gather(
-            client.list_all_courses(), self._repo.stored_root_ids(tenant_id, self.SOURCE_TYPE)
+            self._client.list_all_courses(), self._repo.stored_root_ids(tenant_id, self.SOURCE_TYPE)
         )
         live_ids = {c["id"] for c in live_courses}
         new_courses = [c for c in live_courses if c["id"] not in stored_ids]
@@ -185,19 +191,19 @@ class SubodhaService:
         return factory
 
     async def process_course(
-        self, tenant_id: str, client: SubodhaClient, course: SubodhaCourse, session_cookie: str, run_id: str, dry_run: bool
+        self, tenant_id: str, course: SubodhaCourse, session_cookie: str, run_id: str, dry_run: bool
     ) -> dict[str, Any]:
         course_id = course["id"]
         logger.info("[subodha-process] course=%s start dry_run=%s", course_id, dry_run)
         try:
-            blocks_response = await client.fetch_blocks(course_id, session_cookie)
+            blocks_response = await self._client.fetch_blocks(course_id, session_cookie)
 
             if self._adapter.is_empty(blocks_response):
                 logger.info("[subodha-process] course=%s empty", course_id)
                 return {"status": "empty", "courseId": course_id}
 
-            await client.enrich_blocks_with_content(blocks_response, session_cookie)
-            url_map = {} if dry_run else await fetch_and_store_assets(client, course_id, blocks_response, session_cookie)
+            await self._client.enrich_blocks_with_content(blocks_response, session_cookie)
+            url_map = {} if dry_run else await fetch_and_store_assets(self._client, course_id, blocks_response, session_cookie)
             nodes = self._adapter.build_canonical_nodes(course, blocks_response, run_id, url_map)
             content_hash = self._adapter.compute_content_hash(nodes)
 
@@ -224,7 +230,6 @@ class SubodhaService:
     async def run_sync(
         self,
         tenant_id: str,
-        client: SubodhaClient,
         job_repo: ContentAggregatorSyncJobRepository,
         item_repo: ContentAggregatorSyncJobItemRepository,
         job_id: str,
@@ -237,7 +242,7 @@ class SubodhaService:
         started_at = datetime.now(UTC).isoformat()
         logger.info("[subodha] run %s started (dryRun=%s)", job_id, dry_run)
 
-        session_cookie = await client.get_session()
+        session_cookie = await self._client.get_session()
         logger.info("[subodha] run %s session acquired", job_id)
         to_process = all_courses
         if course_ids is not None:
@@ -261,15 +266,15 @@ class SubodhaService:
                     needs_refresh = processed_count and processed_count % self._settings.subodha_session_refresh_every == 0
                 if needs_refresh:
                     logger.info("[subodha] refreshing session at processed_count=%d", processed_count)
-                    client.clear_session_cache()
-                    new_cookie = await client.get_session()
+                    self._client.clear_session_cache()
+                    new_cookie = await self._client.get_session()
                     async with lock:
                         session_box["cookie"] = new_cookie
 
                 async with lock:
                     cookie = session_box["cookie"]
 
-                result = await self.process_course(tenant_id, client, course, cookie, job_id, dry_run)
+                result = await self.process_course(tenant_id, course, cookie, job_id, dry_run)
                 entry = SyncItemResult(
                     source_id=result["courseId"], name=course.get("name") or "", status=result["status"],
                     error=result.get("error"), at=datetime.now(UTC).isoformat(),
@@ -307,7 +312,6 @@ class SubodhaService:
     async def run_single_course_sync(
         self,
         tenant_id: str,
-        client: SubodhaClient,
         job_repo: ContentAggregatorSyncJobRepository,
         item_repo: ContentAggregatorSyncJobItemRepository,
         job_id: str,
@@ -318,15 +322,15 @@ class SubodhaService:
         started_at = datetime.now(UTC).isoformat()
         logger.info("[subodha] single-course run %s started course=%s dry_run=%s", job_id, course_id, dry_run)
 
-        session_cookie = await client.get_session()
-        all_courses = await client.list_all_courses()
+        session_cookie = await self._client.get_session()
+        all_courses = await self._client.list_all_courses()
         course = next((c for c in all_courses if c["id"] == course_id), None)
         if course is None:
             logger.error("[subodha] single-course run %s: course=%s not found among %d live courses", job_id, course_id, len(all_courses))
             raise ValueError(f"Course not found on Subodha: {course_id}")
 
         await set_total(job_repo, tenant_id, job_id, 1)
-        result = await self.process_course(tenant_id, client, course, session_cookie, job_id, dry_run)
+        result = await self.process_course(tenant_id, course, session_cookie, job_id, dry_run)
         entry = SyncItemResult(
             source_id=result["courseId"], name=course.get("name") or "", status=result["status"],
             error=result.get("error"), at=datetime.now(UTC).isoformat(),

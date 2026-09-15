@@ -23,39 +23,14 @@ async def test_run_loop_claims_and_stops_when_no_job_available():
 
 
 @pytest.mark.asyncio
-async def test_run_loop_marks_job_failed_when_client_construction_raises(monkeypatch):
-    from app.aggregators.sync_job_models import SyncJob
-
-    claimed_job = SyncJob(
-        job_id="job-x", tenant_id="t1", source_type="subodha", scope="all", source_id=None,
-        status="running", created_at="now", started_at="now", finished_at=None, total_items=0, error=None, options={},
-    )
-    job_repo = MagicMock()
-    job_repo.claim_next_pending = AsyncMock(side_effect=[claimed_job, None])
-    item_repo = MagicMock()
-
-    finish_job_mock = AsyncMock()
-    monkeypatch.setattr("app.consumers.sync_job_consumer.finish_job", finish_job_mock)
-
+async def test_consumer_construction_raises_when_client_construction_raises(monkeypatch):
     def _boom():
         raise RuntimeError("tenant Subodha creds missing")
 
-    monkeypatch.setattr("app.consumers.sync_job_consumer.get_subodha_client", _boom)
+    monkeypatch.setattr("app.services.subodha_service.get_subodha_client", _boom)
 
-    consumer = SyncJobConsumer(job_repo=job_repo, item_repo=item_repo, db=MagicMock(), poll_interval_seconds=0)
-    consumer._running = True
-    tick_count = 0
-
-    async def _one_tick(*_):
-        nonlocal tick_count
-        tick_count += 1
-        if tick_count >= 1:
-            consumer._running = False
-
-    consumer._sleep = AsyncMock(side_effect=_one_tick)
-    await consumer._run_loop()
-
-    finish_job_mock.assert_awaited_once_with(job_repo, "t1", "job-x", "failed", error="tenant Subodha creds missing")
+    with pytest.raises(RuntimeError, match="tenant Subodha creds missing"):
+        SyncJobConsumer(job_repo=MagicMock(), item_repo=MagicMock(), db=MagicMock(), poll_interval_seconds=0)
 
 
 @pytest.mark.asyncio
@@ -70,9 +45,6 @@ async def test_run_loop_dispatches_scope_all_job_with_options(monkeypatch):
     job_repo = MagicMock()
     job_repo.claim_next_pending = AsyncMock(side_effect=[claimed_job, None])
     item_repo = MagicMock()
-
-    monkeypatch.setattr("app.consumers.sync_job_consumer.get_subodha_client", lambda: MagicMock())
-    monkeypatch.setattr("app.consumers.sync_job_consumer.get_subodha_service", lambda db: MagicMock())
 
     run_sync_job_mock = AsyncMock()
     monkeypatch.setattr("app.consumers.sync_job_consumer._run_sync_job", run_sync_job_mock)
@@ -98,9 +70,6 @@ async def test_run_loop_dispatches_scope_course_job(monkeypatch):
     job_repo = MagicMock()
     job_repo.claim_next_pending = AsyncMock(side_effect=[claimed_job, None])
     item_repo = MagicMock()
-
-    monkeypatch.setattr("app.consumers.sync_job_consumer.get_subodha_client", lambda: MagicMock())
-    monkeypatch.setattr("app.consumers.sync_job_consumer.get_subodha_service", lambda db: MagicMock())
 
     run_course_sync_job_mock = AsyncMock()
     monkeypatch.setattr("app.consumers.sync_job_consumer._run_course_sync_job", run_course_sync_job_mock)

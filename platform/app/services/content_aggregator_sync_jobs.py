@@ -14,9 +14,11 @@ from app.repositories.content_aggregator_sync_job_repository import (
 
 _subscribers: dict[str, list[asyncio.Queue]] = {}
 POLL_INTERVAL_SECONDS = 1.0
+TERMINAL_STATUSES = {"completed", "failed"}
 
 
 def serialize_job(job: SyncJob, stats: SyncStats) -> dict[str, object]:
+    processed = job.finished_total if job.status in TERMINAL_STATUSES and job.finished_total is not None else stats.total()
     return {
         "job_id": job.job_id,
         "scope": job.scope,
@@ -25,7 +27,7 @@ def serialize_job(job: SyncJob, stats: SyncStats) -> dict[str, object]:
         "started_at": job.started_at,
         "finished_at": job.finished_at,
         "total_courses": job.total_items,
-        "processed": stats.total(),
+        "processed": processed,
         "stats": stats.to_doc(),
         "error": job.error,
     }
@@ -39,12 +41,12 @@ async def create_job(
     scope: str,
     source_id: str | None,
     total_items: int,
-    options: dict[str, object] = {},  # noqa: B006
+    options: dict[str, object] | None = None,
 ) -> SyncJob:
     job_id = str(uuid.uuid4())
     return await repo.create_job(
         job_id, tenant_id=tenant_id, source_type=source_type, scope=scope, source_id=source_id,
-        total_items=total_items, options=options,
+        total_items=total_items, options=options or {},
     )
 
 
@@ -68,13 +70,15 @@ async def record_item_result(
 
 async def finish_job(
     job_repo: ContentAggregatorSyncJobRepository,
+    item_repo: ContentAggregatorSyncJobItemRepository,
     tenant_id: str,
     job_id: str,
     status: str,
     *,
     error: str | None = None,
 ) -> None:
-    await job_repo.set_job_status(tenant_id, job_id, status, error=error)
+    stats = await item_repo.get_stats(tenant_id, job_id)
+    await job_repo.set_job_status(tenant_id, job_id, status, error=error, finished_total=stats.total())
 
 
 async def subscribe(
@@ -87,7 +91,7 @@ async def subscribe(
     if current is None:
         return
     stats = await item_repo.get_stats(tenant_id, job_id)
-    if current.status != "running":
+    if current.status in TERMINAL_STATUSES:
         yield {"event": "done", "job": serialize_job(current, stats)}
         return
     yield {"event": "progress", "job": serialize_job(current, stats)}
@@ -99,7 +103,7 @@ async def subscribe(
         if current is None:
             return
         stats = await item_repo.get_stats(tenant_id, job_id)
-        if current.status != "running":
+        if current.status in TERMINAL_STATUSES:
             yield {"event": "done", "job": serialize_job(current, stats)}
             return
         if stats.total() != last_processed:

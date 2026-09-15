@@ -20,7 +20,6 @@ from app.models.user import UserRole
 from app.platform.auth.dependencies import get_current_user
 from app.platform.error_handling import ConflictError, ForbiddenError, NotFoundError
 from app.providers.service_bus import service_bus_provider
-from app.providers.subodha_client import SubodhaClient, get_subodha_client
 from app.repositories.content_aggregator_sync_job_item_repository import (
     ContentAggregatorSyncJobItemRepository,
     get_content_aggregator_sync_job_item_repo,
@@ -71,9 +70,8 @@ async def _require_aggregator_access(user: dict[str, Any] = Depends(get_current_
 async def get_diff(
     user: dict[str, Any] = Depends(_require_tenant),
     service: SubodhaService = Depends(get_subodha_service),
-    client: SubodhaClient = Depends(get_subodha_client),
 ) -> CourseDiffResult:
-    return await service.get_course_diff(user.get("tenant_id", ""), client)
+    return await service.get_course_diff(user.get("tenant_id", ""))
 
 
 @router.post("/sync", status_code=202, summary="Start a full (or new-only) course sync")
