@@ -15,9 +15,11 @@ export class ApiError extends Error {
  * @param {Object} options - Fetch options
  * @returns {Promise<any>} - Parsed JSON response
  */
-export const apiFetch = async (url, options = {}) => {
+export const apiFetch = async (url, { timeoutMs, ...options } = {}) => {
+  const controller = timeoutMs ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
   try {
-    const response = await fetch(url, options);
+    const response = await fetch(url, controller ? { ...options, signal: controller.signal } : options);
 
     if (!response.ok) {
       if (response.status === 401 || response.status === 403) {
@@ -45,7 +47,10 @@ export const apiFetch = async (url, options = {}) => {
     if (error instanceof ApiError) {
       throw error;
     }
-    throw new ApiError(error.message || "Network request failed", 0, null);
+    const message = error.name === "AbortError" ? "Request timed out" : error.message || "Network request failed";
+    throw new ApiError(message, 0, null);
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 };
 
