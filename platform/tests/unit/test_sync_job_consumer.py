@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -12,13 +13,10 @@ async def test_run_loop_claims_and_stops_when_no_job_available():
     job_repo = MagicMock()
     job_repo.claim_next_pending = AsyncMock(return_value=None)
     consumer = SyncJobConsumer(job_repo=job_repo, item_repo=MagicMock(), db=MagicMock(), poll_interval_seconds=0)
-    consumer._running = True
 
-    async def _stop(*_):
-        consumer._running = False
-
-    consumer._sleep = AsyncMock(side_effect=_stop)
-    await consumer._run_loop()
+    consumer._sleep = AsyncMock(side_effect=asyncio.CancelledError)
+    with pytest.raises(asyncio.CancelledError):
+        await consumer._run_loop()
     job_repo.claim_next_pending.assert_awaited_with("subodha")
 
 
@@ -50,9 +48,9 @@ async def test_run_loop_dispatches_scope_all_job_with_options(monkeypatch):
     monkeypatch.setattr("app.consumers.sync_job_consumer._run_sync_job", run_sync_job_mock)
 
     consumer = SyncJobConsumer(job_repo=job_repo, item_repo=item_repo, db=MagicMock(), poll_interval_seconds=0)
-    consumer._running = True
-    consumer._sleep = AsyncMock(side_effect=lambda *_: setattr(consumer, "_running", False))
-    await consumer._run_loop()
+    consumer._sleep = AsyncMock(side_effect=asyncio.CancelledError)
+    with pytest.raises(asyncio.CancelledError):
+        await consumer._run_loop()
 
     _, kwargs = run_sync_job_mock.call_args
     assert kwargs == {"only_new": True, "dry_run": True, "limit": 5}
@@ -75,9 +73,9 @@ async def test_run_loop_dispatches_scope_course_job(monkeypatch):
     monkeypatch.setattr("app.consumers.sync_job_consumer._run_course_sync_job", run_course_sync_job_mock)
 
     consumer = SyncJobConsumer(job_repo=job_repo, item_repo=item_repo, db=MagicMock(), poll_interval_seconds=0)
-    consumer._running = True
-    consumer._sleep = AsyncMock(side_effect=lambda *_: setattr(consumer, "_running", False))
-    await consumer._run_loop()
+    consumer._sleep = AsyncMock(side_effect=asyncio.CancelledError)
+    with pytest.raises(asyncio.CancelledError):
+        await consumer._run_loop()
 
     args, kwargs = run_course_sync_job_mock.call_args
     assert args[-1] == "course-1"

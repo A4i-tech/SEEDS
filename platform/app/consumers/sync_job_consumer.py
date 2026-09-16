@@ -9,6 +9,7 @@ import logging
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.aggregators.sync_job_models import SyncJob
+from app.consumers.base_consumer import BaseConsumer
 from app.providers.service_bus import service_bus_provider
 from app.repositories.content_aggregator_sync_job_item_repository import (
     ContentAggregatorSyncJobItemRepository,
@@ -71,7 +72,7 @@ async def _run_course_sync_job(
         await finish_job(job_repo, item_repo, tenant_id, job_id, "failed", error=str(exc))
 
 
-class SyncJobConsumer:
+class SyncJobConsumer(BaseConsumer):
     name = "sync_job_consumer"
 
     def __init__(
@@ -87,7 +88,6 @@ class SyncJobConsumer:
         self._db = db
         self._service = service if service is not None else SubodhaService(db)
         self._poll_interval_seconds = poll_interval_seconds
-        self._running = False
 
     async def _sleep(self, seconds: float) -> None:
         await asyncio.sleep(seconds)
@@ -113,44 +113,29 @@ class SyncJobConsumer:
             logger.warning("sync_job_consumer: wake-up receive failed (%s) — falling back to sleep", exc)
             await self._sleep(self._poll_interval_seconds)
 
-    async def run(self) -> None:
-        self._running = True
-        logger.info("SyncJobConsumer: started")
-        try:
-            await self._run_loop()
-        except asyncio.CancelledError:
-            logger.info("SyncJobConsumer: cancelled")
-        finally:
-            self._running = False
-
-    def stop(self) -> None:
-        self._running = False
-
     async def _run_loop(self) -> None:
-        while self._running:
-            try:
-                job: SyncJob | None = await self._job_repo.claim_next_pending(SOURCE_TYPE)
-                if job is None:
-                    await self._wait_for_next_poll()
-                    continue
-                try:
-                    if job.scope == "all":
-                        await _run_sync_job(
-                            job.tenant_id, job.job_id, self._service, self._job_repo, self._item_repo,
-                            only_new=bool(job.options.get("only_new", False)),
-                            dry_run=bool(job.options.get("dry_run", False)),
-                            limit=job.options.get("limit"),
-                        )
-                    else:
-                        await _run_course_sync_job(
-                            job.tenant_id, job.job_id, self._service, self._job_repo, self._item_repo,
-                            job.source_id, dry_run=bool(job.options.get("dry_run", False)),
-                        )
-                except Exception as exc:  # noqa: BLE001
-                    logger.error("sync_job_consumer: job %s failed before/during dispatch: %s", job.job_id, exc)
-                    await finish_job(self._job_repo, self._item_repo, job.tenant_id, job.job_id, "failed", error=str(exc))
-            except asyncio.CancelledError:
-                raise
-            except Exception as exc:  # noqa: BLE001
-                logger.exception("sync_job_consumer: unexpected error in loop — %s", exc)
-                await self._sleep(self._poll_interval_seconds)
+        while True:
+            job: SyncJob | None = await self._job_repo.claim_next_pending(SOURCE_TYPE)
+            if job is None:
+                await self._wait_for_next_poll()
+                continue
+            await self.process(job)
+
+    async def process(self, message: SyncJob) -> None:
+        job = message
+        try:
+            if job.scope == "all":
+                await _run_sync_job(
+                    job.tenant_id, job.job_id, self._service, self._job_repo, self._item_repo,
+                    only_new=bool(job.options.get("only_new", False)),
+                    dry_run=bool(job.options.get("dry_run", False)),
+                    limit=job.options.get("limit"),
+                )
+            else:
+                await _run_course_sync_job(
+                    job.tenant_id, job.job_id, self._service, self._job_repo, self._item_repo,
+                    job.source_id, dry_run=bool(job.options.get("dry_run", False)),
+                )
+        except Exception as exc:  # noqa: BLE001
+            logger.error("sync_job_consumer: job %s failed before/during dispatch: %s", job.job_id, exc)
+            await finish_job(self._job_repo, self._item_repo, job.tenant_id, job.job_id, "failed", error=str(exc))

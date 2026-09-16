@@ -106,7 +106,6 @@ async def test_full_sync_job_lifecycle_through_consumer(
     consumer = SyncJobConsumer(
         job_repo=job_repo, item_repo=item_repo, db=mock_db, poll_interval_seconds=0.01, service=mock_subodha_service,
     )
-    consumer._running = True
     consumer_task = asyncio.create_task(consumer._run_loop())
 
     # subscribe() treats any non-"running" status as terminal, so wait for the
@@ -127,7 +126,6 @@ async def test_full_sync_job_lifecycle_through_consumer(
         if event["event"] == "done":
             break
 
-    consumer._running = False
     consumer_task.cancel()
 
     assert events[-1]["event"] == "done"
