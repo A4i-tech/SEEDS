@@ -14,9 +14,7 @@ test.beforeEach(async ({}, testInfo) => {
   testInfo.setTimeout(Math.max(testInfo.timeout, 180000));
 });
 
-// Story/Poem/Snippet reuse Song's AddStory.js form and content.spec.js's
-// fixes — see the Docmost test-cases page for full idempotency detail:
-// https://docmost.a4i-lab.in/s/seeds/p/seeds-test-cases-54bIGOBUUJ
+// Story/Poem/Snippet reuse Song's AddStory.js form and content.spec.js's fixes.
 test.describe.configure({ mode: 'serial' });
 
 const EXPERIENCES = [

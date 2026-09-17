@@ -7,16 +7,9 @@ const instance = getInstance(instanceName);
 
 module.exports = defineConfig({
   testDir: './e2e',
-  // ContentListPage.waitUntilProcessed()/waitForRow() poll for up to 90-120s
-  // by design (content processing is a genuinely slow async backend job — see
-  // the idempotency/concurrency notes on the SEEDS Test Cases Docmost page:
-  // https://docmost.a4i-lab.in/s/seeds/p/seeds-test-cases-54bIGOBUUJ). The
-  // previous 30s default silently cut those waits short
-  // before their own internal timeout logic ever got a chance to run,
-  // producing misleading "Test timeout of 30000ms exceeded" failures instead
-  // of the real, patient result. Tests that call those methods additionally
-  // set their own test.setTimeout() for the full expected budget; this default
-  // covers everything else with headroom for a slower remote instance.
+  // 90-120s poll waits in ContentListPage.waitUntilProcessed()/waitForRow()
+  // need their own timeout budget — the previous 30s default cut them short
+  // before their own internal timeout logic ever ran.
   timeout: 60000,
   // Originally forced to 1 because auth.spec.js's password-change tests mutated
   // the shared tenant persona mid-run — test.describe.configure({ mode: 'serial'

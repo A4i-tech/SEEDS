@@ -6,7 +6,7 @@ const { ContentPage } = require('../pages/ContentPage');
 const { SchoolsPage } = require('../pages/SchoolsPage');
 const { bestEffortCleanup } = require('../fixtures/session');
 
-// IDEMPOTENCY NOTE: the Docmost doc's TC-SCHOOL-002..005 chain uses a fixed
+// IDEMPOTENCY NOTE: the doc's TC-SCHOOL-002..005 chain uses a fixed
 // school email (testschool@gmail.com) shared across create/duplicate/update/delete
 // steps. Automating that literally means: rerun the suite without 005 having run
 // (an earlier assertion failure, a skipped test, CI cancelled mid-run) and 002

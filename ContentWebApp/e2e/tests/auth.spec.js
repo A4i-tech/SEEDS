@@ -122,10 +122,8 @@ test.describe('tenant password change', () => {
   });
 
   // Was previously a confirmed bug (POST /tenant/change-password didn't validate
-  // current_password server-side — see #592) that this test documented by asserting
-  // the buggy behavior. Verified live 2026-09-10 against dev: the backend now
-  // correctly rejects with "Current password is incorrect", matching the doc's
-  // original expected outcome (docmost.a4i-lab.in/s/seeds/p/seeds-test-cases-54bIGOBUUJ).
+  // current_password server-side — see #592). Verified live 2026-09-10 against
+  // dev: backend now correctly rejects with "Current password is incorrect".
   // No restore step needed — a rejected change never takes effect.
   test('TC-AUTH-008 fails with an incorrect current password', async ({ page }) => {
     const loginPage = new LoginPage(page);
