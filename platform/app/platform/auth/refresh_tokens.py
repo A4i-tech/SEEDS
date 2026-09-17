@@ -53,6 +53,10 @@ class RefreshTokenReusedError(Exception):
         self.owner_id = owner_id
 
 
+class RefreshTokenRevokedError(Exception):
+    pass
+
+
 class RefreshTokenStore[ClaimsT](Protocol):
     async def insert(
         self,
@@ -66,7 +70,7 @@ class RefreshTokenStore[ClaimsT](Protocol):
 
     async def try_consume(self, token_id: str) -> ConsumedToken[ClaimsT]: ...
 
-    async def revoke_all_for_owner(self, owner_id: str) -> None: ...
+    async def revoke_all_for_owner(self, owner_id: str, *, reason: str) -> None: ...
 
 
 type VerifyOwnerActive[ClaimsT] = Callable[[str, ClaimsT], Awaitable[ClaimsT]]
@@ -114,6 +118,8 @@ async def rotate[ClaimsT](
         raise UnauthorizedError("Invalid refresh token") from None
     except RefreshTokenExpiredError:
         raise AppError("REFRESH_TOKEN_EXPIRED", "Refresh token has expired", 401) from None
+    except RefreshTokenRevokedError:
+        raise UnauthorizedError("Invalid refresh token") from None
     except RefreshTokenReusedError as exc:
         logger.warning(
             "refresh_tokens: revoked refresh token replayed — owner_id=%s",
@@ -124,7 +130,7 @@ async def rotate[ClaimsT](
             },
         )
         get_counter(reuse_counter_name).add(1, {"owner_id": exc.owner_id})
-        await store.revoke_all_for_owner(exc.owner_id)
+        await store.revoke_all_for_owner(exc.owner_id, reason="consumed")
         raise UnauthorizedError("Invalid refresh token") from None
 
     now = datetime.now(tz=UTC)
