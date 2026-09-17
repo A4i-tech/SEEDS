@@ -89,4 +89,30 @@ describe("AuthProvider logout", () => {
     expect(screen.getByTestId("authed").textContent).toBe("false");
     expect(screen.getByTestId("token").textContent).toBe("null");
   });
+
+  it("treats 403 as an already-terminated session", async () => {
+    await renderAuthed();
+    apiFetch.mockRejectedValue(new ApiError("Invalid refresh token", 403));
+
+    await userEvent.click(screen.getByRole("button", { name: "logout" }));
+
+    await waitFor(() => expect(screen.getByTestId("outcome").textContent).toBe("resolved"));
+    expect(screen.getByTestId("authed").textContent).toBe("false");
+    expect(screen.getByTestId("token").textContent).toBe("null");
+  });
+
+  it("does not raise a false reuse alarm when refresh races a normal logout", async () => {
+    await renderAuthed();
+    apiFetch.mockResolvedValue({ message: "logged out" });
+    initSession.mockResolvedValue({ data: null, error: new ApiError("Invalid refresh token", 401) });
+
+    await userEvent.click(screen.getByRole("button", { name: "logout" }));
+    await waitFor(() => expect(screen.getByTestId("outcome").textContent).toBe("resolved"));
+    expect(screen.getByTestId("authed").textContent).toBe("false");
+
+    const refreshResult = await initSession();
+    expect(refreshResult.error.status).toBe(401);
+    expect(refreshResult.error.message).not.toMatch(/reuse/i);
+    expect(screen.getByTestId("authed").textContent).toBe("false");
+  });
 });
