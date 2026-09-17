@@ -3,8 +3,15 @@ import Papa from "papaparse";
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import Select from "../../components/AllContent/shared/Select";
+import RowActions from "../../components/AllContent/shared/RowActions";
+import "../../components/AllContent/shared/tables.css";
+import "../../components/AllContent/shared/utilities.css";
+import "../../components/AllContent/shared/buttons.css";
+import "../../components/AllContent/shared/cards.css";
+import "../../components/AllContent/ContentTab/css/ContentTab.css";
+import "../../components/AllContent/RegistrationTab/css/TeachersList.css";
+import "../../components/AllContent/AnalyticsTab/css/AnalyticsTab.css";
 import { Pagination } from "../../components/ContentAggregatorDetails/Pagination";
-import "../workspace.css";
 import { translationService } from "../../services/translationService";
 import { exportToCSV } from "../../utils/exportHelpers";
 import { toSegment } from "../lib/segments";
@@ -12,99 +19,38 @@ import { useToast } from "../Toast";
 
 function EmptyState({ title, message, action }) {
   return (
-    <div className="empty">
-      <h4>{title}</h4>
-      <p>{message}</p>
+    <div className="no-content">
+      {title}
+      <p className="placeholder-text">{message}</p>
       {action}
     </div>
   );
 }
 
-/** Status pill — every row shows exactly one state. */
-function CardStatus({ seg }) {
-  if (seg.stage === "approved") return <span className="tr-badge good">Approved</span>;
-  if (seg.stage === "rejected") return <span className="tr-badge crit">Rejected</span>;
-  return <span className="tr-badge warn">Pending Review</span>;
+const BADGE_STYLE = {
+  approved: { background: "var(--color-success-bg)", color: "var(--color-success-fg)" },
+  rejected: { background: "var(--color-danger-bg)", color: "var(--color-danger-fg)" },
+  pending: { background: "var(--color-warning-bg)", color: "var(--color-warning-fg)" },
+};
+
+function StatusBadge({ seg }) {
+  const stage = seg.stage === "approved" || seg.stage === "rejected" ? seg.stage : "pending";
+  const label = stage === "approved" ? "Approved" : stage === "rejected" ? "Rejected" : "Pending Review";
+  return (
+    <span className="role-badge" style={BADGE_STYLE[stage]}>
+      {label}
+    </span>
+  );
 }
 
-/** Translation card — autosaving inline editor. Auto-grows to fit full text, never clips. */
-const TransCard = React.forwardRef(function TransCard({ seg, onEdit, onCopy }, inputRef) {
+/** One row: index, source, editable translation, status + actions. */
+function TransRow({ seg, idx, onEdit, onApprove, onReject, onCopy }) {
+  const inputRef = useRef(null);
   const [text, setText] = useState(seg.translation);
   useEffect(() => setText(seg.translation), [seg.translation]);
-  useEffect(() => {
-    const el = inputRef && inputRef.current;
-    if (el) {
-      el.style.height = "auto";
-      el.style.height = el.scrollHeight + "px";
-    }
-  }, [text, inputRef]);
   const commit = () => {
     if (text !== seg.translation) onEdit(seg.id, text);
   };
-  return (
-    <div
-      className={`tr-card ${seg.stage === "approved" ? "approved" : ""} ${seg.lowConfidence && seg.hasTranslation ? "warnedge" : ""}`}
-    >
-      <textarea
-        ref={inputRef}
-        className="tr-card-input"
-        rows={1}
-        value={text}
-        placeholder="Add translation…"
-        onChange={(e) => setText(e.target.value)}
-        onBlur={commit}
-        aria-label={`Translation for: ${seg.sourceText}`}
-      />
-      <button
-        type="button"
-        className="tr-card-copy"
-        title="Copy translation"
-        aria-label="Copy translation"
-        onClick={() => onCopy(text)}
-      >
-        Copy
-      </button>
-    </div>
-  );
-});
-
-/** Row actions column — compact, vertically centered, always-visible Approve/Reject/Edit. */
-function RowActions({ seg, onApprove, onReject, onEditFocus }) {
-  const approved = seg.stage === "approved";
-  return (
-    <div className="tr-actions">
-      <button type="button"
-        className={`tr-act tr-act-approve btn-icon ${approved ? "active" : ""}`}
-        title={approved ? "Approved" : "Approve"}
-        aria-label="Approve"
-        aria-pressed={approved}
-        onClick={() => onApprove(seg.id)}
-      >
-        ✓
-      </button>
-      <button type="button"
-        className={`tr-act tr-act-reject btn-icon ${approved ? "dim" : ""}`}
-        title="Reject"
-        aria-label="Reject"
-        onClick={() => onReject(seg.id)}
-      >
-        ✕
-      </button>
-      <button type="button"
-        className={`tr-act tr-act-edit btn-icon ${approved ? "dim" : ""}`}
-        title="Edit"
-        aria-label="Edit"
-        onClick={onEditFocus}
-      >
-        Edit
-      </button>
-    </div>
-  );
-}
-
-/** One row: index, source, editable translation, actions + status. */
-function TransRow({ seg, idx, onEdit, onApprove, onReject, onCopy }) {
-  const inputRef = useRef(null);
   const focusInput = () => {
     const el = inputRef.current;
     if (el) {
@@ -112,16 +58,38 @@ function TransRow({ seg, idx, onEdit, onApprove, onReject, onCopy }) {
       el.select();
     }
   };
+
   return (
-    <div className="tr-row">
-      <div className="tr-idx">{idx}</div>
-      <div className="tr-src">{seg.sourceText}</div>
-      <TransCard ref={inputRef} seg={seg} onEdit={onEdit} onCopy={onCopy} />
-      <div className="tr-rowend">
-        <RowActions seg={seg} onApprove={onApprove} onReject={onReject} onEditFocus={focusInput} />
-        <CardStatus seg={seg} />
-      </div>
-    </div>
+    <tr className="table-row-white">
+      <td className="table-cell">{idx}</td>
+      <td className="table-cell table-cell-truncate">{seg.sourceText}</td>
+      <td className="table-cell">
+        <textarea
+          ref={inputRef}
+          className="input-field"
+          rows={2}
+          value={text}
+          placeholder="Add translation…"
+          onChange={(e) => setText(e.target.value)}
+          onBlur={commit}
+          aria-label={`Translation for: ${seg.sourceText}`}
+        />
+      </td>
+      <td className="table-cell">
+        <StatusBadge seg={seg} />
+      </td>
+      <td className="table-cell table-cell-actions">
+        <RowActions
+          horizontal
+          actions={[
+            { key: "approve", label: "Approve", variant: "view", onClick: () => onApprove(seg.id) },
+            { key: "reject", label: "Reject", variant: "delete", onClick: () => onReject(seg.id) },
+            { key: "edit", label: "Edit", variant: "edit", onClick: focusInput },
+            { key: "copy", label: "Copy", variant: "sync", onClick: () => onCopy(text) },
+          ]}
+        />
+      </td>
+    </tr>
   );
 }
 
@@ -144,7 +112,6 @@ export function WorkspaceScreen({
   const rowsPerPage = 10;
   const [pageOffset, setPageOffset] = useState(0);
   const [revision, setRevision] = useState(0);
-  const bodyRef = useRef(null);
 
   const load = useCallback(() => {
     if (!siteId || !route) {
@@ -357,30 +324,21 @@ export function WorkspaceScreen({
     });
   };
 
-  const pageIdx = pages.findIndex((p) => p.route === route);
-  const gotoRoute = (r) => onScope && onScope((s) => ({ ...s, route: r }));
-  const pageNumbers = useMemo(() => {
-    const n = pages.length;
-    if (n <= 7) return pages.map((_, i) => i);
-    const set = new Set([0, 1, pageIdx - 1, pageIdx, pageIdx + 1, n - 1]);
-    return [...set].filter((i) => i >= 0 && i < n).sort((a, b) => a - b);
-  }, [pages, pageIdx]);
-
   const ready = Boolean(siteId && route);
 
   return (
-    <div className="tr">
-      {/* Header */}
-      <div className="tr-head">
+    <div className="card">
+      <div className="card-header">
         <div>
-          <h1>Translate & Review</h1>
-          <p>Translate full pages and review in context</p>
+          <h1 className="card-title">Translate & Review</h1>
+          <p className="card-description">Translate full pages and review in context</p>
         </div>
-        <div className="tr-head-ctrl">
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
           <input
             ref={fileInputRef}
             type="file"
             accept=".csv"
+            aria-label="Import translations CSV"
             style={{ display: "none" }}
             onChange={(e) => {
               const file = e.target.files[0];
@@ -399,42 +357,63 @@ export function WorkspaceScreen({
           <button type="button" className="action-ghost-button" disabled={!ready} onClick={exportTranslations}>
             Export
           </button>
-          <span className="tr-search">
-            <input
-              placeholder="Search source or translated text..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              aria-label="Search source or translated text"
-            />
-            <kbd>⌘K</kbd>
-          </span>
+          <input
+            type="search"
+            className="input-field"
+            placeholder="Search source or translated text…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="Search source or translated text"
+            style={{ width: 260 }}
+          />
         </div>
       </div>
 
-      {/* Status tabs + language filter */}
-      <div className="tr-tabs">
+      <div className="tabs-container" style={{ marginBottom: 16 }}>
         <button
           type="button"
-          className={`tr-tab ${statusTab === "pending" ? "on" : ""}`}
+          className={`tab-button ${statusTab === "pending" ? "active" : ""}`}
           onClick={() => setStatusTab("pending")}
         >
-          Pending Review <span className="tr-tab-n">{tabCounts.pending}</span>
+          Pending Review ({tabCounts.pending})
         </button>
         <button
           type="button"
-          className={`tr-tab ${statusTab === "approved" ? "on" : ""}`}
+          className={`tab-button ${statusTab === "approved" ? "active" : ""}`}
           onClick={() => setStatusTab("approved")}
         >
-          Approved <span className="tr-tab-n">{tabCounts.approved}</span>
+          Approved ({tabCounts.approved})
         </button>
         <button
           type="button"
-          className={`tr-tab ${statusTab === "all" ? "on" : ""}`}
+          className={`tab-button ${statusTab === "all" ? "active" : ""}`}
           onClick={() => setStatusTab("all")}
         >
-          All <span className="tr-tab-n">{tabCounts.all}</span>
+          All ({tabCounts.all})
         </button>
-        <div className="tr-lang-tab">
+      </div>
+
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
+        <div>
+          <span className="label">Site</span>
+          <Select
+            value={scope.siteId}
+            onChange={(v) => onScope((s) => ({ ...s, siteId: v, route: "" }))}
+            placeholder="Select site"
+            options={sites.map((s) => ({ value: s.siteId, label: s.name || s.domain }))}
+          />
+        </div>
+        <div>
+          <span className="label">Page</span>
+          <Select
+            value={route}
+            onChange={(v) => onScope((s) => ({ ...s, route: v }))}
+            placeholder="Select page"
+            options={pages.map((p) => ({ value: p.route, label: p.route }))}
+          />
+        </div>
+        <div>
+          <span className="label">Review Language</span>
           <Select
             value={lang}
             onChange={(v) => onScope((s) => ({ ...s, lang: v }))}
@@ -443,182 +422,96 @@ export function WorkspaceScreen({
           />
         </div>
       </div>
-
-      {/* Selects */}
-      <div className="tr-selects">
-        <div className="tr-field">
-          <span>Site</span>
-          <Select
-            value={scope.siteId}
-            onChange={(v) => onScope((s) => ({ ...s, siteId: v, route: "" }))}
-            placeholder="Select site"
-            options={sites.map((s) => ({ value: s.siteId, label: s.name || s.domain }))}
-          />
-        </div>
-      </div>
+      {pagesError ? (
+        <p className="error-message">
+          {pagesError === "forbidden" ? "Permission denied loading pages" : pagesError}
+        </p>
+      ) : null}
 
       {!ready ? (
-        <div style={{ flex: 1, display: "grid", placeItems: "center" }}>
-          <EmptyState
-            title="Pick a site"
-            message="Choose a project and website above to start reviewing its translations."
-          />
-        </div>
+        <EmptyState
+          title="Pick a site"
+          message="Choose a project and website above to start reviewing its translations."
+        />
+      ) : docs === null ? (
+        <SkeletonTheme baseColor="var(--color-skeleton-base)" highlightColor="var(--color-skeleton-highlight)">
+          <Skeleton count={6} height={48} style={{ marginBottom: 8 }} />
+        </SkeletonTheme>
+      ) : docsError ? (
+        <EmptyState
+          title={docsError === "forbidden" ? "Permission denied" : "Couldn't load translations"}
+          message={
+            docsError === "forbidden" ? "Your account doesn't have access to Translate & Review." : docsError
+          }
+        />
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          title="Nothing here"
+          message={segments.length ? "No segments match your search." : "This page hasn't been translated yet."}
+          action={
+            !segments.length ? (
+              <button type="button" className="tertiary-button" onClick={translatePage} disabled={busy}>
+                {busy ? "Translating…" : "Translate this page"}
+              </button>
+            ) : null
+          }
+        />
       ) : (
         <>
-          {/* Page navigation + stats */}
-          <div className="tr-pagenav">
-            <span className="tr-pn-label">
-              Page navigation
-              {pagesError ? (
-                <span className="tr-pn-error">
-                  {" "}
-                  — {pagesError === "forbidden" ? "permission denied loading pages" : pagesError}
-                </span>
-              ) : null}
-            </span>
-            <div className="tr-pager">
-              <button type="button"
-                className="pg-arrow"
-                disabled={pageIdx <= 0}
-                onClick={() => pageIdx > 0 && gotoRoute(pages[pageIdx - 1].route)}
-                aria-label="Previous page"
-              >
-                ‹
-              </button>
-              {pageNumbers.map((i, k) => {
-                const gap = k > 0 && i - pageNumbers[k - 1] > 1;
-                return (
-                  <React.Fragment key={i}>
-                    {gap ? <span className="pg-dots">…</span> : null}
-                    <button type="button"
-                      className={`pg-num ${i === pageIdx ? "on" : ""}`}
-                      onClick={() => gotoRoute(pages[i].route)}
-                      title={pages[i].route}
-                      aria-current={i === pageIdx ? "page" : undefined}
-                    >
-                      {i + 1}
-                    </button>
-                  </React.Fragment>
-                );
-              })}
-              <button type="button"
-                className="pg-arrow"
-                disabled={pageIdx >= pages.length - 1}
-                onClick={() => pageIdx < pages.length - 1 && gotoRoute(pages[pageIdx + 1].route)}
-                aria-label="Next page"
-              >
-                ›
-              </button>
-            </div>
-          </div>
-
-          {/* Body: editor + optional live preview */}
-          <div className="tr-body" ref={bodyRef}>
-            <div className="tr-editor">
-              <div className="tr-colhead">
-                <div className="ch-idx">#</div>
-                <div className="ch-src">Source</div>
-                <div className="ch-tr">
-                  Translation
-                  <span className="ch-tools">
-                    <button type="button" title="Copy all" aria-label="Copy all">Copy all</button>
-                  </span>
-                </div>
-                <div className="ch-actions" aria-hidden="true" />
-              </div>
-              {docs === null ? (
-                <div style={{ padding: 20 }}>
-                  <SkeletonTheme baseColor="var(--surface-2)" highlightColor="var(--surface-3)">
-                    <Skeleton count={6} height={64} borderRadius={10} style={{ marginBottom: 8 }} />
-                  </SkeletonTheme>
-                </div>
-              ) : docsError ? (
-                <EmptyState
-                  title={
-                    docsError === "forbidden" ? "Permission denied" : "Couldn't load translations"
-                  }
-                  message={
-                    docsError === "forbidden"
-                      ? "Your account doesn't have access to Translate & Review."
-                      : docsError
-                  }
-                />
-              ) : filtered.length === 0 ? (
-                <EmptyState
-                  title="Nothing here"
-                  message={
-                    segments.length
-                      ? "No segments match your search."
-                      : "This page hasn't been translated yet."
-                  }
-                  action={
-                    !segments.length ? (
-                      <button type="button" className="tertiary-button" onClick={translatePage} disabled={busy}>
-                        {busy ? "Translating…" : "Translate this page"}
-                      </button>
-                    ) : null
-                  }
-                />
-              ) : (
-                <>
-                  <div className="tr-grid">
-                    {pageSlice.map((seg, i) => (
-                      <TransRow
-                        key={`${seg.id}-${revision}`}
-                        seg={seg}
-                        idx={clampedOffset * rowsPerPage + i + 1}
-                        onEdit={saveEdit}
-                        onApprove={approve}
-                        onReject={reject}
-                        onCopy={copyText}
-                      />
-                    ))}
-                  </div>
-                  <div className="tr-pagesummary">
-                    Showing {clampedOffset * rowsPerPage + 1} to{" "}
-                    {Math.min(clampedOffset * rowsPerPage + rowsPerPage, filtered.length)} of{" "}
-                    {filtered.length}
-                  </div>
-                  <Pagination
-                    current={clampedOffset}
-                    total={pageCount}
-                    onChange={(i) => setPageOffset(i)}
+          <div className="table-wrapper">
+            <table className="content-table">
+              <thead>
+                <tr>
+                  <th className="table-header">#</th>
+                  <th className="table-header">Source</th>
+                  <th className="table-header">Translation</th>
+                  <th className="table-header">Status</th>
+                  <th className="table-header table-header-actions">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pageSlice.map((seg, i) => (
+                  <TransRow
+                    key={`${seg.id}-${revision}`}
+                    seg={seg}
+                    idx={clampedOffset * rowsPerPage + i + 1}
+                    onEdit={saveEdit}
+                    onApprove={approve}
+                    onReject={reject}
+                    onCopy={copyText}
                   />
-                </>
-              )}
-              {/* Editor footer */}
-              <div className="tr-editfoot">
-                <button type="button" className="action-ghost-button" onClick={revertAll}>
-                  Revert all
-                </button>
-                <span style={{ flex: 1 }} />
-                <button type="button"
-                  className="action-ghost-button"
-                  onClick={() => {
-                    setSavedAt(Date.now());
-                    toast({ message: "Changes saved", tone: "good" });
-                  }}
-                >
-                  Save changes
-                </button>
-                <button type="button" className="tertiary-button" onClick={approveAll}>
-                  Approve all
-                </button>
-              </div>
-            </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="placeholder-text">
+            Showing {clampedOffset * rowsPerPage + 1} to{" "}
+            {Math.min(clampedOffset * rowsPerPage + rowsPerPage, filtered.length)} of {filtered.length}
+          </p>
+          <Pagination current={clampedOffset} total={pageCount} onChange={(i) => setPageOffset(i)} />
+
+          <div className="button-group" style={{ marginTop: 16 }}>
+            <button type="button" className="action-ghost-button" onClick={revertAll}>
+              Revert all
+            </button>
+            <button
+              type="button"
+              className="action-ghost-button"
+              onClick={() => {
+                setSavedAt(Date.now());
+                toast({ message: "Changes saved", tone: "good" });
+              }}
+            >
+              Save changes
+            </button>
+            <button type="button" className="tertiary-button" onClick={approveAll}>
+              Approve all
+            </button>
           </div>
 
-          {/* Status bar */}
-          <div className="tr-statusbar">
-            <span className="sb-saved">
-              {savedAt ? (
-                <>Last saved {new Date(savedAt).toLocaleTimeString()}</>
-              ) : (
-                "All changes auto-saved"
-              )}
-            </span>
-          </div>
+          <p className="placeholder-text" style={{ marginTop: 8 }}>
+            {savedAt ? <>Last saved {new Date(savedAt).toLocaleTimeString()}</> : "All changes auto-saved"}
+          </p>
         </>
       )}
     </div>

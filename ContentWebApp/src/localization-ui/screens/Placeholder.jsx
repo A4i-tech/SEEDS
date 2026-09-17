@@ -1,4 +1,5 @@
 import React from "react";
+import "../../components/AllContent/shared/utilities.css";
 
 const LABELS = {
   glossary: "Glossary",
@@ -10,11 +11,10 @@ const LABELS = {
 
 export function PlaceholderScreen({ nav }) {
   return (
-    <div className="empty">
-      <h4>{LABELS[nav] || "Section"} — adopting the new system next</h4>
-      <p>
-        Configuration lives here, off the daily workflow. This section keeps the current screen
-        until the design system is propagated in Phase 3.
+    <div className="no-content">
+      {LABELS[nav] || "Section"} — coming soon
+      <p className="placeholder-text">
+        Configuration lives here, off the daily workflow.
       </p>
     </div>
   );

@@ -1,6 +1,8 @@
 import React, { useState } from "react";
-import "../dashboard.css";
+import "../../components/AllContent/shared/cards.css";
+import "../../components/AllContent/shared/buttons.css";
 import "../../components/AllContent/shared/utilities.css";
+import "../../components/AllContent/AnalyticsTab/css/AnalyticsTab.css";
 import { useToast } from "../Toast";
 import { ManageScreen } from "./Manage";
 import { extractDomain } from "../lib/url";
@@ -17,7 +19,6 @@ function parseApiErrorMessage(err) {
 
 function SnippetBlock({ snippet }) {
   const { toast } = useToast();
-  const lines = String(snippet || "").split("\n");
 
   const copy = async () => {
     try {
@@ -29,17 +30,12 @@ function SnippetBlock({ snippet }) {
   };
 
   return (
-    <div className="onb-code">
-      <button type="button" className="onb-code-copy" onClick={copy} aria-label="Copy snippet">
-        Copy
+    <div>
+      <button type="button" className="action-ghost-button" onClick={copy}>
+        Copy Snippet
       </button>
-      <pre className="onb-code-pre">
-        {lines.map((line, i) => (
-          <span className="onb-code-line" key={i}>
-            <span className="onb-code-num">{i + 1}</span>
-            <span className="onb-code-text">{line}</span>
-          </span>
-        ))}
+      <pre>
+        <code>{snippet}</code>
       </pre>
     </div>
   );
@@ -55,61 +51,42 @@ const buildDevToolsScript = (siteId) =>
   ].join("\n");
 
 function DevToolsSection({ siteId }) {
-  const [open, setOpen] = useState(false);
   const script = buildDevToolsScript(siteId);
 
   return (
-    <div className="onb-dev-section">
-      <button
-        type="button"
-        className="onb-dev-toggle"
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-      >
-        <span>Developer Testing (Chrome DevTools)</span>
-        <span className={`onb-dev-chev ${open ? "open" : ""}`}>▾</span>
-      </button>
-      {open && (
-        <div className="onb-dev-body">
-          <p className="onb-dev-desc">
-            If you're testing on a third-party website (for example <code>microsoft.com</code>) and
-            cannot modify its HTML, you can temporarily inject the SDK using the{" "}
-            <strong>Chrome DevTools Console</strong>.
-          </p>
+    <details>
+      <summary className="label">Developer Testing (Chrome DevTools)</summary>
+      <div className="registration-flex-card" style={{ marginTop: 12 }}>
+        <p className="placeholder-text">
+          If you're testing on a third-party website (for example <code>microsoft.com</code>) and
+          cannot modify its HTML, you can temporarily inject the SDK using the{" "}
+          <strong>Chrome DevTools Console</strong>.
+        </p>
 
-          <div className="onb-dev-steps">
-            <div className="onb-steps-title">Steps</div>
-            <ol>
-              <li>Open the target website in Chrome.</li>
-              <li>
-                Press <code>F12</code> (or <code>Ctrl + Shift + I</code>) to open Chrome DevTools.
-              </li>
-              <li>
-                Open the <strong>Console</strong> tab.
-              </li>
-              <li>
-                Paste the JavaScript below and press <strong>Enter</strong>.
-              </li>
-              <li>Verify that the SDK loads successfully.</li>
-            </ol>
-          </div>
+        <ol className="placeholder-text">
+          <li>Open the target website in Chrome.</li>
+          <li>
+            Press <code>F12</code> (or <code>Ctrl + Shift + I</code>) to open Chrome DevTools.
+          </li>
+          <li>
+            Open the <strong>Console</strong> tab.
+          </li>
+          <li>
+            Paste the JavaScript below and press <strong>Enter</strong>.
+          </li>
+          <li>Verify that the SDK loads successfully.</li>
+        </ol>
 
-          <SnippetBlock snippet={script} />
+        <SnippetBlock snippet={script} />
 
-          <div className="onb-dev-warn">
-            <div>
-              <div className="onb-dev-warn-title">Development only</div>
-              <p>
-                This script injects the SDK only into the <strong>current browser tab</strong>.
-                Refreshing or navigating away from the page removes the injected SDK. For production
-                deployments, always install the HTML snippet before the closing{" "}
-                <code>&lt;/body&gt;</code> tag.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+        <p className="placeholder-text">
+          <strong>Development only.</strong> This script injects the SDK only into the{" "}
+          <strong>current browser tab</strong>. Refreshing or navigating away from the page
+          removes the injected SDK. For production deployments, always install the HTML snippet
+          before the closing <code>&lt;/body&gt;</code> tag.
+        </p>
+      </div>
+    </details>
   );
 }
 
@@ -177,31 +154,26 @@ function OnboardingCard({ loc }) {
 
   if (result) {
     return (
-      <div className="onb-card">
-        <div className="onb-success-head">
-          <span className="onb-success-icon">✓</span>
+      <div className="card registration-flex-card">
+        <div className="card-header">
           <div>
-            <div className="onb-success-title">Website Connected</div>
-            <div className="onb-sub">Your website has been registered successfully.</div>
+            <h2 className="card-title">Website Connected</h2>
+            <p className="card-description">Your website has been registered successfully.</p>
           </div>
         </div>
 
-        <div className="onb-meta">
-          <div className="onb-meta-col">
-            <span className="onb-meta-label">Domain</span>
-            <span className="onb-meta-value mono">{result.domain}</span>
-          </div>
-          <div className="onb-meta-col">
-            <span className="onb-meta-label">Integration Status</span>
-            <span className="onb-meta-value onb-meta-good">Ready to install SDK</span>
-          </div>
+        <div>
+          <span className="label">Domain</span>
+          <p><code>{result.domain}</code></p>
+          <span className="label">Integration Status</span>
+          <p className="success-message">Ready to install SDK</p>
         </div>
 
         <SnippetBlock snippet={result.snippet} />
 
-        <div className="onb-steps">
-          <div className="onb-steps-title">How to install</div>
-          <ol>
+        <div>
+          <span className="label">How to install</span>
+          <ol className="placeholder-text">
             <li>Open your website's HTML file (or template layout used on every page).</li>
             <li>
               Paste the snippet above right before the closing <code>&lt;/body&gt;</code> tag.
@@ -219,7 +191,7 @@ function OnboardingCard({ loc }) {
 
         <DevToolsSection siteId={result.siteId} />
 
-        <div className="onb-actions">
+        <div className="button-group">
           <button type="button" className="primary-button" onClick={copySnippet}>
             Copy Snippet
           </button>
@@ -241,12 +213,14 @@ function OnboardingCard({ loc }) {
   }
 
   return (
-    <div className="onb-card">
-      <div className="onb-head">
-        <h1 className="onb-title">Connect your website</h1>
-        <p className="onb-sub">Register your website and start localizing it in minutes.</p>
+    <div className="card">
+      <div className="card-header">
+        <div>
+          <h1 className="card-title">Connect your website</h1>
+          <p className="card-description">Register your website and start localizing it in minutes.</p>
+        </div>
       </div>
-      <form className="onb-form" onSubmit={register}>
+      <form className="registration-flex-card" onSubmit={register}>
         <label className="label" htmlFor="onb-domain">Website URL</label>
         <input
           id="onb-domain"
@@ -266,7 +240,7 @@ function OnboardingCard({ loc }) {
 
 export function DashboardScreen({ loc }) {
   return (
-    <div className="onb-page">
+    <div className="registration-flex-card">
       <OnboardingCard loc={loc} />
       <ManageScreen nav="sites" loc={loc} />
     </div>

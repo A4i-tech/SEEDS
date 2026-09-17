@@ -1,13 +1,14 @@
 import React from "react";
 import RowActions from "../../components/AllContent/shared/RowActions";
 import "../../components/AllContent/shared/tables.css";
+import "../../components/AllContent/shared/utilities.css";
 
 export function ManageTable({ columns, rows, getId, onEdit, onDelete, emptyTitle, emptyMessage }) {
   if (!rows.length) {
     return (
-      <div className="empty">
-        <h4>{emptyTitle}</h4>
-        <p>{emptyMessage}</p>
+      <div className="no-content">
+        {emptyTitle}
+        <p className="placeholder-text">{emptyMessage}</p>
       </div>
     );
   }

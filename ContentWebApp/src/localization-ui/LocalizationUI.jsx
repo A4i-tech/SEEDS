@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
-import "./base.css";
 
 import { useLocalization } from "../hooks/useLocalization";
 import { translationService } from "../services/translationService";
@@ -82,19 +81,6 @@ export default function LocalizationUI() {
     setNav("workspace");
   };
 
-  const rootRef = React.useRef(null);
-  const [shellH, setShellH] = useState("100vh");
-  React.useLayoutEffect(() => {
-    const measure = () => {
-      const el = rootRef.current;
-      if (!el) return;
-      setShellH(`${Math.max(480, window.innerHeight - el.getBoundingClientRect().top)}px`);
-    };
-    measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  }, [nav]);
-
   let screen;
   if (nav === "dashboard") {
     screen = (
@@ -122,23 +108,21 @@ export default function LocalizationUI() {
   }
 
   return (
-    <div className="loca-ui" ref={rootRef} style={{ height: shellH }}>
-      <ToastProvider>
-        <AppShell nav={nav} onNav={setNav} flush={nav === "workspace"}>
-          {isLoadingWorkspace && nav === "dashboard" ? (
-            <div style={{ padding: 28 }}>
-              <SkeletonTheme
-                baseColor="var(--color-skeleton-base)"
-                highlightColor="var(--color-skeleton-highlight)"
-              >
-                <Skeleton count={6} height={64} borderRadius={10} style={{ marginBottom: 8 }} />
-              </SkeletonTheme>
-            </div>
-          ) : (
-            screen
-          )}
-        </AppShell>
-      </ToastProvider>
-    </div>
+    <ToastProvider>
+      <AppShell nav={nav} onNav={setNav}>
+        {isLoadingWorkspace && nav === "dashboard" ? (
+          <div style={{ padding: 28 }}>
+            <SkeletonTheme
+              baseColor="var(--color-skeleton-base)"
+              highlightColor="var(--color-skeleton-highlight)"
+            >
+              <Skeleton count={6} height={64} borderRadius={10} style={{ marginBottom: 8 }} />
+            </SkeletonTheme>
+          </div>
+        ) : (
+          screen
+        )}
+      </AppShell>
+    </ToastProvider>
   );
 }

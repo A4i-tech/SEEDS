@@ -1,4 +1,7 @@
 import React, { createContext, useCallback, useContext, useRef, useState } from "react";
+import "../components/AllContent/shared/utilities.css";
+import "../components/AllContent/shared/buttons.css";
+import "../components/AllContent/AnalyticsTab/css/AnalyticsTab.css";
 
 const ToastCtx = createContext(null);
 export const useToast = () => {
@@ -7,55 +10,43 @@ export const useToast = () => {
   return ctx;
 };
 
-export function ToastProvider({ children }) {
-  const [toasts, setToasts] = useState([]);
-  const timers = useRef({});
+const TONE_CLASS = { good: "success-message", crit: "error-message", info: "status-message" };
 
-  const dismiss = useCallback((id) => {
-    setToasts((t) => t.filter((x) => x.id !== id));
-    clearTimeout(timers.current[id]);
-    delete timers.current[id];
+export function ToastProvider({ children }) {
+  const [note, setNote] = useState(null);
+  const timer = useRef(null);
+
+  const dismiss = useCallback(() => {
+    setNote(null);
+    clearTimeout(timer.current);
   }, []);
 
-  const toast = useCallback(
-    ({ message, tone = "info", duration = 5000, onUndo }) => {
-      const id =
-        typeof crypto !== "undefined" && crypto.randomUUID
-          ? crypto.randomUUID()
-          : Math.random().toString(36).slice(2);
-      setToasts((t) => [...t, { id, message, tone, onUndo }]);
-      timers.current[id] = setTimeout(() => dismiss(id), duration);
-      return id;
-    },
-    [dismiss]
-  );
+  const toast = useCallback(({ message, tone = "info", duration = 5000, onUndo }) => {
+    clearTimeout(timer.current);
+    setNote({ message, tone, onUndo });
+    timer.current = setTimeout(() => setNote(null), duration);
+  }, []);
 
   return (
     <ToastCtx.Provider value={{ toast, dismiss }}>
       {children}
-      <div className="loca-ui-toasts" role="region" aria-label="Notifications">
-        <div aria-live="polite" aria-atomic="true" style={{ display: "contents" }}>
-          {toasts.map((t) => (
-            <div key={t.id} className={`loca-ui-toast ${t.tone}`} role="status">
-              <span className="msg">{t.message}</span>
-              {t.onUndo ? (
-                <button type="button"
-                  className="undo"
-                  onClick={() => {
-                    t.onUndo();
-                    dismiss(t.id);
-                  }}
-                >
-                  Undo
-                </button>
-              ) : null}
-              <button type="button" className="modal-close" aria-label="Dismiss" onClick={() => dismiss(t.id)}>
-                ✕
-              </button>
-            </div>
-          ))}
+      {note ? (
+        <div className={TONE_CLASS[note.tone] || "status-message"} role="status">
+          {note.message}
+          {note.onUndo ? (
+            <button
+              type="button"
+              className="action-ghost-button button-ml-8"
+              onClick={() => {
+                note.onUndo();
+                dismiss();
+              }}
+            >
+              Undo
+            </button>
+          ) : null}
         </div>
-      </div>
+      ) : null}
     </ToastCtx.Provider>
   );
 }

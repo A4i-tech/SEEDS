@@ -122,7 +122,7 @@ describe("Translate & Review — live component verification", () => {
     renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
     await screen.findByText("Hello World");
 
-    const copyBtn = screen.getByLabelText("Copy translation");
+    const copyBtn = screen.getByRole("button", { name: "Copy" });
     await userEvent.click(copyBtn);
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("ಹಲೋ ವರ್ಲ್ಡ್");
   });
@@ -135,12 +135,12 @@ describe("Translate & Review — live component verification", () => {
     renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
     await screen.findByText("Hello World");
 
-    expect(document.querySelector(".tr-badge.warn")).toBeInTheDocument();
+    expect(screen.getByText("Pending Review")).toBeInTheDocument();
     const approveBtn = screen.getByRole("button", { name: "Approve" });
     await userEvent.click(approveBtn);
 
     expect(translationService.approveTranslation).toHaveBeenCalledWith("k1", "kn");
-    await waitFor(() => expect(document.querySelector(".tr-badge.good")).toBeInTheDocument());
+    await waitFor(() => expect(within(screen.getByRole("table")).getByText("Approved")).toBeInTheDocument());
   });
 
   test("PASS — Reject calls rejectTranslation and flips row to Rejected", async () => {
@@ -155,7 +155,7 @@ describe("Translate & Review — live component verification", () => {
     await userEvent.click(rejectBtn);
 
     expect(translationService.rejectTranslation).toHaveBeenCalledWith("k1", "kn", "needs work");
-    await waitFor(() => expect(document.querySelector(".tr-badge.crit")).toBeInTheDocument());
+    await waitFor(() => expect(within(screen.getByRole("table")).getByText("Rejected")).toBeInTheDocument());
   });
 
   test("PASS — Approve All approves every non-approved row in current scope", async () => {
@@ -233,13 +233,13 @@ describe("Translate & Review — live component verification", () => {
     ]);
     renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
     await screen.findByText("Hello World");
-    expect(document.querySelector(".tr-badge.good")).toBeInTheDocument();
+    expect(within(screen.getByRole("table")).getByText("Approved")).toBeInTheDocument();
 
     const revertBtn = screen.getByRole("button", { name: /Revert all/i });
     await userEvent.click(revertBtn);
 
     await waitFor(() => expect(translationService.listTranslations).toHaveBeenCalledTimes(2));
-    expect(document.querySelector(".tr-badge.good")).toBeInTheDocument();
+    expect(within(screen.getByRole("table")).getByText("Approved")).toBeInTheDocument();
   });
 
   test("PASS — a genuinely empty successful response shows the empty state, not an error", async () => {
@@ -293,12 +293,12 @@ describe("Translate & Review — live component verification", () => {
       .mockResolvedValue([makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" })]);
     translationService.updateTranslation.mockResolvedValue({});
     translationService.approveTranslation.mockResolvedValue({});
-    const { container } = renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
+    renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
     await screen.findByText("Hello World");
 
     const csv = "key,source,translation\nk1,Hello World,ಹಲೋ ವರ್ಲ್ಡ್\n";
     const file = new File([csv], "translations.csv", { type: "text/csv" });
-    const input = container.querySelector('input[type="file"]');
+    const input = screen.getByLabelText("Import translations CSV");
     await userEvent.upload(input, file);
 
     await waitFor(() =>

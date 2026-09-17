@@ -2,6 +2,8 @@ import React from "react";
 import Modal from "../../components/AllContent/shared/Modal";
 import Select from "../../components/AllContent/shared/Select";
 import "../../components/AllContent/shared/utilities.css";
+import "../../components/AllContent/shared/cards.css";
+import "../../components/AllContent/RegistrationTab/css/TeachersList.css";
 import { extractDomain } from "../lib/url";
 import { useCrudView } from "../lib/useCrudView";
 import { ManageTable } from "./ManageTable";
@@ -9,18 +11,19 @@ import { useToast } from "../Toast";
 
 const StatusPill = ({ status }) => {
   const isActive = status.toLowerCase() === "active";
-  return <span className={`badge ${isActive ? "badge-good" : "badge-neutral"}`}>{status}</span>;
+  if (!isActive) return <span className="placeholder-text">{status}</span>;
+  return <span className="role-badge teacher-role-badge">{status}</span>;
 };
 
 function Header({ title, subtitle, search, onSearch, addLabel, onAdd, children }) {
   return (
     <>
-      <div className="mng-head">
+      <div className="card-header">
         <div>
-          <h1>{title}</h1>
-          <p>{subtitle}</p>
+          <h1 className="card-title">{title}</h1>
+          <p className="card-description">{subtitle}</p>
         </div>
-        <div className="mng-tools">
+        <div style={{ display: "flex", gap: 10 }}>
           <input
             type="search"
             className="input-field"
@@ -73,7 +76,7 @@ function ProjectsView({ loc, toast }) {
   });
 
   const columns = [
-    { key: "name", header: "Name", className: "t-name", render: (project) => project.name },
+    { key: "name", header: "Name", className: "teacher-name", render: (project) => project.name },
     { key: "description", header: "Description", render: (project) => project.description || "-" },
     { key: "sourceLanguage", header: "Source", render: (project) => project.sourceLanguage },
     {
@@ -84,7 +87,7 @@ function ProjectsView({ loc, toast }) {
   ];
 
   return (
-    <div className="mng">
+    <div className="card">
       <Header
         title="Projects"
         subtitle="Group your localized websites and content."
@@ -200,15 +203,15 @@ function SitesView({ loc, toast }) {
     {
       key: "name",
       header: "Website / Domain",
-      className: "t-name mono",
-      render: (site) => site.domain,
+      className: "teacher-name",
+      render: (site) => <code>{site.domain}</code>,
     },
     { key: "project", header: "Project", render: (site) => projectName(site.projectId) },
     { key: "status", header: "Status", render: (site) => <StatusPill status={site.status} /> },
   ];
 
   return (
-    <div className="mng">
+    <div className="card">
       <Header
         title="Sites"
         subtitle="Websites connected to the localization SDK."
@@ -317,8 +320,8 @@ function LanguagesView({ loc, toast }) {
   };
 
   const columns = [
-    { key: "name", header: "Language", className: "t-name", render: (language) => language.name },
-    { key: "code", header: "Code", className: "mono", render: (language) => language.code },
+    { key: "name", header: "Language", className: "teacher-name", render: (language) => language.name },
+    { key: "code", header: "Code", render: (language) => <code>{language.code}</code> },
     {
       key: "direction",
       header: "Direction",
@@ -328,22 +331,15 @@ function LanguagesView({ loc, toast }) {
       key: "enabled",
       header: "Enabled",
       render: (language) => (
-        <button type="button"
-          className="switch"
-          onClick={() => toggle(language)}
-          aria-label={language.enabled !== false ? "Disable" : "Enable"}
-          aria-pressed={language.enabled !== false}
-        >
-          <span className={`track ${language.enabled !== false ? "on" : ""}`}>
-            <span className="knob" />
-          </span>
+        <button type="button" className="action-ghost-button" onClick={() => toggle(language)}>
+          {language.enabled !== false ? "Disable" : "Enable"}
         </button>
       ),
     },
   ];
 
   return (
-    <div className="mng">
+    <div className="card">
       <Header
         title="Languages"
         subtitle="Target languages available to the SDK and reviewers."
