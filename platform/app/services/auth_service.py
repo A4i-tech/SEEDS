@@ -454,7 +454,7 @@ class AuthService:
 
     async def logout(self, owner_id: str) -> None:
         repo = UserRefreshTokenRepository(self._db)
-        await repo.revoke_all_for_owner(owner_id)
+        await repo.revoke_all_for_owner(owner_id, reason="logout")
 
     async def get_user_profile(self, user_id: str, entity_label: str) -> User:
         return await get_user_profile(user_id, entity_label, self._db)

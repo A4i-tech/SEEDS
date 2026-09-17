@@ -84,7 +84,8 @@ class _IntegrationTokenStore:
         doc = await self._repo.try_consume(_hash_refresh_token(token_id))
         return self._to_consumed(doc)
 
-    async def revoke_all_for_owner(self, owner_id: str) -> None:
+    async def revoke_all_for_owner(self, owner_id: str, *, reason: str) -> None:
+        del reason
         await self._repo.revoke_all_for_client(owner_id)
 
 
