@@ -23,10 +23,6 @@ beforeAll(() => {
   if (!window.PointerEvent) {
     window.PointerEvent = window.MouseEvent;
   }
-  if (!window.URL.createObjectURL) {
-    window.URL.createObjectURL = jest.fn(() => "blob:mock");
-    window.URL.revokeObjectURL = jest.fn();
-  }
 });
 
 const langs = [
@@ -268,43 +264,5 @@ describe("Translate & Review — live component verification", () => {
     await screen.findByText("Couldn't load translations");
     expect(screen.getByText("Network error")).toBeInTheDocument();
     expect(screen.queryByText("Permission denied")).not.toBeInTheDocument();
-  });
-
-  test("PASS — Export downloads a CSV of key/source/translation for the whole site in the selected language", async () => {
-    translationService.listTranslations.mockResolvedValue([
-      makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" }),
-      makeDoc("k2", "No translation yet"),
-    ]);
-    const clickSpy = jest.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
-    renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
-    await screen.findByText("Hello World");
-
-    await userEvent.click(screen.getByRole("button", { name: "Export" }));
-
-    await waitFor(() => expect(clickSpy).toHaveBeenCalled());
-    expect(translationService.listTranslations).toHaveBeenLastCalledWith({ siteId: "site-1" });
-    clickSpy.mockRestore();
-  });
-
-  test("PASS — Import matches rows by key, updates + auto-approves each, and refreshes the list", async () => {
-    translationService.listTranslations
-      .mockResolvedValueOnce([makeDoc("k1", "Hello World", { translated: "" })])
-      .mockResolvedValueOnce([makeDoc("k1", "Hello World", { translated: "" })])
-      .mockResolvedValue([makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" })]);
-    translationService.updateTranslation.mockResolvedValue({});
-    translationService.approveTranslation.mockResolvedValue({});
-    renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
-    await screen.findByText("Hello World");
-
-    const csv = "key,source,translation\nk1,Hello World,ಹಲೋ ವರ್ಲ್ಡ್\n";
-    const file = new File([csv], "translations.csv", { type: "text/csv" });
-    const input = screen.getByLabelText("Import translations CSV");
-    await userEvent.upload(input, file);
-
-    await waitFor(() =>
-      expect(translationService.updateTranslation).toHaveBeenCalledWith("k1", "kn", "ಹಲೋ ವರ್ಲ್ಡ್")
-    );
-    expect(translationService.approveTranslation).toHaveBeenCalledWith("k1", "kn");
-    await screen.findByText("Imported 1 translations");
   });
 });

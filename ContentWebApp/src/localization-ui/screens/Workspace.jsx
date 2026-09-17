@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Papa from "papaparse";
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import Select from "../../components/AllContent/shared/Select";
@@ -13,7 +12,6 @@ import "../../components/AllContent/RegistrationTab/css/TeachersList.css";
 import "../../components/AllContent/AnalyticsTab/css/AnalyticsTab.css";
 import { Pagination } from "../../components/ContentAggregatorDetails/Pagination";
 import { translationService } from "../../services/translationService";
-import { exportToCSV } from "../../utils/exportHelpers";
 import { toSegment } from "../lib/segments";
 import { useToast } from "../Toast";
 
@@ -273,57 +271,6 @@ export function WorkspaceScreen({
     toast({ message: "Reverted to last saved state", tone: "info" });
   };
 
-  const fileInputRef = useRef(null);
-
-  const exportTranslations = async () => {
-    try {
-      const siteDocs = await translationService.listTranslations({ siteId });
-      const rows = siteDocs.map((d) => ({
-        key: d.key,
-        source: d.sourceText,
-        translation: d.translations?.[lang]?.text || "",
-      }));
-      if (!rows.length) return toast({ message: "Nothing to export", tone: "info" });
-      exportToCSV(rows, ["key", "source", "translation"], `translations-${lang}`);
-    } catch (e) {
-      toast({ message: e.message, tone: "crit" });
-    }
-  };
-
-  // Import matches rows to existing keys by the SDK's content hash (same "Asset ID"
-  // model as Localise.biz/Loco's UI import) — imported values are auto-approved so
-  // a reviewer never has to re-click through hundreds of freshly imported rows.
-  const importTranslations = (file) => {
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: async (results) => {
-        const rows = results.data.filter((r) => r.key && r.translation);
-        if (!rows.length) return toast({ message: "No rows to import", tone: "info" });
-        try {
-          const siteDocs = await translationService.listTranslations({ siteId });
-          const byKey = new Map(siteDocs.map((d) => [d.key, d]));
-          const matched = rows.map((r) => ({ doc: byKey.get(r.key), text: r.translation })).filter((m) => m.doc);
-          const outcomes = await Promise.allSettled(
-            matched.map(async (m) => {
-              await translationService.updateTranslation(m.doc.id, lang, m.text);
-              await translationService.approveTranslation(m.doc.id, lang);
-            })
-          );
-          const succeeded = outcomes.filter((o) => o.status === "fulfilled").length;
-          const failed = outcomes.length - succeeded;
-          if (succeeded) load();
-          toast({
-            message: failed ? `Imported ${succeeded}, ${failed} failed` : `Imported ${succeeded} translations`,
-            tone: failed ? "crit" : "good",
-          });
-        } catch (e) {
-          toast({ message: e.message, tone: "crit" });
-        }
-      },
-    });
-  };
-
   const ready = Boolean(siteId && route);
 
   return (
@@ -334,29 +281,6 @@ export function WorkspaceScreen({
           <p className="card-description">Translate full pages and review in context</p>
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".csv"
-            aria-label="Import translations CSV"
-            style={{ display: "none" }}
-            onChange={(e) => {
-              const file = e.target.files[0];
-              if (file) importTranslations(file);
-              e.target.value = "";
-            }}
-          />
-          <button
-            type="button"
-            className="action-ghost-button"
-            disabled={!ready}
-            onClick={() => fileInputRef.current.click()}
-          >
-            Import
-          </button>
-          <button type="button" className="action-ghost-button" disabled={!ready} onClick={exportTranslations}>
-            Export
-          </button>
           <input
             type="search"
             className="input-field"
