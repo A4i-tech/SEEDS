@@ -118,6 +118,7 @@ class TestRefreshReuseDetection:
         docs = [doc async for doc in mock_db["userRefreshTokens"].find({"owner_id": issued["user"]["id"]})]
         assert len(docs) == 2
         assert all(doc["revoked"] is True for doc in docs)
+        assert all(doc["revoked_reason"] == "consumed" for doc in docs)
 
     async def test_replay_revokes_other_families_for_same_owner(self, mock_db):
         await _seed_tenant(mock_db)
@@ -138,6 +139,7 @@ class TestRefreshReuseDetection:
             {"token_id": family_b["refresh_token"]}
         )
         assert other_family_doc["revoked"] is True
+        assert other_family_doc["revoked_reason"] == "consumed"
 
 
 class TestRefreshConcurrency:
@@ -304,3 +306,61 @@ class TestSchoolAdminAndPhoneLoginAlsoIssueRefreshTokens:
         assert result["access_token"]
         assert result["refresh_token"]
         assert isinstance(result["expires_in"], int)
+
+
+class TestLogoutRevocation:
+    async def test_logout_revoked_token_replay_does_not_trigger_reuse_alarm(self, mock_db, caplog):
+        await _seed_tenant(mock_db)
+        service = AuthService(mock_db)
+        issued = await service.login_unified(
+            identifier="tenant@example.com", password="correct-horse", is_email=True
+        )
+        owner_id = issued["user"]["id"]
+
+        await service.logout(owner_id)
+
+        doc = await mock_db["userRefreshTokens"].find_one({"token_id": issued["refresh_token"]})
+        assert doc["revoked"] is True
+        assert doc["revoked_reason"] == "logout"
+
+        with caplog.at_level("WARNING"):
+            with pytest.raises(UnauthorizedError):
+                await service.refresh(issued["refresh_token"])
+
+        assert not any(
+            getattr(record, "event", None) == "refresh_token_reuse_detected" for record in caplog.records
+        )
+
+    async def test_consumed_token_replay_still_triggers_reuse_alarm(self, mock_db, caplog):
+        await _seed_tenant(mock_db)
+        service = AuthService(mock_db)
+        issued = await service.login_unified(
+            identifier="tenant@example.com", password="correct-horse", is_email=True
+        )
+        await service.refresh(issued["refresh_token"])
+
+        with caplog.at_level("WARNING"):
+            with pytest.raises(UnauthorizedError):
+                await service.refresh(issued["refresh_token"])
+
+        assert any(
+            getattr(record, "event", None) == "refresh_token_reuse_detected" for record in caplog.records
+        )
+
+    async def test_logout_does_not_relabel_already_consumed_tokens(self, mock_db):
+        await _seed_tenant(mock_db)
+        service = AuthService(mock_db)
+        issued = await service.login_unified(
+            identifier="tenant@example.com", password="correct-horse", is_email=True
+        )
+        owner_id = issued["user"]["id"]
+        rotated = await service.refresh(issued["refresh_token"])
+
+        await service.logout(owner_id)
+
+        consumed_doc = await mock_db["userRefreshTokens"].find_one({"token_id": issued["refresh_token"]})
+        assert consumed_doc["revoked_reason"] == "consumed"
+
+        active_doc = await mock_db["userRefreshTokens"].find_one({"token_id": rotated["refresh_token"]})
+        assert active_doc["revoked"] is True
+        assert active_doc["revoked_reason"] == "logout"

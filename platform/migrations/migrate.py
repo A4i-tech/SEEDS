@@ -53,6 +53,7 @@ _MIGRATIONS: list[tuple[str, str]] = [
     ("019", "019_contentsv3_remove_quiz_docs.py"),
     ("020", "020_contentsv3_fix_is_processed.py"),
     ("021", "021_website_claimed_domains.py"),
+    ("022", "022_refresh_tokens_revoked_reason.py"),
 ]
 
 
