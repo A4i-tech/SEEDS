@@ -1,12 +1,11 @@
-from __future__ import annotations
-
 import logging
 import secrets
 from typing import Any
 from urllib.parse import urlsplit
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.security import OAuth2PasswordBearer
+from slowapi.util import get_remote_address
 
 from app.controllers.content_aggregator_auth_controller import get_content_aggregator_auth
 from app.models.requests.webhook_registration_requests import (
@@ -17,6 +16,8 @@ from app.models.requests.webhook_registration_requests import (
 from app.platform.auth.webhook_secret import encrypt_secret
 from app.platform.error_handling import AppError, NotFoundError, UnauthorizedError
 from app.platform.logging import user_id_ctx_var
+from app.platform.security import limiter
+from app.platform.settings import get_settings
 from app.repositories.content_aggregator_webhook_repository import (
     ContentAggregatorWebhookRepository,
     get_content_aggregator_webhook_repo,
@@ -37,6 +38,18 @@ _EVENT_REQUIRED_SCOPE = {
     WebhookEventType.CONTENT_DELETED.value: "content:read",
 }
 _oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/v1/auth/token", auto_error=False)
+
+
+def _rate_limit_key(request: Request) -> str:
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return get_remote_address(request)
+    token = auth_header.removeprefix("Bearer ").strip()
+    try:
+        claims = _jwt.decode_access_token(token, secret_key=get_settings().secret_key)
+    except UnauthorizedError:
+        return get_remote_address(request)
+    return claims["sub"]
 
 
 async def _require_aggregator_client(
@@ -92,7 +105,9 @@ def _serialize(doc: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.post("", status_code=201, summary="Register a webhook")
+@limiter.limit("100/minute", key_func=_rate_limit_key)
 async def register_webhook(
+    request: Request,
     body: WebhookRegisterRequest,
     claims: _jwt.AccessTokenClaims = Depends(_require_aggregator_client),
     repo: ContentAggregatorWebhookRepository = Depends(get_content_aggregator_webhook_repo),
@@ -102,7 +117,7 @@ async def register_webhook(
     _validate_events(body.events)
     _validate_scope(body.events, _granted_scopes(claims))
     if await repo.count_for_client(client_id) >= MAX_WEBHOOKS_PER_CLIENT:
-        raise AppError("WEBHOOK_LIMIT_REACHED", "maximum webhooks per client reached", 403)
+        raise AppError("WEBHOOK_LIMIT_REACHED", "maximum webhooks per client reached", 409)
     secret = secrets.token_hex(32)
     doc = await repo.create(client_id, body.url, encrypt_secret(secret), body.events)
     logger.info("register_webhook: webhook registered webhookId=%s clientId=%s", doc["_id"], client_id)
@@ -112,7 +127,9 @@ async def register_webhook(
 
 
 @router.get("", summary="List own webhooks")
+@limiter.limit("300/minute", key_func=_rate_limit_key)
 async def list_webhooks(
+    request: Request,
     claims: _jwt.AccessTokenClaims = Depends(_require_aggregator_client),
     repo: ContentAggregatorWebhookRepository = Depends(get_content_aggregator_webhook_repo),
 ) -> dict[str, Any]:
@@ -121,7 +138,9 @@ async def list_webhooks(
 
 
 @router.patch("/{webhook_id}", summary="Update a webhook")
+@limiter.limit("100/minute", key_func=_rate_limit_key)
 async def update_webhook(
+    request: Request,
     webhook_id: str,
     body: WebhookUpdateRequest,
     claims: _jwt.AccessTokenClaims = Depends(_require_aggregator_client),
@@ -159,7 +178,9 @@ async def update_webhook(
 
 
 @router.delete("/{webhook_id}", status_code=204, summary="Remove a webhook")
+@limiter.limit("100/minute", key_func=_rate_limit_key)
 async def delete_webhook(
+    request: Request,
     webhook_id: str,
     claims: _jwt.AccessTokenClaims = Depends(_require_aggregator_client),
     repo: ContentAggregatorWebhookRepository = Depends(get_content_aggregator_webhook_repo),
