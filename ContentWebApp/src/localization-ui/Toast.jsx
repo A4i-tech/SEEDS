@@ -22,16 +22,21 @@ export function ToastProvider({ children }) {
   }, []);
 
   const toast = useCallback(({ message, tone = "info", duration = 5000, onUndo }) => {
-    clearTimeout(timer.current);
-    setNote({ message, tone, onUndo });
-    timer.current = setTimeout(() => setNote(null), duration);
+    setNote((current) => {
+      // A visible crit toast must not be silently clobbered by a lower-priority
+      // toast firing right after it — only crit can replace crit.
+      if (current?.tone === "crit" && tone !== "crit") return current;
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => setNote(null), duration);
+      return { message, tone, onUndo };
+    });
   }, []);
 
   return (
     <ToastCtx.Provider value={{ toast, dismiss }}>
       {children}
       {note ? (
-        <div className={TONE_CLASS[note.tone] || "status-message"} role="status">
+        <div className={TONE_CLASS[note.tone]} role="status">
           {note.message}
           {note.onUndo ? (
             <button

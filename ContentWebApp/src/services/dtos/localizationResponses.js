@@ -5,7 +5,6 @@ const formatCreated = (createdAt) => {
 };
 
 export const fromProjectResponse = (doc) => {
-  if (!doc) return doc;
   return {
     ...doc,
     id: doc.id,
@@ -17,7 +16,6 @@ export const fromProjectResponse = (doc) => {
 };
 
 export const fromSiteResponse = (doc) => {
-  if (!doc) return doc;
   return {
     ...doc,
     id: doc.id,
@@ -31,7 +29,6 @@ export const fromSiteResponse = (doc) => {
 };
 
 export const fromLanguageResponse = (doc) => {
-  if (!doc) return doc;
   return {
     ...doc,
     id: doc.id,
@@ -41,7 +38,6 @@ export const fromLanguageResponse = (doc) => {
 };
 
 export const fromTranslationResponse = (doc) => {
-  if (!doc) return doc;
   return {
     ...doc,
     id: doc.id,

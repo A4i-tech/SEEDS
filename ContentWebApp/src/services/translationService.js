@@ -1,6 +1,7 @@
 import { SEEDS_URL } from "../Constants";
 import { getAuthHeaders } from "../utils/authHelpers";
-import { apiFetch, buildQueryString } from "./api";
+import { buildQueryString } from "./api";
+import { request } from "./requestHelpers";
 import {
   toExtractRequest,
   toTranslationUpdateRequest,
@@ -9,9 +10,6 @@ import {
   toBulkApproveRequest,
 } from "./dtos/localizationRequests";
 import { fromTranslationResponse } from "./dtos/localizationResponses";
-
-const TIMEOUT_MS = 15000;
-const request = (url, options = {}) => apiFetch(url, { timeoutMs: TIMEOUT_MS, ...options });
 
 export const translationService = {
   async extractItems(siteId, items) {
@@ -70,7 +68,7 @@ export const translationService = {
   async updateTranslation(id, lang, text) {
     const response = await request(`${SEEDS_URL}/translations/${id}`, {
       method: "PUT",
-      headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+      headers: getAuthHeaders(),
       body: JSON.stringify(toTranslationUpdateRequest({ lang, text })),
     });
     return fromTranslationResponse(response);
@@ -79,7 +77,7 @@ export const translationService = {
   async approveTranslation(id, lang) {
     const response = await request(`${SEEDS_URL}/translations/${id}/approve`, {
       method: "POST",
-      headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+      headers: getAuthHeaders(),
       body: JSON.stringify(toTranslationApproveRequest({ lang })),
     });
     return fromTranslationResponse(response);
@@ -88,7 +86,7 @@ export const translationService = {
   async rejectTranslation(id, lang, reason = "") {
     const response = await request(`${SEEDS_URL}/translations/${id}/reject`, {
       method: "POST",
-      headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+      headers: getAuthHeaders(),
       body: JSON.stringify(toTranslationRejectRequest({ lang, reason })),
     });
     return fromTranslationResponse(response);
@@ -97,7 +95,7 @@ export const translationService = {
   async bulkApproveTranslations({ siteId, route, lang }) {
     return request(`${SEEDS_URL}/translations/bulk-approve?${buildQueryString({ site_id: siteId })}`, {
       method: "POST",
-      headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+      headers: getAuthHeaders(),
       body: JSON.stringify(toBulkApproveRequest({ route, lang })),
     });
   },

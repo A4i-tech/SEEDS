@@ -9,12 +9,6 @@ export class ApiError extends Error {
   }
 }
 
-/**
- * Generic fetch wrapper with error handling
- * @param {string} url - The URL to fetch
- * @param {Object} options - Fetch options
- * @returns {Promise<any>} - Parsed JSON response
- */
 export const apiFetch = async (url, { timeoutMs, ...options } = {}) => {
   const controller = timeoutMs ? new AbortController() : null;
   const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;

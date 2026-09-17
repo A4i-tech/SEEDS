@@ -31,6 +31,14 @@ const BADGE_STYLE = {
   pending: { background: "var(--color-warning-bg)", color: "var(--color-warning-fg)" },
 };
 
+function TabButton({ label, count, active, onClick }) {
+  return (
+    <button type="button" className={`tab-button ${active ? "active" : ""}`} onClick={onClick}>
+      {label} ({count})
+    </button>
+  );
+}
+
 function StatusBadge({ seg }) {
   const stage = seg.stage === "approved" || seg.stage === "rejected" ? seg.stage : "pending";
   const label = stage === "approved" ? "Approved" : stage === "rejected" ? "Rejected" : "Pending Review";
@@ -91,14 +99,7 @@ function TransRow({ seg, idx, onEdit, onApprove, onReject, onCopy }) {
   );
 }
 
-export function WorkspaceScreen({
-  scope,
-  languages,
-  sites = [],
-  onScope,
-  pages = [],
-  pagesError = null,
-}) {
+export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pagesError = null }) {
   const { siteId, route, lang } = scope;
   const { toast } = useToast();
   const [docs, setDocs] = useState(null);
@@ -246,8 +247,8 @@ export function WorkspaceScreen({
     try {
       await navigator.clipboard.writeText(text || "");
       toast({ message: "Copied", tone: "info" });
-    } catch {
-      toast({ message: "Copy failed", tone: "crit" });
+    } catch (e) {
+      toast({ message: e.message, tone: "crit" });
     }
   };
   const approveAll = async () => {
@@ -294,27 +295,19 @@ export function WorkspaceScreen({
       </div>
 
       <div className="tabs-container" style={{ marginBottom: 16 }}>
-        <button
-          type="button"
-          className={`tab-button ${statusTab === "pending" ? "active" : ""}`}
-          onClick={() => setStatusTab("pending")}
-        >
-          Pending Review ({tabCounts.pending})
-        </button>
-        <button
-          type="button"
-          className={`tab-button ${statusTab === "approved" ? "active" : ""}`}
-          onClick={() => setStatusTab("approved")}
-        >
-          Approved ({tabCounts.approved})
-        </button>
-        <button
-          type="button"
-          className={`tab-button ${statusTab === "all" ? "active" : ""}`}
-          onClick={() => setStatusTab("all")}
-        >
-          All ({tabCounts.all})
-        </button>
+        {[
+          { id: "pending", label: "Pending Review", count: tabCounts.pending },
+          { id: "approved", label: "Approved", count: tabCounts.approved },
+          { id: "all", label: "All", count: tabCounts.all },
+        ].map((t) => (
+          <TabButton
+            key={t.id}
+            label={t.label}
+            count={t.count}
+            active={statusTab === t.id}
+            onClick={() => setStatusTab(t.id)}
+          />
+        ))}
       </div>
 
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>

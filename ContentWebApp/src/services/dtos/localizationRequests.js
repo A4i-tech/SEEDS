@@ -1,16 +1,11 @@
-export const toProjectCreateRequest = ({ name, description, sourceLanguage, status }) => ({
+const toProjectRequest = ({ name, description, sourceLanguage, status }) => ({
   name,
   description,
   source_language: sourceLanguage,
   status,
 });
-
-export const toProjectUpdateRequest = ({ name, description, sourceLanguage, status }) => ({
-  name,
-  description,
-  source_language: sourceLanguage,
-  status,
-});
+export const toProjectCreateRequest = toProjectRequest;
+export const toProjectUpdateRequest = toProjectRequest;
 
 export const toSiteCreateRequest = ({ projectId, domain, name, status }) => ({
   project_id: projectId,
@@ -19,16 +14,11 @@ export const toSiteCreateRequest = ({ projectId, domain, name, status }) => ({
   status,
 });
 
-export const toLanguageCreateRequest = ({ name, code, direction, enabled }) => ({
-  name,
-  code,
-  direction,
-  enabled,
-});
+const toLanguageRequest = ({ name, code, direction, enabled }) => ({ name, code, direction, enabled });
+export const toLanguageCreateRequest = toLanguageRequest;
+export const toLanguageUpdateRequest = toLanguageRequest;
 
 export const toSiteUpdateRequest = ({ name, domain, status }) => ({ name, domain, status });
-
-export const toLanguageUpdateRequest = ({ name, code, direction, enabled }) => ({ name, code, direction, enabled });
 
 export const toTranslationUpdateRequest = ({ lang, text }) => ({ lang, text });
 

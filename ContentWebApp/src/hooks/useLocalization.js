@@ -2,6 +2,24 @@ import { useEffect, useState } from "react";
 import { onboardingService } from "../services/onboardingService";
 import { languageService } from "../services/languageService";
 
+function useCrudState(actions, setState) {
+  const handleCreate = async (payload) => {
+    const created = await actions.create(payload);
+    setState((prev) => [...prev, created]);
+    return created;
+  };
+  const handleUpdate = async (id, fields) => {
+    const updated = await actions.update(id, fields);
+    setState((prev) => prev.map((item) => (item.id === id ? updated : item)));
+    return updated;
+  };
+  const handleDelete = async (id) => {
+    await actions.delete(id);
+    setState((prev) => prev.filter((item) => item.id !== id));
+  };
+  return { handleCreate, handleUpdate, handleDelete };
+}
+
 export const useLocalization = () => {
   const [projects, setProjects] = useState([]);
   const [sites, setSites] = useState([]);
@@ -44,71 +62,59 @@ export const useLocalization = () => {
     };
   }, []);
 
-  const handleCreateLanguage = async (language) => {
-    const created = await languageService.createLanguage({
-      name: language.name,
-      code: language.code,
-      direction: language.direction,
-      enabled: language.enabled,
-    });
-    setLanguages((prev) => [...prev, created]);
-    return created;
-  };
+  const languageCrud = useCrudState(
+    {
+      create: (language) =>
+        languageService.createLanguage({
+          name: language.name,
+          code: language.code,
+          direction: language.direction,
+          enabled: language.enabled,
+        }),
+      update: (id, fields) => languageService.updateLanguage(id, fields),
+      delete: (id) => languageService.deleteLanguage(id),
+    },
+    setLanguages
+  );
+  const handleCreateLanguage = languageCrud.handleCreate;
+  const handleUpdateLanguage = languageCrud.handleUpdate;
+  const handleDeleteLanguage = languageCrud.handleDelete;
 
-  const handleUpdateLanguage = async (id, fields) => {
-    const updated = await languageService.updateLanguage(id, fields);
-    setLanguages((prev) => prev.map((l) => (l.id === id ? updated : l)));
-    return updated;
-  };
+  const projectCrud = useCrudState(
+    {
+      create: (project) =>
+        onboardingService.createProject({
+          name: project.name,
+          description: project.description,
+          sourceLanguage: project.sourceLanguage,
+          status: project.status,
+        }),
+      update: (id, fields) => onboardingService.updateProject(id, fields),
+      delete: (id) => onboardingService.deleteProject(id),
+    },
+    setProjects
+  );
+  const handleCreateProject = projectCrud.handleCreate;
+  const handleUpdateProject = projectCrud.handleUpdate;
+  const handleDeleteProject = projectCrud.handleDelete;
 
-  const handleDeleteLanguage = async (id) => {
-    await languageService.deleteLanguage(id);
-    setLanguages((prev) => prev.filter((l) => l.id !== id));
-  };
-
-  const handleCreateProject = async (project) => {
-    const created = await onboardingService.createProject({
-      name: project.name,
-      description: project.description,
-      sourceLanguage: project.sourceLanguage,
-      status: project.status,
-    });
-    setProjects((prev) => [...prev, created]);
-    return created;
-  };
-
-  const handleUpdateProject = async (id, fields) => {
-    const updated = await onboardingService.updateProject(id, fields);
-    setProjects((prev) => prev.map((p) => (p.id === id ? updated : p)));
-    return updated;
-  };
-
-  const handleDeleteProject = async (id) => {
-    await onboardingService.deleteProject(id);
-    setProjects((prev) => prev.filter((p) => p.id !== id));
-  };
-
-  const handleCreateSite = async (site) => {
-    const created = await onboardingService.createSite({
-      projectId: site.projectId,
-      domain: site.domain,
-      name: site.name,
-      status: site.status,
-    });
-    setSites((prev) => [...prev, created]);
-    return created;
-  };
-
-  const handleUpdateSite = async (id, fields) => {
-    const updated = await onboardingService.updateSite(id, fields);
-    setSites((prev) => prev.map((s) => (s.id === id ? updated : s)));
-    return updated;
-  };
-
-  const handleDeleteSite = async (id) => {
-    await onboardingService.deleteSite(id);
-    setSites((prev) => prev.filter((s) => s.id !== id));
-  };
+  const siteCrud = useCrudState(
+    {
+      create: (site) =>
+        onboardingService.createSite({
+          projectId: site.projectId,
+          domain: site.domain,
+          name: site.name,
+          status: site.status,
+        }),
+      update: (id, fields) => onboardingService.updateSite(id, fields),
+      delete: (id) => onboardingService.deleteSite(id),
+    },
+    setSites
+  );
+  const handleCreateSite = siteCrud.handleCreate;
+  const handleUpdateSite = siteCrud.handleUpdate;
+  const handleDeleteSite = siteCrud.handleDelete;
 
   return {
     projects,

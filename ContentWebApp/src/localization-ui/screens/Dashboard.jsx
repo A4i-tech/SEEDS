@@ -3,6 +3,7 @@ import "../../components/AllContent/shared/cards.css";
 import "../../components/AllContent/shared/buttons.css";
 import "../../components/AllContent/shared/utilities.css";
 import "../../components/AllContent/AnalyticsTab/css/AnalyticsTab.css";
+import { SEEDS_URL } from "../../Constants";
 import { useToast } from "../Toast";
 import { ManageScreen } from "./Manage";
 import { extractDomain } from "../lib/url";
@@ -44,9 +45,9 @@ function SnippetBlock({ snippet }) {
 const buildDevToolsScript = (siteId) =>
   [
     "const s = document.createElement(\"script\");",
-    "s.src = \"http://localhost:3000/sdk.js\";",
+    `s.src = "${SEEDS_URL}/sdk.js";`,
     `s.dataset.siteId = "${siteId}";`,
-    "s.dataset.apiBase = \"http://localhost:3000\";",
+    `s.dataset.apiBase = "${SEEDS_URL}";`,
     "document.body.appendChild(s);",
   ].join("\n");
 
@@ -137,15 +138,6 @@ function OnboardingCard({ loc }) {
     }
   };
 
-  const copySnippet = async () => {
-    try {
-      await navigator.clipboard.writeText(result.snippet || "");
-      toast({ message: "Snippet copied", tone: "good" });
-    } catch {
-      toast({ message: "Copy failed", tone: "crit" });
-    }
-  };
-
   const reset = () => {
     setResult(null);
     setDomain("");
@@ -192,9 +184,6 @@ function OnboardingCard({ loc }) {
         <DevToolsSection siteId={result.siteId} />
 
         <div className="button-group">
-          <button type="button" className="primary-button" onClick={copySnippet}>
-            Copy Snippet
-          </button>
           <button
             className="action-ghost-button"
             type="button"
@@ -229,7 +218,7 @@ function OnboardingCard({ loc }) {
           onChange={(e) => setDomain(e.target.value)}
           placeholder="https://example.com"
         />
-        {error ? <p className="error-message">{error}</p> : null}
+        {error && <p className="error-message">{error}</p>}
         <button className="primary-button" type="submit" disabled={!domain.trim() || busy}>
           {busy ? "Registering…" : "Register Website"}
         </button>

@@ -1,11 +1,10 @@
 const LOW_CONF_THRESHOLD = 0.7;
 
-export function deriveStage(doc, lang, { edited = false } = {}) {
-  const t = doc?.translations?.[lang];
+export function deriveStage(doc, lang) {
+  const t = doc.translations?.[lang];
   if (t?.status === "rejected") return "rejected";
   if (t?.status === "approved") return "approved";
   if (!t || !t.text) return "new";
-  if (edited) return "edited";
   return "needs_review";
 }
 
