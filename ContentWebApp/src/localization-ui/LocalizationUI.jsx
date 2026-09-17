@@ -6,7 +6,7 @@ import { useLocalization } from "../hooks/useLocalization";
 import { translationService } from "../services/translationService";
 import { ToastProvider } from "./Toast";
 import { AppShell } from "./AppShell";
-import { usePersistentState, useLastSession } from "./lib/prefs";
+import { usePersistentState } from "./lib/prefs";
 import { pagesFromDocs } from "./lib/segments";
 import { DashboardScreen } from "./screens/Dashboard";
 import { WorkspaceScreen } from "./screens/Workspace";
@@ -23,9 +23,6 @@ export default function LocalizationUI() {
     route: "",
     lang: "hi",
   });
-  const [uiLanguage, setUiLanguage] = usePersistentState("uiLanguage", "");
-  const [lastSession, rememberSession] = useLastSession();
-
   const [siteDocs, setSiteDocs] = useState([]);
   const [pagesError, setPagesError] = useState(null);
   useEffect(() => {
@@ -54,10 +51,6 @@ export default function LocalizationUI() {
   const pages = useMemo(() => pagesFromDocs(siteDocs, scope.lang), [siteDocs, scope.lang]);
 
   useEffect(() => {
-    if (!uiLanguage && languages.length) setUiLanguage(languages[0].code);
-  }, [languages, uiLanguage, setUiLanguage]);
-
-  useEffect(() => {
     const routeMissing =
       !scope.route || (pages.length > 0 && !pages.some((p) => p.route === scope.route));
     if (scope.siteId && routeMissing) {
@@ -72,26 +65,9 @@ export default function LocalizationUI() {
     }
   }, [sites, scope.siteId, setScope]);
 
-  useEffect(() => {
-    if (scope.siteId && scope.route) rememberSession(scope);
-  }, [scope.siteId, scope.route, scope.lang, rememberSession]);
-
-  const goWorkspace = (next) => {
-    setScope((s) => ({ ...s, ...next }));
-    setNav("workspace");
-  };
-
   let screen;
   if (nav === "dashboard") {
-    screen = (
-      <DashboardScreen
-        loc={loc}
-        scope={scope}
-        lastSession={lastSession}
-        onResume={(sc) => goWorkspace(sc)}
-        onOpenReview={(sc) => goWorkspace(sc)}
-      />
-    );
+    screen = <DashboardScreen loc={loc} />;
   } else if (nav === "workspace") {
     screen = (
       <WorkspaceScreen
