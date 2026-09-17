@@ -8,15 +8,12 @@ function authFile(persona) {
 const INSTANCES = {
   local: {
     baseURL: 'http://localhost:3000',
-    apiBaseURL: process.env.REACT_APP_API_BASE_URL || 'https://seeds-6uxm.onrender.com',
   },
   onrender: {
     baseURL: 'https://contentwebapp.onrender.com',
-    apiBaseURL: process.env.REACT_APP_API_BASE_URL || 'https://seeds-6uxm.onrender.com',
   },
   dev: {
     baseURL: 'https://content-webapp-dev.a4i-lab.in',
-    apiBaseURL: process.env.REACT_APP_API_BASE_URL || 'https://seeds-6uxm.onrender.com',
   },
 };
 
