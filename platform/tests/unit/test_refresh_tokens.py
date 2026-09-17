@@ -10,6 +10,7 @@ from app.platform.auth.refresh_tokens import (
     ConsumedToken,
     RefreshTokenExpiredError,
     RefreshTokenNotFoundError,
+    RefreshTokenRevokedError,
     RefreshTokenReusedError,
     issue_pair,
     rotate,
@@ -29,6 +30,7 @@ class FakeStore:
             "claims": claims,
             "expires_at": expires_at,
             "revoked": False,
+            "revoked_reason": None,
         }
 
     async def try_consume(self, token_id: str) -> ConsumedToken:
@@ -36,10 +38,13 @@ class FakeStore:
         if doc is None:
             raise RefreshTokenNotFoundError
         if doc["revoked"]:
+            if doc["revoked_reason"] == "logout":
+                raise RefreshTokenRevokedError
             raise RefreshTokenReusedError(doc["owner_id"])
         if doc["expires_at"] <= datetime.now(tz=UTC):
             raise RefreshTokenExpiredError
         doc["revoked"] = True
+        doc["revoked_reason"] = "consumed"
         return ConsumedToken(
             owner_id=doc["owner_id"],
             claims=doc["claims"],
@@ -47,10 +52,11 @@ class FakeStore:
             revoked=doc["revoked"],
         )
 
-    async def revoke_all_for_owner(self, owner_id: str) -> None:
+    async def revoke_all_for_owner(self, owner_id: str, *, reason: str) -> None:
         for doc in self._tokens.values():
-            if doc["owner_id"] == owner_id:
+            if doc["owner_id"] == owner_id and not doc["revoked"]:
                 doc["revoked"] = True
+                doc["revoked_reason"] = reason
 
 
 @pytest.fixture(autouse=True)
@@ -173,6 +179,7 @@ class TestRotate:
             )
 
         assert all(doc["revoked"] for doc in store._tokens.values())
+        assert all(doc["revoked_reason"] == "consumed" for doc in store._tokens.values())
 
     async def test_replay_revokes_other_tokens_for_same_owner(self):
         store = FakeStore()
@@ -200,6 +207,27 @@ class TestRotate:
 
         assert store._tokens[rotated_a["refresh_token"]]["revoked"] is True
         assert store._tokens[token_b["refresh_token"]]["revoked"] is True
+        assert store._tokens[rotated_a["refresh_token"]]["revoked_reason"] == "consumed"
+        assert store._tokens[token_b["refresh_token"]]["revoked_reason"] == "consumed"
+
+    async def test_replaying_logout_revoked_token_does_not_cascade(self):
+        store = FakeStore()
+        token_a = await _issue(store, owner_id="user-1")
+        token_b = await _issue(store, owner_id="user-1")
+        await store.revoke_all_for_owner("user-1", reason="logout")
+
+        with pytest.raises(UnauthorizedError):
+            await rotate(
+                store,
+                token_a["refresh_token"],
+                verify_owner_active=_verify_owner_active,
+                build_access_token=_build_access_token,
+                refresh_ttl="30d",
+                reuse_counter_name="auth.reuse_detected",
+            )
+
+        assert store._tokens[token_a["refresh_token"]]["revoked_reason"] == "logout"
+        assert store._tokens[token_b["refresh_token"]]["revoked_reason"] == "logout"
 
     async def test_concurrent_refresh_only_one_winner(self):
         store = FakeStore()
