@@ -319,16 +319,21 @@ async def test_dispatch_terminal_event_fanout_one_failure_does_not_block_others(
     content_id = str(ObjectId())
     await _seed_content(db, content_id, _TENANT_A)
     await _seed_client(db, _TENANT_A, _TENANT_A)
-    _good = await _make_webhook(webhook_repo, url="https://good.example.com/hook")
+    good = await _make_webhook(webhook_repo, url="https://good.example.com/hook")
     bad = await _make_webhook(webhook_repo, url="https://bad.example.com/hook")
 
+    delivered_ids = []
+
     async def fake_deliver(webhook_doc, *args, **kwargs):
+        delivered_ids.append(webhook_doc["_id"])
         if webhook_doc["_id"] == bad["_id"]:
             raise RuntimeError("simulated unhandled failure")
         return None
 
     with patch("app.services.webhook_delivery_service.deliver_webhook", new=AsyncMock(side_effect=fake_deliver)):
         await dispatch_terminal_event(db, content_id, "job.completed", job_id="job-1")
+
+    assert set(delivered_ids) == {good["_id"], bad["_id"]}
 
 
 @pytest.mark.asyncio
