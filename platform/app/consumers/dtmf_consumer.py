@@ -99,6 +99,16 @@ class DtmfConsumer(BaseConsumer):
                 "dtmf_consumer: no NCCO to push for call_leg=%s (stale write), skipping", call_leg_id
             )
             return
+
+        claimed = await IVRRepository(db).try_claim_dtmf_result(
+            call_leg_id, message.message_id, ncco, should_hangup
+        )
+        if claimed:
+            logger.info(
+                "dtmf_consumer: fast-path claim succeeded call_leg=%s digit=%r", call_leg_id, digits
+            )
+            return
+
         if not await update_call_ncco(call_leg_id, ncco, get_settings()):
             logger.error("dtmf_consumer: update_call_ncco failed for call_leg=%s", call_leg_id)
             return

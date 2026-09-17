@@ -92,6 +92,16 @@ class StreamPlaybackInfo(BaseModel):
     done_at: datetime | None = None
 
 
+class PendingDTMF(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    message_id: str
+    waiting: bool
+    ncco: list[dict[str, Any]] | None = None
+    should_hangup: bool | None = None
+    created_at: datetime
+
+
 class IVRCallStateMongoDoc(BaseModel):
     """MongoDB document representing the runtime state of an IVR call session.
 
@@ -115,6 +125,7 @@ class IVRCallStateMongoDoc(BaseModel):
     tenant_id: str = ""
     school_id: str | None = None
     version: int = 0
+    pending_dtmf: PendingDTMF | None = None
 
     @classmethod
     def from_mongo(cls, doc: dict) -> IVRCallStateMongoDoc:
