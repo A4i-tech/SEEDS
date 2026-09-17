@@ -10,6 +10,7 @@ from app.platform.auth.refresh_tokens import (
     ConsumedToken,
     RefreshTokenExpiredError,
     RefreshTokenNotFoundError,
+    RefreshTokenRevokedError,
     RefreshTokenReusedError,
 )
 from app.repositories.base_repository import BaseRepository
@@ -47,6 +48,7 @@ class UserRefreshTokenRepository(BaseRepository):
                 "claims": claims,
                 "expires_at": expires_at,
                 "revoked": False,
+                "revoked_reason": None,
                 "created_at": created_at,
             }
         )
@@ -54,7 +56,7 @@ class UserRefreshTokenRepository(BaseRepository):
     async def try_consume(self, token_id: str) -> ConsumedToken[UserClaims]:
         doc = await self._col.find_one_and_update(
             {"token_id": token_id, "revoked": False, "expires_at": {"$gt": datetime.now(tz=UTC)}},
-            {"$set": {"revoked": True}},
+            {"$set": {"revoked": True, "revoked_reason": "consumed"}},
         )
         if doc is not None:
             return self._to_consumed(doc)
@@ -64,7 +66,12 @@ class UserRefreshTokenRepository(BaseRepository):
             raise RefreshTokenNotFoundError
         if not existing["revoked"]:
             raise RefreshTokenExpiredError
+        if existing.get("revoked_reason") == "logout":
+            raise RefreshTokenRevokedError
         raise RefreshTokenReusedError(existing["owner_id"])
 
-    async def revoke_all_for_owner(self, owner_id: str) -> None:
-        await self._col.update_many({"owner_id": owner_id}, {"$set": {"revoked": True}})
+    async def revoke_all_for_owner(self, owner_id: str, *, reason: str) -> None:
+        await self._col.update_many(
+            {"owner_id": owner_id, "revoked": False},
+            {"$set": {"revoked": True, "revoked_reason": reason}},
+        )

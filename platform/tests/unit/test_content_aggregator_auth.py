@@ -432,3 +432,34 @@ class TestNoSecretLogging:
                 continue
             for pattern in forbidden_patterns:
                 assert pattern not in line, f"possible secret logging: {line!r}"
+
+
+class TestAggregatorTokenControllerResponse:
+    async def test_issue_token_response_serializes_refresh_token(self, mock_db, auth):
+        from app.controllers.content_aggregator_auth_controller import issue_token
+        from app.models.requests.content_aggregator_requests import ContentAggregatorTokenRequest
+
+        await _seed_client(mock_db)
+
+        response = await issue_token(
+            ContentAggregatorTokenRequest(
+                client_id="partner-1", client_secret="super-secret", scope="content:read"
+            ),
+            auth=auth,
+        )
+
+        body = response.model_dump()
+        assert body["refresh_token"]
+        assert body["access_token"]
+
+    async def test_refresh_token_response_serializes_refresh_token(self, mock_db, auth):
+        from app.controllers.content_aggregator_auth_controller import refresh_token
+
+        await _seed_client(mock_db)
+        issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
+
+        response = await refresh_token(issued["refresh_token"], auth=auth)
+
+        body = response.model_dump()
+        assert body["refresh_token"]
+        assert body["refresh_token"] != issued["refresh_token"]
