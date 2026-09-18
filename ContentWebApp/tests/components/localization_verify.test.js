@@ -1,10 +1,10 @@
 import React from "react";
 import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ToastProvider } from "../src/localization-ui/Toast";
-import { WorkspaceScreen } from "../src/localization-ui/screens/Workspace.jsx";
+import { ToastProvider } from "../../src/components/AllContent/LocalizationTab/Toast";
+import { WorkspaceScreen } from "../../src/components/AllContent/LocalizationTab/Workspace.js";
 
-jest.mock("../src/services/translationService", () => ({
+jest.mock("../../src/services/translationService", () => ({
   translationService: {
     listTranslations: jest.fn(),
     generateForReview: jest.fn(),
@@ -13,7 +13,7 @@ jest.mock("../src/services/translationService", () => ({
     updateTranslation: jest.fn(),
   },
 }));
-import { translationService } from "../src/services/translationService";
+import { translationService } from "../../src/services/translationService";
 
 beforeAll(() => {
   window.HTMLElement.prototype.hasPointerCapture = jest.fn().mockReturnValue(false);

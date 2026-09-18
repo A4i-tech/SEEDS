@@ -1,19 +1,19 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
-import Select from "../../components/AllContent/shared/Select";
-import RowActions from "../../components/AllContent/shared/RowActions";
-import "../../components/AllContent/shared/tables.css";
-import "../../components/AllContent/shared/utilities.css";
-import "../../components/AllContent/shared/buttons.css";
-import "../../components/AllContent/shared/cards.css";
-import "../../components/AllContent/ContentTab/css/ContentTab.css";
-import "../../components/AllContent/RegistrationTab/css/TeachersList.css";
-import "../../components/AllContent/AnalyticsTab/css/AnalyticsTab.css";
-import { Pagination } from "../../components/ContentAggregatorDetails/Pagination";
-import { translationService } from "../../services/translationService";
-import { toSegment } from "../lib/segments";
-import { useToast } from "../Toast";
+import Select from "../shared/Select";
+import RowActions from "../shared/RowActions";
+import "../shared/tables.css";
+import "../shared/utilities.css";
+import "../shared/buttons.css";
+import "../shared/cards.css";
+import "../ContentTab/css/ContentTab.css";
+import "../RegistrationTab/css/TeachersList.css";
+import "../AnalyticsTab/css/AnalyticsTab.css";
+import { Pagination } from "../../ContentAggregatorDetails/Pagination";
+import { translationService } from "../../../services/translationService";
+import { toSegment } from "../../../utils/segments";
+import { useToast } from "./Toast";
 
 function EmptyState({ title, message, action }) {
   return (

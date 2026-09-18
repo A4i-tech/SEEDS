@@ -1,10 +1,10 @@
 import React from "react";
-import Modal from "../../../components/AllContent/shared/Modal";
-import Select from "../../../components/AllContent/shared/Select";
-import { extractDomain } from "../../lib/url";
-import { useCrudView } from "../../lib/useCrudView";
-import { ManageTable } from "../ManageTable";
-import { Header, ConfirmModal, ModalActions, StatusPill } from "./shared";
+import Modal from "../shared/Modal";
+import Select from "../shared/Select";
+import { extractDomain } from "../../../utils/url";
+import { useCrudView } from "../../../hooks/useCrudView";
+import { ManageTable } from "./ManageTable";
+import { Header, ConfirmModal, ModalActions, StatusPill } from "./ManageShared";
 
 export function SitesView({ loc, toast }) {
   const { sites, projects, handleCreateSite, handleUpdateSite, handleDeleteSite } = loc;

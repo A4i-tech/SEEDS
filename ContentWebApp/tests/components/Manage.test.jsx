@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { ToastProvider } from "../../src/localization-ui/Toast";
-import { ManageScreen } from "../../src/localization-ui/screens/Manage";
+import { ToastProvider } from "../../src/components/AllContent/LocalizationTab/Toast";
+import { ManageScreen } from "../../src/components/AllContent/LocalizationTab/Manage";
 
 function makeLoc() {
   return {

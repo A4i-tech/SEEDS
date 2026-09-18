@@ -1,8 +1,8 @@
 import React from "react";
-import { useToast } from "../Toast";
-import { ProjectsView } from "./manage/ProjectsView";
-import { SitesView } from "./manage/SitesView";
-import { LanguagesView } from "./manage/LanguagesView";
+import { useToast } from "./Toast";
+import { ProjectsView } from "./ProjectsView";
+import { SitesView } from "./SitesView";
+import { LanguagesView } from "./LanguagesView";
 
 export function ManageScreen({ nav, loc }) {
   const { toast } = useToast();

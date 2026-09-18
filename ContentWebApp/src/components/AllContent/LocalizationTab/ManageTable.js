@@ -1,7 +1,7 @@
 import React from "react";
-import RowActions from "../../components/AllContent/shared/RowActions";
-import "../../components/AllContent/shared/tables.css";
-import "../../components/AllContent/shared/utilities.css";
+import RowActions from "../shared/RowActions";
+import "../shared/tables.css";
+import "../shared/utilities.css";
 
 export function ManageTable({ columns, rows, getId, onEdit, onDelete, emptyTitle, emptyMessage }) {
   if (!rows.length) {

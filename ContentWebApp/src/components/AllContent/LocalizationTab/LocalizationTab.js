@@ -2,17 +2,17 @@ import React, { useEffect, useMemo, useState } from "react";
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 
-import { useLocalization } from "../hooks/useLocalization";
-import { translationService } from "../services/translationService";
+import { useLocalization } from "../../../hooks/useLocalization";
+import { translationService } from "../../../services/translationService";
 import { ToastProvider } from "./Toast";
 import { AppShell } from "./AppShell";
-import { usePersistentState } from "./lib/prefs";
-import { pagesFromDocs } from "./lib/segments";
-import { DashboardScreen } from "./screens/Dashboard";
-import { WorkspaceScreen } from "./screens/Workspace";
-import { PlaceholderScreen } from "./screens/Placeholder";
+import { usePersistentState } from "../../../utils/prefs";
+import { pagesFromDocs } from "../../../utils/segments";
+import { DashboardScreen } from "./Dashboard";
+import { WorkspaceScreen } from "./Workspace";
+import { PlaceholderScreen } from "./Placeholder";
 
-export default function LocalizationUI() {
+export default function LocalizationTab() {
   const loc = useLocalization();
   const { sites, languages, isLoadingWorkspace } = loc;
 

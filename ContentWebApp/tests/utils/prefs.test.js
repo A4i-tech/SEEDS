@@ -1,5 +1,5 @@
 import { renderHook, act } from "@testing-library/react";
-import { usePersistentState } from "../../src/localization-ui/lib/prefs";
+import { usePersistentState } from "../../src/utils/prefs";
 
 test("reads initial value when nothing stored", () => {
   const { result } = renderHook(() => usePersistentState("k1", { a: 1 }));

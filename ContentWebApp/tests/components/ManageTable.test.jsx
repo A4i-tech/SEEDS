@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ManageTable as CrudTable } from "../../src/localization-ui/screens/ManageTable";
+import { ManageTable as CrudTable } from "../../src/components/AllContent/LocalizationTab/ManageTable";
 
 const columns = [{ key: "name", header: "Name", render: (r) => r.name }];
 const rows = [{ id: "1", name: "Alpha" }];

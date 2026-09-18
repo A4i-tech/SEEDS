@@ -1,9 +1,9 @@
 import React from "react";
-import Modal from "../../../components/AllContent/shared/Modal";
-import "../../../components/AllContent/shared/utilities.css";
-import "../../../components/AllContent/shared/cards.css";
-import "../../../components/AllContent/shared/buttons.css";
-import "../../../components/AllContent/RegistrationTab/css/TeachersList.css";
+import Modal from "../shared/Modal";
+import "../shared/utilities.css";
+import "../shared/cards.css";
+import "../shared/buttons.css";
+import "../RegistrationTab/css/TeachersList.css";
 
 export const StatusPill = ({ status }) => {
   const isActive = status.toLowerCase() === "active";

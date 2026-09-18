@@ -1,6 +1,6 @@
-// tests/localization-ui/useCrudView.test.js
+// tests/hooks/useCrudView.test.js
 import { renderHook, act } from "@testing-library/react";
-import { useCrudView } from "../../src/localization-ui/lib/useCrudView";
+import { useCrudView } from "../../src/hooks/useCrudView";
 
 const items = [
   { id: "1", name: "Alpha" },

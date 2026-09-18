@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useRef, useState } from "react";
-import "../components/AllContent/shared/utilities.css";
-import "../components/AllContent/shared/buttons.css";
-import "../components/AllContent/AnalyticsTab/css/AnalyticsTab.css";
+import "../shared/utilities.css";
+import "../shared/buttons.css";
+import "../AnalyticsTab/css/AnalyticsTab.css";
 
 const ToastCtx = createContext(null);
 export const useToast = () => {

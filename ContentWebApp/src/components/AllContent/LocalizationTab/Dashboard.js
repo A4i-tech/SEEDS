@@ -1,12 +1,12 @@
 import React, { useState } from "react";
-import "../../components/AllContent/shared/cards.css";
-import "../../components/AllContent/shared/buttons.css";
-import "../../components/AllContent/shared/utilities.css";
-import "../../components/AllContent/AnalyticsTab/css/AnalyticsTab.css";
-import { SEEDS_URL } from "../../Constants";
-import { useToast } from "../Toast";
+import "../shared/cards.css";
+import "../shared/buttons.css";
+import "../shared/utilities.css";
+import "../AnalyticsTab/css/AnalyticsTab.css";
+import { SEEDS_URL } from "../../../Constants";
+import { useToast } from "./Toast";
 import { ManageScreen } from "./Manage";
-import { extractDomain } from "../lib/url";
+import { extractDomain } from "../../../utils/url";
 
 function parseApiErrorMessage(err) {
   const raw = err?.message || "";

@@ -14,9 +14,9 @@ jest.mock("../../src/hooks/useLocalization", () => ({
   }),
 }));
 
-import LocalizationUI from "../../src/localization-ui/LocalizationUI";
+import LocalizationTab from "../../src/components/AllContent/LocalizationTab/LocalizationTab";
 
 test("shows a loading skeleton instead of a blank screen while the dashboard loads", () => {
-  render(<LocalizationUI />);
+  render(<LocalizationTab />);
   expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument();
 });

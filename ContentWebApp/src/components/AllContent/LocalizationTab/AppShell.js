@@ -1,6 +1,6 @@
 import React from "react";
-import { cn } from "./lib/cn";
-import "../components/AllContent/ContentTab/css/ContentTab.css";
+import { cn } from "../../../utils/cn";
+import "../ContentTab/css/ContentTab.css";
 
 export function AppShell({ nav, onNav, children }) {
   const Tab = ({ id, label }) => (

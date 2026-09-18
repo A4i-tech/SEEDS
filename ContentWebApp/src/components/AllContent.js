@@ -13,7 +13,7 @@ import ContentTab from "./AllContent/ContentTab/ContentTab";
 import IVRTab from "./AllContent/IVRTab/IVRTab";
 import RegistrationTab from "./AllContent/RegistrationTab/RegistrationTab";
 import AnalyticsTab from "./AllContent/AnalyticsTab/AnalyticsTab";
-import LocalizationUI from "../localization-ui/LocalizationUI";
+import LocalizationTab from "./AllContent/LocalizationTab/LocalizationTab";
 import { USER_ROLES } from "../Constants";
 import "./AllContent/AllContent.css";
 import "./AllContent/shared/responsive.css";
@@ -213,7 +213,7 @@ const AllContent = () => {
 
         {canViewAnalytics && activeTab === "analytics" && <AnalyticsTab />}
 
-        {canViewLocalization && activeTab === "localization" && <LocalizationUI />}
+        {canViewLocalization && activeTab === "localization" && <LocalizationTab />}
 
         {canViewRegistration && activeTab === "registration" && (
           <RegistrationTab

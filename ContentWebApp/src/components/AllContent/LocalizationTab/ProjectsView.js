@@ -1,9 +1,9 @@
 import React from "react";
-import Modal from "../../../components/AllContent/shared/Modal";
-import Select from "../../../components/AllContent/shared/Select";
-import { useCrudView } from "../../lib/useCrudView";
-import { ManageTable } from "../ManageTable";
-import { Header, ConfirmModal, ModalActions, StatusPill } from "./shared";
+import Modal from "../shared/Modal";
+import Select from "../shared/Select";
+import { useCrudView } from "../../../hooks/useCrudView";
+import { ManageTable } from "./ManageTable";
+import { Header, ConfirmModal, ModalActions, StatusPill } from "./ManageShared";
 
 export function ProjectsView({ loc, toast }) {
   const { projects, handleCreateProject, handleUpdateProject, handleDeleteProject } = loc;
