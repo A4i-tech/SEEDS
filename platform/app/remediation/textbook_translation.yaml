@@ -1,0 +1,30 @@
+# Translates an already-remediated accessible textbook Markdown into another
+# language. Standalone: takes remediated.md as input, no OCR, no page images.
+
+pipeline_id: textbook_translation
+domain_profile: accessibility
+input_modality: text
+description: "Translate a remediated accessible textbook Markdown into another language"
+
+parameters:
+  properties:
+    source_language:
+      type: string
+      description: "Language the input Markdown is written in, or auto"
+      default: "auto"
+    target_language:
+      type: string
+      description: "Language to translate into"
+  required: [target_language]
+
+steps:
+  - agent: translate
+    description: "Translate the remediated Markdown into the target language"
+    config:
+      src: ${if .config.source_language == "auto" then null else .config.source_language end}
+      dst: ${.config.target_language}
+      input: ".items[0].text"
+      path: ".metadata.translated_text"
+
+  - agent: lineage
+    description: "Record the run for audit"
