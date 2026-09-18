@@ -6,7 +6,7 @@ itself is upstream's `page_chunking` + `ocr` agents, not ours.
 
     book.pdf     --[A: OCR]----------->  raw.md
     raw.md       --[B: review agent]-->  corrected.md + findings.jsonl
-    corrected.md --[C: remediate]----->  remediated.docx
+    corrected.md --[C: remediate]----->  remediated.docx + remediated.tex + remediated.pdf
 
 Each stage writes its own artifact and never overwrites the one before it, so a
 bad review pass costs nothing to redo while the expensive OCR output is still
@@ -16,7 +16,7 @@ All three stages are wired. Only the model calls are unproven — no key is set 
 
 ## Install
 
-`omni-ingest` is installed as a local package path dependency in the platform's Poetry environment (`pyproject.toml`).
+`omni-ingest` is installed from PyPI in the platform's Poetry environment (`pyproject.toml`).
 
 ## Stage A — textbook PDF to Markdown
 

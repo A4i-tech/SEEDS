@@ -157,12 +157,24 @@ async def test_remediation_access_allows_the_content_roles_and_blocks_teachers()
 async def test_create_job_uploads_the_pdf_and_stores_its_url(repo):
     blob = _StubBlob()
     result = await create_remediation_job(
-        file=_StubUpload(b"%PDF-1.7 body"), language="kn", user={"tenant_id": "tenant-a"}, repo=repo, blob_provider=blob
+        file=_StubUpload(b"%PDF-1.7 body"), language="kn", target_language="",
+        user={"tenant_id": "tenant-a"}, repo=repo, blob_provider=blob
     )
     job = await repo.get("tenant-a", result["job_id"])
     assert job.source_url == f"https://blob/textbook-remediation/{job.job_id}/source.pdf"
     assert (job.status, job.language, job.source_name) == ("pending", "kn", "book.pdf")
     assert blob.uploaded[f"textbook-remediation/{job.job_id}/source.pdf"] == b"%PDF-1.7 body"
+    assert job.target_language is None
+
+
+@pytest.mark.asyncio
+async def test_create_job_stores_the_target_language_when_given(repo):
+    result = await create_remediation_job(
+        file=_StubUpload(b"%PDF-1.7 body"), language="kn", target_language="hi",
+        user={"tenant_id": "tenant-a"}, repo=repo, blob_provider=_StubBlob()
+    )
+    job = await repo.get("tenant-a", result["job_id"])
+    assert job.target_language == "hi"
 
 
 @pytest.mark.asyncio
@@ -246,7 +258,7 @@ async def test_review_summary(repo):
 
 
 def test_platform_root_path():
-    from app.consumers.textbook_remediation_consumer import PLATFORM_ROOT
+    from app.remediation.run_pipeline import PLATFORM_ROOT
 
     assert PLATFORM_ROOT.name == "platform"
     assert (PLATFORM_ROOT / "app").is_dir()

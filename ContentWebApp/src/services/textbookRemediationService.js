@@ -5,10 +5,11 @@ import { apiFetch, buildQueryString, streamSse } from "./api";
 const BASE = `${SEEDS_URL}/textbook-remediation`;
 
 export const textbookRemediationService = {
-  async createJob(file, language) {
+  async createJob(file, language, { targetLanguage = "" } = {}) {
     const body = new FormData();
     body.append("file", file);
     body.append("language", language);
+    body.append("target_language", targetLanguage);
     const { "Content-Type": _unused, ...headers } = getAuthHeaders();
     return apiFetch(`${BASE}/jobs`, { method: "POST", headers, body });
   },
@@ -101,6 +102,14 @@ export const textbookRemediationService = {
     return apiFetch(`${BASE}/jobs/${encodeURIComponent(jobId)}`, {
       method: "DELETE",
       headers: getAuthHeaders(),
+    });
+  },
+
+  async translateJob(jobId, targetLanguage) {
+    return apiFetch(`${BASE}/jobs/${encodeURIComponent(jobId)}/translate`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ target_language: targetLanguage }),
     });
   },
 };

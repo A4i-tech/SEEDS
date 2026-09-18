@@ -9,6 +9,7 @@ installed in the consumer tier only.
 """
 
 from app.remediation import (  # noqa: F401
+    azure_mistral_ocr,
     postcorrect,
     remediate,
     render,

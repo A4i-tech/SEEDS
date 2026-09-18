@@ -22,11 +22,15 @@ class TextbookRemediationRepository:
     def __init__(self, db: AsyncDatabase) -> None:
         self._col = db[self.COLLECTION_NAME]
 
-    async def create(self, job_id: str, *, tenant_id: str, source_name: str, source_url: str, language: str) -> RemediationJob:
+    async def create(
+        self, job_id: str, *, tenant_id: str, source_name: str, source_url: str, language: str,
+        target_language: str | None = None,
+    ) -> RemediationJob:
         initial_lang = "detecting" if language in ("auto", "detecting") else language
         job = RemediationJob(
             job_id=job_id, tenant_id=tenant_id, source_name=source_name, source_url=source_url,
             language=initial_lang, status="pending", stage=None, created_at=datetime.now(UTC).isoformat(),
+            target_language=target_language,
         )
         await self._col.insert_one(job.to_doc())
         return job
@@ -97,7 +101,6 @@ class TextbookRemediationRepository:
         *,
         verified_by: str,
         title: str | None = None,
-        docx_url: str | None = None,
     ) -> RemediationJob | None:
         update: dict[str, object] = {
             "status": "verified",
@@ -106,8 +109,6 @@ class TextbookRemediationRepository:
         }
         if title:
             update["title"] = title
-        if docx_url:
-            update["artifacts.docx"] = docx_url
         doc = await self._col.find_one_and_update(
             {"_id": job_id}, {"$set": update}, return_document=ReturnDocument.AFTER
         )
@@ -117,6 +118,14 @@ class TextbookRemediationRepository:
         update = {f"artifacts.{name}": url for name, url in artifacts.items()}
         update.update({f"counts.{name}": value for name, value in counts.items()})
         doc = await self._col.find_one_and_update({"_id": job_id}, {"$set": update}, return_document=ReturnDocument.AFTER)
+        return RemediationJob.from_doc(doc) if doc else None
+
+    async def set_translation_error(self, job_id: str, message: str | None) -> RemediationJob | None:
+        """Records why an automatic (translate-at-start) translation failed, without
+        touching job.status — remediation itself already succeeded."""
+        doc = await self._col.find_one_and_update(
+            {"_id": job_id}, {"$set": {"translation_error": message}}, return_document=ReturnDocument.AFTER
+        )
         return RemediationJob.from_doc(doc) if doc else None
 
     async def finish(self, job_id: str, status: str, *, error: str | None = None) -> RemediationJob | None:

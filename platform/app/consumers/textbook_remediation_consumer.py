@@ -31,17 +31,13 @@ TextbookRemediationRepository.reconcile_interrupted_jobs marks it failed.
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import json
 import logging
-import os
 import re
-import subprocess
 import tempfile
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
-import dotenv
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.remediation_job import ARTIFACTS, RemediationJob
@@ -49,6 +45,8 @@ from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider
 from app.remediation.detect_language import detect_language, normalize_language_name
 from app.remediation.render import render_remediation
+from app.remediation.run_pipeline import run_pipeline
+from app.remediation.translate import run_translation
 from app.repositories.textbook_remediation_repository import TextbookRemediationRepository
 from app.services.textbook_remediation import broadcast_job
 
@@ -57,80 +55,6 @@ logger = logging.getLogger(__name__)
 POLL_INTERVAL_SECONDS = 10
 JOB_TIMEOUT_SECONDS = 4 * 60 * 60
 PIPELINE_PATH = Path(__file__).resolve().parent.parent / "remediation" / "textbook_remediation.yaml"
-PLATFORM_ROOT = PIPELINE_PATH.parent.parent.parent
-
-
-async def _run_pipeline(
-    resource: Path,
-    workspace: Path,
-    options: list[str],
-    on_progress: Callable[[dict[str, object]], Awaitable[None]] | None = None,
-) -> None:
-    progress_file = workspace / "remediation.progress.jsonl"
-    command = [
-        get_settings().remediation_python, "-m", "app.remediation.run",
-        str(PIPELINE_PATH), "--input", str(resource),
-        "--quiet", "--progress-file", str(progress_file), *options,
-    ]
-    env_file = PLATFORM_ROOT / ".env"
-    env_vars: dict[str, str] = {}
-    if env_file.exists():
-        env_vars = {k: v for k, v in dotenv.dotenv_values(env_file).items() if v is not None}
-        with contextlib.suppress(Exception):
-            (workspace / ".env").write_bytes(env_file.read_bytes())
-
-    env = {
-        **os.environ,
-        **env_vars,
-        "PYTHONPATH": str(PLATFORM_ROOT),
-        "PYTHONIOENCODING": "utf-8",
-        "PYTHONUTF8": "1",
-    }
-
-    def _exec() -> tuple[int, str]:
-        proc = subprocess.Popen(
-            command, cwd=str(workspace), env=env,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-        )
-        stdout, stderr = proc.communicate()
-        err_msg = stderr.decode("utf-8", "replace").strip() or stdout.decode("utf-8", "replace").strip()
-        return proc.returncode, err_msg
-
-    stop_tailing = asyncio.Event()
-
-    async def _tail_progress() -> None:
-        file_pos = 0
-        while not stop_tailing.is_set():
-            if progress_file.exists():
-                try:
-                    with open(progress_file, encoding="utf-8") as f:
-                        f.seek(file_pos)
-                        lines = f.readlines()
-                        file_pos = f.tell()
-                    for line in lines:
-                        line = line.strip()
-                        if not line:
-                            continue
-                        try:
-                            evt = json.loads(line)
-                            if on_progress:
-                                await on_progress(evt)
-                        except Exception as exc:
-                            logger.warning("remediation: failed parsing progress line: %s", exc)
-                except Exception as exc:
-                    logger.warning("remediation: failed reading progress file: %s", exc)
-            await asyncio.sleep(0.5)
-
-    tail_task = asyncio.create_task(_tail_progress())
-    try:
-        returncode, err_msg = await asyncio.to_thread(_exec)
-    finally:
-        stop_tailing.set()
-        await asyncio.sleep(0.1)
-        tail_task.cancel()
-
-    if returncode != 0:
-        raise RuntimeError(f"Remediation pipeline failed: {err_msg[-2000:]}")
 
 
 def _count_lines(path: Path) -> int:
@@ -211,8 +135,8 @@ async def _process_job(job: RemediationJob, repo: TextbookRemediationRepository,
         context_json_path = work / "context.json"
         docx_path = out / "remediated.docx"
 
-        await _run_pipeline(
-            pdf, work,
+        await run_pipeline(
+            PIPELINE_PATH, pdf, work,
             [
                 "--language", pipeline_lang,
                 "--output", str(context_json_path),
@@ -315,7 +239,7 @@ async def _process_job(job: RemediationJob, repo: TextbookRemediationRepository,
         await _upload_images(blob_provider, job.job_id, work)
         await repo.record_artifacts(
             job.job_id,
-            await _upload(blob_provider, job.job_id, out, "raw", "corrected", "findings", "docx", "remediated", "remediation", "unresolved"),
+            await _upload(blob_provider, job.job_id, out, "raw", "corrected", "findings", "docx", "tex", "pdf", "remediated", "remediation", "unresolved"),
             {
                 "raw_chars": raw.stat().st_size if raw.exists() else 0,
                 "findings": _count_lines(findings),
@@ -325,6 +249,23 @@ async def _process_job(job: RemediationJob, repo: TextbookRemediationRepository,
             },
         )
         await repo.update_metrics(job.job_id, metrics)
+
+        if job.target_language:
+            remediated_path = out / "raw.corrected.remediated.md"
+            if not remediated_path.exists():
+                await repo.set_translation_error(job.job_id, "Remediation produced no text to translate.")
+            else:
+                try:
+                    translated_urls = await run_translation(
+                        job.job_id, remediated_path.read_bytes(), job.target_language, job.language, blob_provider
+                    )
+                    if not translated_urls:
+                        raise RuntimeError("Translation produced no downloadable file.")
+                    await repo.record_artifacts(job.job_id, translated_urls, {})
+                    await repo.set_translation_error(job.job_id, None)
+                except Exception as exc:
+                    logger.warning("remediation: translation failed for job_id=%s: %s", job.job_id, exc)
+                    await repo.set_translation_error(job.job_id, str(exc))
 
     await repo.update_progress(job.job_id, {})
     done_job = await repo.finish(job.job_id, "ready_to_review")

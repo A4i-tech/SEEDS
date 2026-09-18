@@ -17,8 +17,6 @@ import uuid
 from collections.abc import AsyncIterator
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
-
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
@@ -29,11 +27,14 @@ from app.platform.auth.dependencies import require_role
 from app.platform.error_handling import NotFoundError, ValidationError
 from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider, get_blob_storage_provider
+from app.remediation.translate import run_translation
 from app.repositories.textbook_remediation_repository import (
     TextbookRemediationRepository,
     get_textbook_remediation_repo,
 )
 from app.services.textbook_remediation import serialize_job, subscribe
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/textbook-remediation", tags=["Textbook Remediation"])
 
@@ -57,6 +58,10 @@ class VerifyJobRequest(BaseModel):
     grade: int = 0
     publish_to_library: bool = True
 
+
+class TranslateJobRequest(BaseModel):
+    target_language: str
+
 async def _get_job(repo: TextbookRemediationRepository, tenant_id: str, job_id: str) -> RemediationJob:
     job = await repo.get(tenant_id, job_id)
     if job is None:
@@ -77,6 +82,7 @@ async def _artifact_bytes(job: RemediationJob, name: str, blob_provider: BlobSto
 async def create_remediation_job(
     file: UploadFile = File(..., description="The textbook PDF"),
     language: str = Form("en", description="Language the figure alt text is translated into"),
+    target_language: str = Form("", description="When set, also translate the result into this language once remediation finishes"),
     user: dict[str, object] = Depends(require_remediation_access),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
@@ -90,13 +96,15 @@ async def create_remediation_job(
         raise ValidationError("File is not a PDF")
     if not _LANGUAGE.fullmatch(language):
         raise ValidationError(f"Not a language tag: {language!r}")
+    if target_language and not _LANGUAGE.fullmatch(target_language):
+        raise ValidationError(f"Not a language tag: {target_language!r}")
 
     job_id = str(uuid.uuid4())
     url = await blob_provider.upload_file(
         get_settings().azure_storage_container, f"textbook-remediation/{job_id}/source.pdf", data, "application/pdf"
     )
     await repo.create(job_id, tenant_id=str(user.get("tenant_id", "")), source_name=file.filename or "textbook.pdf",
-                      source_url=url, language=language)
+                      source_url=url, language=language, target_language=target_language or None)
     return {"job_id": job_id}
 
 
@@ -116,7 +124,6 @@ async def delete_remediation_job(
     user: dict[str, object] = Depends(require_remediation_access),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
 ) -> None:
-    await _get_job(repo, str(user.get("tenant_id", "")), job_id)
     await repo.soft_delete(str(user.get("tenant_id", "")), job_id)
 
 
@@ -237,39 +244,75 @@ async def verify_remediation_job(
     job = await _get_job(repo, str(user.get("tenant_id", "")), job_id)
     verified_by = str(user.get("email") or user.get("name") or user.get("id") or "reviewer")
 
-    docx_url = job.artifacts.get("docx")
     if job.draft_remediated_md:
         try:
             import tempfile
 
             import pypandoc
 
+            from app.remediation.render import convert_docx_to_pdf, tag_tex_for_pdf_ua
+
             with tempfile.TemporaryDirectory() as tmpdir:
-                out_docx = Path(tmpdir) / "remediated.verified.docx"
+                out_dir = Path(tmpdir)
+                out_docx = out_dir / "remediated.docx"
                 pypandoc.convert_text(
                     job.draft_remediated_md,
                     "docx",
                     format="markdown+tex_math_dollars",
                     outputfile=str(out_docx),
                 )
-                if out_docx.exists():
-                    container = get_settings().azure_storage_container
-                    docx_url = await blob_provider.upload_file(
-                        container,
-                        f"textbook-remediation/{job_id}/remediated.docx",
-                        out_docx.read_bytes(),
-                        ARTIFACTS["docx"][1],
-                    )
+                out_tex = out_dir / "remediated.tex"
+                pypandoc.convert_text(
+                    job.draft_remediated_md,
+                    "latex",
+                    format="markdown+tex_math_dollars",
+                    outputfile=str(out_tex),
+                )
+                tag_tex_for_pdf_ua(out_tex)
+                out_pdf = convert_docx_to_pdf(out_docx, out_dir) if out_docx.exists() else None
+
+                container = get_settings().azure_storage_container
+                verified_artifacts: dict[str, str] = {}
+                for name, out_path in (("docx", out_docx), ("tex", out_tex), ("pdf", out_pdf)):
+                    if out_path and out_path.exists():
+                        verified_artifacts[name] = await blob_provider.upload_file(
+                            container,
+                            f"textbook-remediation/{job_id}/{ARTIFACTS[name][0]}",
+                            out_path.read_bytes(),
+                            ARTIFACTS[name][1],
+                        )
+                if verified_artifacts:
+                    await repo.record_artifacts(job_id, verified_artifacts, {})
         except Exception as exc:
-            logger.warning("Could not compile verified docx for job %s: %s", job_id, exc)
+            logger.warning("Could not compile verified artifacts for job %s: %s", job_id, exc)
 
     title = payload.title or job.source_name.replace(".pdf", " (Accessible)")
     updated = await repo.mark_verified(
         job_id,
         verified_by=verified_by,
         title=title,
-        docx_url=docx_url,
     )
+    return serialize_job(updated or job)
+
+
+@router.post("/jobs/{job_id}/translate", summary="Translate a remediated document into another language")
+async def translate_remediation_job(
+    job_id: str,
+    payload: TranslateJobRequest,
+    user: dict[str, object] = Depends(require_remediation_access),
+    repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
+    blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
+) -> dict[str, object]:
+    job = await _get_job(repo, str(user.get("tenant_id", "")), job_id)
+    if not _LANGUAGE.fullmatch(payload.target_language):
+        raise ValidationError(f"Not a language tag: {payload.target_language!r}")
+
+    remediated_bytes, _ = await _artifact_bytes(job, "remediated", blob_provider)
+    translated_urls = await run_translation(job_id, remediated_bytes, payload.target_language, job.language, blob_provider)
+    if not translated_urls:
+        raise ValidationError("Translation produced no downloadable file. Try again, or pick a different target language.")
+    updated = await repo.record_artifacts(job_id, translated_urls, {})
+    await repo.set_translation_error(job_id, None)
     return serialize_job(updated or job)
 
 

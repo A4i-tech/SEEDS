@@ -22,7 +22,13 @@ ARTIFACTS: dict[str, tuple[str, str]] = {
     "remediation": ("raw.corrected.remediation.jsonl", _JSONL),
     "unresolved": ("remediated.unresolved.jsonl", _JSONL),
     "docx": ("remediated.docx", _DOCX),
+    "tex": ("remediated.tex", "application/x-tex"),
+    "pdf": ("remediated.pdf", "application/pdf"),
     "draft": ("remediated.draft.md", "text/markdown"),
+    "translated_md": ("translated.md", "text/markdown"),
+    "translated_docx": ("translated.docx", _DOCX),
+    "translated_tex": ("translated.tex", "application/x-tex"),
+    "translated_pdf": ("translated.pdf", "application/pdf"),
 }
 """Artifact key -> (file the pipelines write, content type it is served as).
 
@@ -53,6 +59,8 @@ class RemediationJob:
     error: str | None = None
     created_at: str = ""
     finished_at: str | None = None
+    target_language: str | None = None
+    translation_error: str | None = None
     deleted_at: str | None = None
 
     def to_doc(self) -> dict[str, object]:
@@ -66,7 +74,10 @@ class RemediationJob:
             "verified_at": self.verified_at, "verified_by": self.verified_by,
             "title": self.title,
             "error": self.error, "created_at": self.created_at,
-            "finished_at": self.finished_at, "deleted_at": self.deleted_at,
+            "finished_at": self.finished_at,
+            "target_language": self.target_language,
+            "translation_error": self.translation_error,
+            "deleted_at": self.deleted_at,
         }
 
     @classmethod
@@ -81,6 +92,9 @@ class RemediationJob:
             verified_at=doc.get("verified_at"), verified_by=doc.get("verified_by"),
             title=doc.get("title"),
             error=doc.get("error"), created_at=doc.get("created_at", ""),
-            finished_at=doc.get("finished_at"), deleted_at=doc.get("deleted_at"),
+            finished_at=doc.get("finished_at"),
+            target_language=doc.get("target_language"),
+            translation_error=doc.get("translation_error"),
+            deleted_at=doc.get("deleted_at"),
         )
 

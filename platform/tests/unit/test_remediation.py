@@ -217,6 +217,12 @@ def test_render_remediation_generates_all_artifacts(tmp_path):
     assert (out_dir / "raw.corrected.remediation.jsonl").exists()
     assert (out_dir / "remediated.unresolved.jsonl").exists()
     assert (out_dir / "remediated.docx").exists()
+    assert (out_dir / "remediated.tex").exists()
+    assert (out_dir / "remediated.tex").read_text(encoding="utf-8").startswith("\\DocumentMetadata{tagged=true}")
+    import shutil
+
+    if shutil.which("soffice") or shutil.which("libreoffice"):
+        assert (out_dir / "remediated.pdf").exists()
 
     md_content = (out_dir / "raw.corrected.remediated.md").read_text(encoding="utf-8")
     assert "# Clean Heading" in md_content
@@ -228,10 +234,55 @@ def test_render_remediation_generates_all_artifacts(tmp_path):
     assert res["findings"] == 1
 
 
+class _StubBlob:
+    def __init__(self):
+        self.uploaded: dict[str, bytes] = {}
+
+    async def upload_file(self, container, blob_name, data, content_type):
+        self.uploaded[blob_name] = data
+        return f"https://blob/{blob_name}"
+
+
 @pytest.mark.asyncio
-async def test_translate_agent_foreach_translates_figure_accessibility(monkeypatch):
+async def test_run_translation_uploads_translated_artifacts(monkeypatch):
+    import json
+    from pathlib import Path
+
+    import app.remediation.translate as translate_mod
+
+    translated = "translated heading and body"
+
+    async def fake_run_pipeline(pipeline_path, resource, workspace, options, on_progress=None):
+        (workspace / "context.json").write_text(
+            json.dumps({"metadata": {"translated_text": translated}}), encoding="utf-8"
+        )
+
+    def fake_convert_text(text, fmt, format, outputfile, extra_args=None):
+        Path(outputfile).write_bytes(b"stub-bytes")
+
+    def fake_convert_docx_to_pdf(docx_path, out_dir):
+        pdf_path = out_dir / "translated.pdf"
+        pdf_path.write_bytes(b"stub-pdf")
+        return pdf_path
+
+    monkeypatch.setattr(translate_mod, "run_pipeline", fake_run_pipeline)
+    monkeypatch.setattr(translate_mod.pypandoc, "convert_text", fake_convert_text)
+    monkeypatch.setattr(translate_mod, "convert_docx_to_pdf", fake_convert_docx_to_pdf)
+
+    blob = _StubBlob()
+    urls = await translate_mod.run_translation(
+        "job-1", b"original heading and body", "hi", "en", blob
+    )
+
+    assert set(urls) == {"translated_md", "translated_docx", "translated_tex", "translated_pdf"}
+    assert blob.uploaded["textbook-remediation/job-1/translated.md"].decode("utf-8").strip() == translated
+
+
+@pytest.mark.asyncio
+async def test_translate_agent_translates_figure_accessibility(monkeypatch):
     import uuid
     from unittest.mock import AsyncMock
+
     from omni_ingest.agent.enrichment import TranslateAgent
     from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
     from omni_ingest.core.pipeline import IngestionContext
@@ -256,30 +307,30 @@ async def test_translate_agent_foreach_translates_figure_accessibility(monkeypat
 
     ctx = IngestionContext(
         resource=ResolvedResource(uri="", raw_content=b""),
+        metadata={
+            "accessibility": {
+                "kind": "figure",
+                "alt_text": "Test diagram",
+                "long_description": "Test description",
+            },
+        },
         items=[
             KnowledgeItem(
                 id=uuid.UUID("00000000-0000-0000-0000-000000000001"),
                 raw_content=b"img_bytes",
-                metadata={
-                    "kind": "image",
-                    "accessibility": {
-                        "kind": "figure",
-                        "alt_text": "Test diagram",
-                        "long_description": "Test description",
-                    },
-                },
+                metadata={"kind": "image"},
             )
         ],
     )
 
     agent = TranslateAgent(
-        foreach='.items[] | select(.metadata.kind == "image")',
+        src=None,
         dst="hi",
         input=".metadata.accessibility",
         path=".metadata.accessibility",
     )
     result = await agent.run(ctx)
     assert result.status == StepStatus.SUCCESS
-    assert ctx.items[0].metadata["accessibility"]["alt_text"] == "परीक्षण चित्र"
+    assert ctx.metadata["accessibility"]["alt_text"] == "परीक्षण चित्र"
 
 

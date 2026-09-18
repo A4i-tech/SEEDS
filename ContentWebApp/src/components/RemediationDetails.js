@@ -10,6 +10,8 @@ import "katex/dist/katex.min.css";
 import { SEEDS_URL } from "../Constants";
 import { Breadcrumb } from "./AllContent/shared/Breadcrumb";
 import { Pagination } from "./ContentAggregatorDetails/Pagination";
+import Select from "./AllContent/shared/Select";
+import { LANGUAGE_OPTIONS } from "../utils/languageUtils";
 import { textbookRemediationService } from "../services/textbookRemediationService";
 import { normalizeMathDelimiters, MarkdownParagraph } from "./ContentAggregatorDetails/markdownMath";
 
@@ -98,6 +100,15 @@ function MarkdownViewer({ text, jobId }) {
   );
 }
 
+const ARTIFACT_DOWNLOADS = [
+  { key: "docx", ext: "docx", label: "Download Word" },
+  { key: "pdf", ext: "pdf", label: "Download PDF" },
+  { key: "tex", ext: "tex", label: "Download LaTeX" },
+  { key: "translated_docx", ext: "translated.docx", label: "Download Translated Word" },
+  { key: "translated_pdf", ext: "translated.pdf", label: "Download Translated PDF" },
+  { key: "translated_tex", ext: "translated.tex", label: "Download Translated LaTeX" },
+];
+
 const RemediationDetails = () => {
   const { jobId } = useParams();
   const navigate = useNavigate();
@@ -109,6 +120,8 @@ const RemediationDetails = () => {
   const [actionMessage, setActionMessage] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [draftText, setDraftText] = useState("");
+  const [translateLanguage, setTranslateLanguage] = useState("");
+  const [isTranslating, setIsTranslating] = useState(false);
   const [reviewSummary, setReviewSummary] = useState(null);
 
   const rawPages = useMemo(() => splitIntoPages(documents.raw), [documents.raw]);
@@ -207,6 +220,23 @@ const RemediationDetails = () => {
     }
   };
 
+  const handleTranslate = async () => {
+    if (!translateLanguage) return;
+    try {
+      setIsTranslating(true);
+      setActionMessage("Translating...");
+      const updated = await textbookRemediationService.translateJob(jobId, translateLanguage);
+      setJob(updated);
+      setActionMessage("Translation complete.");
+      setTimeout(() => setActionMessage(null), 3500);
+    } catch (translateErr) {
+      setError(translateErr.message);
+      setActionMessage(null);
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
   const loadingDocs = !documents.raw && !documents.corrected && job && job.status === "completed";
 
   return (
@@ -270,21 +300,42 @@ const RemediationDetails = () => {
                   </span>
                 )}
 
-                {job.artifacts.docx && (
-                  <button
-                    type="button"
-                    className="action-ghost-button"
-                    onClick={() =>
-                      textbookRemediationService.downloadArtifact(
-                        job.job_id,
-                        "docx",
-                        `${job.source_name.replace(/\.pdf$/i, "")}.docx`
-                      )
-                    }
-                  >
-                    Download Word
-                  </button>
+                {ARTIFACT_DOWNLOADS.map(
+                  (entry) =>
+                    job.artifacts[entry.key] && (
+                      <button
+                        key={entry.key}
+                        type="button"
+                        className="action-ghost-button"
+                        onClick={() =>
+                          textbookRemediationService.downloadArtifact(
+                            job.job_id,
+                            entry.key,
+                            `${job.source_name.replace(/\.pdf$/i, "")}.${entry.ext}`
+                          )
+                        }
+                      >
+                        {entry.label}
+                      </button>
+                    )
                 )}
+
+                <Select
+                  id="remediation-translate-language"
+                  value={translateLanguage}
+                  onChange={setTranslateLanguage}
+                  options={LANGUAGE_OPTIONS}
+                  placeholder="Select language"
+                />
+
+                <button
+                  type="button"
+                  className="action-ghost-button"
+                  disabled={isTranslating || !translateLanguage}
+                  onClick={handleTranslate}
+                >
+                  {isTranslating ? "Translating…" : "Translate"}
+                </button>
               </div>
             </div>
 

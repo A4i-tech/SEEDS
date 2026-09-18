@@ -18,7 +18,7 @@ parameters:
     ocr_engine:
       type: string
       description: "OCR engine name"
-      default: "mistral_ocr"
+      default: "azure_mistral"
     verify_model:
       type: string
       description: "Chat model used for OCR verification and remediation"
@@ -48,7 +48,7 @@ steps:
       dpi: 240
 
   # 3. Read page text with OCR model
-  - agent: ocr
+  - agent: azure_mistral_ocr
     description: "Read page text with the configured OCR model"
     config:
       engine: ${.config.ocr_engine}

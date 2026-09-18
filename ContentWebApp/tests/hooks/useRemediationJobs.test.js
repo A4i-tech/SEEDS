@@ -82,7 +82,7 @@ test("uploading adds the new job to the top of the list and follows it", async (
     await result.current.upload(new File(["%PDF-"], "new.pdf"), "ta");
   });
 
-  expect(textbookRemediationService.createJob).toHaveBeenCalledWith(expect.any(File), "ta");
+  expect(textbookRemediationService.createJob).toHaveBeenCalledWith(expect.any(File), "ta", undefined);
   expect(result.current.jobs[0].job_id).toBe("job-new");
   expect(textbookRemediationService.streamJob).toHaveBeenCalledWith("job-new", expect.any(Function), expect.anything());
 });

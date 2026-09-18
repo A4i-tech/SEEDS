@@ -4,17 +4,28 @@ import { useRemediationJobs } from "../../../hooks/useRemediationJobs";
 import { textbookRemediationService } from "../../../services/textbookRemediationService";
 import MiddleEllipsis from "../shared/MiddleEllipsis";
 import RowActions from "../shared/RowActions";
+import Select from "../shared/Select";
+import { LANGUAGE_OPTIONS } from "../../../utils/languageUtils";
 import { StageProgress } from "./StageProgress";
 import { SyncAllProgress } from "../shared/SyncAllProgress";
 import "../shared/cards.css";
 import "../shared/buttons.css";
 import "../shared/tables.css";
 
+const TARGET_LANGUAGE_OPTIONS = [{ value: "", label: "No translation" }, ...LANGUAGE_OPTIONS];
+
+const ARTIFACT_DOWNLOADS = [
+  { key: "docx", ext: "docx", label: "Word" },
+  { key: "pdf", ext: "pdf", label: "PDF" },
+  { key: "tex", ext: "tex", label: "LaTeX" },
+];
+
 const RemediationTab = () => {
   const navigate = useNavigate();
   const { jobs, isLoading, isUploading, error, upload, remove } = useRemediationJobs();
   const fileRef = useRef(null);
   const [selectedFile, setSelectedFile] = useState(null);
+  const [targetLanguage, setTargetLanguage] = useState("");
 
   const handleFile = (event) => {
     const file = event.target.files?.[0];
@@ -24,7 +35,7 @@ const RemediationTab = () => {
 
   const handleUpload = async () => {
     if (!selectedFile) return;
-    await upload(selectedFile, "auto");
+    await upload(selectedFile, "auto", { targetLanguage });
     setSelectedFile(null);
   };
 
@@ -52,6 +63,13 @@ const RemediationTab = () => {
             Choose PDF File
           </button>
           {selectedFile && <span className="table-cell-secondary">{selectedFile.name}</span>}
+          <Select
+            id="remediation-target-language"
+            value={targetLanguage}
+            onChange={setTargetLanguage}
+            options={TARGET_LANGUAGE_OPTIONS}
+            placeholder="No translation"
+          />
           <button
             type="button"
             className="primary-button"
@@ -112,20 +130,28 @@ const RemediationTab = () => {
                     <StageProgress job={job} />
                   </td>
                   <td className="table-cell">
-                    {job.artifacts.docx ? (
-                      <button
-                        type="button"
-                        className="remediation-link"
-                        onClick={() =>
-                          textbookRemediationService.downloadArtifact(
-                            job.job_id,
-                            "docx",
-                            `${job.source_name.replace(/\.pdf$/i, "")}.docx`
-                          )
-                        }
-                      >
-                        Download .docx
-                      </button>
+                    {ARTIFACT_DOWNLOADS.some((entry) => job.artifacts[entry.key]) ? (
+                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                        {ARTIFACT_DOWNLOADS.map(
+                          (entry) =>
+                            job.artifacts[entry.key] && (
+                              <button
+                                key={entry.key}
+                                type="button"
+                                className="remediation-link"
+                                onClick={() =>
+                                  textbookRemediationService.downloadArtifact(
+                                    job.job_id,
+                                    entry.key,
+                                    `${job.source_name.replace(/\.pdf$/i, "")}.${entry.ext}`
+                                  )
+                                }
+                              >
+                                {entry.label}
+                              </button>
+                            )
+                        )}
+                      </div>
                     ) : (
                       <span className="table-cell-secondary">—</span>
                     )}

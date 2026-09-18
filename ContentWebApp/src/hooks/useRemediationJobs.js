@@ -63,11 +63,11 @@ export const useRemediationJobs = () => {
   }, []);
 
   const upload = useCallback(
-    async (file, language) => {
+    async (file, language, translateOptions) => {
       setIsUploading(true);
       setError(null);
       try {
-        const { job_id } = await textbookRemediationService.createJob(file, language);
+        const { job_id } = await textbookRemediationService.createJob(file, language, translateOptions);
         upsert(await textbookRemediationService.getJob(job_id));
         follow(job_id);
       } catch (uploadError) {
