@@ -6,15 +6,24 @@ import "../shared/buttons.css";
 import "../shared/cards.css";
 import "../shared/utilities.css";
 
+const NAV_LINKS = [
+  { key: "content", show: "showContent", label: "Content" },
+  { key: "registration", show: "showRegistration", label: "Registration" },
+  { key: "analytics", show: "showAnalytics", label: "Analytics" },
+  { key: "localization", show: "showLocalization", label: "Localization" },
+];
+
 const AppHeader = ({
   activeTab,
   onTabChange,
   currentUser,
   onLogout,
-  showContent = true,
-  showRegistration = true,
-  showAnalytics = true,
+  showContent,
+  showRegistration,
+  showAnalytics,
+  showLocalization,
 }) => {
+  const visibility = { showContent, showRegistration, showAnalytics, showLocalization };
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const navigate = useNavigate();
 
@@ -36,29 +45,17 @@ const AppHeader = ({
           <span>SEEDS</span>
         </div>
         <div className="action-group">
-          {showContent && (
-            <button
-              className={`nav-link ${activeTab === "content" ? "active" : ""}`}
-              onClick={() => onTabChange("content")}
-            >
-              Content
-            </button>
-          )}
-          {showRegistration && (
-            <button
-              className={`nav-link ${activeTab === "registration" ? "active" : ""}`}
-              onClick={() => onTabChange("registration")}
-            >
-              Registration
-            </button>
-          )}
-          {showAnalytics && (
-            <button
-              className={`nav-link ${activeTab === "analytics" ? "active" : ""}`}
-              onClick={() => onTabChange("analytics")}
-            >
-              Analytics
-            </button>
+          {NAV_LINKS.map(
+            ({ key, show, label }) =>
+              visibility[show] && (
+                <button
+                  key={key}
+                  className={`nav-link ${activeTab === key ? "active" : ""}`}
+                  onClick={() => onTabChange(key)}
+                >
+                  {label}
+                </button>
+              )
           )}
         </div>
       </div>
