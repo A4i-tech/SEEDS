@@ -77,8 +77,18 @@ from pymongo.asynchronous.database import AsyncDatabase
 
 from app.repositories.content_job_repository import ContentJobRepository
 from app.repositories.content_repository import ContentRepository
+from app.services.webhook_delivery_service import dispatch_terminal_event
 
 logger = logging.getLogger(__name__)
+
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _fire_and_forget(coro) -> None:
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+
 
 # Maximum processing time per job
 JOB_TIMEOUT_SECONDS = 5 * 60  # 5 minutes
@@ -347,6 +357,7 @@ async def _process_audio_content_job(
     job_repo: ContentJobRepository,
     content_repo: ContentRepository,
     blob_provider,
+    db: AsyncDatabase,
 ) -> None:
     """Process a single audio content job with retry and dead-letter handling.
 
@@ -412,6 +423,7 @@ async def _process_audio_content_job(
                 "content_job: completed job_id=%s content_id=%s (attempt %d)",
                 job_id, content_id, attempt,
             )
+            _fire_and_forget(dispatch_terminal_event(db, content_id, "job.completed", job_id=job_id))
             return  # success — exit retry loop
 
         except _TRANSIENT_ERRORS as exc:
@@ -445,6 +457,7 @@ async def _process_audio_content_job(
         job_id, content_id, error_msg,
     )
     await job_repo.mark_failed(job_id, error_msg)
+    _fire_and_forget(dispatch_terminal_event(db, content_id, "job.failed", job_id=job_id, error=error_msg))
     if last_exc is not None:
         raise last_exc
 
@@ -509,13 +522,16 @@ class ContentJobConsumer:
                 if job_doc:
                     try:
                         await asyncio.wait_for(
-                            _process_audio_content_job(job_doc, job_repo, content_repo, blob_provider),
+                            _process_audio_content_job(job_doc, job_repo, content_repo, blob_provider, self._db),
                             timeout=JOB_TIMEOUT_SECONDS,
                         )
                     except TimeoutError:
                         job_id = job_doc.get("_id")
+                        content_id = job_doc.get("content_id")
+                        reason = "Job exceeded timeout of 5 minutes"
                         logger.error("content_job: timeout job_id=%s", job_id)
-                        await job_repo.mark_failed(job_id, "Job exceeded timeout of 5 minutes")
+                        await job_repo.mark_failed(job_id, reason)
+                        _fire_and_forget(dispatch_terminal_event(self._db, content_id, "job.failed", job_id=job_id, error=reason))
                     except Exception as exc:  # noqa: BLE001
                         # Already dead-lettered inside _process_audio_content_job
                         logger.debug("content_job: job processing exception handled: %s", exc)

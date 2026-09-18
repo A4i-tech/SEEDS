@@ -682,7 +682,7 @@ class TestContentJobConsumerDeadLetter:
         # content_col returns None => RuntimeError (permanent)
         blob_mock = MagicMock()
         with pytest.raises(RuntimeError):
-            await _process_audio_content_job(job_doc, ContentJobRepository(db), ContentRepository(db), blob_mock)
+            await _process_audio_content_job(job_doc, ContentJobRepository(db), ContentRepository(db), blob_mock, db)
 
         updated = await db["content_jobs"].find_one({"_id": job_id})
         assert updated["status"] == "failed"
