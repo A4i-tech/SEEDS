@@ -14,10 +14,9 @@ os.environ.setdefault("ENV", "development")
 os.environ.setdefault("MONGO_DB_CONNECTION_STRING", "")
 os.environ.setdefault("DB_CONNECTION", "")
 os.environ.setdefault("AUTH_TYPE", "jwt")
-os.environ.setdefault(
-    "APPLICATIONINSIGHTS_CONNECTION_STRING",
-    "InstrumentationKey=00000000-0000-0000-0000-000000000000;IngestionEndpoint=https://fake.example.com/",
-)
+# Telemetry must stay off by default: a connection string here makes importing
+# app.main start Azure Monitor exporter threads that call out to the network.
+os.environ.pop("APPLICATIONINSIGHTS_CONNECTION_STRING", None)
 
 
 @pytest.fixture(autouse=True)
