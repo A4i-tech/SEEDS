@@ -364,7 +364,9 @@ class TestWebhookControllerDeep:
         (conversation_uuid, leg uuid, digits, timestamp) so retried/duplicate
         DTMF deliveries from Vonage are deduped by Service Bus, not enqueued
         as distinct messages."""
-        from app.controllers.ivr_webhook_controller import ivr_dtmf_webhook
+        from fastapi import BackgroundTasks
+
+        import app.controllers.ivr_webhook_controller as controller
         from app.providers.service_bus import service_bus_provider
 
         payload = {
@@ -377,29 +379,37 @@ class TestWebhookControllerDeep:
         request = MagicMock()
         request.json = AsyncMock(return_value=payload)
 
-        with patch.object(
-            service_bus_provider, "send_dtmf_input", AsyncMock(return_value=True)
-        ) as mock_send:
-            await ivr_dtmf_webhook(request)
+        db = AsyncMongoMockClient()["test_dtmf_dedup"]
+        with (
+            patch.object(controller, "get_database", return_value=db),
+            patch.object(controller, "DTMF_BRIDGE_WAIT_SECONDS", 0.02),
+            patch.object(controller, "DTMF_BRIDGE_POLL_INTERVAL_SECONDS", 0.01),
+            patch.object(
+                service_bus_provider, "send_dtmf_input", AsyncMock(return_value=True)
+            ) as mock_send,
+        ):
+            await controller.ivr_dtmf_webhook(request, BackgroundTasks())
 
-        assert mock_send.await_count == 1
-        _, kwargs = mock_send.call_args
-        assert kwargs["message_id"] == "dtmf:conv-dedup-1:leg-dedup-1:5:2026-01-01T00:00:00Z"
+            assert mock_send.await_count == 1
+            _, kwargs = mock_send.call_args
+            assert kwargs["message_id"] == "dtmf:conv-dedup-1:leg-dedup-1:5:2026-01-01T00:00:00Z"
 
-        request2 = MagicMock()
-        request2.json = AsyncMock(return_value=payload)
-        with patch.object(
-            service_bus_provider, "send_dtmf_input", AsyncMock(return_value=True)
-        ) as mock_send2:
-            await ivr_dtmf_webhook(request2)
-        _, kwargs2 = mock_send2.call_args
-        assert kwargs2["message_id"] == kwargs["message_id"]
+            request2 = MagicMock()
+            request2.json = AsyncMock(return_value=payload)
+            with patch.object(
+                service_bus_provider, "send_dtmf_input", AsyncMock(return_value=True)
+            ) as mock_send2:
+                await controller.ivr_dtmf_webhook(request2, BackgroundTasks())
+            _, kwargs2 = mock_send2.call_args
+            assert kwargs2["message_id"] == kwargs["message_id"]
 
     @pytest.mark.asyncio
     async def test_dtmf_webhook_returns_placeholder_with_widened_timeout(self) -> None:
         """On successful enqueue, /input must respond with the placeholder NCCO
         whose input action carries the widened timeOut (20s)."""
-        from app.controllers.ivr_webhook_controller import ivr_dtmf_webhook
+        from fastapi import BackgroundTasks
+
+        import app.controllers.ivr_webhook_controller as controller
         from app.providers.service_bus import service_bus_provider
 
         payload = {
@@ -411,8 +421,14 @@ class TestWebhookControllerDeep:
         request = MagicMock()
         request.json = AsyncMock(return_value=payload)
 
-        with patch.object(service_bus_provider, "send_dtmf_input", AsyncMock(return_value=True)):
-            ncco = await ivr_dtmf_webhook(request)
+        db = AsyncMongoMockClient()["test_dtmf_placeholder"]
+        with (
+            patch.object(controller, "get_database", return_value=db),
+            patch.object(controller, "DTMF_BRIDGE_WAIT_SECONDS", 0.02),
+            patch.object(controller, "DTMF_BRIDGE_POLL_INTERVAL_SECONDS", 0.01),
+            patch.object(service_bus_provider, "send_dtmf_input", AsyncMock(return_value=True)),
+        ):
+            ncco = await controller.ivr_dtmf_webhook(request, BackgroundTasks())
 
         input_action = next(action for action in ncco if action.get("action") == "input")
         assert input_action["dtmf"]["timeOut"] == 20
