@@ -43,6 +43,7 @@ async def _run_sync_job(
         )
         await finish_job(job_repo, item_repo, tenant_id, job_id, "completed")
     except Exception as exc:  # noqa: BLE001
+        logger.error("sync_job_consumer: job %s (tenant=%s) failed during run_sync: %s", job_id, tenant_id, exc)
         await finish_job(job_repo, item_repo, tenant_id, job_id, "failed", error=str(exc))
 
 
@@ -60,6 +61,10 @@ async def _run_course_sync_job(
         await service.run_single_course_sync(tenant_id, job_id, course_id, dry_run=dry_run)
         await finish_job(job_repo, item_repo, tenant_id, job_id, "completed")
     except Exception as exc:  # noqa: BLE001
+        logger.error(
+            "sync_job_consumer: job %s (tenant=%s, course=%s) failed during run_single_course_sync: %s",
+            job_id, tenant_id, course_id, exc,
+        )
         await finish_job(job_repo, item_repo, tenant_id, job_id, "failed", error=str(exc))
 
 

@@ -18,7 +18,12 @@ from fastapi.responses import StreamingResponse
 
 from app.models.user import UserRole
 from app.platform.auth.dependencies import get_current_user
-from app.platform.error_handling import ConflictError, ForbiddenError, NotFoundError
+from app.platform.error_handling import (
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    ValidationError,
+)
 from app.providers.service_bus import service_bus_provider
 from app.repositories.content_aggregator_sync_job_item_repository import (
     ContentAggregatorSyncJobItemRepository,
@@ -89,7 +94,10 @@ async def start_sync(
     tenant_id = user.get("tenant_id", "")
     if await has_active_all_sync(job_repo, tenant_id, SOURCE_TYPE):
         raise ConflictError("A Subodha sync-all job")
-    options = {"only_new": bool(body.get("onlyNew", False)), "dry_run": bool(body.get("dryRun", False)), "limit": body.get("limit")}
+    limit = body.get("limit")
+    if limit is not None and not isinstance(limit, int):
+        raise ValidationError("limit must be an integer")
+    options = {"only_new": bool(body.get("onlyNew", False)), "dry_run": bool(body.get("dryRun", False)), "limit": limit}
     job = await create_job(
         job_repo, tenant_id=tenant_id, source_type=SOURCE_TYPE, scope="all", source_id=None, total_items=0, options=options,
     )

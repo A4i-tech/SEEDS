@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import uuid
 from collections.abc import AsyncIterator
 
@@ -66,6 +67,7 @@ async def record_item_result(
     entry: SyncItemResult,
 ) -> None:
     await item_repo.insert(tenant_id, job_id, entry)
+    notify(job_id)
 
 
 async def has_active_all_sync(
@@ -158,6 +160,13 @@ async def finish_job(
 ) -> None:
     stats = await item_repo.get_stats(tenant_id, job_id)
     await job_repo.set_job_status(tenant_id, job_id, status, error=error, finished_total=stats.total())
+    notify(job_id)
+
+
+def notify(job_id: str) -> None:
+    for queue in _subscribers.get(job_id, []):
+        if queue.empty():
+            queue.put_nowait(None)
 
 
 async def subscribe(
@@ -175,16 +184,24 @@ async def subscribe(
         return
     yield {"event": "progress", "job": serialize_job(current, stats)}
 
-    last_processed = stats.total()
-    while True:
-        await asyncio.sleep(POLL_INTERVAL_SECONDS)
-        current = await job_repo.get_job(tenant_id, job_id)
-        if current is None:
-            return
-        stats = await item_repo.get_stats(tenant_id, job_id)
-        if current.status in TERMINAL_STATUSES:
-            yield {"event": "done", "job": serialize_job(current, stats)}
-            return
-        if stats.total() != last_processed:
-            last_processed = stats.total()
-            yield {"event": "progress", "job": serialize_job(current, stats)}
+    queue: asyncio.Queue = asyncio.Queue()
+    _subscribers.setdefault(job_id, []).append(queue)
+    try:
+        last_processed = stats.total()
+        while True:
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(queue.get(), timeout=POLL_INTERVAL_SECONDS)
+            current = await job_repo.get_job(tenant_id, job_id)
+            if current is None:
+                return
+            stats = await item_repo.get_stats(tenant_id, job_id)
+            if current.status in TERMINAL_STATUSES:
+                yield {"event": "done", "job": serialize_job(current, stats)}
+                return
+            if stats.total() != last_processed:
+                last_processed = stats.total()
+                yield {"event": "progress", "job": serialize_job(current, stats)}
+    finally:
+        _subscribers[job_id].remove(queue)
+        if not _subscribers[job_id]:
+            del _subscribers[job_id]
