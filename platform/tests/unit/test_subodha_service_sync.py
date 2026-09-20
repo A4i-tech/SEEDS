@@ -99,7 +99,7 @@ async def test_run_sync_persists_every_course_result(make_service, job_repo, ite
     service = make_service(client)
     job = await jobs.create_job(job_repo, tenant_id="tenant-a", source_type="subodha", scope="all", source_id=None, total_items=0)
 
-    summary = await service.run_sync("tenant-a", job_repo, item_repo, job.job_id, await client.list_all_courses())
+    summary = await service.run_sync("tenant-a", job.job_id, await client.list_all_courses())
 
     assert summary["totalCourses"] == 2
     assert summary["processed"] == 2
@@ -121,7 +121,7 @@ async def test_run_single_course_sync_persists_one_result(make_service, job_repo
     service = make_service(client)
     job = await jobs.create_job(job_repo, tenant_id="tenant-a", source_type="subodha", scope="course", source_id="c1", total_items=1)
 
-    summary = await service.run_single_course_sync("tenant-a", job_repo, item_repo, job.job_id, "c1")
+    summary = await service.run_single_course_sync("tenant-a", job.job_id, "c1")
 
     assert summary["processed"] == 1
     items = await item_repo.list_by_job("tenant-a", job.job_id)
@@ -130,11 +130,11 @@ async def test_run_single_course_sync_persists_one_result(make_service, job_repo
 
 
 @pytest.mark.asyncio
-async def test_get_course_returns_legacy_shaped_doc(make_service, job_repo, item_repo):
+async def test_get_course_returns_legacy_shaped_doc(make_service, job_repo):
     client = FakeSubodhaClient([_course("c1", "Course One")])
     service = make_service(client)
     job = await jobs.create_job(job_repo, tenant_id="tenant-a", source_type="subodha", scope="course", source_id="c1", total_items=1)
-    await service.run_single_course_sync("tenant-a", job_repo, item_repo, job.job_id, "c1")
+    await service.run_single_course_sync("tenant-a", job.job_id, "c1")
 
     doc = await service.get_course("tenant-a", "c1")
     assert doc.source_id == "c1"
@@ -142,21 +142,21 @@ async def test_get_course_returns_legacy_shaped_doc(make_service, job_repo, item
 
 
 @pytest.mark.asyncio
-async def test_get_course_returns_none_for_unenrolled_tenant(make_service, job_repo, item_repo):
+async def test_get_course_returns_none_for_unenrolled_tenant(make_service, job_repo):
     client = FakeSubodhaClient([_course("c1", "Course One")])
     service = make_service(client)
     job = await jobs.create_job(job_repo, tenant_id="tenant-a", source_type="subodha", scope="course", source_id="c1", total_items=1)
-    await service.run_single_course_sync("tenant-a", job_repo, item_repo, job.job_id, "c1")
+    await service.run_single_course_sync("tenant-a", job.job_id, "c1")
 
     assert await service.get_course("tenant-b", "c1") is None
 
 
 @pytest.mark.asyncio
-async def test_update_problem_block_is_private_to_the_editing_tenant(make_service, job_repo, item_repo):
+async def test_update_problem_block_is_private_to_the_editing_tenant(make_service, job_repo):
     client = FakeSubodhaClient([_course("c1", "Course One")])
     service = make_service(client)
     job = await jobs.create_job(job_repo, tenant_id="tenant-a", source_type="subodha", scope="course", source_id="c1", total_items=1)
-    await service.run_single_course_sync("tenant-a", job_repo, item_repo, job.job_id, "c1")
+    await service.run_single_course_sync("tenant-a", job.job_id, "c1")
 
     job_b = await jobs.create_job(job_repo, tenant_id="tenant-b", source_type="subodha", scope="course", source_id="c1", total_items=1)
-    await service.run_single_course_sync("tenant-b", job_repo, item_repo, job_b.job_id, "c1")
+    await service.run_single_course_sync("tenant-b", job_b.job_id, "c1")

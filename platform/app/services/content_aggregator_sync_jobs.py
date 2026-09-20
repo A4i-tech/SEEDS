@@ -68,6 +68,85 @@ async def record_item_result(
     await item_repo.insert(tenant_id, job_id, entry)
 
 
+async def has_active_all_sync(
+    job_repo: ContentAggregatorSyncJobRepository,
+    tenant_id: str,
+    source_type: str,
+) -> bool:
+    active_jobs = await job_repo.get_active_jobs(tenant_id, source_type=source_type)
+    return any(j.scope == "all" for j in active_jobs)
+
+
+async def has_active_course_sync(
+    job_repo: ContentAggregatorSyncJobRepository,
+    tenant_id: str,
+    source_type: str,
+    course_id: str,
+) -> bool:
+    active_jobs = await job_repo.get_active_jobs(tenant_id, source_type=source_type)
+    return any(j.scope == "course" and j.source_id == course_id for j in active_jobs)
+
+
+async def get_job_status(
+    job_repo: ContentAggregatorSyncJobRepository,
+    item_repo: ContentAggregatorSyncJobItemRepository,
+    tenant_id: str,
+    job_id: str,
+) -> dict[str, object] | None:
+    job = await job_repo.get_job(tenant_id, job_id)
+    if job is None:
+        return None
+    stats = await item_repo.get_stats(tenant_id, job_id)
+    return serialize_job(job, stats)
+
+
+async def get_job_items_page(
+    job_repo: ContentAggregatorSyncJobRepository,
+    item_repo: ContentAggregatorSyncJobItemRepository,
+    tenant_id: str,
+    job_id: str,
+    *,
+    limit: int,
+    after: str | None,
+) -> tuple[list[SyncItemResult], str | None, int] | None:
+    job = await job_repo.get_job(tenant_id, job_id)
+    if job is None:
+        return None
+    return await item_repo.list_by_job_page(tenant_id, job_id, limit=limit, after=after)
+
+
+async def list_jobs_with_stats(
+    job_repo: ContentAggregatorSyncJobRepository,
+    item_repo: ContentAggregatorSyncJobItemRepository,
+    tenant_id: str,
+    source_type: str,
+    *,
+    limit: int,
+    scope: str | None = None,
+    source_id: str | None = None,
+) -> list[dict[str, object]]:
+    job_list = await job_repo.list_jobs(tenant_id, source_type, limit=limit, scope=scope, source_id=source_id)
+    payloads = []
+    for j in job_list:
+        stats = await item_repo.get_stats(tenant_id, j.job_id)
+        payloads.append(serialize_job(j, stats))
+    return payloads
+
+
+async def get_active_jobs_with_stats(
+    job_repo: ContentAggregatorSyncJobRepository,
+    item_repo: ContentAggregatorSyncJobItemRepository,
+    tenant_id: str,
+    source_type: str,
+) -> list[dict[str, object]]:
+    jobs = await job_repo.get_active_jobs(tenant_id, source_type)
+    payloads = []
+    for j in jobs:
+        stats = await item_repo.get_stats(tenant_id, j.job_id)
+        payloads.append(serialize_job(j, stats))
+    return payloads
+
+
 async def finish_job(
     job_repo: ContentAggregatorSyncJobRepository,
     item_repo: ContentAggregatorSyncJobItemRepository,

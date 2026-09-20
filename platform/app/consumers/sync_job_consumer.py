@@ -1,6 +1,3 @@
-"""SyncJobConsumer — polls contentAggregatorSyncJobs for pending Subodha sync jobs,
-claims and executes them.
-"""
 from __future__ import annotations
 
 import asyncio
@@ -11,12 +8,6 @@ from pymongo.asynchronous.database import AsyncDatabase
 from app.aggregators.sync_job_models import SyncJob
 from app.consumers.base_consumer import BaseConsumer
 from app.providers.service_bus import service_bus_provider
-from app.repositories.content_aggregator_sync_job_item_repository import (
-    ContentAggregatorSyncJobItemRepository,
-)
-from app.repositories.content_aggregator_sync_job_repository import (
-    ContentAggregatorSyncJobRepository,
-)
 from app.services.content_aggregator_sync_jobs import finish_job
 from app.services.subodha_service import SubodhaService
 
@@ -29,8 +20,8 @@ async def _run_sync_job(
     tenant_id: str,
     job_id: str,
     service: SubodhaService,
-    job_repo: ContentAggregatorSyncJobRepository,
-    item_repo: ContentAggregatorSyncJobItemRepository,
+    job_repo,
+    item_repo,
     *,
     only_new: bool,
     dry_run: bool,
@@ -46,7 +37,7 @@ async def _run_sync_job(
             all_courses = await service.list_live_courses()
 
         await service.run_sync(
-            tenant_id, job_repo, item_repo, job_id, all_courses, course_ids=course_ids,
+            tenant_id, job_id, all_courses, course_ids=course_ids,
             limit=limit if limit is not None else (len(course_ids) if course_ids is not None else None),
             dry_run=dry_run,
         )
@@ -59,14 +50,14 @@ async def _run_course_sync_job(
     tenant_id: str,
     job_id: str,
     service: SubodhaService,
-    job_repo: ContentAggregatorSyncJobRepository,
-    item_repo: ContentAggregatorSyncJobItemRepository,
+    job_repo,
+    item_repo,
     course_id: str,
     *,
     dry_run: bool,
 ) -> None:
     try:
-        await service.run_single_course_sync(tenant_id, job_repo, item_repo, job_id, course_id, dry_run=dry_run)
+        await service.run_single_course_sync(tenant_id, job_id, course_id, dry_run=dry_run)
         await finish_job(job_repo, item_repo, tenant_id, job_id, "completed")
     except Exception as exc:  # noqa: BLE001
         await finish_job(job_repo, item_repo, tenant_id, job_id, "failed", error=str(exc))
@@ -77,8 +68,8 @@ class SyncJobConsumer(BaseConsumer):
 
     def __init__(
         self,
-        job_repo: ContentAggregatorSyncJobRepository,
-        item_repo: ContentAggregatorSyncJobItemRepository,
+        job_repo,
+        item_repo,
         db: AsyncDatabase,
         poll_interval_seconds: float = 10.0,
         service: SubodhaService | None = None,

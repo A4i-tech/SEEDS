@@ -33,7 +33,7 @@ from app.repositories.content_aggregator_sync_job_repository import (
     ContentAggregatorSyncJobRepository,
 )
 from app.serializers.subodha_serializer import LegacyCourseDoc, to_course_doc
-from app.services.content_aggregator_sync_jobs import record_item_result, set_total
+from app.services.content_aggregator_sync_jobs import finish_job, record_item_result, set_total
 
 
 class CourseDiffResult(TypedDict):
@@ -103,10 +103,18 @@ class SubodhaService:
     ) -> None:
         self._repo = ContentAggregatorRepository(db)
         self._override_repo = ContentAggregatorItemOverrideRepository(db)
+        self._job_repo = ContentAggregatorSyncJobRepository(db)
+        self._item_repo = ContentAggregatorSyncJobItemRepository(db)
         self._blob = blob if blob is not None else BlobStorageProvider()
         self._client = client if client is not None else get_subodha_client()
         self._settings = get_settings()
         self._adapter = SubodhaAdapter()
+
+    async def claim_next_pending_job(self):
+        return await self._job_repo.claim_next_pending(self.SOURCE_TYPE)
+
+    async def finish_job(self, tenant_id: str, job_id: str, status: str, *, error: str | None = None) -> None:
+        await finish_job(self._job_repo, self._item_repo, tenant_id, job_id, status, error=error)
 
     async def update_problem_block(
         self, tenant_id: str, course_id: str, block_id: str, question: str, choices: list[dict[str, str]]
@@ -230,8 +238,6 @@ class SubodhaService:
     async def run_sync(
         self,
         tenant_id: str,
-        job_repo: ContentAggregatorSyncJobRepository,
-        item_repo: ContentAggregatorSyncJobItemRepository,
         job_id: str,
         all_courses: list[SubodhaCourse],
         *,
@@ -252,7 +258,7 @@ class SubodhaService:
             to_process = to_process[:limit]
 
         logger.info("[subodha] %d of %d courses queued", len(to_process), len(all_courses))
-        await set_total(job_repo, tenant_id, job_id, len(to_process))
+        await set_total(self._job_repo, tenant_id, job_id, len(to_process))
 
         semaphore = asyncio.Semaphore(self._settings.subodha_course_concurrency)
         session_box = {"cookie": session_cookie}
@@ -279,7 +285,7 @@ class SubodhaService:
                     source_id=result["courseId"], name=course.get("name") or "", status=result["status"],
                     error=result.get("error"), at=datetime.now(UTC).isoformat(),
                 )
-                await record_item_result(item_repo, tenant_id, job_id, entry)
+                await record_item_result(self._item_repo, tenant_id, job_id, entry)
 
                 async with lock:
                     processed_count += 1
@@ -289,7 +295,7 @@ class SubodhaService:
 
         await asyncio.gather(*(process_one(c) for c in to_process))
 
-        items = await item_repo.list_by_job(tenant_id, job_id)
+        items = await self._item_repo.list_by_job(tenant_id, job_id)
         stats = SyncStats.from_items(items).to_doc()
         permanent_failures = [
             {"courseId": c.source_id, "error": c.error or ""}
@@ -312,8 +318,6 @@ class SubodhaService:
     async def run_single_course_sync(
         self,
         tenant_id: str,
-        job_repo: ContentAggregatorSyncJobRepository,
-        item_repo: ContentAggregatorSyncJobItemRepository,
         job_id: str,
         course_id: str,
         *,
@@ -329,15 +333,15 @@ class SubodhaService:
             logger.error("[subodha] single-course run %s: course=%s not found among %d live courses", job_id, course_id, len(all_courses))
             raise ValueError(f"Course not found on Subodha: {course_id}")
 
-        await set_total(job_repo, tenant_id, job_id, 1)
+        await set_total(self._job_repo, tenant_id, job_id, 1)
         result = await self.process_course(tenant_id, course, session_cookie, job_id, dry_run)
         entry = SyncItemResult(
             source_id=result["courseId"], name=course.get("name") or "", status=result["status"],
             error=result.get("error"), at=datetime.now(UTC).isoformat(),
         )
-        await record_item_result(item_repo, tenant_id, job_id, entry)
+        await record_item_result(self._item_repo, tenant_id, job_id, entry)
 
-        items = await item_repo.list_by_job(tenant_id, job_id)
+        items = await self._item_repo.list_by_job(tenant_id, job_id)
         stats = SyncStats.from_items(items).to_doc()
         permanent_failures = (
             [{"courseId": course_id, "error": result.get("error", "")}] if result["status"] == "failed" else []

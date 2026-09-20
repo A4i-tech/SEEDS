@@ -30,7 +30,12 @@ from app.repositories.content_aggregator_sync_job_repository import (
 )
 from app.services.content_aggregator_sync_jobs import (
     create_job,
-    serialize_job,
+    get_active_jobs_with_stats,
+    get_job_items_page,
+    get_job_status,
+    has_active_all_sync,
+    has_active_course_sync,
+    list_jobs_with_stats,
     subscribe,
 )
 from app.services.subodha_service import CourseDiffResult, SubodhaService, get_subodha_service
@@ -82,8 +87,7 @@ async def start_sync(
 ) -> dict[str, str]:
     body = body or {}
     tenant_id = user.get("tenant_id", "")
-    active_jobs = await job_repo.get_active_jobs(tenant_id, source_type=SOURCE_TYPE)
-    if any(j.scope == "all" for j in active_jobs):
+    if await has_active_all_sync(job_repo, tenant_id, SOURCE_TYPE):
         raise ConflictError("A Subodha sync-all job")
     options = {"only_new": bool(body.get("onlyNew", False)), "dry_run": bool(body.get("dryRun", False)), "limit": body.get("limit")}
     job = await create_job(
@@ -159,8 +163,7 @@ async def sync_course(
 ) -> dict[str, str]:
     body = body or {}
     tenant_id = user.get("tenant_id", "")
-    active_jobs = await job_repo.get_active_jobs(tenant_id, source_type=SOURCE_TYPE)
-    if any(j.scope == "course" and j.source_id == course_id for j in active_jobs):
+    if await has_active_course_sync(job_repo, tenant_id, SOURCE_TYPE, course_id):
         raise ConflictError(f'A sync for course "{course_id}"')
     options = {"dry_run": bool(body.get("dryRun", False))}
     job = await create_job(
@@ -178,11 +181,10 @@ async def get_sync_status(
     item_repo: ContentAggregatorSyncJobItemRepository = Depends(get_content_aggregator_sync_job_item_repo),
 ) -> dict[str, Any]:
     tenant_id = user.get("tenant_id", "")
-    job = await job_repo.get_job(tenant_id, job_id)
-    if job is None:
+    status = await get_job_status(job_repo, item_repo, tenant_id, job_id)
+    if status is None:
         raise NotFoundError("Job", job_id)
-    stats = await item_repo.get_stats(tenant_id, job_id)
-    return serialize_job(job, stats)
+    return status
 
 
 @router.get("/sync/status/{job_id}/items", summary="Paginated per-item sync results for a job")
@@ -195,10 +197,10 @@ async def get_sync_job_items(
     item_repo: ContentAggregatorSyncJobItemRepository = Depends(get_content_aggregator_sync_job_item_repo),
 ) -> dict[str, Any]:
     tenant_id = user.get("tenant_id", "")
-    job = await job_repo.get_job(tenant_id, job_id)
-    if job is None:
+    page = await get_job_items_page(job_repo, item_repo, tenant_id, job_id, limit=limit, after=after)
+    if page is None:
         raise NotFoundError("Job", job_id)
-    items, next_cursor, total = await item_repo.list_by_job_page(tenant_id, job_id, limit=limit, after=after)
+    items, next_cursor, total = page
     return {"items": [i.to_doc() for i in items], "next_cursor": next_cursor, "total": total}
 
 
@@ -212,11 +214,9 @@ async def get_sync_jobs(
     item_repo: ContentAggregatorSyncJobItemRepository = Depends(get_content_aggregator_sync_job_item_repo),
 ) -> dict[str, Any]:
     tenant_id = user.get("tenant_id", "")
-    job_list = await job_repo.list_jobs(tenant_id, SOURCE_TYPE, limit=limit, scope=scope, source_id=course_id)
-    payloads = []
-    for j in job_list:
-        stats = await item_repo.get_stats(tenant_id, j.job_id)
-        payloads.append(serialize_job(j, stats))
+    payloads = await list_jobs_with_stats(
+        job_repo, item_repo, tenant_id, SOURCE_TYPE, limit=limit, scope=scope, source_id=course_id,
+    )
     return {"jobs": payloads}
 
 
@@ -227,11 +227,7 @@ async def get_active_jobs(
     item_repo: ContentAggregatorSyncJobItemRepository = Depends(get_content_aggregator_sync_job_item_repo),
 ) -> dict[str, Any]:
     tenant_id = user.get("tenant_id", "")
-    jobs = await job_repo.get_active_jobs(tenant_id, SOURCE_TYPE)
-    payloads = []
-    for j in jobs:
-        stats = await item_repo.get_stats(tenant_id, j.job_id)
-        payloads.append(serialize_job(j, stats))
+    payloads = await get_active_jobs_with_stats(job_repo, item_repo, tenant_id, SOURCE_TYPE)
     return {"jobs": payloads}
 
 
