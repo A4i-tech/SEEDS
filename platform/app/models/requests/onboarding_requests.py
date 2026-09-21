@@ -18,7 +18,7 @@ class ProjectUpdateRequest(BaseModel):
 
 
 class WebsiteCreateRequest(BaseModel):
-    project_id: str
+    project_id: str | None = None
     domain: str
     name: str = ""
     status: str = "Active"

@@ -12,7 +12,7 @@ import ModalActions from "../shared/ModalActions";
 import StatusPill from "../shared/StatusPill";
 
 export function SitesView({ loc, toast }) {
-  const { sites, projects, workspaceLoadError, handleCreateSite, handleUpdateSite, handleDeleteSite } = loc;
+  const { sites, handleCreateSite, handleUpdateSite, handleDeleteSite } = loc;
 
   const [snippetSite, setSnippetSite] = useState(null);
 
@@ -32,17 +32,12 @@ export function SitesView({ loc, toast }) {
     },
     getId: (site) => site.id,
     emptyValues: { name: "", url: "", status: "Active" },
-    onCreate: (values) => {
-      if (!projects.length) {
-        throw workspaceLoadError || new Error("No project available to register the website under");
-      }
-      return handleCreateSite({
-        projectId: projects[0].id,
+    onCreate: (values) =>
+      handleCreateSite({
         domain: extractDomain(values.url),
         name: values.name,
         status: values.status,
-      });
-    },
+      }),
     onUpdate: (id, values) =>
       handleUpdateSite(id, {
         name: values.name,

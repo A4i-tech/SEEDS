@@ -10,7 +10,12 @@ from pymongo.errors import DuplicateKeyError
 
 from app.models.responses.onboarding import ProjectResponse, WebsiteResponse
 from app.platform.auth.dependencies import get_db
-from app.platform.error_handling import ConflictError, NotFoundError, ValidationError
+from app.platform.error_handling import (
+    ConfigurationError,
+    ConflictError,
+    NotFoundError,
+    ValidationError,
+)
 from app.platform.settings import get_settings
 from app.repositories.project_repository import ProjectRepository
 from app.repositories.website_repository import WebsiteRepository
@@ -27,12 +32,12 @@ def _validate_domain(domain: str) -> None:
         raise ValidationError(f"Invalid domain: {domain!r}")
 
 
-def build_snippet(base_url: str, site_id: str) -> str:
+def build_snippet(sdk_base_url: str, api_base_url: str, site_id: str) -> str:
     return (
         "<script\n"
-        f'  src="{base_url}/sdk.js"\n'
+        f'  src="{sdk_base_url}/sdk.js"\n'
         f'  data-site-id="{site_id}"\n'
-        f'  data-api-base="{base_url}"\n'
+        f'  data-api-base="{api_base_url}"\n'
         "  defer>\n"
         "</script>"
     )
@@ -72,16 +77,18 @@ class OnboardingService:
 
     async def register_website(
         self,
-        project_id: str,
+        project_id: str | None,
         domain: str,
         name: str = "",
         status: str = "Active",
     ) -> WebsiteResponse:
         _validate_domain(domain)
+        self._snippet_base_urls()
 
-        project = await self._projects.find_by_id(project_id)
-        if project is None:
-            raise NotFoundError("Project", project_id)
+        if project_id is not None:
+            project = await self._projects.find_by_id(project_id)
+            if project is None:
+                raise NotFoundError("Project", project_id)
 
         site_id = str(uuid.uuid4())
         try:
@@ -104,6 +111,8 @@ class OnboardingService:
         return [WebsiteResponse.from_doc(website) for website in websites]
 
     async def update_website(self, website_id: str, fields: dict[str, Any]) -> WebsiteResponse:
+        self._snippet_base_urls()
+
         website = await self._websites.find_by_id(website_id)
         if website is None:
             raise NotFoundError("Website", website_id)
@@ -119,9 +128,19 @@ class OnboardingService:
         if not deleted:
             raise NotFoundError("Website", website_id)
 
-    def _snippet_for(self, website: dict[str, Any]) -> str:
+    def _snippet_base_urls(self) -> tuple[str, str]:
         settings = get_settings()
-        return build_snippet(settings.translation_sdk_base_url, website["site_id"])
+        sdk_base_url = settings.translation_sdk_base_url.rstrip("/")
+        api_base_url = settings.translation_api_base_url.rstrip("/")
+        if not sdk_base_url or not api_base_url:
+            raise ConfigurationError(
+                "TRANSLATION_SDK_BASE_URL and TRANSLATION_API_BASE_URL must both be set to generate an SDK snippet"
+            )
+        return sdk_base_url, api_base_url
+
+    def _snippet_for(self, website: dict[str, Any]) -> str:
+        sdk_base_url, api_base_url = self._snippet_base_urls()
+        return build_snippet(sdk_base_url, api_base_url, website["site_id"])
 
 
 def get_onboarding_service(

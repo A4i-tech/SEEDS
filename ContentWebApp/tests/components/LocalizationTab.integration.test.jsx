@@ -6,7 +6,7 @@ import { languageService } from "../../src/services/languageService";
 import { translationService } from "../../src/services/translationService";
 
 jest.mock("../../src/services/onboardingService", () => ({
-  onboardingService: { listProjects: jest.fn(), listSites: jest.fn(), getSite: jest.fn() },
+  onboardingService: { listSites: jest.fn(), getSite: jest.fn() },
 }));
 jest.mock("../../src/services/languageService", () => ({ languageService: { listLanguages: jest.fn() } }));
 jest.mock("../../src/services/translationService", () => ({
@@ -24,7 +24,7 @@ beforeAll(() => {
   window.HTMLElement.prototype.scrollIntoView = jest.fn();
 });
 
-const site = { id: "s1", siteId: "site-1", domain: "a.com", name: "", status: "Active", projectId: "p1" };
+const site = { id: "s1", siteId: "site-1", domain: "a.com", name: "", status: "Active" };
 const doc = (id, route, text, updatedAt) => ({
   id,
   route,
@@ -37,7 +37,6 @@ const docs = [doc("k1", "/contact", "Contact us", "2024-01-01"), doc("k2", "/abo
 beforeEach(() => {
   jest.clearAllMocks();
   localStorage.clear();
-  onboardingService.listProjects.mockResolvedValue([{ id: "p1", name: "P" }]);
   onboardingService.listSites.mockResolvedValue([site]);
   languageService.listLanguages.mockResolvedValue([
     { id: "l1", code: "hi", name: "Hindi", enabled: true },
@@ -77,7 +76,7 @@ test("opening Translate & Review selects the first site and its newest page and 
 test("a remembered route that no longer exists falls back to the newest page", async () => {
   localStorage.setItem(
     "locaui.scope",
-    JSON.stringify({ projectId: "", siteId: "site-1", route: "/gone", lang: "hi" })
+    JSON.stringify({ siteId: "site-1", route: "/gone", lang: "hi" })
   );
   render(<LocalizationTab />);
   await openWorkspace();
@@ -89,7 +88,7 @@ test("a remembered route that no longer exists falls back to the newest page", a
 test("a remembered route that still exists is kept", async () => {
   localStorage.setItem(
     "locaui.scope",
-    JSON.stringify({ projectId: "", siteId: "site-1", route: "/contact", lang: "hi" })
+    JSON.stringify({ siteId: "site-1", route: "/contact", lang: "hi" })
   );
   render(<LocalizationTab />);
   await openWorkspace();

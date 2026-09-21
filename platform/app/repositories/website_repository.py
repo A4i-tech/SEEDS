@@ -22,7 +22,7 @@ class WebsiteRepository(BaseRepository):
 
     async def create(
         self,
-        project_id: str,
+        project_id: str | None,
         domain: str,
         site_id: str,
         name: str = "",
@@ -47,6 +47,9 @@ class WebsiteRepository(BaseRepository):
 
     async def find_by_site_id(self, site_id: str) -> dict[str, Any] | None:
         return await self._col.find_one({"site_id": site_id})
+
+    async def find_by_domain(self, domain: str) -> dict[str, Any] | None:
+        return await self._col.find_one({"domain": domain})
 
     async def find_by_project(self, project_id: str) -> list[dict[str, Any]]:
         return await self._col.find({"project_id": project_id}).to_list(length=None)

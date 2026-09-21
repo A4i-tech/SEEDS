@@ -4,22 +4,10 @@ const formatCreated = (createdAt) => {
   return date.toLocaleDateString();
 };
 
-export const fromProjectResponse = (doc) => {
-  return {
-    ...doc,
-    id: doc.id,
-    sourceLanguage: doc.source_language,
-    createdAt: doc.created_at,
-    updatedAt: doc.updated_at,
-    created: formatCreated(doc.created_at),
-  };
-};
-
 export const fromSiteResponse = (doc) => {
   return {
     ...doc,
     id: doc.id,
-    projectId: doc.project_id,
     siteId: doc.site_id,
     createdAt: doc.created_at,
     updatedAt: doc.updated_at,
@@ -49,8 +37,7 @@ export const fromTranslationResponse = (doc) => {
   };
 };
 
-export const toSiteCreateRequest = ({ projectId, domain, name, status }) => ({
-  project_id: projectId,
+export const toSiteCreateRequest = ({ domain, name, status }) => ({
   domain,
   name,
   status,

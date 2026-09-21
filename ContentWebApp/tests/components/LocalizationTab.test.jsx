@@ -7,7 +7,7 @@ jest.mock("../../src/services/translationService", () => ({
 
 jest.mock("../../src/hooks/useLocalization", () => ({
   useLocalization: () => ({
-    projects: [], sites: [], languages: [], isLoadingWorkspace: true, workspaceLoadError: "",
+    sites: [], languages: [], isLoadingWorkspace: true, workspaceLoadError: "",
     handleCreateSite: jest.fn(), handleUpdateSite: jest.fn(), handleDeleteSite: jest.fn(),
   }),
 }));

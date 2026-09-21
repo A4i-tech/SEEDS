@@ -40,7 +40,7 @@ describe("DevToolsSection", () => {
     renderWithToast(<DevToolsSection siteId="abc-123" />);
     expect(screen.getByText("Developer Testing (Chrome DevTools)")).toBeInTheDocument();
     const code = document.querySelector("pre code").textContent;
-    expect(code).toContain(`s.src = "${SEEDS_URL}/sdk.js";`);
+    expect(code).toContain(`s.src = "${window.location.origin}/sdk.js";`);
     expect(code).toContain('s.dataset.siteId = "abc-123";');
     expect(code).toContain(`s.dataset.apiBase = "${SEEDS_URL}";`);
     expect(code).toContain("document.body.appendChild(s);");

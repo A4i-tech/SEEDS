@@ -17,7 +17,6 @@ export default function LocalizationTab() {
 
   const [nav, setNav] = useState("dashboard");
   const [scope, setScope] = usePersistentState("scope", {
-    projectId: "",
     siteId: "",
     route: "",
     lang: "hi",

@@ -83,6 +83,11 @@ class ValidationError(AppError):
         super().__init__("VALIDATION_ERROR", message, 422)
 
 
+class ConfigurationError(AppError):
+    def __init__(self, message: str) -> None:
+        super().__init__("CONFIGURATION_ERROR", message, 500)
+
+
 # ---------------------------------------------------------------------------
 # Exception handlers
 # ---------------------------------------------------------------------------

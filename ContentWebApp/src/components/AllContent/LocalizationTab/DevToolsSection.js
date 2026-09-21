@@ -6,7 +6,7 @@ import { SnippetBlock } from "./SnippetBlock";
 const buildDevToolsScript = (siteId) =>
   [
     "const s = document.createElement(\"script\");",
-    `s.src = "${SEEDS_URL}/sdk.js";`,
+    `s.src = "${window.location.origin}/sdk.js";`,
     `s.dataset.siteId = "${siteId}";`,
     `s.dataset.apiBase = "${SEEDS_URL}";`,
     "document.body.appendChild(s);",

@@ -7,6 +7,7 @@ import app.services.translation_service as ts_module
 from app.platform.error_handling import NotFoundError
 from app.platform.settings import Settings
 from app.providers.translation_provider import (
+    AzureTranslationProvider,
     GroqTranslationProvider,
     OpenAITranslationProvider,
     TransientTranslationError,
@@ -58,7 +59,19 @@ async def translation_service(mock_db, fake_provider):
 
 
 
-def test_get_translation_provider_defaults_to_openai():
+def test_translation_provider_setting_defaults_to_azure():
+    assert Settings().translation_provider == "azure"
+
+
+def test_get_translation_provider_defaults_to_azure_and_requires_its_credentials():
+    settings = Settings(translator_key="key", translator_region="centralindia")
+    assert isinstance(get_translation_provider(settings), AzureTranslationProvider)
+
+    with pytest.raises(ValueError, match="TRANSLATOR_KEY"):
+        get_translation_provider(Settings(translator_key="", translator_region="centralindia"))
+
+
+def test_get_translation_provider_still_selects_openai_when_configured():
     settings = Settings(translation_provider="openai", openai_api_key="sk-test")
     provider = get_translation_provider(settings)
     assert isinstance(provider, OpenAITranslationProvider)
@@ -331,7 +344,7 @@ async def test_runtime_batch_per_item_gate_uses_per_language_status_not_doc_leve
 
     result = await service.runtime_translate("site1", "/h", "hi")
 
-    assert result == {"t1": "[hi] Hello"}
+    assert result == {"t1": "Hello"}
     doc = (await repo.find_by_route("site1", "/h"))[0]
     assert doc["translations"]["hi"]["status"] == "pending"
     assert doc["translations"]["hi"]["text"] == "[hi] Hello"
@@ -357,6 +370,52 @@ async def test_bulk_approve_pending_approves_all_pending_and_skips_approved(
     assert docs["t1"]["translations"]["hi"]["status"] == "approved"
     assert docs["t1"]["translations"]["mr"]["status"] == "approved"
     assert docs["t2"]["translations"]["ta"]["status"] == "approved"
+
+
+async def test_runtime_translate_does_not_serve_freshly_generated_unapproved_translation(
+    monkeypatch, translation_repo, translation_service
+):
+    monkeypatch.setattr(ts_module, "get_settings", lambda: _settings_first_party(""))
+    await translation_repo.upsert_source("site1", "/h", "t1", "en", "Hello")
+
+    result = await translation_service.runtime_translate("site1", "/h", "hi")
+
+    assert result == {"t1": "Hello"}
+    doc = (await translation_repo.find_by_route("site1", "/h"))[0]
+    assert doc["translations"]["hi"]["text"] == "[hi] Hello"
+    assert doc["translations"]["hi"]["status"] == "pending"
+
+
+async def test_runtime_translate_serves_fresh_translation_for_first_party_sites(
+    monkeypatch, translation_repo, translation_service
+):
+    monkeypatch.setattr(ts_module, "get_settings", lambda: _settings_first_party("site1"))
+    await translation_repo.upsert_source("site1", "/h", "t1", "en", "Hello")
+
+    assert await translation_service.runtime_translate("site1", "/h", "hi") == {"t1": "[hi] Hello"}
+
+
+async def test_runtime_translate_serves_approved_translation_on_the_next_request(
+    monkeypatch, translation_repo, translation_service
+):
+    monkeypatch.setattr(ts_module, "get_settings", lambda: _settings_first_party(""))
+    await translation_repo.upsert_source("site1", "/h", "t1", "en", "Hello")
+    await translation_service.runtime_translate("site1", "/h", "hi")
+    doc = (await translation_repo.find_by_route("site1", "/h"))[0]
+    await translation_service.approve_translation(str(doc["_id"]), "hi", "reviewer@example.com")
+
+    assert await translation_service.runtime_translate("site1", "/h", "hi") == {"t1": "[hi] Hello"}
+
+
+async def test_generate_for_review_returns_fresh_translation_for_the_reviewer(
+    monkeypatch, translation_repo, translation_service
+):
+    monkeypatch.setattr(ts_module, "get_settings", lambda: _settings_first_party(""))
+    await translation_repo.upsert_source("site1", "/h", "t1", "en", "Hello")
+
+    assert await translation_service.generate_for_review("site1", "/h", "hi") == {"t1": "[hi] Hello"}
+    doc = (await translation_repo.find_by_route("site1", "/h"))[0]
+    assert doc["translations"]["hi"]["status"] == "pending"
 
 
 async def test_runtime_translate_reuses_existing_no_regenerate(

@@ -10,16 +10,10 @@ import { extractDomain } from "../../../utils/url";
 
 export function OnboardingCard({ loc }) {
   const { toast } = useToast();
-  const { projects, workspaceLoadError } = loc;
   const [domain, setDomain] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
-
-  const resolveProjectId = async () => {
-    if (projects.length) return projects[0].id;
-    throw workspaceLoadError || new Error("No project available to register the website under");
-  };
 
   const register = async (e) => {
     e.preventDefault();
@@ -27,9 +21,7 @@ export function OnboardingCard({ loc }) {
     setBusy(true);
     setError("");
     try {
-      const projectId = await resolveProjectId();
       const site = await loc.handleCreateSite({
-        projectId,
         domain: extractDomain(domain.trim()),
         name: "",
         status: "Active",

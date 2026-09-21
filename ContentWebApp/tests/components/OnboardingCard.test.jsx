@@ -11,35 +11,26 @@ function renderCard(loc) {
   fireEvent.click(screen.getByRole("button", { name: "Register Website" }));
 }
 
-test("registers the site under the first existing project", async () => {
+test("registers the site by domain without any project", async () => {
   const loc = {
-    projects: [{ id: "p1" }],
     handleCreateSite: jest.fn(async (v) => ({ id: "s1", domain: v.domain, siteId: "x", snippet: "" })),
   };
   renderCard(loc);
   await waitFor(() =>
-    expect(loc.handleCreateSite).toHaveBeenCalledWith({ projectId: "p1", domain: "new.example.org", name: "", status: "Active" })
+    expect(loc.handleCreateSite).toHaveBeenCalledWith({ domain: "new.example.org", name: "", status: "Active" })
   );
   expect(await screen.findByText("Website Connected")).toBeInTheDocument();
 });
 
-test("when projects failed to load it shows the load error and creates nothing", async () => {
-  const loc = {
-    projects: [],
-    workspaceLoadError: new Error("Failed to fetch"),
-    handleCreateSite: jest.fn(),
-    handleCreateProject: jest.fn(),
-  };
+test("a failed registration shows the backend message and stays on the form", async () => {
+  const loc = { handleCreateSite: jest.fn().mockRejectedValue(new Error("Website with domain 'new.example.org' already exists")) };
   renderCard(loc);
-  expect((await screen.findAllByText("Failed to fetch")).length).toBeGreaterThan(0);
-  expect(loc.handleCreateSite).not.toHaveBeenCalled();
-  expect(loc.handleCreateProject).not.toHaveBeenCalled();
+  expect((await screen.findAllByText("Website with domain 'new.example.org' already exists")).length).toBeGreaterThan(0);
+  expect(screen.getByRole("button", { name: "Register Website" })).toBeInTheDocument();
 });
 
-test("when there is no project and no load error it says so instead of creating a Default Project", async () => {
-  const loc = { projects: [], workspaceLoadError: null, handleCreateSite: jest.fn(), handleCreateProject: jest.fn() };
+test("a failure without a message falls back to a generic error", async () => {
+  const loc = { handleCreateSite: jest.fn().mockRejectedValue({}) };
   renderCard(loc);
-  expect((await screen.findAllByText("No project available to register the website under")).length).toBeGreaterThan(0);
-  expect(loc.handleCreateSite).not.toHaveBeenCalled();
-  expect(loc.handleCreateProject).not.toHaveBeenCalled();
+  expect((await screen.findAllByText("Failed to register website")).length).toBeGreaterThan(0);
 });

@@ -5,7 +5,6 @@ import { languageService } from "../../src/services/languageService";
 
 jest.mock("../../src/services/onboardingService", () => ({
   onboardingService: {
-    listProjects: jest.fn(),
     listSites: jest.fn(),
     createSite: jest.fn(),
     updateSite: jest.fn(),
@@ -14,14 +13,12 @@ jest.mock("../../src/services/onboardingService", () => ({
 }));
 jest.mock("../../src/services/languageService", () => ({ languageService: { listLanguages: jest.fn() } }));
 
-const project = { id: "p1", name: "P" };
 const site = { id: "s1", siteId: "site-1", domain: "a.com", status: "Active" };
 const language = { id: "l1", code: "hi", name: "Hindi", enabled: true };
 
 beforeEach(() => {
   jest.clearAllMocks();
   jest.spyOn(console, "error").mockImplementation(() => {});
-  onboardingService.listProjects.mockResolvedValue([project]);
   onboardingService.listSites.mockResolvedValue([site]);
   languageService.listLanguages.mockResolvedValue([language]);
 });
@@ -37,45 +34,31 @@ const loaded = async () => {
 test("starts loading with empty collections", () => {
   const { result } = renderHook(() => useLocalization());
   expect(result.current.isLoadingWorkspace).toBe(true);
-  expect(result.current.projects).toEqual([]);
   expect(result.current.sites).toEqual([]);
   expect(result.current.languages).toEqual([]);
   expect(result.current.workspaceLoadError).toBeNull();
 });
 
-test("loads projects, sites and languages", async () => {
+test("loads sites and languages", async () => {
   const { result } = await loaded();
-  expect(result.current.projects).toEqual([project]);
   expect(result.current.sites).toEqual([site]);
   expect(result.current.languages).toEqual([language]);
   expect(result.current.workspaceLoadError).toBeNull();
-});
-
-test("a failed project load is exposed as workspaceLoadError and no project is created", async () => {
-  onboardingService.listProjects.mockRejectedValue(new Error("Failed to fetch"));
-  const { result } = await loaded();
-  expect(result.current.projects).toEqual([]);
-  expect(result.current.sites).toEqual([site]);
-  expect(result.current.languages).toEqual([language]);
-  expect(result.current.workspaceLoadError.message).toBe("Failed to fetch");
-  expect(result.current.handleCreateProject).toBeUndefined();
-  expect(console.error).toHaveBeenCalled();
 });
 
 test("a failed site load keeps the other collections and reports the error", async () => {
   onboardingService.listSites.mockRejectedValue(new Error("sites down"));
   const { result } = await loaded();
   expect(result.current.sites).toEqual([]);
-  expect(result.current.projects).toEqual([project]);
   expect(result.current.languages).toEqual([language]);
   expect(result.current.workspaceLoadError.message).toBe("sites down");
+  expect(console.error).toHaveBeenCalled();
 });
 
 test("a failed language load keeps the other collections and reports the error", async () => {
   languageService.listLanguages.mockRejectedValue(new Error("langs down"));
   const { result } = await loaded();
   expect(result.current.languages).toEqual([]);
-  expect(result.current.projects).toEqual([project]);
   expect(result.current.sites).toEqual([site]);
   expect(result.current.workspaceLoadError.message).toBe("langs down");
 });
@@ -96,7 +79,6 @@ test("handleCreateSite sends the mapped fields and appends the created site", as
   let returned;
   await act(async () => {
     returned = await result.current.handleCreateSite({
-      projectId: "p1",
       domain: "b.com",
       name: "B",
       status: "Active",
@@ -104,7 +86,6 @@ test("handleCreateSite sends the mapped fields and appends the created site", as
     });
   });
   expect(onboardingService.createSite).toHaveBeenCalledWith({
-    projectId: "p1",
     domain: "b.com",
     name: "B",
     status: "Active",

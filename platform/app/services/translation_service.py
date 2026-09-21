@@ -150,11 +150,13 @@ class TranslationService:
 
     async def runtime_translate(self, site_id: str, route: str, lang: str) -> dict[str, str]:
         await self._ensure_site_active(site_id)
-        return await self._generate_translations(site_id, route, lang)
+        return await self._generate_translations(
+            site_id, route, lang, serve_pending=self._is_first_party(site_id)
+        )
 
     async def generate_for_review(self, site_id: str, route: str, lang: str) -> dict[str, str]:
         await self._ensure_site_active(site_id)
-        return await self._generate_translations(site_id, route, lang)
+        return await self._generate_translations(site_id, route, lang, serve_pending=True)
 
     def _is_first_party(self, site_id: str) -> bool:
         ids = getattr(get_settings(), "first_party_site_ids", "") or ""
@@ -162,7 +164,9 @@ class TranslationService:
             return False
         return site_id in {s.strip() for s in ids.split(",") if s.strip()}
 
-    async def _generate_translations(self, site_id: str, route: str, lang: str) -> dict[str, str]:
+    async def _generate_translations(
+        self, site_id: str, route: str, lang: str, serve_pending: bool
+    ) -> dict[str, str]:
         await self._ensure_lang_enabled(lang)
         first_party = self._is_first_party(site_id)
         docs = await self._repo.find_by_route(site_id, route)
@@ -198,10 +202,10 @@ class TranslationService:
             masked, pmap = mask(normalized)
             pending.append((doc, masked, pmap, source_lang, normalized))
 
-        await self._runtime_batch_ai(site_id, route, lang, pending, result)
+        await self._runtime_batch_ai(site_id, route, lang, pending, result, serve_pending)
         return result
 
-    async def _runtime_batch_ai(self, site_id, route, lang, pending, result) -> None:
+    async def _runtime_batch_ai(self, site_id, route, lang, pending, result, serve_pending) -> None:
         by_src: dict[str, list] = {}
         for entry in pending:
             by_src.setdefault(entry[3], []).append(entry)
@@ -215,7 +219,7 @@ class TranslationService:
                         translated = unmask(out, pmap)
                         quality = score_translation(normalized, out, pmap)
                         await self._persist_translation(site_id, route, doc, lang, translated, type(self._provider).__name__, quality)
-                        result[doc["key"]] = translated
+                        result[doc["key"]] = translated if serve_pending else doc["source_text"]
                 except (TransientTranslationError, ValueError):
                     for doc, masked, pmap, _s, normalized in chunk:
                         try:
@@ -226,7 +230,7 @@ class TranslationService:
                         translated = unmask(out, pmap)
                         quality = score_translation(normalized, out, pmap)
                         await self._persist_translation(site_id, route, doc, lang, translated, type(self._provider).__name__, quality)
-                        result[doc["key"]] = translated
+                        result[doc["key"]] = translated if serve_pending else doc["source_text"]
 
     def _chunk(self, entries: list) -> list[list]:
         out: list[list] = []

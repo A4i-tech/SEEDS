@@ -21,7 +21,6 @@ function useCrudState(actions, setState) {
 }
 
 export const useLocalization = () => {
-  const [projects, setProjects] = useState([]);
   const [sites, setSites] = useState([]);
   const [languages, setLanguages] = useState([]);
   const [isLoadingWorkspace, setIsLoadingWorkspace] = useState(true);
@@ -34,18 +33,16 @@ export const useLocalization = () => {
       setIsLoadingWorkspace(true);
       setWorkspaceLoadError(null);
 
-      const [projectsResult, sitesResult, languagesResult] = await Promise.allSettled([
-        onboardingService.listProjects(),
+      const [sitesResult, languagesResult] = await Promise.allSettled([
         onboardingService.listSites(),
         languageService.listLanguages(),
       ]);
       if (cancelled) return;
 
-      if (projectsResult.status === "fulfilled") setProjects(projectsResult.value);
       if (sitesResult.status === "fulfilled") setSites(sitesResult.value);
       if (languagesResult.status === "fulfilled") setLanguages(languagesResult.value);
 
-      const failed = [projectsResult, sitesResult, languagesResult].find((r) => r.status === "rejected");
+      const failed = [sitesResult, languagesResult].find((r) => r.status === "rejected");
       if (failed) {
         console.error("useLocalization: failed to load workspace data", failed.reason);
         setWorkspaceLoadError(failed.reason);
@@ -63,7 +60,6 @@ export const useLocalization = () => {
     {
       create: (site) =>
         onboardingService.createSite({
-          projectId: site.projectId,
           domain: site.domain,
           name: site.name,
           status: site.status,
@@ -78,7 +74,6 @@ export const useLocalization = () => {
   const handleDeleteSite = siteCrud.handleDelete;
 
   return {
-    projects,
 
     sites,
     setSites,

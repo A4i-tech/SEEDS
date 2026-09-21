@@ -9,8 +9,7 @@ jest.mock("../../src/services/onboardingService", () => ({
 
 function makeLoc() {
   return {
-    projects: [{ id: "p1", name: "Site A", description: "", sourceLanguage: "English", status: "Active" }],
-    sites: [{ id: "s1", name: "Home", domain: "a.com", url: "https://a.com", projectId: "p1", status: "Active" }],
+    sites: [{ id: "s1", name: "Home", domain: "a.com", url: "https://a.com", status: "Active" }],
     languages: [{ id: "l1", name: "Hindi", code: "hi", direction: "ltr", enabled: true }],
     handleCreateSite: jest.fn(async (v) => ({ id: "s2", ...v })),
     handleUpdateSite: jest.fn(async (id, v) => ({ id, ...v })),
@@ -47,7 +46,7 @@ test("sites view surfaces a failed snippet fetch instead of opening an empty mod
   expect(screen.queryByText(/SDK snippet/)).not.toBeInTheDocument();
 });
 
-test("add-site modal no longer asks for a Project and still submits the default projectId", async () => {
+test("add-site modal has no Project field and submits the site without a project", async () => {
   const loc = makeLoc();
   renderNav("sites", loc);
   fireEvent.click(screen.getByRole("button", { name: "Add site" }));
@@ -56,7 +55,6 @@ test("add-site modal no longer asks for a Project and still submits the default 
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() =>
     expect(loc.handleCreateSite).toHaveBeenCalledWith({
-      projectId: "p1",
       domain: "new.example.org",
       name: "",
       status: "Active",
@@ -69,17 +67,17 @@ test("sites table has no Project column", () => {
   expect(screen.queryByRole("columnheader", { name: "Project" })).not.toBeInTheDocument();
 });
 
-test("add-site with no project surfaces the load error and never creates a project or site", async () => {
-  const loc = { ...makeLoc(), projects: [], workspaceLoadError: new Error("Failed to fetch") };
+test("a failed add-site shows the backend message", async () => {
+  const loc = makeLoc();
+  loc.handleCreateSite.mockRejectedValue(new Error("Website with domain 'new.example.org' already exists"));
   renderNav("sites", loc);
   fireEvent.click(screen.getByRole("button", { name: "Add site" }));
   fireEvent.change(screen.getByLabelText("Domain or URL"), { target: { value: "https://new.example.org" } });
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
-  await screen.findByText("Failed to fetch");
-  expect(loc.handleCreateSite).not.toHaveBeenCalled();
+  await screen.findByText("Website with domain 'new.example.org' already exists");
 });
 
-test("editing a site updates name/domain/status without touching the project", async () => {
+test("editing a site updates name/domain/status", async () => {
   const loc = makeLoc();
   renderNav("sites", loc);
   fireEvent.click(screen.getByRole("button", { name: "Edit" }));
