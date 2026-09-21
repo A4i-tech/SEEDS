@@ -10,8 +10,8 @@ from app.platform.auth.refresh_tokens import (
     ConsumedToken,
     RefreshTokenExpiredError,
     RefreshTokenNotFoundError,
-    RefreshTokenRevokedError,
     RefreshTokenReusedError,
+    RefreshTokenRevokedError,
 )
 from app.repositories.base_repository import BaseRepository
 
