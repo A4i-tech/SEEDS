@@ -80,9 +80,9 @@ async function playAudioContent(id, blobUrl) {
     const channelFree = !state.currentAudioType || state.currentAudioType === "audioContent";
     const { containerName, blobName } = parseBlobUrl(blobUrl);
     const blobData = await azureBlobService.getBlobData(containerName, blobName);
-    logger.info(`Blob downloaded for ID: ${id}, size: ${blobData ? blobData.length : 'null'} bytes`);
+    logger.info(`Blob downloaded for ID: ${id}, size: ${blobData.length} bytes`);
     state.audioContentState.blobData = blobData;
-    state.audioContentState.durationSeconds = blobData ? blobData.length / AUDIO_BYTES_PER_SECOND : 0;
+    state.audioContentState.durationSeconds = blobData.length / AUDIO_BYTES_PER_SECOND;
 
     if (channelFree) {
       state.currentAudioType = "audioContent";
