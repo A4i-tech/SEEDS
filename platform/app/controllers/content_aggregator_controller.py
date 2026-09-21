@@ -25,24 +25,7 @@ from app.platform.error_handling import (
     ValidationError,
 )
 from app.providers.service_bus import service_bus_provider
-from app.repositories.content_aggregator_sync_job_item_repository import (
-    ContentAggregatorSyncJobItemRepository,
-    get_content_aggregator_sync_job_item_repo,
-)
-from app.repositories.content_aggregator_sync_job_repository import (
-    ContentAggregatorSyncJobRepository,
-    get_content_aggregator_sync_job_repo,
-)
-from app.services.content_aggregator_sync_jobs import (
-    create_job,
-    get_active_jobs_with_stats,
-    get_job_items_page,
-    get_job_status,
-    has_active_all_sync,
-    has_active_course_sync,
-    list_jobs_with_stats,
-    subscribe,
-)
+from app.services.content_aggregator_sync_jobs import SyncJobService, get_sync_job_service
 from app.services.subodha_service import CourseDiffResult, SubodhaService, get_subodha_service
 
 logger = logging.getLogger(__name__)
@@ -88,18 +71,18 @@ async def get_diff(
 async def start_sync(
     body: dict[str, Any] | None = None,
     user: dict[str, Any] = Depends(_require_tenant),
-    job_repo: ContentAggregatorSyncJobRepository = Depends(get_content_aggregator_sync_job_repo),
+    sync_jobs: SyncJobService = Depends(get_sync_job_service),
 ) -> dict[str, str]:
     body = body or {}
     tenant_id = user.get("tenant_id", "")
-    if await has_active_all_sync(job_repo, tenant_id, SOURCE_TYPE):
+    if await sync_jobs.has_active_all_sync(tenant_id, SOURCE_TYPE):
         raise ConflictError("A Subodha sync-all job")
     limit = body.get("limit")
     if limit is not None and not isinstance(limit, int):
         raise ValidationError("limit must be an integer")
     options = {"only_new": bool(body.get("onlyNew", False)), "dry_run": bool(body.get("dryRun", False)), "limit": limit}
-    job = await create_job(
-        job_repo, tenant_id=tenant_id, source_type=SOURCE_TYPE, scope="all", source_id=None, total_items=0, options=options,
+    job = await sync_jobs.create_job(
+        tenant_id=tenant_id, source_type=SOURCE_TYPE, scope="all", source_id=None, total_items=0, options=options,
     )
     await _wake_sync_job_consumer(job.job_id)
     return {"job_id": job.job_id}
@@ -167,15 +150,15 @@ async def sync_course(
     course_id: str,
     body: dict[str, Any] | None = None,
     user: dict[str, Any] = Depends(_require_aggregator_access),
-    job_repo: ContentAggregatorSyncJobRepository = Depends(get_content_aggregator_sync_job_repo),
+    sync_jobs: SyncJobService = Depends(get_sync_job_service),
 ) -> dict[str, str]:
     body = body or {}
     tenant_id = user.get("tenant_id", "")
-    if await has_active_course_sync(job_repo, tenant_id, SOURCE_TYPE, course_id):
+    if await sync_jobs.has_active_course_sync(tenant_id, SOURCE_TYPE, course_id):
         raise ConflictError(f'A sync for course "{course_id}"')
     options = {"dry_run": bool(body.get("dryRun", False))}
-    job = await create_job(
-        job_repo, tenant_id=tenant_id, source_type=SOURCE_TYPE, scope="course", source_id=course_id, total_items=1, options=options,
+    job = await sync_jobs.create_job(
+        tenant_id=tenant_id, source_type=SOURCE_TYPE, scope="course", source_id=course_id, total_items=1, options=options,
     )
     await _wake_sync_job_consumer(job.job_id)
     return {"job_id": job.job_id}
@@ -185,11 +168,10 @@ async def sync_course(
 async def get_sync_status(
     job_id: str,
     user: dict[str, Any] = Depends(_require_aggregator_access),
-    job_repo: ContentAggregatorSyncJobRepository = Depends(get_content_aggregator_sync_job_repo),
-    item_repo: ContentAggregatorSyncJobItemRepository = Depends(get_content_aggregator_sync_job_item_repo),
+    sync_jobs: SyncJobService = Depends(get_sync_job_service),
 ) -> dict[str, Any]:
     tenant_id = user.get("tenant_id", "")
-    status = await get_job_status(job_repo, item_repo, tenant_id, job_id)
+    status = await sync_jobs.get_job_status(tenant_id, job_id)
     if status is None:
         raise NotFoundError("Job", job_id)
     return status
@@ -201,11 +183,10 @@ async def get_sync_job_items(
     limit: int = Query(20, ge=1, le=200),
     after: str | None = None,
     user: dict[str, Any] = Depends(_require_aggregator_access),
-    job_repo: ContentAggregatorSyncJobRepository = Depends(get_content_aggregator_sync_job_repo),
-    item_repo: ContentAggregatorSyncJobItemRepository = Depends(get_content_aggregator_sync_job_item_repo),
+    sync_jobs: SyncJobService = Depends(get_sync_job_service),
 ) -> dict[str, Any]:
     tenant_id = user.get("tenant_id", "")
-    page = await get_job_items_page(job_repo, item_repo, tenant_id, job_id, limit=limit, after=after)
+    page = await sync_jobs.get_job_items_page(tenant_id, job_id, limit=limit, after=after)
     if page is None:
         raise NotFoundError("Job", job_id)
     items, next_cursor, total = page
@@ -218,12 +199,11 @@ async def get_sync_jobs(
     scope: str | None = None,
     course_id: str | None = None,
     user: dict[str, Any] = Depends(_require_tenant),
-    job_repo: ContentAggregatorSyncJobRepository = Depends(get_content_aggregator_sync_job_repo),
-    item_repo: ContentAggregatorSyncJobItemRepository = Depends(get_content_aggregator_sync_job_item_repo),
+    sync_jobs: SyncJobService = Depends(get_sync_job_service),
 ) -> dict[str, Any]:
     tenant_id = user.get("tenant_id", "")
-    payloads = await list_jobs_with_stats(
-        job_repo, item_repo, tenant_id, SOURCE_TYPE, limit=limit, scope=scope, source_id=course_id,
+    payloads = await sync_jobs.list_jobs_with_stats(
+        tenant_id, SOURCE_TYPE, limit=limit, scope=scope, source_id=course_id,
     )
     return {"jobs": payloads}
 
@@ -231,11 +211,10 @@ async def get_sync_jobs(
 @router.get("/sync/jobs/active", summary="List currently-running sync jobs (for resume after logout/login)")
 async def get_active_jobs(
     user: dict[str, Any] = Depends(_require_tenant),
-    job_repo: ContentAggregatorSyncJobRepository = Depends(get_content_aggregator_sync_job_repo),
-    item_repo: ContentAggregatorSyncJobItemRepository = Depends(get_content_aggregator_sync_job_item_repo),
+    sync_jobs: SyncJobService = Depends(get_sync_job_service),
 ) -> dict[str, Any]:
     tenant_id = user.get("tenant_id", "")
-    payloads = await get_active_jobs_with_stats(job_repo, item_repo, tenant_id, SOURCE_TYPE)
+    payloads = await sync_jobs.get_active_jobs_with_stats(tenant_id, SOURCE_TYPE)
     return {"jobs": payloads}
 
 
@@ -243,13 +222,12 @@ async def get_active_jobs(
 async def stream_job(
     job_id: str,
     user: dict[str, Any] = Depends(_require_aggregator_access),
-    job_repo: ContentAggregatorSyncJobRepository = Depends(get_content_aggregator_sync_job_repo),
-    item_repo: ContentAggregatorSyncJobItemRepository = Depends(get_content_aggregator_sync_job_item_repo),
+    sync_jobs: SyncJobService = Depends(get_sync_job_service),
 ) -> StreamingResponse:
     tenant_id = user.get("tenant_id", "")
 
     async def _format() -> Any:
-        async for event in subscribe(job_repo, item_repo, tenant_id, job_id):
+        async for event in sync_jobs.subscribe(tenant_id, job_id):
             yield f"data: {json.dumps(event, default=str)}\n\n"
 
     return StreamingResponse(_format(), media_type="text/event-stream")

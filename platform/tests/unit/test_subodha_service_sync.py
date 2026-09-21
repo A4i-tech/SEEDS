@@ -9,7 +9,7 @@ from app.repositories.content_aggregator_sync_job_item_repository import (
 from app.repositories.content_aggregator_sync_job_repository import (
     ContentAggregatorSyncJobRepository,
 )
-from app.services import content_aggregator_sync_jobs as jobs
+from app.services.content_aggregator_sync_jobs import SyncJobService
 from app.services.subodha_service import SubodhaService
 from tests.support.mongomock_async import AsyncMongoMockClient
 
@@ -87,6 +87,11 @@ def content_repo(mock_db):
 
 
 @pytest.fixture
+def sync_jobs(job_repo, item_repo):
+    return SyncJobService(job_repo, item_repo)
+
+
+@pytest.fixture
 def make_service(mock_db):
     def _make(client):
         return SubodhaService(mock_db, blob=FakeBlobStorageProvider(), client=client)
@@ -94,10 +99,10 @@ def make_service(mock_db):
 
 
 @pytest.mark.asyncio
-async def test_run_sync_persists_every_course_result(make_service, job_repo, item_repo, content_repo):
+async def test_run_sync_persists_every_course_result(make_service, job_repo, item_repo, content_repo, sync_jobs):
     client = FakeSubodhaClient([_course("c1", "Course One"), _course("c2", "Course Two")])
     service = make_service(client)
-    job = await jobs.create_job(job_repo, tenant_id="tenant-a", source_type="subodha", scope="all", source_id=None, total_items=0)
+    job = await sync_jobs.create_job(tenant_id="tenant-a", source_type="subodha", scope="all", source_id=None, total_items=0)
 
     summary = await service.run_sync("tenant-a", job.job_id, await client.list_all_courses())
 
@@ -116,10 +121,10 @@ async def test_run_sync_persists_every_course_result(make_service, job_repo, ite
 
 
 @pytest.mark.asyncio
-async def test_run_single_course_sync_persists_one_result(make_service, job_repo, item_repo, content_repo):
+async def test_run_single_course_sync_persists_one_result(make_service, job_repo, item_repo, content_repo, sync_jobs):
     client = FakeSubodhaClient([_course("c1", "Course One")])
     service = make_service(client)
-    job = await jobs.create_job(job_repo, tenant_id="tenant-a", source_type="subodha", scope="course", source_id="c1", total_items=1)
+    job = await sync_jobs.create_job(tenant_id="tenant-a", source_type="subodha", scope="course", source_id="c1", total_items=1)
 
     summary = await service.run_single_course_sync("tenant-a", job.job_id, "c1")
 
@@ -130,10 +135,10 @@ async def test_run_single_course_sync_persists_one_result(make_service, job_repo
 
 
 @pytest.mark.asyncio
-async def test_get_course_returns_legacy_shaped_doc(make_service, job_repo):
+async def test_get_course_returns_legacy_shaped_doc(make_service, job_repo, sync_jobs):
     client = FakeSubodhaClient([_course("c1", "Course One")])
     service = make_service(client)
-    job = await jobs.create_job(job_repo, tenant_id="tenant-a", source_type="subodha", scope="course", source_id="c1", total_items=1)
+    job = await sync_jobs.create_job(tenant_id="tenant-a", source_type="subodha", scope="course", source_id="c1", total_items=1)
     await service.run_single_course_sync("tenant-a", job.job_id, "c1")
 
     doc = await service.get_course("tenant-a", "c1")
@@ -142,21 +147,21 @@ async def test_get_course_returns_legacy_shaped_doc(make_service, job_repo):
 
 
 @pytest.mark.asyncio
-async def test_get_course_returns_none_for_unenrolled_tenant(make_service, job_repo):
+async def test_get_course_returns_none_for_unenrolled_tenant(make_service, job_repo, sync_jobs):
     client = FakeSubodhaClient([_course("c1", "Course One")])
     service = make_service(client)
-    job = await jobs.create_job(job_repo, tenant_id="tenant-a", source_type="subodha", scope="course", source_id="c1", total_items=1)
+    job = await sync_jobs.create_job(tenant_id="tenant-a", source_type="subodha", scope="course", source_id="c1", total_items=1)
     await service.run_single_course_sync("tenant-a", job.job_id, "c1")
 
     assert await service.get_course("tenant-b", "c1") is None
 
 
 @pytest.mark.asyncio
-async def test_update_problem_block_is_private_to_the_editing_tenant(make_service, job_repo):
+async def test_update_problem_block_is_private_to_the_editing_tenant(make_service, job_repo, sync_jobs):
     client = FakeSubodhaClient([_course("c1", "Course One")])
     service = make_service(client)
-    job = await jobs.create_job(job_repo, tenant_id="tenant-a", source_type="subodha", scope="course", source_id="c1", total_items=1)
+    job = await sync_jobs.create_job(tenant_id="tenant-a", source_type="subodha", scope="course", source_id="c1", total_items=1)
     await service.run_single_course_sync("tenant-a", job.job_id, "c1")
 
-    job_b = await jobs.create_job(job_repo, tenant_id="tenant-b", source_type="subodha", scope="course", source_id="c1", total_items=1)
+    job_b = await sync_jobs.create_job(tenant_id="tenant-b", source_type="subodha", scope="course", source_id="c1", total_items=1)
     await service.run_single_course_sync("tenant-b", job_b.job_id, "c1")

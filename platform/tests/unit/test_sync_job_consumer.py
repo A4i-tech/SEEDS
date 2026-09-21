@@ -10,14 +10,14 @@ from app.consumers.sync_job_consumer import SyncJobConsumer
 
 @pytest.mark.asyncio
 async def test_run_loop_claims_and_stops_when_no_job_available():
-    job_repo = MagicMock()
-    job_repo.claim_next_pending = AsyncMock(return_value=None)
-    consumer = SyncJobConsumer(job_repo=job_repo, item_repo=MagicMock(), db=MagicMock(), poll_interval_seconds=0)
+    service = MagicMock()
+    service.claim_next_pending_job = AsyncMock(return_value=None)
+    consumer = SyncJobConsumer(db=MagicMock(), poll_interval_seconds=0, service=service)
 
     consumer._sleep = AsyncMock(side_effect=asyncio.CancelledError)
     with pytest.raises(asyncio.CancelledError):
         await consumer._run_loop()
-    job_repo.claim_next_pending.assert_awaited_with("subodha")
+    service.claim_next_pending_job.assert_awaited()
 
 
 @pytest.mark.asyncio
@@ -28,7 +28,7 @@ async def test_consumer_construction_raises_when_client_construction_raises(monk
     monkeypatch.setattr("app.services.subodha_service.get_subodha_client", _boom)
 
     with pytest.raises(RuntimeError, match="tenant Subodha creds missing"):
-        SyncJobConsumer(job_repo=MagicMock(), item_repo=MagicMock(), db=MagicMock(), poll_interval_seconds=0)
+        SyncJobConsumer(db=MagicMock(), poll_interval_seconds=0)
 
 
 @pytest.mark.asyncio
@@ -40,14 +40,13 @@ async def test_run_loop_dispatches_scope_all_job_with_options(monkeypatch):
         status="running", created_at="now", started_at="now", finished_at=None, total_items=0, error=None,
         options={"only_new": True, "dry_run": True, "limit": 5},
     )
-    job_repo = MagicMock()
-    job_repo.claim_next_pending = AsyncMock(side_effect=[claimed_job, None])
-    item_repo = MagicMock()
+    service = MagicMock()
+    service.claim_next_pending_job = AsyncMock(side_effect=[claimed_job, None])
 
     run_sync_job_mock = AsyncMock()
     monkeypatch.setattr("app.consumers.sync_job_consumer._run_sync_job", run_sync_job_mock)
 
-    consumer = SyncJobConsumer(job_repo=job_repo, item_repo=item_repo, db=MagicMock(), poll_interval_seconds=0)
+    consumer = SyncJobConsumer(db=MagicMock(), poll_interval_seconds=0, service=service)
     consumer._sleep = AsyncMock(side_effect=asyncio.CancelledError)
     with pytest.raises(asyncio.CancelledError):
         await consumer._run_loop()
@@ -65,14 +64,13 @@ async def test_run_loop_dispatches_scope_course_job(monkeypatch):
         status="running", created_at="now", started_at="now", finished_at=None, total_items=1, error=None,
         options={"dry_run": True},
     )
-    job_repo = MagicMock()
-    job_repo.claim_next_pending = AsyncMock(side_effect=[claimed_job, None])
-    item_repo = MagicMock()
+    service = MagicMock()
+    service.claim_next_pending_job = AsyncMock(side_effect=[claimed_job, None])
 
     run_course_sync_job_mock = AsyncMock()
     monkeypatch.setattr("app.consumers.sync_job_consumer._run_course_sync_job", run_course_sync_job_mock)
 
-    consumer = SyncJobConsumer(job_repo=job_repo, item_repo=item_repo, db=MagicMock(), poll_interval_seconds=0)
+    consumer = SyncJobConsumer(db=MagicMock(), poll_interval_seconds=0, service=service)
     consumer._sleep = AsyncMock(side_effect=asyncio.CancelledError)
     with pytest.raises(asyncio.CancelledError):
         await consumer._run_loop()
@@ -87,7 +85,7 @@ async def test_wait_for_next_poll_falls_back_to_sleep_when_queue_unconfigured(mo
     from app.consumers import sync_job_consumer as mod
 
     monkeypatch.setattr(mod.service_bus_provider, "get_sync_jobs_queue", lambda: None)
-    consumer = SyncJobConsumer(job_repo=MagicMock(), item_repo=MagicMock(), db=MagicMock(), poll_interval_seconds=7)
+    consumer = SyncJobConsumer(db=MagicMock(), poll_interval_seconds=7, service=MagicMock())
     consumer._sleep = AsyncMock()
 
     await consumer._wait_for_next_poll()
@@ -102,7 +100,7 @@ async def test_wait_for_next_poll_receives_from_sync_jobs_queue_when_configured(
     monkeypatch.setattr(mod.service_bus_provider, "get_sync_jobs_queue", lambda: MagicMock())
     receive_mock = AsyncMock(return_value=[])
     monkeypatch.setattr(mod.service_bus_provider, "receive_messages", receive_mock)
-    consumer = SyncJobConsumer(job_repo=MagicMock(), item_repo=MagicMock(), db=MagicMock(), poll_interval_seconds=7)
+    consumer = SyncJobConsumer(db=MagicMock(), poll_interval_seconds=7, service=MagicMock())
     consumer._sleep = AsyncMock()
 
     await consumer._wait_for_next_poll()
@@ -119,7 +117,7 @@ async def test_wait_for_next_poll_falls_back_to_sleep_on_receive_error(monkeypat
     monkeypatch.setattr(
         mod.service_bus_provider, "receive_messages", AsyncMock(side_effect=RuntimeError("boom"))
     )
-    consumer = SyncJobConsumer(job_repo=MagicMock(), item_repo=MagicMock(), db=MagicMock(), poll_interval_seconds=3)
+    consumer = SyncJobConsumer(db=MagicMock(), poll_interval_seconds=3, service=MagicMock())
     consumer._sleep = AsyncMock()
 
     await consumer._wait_for_next_poll()

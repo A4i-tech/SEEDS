@@ -8,7 +8,6 @@ from pymongo.asynchronous.database import AsyncDatabase
 from app.aggregators.sync_job_models import SyncJob
 from app.consumers.base_consumer import BaseConsumer
 from app.providers.service_bus import service_bus_provider
-from app.services.content_aggregator_sync_jobs import finish_job
 from app.services.subodha_service import SubodhaService
 
 logger = logging.getLogger(__name__)
@@ -20,8 +19,6 @@ async def _run_sync_job(
     tenant_id: str,
     job_id: str,
     service: SubodhaService,
-    job_repo,
-    item_repo,
     *,
     only_new: bool,
     dry_run: bool,
@@ -41,31 +38,29 @@ async def _run_sync_job(
             limit=limit if limit is not None else (len(course_ids) if course_ids is not None else None),
             dry_run=dry_run,
         )
-        await finish_job(job_repo, item_repo, tenant_id, job_id, "completed")
+        await service.finish_job(tenant_id, job_id, "completed")
     except Exception as exc:  # noqa: BLE001
         logger.error("sync_job_consumer: job %s (tenant=%s) failed during run_sync: %s", job_id, tenant_id, exc)
-        await finish_job(job_repo, item_repo, tenant_id, job_id, "failed", error=str(exc))
+        await service.finish_job(tenant_id, job_id, "failed", error=str(exc))
 
 
 async def _run_course_sync_job(
     tenant_id: str,
     job_id: str,
     service: SubodhaService,
-    job_repo,
-    item_repo,
     course_id: str,
     *,
     dry_run: bool,
 ) -> None:
     try:
         await service.run_single_course_sync(tenant_id, job_id, course_id, dry_run=dry_run)
-        await finish_job(job_repo, item_repo, tenant_id, job_id, "completed")
+        await service.finish_job(tenant_id, job_id, "completed")
     except Exception as exc:  # noqa: BLE001
         logger.error(
             "sync_job_consumer: job %s (tenant=%s, course=%s) failed during run_single_course_sync: %s",
             job_id, tenant_id, course_id, exc,
         )
-        await finish_job(job_repo, item_repo, tenant_id, job_id, "failed", error=str(exc))
+        await service.finish_job(tenant_id, job_id, "failed", error=str(exc))
 
 
 class SyncJobConsumer(BaseConsumer):
@@ -73,14 +68,10 @@ class SyncJobConsumer(BaseConsumer):
 
     def __init__(
         self,
-        job_repo,
-        item_repo,
         db: AsyncDatabase,
         poll_interval_seconds: float = 10.0,
         service: SubodhaService | None = None,
     ) -> None:
-        self._job_repo = job_repo
-        self._item_repo = item_repo
         self._db = db
         self._service = service if service is not None else SubodhaService(db)
         self._poll_interval_seconds = poll_interval_seconds
@@ -111,7 +102,7 @@ class SyncJobConsumer(BaseConsumer):
 
     async def _run_loop(self) -> None:
         while True:
-            job: SyncJob | None = await self._job_repo.claim_next_pending(SOURCE_TYPE)
+            job: SyncJob | None = await self._service.claim_next_pending_job()
             if job is None:
                 await self._wait_for_next_poll()
                 continue
@@ -122,16 +113,16 @@ class SyncJobConsumer(BaseConsumer):
         try:
             if job.scope == "all":
                 await _run_sync_job(
-                    job.tenant_id, job.job_id, self._service, self._job_repo, self._item_repo,
+                    job.tenant_id, job.job_id, self._service,
                     only_new=bool(job.options.get("only_new", False)),
                     dry_run=bool(job.options.get("dry_run", False)),
                     limit=job.options.get("limit"),
                 )
             else:
                 await _run_course_sync_job(
-                    job.tenant_id, job.job_id, self._service, self._job_repo, self._item_repo,
+                    job.tenant_id, job.job_id, self._service,
                     job.source_id, dry_run=bool(job.options.get("dry_run", False)),
                 )
         except Exception as exc:  # noqa: BLE001
             logger.error("sync_job_consumer: job %s failed before/during dispatch: %s", job.job_id, exc)
-            await finish_job(self._job_repo, self._item_repo, job.tenant_id, job.job_id, "failed", error=str(exc))
+            await self._service.finish_job(job.tenant_id, job.job_id, "failed", error=str(exc))

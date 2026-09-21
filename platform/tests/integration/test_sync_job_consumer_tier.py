@@ -11,8 +11,7 @@ from app.repositories.content_aggregator_sync_job_item_repository import (
 from app.repositories.content_aggregator_sync_job_repository import (
     ContentAggregatorSyncJobRepository,
 )
-from app.services import content_aggregator_sync_jobs as jobs
-from app.services.content_aggregator_sync_jobs import subscribe
+from app.services.content_aggregator_sync_jobs import SyncJobService
 from app.services.subodha_service import SubodhaService
 from tests.support.mongomock_async import AsyncMongoMockClient
 
@@ -85,6 +84,11 @@ def item_repo(mock_db):
 
 
 @pytest.fixture
+def sync_jobs(job_repo, item_repo):
+    return SyncJobService(job_repo, item_repo)
+
+
+@pytest.fixture
 def mock_subodha_client():
     return FakeSubodhaClient([_course("c1", "Course One")])
 
@@ -96,16 +100,14 @@ def mock_subodha_service(mock_db, mock_subodha_client):
 
 @pytest.mark.asyncio
 async def test_full_sync_job_lifecycle_through_consumer(
-    job_repo, item_repo, mock_db, mock_subodha_service,
+    job_repo, mock_db, mock_subodha_service, sync_jobs,
 ):
-    job = await jobs.create_job(
-        job_repo, tenant_id="t1", source_type="subodha", scope="all", source_id=None, total_items=0,
+    job = await sync_jobs.create_job(
+        tenant_id="t1", source_type="subodha", scope="all", source_id=None, total_items=0,
     )
     assert job.status == "pending"
 
-    consumer = SyncJobConsumer(
-        job_repo=job_repo, item_repo=item_repo, db=mock_db, poll_interval_seconds=0.01, service=mock_subodha_service,
-    )
+    consumer = SyncJobConsumer(db=mock_db, poll_interval_seconds=0.01, service=mock_subodha_service)
     consumer_task = asyncio.create_task(consumer._run_loop())
 
     # subscribe() treats any non-"running" status as terminal, so wait for the
@@ -121,7 +123,7 @@ async def test_full_sync_job_lifecycle_through_consumer(
         pytest.fail("consumer never claimed the pending job")
 
     events = []
-    async for event in subscribe(job_repo, item_repo, "t1", job.job_id):
+    async for event in sync_jobs.subscribe("t1", job.job_id):
         events.append(event)
         if event["event"] == "done":
             break
