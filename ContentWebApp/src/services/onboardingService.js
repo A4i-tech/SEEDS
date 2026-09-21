@@ -2,22 +2,9 @@ import { SEEDS_URL } from "../Constants";
 import { getAuthHeaders } from "../utils/authHelpers";
 import { buildQueryString } from "./api";
 import { request } from "./requestHelpers";
-import { toProjectCreateRequest, toProjectUpdateRequest, toSiteCreateRequest, toSiteUpdateRequest } from "./dtos/localizationRequests";
-import { fromProjectResponse, fromSiteResponse } from "./dtos/localizationResponses";
+import { toSiteCreateRequest, toSiteUpdateRequest, fromProjectResponse, fromSiteResponse } from "../dto/LocalizationDto";
 
 export const onboardingService = {
-  async createProject({ name, description, sourceLanguage, status }) {
-    const url = `${SEEDS_URL}/projects`;
-
-    const response = await request(url, {
-      method: "POST",
-      headers: getAuthHeaders(),
-      body: JSON.stringify(toProjectCreateRequest({ name, description, sourceLanguage, status })),
-    });
-
-    return fromProjectResponse(response);
-  },
-
   async listProjects() {
     const url = `${SEEDS_URL}/projects`;
 
@@ -27,27 +14,6 @@ export const onboardingService = {
     });
 
     return response.map(fromProjectResponse);
-  },
-
-  async updateProject(id, fields) {
-    const url = `${SEEDS_URL}/projects/${id}`;
-
-    const response = await request(url, {
-      method: "PUT",
-      headers: getAuthHeaders(),
-      body: JSON.stringify(toProjectUpdateRequest(fields)),
-    });
-
-    return fromProjectResponse(response);
-  },
-
-  async deleteProject(id) {
-    const url = `${SEEDS_URL}/projects/${id}`;
-
-    return request(url, {
-      method: "DELETE",
-      headers: getAuthHeaders(),
-    });
   },
 
   async createSite({ projectId, domain, name, status }) {
@@ -72,6 +38,15 @@ export const onboardingService = {
     });
 
     return response.map(fromSiteResponse);
+  },
+
+  async getSite(id) {
+    const response = await request(`${SEEDS_URL}/websites/${id}`, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
+
+    return fromSiteResponse(response);
   },
 
   async updateSite(id, fields) {

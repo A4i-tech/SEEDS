@@ -48,3 +48,22 @@ export const fromTranslationResponse = (doc) => {
     updatedAt: doc.updated_at,
   };
 };
+
+export const toSiteCreateRequest = ({ projectId, domain, name, status }) => ({
+  project_id: projectId,
+  domain,
+  name,
+  status,
+});
+
+export const toSiteUpdateRequest = ({ name, domain, status }) => ({ name, domain, status });
+
+export const toTranslationUpdateRequest = ({ lang, text }) => ({ lang, text });
+
+export const toTranslationApproveRequest = ({ lang }) => ({ lang });
+
+export const toTranslationRejectRequest = ({ lang, reason = "" }) => ({ lang, reason });
+
+export const toExtractRequest = ({ siteId, items }) => ({ site_id: siteId, items });
+
+export const toBulkApproveRequest = ({ route, lang }) => ({ route, lang });

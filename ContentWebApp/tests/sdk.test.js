@@ -415,3 +415,12 @@ test("multiple sequential route navigations each re-scan without duplicating the
   expect(dom.window.location.pathname).toBe("/d");
   expect(dom.window.document.querySelectorAll("#translation-sdk-widget").length).toBeLessThanOrEqual(1);
 });
+
+test("a long text node (well over 1109 chars) is extracted whole and never truncated", async () => {
+  const long = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. ".repeat(40).trim();
+  const { fetchMock } = await makeDom({ bodyHtml: `<p>${long}</p>` });
+  await flush(900);
+
+  expect(long.length).toBeGreaterThan(2000);
+  expect(extractedTexts(fetchMock)).toContain(long);
+});

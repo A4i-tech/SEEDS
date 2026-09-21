@@ -1,16 +1,15 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
+import "../ContentTab/css/ContentTab.css";
 
 import { useLocalization } from "../../../hooks/useLocalization";
 import { translationService } from "../../../services/translationService";
 import { ToastProvider } from "./Toast";
-import { AppShell } from "./AppShell";
-import { usePersistentState } from "../../../utils/prefs";
+import { usePersistentState } from "../../../hooks/usePersistentState";
 import { pagesFromDocs } from "../../../utils/segments";
 import { DashboardScreen } from "./Dashboard";
 import { WorkspaceScreen } from "./Workspace";
-import { PlaceholderScreen } from "./Placeholder";
 
 export default function LocalizationTab() {
   const loc = useLocalization();
@@ -27,12 +26,9 @@ export default function LocalizationTab() {
   const [pagesError, setPagesError] = useState(null);
   useEffect(() => {
     let cancelled = false;
-    if (!scope.siteId || nav !== "workspace") {
-      setSiteDocs([]);
-      setPagesError(null);
-      return;
-    }
+    setSiteDocs([]);
     setPagesError(null);
+    if (!scope.siteId || nav !== "workspace") return undefined;
     translationService
       .listTranslations({ siteId: scope.siteId })
       .then((docs) => {
@@ -40,7 +36,6 @@ export default function LocalizationTab() {
       })
       .catch((e) => {
         if (cancelled) return;
-        setSiteDocs([]);
         setPagesError(e.status === 403 ? "forbidden" : e.message);
       });
     return () => {
@@ -65,11 +60,10 @@ export default function LocalizationTab() {
     }
   }, [sites, scope.siteId, setScope]);
 
-  let screen;
-  if (nav === "dashboard") {
-    screen = <DashboardScreen loc={loc} />;
-  } else if (nav === "workspace") {
-    screen = (
+  const screen =
+    nav === "dashboard" ? (
+      <DashboardScreen loc={loc} />
+    ) : (
       <WorkspaceScreen
         scope={scope}
         languages={languages.filter((l) => l.enabled)}
@@ -79,26 +73,36 @@ export default function LocalizationTab() {
         pagesError={pagesError}
       />
     );
-  } else {
-    screen = <PlaceholderScreen nav={nav} />;
-  }
 
   return (
     <ToastProvider>
-      <AppShell nav={nav} onNav={setNav}>
-        {isLoadingWorkspace && nav === "dashboard" ? (
-          <div style={{ padding: 28 }}>
-            <SkeletonTheme
-              baseColor="var(--color-skeleton-base)"
-              highlightColor="var(--color-skeleton-highlight)"
-            >
-              <Skeleton count={6} height={64} borderRadius={10} style={{ marginBottom: 8 }} />
-            </SkeletonTheme>
-          </div>
-        ) : (
-          screen
-        )}
-      </AppShell>
+      <div className="tabs-container">
+        {[
+          { id: "dashboard", label: "Registration" },
+          { id: "workspace", label: "Translate & Review" },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            className={`tab-button${nav === tab.id ? " active" : ""}`}
+            onClick={() => setNav(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+      {isLoadingWorkspace && nav === "dashboard" ? (
+        <div style={{ padding: 28 }}>
+          <SkeletonTheme
+            baseColor="var(--color-skeleton-base)"
+            highlightColor="var(--color-skeleton-highlight)"
+          >
+            <Skeleton count={6} height={64} borderRadius={10} style={{ marginBottom: 8 }} />
+          </SkeletonTheme>
+        </div>
+      ) : (
+        screen
+      )}
     </ToastProvider>
   );
 }

@@ -1,17 +1,27 @@
-import React from "react";
+import React, { useState } from "react";
 import Modal from "../shared/Modal";
 import Select from "../shared/Select";
 import { extractDomain } from "../../../utils/url";
 import { useCrudView } from "../../../hooks/useCrudView";
+import { onboardingService } from "../../../services/onboardingService";
 import { ManageTable } from "./ManageTable";
-import { Header, ConfirmModal, ModalActions, StatusPill } from "./ManageShared";
+import { SnippetBlock } from "./SnippetBlock";
+import SectionHeader from "../shared/SectionHeader";
+import ConfirmModal from "../shared/ConfirmModal";
+import ModalActions from "../shared/ModalActions";
+import StatusPill from "../shared/StatusPill";
 
 export function SitesView({ loc, toast }) {
-  const { sites, projects, handleCreateSite, handleUpdateSite, handleDeleteSite } = loc;
+  const { sites, projects, workspaceLoadError, handleCreateSite, handleUpdateSite, handleDeleteSite } = loc;
 
-  const projectName = (projectId) => {
-    const project = projects.find((p) => String(p.id) === String(projectId));
-    return project ? project.name : "-";
+  const [snippetSite, setSnippetSite] = useState(null);
+
+  const viewSnippet = async (site) => {
+    try {
+      setSnippetSite(await onboardingService.getSite(site.id));
+    } catch (e) {
+      toast({ message: e.message, tone: "crit" });
+    }
   };
 
   const { q, setQ, rows, dlg, setDlg, open, set, save, del, setDel, remove } = useCrudView({
@@ -21,14 +31,18 @@ export function SitesView({ loc, toast }) {
       return haystack.includes(query.toLowerCase());
     },
     getId: (site) => site.id,
-    emptyValues: { name: "", url: "", projectId: projects[0]?.id || "", status: "Active" },
-    onCreate: (values) =>
-      handleCreateSite({
-        projectId: values.projectId,
+    emptyValues: { name: "", url: "", status: "Active" },
+    onCreate: (values) => {
+      if (!projects.length) {
+        throw workspaceLoadError || new Error("No project available to register the website under");
+      }
+      return handleCreateSite({
+        projectId: projects[0].id,
         domain: extractDomain(values.url),
         name: values.name,
         status: values.status,
-      }),
+      });
+    },
     onUpdate: (id, values) =>
       handleUpdateSite(id, {
         name: values.name,
@@ -47,13 +61,12 @@ export function SitesView({ loc, toast }) {
       className: "teacher-name",
       render: (site) => <code>{site.domain}</code>,
     },
-    { key: "project", header: "Project", render: (site) => projectName(site.projectId) },
     { key: "status", header: "Status", render: (site) => <StatusPill status={site.status} /> },
   ];
 
   return (
     <div className="card">
-      <Header
+      <SectionHeader
         title="Sites"
         subtitle="Websites connected to the localization SDK."
         search={q}
@@ -67,9 +80,15 @@ export function SitesView({ loc, toast }) {
         getId={(site) => site.id}
         onEdit={open}
         onDelete={setDel}
+        extraActions={[{ key: "snippet", label: "View Snippet", variant: "view", onClick: viewSnippet }]}
         emptyTitle="No sites found"
         emptyMessage="Register a website above to get started."
       />
+      {snippetSite && (
+        <Modal title={`SDK snippet — ${snippetSite.domain}`} onClose={() => setSnippetSite(null)}>
+          <SnippetBlock snippet={snippetSite.snippet} />
+        </Modal>
+      )}
       {dlg && (
         <Modal
           title={dlg.mode === "edit" ? "Edit site" : "Register site"}
@@ -90,13 +109,6 @@ export function SitesView({ loc, toast }) {
             value={dlg.values.url}
             onChange={(e) => set("url", e.target.value)}
             placeholder="example.com"
-          />
-          <label className="label">Project</label>
-          <Select
-            value={dlg.values.projectId}
-            onChange={(v) => set("projectId", v)}
-            options={projects.map((project) => ({ value: project.id, label: project.name }))}
-            disabled={dlg.mode === "edit"}
           />
           <label className="label">Status</label>
           <Select

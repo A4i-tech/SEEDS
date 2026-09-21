@@ -8,8 +8,10 @@ import {
   toTranslationApproveRequest,
   toTranslationRejectRequest,
   toBulkApproveRequest,
-} from "./dtos/localizationRequests";
-import { fromTranslationResponse } from "./dtos/localizationResponses";
+  fromTranslationResponse,
+} from "../dto/LocalizationDto";
+
+const GENERATE_TIMEOUT_MS = 5 * 60 * 1000;
 
 export const translationService = {
   async extractItems(siteId, items) {
@@ -28,6 +30,7 @@ export const translationService = {
   async generateForReview({ siteId, route, lang }) {
     const queryString = buildQueryString({ site_id: siteId, route, lang });
     return request(`${SEEDS_URL}/translations/generate?${queryString}`, {
+      timeoutMs: GENERATE_TIMEOUT_MS,
       method: "POST",
       headers: getAuthHeaders(),
     });

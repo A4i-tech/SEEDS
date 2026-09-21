@@ -3,6 +3,7 @@ import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import Select from "../shared/Select";
 import RowActions from "../shared/RowActions";
+import MiddleEllipsis from "../shared/MiddleEllipsis";
 import "../shared/tables.css";
 import "../shared/utilities.css";
 import "../shared/buttons.css";
@@ -31,6 +32,8 @@ const BADGE_STYLE = {
   pending: { background: "var(--color-warning-bg)", color: "var(--color-warning-fg)" },
 };
 
+const ACTIONS_COLUMN_STYLE = { width: 380 };
+
 function TabButton({ label, count, active, onClick }) {
   return (
     <button type="button" className={`tab-button ${active ? "active" : ""}`} onClick={onClick}>
@@ -49,11 +52,16 @@ function StatusBadge({ seg }) {
   );
 }
 
-/** One row: index, source, editable translation, status + actions. */
 function TransRow({ seg, idx, onEdit, onApprove, onReject, onCopy }) {
   const inputRef = useRef(null);
   const [text, setText] = useState(seg.translation);
+  const [expanded, setExpanded] = useState(false);
   useEffect(() => setText(seg.translation), [seg.translation]);
+  useEffect(() => {
+    const el = inputRef.current;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [text]);
   const commit = () => {
     if (text !== seg.translation) onEdit(seg.id, text);
   };
@@ -68,12 +76,28 @@ function TransRow({ seg, idx, onEdit, onApprove, onReject, onCopy }) {
   return (
     <tr className="table-row-white">
       <td className="table-cell">{idx}</td>
-      <td className="table-cell table-cell-truncate">{seg.sourceText}</td>
+      <td className="table-cell table-cell-truncate">
+        {expanded ? (
+          <span style={{ display: "block", whiteSpace: "normal", overflowWrap: "anywhere" }}>{seg.sourceText}</span>
+        ) : (
+          <MiddleEllipsis text={seg.sourceText} />
+        )}
+        <button
+          type="button"
+          className="tertiary-button"
+          aria-expanded={expanded}
+          aria-label={expanded ? "Show less source text" : "Show full source text"}
+          onClick={() => setExpanded((v) => !v)}
+        >
+          {expanded ? "Show less" : "Show more"}
+        </button>
+      </td>
       <td className="table-cell">
         <textarea
           ref={inputRef}
           className="input-field"
           rows={2}
+          style={{ resize: "none", overflow: "hidden" }}
           value={text}
           placeholder="Add translation…"
           onChange={(e) => setText(e.target.value)}
@@ -84,7 +108,7 @@ function TransRow({ seg, idx, onEdit, onApprove, onReject, onCopy }) {
       <td className="table-cell">
         <StatusBadge seg={seg} />
       </td>
-      <td className="table-cell table-cell-actions">
+      <td className="table-cell table-cell-actions" style={ACTIONS_COLUMN_STYLE}>
         <RowActions
           horizontal
           actions={[
@@ -110,7 +134,6 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
   const [statusTab, setStatusTab] = useState("all");
   const rowsPerPage = 10;
   const [pageOffset, setPageOffset] = useState(0);
-  const [revision, setRevision] = useState(0);
 
   const load = useCallback(() => {
     if (!siteId || !route) {
@@ -124,16 +147,13 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
       .listTranslations({ siteId, route })
       .then(async (d) => {
         let list = d;
-        // Docs may exist without a draft for the currently selected Review Language
-        // yet (extracted but never generated for this lang) — trigger on-demand
-        // generation so the reviewer sees real translated text instead of a blank box.
         const missing = lang && list.some((doc) => !doc?.translations?.[lang]?.text);
         if (missing) {
           try {
             await translationService.generateForReview({ siteId, route, lang });
             list = await translationService.listTranslations({ siteId, route });
-          } catch {
-            /* keep already-fetched docs on failure */
+          } catch (e) {
+            toast({ message: e.message, tone: "crit" });
           }
         }
         setDocs(list);
@@ -142,7 +162,7 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
         setDocs([]);
         setDocsError(e.status === 403 ? "forbidden" : e.message);
       });
-  }, [siteId, route, lang]);
+  }, [siteId, route, lang, toast]);
   useEffect(() => {
     load();
   }, [load]);
@@ -179,13 +199,8 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
     [filtered, clampedOffset, rowsPerPage]
   );
 
-  // docs is null while a load() is in flight (its loading sentinel). A patch
-  // that lands during that window is a no-op — the in-flight load() sets the
-  // authoritative docs — so skip it instead of mapping over null.
   const patchLocal = (id, f) =>
     setDocs((ds) => (ds ? ds.map((d) => (d.id === id ? { ...d, ...f } : d)) : ds));
-  // Approval/rejection is per-language: patch only translations[lang].status
-  // on the local doc so another language's displayed stage never changes.
   const patchLangStatus = (id, status) =>
     setDocs((ds) =>
       ds
@@ -254,6 +269,16 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
   const approveAll = async () => {
     const ids = filtered.filter((s) => s.stage !== "approved").map((s) => s.id);
     if (!ids.length) return toast({ message: "Nothing to approve", tone: "info" });
+    if (statusTab === "all" && !query.trim()) {
+      try {
+        const { approved, skipped } = await translationService.bulkApproveTranslations({ siteId, route, lang });
+        toast({ message: `Approved ${approved}, skipped ${skipped}`, tone: "good" });
+        load();
+      } catch (e) {
+        toast({ message: e.message, tone: "crit" });
+      }
+      return;
+    }
     const results = await Promise.allSettled(ids.map((id) => translationService.approveTranslation(id, lang)));
     const succeeded = ids.filter((_, i) => results[i].status === "fulfilled");
     const failed = ids.length - succeeded.length;
@@ -265,12 +290,6 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
       toast({ message: `Approved ${succeeded.length} segments`, tone: "good" });
     }
   };
-  const revertAll = () => {
-    load();
-    setRevision((r) => r + 1);
-    setSavedAt(null);
-    toast({ message: "Reverted to last saved state", tone: "info" });
-  };
 
   const ready = Boolean(siteId && route);
 
@@ -281,7 +300,7 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
           <h1 className="card-title">Translate & Review</h1>
           <p className="card-description">Translate full pages and review in context</p>
         </div>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <div className="button-group">
           <input
             type="search"
             className="input-field"
@@ -291,6 +310,9 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
             aria-label="Search source or translated text"
             style={{ width: 260 }}
           />
+          <button type="button" className="tertiary-button" onClick={approveAll} disabled={!ready}>
+            Approve all
+          </button>
         </div>
       </div>
 
@@ -311,7 +333,7 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
       </div>
 
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
-        <div>
+        <div style={{ minWidth: 220 }}>
           <span className="label">Site</span>
           <Select
             value={scope.siteId}
@@ -320,7 +342,7 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
             options={sites.map((s) => ({ value: s.siteId, label: s.name || s.domain }))}
           />
         </div>
-        <div>
+        <div style={{ minWidth: 320 }}>
           <span className="label">Page</span>
           <Select
             value={route}
@@ -329,7 +351,7 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
             options={pages.map((p) => ({ value: p.route, label: p.route }))}
           />
         </div>
-        <div>
+        <div style={{ minWidth: 220 }}>
           <span className="label">Review Language</span>
           <Select
             value={lang}
@@ -339,11 +361,11 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
           />
         </div>
       </div>
-      {pagesError ? (
+      {pagesError && (
         <p className="error-message">
           {pagesError === "forbidden" ? "Permission denied loading pages" : pagesError}
         </p>
-      ) : null}
+      )}
 
       {!ready ? (
         <EmptyState
@@ -366,30 +388,32 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
           title="Nothing here"
           message={segments.length ? "No segments match your search." : "This page hasn't been translated yet."}
           action={
-            !segments.length ? (
+            !segments.length && (
               <button type="button" className="tertiary-button" onClick={translatePage} disabled={busy}>
                 {busy ? "Translating…" : "Translate this page"}
               </button>
-            ) : null
+            )
           }
         />
       ) : (
         <>
           <div className="table-wrapper">
-            <table className="content-table">
+            <table className="content-table" style={{ minWidth: 1200 }}>
               <thead>
                 <tr>
-                  <th className="table-header">#</th>
-                  <th className="table-header">Source</th>
+                  <th className="table-header" style={{ width: 56 }}>#</th>
+                  <th className="table-header" style={{ width: 260 }}>Source</th>
                   <th className="table-header">Translation</th>
-                  <th className="table-header">Status</th>
-                  <th className="table-header table-header-actions">Actions</th>
+                  <th className="table-header" style={{ width: 140 }}>Status</th>
+                  <th className="table-header table-header-actions" style={ACTIONS_COLUMN_STYLE}>
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {pageSlice.map((seg, i) => (
                   <TransRow
-                    key={`${seg.id}-${revision}`}
+                    key={seg.id}
                     seg={seg}
                     idx={clampedOffset * rowsPerPage + i + 1}
                     onEdit={saveEdit}
@@ -406,25 +430,6 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
             {Math.min(clampedOffset * rowsPerPage + rowsPerPage, filtered.length)} of {filtered.length}
           </p>
           <Pagination current={clampedOffset} total={pageCount} onChange={(i) => setPageOffset(i)} />
-
-          <div className="button-group" style={{ marginTop: 16 }}>
-            <button type="button" className="action-ghost-button" onClick={revertAll}>
-              Revert all
-            </button>
-            <button
-              type="button"
-              className="action-ghost-button"
-              onClick={() => {
-                setSavedAt(Date.now());
-                toast({ message: "Changes saved", tone: "good" });
-              }}
-            >
-              Save changes
-            </button>
-            <button type="button" className="tertiary-button" onClick={approveAll}>
-              Approve all
-            </button>
-          </div>
 
           <p className="placeholder-text" style={{ marginTop: 8 }}>
             {savedAt ? <>Last saved {new Date(savedAt).toLocaleTimeString()}</> : "All changes auto-saved"}

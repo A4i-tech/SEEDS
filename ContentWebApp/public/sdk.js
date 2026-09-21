@@ -79,9 +79,6 @@
     return t === "button" || t === "submit" || t === "reset";
   }
 
-  // Register a text node for extraction/translation. Returns true if the
-  // node was newly registered (used by the mutation observer to know
-  // whether a re-apply pass is needed for text-only DOM replacements).
   function registerNode(node) {
     var text = node.textContent;
     if (!isTranslatable(text)) return false;
@@ -285,11 +282,6 @@
         if (m.type === "childList") {
           m.addedNodes.forEach(function (n) {
             if (n.nodeType === Node.TEXT_NODE) {
-              // A bare text node swapped in directly under an existing element
-              // (React's typical text-only reconciliation) isn't covered by
-              // newRoots (element-only) or changedTextNodes (characterData
-              // mutations on a node already in the registry) — track it
-              // separately so the apply pass below still fires for it.
               if (registerNode(n)) reappliedBareText = true;
             } else if (n.nodeType === Node.ELEMENT_NODE) {
               newRoots.push(n);

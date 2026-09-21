@@ -3,7 +3,16 @@ import RowActions from "../shared/RowActions";
 import "../shared/tables.css";
 import "../shared/utilities.css";
 
-export function ManageTable({ columns, rows, getId, onEdit, onDelete, emptyTitle, emptyMessage }) {
+export function ManageTable({
+  columns,
+  rows,
+  getId,
+  onEdit,
+  onDelete,
+  extraActions = [],
+  emptyTitle,
+  emptyMessage,
+}) {
   if (!rows.length) {
     return (
       <div className="no-content">
@@ -12,6 +21,7 @@ export function ManageTable({ columns, rows, getId, onEdit, onDelete, emptyTitle
       </div>
     );
   }
+  const actionsStyle = extraActions.length ? { width: 380 } : undefined;
   return (
     <div className="table-wrapper">
       <table className="content-table">
@@ -22,7 +32,9 @@ export function ManageTable({ columns, rows, getId, onEdit, onDelete, emptyTitle
                 {c.header}
               </th>
             ))}
-            <th className="table-header table-header-actions">Actions</th>
+            <th className="table-header table-header-actions" style={actionsStyle}>
+              Actions
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -33,10 +45,11 @@ export function ManageTable({ columns, rows, getId, onEdit, onDelete, emptyTitle
                   {c.render(row)}
                 </td>
               ))}
-              <td className="table-cell table-cell-actions">
+              <td className="table-cell table-cell-actions" style={actionsStyle}>
                 <RowActions
                   horizontal
                   actions={[
+                    ...extraActions.map((a) => ({ ...a, onClick: () => a.onClick(row) })),
                     { key: "edit", label: "Edit", variant: "edit", onClick: () => onEdit(row) },
                     { key: "delete", label: "Delete", variant: "delete", onClick: () => onDelete(row) },
                   ]}

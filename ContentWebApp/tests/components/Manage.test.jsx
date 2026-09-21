@@ -1,37 +1,26 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ToastProvider } from "../../src/components/AllContent/LocalizationTab/Toast";
 import { ManageScreen } from "../../src/components/AllContent/LocalizationTab/Manage";
+import { onboardingService } from "../../src/services/onboardingService";
+
+jest.mock("../../src/services/onboardingService", () => ({
+  onboardingService: { getSite: jest.fn() },
+}));
 
 function makeLoc() {
   return {
     projects: [{ id: "p1", name: "Site A", description: "", sourceLanguage: "English", status: "Active" }],
-    sites: [{ id: "s1", name: "Home", domain: "a.com", projectId: "p1", status: "Active" }],
+    sites: [{ id: "s1", name: "Home", domain: "a.com", url: "https://a.com", projectId: "p1", status: "Active" }],
     languages: [{ id: "l1", name: "Hindi", code: "hi", direction: "ltr", enabled: true }],
-    handleCreateProject: jest.fn(async (v) => ({ id: "p2", ...v })),
-    handleUpdateProject: jest.fn(async (id, v) => ({ id, ...v })),
-    handleDeleteProject: jest.fn(async () => {}),
     handleCreateSite: jest.fn(async (v) => ({ id: "s2", ...v })),
     handleUpdateSite: jest.fn(async (id, v) => ({ id, ...v })),
     handleDeleteSite: jest.fn(async () => {}),
-    handleCreateLanguage: jest.fn(async (v) => ({ id: "l2", ...v })),
-    handleUpdateLanguage: jest.fn(async (id, v) => ({ id, ...v })),
-    handleDeleteLanguage: jest.fn(async () => {}),
   };
 }
 
 function renderNav(nav, loc) {
   return render(<ToastProvider><ManageScreen nav={nav} loc={loc} /></ToastProvider>);
 }
-
-test("projects view lists existing projects and creates a new one", async () => {
-  const loc = makeLoc();
-  renderNav("projects", loc);
-  expect(screen.getByText("Site A")).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: /new project/i }));
-  fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Site B" } });
-  fireEvent.click(screen.getByRole("button", { name: /save/i }));
-  await waitFor(() => expect(loc.handleCreateProject).toHaveBeenCalled());
-});
 
 test("sites view lists existing sites and deletes one", async () => {
   const loc = makeLoc();
@@ -42,9 +31,61 @@ test("sites view lists existing sites and deletes one", async () => {
   await waitFor(() => expect(loc.handleDeleteSite).toHaveBeenCalledWith("s1"));
 });
 
-test("languages view toggles enabled without opening a dialog", async () => {
+test("sites view opens a site's SDK snippet fetched fresh from the backend", async () => {
+  onboardingService.getSite.mockResolvedValue({ id: "s1", domain: "a.com", snippet: "<script src=x></script>" });
+  renderNav("sites", makeLoc());
+  fireEvent.click(screen.getByRole("button", { name: /view snippet/i }));
+  await screen.findByText("<script src=x></script>");
+  expect(onboardingService.getSite).toHaveBeenCalledWith("s1");
+});
+
+test("sites view surfaces a failed snippet fetch instead of opening an empty modal", async () => {
+  onboardingService.getSite.mockRejectedValue(new Error("boom"));
+  renderNav("sites", makeLoc());
+  fireEvent.click(screen.getByRole("button", { name: /view snippet/i }));
+  await screen.findByText("boom");
+  expect(screen.queryByText(/SDK snippet/)).not.toBeInTheDocument();
+});
+
+test("add-site modal no longer asks for a Project and still submits the default projectId", async () => {
   const loc = makeLoc();
-  renderNav("languages", loc);
-  fireEvent.click(screen.getByRole("button", { name: /disable/i }));
-  await waitFor(() => expect(loc.handleUpdateLanguage).toHaveBeenCalledWith("l1", { enabled: false }));
+  renderNav("sites", loc);
+  fireEvent.click(screen.getByRole("button", { name: "Add site" }));
+  expect(screen.queryByText("Project", { selector: "label" })).not.toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("Domain or URL"), { target: { value: "https://new.example.org/x" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() =>
+    expect(loc.handleCreateSite).toHaveBeenCalledWith({
+      projectId: "p1",
+      domain: "new.example.org",
+      name: "",
+      status: "Active",
+    })
+  );
+});
+
+test("sites table has no Project column", () => {
+  renderNav("sites", makeLoc());
+  expect(screen.queryByRole("columnheader", { name: "Project" })).not.toBeInTheDocument();
+});
+
+test("add-site with no project surfaces the load error and never creates a project or site", async () => {
+  const loc = { ...makeLoc(), projects: [], workspaceLoadError: new Error("Failed to fetch") };
+  renderNav("sites", loc);
+  fireEvent.click(screen.getByRole("button", { name: "Add site" }));
+  fireEvent.change(screen.getByLabelText("Domain or URL"), { target: { value: "https://new.example.org" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await screen.findByText("Failed to fetch");
+  expect(loc.handleCreateSite).not.toHaveBeenCalled();
+});
+
+test("editing a site updates name/domain/status without touching the project", async () => {
+  const loc = makeLoc();
+  renderNav("sites", loc);
+  fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+  fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Renamed" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() =>
+    expect(loc.handleUpdateSite).toHaveBeenCalledWith("s1", { name: "Renamed", domain: "a.com", status: "Active" })
+  );
 });

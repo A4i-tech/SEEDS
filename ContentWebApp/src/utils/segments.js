@@ -1,5 +1,3 @@
-const LOW_CONF_THRESHOLD = 0.7;
-
 export function deriveStage(doc, lang) {
   const t = doc.translations?.[lang];
   if (t?.status === "rejected") return "rejected";
@@ -9,31 +7,12 @@ export function deriveStage(doc, lang) {
 }
 
 export function toSegment(doc, lang) {
-  const t = doc.translations?.[lang] || {};
   return {
     id: doc.id,
-    key: doc.key,
-    route: doc.route,
     sourceText: doc.sourceText,
-    translation: t.text,
-    hasTranslation: Boolean(t.text),
-    qualityScore: t.quality_score,
-    lowConfidence: Boolean(t.low_confidence),
-    provider: t.provider,
-    status: t.status,
-    version: doc.version,
+    translation: doc.translations?.[lang]?.text || "",
     stage: deriveStage(doc, lang),
-    raw: doc,
   };
-}
-
-export function summarize(segments) {
-  const total = segments.length;
-  const approved = segments.filter((s) => s.stage === "approved").length;
-  const low = segments.filter((s) => s.lowConfidence && s.hasTranslation).length;
-  const untranslated = segments.filter((s) => !s.hasTranslation).length;
-  const pct = total ? Math.round((approved / total) * 100) : 0;
-  return { total, approved, low, untranslated, pct };
 }
 
 export function pagesFromDocs(docs, lang) {
@@ -49,5 +28,3 @@ export function pagesFromDocs(docs, lang) {
   }
   return Array.from(map.values()).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
 }
-
-export { LOW_CONF_THRESHOLD };

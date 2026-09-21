@@ -9,11 +9,17 @@ jest.mock("../../src/services/translationService", () => ({
     listTranslations: jest.fn(),
     generateForReview: jest.fn(),
     approveTranslation: jest.fn(),
+    bulkApproveTranslations: jest.fn(),
     rejectTranslation: jest.fn(),
     updateTranslation: jest.fn(),
   },
 }));
 import { translationService } from "../../src/services/translationService";
+
+jest.mock("../../src/components/AllContent/shared/MiddleEllipsis", () => ({
+  __esModule: true,
+  default: ({ text }) => require("react").createElement("span", { "data-testid": "middle-ellipsis" }, text),
+}));
 
 beforeAll(() => {
   window.HTMLElement.prototype.hasPointerCapture = jest.fn().mockReturnValue(false);
@@ -154,7 +160,41 @@ describe("Translate & Review — live component verification", () => {
     await waitFor(() => expect(within(screen.getByRole("table")).getByText("Rejected")).toBeInTheDocument());
   });
 
-  test("PASS — Approve All approves every non-approved row in current scope", async () => {
+  test("PASS — unfiltered Approve All uses the bulk endpoint, shows its counts and reloads", async () => {
+    translationService.listTranslations.mockResolvedValue([
+      makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" }),
+      makeDoc("k2", "Good Morning", { translated: "ಶುಭೋದಯ" }),
+      makeDoc("k3", "Already Approved", { translated: "X", status: "approved" }),
+    ]);
+    translationService.bulkApproveTranslations.mockResolvedValue({ approved: 2, skipped: 1 });
+    renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
+    await screen.findByText("Hello World");
+    translationService.listTranslations.mockClear();
+    await userEvent.click(screen.getByRole("button", { name: /Approve all/i }));
+
+    await waitFor(() =>
+      expect(translationService.bulkApproveTranslations).toHaveBeenCalledWith({ siteId: "site-1", route: "/", lang: "kn" })
+    );
+    expect(translationService.approveTranslation).not.toHaveBeenCalled();
+    expect(await screen.findByText("Approved 2, skipped 1")).toBeInTheDocument();
+    await waitFor(() => expect(translationService.listTranslations).toHaveBeenCalled());
+  });
+
+  test("PASS — a failed bulk approve surfaces the error", async () => {
+    translationService.listTranslations.mockResolvedValue([
+      makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" }),
+      makeDoc("k2", "Good Morning", { translated: "ಶುಭೋದಯ" }),
+      makeDoc("k3", "Already Approved", { translated: "X", status: "approved" }),
+    ]);
+    translationService.bulkApproveTranslations.mockRejectedValue(new Error("bulk boom"));
+    renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
+    await screen.findByText("Hello World");
+    await userEvent.click(screen.getByRole("button", { name: /Approve all/i }));
+
+    expect(await screen.findByText("bulk boom")).toBeInTheDocument();
+  });
+
+  test("PASS — search-filtered Approve All approves only the visible rows per id", async () => {
     translationService.listTranslations.mockResolvedValue([
       makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" }),
       makeDoc("k2", "Good Morning", { translated: "ಶುಭೋದಯ" }),
@@ -163,14 +203,51 @@ describe("Translate & Review — live component verification", () => {
     translationService.approveTranslation.mockResolvedValue({});
     renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
     await screen.findByText("Hello World");
+    await userEvent.type(screen.getByPlaceholderText(/Search source or translated text/i), "Hello");
+    await userEvent.click(screen.getByRole("button", { name: /Approve all/i }));
 
-    const approveAllBtn = screen.getByRole("button", { name: /Approve all/i });
-    await userEvent.click(approveAllBtn);
+    await waitFor(() => expect(translationService.approveTranslation).toHaveBeenCalledTimes(1));
+    expect(translationService.approveTranslation).toHaveBeenCalledWith("k1", "kn");
+    expect(translationService.approveTranslation).not.toHaveBeenCalledWith("k2", "kn");
+    expect(translationService.approveTranslation).not.toHaveBeenCalledWith("k3", "kn");
+    expect(translationService.bulkApproveTranslations).not.toHaveBeenCalled();
+  });
+
+  test("PASS — status-tab-filtered Approve All uses per-id approval, not bulk", async () => {
+    translationService.listTranslations.mockResolvedValue([
+      makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" }),
+      makeDoc("k2", "Good Morning", { translated: "ಶುಭೋದಯ" }),
+      makeDoc("k3", "Already Approved", { translated: "X", status: "approved" }),
+    ]);
+    translationService.approveTranslation.mockResolvedValue({});
+    renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
+    await screen.findByText("Hello World");
+    await userEvent.click(screen.getByRole("button", { name: /^Pending Review/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Approve all/i }));
 
     await waitFor(() => expect(translationService.approveTranslation).toHaveBeenCalledTimes(2));
     expect(translationService.approveTranslation).toHaveBeenCalledWith("k1", "kn");
     expect(translationService.approveTranslation).toHaveBeenCalledWith("k2", "kn");
-    expect(translationService.approveTranslation).not.toHaveBeenCalledWith("k3", "kn");
+    expect(translationService.bulkApproveTranslations).not.toHaveBeenCalled();
+  });
+
+  test("PASS — per-id Approve All reports partial failures", async () => {
+    translationService.listTranslations.mockResolvedValue([
+      makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" }),
+      makeDoc("k2", "Good Morning", { translated: "ಶುಭೋದಯ" }),
+      makeDoc("k3", "Already Approved", { translated: "X", status: "approved" }),
+    ]);
+    translationService.approveTranslation.mockImplementation(async (id) => {
+      if (id === "k2") throw new Error("nope");
+      return {};
+    });
+    renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
+    await screen.findByText("Hello World");
+    await userEvent.type(screen.getByPlaceholderText(/Search source or translated text/i), "o");
+    await userEvent.click(screen.getByRole("button", { name: /Approve all/i }));
+
+    expect(await screen.findByText("Approved 1, 1 failed")).toBeInTheDocument();
+    expect(translationService.bulkApproveTranslations).not.toHaveBeenCalled();
   });
 
   test("PASS — Edit translation commits on blur via updateTranslation", async () => {
@@ -188,54 +265,55 @@ describe("Translate & Review — live component verification", () => {
     await waitFor(() => expect(translationService.updateTranslation).toHaveBeenCalledWith("k1", "kn", "Edited text"));
   });
 
-  test("PASS — Save changes button shows saved confirmation (autosave already committed the edit on blur)", async () => {
-    translationService.listTranslations.mockResolvedValue([
-      makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" }),
-    ]);
-    renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
-    await screen.findByText("Hello World");
+  describe("source text expansion", () => {
+    const LONG = "A very long source sentence ".repeat(20).trim();
+    const seed = () =>
+      translationService.listTranslations.mockResolvedValue([
+        makeDoc("k1", LONG, { translated: "T1" }),
+        makeDoc("k2", "Second source", { translated: "T2" }),
+      ]);
 
-    expect(screen.getByText("All changes auto-saved")).toBeInTheDocument();
-    const saveBtn = screen.getByRole("button", { name: "Save changes" });
-    await userEvent.click(saveBtn);
-    expect(screen.getByText(/Last saved/)).toBeInTheDocument();
-  });
-
-  test("PASS — Revert All discards an unsaved (unblurred) edit and reloads from backend", async () => {
-    translationService.listTranslations.mockResolvedValue([
-      makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" }),
-    ]);
-    renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
-    await screen.findByText("Hello World");
-
-    const textarea = screen.getByLabelText("Translation for: Hello World");
-    fireEvent.change(textarea, { target: { value: "Unsaved garbage text" } });
-    expect(textarea.value).toBe("Unsaved garbage text");
-    expect(translationService.updateTranslation).not.toHaveBeenCalled();
-
-    const revertBtn = screen.getByRole("button", { name: /Revert all/i });
-    await userEvent.click(revertBtn);
-
-    await waitFor(() => expect(translationService.listTranslations).toHaveBeenCalledTimes(2));
-    await waitFor(() => {
-      const el = screen.getByLabelText("Translation for: Hello World");
-      expect(el.value).toBe("ಹಲೋ ವರ್ಲ್ಡ್");
+    test("PASS — collapsed rows render the source through MiddleEllipsis", async () => {
+      seed();
+      renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
+      await screen.findByText("Second source");
+      const cells = screen.getAllByTestId("middle-ellipsis");
+      expect(cells).toHaveLength(2);
+      expect(cells[0]).toHaveTextContent(LONG);
+      expect(screen.getAllByRole("button", { name: "Show full source text" })).toHaveLength(2);
     });
-  });
 
-  test("PASS — Revert All leaves an already-approved row's status unchanged", async () => {
-    translationService.listTranslations.mockResolvedValue([
-      makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್", status: "approved" }),
-    ]);
-    renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
-    await screen.findByText("Hello World");
-    expect(within(screen.getByRole("table")).getByText("Approved")).toBeInTheDocument();
+    test("PASS — expanding a row shows the full wrapped source and collapsing restores the truncated view", async () => {
+      seed();
+      renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
+      await screen.findByText("Second source");
 
-    const revertBtn = screen.getByRole("button", { name: /Revert all/i });
-    await userEvent.click(revertBtn);
+      await userEvent.click(screen.getAllByRole("button", { name: "Show full source text" })[0]);
+      const toggle = screen.getByRole("button", { name: "Show less source text" });
+      expect(toggle).toHaveAttribute("aria-expanded", "true");
+      const full = screen.getByText(LONG);
+      expect(full).not.toHaveAttribute("data-testid", "middle-ellipsis");
+      expect(full).toHaveStyle({ whiteSpace: "normal", overflowWrap: "anywhere" });
+      expect(screen.getAllByTestId("middle-ellipsis")).toHaveLength(1);
 
-    await waitFor(() => expect(translationService.listTranslations).toHaveBeenCalledTimes(2));
-    expect(within(screen.getByRole("table")).getByText("Approved")).toBeInTheDocument();
+      await userEvent.click(toggle);
+      expect(screen.getAllByTestId("middle-ellipsis")).toHaveLength(2);
+      expect(screen.queryByRole("button", { name: "Show less source text" })).not.toBeInTheDocument();
+      expect(screen.getAllByRole("button", { name: "Show full source text" })[0]).toHaveAttribute("aria-expanded", "false");
+    });
+
+    test("PASS — expanding one row leaves the other row collapsed", async () => {
+      seed();
+      renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
+      await screen.findByText("Second source");
+
+      await userEvent.click(screen.getAllByRole("button", { name: "Show full source text" })[0]);
+
+      const remaining = screen.getByText("Second source");
+      expect(remaining).toHaveAttribute("data-testid", "middle-ellipsis");
+      expect(screen.getAllByRole("button", { name: "Show full source text" })).toHaveLength(1);
+      expect(screen.getAllByRole("button", { name: "Show less source text" })).toHaveLength(1);
+    });
   });
 
   test("PASS — a genuinely empty successful response shows the empty state, not an error", async () => {
@@ -264,5 +342,28 @@ describe("Translate & Review — live component verification", () => {
     await screen.findByText("Couldn't load translations");
     expect(screen.getByText("Network error")).toBeInTheDocument();
     expect(screen.queryByText("Permission denied")).not.toBeInTheDocument();
+  });
+
+  test("PASS — searching never crashes on a segment that has no translation draft yet", async () => {
+    translationService.listTranslations.mockResolvedValue([
+      makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" }),
+      makeDoc("k2", "Not drafted yet"),
+    ]);
+    translationService.generateForReview.mockResolvedValue({});
+    renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
+    await screen.findByText("Not drafted yet");
+
+    await userEvent.type(screen.getByPlaceholderText(/Search source or translated text/i), "zzz");
+
+    expect(screen.getByText("No segments match your search.")).toBeInTheDocument();
+  });
+
+  test("PASS — a failed on-demand generation is surfaced to the reviewer, not swallowed", async () => {
+    translationService.listTranslations.mockResolvedValue([makeDoc("k1", "Hello World")]);
+    translationService.generateForReview.mockRejectedValue(new Error("provider down"));
+    renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
+
+    await screen.findByText("provider down");
+    expect(screen.getByText("Hello World")).toBeInTheDocument();
   });
 });

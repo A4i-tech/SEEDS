@@ -48,10 +48,60 @@ describe("apiFetch", () => {
 
   it("does not redirect on 401 when already at root", async () => {
     window.location.pathname = "/";
-    global.fetch.mockResolvedValue(fakeResponse({ ok: false, status: 403, text: "" }));
-    await expect(apiFetch("/x")).rejects.toMatchObject({ status: 403 });
+    global.fetch.mockResolvedValue(fakeResponse({ ok: false, status: 401, text: "" }));
+    await expect(apiFetch("/x")).rejects.toMatchObject({ status: 401 });
     expect(clearAuth).toHaveBeenCalled();
     expect(window.location.href).toBe("");
+  });
+
+  it("does not clear auth or redirect on 403 and lets the error reach the caller", async () => {
+    global.fetch.mockResolvedValue(fakeResponse({ ok: false, status: 403, text: "Access denied" }));
+    await expect(apiFetch("/x")).rejects.toMatchObject({ status: 403, message: "Access denied" });
+    expect(clearAuth).not.toHaveBeenCalled();
+    expect(window.location.href).toBe("");
+  });
+
+  it("uses the backend message from a JSON error envelope", async () => {
+    const body = JSON.stringify({ error: "Short", message: "Domain already registered", code: "CONFLICT", request_id: "r1" });
+    global.fetch.mockResolvedValue(fakeResponse({ ok: false, status: 409, text: body }));
+    await expect(apiFetch("/x")).rejects.toMatchObject({ status: 409, message: "Domain already registered" });
+  });
+
+  it("falls back to the error key, then the raw body, when message is missing", async () => {
+    global.fetch.mockResolvedValue(fakeResponse({ ok: false, status: 400, text: JSON.stringify({ error: "Bad input" }) }));
+    await expect(apiFetch("/x")).rejects.toMatchObject({ message: "Bad input" });
+
+    const noKeys = JSON.stringify({ detail: "x" });
+    global.fetch.mockResolvedValue(fakeResponse({ ok: false, status: 400, text: noKeys }));
+    await expect(apiFetch("/x")).rejects.toMatchObject({ message: noKeys });
+  });
+
+  it("uses a status message when the error body is empty", async () => {
+    global.fetch.mockResolvedValue(fakeResponse({ ok: false, status: 502, text: "" }));
+    await expect(apiFetch("/x")).rejects.toMatchObject({ message: "Request failed with status 502" });
+  });
+
+  it("aborts and reports a timeout when timeoutMs elapses", async () => {
+    jest.useFakeTimers();
+    global.fetch.mockImplementation(
+      (_url, { signal }) =>
+        new Promise((_, reject) =>
+          signal.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "AbortError" })))
+        )
+    );
+    const pending = expect(apiFetch("/x", { timeoutMs: 1000 })).rejects.toMatchObject({
+      status: 0,
+      message: "Request timed out",
+    });
+    jest.advanceTimersByTime(1000);
+    await pending;
+    jest.useRealTimers();
+  });
+
+  it("passes no abort signal when timeoutMs is not set", async () => {
+    global.fetch.mockResolvedValue(fakeResponse({ ok: true, contentType: "text/plain", text: "hi" }));
+    await apiFetch("/x", { method: "GET" });
+    expect(global.fetch).toHaveBeenCalledWith("/x", { method: "GET" });
   });
 
   it("does not clear auth on other error statuses", async () => {

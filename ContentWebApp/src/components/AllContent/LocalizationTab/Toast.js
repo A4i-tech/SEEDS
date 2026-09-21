@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useRef, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import "../shared/utilities.css";
 import "../shared/buttons.css";
 import "../AnalyticsTab/css/AnalyticsTab.css";
@@ -13,32 +13,30 @@ export const useToast = () => {
 const TONE_CLASS = { good: "success-message", crit: "error-message", info: "status-message" };
 
 export function ToastProvider({ children }) {
-  const [note, setNote] = useState(null);
-  const timer = useRef(null);
+  const [queue, setQueue] = useState([]);
+  const note = queue[0];
 
-  const dismiss = useCallback(() => {
-    setNote(null);
-    clearTimeout(timer.current);
-  }, []);
+  const dismiss = useCallback(() => setQueue((q) => q.slice(1)), []);
 
-  const toast = useCallback(({ message, tone = "info", duration = 5000, onUndo }) => {
-    setNote((current) => {
-      // A visible crit toast must not be silently clobbered by a lower-priority
-      // toast firing right after it — only crit can replace crit.
-      if (current?.tone === "crit" && tone !== "crit") return current;
-      clearTimeout(timer.current);
-      timer.current = setTimeout(() => setNote(null), duration);
-      return { message, tone, onUndo };
-    });
-  }, []);
+  const toast = useCallback(
+    ({ message, tone = "info", duration = 5000, onUndo }) =>
+      setQueue((q) => [...q, { message, tone, duration, onUndo }]),
+    []
+  );
+
+  useEffect(() => {
+    if (!note) return undefined;
+    const timer = setTimeout(dismiss, note.duration);
+    return () => clearTimeout(timer);
+  }, [note, dismiss]);
 
   return (
     <ToastCtx.Provider value={{ toast, dismiss }}>
       {children}
-      {note ? (
+      {note && (
         <div className={TONE_CLASS[note.tone]} role="status">
           {note.message}
-          {note.onUndo ? (
+          {note.onUndo && (
             <button
               type="button"
               className="action-ghost-button button-ml-8"
@@ -49,9 +47,9 @@ export function ToastProvider({ children }) {
             >
               Undo
             </button>
-          ) : null}
+          )}
         </div>
-      ) : null}
+      )}
     </ToastCtx.Provider>
   );
 }
