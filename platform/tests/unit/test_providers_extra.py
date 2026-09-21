@@ -78,6 +78,7 @@ class TestServiceBusProvider:
         mock_settings.azure_service_bus_connection_string = ""
         mock_settings.call_webhook_queue_name = "call_webhook"
         mock_settings.call_event_queue_name = "call_event"
+        mock_settings.sync_jobs_queue_name = "sync_jobs"
 
         with patch("app.platform.settings.get_settings", return_value=mock_settings):
             svc = ServiceBusProvider()
@@ -85,6 +86,7 @@ class TestServiceBusProvider:
 
         assert svc._initialized is True
         assert svc._call_webhook is None
+        assert svc._sync_jobs is None
 
     def test_get_handle_returns_none_for_unknown(self) -> None:
         from app.providers.service_bus import ServiceBusProvider
@@ -93,6 +95,7 @@ class TestServiceBusProvider:
         svc._call_webhook = None
         svc._call_event = None
         svc._dtmf_input = None
+        svc._sync_jobs = None
         svc._initialized = True
 
         result = svc._get_handle("nonexistent_queue")
@@ -103,10 +106,14 @@ class TestServiceBusProvider:
 
         svc = ServiceBusProvider.__new__(ServiceBusProvider)
         svc._call_webhook = None
+        svc._dtmf_input = None
         svc._call_event = None
+        svc._sync_jobs = None
 
         assert svc.get_call_webhook_queue() is None
+        assert svc.get_dtmf_input_queue() is None
         assert svc.get_call_event_queue() is None
+        assert svc.get_sync_jobs_queue() is None
 
     @pytest.mark.asyncio
     async def test_send_message_no_handle_returns_false(self) -> None:
