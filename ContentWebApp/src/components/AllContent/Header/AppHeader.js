@@ -73,9 +73,9 @@ const AppHeader = ({
       </div>
       <div className="user-dropdown-container">
         <div className="user-info-wrapper" onClick={() => setShowUserDropdown(!showUserDropdown)}>
-          <span className="welcome-text">Welcome, {typeof currentUser === "string" ? currentUser : "User"}</span>
+          <span className="welcome-text">Welcome, {currentUser}</span>
           <div className="user-avatar">
-            {(typeof currentUser === "string" ? currentUser : "User").substring(0, 2).toUpperCase()}
+            {currentUser.substring(0, 2).toUpperCase()}
           </div>
         </div>
 

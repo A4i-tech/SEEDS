@@ -1,10 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
-import rehypeKatex from "rehype-katex";
-import rehypeRaw from "rehype-raw";
 import "katex/dist/katex.min.css";
 
 import { SEEDS_URL } from "../Constants";
@@ -12,8 +8,11 @@ import { Breadcrumb } from "./AllContent/shared/Breadcrumb";
 import { Pagination } from "./ContentAggregatorDetails/Pagination";
 import Select from "./AllContent/shared/Select";
 import { LANGUAGE_OPTIONS } from "../utils/languageUtils";
+import { getAuthToken } from "../utils/authHelpers";
 import { textbookRemediationService } from "../services/textbookRemediationService";
 import { normalizeMathDelimiters, MarkdownParagraph } from "./ContentAggregatorDetails/markdownMath";
+import { remediationRemarkPlugins, remediationRehypePlugins } from "./remediationMarkdown";
+import { isRemediationDone } from "../utils/remediationStatus";
 
 import "./AllContent/AllContent.css";
 import "./AllContent/shared/cards.css";
@@ -59,26 +58,29 @@ function splitIntoPages(markdown) {
   return pages;
 }
 
+const pageContent = (pages, index, fallback) =>
+  pages.length ? pages[index]?.content ?? "" : fallback;
+
 function MarkdownViewer({ text, jobId }) {
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm, remarkMath]}
-      rehypePlugins={[rehypeRaw, rehypeKatex]}
+      remarkPlugins={remediationRemarkPlugins}
+      rehypePlugins={remediationRehypePlugins}
       components={{
         p: MarkdownParagraph,
         img: ({ src, alt }) => {
-          const filename = (src || "").replace(/^images\//, "");
-          const imgSrc =
-            src && !src.startsWith("http://") && !src.startsWith("https://") && !src.startsWith("data:")
-              ? `${SEEDS_URL}/textbook-remediation/jobs/${jobId}/images/${filename}`
-              : src;
+          const remote = src && !src.startsWith("http://") && !src.startsWith("https://") && !src.startsWith("data:");
+          const token = getAuthToken();
+          const imgSrc = remote
+            ? `${SEEDS_URL}/textbook-remediation/jobs/${jobId}/images/${src.replace(/^images\//, "")}${token ? `?token=${encodeURIComponent(token)}` : ""}`
+            : src;
 
           return (
             <div className="remediation-figure-preview">
               {imgSrc && (
                 <img
                   src={imgSrc}
-                  alt={alt || ""}
+                  alt={alt}
                   onError={(e) => {
                     e.currentTarget.style.display = "none";
                   }}
@@ -95,7 +97,7 @@ function MarkdownViewer({ text, jobId }) {
         },
       }}
     >
-      {normalizeMathDelimiters(text || "")}
+      {normalizeMathDelimiters(text)}
     </ReactMarkdown>
   );
 }
@@ -122,7 +124,7 @@ const RemediationDetails = () => {
   const [draftText, setDraftText] = useState("");
   const [translateLanguage, setTranslateLanguage] = useState("");
   const [isTranslating, setIsTranslating] = useState(false);
-  const [reviewSummary, setReviewSummary] = useState(null);
+  const [reviewSummary, setReviewSummary] = useState({ flagged_items: [] });
 
   const rawPages = useMemo(() => splitIntoPages(documents.raw), [documents.raw]);
   const correctedPages = useMemo(
@@ -131,15 +133,18 @@ const RemediationDetails = () => {
   );
   const totalPages = Math.max(rawPages.length, correctedPages.length);
 
-  const currentRawPage = rawPages[pageIdx]?.content || (rawPages.length === 0 ? (documents.raw || "") : "");
-  const currentCorrectedPage =
-    correctedPages[pageIdx]?.content || (correctedPages.length === 0 ? (draftText || documents.corrected || "") : "");
+  const currentRawPage = pageContent(rawPages, pageIdx, documents.raw || "");
+  const currentCorrectedPage = pageContent(
+    correctedPages,
+    pageIdx,
+    draftText || documents.corrected || ""
+  );
 
   const flaggedPages = useMemo(() => {
-    const pages = (reviewSummary?.flagged_items || []).map((item) => (item.page || 1) - 1);
+    const pages = reviewSummary.flagged_items.map((item) => item.page - 1);
     return [...new Set(pages)].sort((a, b) => a - b);
   }, [reviewSummary]);
-  const currentPageFlags = (reviewSummary?.flagged_items || []).filter((item) => (item.page || 1) - 1 === pageIdx);
+  const currentPageFlags = reviewSummary.flagged_items.filter((item) => item.page - 1 === pageIdx);
 
   const handleNextFlag = () => {
     const next = flaggedPages.find((p) => p > pageIdx);
@@ -169,27 +174,35 @@ const RemediationDetails = () => {
   }, [jobId]);
 
   useEffect(() => {
+    const controller = new AbortController();
     textbookRemediationService
-      .getReviewSummary(jobId)
+      .getReviewSummary(jobId, { signal: controller.signal })
       .then((res) => setReviewSummary(res))
-      .catch((summaryErr) => setError(summaryErr.message));
+      .catch((summaryErr) => {
+        if (!controller.signal.aborted) setError(summaryErr.message);
+      });
+    return () => controller.abort();
   }, [jobId]);
 
   const artifacts = useMemo(() => (job ? job.artifacts : {}), [job]);
 
   useEffect(() => {
+    const controller = new AbortController();
     ["raw", "corrected"].forEach((name) => {
       if (!artifacts[name] || documents[name] !== undefined) return;
       textbookRemediationService
-        .getArtifactText(jobId, name)
+        .getArtifactText(jobId, name, { signal: controller.signal })
         .then((text) => {
           setDocuments((prev) => ({ ...prev, [name]: text }));
           if (name === "corrected" && !draftText) {
             setDraftText(text);
           }
         })
-        .catch((textError) => setError(textError.message));
+        .catch((textError) => {
+          if (!controller.signal.aborted) setError(textError.message);
+        });
     });
+    return () => controller.abort();
   }, [artifacts, documents, draftText, jobId]);
 
   const handleSaveDraft = async () => {
@@ -209,7 +222,7 @@ const RemediationDetails = () => {
     try {
       setActionMessage("Marking verified and saving to Library...");
       const updated = await textbookRemediationService.markVerified(jobId, {
-        title: job?.source_name?.replace(/\.pdf$/i, " (Accessible)"),
+        title: job.source_name.replace(/\.pdf$/i, " (Accessible)"),
       });
       setJob(updated);
       setActionMessage("Textbook marked Verified and saved to Library.");
@@ -237,7 +250,7 @@ const RemediationDetails = () => {
     }
   };
 
-  const loadingDocs = !documents.raw && !documents.corrected && job && job.status === "completed";
+  const loadingDocs = !documents.raw && !documents.corrected && job && isRemediationDone(job.status);
 
   return (
     <div className="page">
@@ -253,8 +266,8 @@ const RemediationDetails = () => {
         />
 
         {error && (
-          <div className="card" style={{ borderColor: "#fee2e2", backgroundColor: "#fff5f5" }}>
-            <p style={{ color: "var(--color-danger-fg)", margin: 0 }}>
+          <div className="card remediation-error-card">
+            <p className="remediation-error-text">
               <strong>Error:</strong> {error}
             </p>
           </div>
@@ -369,7 +382,7 @@ const RemediationDetails = () => {
             </div>
 
             {actionMessage && (
-              <div style={{ margin: "12px 24px 0", backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534", padding: "10px 14px", borderRadius: "8px", fontSize: "14px", fontWeight: 500 }}>
+              <div className="remediation-action-message">
                 {actionMessage}
               </div>
             )}
@@ -411,18 +424,7 @@ const RemediationDetails = () => {
                     <textarea
                       value={draftText}
                       onChange={(e) => setDraftText(e.target.value)}
-                      style={{
-                        width: "100%",
-                        minHeight: "440px",
-                        fontFamily: "monospace",
-                        fontSize: "13px",
-                        lineHeight: 1.5,
-                        padding: "12px",
-                        borderRadius: "6px",
-                        border: "1px solid #cbd5e1",
-                        outline: "none",
-                        boxSizing: "border-box",
-                      }}
+                      className="remediation-draft-editor"
                       placeholder="Edit accessible markdown, figure alt-text, and summaries..."
                     />
                   ) : (

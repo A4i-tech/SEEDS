@@ -184,9 +184,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     if reconciled:
         logger.info("Reconciled %d interrupted content aggregator sync jobs", reconciled)
 
-    reconciled = await TextbookRemediationRepository(get_database()).reconcile_interrupted_jobs()
-    if reconciled:
-        logger.info("Reconciled %d interrupted textbook remediation jobs", reconciled)
+    if settings.app_mode in ("consumer", "all"):
+        reconciled = await TextbookRemediationRepository(get_database()).reconcile_interrupted_jobs()
+        if reconciled:
+            logger.info("Reconciled %d interrupted textbook remediation jobs", reconciled)
 
     from app.repositories.language_repository import LanguageRepository  # noqa: PLC0415
     from app.repositories.translation_audit_repository import (  # noqa: PLC0415

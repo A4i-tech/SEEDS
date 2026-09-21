@@ -1,6 +1,6 @@
 import { SEEDS_URL } from "../Constants";
 import { getAuthHeaders } from "../utils/authHelpers";
-import { apiFetch, buildQueryString, streamSse } from "./api";
+import { apiFetch, apiFetchBlob, apiFetchText, buildQueryString, streamSse } from "./api";
 
 const BASE = `${SEEDS_URL}/textbook-remediation`;
 
@@ -35,26 +35,19 @@ export const textbookRemediationService = {
     });
   },
 
-  async getArtifactText(jobId, name) {
-    const response = await fetch(
+  async getArtifactText(jobId, name, { signal } = {}) {
+    return apiFetchText(
       `${BASE}/jobs/${encodeURIComponent(jobId)}/artifacts/${encodeURIComponent(name)}`,
-      { headers: getAuthHeaders() }
+      { headers: getAuthHeaders(), signal }
     );
-    if (!response.ok) {
-      throw new Error(`Could not read ${name} (status ${response.status})`);
-    }
-    return response.text();
   },
 
-  async downloadArtifact(jobId, name, filename) {
-    const response = await fetch(
+  async downloadArtifact(jobId, name, filename, { signal } = {}) {
+    const blob = await apiFetchBlob(
       `${BASE}/jobs/${encodeURIComponent(jobId)}/artifacts/${encodeURIComponent(name)}`,
-      { headers: getAuthHeaders() }
+      { headers: getAuthHeaders(), signal }
     );
-    if (!response.ok) {
-      throw new Error(`Could not download ${name} (status ${response.status})`);
-    }
-    const url = URL.createObjectURL(await response.blob());
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
     link.download = filename;
@@ -70,31 +63,27 @@ export const textbookRemediationService = {
     });
   },
 
-  async saveDraft(jobId, draftMd, figureOverrides = null) {
+  async saveDraft(jobId, draftMd) {
     return apiFetch(`${BASE}/jobs/${encodeURIComponent(jobId)}/draft`, {
       method: "PUT",
       headers: getAuthHeaders(),
-      body: JSON.stringify({ draft_md: draftMd, figure_overrides: figureOverrides }),
+      body: JSON.stringify({ draft_md: draftMd }),
     });
   },
 
-  async markVerified(jobId, { title, subject, grade, publishToLibrary = true } = {}) {
+  async markVerified(jobId, { title } = {}) {
     return apiFetch(`${BASE}/jobs/${encodeURIComponent(jobId)}/verify`, {
       method: "POST",
       headers: getAuthHeaders(),
-      body: JSON.stringify({
-        title,
-        subject,
-        grade,
-        publish_to_library: publishToLibrary,
-      }),
+      body: JSON.stringify({ title }),
     });
   },
 
-  async getReviewSummary(jobId) {
+  async getReviewSummary(jobId, { signal } = {}) {
     return apiFetch(`${BASE}/jobs/${encodeURIComponent(jobId)}/review-summary`, {
       method: "GET",
       headers: getAuthHeaders(),
+      signal,
     });
   },
 

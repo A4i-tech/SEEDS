@@ -13,6 +13,8 @@ export const getAuthHeaders = () => {
   };
 };
 
+export const getAuthToken = () => localStorage.getItem("authToken") || "";
+
 /**
  * Check if user is authenticated
  * @returns {boolean} True if token exists

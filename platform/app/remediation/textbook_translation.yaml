@@ -1,6 +1,3 @@
-# Translates an already-remediated accessible textbook Markdown into another
-# language. Standalone: takes remediated.md as input, no OCR, no page images.
-
 pipeline_id: textbook_translation
 domain_profile: accessibility
 input_modality: text

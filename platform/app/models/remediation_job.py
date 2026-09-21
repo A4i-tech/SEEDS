@@ -1,57 +1,115 @@
-"""Textbook remediation job domain model.
-
-One job is one PDF walked through three pipeline stages. Kept separate from
-SyncJob: that model counts items pulled from an external course catalogue, this
-one tracks a fixed sequence of stages over a single uploaded file.
-"""
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from enum import StrEnum
 
-STAGES = ("ocr", "review", "docx")
+from pydantic import BaseModel, ConfigDict, Field
 
-_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-_JSONL = "application/x-ndjson"
+from app.models.user import PyObjectId
 
-ARTIFACTS: dict[str, tuple[str, str]] = {
-    "raw": ("raw.md", "text/markdown"),
-    "corrected": ("raw.corrected.md", "text/markdown"),
-    "findings": ("raw.findings.jsonl", _JSONL),
-    "alt": ("raw.alt.jsonl", _JSONL),
-    "remediated": ("raw.corrected.remediated.md", "text/markdown"),
-    "remediation": ("raw.corrected.remediation.jsonl", _JSONL),
-    "unresolved": ("remediated.unresolved.jsonl", _JSONL),
-    "docx": ("remediated.docx", _DOCX),
-    "tex": ("remediated.tex", "application/x-tex"),
-    "pdf": ("remediated.pdf", "application/pdf"),
-    "draft": ("remediated.draft.md", "text/markdown"),
-    "translated_md": ("translated.md", "text/markdown"),
-    "translated_docx": ("translated.docx", _DOCX),
-    "translated_tex": ("translated.tex", "application/x-tex"),
-    "translated_pdf": ("translated.pdf", "application/pdf"),
+
+class JobStatus(StrEnum):
+    PENDING = "pending"
+    RUNNING = "running"
+    READY_TO_REVIEW = "ready_to_review"
+    IN_REVIEW = "in_review"
+    VERIFIED = "verified"
+    FAILED = "failed"
+
+
+class JobStage(StrEnum):
+    OCR = "ocr"
+    REVIEW = "review"
+    DOCX = "docx"
+
+
+STAGES: tuple[JobStage, ...] = (JobStage.OCR, JobStage.REVIEW, JobStage.DOCX)
+
+
+class ArtifactName(StrEnum):
+    RAW = "raw"
+    CORRECTED = "corrected"
+    FINDINGS = "findings"
+    ALT = "alt"
+    REMEDIATED = "remediated"
+    REMEDIATION = "remediation"
+    UNRESOLVED = "unresolved"
+    DOCX = "docx"
+    TEX = "tex"
+    PDF = "pdf"
+    DRAFT = "draft"
+    TRANSLATED_MD = "translated_md"
+    TRANSLATED_DOCX = "translated_docx"
+    TRANSLATED_TEX = "translated_tex"
+    TRANSLATED_PDF = "translated_pdf"
+
+
+_DOCX_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+_JSONL_TYPE = "application/x-ndjson"
+
+IMAGE_CONTENT_TYPES: dict[str, str] = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
 }
-"""Artifact key -> (file the pipelines write, content type it is served as).
 
-Keys are the API's names for the artifacts and are deliberately dot-free: they
-are Mongo field names under `artifacts`, and a dot there would be read as a
-nested path.
-"""
+ARTIFACTS: dict[ArtifactName, tuple[str, str]] = {
+    ArtifactName.RAW: ("raw.md", "text/markdown"),
+    ArtifactName.CORRECTED: ("raw.corrected.md", "text/markdown"),
+    ArtifactName.FINDINGS: ("raw.findings.jsonl", _JSONL_TYPE),
+    ArtifactName.ALT: ("raw.alt.jsonl", _JSONL_TYPE),
+    ArtifactName.REMEDIATED: ("raw.corrected.remediated.md", "text/markdown"),
+    ArtifactName.REMEDIATION: ("raw.corrected.remediation.jsonl", _JSONL_TYPE),
+    ArtifactName.UNRESOLVED: ("remediated.unresolved.jsonl", _JSONL_TYPE),
+    ArtifactName.DOCX: ("remediated.docx", _DOCX_TYPE),
+    ArtifactName.TEX: ("remediated.tex", "application/x-tex"),
+    ArtifactName.PDF: ("remediated.pdf", "application/pdf"),
+    ArtifactName.DRAFT: ("remediated.draft.md", "text/markdown"),
+    ArtifactName.TRANSLATED_MD: ("translated.md", "text/markdown"),
+    ArtifactName.TRANSLATED_DOCX: ("translated.docx", _DOCX_TYPE),
+    ArtifactName.TRANSLATED_TEX: ("translated.tex", "application/x-tex"),
+    ArtifactName.TRANSLATED_PDF: ("translated.pdf", "application/pdf"),
+}
 
 
-@dataclass
-class RemediationJob:
-    job_id: str
+def artifact_filename(name: ArtifactName) -> str:
+    return ARTIFACTS[name][0]
+
+
+class JobProgress(BaseModel):
+    stage: str | None = None
+    step: str | None = None
+    type: str | None = None
+    message: str | None = None
+    completed: float | None = None
+    total: float | None = None
+    percent: int | None = None
+
+
+class JobMetrics(BaseModel):
+    total_pages: int | None = None
+    processed_pages: int | None = None
+    diagrams_described: int | None = None
+    tables_fixed: int | None = None
+    flagged_items_count: int | None = None
+
+
+class RemediationJob(BaseModel):
+    model_config = ConfigDict(use_enum_values=True, populate_by_name=True)
+
+    job_id: PyObjectId = Field(alias="_id")
     tenant_id: str
     source_name: str
     source_url: str
     language: str
-    status: str
-    stage: str | None
+    status: JobStatus
+    stage: JobStage | None
     detected_language: str | None = None
-    artifacts: dict[str, str] = field(default_factory=dict)
-    counts: dict[str, int] = field(default_factory=dict)
-    metrics: dict[str, object] = field(default_factory=dict)
-    progress: dict[str, object] = field(default_factory=dict)
+    artifacts: dict[ArtifactName, str] = Field(default_factory=dict)
+    counts: dict[str, int] = Field(default_factory=dict)
+    metrics: JobMetrics = Field(default_factory=JobMetrics)
+    progress: JobProgress = Field(default_factory=JobProgress)
     draft_remediated_md: str | None = None
     verified_at: str | None = None
     verified_by: str | None = None
@@ -64,37 +122,8 @@ class RemediationJob:
     deleted_at: str | None = None
 
     def to_doc(self) -> dict[str, object]:
-        return {
-            "_id": self.job_id, "tenant_id": self.tenant_id, "source_name": self.source_name,
-            "source_url": self.source_url, "language": self.language, "status": self.status,
-            "stage": self.stage, "detected_language": self.detected_language,
-            "artifacts": self.artifacts, "counts": self.counts,
-            "metrics": self.metrics, "progress": self.progress,
-            "draft_remediated_md": self.draft_remediated_md,
-            "verified_at": self.verified_at, "verified_by": self.verified_by,
-            "title": self.title,
-            "error": self.error, "created_at": self.created_at,
-            "finished_at": self.finished_at,
-            "target_language": self.target_language,
-            "translation_error": self.translation_error,
-            "deleted_at": self.deleted_at,
-        }
+        return self.model_dump(mode="json", by_alias=True)
 
     @classmethod
     def from_doc(cls, doc: dict[str, object]) -> RemediationJob:
-        return cls(
-            job_id=str(doc["_id"]), tenant_id=doc["tenant_id"], source_name=doc["source_name"],
-            source_url=doc["source_url"], language=doc["language"], status=doc["status"],
-            stage=doc["stage"], detected_language=doc.get("detected_language"),
-            artifacts=doc.get("artifacts") or {}, counts=doc.get("counts") or {},
-            metrics=doc.get("metrics") or {}, progress=doc.get("progress") or {},
-            draft_remediated_md=doc.get("draft_remediated_md"),
-            verified_at=doc.get("verified_at"), verified_by=doc.get("verified_by"),
-            title=doc.get("title"),
-            error=doc.get("error"), created_at=doc.get("created_at", ""),
-            finished_at=doc.get("finished_at"),
-            target_language=doc.get("target_language"),
-            translation_error=doc.get("translation_error"),
-            deleted_at=doc.get("deleted_at"),
-        )
-
+        return cls.model_validate(doc)

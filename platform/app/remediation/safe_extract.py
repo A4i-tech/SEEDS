@@ -1,4 +1,3 @@
-"""Safe extraction step that gracefully handles individual figure failures without crashing."""
 from __future__ import annotations
 
 import asyncio
@@ -15,13 +14,6 @@ logger = logging.getLogger(__name__)
 
 
 class SafeExtractAgent(ExtractAgent):
-    """Subclass of ExtractAgent that isolates failures per-item.
-
-    If any individual figure fails extraction (e.g. LLM content filter, rate limit,
-    or validation retry exhaustion), it catches the exception and returns a fallback
-    spec with review_needed: True so the entire textbook pipeline does not crash.
-    """
-
     async def _extract(
         self,
         ingestion_ctx: IngestionContext,
@@ -30,7 +22,6 @@ class SafeExtractAgent(ExtractAgent):
         sem: asyncio.Semaphore,
         advance: Callable[[str], None],
     ) -> tuple[dict[str, Any], Any]:
-        # Save image crop bytes to workspace and out/ so downstream steps and blob storage have them
         if item_doc and "id" in item_doc:
             item_id = item_doc["id"]
             if item_id in item_by_id:
@@ -51,6 +42,8 @@ class SafeExtractAgent(ExtractAgent):
         for attempt in range(3):
             try:
                 return await super()._extract(ingestion_ctx, item_doc, item_by_id, sem, advance)
+            except (TypeError, AttributeError, KeyError, NameError, NotImplementedError, RecursionError):
+                raise
             except Exception as exc:
                 err_str = str(exc).lower()
                 is_rate_limit = "429" in err_str or "rate" in err_str
@@ -116,7 +109,6 @@ class SafeExtractAgent(ExtractAgent):
                     }
                 advance(f"extracted (fallback: {type(exc).__name__})")
                 return item_doc, fallback
-        return item_doc, {}
 
 
 register_step("safe_extract", SafeExtractAgent)

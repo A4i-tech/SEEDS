@@ -8,6 +8,7 @@ import Select from "../shared/Select";
 import { LANGUAGE_OPTIONS } from "../../../utils/languageUtils";
 import { StageProgress } from "./StageProgress";
 import { SyncAllProgress } from "../shared/SyncAllProgress";
+import "./RemediationTab.css";
 import "../shared/cards.css";
 import "../shared/buttons.css";
 import "../shared/tables.css";
@@ -56,7 +57,7 @@ const RemediationTab = () => {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", justifyContent: "center" }}>
           <span style={{ fontWeight: 600 }}>
-            Textbook PDF <span style={{ color: "#dc2626" }}>*</span>
+            Textbook PDF <span style={{ color: "var(--color-danger-dot)" }}>*</span>
           </span>
           <input ref={fileRef} type="file" accept="application/pdf" onChange={handleFile} style={{ display: "none" }} />
           <button type="button" className="action-ghost-button" onClick={() => fileRef.current && fileRef.current.click()}>
@@ -115,7 +116,7 @@ const RemediationTab = () => {
                         {job.detected_language}
                       </span>
                     ) : job.language === "auto" || job.language === "detecting" ? (
-                      <span className="remediation-status" style={{ backgroundColor: "#f1f5f9", color: "#475569", fontWeight: 500, fontSize: "12px" }}>
+                      <span className="remediation-status">
                         Detecting…
                       </span>
                     ) : (

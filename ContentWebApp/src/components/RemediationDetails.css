@@ -160,3 +160,33 @@
   font-size: 12px;
   font-weight: 600;
 }
+.remediation-error-card {
+  border-color: var(--color-danger-bg);
+  background: color-mix(in srgb, var(--color-danger-bg) 35%, var(--color-on-accent));
+}
+.remediation-error-text {
+  color: var(--color-danger-fg);
+  margin: 0;
+}
+.remediation-action-message {
+  margin: 12px 24px 0;
+  background: var(--color-success-bg);
+  border: 1px solid color-mix(in srgb, var(--color-success-fg) 25%, var(--color-on-accent));
+  color: var(--color-success-fg);
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.remediation-draft-editor {
+  width: 100%;
+  min-height: 440px;
+  font-family: monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  outline: none;
+  box-sizing: border-box;
+}

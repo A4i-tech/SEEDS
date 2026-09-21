@@ -1,9 +1,3 @@
-"""Runs one OmniIngest pipeline YAML as a subprocess against a resource file.
-
-Shared by the remediation consumer (textbook_remediation.yaml) and the
-translation runner (textbook_translation.yaml) — same subprocess/progress
-plumbing, different pipeline file and CLI params.
-"""
 from __future__ import annotations
 
 import asyncio
@@ -11,7 +5,6 @@ import contextlib
 import json
 import logging
 import os
-import subprocess
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
@@ -30,6 +23,7 @@ async def run_pipeline(
     workspace: Path,
     options: list[str],
     on_progress: Callable[[dict[str, object]], Awaitable[None]] | None = None,
+    timeout: float | None = None,
 ) -> None:
     progress_file = workspace / "remediation.progress.jsonl"
     command = [
@@ -51,15 +45,6 @@ async def run_pipeline(
         "PYTHONIOENCODING": "utf-8",
         "PYTHONUTF8": "1",
     }
-
-    def _exec() -> tuple[int, str]:
-        proc = subprocess.Popen(
-            command, cwd=str(workspace), env=env,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-        )
-        stdout, stderr = proc.communicate()
-        err_msg = stderr.decode("utf-8", "replace").strip() or stdout.decode("utf-8", "replace").strip()
-        return proc.returncode, err_msg
 
     stop_tailing = asyncio.Event()
 
@@ -88,11 +73,31 @@ async def run_pipeline(
 
     tail_task = asyncio.create_task(_tail_progress())
     try:
-        returncode, err_msg = await asyncio.to_thread(_exec)
+        proc = await asyncio.create_subprocess_exec(
+            *command,
+            cwd=str(workspace),
+            env=env,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout)
+        except TimeoutError as exc:
+            proc.kill()
+            _, stderr = await proc.communicate()
+            raise RuntimeError(
+                f"Pipeline {pipeline_path.name} timed out after {timeout}s: "
+                f"{stderr.decode('utf-8', 'replace').strip()[-2000:]}"
+            ) from exc
+        except asyncio.CancelledError:
+            proc.kill()
+            await proc.communicate()
+            raise
     finally:
         stop_tailing.set()
         await asyncio.sleep(0.1)
         tail_task.cancel()
 
-    if returncode != 0:
+    if proc.returncode != 0:
+        err_msg = stderr.decode("utf-8", "replace").strip() or stdout.decode("utf-8", "replace").strip()
         raise RuntimeError(f"Pipeline {pipeline_path.name} failed: {err_msg[-2000:]}")

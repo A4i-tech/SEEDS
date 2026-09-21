@@ -32,7 +32,7 @@ beforeEach(() => {
 
 test("follows a running job and leaves a finished one alone", async () => {
   textbookRemediationService.getJobs.mockResolvedValue({
-    jobs: [job(), job({ job_id: "job-2", status: "completed" })],
+    jobs: [job(), job({ job_id: "job-2", status: "ready_to_review" })],
   });
 
   const { result } = renderHook(() => useRemediationJobs());
@@ -71,7 +71,7 @@ test("a stream event replaces the row instead of appending a duplicate", async (
 });
 
 test("uploading adds the new job to the top of the list and follows it", async () => {
-  textbookRemediationService.getJobs.mockResolvedValue({ jobs: [job({ job_id: "old", status: "completed" })] });
+  textbookRemediationService.getJobs.mockResolvedValue({ jobs: [job({ job_id: "old", status: "ready_to_review" })] });
   textbookRemediationService.createJob.mockResolvedValue({ job_id: "job-new" });
   textbookRemediationService.getJob.mockResolvedValue(job({ job_id: "job-new", status: "pending" }));
 

@@ -1,14 +1,3 @@
-"""Azure AI Foundry OCR via Mistral Document AI.
-
-OmniIngest dropped this engine from its own factory (feat/mistral-ocr PR review,
-2026-09-16) since OmniIngest itself has no Azure-specific caller. Seeds does —
-our Foundry deployment is the only real OCR target here — so it lives here
-instead, wired in as an extra engine on top of OmniIngest's built-in OcrAgent.
-
-Vendored from OmniIngest commit 28c5143 (src/omni_ingest/port/ocr.py, before
-the Azure removal), adapted to read its own env vars since OmniIngest's
-Settings no longer carries MISTRAL_OCR_ENDPOINT.
-"""
 from __future__ import annotations
 
 import asyncio
@@ -20,7 +9,7 @@ from mistralai.azure.client import MistralAzure
 from mistralai.azure.client import models as azure_mistral_models
 from omni_ingest.agent.document import OcrAgent
 from omni_ingest.core.config import settings
-from omni_ingest.core.model import ByteContent
+from omni_ingest.core.model import ByteContent, ResolvedResource, StepResult
 from omni_ingest.core.ocr import Ocr, OcrBuilderParams, OcrFactory, OcrOutputFormat
 from omni_ingest.core.pipeline import IngestionContext, register_step
 
@@ -65,15 +54,7 @@ def azure_mistral_ocr_builder(params: OcrBuilderParams) -> Ocr:
 
 
 class AzureMistralOcrAgent(OcrAgent):
-    """OcrAgent with one extra engine, 'azure_mistral', layered on top of ctx.ocr_factory.
-
-    OmniIngest's CLI has no factory-injection hook (a plugin hook for this was
-    raised on the same PR and rejected as out of scope), so this wraps the
-    context's factory for the duration of one step's run instead of touching
-    OmniIngest.
-    """
-
-    async def run(self, ctx: IngestionContext) -> object:
+    async def run(self, ctx: IngestionContext[ResolvedResource]) -> StepResult:
         base_factory: OcrFactory = ctx.ocr_factory
 
         def factory(engine: str, params: OcrBuilderParams) -> Ocr:
