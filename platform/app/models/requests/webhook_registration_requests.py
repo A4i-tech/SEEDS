@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-from pydantic import BaseModel
+from pydantic import AnyHttpUrl, BaseModel
 
 
 class WebhookEventType(StrEnum):
@@ -13,12 +13,12 @@ class WebhookEventType(StrEnum):
 
 
 class WebhookRegisterRequest(BaseModel):
-    url: str
+    url: AnyHttpUrl
     events: list[str]
 
 
 class WebhookUpdateRequest(BaseModel):
-    url: str | None = None
+    url: AnyHttpUrl | None = None
     events: list[str] | None = None
     status: str | None = None
     rotate_secret: bool = False

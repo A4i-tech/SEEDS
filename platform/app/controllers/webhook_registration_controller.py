@@ -1,10 +1,10 @@
 import logging
 import secrets
 from typing import Any
-from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.security import OAuth2PasswordBearer
+from pydantic import AnyHttpUrl
 from slowapi.util import get_remote_address
 
 from app.controllers.content_aggregator_auth_controller import get_content_aggregator_auth
@@ -82,9 +82,8 @@ def _validate_scope(events: list[str], granted_scopes: list[str]) -> None:
         raise AppError("SCOPE_INSUFFICIENT", "requested events exceed granted scope", 403)
 
 
-def _validate_url(url: str) -> None:
-    parsed = urlsplit(url.strip())
-    if parsed.scheme.lower() != "https" or not parsed.netloc:
+def _validate_url(url: AnyHttpUrl) -> None:
+    if url.scheme != "https":
         raise AppError("URL_NOT_HTTPS", "webhook url must use HTTPS", 400)
 
 
@@ -119,7 +118,7 @@ async def register_webhook(
     if await repo.count_for_client(client_id) >= MAX_WEBHOOKS_PER_CLIENT:
         raise AppError("WEBHOOK_LIMIT_REACHED", "maximum webhooks per client reached", 409)
     secret = secrets.token_hex(32)
-    doc = await repo.create(client_id, body.url, encrypt_secret(secret), body.events)
+    doc = await repo.create(client_id, str(body.url), encrypt_secret(secret), body.events)
     logger.info("register_webhook: webhook registered webhookId=%s clientId=%s", doc["_id"], client_id)
     result = _serialize(doc)
     result["secret"] = secret
@@ -157,7 +156,7 @@ async def update_webhook(
 
     fields: dict[str, Any] = {}
     if body.url is not None:
-        fields["url"] = body.url
+        fields["url"] = str(body.url)
     if body.events is not None:
         fields["events"] = body.events
     if body.status is not None:
