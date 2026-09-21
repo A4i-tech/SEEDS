@@ -13,7 +13,6 @@ from __future__ import annotations
 import json
 import logging
 import re
-import uuid
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -99,13 +98,15 @@ async def create_remediation_job(
     if target_language and not _LANGUAGE.fullmatch(target_language):
         raise ValidationError(f"Not a language tag: {target_language!r}")
 
-    job_id = str(uuid.uuid4())
-    url = await blob_provider.upload_file(
-        get_settings().azure_storage_container, f"textbook-remediation/{job_id}/source.pdf", data, "application/pdf"
+    job = await repo.create(
+        tenant_id=str(user.get("tenant_id", "")), source_name=file.filename or "textbook.pdf",
+        source_url="", language=language, target_language=target_language or None,
     )
-    await repo.create(job_id, tenant_id=str(user.get("tenant_id", "")), source_name=file.filename or "textbook.pdf",
-                      source_url=url, language=language, target_language=target_language or None)
-    return {"job_id": job_id}
+    url = await blob_provider.upload_file(
+        get_settings().azure_storage_container, f"textbook-remediation/{job.job_id}/source.pdf", data, "application/pdf"
+    )
+    await repo.set_source_url(job.job_id, url)
+    return {"job_id": job.job_id}
 
 
 @router.get("/jobs", summary="List remediation jobs")

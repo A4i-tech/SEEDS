@@ -83,7 +83,7 @@ class RemediationJob:
     @classmethod
     def from_doc(cls, doc: dict[str, object]) -> RemediationJob:
         return cls(
-            job_id=doc["_id"], tenant_id=doc["tenant_id"], source_name=doc["source_name"],
+            job_id=str(doc["_id"]), tenant_id=doc["tenant_id"], source_name=doc["source_name"],
             source_url=doc["source_url"], language=doc["language"], status=doc["status"],
             stage=doc["stage"], detected_language=doc.get("detected_language"),
             artifacts=doc.get("artifacts") or {}, counts=doc.get("counts") or {},

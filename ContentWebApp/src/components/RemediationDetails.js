@@ -102,10 +102,10 @@ function MarkdownViewer({ text, jobId }) {
 
 const ARTIFACT_DOWNLOADS = [
   { key: "docx", ext: "docx", label: "Download Word" },
-  { key: "pdf", ext: "pdf", label: "Download PDF" },
+  { key: "pdf", ext: "pdf", label: "Download PDF", docxKey: "docx" },
   { key: "tex", ext: "tex", label: "Download LaTeX" },
   { key: "translated_docx", ext: "translated.docx", label: "Download Translated Word" },
-  { key: "translated_pdf", ext: "translated.pdf", label: "Download Translated PDF" },
+  { key: "translated_pdf", ext: "translated.pdf", label: "Download Translated PDF", docxKey: "translated_docx" },
   { key: "translated_tex", ext: "translated.tex", label: "Download Translated LaTeX" },
 ];
 
@@ -300,9 +300,29 @@ const RemediationDetails = () => {
                   </span>
                 )}
 
-                {ARTIFACT_DOWNLOADS.map(
-                  (entry) =>
-                    job.artifacts[entry.key] && (
+                {ARTIFACT_DOWNLOADS.some((entry) => job.artifacts[entry.key]) && (
+                  <button
+                    type="button"
+                    className="action-ghost-button"
+                    onClick={() =>
+                      ARTIFACT_DOWNLOADS.forEach(
+                        (entry) =>
+                          job.artifacts[entry.key] &&
+                          textbookRemediationService.downloadArtifact(
+                            job.job_id,
+                            entry.key,
+                            `${job.source_name.replace(/\.pdf$/i, "")}.${entry.ext}`
+                          )
+                      )
+                    }
+                  >
+                    Download all
+                  </button>
+                )}
+
+                {ARTIFACT_DOWNLOADS.map((entry) => {
+                  if (job.artifacts[entry.key]) {
+                    return (
                       <button
                         key={entry.key}
                         type="button"
@@ -317,8 +337,17 @@ const RemediationDetails = () => {
                       >
                         {entry.label}
                       </button>
-                    )
-                )}
+                    );
+                  }
+                  if (entry.docxKey && job.artifacts[entry.docxKey] && job.status === "verified") {
+                    return (
+                      <span key={entry.key} className="remediation-pdf-unavailable">
+                        PDF unavailable
+                      </span>
+                    );
+                  }
+                  return null;
+                })}
 
                 <Select
                   id="remediation-translate-language"

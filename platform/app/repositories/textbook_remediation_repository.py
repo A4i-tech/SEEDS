@@ -8,12 +8,17 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import ClassVar
 
+from bson import ObjectId
 from fastapi import Depends
 from pymongo import ReturnDocument
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.remediation_job import RemediationJob
 from app.platform.auth.dependencies import get_db
+
+
+def _oid(job_id: str) -> ObjectId:
+    return ObjectId(job_id)
 
 
 class TextbookRemediationRepository:
@@ -23,20 +28,26 @@ class TextbookRemediationRepository:
         self._col = db[self.COLLECTION_NAME]
 
     async def create(
-        self, job_id: str, *, tenant_id: str, source_name: str, source_url: str, language: str,
+        self, *, tenant_id: str, source_name: str, source_url: str, language: str,
         target_language: str | None = None,
     ) -> RemediationJob:
         initial_lang = "detecting" if language in ("auto", "detecting") else language
         job = RemediationJob(
-            job_id=job_id, tenant_id=tenant_id, source_name=source_name, source_url=source_url,
+            job_id="", tenant_id=tenant_id, source_name=source_name, source_url=source_url,
             language=initial_lang, status="pending", stage=None, created_at=datetime.now(UTC).isoformat(),
             target_language=target_language,
         )
-        await self._col.insert_one(job.to_doc())
+        doc = job.to_doc()
+        del doc["_id"]
+        result = await self._col.insert_one(doc)
+        job.job_id = str(result.inserted_id)
         return job
 
+    async def set_source_url(self, job_id: str, source_url: str) -> None:
+        await self._col.update_one({"_id": _oid(job_id)}, {"$set": {"source_url": source_url}})
+
     async def get(self, tenant_id: str, job_id: str) -> RemediationJob | None:
-        doc = await self._col.find_one({"_id": job_id, "tenant_id": tenant_id})
+        doc = await self._col.find_one({"_id": _oid(job_id), "tenant_id": tenant_id})
         return RemediationJob.from_doc(doc) if doc else None
 
     async def list_jobs(self, tenant_id: str, *, limit: int = 20) -> list[RemediationJob]:
@@ -45,7 +56,7 @@ class TextbookRemediationRepository:
 
     async def soft_delete(self, tenant_id: str, job_id: str) -> RemediationJob | None:
         doc = await self._col.find_one_and_update(
-            {"_id": job_id, "tenant_id": tenant_id},
+            {"_id": _oid(job_id), "tenant_id": tenant_id},
             {"$set": {"deleted_at": datetime.now(UTC).isoformat()}},
             return_document=ReturnDocument.AFTER,
         )
@@ -63,26 +74,26 @@ class TextbookRemediationRepository:
 
     async def set_stage(self, job_id: str, stage: str) -> RemediationJob | None:
         doc = await self._col.find_one_and_update(
-            {"_id": job_id}, {"$set": {"stage": stage}}, return_document=ReturnDocument.AFTER
+            {"_id": _oid(job_id)}, {"$set": {"stage": stage}}, return_document=ReturnDocument.AFTER
         )
         return RemediationJob.from_doc(doc) if doc else None
 
     async def update_progress(self, job_id: str, progress: dict[str, object]) -> RemediationJob | None:
         doc = await self._col.find_one_and_update(
-            {"_id": job_id}, {"$set": {"progress": progress}}, return_document=ReturnDocument.AFTER
+            {"_id": _oid(job_id)}, {"$set": {"progress": progress}}, return_document=ReturnDocument.AFTER
         )
         return RemediationJob.from_doc(doc) if doc else None
 
     async def update_language(self, job_id: str, language: str) -> RemediationJob | None:
         doc = await self._col.find_one_and_update(
-            {"_id": job_id}, {"$set": {"language": language, "detected_language": language}}, return_document=ReturnDocument.AFTER
+            {"_id": _oid(job_id)}, {"$set": {"language": language, "detected_language": language}}, return_document=ReturnDocument.AFTER
         )
         return RemediationJob.from_doc(doc) if doc else None
 
 
     async def update_metrics(self, job_id: str, metrics: dict[str, object]) -> RemediationJob | None:
         doc = await self._col.find_one_and_update(
-            {"_id": job_id}, {"$set": {"metrics": metrics}}, return_document=ReturnDocument.AFTER
+            {"_id": _oid(job_id)}, {"$set": {"metrics": metrics}}, return_document=ReturnDocument.AFTER
         )
         return RemediationJob.from_doc(doc) if doc else None
 
@@ -91,7 +102,7 @@ class TextbookRemediationRepository:
         if draft_url:
             update["artifacts.draft"] = draft_url
         doc = await self._col.find_one_and_update(
-            {"_id": job_id}, {"$set": update}, return_document=ReturnDocument.AFTER
+            {"_id": _oid(job_id)}, {"$set": update}, return_document=ReturnDocument.AFTER
         )
         return RemediationJob.from_doc(doc) if doc else None
 
@@ -110,27 +121,27 @@ class TextbookRemediationRepository:
         if title:
             update["title"] = title
         doc = await self._col.find_one_and_update(
-            {"_id": job_id}, {"$set": update}, return_document=ReturnDocument.AFTER
+            {"_id": _oid(job_id)}, {"$set": update}, return_document=ReturnDocument.AFTER
         )
         return RemediationJob.from_doc(doc) if doc else None
 
     async def record_artifacts(self, job_id: str, artifacts: dict[str, str], counts: dict[str, int]) -> RemediationJob | None:
         update = {f"artifacts.{name}": url for name, url in artifacts.items()}
         update.update({f"counts.{name}": value for name, value in counts.items()})
-        doc = await self._col.find_one_and_update({"_id": job_id}, {"$set": update}, return_document=ReturnDocument.AFTER)
+        doc = await self._col.find_one_and_update({"_id": _oid(job_id)}, {"$set": update}, return_document=ReturnDocument.AFTER)
         return RemediationJob.from_doc(doc) if doc else None
 
     async def set_translation_error(self, job_id: str, message: str | None) -> RemediationJob | None:
         """Records why an automatic (translate-at-start) translation failed, without
         touching job.status — remediation itself already succeeded."""
         doc = await self._col.find_one_and_update(
-            {"_id": job_id}, {"$set": {"translation_error": message}}, return_document=ReturnDocument.AFTER
+            {"_id": _oid(job_id)}, {"$set": {"translation_error": message}}, return_document=ReturnDocument.AFTER
         )
         return RemediationJob.from_doc(doc) if doc else None
 
     async def finish(self, job_id: str, status: str, *, error: str | None = None) -> RemediationJob | None:
         doc = await self._col.find_one_and_update(
-            {"_id": job_id},
+            {"_id": _oid(job_id)},
             {"$set": {"status": status, "error": error, "finished_at": datetime.now(UTC).isoformat()}},
             return_document=ReturnDocument.AFTER,
         )
