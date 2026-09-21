@@ -39,6 +39,12 @@ function parseDurationStr(str) {
  * A client-side timer provides smooth 1-second interpolation between updates.
  * The seek slider uses absolute-position seek for accuracy.
  */
+const REFUSAL_MESSAGES = {
+  "play-deferred-system-audio": "Playback deferred until the robot finishes speaking",
+  "resume-refused-system-audio": "Resume blocked — the robot is speaking",
+  "seek-deferred-system-audio": "Seek deferred until the robot finishes speaking",
+};
+
 const ConferenceAudioPlayer = ({
   trackTitle,
   trackLocal,
@@ -52,6 +58,7 @@ const ConferenceAudioPlayer = ({
   const serverPosition = audioContentState?.position_seconds;
   const serverDuration = audioContentState?.duration_seconds;
   const serverSpeed = audioContentState?.speed || 1.0;
+  const refusal = audioContentState?.last_refusal;
 
   const totalDuration =
     serverDuration != null && serverDuration > 0
@@ -239,6 +246,11 @@ const ConferenceAudioPlayer = ({
               />
             )}
           </Box>
+          {refusal && (
+            <Typography variant="caption" color="warning.main" sx={{ display: "block", mt: 0.25 }}>
+              {REFUSAL_MESSAGES[refusal] || refusal}
+            </Typography>
+          )}
         </Box>
       </Box>
 
