@@ -26,6 +26,7 @@ from app.providers.vonage_actions.connect_action import VonageConnectAction
 from app.providers.vonage_actions.input_action import InputAction
 from app.providers.vonage_actions.talk_action import TalkAction
 from app.providers.websocket_client import WebsocketClientProvider, get_websocket_service
+from app.repositories.call_repository import CallsLogRepository
 from app.repositories.ivr_repository import IVRRepository
 from app.services.fsm.instantiation.insti import (
     instantiate_from_latest_content,
@@ -401,6 +402,44 @@ class IVRService:
 
         return ncco, is_terminal
 
+
+    async def resolve_call_leg_id(self, conversation_uuid: str) -> str | None:
+        ivr_state = await IVRRepository(self._db).find_by_conversation_uuid(conversation_uuid)
+        return ivr_state.id if ivr_state else None
+
+    async def try_claim_dtmf_result(
+        self,
+        call_leg_id: str,
+        message_id: str,
+        ncco: list[dict[str, Any]],
+        should_hangup: bool,
+    ) -> bool:
+        return await IVRRepository(self._db).try_claim_dtmf_result(
+            call_leg_id, message_id, ncco, should_hangup
+        )
+
+    async def set_dtmf_waiting(self, call_leg_id: str, message_id: str) -> None:
+        await IVRRepository(self._db).set_dtmf_waiting(call_leg_id, message_id)
+
+    async def wait_for_dtmf_result(
+        self,
+        call_leg_id: str,
+        message_id: str,
+        *,
+        wait_seconds: float,
+        poll_interval_seconds: float,
+    ) -> dict[str, Any] | None:
+        repo = IVRRepository(self._db)
+        deadline = asyncio.get_event_loop().time() + wait_seconds
+        while asyncio.get_event_loop().time() < deadline:
+            marker = await repo.peek_dtmf_result(call_leg_id, message_id)
+            if marker and not marker["waiting"] and marker.get("ncco") is not None:
+                break
+            await asyncio.sleep(poll_interval_seconds)
+        return await repo.pop_dtmf_result(call_leg_id, message_id)
+
+    async def create_pending_call_log(self, phone_number: str) -> str:
+        return await CallsLogRepository(self._db).create_pending(phone_number)
 
     async def process_call_event(
         self,

@@ -12,7 +12,6 @@ Security: all POST routes validate Vonage JWT via verify_vonage_signature.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Any
 
@@ -23,8 +22,6 @@ from app.models.ivr_state import DTMFInput, EventWebhookRequest
 from app.platform.database import get_database
 from app.platform.settings import get_settings
 from app.providers.service_bus import service_bus_provider
-from app.repositories.call_repository import CallsLogRepository
-from app.repositories.ivr_repository import IVRRepository
 from app.services.ivr_service import IVRService, hangup_call
 
 logger = logging.getLogger(__name__)
@@ -91,8 +88,7 @@ async def ivr_call_webhook(request: Request, background_tasks: BackgroundTasks) 
         logger.warning("ivr /webhook: not a missed call (status=%s)", call_status)
         return {"detail": "Invalid call data — not a missed call"}
 
-    db = get_database()
-    call_log_id = await CallsLogRepository(db).create_pending(phone_number)
+    call_log_id = await IVRService(get_database()).create_pending_call_log(phone_number)
     logger.info("ivr /webhook: logged missed call %s id=%s", phone_number, call_log_id)
 
     payload = {
@@ -147,9 +143,9 @@ async def ivr_dtmf_webhook(request: Request, background_tasks: BackgroundTasks) 
     }
     message_id = f"dtmf:{conv_id}:{call_leg_id}:{digits}:{dtmf_input.timestamp}"
 
-    repo = IVRRepository(get_database()) if call_leg_id else None
-    if repo:
-        await repo.set_dtmf_waiting(call_leg_id, message_id)
+    service = IVRService(get_database()) if call_leg_id else None
+    if service:
+        await service.set_dtmf_waiting(call_leg_id, message_id)
 
     try:
         await service_bus_provider.send_dtmf_input(payload, message_id=message_id)
@@ -157,8 +153,13 @@ async def ivr_dtmf_webhook(request: Request, background_tasks: BackgroundTasks) 
         logger.error("Failed to enqueue dtmf_input for call=%s: %s", conv_id, exc)
         return ENQUEUE_FAILED_NCCO
 
-    if repo:
-        marker = await _wait_for_dtmf_result(repo, call_leg_id, message_id)
+    if service:
+        marker = await service.wait_for_dtmf_result(
+            call_leg_id,
+            message_id,
+            wait_seconds=DTMF_BRIDGE_WAIT_SECONDS,
+            poll_interval_seconds=DTMF_BRIDGE_POLL_INTERVAL_SECONDS,
+        )
         if marker and not marker["waiting"] and marker.get("ncco") is not None:
             if marker.get("should_hangup"):
                 background_tasks.add_task(hangup_call, call_leg_id, get_settings())
@@ -171,18 +172,6 @@ async def ivr_dtmf_webhook(request: Request, background_tasks: BackgroundTasks) 
 
 DTMF_BRIDGE_WAIT_SECONDS = 8.5
 DTMF_BRIDGE_POLL_INTERVAL_SECONDS = 0.2
-
-
-async def _wait_for_dtmf_result(
-    repo: IVRRepository, call_leg_id: str, message_id: str
-) -> dict[str, Any] | None:
-    deadline = asyncio.get_event_loop().time() + DTMF_BRIDGE_WAIT_SECONDS
-    while asyncio.get_event_loop().time() < deadline:
-        marker = await repo.peek_dtmf_result(call_leg_id, message_id)
-        if marker and not marker["waiting"] and marker.get("ncco") is not None:
-            break
-        await asyncio.sleep(DTMF_BRIDGE_POLL_INTERVAL_SECONDS)
-    return await repo.pop_dtmf_result(call_leg_id, message_id)
 
 
 async def _enqueue_call_event(payload: dict) -> None:
