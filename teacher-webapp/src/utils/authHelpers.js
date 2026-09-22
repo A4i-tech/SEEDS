@@ -1,4 +1,4 @@
-import { getAccessToken, clearAccessToken } from "./tokenStore";
+import { getAccessToken } from "./tokenStore";
 
 /**
  * Check if localStorage is available and accessible
@@ -16,33 +16,9 @@ export const isLocalStorageAvailable = () => {
 };
 
 /**
- * Get authentication headers with token
- * @returns {Object} Headers object with Authorization
- */
-export const getAuthHeaders = () => {
-  const token = getAccessToken();
-
-  if (!token) {
-    return null;
-  }
-
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
-};
-
-/**
  * Check if user is authenticated
  * @returns {boolean} True if token exists
  */
 export const isAuthenticated = () => {
   return !!getAccessToken();
-};
-
-/**
- * Clear all authentication data
- */
-export const clearAuth = () => {
-  clearAccessToken();
 };

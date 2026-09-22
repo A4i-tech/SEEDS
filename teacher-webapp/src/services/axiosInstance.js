@@ -64,6 +64,10 @@ axiosInstance.interceptors.response.use(
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return axiosInstance(originalRequest);
       } catch (refreshError) {
+        console.error("axiosInstance: token refresh failed", refreshError);
+        if (refreshError.response?.status !== 401) {
+          return Promise.reject(refreshError);
+        }
         clearAccessToken();
         window.location.href = "/";
         return Promise.reject(new Error("Session expired. Please login again."));
