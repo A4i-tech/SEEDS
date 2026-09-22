@@ -174,7 +174,7 @@ describe("Translate & Review — live component verification", () => {
     await waitFor(() => expect(within(screen.getByRole("table")).getByText("Rejected")).toBeInTheDocument());
   });
 
-  test("PASS — an already-approved row hides Approve but keeps Reject, Edit and Copy", async () => {
+  test("PASS — an already-approved row hides Approve but keeps Reject and Copy", async () => {
     translationService.listTranslations.mockResolvedValue([
       makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್", status: "approved" }),
     ]);
@@ -184,11 +184,11 @@ describe("Translate & Review — live component verification", () => {
     const row = within(screen.getByRole("table"));
     expect(row.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
     expect(row.getByRole("button", { name: "Reject" })).toBeInTheDocument();
-    expect(row.getByRole("button", { name: "Edit" })).toBeInTheDocument();
+    expect(row.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
     expect(row.getByRole("button", { name: "Copy" })).toBeInTheDocument();
   });
 
-  test("PASS — a rejected row hides Reject but keeps Approve, Edit and Copy", async () => {
+  test("PASS — a rejected row hides Reject but keeps Approve and Copy", async () => {
     translationService.listTranslations.mockResolvedValue([
       makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್", status: "rejected" }),
     ]);
@@ -198,7 +198,7 @@ describe("Translate & Review — live component verification", () => {
     const row = within(screen.getByRole("table"));
     expect(row.getByRole("button", { name: "Approve" })).toBeInTheDocument();
     expect(row.queryByRole("button", { name: "Reject" })).not.toBeInTheDocument();
-    expect(row.getByRole("button", { name: "Edit" })).toBeInTheDocument();
+    expect(row.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
     expect(row.getByRole("button", { name: "Copy" })).toBeInTheDocument();
   });
 

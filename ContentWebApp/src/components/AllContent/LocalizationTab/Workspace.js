@@ -87,13 +87,6 @@ function TransRow({ seg, idx, onEdit, onApprove, onReject, onCopy }) {
   const commit = () => {
     if (text !== seg.translation) onEdit(seg.id, text);
   };
-  const focusInput = () => {
-    const el = inputRef.current;
-    if (el) {
-      el.focus();
-      el.select();
-    }
-  };
 
   return (
     <tr className="table-row-white">
@@ -109,10 +102,19 @@ function TransRow({ seg, idx, onEdit, onApprove, onReject, onCopy }) {
         {truncated && (
           <button
             type="button"
-            className="tertiary-button"
             aria-expanded={expanded}
             aria-label={expanded ? "Show less source text" : "Show full source text"}
             onClick={() => setExpanded((v) => !v)}
+            style={{
+              background: "none",
+              border: "none",
+              padding: 0,
+              margin: 0,
+              color: "var(--color-primary)",
+              textDecoration: "underline",
+              fontSize: "12px",
+              cursor: "pointer",
+            }}
           >
             {expanded ? "Show less" : "Show more"}
           </button>
@@ -140,7 +142,6 @@ function TransRow({ seg, idx, onEdit, onApprove, onReject, onCopy }) {
           actions={[
             seg.stage !== "approved" && { key: "approve", label: "Approve", variant: "view", onClick: () => onApprove(seg.id) },
             seg.stage !== "rejected" && { key: "reject", label: "Reject", variant: "delete", onClick: () => onReject(seg.id) },
-            { key: "edit", label: "Edit", variant: "edit", onClick: focusInput },
             { key: "copy", label: "Copy", variant: "sync", onClick: () => onCopy(text) },
           ].filter(Boolean)}
         />
