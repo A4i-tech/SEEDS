@@ -31,20 +31,21 @@ class TestApplyAtempo:
     async def test_runs_ffmpeg_with_atempo_filter_and_returns_bytes(self) -> None:
         from app.consumers.content_job_consumer import _apply_atempo
 
-        def fake_run(cmd, **kwargs):
-            output_path = cmd[-1]
-            with open(output_path, "wb") as fh:
-                fh.write(b"variant-bytes")
-            assert "-filter:a" in cmd
-            assert cmd[cmd.index("-filter:a") + 1] == "atempo=1.5"
-            return AsyncMock(returncode=0)
+        proc = AsyncMock()
+        proc.communicate.return_value = (b"variant-bytes", b"")
+        proc.returncode = 0
 
-        with patch("subprocess.run", side_effect=fake_run) as mock_run:
+        with patch(
+            "asyncio.create_subprocess_exec", AsyncMock(return_value=proc)
+        ) as mock_exec:
             result = await _apply_atempo(b"input-bytes", 1.5, "content-atempo-test", ".wav")
 
         assert result == b"variant-bytes"
-        mock_run.assert_called_once()
-        assert mock_run.call_args.kwargs["check"] is True
+        mock_exec.assert_called_once()
+        cmd = mock_exec.call_args.args
+        assert "-filter:a" in cmd
+        assert cmd[cmd.index("-filter:a") + 1] == "atempo=1.5"
+        proc.communicate.assert_called_once_with(b"input-bytes")
 
 
 class TestGenerateSpeedVariants:
