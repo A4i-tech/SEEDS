@@ -19,7 +19,7 @@ export function SnippetBlock({ snippet }) {
       <button type="button" className="action-ghost-button" onClick={copy}>
         Copy Snippet
       </button>
-      <pre>
+      <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", maxWidth: "100%" }}>
         <code>{snippet}</code>
       </pre>
     </div>

@@ -32,7 +32,7 @@ const BADGE_STYLE = {
   pending: { background: "var(--color-warning-bg)", color: "var(--color-warning-fg)" },
 };
 
-const ACTIONS_COLUMN_STYLE = { width: 200 };
+const ACTIONS_COLUMN_STYLE = { width: 380 };
 
 let sourceCanvasCtx = null;
 
@@ -137,7 +137,6 @@ function TransRow({ seg, idx, onEdit, onApprove, onReject, onCopy }) {
       <td className="table-cell table-cell-actions" style={ACTIONS_COLUMN_STYLE}>
         <RowActions
           horizontal
-          wrap
           actions={[
             seg.stage !== "approved" && { key: "approve", label: "Approve", variant: "view", onClick: () => onApprove(seg.id) },
             seg.stage !== "rejected" && { key: "reject", label: "Reject", variant: "delete", onClick: () => onReject(seg.id) },
@@ -425,7 +424,7 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
       ) : (
         <>
           <div className="table-wrapper">
-            <table className="content-table" style={{ minWidth: 1020 }}>
+            <table className="content-table" style={{ minWidth: 1200 }}>
               <thead>
                 <tr>
                   <th className="table-header" style={{ width: 56 }}>#</th>

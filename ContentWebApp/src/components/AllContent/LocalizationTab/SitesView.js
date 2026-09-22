@@ -80,7 +80,7 @@ export function SitesView({ loc, toast }) {
         emptyMessage="Register a website above to get started."
       />
       {snippetSite && (
-        <Modal title={`SDK snippet — ${snippetSite.domain}`} onClose={() => setSnippetSite(null)}>
+        <Modal title={`SDK snippet — ${snippetSite.domain}`} onClose={() => setSnippetSite(null)} maxWidth={640}>
           <SnippetBlock snippet={snippetSite.snippet} />
         </Modal>
       )}
