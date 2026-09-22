@@ -410,6 +410,7 @@ htmlcov*/
 
 **/.env
 **/.env.*
+prod.env
 **/*.jks
 **/report.xml
 
