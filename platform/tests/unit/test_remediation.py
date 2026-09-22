@@ -117,7 +117,7 @@ async def test_run_translation_uploads_translated_artifacts(monkeypatch):
 
     translated = "translated heading and body"
 
-    async def fake_run_pipeline(pipeline_path, resource, workspace, options, on_progress=None):
+    async def fake_run_pipeline(pipeline_path, resource, workspace, options, on_progress=None, timeout=None):
         (workspace / "context.json").write_text(
             json.dumps({"metadata": {"translated_text": translated}}), encoding="utf-8"
         )
