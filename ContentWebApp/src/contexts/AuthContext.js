@@ -70,7 +70,6 @@ export const AuthProvider = ({ children }) => {
       value={{
         isAuthenticated,
         initializing: initState.isLoading,
-        initError: initState.error,
         login,
         loginState,
         logout,
