@@ -150,6 +150,7 @@ async def _run_sleeping_pipeline(tmp_path, monkeypatch, **kwargs):
         groq_api_key = ""
         mistral_ocr_api_key = ""
         mistral_ocr_endpoint = ""
+        mistral_ocr_model = ""
 
     monkeypatch.setattr(pipeline_mod, "get_settings", lambda: _Settings())
 
