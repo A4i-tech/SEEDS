@@ -32,13 +32,19 @@ from app.platform.auth.hashing import hash_password, verify_password
 from app.platform.auth.jwt import _parse_expires_delta, create_access_token
 from app.platform.auth.refresh_tokens import TokenPair
 from app.platform.error_handling import AppError, ConflictError, NotFoundError, UnauthorizedError
-from app.platform.settings import get_settings
+from app.platform.settings import Settings, get_settings
 from app.platform.telemetry import get_counter
 from app.repositories.classroom_repository import ClassroomRepository
 from app.repositories.user_refresh_token_repository import UserRefreshTokenRepository
 from app.repositories.user_repository import UserRepository
 
 logger = logging.getLogger(__name__)
+
+
+def _make_access_token(sub: str, claims: UserClaims, settings: Settings) -> tuple[str, int]:
+    token = create_access_token({"sub": sub, **claims})
+    expires_in = int(_parse_expires_delta(settings.jwt_expires_in).total_seconds())
+    return token, expires_in
 
 
 async def _issue_token_pair(
@@ -50,11 +56,8 @@ async def _issue_token_pair(
     db: AsyncDatabase,
 ) -> TokenPair:
     settings = get_settings()
-    access_token = create_access_token(
-        {"sub": sub, "role": role, "tenant_id": tenant_id, "school_id": school_id}
-    )
-    expires_in = int(_parse_expires_delta(settings.jwt_expires_in).total_seconds())
     claims: UserClaims = {"role": role, "tenant_id": tenant_id, "school_id": school_id}
+    access_token, expires_in = _make_access_token(sub, claims, settings)
     return await refresh_tokens.issue_pair(
         UserRefreshTokenRepository(db),
         owner_id=sub,
@@ -133,7 +136,7 @@ async def login_unified(
     identifier: str,
     password: str,
     is_email: bool,
-    db: AsyncDatabase,
+    db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> dict[str, Any]:
     """Authenticate a ContentWebApp user (tenant/school_admin by email, content_creator by phone).
 
@@ -186,7 +189,7 @@ async def login_unified(
 async def login_by_phone(
     phone: str,
     password: str,
-    db: AsyncDatabase,
+    db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> dict[str, Any]:
     """Authenticate a teacher by phone number and return a JWT + public user data.
 
@@ -197,7 +200,11 @@ async def login_by_phone(
     repo = UserRepository(db)
 
     user = await repo.find_by_phone(phone)
-    if user is None or not user.hashed_password or not verify_password(password, user.hashed_password):
+    if (
+        user is None
+        or not user.hashed_password
+        or not verify_password(password, user.hashed_password)
+    ):
         logger.warning("auth: teacher login failed — invalid credentials")
         auth_failures.add(1, {"reason": "invalid_credentials"})
         raise UnauthorizedError("Invalid phone or password")
@@ -224,7 +231,7 @@ async def login_by_phone(
 
 async def register_teacher(
     data: TeacherCreate,
-    db: AsyncDatabase,
+    db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> User:
     """
     Register a new teacher user.
@@ -268,7 +275,7 @@ async def register_teacher(
 
 async def register_tenant(
     data: TenantCreate,
-    db: AsyncDatabase,
+    db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> User:
     """
     Register a new tenant (admin) user.
@@ -311,9 +318,7 @@ async def refresh(
         return claims
 
     async def build_access_token(owner_id: str, claims: UserClaims) -> tuple[str, int]:
-        token = create_access_token({"sub": owner_id, **claims})
-        expires_in = int(_parse_expires_delta(settings.jwt_expires_in).total_seconds())
-        return token, expires_in
+        return _make_access_token(owner_id, claims, settings)
 
     return await refresh_tokens.rotate(
         UserRefreshTokenRepository(db),
@@ -333,7 +338,7 @@ async def refresh(
 async def get_user_profile(
     user_id: str,
     entity_label: str,
-    db: AsyncDatabase,
+    db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> User:
     """Fetch a user document by ID; raise NotFoundError if absent."""
     user = await UserRepository(db).find_by_id(user_id)
@@ -346,7 +351,7 @@ async def change_password(
     user_id: str,
     current_password: str,
     new_password: str,
-    db: AsyncDatabase,
+    db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> None:
     """Hash *new_password* and persist it for *user_id*. Raises NotFoundError if absent."""
     repo = UserRepository(db)
@@ -361,7 +366,7 @@ async def change_password(
 async def get_school_admin_profile(
     school_id: str,
     tenant_id: str,
-    db: AsyncDatabase,
+    db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> UserPublicResponse:
     """Return the school document for a school admin (parity with backend-server getMe).
 
@@ -374,7 +379,7 @@ async def get_school_admin_profile(
 
 
 async def get_tenant_names(
-    db: AsyncDatabase,
+    db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> list[dict[str, str]]:
     """Return a list of all tenant names (public endpoint)."""
     cursor = db["users"].find({"role": UserRole.TENANT.value}, {"tenant_name": 1, "name": 1})
@@ -387,7 +392,7 @@ async def get_tenant_names(
 
 async def get_tenant_dashboard(
     tenant_id: str,
-    db: AsyncDatabase,
+    db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> TenantDashboardResponse:
     """Return aggregated dashboard statistics for a tenant."""
     all_users = await UserRepository(db).find_all_by_tenant(tenant_id)
@@ -405,8 +410,12 @@ async def get_tenant_dashboard(
         school_rows.append(
             SchoolDashboardRow(
                 **SchoolResponse.from_domain(school).to_response(),
-                teacher_count=sum(1 for u in all_users if str(u.school_id) == sid and u.role == UserRole.TEACHER),
-                student_count=sum(1 for u in all_users if str(u.school_id) == sid and u.role == UserRole.STUDENT),
+                teacher_count=sum(
+                    1 for u in all_users if str(u.school_id) == sid and u.role == UserRole.TEACHER
+                ),
+                student_count=sum(
+                    1 for u in all_users if str(u.school_id) == sid and u.role == UserRole.STUDENT
+                ),
                 class_count=len(classes),
             )
         )

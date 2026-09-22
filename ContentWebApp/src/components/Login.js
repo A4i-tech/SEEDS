@@ -108,7 +108,12 @@ const Login = () => {
     password: "",
   });
 
-  const showError = formError || (loginState.error && "Login failed. Please verify your details.");
+  const showError =
+    formError ||
+    (loginState.error &&
+      (loginState.error.status === 401
+        ? "Invalid credentials. Please try again."
+        : loginState.error.message || "Login failed. Please verify your details."));
 
   const handleChange = (field) => (event) => {
     setFormData((prev) => ({ ...prev, [field]: event.target.value }));

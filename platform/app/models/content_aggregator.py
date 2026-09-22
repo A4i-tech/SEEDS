@@ -28,7 +28,6 @@ class IntegrationClient(BaseModel):
 
 
 class IntegrationTokenType(StrEnum):
-    ACCESS = "access"
     REFRESH = "refresh"
 
 

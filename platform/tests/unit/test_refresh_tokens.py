@@ -48,8 +48,6 @@ class FakeStore:
         return ConsumedToken(
             owner_id=doc["owner_id"],
             claims=doc["claims"],
-            expires_at=doc["expires_at"],
-            revoked=doc["revoked"],
         )
 
     async def revoke_all_for_owner(self, owner_id: str, *, reason: str) -> None:

@@ -28,8 +28,6 @@ class UserRefreshTokenRepository(BaseRepository):
         return ConsumedToken(
             owner_id=token.owner_id,
             claims=cast(UserClaims, token.claims.model_dump()),
-            expires_at=token.expires_at,
-            revoked=token.revoked,
         )
 
     async def insert(

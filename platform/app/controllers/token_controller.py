@@ -25,7 +25,7 @@ async def refresh_token(
         raise UnauthorizedError("Missing refresh token")
     try:
         result = await service.refresh(token)
-    except (UnauthorizedError, AppError):
+    except AppError:
         clear_refresh_cookie(response)
         raise
     set_refresh_cookie(response, result["refresh_token"])

@@ -4,10 +4,9 @@ import secrets
 from datetime import UTC, datetime
 from typing import TypedDict
 
-from jose import ExpiredSignatureError, JWTError, jwt
+from jose import jwt
 
 from app.platform.auth.jwt import _parse_expires_delta
-from app.platform.error_handling import UnauthorizedError
 
 _ALGORITHM = "HS256"
 _ISSUER = "content-aggregator"
@@ -49,18 +48,3 @@ def encode_access_token(
     }
     token = jwt.encode(payload, secret_key, algorithm=_ALGORITHM)
     return token, int(delta.total_seconds())
-
-
-def decode_access_token(token: str, *, secret_key: str) -> AccessTokenClaims:
-    try:
-        return jwt.decode(
-            token,
-            secret_key,
-            algorithms=[_ALGORITHM],
-            issuer=_ISSUER,
-            options={"require": ["sub", "tenant_ids", "exp", "iss", "jti", "scope", "client_name"]},
-        )
-    except ExpiredSignatureError:
-        raise UnauthorizedError("Token has expired")
-    except JWTError:
-        raise UnauthorizedError("Invalid token")

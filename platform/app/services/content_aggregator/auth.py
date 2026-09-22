@@ -55,8 +55,6 @@ class _IntegrationTokenStore:
         return ConsumedToken(
             owner_id=doc.client_id,
             claims={"tenant_ids": doc.tenant_ids, "scope": doc.scope},
-            expires_at=doc.expires_at,
-            revoked=doc.revoked,
         )
 
     async def insert(
@@ -107,7 +105,9 @@ class ContentAggregatorAuth:
     ) -> IntegrationTokenPair:
         client = await self._clients.find_by_client_id(client_id)
         if client is None or not verify_password(client_secret, client.client_secret_hash):
-            logger.warning("content_aggregator auth: invalid credentials for client_id=%s", client_id)
+            logger.warning(
+                "content_aggregator auth: invalid credentials for client_id=%s", client_id
+            )
             raise UnauthorizedError("Invalid client credentials")
 
         if client.status != IntegrationClientStatus.ACTIVE:
@@ -165,13 +165,12 @@ class ContentAggregatorAuth:
         )
         return client_id, client_secret
 
-    async def verify_token(self, token: str) -> _jwt.AccessTokenClaims:
-        return _jwt.decode_access_token(token, secret_key=self._settings.secret_key)
-
     async def refresh_token(self, refresh_token: str) -> IntegrationTokenPair:
         granted_scope = ""
 
-        async def verify_owner_active(owner_id: str, claims: IntegrationClaims) -> IntegrationClaims:
+        async def verify_owner_active(
+            owner_id: str, claims: IntegrationClaims
+        ) -> IntegrationClaims:
             client = await self._clients.find_by_client_id(owner_id)
             if client is None or client.status != IntegrationClientStatus.ACTIVE:
                 raise AppError("TENANT_NOT_ALLOWED", "Client is not active", 403)
