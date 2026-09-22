@@ -167,20 +167,21 @@ class ContentAggregatorAuth:
 
     async def refresh_token(self, refresh_token: str) -> IntegrationTokenPair:
         granted_scope = ""
+        client_name = ""
 
         async def verify_owner_active(
             owner_id: str, claims: IntegrationClaims
         ) -> IntegrationClaims:
+            nonlocal client_name
             client = await self._clients.find_by_client_id(owner_id)
             if client is None or client.status != IntegrationClientStatus.ACTIVE:
                 raise AppError("TENANT_NOT_ALLOWED", "Client is not active", 403)
+            client_name = client.name
             return claims
 
         async def build_access_token(owner_id: str, claims: IntegrationClaims) -> tuple[str, int]:
             nonlocal granted_scope
             granted_scope = claims["scope"]
-            client = await self._clients.find_by_client_id(owner_id)
-            client_name = client.name if client is not None else owner_id
             return _jwt.encode_access_token(
                 client_id=owner_id,
                 tenant_ids=claims["tenant_ids"],
