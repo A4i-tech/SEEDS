@@ -158,56 +158,33 @@ async def _transcode_to_wav(input_path: str, output_path: str) -> None:
 
 
 async def _apply_atempo(input_bytes: bytes, speed: float, content_id: str, ext: str) -> bytes:
-    """Runs FFmpeg's atempo filter on *input_bytes* to produce a pitch-preserving
-    speed variant. *ext* (e.g. ".wav", ".mp3") is used for both the input and
-    output temp files — the container format is preserved.
+    fmt = ext.lstrip(".")
+    cmd = ["ffmpeg", "-y", "-f", fmt, "-i", "pipe:0", "-filter:a", f"atempo={speed}", "-f", fmt, "pipe:1"]
 
-    SECURITY: subprocess list form, no shell=True. Both paths validated to be
-    inside the system temp directory. Timeout enforced.
-    """
-    input_path = _make_temp_input_path(content_id, suffix=ext)
-    fd, output_path = tempfile.mkstemp(prefix=f"seeds_variant_{content_id}_", suffix=ext)
-    os.close(fd)
-    _validate_temp_path(output_path)
+    logger.info("ffmpeg: generating speed variant %sx for content_id=%s", speed, content_id)
 
+    proc = await asyncio.create_subprocess_exec(  # nosec B603 — list form, no shell=True
+        *cmd,
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
     try:
-        with open(input_path, "wb") as fh:
-            fh.write(input_bytes)
-
-        cmd = [
-            "ffmpeg",
-            "-y",
-            "-i", input_path,
-            "-filter:a", f"atempo={speed}",
-            output_path,
-        ]
-
-        logger.info("ffmpeg: generating speed variant %sx for content_id=%s", speed, content_id)
-
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(
-            None,
-            lambda: subprocess.run(  # nosec B603 — list form, no shell=True
-                cmd,
-                check=True,
-                capture_output=True,
-                timeout=FFMPEG_TIMEOUT_SECONDS,
-            ),
+        stdout, stderr = await asyncio.wait_for(
+            proc.communicate(input_bytes), timeout=FFMPEG_TIMEOUT_SECONDS
         )
+    except TimeoutError as exc:
+        proc.kill()
+        await proc.wait()
+        raise subprocess.TimeoutExpired(cmd, FFMPEG_TIMEOUT_SECONDS) from exc
 
-        with open(output_path, "rb") as fh:
-            return fh.read()
-    finally:
-        _cleanup_temp_files(input_path, output_path)
+    if proc.returncode != 0:
+        raise subprocess.CalledProcessError(proc.returncode, cmd, output=stdout, stderr=stderr)
+
+    return stdout
 
 
 async def _generate_speed_variants(input_bytes: bytes, content_id: str, ext: str) -> dict[float, bytes]:
-    """Generates a pitch-preserving atempo variant for every SUPPORTED_SPEEDS
-    entry except 1.0x (the caller already has the base bytes).
-
-    A failure generating one variant is logged and skipped rather than
-    failing the whole content job — the base 1.0x audio must remain usable.
-    """
     variants: dict[float, bytes] = {}
     for speed in SUPPORTED_SPEEDS:
         if speed == 1.0:
@@ -275,11 +252,6 @@ def _parse_blob_url_simple(blob_url: str) -> tuple[str, str]:
 
 
 def _variant_blob_name(base_blob_name: str, speed: float) -> str:
-    """Derive the speed-variant blob name from the base (1.0x) blob name.
-
-    e.g. "content123/1.0.mp3" -> "content123/1.0__speed_1.5.mp3". The 1.0x
-    speed has no variant — it is the base blob itself.
-    """
     if speed == 1.0:
         return base_blob_name
     if "." in base_blob_name:
