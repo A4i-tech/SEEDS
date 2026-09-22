@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from jose import jwt as jose_jwt
 from pydantic import ValidationError
 
 from app.models.requests.content_aggregator_requests import ContentAggregatorTokenRequest
@@ -22,6 +23,15 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[2] / "app"
 
 def _stored_token_id(raw_token: str) -> str:
     return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+
+
+def _decode_access_token(token: str, settings: Settings) -> dict:
+    return jose_jwt.decode(
+        token,
+        settings.secret_key,
+        algorithms=["HS256"],
+        issuer="content-aggregator",
+    )
 
 
 @pytest.fixture
@@ -94,22 +104,22 @@ class TestIssueTokenSuccess:
         assert stored["type"] == "refresh"
         assert stored["revoked"] is False
 
-    async def test_access_token_verifiable(self, mock_db, auth):
+    async def test_access_token_verifiable(self, mock_db, auth, settings):
         await _seed_client(mock_db, tenant_ids=["tenant-a"], allowed_scopes=["content:read"])
 
         result = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
-        payload = await auth.verify_token(result["access_token"])
+        payload = _decode_access_token(result["access_token"], settings)
 
         assert payload["sub"] == "partner-1"
         assert payload["client_name"] == "Partner One"
         assert payload["tenant_ids"] == ["tenant-a"]
         assert payload["scope"] == "content:read"
 
-    async def test_multi_tenant_client_receives_all_tenant_ids_by_default(self, mock_db, auth):
+    async def test_multi_tenant_client_receives_all_tenant_ids_by_default(self, mock_db, auth, settings):
         await _seed_client(mock_db, tenant_ids=["tenant-a", "tenant-b"])
 
         result = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
-        payload = await auth.verify_token(result["access_token"])
+        payload = _decode_access_token(result["access_token"], settings)
 
         assert payload["tenant_ids"] == ["tenant-a", "tenant-b"]
 
@@ -156,7 +166,6 @@ class TestIssueTokenFailures:
         assert exc_info.value.code == "SCOPE_INSUFFICIENT"
 
     async def test_empty_allowed_scopes_rejected(self, mock_db, auth):
-        """A client with no allowed_scopes must not receive a zero-scope token."""
         await _seed_client(mock_db, allowed_scopes=[])
 
         with pytest.raises(AppError) as exc_info:
@@ -173,12 +182,6 @@ class TestRequestValidation:
     def test_empty_client_secret_rejected(self):
         with pytest.raises(ValidationError):
             ContentAggregatorTokenRequest(client_id="x", client_secret="")
-
-
-class TestVerifyToken:
-    async def test_garbage_token_raises_unauthorized(self, auth):
-        with pytest.raises(UnauthorizedError):
-            await auth.verify_token("not-a-real-token")
 
 
 async def _seed_expired_refresh_token(
@@ -226,21 +229,21 @@ class TestRefreshTokenSuccess:
         assert new_doc is not None
         assert new_doc["revoked"] is False
 
-    async def test_rotated_access_token_carries_original_scopes_not_escalated(self, mock_db, auth):
+    async def test_rotated_access_token_carries_original_scopes_not_escalated(self, mock_db, auth, settings):
         await _seed_client(mock_db, allowed_scopes=["content:read", "content:write"])
         issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
 
         result = await auth.refresh_token(issued["refresh_token"])
-        payload = await auth.verify_token(result["access_token"])
+        payload = _decode_access_token(result["access_token"], settings)
 
         assert payload["scope"] == "content:read"
 
-    async def test_rotated_access_token_carries_original_tenant_ids(self, mock_db, auth):
+    async def test_rotated_access_token_carries_original_tenant_ids(self, mock_db, auth, settings):
         await _seed_client(mock_db, tenant_ids=["tenant-a", "tenant-b"])
         issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
 
         result = await auth.refresh_token(issued["refresh_token"])
-        payload = await auth.verify_token(result["access_token"])
+        payload = _decode_access_token(result["access_token"], settings)
 
         assert payload["tenant_ids"] == ["tenant-a", "tenant-b"]
 
@@ -265,7 +268,7 @@ class TestRefreshTokenReuseDetection:
         rotated = await auth.refresh_token(root_refresh)
 
         with pytest.raises(UnauthorizedError):
-            await auth.refresh_token(root_refresh)  # replay of already-revoked token
+            await auth.refresh_token(root_refresh)
 
         with pytest.raises(UnauthorizedError):
             await auth.refresh_token(rotated["refresh_token"])
@@ -283,7 +286,7 @@ class TestRefreshTokenReuseDetection:
         await auth.refresh_token(family_a["refresh_token"])
 
         with pytest.raises(UnauthorizedError):
-            await auth.refresh_token(family_a["refresh_token"])  # replay of already-revoked token
+            await auth.refresh_token(family_a["refresh_token"])
 
         other_family_doc = await mock_db["integrationTokens"].find_one(
             {"token_id": _stored_token_id(family_b["refresh_token"])}
