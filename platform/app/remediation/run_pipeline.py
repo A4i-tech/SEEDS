@@ -22,6 +22,7 @@ _REMEDIATION_SETTINGS_KEYS = (
     "groq_api_key",
     "mistral_ocr_api_key",
     "mistral_ocr_endpoint",
+    "mistral_ocr_model",
 )
 
 

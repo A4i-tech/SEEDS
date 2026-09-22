@@ -88,6 +88,7 @@ class Settings(BaseSettings):
 
     mistral_ocr_api_key: str = Field(default="", repr=False)
     mistral_ocr_endpoint: str = ""
+    mistral_ocr_model: str = ""
 
     translator_key: str = Field(default="", repr=False)
     translator_region: str = ""

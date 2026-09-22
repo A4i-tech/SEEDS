@@ -19,7 +19,6 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI
 
-from app.consumers.sync_job_consumer import SyncJobConsumer
 from app.platform.database import close_database, get_database, init_database
 from app.platform.settings import get_settings
 from app.providers.subodha_client import close_subodha_client
@@ -157,6 +156,7 @@ def _make_consumer_tasks(conference_manager: Any) -> list[asyncio.Task]:  # type
         logger.error("Failed to initialise TextbookRemediationConsumer: %s", exc)
 
     try:
+        from app.consumers.sync_job_consumer import SyncJobConsumer  # noqa: PLC0415
         consumer_specs.append(("SyncJobConsumer", SyncJobConsumer(db)))
     except Exception as exc:  # noqa: BLE001
         logger.error("Failed to initialise SyncJobConsumer: %s", exc)
