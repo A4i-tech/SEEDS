@@ -29,6 +29,20 @@ beforeAll(() => {
   if (!window.PointerEvent) {
     window.PointerEvent = window.MouseEvent;
   }
+  // jsdom has no layout engine (clientWidth is always 0) and no canvas 2D context.
+  // Fake both so useIsTruncated's width comparison is meaningful in tests: a fixed
+  // "container width" of 150px against a measured width proportional to text length.
+  Object.defineProperty(window.HTMLElement.prototype, "clientWidth", { configurable: true, value: 150 });
+  window.HTMLCanvasElement.prototype.getContext = () => ({
+    measureText: (text) => ({ width: text.length * 10 }),
+  });
+  window.ResizeObserver =
+    window.ResizeObserver ||
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
 });
 
 const langs = [
@@ -160,6 +174,34 @@ describe("Translate & Review — live component verification", () => {
     await waitFor(() => expect(within(screen.getByRole("table")).getByText("Rejected")).toBeInTheDocument());
   });
 
+  test("PASS — an already-approved row hides Approve but keeps Reject, Edit and Copy", async () => {
+    translationService.listTranslations.mockResolvedValue([
+      makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್", status: "approved" }),
+    ]);
+    renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
+    await screen.findByText("Hello World");
+
+    const row = within(screen.getByRole("table"));
+    expect(row.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
+    expect(row.getByRole("button", { name: "Reject" })).toBeInTheDocument();
+    expect(row.getByRole("button", { name: "Edit" })).toBeInTheDocument();
+    expect(row.getByRole("button", { name: "Copy" })).toBeInTheDocument();
+  });
+
+  test("PASS — a rejected row hides Reject but keeps Approve, Edit and Copy", async () => {
+    translationService.listTranslations.mockResolvedValue([
+      makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್", status: "rejected" }),
+    ]);
+    renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
+    await screen.findByText("Hello World");
+
+    const row = within(screen.getByRole("table"));
+    expect(row.getByRole("button", { name: "Approve" })).toBeInTheDocument();
+    expect(row.queryByRole("button", { name: "Reject" })).not.toBeInTheDocument();
+    expect(row.getByRole("button", { name: "Edit" })).toBeInTheDocument();
+    expect(row.getByRole("button", { name: "Copy" })).toBeInTheDocument();
+  });
+
   test("PASS — unfiltered Approve All uses the bulk endpoint, shows its counts and reloads", async () => {
     translationService.listTranslations.mockResolvedValue([
       makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" }),
@@ -267,26 +309,34 @@ describe("Translate & Review — live component verification", () => {
 
   describe("source text expansion", () => {
     const LONG = "A very long source sentence ".repeat(20).trim();
+    const LONG2 = "Another long source sentence ".repeat(20).trim();
     const seed = () =>
       translationService.listTranslations.mockResolvedValue([
         makeDoc("k1", LONG, { translated: "T1" }),
-        makeDoc("k2", "Second source", { translated: "T2" }),
+        makeDoc("k2", LONG2, { translated: "T2" }),
       ]);
 
     test("PASS — collapsed rows render the source through MiddleEllipsis", async () => {
       seed();
       renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
-      await screen.findByText("Second source");
+      await screen.findAllByTestId("middle-ellipsis");
       const cells = screen.getAllByTestId("middle-ellipsis");
       expect(cells).toHaveLength(2);
       expect(cells[0]).toHaveTextContent(LONG);
       expect(screen.getAllByRole("button", { name: "Show full source text" })).toHaveLength(2);
     });
 
+    test("PASS — a row whose source text fits is never given a Show more toggle", async () => {
+      translationService.listTranslations.mockResolvedValue([makeDoc("k1", "Hello World", { translated: "T1" })]);
+      renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
+      await screen.findByText("Hello World");
+      expect(screen.queryByRole("button", { name: "Show full source text" })).not.toBeInTheDocument();
+    });
+
     test("PASS — expanding a row shows the full wrapped source and collapsing restores the truncated view", async () => {
       seed();
       renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
-      await screen.findByText("Second source");
+      await screen.findAllByTestId("middle-ellipsis");
 
       await userEvent.click(screen.getAllByRole("button", { name: "Show full source text" })[0]);
       const toggle = screen.getByRole("button", { name: "Show less source text" });
@@ -305,11 +355,11 @@ describe("Translate & Review — live component verification", () => {
     test("PASS — expanding one row leaves the other row collapsed", async () => {
       seed();
       renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
-      await screen.findByText("Second source");
+      await screen.findAllByTestId("middle-ellipsis");
 
       await userEvent.click(screen.getAllByRole("button", { name: "Show full source text" })[0]);
 
-      const remaining = screen.getByText("Second source");
+      const remaining = screen.getByText(LONG2);
       expect(remaining).toHaveAttribute("data-testid", "middle-ellipsis");
       expect(screen.getAllByRole("button", { name: "Show full source text" })).toHaveLength(1);
       expect(screen.getAllByRole("button", { name: "Show less source text" })).toHaveLength(1);

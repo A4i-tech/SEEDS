@@ -8,8 +8,10 @@ const VARIANT_CLASS = {
   delete: "row-action row-action-delete",
 };
 
-const RowActions = ({ actions, horizontal = false }) => (
-  <div className={horizontal ? "row-actions row-actions-horizontal" : "row-actions"}>
+const RowActions = ({ actions, horizontal = false, wrap = false }) => (
+  <div
+    className={`row-actions${horizontal ? " row-actions-horizontal" : ""}${wrap ? " row-actions-wrap" : ""}`}
+  >
     {actions.map(({ key, label, onClick, variant, disabled }) => (
       <button key={key} type="button" className={VARIANT_CLASS[variant]} onClick={onClick} disabled={disabled}>
         {label}

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import Select from "../shared/Select";
@@ -32,7 +32,28 @@ const BADGE_STYLE = {
   pending: { background: "var(--color-warning-bg)", color: "var(--color-warning-fg)" },
 };
 
-const ACTIONS_COLUMN_STYLE = { width: 380 };
+const ACTIONS_COLUMN_STYLE = { width: 200 };
+
+let sourceCanvasCtx = null;
+
+function useIsTruncated(text) {
+  const ref = useRef(null);
+  const [truncated, setTruncated] = useState(false);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    const measure = () => {
+      if (!sourceCanvasCtx) sourceCanvasCtx = document.createElement("canvas").getContext("2d");
+      sourceCanvasCtx.font = getComputedStyle(el).font;
+      setTruncated(sourceCanvasCtx.measureText(text).width > el.clientWidth);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [text]);
+  return [ref, truncated];
+}
 
 function TabButton({ label, count, active, onClick }) {
   return (
@@ -56,6 +77,7 @@ function TransRow({ seg, idx, onEdit, onApprove, onReject, onCopy }) {
   const inputRef = useRef(null);
   const [text, setText] = useState(seg.translation);
   const [expanded, setExpanded] = useState(false);
+  const [sourceRef, truncated] = useIsTruncated(seg.sourceText);
   useEffect(() => setText(seg.translation), [seg.translation]);
   useEffect(() => {
     const el = inputRef.current;
@@ -77,20 +99,24 @@ function TransRow({ seg, idx, onEdit, onApprove, onReject, onCopy }) {
     <tr className="table-row-white">
       <td className="table-cell">{idx}</td>
       <td className="table-cell table-cell-truncate">
-        {expanded ? (
-          <span style={{ display: "block", whiteSpace: "normal", overflowWrap: "anywhere" }}>{seg.sourceText}</span>
-        ) : (
-          <MiddleEllipsis text={seg.sourceText} />
+        <div ref={sourceRef}>
+          {expanded ? (
+            <span style={{ display: "block", whiteSpace: "normal", overflowWrap: "anywhere" }}>{seg.sourceText}</span>
+          ) : (
+            <MiddleEllipsis text={seg.sourceText} />
+          )}
+        </div>
+        {truncated && (
+          <button
+            type="button"
+            className="tertiary-button"
+            aria-expanded={expanded}
+            aria-label={expanded ? "Show less source text" : "Show full source text"}
+            onClick={() => setExpanded((v) => !v)}
+          >
+            {expanded ? "Show less" : "Show more"}
+          </button>
         )}
-        <button
-          type="button"
-          className="tertiary-button"
-          aria-expanded={expanded}
-          aria-label={expanded ? "Show less source text" : "Show full source text"}
-          onClick={() => setExpanded((v) => !v)}
-        >
-          {expanded ? "Show less" : "Show more"}
-        </button>
       </td>
       <td className="table-cell">
         <textarea
@@ -111,12 +137,13 @@ function TransRow({ seg, idx, onEdit, onApprove, onReject, onCopy }) {
       <td className="table-cell table-cell-actions" style={ACTIONS_COLUMN_STYLE}>
         <RowActions
           horizontal
+          wrap
           actions={[
-            { key: "approve", label: "Approve", variant: "view", onClick: () => onApprove(seg.id) },
-            { key: "reject", label: "Reject", variant: "delete", onClick: () => onReject(seg.id) },
+            seg.stage !== "approved" && { key: "approve", label: "Approve", variant: "view", onClick: () => onApprove(seg.id) },
+            seg.stage !== "rejected" && { key: "reject", label: "Reject", variant: "delete", onClick: () => onReject(seg.id) },
             { key: "edit", label: "Edit", variant: "edit", onClick: focusInput },
             { key: "copy", label: "Copy", variant: "sync", onClick: () => onCopy(text) },
-          ]}
+          ].filter(Boolean)}
         />
       </td>
     </tr>
@@ -398,7 +425,7 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
       ) : (
         <>
           <div className="table-wrapper">
-            <table className="content-table" style={{ minWidth: 1200 }}>
+            <table className="content-table" style={{ minWidth: 1020 }}>
               <thead>
                 <tr>
                   <th className="table-header" style={{ width: 56 }}>#</th>

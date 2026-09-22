@@ -22,6 +22,17 @@ beforeAll(() => {
   window.HTMLElement.prototype.setPointerCapture = jest.fn();
   window.HTMLElement.prototype.releasePointerCapture = jest.fn();
   window.HTMLElement.prototype.scrollIntoView = jest.fn();
+  Object.defineProperty(window.HTMLElement.prototype, "clientWidth", { configurable: true, value: 150 });
+  window.HTMLCanvasElement.prototype.getContext = () => ({
+    measureText: (text) => ({ width: text.length * 10 }),
+  });
+  window.ResizeObserver =
+    window.ResizeObserver ||
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
 });
 
 const site = { id: "s1", siteId: "site-1", domain: "a.com", name: "", status: "Active" };

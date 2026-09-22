@@ -11,6 +11,10 @@
   gap: 10px;
 }
 
+.row-actions-wrap {
+  flex-wrap: wrap;
+}
+
 .row-actions-horizontal .row-action {
   width: auto;
   padding: 0 16px;
