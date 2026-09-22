@@ -27,6 +27,7 @@ class WebsiteRepository(BaseRepository):
         site_id: str,
         name: str = "",
         status: str = "Active",
+        languages: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         now = datetime.now(UTC)
         doc = {
@@ -35,6 +36,7 @@ class WebsiteRepository(BaseRepository):
             "site_id": site_id,
             "name": name,
             "status": status,
+            "languages": languages or [],
             "created_at": now,
             "updated_at": now,
         }

@@ -9,8 +9,20 @@ jest.mock("../../src/services/onboardingService", () => ({
 
 function makeLoc() {
   return {
-    sites: [{ id: "s1", name: "Home", domain: "a.com", url: "https://a.com", status: "Active" }],
-    languages: [{ id: "l1", name: "Hindi", code: "hi", direction: "ltr", enabled: true }],
+    sites: [
+      {
+        id: "s1",
+        name: "Home",
+        domain: "a.com",
+        url: "https://a.com",
+        status: "Active",
+        languages: [{ code: "hi", enabled: true }],
+      },
+    ],
+    languages: [
+      { code: "hi", standard: "ISO 639-1", name: "Hindi" },
+      { code: "bn", standard: "ISO 639-1", name: "Bengali" },
+    ],
     handleCreateSite: jest.fn(async (v) => ({ id: "s2", ...v })),
     handleUpdateSite: jest.fn(async (id, v) => ({ id, ...v })),
     handleDeleteSite: jest.fn(async () => {}),
@@ -58,6 +70,28 @@ test("add-site modal has no Project field and submits the site without a project
       domain: "new.example.org",
       name: "",
       status: "Active",
+      languages: [],
+    })
+  );
+});
+
+test("add-site modal supports multi-select of languages from the catalog", async () => {
+  const loc = makeLoc();
+  renderNav("sites", loc);
+  fireEvent.click(screen.getByRole("button", { name: "Add site" }));
+  fireEvent.change(screen.getByLabelText("Domain or URL"), { target: { value: "https://new.example.org" } });
+  fireEvent.click(screen.getByLabelText("Hindi (hi)"));
+  fireEvent.click(screen.getByLabelText("Bengali (bn)"));
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() =>
+    expect(loc.handleCreateSite).toHaveBeenCalledWith({
+      domain: "new.example.org",
+      name: "",
+      status: "Active",
+      languages: [
+        { code: "hi", enabled: true },
+        { code: "bn", enabled: true },
+      ],
     })
   );
 });
@@ -84,6 +118,29 @@ test("editing a site updates name/domain/status", async () => {
   fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Renamed" } });
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() =>
-    expect(loc.handleUpdateSite).toHaveBeenCalledWith("s1", { name: "Renamed", domain: "a.com", status: "Active" })
+    expect(loc.handleUpdateSite).toHaveBeenCalledWith("s1", {
+      name: "Renamed",
+      domain: "a.com",
+      status: "Active",
+      languages: [{ code: "hi", enabled: true }],
+    })
+  );
+});
+
+test("editing a site preserves already-checked languages and allows unchecking", async () => {
+  const loc = makeLoc();
+  renderNav("sites", loc);
+  fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+  expect(screen.getByLabelText("Hindi (hi)")).toBeChecked();
+  expect(screen.getByLabelText("Bengali (bn)")).not.toBeChecked();
+  fireEvent.click(screen.getByLabelText("Hindi (hi)"));
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() =>
+    expect(loc.handleUpdateSite).toHaveBeenCalledWith("s1", {
+      name: "Home",
+      domain: "a.com",
+      status: "Active",
+      languages: [],
+    })
   );
 });

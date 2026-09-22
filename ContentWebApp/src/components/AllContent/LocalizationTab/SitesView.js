@@ -12,7 +12,7 @@ import ModalActions from "../shared/ModalActions";
 import StatusPill from "../shared/StatusPill";
 
 export function SitesView({ loc, toast }) {
-  const { sites, handleCreateSite, handleUpdateSite, handleDeleteSite } = loc;
+  const { sites, languages: catalog, handleCreateSite, handleUpdateSite, handleDeleteSite } = loc;
 
   const [snippetSite, setSnippetSite] = useState(null);
 
@@ -31,23 +31,34 @@ export function SitesView({ loc, toast }) {
       return haystack.includes(query.toLowerCase());
     },
     getId: (site) => site.id,
-    emptyValues: { name: "", url: "", status: "Active" },
+    emptyValues: { name: "", url: "", status: "Active", languages: [] },
     onCreate: (values) =>
       handleCreateSite({
         domain: extractDomain(values.url),
         name: values.name,
         status: values.status,
+        languages: values.languages,
       }),
     onUpdate: (id, values) =>
       handleUpdateSite(id, {
         name: values.name,
         domain: extractDomain(values.url),
         status: values.status,
+        languages: values.languages,
       }),
     onDelete: handleDeleteSite,
     toast,
     entityLabel: "Site",
   });
+
+  const toggleLanguage = (code) => {
+    const current = dlg.values.languages || [];
+    const exists = current.some((l) => l.code === code);
+    const next = exists
+      ? current.filter((l) => l.code !== code)
+      : [...current, { code, enabled: true }];
+    set("languages", next);
+  };
 
   const columns = [
     {
@@ -114,6 +125,19 @@ export function SitesView({ loc, toast }) {
               { value: "Inactive", label: "Inactive" },
             ]}
           />
+          <label className="label">Languages</label>
+          <div className="checkbox-list">
+            {catalog.map((lang) => (
+              <label key={lang.code} className="checkbox-item">
+                <input
+                  type="checkbox"
+                  checked={(dlg.values.languages || []).some((l) => l.code === lang.code)}
+                  onChange={() => toggleLanguage(lang.code)}
+                />
+                {lang.name} ({lang.code})
+              </label>
+            ))}
+          </div>
           <ModalActions onCancel={() => setDlg(null)} onSave={save} disabled={!dlg.values.url.trim()} />
         </Modal>
       )}

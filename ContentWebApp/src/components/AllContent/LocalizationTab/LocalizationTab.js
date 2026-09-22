@@ -44,6 +44,14 @@ export default function LocalizationTab() {
 
   const pages = useMemo(() => pagesFromDocs(siteDocs, scope.lang), [siteDocs, scope.lang]);
 
+  const siteLanguages = useMemo(() => {
+    const site = sites.find((s) => s.siteId === scope.siteId);
+    const enabledCodes = new Set(
+      (site?.languages || []).filter((l) => l.enabled).map((l) => l.code)
+    );
+    return languages.filter((l) => enabledCodes.has(l.code));
+  }, [sites, scope.siteId, languages]);
+
   useEffect(() => {
     const routeMissing =
       !scope.route || (pages.length > 0 && !pages.some((p) => p.route === scope.route));
@@ -65,7 +73,7 @@ export default function LocalizationTab() {
     ) : (
       <WorkspaceScreen
         scope={scope}
-        languages={languages.filter((l) => l.enabled)}
+        languages={siteLanguages}
         sites={sites}
         onScope={setScope}
         pages={pages}

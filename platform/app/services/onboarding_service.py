@@ -81,6 +81,7 @@ class OnboardingService:
         domain: str,
         name: str = "",
         status: str = "Active",
+        languages: list[dict[str, Any]] | None = None,
     ) -> WebsiteResponse:
         _validate_domain(domain)
         self._snippet_base_urls()
@@ -92,7 +93,7 @@ class OnboardingService:
 
         site_id = str(uuid.uuid4())
         try:
-            website = await self._websites.create(project_id, domain, site_id, name, status)
+            website = await self._websites.create(project_id, domain, site_id, name, status, languages)
         except DuplicateKeyError as exc:
             raise ConflictError(f"Website with domain {domain!r}") from exc
         return WebsiteResponse.from_doc(website, snippet=self._snippet_for(website))

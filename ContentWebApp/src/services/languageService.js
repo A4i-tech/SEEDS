@@ -1,17 +1,14 @@
 import { SEEDS_URL } from "../Constants";
-import { getAuthHeaders } from "../utils/authHelpers";
 import { request } from "./requestHelpers";
-import { fromLanguageResponse } from "../dto/LocalizationDto";
 
 export const languageService = {
   async listLanguages() {
-    const url = `${SEEDS_URL}/languages?enabledOnly=false`;
+    const url = `${SEEDS_URL}/v1/languages`;
 
     const response = await request(url, {
       method: "GET",
-      headers: getAuthHeaders(),
     });
 
-    return response.map(fromLanguageResponse);
+    return response.languages;
   },
 };

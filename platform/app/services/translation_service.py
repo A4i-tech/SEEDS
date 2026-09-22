@@ -17,7 +17,6 @@ from app.providers.translation_provider import (
     get_translation_provider,
 )
 from app.repositories.glossary_repository import GlossaryRepository
-from app.repositories.language_repository import LanguageRepository
 from app.repositories.translation_audit_repository import TranslationAuditRepository
 from app.repositories.translation_repository import TranslationRepository
 from app.repositories.translation_version_repository import TranslationVersionRepository
@@ -47,7 +46,6 @@ class TranslationService:
         self._version_repo = TranslationVersionRepository(db)
         self._audit_repo = TranslationAuditRepository(db)
         self._website_repo = WebsiteRepository(db)
-        self._language_repo = LanguageRepository(db)
         self._enforce_lang_validation = enforce_lang_validation
 
     @property
@@ -62,13 +60,13 @@ class TranslationService:
             raise NotFoundError("website", site_id)
         return website
 
-    async def _ensure_lang_enabled(self, lang: str) -> None:
+    async def _ensure_lang_enabled(self, site_id: str, lang: str) -> None:
         if not self._enforce_lang_validation:
             return
-        languages = await self._language_repo.find_all(enabled_only=True)
-        codes = {language["code"] for language in languages}
+        website = await self._website_repo.find_by_site_id(site_id)
+        codes = {entry["code"] for entry in (website or {}).get("languages") or [] if entry.get("enabled")}
         if lang not in codes:
-            raise ValidationError(f"lang {lang!r} is not an enabled language")
+            raise ValidationError(f"lang {lang!r} is not an enabled language for this site")
 
     async def _audit(
         self,
@@ -167,7 +165,7 @@ class TranslationService:
     async def _generate_translations(
         self, site_id: str, route: str, lang: str, serve_pending: bool
     ) -> dict[str, str]:
-        await self._ensure_lang_enabled(lang)
+        await self._ensure_lang_enabled(site_id, lang)
         first_party = self._is_first_party(site_id)
         docs = await self._repo.find_by_route(site_id, route)
         result: dict[str, str] = {}

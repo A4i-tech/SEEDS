@@ -63,6 +63,7 @@ export const useLocalization = () => {
           domain: site.domain,
           name: site.name,
           status: site.status,
+          languages: site.languages,
         }),
       update: (id, fields) => onboardingService.updateSite(id, fields),
       delete: (id) => onboardingService.deleteSite(id),

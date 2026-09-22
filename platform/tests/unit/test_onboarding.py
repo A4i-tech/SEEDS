@@ -229,3 +229,26 @@ async def test_website_indexes_are_unique(mock_db):
     await repo.create("p1", "acme.com", "site-1")
     with pytest.raises(DuplicateKeyError):
         await repo.create("p1", "acme.com", "site-2")
+
+
+async def test_register_website_with_languages_stores_them(onboarding_service):
+    project = await onboarding_service.create_project("Acme Corp")
+    website = await onboarding_service.register_website(
+        project.id, "acme.com", languages=[{"code": "hi", "enabled": True}, {"code": "ar", "enabled": False}]
+    )
+    assert website.languages == [{"code": "hi", "enabled": True}, {"code": "ar", "enabled": False}]
+
+
+async def test_register_website_without_languages_defaults_to_empty_list(onboarding_service):
+    project = await onboarding_service.create_project("Acme Corp")
+    website = await onboarding_service.register_website(project.id, "acme.com")
+    assert website.languages == []
+
+
+async def test_update_website_languages_replaces_the_list(onboarding_service):
+    project = await onboarding_service.create_project("Acme Corp")
+    website = await onboarding_service.register_website(project.id, "acme.com")
+    updated = await onboarding_service.update_website(
+        website.id, {"languages": [{"code": "bn", "enabled": True}]}
+    )
+    assert updated.languages == [{"code": "bn", "enabled": True}]

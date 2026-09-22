@@ -453,12 +453,9 @@ async def test_runtime_translate_falls_back_to_source_on_transient(
 
 @pytest.fixture
 async def bound_service(mock_db, fake_provider):
-    from app.repositories.language_repository import LanguageRepository
-
     await mock_db["websites"].insert_many(
-        [{"site_id": "site1", "status": "Active", "domain": "acme.example"}]
+        [{"site_id": "site1", "status": "Active", "domain": "acme.example", "languages": [{"code": "hi", "enabled": True}]}]
     )
-    await LanguageRepository(mock_db).create("Hindi", "hi", "ltr", True)
     return TranslationService(mock_db, lambda: fake_provider)
 
 
@@ -490,6 +487,45 @@ async def test_runtime_translate_rejects_unknown_lang(bound_service):
     )
     with pytest.raises(ValidationError):
         await bound_service.runtime_translate("site1", "/h", "xx-not-a-lang")
+
+
+async def test_lang_enabled_check_is_scoped_per_site(mock_db, fake_provider):
+    await mock_db["websites"].insert_many(
+        [
+            {"site_id": "site_with_hi", "status": "Active", "languages": [{"code": "hi", "enabled": True}]},
+            {"site_id": "site_without_hi", "status": "Active", "languages": [{"code": "bn", "enabled": True}]},
+        ]
+    )
+    service = TranslationService(mock_db, lambda: fake_provider)
+
+    await service.extract_items(
+        "site_with_hi", [{"key": "t1", "text": "Hello", "route": "/h", "source_lang": "en"}]
+    )
+    await service.extract_items(
+        "site_without_hi", [{"key": "t1", "text": "Hello", "route": "/h", "source_lang": "en"}]
+    )
+    from app.platform.error_handling import ValidationError
+
+    result = await service.runtime_translate("site_with_hi", "/h", "hi")
+    assert result == {"t1": "Hello"}
+
+    with pytest.raises(ValidationError):
+        await service.runtime_translate("site_without_hi", "/h", "hi")
+
+
+async def test_lang_present_but_not_enabled_is_rejected(mock_db, fake_provider):
+    await mock_db["websites"].insert_many(
+        [{"site_id": "site1", "status": "Active", "languages": [{"code": "hi", "enabled": False}]}]
+    )
+    service = TranslationService(mock_db, lambda: fake_provider)
+
+    await service.extract_items(
+        "site1", [{"key": "t1", "text": "Hello", "route": "/h", "source_lang": "en"}]
+    )
+    from app.platform.error_handling import ValidationError
+
+    with pytest.raises(ValidationError):
+        await service.runtime_translate("site1", "/h", "hi")
 
 
 async def test_generate_for_review_translation_memory_reuse_still_auto_approves(

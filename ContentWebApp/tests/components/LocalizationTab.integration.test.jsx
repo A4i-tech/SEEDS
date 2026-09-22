@@ -35,7 +35,14 @@ beforeAll(() => {
     };
 });
 
-const site = { id: "s1", siteId: "site-1", domain: "a.com", name: "", status: "Active" };
+const site = {
+  id: "s1",
+  siteId: "site-1",
+  domain: "a.com",
+  name: "",
+  status: "Active",
+  languages: [{ code: "hi", enabled: true }],
+};
 const doc = (id, route, text, updatedAt) => ({
   id,
   route,
@@ -50,8 +57,8 @@ beforeEach(() => {
   localStorage.clear();
   onboardingService.listSites.mockResolvedValue([site]);
   languageService.listLanguages.mockResolvedValue([
-    { id: "l1", code: "hi", name: "Hindi", enabled: true },
-    { id: "l2", code: "kn", name: "Kannada", enabled: false },
+    { code: "hi", standard: "ISO 639-1", name: "Hindi" },
+    { code: "kn", standard: "ISO 639-1", name: "Kannada" },
   ]);
   translationService.listTranslations.mockImplementation(async ({ route }) =>
     route ? docs.filter((d) => d.route === route) : docs
@@ -132,6 +139,15 @@ test("without any site nothing is listed", async () => {
   expect(translationService.listTranslations).not.toHaveBeenCalledWith(
     expect.objectContaining({ siteId: "site-1" })
   );
+});
+
+test("Review Language dropdown lists only the selected site's configured languages", async () => {
+  render(<LocalizationTab />);
+  await openWorkspace();
+  await screen.findByText("About us");
+  fireEvent.click(screen.getByText("Review Language").nextSibling.querySelector("button"));
+  expect(screen.getByRole("option", { name: "Hindi" })).toBeInTheDocument();
+  expect(screen.queryByRole("option", { name: "Kannada" })).not.toBeInTheDocument();
 });
 
 test("switching back to Registration shows the onboarding card again", async () => {

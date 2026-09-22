@@ -16,15 +16,6 @@ export const fromSiteResponse = (doc) => {
   };
 };
 
-export const fromLanguageResponse = (doc) => {
-  return {
-    ...doc,
-    id: doc.id,
-    createdAt: doc.created_at,
-    updatedAt: doc.updated_at,
-  };
-};
-
 export const fromTranslationResponse = (doc) => {
   return {
     ...doc,
@@ -37,13 +28,19 @@ export const fromTranslationResponse = (doc) => {
   };
 };
 
-export const toSiteCreateRequest = ({ domain, name, status }) => ({
+export const toSiteCreateRequest = ({ domain, name, status, languages }) => ({
   domain,
   name,
   status,
+  languages,
 });
 
-export const toSiteUpdateRequest = ({ name, domain, status }) => ({ name, domain, status });
+export const toSiteUpdateRequest = ({ name, domain, status, languages }) => ({
+  name,
+  domain,
+  status,
+  languages,
+});
 
 export const toTranslationUpdateRequest = ({ lang, text }) => ({ lang, text });
 

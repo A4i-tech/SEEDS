@@ -4,13 +4,13 @@ import { request } from "./requestHelpers";
 import { toSiteCreateRequest, toSiteUpdateRequest, fromSiteResponse } from "../dto/LocalizationDto";
 
 export const onboardingService = {
-  async createSite({ domain, name, status }) {
+  async createSite({ domain, name, status, languages }) {
     const url = `${SEEDS_URL}/websites`;
 
     const response = await request(url, {
       method: "POST",
       headers: getAuthHeaders(),
-      body: JSON.stringify(toSiteCreateRequest({ domain, name, status })),
+      body: JSON.stringify(toSiteCreateRequest({ domain, name, status, languages })),
     });
 
     return fromSiteResponse(response);

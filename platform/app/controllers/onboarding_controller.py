@@ -67,7 +67,8 @@ async def register_website(
     service: OnboardingService = Depends(get_onboarding_service),
     user: dict[str, Any] = Depends(require_tenant),
 ) -> WebsiteResponse:
-    return await service.register_website(body.project_id, body.domain, body.name, body.status)
+    languages = [lc.model_dump() for lc in body.languages] if body.languages is not None else None
+    return await service.register_website(body.project_id, body.domain, body.name, body.status, languages)
 
 
 @router.get("/websites", summary="List registered websites, optionally filtered by project")
