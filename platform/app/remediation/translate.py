@@ -22,6 +22,7 @@ from app.remediation.run_pipeline import run_pipeline
 logger = logging.getLogger(__name__)
 
 PIPELINE_PATH = Path(__file__).resolve().parent / "textbook_translation.yaml"
+TRANSLATION_TIMEOUT_SECONDS = 60 * 60
 
 
 async def run_translation(
@@ -44,6 +45,7 @@ async def run_translation(
                 "--target-language", target_language,
                 "--output", str(context_path),
             ],
+            timeout=TRANSLATION_TIMEOUT_SECONDS,
         )
 
         ctx_data = json.loads(context_path.read_text(encoding="utf-8"))

@@ -3,10 +3,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import "katex/dist/katex.min.css";
 
-import { SEEDS_URL } from "../Constants";
 import { Breadcrumb } from "./AllContent/shared/Breadcrumb";
 import { Pagination } from "./ContentAggregatorDetails/Pagination";
-import { getAuthToken } from "../utils/authHelpers";
 import { textbookRemediationService } from "../services/textbookRemediationService";
 import { normalizeMathDelimiters, MarkdownParagraph } from "./ContentAggregatorDetails/markdownMath";
 import { remediationRemarkPlugins, remediationRehypePlugins } from "./remediationMarkdown";
@@ -59,6 +57,42 @@ function splitIntoPages(markdown) {
 const pageContent = (pages, index, fallback) =>
   pages.length ? pages[index]?.content ?? "" : fallback;
 
+function RemediationFigureImage({ src, jobId, alt }) {
+  const [objectUrl, setObjectUrl] = useState(null);
+  const remote = src && !src.startsWith("http://") && !src.startsWith("https://") && !src.startsWith("data:");
+
+  useEffect(() => {
+    if (!remote) return undefined;
+    const controller = new AbortController();
+    let url;
+    textbookRemediationService
+      .getImage(jobId, src.replace(/^images\//, ""), { signal: controller.signal })
+      .then((blob) => {
+        url = URL.createObjectURL(blob);
+        setObjectUrl(url);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setObjectUrl(null);
+      });
+    return () => {
+      controller.abort();
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [remote, jobId, src]);
+
+  const imgSrc = remote ? objectUrl : src;
+  if (!imgSrc) return null;
+  return (
+    <img
+      src={imgSrc}
+      alt={alt || "Image description unavailable"}
+      onError={(e) => {
+        e.currentTarget.style.display = "none";
+      }}
+    />
+  );
+}
+
 function MarkdownViewer({ text, jobId }) {
   return (
     <ReactMarkdown
@@ -67,24 +101,11 @@ function MarkdownViewer({ text, jobId }) {
       components={{
         p: MarkdownParagraph,
         img: ({ src, alt, title }) => {
-          const remote = src && !src.startsWith("http://") && !src.startsWith("https://") && !src.startsWith("data:");
-          const token = getAuthToken();
-          const imgSrc = remote
-            ? `${SEEDS_URL}/textbook-remediation/jobs/${encodeURIComponent(jobId)}/images/${encodeURIComponent(src.replace(/^images\//, ""))}${token ? `?token=${encodeURIComponent(token)}` : ""}`
-            : src;
           const description = title || alt;
 
           return (
             <div className="remediation-figure-preview">
-              {imgSrc && (
-                <img
-                  src={imgSrc}
-                  alt={alt || "Image description unavailable"}
-                  onError={(e) => {
-                    e.currentTarget.style.display = "none";
-                  }}
-                />
-              )}
+              <RemediationFigureImage src={src} jobId={jobId} alt={alt} />
               {description ? (
                 <div className="remediation-figure-text">
                   <span className="remediation-figure-tag">Figure Description</span>
@@ -414,7 +435,7 @@ const RemediationDetails = () => {
                           <span>
                             {flaggedPages.length} page{flaggedPages.length > 1 ? "s" : ""} need a check
                           </span>
-                          <button type="button" onClick={handleNextFlag} style={{ background: "none", border: "none", color: "inherit", font: "inherit", fontWeight: 600, cursor: "pointer", padding: 0 }}>
+                          <button type="button" className="remediation-flag-jump" onClick={handleNextFlag}>
                             Jump to next &rsaquo;
                           </button>
                         </div>

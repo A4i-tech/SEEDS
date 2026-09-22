@@ -6,7 +6,7 @@
   gap: 12px;
   padding: 12px 24px;
   background: var(--color-on-accent);
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--color-border-subtle);
 }
 .remediation-toolbar-meta {
   display: flex;
@@ -14,7 +14,7 @@
   flex-wrap: wrap;
   gap: 16px;
   font-size: 13px;
-  color: #64748b;
+  color: var(--color-text-muted);
 }
 .remediation-content-heading {
   font-size: 15px;
@@ -59,17 +59,17 @@
   justify-content: space-between;
   align-items: center;
   padding: 10px 16px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border-subtle);
   border-bottom: none;
   border-radius: 16px 16px 0 0;
-  background: #f8fafc;
+  background: var(--color-surface-subtle);
   font-size: 13px;
   font-weight: 600;
-  color: #475569;
+  color: var(--color-text-secondary);
 }
 .remediation-pane-body {
   flex: 1;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border-subtle);
   border-radius: 0 0 16px 16px;
   background: var(--color-on-accent);
   padding: 16px;
@@ -83,7 +83,7 @@
   align-items: center;
   gap: 8px;
   padding: 10px 16px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border-subtle);
   border-top: none;
   border-radius: 0 0 16px 16px;
   margin-top: -1px;
@@ -105,22 +105,31 @@
   color: inherit;
   cursor: pointer;
 }
+.remediation-flag-jump {
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
 .remediation-figure-preview {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  border: 1px dashed #e2e8f0;
+  border: 1px dashed var(--color-border-subtle);
   border-radius: 8px;
   padding: 12px;
   margin: 12px 0;
-  background: #f8fafc;
+  background: var(--color-surface-subtle);
   text-align: left;
 }
 .remediation-figure-preview img {
   max-width: 50%;
   max-height: 320px;
   border-radius: 6px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border-subtle);
   object-fit: contain;
   background: var(--color-on-accent);
   flex-shrink: 0;
@@ -142,7 +151,7 @@
 .remediation-figure-desc {
   display: block;
   font-size: 13px;
-  color: #475569;
+  color: var(--color-text-secondary);
 }
 .remediation-diagram-marker {
   background: color-mix(in srgb, var(--color-danger-fg) 8%, transparent);

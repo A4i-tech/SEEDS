@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from pydantic import BaseModel
-
 from omni_ingest.core.model import ResolvedResource, Step, StepResult, StepStatus
 from omni_ingest.core.pipeline import IngestionContext, register_step
+from pydantic import BaseModel
 
 ENGINE_NAME = "fix_image_pages"
 

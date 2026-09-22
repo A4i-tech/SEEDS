@@ -42,6 +42,13 @@ export const textbookRemediationService = {
     );
   },
 
+  async getImage(jobId, imageName, { signal } = {}) {
+    return apiFetchBlob(
+      `${BASE}/jobs/${encodeURIComponent(jobId)}/images/${encodeURIComponent(imageName)}`,
+      { headers: getAuthHeaders(), signal }
+    );
+  },
+
   async downloadArtifact(jobId, name, filename, { signal } = {}) {
     const blob = await apiFetchBlob(
       `${BASE}/jobs/${encodeURIComponent(jobId)}/artifacts/${encodeURIComponent(name)}`,
