@@ -187,6 +187,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         ContentAggregatorSyncJobRepository,
     )
     from app.repositories.content_job_repository import ContentJobRepository  # noqa: PLC0415
+    from app.repositories.integration_client_repository import (  # noqa: PLC0415
+        IntegrationClientRepository,
+    )
     from app.repositories.textbook_remediation_repository import (  # noqa: PLC0415
         TextbookRemediationRepository,
     )
@@ -199,7 +202,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         reconciled = await TextbookRemediationRepository(get_database()).reconcile_interrupted_jobs()
         if reconciled:
             logger.info("Reconciled %d interrupted textbook remediation jobs", reconciled)
-
     from app.repositories.translation_audit_repository import (  # noqa: PLC0415
         TranslationAuditRepository,
     )
@@ -216,6 +218,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await ContentAggregatorSyncJobRepository.ensure_indexes(get_database())
     await ContentJobRepository.ensure_indexes(get_database())
     await TextbookRemediationRepository.ensure_indexes(get_database())
+    await IntegrationClientRepository.ensure_indexes(get_database())
 
     # Init conference manager (available in all modes)
     try:
