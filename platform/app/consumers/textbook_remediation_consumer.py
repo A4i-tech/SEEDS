@@ -1,32 +1,3 @@
-"""Textbook remediation consumer.
-
-Claims a pending job from textbookRemediationJobs and walks one uploaded PDF
-through the three OmniIngest pipelines in app/remediation:
-
-    ocr     book.pdf     -> raw.md
-    review  raw.md       -> corrected.md + findings
-    docx    corrected.md -> remediated.docx
-
-Every artifact is uploaded the moment its stage finishes, so a failure in a
-later stage still leaves the earlier ones readable rather than throwing away
-the vision calls that produced them.
-
-The pipelines run as a **subprocess**, not in this process, so a pipeline
-crash cannot take the api/consumer process down with it. It runs with
-`sys.executable` — one Poetry environment, no separate isolated interpreter.
-
-SECURITY:
-  - subprocess is always called with the list form, never shell=True.
-  - Every path passed to it is one this module built inside a temp directory.
-  - `language` is user-supplied and is validated at the API boundary.
-
-State machine:
-    pending -> running -> completed
-                       -> failed   (stage recorded, artifacts kept)
-
-A restart while a job is running leaves it stranded; the startup sweep in
-TextbookRemediationRepository.reconcile_interrupted_jobs marks it failed.
-"""
 from __future__ import annotations
 
 import asyncio
@@ -39,15 +10,28 @@ from pathlib import Path
 
 from pymongo.asynchronous.database import AsyncDatabase
 
-from app.models.remediation_job import ARTIFACTS, RemediationJob
+from app.consumers.base_consumer import BaseConsumer, PermanentError
+from app.models.remediation_job import (
+    ARTIFACTS,
+    IMAGE_CONTENT_TYPES,
+    ArtifactName,
+    JobMetrics,
+    JobProgress,
+    JobStage,
+    JobStatus,
+    RemediationJob,
+    artifact_filename,
+)
 from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider, get_blob_storage_provider
-from app.remediation.detect_language import detect_language, normalize_language_name
+from app.remediation.detect_language import (
+    detect_language,
+    normalize_language_name,
+)
 from app.remediation.render import render_remediation
 from app.remediation.run_pipeline import run_pipeline
 from app.remediation.translate import run_translation
 from app.repositories.textbook_remediation_repository import TextbookRemediationRepository
-from app.services.textbook_remediation import broadcast_job
 
 logger = logging.getLogger(__name__)
 
@@ -60,13 +44,15 @@ def _count_lines(path: Path) -> int:
     return len(path.read_text(encoding="utf-8").splitlines()) if path.exists() else 0
 
 
-async def _upload(blob_provider: BlobStorageProvider, job_id: str, out: Path, *names: str) -> dict[str, str]:
+async def _upload(
+    blob_provider: BlobStorageProvider, job_id: str, out: Path, *names: ArtifactName
+) -> dict[ArtifactName, str]:
     container = get_settings().azure_storage_container
-    urls: dict[str, str] = {}
+    urls: dict[ArtifactName, str] = {}
     for name in names:
         filename, content_type = ARTIFACTS[name]
         path = out / filename
-        if not path.exists():
+        if not path.exists() or path.stat().st_size == 0:
             continue
         urls[name] = await blob_provider.upload_file(
             container, f"textbook-remediation/{job_id}/{filename}", path.read_bytes(), content_type
@@ -77,42 +63,127 @@ async def _upload(blob_provider: BlobStorageProvider, job_id: str, out: Path, *n
 async def _upload_images(blob_provider: BlobStorageProvider, job_id: str, search_dir: Path) -> int:
     container = get_settings().azure_storage_container
     count = 0
-    for ext in ("*.jpg", "*.jpeg", "*.png", "*.webp", "*.gif", "*.svg"):
-        for img_path in search_dir.rglob(ext):
+    for extension, content_type in IMAGE_CONTENT_TYPES.items():
+        for img_path in search_dir.rglob(f"*{extension}"):
             if not img_path.is_file():
                 continue
-            filename = img_path.name
-            suffix = img_path.suffix.lower()
-            content_type = "image/jpeg" if suffix in (".jpg", ".jpeg") else f"image/{suffix.lstrip('.')}"
             try:
                 await blob_provider.upload_file(
-                    container, f"textbook-remediation/{job_id}/images/{filename}", img_path.read_bytes(), content_type
+                    container,
+                    f"textbook-remediation/{job_id}/images/{img_path.name}",
+                    img_path.read_bytes(),
+                    content_type,
                 )
                 count += 1
             except Exception as exc:
-                logger.warning("remediation: failed to upload image %s: %s", filename, exc)
+                logger.warning("remediation: failed to upload image %s: %s", img_path.name, exc)
     return count
 
 
-async def _process_job(job: RemediationJob, repo: TextbookRemediationRepository, blob_provider: BlobStorageProvider) -> None:
+def _metadata_language(ctx_data: dict[str, object]) -> str | None:
+    book_meta = ctx_data.get("metadata", {}).get("book") or {}
+    if isinstance(book_meta, dict) and book_meta.get("language"):
+        return str(book_meta["language"]).strip()
+    for item in ctx_data.get("items", []):
+        if not isinstance(item, dict):
+            continue
+        meta = item.get("metadata") or {}
+        if not isinstance(meta, dict):
+            continue
+        book = meta.get("book")
+        if isinstance(book, dict) and book.get("language"):
+            return str(book["language"]).strip()
+        rem_lang = (meta.get("remediation") or {}).get("language")
+        if rem_lang:
+            return str(rem_lang).strip()
+    return None
+
+
+def _detect_body_language(raw_path: Path) -> str | None:
+    content = raw_path.read_text(encoding="utf-8", errors="ignore")
+    pages = re.split(r"<!--\s*page\s+\d+\s*-->", content)
+    sample = " ".join(s.strip() for s in pages[2:] if len(s.strip()) > 100) or content
+    return detect_language(sample) if sample.strip() else None
+
+
+def _resolve_language(
+    job: RemediationJob, is_auto: bool, ctx_data: dict[str, object] | None, raw_path: Path
+) -> str:
+    detected = _metadata_language(ctx_data) if ctx_data else None
+    if not detected and raw_path.exists():
+        try:
+            detected = _detect_body_language(raw_path)
+        except Exception as exc:
+            logger.warning("remediation: body language detection failed: %s", exc)
+    if not detected or detected.lower() in ("auto", "detecting", "unknown"):
+        logger.warning("remediation: no detected language for job_id=%s", job.job_id)
+        detected = "Unknown"
+    requested = job.language if not is_auto and job.language else None
+    return normalize_language_name(requested or detected)
+
+
+def _fallback_metrics(raw_path: Path, trail: Path, unresolved: Path) -> JobMetrics:
+    total_pages = 1
+    diagrams_count = 0
+    if raw_path.exists():
+        content = raw_path.read_text(encoding="utf-8", errors="ignore")
+        pages = re.findall(r"<!--\s*page\s+(\d+)\s*-->", content)
+        total_pages = max([int(p) for p in pages] + [1])
+        diagrams_count = len(re.findall(r"!\[.*?\]\(.*?\)", content))
+    return JobMetrics(
+        total_pages=total_pages,
+        processed_pages=total_pages,
+        diagrams_described=diagrams_count,
+        tables_fixed=_count_lines(trail),
+        flagged_items_count=_count_lines(unresolved),
+    )
+
+
+async def _translate_if_requested(
+    job: RemediationJob,
+    repo: TextbookRemediationRepository,
+    blob_provider: BlobStorageProvider,
+    out: Path,
+) -> None:
+    if not job.target_language:
+        return
+    remediated_path = out / artifact_filename(ArtifactName.REMEDIATED)
+    if not remediated_path.exists():
+        await repo.set_translation_error(job.job_id, "Remediation produced no text to translate.")
+        return
+    try:
+        translated_urls = await run_translation(
+            job.job_id, remediated_path.read_bytes(), job.target_language, job.language, blob_provider
+        )
+        if not translated_urls:
+            raise RuntimeError("Translation produced no downloadable file.")
+        await repo.record_artifacts(
+            job.job_id, {ArtifactName(name): url for name, url in translated_urls.items()}, {}
+        )
+        await repo.set_translation_error(job.job_id, None)
+    except Exception as exc:
+        logger.warning("remediation: translation failed for job_id=%s: %s", job.job_id, exc)
+        await repo.set_translation_error(job.job_id, str(exc))
+
+
+async def _process_job(
+    job: RemediationJob, repo: TextbookRemediationRepository, blob_provider: BlobStorageProvider
+) -> None:
     def make_progress_handler(stage_name: str) -> Callable[[dict[str, object]], Awaitable[None]]:
         async def _handler(evt: dict[str, object]) -> None:
-            data: dict[str, object] = {
-                "stage": stage_name,
-                "step": evt.get("step_name"),
-                "type": evt.get("type"),
-                "message": evt.get("message"),
-            }
-            if "completed" in evt and "total" in evt:
-                data["completed"] = evt["completed"]
-                data["total"] = evt["total"]
-                total = evt.get("total")
-                completed = evt.get("completed")
-                if isinstance(total, (int, float)) and total > 0 and isinstance(completed, (int, float)):
-                    data["percent"] = int((completed / total) * 100)
-            updated = await repo.update_progress(job.job_id, data)
-            if updated:
-                broadcast_job(updated)
+            progress = JobProgress(
+                stage=stage_name,
+                step=evt.get("step_name"),
+                type=evt.get("type"),
+                message=evt.get("message"),
+            )
+            completed, total = evt.get("completed"), evt.get("total")
+            if completed is not None and total is not None:
+                progress.completed = float(completed) if isinstance(completed, (int, float)) else None
+                progress.total = float(total) if isinstance(total, (int, float)) else None
+            if progress.total:
+                progress.percent = int((progress.completed or 0) / progress.total * 100)
+            await repo.update_progress(job.job_id, progress)
         return _handler
 
     with tempfile.TemporaryDirectory() as workspace:
@@ -125,100 +196,51 @@ async def _process_job(job: RemediationJob, repo: TextbookRemediationRepository,
         is_auto = not job.language or job.language.lower() in ("auto", "detecting")
         pipeline_lang = "auto" if is_auto else job.language
 
-        logger.info("remediation: processing job_id=%s source=%s language=%s (auto=%s)", job.job_id, job.source_name, pipeline_lang, is_auto)
+        logger.info(
+            "remediation: processing job_id=%s source=%s language=%s (auto=%s)",
+            job.job_id, job.source_name, pipeline_lang, is_auto,
+        )
         progress_msg = f"Remediating in {pipeline_lang}..." if not is_auto else "Remediating textbook..."
-        init_job = await repo.update_progress(job.job_id, {"stage": "remediation", "message": progress_msg})
-        if init_job:
-            broadcast_job(init_job)
+        await repo.update_progress(job.job_id, JobProgress(stage="remediation", message=progress_msg))
 
         context_json_path = work / "context.json"
-        docx_path = out / "remediated.docx"
+        docx_path = out / artifact_filename(ArtifactName.DOCX)
 
         await run_pipeline(
             PIPELINE_PATH, pdf, work,
-            [
-                "--language", pipeline_lang,
-                "--output", str(context_json_path),
-            ],
+            ["--language", pipeline_lang, "--output", str(context_json_path)],
             on_progress=make_progress_handler("remediation"),
+            timeout=JOB_TIMEOUT_SECONDS,
         )
+        await repo.set_stage(job.job_id, JobStage.REVIEW)
 
-        await repo.set_stage(job.job_id, "review")
+        if not context_json_path.exists():
+            raise RuntimeError(f"Pipeline {PIPELINE_PATH.name} produced no context output")
+        ctx_data = json.loads(context_json_path.read_text(encoding="utf-8"))
+        rendered_metrics = render_remediation(ctx_data, out).get("metrics")
+        metrics = JobMetrics.model_validate(rendered_metrics) if isinstance(rendered_metrics, dict) else None
 
-        metrics: dict[str, object] | None = None
-        detected_lang: str | None = None
-        if context_json_path.exists():
-            try:
-                ctx_data = json.loads(context_json_path.read_text(encoding="utf-8"))
-                rendered_info = render_remediation(ctx_data, out)
-                metrics = rendered_info.get("metrics")  # type: ignore[assignment]
+        raw = out / artifact_filename(ArtifactName.RAW)
+        findings = out / artifact_filename(ArtifactName.FINDINGS)
+        trail = out / artifact_filename(ArtifactName.REMEDIATION)
+        unresolved = out / artifact_filename(ArtifactName.UNRESOLVED)
 
-                book_meta = ctx_data.get("metadata", {}).get("book") or {}
-                if isinstance(book_meta, dict) and book_meta.get("language"):
-                    detected_lang = str(book_meta["language"]).strip()
-                if not detected_lang:
-                    for it in ctx_data.get("items", []):
-                        m = it.get("metadata") or {}
-                        if isinstance(m, dict):
-                            b = m.get("book")
-                            if isinstance(b, dict) and b.get("language"):
-                                detected_lang = str(b["language"]).strip()
-                                break
-                            rem_lang = (m.get("remediation") or {}).get("language")
-                            if rem_lang:
-                                detected_lang = str(rem_lang).strip()
-                                break
-            except Exception as exc:
-                logger.warning("remediation: render_remediation failed: %s", exc)
-
-        raw = out / "raw.md"
-        findings = out / "raw.findings.jsonl"
-        trail = out / "raw.corrected.remediation.jsonl"
-        unresolved = out / "remediated.unresolved.jsonl"
-
-        if not detected_lang and raw.exists():
-            try:
-                raw_content = raw.read_text(encoding="utf-8", errors="ignore")
-                pages_split = re.split(r"<!--\s*page\s+\d+\s*-->", raw_content)
-                body_sample = " ".join(s.strip() for s in pages_split[2:] if len(s.strip()) > 100)
-                if not body_sample:
-                    body_sample = raw_content
-                if body_sample.strip():
-                    detected_lang = detect_language(body_sample)
-            except Exception as exc:
-                logger.warning("remediation: body language detection failed: %s", exc)
-
-        if not detected_lang or detected_lang.lower() in ("auto", "detecting", "unknown"):
-            detected_lang = "Unknown"
-
-        final_lang = normalize_language_name((job.language if not is_auto and job.language else None) or detected_lang)
+        final_lang = _resolve_language(job, is_auto, ctx_data, raw)
         await repo.update_language(job.job_id, final_lang)
         logger.info("remediation: updated final language for job_id=%s to %s", job.job_id, final_lang)
 
-        if not metrics:
-            total_pages = 1
-            diagrams_count = 0
-            if raw.exists():
-                raw_content = raw.read_text(encoding="utf-8", errors="ignore")
-                pages = re.findall(r"<!--\s*page\s+(\d+)\s*-->", raw_content)
-                total_pages = max([int(p) for p in pages] + [1])
-                diagrams_count = len(re.findall(r"!\[.*?\]\(.*?\)", raw_content))
-
-            metrics = {
-                "total_pages": total_pages,
-                "processed_pages": total_pages,
-                "diagrams_described": diagrams_count,
-                "tables_fixed": _count_lines(trail),
-                "flagged_items_count": _count_lines(unresolved),
-            }
-
-
-        await repo.set_stage(job.job_id, "docx")
+        if metrics is None:
+            metrics = _fallback_metrics(raw, trail, unresolved)
 
         await _upload_images(blob_provider, job.job_id, work)
         await repo.record_artifacts(
             job.job_id,
-            await _upload(blob_provider, job.job_id, out, "raw", "corrected", "findings", "alt", "docx", "tex", "pdf", "remediated", "remediation", "unresolved"),
+            await _upload(
+                blob_provider, job.job_id, out,
+                ArtifactName.RAW, ArtifactName.CORRECTED, ArtifactName.FINDINGS, ArtifactName.ALT,
+                ArtifactName.DOCX, ArtifactName.TEX, ArtifactName.PDF, ArtifactName.REMEDIATED,
+                ArtifactName.REMEDIATION, ArtifactName.UNRESOLVED,
+            ),
             {
                 "raw_chars": raw.stat().st_size if raw.exists() else 0,
                 "findings": _count_lines(findings),
@@ -228,86 +250,60 @@ async def _process_job(job: RemediationJob, repo: TextbookRemediationRepository,
             },
         )
         await repo.update_metrics(job.job_id, metrics)
+        await repo.set_stage(job.job_id, JobStage.DOCX)
 
-        if job.target_language:
-            remediated_path = out / "raw.corrected.remediated.md"
-            if not remediated_path.exists():
-                await repo.set_translation_error(job.job_id, "Remediation produced no text to translate.")
-            else:
-                try:
-                    translated_urls = await run_translation(
-                        job.job_id, remediated_path.read_bytes(), job.target_language, job.language, blob_provider
-                    )
-                    if not translated_urls:
-                        raise RuntimeError("Translation produced no downloadable file.")
-                    await repo.record_artifacts(job.job_id, translated_urls, {})
-                    await repo.set_translation_error(job.job_id, None)
-                except Exception as exc:
-                    logger.warning("remediation: translation failed for job_id=%s: %s", job.job_id, exc)
-                    await repo.set_translation_error(job.job_id, str(exc))
+        await _translate_if_requested(job, repo, blob_provider, out)
 
-    await repo.update_progress(job.job_id, {})
-    done_job = await repo.finish(job.job_id, "ready_to_review")
-    if done_job:
-        broadcast_job(done_job)
-    logger.info("remediation: ready_to_review job_id=%s", job.job_id)
+    await repo.update_progress(job.job_id, JobProgress())
+    await repo.finish(job.job_id, JobStatus.READY_TO_REVIEW)
 
 
-
-class TextbookRemediationConsumer:
-    """Polls textbookRemediationJobs for pending jobs and runs the pipelines."""
+class TextbookRemediationConsumer(BaseConsumer):
+    name = "TextbookRemediationConsumer"
 
     def __init__(self, db: AsyncDatabase) -> None:
         self._repo = TextbookRemediationRepository(db)
-        self._running = False
-
-    async def run(self) -> None:
         self._running = True
-        logger.info("TextbookRemediationConsumer: started")
-        try:
-            await self._run_loop()
-        except asyncio.CancelledError:
-            logger.info("TextbookRemediationConsumer: cancelled")
-        finally:
-            self._running = False
+        self._blob_provider: BlobStorageProvider | None = None
 
     async def stop(self) -> None:
         self._running = False
 
     async def _run_loop(self) -> None:
-        blob_provider = None
-        while self._running:
-            if blob_provider is None:
-                try:
-                    blob_provider = get_blob_storage_provider()
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning(
-                        "TextbookRemediationConsumer: BlobStorageProvider unavailable — %s. Retrying in %ds.",
-                        exc, POLL_INTERVAL_SECONDS,
-                    )
-                    await asyncio.sleep(POLL_INTERVAL_SECONDS)
-                    continue
+        if not self._running:
+            await asyncio.sleep(POLL_INTERVAL_SECONDS)
+            return
 
+        if self._blob_provider is None:
             try:
-                job = await self._repo.claim_next_pending()
-                if job is None:
-                    await asyncio.sleep(POLL_INTERVAL_SECONDS)
-                    continue
-                try:
-                    await asyncio.wait_for(_process_job(job, self._repo, blob_provider), timeout=JOB_TIMEOUT_SECONDS)
-                except TimeoutError:
-                    logger.error("remediation: timeout job_id=%s", job.job_id)
-                    failed_job = await self._repo.finish(job.job_id, "failed", error=f"exceeded timeout of {JOB_TIMEOUT_SECONDS}s")
-                    if failed_job:
-                        broadcast_job(failed_job)
-                except Exception as exc:  # noqa: BLE001
-                    logger.exception("remediation: failed job_id=%s", job.job_id)
-                    error_msg = f"{type(exc).__name__}: {exc}" if not str(exc) else str(exc)
-                    failed_job = await self._repo.finish(job.job_id, "failed", error=error_msg)
-                    if failed_job:
-                        broadcast_job(failed_job)
-            except asyncio.CancelledError:
-                raise
+                self._blob_provider = get_blob_storage_provider()
             except Exception as exc:  # noqa: BLE001
-                logger.exception("TextbookRemediationConsumer: unexpected error in loop — %s", exc)
+                logger.warning(
+                    "%s: BlobStorageProvider unavailable — %s. Retrying in %ds.",
+                    self.name, exc, POLL_INTERVAL_SECONDS,
+                )
                 await asyncio.sleep(POLL_INTERVAL_SECONDS)
+                return
+
+        job = await self._repo.claim_next_pending()
+        if job is None:
+            await asyncio.sleep(POLL_INTERVAL_SECONDS)
+            return
+
+        await self._safe_process(job)
+
+    async def process(self, job: RemediationJob) -> None:
+        if self._blob_provider is None:
+            raise PermanentError("BlobStorageProvider unavailable")
+        try:
+            await asyncio.wait_for(
+                _process_job(job, self._repo, self._blob_provider), timeout=JOB_TIMEOUT_SECONDS
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("remediation: failed job_id=%s", job.job_id)
+            raise PermanentError(f"{type(exc).__name__}: {exc}" if not str(exc) else str(exc)) from exc
+
+    async def _dead_letter(self, job: RemediationJob, reason: str) -> None:
+        await self._repo.finish(job.job_id, JobStatus.FAILED, error=reason)

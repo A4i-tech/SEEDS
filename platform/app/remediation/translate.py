@@ -1,12 +1,3 @@
-"""Runs textbook_translation.yaml against an already-remediated Markdown
-document and uploads the translated md/docx/tex/pdf as job artifacts.
-
-Shared by two trigger points, both calling this same function:
-  - the consumer, right after the main remediation pipeline finishes, when
-    the job was created with translate_when="start"
-  - the controller's /jobs/{job_id}/translate endpoint, for a job the
-    reviewer wants translated after the fact ("once done")
-"""
 from __future__ import annotations
 
 import asyncio
@@ -15,35 +6,22 @@ import logging
 import tempfile
 from pathlib import Path
 
-import pypandoc
-
-from app.models.remediation_job import ARTIFACTS
+from app.models.remediation_job import ARTIFACTS, ArtifactName, artifact_filename
 from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider
-from app.remediation.render import convert_docx_to_pdf, pandoc_extra_args, tag_tex_for_pdf_ua
+from app.remediation.render import (
+    convert_docx_to_pdf,
+    markdown_to_format,
+    tag_tex_for_pdf_ua,
+)
+from app.remediation.render import (
+    pypandoc as pypandoc,
+)
 from app.remediation.run_pipeline import run_pipeline
 
 logger = logging.getLogger(__name__)
 
 PIPELINE_PATH = Path(__file__).resolve().parent / "textbook_translation.yaml"
-
-
-def _render_translated_docs(translated_text: str, out_docx: Path, out_tex: Path, out_dir: Path) -> None:
-    """Runs pandoc + LibreOffice synchronously; call via asyncio.to_thread, never
-    directly on the event loop — convert_docx_to_pdf shells out with up to a
-    120s subprocess timeout."""
-    extra_args = pandoc_extra_args(out_dir)
-    pypandoc.convert_text(
-        translated_text, "docx", format="markdown+tex_math_dollars",
-        outputfile=str(out_docx), extra_args=extra_args,
-    )
-    pypandoc.convert_text(
-        translated_text, "latex", format="markdown+tex_math_dollars",
-        outputfile=str(out_tex), extra_args=extra_args,
-    )
-    tag_tex_for_pdf_ua(out_tex)
-    if out_docx.exists() and out_docx.stat().st_size > 0:
-        convert_docx_to_pdf(out_docx, out_dir)
 
 
 async def run_translation(
@@ -75,12 +53,20 @@ async def run_translation(
 
         out_dir = work / "out"
         out_dir.mkdir()
-        out_md = out_dir / "translated.md"
+        out_md = out_dir / artifact_filename(ArtifactName.TRANSLATED_MD)
         out_md.write_text(translated_text, encoding="utf-8")
 
-        out_docx = out_dir / "translated.docx"
-        out_tex = out_dir / "translated.tex"
-        await asyncio.to_thread(_render_translated_docs, translated_text, out_docx, out_tex, out_dir)
+        out_docx = out_dir / artifact_filename(ArtifactName.TRANSLATED_DOCX)
+        out_tex = out_dir / artifact_filename(ArtifactName.TRANSLATED_TEX)
+
+        def _compile() -> None:
+            markdown_to_format(translated_text, "docx", out_docx, resource_root=out_dir)
+            markdown_to_format(translated_text, "latex", out_tex, resource_root=out_dir)
+            tag_tex_for_pdf_ua(out_tex)
+            if out_docx.exists() and out_docx.stat().st_size > 0:
+                convert_docx_to_pdf(out_docx, out_dir)
+
+        await asyncio.to_thread(_compile)
 
         container = get_settings().azure_storage_container
         urls: dict[str, str] = {}
@@ -88,7 +74,7 @@ async def run_translation(
             ("translated_md", out_md),
             ("translated_docx", out_docx),
             ("translated_tex", out_tex),
-            ("translated_pdf", out_dir / "translated.pdf"),
+            ("translated_pdf", out_dir / artifact_filename(ArtifactName.TRANSLATED_PDF)),
         ):
             if path.exists():
                 urls[name] = await blob_provider.upload_file(

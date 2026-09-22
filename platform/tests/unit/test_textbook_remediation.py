@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from app.models.remediation_job import STAGES, RemediationJob
+from app.models.remediation_job import STAGES, JobStage, JobStatus, RemediationJob
 from app.repositories.textbook_remediation_repository import TextbookRemediationRepository
 from app.services.textbook_remediation import serialize_job, subscribe
 from tests.support.mongomock_async import AsyncMongoMockClient
@@ -68,7 +68,7 @@ async def test_record_artifacts_merges_rather_than_replaces(repo):
 @pytest.mark.asyncio
 async def test_finish_records_status_and_error(repo):
     job = await _create(repo)
-    job = await repo.finish(job.job_id, "failed", error="ocr failed")
+    job = await repo.finish(job.job_id, JobStatus.FAILED, error="ocr failed")
     assert (job.status, job.error) == ("failed", "ocr failed")
     assert job.finished_at is not None
 
@@ -101,7 +101,7 @@ def test_serialize_job_reports_stage_zero_before_the_first_stage():
 @pytest.mark.asyncio
 async def test_subscribe_ends_on_a_finished_job(repo):
     job = await _create(repo)
-    await repo.finish(job.job_id, "completed")
+    await repo.finish(job.job_id, JobStatus.READY_TO_REVIEW)
     events = [e async for e in subscribe(repo, "tenant-a", job.job_id, interval=0)]
     assert [e["event"] for e in events] == ["done"]
 
@@ -115,9 +115,9 @@ async def test_subscribe_yields_each_change_then_done(repo):
     async for event in subscribe(repo, "tenant-a", job.job_id, interval=0):
         events.append(event)
         if len(events) == 1:
-            await repo.set_stage(job.job_id, "review")
+            await repo.set_stage(job.job_id, JobStage.REVIEW)
         elif len(events) == 2:
-            await repo.finish(job.job_id, "completed")
+            await repo.finish(job.job_id, JobStatus.READY_TO_REVIEW)
     assert [e["event"] for e in events] == ["progress", "progress", "done"]
     assert [e["job"]["stage"] for e in events] == ["ocr", "review", "review"]
 

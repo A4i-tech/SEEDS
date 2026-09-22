@@ -1,9 +1,3 @@
-# Textbook accessibility remediation pipeline.
-# Mirrors Seeds-omniingest/accessibility/profiles/accessibility_remediation_v1.yaml
-# Single-pass declarative pipeline:
-#   page_chunking -> image_extraction -> ocr -> ocr_verification ->
-#   front_matter -> alt_text -> block_tree_remediation -> review_report -> lineage
-
 pipeline_id: textbook_remediation
 domain_profile: accessibility
 input_modality: document
@@ -30,13 +24,11 @@ parameters:
       default: 4
 
 steps:
-  # 1. Split the document into single-page PDFs
   - agent: page_chunking
     description: "Split the book into single-page PDFs"
     config:
       mode: pdf
 
-  # 2. Extract figures and mark their position in the page
   - agent: image_extraction
     description: "Extract figures and mark their position in the page"
     config:
@@ -47,7 +39,6 @@ steps:
       replace: false
       dpi: 240
 
-  # 3. Read page text with OCR model
   - agent: azure_mistral_ocr
     description: "Read page text with the configured OCR model"
     config:
@@ -56,7 +47,6 @@ steps:
       workers: 8
       foreach: '.items[] | select(.metadata.kind != "image")'
 
-  # 4. Verify OCR against page image
   - agent: safe_extract
     description: "Verify OCR text against the page image"
     config:
@@ -140,7 +130,6 @@ steps:
         - expr: '[.corrections[] | select(.found == .corrected)] | length == 0'
           feedback: "A correction has found equal to corrected. Remove it, it is not a change."
 
-  # 5. Front matter book identity
   - agent: extract
     description: "Confirm grade, subject, language, and board from the book itself"
     config:
@@ -165,7 +154,6 @@ steps:
           evidence: {type: string, description: "The printed line each value came from"}
         required: [grade, subject, language, board, title, evidence]
 
-  # 6. Alt text per figure
   - agent: safe_extract
     description: "Write alt text and a long description for every figure"
     config:
@@ -213,7 +201,6 @@ steps:
         - expr: '.kind == "decorative" or (.alt_text | length) > 0'
           feedback: "alt_text is empty. Write one sentence, or set kind to decorative."
 
-  # 7. Accessible block tree remediation
   - agent: safe_extract
     description: "Rebuild the page as an accessible block tree"
     config:
@@ -360,7 +347,6 @@ steps:
         - expr: '[.blocks[] | select(.type == "figure") | select((.image_id // "" | length) == 0)] | length == 0'
           feedback: "A figure block lost its image id. Copy the id from the <image id=\"...\"/> marker."
 
-  # 8. VE review report
   - agent: transform
     description: "Build the VE review report"
     config:
@@ -415,6 +401,5 @@ steps:
           ]
         }
 
-  # 9. Audit trail
   - agent: lineage
     description: "Record the run for audit"

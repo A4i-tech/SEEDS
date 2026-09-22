@@ -34,10 +34,6 @@ export const apiFetch = async (url, options = {}) => {
       );
     }
 
-    if (options.responseType === "blob") {
-      return await response.blob();
-    }
-
     // Handle empty responses
     const contentType = response.headers.get("content-type");
     if (response.status !== 204 && contentType && contentType.includes("application/json")) {
@@ -75,6 +71,18 @@ export const buildQueryString = (params) => {
   });
   return searchParams.toString();
 };
+
+const apiFetchRaw = async (url, { headers, signal } = {}) => {
+  const response = await fetch(url, { headers, signal });
+  if (!response.ok) {
+    throw new ApiError(`Request failed with status ${response.status}`, response.status, response);
+  }
+  return response;
+};
+
+export const apiFetchText = async (url, options) => (await apiFetchRaw(url, options)).text();
+
+export const apiFetchBlob = async (url, options) => (await apiFetchRaw(url, options)).blob();
 
 export const streamSse = async (url, onEvent, { headers, signal } = {}) => {
   const response = await fetch(url, { headers, signal });

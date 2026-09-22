@@ -1,6 +1,6 @@
 import { SEEDS_URL } from "../Constants";
 import { getAuthHeaders } from "../utils/authHelpers";
-import { apiFetch, buildQueryString, streamSse } from "./api";
+import { apiFetch, apiFetchBlob, apiFetchText, buildQueryString, streamSse } from "./api";
 
 const BASE = `${SEEDS_URL}/textbook-remediation`;
 
@@ -36,18 +36,17 @@ export const textbookRemediationService = {
   },
 
   async getArtifactText(jobId, name, { signal } = {}) {
-    return apiFetch(`${BASE}/jobs/${encodeURIComponent(jobId)}/artifacts/${encodeURIComponent(name)}`, {
-      headers: getAuthHeaders(),
-      signal,
-    });
+    return apiFetchText(
+      `${BASE}/jobs/${encodeURIComponent(jobId)}/artifacts/${encodeURIComponent(name)}`,
+      { headers: getAuthHeaders(), signal }
+    );
   },
 
   async downloadArtifact(jobId, name, filename, { signal } = {}) {
-    const blob = await apiFetch(`${BASE}/jobs/${encodeURIComponent(jobId)}/artifacts/${encodeURIComponent(name)}`, {
-      headers: getAuthHeaders(),
-      signal,
-      responseType: "blob",
-    });
+    const blob = await apiFetchBlob(
+      `${BASE}/jobs/${encodeURIComponent(jobId)}/artifacts/${encodeURIComponent(name)}`,
+      { headers: getAuthHeaders(), signal }
+    );
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -72,16 +71,11 @@ export const textbookRemediationService = {
     });
   },
 
-  async markVerified(jobId, { title, subject, grade, publishToLibrary = true } = {}) {
+  async markVerified(jobId, { title } = {}) {
     return apiFetch(`${BASE}/jobs/${encodeURIComponent(jobId)}/verify`, {
       method: "POST",
       headers: getAuthHeaders(),
-      body: JSON.stringify({
-        title,
-        subject,
-        grade,
-        publish_to_library: publishToLibrary,
-      }),
+      body: JSON.stringify({ title }),
     });
   },
 

@@ -1,11 +1,3 @@
-"""OmniIngest's CLI with this package's steps registered, plus progress file support.
-
-    python -m app.remediation.run app/remediation/textbook_ocr.yaml \
-        --input book.pdf --output run.json [--progress-file progress.jsonl]
-
-OmniIngest's CLI has no plugin hook, so the steps a pipeline names must already
-be in the registry when it is built — importing this package does that.
-"""
 from __future__ import annotations
 
 import asyncio
@@ -17,7 +9,10 @@ from pathlib import Path
 from omni_ingest.cli import _main
 from omni_ingest.core import event
 
-from app import remediation  # noqa: F401  registers the custom steps
+from app.remediation import (  # noqa: F401
+    azure_mistral_ocr,
+    safe_extract,
+)
 
 
 async def _stream_events_to_file(path: Path) -> None:

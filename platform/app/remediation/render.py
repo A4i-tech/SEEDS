@@ -1,18 +1,3 @@
-"""Render OmniIngest accessibility remediation context into SEEDS textbook artifacts.
-
-Mirrors render() in Seeds-omniingest/accessibility/remediate.py.
-Takes the JSON context dump from the textbook_remediation.yaml pipeline and emits:
-    - raw.md                                  initial OCR text
-    - raw.corrected.remediated.md             remediated accessible Markdown
-    - raw.findings.jsonl                      OCR corrections trail
-    - raw.alt.jsonl                           figure descriptions trail
-    - raw.corrected.remediation.jsonl         removed artifacts & table summary trail
-    - remediated.unresolved.jsonl             flagged/unresolved items trail
-    - images/<md5>_<page>_img.jpg             extracted figure crops
-    - remediated.docx                         compiled Word document with embedded figures
-    - remediated.tex                          compiled LaTeX source, tagged for PDF/UA
-    - remediated.pdf                          PDF/UA-tagged PDF (rendered from remediated.docx via LibreOffice)
-"""
 from __future__ import annotations
 
 import base64
@@ -22,9 +7,15 @@ import json
 import logging
 import shutil
 import subprocess
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
 
+import pymupdf
 import pypandoc
+import pypdf
+
+from app.models.remediation_job import ArtifactName, artifact_filename
 
 logger = logging.getLogger(__name__)
 
@@ -48,33 +39,54 @@ def html_table(header: list[str], rows: list[list[str]]) -> str:
     return f'<table border="1">{head}<tbody>{body}</tbody></table>'
 
 
+def _sniff_image_ext(raw: bytes) -> str | None:
+    if raw[:3] == b"\xff\xd8\xff":
+        return "jpg"
+    if raw[:4] == b"\x89PNG":
+        return "png"
+    if raw[:3] == b"GIF":
+        return "gif"
+    if raw[:4] == b"RIFF" and raw[8:12] == b"WEBP":
+        return "webp"
+    return None
+
+
 def as_jpeg(raw: bytes) -> tuple[bytes, str]:
     try:
-        import pymupdf
-
         pix = pymupdf.Pixmap(raw)
         if pix.alpha:
             pix = pymupdf.Pixmap(pix, 0)
         return pix.tobytes("jpeg", jpg_quality=85), "jpg"
     except Exception:
-        return raw, "png"
+        ext = _sniff_image_ext(raw)
+        if ext is None:
+            logger.error("Unrecognized image format (%d bytes); refusing to mislabel it", len(raw))
+            raise
+        return raw, ext
 
 
-def pandoc_extra_args(out_dir: Path) -> list[str]:
-    """One `extra_args` list for every pandoc markdown->docx/latex call in this
-    pipeline (initial remediation compile, post-edit verify compile, and
-    translation compile), so a future flag change is one edit, not three.
-    `--standalone` makes a real standalone document instead of a body
-    fragment; `--resource-path` resolves markdown image references relative
-    to *out_dir*."""
-    return ["--standalone", f"--resource-path={out_dir}"]
+def markdown_to_format(
+    text: str,
+    to: str,
+    out_path: Path,
+    resource_root: Path | None = None,
+    reference_docx: Path | None = None,
+) -> None:
+    extra_args = ["--standalone"]
+    if resource_root is not None:
+        extra_args.append(f"--resource-path={resource_root}")
+    if reference_docx is not None:
+        extra_args.append(f"--reference-doc={reference_docx}")
+    pypandoc.convert_text(
+        text,
+        to,
+        format="markdown+tex_math_dollars",
+        outputfile=str(out_path),
+        extra_args=extra_args,
+    )
 
 
 def tag_tex_for_pdf_ua(tex_path: Path) -> None:
-    """Prepends \\DocumentMetadata{tagged=true} so a LaTeX Live 2022+ / current
-    MiKTeX compile of this .tex produces a PDF/UA-tagged, screen-reader-navigable
-    PDF. Must precede \\documentclass; no `lang` key, since guessing a babel
-    language name for the book's actual language risks breaking the compile."""
     if not tex_path.exists():
         return
     body = tex_path.read_text(encoding="utf-8")
@@ -88,18 +100,11 @@ _PDF_UA_FILTER = (
 
 
 def _pdf_is_tagged(pdf_path: Path) -> bool:
-    """Checks /MarkInfo /Marked in the PDF catalog — the actual, verifiable signal
-    that a PDF/UA-tagged structure tree exists, not just that LibreOffice exited 0."""
-    import pypdf
-
     mark_info = pypdf.PdfReader(str(pdf_path)).trailer["/Root"].get("/MarkInfo")
     return bool(mark_info and mark_info.get("/Marked"))
 
 
 def convert_docx_to_pdf(docx_path: Path, out_dir: Path) -> Path | None:
-    """Renders a .docx to a PDF/UA-tagged .pdf next to it via headless LibreOffice.
-    Verifies the tag actually landed; rejects the file rather than shipping an
-    untagged PDF mislabeled as accessible. Returns the pdf path, or None on failure."""
     soffice = shutil.which("soffice") or shutil.which("libreoffice")
     if not soffice:
         logger.warning("LibreOffice not found on PATH; no .pdf artifact for %s", docx_path)
@@ -134,214 +139,266 @@ def convert_docx_to_pdf(docx_path: Path, out_dir: Path) -> Path | None:
     return pdf_path
 
 
-def render_remediation(ctx: dict[str, object], out_dir: Path) -> dict[str, object]:
-    out_dir.mkdir(parents=True, exist_ok=True)
-    images_dir = out_dir / "images"
-    images_dir.mkdir(parents=True, exist_ok=True)
+@dataclass
+class _Corpus:
+    figures: dict[str, dict[str, object]] = field(default_factory=dict)
+    pages: list[tuple[int, dict[str, object]]] = field(default_factory=list)
+    raw_pages: list[tuple[int, str]] = field(default_factory=list)
+    findings_records: list[dict[str, object]] = field(default_factory=list)
+    alt_records: list[dict[str, object]] = field(default_factory=list)
+    unresolved_records: list[dict[str, object]] = field(default_factory=list)
 
-    items: list[dict[str, object]] = [
-        it for it in ctx.get("items", []) if isinstance(it, dict)
-    ]
-    figures: dict[str, dict[str, object]] = {}
-    pages: list[tuple[int, dict[str, object], dict[str, object]]] = []
-    raw_pages: list[tuple[int, str]] = []
 
-    findings_records: list[dict[str, object]] = []
-    alt_records: list[dict[str, object]] = []
-    remediation_records: list[dict[str, object]] = []
-    unresolved_records: list[dict[str, object]] = []
+def _collect_image(
+    item: dict[str, object], meta: dict[str, object], page_num: int, images_dir: Path, corpus: _Corpus
+) -> None:
+    content_b64 = item.get("content")
+    raw_bytes = base64.b64decode(str(content_b64)) if content_b64 else b""
+    data, ext = as_jpeg(raw_bytes)
 
-    for item in items:
+    access = meta.get("accessibility") or {}
+    if not isinstance(access, dict):
+        access = {}
+
+    item_id = str(item.get("id") or "")
+    fname = f"{hashlib.md5(raw_bytes).hexdigest()[:12]}_{page_num}_img.{ext}"
+    (images_dir / fname).write_bytes(data)
+
+    fig_data: dict[str, object] = {
+        "file": fname,
+        "image_name": fname,
+        "src": f"images/{fname}",
+        "page": page_num,
+        "kind": access.get("kind", "figure"),
+        "alt_text": access.get("alt_text", ""),
+        "long_description": access.get("long_description", ""),
+        "observed_result": access.get("observed_result", ""),
+        "visible_labels": access.get("visible_labels", []),
+        "confidence": access.get("confidence", 1.0),
+        "review_needed": bool(access.get("review_needed", False)),
+        "review_reason": access.get("review_reason", ""),
+    }
+    corpus.figures[item_id] = fig_data
+    corpus.alt_records.append(
+        {
+            "id": item_id,
+            "page": page_num,
+            "image_name": fname,
+            "alt_text": fig_data["alt_text"],
+            "long_description": fig_data["long_description"],
+            "observed_result": fig_data["observed_result"],
+            "status": "described" if not fig_data["review_needed"] else "needs_check",
+        }
+    )
+    if fig_data["review_needed"]:
+        corpus.unresolved_records.append(
+            {
+                "id": item_id,
+                "page": page_num,
+                "type": "unresolved_figure",
+                "text": fig_data["alt_text"],
+                "reason": fig_data["review_reason"] or "Needs manual check",
+                "needs_check": True,
+            }
+        )
+
+
+def _collect_page(
+    item: dict[str, object], meta: dict[str, object], page_num: int, corpus: _Corpus
+) -> None:
+    raw_text = str(item.get("content") or "")
+    if raw_text and item.get("content_encoding") != "base64":
+        corpus.raw_pages.append((page_num, raw_text))
+
+    rem = meta.get("remediation")
+    if isinstance(rem, dict):
+        corpus.pages.append((page_num, rem))
+
+    ver = meta.get("verified") or {}
+    if isinstance(ver, dict):
+        for corr in ver.get("corrections") or []:
+            if isinstance(corr, dict):
+                corpus.findings_records.append({"page": page_num, **corr})
+
+
+def _collect_corpus(ctx: dict[str, object], images_dir: Path) -> _Corpus:
+    corpus = _Corpus()
+    for item in ctx.get("items", []):
+        if not isinstance(item, dict):
+            continue
         meta = item.get("metadata") or {}
         if not isinstance(meta, dict):
             meta = {}
-        kind = meta.get("kind")
         page_num = int(meta.get("page") or 1)
+        if meta.get("kind") == "image":
+            _collect_image(item, meta, page_num, images_dir, corpus)
+        else:
+            _collect_page(item, meta, page_num, corpus)
+    corpus.raw_pages.sort(key=lambda p: p[0])
+    corpus.pages.sort(key=lambda p: p[0])
+    return corpus
 
-        if kind == "image":
-            content_b64 = item.get("content")
-            raw_bytes = base64.b64decode(str(content_b64)) if content_b64 else b""
-            data, ext = as_jpeg(raw_bytes)
-            access = meta.get("accessibility") or {}
-            if not isinstance(access, dict):
-                access = {}
 
-            item_id = str(item.get("id") or "")
-            fname = f"{hashlib.md5(raw_bytes).hexdigest()[:12]}_{page_num}_img.{ext}"
-            (images_dir / fname).write_bytes(data)
+class _MarkdownBuilder:
+    def __init__(
+        self,
+        figures: dict[str, dict[str, object]],
+        remediation_records: list[dict[str, object]],
+        unresolved_records: list[dict[str, object]],
+    ) -> None:
+        self._figures = figures
+        self._remediation_records = remediation_records
+        self._unresolved_records = unresolved_records
+        self._used_figures: set[str] = set()
+        self._blocks: list[str] = []
 
-            fig_data: dict[str, object] = {
-                "file": fname,
-                "image_name": fname,
-                "src": f"images/{fname}",
-                "page": page_num,
-                "kind": access.get("kind", "figure"),
-                "alt_text": access.get("alt_text", ""),
-                "long_description": access.get("long_description", ""),
-                "observed_result": access.get("observed_result", ""),
-                "visible_labels": access.get("visible_labels", []),
-                "confidence": access.get("confidence", 1.0),
-                "review_needed": bool(access.get("review_needed", False)),
-                "review_reason": access.get("review_reason", ""),
-            }
-            figures[item_id] = fig_data
-            alt_records.append(
+    def emit_figure(self, figure_id: str) -> None:
+        fig = self._figures.get(figure_id)
+        if not fig or figure_id in self._used_figures:
+            return
+        self._used_figures.add(figure_id)
+        alt = str(fig.get("alt_text") or "").strip()
+        self._blocks.append(f"![{alt}]({fig['src']})")
+        if fig.get("long_description"):
+            self._blocks.append(f"<!-- long description: {fig['long_description']} -->")
+
+    def start_page(self, page_num: int) -> None:
+        self._blocks.append(f"<!-- page {page_num} -->")
+
+    def append(self, text: str) -> None:
+        self._blocks.append(text)
+
+    def add_removed_artifact(self, page_num: int, artifact: dict[str, object]) -> None:
+        self._remediation_records.append({"page": page_num, "rule": "removed_artifact", **artifact})
+
+    def add_remediation_record(self, record: dict[str, object]) -> None:
+        self._remediation_records.append(record)
+
+    def render_block(self, page_num: int, block: dict[str, object]) -> None:
+        b_text = str(block.get("text") or "").strip()
+        if block.get("review_needed"):
+            self._unresolved_records.append(
                 {
-                    "id": item_id,
                     "page": page_num,
-                    "image_name": fname,
-                    "alt_text": fig_data["alt_text"],
-                    "long_description": fig_data["long_description"],
-                    "observed_result": fig_data["observed_result"],
-                    "status": "described" if not fig_data["review_needed"] else "needs_check",
+                    "type": block.get("type"),
+                    "text": b_text,
+                    "reason": block.get("review_reason") or "Flagged in review",
+                    "needs_check": True,
                 }
             )
-            if fig_data["review_needed"]:
-                unresolved_records.append(
-                    {
-                        "id": item_id,
-                        "page": page_num,
-                        "type": "unresolved_figure",
-                        "text": fig_data["alt_text"],
-                        "reason": fig_data["review_reason"] or "Needs manual check",
-                        "needs_check": True,
-                    }
-                )
-        else:
-            raw_text = str(item.get("content") or "")
-            if raw_text and item.get("content_encoding") != "base64":
-                raw_pages.append((page_num, raw_text))
+        renderer = BLOCK_RENDERERS.get(str(block.get("type") or ""))
+        if renderer is not None:
+            renderer(self, page_num, block, b_text)
+        elif b_text:
+            self._blocks.append(b_text)
 
-            rem = meta.get("remediation")
-            ver = meta.get("verified") or {}
-            if isinstance(rem, dict):
-                pages.append((page_num, rem, ver if isinstance(ver, dict) else {}))
+    def emit_page_figures(self, page_num: int) -> None:
+        for figure_id, fig in self._figures.items():
+            if fig["page"] == page_num and figure_id not in self._used_figures and fig.get("kind") != "decorative":
+                self.emit_figure(figure_id)
 
-            if isinstance(ver, dict):
-                for corr in ver.get("corrections") or []:
-                    if isinstance(corr, dict):
-                        findings_records.append({"page": page_num, **corr})
+    def emit_remaining_figures(self) -> None:
+        for figure_id in self._figures:
+            if figure_id not in self._used_figures:
+                self.emit_figure(figure_id)
 
-    raw_pages.sort(key=lambda p: p[0])
-    raw_body = "\n\n".join(
-        f"<!-- page {p} -->\n\n{text.strip()}" for p, text in raw_pages if text.strip()
-    )
-    (out_dir / "raw.md").write_text(raw_body + "\n", encoding="utf-8")
+    def body(self, fallback: str) -> str:
+        return "\n\n".join(self._blocks) + "\n" if self._blocks else fallback + "\n"
 
-    md_blocks: list[str] = []
-    used_figures: set[str] = set()
 
-    def emit_figure(fid: str) -> None:
-        fig = figures.get(fid)
-        if not fig or fid in used_figures:
-            return
-        used_figures.add(fid)
-        alt = str(fig.get("alt_text") or "").strip()
-        md_blocks.append(f"![{alt}]({fig['src']})")
-        if fig.get("long_description"):
-            md_blocks.append(f"<!-- long description: {fig['long_description']} -->")
+def _render_heading(builder: _MarkdownBuilder, page_num: int, block: dict[str, object], b_text: str) -> None:
+    if b_text:
+        level = min(6, int(block.get("level") or 1))
+        builder.append("#" * level + " " + b_text)
 
-    pages.sort(key=lambda p: p[0])
-    for page_num, rem, _ver in pages:
-        md_blocks.append(f"<!-- page {page_num} -->")
 
+def _render_list(builder: _MarkdownBuilder, page_num: int, block: dict[str, object], b_text: str) -> None:
+    items = block.get("items") or []
+    if items:
+        builder.append("\n".join(f"- {str(i)}" for i in items))
+    elif b_text:
+        builder.append(b_text)
+
+
+def _render_table(builder: _MarkdownBuilder, page_num: int, block: dict[str, object], b_text: str) -> None:
+    header = [str(c) for c in (block.get("header") or [])]
+    rows = [[str(c) for c in row] for row in (block.get("rows") or [])]
+    builder.add_remediation_record({"page": page_num, "rule": "table_summary", "rows": len(rows)})
+    if rows:
+        builder.append(md_table(header, rows))
+    else:
+        builder.append("> Table structure found, cells unreadable. Needs manual entry.")
+
+
+def _render_math(builder: _MarkdownBuilder, page_num: int, block: dict[str, object], b_text: str) -> None:
+    mathml = str(block.get("mathml") or "").strip()
+    spoken = str(block.get("spoken") or "").strip()
+    if mathml.startswith("<math"):
+        builder.append(mathml)
+        if spoken:
+            builder.append(f"<!-- spoken: {spoken} -->")
+    elif spoken:
+        builder.append(spoken)
+
+
+def _render_figure(builder: _MarkdownBuilder, page_num: int, block: dict[str, object], b_text: str) -> None:
+    builder.emit_figure(str(block.get("image_id") or ""))
+    if b_text:
+        builder.append(b_text)
+
+
+BLOCK_RENDERERS: dict[str, Callable[[_MarkdownBuilder, int, dict[str, object], str], None]] = {
+    "heading": _render_heading,
+    "list": _render_list,
+    "table": _render_table,
+    "math": _render_math,
+    "figure": _render_figure,
+}
+
+
+def _build_remediated_body(corpus: _Corpus, remediation_records: list[dict[str, object]], fallback: str) -> str:
+    builder = _MarkdownBuilder(corpus.figures, remediation_records, corpus.unresolved_records)
+    for page_num, rem in corpus.pages:
+        builder.start_page(page_num)
         for artifact in rem.get("removed_artifacts") or []:
             if isinstance(artifact, dict):
-                remediation_records.append({"page": page_num, "rule": "removed_artifact", **artifact})
-
+                builder.add_removed_artifact(page_num, artifact)
         for block in rem.get("blocks") or []:
-            if not isinstance(block, dict):
-                continue
-            b_type = block.get("type")
-            b_text = str(block.get("text") or "").strip()
-            level = min(6, int(block.get("level") or 1))
+            if isinstance(block, dict):
+                builder.render_block(page_num, block)
+        builder.emit_page_figures(page_num)
+    builder.emit_remaining_figures()
+    return builder.body(fallback)
 
-            if block.get("review_needed"):
-                unresolved_records.append(
-                    {
-                        "page": page_num,
-                        "type": b_type,
-                        "text": b_text,
-                        "reason": block.get("review_reason") or "Flagged in review",
-                        "needs_check": True,
-                    }
-                )
 
-            if b_type == "heading" and b_text:
-                md_blocks.append("#" * level + " " + b_text)
-            elif b_type == "list" and block.get("items"):
-                items_list = [str(i) for i in block.get("items", [])]
-                md_blocks.append("\n".join(f"- {i}" for i in items_list))
-            elif b_type == "table":
-                header = [str(c) for c in (block.get("header") or [])]
-                rows = [[str(c) for c in row] for row in (block.get("rows") or [])]
-                remediation_records.append({"page": page_num, "rule": "table_summary", "rows": len(rows)})
-                if rows:
-                    md_blocks.append(md_table(header, rows))
-                else:
-                    md_blocks.append("> Table structure found, cells unreadable. Needs manual entry.")
-            elif b_type == "math":
-                mathml = str(block.get("mathml") or "").strip()
-                spoken = str(block.get("spoken") or "").strip()
-                if mathml.startswith("<math"):
-                    md_blocks.append(mathml)
-                    if spoken:
-                        md_blocks.append(f"<!-- spoken: {spoken} -->")
-                elif spoken:
-                    md_blocks.append(spoken)
-            elif b_type == "figure":
-                emit_figure(str(block.get("image_id") or ""))
-                if b_text:
-                    md_blocks.append(b_text)
-            elif b_text:
-                md_blocks.append(b_text)
-
-        for fid, fig in figures.items():
-            if fig["page"] == page_num and fid not in used_figures and fig.get("kind") != "decorative":
-                emit_figure(fid)
-
-    for fid, _fig in figures.items():
-        if fid not in used_figures:
-            emit_figure(fid)
-
-    remediated_body = "\n\n".join(md_blocks) + "\n" if md_blocks else raw_body + "\n"
-    (out_dir / "raw.corrected.remediated.md").write_text(remediated_body, encoding="utf-8")
-    (out_dir / "raw.corrected.md").write_text(remediated_body, encoding="utf-8")
-    (out_dir / "raw.findings.jsonl").write_text(
-        "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in findings_records), encoding="utf-8"
-    )
-    (out_dir / "raw.alt.jsonl").write_text(
-        "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in alt_records), encoding="utf-8"
-    )
-    (out_dir / "raw.corrected.remediation.jsonl").write_text(
-        "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in remediation_records), encoding="utf-8"
-    )
-    (out_dir / "remediated.unresolved.jsonl").write_text(
-        "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in unresolved_records), encoding="utf-8"
+def _raw_body(corpus: _Corpus) -> str:
+    return "\n\n".join(
+        f"<!-- page {p} -->\n\n{text.strip()}" for p, text in corpus.raw_pages if text.strip()
     )
 
-    docx_path = out_dir / "remediated.docx"
+
+def _write_jsonl(path: Path, records: list[dict[str, object]]) -> None:
+    path.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records), encoding="utf-8")
+
+
+def _write_trails(out_dir: Path, corpus: _Corpus, remediation_records: list[dict[str, object]]) -> None:
+    _write_jsonl(out_dir / artifact_filename(ArtifactName.FINDINGS), corpus.findings_records)
+    _write_jsonl(out_dir / artifact_filename(ArtifactName.ALT), corpus.alt_records)
+    _write_jsonl(out_dir / artifact_filename(ArtifactName.REMEDIATION), remediation_records)
+    _write_jsonl(out_dir / artifact_filename(ArtifactName.UNRESOLVED), corpus.unresolved_records)
+
+
+def _compile_artifacts(out_dir: Path, body: str) -> None:
+    docx_path = out_dir / artifact_filename(ArtifactName.DOCX)
     try:
-        pypandoc.convert_text(
-            remediated_body,
-            "docx",
-            format="markdown+tex_math_dollars",
-            outputfile=str(docx_path),
-            extra_args=pandoc_extra_args(out_dir),
-        )
+        markdown_to_format(body, "docx", docx_path, resource_root=out_dir)
     except Exception as exc:
-        logger.warning("DOCX compilation failed; falling back to empty artifact: %s", exc)
-        docx_path.write_bytes(b"")
+        docx_path.unlink(missing_ok=True)
+        raise RuntimeError(f"DOCX compilation failed: {exc}") from exc
 
-    tex_path = out_dir / "remediated.tex"
+    tex_path = out_dir / artifact_filename(ArtifactName.TEX)
     try:
-        pypandoc.convert_text(
-            remediated_body,
-            "latex",
-            format="markdown+tex_math_dollars",
-            outputfile=str(tex_path),
-            extra_args=pandoc_extra_args(out_dir),
-        )
+        markdown_to_format(body, "latex", tex_path, resource_root=out_dir)
         tag_tex_for_pdf_ua(tex_path)
     except Exception as exc:
         logger.warning("LaTeX compilation failed; no .tex artifact for this run: %s", exc)
@@ -350,19 +407,40 @@ def render_remediation(ctx: dict[str, object], out_dir: Path) -> dict[str, objec
     if docx_path.exists() and docx_path.stat().st_size > 0:
         convert_docx_to_pdf(docx_path, out_dir)
 
-    total_pages = max(len(pages), len(raw_pages), 1)
-    metrics: dict[str, object] = {
+
+def _metrics(corpus: _Corpus, remediation_records: list[dict[str, object]]) -> dict[str, object]:
+    total_pages = max(len(corpus.pages), len(corpus.raw_pages), 1)
+    return {
         "total_pages": total_pages,
         "processed_pages": total_pages,
-        "diagrams_described": len(alt_records),
+        "diagrams_described": len(corpus.alt_records),
         "tables_fixed": len([r for r in remediation_records if r.get("rule") == "table_summary"]),
-        "flagged_items_count": len(unresolved_records),
+        "flagged_items_count": len(corpus.unresolved_records),
     }
 
+
+def render_remediation(ctx: dict[str, object], out_dir: Path) -> dict[str, object]:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    images_dir = out_dir / "images"
+    images_dir.mkdir(parents=True, exist_ok=True)
+
+    corpus = _collect_corpus(ctx, images_dir)
+    raw_body = _raw_body(corpus)
+    (out_dir / artifact_filename(ArtifactName.RAW)).write_text(raw_body + "\n", encoding="utf-8")
+
+    remediation_records: list[dict[str, object]] = []
+    remediated_body = _build_remediated_body(corpus, remediation_records, raw_body)
+    (out_dir / artifact_filename(ArtifactName.REMEDIATED)).write_text(remediated_body, encoding="utf-8")
+    (out_dir / artifact_filename(ArtifactName.CORRECTED)).write_text(remediated_body, encoding="utf-8")
+
+    _write_trails(out_dir, corpus, remediation_records)
+    _compile_artifacts(out_dir, remediated_body)
+
+    total_pages = max(len(corpus.pages), len(corpus.raw_pages), 1)
     return {
-        "metrics": metrics,
+        "metrics": _metrics(corpus, remediation_records),
         "pages": total_pages,
-        "figures": len(figures),
-        "findings": len(findings_records),
-        "unresolved": len(unresolved_records),
+        "figures": len(corpus.figures),
+        "findings": len(corpus.findings_records),
+        "unresolved": len(corpus.unresolved_records),
     }

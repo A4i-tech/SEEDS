@@ -1,4 +1,3 @@
-"""Infers the dominant language of a textbook from extracted text using langdetect."""
 from __future__ import annotations
 
 import logging
@@ -25,8 +24,6 @@ _CODE_TO_NAME: dict[str, str] = {
     "as": "Assamese",
     "en": "English",
 }
-
-_LANG_MAP = _CODE_TO_NAME
 
 _NATIVE_TO_CODE: dict[str, str] = {
     "বাংলা": "bn",
@@ -94,8 +91,9 @@ def normalize_language_name(lang: str | None) -> str:
     if cleaned in _NATIVE_TO_CODE:
         code = _NATIVE_TO_CODE[cleaned]
         return _CODE_TO_NAME.get(code, "English")
-    for name, code in _NATIVE_TO_CODE.items():
-        if re.search(rf"\b{re.escape(name)}\b", cleaned):
+    for token in re.split(r"[^\w]+", cleaned):
+        code = _NATIVE_TO_CODE.get(token)
+        if code:
             return _CODE_TO_NAME.get(code, "English")
     for char in lang:
         cp = ord(char)
@@ -106,12 +104,10 @@ def normalize_language_name(lang: str | None) -> str:
 
 
 def detect_language(text: str, max_chars: int = 10000) -> str:
-    """Infers dominant language from text content using langdetect library."""
     sample = text[:max_chars].strip()
     if not sample:
         return "English"
 
-    # Fast check on Indic scripts first
     script_counts: dict[str, int] = {}
     for char in sample[:2000]:
         cp = ord(char)
@@ -128,10 +124,10 @@ def detect_language(text: str, max_chars: int = 10000) -> str:
         langs = detect_langs(sample)
         if langs:
             for item in langs:
-                if item.lang in _LANG_MAP and item.lang != "en" and item.prob > 0.15:
-                    return _LANG_MAP[item.lang]
+                if item.lang in _CODE_TO_NAME and item.lang != "en" and item.prob > 0.15:
+                    return _CODE_TO_NAME[item.lang]
             primary = langs[0].lang
-            return _LANG_MAP.get(primary, primary.capitalize())
+            return _CODE_TO_NAME.get(primary, primary.capitalize())
     except Exception as exc:
         logger.debug("Language detection fallback: %s", exc)
 
