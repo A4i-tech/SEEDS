@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import re
 
 from langdetect import DetectorFactory, detect_langs
 
@@ -94,7 +95,7 @@ def normalize_language_name(lang: str | None) -> str:
         code = _NATIVE_TO_CODE[cleaned]
         return _CODE_TO_NAME.get(code, "English")
     for name, code in _NATIVE_TO_CODE.items():
-        if name in cleaned:
+        if re.search(rf"\b{re.escape(name)}\b", cleaned):
             return _CODE_TO_NAME.get(code, "English")
     for char in lang:
         cp = ord(char)

@@ -12,9 +12,8 @@ later stage still leaves the earlier ones readable rather than throwing away
 the vision calls that produced them.
 
 The pipelines run as a **subprocess**, not in this process, so a pipeline
-crash cannot take the api/consumer process down with it.
-`settings.remediation_python` names the interpreter to use — this project's
-own by default, since omni-ingest is a local path dependency (pyproject.toml).
+crash cannot take the api/consumer process down with it. It runs with
+`sys.executable` — one Poetry environment, no separate isolated interpreter.
 
 SECURITY:
   - subprocess is always called with the list form, never shell=True.
@@ -42,7 +41,7 @@ from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.remediation_job import ARTIFACTS, RemediationJob
 from app.platform.settings import get_settings
-from app.providers.blob_storage import BlobStorageProvider
+from app.providers.blob_storage import BlobStorageProvider, get_blob_storage_provider
 from app.remediation.detect_language import detect_language, normalize_language_name
 from app.remediation.render import render_remediation
 from app.remediation.run_pipeline import run_pipeline
@@ -144,6 +143,8 @@ async def _process_job(job: RemediationJob, repo: TextbookRemediationRepository,
             on_progress=make_progress_handler("remediation"),
         )
 
+        await repo.set_stage(job.job_id, "review")
+
         metrics: dict[str, object] | None = None
         detected_lang: str | None = None
         if context_json_path.exists():
@@ -188,31 +189,7 @@ async def _process_job(job: RemediationJob, repo: TextbookRemediationRepository,
                 logger.warning("remediation: body language detection failed: %s", exc)
 
         if not detected_lang or detected_lang.lower() in ("auto", "detecting", "unknown"):
-            src_lower = job.source_name.lower()
-            if any(k in src_lower for k in ("tripura", "bangla", "bengali", "wb")):
-                detected_lang = "Bengali"
-            elif any(k in src_lower for k in ("hindi", "ganit", "vigyan")):
-                detected_lang = "Hindi"
-            elif any(k in src_lower for k in ("kannada", "ktbs")):
-                detected_lang = "Kannada"
-            elif any(k in src_lower for k in ("tamil", "tn")):
-                detected_lang = "Tamil"
-            elif any(k in src_lower for k in ("telugu", "ap", "ts")):
-                detected_lang = "Telugu"
-            elif any(k in src_lower for k in ("gujarati",)):
-                detected_lang = "Gujarati"
-            elif any(k in src_lower for k in ("malayalam", "kerala")):
-                detected_lang = "Malayalam"
-            elif any(k in src_lower for k in ("marathi", "maharashtra")):
-                detected_lang = "Marathi"
-            elif any(k in src_lower for k in ("odia", "orissa")):
-                detected_lang = "Odia"
-            elif any(k in src_lower for k in ("punjabi", "punjab")):
-                detected_lang = "Punjabi"
-            elif any(k in src_lower for k in ("assamese", "assam")):
-                detected_lang = "Assamese"
-            else:
-                detected_lang = "English"
+            detected_lang = "Unknown"
 
         final_lang = normalize_language_name((job.language if not is_auto and job.language else None) or detected_lang)
         await repo.update_language(job.job_id, final_lang)
@@ -236,10 +213,12 @@ async def _process_job(job: RemediationJob, repo: TextbookRemediationRepository,
             }
 
 
+        await repo.set_stage(job.job_id, "docx")
+
         await _upload_images(blob_provider, job.job_id, work)
         await repo.record_artifacts(
             job.job_id,
-            await _upload(blob_provider, job.job_id, out, "raw", "corrected", "findings", "docx", "tex", "pdf", "remediated", "remediation", "unresolved"),
+            await _upload(blob_provider, job.job_id, out, "raw", "corrected", "findings", "alt", "docx", "tex", "pdf", "remediated", "remediation", "unresolved"),
             {
                 "raw_chars": raw.stat().st_size if raw.exists() else 0,
                 "findings": _count_lines(findings),
@@ -300,9 +279,7 @@ class TextbookRemediationConsumer:
         while self._running:
             if blob_provider is None:
                 try:
-                    from app.providers.blob_storage import BlobStorageProvider  # noqa: PLC0415
-
-                    blob_provider = BlobStorageProvider()
+                    blob_provider = get_blob_storage_provider()
                 except Exception as exc:  # noqa: BLE001
                     logger.warning(
                         "TextbookRemediationConsumer: BlobStorageProvider unavailable — %s. Retrying in %ds.",

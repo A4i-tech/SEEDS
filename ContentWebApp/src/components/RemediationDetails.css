@@ -152,6 +152,9 @@
   margin: 10px 0;
   font-size: 13px;
 }
+.remediation-verified-badge {
+  padding: 6px 12px;
+}
 .remediation-pdf-unavailable {
   background: var(--color-warning-bg);
   color: var(--color-warning-fg);

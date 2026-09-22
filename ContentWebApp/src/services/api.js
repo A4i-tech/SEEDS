@@ -34,6 +34,10 @@ export const apiFetch = async (url, options = {}) => {
       );
     }
 
+    if (options.responseType === "blob") {
+      return await response.blob();
+    }
+
     // Handle empty responses
     const contentType = response.headers.get("content-type");
     if (response.status !== 204 && contentType && contentType.includes("application/json")) {
@@ -85,12 +89,17 @@ export const streamSse = async (url, onEvent, { headers, signal } = {}) => {
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
     let separatorIndex;
-    while ((separatorIndex = buffer.indexOf("\n\n")) !== -1) {
+    while ((separatorIndex = buffer.search(/\r\n\r\n|\n\n/)) !== -1) {
+      const separatorLength = buffer[separatorIndex] === "\r" ? 4 : 2;
       const rawEvent = buffer.slice(0, separatorIndex);
-      buffer = buffer.slice(separatorIndex + 2);
-      const dataLine = rawEvent.split("\n").find((line) => line.startsWith("data: "));
-      if (dataLine) {
+      buffer = buffer.slice(separatorIndex + separatorLength);
+      const dataLine = rawEvent.split(/\r\n|\n/).find((line) => line.startsWith("data: "));
+      if (!dataLine) continue;
+      try {
         onEvent(JSON.parse(dataLine.slice("data: ".length)));
+      } catch (parseError) {
+        // One malformed frame shouldn't end the whole stream — later frames are independent.
+        console.error("streamSse: dropping malformed SSE frame", parseError);
       }
     }
   }

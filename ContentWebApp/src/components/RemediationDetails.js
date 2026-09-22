@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -8,6 +8,7 @@ import rehypeRaw from "rehype-raw";
 import "katex/dist/katex.min.css";
 
 import { SEEDS_URL } from "../Constants";
+import { getAuthToken } from "../utils/authHelpers";
 import { Breadcrumb } from "./AllContent/shared/Breadcrumb";
 import { Pagination } from "./ContentAggregatorDetails/Pagination";
 import Select from "./AllContent/shared/Select";
@@ -70,7 +71,7 @@ function MarkdownViewer({ text, jobId }) {
           const filename = (src || "").replace(/^images\//, "");
           const imgSrc =
             src && !src.startsWith("http://") && !src.startsWith("https://") && !src.startsWith("data:")
-              ? `${SEEDS_URL}/textbook-remediation/jobs/${jobId}/images/${filename}`
+              ? `${SEEDS_URL}/textbook-remediation/jobs/${encodeURIComponent(jobId)}/images/${encodeURIComponent(filename)}?token=${encodeURIComponent(getAuthToken())}`
               : src;
 
           return (
@@ -78,7 +79,7 @@ function MarkdownViewer({ text, jobId }) {
               {imgSrc && (
                 <img
                   src={imgSrc}
-                  alt={alt || ""}
+                  alt={alt || "Image description unavailable"}
                   onError={(e) => {
                     e.currentTarget.style.display = "none";
                   }}
@@ -123,6 +124,7 @@ const RemediationDetails = () => {
   const [translateLanguage, setTranslateLanguage] = useState("");
   const [isTranslating, setIsTranslating] = useState(false);
   const [reviewSummary, setReviewSummary] = useState(null);
+  const hasSeededDraftRef = useRef(false);
 
   const rawPages = useMemo(() => splitIntoPages(documents.raw), [documents.raw]);
   const correctedPages = useMemo(
@@ -135,11 +137,20 @@ const RemediationDetails = () => {
   const currentCorrectedPage =
     correctedPages[pageIdx]?.content || (correctedPages.length === 0 ? (draftText || documents.corrected || "") : "");
 
+  const pageIndexForNum = (pageNum) => {
+    const idx = correctedPages.findIndex((p) => p.pageNum === pageNum);
+    if (idx !== -1) return idx;
+    const rawIdx = rawPages.findIndex((p) => p.pageNum === pageNum);
+    return rawIdx !== -1 ? rawIdx : 0;
+  };
+
   const flaggedPages = useMemo(() => {
-    const pages = (reviewSummary?.flagged_items || []).map((item) => (item.page || 1) - 1);
+    const pages = (reviewSummary?.flagged_items || []).map((item) => pageIndexForNum(item.page || 1));
     return [...new Set(pages)].sort((a, b) => a - b);
-  }, [reviewSummary]);
-  const currentPageFlags = (reviewSummary?.flagged_items || []).filter((item) => (item.page || 1) - 1 === pageIdx);
+  }, [reviewSummary, correctedPages, rawPages]);
+  const currentPageFlags = (reviewSummary?.flagged_items || []).filter(
+    (item) => pageIndexForNum(item.page || 1) === pageIdx
+  );
 
   const handleNextFlag = () => {
     const next = flaggedPages.find((p) => p > pageIdx);
@@ -153,6 +164,7 @@ const RemediationDetails = () => {
       .then((current) => {
         setJob(current);
         if (current.draft_remediated_md) {
+          hasSeededDraftRef.current = true;
           setDraftText(current.draft_remediated_md);
         }
         if (current.status === "pending" || current.status === "running") {
@@ -169,10 +181,14 @@ const RemediationDetails = () => {
   }, [jobId]);
 
   useEffect(() => {
+    const controller = new AbortController();
     textbookRemediationService
-      .getReviewSummary(jobId)
+      .getReviewSummary(jobId, { signal: controller.signal })
       .then((res) => setReviewSummary(res))
-      .catch((summaryErr) => setError(summaryErr.message));
+      .catch((summaryErr) => {
+        if (!controller.signal.aborted) setError(summaryErr.message);
+      });
+    return () => controller.abort();
   }, [jobId]);
 
   const artifacts = useMemo(() => (job ? job.artifacts : {}), [job]);
@@ -184,13 +200,14 @@ const RemediationDetails = () => {
         .getArtifactText(jobId, name)
         .then((text) => {
           setDocuments((prev) => ({ ...prev, [name]: text }));
-          if (name === "corrected" && !draftText) {
+          if (name === "corrected" && !hasSeededDraftRef.current) {
+            hasSeededDraftRef.current = true;
             setDraftText(text);
           }
         })
         .catch((textError) => setError(textError.message));
     });
-  }, [artifacts, documents, draftText, jobId]);
+  }, [artifacts, documents, jobId]);
 
   const handleSaveDraft = async () => {
     try {
@@ -295,7 +312,7 @@ const RemediationDetails = () => {
                     Done — mark Verified
                   </button>
                 ) : (
-                  <span className="gate-badge gate-badge-verified" style={{ padding: "6px 12px" }}>
+                  <span className="gate-badge gate-badge-verified remediation-verified-badge">
                     ✓ Verified & Saved to Library
                   </span>
                 )}

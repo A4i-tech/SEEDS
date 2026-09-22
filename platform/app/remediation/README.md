@@ -74,7 +74,7 @@ Writes `<stem>.corrected.md` and `<stem>.findings.jsonl`.
 
 ## Stage C — accessible Word document
 
-    $REMEDIATION_PYTHON -m app.remediation.run app/remediation/textbook_docx.yaml \
+    python -m app.remediation.run app/remediation/textbook_docx.yaml \
       --input out/raw.corrected.md --output docx.json \
       --out out/remediated.docx --assets-dir out
 

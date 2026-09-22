@@ -10,6 +10,7 @@ JSON responses are snake_case.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -48,7 +49,6 @@ _LANGUAGE = re.compile(r"[a-zA-Z]{2,8}(-[a-zA-Z0-9]{2,8})?")
 
 class DraftUpdateRequest(BaseModel):
     draft_md: str
-    figure_overrides: dict[str, object] | None = None
 
 
 class VerifyJobRequest(BaseModel):
@@ -88,22 +88,26 @@ async def create_remediation_job(
 ) -> dict[str, str]:
     if file.content_type != "application/pdf":
         raise ValidationError(f"Expected a PDF, got {file.content_type!r}")
-    data = await file.read(MAX_PDF_BYTES + 1)
-    if len(data) > MAX_PDF_BYTES:
-        raise ValidationError(f"PDF is larger than {MAX_PDF_BYTES // (1024 * 1024)} MB")
-    if not data.startswith(b"%PDF-"):
+    header = await file.read(5)
+    if header != b"%PDF-":
         raise ValidationError("File is not a PDF")
+    file.file.seek(0, 2)
+    size = file.file.tell()
+    if size > MAX_PDF_BYTES:
+        raise ValidationError(f"PDF is larger than {MAX_PDF_BYTES // (1024 * 1024)} MB")
+    await file.seek(0)
     if not _LANGUAGE.fullmatch(language):
         raise ValidationError(f"Not a language tag: {language!r}")
     if target_language and not _LANGUAGE.fullmatch(target_language):
         raise ValidationError(f"Not a language tag: {target_language!r}")
 
     job = await repo.create(
-        tenant_id=str(user.get("tenant_id", "")), source_name=file.filename or "textbook.pdf",
+        tenant_id=str(user["tenant_id"]), source_name=file.filename or "textbook.pdf",
         source_url="", language=language, target_language=target_language or None,
     )
     url = await blob_provider.upload_file(
-        get_settings().azure_storage_container, f"textbook-remediation/{job.job_id}/source.pdf", data, "application/pdf"
+        get_settings().azure_storage_container, f"textbook-remediation/{job.job_id}/source.pdf",
+        file.file, "application/pdf",
     )
     await repo.set_source_url(job.job_id, url)
     return {"job_id": job.job_id}
@@ -115,7 +119,7 @@ async def list_remediation_jobs(
     user: dict[str, object] = Depends(require_remediation_access),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
 ) -> dict[str, list[dict[str, object]]]:
-    jobs = await repo.list_jobs(str(user.get("tenant_id", "")), limit=limit)
+    jobs = await repo.list_jobs(str(user["tenant_id"]), limit=limit)
     return {"jobs": [serialize_job(job) for job in jobs]}
 
 
@@ -125,7 +129,7 @@ async def delete_remediation_job(
     user: dict[str, object] = Depends(require_remediation_access),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
 ) -> None:
-    await repo.soft_delete(str(user.get("tenant_id", "")), job_id)
+    await repo.soft_delete(str(user["tenant_id"]), job_id)
 
 
 @router.get("/jobs/{job_id}", summary="Get a remediation job's status and artifacts")
@@ -134,7 +138,7 @@ async def get_remediation_job(
     user: dict[str, object] = Depends(require_remediation_access),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
 ) -> dict[str, object]:
-    return serialize_job(await _get_job(repo, str(user.get("tenant_id", "")), job_id))
+    return serialize_job(await _get_job(repo, str(user["tenant_id"]), job_id))
 
 
 @router.get("/jobs/{job_id}/stream", summary="SSE stream of live remediation progress")
@@ -143,7 +147,7 @@ async def stream_remediation_job(
     user: dict[str, object] = Depends(require_remediation_access),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
 ) -> StreamingResponse:
-    tenant_id = str(user.get("tenant_id", ""))
+    tenant_id = str(user["tenant_id"])
 
     async def _format() -> AsyncIterator[str]:
         async for event in subscribe(repo, tenant_id, job_id):
@@ -160,7 +164,7 @@ async def get_remediation_artifact(
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
 ) -> Response:
-    job = await _get_job(repo, str(user.get("tenant_id", "")), job_id)
+    job = await _get_job(repo, str(user["tenant_id"]), job_id)
     data, content_type = await _artifact_bytes(job, name, blob_provider)
     filename = ARTIFACTS[name][0]
     return Response(content=data, media_type=content_type,
@@ -171,8 +175,11 @@ async def get_remediation_artifact(
 async def get_remediation_image(
     job_id: str,
     image_name: str,
+    user: dict[str, object] = Depends(require_remediation_access),
+    repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
 ) -> Response:
+    await _get_job(repo, str(user["tenant_id"]), job_id)
     safe_name = Path(image_name).name
     ext = Path(safe_name).suffix.lower()
     content_types = {
@@ -209,7 +216,7 @@ async def get_remediation_findings(
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
 ) -> dict[str, object]:
-    job = await _get_job(repo, str(user.get("tenant_id", "")), job_id)
+    job = await _get_job(repo, str(user["tenant_id"]), job_id)
     data, _ = await _artifact_bytes(job, name, blob_provider)
     lines = [line for line in data.decode("utf-8").splitlines() if line.strip()]
     page = [json.loads(line) for line in lines[offset:offset + limit]]
@@ -224,7 +231,7 @@ async def save_remediation_draft(
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
 ) -> dict[str, object]:
-    job = await _get_job(repo, str(user.get("tenant_id", "")), job_id)
+    job = await _get_job(repo, str(user["tenant_id"]), job_id)
     container = get_settings().azure_storage_container
     draft_bytes = payload.draft_md.encode("utf-8")
     url = await blob_provider.upload_file(
@@ -232,6 +239,32 @@ async def save_remediation_draft(
     )
     updated = await repo.update_draft(job_id, payload.draft_md, url)
     return serialize_job(updated or job)
+
+
+def _compile_verified_artifacts(draft_md: str) -> dict[str, bytes]:
+    """Runs pandoc + LibreOffice synchronously; call via asyncio.to_thread, never
+    directly on the event loop — convert_docx_to_pdf shells out with up to a
+    120s subprocess timeout."""
+    import tempfile
+
+    import pypandoc
+
+    from app.remediation.render import convert_docx_to_pdf, tag_tex_for_pdf_ua
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        out_dir = Path(tmpdir)
+        out_docx = out_dir / "remediated.docx"
+        pypandoc.convert_text(draft_md, "docx", format="markdown+tex_math_dollars", outputfile=str(out_docx))
+        out_tex = out_dir / "remediated.tex"
+        pypandoc.convert_text(draft_md, "latex", format="markdown+tex_math_dollars", outputfile=str(out_tex))
+        tag_tex_for_pdf_ua(out_tex)
+        out_pdf = convert_docx_to_pdf(out_docx, out_dir) if out_docx.exists() else None
+
+        return {
+            name: out_path.read_bytes()
+            for name, out_path in (("docx", out_docx), ("tex", out_tex), ("pdf", out_pdf))
+            if out_path and out_path.exists()
+        }
 
 
 @router.post("/jobs/{job_id}/verify", summary="Mark a remediated document verified and save to library")
@@ -242,55 +275,30 @@ async def verify_remediation_job(
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
 ) -> dict[str, object]:
-    job = await _get_job(repo, str(user.get("tenant_id", "")), job_id)
+    job = await _get_job(repo, str(user["tenant_id"]), job_id)
     verified_by = str(user.get("email") or user.get("name") or user.get("id") or "reviewer")
 
+    compile_error: str | None = None
     if job.draft_remediated_md:
         try:
-            import tempfile
-
-            import pypandoc
-
-            from app.remediation.render import convert_docx_to_pdf, tag_tex_for_pdf_ua
-
-            with tempfile.TemporaryDirectory() as tmpdir:
-                out_dir = Path(tmpdir)
-                out_docx = out_dir / "remediated.docx"
-                pypandoc.convert_text(
-                    job.draft_remediated_md,
-                    "docx",
-                    format="markdown+tex_math_dollars",
-                    outputfile=str(out_docx),
+            artifact_bytes = await asyncio.to_thread(_compile_verified_artifacts, job.draft_remediated_md)
+            container = get_settings().azure_storage_container
+            verified_artifacts: dict[str, str] = {}
+            for name, data in artifact_bytes.items():
+                verified_artifacts[name] = await blob_provider.upload_file(
+                    container, f"textbook-remediation/{job_id}/{ARTIFACTS[name][0]}", data, ARTIFACTS[name][1],
                 )
-                out_tex = out_dir / "remediated.tex"
-                pypandoc.convert_text(
-                    job.draft_remediated_md,
-                    "latex",
-                    format="markdown+tex_math_dollars",
-                    outputfile=str(out_tex),
-                )
-                tag_tex_for_pdf_ua(out_tex)
-                out_pdf = convert_docx_to_pdf(out_docx, out_dir) if out_docx.exists() else None
-
-                container = get_settings().azure_storage_container
-                verified_artifacts: dict[str, str] = {}
-                for name, out_path in (("docx", out_docx), ("tex", out_tex), ("pdf", out_pdf)):
-                    if out_path and out_path.exists():
-                        verified_artifacts[name] = await blob_provider.upload_file(
-                            container,
-                            f"textbook-remediation/{job_id}/{ARTIFACTS[name][0]}",
-                            out_path.read_bytes(),
-                            ARTIFACTS[name][1],
-                        )
-                if verified_artifacts:
-                    await repo.record_artifacts(job_id, verified_artifacts, {})
+            if verified_artifacts:
+                await repo.record_artifacts(job_id, verified_artifacts, {})
         except Exception as exc:
             logger.warning("Could not compile verified artifacts for job %s: %s", job_id, exc)
+            compile_error = f"Could not generate the Word/PDF/LaTeX files: {exc}"
 
     title = payload.title or job.source_name.replace(".pdf", " (Accessible)")
     updated = await repo.mark_verified(
         job_id,
         verified_by=verified_by,
+        error=compile_error,
         title=title,
     )
     return serialize_job(updated or job)
@@ -304,7 +312,7 @@ async def translate_remediation_job(
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
 ) -> dict[str, object]:
-    job = await _get_job(repo, str(user.get("tenant_id", "")), job_id)
+    job = await _get_job(repo, str(user["tenant_id"]), job_id)
     if not _LANGUAGE.fullmatch(payload.target_language):
         raise ValidationError(f"Not a language tag: {payload.target_language!r}")
 
@@ -324,7 +332,7 @@ async def get_review_summary(
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
 ) -> dict[str, object]:
-    job = await _get_job(repo, str(user.get("tenant_id", "")), job_id)
+    job = await _get_job(repo, str(user["tenant_id"]), job_id)
 
     diagrams = []
     if "alt" in job.artifacts:
@@ -373,7 +381,8 @@ async def get_review_summary(
             for line in data.decode("utf-8").splitlines():
                 if line.strip():
                     item = json.loads(line)
-                    if item.get("rule") == "table_summary" or "table" in item.get("rule", ""):
+                    rule = item.get("rule") or ""
+                    if rule == "table_summary" or "table" in rule:
                         tables.append(item)
         except Exception as exc:
             logger.warning("Failed to parse remediation artifact for job %s: %s", job_id, exc)

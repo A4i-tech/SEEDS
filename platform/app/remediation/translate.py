@@ -9,6 +9,7 @@ Shared by two trigger points, both calling this same function:
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import tempfile
@@ -19,12 +20,30 @@ import pypandoc
 from app.models.remediation_job import ARTIFACTS
 from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider
-from app.remediation.render import convert_docx_to_pdf, tag_tex_for_pdf_ua
+from app.remediation.render import convert_docx_to_pdf, pandoc_extra_args, tag_tex_for_pdf_ua
 from app.remediation.run_pipeline import run_pipeline
 
 logger = logging.getLogger(__name__)
 
 PIPELINE_PATH = Path(__file__).resolve().parent / "textbook_translation.yaml"
+
+
+def _render_translated_docs(translated_text: str, out_docx: Path, out_tex: Path, out_dir: Path) -> None:
+    """Runs pandoc + LibreOffice synchronously; call via asyncio.to_thread, never
+    directly on the event loop — convert_docx_to_pdf shells out with up to a
+    120s subprocess timeout."""
+    extra_args = pandoc_extra_args(out_dir)
+    pypandoc.convert_text(
+        translated_text, "docx", format="markdown+tex_math_dollars",
+        outputfile=str(out_docx), extra_args=extra_args,
+    )
+    pypandoc.convert_text(
+        translated_text, "latex", format="markdown+tex_math_dollars",
+        outputfile=str(out_tex), extra_args=extra_args,
+    )
+    tag_tex_for_pdf_ua(out_tex)
+    if out_docx.exists() and out_docx.stat().st_size > 0:
+        convert_docx_to_pdf(out_docx, out_dir)
 
 
 async def run_translation(
@@ -60,18 +79,8 @@ async def run_translation(
         out_md.write_text(translated_text, encoding="utf-8")
 
         out_docx = out_dir / "translated.docx"
-        pypandoc.convert_text(
-            translated_text, "docx", format="markdown+tex_math_dollars",
-            outputfile=str(out_docx), extra_args=["--standalone"],
-        )
         out_tex = out_dir / "translated.tex"
-        pypandoc.convert_text(
-            translated_text, "latex", format="markdown+tex_math_dollars",
-            outputfile=str(out_tex), extra_args=["--standalone"],
-        )
-        tag_tex_for_pdf_ua(out_tex)
-        if out_docx.exists() and out_docx.stat().st_size > 0:
-            convert_docx_to_pdf(out_docx, out_dir)
+        await asyncio.to_thread(_render_translated_docs, translated_text, out_docx, out_tex, out_dir)
 
         container = get_settings().azure_storage_container
         urls: dict[str, str] = {}

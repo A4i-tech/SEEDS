@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from app.models.remediation_job import STAGES, RemediationJob
@@ -30,6 +32,20 @@ async def test_create_starts_pending_with_no_stage(repo):
 async def test_get_is_tenant_scoped(repo):
     job = await _create(repo)
     assert await repo.get("tenant-b", job.job_id) is None
+
+
+@pytest.mark.asyncio
+async def test_get_hides_a_soft_deleted_job(repo):
+    job = await _create(repo)
+    await repo.soft_delete("tenant-a", job.job_id)
+    assert await repo.get("tenant-a", job.job_id) is None
+
+
+@pytest.mark.asyncio
+async def test_claim_skips_a_soft_deleted_pending_job(repo):
+    job = await _create(repo)
+    await repo.soft_delete("tenant-a", job.job_id)
+    assert await repo.claim_next_pending() is None
 
 
 @pytest.mark.asyncio
@@ -116,6 +132,7 @@ from app.controllers.textbook_remediation_controller import (  # noqa: E402
     VerifyJobRequest,
     _artifact_bytes,
     create_remediation_job,
+    get_remediation_image,
     get_review_summary,
     require_remediation_access,
     save_remediation_draft,
@@ -126,10 +143,16 @@ from app.platform.error_handling import ForbiddenError, NotFoundError, Validatio
 
 class _StubUpload:
     def __init__(self, data: bytes, content_type: str = "application/pdf", filename: str = "book.pdf"):
-        self._data, self.content_type, self.filename = data, content_type, filename
+        import io
+
+        self.file = io.BytesIO(data)
+        self.content_type, self.filename = content_type, filename
 
     async def read(self, size: int = -1) -> bytes:
-        return self._data[:size] if size >= 0 else self._data
+        return self.file.read(size)
+
+    async def seek(self, offset: int) -> None:
+        self.file.seek(offset)
 
 
 class _StubBlob:
@@ -138,11 +161,14 @@ class _StubBlob:
         self._downloads = downloads or {}
 
     async def upload_file(self, container, blob_name, data, content_type):
-        self.uploaded[blob_name] = data
+        self.uploaded[blob_name] = data.read() if hasattr(data, "read") else data
         return f"https://blob/{blob_name}"
 
     async def download_from_url(self, url):
         return self._downloads[url]
+
+    async def download_file(self, container, blob_path):
+        return self._downloads[blob_path]
 
 
 @pytest.mark.asyncio
@@ -216,6 +242,27 @@ async def test_artifact_bytes_serves_the_recorded_url(repo):
 
 
 @pytest.mark.asyncio
+async def test_get_remediation_image_serves_the_owning_tenant(repo):
+    created = await _create(repo)
+    blob_path = f"textbook-remediation/{created.job_id}/images/fig1.png"
+    response = await get_remediation_image(
+        created.job_id, "fig1.png",
+        user={"tenant_id": "tenant-a"}, repo=repo, blob_provider=_StubBlob({blob_path: b"png-bytes"}),
+    )
+    assert response.body == b"png-bytes"
+
+
+@pytest.mark.asyncio
+async def test_get_remediation_image_blocks_a_different_tenant(repo):
+    created = await _create(repo)
+    with pytest.raises(NotFoundError):
+        await get_remediation_image(
+            created.job_id, "fig1.png",
+            user={"tenant_id": "tenant-b"}, repo=repo, blob_provider=_StubBlob(),
+        )
+
+
+@pytest.mark.asyncio
 async def test_save_draft_and_verify_job(repo):
     created = await _create(repo)
     blob = _StubBlob()
@@ -255,6 +302,23 @@ async def test_review_summary(repo):
     assert summary["job_id"] == created.job_id
     assert "diagrams_described_count" in summary
     assert "flagged_items_count" in summary
+
+
+@pytest.mark.asyncio
+async def test_review_summary_skips_a_null_rule_without_dropping_later_rows(repo):
+    created = await _create(repo)
+    job = await repo.record_artifacts(created.job_id, {"remediation": "https://blob/r.jsonl"}, {})
+    lines = "\n".join([
+        json.dumps({"rule": None}),
+        json.dumps({"rule": "table_summary", "id": "t1"}),
+    ])
+    summary = await get_review_summary(
+        job.job_id,
+        user={"tenant_id": "tenant-a"},
+        repo=repo,
+        blob_provider=_StubBlob({"https://blob/r.jsonl": lines.encode("utf-8")}),
+    )
+    assert [t["id"] for t in summary["tables"]] == ["t1"]
 
 
 def test_platform_root_path():

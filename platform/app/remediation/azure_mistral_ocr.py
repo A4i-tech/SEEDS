@@ -24,6 +24,8 @@ from omni_ingest.core.model import ByteContent
 from omni_ingest.core.ocr import Ocr, OcrBuilderParams, OcrFactory, OcrOutputFormat
 from omni_ingest.core.pipeline import IngestionContext, register_step
 
+from app.platform.settings import get_settings
+
 ENGINE_NAME = "azure_mistral"
 
 
@@ -33,8 +35,8 @@ def azure_mistral_ocr_builder(params: OcrBuilderParams) -> Ocr:
     if params.dst_lang is not None:
         raise ValueError("Mistral Document AI does not support a destination language option")
 
-    key = os.environ.get("MISTRAL_OCR_API_KEY")
-    endpoint = os.environ.get("MISTRAL_OCR_ENDPOINT")
+    key = get_settings().mistral_ocr_api_key
+    endpoint = get_settings().mistral_ocr_endpoint
     if not key or not endpoint:
         raise ValueError("MISTRAL_OCR_API_KEY/MISTRAL_OCR_ENDPOINT are not configured")
     model = os.environ.get("MISTRAL_OCR_MODEL", settings.mistral_ocr_model)

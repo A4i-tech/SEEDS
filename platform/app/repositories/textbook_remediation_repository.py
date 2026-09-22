@@ -47,7 +47,7 @@ class TextbookRemediationRepository:
         await self._col.update_one({"_id": _oid(job_id)}, {"$set": {"source_url": source_url}})
 
     async def get(self, tenant_id: str, job_id: str) -> RemediationJob | None:
-        doc = await self._col.find_one({"_id": _oid(job_id), "tenant_id": tenant_id})
+        doc = await self._col.find_one({"_id": _oid(job_id), "tenant_id": tenant_id, "deleted_at": None})
         return RemediationJob.from_doc(doc) if doc else None
 
     async def list_jobs(self, tenant_id: str, *, limit: int = 20) -> list[RemediationJob]:
@@ -65,7 +65,7 @@ class TextbookRemediationRepository:
     async def claim_next_pending(self) -> RemediationJob | None:
         """Atomically move one pending job to running. Not tenant-scoped: the consumer serves every tenant."""
         doc = await self._col.find_one_and_update(
-            {"status": "pending"},
+            {"status": "pending", "deleted_at": None},
             {"$set": {"status": "running", "stage": "ocr"}},
             sort=[("created_at", 1)],
             return_document=ReturnDocument.AFTER,
@@ -112,11 +112,13 @@ class TextbookRemediationRepository:
         *,
         verified_by: str,
         title: str | None = None,
+        error: str | None = None,
     ) -> RemediationJob | None:
         update: dict[str, object] = {
             "status": "verified",
             "verified_by": verified_by,
             "verified_at": datetime.now(UTC).isoformat(),
+            "error": error,
         }
         if title:
             update["title"] = title

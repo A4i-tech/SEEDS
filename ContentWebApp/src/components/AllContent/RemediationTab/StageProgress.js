@@ -8,12 +8,17 @@ export function StageProgress({ job }) {
   const progressMsg = job.status === "running" && job.progress ? job.progress.message : "";
   const progressPercent = job.status === "running" && job.progress ? job.progress.percent : null;
 
+  const hasStageCounts = typeof job.stage_index === "number" && typeof job.stage_count === "number";
+  const stagesLabel = hasStageCounts
+    ? `stage ${job.stage_index} of ${job.stage_count}`
+    : "Stage progress not yet available";
+
   return (
     <div className="remediation-stages-wrapper">
-      <div className="remediation-stages" aria-label={`stage ${job.stage_index} of ${job.stage_count}`}>
+      <div className="remediation-stages" aria-label={stagesLabel}>
         {STAGES.map((stage, index) => {
-          const reached = done || index < job.stage_index;
           const current = !done && index + 1 === job.stage_index && job.status === "running";
+          const reached = done || index + 1 < job.stage_index;
           return (
             <span
               key={stage}

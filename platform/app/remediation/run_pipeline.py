@@ -7,21 +7,30 @@ plumbing, different pipeline file and CLI params.
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import json
 import logging
 import os
 import subprocess
+import sys
+import threading
 from collections.abc import Awaitable, Callable
 from pathlib import Path
-
-import dotenv
 
 from app.platform.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
 PLATFORM_ROOT = Path(__file__).resolve().parent.parent.parent
+
+# The only platform secrets the remediation/translation pipelines actually
+# read (OCR + chat-completion model credentials) — not the platform's whole
+# .env, which also carries DB connection strings and unrelated service keys.
+_REMEDIATION_SETTINGS_KEYS = (
+    "openai_api_key",
+    "groq_api_key",
+    "mistral_ocr_api_key",
+    "mistral_ocr_endpoint",
+)
 
 
 async def run_pipeline(
@@ -33,16 +42,12 @@ async def run_pipeline(
 ) -> None:
     progress_file = workspace / "remediation.progress.jsonl"
     command = [
-        get_settings().remediation_python, "-m", "app.remediation.run",
+        sys.executable, "-m", "app.remediation.run",
         str(pipeline_path), "--input", str(resource),
         "--quiet", "--progress-file", str(progress_file), *options,
     ]
-    env_file = PLATFORM_ROOT / ".env"
-    env_vars: dict[str, str] = {}
-    if env_file.exists():
-        env_vars = {k: v for k, v in dotenv.dotenv_values(env_file).items() if v is not None}
-        with contextlib.suppress(Exception):
-            (workspace / ".env").write_bytes(env_file.read_bytes())
+    settings = get_settings()
+    env_vars = {name.upper(): value for name in _REMEDIATION_SETTINGS_KEYS if (value := getattr(settings, name))}
 
     env = {
         **os.environ,
@@ -52,12 +57,22 @@ async def run_pipeline(
         "PYTHONUTF8": "1",
     }
 
-    def _exec() -> tuple[int, str]:
+    def _exec(stop_event: threading.Event) -> tuple[int, str]:
         proc = subprocess.Popen(
             command, cwd=str(workspace), env=env,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         )
-        stdout, stderr = proc.communicate()
+        while True:
+            try:
+                stdout, stderr = proc.communicate(timeout=1)
+                break
+            except subprocess.TimeoutExpired:
+                if not stop_event.is_set():
+                    continue
+                proc.kill()
+                stdout, stderr = proc.communicate()
+                err_msg = stderr.decode("utf-8", "replace").strip() or stdout.decode("utf-8", "replace").strip()
+                return -1, f"killed after caller gave up waiting: {err_msg}"
         err_msg = stderr.decode("utf-8", "replace").strip() or stdout.decode("utf-8", "replace").strip()
         return proc.returncode, err_msg
 
@@ -86,9 +101,16 @@ async def run_pipeline(
                     logger.warning("remediation: failed reading progress file: %s", exc)
             await asyncio.sleep(0.5)
 
+    stop_exec = threading.Event()
     tail_task = asyncio.create_task(_tail_progress())
     try:
-        returncode, err_msg = await asyncio.to_thread(_exec)
+        returncode, err_msg = await asyncio.to_thread(_exec, stop_exec)
+    except asyncio.CancelledError:
+        # to_thread can't be cancelled — the OS process and its thread keep
+        # running. Signal _exec's poll loop to kill the process and return
+        # promptly, instead of leaking a ThreadPoolExecutor slot forever.
+        stop_exec.set()
+        raise
     finally:
         stop_tailing.set()
         await asyncio.sleep(0.1)

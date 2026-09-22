@@ -60,6 +60,16 @@ def as_jpeg(raw: bytes) -> tuple[bytes, str]:
         return raw, "png"
 
 
+def pandoc_extra_args(out_dir: Path) -> list[str]:
+    """One `extra_args` list for every pandoc markdown->docx/latex call in this
+    pipeline (initial remediation compile, post-edit verify compile, and
+    translation compile), so a future flag change is one edit, not three.
+    `--standalone` makes a real standalone document instead of a body
+    fragment; `--resource-path` resolves markdown image references relative
+    to *out_dir*."""
+    return ["--standalone", f"--resource-path={out_dir}"]
+
+
 def tag_tex_for_pdf_ua(tex_path: Path) -> None:
     """Prepends \\DocumentMetadata{tagged=true} so a LaTeX Live 2022+ / current
     MiKTeX compile of this .tex produces a PDF/UA-tagged, screen-reader-navigable
@@ -317,7 +327,7 @@ def render_remediation(ctx: dict[str, object], out_dir: Path) -> dict[str, objec
             "docx",
             format="markdown+tex_math_dollars",
             outputfile=str(docx_path),
-            extra_args=["--standalone", f"--resource-path={out_dir}"],
+            extra_args=pandoc_extra_args(out_dir),
         )
     except Exception as exc:
         logger.warning("DOCX compilation failed; falling back to empty artifact: %s", exc)
@@ -330,7 +340,7 @@ def render_remediation(ctx: dict[str, object], out_dir: Path) -> dict[str, objec
             "latex",
             format="markdown+tex_math_dollars",
             outputfile=str(tex_path),
-            extra_args=["--standalone", f"--resource-path={out_dir}"],
+            extra_args=pandoc_extra_args(out_dir),
         )
         tag_tex_for_pdf_ua(tex_path)
     except Exception as exc:

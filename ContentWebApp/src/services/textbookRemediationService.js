@@ -35,26 +35,20 @@ export const textbookRemediationService = {
     });
   },
 
-  async getArtifactText(jobId, name) {
-    const response = await fetch(
-      `${BASE}/jobs/${encodeURIComponent(jobId)}/artifacts/${encodeURIComponent(name)}`,
-      { headers: getAuthHeaders() }
-    );
-    if (!response.ok) {
-      throw new Error(`Could not read ${name} (status ${response.status})`);
-    }
-    return response.text();
+  async getArtifactText(jobId, name, { signal } = {}) {
+    return apiFetch(`${BASE}/jobs/${encodeURIComponent(jobId)}/artifacts/${encodeURIComponent(name)}`, {
+      headers: getAuthHeaders(),
+      signal,
+    });
   },
 
-  async downloadArtifact(jobId, name, filename) {
-    const response = await fetch(
-      `${BASE}/jobs/${encodeURIComponent(jobId)}/artifacts/${encodeURIComponent(name)}`,
-      { headers: getAuthHeaders() }
-    );
-    if (!response.ok) {
-      throw new Error(`Could not download ${name} (status ${response.status})`);
-    }
-    const url = URL.createObjectURL(await response.blob());
+  async downloadArtifact(jobId, name, filename, { signal } = {}) {
+    const blob = await apiFetch(`${BASE}/jobs/${encodeURIComponent(jobId)}/artifacts/${encodeURIComponent(name)}`, {
+      headers: getAuthHeaders(),
+      signal,
+      responseType: "blob",
+    });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
     link.download = filename;
@@ -70,11 +64,11 @@ export const textbookRemediationService = {
     });
   },
 
-  async saveDraft(jobId, draftMd, figureOverrides = null) {
+  async saveDraft(jobId, draftMd) {
     return apiFetch(`${BASE}/jobs/${encodeURIComponent(jobId)}/draft`, {
       method: "PUT",
       headers: getAuthHeaders(),
-      body: JSON.stringify({ draft_md: draftMd, figure_overrides: figureOverrides }),
+      body: JSON.stringify({ draft_md: draftMd }),
     });
   },
 
@@ -91,10 +85,11 @@ export const textbookRemediationService = {
     });
   },
 
-  async getReviewSummary(jobId) {
+  async getReviewSummary(jobId, { signal } = {}) {
     return apiFetch(`${BASE}/jobs/${encodeURIComponent(jobId)}/review-summary`, {
       method: "GET",
       headers: getAuthHeaders(),
+      signal,
     });
   },
 
