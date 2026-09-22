@@ -19,13 +19,11 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI
 
+from app.consumers.sync_job_consumer import SyncJobConsumer
 from app.platform.database import close_database, get_database, init_database
 from app.platform.settings import get_settings
 from app.providers.subodha_client import close_subodha_client
-from app.repositories.content_aggregator_sync_job_repository import (
-    ContentAggregatorSyncJobRepository,
-)
-from app.repositories.textbook_remediation_repository import TextbookRemediationRepository
+from app.services.content_aggregator_sync_jobs import get_sync_job_service
 
 if TYPE_CHECKING:
     from app.services.conference_service import ConferenceCallManager
@@ -157,6 +155,9 @@ def _make_consumer_tasks(conference_manager: Any) -> list[asyncio.Task]:  # type
         consumer_specs.append(("TextbookRemediationConsumer", TextbookRemediationConsumer(db)))
     except Exception as exc:  # noqa: BLE001
         logger.error("Failed to initialise TextbookRemediationConsumer: %s", exc)
+        consumer_specs.append(("SyncJobConsumer", SyncJobConsumer(db)))
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Failed to initialise SyncJobConsumer: %s", exc)
 
     tasks: list[asyncio.Task] = []  # type: ignore[type-arg]
     for name, consumer in consumer_specs:
@@ -210,6 +211,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     consumer_tasks: list[asyncio.Task] = []  # type: ignore[type-arg]
     if settings.app_mode in ("consumer", "all"):
+        reconciled = await get_sync_job_service(get_database()).reconcile_interrupted_jobs()
+        if reconciled:
+            logger.info("Reconciled %d interrupted content aggregator sync jobs", reconciled)
         try:
             consumer_tasks = _make_consumer_tasks(conf_mgr)
         except Exception as exc:  # noqa: BLE001
