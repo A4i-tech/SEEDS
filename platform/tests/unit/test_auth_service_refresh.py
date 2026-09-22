@@ -110,7 +110,7 @@ class TestRefreshReuseDetection:
         rotated = await service.refresh(root_refresh)
 
         with pytest.raises(UnauthorizedError):
-            await service.refresh(root_refresh)  # replay of already-revoked token
+            await service.refresh(root_refresh)
 
         with pytest.raises(UnauthorizedError):
             await service.refresh(rotated["refresh_token"])
@@ -133,7 +133,7 @@ class TestRefreshReuseDetection:
         await service.refresh(family_a["refresh_token"])
 
         with pytest.raises(UnauthorizedError):
-            await service.refresh(family_a["refresh_token"])  # replay of already-revoked token
+            await service.refresh(family_a["refresh_token"])
 
         other_family_doc = await mock_db["userRefreshTokens"].find_one(
             {"token_id": family_b["refresh_token"]}

@@ -35,8 +35,6 @@ class TokenPair(TypedDict):
 class ConsumedToken[ClaimsT]:
     owner_id: str
     claims: ClaimsT
-    expires_at: datetime
-    revoked: bool
 
 
 class RefreshTokenNotFoundError(Exception):

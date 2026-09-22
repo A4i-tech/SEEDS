@@ -1,16 +1,15 @@
 import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import axiosInstance, { initSession } from "../../src/services/axiosInstance";
+import { AuthProvider, useAuthContext } from "../../src/contexts/AuthContext";
+import { setAccessToken, getAccessToken, clearAccessToken } from "../../src/utils/tokenStore";
 
 jest.mock("../../src/services/axiosInstance", () => ({
   __esModule: true,
   default: { post: jest.fn() },
   initSession: jest.fn(),
 }));
-
-import axiosInstance, { initSession } from "../../src/services/axiosInstance";
-import { AuthProvider, useAuthContext } from "../../src/contexts/AuthContext";
-import { setAccessToken, getAccessToken, clearAccessToken } from "../../src/utils/tokenStore";
 
 const Probe = () => {
   const { isAuthenticated, logout } = useAuthContext();

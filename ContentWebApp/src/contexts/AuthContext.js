@@ -13,6 +13,9 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const init = async () => {
       const { data, error } = await initSession();
+      if (error) {
+        console.error("AuthProvider: session init failed", error);
+      }
       setIsAuthenticated(!!data);
       setInitState({ data, error, isLoading: false });
     };
@@ -34,6 +37,7 @@ export const AuthProvider = ({ children }) => {
       setLoginState({ data, error: null, isLoading: false });
       return data;
     } catch (error) {
+      console.error("AuthProvider: login failed", error);
       setLoginState({ data: null, error, isLoading: false });
     }
   }, []);
@@ -54,6 +58,7 @@ export const AuthProvider = ({ children }) => {
       if (error.status !== 401 && error.status !== 403) {
         throw error;
       }
+      console.warn("AuthProvider: logout request failed with", error.status, "— treating as already logged out");
     }
 
     clearAuth();

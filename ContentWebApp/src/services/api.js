@@ -33,7 +33,8 @@ export const refreshAccessToken = async () => {
           credentials: "include",
         });
         if (!response.ok) {
-          throw new Error("refresh failed");
+          const body = await response.text();
+          throw new ApiError(body || "refresh failed", response.status, response);
         }
         const data = await response.json();
         setAccessToken(data.access_token);
@@ -81,7 +82,11 @@ export const apiFetch = async (url, { timeoutMs, ...options } = {}, _isRetry = f
             { ...options, timeoutMs, headers: { ...options.headers, Authorization: `Bearer ${newToken}` } },
             true
           );
-        } catch (_refreshError) {
+        } catch (refreshError) {
+          console.error("apiFetch: token refresh failed", refreshError);
+          if (refreshError.status && refreshError.status !== 401) {
+            throw refreshError;
+          }
           clearAuth();
           if (typeof window !== "undefined" && window.location.pathname !== "/") {
             window.location.href = "/";
@@ -120,7 +125,7 @@ export const apiFetch = async (url, { timeoutMs, ...options } = {}, _isRetry = f
 
 /**
  * Build query parameters from object
- * @param {Object} params - Key-value pairs
+ * @param {Object} params - Key-value pairs for query string
  * @returns {string} - Query string
  */
 export const buildQueryString = (params) => {
