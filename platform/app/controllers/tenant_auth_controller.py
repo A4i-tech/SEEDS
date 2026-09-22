@@ -101,7 +101,7 @@ async def tenant_change_password(
     current_user: dict[str, Any] = Depends(require_tenant),
     service: AuthService = Depends(get_auth_service),
 ) -> MessageResponse:
-    await service.change_password(current_user.get("sub", ""), body.new_password)
+    await service.change_password(current_user.get("sub", ""), body.current_password, body.new_password)
     return MessageResponse(message="Password changed successfully")
 
 

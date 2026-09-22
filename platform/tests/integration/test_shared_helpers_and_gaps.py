@@ -219,7 +219,7 @@ class TestTenantAuthGapEndpoints:
         token = _tenant_token(tenant["_id"])
         resp = await client.post(
             "/tenant/change-password",
-            json={"new_password": "newpass456"},
+            json={"current_password": "gappass", "new_password": "newpass456"},
             headers={"Authorization": f"Bearer {token}"},
         )
         assert resp.status_code == 200

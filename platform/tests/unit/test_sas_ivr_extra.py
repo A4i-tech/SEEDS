@@ -127,27 +127,89 @@ class TestIVRServiceStructure:
 
     @pytest.mark.asyncio
     async def test_process_dtmf_no_context(self, db) -> None:
-        """process_dtmf with nonexistent call_id returns error response."""
+        """process_dtmf with nonexistent call_leg_id returns error response."""
         from app.services.ivr_service import IVRService
 
-        result = await IVRService(db).process_dtmf(
-            call_id="nonexistent_call",
+        ncco, should_hangup = await IVRService(db).process_dtmf(
+            call_leg_id="nonexistent_call",
             dtmf="1",
         )
-        # Returns NCCO list (error talk action) or dict
-        assert result is not None
+        assert ncco is not None
+        assert should_hangup is True
 
     @pytest.mark.asyncio
     async def test_process_call_event_no_context(self, db) -> None:
-        """process_call_event with nonexistent UUID returns gracefully (None)."""
+        """process_call_event with nonexistent leg id returns gracefully (None)."""
         from app.services.ivr_service import IVRService
 
         result = await IVRService(db).process_call_event(
-            call_id="nonexistent_call",
+            call_leg_id="nonexistent_call",
+            conversation_uuid="CON-nonexistent",
             event={"status": "completed"},
         )
         # Returns None when call not found
-        assert result is None or isinstance(result, dict)
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_process_dtmf_logs_no_state_warning(self, db, caplog) -> None:
+        """process_dtmf logs a warning when no ongoing call state is found."""
+        import logging
+
+        from app.services.ivr_service import IVRService
+
+        with caplog.at_level(logging.WARNING, logger="app.services.ivr_service"):
+            await IVRService(db).process_dtmf(call_leg_id="conv_log_1", dtmf="1")
+
+        assert any("No IVR state" in r.message for r in caplog.records)
+
+    @pytest.mark.asyncio
+    async def test_process_dtmf_no_context_logs_guard(self, db, caplog) -> None:
+        import logging
+
+        from app.services.ivr_service import IVRService
+
+        with caplog.at_level(logging.WARNING, logger="app.services.ivr_service"):
+            await IVRService(db).process_dtmf(call_leg_id="nonexistent_call", dtmf="1")
+
+        assert any("No IVR state" in r.message for r in caplog.records)
+
+    @pytest.mark.asyncio
+    async def test_process_dtmf_skips_push_on_stale_write(self, db, caplog) -> None:
+        """When save_ongoing_call reports a stale write (lost the optimistic
+        concurrency race) during the state-transition branch, process_dtmf
+        must return (None, False) rather than pushing a now-outdated NCCO."""
+        import logging
+        from datetime import datetime
+
+        from app.models.ivr_state import IVRCallStateMongoDoc
+        from app.repositories.ivr_repository import IVRRepository
+        from app.services import ivr_service
+        from app.services.ivr_service import IVRService
+
+        state = IVRCallStateMongoDoc(
+            _id="conv_stale", phone_number="+911", fsm_id="fsm_stale",
+            current_state_id="s0", created_at=datetime.now(),
+        )
+        await IVRRepository(db).save_ongoing_call(state)
+
+        fake_fsm = MagicMock()
+        fake_fsm.states = {}
+        fake_fsm.get_next_actions = AsyncMock(return_value=([], "s1"))
+
+        original_cache = dict(ivr_service._fsm_cache)
+        ivr_service._fsm_cache["fsm_stale"] = fake_fsm
+        try:
+            with patch.object(IVRRepository, "save_ongoing_call", AsyncMock(return_value=False)):
+                with caplog.at_level(logging.INFO, logger="app.services.ivr_service"):
+                    ncco, should_hangup = await IVRService(db).process_dtmf(
+                        call_leg_id="conv_stale", dtmf="1"
+                    )
+            assert ncco is None
+            assert should_hangup is False
+            assert any("stale write" in r.message for r in caplog.records)
+        finally:
+            ivr_service._fsm_cache.clear()
+            ivr_service._fsm_cache.update(original_cache)
 
 
 # ---------------------------------------------------------------------------
@@ -478,6 +540,55 @@ class TestIVRRepository:
         # Should not raise even with no existing doc
         await repo.log_ivr_event("call1", {"status": "answered", "timestamp": "2026-01-01"})
 
+    @pytest.mark.asyncio
+    async def test_save_ongoing_call_upserts_state(self, db) -> None:
+        from datetime import datetime
+
+        from app.models.ivr_state import IVRCallStateMongoDoc
+        from app.repositories.ivr_repository import IVRRepository
+
+        repo = IVRRepository(db)
+        state = IVRCallStateMongoDoc(
+            _id="conv1", phone_number="+911", fsm_id="fsm1",
+            current_state_id="s0", created_at=datetime.now(),
+        )
+        await repo.save_ongoing_call(state)
+
+        state.current_state_id = "s1"
+        await repo.save_ongoing_call(state)
+
+        doc = await db["ongoingIVRState"].find_one({"_id": "conv1"})
+        assert doc["current_state_id"] == "s1"
+
+    @pytest.mark.asyncio
+    async def test_save_ongoing_call_rejects_stale_version(self, db) -> None:
+        """A save based on a stale in-memory version must not clobber a
+        concurrently-written newer version (optimistic concurrency guard)."""
+        from datetime import datetime
+
+        from app.models.ivr_state import IVRCallStateMongoDoc
+        from app.repositories.ivr_repository import IVRRepository
+
+        repo = IVRRepository(db)
+        state = IVRCallStateMongoDoc(
+            _id="conv2", phone_number="+911", fsm_id="fsm1",
+            current_state_id="s0", created_at=datetime.now(),
+        )
+        assert await repo.save_ongoing_call(state) is True
+        assert state.version == 1
+
+        concurrent = state.model_copy(deep=True)
+        concurrent.current_state_id = "s1"
+        assert await repo.save_ongoing_call(concurrent) is True
+        assert concurrent.version == 2
+
+        state.current_state_id = "s2"
+        assert await repo.save_ongoing_call(state) is False
+
+        doc = await db["ongoingIVRState"].find_one({"_id": "conv2"})
+        assert doc["current_state_id"] == "s1"
+        assert doc["version"] == 2
+
 
 # ---------------------------------------------------------------------------
 # Repositories — comprehension
@@ -604,3 +715,12 @@ class TestFSMUtils:
         assert fsm.init_state_id == "s0"
         assert "s0" in fsm.states
         assert "s1" in fsm.states
+
+
+class TestDtmfConsumerPollCadence:
+    def test_poll_wait_seconds_is_tightened(self) -> None:
+        """POLL_WAIT_SECONDS must stay short (1s) — a longer wait (e.g. 5s) adds
+        unacceptable latency to DTMF keypress -> NCCO response round trips."""
+        from app.consumers.dtmf_consumer import DtmfConsumer
+
+        assert DtmfConsumer.POLL_WAIT_SECONDS == 1

@@ -23,6 +23,8 @@ from app.models.requests.content_requests import (
     ContentCreateRequest,
     ContentUpdateRequest,
     QuizCreateRequest,
+    WebsiteExtractRequest,
+    WebsiteTranslationRequest,
 )
 from app.models.responses.content import (
     AudioContent,
@@ -31,13 +33,19 @@ from app.models.responses.content import (
     PaginationInfo,
     SasTokenResponse,
     SasUrlResponse,
+    WebsiteExtractResponse,
+    WebsiteTranslationResponse,
 )
 from app.models.responses.job import DeleteMatchedResponse, JobScheduledResponse
 from app.models.user import UserRole
 from app.platform.auth.dependencies import get_current_user
 from app.platform.error_handling import ForbiddenError, NotFoundError
+from app.platform.settings import get_settings
 from app.providers.blob_storage import get_blob_storage_provider
+from app.providers.translation_provider import get_translation_provider
 from app.services.content_service import ContentService, get_content_service
+from app.services.sdk_hash import sdk_hash_text
+from app.services.translation_service import TranslationService, get_translation_service
 
 logger = logging.getLogger(__name__)
 
@@ -400,3 +408,51 @@ async def create_quiz(
     quiz_id = await service.create_quiz(body, tenant_id, user_id, school_id)
     job_id = await service.enqueue_content_job(quiz_id)
     return JobScheduledResponse(message="Processing New Content job scheduled!", job_id=job_id)
+
+
+@router.post("/extract-website", summary="Extract readable content from a website")
+async def extract_website(
+    body: WebsiteExtractRequest,
+    user: dict[str, Any] = Depends(_require_content_read),
+    service: ContentService = Depends(get_content_service),
+) -> WebsiteExtractResponse:
+    return await service.extract_website(str(body.url))
+
+
+@router.post("/translate-website", summary="Translate extracted website content")
+async def translate_website(
+    body: WebsiteTranslationRequest,
+    user: dict[str, Any] = Depends(_require_content_read),
+    translation_service: TranslationService = Depends(get_translation_service),
+) -> WebsiteTranslationResponse:
+    if body.site_id and body.target_language_code:
+        return await _translate_and_persist(body, translation_service)
+
+    provider = get_translation_provider(get_settings())
+    translated = await provider.translate(body.content, "auto", body.target_language)
+    return WebsiteTranslationResponse(translatedContent=translated, persisted=False)
+
+
+async def _translate_and_persist(
+    body: WebsiteTranslationRequest, translation_service: TranslationService
+) -> WebsiteTranslationResponse:
+    lines = [line.strip() for line in body.content.splitlines() if line.strip()]
+    items = [
+        {"route": body.route, "key": sdk_hash_text(line), "source_lang": "en", "text": line}
+        for line in lines
+    ]
+    await translation_service.extract_items(body.site_id, items)
+    await translation_service.get_or_translate(body.site_id, body.route, body.target_language_code)
+
+    docs = await translation_service.list_translations(body.site_id, route=body.route)
+    draft_by_key = {
+        doc["key"]: (doc.get("translations") or {}).get(body.target_language_code, {}).get("text")
+        for doc in docs
+    }
+    translated_lines = [draft_by_key.get(sdk_hash_text(line)) or line for line in lines]
+
+    return WebsiteTranslationResponse(
+        translatedContent="\n".join(translated_lines),
+        persisted=True,
+        itemCount=len(lines),
+    )

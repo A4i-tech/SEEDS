@@ -30,6 +30,7 @@ class MessageType(StrEnum):
     CALL_WEBHOOK = "call_webhook"
     DTMF_INPUT = "dtmf_input"
     CALL_EVENT = "call_event"
+    SYNC_JOBS = "sync_jobs"
 
 
 class QueueMessage:
@@ -83,6 +84,10 @@ class _AzureQueueHandle:
         self._message_map: dict[str, Any] = {}
 
     async def initialize(self) -> None:
+        await self._connect()
+        logger.info("ServiceBus queue initialized: %s", self.queue_name)
+
+    async def _connect(self) -> None:
         from azure.servicebus.aio import ServiceBusClient  # noqa: PLC0415
 
         self._client = ServiceBusClient.from_connection_string(conn_str=self.connection_string)
@@ -90,7 +95,19 @@ class _AzureQueueHandle:
             queue_name=self.queue_name,
         )
         await self._receiver.__aenter__()
-        logger.info("ServiceBus queue initialized: %s", self.queue_name)
+
+    async def _reconnect(self) -> None:
+        await self.close()
+        await self._connect()
+        if self._message_map:
+            logger.warning(
+                "Discarding %d in-flight message(s) for %s: no longer completable/abandonable"
+                " after reconnect",
+                len(self._message_map),
+                self.queue_name,
+            )
+        self._message_map.clear()
+        logger.warning("ServiceBus queue reconnected after fatal error: %s", self.queue_name)
 
     async def close(self) -> None:
         if self._receiver:
@@ -139,6 +156,12 @@ class _AzureQueueHandle:
             return messages
         except Exception as exc:  # noqa: BLE001
             logger.error("Failed to receive from %s: %s", self.queue_name, exc)
+            try:
+                await self._reconnect()
+            except Exception as reconnect_exc:  # noqa: BLE001
+                logger.error(
+                    "Failed to reconnect for %s: %s", self.queue_name, reconnect_exc
+                )
             await asyncio.sleep(0.1)  # prevent tight loop on repeated receive errors
             return []
 
@@ -196,12 +219,14 @@ class ServiceBusProvider:
         "call_webhook": "_call_webhook",
         "dtmf_input": "_dtmf_input",
         "call_event": "_call_event",
+        "sync_jobs": "_sync_jobs",
     }
 
     def __init__(self) -> None:
         self._call_webhook: _AzureQueueHandle | None = None
         self._dtmf_input: _AzureQueueHandle | None = None
         self._call_event: _AzureQueueHandle | None = None
+        self._sync_jobs: _AzureQueueHandle | None = None
         self._initialized = False
 
     async def initialize(self) -> None:
@@ -224,17 +249,19 @@ class ServiceBusProvider:
         self._call_webhook = _AzureQueueHandle(conn_str, settings.call_webhook_queue_name)
         self._dtmf_input = _AzureQueueHandle(conn_str, settings.dtmf_input_queue_name)
         self._call_event = _AzureQueueHandle(conn_str, settings.call_event_queue_name)
+        self._sync_jobs = _AzureQueueHandle(conn_str, settings.sync_jobs_queue_name)
 
         await asyncio.gather(
             self._call_webhook.initialize(),
             self._dtmf_input.initialize(),
             self._call_event.initialize(),
+            self._sync_jobs.initialize(),
         )
         self._initialized = True
-        logger.info("ServiceBusProvider initialized (3 queues)")
+        logger.info("ServiceBusProvider initialized (4 queues)")
 
     async def close(self) -> None:
-        handles = [self._call_webhook, self._dtmf_input, self._call_event]
+        handles = [self._call_webhook, self._dtmf_input, self._call_event, self._sync_jobs]
         close_tasks = [h.close() for h in handles if h is not None]
         if close_tasks:
             await asyncio.gather(*close_tasks, return_exceptions=True)
@@ -246,6 +273,7 @@ class ServiceBusProvider:
             "call_webhook": self._call_webhook,
             "dtmf_input": self._dtmf_input,
             "call_event": self._call_event,
+            "sync_jobs": self._sync_jobs,
         }
         handle = mapping.get(queue_name)
         if handle is None:
@@ -256,13 +284,15 @@ class ServiceBusProvider:
     # Public API
     # ------------------------------------------------------------------
 
-    async def send_message(self, queue_name: str, message: dict) -> bool:
+    async def send_message(
+        self, queue_name: str, message: dict, message_id: str | None = None
+    ) -> bool:
         """Send a dict payload to a named queue."""
         handle = self._get_handle(queue_name)
         if handle is None:
             return False
         msg_type = MessageType(queue_name)
-        msg = QueueMessage(type=msg_type, payload=message)
+        msg = QueueMessage(type=msg_type, payload=message, message_id=message_id)
         return await handle.send(msg)
 
     async def receive_messages(
@@ -301,14 +331,17 @@ class ServiceBusProvider:
     # IVRv2 compatibility helpers (used by ivr_service.py)
     # ------------------------------------------------------------------
 
-    async def send_call_webhook(self, payload: dict) -> bool:
-        return await self.send_message("call_webhook", payload)
+    async def send_call_webhook(self, payload: dict, message_id: str | None = None) -> bool:
+        return await self.send_message("call_webhook", payload, message_id=message_id)
 
-    async def send_dtmf_input(self, payload: dict) -> bool:
-        return await self.send_message("dtmf_input", payload)
+    async def send_dtmf_input(self, payload: dict, message_id: str | None = None) -> bool:
+        return await self.send_message("dtmf_input", payload, message_id=message_id)
 
     async def send_call_event(self, payload: dict) -> bool:
         return await self.send_message("call_event", payload)
+
+    async def send_sync_job(self, payload: dict) -> bool:
+        return await self.send_message("sync_jobs", payload)
 
     def get_call_webhook_queue(self) -> _AzureQueueHandle | None:
         return self._call_webhook
@@ -318,6 +351,9 @@ class ServiceBusProvider:
 
     def get_call_event_queue(self) -> _AzureQueueHandle | None:
         return self._call_event
+
+    def get_sync_jobs_queue(self) -> _AzureQueueHandle | None:
+        return self._sync_jobs
 
 
 # ---------------------------------------------------------------------------

@@ -68,18 +68,21 @@ class CallEventConsumer(BaseConsumer):
     async def process(self, message) -> None:
         """Process a single call event message."""
         payload = message.payload
+        call_leg_id = payload.get("uuid")
         conversation_uuid = payload.get("conversation_uuid")
-        if not conversation_uuid:
-            logger.error("call_event_consumer: missing conversation_uuid in payload: %s", payload)
+        if not call_leg_id:
+            logger.error("call_event_consumer: missing uuid in payload: %s", payload)
             return
 
         db = get_database()
         await IVRService(db).process_call_event(
-            call_id=conversation_uuid,
+            call_leg_id=call_leg_id,
+            conversation_uuid=conversation_uuid,
             event=payload,
         )
         logger.info(
-            "call_event_consumer: processed event conv=%s status=%s",
+            "call_event_consumer: processed event call_leg=%s conv=%s status=%s",
+            call_leg_id,
             conversation_uuid,
             payload.get("status"),
         )

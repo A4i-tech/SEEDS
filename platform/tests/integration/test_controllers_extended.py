@@ -23,7 +23,7 @@ from httpx import ASGITransport, AsyncClient
 from app.main import app
 from app.models.user import UserRole
 from app.platform.auth.dependencies import get_db
-from app.platform.auth.hashing import hash_password
+from app.platform.auth.hashing import hash_password, verify_password
 from app.platform.auth.jwt import create_access_token
 from tests.support.mongomock_async import AsyncMongoMockClient
 
@@ -396,6 +396,38 @@ class TestTenantDashboard:
         tenant = await _seed_tenant(mock_db)
         token = _tenant_token(tenant["_id"])
         resp = await client.post("/tenant/change-password", json={
+            "current_password": "tenantpass",
             "new_password": "newSecurePass123",
         }, headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 200
+        stored = await mock_db["users"].find_one({"_id": ObjectId(tenant["_id"])})
+        assert verify_password("newSecurePass123", stored["hashed_password"])
+
+    @pytest.mark.asyncio
+    async def test_change_password_missing_current_password_rejected(self, client, mock_db):
+        tenant = await _seed_tenant(mock_db)
+        token = _tenant_token(tenant["_id"])
+        resp = await client.post("/tenant/change-password", json={
+            "new_password": "newSecurePass123",
+        }, headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_change_password_wrong_current_rejected(self, client, mock_db):
+        tenant = await _seed_tenant(mock_db)
+        token = _tenant_token(tenant["_id"])
+        resp = await client.post("/tenant/change-password", json={
+            "current_password": "wrongpass",
+            "new_password": "newSecurePass123",
+        }, headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 401
+        stored = await mock_db["users"].find_one({"_id": ObjectId(tenant["_id"])})
+        assert stored["hashed_password"] == tenant["hashed_password"]
+
+    @pytest.mark.asyncio
+    async def test_school_admin_has_no_change_password_route(self, client, mock_db):
+        resp = await client.post("/school/admin/change-password", json={
+            "current_password": "whatever",
+            "new_password": "newSecurePass123",
+        })
+        assert resp.status_code == 404

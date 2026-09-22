@@ -104,6 +104,7 @@ class IVRCallStateMongoDoc(BaseModel):
     phone_number: str
     fsm_id: str
     current_state_id: str
+    current_conversation_uuid: str = ""
     created_at: datetime
     stopped_at: datetime | None = None
     duration: str | None = ""
@@ -113,6 +114,7 @@ class IVRCallStateMongoDoc(BaseModel):
     call_status_updates: dict[str, Any] = Field(default_factory=dict)
     tenant_id: str = ""
     school_id: str | None = None
+    version: int = 0
 
     @classmethod
     def from_mongo(cls, doc: dict) -> IVRCallStateMongoDoc:
@@ -201,6 +203,8 @@ class DTMFDetails(BaseModel):
 class DTMFInput(BaseModel):
     dtmf: DTMFDetails
     conversation_uuid: str
+    uuid: str | None = None
+    timestamp: str = ""
 
     model_config = ConfigDict(populate_by_name=True)
 

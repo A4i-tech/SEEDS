@@ -125,3 +125,15 @@ class PaginationInfo(BaseModel):
 class ContentPageResponse(BaseModel):
     data: list[ContentItem]
     pagination: PaginationInfo
+
+
+class WebsiteExtractResponse(BaseModel):
+    url: str
+    title: str
+    content: list[str]
+
+
+class WebsiteTranslationResponse(BaseModel):
+    translatedContent: str
+    persisted: bool
+    itemCount: int | None = None
