@@ -90,6 +90,14 @@ class Settings(BaseSettings):
     mistral_ocr_endpoint: str = ""
     mistral_ocr_model: str = ""
 
+    azure_openai_api_key: str = Field(default="", repr=False)
+    azure_openai_endpoint: str = ""
+    openai_api_version: str = ""
+    default_chat_completion_model: str = ""
+
+    azure_translation_key: str = Field(default="", repr=False)
+    azure_translation_region: str = ""
+
     translator_key: str = Field(default="", repr=False)
     translator_region: str = ""
     translator_endpoint: str = "https://api.cognitive.microsofttranslator.com"

@@ -6,8 +6,6 @@ import "katex/dist/katex.min.css";
 import { SEEDS_URL } from "../Constants";
 import { Breadcrumb } from "./AllContent/shared/Breadcrumb";
 import { Pagination } from "./ContentAggregatorDetails/Pagination";
-import Select from "./AllContent/shared/Select";
-import { LANGUAGE_OPTIONS } from "../utils/languageUtils";
 import { getAuthToken } from "../utils/authHelpers";
 import { textbookRemediationService } from "../services/textbookRemediationService";
 import { normalizeMathDelimiters, MarkdownParagraph } from "./ContentAggregatorDetails/markdownMath";
@@ -68,13 +66,13 @@ function MarkdownViewer({ text, jobId }) {
       rehypePlugins={remediationRehypePlugins}
       components={{
         p: MarkdownParagraph,
-        img: ({ src, alt }) => {
+        img: ({ src, alt, title }) => {
           const remote = src && !src.startsWith("http://") && !src.startsWith("https://") && !src.startsWith("data:");
           const token = getAuthToken();
-          const filename = src.replace(/^images\//, "");
           const imgSrc = remote
-            ? `${SEEDS_URL}/textbook-remediation/jobs/${encodeURIComponent(jobId)}/images/${encodeURIComponent(filename)}${token ? `?token=${encodeURIComponent(token)}` : ""}`
+            ? `${SEEDS_URL}/textbook-remediation/jobs/${encodeURIComponent(jobId)}/images/${encodeURIComponent(src.replace(/^images\//, ""))}${token ? `?token=${encodeURIComponent(token)}` : ""}`
             : src;
+          const description = title || alt;
 
           return (
             <div className="remediation-figure-preview">
@@ -87,10 +85,10 @@ function MarkdownViewer({ text, jobId }) {
                   }}
                 />
               )}
-              {alt ? (
+              {description ? (
                 <div className="remediation-figure-text">
                   <span className="remediation-figure-tag">Figure Description</span>
-                  <span className="remediation-figure-desc">{alt}</span>
+                  <span className="remediation-figure-desc">{description}</span>
                 </div>
               ) : null}
             </div>
@@ -107,9 +105,6 @@ const ARTIFACT_DOWNLOADS = [
   { key: "docx", ext: "docx", label: "Download Word" },
   { key: "pdf", ext: "pdf", label: "Download PDF", docxKey: "docx" },
   { key: "tex", ext: "tex", label: "Download LaTeX" },
-  { key: "translated_docx", ext: "translated.docx", label: "Download Translated Word" },
-  { key: "translated_pdf", ext: "translated.pdf", label: "Download Translated PDF", docxKey: "translated_docx" },
-  { key: "translated_tex", ext: "translated.tex", label: "Download Translated LaTeX" },
 ];
 
 const RemediationDetails = () => {
@@ -123,8 +118,6 @@ const RemediationDetails = () => {
   const [actionMessage, setActionMessage] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [draftText, setDraftText] = useState("");
-  const [translateLanguage, setTranslateLanguage] = useState("");
-  const [isTranslating, setIsTranslating] = useState(false);
   const [reviewSummary, setReviewSummary] = useState({ flagged_items: [] });
   const hasSeededDraftRef = useRef(false);
 
@@ -243,23 +236,6 @@ const RemediationDetails = () => {
     } catch (vErr) {
       setError(vErr.message);
       setActionMessage(null);
-    }
-  };
-
-  const handleTranslate = async () => {
-    if (!translateLanguage) return;
-    try {
-      setIsTranslating(true);
-      setActionMessage("Translating...");
-      const updated = await textbookRemediationService.translateJob(jobId, translateLanguage);
-      setJob(updated);
-      setActionMessage("Translation complete.");
-      setTimeout(() => setActionMessage(null), 3500);
-    } catch (translateErr) {
-      setError(translateErr.message);
-      setActionMessage(null);
-    } finally {
-      setIsTranslating(false);
     }
   };
 
@@ -382,23 +358,6 @@ const RemediationDetails = () => {
                   }
                   return null;
                 })}
-
-                <Select
-                  id="remediation-translate-language"
-                  value={translateLanguage}
-                  onChange={setTranslateLanguage}
-                  options={LANGUAGE_OPTIONS}
-                  placeholder="Select language"
-                />
-
-                <button
-                  type="button"
-                  className="action-ghost-button"
-                  disabled={isTranslating || !translateLanguage}
-                  onClick={handleTranslate}
-                >
-                  {isTranslating ? "Translating…" : "Translate"}
-                </button>
               </div>
             </div>
 

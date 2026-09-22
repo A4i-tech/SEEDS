@@ -33,11 +33,14 @@ steps:
     description: "Extract figures and mark their position in the page"
     config:
       mode: redact
-      include_vector: false
+      include_vector: true
       include_tables: false
       deduplicate: true
       replace: false
       dpi: 240
+
+  - agent: fix_image_pages
+    description: "Restore each figure's real page number, and drop caption-label crops mistaken for diagrams"
 
   - agent: azure_mistral_ocr
     description: "Read page text with the configured OCR model"
@@ -160,16 +163,22 @@ steps:
       foreach: '.items[] | select(.metadata.kind == "image")'
       input: "[.id]"
       path: ".metadata.accessibility"
+      model: ${.config.verify_model}
       concurrency: ${.config.page_concurrency}
       retries: 3
       prompt: |
         You produce alt text and structured descriptions for a school textbook figure, for a blind student.
 
         Rules:
-        1. Base labels and captions directly on the visible image.
+        1. Base labels and captions directly on the visible image. Never name an object, chemical,
+           apparatus, or scene that the image does not show. If the image is plain shapes, empty
+           outlines, or a caption label, describe exactly that. A guess is worse than a plain
+           description, because a blind student will trust it as fact.
         2. Report the observable result, not only the apparatus. Name every colour change, flame, precipitate, bubble, deposit, glow, and relative volume.
         3. Keep every scientific qualifier exact. Dilute is not concentrated. A solid is not a solution.
         4. Mark a figure decorative only when it carries no teaching content, such as a border, rule, QR code, barcode, government seal, state emblem, or publisher logo. Set kind to decorative with empty alt_text.
+        5. When the crop holds only printed caption text and no drawing, set kind to decorative
+           with empty alt_text and set review_needed, with review_reason "caption-only crop".
 
         alt_text is one sentence under 150 characters, written in the textbook language (${.config.language}) directly.
         long_description holds the full reading in ${.config.language}, including the result.
@@ -217,6 +226,14 @@ steps:
 
         The image is the truth. When the OCR text disagrees with the image,
         follow the image and record the fix in ocr_corrections.
+
+        Transcribe only what the image actually shows. Never invent a subject,
+        chapter, or passage the image does not contain. A cover page, title
+        page, or a page that is mostly a logo or a picture is valid input:
+        return its real, short content (title, class, publisher, seal text) as
+        heading and paragraph blocks. A short or nearly blank result is
+        correct for such a page. Inventing a longer, unrelated page is worse
+        than a short true one, and is the one failure this rule exists to stop.
 
         Remove, and record in removed_artifacts:
         - printed page numbers, including Roman numeral page numbers
@@ -338,8 +355,8 @@ steps:
           review_needed: {type: boolean}
         required: [blocks, removed_artifacts, ocr_corrections, language, confidence, review_needed]
       assertions:
-        - expr: '[.blocks[].text] | join(" ") | test("##|\\*\\*|\\\\begin\\{") | not'
-          feedback: "A text field still holds Markdown syntax or raw LaTeX blocks. Strip the markup."
+        - expr: '[.blocks[].text] | join(" ") | test("##|\\*\\*|\\\\begin\\{|\\${2}") | not'
+          feedback: "A text field still holds Markdown syntax, raw LaTeX, or a $$ math delimiter. Move any equation into a math block's mathml/spoken fields instead, and strip the markup from text."
         - expr: '[.blocks[] | select(.type == "math") | select((.mathml // "" | length) == 0 or (.spoken // "" | length) == 0)] | length == 0'
           feedback: "Every math block needs both mathml and spoken."
         - expr: '[.blocks[] | select(.type == "table") | select((.rows // [] | length) == 0 and (.review_needed | not))] | length == 0'

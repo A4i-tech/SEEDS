@@ -11,6 +11,7 @@ from omni_ingest.core import event
 
 from app.remediation import (  # noqa: F401
     azure_mistral_ocr,
+    fix_image_pages,
     safe_extract,
 )
 

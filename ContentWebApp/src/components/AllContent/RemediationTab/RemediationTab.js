@@ -160,7 +160,9 @@ const RemediationTab = () => {
                   <td className="table-cell">
                     <RowActions
                       actions={[
-                        { key: "edit", label: "Edit", variant: "edit", onClick: () => navigate(`/content/remediation/${job.job_id}`) },
+                        ...(job.status !== "running" && job.status !== "failed"
+                          ? [{ key: "edit", label: "Edit", variant: "edit", onClick: () => navigate(`/content/remediation/${job.job_id}`) }]
+                          : []),
                         {
                           key: "delete",
                           label: "Delete",

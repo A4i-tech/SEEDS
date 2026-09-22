@@ -23,6 +23,12 @@ _REMEDIATION_SETTINGS_KEYS = (
     "mistral_ocr_api_key",
     "mistral_ocr_endpoint",
     "mistral_ocr_model",
+    "azure_openai_api_key",
+    "azure_openai_endpoint",
+    "openai_api_version",
+    "default_chat_completion_model",
+    "azure_translation_key",
+    "azure_translation_region",
 )
 
 

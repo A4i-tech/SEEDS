@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from typing import ClassVar
 
 from bson import ObjectId
 from bson.errors import InvalidId
 from fastapi import Depends
+from pydantic import ValidationError
 from pymongo import ReturnDocument
 from pymongo.asynchronous.database import AsyncDatabase
 
@@ -19,6 +21,8 @@ from app.models.remediation_job import (
 )
 from app.platform.auth.dependencies import get_db
 from app.platform.error_handling import NotFoundError
+
+logger = logging.getLogger(__name__)
 
 
 def _oid(job_id: str) -> ObjectId:
@@ -57,7 +61,13 @@ class TextbookRemediationRepository:
 
     async def list_jobs(self, tenant_id: str, *, limit: int = 20) -> list[RemediationJob]:
         docs = await self._col.find({"tenant_id": tenant_id, "deleted_at": None}).sort("created_at", -1).to_list(length=limit)
-        return [RemediationJob.from_doc(d) for d in docs]
+        jobs = []
+        for d in docs:
+            try:
+                jobs.append(RemediationJob.from_doc(d))
+            except ValidationError as exc:
+                logger.error("remediation: skipping malformed job doc _id=%s: %s", d.get("_id"), exc)
+        return jobs
 
     async def soft_delete(self, tenant_id: str, job_id: str) -> RemediationJob | None:
         doc = await self._col.find_one_and_update(

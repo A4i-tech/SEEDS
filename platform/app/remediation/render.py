@@ -258,9 +258,9 @@ class _MarkdownBuilder:
             return
         self._used_figures.add(figure_id)
         alt = str(fig.get("alt_text") or "").strip()
-        self._blocks.append(f"![{alt}]({fig['src']})")
-        if fig.get("long_description"):
-            self._blocks.append(f"<!-- long description: {fig['long_description']} -->")
+        long_desc = str(fig.get("long_description") or "").strip().replace("\n", " ").replace('"', "'")
+        title = f' "{long_desc}"' if long_desc else ""
+        self._blocks.append(f"![{alt}]({fig['src']}{title})")
 
     def start_page(self, page_num: int) -> None:
         self._blocks.append(f"<!-- page {page_num} -->")
