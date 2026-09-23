@@ -39,7 +39,7 @@ def azure_mistral_ocr_builder(params: OcrBuilderParams) -> Ocr:
                 if content_type.startswith("image/")
                 else azure_mistral_models.DocumentURLChunk(document_url=uri)
             )
-            result = await client.ocr.process_async(model=model, document=document)
+            result = await client.ocr.process_async(model=model, document=document, image_limit=0)
         if not result.pages:
             raise RuntimeError(f"Mistral Document AI returned no pages for {endpoint}, cannot silently produce empty OCR output")
         text = "\n\n".join(page.markdown for page in result.pages)

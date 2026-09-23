@@ -68,6 +68,13 @@ steps:
         with it. Do not rewrite, summarise, translate, or reorder anything.
         Keep the reading order the image shows.
 
+        When the page image is not attached, the OCR Markdown is your only source:
+        fix only character and word errors inside it, and never add a sentence it
+        does not contain. A cover page, title page, or a page that is mostly a
+        picture is valid input. When the Markdown holds only <image .../> markers
+        and no text, return it unchanged. Never invent a subject, chapter, or
+        passage.
+
         Verify the text against the image by checking for these general classes of faults:
 
         Script and orthography:
@@ -160,8 +167,9 @@ steps:
   - agent: safe_extract
     description: "Write alt text and a long description for every figure"
     config:
-      foreach: '.items[] | select(.metadata.kind == "image")'
+      foreach: '(.metadata.book.language // "") as $lang | .items[] | select(.metadata.kind == "image") | . + {book_language: $lang}'
       input: "[.id]"
+      context: '"Book language: " + (if .book_language == "" then "unknown" else .book_language end)'
       path: ".metadata.accessibility"
       model: ${.config.verify_model}
       concurrency: ${.config.page_concurrency}
@@ -180,8 +188,10 @@ steps:
         5. When the crop holds only printed caption text and no drawing, set kind to decorative
            with empty alt_text and set review_needed, with review_reason "caption-only crop".
 
-        alt_text is one sentence under 150 characters, written in the textbook language (${.config.language}) directly.
-        long_description holds the full reading in ${.config.language}, including the result.
+        Write alt_text and long_description in the book language given with this request. When it is
+        unknown, use the language of the text printed in the figure.
+        alt_text is one sentence under 150 characters.
+        long_description holds the full reading, including the result.
       schema:
         type: object
         properties:
@@ -226,6 +236,11 @@ steps:
 
         The image is the truth. When the OCR text disagrees with the image,
         follow the image and record the fix in ocr_corrections.
+
+        When the page image is not attached, the reference Markdown is your only
+        source: never add a sentence it does not contain. When it holds only
+        <image .../> markers and no text, return only figure blocks for those
+        markers and no text blocks.
 
         Transcribe only what the image actually shows. Never invent a subject,
         chapter, or passage the image does not contain. A cover page, title
@@ -355,7 +370,7 @@ steps:
           review_needed: {type: boolean}
         required: [blocks, removed_artifacts, ocr_corrections, language, confidence, review_needed]
       assertions:
-        - expr: '[.blocks[].text] | join(" ") | test("##|\\*\\*|\\\\begin\\{|\\${2}") | not'
+        - expr: '[.blocks[].text] | join(" ") | test("##|\\*\\*|\\\\begin\\{|\\$\\$") | not'
           feedback: "A text field still holds Markdown syntax, raw LaTeX, or a $$ math delimiter. Move any equation into a math block's mathml/spoken fields instead, and strip the markup from text."
         - expr: '[.blocks[] | select(.type == "math") | select((.mathml // "" | length) == 0 or (.spoken // "" | length) == 0)] | length == 0'
           feedback: "Every math block needs both mathml and spoken."

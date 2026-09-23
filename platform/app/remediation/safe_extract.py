@@ -107,7 +107,6 @@ class SafeExtractAgent(ExtractAgent):
                         "review_needed": True,
                         "review_reason": f"Extraction error: {type(exc).__name__}: {exc}",
                     }
-                advance(f"extracted (fallback: {type(exc).__name__})")
                 return item_doc, fallback
 
 

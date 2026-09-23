@@ -11,7 +11,7 @@ RUN poetry install --only main --no-root --no-interaction
 FROM python:3.12-slim
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg libreoffice-writer && \
+    apt-get install -y --no-install-recommends ffmpeg libmagic1 libreoffice-writer && \
     rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --gid 1001 appgroup && \
