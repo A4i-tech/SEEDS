@@ -7,6 +7,23 @@ on:
 
 jobs:
 
+  detect-contentwebapp-changes:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/a4i/staging'
+    outputs:
+      changed: ${{ steps.filter.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: filter
+        run: |
+          if [ "${{ github.event_name }}" != "push" ] || git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" | grep -q '^ContentWebApp/'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
   ci-workflow:
     uses: ./.github/workflows/ci.yml
     with:
@@ -26,8 +43,8 @@ jobs:
     secrets: inherit
 
   contentwebapp-e2e-workflow:
-    needs: deploy-staging-workflow
-    if: github.ref == 'refs/heads/a4i/staging'
+    needs: [deploy-staging-workflow, detect-contentwebapp-changes]
+    if: github.ref == 'refs/heads/a4i/staging' && needs.detect-contentwebapp-changes.outputs.changed == 'true'
     uses: ./.github/workflows/contentwebapp-e2e.yml
     secrets: inherit
 
