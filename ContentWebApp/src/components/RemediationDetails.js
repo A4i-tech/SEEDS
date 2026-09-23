@@ -8,7 +8,7 @@ import { Pagination } from "./ContentAggregatorDetails/Pagination";
 import { textbookRemediationService } from "../services/textbookRemediationService";
 import { normalizeMathDelimiters, MarkdownParagraph } from "./ContentAggregatorDetails/markdownMath";
 import { remediationRemarkPlugins, remediationRehypePlugins } from "./remediationMarkdown";
-import { isRemediationDone } from "../utils/remediationStatus";
+import { isRemediationDone, JOB_STATUS } from "../utils/remediationStatus";
 import { ARTIFACT_DOWNLOADS } from "./artifactDownloads";
 
 import "./AllContent/AllContent.css";
@@ -62,13 +62,14 @@ function RemediationFigureImage({ src, jobId, alt }) {
   const [objectUrl, setObjectUrl] = useState(null);
   const [imgError, setImgError] = useState(false);
   const remote = src && !src.startsWith("http://") && !src.startsWith("https://") && !src.startsWith("data:");
+  const imageName = src ? src.replace(/^images\//, "") : "";
 
   useEffect(() => {
     if (!remote) return undefined;
     const controller = new AbortController();
     let url;
     textbookRemediationService
-      .getImage(jobId, src.replace(/^images\//, ""), { signal: controller.signal })
+      .getImage(jobId, imageName, { signal: controller.signal })
       .then((blob) => {
         url = URL.createObjectURL(blob);
         setObjectUrl(url);
@@ -77,23 +78,20 @@ function RemediationFigureImage({ src, jobId, alt }) {
         if (!controller.signal.aborted) {
           console.error("Failed to load remediation figure image", imageError);
           setObjectUrl(null);
+          setImgError(true);
         }
       });
     return () => {
       controller.abort();
       if (url) URL.revokeObjectURL(url);
     };
-  }, [remote, jobId, src]);
+  }, [remote, jobId, src, imageName]);
 
   const imgSrc = remote ? objectUrl : src;
-  if (!imgSrc) return null;
   if (imgError) {
-    return (
-      <span className="remediation-figure-broken">
-        Image failed to load{alt ? `: ${alt}` : ""}
-      </span>
-    );
+    return <span className="remediation-figure-broken">Image {imageName} is corrupted</span>;
   }
+  if (!imgSrc) return null;
   return (
     <img
       src={imgSrc}
@@ -150,8 +148,8 @@ const RemediationDetails = () => {
 
   const rawPages = useMemo(() => splitIntoPages(documents.raw), [documents.raw]);
   const correctedPages = useMemo(
-    () => splitIntoPages(draftText || documents.corrected),
-    [draftText, documents.corrected]
+    () => splitIntoPages(job?.draft_remediated_md || documents.corrected),
+    [job?.draft_remediated_md, documents.corrected]
   );
   const totalPages = Math.max(rawPages.length, correctedPages.length);
 
@@ -159,7 +157,7 @@ const RemediationDetails = () => {
   const currentCorrectedPage = pageContent(
     correctedPages,
     pageIdx,
-    draftText || documents.corrected || ""
+    job?.draft_remediated_md || documents.corrected || ""
   );
 
   const pageIndexForNum = (pageNum) => {
@@ -192,7 +190,7 @@ const RemediationDetails = () => {
           hasSeededDraftRef.current = true;
           setDraftText(current.draft_remediated_md);
         }
-        if (current.status === "pending" || current.status === "running") {
+        if (current.status === JOB_STATUS.PENDING || current.status === JOB_STATUS.RUNNING) {
           return textbookRemediationService.streamJob(jobId, (event) => setJob(event.job), {
             signal: controller.signal,
           });
@@ -316,8 +314,8 @@ const RemediationDetails = () => {
                   <span>
                     Page {pageIdx + 1} of {Math.max(totalPages, 1)}
                   </span>
-                  <span className={job.status === "verified" ? "gate-badge gate-badge-verified" : "gate-badge gate-badge-auto"}>
-                    {job.status === "verified" ? "✓ Verified" : "Needs review"}
+                  <span className={job.status === JOB_STATUS.VERIFIED ? "gate-badge gate-badge-verified" : "gate-badge gate-badge-auto"}>
+                    {job.status === JOB_STATUS.VERIFIED ? "✓ Verified" : "Needs review"}
                   </span>
                 </div>
               </div>
@@ -327,7 +325,7 @@ const RemediationDetails = () => {
                   Save draft
                 </button>
 
-                {job.status !== "verified" ? (
+                {job.status !== JOB_STATUS.VERIFIED ? (
                   <button type="button" className="primary-button" onClick={handleMarkVerified}>
                     Done — mark Verified
                   </button>
@@ -376,7 +374,7 @@ const RemediationDetails = () => {
                       </button>
                     );
                   }
-                  if (entry.key === "pdf" && job.artifacts.docx && job.status === "verified") {
+                  if (entry.key === "pdf" && job.artifacts.docx && job.status === JOB_STATUS.VERIFIED) {
                     return (
                       <span key={entry.key} className="remediation-pdf-unavailable">
                         PDF unavailable

@@ -13,6 +13,7 @@ from pymongo.asynchronous.database import AsyncDatabase
 from app.consumers.base_consumer import BaseConsumer, PermanentError
 from app.models.remediation_job import (
     ARTIFACTS,
+    AUTO_LANGUAGES,
     IMAGE_CONTENT_TYPES,
     ArtifactName,
     JobMetrics,
@@ -44,6 +45,11 @@ def _count_lines(path: Path) -> int:
     return len(path.read_text(encoding="utf-8").splitlines()) if path.exists() else 0
 
 
+REQUIRED_ARTIFACTS: tuple[ArtifactName, ...] = (
+    ArtifactName.RAW, ArtifactName.CORRECTED, ArtifactName.REMEDIATED, ArtifactName.DOCX,
+)
+
+
 async def _upload(
     blob_provider: BlobStorageProvider, job_id: str, out: Path, *names: ArtifactName
 ) -> dict[ArtifactName, str]:
@@ -53,6 +59,8 @@ async def _upload(
         filename, content_type = ARTIFACTS[name]
         path = out / filename
         if not path.exists() or path.stat().st_size == 0:
+            if name in REQUIRED_ARTIFACTS:
+                raise RuntimeError(f"Missing required artifact file: {filename}")
             continue
         urls[name] = await blob_provider.upload_file(
             container, f"textbook-remediation/{job_id}/{filename}", path.read_bytes(), content_type
@@ -60,23 +68,36 @@ async def _upload(
     return urls
 
 
-async def _upload_images(blob_provider: BlobStorageProvider, job_id: str, search_dir: Path) -> int:
+async def _upload_images(blob_provider: BlobStorageProvider, job_id: str, search_dir: Path, out: Path) -> int:
     container = get_settings().azure_storage_container
     count = 0
     for extension, content_type in IMAGE_CONTENT_TYPES.items():
         for img_path in search_dir.rglob(f"*{extension}"):
             if not img_path.is_file():
                 continue
-            try:
-                await blob_provider.upload_file(
-                    container,
-                    f"textbook-remediation/{job_id}/images/{img_path.name}",
-                    img_path.read_bytes(),
-                    content_type,
-                )
-                count += 1
-            except Exception as exc:
-                logger.warning("remediation: failed to upload image %s: %s", img_path.name, exc)
+            for attempt in range(1, 4):
+                try:
+                    await blob_provider.upload_file(
+                        container,
+                        f"textbook-remediation/{job_id}/images/{img_path.name}",
+                        img_path.read_bytes(),
+                        content_type,
+                    )
+                    count += 1
+                    break
+                except Exception as exc:
+                    if attempt == 3:
+                        logger.warning("remediation: failed to upload image %s after 3 attempts: %s", img_path.name, exc)
+                        with open(out / artifact_filename(ArtifactName.UNRESOLVED), "a", encoding="utf-8") as f:
+                            f.write(json.dumps({
+                                "id": f"image_{img_path.name}",
+                                "type": "image_upload_failed",
+                                "page": 1,
+                                "text": img_path.name,
+                                "reason": f"Image {img_path.name} is corrupted",
+                            }) + "\n")
+                    else:
+                        await asyncio.sleep(min(2 ** (attempt - 1), 8))
     return count
 
 
@@ -173,10 +194,10 @@ async def _translate_if_requested(
 async def _process_job(
     job: RemediationJob, repo: TextbookRemediationRepository, blob_provider: BlobStorageProvider
 ) -> None:
-    def make_progress_handler(stage_name: str) -> Callable[[dict[str, object]], Awaitable[None]]:
+    def make_progress_handler(stage: JobStage) -> Callable[[dict[str, object]], Awaitable[None]]:
         async def _handler(evt: dict[str, object]) -> None:
             progress = JobProgress(
-                stage=stage_name,
+                stage=stage,
                 step=evt.get("step_name"),
                 type=evt.get("type"),
                 message=evt.get("message"),
@@ -197,7 +218,7 @@ async def _process_job(
         pdf = work / "book.pdf"
         pdf.write_bytes(await blob_provider.download_from_url(job.source_url))
 
-        is_auto = not job.language or job.language.lower() in ("auto", "detecting")
+        is_auto = not job.language or job.language.lower() in AUTO_LANGUAGES
         pipeline_lang = "auto" if is_auto else job.language
 
         logger.info(
@@ -205,7 +226,7 @@ async def _process_job(
             job.job_id, job.source_name, pipeline_lang, is_auto,
         )
         progress_msg = f"Remediating in {pipeline_lang}..." if not is_auto else "Remediating textbook..."
-        await repo.update_progress(job.job_id, JobProgress(stage="remediation", message=progress_msg))
+        await repo.update_progress(job.job_id, JobProgress(stage=JobStage.OCR, message=progress_msg))
 
         context_json_path = work / "context.json"
         docx_path = out / artifact_filename(ArtifactName.DOCX)
@@ -213,7 +234,7 @@ async def _process_job(
         await run_pipeline(
             PIPELINE_PATH, pdf, work,
             ["--language", pipeline_lang, "--output", str(context_json_path)],
-            on_progress=make_progress_handler("remediation"),
+            on_progress=make_progress_handler(JobStage.OCR),
             timeout=JOB_TIMEOUT_SECONDS,
         )
         await repo.set_stage(job.job_id, JobStage.REVIEW)
@@ -236,7 +257,7 @@ async def _process_job(
         if metrics is None:
             metrics = _fallback_metrics(raw, trail, unresolved)
 
-        await _upload_images(blob_provider, job.job_id, work)
+        await _upload_images(blob_provider, job.job_id, work, out)
         await repo.record_artifacts(
             job.job_id,
             await _upload(
@@ -267,17 +288,9 @@ class TextbookRemediationConsumer(BaseConsumer):
 
     def __init__(self, db: AsyncDatabase) -> None:
         self._repo = TextbookRemediationRepository(db)
-        self._running = True
         self._blob_provider: BlobStorageProvider | None = None
 
-    async def stop(self) -> None:
-        self._running = False
-
     async def _run_loop(self) -> None:
-        if not self._running:
-            await asyncio.sleep(POLL_INTERVAL_SECONDS)
-            return
-
         if self._blob_provider is None:
             try:
                 self._blob_provider = get_blob_storage_provider()
@@ -305,9 +318,12 @@ class TextbookRemediationConsumer(BaseConsumer):
             )
         except asyncio.CancelledError:
             raise
-        except Exception as exc:  # noqa: BLE001
+        except TimeoutError as exc:
+            raise PermanentError(f"Remediation timed out after {JOB_TIMEOUT_SECONDS // 3600} hours. Upload a smaller PDF or try again.") from exc
+        except RuntimeError as exc:
             logger.exception("remediation: failed job_id=%s", job.job_id)
             raise PermanentError(str(exc)) from exc
 
     async def _dead_letter(self, job: RemediationJob, reason: str) -> None:
         await self._repo.finish(job.job_id, JobStatus.FAILED, error=reason)
+        await self._repo.update_progress(job.job_id, JobProgress())

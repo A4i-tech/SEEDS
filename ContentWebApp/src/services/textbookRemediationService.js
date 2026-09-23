@@ -5,6 +5,10 @@ import { apiFetch, apiFetchBlob, apiFetchText, buildQueryString, streamSse } fro
 const BASE = `${SEEDS_URL}/textbook-remediation`;
 
 export const textbookRemediationService = {
+  async getLanguages({ signal } = {}) {
+    return apiFetch(`${SEEDS_URL}/v1/languages`, { method: "GET", signal });
+  },
+
   async createJob(file, language, { targetLanguage = "" } = {}) {
     const body = new FormData();
     body.append("file", file);

@@ -111,7 +111,6 @@ class _StubBlob:
 @pytest.mark.asyncio
 async def test_run_translation_uploads_translated_artifacts(monkeypatch):
     import json
-    from pathlib import Path
 
     import app.remediation.translate as translate_mod
 
@@ -122,17 +121,15 @@ async def test_run_translation_uploads_translated_artifacts(monkeypatch):
             json.dumps({"metadata": {"translated_text": translated}}), encoding="utf-8"
         )
 
-    def fake_convert_text(text, fmt, format, outputfile, extra_args=None):
-        Path(outputfile).write_bytes(b"stub-bytes")
-
-    def fake_convert_docx_to_pdf(docx_path, out_dir):
+    def fake_compile(markdown, out_dir, out_docx, out_tex, resource_root=None):
+        out_docx.write_bytes(b"stub-docx")
+        out_tex.write_bytes(b"stub-tex")
         pdf_path = out_dir / "translated.pdf"
         pdf_path.write_bytes(b"stub-pdf")
         return pdf_path
 
     monkeypatch.setattr(translate_mod, "run_pipeline", fake_run_pipeline)
-    monkeypatch.setattr(translate_mod.pypandoc, "convert_text", fake_convert_text)
-    monkeypatch.setattr(translate_mod, "convert_docx_to_pdf", fake_convert_docx_to_pdf)
+    monkeypatch.setattr(translate_mod, "compile_docx_tex_pdf", fake_compile)
 
     blob = _StubBlob()
     urls = await translate_mod.run_translation(

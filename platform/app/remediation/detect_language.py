@@ -5,70 +5,37 @@ import re
 
 from langdetect import DetectorFactory, LangDetectException, detect_langs
 
+from app.services.language_registry import SUPPORTED_LANGUAGES
+
 DetectorFactory.seed = 0
 
 logger = logging.getLogger(__name__)
 
-_CODE_TO_NAME: dict[str, str] = {
-    "hi": "Hindi",
-    "ta": "Tamil",
-    "kn": "Kannada",
-    "te": "Telugu",
-    "bn": "Bengali",
-    "gu": "Gujarati",
-    "ml": "Malayalam",
-    "mr": "Marathi",
-    "pa": "Punjabi",
-    "ur": "Urdu",
-    "or": "Odia",
-    "as": "Assamese",
-    "en": "English",
-}
+_CODE_TO_NAME: dict[str, str] = {lang["code"]: lang["name"] for lang in SUPPORTED_LANGUAGES}
+_CODE_TO_NAME.update({"pa": "Punjabi", "or": "Odia"})
+
+_NAME_TO_CODE: dict[str, str] = {lang["name"].lower(): lang["code"] for lang in SUPPORTED_LANGUAGES}
 
 _NATIVE_TO_CODE: dict[str, str] = {
     "বাংলা": "bn",
     "বাঙালি": "bn",
     "বাঙ্গালী": "bn",
     "bangla": "bn",
-    "bengali": "bn",
-    "bn": "bn",
     "ಕನ್ನಡ": "kn",
-    "kannada": "kn",
-    "kn": "kn",
     "हिन्दी": "hi",
     "हिंदी": "hi",
-    "hindi": "hi",
-    "hi": "hi",
     "தமிழ்": "ta",
-    "tamil": "ta",
-    "ta": "ta",
     "తెలుగు": "te",
-    "telugu": "te",
-    "te": "te",
     "मराठी": "mr",
-    "marathi": "mr",
-    "mr": "mr",
     "ગુજરાતી": "gu",
-    "gujarati": "gu",
-    "gu": "gu",
     "മലയാളം": "ml",
-    "malayalam": "ml",
-    "ml": "ml",
     "ਪੰਜਾਬੀ": "pa",
     "punjabi": "pa",
-    "pa": "pa",
     "ଓଡ଼ಿଆ": "or",
     "odia": "or",
     "oriya": "or",
-    "or": "or",
     "اردو": "ur",
-    "urdu": "ur",
-    "ur": "ur",
     "অসমীয়া": "as",
-    "assamese": "as",
-    "as": "as",
-    "english": "en",
-    "en": "en",
 }
 
 _SCRIPT_RANGES: list[tuple[int, int, str]] = [
@@ -91,6 +58,10 @@ def normalize_language_name(lang: str | None) -> str:
     if cleaned in _NATIVE_TO_CODE:
         code = _NATIVE_TO_CODE[cleaned]
         return _CODE_TO_NAME.get(code, "English")
+    if cleaned in _CODE_TO_NAME:
+        return _CODE_TO_NAME[cleaned]
+    if cleaned in _NAME_TO_CODE:
+        return _CODE_TO_NAME[_NAME_TO_CODE[cleaned]]
     for token in re.split(r"[^\w]+", cleaned):
         code = _NATIVE_TO_CODE.get(token)
         if code:
@@ -100,7 +71,7 @@ def normalize_language_name(lang: str | None) -> str:
         for start, end, code in _SCRIPT_RANGES:
             if start <= cp <= end:
                 return _CODE_TO_NAME.get(code, "English")
-    return _CODE_TO_NAME.get(cleaned, lang.capitalize())
+    return lang.capitalize()
 
 
 def detect_language(text: str, max_chars: int = 10000) -> str | None:

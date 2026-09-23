@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 import pytest
+from bson import ObjectId
 
 from app.models.remediation_job import STAGES, JobStage, JobStatus, RemediationJob
 from app.repositories.textbook_remediation_repository import TextbookRemediationRepository
@@ -17,7 +18,8 @@ def repo():
 
 async def _create(repo, tenant_id="tenant-a"):
     return await repo.create(
-        tenant_id=tenant_id, source_name="book.pdf", source_url="https://blob/source.pdf", language="kn"
+        job_id=ObjectId(), tenant_id=tenant_id, source_name="book.pdf",
+        source_url="https://blob/source.pdf", language="kn",
     )
 
 
@@ -209,7 +211,7 @@ async def test_create_job_stores_the_target_language_when_given(repo):
     [
         (_StubUpload(b"%PDF-1.7", content_type="text/plain"), "en", "Expected a PDF"),
         (_StubUpload(b"MZ not a pdf"), "en", "not a PDF"),
-        (_StubUpload(b"%PDF-1.7"), "kn; rm -rf /", "Not a language tag"),
+        (_StubUpload(b"%PDF-1.7"), "kn; rm -rf /", "is not a supported language"),
     ],
 )
 async def test_create_job_rejects_bad_input(repo, upload, language, message):
@@ -327,4 +329,75 @@ def test_platform_root_path():
     assert PLATFORM_ROOT.name == "platform"
     assert (PLATFORM_ROOT / "app").is_dir()
     assert (PLATFORM_ROOT / "app" / "remediation").is_dir()
+
+
+class _FailingBlob:
+    async def upload_file(self, *args, **kwargs):
+        raise RuntimeError("blob storage is down")
+
+
+@pytest.mark.asyncio
+async def test_create_job_inserts_nothing_when_the_upload_fails(repo):
+    import io
+
+    from app.services.textbook_remediation import create_job
+
+    with pytest.raises(RuntimeError, match="blob storage is down"):
+        await create_job(
+            repo, _FailingBlob(),
+            tenant_id="tenant-a", source_name="book.pdf",
+            data=io.BytesIO(b"%PDF-1.7"), language="kn", target_language=None,
+        )
+    assert await repo.list_jobs("tenant-a") == []
+
+
+@pytest.mark.asyncio
+async def test_consumer_upload_raises_when_a_required_artifact_is_missing(tmp_path):
+    from app.consumers.textbook_remediation_consumer import _upload
+    from app.models.remediation_job import ArtifactName
+
+    with pytest.raises(RuntimeError, match="raw.md"):
+        await _upload(_StubBlob(), "job1", tmp_path, ArtifactName.RAW)
+
+
+@pytest.mark.asyncio
+async def test_upload_images_marks_an_image_corrupted_after_three_failed_attempts(tmp_path, monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from app.consumers.textbook_remediation_consumer import _upload_images
+    from app.models.remediation_job import ArtifactName, artifact_filename
+
+    (tmp_path / "fig1.png").write_bytes(b"img-bytes")
+    out = tmp_path / "out"
+    out.mkdir()
+    monkeypatch.setattr("app.consumers.textbook_remediation_consumer.asyncio.sleep", AsyncMock())
+
+    count = await _upload_images(_FailingBlob(), "job1", tmp_path, out)
+
+    assert count == 0
+    unresolved = (out / artifact_filename(ArtifactName.UNRESOLVED)).read_text(encoding="utf-8")
+    assert "Image fig1.png is corrupted" in unresolved
+
+
+@pytest.mark.asyncio
+async def test_verify_job_uploads_go_under_the_verified_path(repo, monkeypatch):
+    from app.services import textbook_remediation as remediation_service
+
+    created = await _create(repo)
+    job = await repo.update_draft(created.job_id, "# Title\n\nBody")
+
+    def _fake_compile(markdown, out_dir):
+        docx = out_dir / "remediated.docx"
+        docx.write_bytes(b"docx-bytes")
+        tex = out_dir / "remediated.tex"
+        tex.write_bytes(b"tex-bytes")
+        return docx, tex, None
+
+    monkeypatch.setattr(remediation_service, "_compile_verified", _fake_compile)
+    blob = _StubBlob()
+
+    await remediation_service.verify_job(repo, blob, job, title="Title", verified_by="reviewer@seeds.org")
+
+    assert f"textbook-remediation/{created.job_id}/verified/remediated.docx" in blob.uploaded
+    assert f"textbook-remediation/{created.job_id}/verified/remediated.tex" in blob.uploaded
 

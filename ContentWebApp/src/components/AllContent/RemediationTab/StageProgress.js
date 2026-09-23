@@ -1,12 +1,12 @@
-import { isRemediationDone } from "../../../utils/remediationStatus";
+import { isRemediationDone, JOB_STATUS, JOB_STAGE } from "../../../utils/remediationStatus";
 import "./StageProgress.css";
 
-const STAGE_LABELS = { ocr: "OCR", review: "Review", docx: "Remediate" };
-const STAGES = ["ocr", "review", "docx"];
+const STAGE_LABELS = { [JOB_STAGE.OCR]: "OCR", [JOB_STAGE.REVIEW]: "Review", [JOB_STAGE.DOCX]: "Remediate" };
+const STAGES = [JOB_STAGE.OCR, JOB_STAGE.REVIEW, JOB_STAGE.DOCX];
 
 export function StageProgress({ job }) {
   const done = isRemediationDone(job.status);
-  const running = job.status === "running";
+  const running = job.status === JOB_STATUS.RUNNING;
   const progressMsg = running ? job.progress.message : "";
   const progressPercent = running ? job.progress.percent : null;
   const hasStageCounts = typeof job.stage_index === "number" && typeof job.stage_count === "number";

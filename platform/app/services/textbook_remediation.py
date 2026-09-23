@@ -8,6 +8,8 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import IO
 
+from bson import ObjectId
+
 from app.models.remediation_job import (
     ARTIFACTS,
     STAGES,
@@ -94,19 +96,18 @@ async def create_job(
     language: str,
     target_language: str | None,
 ) -> RemediationJob:
-    job = await repo.create(
+    job_id = ObjectId()
+    url = await blob_provider.upload_file(
+        get_settings().azure_storage_container, f"textbook-remediation/{job_id}/source.pdf", data, "application/pdf"
+    )
+    return await repo.create(
+        job_id=job_id,
         tenant_id=tenant_id,
         source_name=source_name,
-        source_url="",
+        source_url=url,
         language=language,
         target_language=target_language,
     )
-    url = await blob_provider.upload_file(
-        get_settings().azure_storage_container, f"textbook-remediation/{job.job_id}/source.pdf", data, "application/pdf"
-    )
-    await repo.set_source_url(job.job_id, url)
-    job.source_url = url
-    return job
 
 
 async def artifact_bytes(
@@ -186,7 +187,7 @@ async def verify_job(
                 if out_path and out_path.exists():
                     verified[name] = await blob_provider.upload_file(
                         container,
-                        f"textbook-remediation/{job.job_id}/{ARTIFACTS[name][0]}",
+                        f"textbook-remediation/{job.job_id}/verified/{ARTIFACTS[name][0]}",
                         out_path.read_bytes(),
                         ARTIFACTS[name][1],
                     )
@@ -210,11 +211,15 @@ async def translate_job(
     target_language: str,
 ) -> RemediationJob:
     remediated_bytes, _ = await artifact_bytes(job, ArtifactName.REMEDIATED, blob_provider)
-    translated_urls = await run_translation(
-        job.job_id, remediated_bytes, target_language, job.language, blob_provider
-    )
-    if not translated_urls:
-        raise ValidationError("Translation produced no downloadable file. Try again, or pick a different target language.")
+    try:
+        translated_urls = await run_translation(
+            job.job_id, remediated_bytes, target_language, job.language, blob_provider
+        )
+        if not translated_urls:
+            raise ValidationError("Translation produced no downloadable file. Try again, or pick a different target language.")
+    except Exception as exc:
+        await repo.set_translation_error(job.job_id, str(exc))
+        raise
     updated = await repo.record_artifacts(job.job_id, translated_urls, {})
     await repo.set_translation_error(job.job_id, None)
     if updated is None:
@@ -256,7 +261,7 @@ async def review_summary(job: RemediationJob, blob_provider: BlobStorageProvider
                     FlaggedItemResponse(
                         id=str(item.get("id") or f"flag_{len(flagged_items) + 1}"),
                         page=item.get("page", 1),
-                        type="unresolved_figure",
+                        type=str(item.get("type") or "unresolved_figure"),
                         text=str(item.get("text") or item.get("alt_text") or ""),
                         reason=str(item.get("reason") or "Needs manual check"),
                         needs_check=True,

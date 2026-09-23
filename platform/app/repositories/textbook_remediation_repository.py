@@ -12,6 +12,7 @@ from pymongo import ReturnDocument
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.remediation_job import (
+    AUTO_LANGUAGES,
     ArtifactName,
     JobMetrics,
     JobProgress,
@@ -39,21 +40,17 @@ class TextbookRemediationRepository:
         self._col = db[self.COLLECTION_NAME]
 
     async def create(
-        self, *, tenant_id: str, source_name: str, source_url: str, language: str,
+        self, *, job_id: ObjectId, tenant_id: str, source_name: str, source_url: str, language: str,
         target_language: str | None = None,
     ) -> RemediationJob:
-        initial_lang = "detecting" if language in ("auto", "detecting") else language
+        initial_lang = "detecting" if language in AUTO_LANGUAGES else language
         doc: dict[str, object] = {
-            "tenant_id": tenant_id, "source_name": source_name, "source_url": source_url,
+            "_id": job_id, "tenant_id": tenant_id, "source_name": source_name, "source_url": source_url,
             "language": initial_lang, "status": JobStatus.PENDING.value, "stage": None,
             "created_at": datetime.now(UTC).isoformat(), "target_language": target_language,
         }
-        result = await self._col.insert_one(doc)
-        doc["_id"] = result.inserted_id
+        await self._col.insert_one(doc)
         return RemediationJob.from_doc(doc)
-
-    async def set_source_url(self, job_id: str, source_url: str) -> None:
-        await self._col.update_one({"_id": _oid(job_id)}, {"$set": {"source_url": source_url}})
 
     async def get(self, tenant_id: str, job_id: str) -> RemediationJob | None:
         doc = await self._col.find_one({"_id": _oid(job_id), "tenant_id": tenant_id, "deleted_at": None})

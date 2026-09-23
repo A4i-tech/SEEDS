@@ -24,6 +24,8 @@ class JobStage(StrEnum):
 
 STAGES: tuple[JobStage, ...] = (JobStage.OCR, JobStage.REVIEW, JobStage.DOCX)
 
+AUTO_LANGUAGES: tuple[str, ...] = ("auto", "detecting")
+
 
 class ArtifactName(StrEnum):
     RAW = "raw"
@@ -78,7 +80,7 @@ def artifact_filename(name: ArtifactName) -> str:
 
 
 class JobProgress(BaseModel):
-    stage: str | None = None
+    stage: JobStage | None = None
     step: str | None = None
     type: str | None = None
     message: str | None = None

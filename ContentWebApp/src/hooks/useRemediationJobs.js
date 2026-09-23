@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { textbookRemediationService } from "../services/textbookRemediationService";
+import { JOB_STATUS } from "../utils/remediationStatus";
 
-const isRunning = (job) => job.status === "pending" || job.status === "running";
+const isRunning = (job) => job.status === JOB_STATUS.PENDING || job.status === JOB_STATUS.RUNNING;
 
 export const useRemediationJobs = () => {
   const [jobs, setJobs] = useState([]);

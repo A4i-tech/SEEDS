@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -27,6 +26,7 @@ from app.repositories.textbook_remediation_repository import (
     TextbookRemediationRepository,
     get_textbook_remediation_repo,
 )
+from app.services.language_registry import SUPPORTED_LANGUAGES
 from app.services.textbook_remediation import (
     artifact_bytes as _artifact_bytes,
 )
@@ -51,7 +51,12 @@ require_remediation_access = require_role(
 
 MAX_PDF_BYTES = 200 * 1024 * 1024
 
-_LANGUAGE = re.compile(r"[a-zA-Z]{2,8}(-[a-zA-Z0-9]{2,8})?")
+_LANGUAGE_CODES = frozenset(lang["code"] for lang in SUPPORTED_LANGUAGES)
+
+
+def _validate_language(value: str) -> None:
+    if value not in _LANGUAGE_CODES:
+        raise ValidationError(f"{value!r} is not a supported language. Pick a language from GET /v1/languages.")
 
 
 class DraftUpdateRequest(BaseModel):
@@ -92,10 +97,10 @@ async def create_remediation_job(
     if size > MAX_PDF_BYTES:
         raise ValidationError(f"PDF is larger than {MAX_PDF_BYTES // (1024 * 1024)} MB")
     await file.seek(0)
-    if not _LANGUAGE.fullmatch(language):
-        raise ValidationError(f"Not a language tag: {language!r}")
-    if target_language and not _LANGUAGE.fullmatch(target_language):
-        raise ValidationError(f"Not a language tag: {target_language!r}")
+    if language != "auto":
+        _validate_language(language)
+    if target_language:
+        _validate_language(target_language)
 
     job = await create_job(
         repo, blob_provider,
@@ -247,8 +252,7 @@ async def translate_remediation_job(
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
 ) -> dict[str, object]:
     job = await _get_job(repo, str(user["tenant_id"]), job_id)
-    if not _LANGUAGE.fullmatch(payload.target_language):
-        raise ValidationError(f"Not a language tag: {payload.target_language!r}")
+    _validate_language(payload.target_language)
     updated = await translate_job(repo, blob_provider, job, payload.target_language)
     return serialize_job(updated)
 

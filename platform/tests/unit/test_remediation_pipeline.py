@@ -94,7 +94,7 @@ def test_markdown_to_format_passes_standalone_and_resource_path(monkeypatch, tmp
 
     assert captured["text"] == "# Title"
     assert captured["to"] == "docx"
-    assert captured["format"] == "markdown+tex_math_dollars"
+    assert captured["format"] == "markdown+tex_math_dollars-raw_tex-raw_html"
     assert "--standalone" in captured["extra_args"]
     assert f"--resource-path={root}" in captured["extra_args"]
     assert f"--reference-doc={ref}" in captured["extra_args"]

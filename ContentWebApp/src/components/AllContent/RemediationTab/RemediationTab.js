@@ -1,20 +1,18 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useRemediationJobs } from "../../../hooks/useRemediationJobs";
 import { textbookRemediationService } from "../../../services/textbookRemediationService";
 import MiddleEllipsis from "../shared/MiddleEllipsis";
 import RowActions from "../shared/RowActions";
 import Select from "../shared/Select";
-import { LANGUAGE_OPTIONS } from "../../../utils/languageUtils";
 import { StageProgress } from "./StageProgress";
 import { SyncAllProgress } from "../shared/SyncAllProgress";
 import { ARTIFACT_DOWNLOADS } from "../../artifactDownloads";
+import { JOB_STATUS } from "../../../utils/remediationStatus";
 import "./RemediationTab.css";
 import "../shared/cards.css";
 import "../shared/buttons.css";
 import "../shared/tables.css";
-
-const TARGET_LANGUAGE_OPTIONS = [{ value: "", label: "No translation" }, ...LANGUAGE_OPTIONS];
 
 const ARTIFACT_LABELS = { docx: "Word", pdf: "PDF", tex: "LaTeX" };
 
@@ -24,6 +22,24 @@ const RemediationTab = () => {
   const fileRef = useRef(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [targetLanguage, setTargetLanguage] = useState("");
+  const [targetLanguageOptions, setTargetLanguageOptions] = useState([{ value: "", label: "No translation" }]);
+  const [languagesError, setLanguagesError] = useState(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    textbookRemediationService
+      .getLanguages({ signal: controller.signal })
+      .then(({ languages }) => {
+        setTargetLanguageOptions([
+          { value: "", label: "No translation" },
+          ...languages.map((lang) => ({ value: lang.code, label: lang.name })),
+        ]);
+      })
+      .catch((languagesErr) => {
+        if (!controller.signal.aborted) setLanguagesError(languagesErr.message);
+      });
+    return () => controller.abort();
+  }, []);
 
   const handleFile = (event) => {
     const file = event.target.files?.[0];
@@ -65,9 +81,10 @@ const RemediationTab = () => {
             id="remediation-target-language"
             value={targetLanguage}
             onChange={setTargetLanguage}
-            options={TARGET_LANGUAGE_OPTIONS}
+            options={targetLanguageOptions}
             placeholder="No translation"
           />
+          {languagesError && <span className="content-details-error">Could not load languages: {languagesError}</span>}
           <button
             type="button"
             className="primary-button"
@@ -157,7 +174,7 @@ const RemediationTab = () => {
                   <td className="table-cell">
                     <RowActions
                       actions={[
-                        ...(job.status !== "running" && job.status !== "failed"
+                        ...(job.status !== JOB_STATUS.RUNNING && job.status !== JOB_STATUS.FAILED
                           ? [{ key: "edit", label: "Edit", variant: "edit", onClick: () => navigate(`/content/remediation/${job.job_id}`) }]
                           : []),
                         {
