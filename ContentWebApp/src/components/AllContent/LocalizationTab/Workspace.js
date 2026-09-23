@@ -156,7 +156,6 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
   const [docs, setDocs] = useState(null);
   const [docsError, setDocsError] = useState(null);
   const [query, setQuery] = useState("");
-  const [busy, setBusy] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
   const [statusTab, setStatusTab] = useState("all");
   const rowsPerPage = 10;
@@ -273,18 +272,6 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
       toast({ message: e.message, tone: "crit" });
     }
   };
-  const translatePage = async () => {
-    setBusy(true);
-    try {
-      await translationService.generateForReview({ siteId, route, lang });
-      toast({ message: "Page translated", tone: "good" });
-      load();
-    } catch (e) {
-      toast({ message: e.message, tone: "crit" });
-    } finally {
-      setBusy(false);
-    }
-  };
   const copyText = async (text) => {
     try {
       await navigator.clipboard.writeText(text || "");
@@ -294,7 +281,7 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
     }
   };
   const approveAll = async () => {
-    const ids = filtered.filter((s) => s.stage !== "approved").map((s) => s.id);
+    const ids = filtered.filter((s) => s.stage !== "approved" && s.stage !== "rejected").map((s) => s.id);
     if (!ids.length) return toast({ message: "Nothing to approve", tone: "info" });
     if (statusTab === "all" && !query.trim()) {
       try {
@@ -414,13 +401,6 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
         <EmptyState
           title="Nothing here"
           message={segments.length ? "No segments match your search." : "This page hasn't been translated yet."}
-          action={
-            !segments.length && (
-              <button type="button" className="tertiary-button" onClick={translatePage} disabled={busy}>
-                {busy ? "Translating…" : "Translate this page"}
-              </button>
-            )
-          }
         />
       ) : (
         <>

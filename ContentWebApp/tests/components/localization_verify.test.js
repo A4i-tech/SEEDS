@@ -174,6 +174,49 @@ describe("Translate & Review — live component verification", () => {
     await waitFor(() => expect(within(screen.getByRole("table")).getByText("Rejected")).toBeInTheDocument());
   });
 
+  test("PASS — Reject works on an already-approved row and flips it to Rejected", async () => {
+    translationService.listTranslations.mockResolvedValue([
+      makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್", status: "approved" }),
+    ]);
+    translationService.rejectTranslation.mockResolvedValue({});
+    renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
+    await screen.findByText("Hello World");
+
+    expect(within(screen.getByRole("table")).getByText("Approved")).toBeInTheDocument();
+    const rejectBtn = screen.getByRole("button", { name: "Reject" });
+    await userEvent.click(rejectBtn);
+
+    expect(translationService.rejectTranslation).toHaveBeenCalledWith("k1", "kn", "needs work");
+    await waitFor(() => expect(within(screen.getByRole("table")).getByText("Rejected")).toBeInTheDocument());
+  });
+
+  test("PASS — Approve/Reject can be toggled back and forth repeatedly on the same row", async () => {
+    translationService.listTranslations.mockResolvedValue([
+      makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" }),
+    ]);
+    translationService.approveTranslation.mockResolvedValue({});
+    translationService.rejectTranslation.mockResolvedValue({});
+    renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
+    await screen.findByText("Hello World");
+
+    const table = within(screen.getByRole("table"));
+
+    await userEvent.click(screen.getByRole("button", { name: "Approve" }));
+    await waitFor(() => expect(table.getByText("Approved")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole("button", { name: "Reject" }));
+    await waitFor(() => expect(table.getByText("Rejected")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole("button", { name: "Approve" }));
+    await waitFor(() => expect(table.getByText("Approved")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole("button", { name: "Reject" }));
+    await waitFor(() => expect(table.getByText("Rejected")).toBeInTheDocument());
+
+    expect(translationService.approveTranslation).toHaveBeenCalledTimes(2);
+    expect(translationService.rejectTranslation).toHaveBeenCalledTimes(2);
+  });
+
   test("PASS — an already-approved row hides Approve but keeps Reject and Copy", async () => {
     translationService.listTranslations.mockResolvedValue([
       makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್", status: "approved" }),
@@ -207,8 +250,9 @@ describe("Translate & Review — live component verification", () => {
       makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" }),
       makeDoc("k2", "Good Morning", { translated: "ಶುಭೋದಯ" }),
       makeDoc("k3", "Already Approved", { translated: "X", status: "approved" }),
+      makeDoc("k4", "Already Rejected", { translated: "Y", status: "rejected" }),
     ]);
-    translationService.bulkApproveTranslations.mockResolvedValue({ approved: 2, skipped: 1 });
+    translationService.bulkApproveTranslations.mockResolvedValue({ approved: 2, skipped: 2 });
     renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
     await screen.findByText("Hello World");
     translationService.listTranslations.mockClear();
@@ -218,7 +262,7 @@ describe("Translate & Review — live component verification", () => {
       expect(translationService.bulkApproveTranslations).toHaveBeenCalledWith({ siteId: "site-1", route: "/", lang: "kn" })
     );
     expect(translationService.approveTranslation).not.toHaveBeenCalled();
-    expect(await screen.findByText("Approved 2, skipped 1")).toBeInTheDocument();
+    expect(await screen.findByText("Approved 2, skipped 2")).toBeInTheDocument();
     await waitFor(() => expect(translationService.listTranslations).toHaveBeenCalled());
   });
 
@@ -236,11 +280,12 @@ describe("Translate & Review — live component verification", () => {
     expect(await screen.findByText("bulk boom")).toBeInTheDocument();
   });
 
-  test("PASS — search-filtered Approve All approves only the visible rows per id", async () => {
+  test("PASS — search-filtered Approve All approves only the visible rows per id, excluding rejected", async () => {
     translationService.listTranslations.mockResolvedValue([
       makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" }),
       makeDoc("k2", "Good Morning", { translated: "ಶುಭೋದಯ" }),
       makeDoc("k3", "Already Approved", { translated: "X", status: "approved" }),
+      makeDoc("k4", "Hello Rejected", { translated: "Y", status: "rejected" }),
     ]);
     translationService.approveTranslation.mockResolvedValue({});
     renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
@@ -252,14 +297,16 @@ describe("Translate & Review — live component verification", () => {
     expect(translationService.approveTranslation).toHaveBeenCalledWith("k1", "kn");
     expect(translationService.approveTranslation).not.toHaveBeenCalledWith("k2", "kn");
     expect(translationService.approveTranslation).not.toHaveBeenCalledWith("k3", "kn");
+    expect(translationService.approveTranslation).not.toHaveBeenCalledWith("k4", "kn");
     expect(translationService.bulkApproveTranslations).not.toHaveBeenCalled();
   });
 
-  test("PASS — status-tab-filtered Approve All uses per-id approval, not bulk", async () => {
+  test("PASS — status-tab-filtered Approve All uses per-id approval, excluding rejected, not bulk", async () => {
     translationService.listTranslations.mockResolvedValue([
       makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" }),
       makeDoc("k2", "Good Morning", { translated: "ಶುಭೋದಯ" }),
       makeDoc("k3", "Already Approved", { translated: "X", status: "approved" }),
+      makeDoc("k4", "Also Rejected", { translated: "Y", status: "rejected" }),
     ]);
     translationService.approveTranslation.mockResolvedValue({});
     renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
@@ -270,6 +317,7 @@ describe("Translate & Review — live component verification", () => {
     await waitFor(() => expect(translationService.approveTranslation).toHaveBeenCalledTimes(2));
     expect(translationService.approveTranslation).toHaveBeenCalledWith("k1", "kn");
     expect(translationService.approveTranslation).toHaveBeenCalledWith("k2", "kn");
+    expect(translationService.approveTranslation).not.toHaveBeenCalledWith("k4", "kn");
     expect(translationService.bulkApproveTranslations).not.toHaveBeenCalled();
   });
 

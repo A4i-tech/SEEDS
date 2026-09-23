@@ -372,6 +372,73 @@ async def test_bulk_approve_pending_approves_all_pending_and_skips_approved(
     assert docs["t2"]["translations"]["ta"]["status"] == "approved"
 
 
+async def test_bulk_approve_pending_skips_rejected(translation_repo, translation_service):
+    await translation_repo.upsert_source("site1", "/h", "t1", "en", "Hello")
+    await translation_repo.save_translation("site1", "/h", "t1", "hi", "[hi] Hello", "P")
+    await translation_repo.upsert_source("site1", "/h", "t2", "en", "World")
+    await translation_repo.save_translation("site1", "/h", "t2", "hi", "[hi] World", "P")
+    t2 = next(d for d in await translation_repo.find_by_route("site1", "/h") if d["key"] == "t2")
+    await translation_repo.reject_translation(str(t2["_id"]), "hi", "rev@example.com", "needs work")
+
+    res = await translation_service.bulk_approve_pending("site1", "rev@example.com")
+    assert res == {"approved": 1, "skipped": 1}
+
+    docs = {d["key"]: d for d in await translation_repo.find_by_route("site1", "/h")}
+    assert docs["t1"]["translations"]["hi"]["status"] == "approved"
+    assert docs["t2"]["translations"]["hi"]["status"] == "rejected"
+
+
+async def test_reject_translation_after_approval_flips_status_and_metadata(
+    translation_repo, translation_service
+):
+    await translation_repo.upsert_source("site1", "/h", "t1", "en", "Hello")
+    await translation_repo.save_translation("site1", "/h", "t1", "hi", "[hi] Hello", "P")
+    t1 = next(d for d in await translation_repo.find_by_route("site1", "/h") if d["key"] == "t1")
+    translation_id = str(t1["_id"])
+
+    await translation_service.approve_translation(translation_id, "hi", "rev@example.com")
+    approved_doc = await translation_repo.find_by_id(translation_id)
+    assert approved_doc["translations"]["hi"]["status"] == "approved"
+
+    await translation_service.reject_translation(translation_id, "hi", "rev2@example.com", "changed my mind")
+    doc = await translation_repo.find_by_id(translation_id)
+
+    entry = doc["translations"]["hi"]
+    assert entry["status"] == "rejected"
+    assert entry["rejected_by"] == "rev2@example.com"
+    assert entry["rejection_reason"] == "changed my mind"
+    assert entry["rejected_at"] is not None
+    assert doc["status"] == "rejected"
+
+
+async def test_approve_reject_cycle_is_fully_reversible_and_repeatable(
+    translation_repo, translation_service
+):
+    await translation_repo.upsert_source("site1", "/h", "t1", "en", "Hello")
+    await translation_repo.save_translation("site1", "/h", "t1", "hi", "[hi] Hello", "P")
+    t1 = next(d for d in await translation_repo.find_by_route("site1", "/h") if d["key"] == "t1")
+    translation_id = str(t1["_id"])
+
+    async def status() -> str:
+        doc = await translation_repo.find_by_id(translation_id)
+        return doc["translations"]["hi"]["status"]
+
+    await translation_service.approve_translation(translation_id, "hi", "rev@example.com")
+    assert await status() == "approved"
+
+    await translation_service.reject_translation(translation_id, "hi", "rev@example.com", "r1")
+    assert await status() == "rejected"
+
+    await translation_service.approve_translation(translation_id, "hi", "rev@example.com")
+    assert await status() == "approved"
+
+    await translation_service.reject_translation(translation_id, "hi", "rev@example.com", "r2")
+    assert await status() == "rejected"
+
+    await translation_service.approve_translation(translation_id, "hi", "rev@example.com")
+    assert await status() == "approved"
+
+
 async def test_runtime_translate_does_not_serve_freshly_generated_unapproved_translation(
     monkeypatch, translation_repo, translation_service
 ):

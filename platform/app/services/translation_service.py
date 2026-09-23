@@ -352,7 +352,7 @@ class TranslationService:
             for doc_lang, entry in (doc.get("translations") or {}).items():
                 if lang and doc_lang != lang:
                     continue
-                if entry.get("status") == "approved":
+                if entry.get("status") in ("approved", "rejected"):
                     skipped += 1
                     continue
                 await self.approve_translation(str(doc["_id"]), doc_lang, approved_by)
