@@ -1,9 +1,11 @@
+import { getAccessToken, setAccessToken, clearAccessToken } from "./tokenStore";
+
 /**
  * Get authorization headers with bearer token
  * @returns {Object} Headers object with Authorization
  */
 export const getAuthHeaders = () => {
-  const token = localStorage.getItem("authToken");
+  const token = getAccessToken();
   if (!token) {
     throw new Error("No auth token found");
   }
@@ -17,12 +19,10 @@ export const getAuthHeaders = () => {
  * Check if user is authenticated
  * @returns {boolean} True if token exists
  */
-export const isAuthenticated = () => {
-  return !!localStorage.getItem("authToken");
-};
+export const isAuthenticated = () => !!getAccessToken();
 
 export const getTokenPayload = () => {
-  const token = localStorage.getItem("authToken");
+  const token = getAccessToken();
   if (!token) {
     return {};
   }
@@ -48,7 +48,7 @@ export const getTokenPayload = () => {
  * @param {string|null} schoolId - Required for school_admin, content_creator, and teacher
  */
 export const setAuth = (token, role, schoolId = null) => {
-  localStorage.setItem("authToken", token);
+  setAccessToken(token);
   localStorage.setItem("userRole", role);
   if (schoolId) localStorage.setItem("schoolId", schoolId);
   else localStorage.removeItem("schoolId");
@@ -73,7 +73,7 @@ export const getSchoolId = () => localStorage.getItem("schoolId");
  * Clear all authentication data
  */
 export const clearAuth = () => {
-  localStorage.removeItem("authToken");
+  clearAccessToken();
   localStorage.removeItem("userRole");
   localStorage.removeItem("schoolId");
 };
