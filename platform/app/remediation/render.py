@@ -88,6 +88,7 @@ def markdown_to_format(
 
 
 _UNSAFE_LATEX_RE = re.compile(r"\\(input|include|write18)\b[^\n]*")
+_IMAGE_MARKER = re.compile(r"<image\b[^>]*>")
 
 
 def _scrub_latex_commands(text: str) -> str:
@@ -285,13 +286,33 @@ class _MarkdownBuilder:
 
     def emit_figure(self, figure_id: str) -> None:
         fig = self._figures.get(figure_id)
-        if not fig or figure_id in self._used_figures:
+        if not fig or figure_id in self._used_figures or fig.get("kind") == "decorative":
             return
         self._used_figures.add(figure_id)
         alt = str(fig.get("alt_text") or "").strip()
         long_desc = str(fig.get("long_description") or "").strip().replace("\n", " ").replace('"', "'")
         title = f' "{long_desc}"' if long_desc else ""
         self._blocks.append(f"![{alt}]({fig['src']}{title})")
+
+    def emit_block_figure(self, page_num: int, image_id: str) -> None:
+        figure_id = "".join(image_id.split())
+        if figure_id not in self._figures or figure_id in self._used_figures:
+            figure_id = next(
+                (
+                    fid for fid, fig in self._figures.items()
+                    if fig["page"] == page_num and fid not in self._used_figures and fig.get("kind") != "decorative"
+                ),
+                "",
+            )
+        if not figure_id:
+            self._unresolved_records.append({
+                "page": page_num,
+                "type": "missing_figure",
+                "text": image_id,
+                "reason": "The page text refers to a figure that was not extracted from the PDF. Check the page image.",
+                "needs_check": True,
+            })
+        self.emit_figure(figure_id)
 
     def start_page(self, page_num: int) -> None:
         self._blocks.append(f"<!-- page {page_num} -->")
@@ -373,7 +394,7 @@ def _render_math(builder: _MarkdownBuilder, page_num: int, block: dict[str, obje
 
 
 def _render_figure(builder: _MarkdownBuilder, page_num: int, block: dict[str, object], b_text: str) -> None:
-    builder.emit_figure(str(block.get("image_id") or ""))
+    builder.emit_block_figure(page_num, str(block.get("image_id") or ""))
     if b_text:
         builder.append(b_text)
 
@@ -389,14 +410,26 @@ BLOCK_RENDERERS: dict[str, Callable[[_MarkdownBuilder, int, dict[str, object], s
 
 def _build_remediated_body(corpus: _Corpus, remediation_records: list[dict[str, object]], fallback: str) -> str:
     builder = _MarkdownBuilder(corpus.figures, remediation_records, corpus.unresolved_records)
+    raw_by_page = dict(corpus.raw_pages)
     for page_num, rem in corpus.pages:
         builder.start_page(page_num)
         for artifact in rem.get("removed_artifacts") or []:
             if isinstance(artifact, dict):
                 builder.add_removed_artifact(page_num, artifact)
-        for block in rem.get("blocks") or []:
-            if isinstance(block, dict):
-                builder.render_block(page_num, block)
+        blocks = [b for b in rem.get("blocks") or [] if isinstance(b, dict)]
+        if not _IMAGE_MARKER.sub("", raw_by_page.get(page_num, "")).strip():
+            dropped = [b for b in blocks if b.get("type") != "figure" and str(b.get("text") or "").strip()]
+            if dropped:
+                corpus.unresolved_records.append({
+                    "page": page_num,
+                    "type": "invented_text",
+                    "text": str(dropped[0].get("text"))[:200],
+                    "reason": "OCR found no text on this page, so the generated text was removed. Check the page image.",
+                    "needs_check": True,
+                })
+            blocks = [b for b in blocks if b.get("type") == "figure"]
+        for block in blocks:
+            builder.render_block(page_num, block)
         builder.emit_page_figures(page_num)
     builder.emit_remaining_figures()
     return builder.body(fallback)

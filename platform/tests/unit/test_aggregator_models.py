@@ -10,6 +10,7 @@ from app.aggregators.models import (
     TextContent,
     VideoContent,
 )
+from app.aggregators.sync_job_models import SyncJob
 
 
 def test_text_content_round_trip_omits_unset_fields():
@@ -73,3 +74,13 @@ def test_canonical_node_container_has_no_content():
     assert doc["content"] is None
     assert doc["item_type"] is None
     assert CanonicalNode.from_doc(doc) == node
+
+
+def test_sync_job_from_doc_reads_pre_created_at_docs():
+    doc = {
+        "_id": "job-1", "tenant_id": "t", "source_type": "subodha", "scope": "all", "source_id": None,
+        "status": "completed", "started_at": "2026-09-01T00:00:00+00:00", "finished_at": None,
+        "total_items": 0, "error": None,
+    }
+
+    assert SyncJob.from_doc(doc).created_at == "2026-09-01T00:00:00+00:00"

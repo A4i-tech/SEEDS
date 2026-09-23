@@ -201,3 +201,30 @@ async def test_run_pipeline_kills_child_on_timeout(tmp_path, monkeypatch):
 
     assert started["proc"].returncode is not None
     assert time.monotonic() - start < 5
+
+
+def test_figure_block_with_mangled_id_uses_next_unused_page_figure():
+    figures = {
+        "fig-a": {"page": 1, "src": "images/a.png", "alt_text": "A"},
+        "fig-b": {"page": 1, "src": "images/b.png", "alt_text": "B"},
+    }
+    builder = render._MarkdownBuilder(figures, [], [])
+    builder.emit_block_figure(1, "fig- b")
+    builder.emit_block_figure(1, "garbled-id")
+    builder.emit_page_figures(1)
+
+    assert builder.body("") == "![B](images/b.png)\n\n![A](images/a.png)\n"
+
+
+def test_page_without_ocr_text_drops_invented_text_blocks():
+    corpus = render._Corpus()
+    corpus.raw_pages.append((1, "<image\nid='a'/>\n\n<image id='b'/>"))
+    corpus.pages.append((1, {"blocks": [
+        {"type": "heading", "level": 1, "text": "Physical Quantities"},
+        {"type": "paragraph", "text": "Invented body"},
+    ]}))
+
+    body = render._build_remediated_body(corpus, [], "")
+
+    assert "Physical Quantities" not in body
+    assert corpus.unresolved_records[0]["type"] == "invented_text"
