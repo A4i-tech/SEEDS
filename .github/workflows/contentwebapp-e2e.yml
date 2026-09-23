@@ -2,6 +2,11 @@ name: ContentWebApp E2E
 
 on:
   workflow_call:
+    inputs:
+      e2e_instance:
+        description: "E2E_INSTANCE to run against"
+        type: string
+        default: dev
   workflow_dispatch:
     inputs:
       e2e_instance:
@@ -13,7 +18,7 @@ on:
         default: dev
 
 concurrency:
-  group: contentwebapp-e2e-${{ github.ref }}-${{ github.event_name }}-${{ inputs.e2e_instance || 'dev' }}
+  group: contentwebapp-e2e-${{ github.ref }}-${{ github.event_name }}-${{ inputs.e2e_instance }}
   cancel-in-progress: true
 
 jobs:
@@ -39,10 +44,9 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      # workflow_call (post-deploy) always runs against "dev"; use workflow_dispatch to target "onrender".
       - name: Run Playwright E2E tests
         env:
-          TARGET_INSTANCE: ${{ github.event_name == 'workflow_dispatch' && inputs.e2e_instance || 'dev' }}
+          TARGET_INSTANCE: ${{ inputs.e2e_instance }}
         run: npm run "test:e2e:$TARGET_INSTANCE"
 
       - name: Upload Playwright report
