@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import re
 
-from langdetect import DetectorFactory, detect_langs
+from langdetect import DetectorFactory, LangDetectException, detect_langs
 
 DetectorFactory.seed = 0
 
@@ -72,15 +72,15 @@ _NATIVE_TO_CODE: dict[str, str] = {
 }
 
 _SCRIPT_RANGES: list[tuple[int, int, str]] = [
-    (0x0980, 0x09FF, "bn"),  # Bengali / Assamese
-    (0x0C80, 0x0CFF, "kn"),  # Kannada
-    (0x0B80, 0x0BFF, "ta"),  # Tamil
-    (0x0C00, 0x0C7F, "te"),  # Telugu
-    (0x0D00, 0x0D7F, "ml"),  # Malayalam
-    (0x0A80, 0x0AFF, "gu"),  # Gujarati
-    (0x0A00, 0x0A7F, "pa"),  # Gurmukhi / Punjabi
-    (0x0B00, 0x0B7F, "or"),  # Odia
-    (0x0900, 0x097F, "hi"),  # Devanagari (Hindi / Marathi)
+    (0x0980, 0x09FF, "bn"),
+    (0x0C80, 0x0CFF, "kn"),
+    (0x0B80, 0x0BFF, "ta"),
+    (0x0C00, 0x0C7F, "te"),
+    (0x0D00, 0x0D7F, "ml"),
+    (0x0A80, 0x0AFF, "gu"),
+    (0x0A00, 0x0A7F, "pa"),
+    (0x0B00, 0x0B7F, "or"),
+    (0x0900, 0x097F, "hi"),
 ]
 
 
@@ -103,7 +103,7 @@ def normalize_language_name(lang: str | None) -> str:
     return _CODE_TO_NAME.get(cleaned, lang.capitalize())
 
 
-def detect_language(text: str, max_chars: int = 10000) -> str:
+def detect_language(text: str, max_chars: int = 10000) -> str | None:
     sample = text[:max_chars].strip()
     if not sample:
         return "English"
@@ -128,7 +128,8 @@ def detect_language(text: str, max_chars: int = 10000) -> str:
                     return _CODE_TO_NAME[item.lang]
             primary = langs[0].lang
             return _CODE_TO_NAME.get(primary, primary.capitalize())
-    except Exception as exc:
-        logger.debug("Language detection fallback: %s", exc)
+    except LangDetectException as exc:
+        logger.warning("Language detection failed: %s", exc)
+        return None
 
-    return "English"
+    return None

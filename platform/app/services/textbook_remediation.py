@@ -26,7 +26,7 @@ from app.models.responses.remediation import (
 from app.platform.error_handling import NotFoundError, ValidationError
 from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider
-from app.remediation.render import convert_docx_to_pdf, markdown_to_format, tag_tex_for_pdf_ua
+from app.remediation.render import compile_docx_tex_pdf
 from app.remediation.translate import run_translation
 from app.repositories.textbook_remediation_repository import TextbookRemediationRepository
 
@@ -153,12 +153,9 @@ async def save_draft(
 
 
 def _compile_verified(markdown: str, out_dir: Path) -> tuple[Path, Path, Path | None]:
-    out_docx = out_dir / "remediated.docx"
-    markdown_to_format(markdown, "docx", out_docx)
-    out_tex = out_dir / "remediated.tex"
-    markdown_to_format(markdown, "latex", out_tex)
-    tag_tex_for_pdf_ua(out_tex)
-    out_pdf = convert_docx_to_pdf(out_docx, out_dir) if out_docx.exists() else None
+    out_docx = out_dir / artifact_filename(ArtifactName.DOCX)
+    out_tex = out_dir / artifact_filename(ArtifactName.TEX)
+    out_pdf = compile_docx_tex_pdf(markdown, out_dir, out_docx, out_tex)
     return out_docx, out_tex, out_pdf
 
 
@@ -230,6 +227,7 @@ def _parse_jsonl(data: bytes) -> list[dict[str, object]]:
 
 
 async def review_summary(job: RemediationJob, blob_provider: BlobStorageProvider) -> dict[str, object]:
+    incomplete = False
     diagrams: list[DiagramResponse] = []
     if ArtifactName.ALT in job.artifacts:
         try:
@@ -247,6 +245,7 @@ async def review_summary(job: RemediationJob, blob_provider: BlobStorageProvider
                 )
         except Exception as exc:
             logger.warning("Failed to parse alt artifact for job %s: %s", job.job_id, exc)
+            incomplete = True
 
     flagged_items: list[FlaggedItemResponse] = []
     if ArtifactName.UNRESOLVED in job.artifacts:
@@ -265,6 +264,7 @@ async def review_summary(job: RemediationJob, blob_provider: BlobStorageProvider
                 )
         except Exception as exc:
             logger.warning("Failed to parse unresolved artifact for job %s: %s", job.job_id, exc)
+            incomplete = True
 
     tables: list[dict[str, object]] = []
     if ArtifactName.REMEDIATION in job.artifacts:
@@ -276,8 +276,9 @@ async def review_summary(job: RemediationJob, blob_provider: BlobStorageProvider
                     tables.append(item)
         except Exception as exc:
             logger.warning("Failed to parse remediation artifact for job %s: %s", job.job_id, exc)
+            incomplete = True
 
-    return ReviewSummaryResponse(
+    summary = ReviewSummaryResponse(
         job_id=job.job_id,
         status=job.status,
         total_pages=job.metrics.total_pages or 1,
@@ -288,3 +289,5 @@ async def review_summary(job: RemediationJob, blob_provider: BlobStorageProvider
         tables=tables,
         flagged_items=flagged_items,
     ).model_dump(mode="json")
+    summary["incomplete"] = incomplete
+    return summary

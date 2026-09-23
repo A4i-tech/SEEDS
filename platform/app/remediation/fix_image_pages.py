@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from omni_ingest.core.model import ResolvedResource, Step, StepResult, StepStatus
 from omni_ingest.core.pipeline import IngestionContext, register_step
-from pydantic import BaseModel
 
 ENGINE_NAME = "fix_image_pages"
 
@@ -12,7 +11,7 @@ ENGINE_NAME = "fix_image_pages"
 MIN_FIGURE_HEIGHT_PT = 40
 
 
-class FixImagePagesAgent(BaseModel, Step):
+class FixImagePagesAgent(Step):
     """Corrects image items produced by ImageExtractionAgent.
 
     ImageExtractionAgent runs on already-split single-page PDFs, so it always

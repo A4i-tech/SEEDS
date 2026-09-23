@@ -8,6 +8,7 @@ import Select from "../shared/Select";
 import { LANGUAGE_OPTIONS } from "../../../utils/languageUtils";
 import { StageProgress } from "./StageProgress";
 import { SyncAllProgress } from "../shared/SyncAllProgress";
+import { ARTIFACT_DOWNLOADS } from "../../artifactDownloads";
 import "./RemediationTab.css";
 import "../shared/cards.css";
 import "../shared/buttons.css";
@@ -15,11 +16,7 @@ import "../shared/tables.css";
 
 const TARGET_LANGUAGE_OPTIONS = [{ value: "", label: "No translation" }, ...LANGUAGE_OPTIONS];
 
-const ARTIFACT_DOWNLOADS = [
-  { key: "docx", ext: "docx", label: "Word" },
-  { key: "pdf", ext: "pdf", label: "PDF" },
-  { key: "tex", ext: "tex", label: "LaTeX" },
-];
+const ARTIFACT_LABELS = { docx: "Word", pdf: "PDF", tex: "LaTeX" };
 
 const RemediationTab = () => {
   const navigate = useNavigate();
@@ -148,7 +145,7 @@ const RemediationTab = () => {
                                   )
                                 }
                               >
-                                {entry.label}
+                                {ARTIFACT_LABELS[entry.key]}
                               </button>
                             )
                         )}

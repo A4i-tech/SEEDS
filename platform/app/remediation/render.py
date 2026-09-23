@@ -5,6 +5,7 @@ import hashlib
 import html
 import json
 import logging
+import re
 import shutil
 import subprocess
 from collections.abc import Callable
@@ -80,10 +81,17 @@ def markdown_to_format(
     pypandoc.convert_text(
         text,
         to,
-        format="markdown+tex_math_dollars",
+        format="markdown+tex_math_dollars-raw_tex-raw_html",
         outputfile=str(out_path),
         extra_args=extra_args,
     )
+
+
+_UNSAFE_LATEX_RE = re.compile(r"\\(input|include|write18)\b[^\n]*")
+
+
+def _scrub_latex_commands(text: str) -> str:
+    return _UNSAFE_LATEX_RE.sub("", text)
 
 
 def tag_tex_for_pdf_ua(tex_path: Path) -> None:
@@ -139,6 +147,37 @@ def convert_docx_to_pdf(docx_path: Path, out_dir: Path) -> Path | None:
     return pdf_path
 
 
+def compile_docx_tex_pdf(
+    text: str,
+    out_dir: Path,
+    docx_path: Path,
+    tex_path: Path,
+    *,
+    resource_root: Path | None = None,
+    catch_errors: bool = False,
+) -> Path | None:
+    try:
+        markdown_to_format(text, "docx", docx_path, resource_root=resource_root)
+    except Exception as exc:
+        if not catch_errors:
+            raise
+        docx_path.unlink(missing_ok=True)
+        raise RuntimeError(f"DOCX compilation failed: {exc}") from exc
+
+    try:
+        markdown_to_format(text, "latex", tex_path, resource_root=resource_root)
+        tag_tex_for_pdf_ua(tex_path)
+    except Exception as exc:
+        if not catch_errors:
+            raise
+        logger.warning("LaTeX compilation failed; no .tex artifact for this run: %s", exc)
+        tex_path.unlink(missing_ok=True)
+
+    if docx_path.exists() and docx_path.stat().st_size > 0:
+        return convert_docx_to_pdf(docx_path, out_dir)
+    return None
+
+
 @dataclass
 class _Corpus:
     figures: dict[str, dict[str, object]] = field(default_factory=dict)
@@ -157,8 +196,6 @@ def _collect_image(
     data, ext = as_jpeg(raw_bytes)
 
     access = meta.get("accessibility") or {}
-    if not isinstance(access, dict):
-        access = {}
 
     item_id = str(item.get("id") or "")
     fname = f"{hashlib.md5(raw_bytes).hexdigest()[:12]}_{page_num}_img.{ext}"
@@ -211,24 +248,18 @@ def _collect_page(
         corpus.raw_pages.append((page_num, raw_text))
 
     rem = meta.get("remediation")
-    if isinstance(rem, dict):
+    if rem:
         corpus.pages.append((page_num, rem))
 
     ver = meta.get("verified") or {}
-    if isinstance(ver, dict):
-        for corr in ver.get("corrections") or []:
-            if isinstance(corr, dict):
-                corpus.findings_records.append({"page": page_num, **corr})
+    for corr in ver.get("corrections") or []:
+        corpus.findings_records.append({"page": page_num, **corr})
 
 
 def _collect_corpus(ctx: dict[str, object], images_dir: Path) -> _Corpus:
     corpus = _Corpus()
     for item in ctx.get("items", []):
-        if not isinstance(item, dict):
-            continue
         meta = item.get("metadata") or {}
-        if not isinstance(meta, dict):
-            meta = {}
         page_num = int(meta.get("page") or 1)
         if meta.get("kind") == "image":
             _collect_image(item, meta, page_num, images_dir, corpus)
@@ -389,23 +420,10 @@ def _write_trails(out_dir: Path, corpus: _Corpus, remediation_records: list[dict
 
 
 def _compile_artifacts(out_dir: Path, body: str) -> None:
+    body = _scrub_latex_commands(body)
     docx_path = out_dir / artifact_filename(ArtifactName.DOCX)
-    try:
-        markdown_to_format(body, "docx", docx_path, resource_root=out_dir)
-    except Exception as exc:
-        docx_path.unlink(missing_ok=True)
-        raise RuntimeError(f"DOCX compilation failed: {exc}") from exc
-
     tex_path = out_dir / artifact_filename(ArtifactName.TEX)
-    try:
-        markdown_to_format(body, "latex", tex_path, resource_root=out_dir)
-        tag_tex_for_pdf_ua(tex_path)
-    except Exception as exc:
-        logger.warning("LaTeX compilation failed; no .tex artifact for this run: %s", exc)
-        tex_path.unlink(missing_ok=True)
-
-    if docx_path.exists() and docx_path.stat().st_size > 0:
-        convert_docx_to_pdf(docx_path, out_dir)
+    compile_docx_tex_pdf(body, out_dir, docx_path, tex_path, resource_root=out_dir, catch_errors=True)
 
 
 def _metrics(corpus: _Corpus, remediation_records: list[dict[str, object]]) -> dict[str, object]:

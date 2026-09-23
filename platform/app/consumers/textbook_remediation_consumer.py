@@ -144,13 +144,14 @@ async def _translate_if_requested(
     repo: TextbookRemediationRepository,
     blob_provider: BlobStorageProvider,
     out: Path,
-) -> None:
+) -> str | None:
     if not job.target_language:
-        return
+        return None
     remediated_path = out / artifact_filename(ArtifactName.REMEDIATED)
     if not remediated_path.exists():
-        await repo.set_translation_error(job.job_id, "Remediation produced no text to translate.")
-        return
+        message = "Remediation produced no text to translate."
+        await repo.set_translation_error(job.job_id, message)
+        return message
     try:
         translated_urls = await run_translation(
             job.job_id, remediated_path.read_bytes(), job.target_language, job.language, blob_provider
@@ -161,9 +162,12 @@ async def _translate_if_requested(
             job.job_id, {ArtifactName(name): url for name, url in translated_urls.items()}, {}
         )
         await repo.set_translation_error(job.job_id, None)
+        return None
     except Exception as exc:
         logger.warning("remediation: translation failed for job_id=%s: %s", job.job_id, exc)
-        await repo.set_translation_error(job.job_id, str(exc))
+        message = str(exc)
+        await repo.set_translation_error(job.job_id, message)
+        return message
 
 
 async def _process_job(
@@ -252,10 +256,10 @@ async def _process_job(
         await repo.update_metrics(job.job_id, metrics)
         await repo.set_stage(job.job_id, JobStage.DOCX)
 
-        await _translate_if_requested(job, repo, blob_provider, out)
+        translation_error = await _translate_if_requested(job, repo, blob_provider, out)
 
     await repo.update_progress(job.job_id, JobProgress())
-    await repo.finish(job.job_id, JobStatus.READY_TO_REVIEW)
+    await repo.finish(job.job_id, JobStatus.READY_TO_REVIEW, error=translation_error)
 
 
 class TextbookRemediationConsumer(BaseConsumer):
@@ -303,7 +307,7 @@ class TextbookRemediationConsumer(BaseConsumer):
             raise
         except Exception as exc:  # noqa: BLE001
             logger.exception("remediation: failed job_id=%s", job.job_id)
-            raise PermanentError(f"{type(exc).__name__}: {exc}" if not str(exc) else str(exc)) from exc
+            raise PermanentError(str(exc)) from exc
 
     async def _dead_letter(self, job: RemediationJob, reason: str) -> None:
         await self._repo.finish(job.job_id, JobStatus.FAILED, error=reason)

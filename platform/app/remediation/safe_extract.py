@@ -30,12 +30,12 @@ class SafeExtractAgent(ExtractAgent):
                     img_bytes = await img_item.content(ingestion_ctx)
                     if img_bytes:
                         filename = img_item.metadata.get("filename") or str(item_id)
-                        if not filename.endswith((".jpg", ".jpeg", ".png", ".webp", ".svg", ".gif")):
+                        if not filename.endswith((".jpg", ".jpeg", ".png", ".webp", ".gif")):
                             filename = f"{filename}.jpg"
+                        filename = Path(filename).name
                         out_dir = Path("out")
                         out_dir.mkdir(parents=True, exist_ok=True)
                         (out_dir / filename).write_bytes(img_bytes)
-                        Path(filename).write_bytes(img_bytes)
                 except Exception as e:
                     logger.warning("safe_extract: could not save image %s to disk: %s", item_id, e)
 

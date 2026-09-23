@@ -44,7 +44,6 @@ const MATHML_TAGS = [
   "none",
   "semantics",
   "annotation",
-  "annotation-xml",
 ];
 
 const MATHML_ATTRIBUTES = [
@@ -89,7 +88,7 @@ export const remediationSanitizeSchema = {
   tagNames: [...defaultSchema.tagNames, ...MATHML_TAGS],
   attributes: {
     ...defaultSchema.attributes,
-    img: ["src", "alt", "width", "height"],
+    img: [...defaultSchema.attributes.img, "width", "height"],
     code: [["className", /^language-./, "math-display", "math-inline"]],
     ...Object.fromEntries(MATHML_TAGS.map((tag) => [tag, MATHML_ATTRIBUTES])),
   },

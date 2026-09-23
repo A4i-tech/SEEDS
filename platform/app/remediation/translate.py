@@ -9,14 +9,7 @@ from pathlib import Path
 from app.models.remediation_job import ARTIFACTS, ArtifactName, artifact_filename
 from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider
-from app.remediation.render import (
-    convert_docx_to_pdf,
-    markdown_to_format,
-    tag_tex_for_pdf_ua,
-)
-from app.remediation.render import (
-    pypandoc as pypandoc,
-)
+from app.remediation.render import compile_docx_tex_pdf
 from app.remediation.run_pipeline import run_pipeline
 
 logger = logging.getLogger(__name__)
@@ -62,11 +55,7 @@ async def run_translation(
         out_tex = out_dir / artifact_filename(ArtifactName.TRANSLATED_TEX)
 
         def _compile() -> None:
-            markdown_to_format(translated_text, "docx", out_docx, resource_root=out_dir)
-            markdown_to_format(translated_text, "latex", out_tex, resource_root=out_dir)
-            tag_tex_for_pdf_ua(out_tex)
-            if out_docx.exists() and out_docx.stat().st_size > 0:
-                convert_docx_to_pdf(out_docx, out_dir)
+            compile_docx_tex_pdf(translated_text, out_dir, out_docx, out_tex, resource_root=out_dir)
 
         await asyncio.to_thread(_compile)
 

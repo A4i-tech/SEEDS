@@ -9,6 +9,7 @@ import { textbookRemediationService } from "../services/textbookRemediationServi
 import { normalizeMathDelimiters, MarkdownParagraph } from "./ContentAggregatorDetails/markdownMath";
 import { remediationRemarkPlugins, remediationRehypePlugins } from "./remediationMarkdown";
 import { isRemediationDone } from "../utils/remediationStatus";
+import { ARTIFACT_DOWNLOADS } from "./artifactDownloads";
 
 import "./AllContent/AllContent.css";
 import "./AllContent/shared/cards.css";
@@ -59,6 +60,7 @@ const pageContent = (pages, index, fallback) =>
 
 function RemediationFigureImage({ src, jobId, alt }) {
   const [objectUrl, setObjectUrl] = useState(null);
+  const [imgError, setImgError] = useState(false);
   const remote = src && !src.startsWith("http://") && !src.startsWith("https://") && !src.startsWith("data:");
 
   useEffect(() => {
@@ -71,8 +73,11 @@ function RemediationFigureImage({ src, jobId, alt }) {
         url = URL.createObjectURL(blob);
         setObjectUrl(url);
       })
-      .catch(() => {
-        if (!controller.signal.aborted) setObjectUrl(null);
+      .catch((imageError) => {
+        if (!controller.signal.aborted) {
+          console.error("Failed to load remediation figure image", imageError);
+          setObjectUrl(null);
+        }
       });
     return () => {
       controller.abort();
@@ -82,13 +87,18 @@ function RemediationFigureImage({ src, jobId, alt }) {
 
   const imgSrc = remote ? objectUrl : src;
   if (!imgSrc) return null;
+  if (imgError) {
+    return (
+      <span className="remediation-figure-broken">
+        Image failed to load{alt ? `: ${alt}` : ""}
+      </span>
+    );
+  }
   return (
     <img
       src={imgSrc}
       alt={alt || "Image description unavailable"}
-      onError={(e) => {
-        e.currentTarget.style.display = "none";
-      }}
+      onError={() => setImgError(true)}
     />
   );
 }
@@ -122,11 +132,7 @@ function MarkdownViewer({ text, jobId }) {
   );
 }
 
-const ARTIFACT_DOWNLOADS = [
-  { key: "docx", ext: "docx", label: "Download Word" },
-  { key: "pdf", ext: "pdf", label: "Download PDF", docxKey: "docx" },
-  { key: "tex", ext: "tex", label: "Download LaTeX" },
-];
+const ARTIFACT_LABELS = { docx: "Download Word", pdf: "Download PDF", tex: "Download LaTeX" };
 
 const RemediationDetails = () => {
   const { jobId } = useParams();
@@ -366,11 +372,11 @@ const RemediationDetails = () => {
                           )
                         }
                       >
-                        {entry.label}
+                        {ARTIFACT_LABELS[entry.key]}
                       </button>
                     );
                   }
-                  if (entry.docxKey && job.artifacts[entry.docxKey] && job.status === "verified") {
+                  if (entry.key === "pdf" && job.artifacts.docx && job.status === "verified") {
                     return (
                       <span key={entry.key} className="remediation-pdf-unavailable">
                         PDF unavailable
