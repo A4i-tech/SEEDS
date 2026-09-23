@@ -102,33 +102,28 @@ function RemediationFigureImage({ src, jobId, alt }) {
 }
 
 function MarkdownViewer({ text, jobId }) {
-  const components = useMemo(
-    () => ({
-      p: MarkdownParagraph,
-      img: ({ src, alt, title }) => {
-        const description = title || alt;
-
-        return (
-          <div className="remediation-figure-preview">
-            <RemediationFigureImage src={src} jobId={jobId} alt={alt} />
-            {description ? (
-              <div className="remediation-figure-text">
-                <span className="remediation-figure-tag">Figure Description</span>
-                <span className="remediation-figure-desc">{description}</span>
-              </div>
-            ) : null}
-          </div>
-        );
-      },
-    }),
-    [jobId]
-  );
-
   return (
     <ReactMarkdown
       remarkPlugins={remediationRemarkPlugins}
       rehypePlugins={remediationRehypePlugins}
-      components={components}
+      components={{
+        p: MarkdownParagraph,
+        img: ({ src, alt, title }) => {
+          const description = title || alt;
+
+          return (
+            <div className="remediation-figure-preview">
+              <RemediationFigureImage src={src} jobId={jobId} alt={alt} />
+              {description ? (
+                <div className="remediation-figure-text">
+                  <span className="remediation-figure-tag">Figure Description</span>
+                  <span className="remediation-figure-desc">{description}</span>
+                </div>
+              ) : null}
+            </div>
+          );
+        },
+      }}
     >
       {normalizeMathDelimiters(text)}
     </ReactMarkdown>
