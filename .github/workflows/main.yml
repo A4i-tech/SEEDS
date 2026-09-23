@@ -18,7 +18,10 @@ jobs:
           fetch-depth: 0
       - id: filter
         run: |
-          if [ "${{ github.event_name }}" != "push" ] || git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" | grep -q '^ContentWebApp/'; then
+          BEFORE="${{ github.event.before }}"
+          if [ "${{ github.event_name }}" != "push" ] || [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BEFORE" 2>/dev/null; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only "$BEFORE" "${{ github.sha }}" | grep -q '^ContentWebApp/'; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
