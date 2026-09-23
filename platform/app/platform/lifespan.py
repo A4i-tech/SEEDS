@@ -19,7 +19,6 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI
 
-from app.consumers.sync_job_consumer import SyncJobConsumer
 from app.platform.database import close_database, get_database, init_database
 from app.platform.settings import get_settings
 from app.providers.subodha_client import close_subodha_client
@@ -149,6 +148,15 @@ def _make_consumer_tasks(conference_manager: Any) -> list[asyncio.Task]:  # type
         logger.error("Failed to initialise ContentJobConsumer: %s", exc)
 
     try:
+        from app.consumers.textbook_remediation_consumer import (
+            TextbookRemediationConsumer,  # noqa: PLC0415
+        )
+        consumer_specs.append(("TextbookRemediationConsumer", TextbookRemediationConsumer(db)))
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Failed to initialise TextbookRemediationConsumer: %s", exc)
+
+    try:
+        from app.consumers.sync_job_consumer import SyncJobConsumer  # noqa: PLC0415
         consumer_specs.append(("SyncJobConsumer", SyncJobConsumer(db)))
     except Exception as exc:  # noqa: BLE001
         logger.error("Failed to initialise SyncJobConsumer: %s", exc)
@@ -174,6 +182,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # STARTUP
     # ------------------------------------------------------------------
     await init_database()
+
+    from app.repositories.content_aggregator_sync_job_repository import (  # noqa: PLC0415
+        ContentAggregatorSyncJobRepository,
+    )
+    from app.repositories.textbook_remediation_repository import (  # noqa: PLC0415
+        TextbookRemediationRepository,
+    )
+
+    reconciled = await ContentAggregatorSyncJobRepository(get_database()).reconcile_interrupted_jobs()
+    if reconciled:
+        logger.info("Reconciled %d interrupted content aggregator sync jobs", reconciled)
+
+    if settings.app_mode in ("consumer", "all"):
+        reconciled = await TextbookRemediationRepository(get_database()).reconcile_interrupted_jobs()
+        if reconciled:
+            logger.info("Reconciled %d interrupted textbook remediation jobs", reconciled)
 
     from app.repositories.language_repository import LanguageRepository  # noqa: PLC0415
     from app.repositories.translation_audit_repository import (  # noqa: PLC0415

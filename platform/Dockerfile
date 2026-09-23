@@ -8,11 +8,10 @@ RUN pip install poetry==1.8.3 && \
 COPY pyproject.toml poetry.lock ./
 RUN poetry install --only main --no-root --no-interaction
 
-
 FROM python:3.12-slim
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg && \
+    apt-get install -y --no-install-recommends ffmpeg libreoffice-writer && \
     rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --gid 1001 appgroup && \

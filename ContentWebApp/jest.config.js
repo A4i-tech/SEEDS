@@ -12,6 +12,9 @@ module.exports = {
   },
   testEnvironment: "jsdom",
   setupFilesAfterEnv: ["<rootDir>/tests/setupTests.js"],
+  transformIgnorePatterns: [
+    "node_modules/(?!(rehype-sanitize|hast-util-sanitize|unist-util-position)/)",
+  ],
   moduleNameMapper: {
     "\\.(css|less|scss|sass)$": "<rootDir>/tests/styleMock.js",
     "\\.svg$": "<rootDir>/tests/svgMock.js",

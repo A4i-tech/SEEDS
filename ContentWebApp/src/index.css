@@ -21,6 +21,10 @@
   --color-on-accent: #ffffff;
   --color-skeleton-base: #f1f5f9;
   --color-skeleton-highlight: #e2e8f0;
+  --color-text-muted: #64748b;
+  --color-border-subtle: #e2e8f0;
+  --color-surface-subtle: #f8fafc;
+  --color-text-secondary: #475569;
 }
 
 *,
