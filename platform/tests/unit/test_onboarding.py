@@ -28,7 +28,7 @@ def snippet_settings(monkeypatch):
     monkeypatch.setattr(
         onboarding_service_module,
         "get_settings",
-        lambda: Settings(translation_sdk_base_url=SDK_BASE, translation_api_base_url=API_BASE),
+        lambda: Settings(translation_sdk_base_url=SDK_BASE, base_url=API_BASE),
     )
 
 
@@ -100,7 +100,7 @@ async def test_snippet_uses_separate_sdk_and_api_origins_and_trims_trailing_slas
     monkeypatch.setattr(
         onboarding_service_module,
         "get_settings",
-        lambda: Settings(translation_sdk_base_url="https://sdk.example.com/", translation_api_base_url="https://api.example.com/"),
+        lambda: Settings(translation_sdk_base_url="https://sdk.example.com/", base_url="https://api.example.com/"),
     )
     website = await onboarding_service.register_website(None, "acme.com")
 
@@ -122,7 +122,7 @@ async def test_register_website_fails_loudly_and_creates_nothing_when_snippet_ur
     monkeypatch.setattr(
         onboarding_service_module,
         "get_settings",
-        lambda: Settings(translation_sdk_base_url=sdk_base, translation_api_base_url=api_base),
+        lambda: Settings(translation_sdk_base_url=sdk_base, base_url=api_base),
     )
 
     with pytest.raises(ConfigurationError, match="TRANSLATION_SDK_BASE_URL"):
@@ -179,7 +179,7 @@ async def test_update_website_with_invalid_config_fails_without_modifying_the_we
     monkeypatch.setattr(
         onboarding_service_module,
         "get_settings",
-        lambda: Settings(translation_sdk_base_url=sdk_base, translation_api_base_url=api_base),
+        lambda: Settings(translation_sdk_base_url=sdk_base, base_url=api_base),
     )
     with pytest.raises(ConfigurationError, match="TRANSLATION_SDK_BASE_URL"):
         await onboarding_service.update_website(

@@ -92,7 +92,6 @@ class Settings(BaseSettings):
 
     translation_provider: str = "azure"
     translation_sdk_base_url: str = ""
-    translation_api_base_url: str = ""
     low_confidence_threshold: float = 0.7
     enable_dev_localhost_origin_alias: bool = False
 

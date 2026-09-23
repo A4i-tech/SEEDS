@@ -132,10 +132,10 @@ class OnboardingService:
     def _snippet_base_urls(self) -> tuple[str, str]:
         settings = get_settings()
         sdk_base_url = settings.translation_sdk_base_url.rstrip("/")
-        api_base_url = settings.translation_api_base_url.rstrip("/")
+        api_base_url = settings.base_url.rstrip("/")
         if not sdk_base_url or not api_base_url:
             raise ConfigurationError(
-                "TRANSLATION_SDK_BASE_URL and TRANSLATION_API_BASE_URL must both be set to generate an SDK snippet"
+                "TRANSLATION_SDK_BASE_URL and BASE_URL must both be set to generate an SDK snippet"
             )
         return sdk_base_url, api_base_url
 
