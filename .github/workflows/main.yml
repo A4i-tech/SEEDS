@@ -14,18 +14,12 @@ jobs:
       changed: ${{ steps.filter.outputs.changed }}
     steps:
       - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
         with:
-          fetch-depth: 0
-      - id: filter
-        run: |
-          BEFORE="${{ github.event.before }}"
-          if [ "${{ github.event_name }}" != "push" ] || [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BEFORE" 2>/dev/null; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          elif git diff --name-only "$BEFORE" "${{ github.sha }}" | grep -q '^ContentWebApp/'; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          fi
+          filters: |
+            changed:
+              - 'ContentWebApp/**'
 
   ci-workflow:
     uses: ./.github/workflows/ci.yml
