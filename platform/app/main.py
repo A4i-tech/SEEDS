@@ -9,6 +9,12 @@ APP_MODE controls what is mounted:
 
 from __future__ import annotations
 
+import asyncio
+import sys
+
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
 import opentelemetry.instrumentation.fastapi as _otel_fastapi
 from fastapi import FastAPI
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor

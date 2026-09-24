@@ -75,7 +75,7 @@ class SyncJob:
     def from_doc(cls, doc: dict[str, object]) -> SyncJob:
         return cls(
             job_id=doc["_id"], tenant_id=doc["tenant_id"], source_type=doc["source_type"], scope=doc["scope"],
-            source_id=doc["source_id"], status=doc["status"], created_at=doc["created_at"],
+            source_id=doc["source_id"], status=doc["status"], created_at=doc.get("created_at") or doc["started_at"],
             started_at=doc.get("started_at"), finished_at=doc["finished_at"],
             total_items=doc["total_items"], error=doc["error"], options=doc.get("options") or {},
             retry_count=doc.get("retry_count", 0), finished_total=doc.get("finished_total"),

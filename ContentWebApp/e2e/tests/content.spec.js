@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
-const { PERSONAS, uniqueId, uniquePhone } = require('../fixtures/instances');
+const { PERSONAS, getInstance, uniqueId, uniquePhone } = require('../fixtures/instances');
 const { LoginPage } = require('../pages/LoginPage');
 const { ContentPage } = require('../pages/ContentPage');
 const { AddContentPage } = require('../pages/AddContentPage');
@@ -391,18 +391,7 @@ test.describe('content creator content CRUD (unique per run, self-cleaning)', ()
   });
 });
 
-// CONFIRMED BUG: a freshly self-registered teacher account cannot log in.
-// Reproduced live: register a throwaway teacher (name/phone/password all
-// exactly as entered), see "Teacher registered successfully!", log out, then
-// immediately POST /auth/login with that same phone/password — backend
-// returns 401 {"error":"Invalid credentials"} every time, confirmed via the
-// raw network response, not just a UI message. Retried 5x with 4s backoff (16s
-// total) with the same deterministic 401 each time — this is not the
-// async-job-latency pattern documented above TC-CONT-005 (that one eventually
-// resolves; this doesn't). Filed as a bug; this test currently only exercises
-// registration + confirms the login failure, and cleans up via the school
-// admin instead of completing the doc's teacher-side IVR-mapping scenario.
-test('TC-CONT-018 (documents a bug) freshly-registered teacher cannot log in, blocking IVR-mapping scenario', async ({
+test('TC-CONT-018 freshly-registered teacher can log in', async ({
   page,
   browser,
 }) => {
@@ -422,8 +411,13 @@ test('TC-CONT-018 (documents a bug) freshly-registered teacher cannot log in, bl
   // TC-CONT-005 (see fixtures/session.js). Also keeps this test's real
   // subject (does the teacher login succeed?) uncoupled from whether logout
   // itself works.
-  const { context: teacherContext, page: teacherPage } = await loginInNewContext(browser, phone, 'Test@123');
-  await expect(teacherPage.getByText(/invalid credentials/i)).toBeVisible({ timeout: 10000 });
+  const teacherContext = await browser.newContext({ baseURL: getInstance().baseURL });
+  const teacherPage = await teacherContext.newPage();
+  const loginResponse = teacherPage.waitForResponse(
+    (res) => res.request().method() === 'POST' && new URL(res.url()).pathname.endsWith('/auth/login')
+  );
+  await new LoginPage(teacherPage).login(phone, 'Test@123');
+  expect((await loginResponse).status()).toBe(200);
   await teacherContext.close();
 
   // Cleanup: delete the throwaway teacher (still logged in as the school on
