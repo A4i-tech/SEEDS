@@ -20,3 +20,13 @@ class LanguageResponse(BaseModel):
     @classmethod
     def from_doc(cls, doc: dict) -> LanguageResponse:
         return cls.model_validate(doc)
+
+
+class LanguageEntry(BaseModel):
+    code: str
+    standard: str
+    name: str
+
+
+class LanguageListResponse(BaseModel):
+    languages: list[LanguageEntry]
