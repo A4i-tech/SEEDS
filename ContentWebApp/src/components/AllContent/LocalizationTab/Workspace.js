@@ -291,7 +291,7 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
   const approveAll = async () => {
     const ids = filtered.filter((s) => s.stage !== "approved" && s.stage !== "rejected").map((s) => s.id);
     if (!ids.length) return toast({ message: "Nothing to approve", tone: "info" });
-    if (!query.trim()) {
+    if (statusTab === "all" && !query.trim()) {
       try {
         const { approved, skipped, failed } = await translationService.bulkApproveTranslations({
           siteId,
