@@ -203,10 +203,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         TranslationAuditRepository,
     )
     from app.repositories.translation_repository import TranslationRepository  # noqa: PLC0415
+    from app.repositories.translation_version_repository import (  # noqa: PLC0415
+        TranslationVersionRepository,
+    )
     from app.repositories.website_repository import WebsiteRepository  # noqa: PLC0415
 
     await WebsiteRepository.ensure_indexes(get_database())
     await TranslationRepository.ensure_indexes(get_database())
+    await TranslationVersionRepository.ensure_indexes(get_database())
     await TranslationAuditRepository.ensure_indexes(get_database())
 
     # Init conference manager (available in all modes)

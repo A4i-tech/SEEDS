@@ -367,12 +367,27 @@ async def test_bulk_approve_pending_approves_all_pending_and_skips_approved(
     await translation_service.approve_translation(str(t2["_id"]), TENANT, "ta", "rev@example.com")
 
     res = await translation_service.bulk_approve_pending("site1", TENANT, "rev@example.com")
-    assert res == {"approved": 2, "skipped": 1}
+    assert res == {"approved": 2, "skipped": 1, "failed": 0}
 
     docs = {d["key"]: d for d in await translation_repo.find_by_route("site1", "/h")}
     assert docs["t1"]["translations"]["hi"]["status"] == "approved"
     assert docs["t1"]["translations"]["mr"]["status"] == "approved"
     assert docs["t2"]["translations"]["ta"]["status"] == "approved"
+
+    versions = {
+        d["key"]: await translation_service.get_version_history(str(d["_id"]), TENANT) for d in docs.values()
+    }
+    assert len(versions["t1"]) == 2
+    assert {v["version"] for v in versions["t1"]} == {1, 2}
+    v1, v2 = sorted(versions["t1"], key=lambda v: v["version"])
+    assert v1["translations"]["hi"]["status"] == "pending"
+    assert v2["translations"]["hi"]["status"] == "approved"
+    assert v2["translations"]["mr"]["status"] == "pending"
+    assert len(versions["t2"]) == 1
+
+    audit = await translation_service.get_audit_trail("site1", TENANT, route="/h")
+    approved_entries = [a for a in audit if a["action"] == "approved"]
+    assert len(approved_entries) == 3  # t2/ta from the manual approve above + t1/hi + t1/mr from bulk
 
 
 async def test_bulk_approve_pending_skips_rejected(translation_repo, translation_service):
@@ -384,11 +399,85 @@ async def test_bulk_approve_pending_skips_rejected(translation_repo, translation
     await translation_repo.reject_translation(str(t2["_id"]), "hi", "rev@example.com", "needs work")
 
     res = await translation_service.bulk_approve_pending("site1", TENANT, "rev@example.com")
-    assert res == {"approved": 1, "skipped": 1}
+    assert res == {"approved": 1, "skipped": 1, "failed": 0}
 
     docs = {d["key"]: d for d in await translation_repo.find_by_route("site1", "/h")}
     assert docs["t1"]["translations"]["hi"]["status"] == "approved"
     assert docs["t2"]["translations"]["hi"]["status"] == "rejected"
+
+
+async def test_bulk_approve_pending_respects_lang_filter(translation_repo, translation_service):
+    await translation_repo.upsert_source("site1", "/h", "t1", "en", "Hello")
+    await translation_repo.save_translation("site1", "/h", "t1", "hi", "[hi] Hello", "P")
+    await translation_repo.save_translation("site1", "/h", "t1", "mr", "[mr] Hello", "P")
+
+    res = await translation_service.bulk_approve_pending("site1", TENANT, "rev@example.com", lang="hi")
+    assert res == {"approved": 1, "skipped": 0, "failed": 0}
+
+    doc = (await translation_repo.find_by_route("site1", "/h"))[0]
+    assert doc["translations"]["hi"]["status"] == "approved"
+    assert doc["translations"]["mr"]["status"] == "pending"
+
+
+async def test_bulk_approve_pending_respects_route_filter(translation_repo, translation_service):
+    await translation_repo.upsert_source("site1", "/h", "t1", "en", "Hello")
+    await translation_repo.save_translation("site1", "/h", "t1", "hi", "[hi] Hello", "P")
+    await translation_repo.upsert_source("site1", "/other", "t2", "en", "World")
+    await translation_repo.save_translation("site1", "/other", "t2", "hi", "[hi] World", "P")
+
+    res = await translation_service.bulk_approve_pending("site1", TENANT, "rev@example.com", route="/h")
+    assert res == {"approved": 1, "skipped": 0, "failed": 0}
+
+    other_doc = (await translation_repo.find_by_route("site1", "/other"))[0]
+    assert other_doc["translations"]["hi"]["status"] == "pending"
+
+
+async def test_bulk_approve_pending_raises_for_cross_tenant_site(translation_repo, translation_service):
+    await translation_repo.upsert_source("site1", "/h", "t1", "en", "Hello")
+    await translation_repo.save_translation("site1", "/h", "t1", "hi", "[hi] Hello", "P")
+
+    with pytest.raises(NotFoundError):
+        await translation_service.bulk_approve_pending("site1", "other-tenant", "rev@example.com")
+
+    doc = (await translation_repo.find_by_route("site1", "/h"))[0]
+    assert doc["translations"]["hi"]["status"] == "pending"
+
+
+async def test_bulk_approve_pending_handles_large_batch(translation_repo, translation_service):
+    for i in range(150):
+        key = f"t{i}"
+        await translation_repo.upsert_source("site1", "/h", key, "en", f"Hello {i}")
+        await translation_repo.save_translation("site1", "/h", key, "hi", f"[hi] Hello {i}", "P")
+
+    res = await translation_service.bulk_approve_pending("site1", TENANT, "rev@example.com")
+    assert res == {"approved": 150, "skipped": 0, "failed": 0}
+
+    docs = await translation_repo.find_by_route("site1", "/h")
+    assert all(d["translations"]["hi"]["status"] == "approved" for d in docs)
+
+    audit = await translation_service.get_audit_trail("site1", TENANT, route="/h", limit=200)
+    assert len([a for a in audit if a["action"] == "approved"]) == 150
+
+
+async def test_bulk_approve_pending_surfaces_partial_write_failures(
+    translation_repo, translation_service, monkeypatch
+):
+    await translation_repo.upsert_source("site1", "/h", "t1", "en", "Hello")
+    await translation_repo.save_translation("site1", "/h", "t1", "hi", "[hi] Hello", "P")
+    await translation_repo.upsert_source("site1", "/h", "t2", "en", "World")
+    await translation_repo.save_translation("site1", "/h", "t2", "hi", "[hi] World", "P")
+
+    from pymongo.errors import BulkWriteError
+
+    async def _boom(_ops):
+        raise BulkWriteError({"writeErrors": [{"index": 0, "errmsg": "boom"}]})
+
+    monkeypatch.setattr(translation_service._repo, "bulk_approve", _boom)
+
+    res = await translation_service.bulk_approve_pending("site1", TENANT, "rev@example.com")
+    assert res["failed"] == 1
+    assert res["approved"] == 1
+    assert res["skipped"] == 0
 
 
 async def test_reject_translation_after_approval_flips_status_and_metadata(

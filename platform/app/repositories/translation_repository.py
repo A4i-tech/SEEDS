@@ -4,7 +4,9 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
+from pymongo import UpdateOne
 from pymongo.asynchronous.database import AsyncDatabase
+from pymongo.results import BulkWriteResult
 
 from app.repositories.base_repository import BaseRepository
 
@@ -199,3 +201,6 @@ class TranslationRepository(BaseRepository):
         }
 
         await self._col.update_one({"_id": self._to_id(translation_id)}, {"$set": set_fields})
+
+    async def bulk_approve(self, ops: list[UpdateOne]) -> BulkWriteResult:
+        return await self._col.bulk_write(ops, ordered=False)

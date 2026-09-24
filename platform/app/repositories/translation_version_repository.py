@@ -36,3 +36,11 @@ class TranslationVersionRepository(BaseRepository):
 
     async def find_by_translation(self, translation_id: str) -> list[dict[str, Any]]:
         return await self._col.find({"translation_id": translation_id}).sort("version", 1).to_list(length=None)
+
+    async def add_versions_bulk(self, versions: list[dict[str, Any]]) -> None:
+        docs = [{**v, "created_at": v.get("created_at") or datetime.now(UTC)} for v in versions]
+        await self._col.insert_many(docs)
+
+    @classmethod
+    async def ensure_indexes(cls, db: AsyncDatabase) -> None:
+        await db[cls.COLLECTION].create_index("translation_id")

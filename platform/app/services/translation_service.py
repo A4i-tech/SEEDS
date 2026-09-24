@@ -6,7 +6,9 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import Depends
+from pymongo import UpdateOne
 from pymongo.asynchronous.database import AsyncDatabase
+from pymongo.errors import BulkWriteError
 
 from app.platform.auth.dependencies import get_db
 from app.platform.error_handling import NotFoundError, ValidationError
@@ -364,19 +366,111 @@ class TranslationService:
         route: str | None = None,
         lang: str | None = None,
     ) -> dict[str, int]:
-        docs = await self.list_translations(site_id, tenant_id, route=route)
+        await self._ensure_site_owned_by_tenant(site_id, tenant_id)
+        docs = await self.list_translations(site_id, route=route)
+
+        now = datetime.now(UTC)
+        ops: list[UpdateOne] = []
+        op_translation_ids: list[str] = []
+        op_lang_counts: list[int] = []
+        versions_by_translation: dict[str, list[dict[str, Any]]] = {}
+        audits_by_translation: dict[str, list[dict[str, Any]]] = {}
         approved = 0
         skipped = 0
+
         for doc in docs:
+            translation_id = str(doc["_id"])
+            translations_snapshot = dict(doc.get("translations") or {})
+            version = doc.get("version", 0)
+            set_fields: dict[str, Any] = {}
+            audit_pushes: list[dict[str, Any]] = []
+            lang_count = 0
+
             for doc_lang, entry in (doc.get("translations") or {}).items():
                 if lang and doc_lang != lang:
                     continue
                 if entry.get("status") in ("approved", "rejected"):
                     skipped += 1
                     continue
-                await self.approve_translation(str(doc["_id"]), tenant_id, doc_lang, approved_by)
+
+                version += 1
+                versions_by_translation.setdefault(translation_id, []).append({
+                    "translation_id": translation_id,
+                    "version": version,
+                    "translations": translations_snapshot,
+                    "approved_by": approved_by,
+                    "approved_at": now,
+                    "created_at": now,
+                })
+                set_fields[f"translations.{doc_lang}.status"] = "approved"
+                set_fields[f"translations.{doc_lang}.approved_by"] = approved_by
+                set_fields[f"translations.{doc_lang}.approved_at"] = now
+                set_fields[f"translations.{doc_lang}.quality_score"] = 1.0
+                set_fields["status"] = "approved"
+                set_fields["approved_by"] = approved_by
+                set_fields["approved_at"] = now
+                set_fields["version"] = version
+                set_fields["updated_at"] = now
+                audit_pushes.append(
+                    {"action": "approved", "actor": approved_by, "detail": f"version={version}", "at": now}
+                )
+                audits_by_translation.setdefault(translation_id, []).append({
+                    "site_id": site_id,
+                    "route": doc["route"],
+                    "key": doc["key"],
+                    "lang": doc_lang,
+                    "action": "approved",
+                    "actor": approved_by,
+                    "provider": None,
+                    "detail": f"version={version}",
+                    "at": now,
+                })
+                translations_snapshot = {
+                    **translations_snapshot,
+                    doc_lang: {**entry, "status": "approved", "approved_by": approved_by, "approved_at": now},
+                }
                 approved += 1
-        return {"approved": approved, "skipped": skipped}
+                lang_count += 1
+
+            if lang_count:
+                ops.append(
+                    UpdateOne(
+                        {"_id": doc["_id"]},
+                        {"$set": set_fields, "$push": {"audit_log": {"$each": audit_pushes}}},
+                    )
+                )
+                op_translation_ids.append(translation_id)
+                op_lang_counts.append(lang_count)
+
+        failed = 0
+        failed_translation_ids: set[str] = set()
+        if ops:
+            try:
+                await self._repo.bulk_approve(ops)
+            except BulkWriteError as exc:
+                for err in exc.details.get("writeErrors", []):
+                    idx = err["index"]
+                    failed_translation_ids.add(op_translation_ids[idx])
+                    failed += op_lang_counts[idx]
+                approved -= failed
+                logger.warning(
+                    "bulk_approve_pending: %d translation(s) failed to update",
+                    failed,
+                    extra={"site_id": site_id, "route": route},
+                )
+
+        version_docs = [
+            v for tid, vs in versions_by_translation.items() if tid not in failed_translation_ids for v in vs
+        ]
+        audit_docs = [
+            a for tid, aes in audits_by_translation.items() if tid not in failed_translation_ids for a in aes
+        ]
+        if version_docs:
+            await self._version_repo.add_versions_bulk(version_docs)
+        if audit_docs:
+            await self._audit_repo.record_bulk(audit_docs)
+
+        return {"approved": approved, "skipped": skipped, "failed": failed}
 
     async def get_translation(self, translation_id: str, tenant_id: str) -> dict[str, Any]:
         return await self._get_translation_owned_by_tenant(translation_id, tenant_id)

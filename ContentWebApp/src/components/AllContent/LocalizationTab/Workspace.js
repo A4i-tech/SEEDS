@@ -293,8 +293,16 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
     if (!ids.length) return toast({ message: "Nothing to approve", tone: "info" });
     if (statusTab === "all" && !query.trim()) {
       try {
-        const { approved, skipped } = await translationService.bulkApproveTranslations({ siteId, route, lang });
-        toast({ message: `Approved ${approved}, skipped ${skipped}`, tone: "good" });
+        const { approved, skipped, failed } = await translationService.bulkApproveTranslations({
+          siteId,
+          route,
+          lang,
+        });
+        if (failed) {
+          toast({ message: `Approved ${approved}, skipped ${skipped}, ${failed} failed`, tone: "crit" });
+        } else {
+          toast({ message: `Approved ${approved}, skipped ${skipped}`, tone: "good" });
+        }
         load();
       } catch (e) {
         toast({ message: e.message, tone: "crit" });

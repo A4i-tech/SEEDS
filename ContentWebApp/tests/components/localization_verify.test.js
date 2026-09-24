@@ -266,6 +266,21 @@ describe("Translate & Review — live component verification", () => {
     await waitFor(() => expect(translationService.listTranslations).toHaveBeenCalled());
   });
 
+  test("PASS — a partial bulk approve failure shows the failed count and still reloads", async () => {
+    translationService.listTranslations.mockResolvedValue([
+      makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" }),
+      makeDoc("k2", "Good Morning", { translated: "ಶುಭೋದಯ" }),
+    ]);
+    translationService.bulkApproveTranslations.mockResolvedValue({ approved: 1, skipped: 0, failed: 1 });
+    renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
+    await screen.findByText("Hello World");
+    translationService.listTranslations.mockClear();
+    await userEvent.click(screen.getByRole("button", { name: /Approve all/i }));
+
+    expect(await screen.findByText("Approved 1, skipped 0, 1 failed")).toBeInTheDocument();
+    await waitFor(() => expect(translationService.listTranslations).toHaveBeenCalled());
+  });
+
   test("PASS — a failed bulk approve surfaces the error", async () => {
     translationService.listTranslations.mockResolvedValue([
       makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" }),
