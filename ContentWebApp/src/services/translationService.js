@@ -12,7 +12,6 @@ import {
 } from "../dto/LocalizationDto";
 
 const GENERATE_TIMEOUT_MS = 5 * 60 * 1000;
-const BULK_APPROVE_TIMEOUT_MS = 60 * 1000;
 
 export const translationService = {
   async extractItems(siteId, items) {
@@ -98,7 +97,7 @@ export const translationService = {
 
   async bulkApproveTranslations({ siteId, route, lang }) {
     return request(`${SEEDS_URL}/translations/bulk-approve?${buildQueryString({ site_id: siteId })}`, {
-      timeoutMs: BULK_APPROVE_TIMEOUT_MS,
+      timeoutMs: GENERATE_TIMEOUT_MS,
       method: "POST",
       headers: getAuthHeaders(),
       body: JSON.stringify(toBulkApproveRequest({ route, lang })),

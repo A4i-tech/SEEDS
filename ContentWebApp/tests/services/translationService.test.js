@@ -20,11 +20,11 @@ test("generateForReview overrides the default timeout with 5 minutes", async () 
   );
 });
 
-test("bulkApproveTranslations overrides the default timeout with 60 seconds", async () => {
+test("bulkApproveTranslations reuses the 5-minute generate timeout", async () => {
   await translationService.bulkApproveTranslations({ siteId: "s1", route: "/", lang: "hi" });
   expect(apiFetch).toHaveBeenCalledWith(
     expect.stringContaining("/translations/bulk-approve?"),
-    expect.objectContaining({ timeoutMs: 60000, method: "POST" })
+    expect.objectContaining({ timeoutMs: 300000, method: "POST" })
   );
 });
 
