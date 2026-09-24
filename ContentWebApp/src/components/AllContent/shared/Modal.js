@@ -3,7 +3,7 @@ import "./modal.css";
 
 const FOCUSABLE = "a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex=\"-1\"])";
 
-const Modal = ({ title, onClose, children }) => {
+const Modal = ({ title, onClose, children, maxWidth }) => {
   const cardRef = useRef(null);
   const previousFocusRef = useRef(null);
 
@@ -25,7 +25,15 @@ const Modal = ({ title, onClose, children }) => {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-card" ref={cardRef} role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal-card"
+        ref={cardRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        style={maxWidth ? { maxWidth } : undefined}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-header">
           <span className="modal-title">{title}</span>
           <button type="button" className="modal-close" onClick={onClose}>✕</button>

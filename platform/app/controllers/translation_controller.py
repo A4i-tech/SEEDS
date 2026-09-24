@@ -26,6 +26,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/translations", tags=["Translations"])
 
 
+def _tenant_id(user: dict[str, Any]) -> str:
+    return user["sub"] if user.get("role") == "tenant" else user.get("tenant_id", "")
+
+
 class ExtractItem(BaseModel):
     key: str
     text: str = Field(max_length=5000)
@@ -78,7 +82,7 @@ async def generate_translations(
     service: TranslationService = Depends(get_translation_service),
     user: dict[str, Any] = Depends(require_tenant),
 ) -> dict[str, str]:
-    return await service.generate_for_review(site_id, route, lang)
+    return await service.generate_for_review(site_id, _tenant_id(user), route, lang)
 
 
 def _reviewer_id(user: dict[str, Any]) -> str:
@@ -91,7 +95,7 @@ async def get_analytics_summary(
     service: AnalyticsService = Depends(get_analytics_service),
     user: dict[str, Any] = Depends(require_tenant),
 ) -> dict[str, int]:
-    return await service.get_summary(site_id)
+    return await service.get_summary(site_id, _tenant_id(user))
 
 
 @router.get(
@@ -107,7 +111,9 @@ async def list_translations(
     service: TranslationService = Depends(get_translation_service),
     user: dict[str, Any] = Depends(require_translation_reviewer),
 ) -> list[TranslationResponse]:
-    docs = await service.list_translations(site_id, route, status, low_confidence_only=low_confidence)
+    docs = await service.list_translations(
+        site_id, _tenant_id(user), route, status, low_confidence_only=low_confidence
+    )
     return [TranslationResponse.from_doc(doc) for doc in docs]
 
 
@@ -121,7 +127,9 @@ async def bulk_approve_translations(
     service: TranslationService = Depends(get_translation_service),
     user: dict[str, Any] = Depends(require_translation_reviewer),
 ) -> dict[str, int]:
-    return await service.bulk_approve_pending(site_id, _reviewer_id(user), route=body.route, lang=body.lang)
+    return await service.bulk_approve_pending(
+        site_id, _tenant_id(user), _reviewer_id(user), route=body.route, lang=body.lang
+    )
 
 
 @router.get(
@@ -139,7 +147,7 @@ async def get_audit_trail(
     user: dict[str, Any] = Depends(require_translation_reviewer),
 ) -> list[AuditEntryResponse]:
     entries = await service.get_audit_trail(
-        site_id, route=route, key=key, action=action, limit=limit
+        site_id, _tenant_id(user), route=route, key=key, action=action, limit=limit
     )
     return [AuditEntryResponse.from_doc(entry) for entry in entries]
 
@@ -154,7 +162,7 @@ async def get_version_history(
     service: TranslationService = Depends(get_translation_service),
     user: dict[str, Any] = Depends(require_translation_reviewer),
 ) -> list[TranslationVersionResponse]:
-    history = await service.get_version_history(translation_id)
+    history = await service.get_version_history(translation_id, _tenant_id(user))
     return [TranslationVersionResponse.from_doc(doc) for doc in history]
 
 
@@ -168,7 +176,7 @@ async def get_translation(
     service: TranslationService = Depends(get_translation_service),
     user: dict[str, Any] = Depends(require_translation_reviewer),
 ) -> TranslationResponse:
-    doc = await service.get_translation(translation_id)
+    doc = await service.get_translation(translation_id, _tenant_id(user))
     return TranslationResponse.from_doc(doc)
 
 
@@ -184,7 +192,7 @@ async def update_translation(
     user: dict[str, Any] = Depends(require_translation_reviewer),
 ) -> TranslationResponse:
     doc = await service.update_translation(
-        translation_id, body.lang, body.text, editor=_reviewer_id(user)
+        translation_id, _tenant_id(user), body.lang, body.text, editor=_reviewer_id(user)
     )
     return TranslationResponse.from_doc(doc)
 
@@ -200,7 +208,7 @@ async def approve_translation(
     service: TranslationService = Depends(get_translation_service),
     user: dict[str, Any] = Depends(require_translation_reviewer),
 ) -> TranslationResponse:
-    doc = await service.approve_translation(translation_id, body.lang, _reviewer_id(user))
+    doc = await service.approve_translation(translation_id, _tenant_id(user), body.lang, _reviewer_id(user))
     return TranslationResponse.from_doc(doc)
 
 
@@ -215,5 +223,7 @@ async def reject_translation(
     service: TranslationService = Depends(get_translation_service),
     user: dict[str, Any] = Depends(require_translation_reviewer),
 ) -> TranslationResponse:
-    doc = await service.reject_translation(translation_id, body.lang, _reviewer_id(user), body.reason)
+    doc = await service.reject_translation(
+        translation_id, _tenant_id(user), body.lang, _reviewer_id(user), body.reason
+    )
     return TranslationResponse.from_doc(doc)

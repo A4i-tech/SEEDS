@@ -19,6 +19,8 @@ from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
+from app.platform.sdk_cors import SdkCorsMiddleware, is_registered_site_origin
+
 if TYPE_CHECKING:
     from fastapi import FastAPI
 
@@ -149,3 +151,5 @@ def setup_security(app: FastAPI, settings: Settings) -> None:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    app.add_middleware(SdkCorsMiddleware, is_allowed_origin=is_registered_site_origin)
