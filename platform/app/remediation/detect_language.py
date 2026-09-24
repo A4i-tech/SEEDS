@@ -5,7 +5,7 @@ import re
 
 from langdetect import DetectorFactory, LangDetectException, detect_langs
 
-from app.repositories.language_registry import SUPPORTED_LANGUAGES
+from app.services.language_registry import SUPPORTED_LANGUAGES
 
 DetectorFactory.seed = 0
 

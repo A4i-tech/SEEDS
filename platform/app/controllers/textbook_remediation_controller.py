@@ -26,7 +26,7 @@ from app.repositories.textbook_remediation_repository import (
     TextbookRemediationRepository,
     get_textbook_remediation_repo,
 )
-from app.services.language_service import SUPPORTED_LANGUAGES
+from app.services.language_registry import SUPPORTED_LANGUAGES
 from app.services.textbook_remediation import (
     artifact_bytes as _artifact_bytes,
 )

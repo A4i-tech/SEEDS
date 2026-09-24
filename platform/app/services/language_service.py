@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.models.responses.language import LanguageListResponse
-from app.repositories.language_registry import SUPPORTED_LANGUAGES
+from app.services.language_registry import SUPPORTED_LANGUAGES
 
 
 def list_languages() -> LanguageListResponse:
