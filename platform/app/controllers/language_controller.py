@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.services.language_service import LanguageListResponse
+from app.models.responses.language import LanguageListResponse
 from app.services.language_service import list_languages as get_supported_languages
 
 router = APIRouter(prefix="/v1", tags=["Languages"])
