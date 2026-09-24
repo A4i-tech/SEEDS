@@ -3,12 +3,23 @@ from __future__ import annotations
 from typing import TypedDict
 
 import pycountry
+from pydantic import BaseModel
 
 
 class Language(TypedDict):
     code: str
     standard: str
     name: str
+
+
+class LanguageEntry(BaseModel):
+    code: str
+    standard: str
+    name: str
+
+
+class LanguageListResponse(BaseModel):
+    languages: list[LanguageEntry]
 
 
 def _build_supported_languages() -> list[Language]:
