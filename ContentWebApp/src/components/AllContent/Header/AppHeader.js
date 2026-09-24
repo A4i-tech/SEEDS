@@ -18,10 +18,11 @@ const AppHeader = ({
   onTabChange,
   currentUser,
   onLogout,
-  showContent,
-  showRegistration,
-  showAnalytics,
+  showContent = true,
+  showRegistration = true,
+  showAnalytics = true,
   showLocalization,
+  showRemediation = true,
 }) => {
   const visibility = { showContent, showRegistration, showAnalytics, showLocalization };
   const [showUserDropdown, setShowUserDropdown] = useState(false);
@@ -57,13 +58,24 @@ const AppHeader = ({
                 </button>
               )
           )}
+          {showRemediation && (
+            <button
+              className={`nav-link ${activeTab === "remediation" ? "active" : ""}`}
+              onClick={() => onTabChange("remediation")}
+            >
+              Textbooks
+            </button>
+          )}
         </div>
       </div>
       <div className="user-dropdown-container">
         <div className="user-info-wrapper" onClick={() => setShowUserDropdown(!showUserDropdown)}>
           <span className="welcome-text">Welcome, {currentUser}</span>
-          <div className="user-avatar">{currentUser.substring(0, 2).toUpperCase()}</div>
+          <div className="user-avatar">
+            {currentUser.substring(0, 2).toUpperCase()}
+          </div>
         </div>
+
         {showUserDropdown && (
           <UserDropdown onProfileClick={handleProfileClick} onLogoutClick={handleLogoutClick} />
         )}

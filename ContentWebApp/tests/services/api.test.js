@@ -1,4 +1,4 @@
-import { apiFetch, buildQueryString, ApiError } from "../../src/services/api";
+import { apiFetch, apiFetchBlob, apiFetchText, buildQueryString, ApiError } from "../../src/services/api";
 
 jest.mock("../../src/utils/authHelpers", () => ({ clearAuth: jest.fn() }));
 const { clearAuth } = require("../../src/utils/authHelpers");
@@ -113,6 +113,32 @@ describe("apiFetch", () => {
   it("wraps network errors in ApiError with status 0", async () => {
     global.fetch.mockRejectedValue(new Error("offline"));
     await expect(apiFetch("/x")).rejects.toMatchObject({ status: 0, message: "offline" });
+  });
+});
+
+describe("apiFetchText and apiFetchBlob", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    global.fetch = jest.fn();
+  });
+
+  it("returns text and forwards headers and signal", async () => {
+    global.fetch.mockResolvedValue({ ok: true, status: 200, text: async () => "markdown" });
+    const options = { headers: { Authorization: "Bearer x" }, signal: "sig" };
+    await expect(apiFetchText("/x", options)).resolves.toBe("markdown");
+    expect(global.fetch).toHaveBeenCalledWith("/x", options);
+  });
+
+  it("returns a blob", async () => {
+    const blob = { size: 3 };
+    global.fetch.mockResolvedValue({ ok: true, status: 200, blob: async () => blob });
+    await expect(apiFetchBlob("/y")).resolves.toBe(blob);
+  });
+
+  it("throws ApiError on non-ok", async () => {
+    global.fetch.mockResolvedValue({ ok: false, status: 404, text: async () => "" });
+    await expect(apiFetchText("/x")).rejects.toBeInstanceOf(ApiError);
+    await expect(apiFetchBlob("/x")).rejects.toMatchObject({ status: 404 });
   });
 });
 

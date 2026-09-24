@@ -1,6 +1,7 @@
 import React from "react";
+import "./SyncAllProgress.css";
 
-export function SyncAllProgress({ syncingAll, syncAllProgress }) {
+export function SyncAllProgress({ syncingAll, syncAllProgress, indeterminateLabel = "Calculating diff…" }) {
   if (!syncingAll || !syncAllProgress) return null;
 
   if (syncAllProgress.total > 0) {
@@ -22,7 +23,7 @@ export function SyncAllProgress({ syncingAll, syncAllProgress }) {
       <div className="content-aggregator-sync-all-progress-track">
         <div className="content-aggregator-sync-all-progress-fill content-aggregator-sync-all-progress-fill-diff" />
       </div>
-      <span className="content-aggregator-sync-all-progress-label">Calculating diff…</span>
+      <span className="content-aggregator-sync-all-progress-label">{indeterminateLabel}</span>
     </div>
   );
 }

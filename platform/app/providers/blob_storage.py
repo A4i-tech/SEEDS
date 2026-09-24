@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime, timedelta
+from typing import IO
 from urllib.parse import unquote, urlparse
 
 from azure.identity import DefaultAzureCredential
@@ -79,10 +80,13 @@ class BlobStorageProvider:
         self,
         container: str,
         blob_name: str,
-        data: bytes,
+        data: bytes | IO[bytes],
         content_type: str = "application/octet-stream",
     ) -> str:
         """Upload *data* to *container*/*blob_name* and return the blob URL.
+
+        *data* may be raw bytes or a readable binary stream — the Azure SDK
+        streams a file-like object in chunks rather than buffering it whole.
 
         Raises on failure; caller is responsible for cleanup.
         """

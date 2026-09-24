@@ -148,9 +148,20 @@ async def test_website_create_request_project_id_is_optional():
 
 
 def test_backend_no_longer_serves_a_second_copy_of_the_sdk():
+    from fastapi.routing import _IncludedRouter
+
     from app.router import api_router
 
-    assert "/sdk.js" not in {route.path for route in api_router.routes}
+    def all_paths(router):
+        paths = set()
+        for route in router.routes:
+            if isinstance(route, _IncludedRouter):
+                paths |= all_paths(route.original_router)
+            elif path := getattr(route, "path", None):
+                paths.add(path)
+        return paths
+
+    assert "/sdk.js" not in all_paths(api_router)
 
 
 async def test_update_website_updates_fields_and_returns_a_snippet(onboarding_service):
