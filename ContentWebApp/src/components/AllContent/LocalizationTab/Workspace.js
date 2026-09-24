@@ -162,10 +162,13 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
   const [pageOffset, setPageOffset] = useState(0);
 
   const load = useCallback(() => {
+    let cancelled = false;
     if (!siteId || !route) {
       setDocs([]);
       setDocsError(null);
-      return;
+      return () => {
+        cancelled = true;
+      };
     }
     setDocs(null);
     setDocsError(null);
@@ -177,20 +180,25 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
         if (missing) {
           try {
             await translationService.generateForReview({ siteId, route, lang });
+            if (cancelled) return;
             list = await translationService.listTranslations({ siteId, route });
           } catch (e) {
-            toast({ message: e.message, tone: "crit" });
+            if (!cancelled) toast({ message: e.message, tone: "crit" });
           }
         }
-        setDocs(list);
+        if (!cancelled) setDocs(list);
       })
       .catch((e) => {
+        if (cancelled) return;
         setDocs([]);
         setDocsError(e.status === 403 ? "forbidden" : e.message);
       });
+    return () => {
+      cancelled = true;
+    };
   }, [siteId, route, lang, toast]);
   useEffect(() => {
-    load();
+    return load();
   }, [load]);
 
   const segments = useMemo(() => (docs ? docs.map((d) => toSegment(d, lang)) : []), [docs, lang]);

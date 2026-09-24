@@ -364,10 +364,13 @@
 
   async function loadLanguages() {
     try {
-      var r = await fetchWithTimeout(API_BASE + "/languages?enabledOnly=true", {});
-      var list = await r.json();
+      var r = await fetchWithTimeout(
+        API_BASE + "/v1/languages?site_id=" + encodeURIComponent(SITE_ID),
+        {}
+      );
+      var body = await r.json();
       var map = {};
-      list.forEach(function (lang) {
+      body.languages.forEach(function (lang) {
         map[lang.code] = lang.name;
       });
       return map;

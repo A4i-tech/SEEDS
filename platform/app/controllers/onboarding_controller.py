@@ -21,6 +21,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Onboarding"])
 
 
+def _tenant_id(user: dict[str, Any]) -> str:
+    return user["sub"] if user.get("role") == "tenant" else user.get("tenant_id", "")
+
+
 @router.post("/projects", summary="Register a new project")
 async def create_project(
     body: ProjectCreateRequest,
@@ -28,7 +32,7 @@ async def create_project(
     user: dict[str, Any] = Depends(require_tenant),
 ) -> ProjectResponse:
     return await service.create_project(
-        body.name, body.description, body.source_language, body.status
+        _tenant_id(user), body.name, body.description, body.source_language, body.status
     )
 
 
@@ -37,7 +41,7 @@ async def list_projects(
     service: OnboardingService = Depends(get_onboarding_service),
     user: dict[str, Any] = Depends(require_tenant),
 ) -> list[ProjectResponse]:
-    return await service.list_projects()
+    return await service.list_projects(_tenant_id(user))
 
 
 @router.put("/projects/{project_id}", summary="Update a project")
@@ -48,7 +52,7 @@ async def update_project(
     user: dict[str, Any] = Depends(require_tenant),
 ) -> ProjectResponse:
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
-    return await service.update_project(project_id, fields)
+    return await service.update_project(project_id, _tenant_id(user), fields)
 
 
 @router.delete("/projects/{project_id}", summary="Delete a project")
@@ -57,7 +61,7 @@ async def delete_project(
     service: OnboardingService = Depends(get_onboarding_service),
     user: dict[str, Any] = Depends(require_tenant),
 ) -> StatusResponse:
-    await service.delete_project(project_id)
+    await service.delete_project(project_id, _tenant_id(user))
     return StatusResponse(status="deleted")
 
 
@@ -68,7 +72,9 @@ async def register_website(
     user: dict[str, Any] = Depends(require_tenant),
 ) -> WebsiteResponse:
     languages = [lc.model_dump() for lc in body.languages] if body.languages is not None else None
-    return await service.register_website(body.project_id, body.domain, body.name, body.status, languages)
+    return await service.register_website(
+        _tenant_id(user), body.project_id, body.domain, body.name, body.status, languages
+    )
 
 
 @router.get("/websites", summary="List registered websites, optionally filtered by project")
@@ -77,7 +83,7 @@ async def list_websites(
     service: OnboardingService = Depends(get_onboarding_service),
     user: dict[str, Any] = Depends(require_tenant),
 ) -> list[WebsiteResponse]:
-    return await service.list_websites(projectId)
+    return await service.list_websites(_tenant_id(user), projectId)
 
 
 @router.get("/websites/{website_id}", summary="Get a registered website, including its SDK snippet")
@@ -86,7 +92,7 @@ async def get_website(
     service: OnboardingService = Depends(get_onboarding_service),
     user: dict[str, Any] = Depends(require_tenant),
 ) -> WebsiteResponse:
-    return await service.get_website(website_id)
+    return await service.get_website(website_id, _tenant_id(user))
 
 
 @router.put("/websites/{website_id}", summary="Update a website")
@@ -97,7 +103,7 @@ async def update_website(
     user: dict[str, Any] = Depends(require_tenant),
 ) -> WebsiteResponse:
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
-    return await service.update_website(website_id, fields)
+    return await service.update_website(website_id, _tenant_id(user), fields)
 
 
 @router.delete("/websites/{website_id}", summary="Delete a website")
@@ -106,5 +112,5 @@ async def delete_website(
     service: OnboardingService = Depends(get_onboarding_service),
     user: dict[str, Any] = Depends(require_tenant),
 ) -> StatusResponse:
-    await service.delete_website(website_id)
+    await service.delete_website(website_id, _tenant_id(user))
     return StatusResponse(status="deleted")

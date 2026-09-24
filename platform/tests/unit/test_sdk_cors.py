@@ -29,11 +29,11 @@ def _routes(app: FastAPI) -> None:
     async def list_translations() -> list[str]:
         return []
 
-    @app.get("/languages")
+    @app.get("/v1/languages")
     async def get_languages() -> list[str]:
         return ["hi"]
 
-    @app.post("/languages")
+    @app.post("/v1/languages")
     async def create_language() -> dict[str, str]:
         return {"status": "created"}
 
@@ -67,7 +67,7 @@ def mock_db(monkeypatch):
 
 async def _seed(db, domain: str, status: str = "Active") -> None:
     await WebsiteRepository.ensure_indexes(db)
-    await WebsiteRepository(db).create(None, domain, f"site-{domain}", "", status)
+    await WebsiteRepository(db).create("tenant-1", None, domain, f"site-{domain}", "", status)
 
 
 async def test_allowed_origin_gets_cors_headers_without_credentials():
@@ -129,7 +129,7 @@ async def test_preflight_for_the_extract_call():
     [
         ("/translations", "GET"),
         ("/translations/extract", "POST"),
-        ("/languages", "GET"),
+        ("/v1/languages", "GET"),
     ],
 )
 async def test_each_sdk_path_allows_only_the_method_the_sdk_needs(path, method):
@@ -147,12 +147,12 @@ async def test_each_sdk_path_allows_only_the_method_the_sdk_needs(path, method):
 @pytest.mark.parametrize(
     "path,method",
     [
-        ("/languages", "POST"),
+        ("/v1/languages", "POST"),
         ("/translations", "POST"),
         ("/translations", "DELETE"),
         ("/translations/extract", "GET"),
         ("/translations/extract", "PUT"),
-        ("/languages", "DELETE"),
+        ("/v1/languages", "DELETE"),
     ],
 )
 async def test_other_methods_on_sdk_paths_are_not_opened(path, method):
@@ -339,9 +339,9 @@ async def test_setup_security_leaves_the_global_allow_list_unchanged(mock_db):
 
     async with _client(app) as client:
         admin_elsewhere = await client.get("/translations/list", headers={"origin": ADMIN_ORIGIN})
-        admin_on_sdk_path = await client.get("/languages", headers={"origin": ADMIN_ORIGIN})
-        admin_write = await client.post("/languages", headers={"origin": ADMIN_ORIGIN})
-        registered_write = await client.post("/languages", headers={"origin": "https://acme.com"})
+        admin_on_sdk_path = await client.get("/v1/languages", headers={"origin": ADMIN_ORIGIN})
+        admin_write = await client.post("/v1/languages", headers={"origin": ADMIN_ORIGIN})
+        registered_write = await client.post("/v1/languages", headers={"origin": "https://acme.com"})
 
     assert admin_elsewhere.headers["access-control-allow-origin"] == ADMIN_ORIGIN
     assert admin_elsewhere.headers["access-control-allow-credentials"] == "true"

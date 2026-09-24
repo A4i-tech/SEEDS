@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, within, fireEvent, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../src/components/AllContent/LocalizationTab/Toast";
 import { WorkspaceScreen } from "../../src/components/AllContent/LocalizationTab/Workspace.js";
@@ -463,5 +463,50 @@ describe("Translate & Review — live component verification", () => {
 
     await screen.findByText("provider down");
     expect(screen.getByText("Hello World")).toBeInTheDocument();
+  });
+
+  test("PASS — a stale slower request never overwrites a faster, more recent one", async () => {
+    let resolveA;
+    let resolveB;
+    translationService.listTranslations.mockImplementation(({ route }) => {
+      if (route === "/route-a") return new Promise((res) => (resolveA = res));
+      return new Promise((res) => (resolveB = res));
+    });
+
+    const scope = { siteId: "site-1", route: "/route-a", lang: "kn" };
+    const onScope = jest.fn();
+    const { rerender } = render(
+      <ToastProvider>
+        <WorkspaceScreen scope={scope} languages={langs} sites={sites} onScope={onScope} pages={[{ route: "/route-a" }, { route: "/route-b" }]} />
+      </ToastProvider>
+    );
+
+    rerender(
+      <ToastProvider>
+        <WorkspaceScreen
+          scope={{ ...scope, route: "/route-b" }}
+          languages={langs}
+          sites={sites}
+          onScope={onScope}
+          pages={[{ route: "/route-a" }, { route: "/route-b" }]}
+        />
+      </ToastProvider>
+    );
+
+    await act(async () => {
+      resolveB([makeDoc("bDoc", "From route B", { translated: "B" })]);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(screen.getByText("From route B")).toBeInTheDocument();
+
+    await act(async () => {
+      resolveA([makeDoc("aDoc", "From route A", { translated: "A" })]);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText("From route B")).toBeInTheDocument();
+    expect(screen.queryByText("From route A")).not.toBeInTheDocument();
   });
 });

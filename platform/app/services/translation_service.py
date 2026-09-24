@@ -60,6 +60,19 @@ class TranslationService:
             raise NotFoundError("website", site_id)
         return website
 
+    async def _ensure_site_owned_by_tenant(self, site_id: str, tenant_id: str) -> dict[str, Any]:
+        website = await self._website_repo.find_by_site_id(site_id)
+        if not website or website.get("tenant_id") != tenant_id:
+            raise NotFoundError("website", site_id)
+        return website
+
+    async def _get_translation_owned_by_tenant(self, translation_id: str, tenant_id: str) -> dict[str, Any]:
+        doc = await self._repo.find_by_id(translation_id)
+        if doc is None:
+            raise NotFoundError("Translation", translation_id)
+        await self._ensure_site_owned_by_tenant(doc["site_id"], tenant_id)
+        return doc
+
     async def _ensure_lang_enabled(self, site_id: str, lang: str) -> None:
         if not self._enforce_lang_validation:
             return
@@ -152,8 +165,10 @@ class TranslationService:
             site_id, route, lang, serve_pending=self._is_first_party(site_id)
         )
 
-    async def generate_for_review(self, site_id: str, route: str, lang: str) -> dict[str, str]:
-        await self._ensure_site_active(site_id)
+    async def generate_for_review(self, site_id: str, tenant_id: str, route: str, lang: str) -> dict[str, str]:
+        website = await self._ensure_site_owned_by_tenant(site_id, tenant_id)
+        if website.get("status") != "Active":
+            raise NotFoundError("website", site_id)
         return await self._generate_translations(site_id, route, lang, serve_pending=True)
 
     def _is_first_party(self, site_id: str) -> bool:
@@ -315,10 +330,13 @@ class TranslationService:
     async def list_translations(
         self,
         site_id: str,
+        tenant_id: str | None = None,
         route: str | None = None,
         status: str | None = None,
         low_confidence_only: bool = False,
     ) -> list[dict[str, Any]]:
+        if tenant_id is not None:
+            await self._ensure_site_owned_by_tenant(site_id, tenant_id)
         if route:
             docs = await self._repo.find_by_route(site_id, route)
             if status:
@@ -341,11 +359,12 @@ class TranslationService:
     async def bulk_approve_pending(
         self,
         site_id: str,
+        tenant_id: str,
         approved_by: str,
         route: str | None = None,
         lang: str | None = None,
     ) -> dict[str, int]:
-        docs = await self.list_translations(site_id, route=route)
+        docs = await self.list_translations(site_id, tenant_id, route=route)
         approved = 0
         skipped = 0
         for doc in docs:
@@ -355,20 +374,17 @@ class TranslationService:
                 if entry.get("status") in ("approved", "rejected"):
                     skipped += 1
                     continue
-                await self.approve_translation(str(doc["_id"]), doc_lang, approved_by)
+                await self.approve_translation(str(doc["_id"]), tenant_id, doc_lang, approved_by)
                 approved += 1
         return {"approved": approved, "skipped": skipped}
 
-    async def get_translation(self, translation_id: str) -> dict[str, Any]:
-        doc = await self._repo.find_by_id(translation_id)
-        if doc is None:
-            raise NotFoundError("Translation", translation_id)
-        return doc
+    async def get_translation(self, translation_id: str, tenant_id: str) -> dict[str, Any]:
+        return await self._get_translation_owned_by_tenant(translation_id, tenant_id)
 
     async def update_translation(
-        self, translation_id: str, lang: str, text: str, editor: str = ""
+        self, translation_id: str, tenant_id: str, lang: str, text: str, editor: str = ""
     ) -> dict[str, Any]:
-        doc = await self.get_translation(translation_id)
+        doc = await self._get_translation_owned_by_tenant(translation_id, tenant_id)
         await self._repo.update_translation_text(translation_id, lang, text)
         await self._audit(
             translation_id=translation_id,
@@ -380,10 +396,12 @@ class TranslationService:
             lang=lang,
             detail=f"lang={lang}",
         )
-        return await self.get_translation(translation_id)
+        return await self._get_translation_owned_by_tenant(translation_id, tenant_id)
 
-    async def approve_translation(self, translation_id: str, lang: str, approved_by: str) -> dict[str, Any]:
-        doc = await self.get_translation(translation_id)
+    async def approve_translation(
+        self, translation_id: str, tenant_id: str, lang: str, approved_by: str
+    ) -> dict[str, Any]:
+        doc = await self._get_translation_owned_by_tenant(translation_id, tenant_id)
         next_version = doc.get("version", 0) + 1
         approved_at = datetime.now(UTC)
 
@@ -405,10 +423,12 @@ class TranslationService:
             lang=lang,
             detail=f"version={next_version}",
         )
-        return await self.get_translation(translation_id)
+        return await self._get_translation_owned_by_tenant(translation_id, tenant_id)
 
-    async def reject_translation(self, translation_id: str, lang: str, rejected_by: str, reason: str) -> dict[str, Any]:
-        doc = await self.get_translation(translation_id)
+    async def reject_translation(
+        self, translation_id: str, tenant_id: str, lang: str, rejected_by: str, reason: str
+    ) -> dict[str, Any]:
+        doc = await self._get_translation_owned_by_tenant(translation_id, tenant_id)
         await self._repo.reject_translation(translation_id, lang, rejected_by, reason)
         await self._audit(
             translation_id=translation_id,
@@ -420,22 +440,24 @@ class TranslationService:
             lang=lang,
             detail=reason,
         )
-        return await self.get_translation(translation_id)
+        return await self._get_translation_owned_by_tenant(translation_id, tenant_id)
 
     async def get_audit_trail(
         self,
         site_id: str,
+        tenant_id: str,
         route: str | None = None,
         key: str | None = None,
         action: str | None = None,
         limit: int = 200,
     ) -> list[dict[str, Any]]:
+        await self._ensure_site_owned_by_tenant(site_id, tenant_id)
         if route and key:
             return await self._audit_repo.find_by_item(site_id, route, key)
         return await self._audit_repo.find_by_site(site_id, route=route, action=action, limit=limit)
 
-    async def get_version_history(self, translation_id: str) -> list[dict[str, Any]]:
-        await self.get_translation(translation_id)
+    async def get_version_history(self, translation_id: str, tenant_id: str) -> list[dict[str, Any]]:
+        await self._get_translation_owned_by_tenant(translation_id, tenant_id)
         return await self._version_repo.find_by_translation(translation_id)
 
 

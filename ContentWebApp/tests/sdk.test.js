@@ -20,7 +20,10 @@ async function makeDom({ url = "https://app.example.com/authn/login", bodyHtml =
     const u = String(url);
     if (u.includes("/languages")) {
       return Promise.resolve({
-        json: () => Promise.resolve([{ code: "en", name: "English" }, { code: "hi", name: "Hindi" }]),
+        json: () =>
+          Promise.resolve({
+            languages: [{ code: "en", name: "English" }, { code: "hi", name: "Hindi" }],
+          }),
       });
     }
     if (u.includes("/translations/extract")) {

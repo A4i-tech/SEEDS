@@ -45,13 +45,16 @@ def fake_provider():
     return _FakeProvider()
 
 
+TENANT = "tenant-1"
+
+
 @pytest.fixture
 async def translation_service(mock_db, fake_provider):
     await mock_db["websites"].insert_many(
         [
-            {"site_id": "site1", "status": "Active"},
-            {"site_id": "site2", "status": "Active"},
-            {"site_id": "s1", "status": "Active"},
+            {"site_id": "site1", "status": "Active", "tenant_id": TENANT},
+            {"site_id": "site2", "status": "Active", "tenant_id": TENANT},
+            {"site_id": "s1", "status": "Active", "tenant_id": TENANT},
         ]
     )
     return TranslationService(mock_db, lambda: fake_provider, enforce_lang_validation=False)
@@ -272,7 +275,7 @@ async def test_get_or_translate_skips_item_on_transient_failure(
 async def test_get_analytics_counts_across_pending_approved_ai_and_tm(translation_repo, translation_service):
     id1 = await _seeded_translation_id(translation_repo, translation_service)
     await translation_service.get_or_translate("site1", "/home", "hi")
-    await translation_service.approve_translation(id1, "hi", "reviewer@example.com")
+    await translation_service.approve_translation(id1, TENANT, "hi", "reviewer@example.com")
 
     await translation_service.extract_items(
         "site1", [{"key": "t2", "text": "Goodbye", "route": "/bye", "source_lang": "en"}]
@@ -361,9 +364,9 @@ async def test_bulk_approve_pending_approves_all_pending_and_skips_approved(
     await translation_repo.upsert_source("site1", "/h", "t2", "en", "World")
     await translation_repo.save_translation("site1", "/h", "t2", "ta", "[ta] World", "P")
     t2 = next(d for d in await translation_repo.find_by_route("site1", "/h") if d["key"] == "t2")
-    await translation_service.approve_translation(str(t2["_id"]), "ta", "rev@example.com")
+    await translation_service.approve_translation(str(t2["_id"]), TENANT, "ta", "rev@example.com")
 
-    res = await translation_service.bulk_approve_pending("site1", "rev@example.com")
+    res = await translation_service.bulk_approve_pending("site1", TENANT, "rev@example.com")
     assert res == {"approved": 2, "skipped": 1}
 
     docs = {d["key"]: d for d in await translation_repo.find_by_route("site1", "/h")}
@@ -380,7 +383,7 @@ async def test_bulk_approve_pending_skips_rejected(translation_repo, translation
     t2 = next(d for d in await translation_repo.find_by_route("site1", "/h") if d["key"] == "t2")
     await translation_repo.reject_translation(str(t2["_id"]), "hi", "rev@example.com", "needs work")
 
-    res = await translation_service.bulk_approve_pending("site1", "rev@example.com")
+    res = await translation_service.bulk_approve_pending("site1", TENANT, "rev@example.com")
     assert res == {"approved": 1, "skipped": 1}
 
     docs = {d["key"]: d for d in await translation_repo.find_by_route("site1", "/h")}
@@ -396,11 +399,13 @@ async def test_reject_translation_after_approval_flips_status_and_metadata(
     t1 = next(d for d in await translation_repo.find_by_route("site1", "/h") if d["key"] == "t1")
     translation_id = str(t1["_id"])
 
-    await translation_service.approve_translation(translation_id, "hi", "rev@example.com")
+    await translation_service.approve_translation(translation_id, TENANT, "hi", "rev@example.com")
     approved_doc = await translation_repo.find_by_id(translation_id)
     assert approved_doc["translations"]["hi"]["status"] == "approved"
 
-    await translation_service.reject_translation(translation_id, "hi", "rev2@example.com", "changed my mind")
+    await translation_service.reject_translation(
+        translation_id, TENANT, "hi", "rev2@example.com", "changed my mind"
+    )
     doc = await translation_repo.find_by_id(translation_id)
 
     entry = doc["translations"]["hi"]
@@ -423,19 +428,19 @@ async def test_approve_reject_cycle_is_fully_reversible_and_repeatable(
         doc = await translation_repo.find_by_id(translation_id)
         return doc["translations"]["hi"]["status"]
 
-    await translation_service.approve_translation(translation_id, "hi", "rev@example.com")
+    await translation_service.approve_translation(translation_id, TENANT, "hi", "rev@example.com")
     assert await status() == "approved"
 
-    await translation_service.reject_translation(translation_id, "hi", "rev@example.com", "r1")
+    await translation_service.reject_translation(translation_id, TENANT, "hi", "rev@example.com", "r1")
     assert await status() == "rejected"
 
-    await translation_service.approve_translation(translation_id, "hi", "rev@example.com")
+    await translation_service.approve_translation(translation_id, TENANT, "hi", "rev@example.com")
     assert await status() == "approved"
 
-    await translation_service.reject_translation(translation_id, "hi", "rev@example.com", "r2")
+    await translation_service.reject_translation(translation_id, TENANT, "hi", "rev@example.com", "r2")
     assert await status() == "rejected"
 
-    await translation_service.approve_translation(translation_id, "hi", "rev@example.com")
+    await translation_service.approve_translation(translation_id, TENANT, "hi", "rev@example.com")
     assert await status() == "approved"
 
 
@@ -469,7 +474,7 @@ async def test_runtime_translate_serves_approved_translation_on_the_next_request
     await translation_repo.upsert_source("site1", "/h", "t1", "en", "Hello")
     await translation_service.runtime_translate("site1", "/h", "hi")
     doc = (await translation_repo.find_by_route("site1", "/h"))[0]
-    await translation_service.approve_translation(str(doc["_id"]), "hi", "reviewer@example.com")
+    await translation_service.approve_translation(str(doc["_id"]), TENANT, "hi", "reviewer@example.com")
 
     assert await translation_service.runtime_translate("site1", "/h", "hi") == {"t1": "[hi] Hello"}
 
@@ -480,7 +485,7 @@ async def test_generate_for_review_returns_fresh_translation_for_the_reviewer(
     monkeypatch.setattr(ts_module, "get_settings", lambda: _settings_first_party(""))
     await translation_repo.upsert_source("site1", "/h", "t1", "en", "Hello")
 
-    assert await translation_service.generate_for_review("site1", "/h", "hi") == {"t1": "[hi] Hello"}
+    assert await translation_service.generate_for_review("site1", TENANT, "/h", "hi") == {"t1": "[hi] Hello"}
     doc = (await translation_repo.find_by_route("site1", "/h"))[0]
     assert doc["translations"]["hi"]["status"] == "pending"
 
@@ -599,14 +604,14 @@ async def test_generate_for_review_translation_memory_reuse_still_auto_approves(
     translation_repo, translation_service, fake_provider
 ):
     id1 = await _seeded_translation_id(translation_repo, translation_service)
-    await translation_service.generate_for_review("site1", "/home", "hi")
-    await translation_service.approve_translation(id1, "hi", "reviewer@example.com")
+    await translation_service.generate_for_review("site1", TENANT, "/home", "hi")
+    await translation_service.approve_translation(id1, TENANT, "hi", "reviewer@example.com")
     assert len(fake_provider.calls) == 1
 
     await translation_service.extract_items(
         "site1", [{"key": "t2", "text": "Hello", "route": "/about", "source_lang": "en"}]
     )
-    result = await translation_service.generate_for_review("site1", "/about", "hi")
+    result = await translation_service.generate_for_review("site1", TENANT, "/about", "hi")
 
     assert result == {"t2": "[hi] Hello"}
     assert len(fake_provider.calls) == 1

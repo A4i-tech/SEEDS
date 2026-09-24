@@ -50,33 +50,35 @@ class OnboardingService:
 
     async def create_project(
         self,
+        tenant_id: str,
         name: str,
         description: str = "",
         source_language: str = "English",
         status: str = "Active",
     ) -> ProjectResponse:
-        project = await self._projects.create(name, description, source_language, status)
+        project = await self._projects.create(tenant_id, name, description, source_language, status)
         return ProjectResponse.from_doc(project)
 
-    async def list_projects(self) -> list[ProjectResponse]:
-        projects = await self._projects.find_all()
+    async def list_projects(self, tenant_id: str) -> list[ProjectResponse]:
+        projects = await self._projects.find_all_by_tenant(tenant_id)
         return [ProjectResponse.from_doc(project) for project in projects]
 
-    async def update_project(self, project_id: str, fields: dict[str, Any]) -> ProjectResponse:
-        project = await self._projects.find_by_id(project_id)
+    async def update_project(self, project_id: str, tenant_id: str, fields: dict[str, Any]) -> ProjectResponse:
+        project = await self._projects.find_by_id_and_tenant(project_id, tenant_id)
         if project is None:
             raise NotFoundError("Project", project_id)
 
-        updated = await self._projects.update(project_id, fields)
+        updated = await self._projects.update(project_id, tenant_id, fields)
         return ProjectResponse.from_doc(updated)
 
-    async def delete_project(self, project_id: str) -> None:
-        deleted = await self._projects.delete(project_id)
+    async def delete_project(self, project_id: str, tenant_id: str) -> None:
+        deleted = await self._projects.delete(project_id, tenant_id)
         if not deleted:
             raise NotFoundError("Project", project_id)
 
     async def register_website(
         self,
+        tenant_id: str,
         project_id: str | None,
         domain: str,
         name: str = "",
@@ -87,45 +89,45 @@ class OnboardingService:
         self._snippet_base_urls()
 
         if project_id is not None:
-            project = await self._projects.find_by_id(project_id)
+            project = await self._projects.find_by_id_and_tenant(project_id, tenant_id)
             if project is None:
                 raise NotFoundError("Project", project_id)
 
         site_id = str(uuid.uuid4())
         try:
-            website = await self._websites.create(project_id, domain, site_id, name, status, languages)
+            website = await self._websites.create(tenant_id, project_id, domain, site_id, name, status, languages)
         except DuplicateKeyError as exc:
             raise ConflictError(f"Website with domain {domain!r}") from exc
         return WebsiteResponse.from_doc(website, snippet=self._snippet_for(website))
 
-    async def get_website(self, website_id: str) -> WebsiteResponse:
-        website = await self._websites.find_by_id(website_id)
+    async def get_website(self, website_id: str, tenant_id: str) -> WebsiteResponse:
+        website = await self._websites.find_by_id_and_tenant(website_id, tenant_id)
         if website is None:
             raise NotFoundError("Website", website_id)
         return WebsiteResponse.from_doc(website, snippet=self._snippet_for(website))
 
-    async def list_websites(self, project_id: str | None = None) -> list[WebsiteResponse]:
+    async def list_websites(self, tenant_id: str, project_id: str | None = None) -> list[WebsiteResponse]:
         if project_id:
-            websites = await self._websites.find_by_project(project_id)
+            websites = await self._websites.find_by_project_and_tenant(project_id, tenant_id)
         else:
-            websites = await self._websites.find_all()
+            websites = await self._websites.find_all_by_tenant(tenant_id)
         return [WebsiteResponse.from_doc(website) for website in websites]
 
-    async def update_website(self, website_id: str, fields: dict[str, Any]) -> WebsiteResponse:
+    async def update_website(self, website_id: str, tenant_id: str, fields: dict[str, Any]) -> WebsiteResponse:
         self._snippet_base_urls()
 
-        website = await self._websites.find_by_id(website_id)
+        website = await self._websites.find_by_id_and_tenant(website_id, tenant_id)
         if website is None:
             raise NotFoundError("Website", website_id)
 
         if "domain" in fields and fields["domain"]:
             _validate_domain(fields["domain"])
 
-        updated = await self._websites.update(website_id, fields)
+        updated = await self._websites.update(website_id, tenant_id, fields)
         return WebsiteResponse.from_doc(updated, snippet=self._snippet_for(updated))
 
-    async def delete_website(self, website_id: str) -> None:
-        deleted = await self._websites.delete(website_id)
+    async def delete_website(self, website_id: str, tenant_id: str) -> None:
+        deleted = await self._websites.delete(website_id, tenant_id)
         if not deleted:
             raise NotFoundError("Website", website_id)
 

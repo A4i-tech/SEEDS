@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 ALLOWED_METHODS_BY_PATH: dict[str, frozenset[str]] = {
     "/translations": frozenset({"GET"}),
     "/translations/extract": frozenset({"POST"}),
-    "/languages": frozenset({"GET"}),
+    "/v1/languages": frozenset({"GET"}),
 }
 _ALLOWED_REQUEST_HEADERS = frozenset({"content-type"})
 _PREFLIGHT_MAX_AGE = "600"
