@@ -316,24 +316,38 @@ describe("Translate & Review — live component verification", () => {
     expect(translationService.bulkApproveTranslations).not.toHaveBeenCalled();
   });
 
-  test("PASS — status-tab-filtered Approve All uses per-id approval, excluding rejected, not bulk", async () => {
+  test("PASS — status-tab-filtered Approve All (no search) uses the bulk endpoint, not per-id", async () => {
     translationService.listTranslations.mockResolvedValue([
       makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" }),
       makeDoc("k2", "Good Morning", { translated: "ಶುಭೋದಯ" }),
       makeDoc("k3", "Already Approved", { translated: "X", status: "approved" }),
       makeDoc("k4", "Also Rejected", { translated: "Y", status: "rejected" }),
     ]);
-    translationService.approveTranslation.mockResolvedValue({});
+    translationService.bulkApproveTranslations.mockResolvedValue({ approved: 2, skipped: 2, failed: 0 });
     renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
     await screen.findByText("Hello World");
     await userEvent.click(screen.getByRole("button", { name: /^Pending Review/ }));
     await userEvent.click(screen.getByRole("button", { name: /Approve all/i }));
 
-    await waitFor(() => expect(translationService.approveTranslation).toHaveBeenCalledTimes(2));
-    expect(translationService.approveTranslation).toHaveBeenCalledWith("k1", "kn");
-    expect(translationService.approveTranslation).toHaveBeenCalledWith("k2", "kn");
-    expect(translationService.approveTranslation).not.toHaveBeenCalledWith("k4", "kn");
+    await waitFor(() =>
+      expect(translationService.bulkApproveTranslations).toHaveBeenCalledWith({ siteId: "site-1", route: "/", lang: "kn" })
+    );
+    expect(translationService.approveTranslation).not.toHaveBeenCalled();
+  });
+
+  test("PASS — Approve All on the Approved tab with nothing eligible calls neither endpoint", async () => {
+    translationService.listTranslations.mockResolvedValue([
+      makeDoc("k1", "Already Approved", { translated: "X", status: "approved" }),
+      makeDoc("k2", "Also Rejected", { translated: "Y", status: "rejected" }),
+    ]);
+    renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
+    await screen.findByText("Already Approved");
+    await userEvent.click(screen.getByRole("button", { name: /^Approved/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Approve all/i }));
+
+    expect(await screen.findByText("Nothing to approve")).toBeInTheDocument();
     expect(translationService.bulkApproveTranslations).not.toHaveBeenCalled();
+    expect(translationService.approveTranslation).not.toHaveBeenCalled();
   });
 
   test("PASS — per-id Approve All reports partial failures", async () => {
