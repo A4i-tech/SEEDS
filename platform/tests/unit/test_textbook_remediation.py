@@ -132,7 +132,6 @@ async def test_subscribe_stops_on_an_unknown_job(repo):
 from app.controllers.textbook_remediation_controller import (  # noqa: E402
     DraftUpdateRequest,
     VerifyJobRequest,
-    _artifact_bytes,
     create_remediation_job,
     get_remediation_image,
     get_review_summary,
@@ -141,6 +140,7 @@ from app.controllers.textbook_remediation_controller import (  # noqa: E402
     verify_remediation_job,
 )
 from app.platform.error_handling import ForbiddenError, NotFoundError, ValidationError  # noqa: E402
+from app.services.textbook_remediation import artifact_bytes as _artifact_bytes  # noqa: E402
 
 
 class _StubUpload:
@@ -157,6 +157,11 @@ class _StubUpload:
         self.file.seek(offset)
 
 
+async def _chunked(data: bytes, size: int = 8):
+    for i in range(0, len(data), size):
+        yield data[i:i + size]
+
+
 class _StubBlob:
     def __init__(self, downloads: dict[str, bytes] | None = None):
         self.uploaded: dict[str, bytes] = {}
@@ -171,6 +176,12 @@ class _StubBlob:
 
     async def download_file(self, container, blob_path):
         return self._downloads[blob_path]
+
+    async def download_chunks(self, container, blob_path):
+        return _chunked(self._downloads[blob_path])
+
+    async def download_chunks_from_url(self, url):
+        return _chunked(self._downloads[url])
 
 
 @pytest.mark.asyncio
@@ -251,7 +262,8 @@ async def test_get_remediation_image_serves_the_owning_tenant(repo):
         created.job_id, "fig1.png",
         user={"tenant_id": "tenant-a"}, repo=repo, blob_provider=_StubBlob({blob_path: b"png-bytes"}),
     )
-    assert response.body == b"png-bytes"
+    body = b"".join([chunk async for chunk in response.body_iterator])
+    assert body == b"png-bytes"
 
 
 @pytest.mark.asyncio
@@ -321,6 +333,60 @@ async def test_review_summary_skips_a_null_rule_without_dropping_later_rows(repo
         blob_provider=_StubBlob({"https://blob/r.jsonl": lines.encode("utf-8")}),
     )
     assert [t["id"] for t in summary["tables"]] == ["t1"]
+
+
+@pytest.mark.asyncio
+async def test_review_summary_reassembles_lines_split_across_chunks(repo):
+    created = await _create(repo)
+    alt = "\n".join([
+        json.dumps({"id": "d1", "image_name": "fig1.png", "alt_text": "A chart"}),
+        json.dumps({"id": "d2", "image_name": "fig2.png", "alt_text": "A graph"}),
+    ])
+    unresolved = json.dumps({"id": "u1", "type": "unresolved_figure", "reason": "blurry"})
+    remediation = "\n".join([
+        json.dumps({"rule": "table_summary", "id": "t1"}),
+        json.dumps({"rule": "other"}),
+    ])
+    job = await repo.record_artifacts(created.job_id, {
+        "alt": "https://blob/alt.jsonl",
+        "unresolved": "https://blob/unresolved.jsonl",
+        "remediation": "https://blob/remediation.jsonl",
+    }, {})
+    blob = _StubBlob({
+        "https://blob/alt.jsonl": alt.encode("utf-8"),
+        "https://blob/unresolved.jsonl": unresolved.encode("utf-8"),
+        "https://blob/remediation.jsonl": remediation.encode("utf-8"),
+    })
+    summary = await get_review_summary(job.job_id, user={"tenant_id": "tenant-a"}, repo=repo, blob_provider=blob)
+    assert [d["id"] for d in summary["diagrams"]] == ["d1", "d2"]
+    assert [f["id"] for f in summary["flagged_items"]] == ["u1"]
+    assert [t["id"] for t in summary["tables"]] == ["t1"]
+    assert summary["incomplete"] is False
+
+
+@pytest.mark.asyncio
+async def test_iter_jsonl_lines_reassembles_a_line_split_across_chunks():
+    from app.services.textbook_remediation import _iter_jsonl_lines
+
+    async def chunks():
+        yield b'{"id": 1, "na'
+        yield b'me": "a"}\n{"id": 2}\n'
+
+    lines = [json.loads(line) async for line in _iter_jsonl_lines(chunks())]
+    assert lines == [{"id": 1, "name": "a"}, {"id": 2}]
+
+
+@pytest.mark.asyncio
+async def test_findings_page_pages_correctly_across_chunk_boundaries(repo):
+    from app.services.textbook_remediation import findings_page
+
+    created = await _create(repo)
+    job = await repo.record_artifacts(created.job_id, {"findings": "https://blob/f.jsonl"}, {})
+    lines = "\n".join(json.dumps({"id": i}) for i in range(5))
+    blob = _StubBlob({"https://blob/f.jsonl": lines.encode("utf-8")})
+    page = await findings_page(job, "findings", blob, limit=2, offset=1)
+    assert [f["id"] for f in page["findings"]] == [1, 2]
+    assert (page["total"], page["offset"], page["has_more"]) == (5, 1, True)
 
 
 def test_platform_root_path():

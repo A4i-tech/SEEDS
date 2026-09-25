@@ -73,7 +73,7 @@ async def subscribe(
 ) -> AsyncIterator[dict[str, object]]:
     previous: dict[str, object] | None = None
     while True:
-        job = await repo.get(tenant_id, job_id)
+        job = await repo.get(tenant_id, job_id, include_draft=False)
         if job is None:
             return
         payload = serialize_job(job)
@@ -110,9 +110,7 @@ async def create_job(
     )
 
 
-async def artifact_bytes(
-    job: RemediationJob, name: str, blob_provider: BlobStorageProvider
-) -> tuple[bytes, str]:
+def _resolve_artifact(job: RemediationJob, name: str) -> tuple[ArtifactName, str]:
     try:
         artifact = ArtifactName(name)
     except ValueError as exc:
@@ -121,17 +119,55 @@ async def artifact_bytes(
     url = job.artifacts.get(artifact)
     if url is None:
         raise NotFoundError("Artifact", f"{job.job_id}/{name}")
+    return artifact, url
+
+
+async def artifact_bytes(
+    job: RemediationJob, name: str, blob_provider: BlobStorageProvider
+) -> tuple[bytes, str]:
+    artifact, url = _resolve_artifact(job, name)
     return await blob_provider.download_from_url(url), ARTIFACTS[artifact][1]
+
+
+async def artifact_chunks(
+    job: RemediationJob, name: str, blob_provider: BlobStorageProvider
+) -> tuple[AsyncIterator[bytes], str]:
+    artifact, url = _resolve_artifact(job, name)
+    chunks = await blob_provider.download_chunks_from_url(url)
+    return chunks, ARTIFACTS[artifact][1]
+
+
+async def _iter_jsonl_lines(chunks: AsyncIterator[bytes]) -> AsyncIterator[str]:
+    buffer = b""
+    async for chunk in chunks:
+        *lines, buffer = (buffer + chunk).split(b"\n")
+        for line in lines:
+            if line.strip():
+                yield line.decode("utf-8")
+    if buffer.strip():
+        yield buffer.decode("utf-8")
+
+
+async def _iter_artifact_jsonl(
+    job: RemediationJob, name: str, blob_provider: BlobStorageProvider
+) -> AsyncIterator[dict[str, object]]:
+    _artifact, url = _resolve_artifact(job, name)
+    chunks = await blob_provider.download_chunks_from_url(url)
+    async for line in _iter_jsonl_lines(chunks):
+        yield json.loads(line)
 
 
 async def findings_page(
     job: RemediationJob, name: str, blob_provider: BlobStorageProvider, *, limit: int, offset: int
 ) -> dict[str, object]:
-    data, _ = await artifact_bytes(job, name, blob_provider)
-    lines = [line for line in data.decode("utf-8").splitlines() if line.strip()]
-    page = [json.loads(line) for line in lines[offset:offset + limit]]
+    page: list[dict[str, object]] = []
+    total = 0
+    async for item in _iter_artifact_jsonl(job, name, blob_provider):
+        if offset <= total < offset + limit:
+            page.append(item)
+        total += 1
     return FindingsPageResponse(
-        findings=page, total=len(lines), offset=offset, has_more=offset + limit < len(lines)
+        findings=page, total=total, offset=offset, has_more=offset + limit < total
     ).model_dump(mode="json")
 
 
@@ -185,12 +221,13 @@ async def verify_job(
                 (ArtifactName.PDF, out_pdf),
             ):
                 if out_path and out_path.exists():
-                    verified[name] = await blob_provider.upload_file(
-                        container,
-                        f"textbook-remediation/{job.job_id}/verified/{ARTIFACTS[name][0]}",
-                        out_path.read_bytes(),
-                        ARTIFACTS[name][1],
-                    )
+                    with out_path.open("rb") as fh:
+                        verified[name] = await blob_provider.upload_file(
+                            container,
+                            f"textbook-remediation/{job.job_id}/verified/{ARTIFACTS[name][0]}",
+                            fh,
+                            ARTIFACTS[name][1],
+                        )
             if verified:
                 await repo.record_artifacts(job.job_id, verified, {})
 
@@ -227,17 +264,12 @@ async def translate_job(
     return updated
 
 
-def _parse_jsonl(data: bytes) -> list[dict[str, object]]:
-    return [json.loads(line) for line in data.decode("utf-8").splitlines() if line.strip()]
-
-
 async def review_summary(job: RemediationJob, blob_provider: BlobStorageProvider) -> dict[str, object]:
     incomplete = False
     diagrams: list[DiagramResponse] = []
     if ArtifactName.ALT in job.artifacts:
         try:
-            data, _ = await artifact_bytes(job, ArtifactName.ALT, blob_provider)
-            for item in _parse_jsonl(data):
+            async for item in _iter_artifact_jsonl(job, ArtifactName.ALT, blob_provider):
                 diagrams.append(
                     DiagramResponse(
                         id=str(item.get("id") or item.get("image_name") or f"diag_{len(diagrams) + 1}"),
@@ -255,8 +287,7 @@ async def review_summary(job: RemediationJob, blob_provider: BlobStorageProvider
     flagged_items: list[FlaggedItemResponse] = []
     if ArtifactName.UNRESOLVED in job.artifacts:
         try:
-            data, _ = await artifact_bytes(job, ArtifactName.UNRESOLVED, blob_provider)
-            for item in _parse_jsonl(data):
+            async for item in _iter_artifact_jsonl(job, ArtifactName.UNRESOLVED, blob_provider):
                 flagged_items.append(
                     FlaggedItemResponse(
                         id=str(item.get("id") or f"flag_{len(flagged_items) + 1}"),
@@ -274,8 +305,7 @@ async def review_summary(job: RemediationJob, blob_provider: BlobStorageProvider
     tables: list[dict[str, object]] = []
     if ArtifactName.REMEDIATION in job.artifacts:
         try:
-            data, _ = await artifact_bytes(job, ArtifactName.REMEDIATION, blob_provider)
-            for item in _parse_jsonl(data):
+            async for item in _iter_artifact_jsonl(job, ArtifactName.REMEDIATION, blob_provider):
                 rule = str(item.get("rule") or "")
                 if rule == "table_summary" or "table" in rule:
                     tables.append(item)

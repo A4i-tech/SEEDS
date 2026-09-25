@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.models.remediation_job import ARTIFACTS, IMAGE_CONTENT_TYPES, ArtifactName, RemediationJob
@@ -28,7 +28,7 @@ from app.repositories.textbook_remediation_repository import (
 )
 from app.services.language_registry import SUPPORTED_LANGUAGES
 from app.services.textbook_remediation import (
-    artifact_bytes as _artifact_bytes,
+    artifact_chunks as _artifact_chunks,
 )
 from app.services.textbook_remediation import (
     create_job,
@@ -165,11 +165,11 @@ async def get_remediation_artifact(
     user: dict[str, object] = Depends(require_remediation_access),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
-) -> Response:
+) -> StreamingResponse:
     job = await _get_job(repo, str(user["tenant_id"]), job_id)
-    data, content_type = await _artifact_bytes(job, name, blob_provider)
-    return Response(
-        content=data,
+    chunks, content_type = await _artifact_chunks(job, name, blob_provider)
+    return StreamingResponse(
+        chunks,
         media_type=content_type,
         headers={"Content-Disposition": f'attachment; filename="{ARTIFACTS[ArtifactName(name)][0]}"'},
     )
@@ -182,7 +182,7 @@ async def get_remediation_image(
     user: dict[str, object] = Depends(require_remediation_access),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
-) -> Response:
+) -> StreamingResponse:
     await _get_job(repo, str(user["tenant_id"]), job_id)
 
     safe_name = Path(image_name).name
@@ -192,12 +192,12 @@ async def get_remediation_image(
 
     blob_path = f"textbook-remediation/{job_id}/images/{safe_name}"
     try:
-        data = await blob_provider.download_file(get_settings().azure_storage_container, blob_path)
+        chunks = await blob_provider.download_chunks(get_settings().azure_storage_container, blob_path)
     except Exception:
         raise NotFoundError("Image", safe_name)
 
-    return Response(
-        content=data,
+    return StreamingResponse(
+        chunks,
         media_type=content_type,
         headers={"Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff"},
     )
