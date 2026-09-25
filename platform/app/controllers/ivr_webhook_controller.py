@@ -22,20 +22,13 @@ from app.models.ivr_state import DTMFInput, EventWebhookRequest
 from app.platform.database import get_database
 from app.platform.settings import get_settings
 from app.providers.service_bus import service_bus_provider
-from app.repositories.call_repository import CallsLogRepository
-from app.services.ivr_service import IVRService
+from app.services.ivr_service import IVRService, hangup_call
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["IVR Webhooks"])
 
 PLACEHOLDER_DTMF_NCCO: list[dict[str, Any]] = [
-    {
-        "action": "talk",
-        "text": "Please wait.",
-        "bargeIn": False,
-        "loop": 1,
-    },
     {
         "action": "input",
         "type": ["dtmf"],
@@ -95,8 +88,7 @@ async def ivr_call_webhook(request: Request, background_tasks: BackgroundTasks) 
         logger.warning("ivr /webhook: not a missed call (status=%s)", call_status)
         return {"detail": "Invalid call data — not a missed call"}
 
-    db = get_database()
-    call_log_id = await CallsLogRepository(db).create_pending(phone_number)
+    call_log_id = await IVRService(get_database()).create_pending_call_log(phone_number)
     logger.info("ivr /webhook: logged missed call %s id=%s", phone_number, call_log_id)
 
     payload = {
@@ -129,7 +121,7 @@ async def ivr_rtc_event_webhook(request: Request, background_tasks: BackgroundTa
     summary="Vonage DTMF input webhook (IVR)",
     dependencies=[Depends(verify_vonage_signature)],
 )
-async def ivr_dtmf_webhook(request: Request) -> Any:
+async def ivr_dtmf_webhook(request: Request, background_tasks: BackgroundTasks) -> Any:
     """Receives DTMF input from Vonage and enqueues it for the DTMF consumer."""
     req_data = await request.json()
     logger.debug("ivr /input received: %s", req_data)
@@ -142,13 +134,18 @@ async def ivr_dtmf_webhook(request: Request) -> Any:
 
     digits = dtmf_input.dtmf.digits
     conv_id = dtmf_input.conversation_uuid
+    call_leg_id = dtmf_input.uuid
     payload = {
         "conversation_uuid": conv_id,
-        "call_leg_id": dtmf_input.uuid,
+        "call_leg_id": call_leg_id,
         "digits": digits,
         "timed_out": dtmf_input.dtmf.timed_out,
     }
-    message_id = f"dtmf:{conv_id}:{dtmf_input.uuid}:{digits}:{dtmf_input.timestamp}"
+    message_id = f"dtmf:{conv_id}:{call_leg_id}:{digits}:{dtmf_input.timestamp}"
+
+    service = IVRService(get_database()) if call_leg_id else None
+    if service:
+        await service.set_dtmf_waiting(call_leg_id, message_id)
 
     try:
         await service_bus_provider.send_dtmf_input(payload, message_id=message_id)
@@ -156,9 +153,25 @@ async def ivr_dtmf_webhook(request: Request) -> Any:
         logger.error("Failed to enqueue dtmf_input for call=%s: %s", conv_id, exc)
         return ENQUEUE_FAILED_NCCO
 
+    if service:
+        marker = await service.wait_for_dtmf_result(
+            call_leg_id,
+            message_id,
+            wait_seconds=DTMF_BRIDGE_WAIT_SECONDS,
+            poll_interval_seconds=DTMF_BRIDGE_POLL_INTERVAL_SECONDS,
+        )
+        if marker and not marker["waiting"] and marker.get("ncco") is not None:
+            if marker.get("should_hangup"):
+                background_tasks.add_task(hangup_call, call_leg_id, get_settings())
+            return marker["ncco"]
+
     placeholder = [dict(action) for action in PLACEHOLDER_DTMF_NCCO]
-    placeholder[1]["eventUrl"] = [f"{get_settings().base_url}/input"]
+    placeholder[0]["eventUrl"] = [f"{get_settings().base_url}/input"]
     return placeholder
+
+
+DTMF_BRIDGE_WAIT_SECONDS = 8.5
+DTMF_BRIDGE_POLL_INTERVAL_SECONDS = 0.2
 
 
 async def _enqueue_call_event(payload: dict) -> None:

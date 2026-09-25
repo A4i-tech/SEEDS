@@ -14,7 +14,6 @@ from app.consumers.base_consumer import BaseConsumer
 from app.platform.database import get_database
 from app.platform.settings import get_settings
 from app.providers.service_bus import service_bus_provider
-from app.repositories.ivr_repository import IVRRepository
 from app.services.ivr_service import IVRService, hangup_call, update_call_ncco
 
 logger = logging.getLogger(__name__)
@@ -80,9 +79,9 @@ class DtmfConsumer(BaseConsumer):
             return
 
         db = get_database()
+        service = IVRService(db)
         if not call_leg_id:
-            ivr_state = await IVRRepository(db).find_by_conversation_uuid(conversation_uuid)
-            call_leg_id = ivr_state.id if ivr_state else None
+            call_leg_id = await service.resolve_call_leg_id(conversation_uuid)
 
         if not call_leg_id:
             logger.error(
@@ -91,7 +90,7 @@ class DtmfConsumer(BaseConsumer):
             )
             return
 
-        ncco, should_hangup = await IVRService(db).process_dtmf(
+        ncco, should_hangup = await service.process_dtmf(
             call_leg_id=call_leg_id, dtmf=digits, timed_out=timed_out
         )
         if ncco is None:
@@ -99,6 +98,16 @@ class DtmfConsumer(BaseConsumer):
                 "dtmf_consumer: no NCCO to push for call_leg=%s (stale write), skipping", call_leg_id
             )
             return
+
+        claimed = await service.try_claim_dtmf_result(
+            call_leg_id, message.message_id, ncco, should_hangup
+        )
+        if claimed:
+            logger.info(
+                "dtmf_consumer: fast-path claim succeeded call_leg=%s digit=%r", call_leg_id, digits
+            )
+            return
+
         if not await update_call_ncco(call_leg_id, ncco, get_settings()):
             logger.error("dtmf_consumer: update_call_ncco failed for call_leg=%s", call_leg_id)
             return
