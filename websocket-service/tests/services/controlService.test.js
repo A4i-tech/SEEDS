@@ -269,5 +269,27 @@ describe("ControlService", () => {
       errorSpy.mockRestore();
       warnSpy.mockRestore();
     });
+
+    it("SET_SPEED calls setPlaybackSpeed and logs on rejection", async () => {
+      controlService.handleControlConnection(mockWebSocket, "confv2server");
+      const errorSpy = jest.spyOn(console, "error").mockImplementation();
+      websocketService.setPlaybackSpeed.mockRejectedValueOnce(new Error("boom"));
+
+      await mockMessageHandler(
+        JSON.stringify({
+          websocket_id: "test-client",
+          type: MessageType.SET_SPEED,
+          message: "1.5",
+        })
+      );
+
+      expect(websocketService.setPlaybackSpeed).toHaveBeenCalledWith(
+        "test-client",
+        1.5
+      );
+      expect(errorSpy).toHaveBeenCalled();
+
+      errorSpy.mockRestore();
+    });
   });
 });
