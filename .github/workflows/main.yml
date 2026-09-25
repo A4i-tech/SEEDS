@@ -7,6 +7,20 @@ on:
 
 jobs:
 
+  detect-contentwebapp-changes:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/a4i/staging'
+    outputs:
+      changed: ${{ steps.filter.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            changed:
+              - 'ContentWebApp/**'
+
   ci-workflow:
     uses: ./.github/workflows/ci.yml
     with:
@@ -23,6 +37,12 @@ jobs:
     needs: ci-workflow
     if: github.ref == 'refs/heads/a4i/staging'
     uses: ./.github/workflows/deploy-staging.yml
+    secrets: inherit
+
+  contentwebapp-e2e-workflow:
+    needs: [deploy-staging-workflow, detect-contentwebapp-changes]
+    if: github.ref == 'refs/heads/a4i/staging' && needs.detect-contentwebapp-changes.outputs.changed == 'true'
+    uses: ./.github/workflows/contentwebapp-e2e.yml
     secrets: inherit
 
   deploy-main-workflow:
@@ -55,6 +75,7 @@ jobs:
       - ci-workflow
       - deploy-websocket-service-staging-workflow
       - deploy-staging-workflow
+      - contentwebapp-e2e-workflow
       - deploy-main-workflow
       - run-android-tests
       - deploy-android
@@ -74,6 +95,7 @@ jobs:
             "ci-workflow": "CI",
             "deploy-websocket-service-staging-workflow": "Websocket",
             "deploy-staging-workflow": "Backend Staging",
+            "contentwebapp-e2e-workflow": "E2E",
             "deploy-main-workflow": "Backend",
             "deploy-android": "Android"
           }'
