@@ -1,0 +1,18 @@
+title = "SEEDS gitleaks allowlist"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "dummy secret reused across platform test files"
+regexTarget = "match"
+regexes = [
+  '''test-secret-key-for-integration-tests-32ch''',
+]
+
+[[allowlists]]
+description = "example env files"
+paths = [
+  '''platform/env\.example$''',
+  '''ContentWebApp/\.env\.example$''',
+]
