@@ -86,7 +86,7 @@ class OnboardingService:
         languages: list[dict[str, Any]] | None = None,
     ) -> WebsiteResponse:
         _validate_domain(domain)
-        self._base_url()
+        self._snippet_base_urls()
 
         if project_id is not None:
             project = await self._projects.find_by_id_and_tenant(project_id, tenant_id)
@@ -114,7 +114,7 @@ class OnboardingService:
         return [WebsiteResponse.from_doc(website) for website in websites]
 
     async def update_website(self, website_id: str, tenant_id: str, fields: dict[str, Any]) -> WebsiteResponse:
-        self._base_url()
+        self._snippet_base_urls()
 
         website = await self._websites.find_by_id_and_tenant(website_id, tenant_id)
         if website is None:
@@ -131,18 +131,19 @@ class OnboardingService:
         if not deleted:
             raise NotFoundError("Website", website_id)
 
-    def _base_url(self) -> str:
-        base_url = get_settings().base_url.rstrip("/")
-        if not base_url:
-            raise ConfigurationError("BASE_URL must be set to generate an SDK snippet")
-        return base_url
-
-    def _sdk_base_url(self) -> str:
-        sdk_base_url = get_settings().translation_sdk_base_url.rstrip("/")
-        return sdk_base_url or self._base_url()
+    def _snippet_base_urls(self) -> tuple[str, str]:
+        settings = get_settings()
+        sdk_base_url = settings.translation_sdk_base_url.rstrip("/")
+        api_base_url = settings.base_url.rstrip("/")
+        if not sdk_base_url or not api_base_url:
+            raise ConfigurationError(
+                "TRANSLATION_SDK_BASE_URL and BASE_URL must both be set to generate an SDK snippet"
+            )
+        return sdk_base_url, api_base_url
 
     def _snippet_for(self, website: dict[str, Any]) -> str:
-        return build_snippet(self._sdk_base_url(), self._base_url(), website["site_id"])
+        sdk_base_url, api_base_url = self._snippet_base_urls()
+        return build_snippet(sdk_base_url, api_base_url, website["site_id"])
 
 
 def get_onboarding_service(

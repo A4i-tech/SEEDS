@@ -16,6 +16,7 @@ def mock_db():
     return client["test_seeds"]
 
 
+SDK_BASE = "https://app.example.com"
 API_BASE = "https://api.example.com"
 TENANT = "tenant-1"
 OTHER_TENANT = "tenant-2"
@@ -29,7 +30,7 @@ def snippet_settings(monkeypatch):
     monkeypatch.setattr(
         onboarding_service_module,
         "get_settings",
-        lambda: Settings(base_url=API_BASE),
+        lambda: Settings(translation_sdk_base_url=SDK_BASE, base_url=API_BASE),
     )
 
 
@@ -76,17 +77,17 @@ async def test_snippet_format(onboarding_service):
     website = await onboarding_service.register_website(TENANT, project.id, "acme.com")
     snippet = website.snippet
 
-    assert f'src="{API_BASE}/sdk.js"' in snippet
+    assert f'src="{SDK_BASE}/sdk.js"' in snippet
     assert f'data-site-id="{website.site_id}"' in snippet
     assert f'data-api-base="{API_BASE}"' in snippet
     assert "defer" in snippet
 
 
 def test_build_snippet_exact_format():
-    snippet = build_snippet("https://sdk.example.com", "https://api.example.com", "abc-123")
+    snippet = build_snippet("https://app.example.com", "https://api.example.com", "abc-123")
     assert snippet == (
         "<script\n"
-        '  src="https://sdk.example.com/sdk.js"\n'
+        '  src="https://app.example.com/sdk.js"\n'
         '  data-site-id="abc-123"\n'
         '  data-api-base="https://api.example.com"\n'
         "  defer>\n"
@@ -94,55 +95,27 @@ def test_build_snippet_exact_format():
     )
 
 
-async def test_snippet_uses_distinct_sdk_and_api_base_urls_when_configured(onboarding_service, monkeypatch):
+async def test_snippet_uses_separate_sdk_and_api_origins_and_trims_trailing_slashes(onboarding_service, monkeypatch):
     from app.platform.settings import Settings
     from app.services import onboarding_service as onboarding_service_module
 
     monkeypatch.setattr(
         onboarding_service_module,
         "get_settings",
-        lambda: Settings(base_url=API_BASE, translation_sdk_base_url="https://sdk.example.com/"),
+        lambda: Settings(translation_sdk_base_url="https://sdk.example.com/", base_url="https://api.example.com/"),
     )
     website = await onboarding_service.register_website(TENANT, None, "acme.com")
 
     assert 'src="https://sdk.example.com/sdk.js"' in website.snippet
-    assert f'data-api-base="{API_BASE}"' in website.snippet
+    assert 'data-api-base="https://api.example.com"' in website.snippet
 
 
-async def test_snippet_falls_back_to_base_url_for_sdk_src_when_sdk_base_url_unset(
-    onboarding_service, monkeypatch
-):
-    from app.platform.settings import Settings
-    from app.services import onboarding_service as onboarding_service_module
-
-    monkeypatch.setattr(
-        onboarding_service_module,
-        "get_settings",
-        lambda: Settings(base_url=API_BASE, translation_sdk_base_url=""),
-    )
-    website = await onboarding_service.register_website(TENANT, None, "acme.com")
-
-    assert f'src="{API_BASE}/sdk.js"' in website.snippet
-    assert f'data-api-base="{API_BASE}"' in website.snippet
-
-
-async def test_snippet_uses_base_url_and_trims_trailing_slashes(onboarding_service, monkeypatch):
-    from app.platform.settings import Settings
-    from app.services import onboarding_service as onboarding_service_module
-
-    monkeypatch.setattr(
-        onboarding_service_module,
-        "get_settings",
-        lambda: Settings(base_url="https://app.example.com/"),
-    )
-    website = await onboarding_service.register_website(TENANT, None, "acme.com")
-
-    assert 'src="https://app.example.com/sdk.js"' in website.snippet
-    assert 'data-api-base="https://app.example.com"' in website.snippet
-
-
-async def test_register_website_fails_loudly_and_creates_nothing_when_base_url_is_unset(
-    onboarding_service, mock_db, monkeypatch
+@pytest.mark.parametrize(
+    "sdk_base,api_base",
+    [("", API_BASE), (SDK_BASE, ""), ("", "")],
+)
+async def test_register_website_fails_loudly_and_creates_nothing_when_snippet_urls_are_unset(
+    onboarding_service, mock_db, monkeypatch, sdk_base, api_base
 ):
     from app.platform.error_handling import ConfigurationError
     from app.platform.settings import Settings
@@ -151,10 +124,10 @@ async def test_register_website_fails_loudly_and_creates_nothing_when_base_url_i
     monkeypatch.setattr(
         onboarding_service_module,
         "get_settings",
-        lambda: Settings(base_url=""),
+        lambda: Settings(translation_sdk_base_url=sdk_base, base_url=api_base),
     )
 
-    with pytest.raises(ConfigurationError, match="BASE_URL"):
+    with pytest.raises(ConfigurationError, match="TRANSLATION_SDK_BASE_URL"):
         await onboarding_service.register_website(TENANT, None, "acme.com")
 
     assert await mock_db["websites"].count_documents({}) == 0
@@ -200,12 +173,16 @@ async def test_update_website_updates_fields_and_returns_a_snippet(onboarding_se
 
     assert updated.name == "Renamed"
     assert updated.status == "Inactive"
-    assert f'src="{API_BASE}/sdk.js"' in updated.snippet
+    assert f'src="{SDK_BASE}/sdk.js"' in updated.snippet
     assert f'data-api-base="{API_BASE}"' in updated.snippet
 
 
+@pytest.mark.parametrize(
+    "sdk_base,api_base",
+    [("", API_BASE), (SDK_BASE, ""), ("", "")],
+)
 async def test_update_website_with_invalid_config_fails_without_modifying_the_website(
-    onboarding_service, mock_db, monkeypatch
+    onboarding_service, mock_db, monkeypatch, sdk_base, api_base
 ):
     from app.platform.error_handling import ConfigurationError
     from app.platform.settings import Settings
@@ -217,9 +194,9 @@ async def test_update_website_with_invalid_config_fails_without_modifying_the_we
     monkeypatch.setattr(
         onboarding_service_module,
         "get_settings",
-        lambda: Settings(base_url=""),
+        lambda: Settings(translation_sdk_base_url=sdk_base, base_url=api_base),
     )
-    with pytest.raises(ConfigurationError, match="BASE_URL"):
+    with pytest.raises(ConfigurationError, match="TRANSLATION_SDK_BASE_URL"):
         await onboarding_service.update_website(
             website.id, TENANT, {"name": "Changed", "domain": "changed.com", "status": "Inactive"}
         )
@@ -232,7 +209,7 @@ async def test_update_website_checks_config_before_anything_else(onboarding_serv
     from app.platform.settings import Settings
     from app.services import onboarding_service as onboarding_service_module
 
-    monkeypatch.setattr(onboarding_service_module, "get_settings", lambda: Settings(base_url=""))
+    monkeypatch.setattr(onboarding_service_module, "get_settings", lambda: Settings())
 
     with pytest.raises(ConfigurationError):
         await onboarding_service.update_website("000000000000000000000000", TENANT, {"name": "x"})
