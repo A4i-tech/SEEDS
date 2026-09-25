@@ -6,7 +6,7 @@ from pymongo.errors import DuplicateKeyError
 
 from app.platform.error_handling import ConflictError, NotFoundError, ValidationError
 from app.repositories.website_repository import WebsiteRepository
-from app.services.onboarding_service import OnboardingService, build_snippet
+from app.services.onboarding_service import OnboardingService
 from tests.support.mongomock_async import AsyncMongoMockClient
 
 
@@ -74,39 +74,23 @@ async def test_register_website_rejects_duplicate_domain(onboarding_service):
 async def test_snippet_format(onboarding_service):
     project = await onboarding_service.create_project(TENANT, "Acme Corp")
     website = await onboarding_service.register_website(TENANT, project.id, "acme.com")
-    snippet = website.snippet
 
-    assert f'src="{API_BASE}/sdk.js"' in snippet
-    assert f'data-site-id="{website.site_id}"' in snippet
-    assert f'data-api-base="{API_BASE}"' in snippet
-    assert "defer" in snippet
+    assert website.api_base == API_BASE
+    assert website.site_id
 
 
-def test_build_snippet_exact_format():
-    snippet = build_snippet("https://app.example.com", "abc-123")
-    assert snippet == (
-        "<script\n"
-        '  src="https://app.example.com/sdk.js"\n'
-        '  data-site-id="abc-123"\n'
-        '  data-api-base="https://app.example.com"\n'
-        "  defer>\n"
-        "</script>"
-    )
-
-
-async def test_snippet_uses_base_url_and_trims_trailing_slashes(onboarding_service, monkeypatch):
+async def test_website_api_base_trims_trailing_slashes(onboarding_service, monkeypatch):
     from app.platform.settings import Settings
     from app.services import onboarding_service as onboarding_service_module
 
     monkeypatch.setattr(
         onboarding_service_module,
         "get_settings",
-        lambda: Settings(base_url="https://app.example.com/"),
+        lambda: Settings(base_url="https://api.example.com/"),
     )
     website = await onboarding_service.register_website(TENANT, None, "acme.com")
 
-    assert 'src="https://app.example.com/sdk.js"' in website.snippet
-    assert 'data-api-base="https://app.example.com"' in website.snippet
+    assert website.api_base == "https://api.example.com"
 
 
 async def test_register_website_fails_loudly_and_creates_nothing_when_base_url_is_unset(
@@ -168,8 +152,7 @@ async def test_update_website_updates_fields_and_returns_a_snippet(onboarding_se
 
     assert updated.name == "Renamed"
     assert updated.status == "Inactive"
-    assert f'src="{API_BASE}/sdk.js"' in updated.snippet
-    assert f'data-api-base="{API_BASE}"' in updated.snippet
+    assert updated.api_base == API_BASE
 
 
 async def test_update_website_with_invalid_config_fails_without_modifying_the_website(
@@ -200,7 +183,7 @@ async def test_update_website_checks_config_before_anything_else(onboarding_serv
     from app.platform.settings import Settings
     from app.services import onboarding_service as onboarding_service_module
 
-    monkeypatch.setattr(onboarding_service_module, "get_settings", lambda: Settings(base_url=""))
+    monkeypatch.setattr(onboarding_service_module, "get_settings", lambda: Settings())
 
     with pytest.raises(ConfigurationError):
         await onboarding_service.update_website("000000000000000000000000", TENANT, {"name": "x"})
