@@ -98,7 +98,6 @@ class Settings(BaseSettings):
     enable_dev_localhost_origin_alias: bool = False
 
     base_url: str = ""
-    translation_sdk_base_url: str = ""
     ivr_server_url: str = ""
     conf_server_url: str = ""
     events_webhook_ep: str = ""
