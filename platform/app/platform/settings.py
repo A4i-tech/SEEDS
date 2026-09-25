@@ -83,9 +83,6 @@ class Settings(BaseSettings):
     openai_api_key: str = Field(default="", repr=False)
     openai_org_id: str = ""
 
-    groq_api_key: str = Field(default="", repr=False)
-    groq_model: str = "llama-3.3-70b-versatile"
-
     mistral_ocr_api_key: str = Field(default="", repr=False)
     mistral_ocr_endpoint: str = ""
     mistral_ocr_model: str = ""
@@ -98,12 +95,6 @@ class Settings(BaseSettings):
     azure_translation_key: str = Field(default="", repr=False)
     azure_translation_region: str = ""
 
-    translator_key: str = Field(default="", repr=False)
-    translator_region: str = ""
-    translator_endpoint: str = "https://api.cognitive.microsofttranslator.com"
-
-    translation_provider: str = "azure"
-    translation_sdk_base_url: str = ""
     low_confidence_threshold: float = 0.7
     enable_dev_localhost_origin_alias: bool = False
 
