@@ -110,12 +110,8 @@ async def test_snippet_uses_separate_sdk_and_api_origins_and_trims_trailing_slas
     assert 'data-api-base="https://api.example.com"' in website.snippet
 
 
-@pytest.mark.parametrize(
-    "sdk_base,api_base",
-    [("", API_BASE), (SDK_BASE, ""), ("", "")],
-)
-async def test_register_website_fails_loudly_and_creates_nothing_when_snippet_urls_are_unset(
-    onboarding_service, mock_db, monkeypatch, sdk_base, api_base
+async def test_register_website_fails_loudly_and_creates_nothing_when_translation_sdk_base_url_is_unset(
+    onboarding_service, mock_db, monkeypatch
 ):
     from app.platform.error_handling import ConfigurationError
     from app.platform.settings import Settings
@@ -124,10 +120,29 @@ async def test_register_website_fails_loudly_and_creates_nothing_when_snippet_ur
     monkeypatch.setattr(
         onboarding_service_module,
         "get_settings",
-        lambda: Settings(translation_sdk_base_url=sdk_base, base_url=api_base),
+        lambda: Settings(translation_sdk_base_url="", base_url=API_BASE),
     )
 
     with pytest.raises(ConfigurationError, match="TRANSLATION_SDK_BASE_URL"):
+        await onboarding_service.register_website(TENANT, None, "acme.com")
+
+    assert await mock_db["websites"].count_documents({}) == 0
+
+
+async def test_register_website_fails_loudly_and_creates_nothing_when_base_url_is_unset(
+    onboarding_service, mock_db, monkeypatch
+):
+    from app.platform.error_handling import ConfigurationError
+    from app.platform.settings import Settings
+    from app.services import onboarding_service as onboarding_service_module
+
+    monkeypatch.setattr(
+        onboarding_service_module,
+        "get_settings",
+        lambda: Settings(translation_sdk_base_url=SDK_BASE, base_url=""),
+    )
+
+    with pytest.raises(ConfigurationError, match="BASE_URL"):
         await onboarding_service.register_website(TENANT, None, "acme.com")
 
     assert await mock_db["websites"].count_documents({}) == 0
@@ -177,12 +192,8 @@ async def test_update_website_updates_fields_and_returns_a_snippet(onboarding_se
     assert f'data-api-base="{API_BASE}"' in updated.snippet
 
 
-@pytest.mark.parametrize(
-    "sdk_base,api_base",
-    [("", API_BASE), (SDK_BASE, ""), ("", "")],
-)
 async def test_update_website_with_invalid_config_fails_without_modifying_the_website(
-    onboarding_service, mock_db, monkeypatch, sdk_base, api_base
+    onboarding_service, mock_db, monkeypatch
 ):
     from app.platform.error_handling import ConfigurationError
     from app.platform.settings import Settings
@@ -194,9 +205,9 @@ async def test_update_website_with_invalid_config_fails_without_modifying_the_we
     monkeypatch.setattr(
         onboarding_service_module,
         "get_settings",
-        lambda: Settings(translation_sdk_base_url=sdk_base, base_url=api_base),
+        lambda: Settings(translation_sdk_base_url=SDK_BASE, base_url=""),
     )
-    with pytest.raises(ConfigurationError, match="TRANSLATION_SDK_BASE_URL"):
+    with pytest.raises(ConfigurationError, match="BASE_URL"):
         await onboarding_service.update_website(
             website.id, TENANT, {"name": "Changed", "domain": "changed.com", "status": "Inactive"}
         )
