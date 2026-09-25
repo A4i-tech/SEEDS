@@ -47,7 +47,6 @@ steps:
     config:
       engine: ${.config.ocr_engine}
       src_lang: ${.config.language}
-      workers: 8
       foreach: '.items[] | select(.metadata.kind != "image")'
 
   - agent: safe_extract
@@ -435,3 +434,6 @@ steps:
 
   - agent: lineage
     description: "Record the run for audit"
+
+  - agent: detach_content
+    description: "Move image bytes to disk and clear the resource content before the context is dumped to JSON"

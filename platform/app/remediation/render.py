@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import hashlib
 import html
 import json
@@ -192,8 +191,10 @@ class _Corpus:
 def _collect_image(
     item: dict[str, object], meta: dict[str, object], page_num: int, images_dir: Path, corpus: _Corpus
 ) -> None:
-    content_b64 = item.get("content")
-    raw_bytes = base64.b64decode(str(content_b64)) if content_b64 else b""
+    content_path = meta.get("content_path")
+    if not content_path:
+        raise RuntimeError(f"Item {item.get('id')} has no content_path; detach_content did not run on it")
+    raw_bytes = Path(str(content_path)).read_bytes()
     data, ext = as_jpeg(raw_bytes)
 
     access = meta.get("accessibility") or {}

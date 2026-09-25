@@ -212,9 +212,12 @@ async def translate_job(
 ) -> RemediationJob:
     remediated_bytes, _ = await artifact_bytes(job, ArtifactName.REMEDIATED, blob_provider)
     try:
-        translated_urls = await run_translation(
-            job.job_id, remediated_bytes, target_language, job.language, blob_provider
-        )
+        with tempfile.TemporaryDirectory() as workspace:
+            remediated_path = Path(workspace) / "remediated.md"
+            remediated_path.write_bytes(remediated_bytes)
+            translated_urls = await run_translation(
+                job.job_id, remediated_path, target_language, job.language, blob_provider
+            )
         if not translated_urls:
             raise ValidationError("Translation produced no downloadable file. Try again, or pick a different target language.")
     except ValueError as exc:
