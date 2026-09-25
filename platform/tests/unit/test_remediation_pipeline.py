@@ -147,7 +147,6 @@ async def _run_sleeping_pipeline(tmp_path, monkeypatch, **kwargs):
 
     class _Settings:
         openai_api_key = ""
-        groq_api_key = ""
         mistral_ocr_api_key = ""
         mistral_ocr_endpoint = ""
         mistral_ocr_model = ""
