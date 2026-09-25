@@ -83,15 +83,47 @@ async def test_snippet_format(onboarding_service):
 
 
 def test_build_snippet_exact_format():
-    snippet = build_snippet("https://app.example.com", "abc-123")
+    snippet = build_snippet("https://sdk.example.com", "https://api.example.com", "abc-123")
     assert snippet == (
         "<script\n"
-        '  src="https://app.example.com/sdk.js"\n'
+        '  src="https://sdk.example.com/sdk.js"\n'
         '  data-site-id="abc-123"\n'
-        '  data-api-base="https://app.example.com"\n'
+        '  data-api-base="https://api.example.com"\n'
         "  defer>\n"
         "</script>"
     )
+
+
+async def test_snippet_uses_distinct_sdk_and_api_base_urls_when_configured(onboarding_service, monkeypatch):
+    from app.platform.settings import Settings
+    from app.services import onboarding_service as onboarding_service_module
+
+    monkeypatch.setattr(
+        onboarding_service_module,
+        "get_settings",
+        lambda: Settings(base_url=API_BASE, translation_sdk_base_url="https://sdk.example.com/"),
+    )
+    website = await onboarding_service.register_website(TENANT, None, "acme.com")
+
+    assert 'src="https://sdk.example.com/sdk.js"' in website.snippet
+    assert f'data-api-base="{API_BASE}"' in website.snippet
+
+
+async def test_snippet_falls_back_to_base_url_for_sdk_src_when_sdk_base_url_unset(
+    onboarding_service, monkeypatch
+):
+    from app.platform.settings import Settings
+    from app.services import onboarding_service as onboarding_service_module
+
+    monkeypatch.setattr(
+        onboarding_service_module,
+        "get_settings",
+        lambda: Settings(base_url=API_BASE, translation_sdk_base_url=""),
+    )
+    website = await onboarding_service.register_website(TENANT, None, "acme.com")
+
+    assert f'src="{API_BASE}/sdk.js"' in website.snippet
+    assert f'data-api-base="{API_BASE}"' in website.snippet
 
 
 async def test_snippet_uses_base_url_and_trims_trailing_slashes(onboarding_service, monkeypatch):

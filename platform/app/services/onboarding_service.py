@@ -32,12 +32,12 @@ def _validate_domain(domain: str) -> None:
         raise ValidationError(f"Invalid domain: {domain!r}")
 
 
-def build_snippet(base_url: str, site_id: str) -> str:
+def build_snippet(sdk_base_url: str, api_base_url: str, site_id: str) -> str:
     return (
         "<script\n"
-        f'  src="{base_url}/sdk.js"\n'
+        f'  src="{sdk_base_url}/sdk.js"\n'
         f'  data-site-id="{site_id}"\n'
-        f'  data-api-base="{base_url}"\n'
+        f'  data-api-base="{api_base_url}"\n'
         "  defer>\n"
         "</script>"
     )
@@ -137,8 +137,12 @@ class OnboardingService:
             raise ConfigurationError("BASE_URL must be set to generate an SDK snippet")
         return base_url
 
+    def _sdk_base_url(self) -> str:
+        sdk_base_url = get_settings().translation_sdk_base_url.rstrip("/")
+        return sdk_base_url or self._base_url()
+
     def _snippet_for(self, website: dict[str, Any]) -> str:
-        return build_snippet(self._base_url(), website["site_id"])
+        return build_snippet(self._sdk_base_url(), self._base_url(), website["site_id"])
 
 
 def get_onboarding_service(
