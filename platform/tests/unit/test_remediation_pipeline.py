@@ -202,6 +202,36 @@ async def test_run_pipeline_kills_child_on_timeout(tmp_path, monkeypatch):
     assert time.monotonic() - start < 5
 
 
+@pytest.mark.asyncio
+async def test_run_pipeline_reports_stderr_tail_on_nonzero_exit(tmp_path, monkeypatch):
+    import app.remediation.run_pipeline as pipeline_mod
+
+    class _Settings:
+        openai_api_key = ""
+        mistral_ocr_api_key = ""
+        mistral_ocr_endpoint = ""
+        mistral_ocr_model = ""
+        azure_openai_api_key = ""
+        azure_openai_endpoint = ""
+        openai_api_version = ""
+        default_chat_completion_model = ""
+        azure_translation_key = ""
+        azure_translation_region = ""
+
+    monkeypatch.setattr(pipeline_mod, "get_settings", lambda: _Settings())
+
+    real_exec = asyncio.create_subprocess_exec
+
+    async def fake_exec(*args, **exec_kwargs):
+        script = "import sys; sys.stderr.write('boom: out of memory'); sys.exit(3)"
+        return await real_exec(sys.executable, "-c", script, **exec_kwargs)
+
+    monkeypatch.setattr(pipeline_mod.asyncio, "create_subprocess_exec", fake_exec)
+
+    with pytest.raises(RuntimeError, match="boom: out of memory"):
+        await pipeline_mod.run_pipeline(tmp_path / "pipeline.yaml", tmp_path / "in.txt", tmp_path, [], timeout=10)
+
+
 def test_figure_block_with_mangled_id_uses_next_unused_page_figure():
     figures = {
         "fig-a": {"page": 1, "src": "images/a.png", "alt_text": "A"},
@@ -227,3 +257,14 @@ def test_page_without_ocr_text_drops_invented_text_blocks():
 
     assert "Physical Quantities" not in body
     assert corpus.unresolved_records[0]["type"] == "invented_text"
+
+
+def test_failure_message_names_signal_and_step_when_child_is_killed():
+    import app.remediation.run_pipeline as pipeline_mod
+
+    msg = pipeline_mod._failure_message("p.yaml", -9, "safe_extract", "tail")
+
+    assert "signal 9" in msg
+    assert "safe_extract" in msg
+    assert "ran out of memory" in msg
+    assert msg.endswith("stderr: tail")

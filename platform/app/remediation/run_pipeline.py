@@ -31,6 +31,30 @@ _REMEDIATION_SETTINGS_KEYS = (
 )
 
 
+def _stderr_tail(path: Path) -> str:
+    with open(path, "rb") as f:
+        f.seek(max(path.stat().st_size - 8000, 0))
+        return f.read().decode("utf-8", "replace").strip()[-2000:]
+
+
+def _failure_message(name: str, code: int, step: str | None, tail: str) -> str:
+    step_desc = step or "an unknown step"
+    if code < 0:
+        msg = (
+            f"The remediation pipeline was stopped by signal {-code} during step {step_desc}, "
+            "most likely because it ran out of memory. Retry with a smaller PDF, or ask an "
+            "admin to raise the worker memory limit."
+        )
+    else:
+        msg = (
+            f"Pipeline {name} failed during step {step_desc} with exit code {code}. "
+            "Check the stderr output below for the cause."
+        )
+    if tail:
+        msg += f" stderr: {tail}"
+    return msg
+
+
 async def run_pipeline(
     pipeline_path: Path,
     resource: Path,
@@ -40,6 +64,7 @@ async def run_pipeline(
     timeout: float | None = None,
 ) -> None:
     progress_file = workspace / "remediation.progress.jsonl"
+    stderr_path = workspace / "remediation.stderr.log"
     command = [
         sys.executable, "-m", "app.remediation.run",
         str(pipeline_path), "--input", str(resource),
@@ -57,57 +82,81 @@ async def run_pipeline(
     }
 
     stop_tailing = asyncio.Event()
+    last_step: dict[str, str | None] = {"name": None}
 
     async def _tail_progress() -> None:
         file_pos = 0
-        while not stop_tailing.is_set():
-            if progress_file.exists():
+
+        async def _read_new() -> None:
+            nonlocal file_pos
+            if not progress_file.exists():
+                return
+            try:
+                with open(progress_file, encoding="utf-8") as f:
+                    f.seek(file_pos)
+                    lines = f.readlines()
+                    file_pos = f.tell()
+            except Exception as exc:
+                logger.warning("remediation: failed reading progress file: %s", exc)
+                return
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
                 try:
-                    with open(progress_file, encoding="utf-8") as f:
-                        f.seek(file_pos)
-                        lines = f.readlines()
-                        file_pos = f.tell()
-                    for line in lines:
-                        line = line.strip()
-                        if not line:
-                            continue
-                        try:
-                            evt = json.loads(line)
-                            if on_progress:
-                                await on_progress(evt)
-                        except Exception as exc:
-                            logger.warning("remediation: failed parsing progress line: %s", exc)
+                    evt = json.loads(line)
                 except Exception as exc:
-                    logger.warning("remediation: failed reading progress file: %s", exc)
+                    logger.warning("remediation: failed parsing progress line: %s", exc)
+                    continue
+                if evt.get("step_name"):
+                    last_step["name"] = evt["step_name"]
+                if on_progress:
+                    try:
+                        await on_progress(evt)
+                    except Exception as exc:
+                        logger.warning("remediation: failed handling progress event: %s", exc)
+
+        while not stop_tailing.is_set():
+            await _read_new()
             await asyncio.sleep(0.5)
+        await _read_new()
 
     tail_task = asyncio.create_task(_tail_progress())
     try:
-        proc = await asyncio.create_subprocess_exec(
-            *command,
-            cwd=str(workspace),
-            env=env,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
+        with open(stderr_path, "wb") as stderr_fh:
+            proc = await asyncio.create_subprocess_exec(
+                *command,
+                cwd=str(workspace),
+                env=env,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=stderr_fh,
+            )
         try:
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout)
+            await asyncio.wait_for(proc.wait(), timeout)
         except TimeoutError as exc:
             proc.kill()
-            _, stderr = await proc.communicate()
+            await proc.wait()
+            tail = _stderr_tail(stderr_path)
+            logger.error(
+                "remediation: pipeline %s timed out after %ss, last step=%s: %s",
+                pipeline_path.name, timeout, last_step["name"], tail,
+            )
             raise RuntimeError(
-                f"Pipeline {pipeline_path.name} timed out after {timeout}s: "
-                f"{stderr.decode('utf-8', 'replace').strip()[-2000:]}"
+                f"Pipeline {pipeline_path.name} timed out after {timeout}s during step "
+                f"{last_step['name'] or 'an unknown step'}: {tail}"
             ) from exc
         except asyncio.CancelledError:
             proc.kill()
-            await proc.communicate()
+            await proc.wait()
             raise
     finally:
         stop_tailing.set()
-        await asyncio.sleep(0.1)
-        tail_task.cancel()
+        await tail_task
 
     if proc.returncode != 0:
-        err_msg = stderr.decode("utf-8", "replace").strip() or stdout.decode("utf-8", "replace").strip()
-        raise RuntimeError(f"Pipeline {pipeline_path.name} failed: {err_msg[-2000:]}")
+        tail = _stderr_tail(stderr_path)
+        logger.error(
+            "remediation: pipeline %s failed rc=%s last step=%s: %s",
+            pipeline_path.name, proc.returncode, last_step["name"], tail,
+        )
+        raise RuntimeError(_failure_message(pipeline_path.name, proc.returncode, last_step["name"], tail))

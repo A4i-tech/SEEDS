@@ -32,6 +32,14 @@ from app.remediation.render import render_remediation  # noqa: E402
 
 
 def test_render_remediation_generates_all_artifacts(tmp_path):
+    import base64
+
+    png_bytes = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+    )
+    img_path = tmp_path / "img-1.bin"
+    img_path.write_bytes(png_bytes)
+
     ctx = {
         "items": [
             {
@@ -56,10 +64,10 @@ def test_render_remediation_generates_all_artifacts(tmp_path):
             },
             {
                 "id": "img-1",
-                "content": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
                 "metadata": {
                     "kind": "image",
                     "page": 1,
+                    "content_path": str(img_path),
                     "accessibility": {
                         "kind": "diagram",
                         "alt_text": "A simple pixel diagram",
@@ -104,12 +112,12 @@ class _StubBlob:
         self.uploaded: dict[str, bytes] = {}
 
     async def upload_file(self, container, blob_name, data, content_type):
-        self.uploaded[blob_name] = data
+        self.uploaded[blob_name] = data.read() if hasattr(data, "read") else data
         return f"https://blob/{blob_name}"
 
 
 @pytest.mark.asyncio
-async def test_run_translation_uploads_translated_artifacts(monkeypatch):
+async def test_run_translation_uploads_translated_artifacts(monkeypatch, tmp_path):
     import json
 
     import app.remediation.translate as translate_mod
@@ -132,8 +140,10 @@ async def test_run_translation_uploads_translated_artifacts(monkeypatch):
     monkeypatch.setattr(translate_mod, "compile_docx_tex_pdf", fake_compile)
 
     blob = _StubBlob()
+    remediated_path = tmp_path / "remediated.md"
+    remediated_path.write_bytes(b"original heading and body")
     urls = await translate_mod.run_translation(
-        "job-1", b"original heading and body", "hi", "en", blob
+        "job-1", remediated_path, "hi", "en", blob
     )
 
     assert set(urls) == {"translated_md", "translated_docx", "translated_tex", "translated_pdf"}

@@ -20,19 +20,17 @@ TRANSLATION_TIMEOUT_SECONDS = 60 * 60
 
 async def run_translation(
     job_id: str,
-    remediated_md: bytes,
+    remediated_path: Path,
     target_language: str,
     source_language: str,
     blob_provider: BlobStorageProvider,
 ) -> dict[str, str]:
     with tempfile.TemporaryDirectory() as workspace:
         work = Path(workspace)
-        md_path = work / "remediated.md"
-        md_path.write_bytes(remediated_md)
         context_path = work / "context.json"
 
         await run_pipeline(
-            PIPELINE_PATH, md_path, work,
+            PIPELINE_PATH, remediated_path, work,
             [
                 "--source-language", source_language or "auto",
                 "--target-language", target_language,
@@ -68,7 +66,8 @@ async def run_translation(
             ("translated_pdf", out_dir / artifact_filename(ArtifactName.TRANSLATED_PDF)),
         ):
             if path.exists():
-                urls[name] = await blob_provider.upload_file(
-                    container, f"textbook-remediation/{job_id}/{path.name}", path.read_bytes(), ARTIFACTS[name][1]
-                )
+                with open(path, "rb") as fh:
+                    urls[name] = await blob_provider.upload_file(
+                        container, f"textbook-remediation/{job_id}/{path.name}", fh, ARTIFACTS[name][1]
+                    )
         return urls

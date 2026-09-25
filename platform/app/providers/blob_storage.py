@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import IO
 from urllib.parse import unquote, urlparse
 
@@ -120,6 +121,14 @@ class BlobStorageProvider:
         """Download a blob given its full Azure URL and return raw bytes."""
         container, blob_path = _parse_blob_url(blob_url)
         return await self.download_file(container, blob_path)
+
+    async def download_from_url_to_file(self, blob_url: str, dest: Path) -> None:
+        container, blob_path = _parse_blob_url(blob_url)
+        container_client = self._client.get_container_client(container)
+        blob_client = container_client.get_blob_client(blob_path)
+        downloader = await blob_client.download_blob()
+        with open(dest, "wb") as fh:
+            await downloader.readinto(fh)
 
     async def delete_blob(self, container: str, blob_name: str) -> bool:
         """Delete blob *blob_name* from *container*.
