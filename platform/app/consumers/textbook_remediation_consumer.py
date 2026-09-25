@@ -169,13 +169,10 @@ async def _translate_if_requested(
     if not job.target_language:
         return None
     remediated_path = out / artifact_filename(ArtifactName.REMEDIATED)
-    if not remediated_path.exists():
-        message = "Remediation produced no text to translate."
-        await repo.set_translation_error(job.job_id, message)
-        return message
+    remediated_bytes = remediated_path.read_bytes() if remediated_path.exists() else b""
     try:
         translated_urls = await run_translation(
-            job.job_id, remediated_path.read_bytes(), job.target_language, job.language, blob_provider
+            job.job_id, remediated_bytes, job.target_language, job.language, blob_provider
         )
         if not translated_urls:
             raise RuntimeError("Translation produced no downloadable file.")

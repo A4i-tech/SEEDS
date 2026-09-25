@@ -6,9 +6,10 @@ import logging
 import tempfile
 from pathlib import Path
 
-from app.models.remediation_job import ARTIFACTS, ArtifactName, artifact_filename
+from app.models.remediation_job import ARTIFACTS, AUTO_LANGUAGES, ArtifactName, artifact_filename
 from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider
+from app.remediation.detect_language import language_name_to_code
 from app.remediation.render import compile_docx_tex_pdf
 from app.remediation.run_pipeline import run_pipeline
 
@@ -25,6 +26,20 @@ async def run_translation(
     source_language: str,
     blob_provider: BlobStorageProvider,
 ) -> dict[str, str]:
+    if not remediated_md.strip():
+        raise ValueError("Remediation produced no text to translate. Re-run remediation, then try translating again.")
+    source = (source_language or "").strip()
+    if source.lower() in (*AUTO_LANGUAGES, "", "unknown"):
+        source = "auto"
+    else:
+        code = language_name_to_code(source)
+        if code is None:
+            raise ValueError(
+                f"Source language {source_language!r} is not supported for translation. "
+                "Pick a language from GET /v1/languages."
+            )
+        source = code
+
     with tempfile.TemporaryDirectory() as workspace:
         work = Path(workspace)
         md_path = work / "remediated.md"
@@ -34,7 +49,7 @@ async def run_translation(
         await run_pipeline(
             PIPELINE_PATH, md_path, work,
             [
-                "--source-language", source_language or "auto",
+                "--source-language", source,
                 "--target-language", target_language,
                 "--output", str(context_path),
             ],
@@ -44,7 +59,10 @@ async def run_translation(
         ctx_data = json.loads(context_path.read_text(encoding="utf-8"))
         translated_text = str((ctx_data.get("metadata") or {}).get("translated_text") or "")
         if not translated_text:
-            raise RuntimeError("Translation pipeline produced no text")
+            raise RuntimeError(
+                "Translation produced no text. The source document had no extractable text. "
+                "Re-run remediation, then try translating again."
+            )
 
         out_dir = work / "out"
         out_dir.mkdir()

@@ -217,6 +217,9 @@ async def translate_job(
         )
         if not translated_urls:
             raise ValidationError("Translation produced no downloadable file. Try again, or pick a different target language.")
+    except ValueError as exc:
+        await repo.set_translation_error(job.job_id, str(exc))
+        raise ValidationError(str(exc)) from exc
     except Exception as exc:
         await repo.set_translation_error(job.job_id, str(exc))
         raise
