@@ -216,7 +216,7 @@ class _StubTranslationProvider(TranslationProvider):
 
 
 def get_translation_provider(settings: Settings) -> TranslationProvider:
-    provider_name = (settings.translation_provider or "openai").lower()
+    provider_name = (settings.translation_provider or "azure").lower()
 
     if provider_name == "openai":
         return OpenAITranslationProvider(settings.openai_api_key)

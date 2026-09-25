@@ -6,7 +6,9 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import Depends
+from pymongo import UpdateOne
 from pymongo.asynchronous.database import AsyncDatabase
+from pymongo.errors import BulkWriteError
 
 from app.platform.auth.dependencies import get_db
 from app.platform.error_handling import NotFoundError, ValidationError
@@ -17,7 +19,6 @@ from app.providers.translation_provider import (
     get_translation_provider,
 )
 from app.repositories.glossary_repository import GlossaryRepository
-from app.repositories.language_repository import LanguageRepository
 from app.repositories.translation_audit_repository import TranslationAuditRepository
 from app.repositories.translation_repository import TranslationRepository
 from app.repositories.translation_version_repository import TranslationVersionRepository
@@ -47,7 +48,6 @@ class TranslationService:
         self._version_repo = TranslationVersionRepository(db)
         self._audit_repo = TranslationAuditRepository(db)
         self._website_repo = WebsiteRepository(db)
-        self._language_repo = LanguageRepository(db)
         self._enforce_lang_validation = enforce_lang_validation
 
     @property
@@ -62,13 +62,26 @@ class TranslationService:
             raise NotFoundError("website", site_id)
         return website
 
-    async def _ensure_lang_enabled(self, lang: str) -> None:
+    async def _ensure_site_owned_by_tenant(self, site_id: str, tenant_id: str) -> dict[str, Any]:
+        website = await self._website_repo.find_by_site_id(site_id)
+        if not website or website.get("tenant_id") != tenant_id:
+            raise NotFoundError("website", site_id)
+        return website
+
+    async def _get_translation_owned_by_tenant(self, translation_id: str, tenant_id: str) -> dict[str, Any]:
+        doc = await self._repo.find_by_id(translation_id)
+        if doc is None:
+            raise NotFoundError("Translation", translation_id)
+        await self._ensure_site_owned_by_tenant(doc["site_id"], tenant_id)
+        return doc
+
+    async def _ensure_lang_enabled(self, site_id: str, lang: str) -> None:
         if not self._enforce_lang_validation:
             return
-        languages = await self._language_repo.find_all(enabled_only=True)
-        codes = {language["code"] for language in languages}
+        website = await self._website_repo.find_by_site_id(site_id)
+        codes = {entry["code"] for entry in (website or {}).get("languages") or [] if entry.get("enabled")}
         if lang not in codes:
-            raise ValidationError(f"lang {lang!r} is not an enabled language")
+            raise ValidationError(f"lang {lang!r} is not an enabled language for this site")
 
     async def _audit(
         self,
@@ -150,11 +163,15 @@ class TranslationService:
 
     async def runtime_translate(self, site_id: str, route: str, lang: str) -> dict[str, str]:
         await self._ensure_site_active(site_id)
-        return await self._generate_translations(site_id, route, lang)
+        return await self._generate_translations(
+            site_id, route, lang, serve_pending=self._is_first_party(site_id)
+        )
 
-    async def generate_for_review(self, site_id: str, route: str, lang: str) -> dict[str, str]:
-        await self._ensure_site_active(site_id)
-        return await self._generate_translations(site_id, route, lang)
+    async def generate_for_review(self, site_id: str, tenant_id: str, route: str, lang: str) -> dict[str, str]:
+        website = await self._ensure_site_owned_by_tenant(site_id, tenant_id)
+        if website.get("status") != "Active":
+            raise NotFoundError("website", site_id)
+        return await self._generate_translations(site_id, route, lang, serve_pending=True)
 
     def _is_first_party(self, site_id: str) -> bool:
         ids = getattr(get_settings(), "first_party_site_ids", "") or ""
@@ -162,8 +179,10 @@ class TranslationService:
             return False
         return site_id in {s.strip() for s in ids.split(",") if s.strip()}
 
-    async def _generate_translations(self, site_id: str, route: str, lang: str) -> dict[str, str]:
-        await self._ensure_lang_enabled(lang)
+    async def _generate_translations(
+        self, site_id: str, route: str, lang: str, serve_pending: bool
+    ) -> dict[str, str]:
+        await self._ensure_lang_enabled(site_id, lang)
         first_party = self._is_first_party(site_id)
         docs = await self._repo.find_by_route(site_id, route)
         result: dict[str, str] = {}
@@ -198,10 +217,10 @@ class TranslationService:
             masked, pmap = mask(normalized)
             pending.append((doc, masked, pmap, source_lang, normalized))
 
-        await self._runtime_batch_ai(site_id, route, lang, pending, result)
+        await self._runtime_batch_ai(site_id, route, lang, pending, result, serve_pending)
         return result
 
-    async def _runtime_batch_ai(self, site_id, route, lang, pending, result) -> None:
+    async def _runtime_batch_ai(self, site_id, route, lang, pending, result, serve_pending) -> None:
         by_src: dict[str, list] = {}
         for entry in pending:
             by_src.setdefault(entry[3], []).append(entry)
@@ -215,7 +234,7 @@ class TranslationService:
                         translated = unmask(out, pmap)
                         quality = score_translation(normalized, out, pmap)
                         await self._persist_translation(site_id, route, doc, lang, translated, type(self._provider).__name__, quality)
-                        result[doc["key"]] = translated
+                        result[doc["key"]] = translated if serve_pending else doc["source_text"]
                 except (TransientTranslationError, ValueError):
                     for doc, masked, pmap, _s, normalized in chunk:
                         try:
@@ -226,7 +245,7 @@ class TranslationService:
                         translated = unmask(out, pmap)
                         quality = score_translation(normalized, out, pmap)
                         await self._persist_translation(site_id, route, doc, lang, translated, type(self._provider).__name__, quality)
-                        result[doc["key"]] = translated
+                        result[doc["key"]] = translated if serve_pending else doc["source_text"]
 
     def _chunk(self, entries: list) -> list[list]:
         out: list[list] = []
@@ -313,10 +332,13 @@ class TranslationService:
     async def list_translations(
         self,
         site_id: str,
+        tenant_id: str | None = None,
         route: str | None = None,
         status: str | None = None,
         low_confidence_only: bool = False,
     ) -> list[dict[str, Any]]:
+        if tenant_id is not None:
+            await self._ensure_site_owned_by_tenant(site_id, tenant_id)
         if route:
             docs = await self._repo.find_by_route(site_id, route)
             if status:
@@ -339,34 +361,124 @@ class TranslationService:
     async def bulk_approve_pending(
         self,
         site_id: str,
+        tenant_id: str,
         approved_by: str,
         route: str | None = None,
         lang: str | None = None,
     ) -> dict[str, int]:
+        await self._ensure_site_owned_by_tenant(site_id, tenant_id)
         docs = await self.list_translations(site_id, route=route)
+
+        now = datetime.now(UTC)
+        ops: list[UpdateOne] = []
+        op_translation_ids: list[str] = []
+        op_lang_counts: list[int] = []
+        versions_by_translation: dict[str, list[dict[str, Any]]] = {}
+        audits_by_translation: dict[str, list[dict[str, Any]]] = {}
         approved = 0
         skipped = 0
+
         for doc in docs:
+            translation_id = str(doc["_id"])
+            translations_snapshot = dict(doc.get("translations") or {})
+            version = doc.get("version", 0)
+            set_fields: dict[str, Any] = {}
+            audit_pushes: list[dict[str, Any]] = []
+            lang_count = 0
+
             for doc_lang, entry in (doc.get("translations") or {}).items():
                 if lang and doc_lang != lang:
                     continue
-                if entry.get("status") == "approved":
+                if entry.get("status") in ("approved", "rejected"):
                     skipped += 1
                     continue
-                await self.approve_translation(str(doc["_id"]), doc_lang, approved_by)
-                approved += 1
-        return {"approved": approved, "skipped": skipped}
 
-    async def get_translation(self, translation_id: str) -> dict[str, Any]:
-        doc = await self._repo.find_by_id(translation_id)
-        if doc is None:
-            raise NotFoundError("Translation", translation_id)
-        return doc
+                version += 1
+                versions_by_translation.setdefault(translation_id, []).append({
+                    "translation_id": translation_id,
+                    "version": version,
+                    "translations": translations_snapshot,
+                    "approved_by": approved_by,
+                    "approved_at": now,
+                    "created_at": now,
+                })
+                set_fields[f"translations.{doc_lang}.status"] = "approved"
+                set_fields[f"translations.{doc_lang}.approved_by"] = approved_by
+                set_fields[f"translations.{doc_lang}.approved_at"] = now
+                set_fields[f"translations.{doc_lang}.quality_score"] = 1.0
+                set_fields["status"] = "approved"
+                set_fields["approved_by"] = approved_by
+                set_fields["approved_at"] = now
+                set_fields["version"] = version
+                set_fields["updated_at"] = now
+                audit_pushes.append(
+                    {"action": "approved", "actor": approved_by, "detail": f"version={version}", "at": now}
+                )
+                audits_by_translation.setdefault(translation_id, []).append({
+                    "site_id": site_id,
+                    "route": doc["route"],
+                    "key": doc["key"],
+                    "lang": doc_lang,
+                    "action": "approved",
+                    "actor": approved_by,
+                    "provider": None,
+                    "detail": f"version={version}",
+                    "at": now,
+                })
+                translations_snapshot = {
+                    **translations_snapshot,
+                    doc_lang: {**entry, "status": "approved", "approved_by": approved_by, "approved_at": now},
+                }
+                approved += 1
+                lang_count += 1
+
+            if lang_count:
+                ops.append(
+                    UpdateOne(
+                        {"_id": doc["_id"]},
+                        {"$set": set_fields, "$push": {"audit_log": {"$each": audit_pushes}}},
+                    )
+                )
+                op_translation_ids.append(translation_id)
+                op_lang_counts.append(lang_count)
+
+        failed = 0
+        failed_translation_ids: set[str] = set()
+        if ops:
+            try:
+                await self._repo.bulk_approve(ops)
+            except BulkWriteError as exc:
+                for err in exc.details.get("writeErrors", []):
+                    idx = err["index"]
+                    failed_translation_ids.add(op_translation_ids[idx])
+                    failed += op_lang_counts[idx]
+                approved -= failed
+                logger.warning(
+                    "bulk_approve_pending: %d translation(s) failed to update",
+                    failed,
+                    extra={"site_id": site_id, "route": route},
+                )
+
+        version_docs = [
+            v for tid, vs in versions_by_translation.items() if tid not in failed_translation_ids for v in vs
+        ]
+        audit_docs = [
+            a for tid, aes in audits_by_translation.items() if tid not in failed_translation_ids for a in aes
+        ]
+        if version_docs:
+            await self._version_repo.add_versions_bulk(version_docs)
+        if audit_docs:
+            await self._audit_repo.record_bulk(audit_docs)
+
+        return {"approved": approved, "skipped": skipped, "failed": failed}
+
+    async def get_translation(self, translation_id: str, tenant_id: str) -> dict[str, Any]:
+        return await self._get_translation_owned_by_tenant(translation_id, tenant_id)
 
     async def update_translation(
-        self, translation_id: str, lang: str, text: str, editor: str = ""
+        self, translation_id: str, tenant_id: str, lang: str, text: str, editor: str = ""
     ) -> dict[str, Any]:
-        doc = await self.get_translation(translation_id)
+        doc = await self._get_translation_owned_by_tenant(translation_id, tenant_id)
         await self._repo.update_translation_text(translation_id, lang, text)
         await self._audit(
             translation_id=translation_id,
@@ -378,10 +490,12 @@ class TranslationService:
             lang=lang,
             detail=f"lang={lang}",
         )
-        return await self.get_translation(translation_id)
+        return await self._get_translation_owned_by_tenant(translation_id, tenant_id)
 
-    async def approve_translation(self, translation_id: str, lang: str, approved_by: str) -> dict[str, Any]:
-        doc = await self.get_translation(translation_id)
+    async def approve_translation(
+        self, translation_id: str, tenant_id: str, lang: str, approved_by: str
+    ) -> dict[str, Any]:
+        doc = await self._get_translation_owned_by_tenant(translation_id, tenant_id)
         next_version = doc.get("version", 0) + 1
         approved_at = datetime.now(UTC)
 
@@ -403,10 +517,12 @@ class TranslationService:
             lang=lang,
             detail=f"version={next_version}",
         )
-        return await self.get_translation(translation_id)
+        return await self._get_translation_owned_by_tenant(translation_id, tenant_id)
 
-    async def reject_translation(self, translation_id: str, lang: str, rejected_by: str, reason: str) -> dict[str, Any]:
-        doc = await self.get_translation(translation_id)
+    async def reject_translation(
+        self, translation_id: str, tenant_id: str, lang: str, rejected_by: str, reason: str
+    ) -> dict[str, Any]:
+        doc = await self._get_translation_owned_by_tenant(translation_id, tenant_id)
         await self._repo.reject_translation(translation_id, lang, rejected_by, reason)
         await self._audit(
             translation_id=translation_id,
@@ -418,22 +534,24 @@ class TranslationService:
             lang=lang,
             detail=reason,
         )
-        return await self.get_translation(translation_id)
+        return await self._get_translation_owned_by_tenant(translation_id, tenant_id)
 
     async def get_audit_trail(
         self,
         site_id: str,
+        tenant_id: str,
         route: str | None = None,
         key: str | None = None,
         action: str | None = None,
         limit: int = 200,
     ) -> list[dict[str, Any]]:
+        await self._ensure_site_owned_by_tenant(site_id, tenant_id)
         if route and key:
             return await self._audit_repo.find_by_item(site_id, route, key)
         return await self._audit_repo.find_by_site(site_id, route=route, action=action, limit=limit)
 
-    async def get_version_history(self, translation_id: str) -> list[dict[str, Any]]:
-        await self.get_translation(translation_id)
+    async def get_version_history(self, translation_id: str, tenant_id: str) -> list[dict[str, Any]]:
+        await self._get_translation_owned_by_tenant(translation_id, tenant_id)
         return await self._version_repo.find_by_translation(translation_id)
 
 

@@ -10,7 +10,12 @@ from pymongo.errors import DuplicateKeyError
 
 from app.models.responses.onboarding import ProjectResponse, WebsiteResponse
 from app.platform.auth.dependencies import get_db
-from app.platform.error_handling import ConflictError, NotFoundError, ValidationError
+from app.platform.error_handling import (
+    ConfigurationError,
+    ConflictError,
+    NotFoundError,
+    ValidationError,
+)
 from app.platform.settings import get_settings
 from app.repositories.project_repository import ProjectRepository
 from app.repositories.website_repository import WebsiteRepository
@@ -27,12 +32,12 @@ def _validate_domain(domain: str) -> None:
         raise ValidationError(f"Invalid domain: {domain!r}")
 
 
-def build_snippet(base_url: str, site_id: str) -> str:
+def build_snippet(sdk_base_url: str, api_base_url: str, site_id: str) -> str:
     return (
         "<script\n"
-        f'  src="{base_url}/sdk.js"\n'
+        f'  src="{sdk_base_url}/sdk.js"\n'
         f'  data-site-id="{site_id}"\n'
-        f'  data-api-base="{base_url}"\n'
+        f'  data-api-base="{api_base_url}"\n'
         "  defer>\n"
         "</script>"
     )
@@ -45,83 +50,100 @@ class OnboardingService:
 
     async def create_project(
         self,
+        tenant_id: str,
         name: str,
         description: str = "",
         source_language: str = "English",
         status: str = "Active",
     ) -> ProjectResponse:
-        project = await self._projects.create(name, description, source_language, status)
+        project = await self._projects.create(tenant_id, name, description, source_language, status)
         return ProjectResponse.from_doc(project)
 
-    async def list_projects(self) -> list[ProjectResponse]:
-        projects = await self._projects.find_all()
+    async def list_projects(self, tenant_id: str) -> list[ProjectResponse]:
+        projects = await self._projects.find_all_by_tenant(tenant_id)
         return [ProjectResponse.from_doc(project) for project in projects]
 
-    async def update_project(self, project_id: str, fields: dict[str, Any]) -> ProjectResponse:
-        project = await self._projects.find_by_id(project_id)
+    async def update_project(self, project_id: str, tenant_id: str, fields: dict[str, Any]) -> ProjectResponse:
+        project = await self._projects.find_by_id_and_tenant(project_id, tenant_id)
         if project is None:
             raise NotFoundError("Project", project_id)
 
-        updated = await self._projects.update(project_id, fields)
+        updated = await self._projects.update(project_id, tenant_id, fields)
         return ProjectResponse.from_doc(updated)
 
-    async def delete_project(self, project_id: str) -> None:
-        deleted = await self._projects.delete(project_id)
+    async def delete_project(self, project_id: str, tenant_id: str) -> None:
+        deleted = await self._projects.delete(project_id, tenant_id)
         if not deleted:
             raise NotFoundError("Project", project_id)
 
     async def register_website(
         self,
-        project_id: str,
+        tenant_id: str,
+        project_id: str | None,
         domain: str,
         name: str = "",
         status: str = "Active",
+        languages: list[dict[str, Any]] | None = None,
     ) -> WebsiteResponse:
         _validate_domain(domain)
+        self._snippet_base_urls()
 
-        project = await self._projects.find_by_id(project_id)
-        if project is None:
-            raise NotFoundError("Project", project_id)
+        if project_id is not None:
+            project = await self._projects.find_by_id_and_tenant(project_id, tenant_id)
+            if project is None:
+                raise NotFoundError("Project", project_id)
 
         site_id = str(uuid.uuid4())
         try:
-            website = await self._websites.create(project_id, domain, site_id, name, status)
+            website = await self._websites.create(tenant_id, project_id, domain, site_id, name, status, languages)
         except DuplicateKeyError as exc:
             raise ConflictError(f"Website with domain {domain!r}") from exc
         return WebsiteResponse.from_doc(website, snippet=self._snippet_for(website))
 
-    async def get_website(self, website_id: str) -> WebsiteResponse:
-        website = await self._websites.find_by_id(website_id)
+    async def get_website(self, website_id: str, tenant_id: str) -> WebsiteResponse:
+        website = await self._websites.find_by_id_and_tenant(website_id, tenant_id)
         if website is None:
             raise NotFoundError("Website", website_id)
         return WebsiteResponse.from_doc(website, snippet=self._snippet_for(website))
 
-    async def list_websites(self, project_id: str | None = None) -> list[WebsiteResponse]:
+    async def list_websites(self, tenant_id: str, project_id: str | None = None) -> list[WebsiteResponse]:
         if project_id:
-            websites = await self._websites.find_by_project(project_id)
+            websites = await self._websites.find_by_project_and_tenant(project_id, tenant_id)
         else:
-            websites = await self._websites.find_all()
+            websites = await self._websites.find_all_by_tenant(tenant_id)
         return [WebsiteResponse.from_doc(website) for website in websites]
 
-    async def update_website(self, website_id: str, fields: dict[str, Any]) -> WebsiteResponse:
-        website = await self._websites.find_by_id(website_id)
+    async def update_website(self, website_id: str, tenant_id: str, fields: dict[str, Any]) -> WebsiteResponse:
+        self._snippet_base_urls()
+
+        website = await self._websites.find_by_id_and_tenant(website_id, tenant_id)
         if website is None:
             raise NotFoundError("Website", website_id)
 
         if "domain" in fields and fields["domain"]:
             _validate_domain(fields["domain"])
 
-        updated = await self._websites.update(website_id, fields)
+        updated = await self._websites.update(website_id, tenant_id, fields)
         return WebsiteResponse.from_doc(updated, snippet=self._snippet_for(updated))
 
-    async def delete_website(self, website_id: str) -> None:
-        deleted = await self._websites.delete(website_id)
+    async def delete_website(self, website_id: str, tenant_id: str) -> None:
+        deleted = await self._websites.delete(website_id, tenant_id)
         if not deleted:
             raise NotFoundError("Website", website_id)
 
-    def _snippet_for(self, website: dict[str, Any]) -> str:
+    def _snippet_base_urls(self) -> tuple[str, str]:
         settings = get_settings()
-        return build_snippet(settings.translation_sdk_base_url, website["site_id"])
+        sdk_base_url = settings.translation_sdk_base_url.rstrip("/")
+        api_base_url = settings.base_url.rstrip("/")
+        if not sdk_base_url or not api_base_url:
+            raise ConfigurationError(
+                "TRANSLATION_SDK_BASE_URL and BASE_URL must both be set to generate an SDK snippet"
+            )
+        return sdk_base_url, api_base_url
+
+    def _snippet_for(self, website: dict[str, Any]) -> str:
+        sdk_base_url, api_base_url = self._snippet_base_urls()
+        return build_snippet(sdk_base_url, api_base_url, website["site_id"])
 
 
 def get_onboarding_service(

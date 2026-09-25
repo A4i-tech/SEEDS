@@ -1,6 +1,6 @@
 import { SEEDS_URL } from "../Constants";
 import { getAuthHeaders } from "../utils/authHelpers";
-import { apiFetch, buildQueryString } from "./api";
+import { apiFetch, buildQueryString, streamSse } from "./api";
 
 export const contentAggregatorService = {
   /**
@@ -145,29 +145,10 @@ export const contentAggregatorService = {
    * @returns {Promise<void>}
    */
   async streamJob(jobId, onEvent, { signal } = {}) {
-    const response = await fetch(
+    return streamSse(
       `${SEEDS_URL}/content-aggregators/sync/stream/${encodeURIComponent(jobId)}`,
+      onEvent,
       { headers: getAuthHeaders(), signal }
     );
-    if (!response.ok || !response.body) {
-      throw new Error(`Failed to open sync stream (status ${response.status})`);
-    }
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      let separatorIndex;
-      while ((separatorIndex = buffer.indexOf("\n\n")) !== -1) {
-        const rawEvent = buffer.slice(0, separatorIndex);
-        buffer = buffer.slice(separatorIndex + 2);
-        const dataLine = rawEvent.split("\n").find((line) => line.startsWith("data: "));
-        if (dataLine) {
-          onEvent(JSON.parse(dataLine.slice("data: ".length)));
-        }
-      }
-    }
   },
 };
