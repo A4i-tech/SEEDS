@@ -13,8 +13,6 @@ regexes = [
 [[allowlists]]
 description = "example env files"
 paths = [
-  '''.*/env\.example$''',
-  '''.*/env\.sample$''',
-  '''.*\.env\.example$''',
-  '''.*\.env\.sample$''',
+  '''platform/env\.example$''',
+  '''ContentWebApp/\.env\.example$''',
 ]
