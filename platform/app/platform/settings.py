@@ -93,7 +93,6 @@ class Settings(BaseSettings):
     default_chat_completion_model: str = ""
 
     azure_translation_key: str = Field(default="", repr=False)
-    azure_translation_region: str = ""
 
     low_confidence_threshold: float = 0.7
     enable_dev_localhost_origin_alias: bool = False
@@ -177,6 +176,11 @@ class Settings(BaseSettings):
     def effective_mongo_connection_string(self) -> str:
         """Return the first non-empty MongoDB connection string available."""
         return self.mongo_db_connection_string or self.db_connection
+
+    @property
+    def azure_translation_region(self) -> str:
+        """Azure Translator region, reused from the Azure speech/TTS region."""
+        return self.tts_region
 
 
 @lru_cache

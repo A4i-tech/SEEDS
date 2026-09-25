@@ -44,7 +44,7 @@ class AzureTranslationProvider(TranslationProvider):
         if not key:
             raise ValueError("Azure Translator requires a subscription key (AZURE_TRANSLATION_KEY).")
         if not region:
-            raise ValueError("Azure Translator requires a region (AZURE_TRANSLATION_REGION).")
+            raise ValueError("Azure Translator requires a region (TTS_REGION).")
         self._key = key
         self._region = region
         self._endpoint = (endpoint or self._DEFAULT_ENDPOINT).rstrip("/")

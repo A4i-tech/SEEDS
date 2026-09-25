@@ -60,16 +60,16 @@ async def translation_service(mock_db, fake_provider):
 
 
 def test_get_translation_provider_returns_azure_with_credentials():
-    settings = Settings(azure_translation_key="key", azure_translation_region="centralindia")
+    settings = Settings(azure_translation_key="key", tts_region="test-region")
     assert isinstance(get_translation_provider(settings), AzureTranslationProvider)
 
 
 def test_get_translation_provider_requires_azure_credentials():
     with pytest.raises(ValueError, match="AZURE_TRANSLATION_KEY"):
-        get_translation_provider(Settings(azure_translation_key="", azure_translation_region="centralindia"))
+        get_translation_provider(Settings(azure_translation_key="", tts_region="test-region"))
 
-    with pytest.raises(ValueError, match="AZURE_TRANSLATION_REGION"):
-        get_translation_provider(Settings(azure_translation_key="key", azure_translation_region=""))
+    with pytest.raises(ValueError, match="TTS_REGION"):
+        get_translation_provider(Settings(azure_translation_key="key", tts_region=""))
 
 
 
